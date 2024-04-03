@@ -19,10 +19,10 @@ Channels          Trace::s_channels     = DfltChannels ; // by default, trace de
 
 #ifndef NO_TRACE
 
-	size_t  Trace::_s_pos   =  0    ;
-	bool    Trace::_s_ping  = false ;
-	Fd      Trace::_s_fd    ;
-	::mutex Trace::_s_mutex ;
+	size_t                 Trace::_s_pos   =  0    ;
+	bool                   Trace::_s_ping  = false ;
+	Fd                     Trace::_s_fd    ;
+	Mutex<MutexLvl::Trace> Trace::_s_mutex ;
 
 	thread_local int            Trace::_t_lvl  = 0       ;
 	thread_local bool           Trace::_t_hide = false   ;
@@ -39,7 +39,7 @@ Channels          Trace::s_channels     = DfltChannels ; // by default, trace de
 	void Trace::s_new_trace_file(::string const& trace_file) {
 		if (trace_file==*g_trace_file) return ;
 		//
-		::unique_lock lock{_s_mutex} ;
+		Lock lock{_s_mutex} ;
 		//
 		_s_fd.close() ;
 		*g_trace_file = trace_file ;

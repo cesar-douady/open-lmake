@@ -295,6 +295,7 @@ namespace Engine::Makefiles {
 			if ( old.rules_module!=new_.rules_module ) new_rules = !old.rules_module ? Reason::Set : !new_.rules_module ? Reason::Cleared : Reason::Modified ;
 		} ;
 		try {
+			Gil::Anti no_gil { gil } ;                                                             // release gil as new_config needs Backend which is of lower priority
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -310,7 +311,9 @@ namespace Engine::Makefiles {
 		::pair_s<bool/*done*/> srcs_digest = _refresh_srcs( srcs , src_dirs_s , srcs_deps  , new_srcs , py_info , startup_dir_s , nfs_guard ) ;
 		bool invalidate_src = srcs_digest.second ;
 		if (invalidate_src) {
-			try { //!                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try {
+				Gil::Anti no_gil { gil } ;
+				//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate_src &= Persistent::new_srcs( ::move(srcs) , ::move(src_dirs_s) , dynamic ) ;
 			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// if srcs_digest is empty, sources were in config
@@ -322,7 +325,9 @@ namespace Engine::Makefiles {
 		::pair_s<bool/*done*/> rules_digest = _refresh_rules( rules , rules_deps , new_rules , py_info , startup_dir_s , nfs_guard ) ;
 		bool invalidate_rule = rules_digest.second ;
 		if (invalidate_rule) {
-			try { //!                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try {
+				Gil::Anti no_gil { gil } ;                                                         // release gil as new_rules acquires it when needed
+				//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate_rule &= Persistent::new_rules( ::move(rules) , dynamic ) ;
 			} catch (::string const& e) { //!  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// if rules_digest is empty, rules were in config

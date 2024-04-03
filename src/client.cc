@@ -178,16 +178,21 @@ Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqSyntax co
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
 	if ( !cmd_line.flags[ReqFlag::Job] && cmd_line.flags[ReqFlag::Rule] ) syntax.usage("can only force a rule to identify a job, not a file") ;
 	//
-	Bool3 rv = Maybe ;
-	if (!cmd_line.flags[ReqFlag::Video]) rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
-	else
-		switch (cmd_line.flag_args[+ReqFlag::Video][0]) {
-			case 'n' :
-			case 'N' : rv = No    ; break ;
-			case 'r' :
-			case 'R' : rv = Yes   ; break ;
-			default  : rv = Maybe ;
-		}
+	Bool3    rv     = Maybe/*garbage*/ ;
+	::string rv_str ;
+	if (!rv_str) { rv_str = cmd_line.flag_args[+ReqFlag::Video] ; trace("cmd_line",rv_str) ; }
+	if (!rv_str) { rv_str = get_env("LMAKE_VIDEO")              ; trace("env"     ,rv_str) ; }
+	switch (rv_str[0]) {
+		case 'n' :
+		case 'N' : rv = No                                     ; break ;
+		case 'r' :
+		case 'R' : rv = Yes                                    ; break ;
+		case 'f' :
+		case 'F' : rv = Maybe                                  ; break ; // force no color
+		default  : rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
+	}
+	trace("reverse_video",rv) ;
+	//
 	ReqRpcReq rrr { proc , cmd_line.files() , { rv , cmd_line } } ;
 	connect_to_server(refresh) ;
 	started_cb() ;

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <sys/mman.h>                                                          // mmap, mremap, munmap
+#include <sys/mman.h> // mmap, mremap, munmap
 
 #include "disk.hh"
 #include "trace.hh"
@@ -18,10 +18,10 @@
 
 namespace Store {
 
-	extern size_t g_page ;                                                     // cannot initialize directly as this may occur after first call to cxtor
+	extern size_t g_page ; // cannot initialize directly as this may occur after first call to cxtor
 
-	template<bool AutoLock> using UniqueLock = ::conditional_t<AutoLock,::unique_lock<::shared_mutex>,NoLock<::shared_mutex>> ;
-	template<bool AutoLock> using SharedLock = ::conditional_t<AutoLock,::shared_lock<::shared_mutex>,NoLock<::shared_mutex>> ;
+	template<bool AutoLock> using UniqueLock = ::conditional_t<AutoLock,::Lock      <SharedMutex<MutexLvl::File>>,NoLock<SharedMutex<MutexLvl::File>>> ;
+	template<bool AutoLock> using SharedLock = ::conditional_t<AutoLock,::SharedLock<SharedMutex<MutexLvl::File>>,NoLock<SharedMutex<MutexLvl::File>>> ;
 
 	template<bool AutoLock> struct File {
 		using ULock = UniqueLock<AutoLock> ;
@@ -45,18 +45,12 @@ namespace Store {
 		bool operator+() const { return size    ; }
 		bool operator!() const { return !+*this ; }
 		// services
-		void lock           ()       {        _mutex.lock           () ; }     // behave as a mutex, so file can be used in ::unique_lock et al.
-		bool try_lock       ()       { return _mutex.try_lock       () ; }     // but if AutoLock, then there is no reason to access it from outside
-		void unlock         ()       {        _mutex.unlock         () ; }     // .
-		void lock_shared    () const {        _mutex.lock_shared    () ; }     // .
-		bool try_lock_shared() const { return _mutex.try_lock_shared() ; }     // .
-		void unlock_shared  () const {        _mutex.unlock_shared  () ; }     // .
 		void expand(size_t sz) {
-			if (sz<=size) return ;                                             // fast path
+			if (sz<=size) return ;                              // fast path
 			ULock lock{_mutex} ;
-			if ( AutoLock && sz<=size ) return ;                               // redo size check, now that we have the lock
+			if ( AutoLock && sz<=size ) return ;                // redo size check, now that we have the lock
 			size_t old_size = size ;
-			_resize_file(::max( sz , size + (size>>2) )) ;                     // ensure remaps are in log(n)
+			_resize_file(::max( sz , size + (size>>2) )) ;      // ensure remaps are in log(n)
 			_map(old_size) ;
 		}
 		void clear(size_t sz=0) {
@@ -90,12 +84,12 @@ namespace Store {
 		// data
 	public :
 		::string         name     ;
-		char*            base     = nullptr ;                                  // address of mapped file
-		::atomic<size_t> size     = 0       ;                                  // underlying file size (fake if no file)
-		size_t           capacity = 0       ;                                  // max size that can ever be allocated
+		char*            base     = nullptr ;                   // address of mapped file
+		::atomic<size_t> size     = 0       ;                   // underlying file size (fake if no file)
+		size_t           capacity = 0       ;                   // max size that can ever be allocated
 		bool             writable = false   ;
 	protected :
-		mutable ::shared_mutex _mutex ;
+		SharedMutex<MutexLvl::File> mutable _mutex ;
 	private :
 		AutoCloseFd _fd ;
 	} ;
@@ -125,7 +119,7 @@ namespace Store {
 			if (writable) { open_flags |= O_RDWR | O_CREAT ; Disk::dir_guard(name) ; }
 			else            open_flags |= O_RDONLY         ;
 			//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_fd = ::open( name.c_str() , open_flags , 0644 ) ;                 // mode is only used if created, which implies writable
+			_fd = ::open( name.c_str() , open_flags , 0644 ) ; // mode is only used if created, which implies writable
 			//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			SWEAR_PROD(+_fd) ;
 			Disk::FileInfo fi{_fd} ;
@@ -156,11 +150,11 @@ namespace Store {
 		sz = round_up(sz,g_page) ;
 		if (+_fd) {
 			//         vvvvvvvvvvvvvvvvvvvvv
-			int rc = ::ftruncate( _fd , sz ) ;                             // may increase file size
+			int rc = ::ftruncate( _fd , sz ) ; // may increase file size
 			//         ^^^^^^^^^^^^^^^^^^^^^
 			if (rc!=0) FAIL_PROD(rc,strerror(errno)) ;
 		}
-		fence() ;                                                          // update state when it is legal to do so
+		fence() ;                              // update state when it is legal to do so
 		size = sz ;
 	}
 

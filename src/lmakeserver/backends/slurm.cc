@@ -630,8 +630,9 @@ namespace Backends::Slurm {
 			trace("spawn_error",err_str) ;
 			throw "slurm spawn job error : " + err_str ;
 		}
+		uint32_t res = msg->job_id ;
 		SlurmApi::free_submit_response_response_msg(msg) ;
-		return msg->job_id ;
+		return res ;
 	}
 
 	Daemon slurm_sense_daemon() {

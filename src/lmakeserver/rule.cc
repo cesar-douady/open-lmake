@@ -239,7 +239,7 @@ namespace Engine {
 	,	lmake_dir_var_name{ py_src.size()>4 ? ::string(py_src[4].as_a<Py::Str>()) : ""s }
 	,	dbg_info          { py_src.size()>5 ? ::string(py_src[5].as_a<Py::Str>()) : ""s }
 	{
-		Py::Gil gil ;
+		Py::Gil::s_swear_locked() ;
 		if (py_src.size()<=1) return ;
 		ctx.reserve(py_src[1].as_a<Py::Sequence>().size()) ;
 		for( Py::Object const& py_item : py_src[1].as_a<Py::Sequence>() ) {
@@ -640,8 +640,8 @@ namespace Engine {
 	}
 	void RuleData::_acquire_py(Py::Dict const& dct) {
 		static ::string root_dir_s = *g_root_dir+'/' ;
-		Gil      gil   ;
 		::string field ;
+		Gil::s_swear_locked() ;
 		try {
 			//
 			// acquire essential (necessary for Anti & GenericSrc)

@@ -492,6 +492,8 @@ If it starts with @code{r} or @code{R}, reverse video is assumed.
 Else output is not colorized.
 @end itemize
 
+If the @code{LMAKE_VIDEO} environment variable is defined, it is processed as if provided to the @code{--video} option.
+
 @section @lmake
 
 Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [[-j|--jobs] max_jobs] [-m|--manual-ok] [-o|--live-out] [-l|--local] [-v|--versbose-backend] targets...}

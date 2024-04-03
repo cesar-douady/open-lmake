@@ -134,17 +134,17 @@ namespace Backends {
 		static Backend* s_tab[N<Tag>] ;
 
 	private :
-		static JobExecThread *          _s_job_start_thread       ;
-		static JobExecThread *          _s_job_mngt_thread        ;
-		static JobExecThread *          _s_job_end_thread         ;
-		static DeferredThread*          _s_deferred_report_thread ;
-		static DeferredThread*          _s_deferred_wakeup_thread ;
-		static ::mutex                  _s_mutex                  ;
-		static ::atomic<JobIdx>         _s_starting_job           ;                                       // this job is starting when _starting_job_mutex is locked
-		static ::mutex                  _s_starting_job_mutex     ;
-		static ::map<JobIdx,StartEntry> _s_start_tab              ;                                       // use map instead of umap because heartbeat iterates over while tab is moving
-		static SmallIds<SmallId>        _s_small_ids              ;
-		static SmallId                  _s_max_small_id           ;
+		static JobExecThread *           _s_job_start_thread       ;
+		static JobExecThread *           _s_job_mngt_thread        ;
+		static JobExecThread *           _s_job_end_thread         ;
+		static DeferredThread*           _s_deferred_report_thread ;
+		static DeferredThread*           _s_deferred_wakeup_thread ;
+		static Mutex<MutexLvl::Backend>  _s_mutex                  ;
+		static ::atomic<JobIdx>          _s_starting_job           ;                                      // this job is starting when _starting_job_mutex is locked
+		static Mutex<MutexLvl::StartJob> _s_starting_job_mutex     ;
+		static ::map<JobIdx,StartEntry>  _s_start_tab              ;                                      // use map instead of umap because heartbeat iterates over while tab is moving
+		static SmallIds<SmallId>         _s_small_ids              ;
+		static SmallId                   _s_max_small_id           ;
 	public :
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
@@ -192,15 +192,15 @@ namespace Backends {
 	inline ::vmap_s<size_t> Backend::s_n_tokenss (Tag t) { return                     s_tab[+t]->n_tokenss() ; }
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
-	#define LOCK ::unique_lock lock{_s_mutex}
+	#define LOCK Lock lock{_s_mutex}
 	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { LOCK ; Trace trace(BeChnl,"s_open_req"   ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->open_req   (r,nj) ; }
 	inline void Backend::s_close_req  (ReqIdx r          ) { LOCK ; Trace trace(BeChnl,"s_close_req"  ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->close_req  (r   ) ; }
 	inline void Backend::s_new_req_eta(ReqIdx r          ) { LOCK ; Trace trace(BeChnl,"s_new_req_eta",r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->new_req_eta(r   ) ; }
 	#undef LOCK
 	//
-	inline ::string/*msg*/          Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
-	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
-	inline ::pair_s<HeartbeatState> Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
+	inline ::string/*msg*/          Backend::s_start    ( Tag t , JobIdx j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
+	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , JobIdx j , Status s ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
+	inline ::pair_s<HeartbeatState> Backend::s_heartbeat( Tag t , JobIdx j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
 
 	inline bool Backend::StartEntry::useful() const {
 		for( Req r : reqs ) if (!r.zombie()) return true ;

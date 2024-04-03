@@ -21,7 +21,7 @@ using namespace Hash ;
 	return                              os <<')'                      ;
 }
 
-::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Algo ha ) {
+::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks/*out*/ , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Algo ha ) {
 	::uset_s keep_dirs ;
 	::string msg       ;
 	bool     ok        = true ;

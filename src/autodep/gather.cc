@@ -33,7 +33,7 @@ using namespace Time ;
 	return                                          os <<')'                                                    ;
 }
 
-void Gather::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , CD const& cd , NodeIdx parallel_id_ ) {
+void Gather::AccessInfo::update( PD pd , AccessDigest ad , CD const& cd , NodeIdx parallel_id_ ) {
 	digest.tflags       |= ad.tflags       ;
 	digest.extra_tflags |= ad.extra_tflags ;
 	digest.dflags       |= ad.dflags       ;
@@ -54,7 +54,6 @@ void Gather::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , CD c
 	/**/                          { PD& d=target   ; if ( ad.extra_tflags[ExtraTflag::Allow] && pd<d )   d = pd ;                                }
 	/**/                          { PD& d=seen     ; if ( !di && cd.seen(ad.accesses)        && pd<d )   d = pd ;                                }
 	//
-	if (ad.write!=No) phony_ok |= phony_ok_ ;
 }
 
 //
@@ -67,7 +66,7 @@ void Gather::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , CD c
 	return           os << ')'                      ;
 }
 
-void Gather::_new_access( Fd fd , PD pd , bool phony_ok , ::string&& file , AccessDigest ad , CD const& cd , bool parallel , ::string const& comment ) {
+void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , CD const& cd , bool parallel , ::string const& comment ) {
 	SWEAR( +file , comment        ) ;
 	SWEAR( +pd   , comment , file ) ;
 	AccessInfo* info        = nullptr/*garbage*/                       ;
@@ -80,9 +79,9 @@ void Gather::_new_access( Fd fd , PD pd , bool phony_ok , ::string&& file , Acce
 	}
 	if (!parallel) parallel_id++ ;
 	AccessInfo old_info = *info ;                                                                                                                           // for tracing only
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	info->update( pd , phony_ok , ad , cd , parallel_id ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	info->update( pd , ad , cd , parallel_id ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , ad , cd , parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
 }
 
@@ -119,41 +118,44 @@ void _child_wait_thread_func( int* wstatus , pid_t pid , Fd fd ) {
 
 bool/*done*/ Gather::kill(int sig) {
 	Trace trace("kill",sig,pid,STR(as_session),child_stdout,child_stderr,mk_key_uset(slaves)) ;
-	::unique_lock lock      { _pid_mutex }           ;
-	int           kill_sig  = sig>=0 ? sig : SIGKILL ;
-	bool          killed_   = false                  ;
-	killed = true ;                                                                                                  // prevent child from starting if killed before
+	Lock lock { _pid_mutex }           ;
+	int       kill_sig  = sig>=0 ? sig : SIGKILL ;
+	bool      killed_   = false                  ;
+	killed = true ;                                                                               // prevent child from starting if killed before
 	//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	if (pid>1) killed_ = kill_process(pid,kill_sig,as_session/*as_group*/) ;
 	//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if (sig<0) {                                                                                                     // kill all processes (or process groups) connected to a stream we wait for
-		pid_t         ctl_pid = getpid() ;
-		::uset_s      fd_strs ;
-		::uset<pid_t> to_kill ;                                                                                      // maintain an ordered tab to favor repeatability
-		if (+child_stdout)                 fd_strs.insert( read_lnk(to_string("/proc/self/fd/",child_stdout.fd)) ) ;
-		if (+child_stderr)                 fd_strs.insert( read_lnk(to_string("/proc/self/fd/",child_stderr.fd)) ) ;
-		for( auto const& [fd,_] : slaves ) fd_strs.insert( read_lnk(to_string("/proc/self/fd/",fd          .fd)) ) ;
+	if (sig<0) {                                                                                  // kill all processes (or process groups) connected to a stream we wait for
+		pid_t                    ctl_pid = as_session ? ::getpgrp() : ::getpid() ;
+		::umap_s<    GatherKind> fd_strs ;
+		::umap<pid_t,GatherKind> to_kill ;
+		trace("ctl",ctl_pid) ;
+		if (+child_stdout)                 fd_strs[ read_lnk(to_string("/proc/self/fd/",child_stdout.fd)) ] = GatherKind::Stdout ;
+		if (+child_stderr)                 fd_strs[ read_lnk(to_string("/proc/self/fd/",child_stderr.fd)) ] = GatherKind::Stderr ;
+		for( auto const& [fd,_] : slaves ) fd_strs[ read_lnk(to_string("/proc/self/fd/",fd          .fd)) ] = GatherKind::Slave  ;
+		trace("fds",fd_strs) ;
 		for( ::string const& proc_entry : lst_dir("/proc")  ) {
 			for( char c : proc_entry ) if (c>'9'||c<'0') goto NextProc ;
 			try {
 				pid_t child_pid = from_string<pid_t>(proc_entry) ;
-				if (child_pid==ctl_pid) goto NextProc ;
 				if (as_session        ) child_pid = ::getpgid(child_pid) ;
-				if (child_pid<=1      ) goto NextProc ;                                                              // no pgid available, ignore
+				if (child_pid==ctl_pid) goto NextProc ;
+				if (child_pid<=1      ) goto NextProc ;                                           // no pgid available, ignore
 				for( ::string const& fd_entry : lst_dir(to_string("/proc/",proc_entry,"/fd")) ) {
 					::string fd_str = read_lnk(to_string("/proc/",proc_entry,"/fd/",fd_entry)) ;
-					if ( !fd_str                   ) continue ;                                                      // fd has disappeared, ignore
-					if ( !fd_strs.contains(fd_str) ) continue ;                                                      // not any of the fd's we are looking for
-					to_kill.insert(child_pid) ;
+					if (!fd_str                  ) continue ;                                     // fd has disappeared, ignore
+					auto it = fd_strs.find(fd_str) ;
+					if (it==fd_strs.end()        ) continue ;
+					to_kill[child_pid] = it->second ;
 					break ;
 				}
-			} catch(::string const&) {}                                                                              // if we cannot read /proc/pid, process is dead, ignore
+			} catch(::string const&) {}                                                           // if we cannot read /proc/pid, process is dead, ignore
 		NextProc : ;
 		}
 		trace("to_kill",to_kill) ;
-		//                                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		for( pid_t p : to_kill ) killed_ |= kill_process(p,kill_sig,as_session/*as_group*/) ;
-		//                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//                                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		for( auto [p,_] : to_kill ) killed_ |= kill_process(p,kill_sig,as_session/*as_group*/) ;
+		//                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 	trace("done",STR(killed_)) ;
 	return killed_ ;
@@ -195,7 +197,7 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	::map_ss add_env {{"LMAKE_AUTODEP_ENV",autodep_env}} ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
-	{	::unique_lock lock{_pid_mutex} ;
+	{	Lock lock{_pid_mutex} ;
 		if (killed                       ) return Status::Killed ;             // dont start if we are already killed before starting
 		if (method==AutodepMethod::Ptrace) {                                   // PER_AUTODEP_METHOD : handle case
 			// XXX : splitting responsibility is no more necessary. Can directly report child termination from within autodep_ptrace.process using same ifce as _child_wait_thread_func
@@ -283,9 +285,9 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 			default : ;
 		}
 		Fd reply_fd = server_cb(::move(jerr)) ;
-		trace("reply",reply_fd) ;
 		if (+reply_fd) {
 			epoll.add_read(reply_fd,Kind::ServerReply) ;
+			trace("read_reply",reply_fd) ;
 			ServerReply& sr = server_replies[reply_fd] ;
 			if (sync_) sr.fd         = fd         ;
 			/**/       sr.codec_file = codec_file ;
@@ -309,10 +311,10 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 		end = PD(New) + timeout ;
 		trace("set_timeout",timeout,end) ;
 	}
-	if (cstdout==Child::Pipe) epoll.add_read(child_stdout=child.stdout,Kind::Stdout  ) ;
-	if (cstderr==Child::Pipe) epoll.add_read(child_stderr=child.stderr,Kind::Stderr  ) ;
-	/**/                      epoll.add_read(child_fd                 ,Kind::ChildEnd) ;
-	/**/                      epoll.add_read(master_fd                ,Kind::Master  ) ;
+	if (cstdout==Child::Pipe) { epoll.add_read(child_stdout=child.stdout,Kind::Stdout  ) ; trace("read_stdout",child_stdout) ; }
+	if (cstderr==Child::Pipe) { epoll.add_read(child_stderr=child.stderr,Kind::Stderr  ) ; trace("read_stderr",child_stderr) ; }
+	/**/                      { epoll.add_read(child_fd                 ,Kind::ChildEnd) ; trace("read_child ",child_fd    ) ; }
+	/**/                      { epoll.add_read(master_fd                ,Kind::Master  ) ; trace("read_master",master_fd   ) ; }
 	while (epoll.cnt) {
 		uint64_t wait_ns = Epoll::Forever ;
 		if (+end) {
@@ -345,29 +347,35 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 					char          buf[4096] ;
 					int           cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR( cnt>=0 , cnt ) ;
 					::string_view buf_view  { buf , size_t(cnt) }                                      ;
-					if      (!cnt              ) { trace("close") ; epoll.del(fd) ;                                   }             // /!\ dont close as fd is closed upon child destruction
-					else if (kind==Kind::Stderr) { stderr.append(buf_view) ; child_stderr={} ;                        }             // tell kill not to wait for this one
-					else                         { stdout.append(buf_view) ; child_stdout={} ;live_out_cb(buf_view) ; }             // .
+					if (cnt) {
+						if (kind==Kind::Stderr)   stderr.append(buf_view) ;
+						else                    { stdout.append(buf_view) ; live_out_cb(buf_view) ; }
+					} else {
+						epoll.del(fd) ;                                                                                             // /!\ dont close as fd is closed upon child destruction
+						trace("close",kind,fd) ;
+						if (kind==Kind::Stderr) child_stderr = {} ;                                                                 // tell kill not to wait for this one
+						else                    child_stdout = {} ;
+					}
 				} break ;
 				case Kind::ChildEnd : {
 					uint64_t one = 0/*garbage*/            ;
 					int      cnt = ::read( fd , &one , 8 ) ; SWEAR( cnt==8 && one==1 , cnt , one ) ;
-					{	::unique_lock lock{_pid_mutex} ;
+					{	Lock lock{_pid_mutex} ;
 						child.pid = -1 ;                                                                                            // too late to kill job
 					}
 					if      (WIFEXITED  (wstatus)) set_status( WEXITSTATUS(wstatus)!=0        ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG(wstatus)) ? Status::Err : Status::LateLost ) ;  // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",wstatus) ;
-					trace(status,::hex,wstatus,::dec) ;
 					epoll.close(fd) ;
-					epoll.cnt-- ;                       // do not wait for new connections, but if one arrives before all flows are closed, process it
+					epoll.cnt-- ;                                    // do not wait for new connections, but if one arrives before all flows are closed, process it
+					trace("close",kind,status,::hex,wstatus,::dec) ;
 				} break ;
 				case Kind::Master : {
 					SWEAR(fd==master_fd) ;
 					Fd slave = master_fd.accept() ;
-					trace(slave) ;
 					epoll.add_read(slave,Kind::Slave) ;
-					slaves[slave] ;                     // allocate entry
+					trace("read_slave",slave) ;
+					slaves[slave] ;                                  // allocate entry
 				} break ;
 				case Kind::ServerReply : {
 					JobRpcReply jrr ;
@@ -389,6 +397,7 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 					//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					server_replies.erase(it) ;
 					epoll.close(fd) ;
+					trace("close",kind,fd) ;
 				} break ;
 				case Kind::Slave : {
 					Jerr jerr         ;
@@ -407,6 +416,7 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 						break ;
 						case Proc::None :
 							epoll.close(fd) ;
+							trace("close",kind,fd) ;
 							for( Jerr& j : slave_entry.second ) _new_accesses(fd,::move(j)) ;                                 // process deferred entries although with uncertain outcome
 							slaves.erase(it) ;
 						break ;

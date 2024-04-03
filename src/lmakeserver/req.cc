@@ -18,7 +18,7 @@ namespace Engine {
 
 	SmallIds<ReqIdx,true/*ThreadSafe*/>              Req::s_small_ids     ;
 	::vector<Req>                                    Req::s_reqs_by_start ;
-	::mutex                                          Req::s_reqs_mutex    ;
+	Mutex<MutexLvl::Req>                             Req::s_reqs_mutex    ;
 	::vector<ReqData>                                Req::s_store(1)      ;
 	::vector<Req>                                    Req::_s_reqs_by_eta  ;
 	::array<atomic<uint8_t>,1<<(sizeof(ReqIdx)*8-3)> Req::_s_zombie_tab   = {} ;
@@ -28,9 +28,7 @@ namespace Engine {
 	}
 
 	void Req::make(EngineClosureReq const& ecr) {
-		{	::unique_lock lock{s_reqs_mutex} ;                                                   // grow may reallocate
-			grow(s_store,+*this) ;
-		}
+		{ Lock lock{s_reqs_mutex} ; grow(s_store,+*this) ; }
 		ReqData& data = **this ;
 		//
 		for( int i=0 ;; i++ ) {                                                                  // try increasing resolution in file name until no conflict
@@ -102,7 +100,7 @@ namespace Engine {
 			s_reqs_by_start[i]->idx_by_start = i                    ;
 		}
 		s_reqs_by_start.pop_back() ;
-		{	::unique_lock lock{s_reqs_mutex} ;
+		{	Lock lock{s_reqs_mutex} ;
 			for( Idx i=(*this)->idx_by_eta ; i<n_reqs-1 ; i++ ) {
 				_s_reqs_by_eta[i]             = _s_reqs_by_eta[i+1] ;
 				_s_reqs_by_eta[i]->idx_by_eta = i                   ;
@@ -141,8 +139,8 @@ namespace Engine {
 			Trace trace("_adjust_eta",now,(*this)->ete) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
 			bool changed = false ;
-			{	::unique_lock lock       { s_reqs_mutex }      ;
-				Idx           idx_by_eta = (*this)->idx_by_eta ;
+			{	Lock lock       { s_reqs_mutex }      ;
+				Idx  idx_by_eta = (*this)->idx_by_eta ;
 				(*this)->eta = now + (*this)->ete ;
 				if (push_self) _s_reqs_by_eta.push_back(*this) ;
 				while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>(*this)->eta ) {                                             // if eta is decreased
@@ -356,7 +354,7 @@ namespace Engine {
 	// ReqData
 	//
 
-	::mutex ReqData::_s_audit_mutex ;
+	Mutex<MutexLvl::Audit> ReqData::_s_audit_mutex ;
 
 	void ReqData::clear() {
 		Trace trace("clear",job) ;
@@ -383,7 +381,7 @@ namespace Engine {
 					case JobReport::Done    : c = Color::Ok      ; break ;
 					default : ;
 				}
-				audit_info( c , to_string(::setw(9),snake(jr)," jobs : ",stats.ended(jr)) ) ;                                            // 9 is for "completed"
+				audit_info( c , to_string(::setw(9),snake(jr)," jobs : ",stats.ended(jr)) ) ;                                                        // 9 is for "completed"
 			}
 		/**/                                   audit_info( Color::Note , to_string( "useful    time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
 		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun     time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
@@ -405,7 +403,7 @@ namespace Engine {
 		if (+long_names) {
 			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
 			size_t               pm          = 0                   ;
-			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;        // sort in discovery order
+			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                    // sort in discovery order
 			for( auto [n,_] :                 long_names_                                        ) pm = ::max( pm , n->name().size() ) ;
 			for( auto [n,_] : ::c_vector_view(long_names_,0,g_config.n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
 			if ( g_config.errs_overflow(long_names_.size())                                      ) audit_info( Color::Warning , "..."               ) ;
@@ -414,24 +412,24 @@ namespace Engine {
 		}
 		if (+frozen_jobs) {
 			::vmap<Job,JobIdx> frozen_jobs_ = mk_vmap(frozen_jobs) ;
-			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ;           // sort in discovery order
+			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ;                       // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
 			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
 		}
 		if (+frozen_nodes) {
 			::vmap<Node,NodeIdx> frozen_nodes_ = mk_vmap(frozen_nodes) ;
-			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;      // sort in discovery order
+			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                  // sort in discovery order
 			for( auto [n,_] : frozen_nodes_ ) audit_node( Color::Warning , "frozen " , n ) ;
 		}
 		if (+no_triggers) {
 			::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
-			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;       // sort in discovery order
+			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                   // sort in discovery order
 			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no trigger" , n ) ;
 		}
 		if (+clash_nodes) {
 			::vmap<Node,NodeIdx> clash_nodes_ = mk_vmap(clash_nodes) ;
-			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;       // sort in discovery order
+			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                   // sort in discovery order
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
 			if (job->rule->special!=Special::Req) {

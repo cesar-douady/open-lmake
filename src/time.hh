@@ -295,8 +295,8 @@ namespace Time {
 	}
 	inline bool/*slept*/ Delay::_s_sleep( ::stop_token tkn , Delay sleep , Pdate until ) {
 		if (sleep<=Delay()) return !tkn.stop_requested() ;
-		::mutex                  m   ;
-		::unique_lock<mutex>     lck { m } ;
+		Mutex<MutexLvl::Time>       m   ;
+		Lock<Mutex<MutexLvl::Time>> lck { m } ;
 		::condition_variable_any cv  ;
 		bool res = cv.wait_for( lck , tkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return Pdate(New)>=until ; } ) ;
 		return res ;

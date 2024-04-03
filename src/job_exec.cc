@@ -42,19 +42,18 @@ struct PatternDict {
 	::vmap<RegExpr,MatchFlags> patterns = {} ;
 } ;
 
-ServerSockFd            g_server_fd              ;
-Gather                  g_gather                 { New }        ;
-JobRpcReply             g_start_info             ;
-::string                g_service_start          ;
-::string                g_service_mngt           ;
-::string                g_service_end            ;
-SeqId                   g_seq_id                 = 0/*garbage*/ ;
-JobIdx                  g_job                    = 0/*garbage*/ ;
-::atomic<bool>          g_killed                 = false        ; // written by thread S and read by main thread
-PatternDict             g_match_dct              ;
-NfsGuard                g_nfs_guard              ;
-::umap_s<bool/*phony*/> g_missing_static_targets ;
-::vector_s              g_washed                 ;
+ServerSockFd   g_server_fd     ;
+Gather         g_gather        { New }        ;
+JobRpcReply    g_start_info    ;
+::string       g_service_start ;
+::string       g_service_mngt  ;
+::string       g_service_end   ;
+SeqId          g_seq_id        = 0/*garbage*/ ;
+JobIdx         g_job           = 0/*garbage*/ ;
+::atomic<bool> g_killed        = false        ; // written by thread S and read by main thread
+PatternDict    g_match_dct     ;
+NfsGuard       g_nfs_guard     ;
+::vector_s     g_washed        ;
 
 void kill_thread_func(::stop_token stop) {
 	t_thread_key = 'K' ;
@@ -95,13 +94,6 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , SlaveSockFd const& )
 		break ;
 	DF}
 	return false ;
-}
-
-::pair_s<bool/*ok*/> wash() {
-	Trace trace("wash",g_start_info.pre_actions) ;
-	::pair_s<bool/*ok*/> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
-	trace("unlnks",actions) ;
-	return actions ;
 }
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
@@ -200,8 +192,6 @@ Digest analyze( bool at_end , bool killed=false ) {
 		if (!at_end) continue ;                                                                // we are handling chk_deps and we only care about deps
 		// handle targets
 		if (is_tgt) {
-			if (!info.phony_ok) ad.tflags &= ~Tflag::Phony ;                                                             // used to ensure washing is not reported to user as a target
-			//
 			bool         unlnk = !is_target(file)                                    ;
 			TargetDigest td    { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
 			//
@@ -214,11 +204,11 @@ Digest analyze( bool at_end , bool killed=false ) {
 			} else switch (flags.is_target) {
 				case Yes   : break ;
 				case Maybe :
-					if (unlnk) break ;                                                  // it is ok to write and unlink temporary files
+					if (unlnk) break ;                               // it is ok to write and unlink temporary files
 				[[fallthrough]] ;
 				case No :
-					if (ad.write==No                      ) break ;                     // it is ok to attempt writing as long as attempt does not succeed
-					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                     // it is ok if explicitly allowed by user
+					if (ad.write==No                      ) break ;  // it is ok to attempt writing as long as attempt does not succeed
+					if (ad.extra_tflags[ExtraTflag::Allow]) break ;  // it is ok if explicitly allowed by user
 					trace("bad access",ad,flags) ;
 					if (ad.write==Maybe    ) append_to_string( res.msg , "maybe "                      ) ;
 					/**/                     append_to_string( res.msg , "unexpected "                 ) ;
@@ -237,11 +227,14 @@ Digest analyze( bool at_end , bool killed=false ) {
 					else                                              res.crcs.emplace_back(res.targets.size()) ; // record index in res.targets for deferred (parallel) crc computation
 				break ;
 			DF}
-			if ( td.tflags[Tflag::Target] && !static_phony(td.tflags) ) {                                     // unless static or phony, a target loses its official status if not actually produced
-				if (ad.write==Yes) { if (unlnk           ) td.tflags &= ~Tflag::Target ; }
-				else               { if (!is_target(file)) td.tflags &= ~Tflag::Target ; }
+			if ( td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] ) {
+				if (td.tflags[Tflag::Static]) {
+					if (unlnk        ) append_to_string( res.msg , "missing static target " , mk_file(file,No/*exists*/) , '\n' ) ;
+				} else {
+					if (ad.write==Yes) { if (unlnk           ) td.tflags &= ~Tflag::Target ; }                    // unless static or phony, a target loses its official status if not actually produced
+					else               { if (!is_target(file)) td.tflags &= ~Tflag::Target ; }
+				}
 			}
-			if ( td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && (td.tflags[Tflag::Phony]||td.crc!=Crc::None) ) g_missing_static_targets.erase(file) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -298,7 +291,7 @@ void live_out_cb(::string_view const& txt) {
 	live_out_buf = live_out_buf.substr(pos) ;
 }
 
-void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs , ::string* msg , ::mutex* msg_mutex ) {
+void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex ) {
 	static ::atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc",targets->size(),crcs->size()) ;
@@ -309,7 +302,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;
 		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.date,e.first) ;
 		if (!e.second.crc.valid()) {
-			::unique_lock lock{*msg_mutex} ;
+			Lock lock{*msg_mutex} ;
 			append_to_string(*msg,"cannot compute crc for ",e.first) ;
 		}
 	}
@@ -324,7 +317,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	//
 	Trace trace("compute_crcs",digest.crcs.size(),n_threads) ;
 	::string msg       ;
-	::mutex  msg_mutex ;
+	Mutex<MutexLvl::JobExec> msg_mutex ;
 	{	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
 		for( size_t i=0 ; i<n_threads ; i++ )
 			crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex ) ; // just constructing and destructing the threads will execute & join them
@@ -387,9 +380,6 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add( false/*star*/ , dt , mf            ) ;
 		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
 		//
-		for( auto const& [t,flags ] : g_start_info.static_matches )
-			if ( flags.is_target==Yes && flags.tflags()[Tflag::Target] ) g_missing_static_targets[t] |= flags.tflags()[Tflag::Phony] ;
-		//
 		::map_ss cmd_env ;
 		try                       { cmd_env = prepare_env(end_report) ; }
 		catch (::string const& e) { end_report.msg += e ; goto End ;    }
@@ -435,11 +425,6 @@ int main( int argc , char* argv[] ) {
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
 		Digest digest = analyze(true/*at_end*/,killed) ;
-		for( auto const& [f,p] : g_missing_static_targets ) {
-			FileInfo fi{f} ;
-			if (!p) append_to_string( digest.msg , "missing static target " , mk_file(f,No/*exists*/) , '\n' ) ;
-			digest.targets.emplace_back( f , TargetDigest{{Tflag::Static,Tflag::Target}} ) ;                     // report missing static targets as targets with no accesses
-		}
 		//
 		end_report.msg += compute_crcs(digest) ;
 		//

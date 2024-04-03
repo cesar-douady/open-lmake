@@ -791,7 +791,7 @@ namespace Engine {
 		if (it.i_chunk!=0) {
 			cur_dep->sz = it.i_chunk ;
 			_fill_hole(*cur_dep) ;
-			cur_dep = &cur_dep->next() ;
+			cur_dep = cur_dep->next() ;
 		}
 		// create new tail
 		::vector<Dep> ds ;

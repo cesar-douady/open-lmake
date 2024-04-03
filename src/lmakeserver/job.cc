@@ -82,7 +82,7 @@ namespace Engine {
 		// mark target dirs to protect from deletion by other jobs
 		// this must be perfectly predictible as this mark is undone in end_exec below
 		if (mark_target_dirs) {
-			::unique_lock lock{_s_target_dirs_mutex} ;
+			Lock lock{_s_target_dirs_mutex} ;
 			for( Node d : to_mkdirs        ) { trace("protect_dir"     ,d) ; _s_target_dirs     [d]++ ; }
 			for( Node d : to_mkdir_uphills ) { trace("protect_hier_dir",d) ; _s_hier_target_dirs[d]++ ; }
 		}
@@ -103,7 +103,7 @@ namespace Engine {
 			if (it->second==1) dirs.erase(it) ;
 			else               it->second--   ;
 		} ;
-		::unique_lock lock(_s_target_dirs_mutex) ;
+		Lock lock(_s_target_dirs_mutex) ;
 		for( Node d : dirs        ) { trace("unprotect_dir"     ,d) ; dec(_s_target_dirs     ,d) ; }
 		for( Node d : dir_uphills ) { trace("unprotect_hier_dir",d) ; dec(_s_hier_target_dirs,d) ; }
 	}
@@ -125,7 +125,7 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , JobReqInfo const& ri ) {
-		return os<<"JRI(" << ri.req <<','<< (ri.full?"full":"makable") <<','<< ri.speculate <<','<< ri.step()<<':'<<ri.iter <<':'<< ri.n_wait <<')' ;
+		return os<<"JRI(" << ri.req <<','<< (ri.full?"full":"makable") <<','<< ri.speculate <<','<< ri.step()<<':'<< ri.iter <<':'<< ri.n_wait <<')' ;
 	}
 
 	//
@@ -594,9 +594,9 @@ namespace Engine {
 	// JobData
 	//
 
-	::shared_mutex       JobData::_s_target_dirs_mutex ;
-	::umap<Node,NodeIdx> JobData::_s_target_dirs       ;
-	::umap<Node,NodeIdx> JobData::_s_hier_target_dirs  ;
+	Mutex<MutexLvl::TargetDir> JobData::_s_target_dirs_mutex ;
+	::umap<Node,NodeIdx>       JobData::_s_target_dirs       ;
+	::umap<Node,NodeIdx>       JobData::_s_hier_target_dirs  ;
 
 	void JobData::_reset_targets(Rule::SimpleMatch const& match) {
 		::vector<Target> ts    ; ts.reserve(rule->n_static_targets) ;
@@ -837,15 +837,13 @@ namespace Engine {
 		if (is_special()) { if (!_submit_special(ri                         )) goto Done ; } // if no new deps, we cannot be waiting and we are done
 		else              { if (!_submit_plain  (ri,ri.reason(),dep_pressure)) goto Done ; } // .
 		//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		if (!ri.waiting()) {
-			SWEAR(!ri.running()) ;
-			make_action = MakeAction::End  ;                                                 // restart analysis as if called by end() as in case of flash execution, submit has called end()
-			if (is_ok(status)!=Maybe) ri.reasons = { {}                , {} } ;              // .
-			else                      ri.reasons = { mk_reason(status) , {} } ;              // .
-			trace("restart_analysis",ri) ;
-			goto RestartFullAnalysis ;                                                       // BACKWARD
-		}
-		goto Wait ;
+		if (ri.waiting()) goto Wait ;
+		SWEAR(!ri.running()) ;
+		make_action = MakeAction::End  ;                                                     // restart analysis as if called by end() as in case of flash execution, submit has called end()
+		if (is_ok(status)!=Maybe) ri.reasons = { {}                , {} } ;                  // .
+		else                      ri.reasons = { mk_reason(status) , {} } ;                  // .
+		trace("restart_analysis",ri) ;
+		goto RestartFullAnalysis ;                                                           // BACKWARD
 	Done :
 		SWEAR( !ri.running() && !ri.waiting() , idx() , ri ) ;
 		ri.step(Step::Done) ;
@@ -883,7 +881,10 @@ namespace Engine {
 		if ( submit_loop                  ) status = Status::Err ;
 		if ( ri.done() && wakeup_watchers ) ri.wakeup_watchers() ;
 		//                                  ^^^^^^^^^^^^^^^^^^^^
+		goto Return ;
 	Wait :
+		trace("wait",ri) ;
+	Return :
 		if ( stop_speculate                              ) _propag_speculate(ri) ;
 		if ( !rule->is_special() && ri.step()!=prev_step ) {
 			bool remove_old = prev_step>=Step::MinCurStats && prev_step<Step::MaxCurStats1 ;

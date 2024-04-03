@@ -466,10 +466,10 @@ namespace Engine {
 		}
 		// data
 	private :
-		mutable ::mutex _glbs_mutex ;    // ensure glbs is not used for several jobs simultaneously
+		mutable Mutex<MutexLvl::Rule> _glbs_mutex ; // ensure glbs is not used for several jobs simultaneously
 	public :
-		Py::Ptr<Py::Dict> mutable glbs ; // if is_dynamic <=> dict to use as globals when executing code, modified then restored during evaluation
-		Py::Ptr<Py::Code>         code ; // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
+		Py::Ptr<Py::Dict> mutable glbs ;            // if is_dynamic <=> dict to use as globals when executing code, modified then restored during evaluation
+		Py::Ptr<Py::Code>         code ;            // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
 	} ;
 
 	struct DynamicDepsAttrs : Dynamic<DepsAttrs> {
@@ -806,7 +806,7 @@ namespace Engine {
 
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
-		Py::Gil gil ;
+		Py::Gil::s_swear_locked() ;
 		try { code = code_str                              ; code->boost() ; } catch (::string const& e) { throw to_string("cannot compile code :\n"   ,indent(e,1)) ; }
 		try { glbs = Py::py_run(append_dbg_info(glbs_str)) ; glbs->boost() ; } catch (::string const& e) { throw to_string("cannot compile context :\n",indent(e,1)) ; }
 	}
@@ -920,7 +920,10 @@ namespace Engine {
 			::serdes(s,exec_time         ) ;
 			::serdes(s,stats_weight      ) ;
 		}
-		if (is_base_of_v<::istream,S>) _compile() ;
+		if (is_base_of_v<::istream,S>) {
+			Py::Gil gil ;
+			_compile() ;
+		}
 	}
 	// END_OF_VERSIONING
 

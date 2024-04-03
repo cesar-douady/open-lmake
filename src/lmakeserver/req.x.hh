@@ -50,14 +50,14 @@ namespace Engine {
 			return res ;
 		}
 		//
-		static Idx               s_n_reqs     () {                                    return s_reqs_by_start.size() ; }
-		static ::vector<Req>     s_reqs_by_eta() { ::unique_lock lock{s_reqs_mutex} ; return _s_reqs_by_eta         ; }
+		static Idx               s_n_reqs     () {                           return s_reqs_by_start.size() ; }
+		static ::vector<Req>     s_reqs_by_eta() { Lock lock{s_reqs_mutex} ; return _s_reqs_by_eta         ; }
 		static ::vmap<Req,Pdate> s_etas       () ;
 		// static data
 		static SmallIds<ReqIdx,true/*ThreadSafe*/> s_small_ids     ;
 		static ::vector<Req>                       s_reqs_by_start ;                                                         // INVARIANT : ordered by item->start
 		//
-		static ::mutex                             s_reqs_mutex ;                                                            // protects s_store, _s_reqs_by_eta as a whole
+		static Mutex<MutexLvl::Req>                s_reqs_mutex ;                                                            // protects s_store, _s_reqs_by_eta as a whole
 		static ::vector<ReqData>                   s_store      ;
 	private :
 		static ::vector<Req> _s_reqs_by_eta ;                                                                                // INVARIANT : ordered by item->stats.eta
@@ -223,7 +223,7 @@ namespace Engine {
 		static constexpr size_t StepSz = 14 ;           // size of the field representing step in output
 		// static data
 	private :
-		static ::mutex _s_audit_mutex ;                 // should not be static, but if per ReqData, this would prevent ReqData from being movable
+		static Mutex<MutexLvl::Audit> _s_audit_mutex ;  // should not be static, but if per ReqData, this would prevent ReqData from being movable
 		// cxtors & casts
 	public :
 		void clear() ;
@@ -298,8 +298,8 @@ namespace Engine {
 	inline ReqData const& Req::operator*() const { return s_store[+*this] ; }
 	inline ReqData      & Req::operator*()       { return s_store[+*this] ; }
 	inline ::vmap<Req,Pdate> Req::s_etas() {
-		::unique_lock lock{s_reqs_mutex} ;
-		::vmap<Req,Pdate> res ;
+		Lock              lock { s_reqs_mutex } ;
+		::vmap<Req,Pdate> res  ;
 		for ( Req r : _s_reqs_by_eta ) res.emplace_back(r,r->eta) ;
 		return res ;
 	}

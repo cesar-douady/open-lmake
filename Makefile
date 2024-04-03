@@ -101,8 +101,8 @@ $(error cannot find c compiler)
 else ifneq ($(findstring gcc,$(CC)),)
 ifeq ($(intcmp $(shell $(CC) -dumpversion),11,lt,eq,gt),lt)
 $(error gcc version must be at least 11)
-USE_GCC := 1
 endif
+USE_GCC := 1
 else ifneq ($(findstring clang,$(CC)),)
 ifeq ($(intcmp $(shell $(CC) -dumpversion),15,lt,eq,gt),lt)
 $(error clang version must be at least 15)

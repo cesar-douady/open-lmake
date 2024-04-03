@@ -55,8 +55,8 @@ extern "C" {
 	extern int  statx      ( int dirfd , const char* pth , int flgs , uint msk , struct statx* buf            ) noexcept ;
 }
 
-static              ::mutex _g_mutex ;         // ensure exclusivity between threads
-static thread_local bool    _t_loop  = false ; // prevent recursion within a thread
+static              Mutex<MutexLvl::Autodep2> _g_mutex ;         // ensure exclusivity between threads
+static thread_local bool                      _t_loop  = false ; // prevent recursion within a thread
 
 // User program may have global variables whose cxtor/dxtor do accesses.
 // In that case, they may come before our own Audit is constructed if declared global (in the case of LD_PRELOAD).
@@ -140,13 +140,13 @@ struct _Execp : _Exec {
 	_Execp( Record& r , const char* file , const char* const envp[] , ::string&& comment ) {
 		if (!file) return ;
 		//
-		if (::strchr(file,'/')) {                                                        // if file contains a /, no search is performed
+		if (::strchr(file,'/')) {                                                              // if file contains a /, no search is performed
 			static_cast<Base&>(*this) = Base(r,file,false/*no_follow*/,envp,::move(comment)) ;
 			return ;
 		}
 		//
 		::string p = get_env("PATH") ;
-		if (!p) {                                                                        // gather standard path if path not provided
+		if (!p) {                                                                              // gather standard path if path not provided
 			size_t n = ::confstr(_CS_PATH,nullptr,0) ;
 			p.resize(n) ;
 			::confstr(_CS_PATH,p.data(),n) ;
@@ -268,7 +268,7 @@ struct Mkstemp : WSolve {
 		if ( _t_loop || !started() ) return orig args ; \
 		Save sav{_t_loop,true} ;                        \
 		if (cond) return orig args ;                    \
-		::unique_lock lock{_g_mutex}
+		Lock lock{_g_mutex}
 	// do a first check to see if it is obvious that nothing needs to be done
 	#define HEADER0(syscall,            args) HEADER( syscall , false                                                    , args )
 	#define HEADER1(syscall,path,       args) HEADER( syscall , Record::s_is_simple(path )                               , args )

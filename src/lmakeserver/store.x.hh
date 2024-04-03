@@ -455,13 +455,13 @@ namespace Engine::Persistent {
 			return ;
 		}
 		// restart with lock
-		static ::mutex s_m ;                                                                                // nodes can be created from several threads, ensure coherence between names and nodes
-		::unique_lock lock = locked? (SWEAR(!s_m.try_lock()),::unique_lock<mutex>()) : ::unique_lock(s_m) ;
+		static Mutex<MutexLvl::Node> s_m ;                                                    // nodes can be created from several threads, ensure coherence between names and nodes
+		Lock lock = locked ? (s_m.swear_locked(),Lock<Mutex<MutexLvl::Node>>()) : Lock(s_m) ;
 		*this = _name_file.c_at(name_).node() ;
 		if (+*this) {
 			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name , _name_file.c_at((*this)->_full_name).node() ) ;
 		} else {
-			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir,true/*locked*/) ;                // if dir must be created, we already hold the lock
+			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir,true/*locked*/) ;  // if dir must be created, we already hold the lock
 		}
 	}
 	inline NodeBase::NodeBase( ::string const& n , bool no_dir , bool locked ) {

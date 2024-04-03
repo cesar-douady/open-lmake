@@ -17,17 +17,20 @@ ENUM( Exception
 )
 
 namespace Py {
-
-	struct Gil {
+	struct Gil :     Lock<Mutex<MutexLvl::Gil>> {
+		friend class AntiGil ;
+		using Base = Lock<Mutex<MutexLvl::Gil>> ;
+		// statics
+		static void s_swear_locked() { _s_mutex.swear_locked() ; }
+		// static data
 	private :
-		static ::recursive_mutex _s_mutex ;
+		static Mutex<MutexLvl::Gil> _s_mutex ;
 		// cxtors & casts
 	public :
-		Gil () : lock{_s_mutex} { trace("acquired") ; }
+		Gil () : Base{_s_mutex} { trace("acquired") ; }
 		~Gil()                  { trace("released") ; }
 		// data
-		Trace                          trace { "Gil" } ;
-		::unique_lock<recursive_mutex> lock            ;
+		Trace trace { "Gil" } ;
 	} ;
 
 	struct Object       ;

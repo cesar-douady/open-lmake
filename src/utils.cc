@@ -16,6 +16,12 @@
 #include "process.hh"
 
 //
+// mutexes
+//
+
+thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
+
+//
 // string
 //
 

@@ -5,8 +5,8 @@
 
 #include "ld_server.hh"
 
-thread_local bool    AutodepLock::t_active = false ;
-/**/         ::mutex AutodepLock::_s_mutex ;
+thread_local bool                      AutodepLock::t_active = false ;
+/**/         Mutex<MutexLvl::Autodep1> AutodepLock::_s_mutex ;
 
 static bool started() { return AutodepLock::t_active ; } // no auto-start for server
 

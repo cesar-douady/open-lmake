@@ -155,8 +155,8 @@ namespace Engine {
 		// cxtors & casts
 		using Base::Base ;
 		// accesses
-		Dep const& next() const { return *(this+1+div_up(sz,NodesPerDep)) ; }
-		Dep      & next()       { return *(this+1+div_up(sz,NodesPerDep)) ; }
+		Dep const* next() const { return this+1+div_up(sz,NodesPerDep) ; }
+		Dep      * next()       { return this+1+div_up(sz,NodesPerDep) ; }
 		::string accesses_str() const ;
 		::string dflags_str  () const ;
 		// services
@@ -193,6 +193,9 @@ namespace Engine {
 		// services
 		Dep const* operator->() const { return &**this ; }
 		Dep const& operator* () const {
+			// Node's in chunk are semanticly located before header so :
+			// - if i_chunk< hdr->sz : refer to dep with no crc, flags nor parallel
+			// - if i_chunk==hdr->sz : refer to header
 			if (i_chunk==hdr->sz) return *hdr ;
 			static_cast<Node&>(tmpl) = static_cast<Node const*>(hdr+1)[i_chunk] ;
 			tmpl.accesses            = hdr->chunk_accesses                      ;
@@ -200,19 +203,14 @@ namespace Engine {
 		}
 		DepsIter& operator++(int) { return ++*this ; }
 		DepsIter& operator++(   ) {
-			if (i_chunk==hdr->sz) {                                               // go to next chunk
-				/**/         i_chunk = 0                                        ; // Node's in chunk are semanticly located before header
-				/**/         hdr     = &hdr->next()                             ;
-				if (hdr->sz) tmpl    = { hdr->chunk_accesses , Crc::None , {} } ; // prepare tmpl when first accessing it (assumes sequential access)
-			} else {                                                              // go to next item in chunk
-				i_chunk++ ;
-			}
+			if (i_chunk<hdr->sz)   i_chunk++ ;                         // go to next item in chunk
+			else                 { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk }
 			return *this ;
 		}
 		// data
-		Dep const*  hdr     = nullptr        ;                                    // pointer to current chunk header
-		uint8_t     i_chunk = 0              ;                                    // current index in chunk
-		mutable Dep tmpl    = {{},Crc::None} ;                                    // template to store uncompressed Dep's
+		Dep const*  hdr     = nullptr                    ;               // pointer to current chunk header
+		uint8_t     i_chunk = 0                          ;               // current index in chunk
+		mutable Dep tmpl    = {{}/*accesses*/,Crc::None} ;               // template to store uncompressed Dep's
 	} ;
 
 	struct Deps : DepsBase {

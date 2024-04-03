@@ -893,6 +893,94 @@ inline Bool3  common     ( bool   b1 , Bool3 b2 ) {                return b1    
 inline Bool3  common     ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
 
 //
+// mutexes
+//
+
+// prevent dead locks by associating a level to each mutex, so we can verify the absence of dead-locks even in absence of race
+// use of identifiers (in the form of an enum) allows easy identification of the origin of misorder
+ENUM( MutexLvl // identify who is owning the current level to ease debugging
+,	None
+// level 1
+,	Audit
+,	JobExec
+,	Rule
+,	StartJob
+// level 2
+,	Backend    // must follow StartJob
+// level 3
+,	Gil        // must follow Backend
+,	Node       // must follow Backend
+,	Req        // must follow Backend
+,	TargetDir  // must follow Backend
+,	Thread     // must follow Backend
+// level 4
+,	Autodep1   // must follow Gil
+,	Gather     // must follow Gil
+// level 5
+,	Autodep2   // must follow Autodep1
+// inner (locks that take no other locks)
+,	File
+,	Hash
+,	SmallId
+,	SyscallTab
+,	Time
+,	Trace      // last to allow tracing anywhere
+)
+
+extern thread_local MutexLvl t_mutex_lvl ;
+template<MutexLvl Lvl_,class M=void,bool S=false/*shared*/> struct Mutex : ::conditional_t<::is_void_v<M>,::conditional_t<S,::shared_mutex,::mutex>,M> {
+	using Base =                                                           ::conditional_t<::is_void_v<M>,::conditional_t<S,::shared_mutex,::mutex>,M> ;
+	static constexpr MutexLvl Lvl = Lvl_ ;
+	void lock         (MutexLvl& lvl)             { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; Base::lock         () ; }
+	void unlock       (MutexLvl  lvl)             { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ;                     t_mutex_lvl = lvl ; Base::unlock       () ; }
+	void lock_shared  (MutexLvl& lvl) requires(S) { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; Base::lock_shared  () ; }
+	void unlock_shared(MutexLvl  lvl) requires(S) { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ;                     t_mutex_lvl = lvl ; Base::unlock_shared() ; }
+	// services
+	#ifndef NDEBUG
+		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl) ; SWEAR(!Base::try_lock       ()) ; }
+		void swear_locked_shared() requires(S) { SWEAR(t_mutex_lvl>=Lvl) ; SWEAR(!Base::try_lock_shared()) ; }
+	#else
+		void swear_locked       ()             {}
+		void swear_locked_shared() requires(S) {}
+	#endif
+} ;
+template<MutexLvl Lvl,class M=void,bool S=true/*shared*/> using SharedMutex = Mutex<Lvl,M,S> ;
+
+template<class M,bool S=false/*shared*/> struct Lock {
+	struct Anti {
+		Anti (Lock& l) : _lock{l} { _lock.unlock() ; }
+		~Anti(       )            { _lock.lock  () ; }
+		Lock& _lock ;
+	} ;
+	// cxtors & casts
+	Lock (        ) = default ;
+	Lock (Lock&& l)              { *this = ::move(l) ;     }
+	Lock (M& m    ) : _mutex{&m} {              lock  () ; }
+	~Lock(        )              { if (_locked) unlock() ; }
+	Lock& operator=(Lock&& l) {
+		if (_locked) unlock() ;
+		_mutex    = l._mutex  ;
+		_lvl      = l._lvl    ;
+		_locked   = l._locked ;
+		l._locked = false     ;
+		return *this ;
+	}
+	// services
+	Anti anti        ()              { return Anti(*this) ;                                              }
+	void swear_locked() requires(!S) { _mutex->swear_locked       () ;                                   }
+	void swear_locked() requires( S) { _mutex->swear_locked_shared() ;                                   }
+	void lock        () requires(!S) { SWEAR(!_locked) ; _locked = true  ; _mutex->lock         (_lvl) ; }
+	void lock        () requires( S) { SWEAR(!_locked) ; _locked = true  ; _mutex->lock_shared  (_lvl) ; }
+	void unlock      () requires(!S) { SWEAR( _locked) ; _locked = false ; _mutex->unlock       (_lvl) ; }
+	void unlock      () requires( S) { SWEAR( _locked) ; _locked = false ; _mutex->unlock_shared(_lvl) ; }
+	// data
+	M*       _mutex = nullptr                   ; // must be !=nullptr when _locked
+	MutexLvl _lvl   = MutexLvl::None/*garbage*/ ; // valid when _locked
+	bool    _locked = false                     ;
+} ;
+template<class M,bool S=true/*shared*/> using SharedLock = Lock<M,S/*shared*/> ;
+
+//
 // miscellaneous
 //
 
@@ -922,11 +1010,13 @@ template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 	struct NoLock {
 		NoLock(NoMutex) {}
 	} ;
-	using Mutex = ::conditional_t<ThreadSafe,::mutex             ,NoMutex> ;
-	using Lock  = ::conditional_t<ThreadSafe,::unique_lock<Mutex>,NoLock > ;
+private :
+	using _Mutex = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
+	using _Lock  = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
+public :
 	T acquire() {
-		T    res  ;
-		Lock lock { _mutex } ;
+		 T    res  ;
+		_Lock lock { _mutex } ;
 		if (!free_ids) {
 			res = n_allocated ;
 			if (n_allocated==::numeric_limits<T>::max()) throw "cannot allocate id"s ;
@@ -940,7 +1030,7 @@ template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 	}
 	void release(T id) {
 		if (!id) return ;               // id 0 has not been acquired
-		Lock lock { _mutex } ;
+		_Lock lock { _mutex } ;
 		SWEAR(!free_ids.contains(id)) ; // else, double release
 		free_ids.insert(id) ;
 	}
@@ -951,7 +1041,7 @@ template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 	set<T> free_ids    ;
 	T      n_allocated = 1 ;            // dont use id 0 so that it is free to mean "no id"
 private :
-	Mutex _mutex ;
+	_Mutex _mutex ;
 } ;
 
 inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity

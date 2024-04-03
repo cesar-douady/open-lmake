@@ -8,27 +8,27 @@
 #pragma once
 
 struct AutodepLock {
-    // static data
-    static thread_local bool t_active ;
+	// static data
+	static thread_local bool t_active ;
 private :
-    static ::mutex _s_mutex ;
-    // cxtors & casts
+	static Mutex<MutexLvl::Autodep1> _s_mutex ;
+	// cxtors & casts
 public :
-    AutodepLock(                                 ) = default ;
-    AutodepLock(::vmap_s<DepDigest>* deps=nullptr) : lock{_s_mutex} {
-        SWEAR( !Record::s_deps && !Record::s_deps_err ) ;
+	AutodepLock(                                 ) = default ;
+	AutodepLock(::vmap_s<DepDigest>* deps=nullptr) : lock{_s_mutex} {
+		SWEAR( !Record::s_deps && !Record::s_deps_err ) ;
 		SWEAR( !*Record::s_access_cache               ) ;
-        Record::s_deps     = deps ;
-        Record::s_deps_err = &err ;
-        t_active           = true ;
-    }
-    ~AutodepLock() {
-        Record::s_deps     = nullptr ;
-        Record::s_deps_err = nullptr ;
-        t_active           = false   ;
+		Record::s_deps     = deps ;
+		Record::s_deps_err = &err ;
+		t_active           = true ;
+	}
+	~AutodepLock() {
+		Record::s_deps     = nullptr ;
+		Record::s_deps_err = nullptr ;
+		t_active           = false   ;
 		Record::s_access_cache->clear() ;
-    }
-    // data
-    ::unique_lock<::mutex> lock ;
-    ::string               err  ;
+	}
+	// data
+	Lock<Mutex<MutexLvl::Autodep1>> lock ;
+	::string                        err  ;
 } ;

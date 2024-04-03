@@ -15,6 +15,7 @@
 #include "serialize.hh"
 
 template<class T> struct ThreadQueue : private ::deque<T> {
+	using ThreadMutex = Mutex<MutexLvl::Thread> ;
 private :
 	using Base = ::deque<T> ;
 public :
@@ -22,27 +23,27 @@ public :
 	// cxtors & casts
 	ThreadQueue() = default ;
 	bool operator+() const {
-		::unique_lock lock{_mutex} ;
+		Lock<ThreadMutex> lock{_mutex} ;
 		return !Base::empty() ;
 	}
 	bool operator!() const { return !+*this ; }
 	// services
-	/**/                 void push          (T const& x) { ::unique_lock lock{_mutex} ; Base::push_back    (x                 ) ; _cond.notify_one() ; }
-	/**/                 void push_urgent   (T const& x) { ::unique_lock lock{_mutex} ; Base::push_front   (x                 ) ; _cond.notify_one() ; }
-	template<class... A> void emplace       (A&&...   a) { ::unique_lock lock{_mutex} ; Base::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
-	template<class... A> void emplace_urgent(A&&...   a) { ::unique_lock lock{_mutex} ; Base::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
+	/**/                 void push          (T const& x) { Lock<ThreadMutex> lock{_mutex} ; Base::push_back    (x                 ) ; _cond.notify_one() ; }
+	/**/                 void push_urgent   (T const& x) { Lock<ThreadMutex> lock{_mutex} ; Base::push_front   (x                 ) ; _cond.notify_one() ; }
+	template<class... A> void emplace       (A&&...   a) { Lock<ThreadMutex> lock{_mutex} ; Base::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
+	template<class... A> void emplace_urgent(A&&...   a) { Lock<ThreadMutex> lock{_mutex} ; Base::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
 	T pop() {
-		::unique_lock lock{_mutex} ;
+		Lock<ThreadMutex> lock { _mutex } ;
 		_cond.wait( lock , [&](){ return !Base::empty() ; } ) ;
 		return _pop() ;
 	}
 	::pair<bool/*popped*/,T> try_pop() {
-		::unique_lock lock{_mutex} ;
+		Lock<ThreadMutex> lock { _mutex } ;
 		if (Base::empty()) return {false/*popped*/,T()   } ;
 		else               return {true /*popped*/,_pop()} ;
 	}
 	::pair<bool/*popped*/,T> pop(::stop_token tkn) {
-		::unique_lock lock{_mutex} ;
+		Lock<ThreadMutex> lock { _mutex } ;
 		if (!_cond.wait( lock , tkn , [&](){ return !Base::empty() ; } )) return {false/*popped*/,T()} ;
 		return {true/*popped*/,_pop()} ;
 	}
@@ -53,7 +54,7 @@ private :
 		return res ;
 	}
 	// data
-	::mutex mutable          _mutex ;
+	ThreadMutex mutable      _mutex ;
 	::condition_variable_any _cond  ;
 } ;
 

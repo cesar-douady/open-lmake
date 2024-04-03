@@ -42,7 +42,7 @@ struct Gather {
 			return res ;
 		}
 		// services
-		void update( PD , bool phony_ok_ , AccessDigest , CD const& , NodeIdx parallel_id_ ) ;
+		void update( PD , AccessDigest , CD const& , NodeIdx parallel_id_ ) ;
 		//
 		void chk() const ;
 		// data
@@ -55,7 +55,6 @@ struct Gather {
 		CD           crc_date        ;                                                                          // state when first read
 		NodeIdx      parallel_id     = 0                                      ;
 		AccessDigest digest          ;
-		bool         phony_ok        = false                                  ;                                 // if false <=> prevent phony flag so as to hide washing to user
 	} ;
 	struct ServerReply {
 		IMsgBuf  buf        ;                                                                                   // buf to assemble the reply
@@ -72,11 +71,8 @@ public :
 private :
 	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only
-	void _new_access( Fd , PD , bool phony_ok , ::string&& file , AccessDigest , CD const& , bool parallel , ::string const& comment ) ;
-	//
-	void _new_access(         PD pd , bool po , ::string&& f , AccessDigest ad , CD const& cd , bool p , ::string const& c ) { _new_access({},pd,po  ,::move(f),ad,cd,p,c) ; }
-	void _new_access( Fd fd , PD pd ,           ::string&& f , AccessDigest ad , CD const& cd , bool p , ::string const& c ) { _new_access(fd,pd,true,::move(f),ad,cd,p,c) ; }
-	void _new_access(         PD pd ,           ::string&& f , AccessDigest ad , CD const& cd , bool p , ::string const& c ) { _new_access({},pd,true,::move(f),ad,cd,p,c) ; }
+	void _new_access( Fd , PD    , ::string&& file , AccessDigest    , CD const&    , bool parallel , ::string const& comment ) ;
+	void _new_access(      PD pd , ::string&& f    , AccessDigest ad , CD const& cd , bool p        , ::string const& c       ) { _new_access({},pd,::move(f),ad,cd,p,c) ; }
 	//
 	void _new_accesses( Fd fd , Jerr&& jerr ) {
 		bool parallel = false ;
@@ -90,10 +86,10 @@ private :
 		Trace trace("_codec",jrr) ;
 		_new_access( sr.fd , PD(New) , ::move(sr.codec_file) , {.accesses=Access::Reg} , jrr.crc , false/*parallel*/ , comment ) ;
 	}
-public : //!                                                                                    phony_ok                      crc_date parallel
-	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,       ::copy(t),{.write=Yes},{}     ,false  ,c) ; }
-	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,false ,::copy(t),{.write=Yes},{}     ,false  ,c) ; } // new_unlnk is used for internal wash
-	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                                }
+public : //!                                                                                                           crc_date parallel
+	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}     ,false  ,c) ; }
+	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}     ,false  ,c) ; } // new_unlnk is used for internal wash
+	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                         }
 	//
 	void new_deps( PD , ::vmap_s<DepDigest>&& deps , ::string const& stdin={}       ) ;
 	void new_exec( PD , ::string const& exe        , ::string const&      ="s_exec" ) ;
@@ -136,5 +132,5 @@ public : //!                                                                    
 	::string                                      msg          ;                                                  // contains error messages not from job
 	::umap<Fd,pair<IMsgBuf,vector<Jerr>>>         slaves       ;                                                  // Jerr's are waiting for confirmation
 private :
-	mutable ::mutex _pid_mutex ;
+	Mutex<MutexLvl::Gather> mutable _pid_mutex ;
 } ;

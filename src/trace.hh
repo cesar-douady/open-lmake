@@ -60,10 +60,10 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static              ::atomic<size_t> s_sz           ;                                                     // max overall size of trace, beyond, trace wraps
 		static              Channels         s_channels     ;
 	private :
-		static size_t  _s_pos   ;                                                                                 // current line number
-		static bool    _s_ping  ;                                                                                 // ping-pong to distinguish where trace stops in the middle of a trace
-		static Fd      _s_fd    ;
-		static ::mutex _s_mutex ;
+		static size_t                 _s_pos   ;                                                                  // current line number
+		static bool                   _s_ping  ;                                                                  // ping-pong to distinguish where trace stops in the middle of a trace
+		static Fd                     _s_fd    ;
+		static Mutex<MutexLvl::Trace> _s_mutex ;
 		//
 		static thread_local int            _t_lvl  ;
 		static thread_local bool           _t_hide ;                                                              // if true <=> do not generate trace
@@ -117,8 +117,8 @@ static constexpr Channels DfltChannels = ~Channels() ;
 			::string      buf_view = _t_buf->str () ;
 		#endif
 		//
-		{	::unique_lock lock    { _s_mutex }             ;
-			size_t        new_pos = _s_pos+buf_view.size() ;
+		{	Lock   lock    { _s_mutex }             ;
+			size_t new_pos = _s_pos+buf_view.size() ;
 			if (new_pos>s_sz) {
 				if (_s_pos<s_sz) _s_fd.write(to_string(::right,::setw(s_sz-_s_pos),'\n')) ;
 				::lseek(_s_fd,0,SEEK_SET) ;

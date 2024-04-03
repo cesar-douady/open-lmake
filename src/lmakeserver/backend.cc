@@ -32,8 +32,8 @@ namespace Backends {
 
 	::pair<Pdate/*eta*/,bool/*keep_tmp*/> Backend::StartEntry::req_info() const {
 		Pdate eta      ;
-		bool  keep_tmp = false ;
-		::unique_lock lock{Req::s_reqs_mutex} ; // taking Req::s_reqs_mutex is compulsery to derefence req
+		bool  keep_tmp = false               ;
+		Lock  lock     { Req::s_reqs_mutex } ; // taking Req::s_reqs_mutex is compulsery to derefence req
 		for( ReqIdx r : reqs ) {
 			Req req{r} ;
 			keep_tmp |= req->options.flags[ReqFlag::KeepTmp]  ;
@@ -48,8 +48,8 @@ namespace Backends {
 
 	::string                          Backend::s_executable              ;
 	Backend*                          Backend::s_tab[N<Tag>]             ;
-	::mutex                           Backend::_s_mutex                  ;
-	::mutex                           Backend::_s_starting_job_mutex     ;
+	Mutex<MutexLvl::Backend >         Backend::_s_mutex                  ;
+	Mutex<MutexLvl::StartJob>         Backend::_s_starting_job_mutex     ;
 	::atomic<JobIdx>                  Backend::_s_starting_job           ;
 	::map<JobIdx,Backend::StartEntry> Backend::_s_start_tab              ;
 	SmallIds<SmallId>                 Backend::_s_small_ids              ;
@@ -66,13 +66,13 @@ namespace Backends {
 	}
 
 	static bool _localize( Tag t , ReqIdx ri ) {
-		::unique_lock lock{Req::s_reqs_mutex} ;                                 // taking Req::s_reqs_mutex is compulsery to derefence req
+		Lock lock{Req::s_reqs_mutex} ;                                          // taking Req::s_reqs_mutex is compulsery to derefence req
 		return Req(ri)->options.flags[ReqFlag::Local] || !Backend::s_ready(t) ; // if asked backend is not usable, force local execution
 	}
 
 	void Backend::s_submit( Tag tag , JobIdx ji , ReqIdx ri , SubmitAttrs&& submit_attrs , ::vmap_ss&& rsrcs ) {
 		SWEAR(+tag) ;
-		::unique_lock lock{_s_mutex} ;
+		Lock lock{_s_mutex} ;
 		Trace trace(BeChnl,"s_submit",tag,ji,ri,submit_attrs,rsrcs) ;
 		//
 		if ( tag!=Tag::Local && _localize(tag,ri) ) {
@@ -90,7 +90,7 @@ namespace Backends {
 	void Backend::s_add_pressure( Tag tag , JobIdx j , ReqIdx ri , SubmitAttrs const& sa ) {
 		SWEAR(+tag) ;
 		if (_localize(tag,ri)) tag = Tag::Local ;
-		::unique_lock lock{_s_mutex} ;
+		Lock lock{_s_mutex} ;
 		Trace trace(BeChnl,"s_add_pressure",tag,j,ri,sa) ;
 		auto it = _s_start_tab.find(j) ;
 		if (it==_s_start_tab.end()) {
@@ -104,7 +104,7 @@ namespace Backends {
 	void Backend::s_set_pressure( Tag tag , JobIdx j , ReqIdx ri , SubmitAttrs const& sa ) {
 		SWEAR(+tag) ;
 		if (_localize(tag,ri)) tag = Tag::Local ;
-		::unique_lock lock{_s_mutex} ;
+		Lock lock{_s_mutex} ;
 		Trace trace(BeChnl,"s_set_pressure",tag,j,ri,sa) ;
 		s_tab[+tag]->set_pressure(j,ri,sa) ;
 		auto it = _s_start_tab.find(j) ;
@@ -113,7 +113,7 @@ namespace Backends {
 	}
 
 	void Backend::s_launch() {
-		::unique_lock lock{_s_mutex} ;
+		Lock lock{_s_mutex} ;
 		Trace trace(BeChnl,"s_launch") ;
 		for( Tag t : All<Tag> ) if (s_ready(t)) {
 			try {
@@ -135,8 +135,8 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_deferred_wakeup(DeferredEntry&& de) {
-		{	::unique_lock lock { _s_mutex }                      ;                            // lock _s_start_tab for minimal time to avoid dead-locks
-			auto          it   = _s_start_tab.find(+de.job_exec) ;
+		{	Lock lock { _s_mutex }                      ;                                     // lock _s_start_tab for minimal time to avoid dead-locks
+			auto it   = _s_start_tab.find(+de.job_exec) ;
 			if (it==_s_start_tab.end()           ) return ;                                   // too late, job has ended
 			if (it->second.conn.seq_id!=de.seq_id) return ;                                   // too late, job has ended and restarted
 		}
@@ -159,8 +159,8 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_deferred_report(DeferredEntry&& dre) {
-		::unique_lock lock { _s_mutex }                       ;    // lock _s_start_tab for minimal time to avoid dead-locks
-		auto          it   = _s_start_tab.find(+dre.job_exec) ;
+		Lock lock { _s_mutex }                       ;             // lock _s_start_tab for minimal time to avoid dead-locks
+		auto it   = _s_start_tab.find(+dre.job_exec) ;
 		if (it==_s_start_tab.end()            ) return ;
 		if (it->second.conn.seq_id!=dre.seq_id) return ;
 		Trace trace(BeChnl,"_s_handle_deferred_report",dre) ;
@@ -207,8 +207,8 @@ namespace Backends {
 		::vmap_ss                                  rsrcs             ;
 		Trace trace(BeChnl,"_s_handle_job_start",jrr) ;
 		_s_starting_job = jrr.job ;
-		::unique_lock lock { _s_starting_job_mutex } ;
-		{	::unique_lock lock { _s_mutex } ;                          // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		Lock lock { _s_starting_job_mutex } ;
+		{	Lock lock { _s_mutex } ;                                   // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
@@ -312,7 +312,7 @@ namespace Backends {
 			}
 			//
 			bool dep_ready = true ;
-			for( auto const& [dn,dd] : ::vector_view(&deps[n_submit_deps],deps.size()-n_submit_deps) )
+			for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )                     // note : this is ok even if deps is empty
 				for( Req r : entry.reqs )
 					// to be sure, we should check done(Dsk) rather than done(Status), but we do not seek security here, we seek perf (real check will be done at end of job)
 					// and most of the time, done(Status) implies file is ok, and we have less false positive as we do not have the opportunity to fully assess sources
@@ -412,7 +412,7 @@ namespace Backends {
 		DF}
 		Job job { jrr.job } ;
 		Trace trace(BeChnl,"_s_handle_job_mngt",jrr) ;
-		{	::unique_lock lock { _s_mutex } ;                      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	Lock lock { _s_mutex } ;                               // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//                                                                                                                                          keep_fd
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
@@ -430,15 +430,15 @@ namespace Backends {
 
 	bool/*keep_fd*/ Backend::_s_handle_job_end( JobRpcReq&& jrr , SlaveSockFd const& ) {
 		switch (jrr.proc) {
-			case JobProc::None : return false ;                                   // if connection is lost, ignore it
-			case JobProc::End  : break ;                                          // no reply
+			case JobProc::None : return false ;                          // if connection is lost, ignore it
+			case JobProc::End  : break ;                                 // no reply
 		DF}
 		Job       job   { jrr.job } ;
 		JobExec   je    ;
 		::vmap_ss rsrcs ;
 		Trace trace(BeChnl,"_s_handle_job_end",jrr) ;
-		if (jrr.job==_s_starting_job) ::unique_lock lock{_s_starting_job_mutex} ; // ensure _s_handled_job_start is done for this job
-		{	::unique_lock lock { _s_mutex } ;                                     // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		if (jrr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ; // ensure _s_handled_job_start is done for this job
+		{	Lock lock { _s_mutex } ;                                     // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
@@ -458,13 +458,13 @@ namespace Backends {
 		}
 		trace("info") ;
 		for( auto& [dn,dd] : jrr.digest.deps ) {
-			if (!dd.is_date) continue ;                                           // fast path
+			if (!dd.is_date) continue ;                                  // fast path
 			Dep dep { Node(dn) , dd } ;
 			dep.acquire_crc() ;
 			dd.crc_date(dep) ;
 		}
 		::string jaf = job->ancillary_file() ;
-		serialize( OFStream(jaf,::ios::app) , JobInfoEnd{jrr} ) ; // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
+		serialize( OFStream(jaf,::ios::app) , JobInfoEnd{jrr} ) ;        // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
 		job->end_exec() ;
 		je.end_date = file_date(jaf) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -478,7 +478,7 @@ namespace Backends {
 		Trace trace(BeChnl,"s_kill_req",ri) ;
 		Req                                            req       { ri } ;
 		::vmap<JobIdx,pair<StartEntry::Conn,FullDate>> to_wakeup ;
-		{	::unique_lock lock { _s_mutex } ;                                                                                              // lock for minimal time
+		{	Lock lock { _s_mutex } ;                                                                                                       // lock for minimal time
 			for( Tag t : All<Tag> ) if (s_ready(t))
 				for( JobIdx j : s_tab[+t]->kill_waiting_jobs(ri) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -536,8 +536,8 @@ namespace Backends {
 		SubmitAttrs              submit_attrs ;
 		FullDate                 start_date   ;
 		for( JobIdx job=0 ;; job++ ) {
-			{	::unique_lock lock { _s_mutex }                    ;                                         // lock _s_start_tab for minimal time
-				auto          it   = _s_start_tab.lower_bound(job) ;
+			{	Lock lock { _s_mutex }                    ;                                                  // lock _s_start_tab for minimal time
+				auto it   = _s_start_tab.lower_bound(job) ;
 				if (it==_s_start_tab.end()) goto WrapAround ;
 				//
 				job = it->first ;                                                                            // job is now the next valid entry
@@ -606,7 +606,7 @@ namespace Backends {
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
 		if (!dynamic) s_executable = *g_lmake_dir+"/_bin/job_exec" ;
 		//
-		::unique_lock lock{_s_mutex} ;
+		Lock lock{_s_mutex} ;
 		for( Tag t : All<Tag> ) if (+t) {
 			Backend*               be  = s_tab [+t] ;
 			Config::Backend const& cfg = config[+t] ;
@@ -637,11 +637,11 @@ namespace Backends {
 
 	::vector_s Backend::acquire_cmd_line( Tag tag , JobIdx job , ::vector<ReqIdx> const& reqs , ::vmap_ss&& rsrcs , SubmitAttrs const& submit_attrs ) {
 		Trace trace(BeChnl,"acquire_cmd_line",tag,job,reqs,rsrcs,submit_attrs) ;
-		SWEAR(!_s_mutex.try_lock()) ;                                            // check we have the lock to access _s_start_tab
+		_s_mutex.swear_locked() ;
 		//
 		SubmitRsrcsAttrs::s_canon(rsrcs) ;
 		//
-		auto        [it,fresh] = _s_start_tab.emplace(job,StartEntry()) ;        // create entry
+		auto        [it,fresh] = _s_start_tab.emplace(job,StartEntry()) ;                                                                                // create entry
 		StartEntry& entry      = it->second                             ;
 		entry.open() ;
 		entry.tag   = tag           ;

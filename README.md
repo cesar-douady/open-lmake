@@ -86,7 +86,7 @@ it has been tested with the dockers listed in the docker directory
 			- [dD] controls -DNDEBUG      : D passes it to enable asserts, d does not.
 			- [tT] controls -DNO_TRACE    : T does not pass it to enable traces, t passes it.
 		- the -j flag of make is automatically set to the number of processors, you may want to override this, though
-	- it is up to you to provide a suitable LD_LIBRARY_PATH value.
+	- it is up to you to provide a suitable LD\_LIBRARY\_PATH value.
 	  it will be transferred as a default value for rules, to the extent it is necessary to provide lmake semantic (mostly this means we keep what is necessary to run python).
 	- if you modify these variables, you should execute git clean as make will not detect such modifications automatically.
 
@@ -112,16 +112,17 @@ it has been tested with the dockers listed in the docker directory
 - `g_`  : global
 - `t_`  : thread local
 - `np_` : non-portable
+- `::`  : standard library or a few exceptions defined in src/utils.hh which, in my mind, should have been part of the STL, e.g. ::vector\_view (analogous to ::string\_view)
 
 Names are suffixed with \_ if needed to suppress ambiguities
 
 ## abbreviations
 - general rules :
-	- words are abbreviated depending on their use and span : the more the span is short and the usage is heavy, the more they are abbreviated
+	- words are abbreviated depending on their use and span : the shorter the span and the heavier the usage , the more they are abbreviated
 	- words may be abbreviated by their beginning, such as env for environ
 	- words may be abbreviated using only consons such as src for source
 	- these may be combined as in dst for destination
-	- words may further be abbreviated to a single letter when name spans no more than a few lines
+	- words may further be abbreviated to a single letter or by the first letter of each word (e.g. tf for target flag) when name spans no more than a few lines
 	- words include standard name such as syscall names or libc functions
 - special cases :
 	<table>
@@ -139,9 +140,9 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	</table>
 
 ## layout
-- lines are limited to 200 characters
+- lines are limited to 200 characters (as is this document)
 - functions are limited to 100 lines :
-	- there are a few exceptions, though, where it was impossible to cut without making too artificial a sub-function
+	- there are few exceptions, though, where it was impossible to cut without making too artificial a sub-function
 - generally speaking code is put on a single line when several lines are similar and alignment helps readability
 - separators (such as commas, operators, parentheses, ...) pertaining to the same expression are at the same indentation level
 	- and subexpressions are at the next indentation level if on one or several lines by themselves
@@ -151,10 +152,10 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	- example :
 
 			a = make_a(
-				my_first_coef [  0] * my_first_data         // note alignment makes expression structure appearing immediately
-			+	my_second_coef[i  ] * my_second_data        // note + at identation level 3, subexrpession at indentation level 4
-			+	my_third_coef [i*2] * my_third_data         // note following comment means this one is repeated
-			+	my_foorth_coef[i*3] * my_foorth_data        // .
+				my_first_coef [  0] * my_first_data  // note alignment makes expression structure appearing immediately
+			+	my_second_coef[i  ] * my_second_data // note + at identation level 3, subexrpession at indentation level 4
+			+	my_third_coef [i*2] * my_third_data  // note following comment means this one is repeated
+			+	my_foorth_coef[i*3] * my_foorth_data // .
 			) ;
 
 ## invariants are either
@@ -255,16 +256,26 @@ When there is a choice between "if (cond) branch1 else branch2" and "if (!cond) 
 			- vectors
 			- prefix-tree
 			- red-black tree (not used in lmake, could be suppressed)
+- the prefix tree is mostly used to store file and job names
+	- only a 32 bits id is used in most of the code
+	- id's (the Node and Job objects are very light objects containing only the id) can find their name with the name() method
+	- names can find their associated id by just constructing the Name or Job object with the name as sole argument
+	- overall, this is extremely efficient and fast
+		- need about 20-40 bytes per file, independently of the name length which is often above 200
+		- building the name string from the tree is marginally slower than a simple copy and the id mechanism makes this need the exception rather than the rule
 - this makes booting extremely fast, suppressing the need to keep a live daemon
-- persistent states are associated to Rule, Job, Node but not Req
+- persistent states are associated with Rule's, Job's, Node's but not Req's
 
 ## traces
 - when lmake is executed, a trace of activity is generated for debug purpose
 - this is true for all executables (lmake, lmakeserver, autodep, ...)
 - traces are located in :
 	- `LMAKE/lmake/local_admin/trace/<executable>`
-		- for lmakeserver, the most important trace, an history of a few last execution is kept
+		- for lmakeserver, the most important trace, an history of the last few executions is kept
 	- `LMAKE/lmake/remote_admin/job_trace/<seq_id>` for remote job execution
+- the first character of each line is either ' or ""
+	- this is because the trace file is managed as a circular buffer for performance
+	- so each time we wrap around, this first character is toggled between ' and "
 - trace entries are timestamped and a letter indicates the thread :
 	- '=' refers to the main thread
 	- in server :
@@ -283,6 +294,13 @@ When there is a choice between "if (cond) branch1 else branch2" and "if (!cond) 
 		- <number> : compute crc
 	- in lmake :
 		- I : manage ^C
+- trace records are indented to reflect the call graph
+	- indentation are done with tabs, preceded by a follow up character (chosen to be graphically light), this eases the reading
+	- when a function is entered, a * replaces the follow up character
+- to add a trace record :
+	- in a function that already has a Trace variable, just call the variable with the info you want to trace
+	- else, declare a variable of type Trace. The first argument is a title that will be repeated in all records using the same trace object
+	- all Trace objects created while this one is alive will be indented, thus reproducing the call graph in the trace
 
 # modification
 

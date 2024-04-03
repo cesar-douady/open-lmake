@@ -14,7 +14,7 @@
 
 namespace Py {
 
-	::recursive_mutex Gil::_s_mutex ;
+	Mutex<MutexLvl::Gil> Gil::_s_mutex ;
 
 	//
 	// functions

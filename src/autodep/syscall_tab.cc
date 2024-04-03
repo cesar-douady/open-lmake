@@ -312,8 +312,13 @@ template<bool At,int FlagArg> void _entry_stat( void* & /*ctx*/ , Record& r , pi
 }
 
 // XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)
-SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) { // this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
-	static Tab s_tab = {} ;
+SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
+	static Tab                         s_tab    = {}    ;
+	static ::atomic<bool>              s_inited = false ;              // set to true once s_tab is initialized
+	if (s_inited) return s_tab ;                                       // fast test not even taking the lock
+	static Mutex<MutexLvl::SyscallTab> s_mutex  ;
+	Lock lock{s_mutex} ;
+	if (s_inited) return s_tab ;                                       // repeat test now that we have the lock in case another thread while in the middle of initializing s_tab
 	//	/!\ prio must be non-zero as zero means entry is not allocated
 	//	entries marked NFS_GUARD are deemed data access as they touch their enclosing dir and hence must be guarded against strange NFS notion of coherence
 	//	entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
@@ -440,5 +445,7 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) { // this must *no
 		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlnk   <true ,2         > , _exit_unlnk    ,2    , 1  , true     , "Unlinkat"          } ;
 	#endif
 	#undef NFS_GUARD
+	fence() ;                                                          // ensure serializatino
+	s_inited = true ;
 	return s_tab ;
 }

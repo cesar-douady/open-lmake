@@ -12,6 +12,7 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* fix compilation with LMAKE_SAN=T
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions
 * reimplement hierarchical repositories
@@ -52,6 +53,9 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* generate an error when calling depend on a target
+	- either known at that time
+	- or when it becomes a target if later
 * generate target/dep key everywhere it is pertinent
 * report Source/Anti rule name when appropriate
 * be more consise in console output
@@ -102,6 +106,8 @@ items :
 * implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
+* support dynamic values for interpreter
+	- python and shell
 * improve job isolation by using namespaces
 	- much like faketree : https://github.com/enfabrica/enkit/tree/master/faketree
 	- generalize tmp mapping

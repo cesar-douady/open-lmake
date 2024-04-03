@@ -252,11 +252,11 @@ namespace Hash {
 	// _Xxh
 	//
 
-	char    _Xxh::_s_lnk_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
-	char    _Xxh::_s_exe_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
-	::mutex _Xxh::_s_inited_mutex                     ;
-	bool    _Xxh::_s_lnk_inited                       = false ;
-	bool    _Xxh::_s_exe_inited                       = false ;
+	char                  _Xxh::_s_lnk_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
+	char                  _Xxh::_s_exe_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
+	Mutex<MutexLvl::Hash> _Xxh::_s_inited_mutex                     ;
+	bool                  _Xxh::_s_lnk_inited                       = false ;
+	bool                  _Xxh::_s_exe_inited                       = false ;
 
 	_Xxh::_Xxh() {
 		XXH3_INITSTATE   (&_state) ;
