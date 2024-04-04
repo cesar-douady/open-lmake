@@ -22,7 +22,7 @@ struct Fd {
 	static const Fd Std    ;           // the highest standard fd
 	// cxtors & casts
 	constexpr Fd(                              ) = default ;
-	constexpr Fd( Fd const& fd_                )           { *this =        fd_  ;   }
+	constexpr Fd( Fd const& fd_                )           { *this =        fd_  ;   } // XXX : use copy&swap idiom
 	constexpr Fd( Fd     && fd_                )           { *this = ::move(fd_) ;   }
 	constexpr Fd( int       fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int       fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
@@ -71,7 +71,7 @@ struct AutoCloseFd : Fd {
 	// cxtors & casts
 	using Fd::Fd ;
 	AutoCloseFd(Fd          const& fd_ ) : Fd{       fd_  } {                }
-	AutoCloseFd(AutoCloseFd     && acfd) : Fd{::move(acfd)} { SWEAR(!acfd) ; } // ensure acfd has been detached
+	AutoCloseFd(AutoCloseFd     && acfd) : Fd{::move(acfd)} { SWEAR(!acfd) ; } // ensure acfd has been detached XXX : use copy&swap idiom
 	AutoCloseFd(AutoCloseFd const& acfd) = delete ;
 	//
 	~AutoCloseFd() { close() ; }
@@ -244,7 +244,7 @@ struct Epoll {
 	void add_write(              Fd fd_ ) { add(true /*write*/,fd_  ) ; }
 	void del(Fd fd_) {
 		int rc = ::epoll_ctl( fd , EPOLL_CTL_DEL , fd_ , nullptr ) ;
-		swear_prod(rc==0,"cannot del ",fd_," from epoll ",fd," (",strerror(errno),')') ;
+		swear_prod(rc==0,"cannot del",fd_,"from epoll",fd,'(',strerror(errno),')') ;
 		cnt-- ;
 	}
 	void close(Fd fd_) { SWEAR(+fd_) ; del(fd_) ; fd_.close() ; }

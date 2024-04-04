@@ -85,6 +85,7 @@ namespace Engine {
 	void Req::kill() {
 		Trace trace("kill",*this) ;
 		SWEAR(zombie()) ;             // zombie has already been set
+		audit_ctrl_c( (*this)->audit_fd , (*this)->log_stream , (*this)->options ) ;
 		Backend::s_kill_req(+*this) ;
 	}
 
@@ -453,11 +454,8 @@ namespace Engine {
 		last_info = {} ;
 	}
 
-	void ReqData::audit_status(bool ok) const {
-		try                     { OMsgBuf().send( audit_fd , ReqRpcReply(ok) ) ; }
-		catch (::string const&) {                                                } // if client has disappeared, well, we cannot do much
-		log_stream << "status : " << (ok?"ok":"failed") << '\n' ;
-	}
+	static void          _audit_status( Fd out_fd, ::ostream& log , ReqOptions const& ro , bool ok )       { audit_status (out_fd  ,log       ,ro     ,ok) ; } // allow access to global function ...
+	/**/   void ReqData::audit_status (                                                    bool ok ) const { _audit_status(audit_fd,log_stream,options,ok) ; } // ... w/o naming namespace
 
 	bool/*seen*/ ReqData::audit_stderr( ::string const& msg , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {
 		if (+msg                        ) audit_info( Color::Note , msg , lvl ) ;
@@ -476,16 +474,19 @@ namespace Engine {
 
 	void ReqData::audit_stats() const {
 		try {
-			ReqRpcReply rrr{ title(
-				options
-			,	stats.ended(JobReport::Failed)==0                ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
-			,	                                                                    "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
-			,	!g_config.caches || !stats.ended(JobReport::Hit) ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
-			,	stats.ended(JobReport::Rerun )==0                ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
-			,	                                                                   " running:" , stats.cur  (JobStep  ::Exec  )
-			,	stats.cur  (JobStep  ::Queued)==0                ? ""s : to_string(" queued:"  , stats.cur  (JobStep  ::Queued))
-			,	stats.cur  (JobStep  ::Dep   )==0                ? ""s : to_string(" waiting:" , stats.cur  (JobStep  ::Dep   ))
-			) } ;
+			ReqRpcReply rrr{
+				ReqRpcReplyProc::Txt
+			,	title(
+					options
+				,	stats.ended(JobReport::Failed)==0                ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
+				,	                                                                    "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
+				,	!g_config.caches || !stats.ended(JobReport::Hit) ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
+				,	stats.ended(JobReport::Rerun )==0                ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
+				,	                                                                   " running:" , stats.cur  (JobStep  ::Exec  )
+				,	stats.cur  (JobStep  ::Queued)==0                ? ""s : to_string(" queued:"  , stats.cur  (JobStep  ::Queued))
+				,	stats.cur  (JobStep  ::Dep   )==0                ? ""s : to_string(" waiting:" , stats.cur  (JobStep  ::Dep   ))
+				)
+			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;
 		} catch (::string const&) {}           // if client has disappeared, well, we cannot do much
 	}

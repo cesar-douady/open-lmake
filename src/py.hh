@@ -134,7 +134,7 @@ namespace Py {
 		//
 		~Ptr() { unboost() ; }
 		//
-		Ptr& operator=(Object*    o) { unboost() ; ptr = o     ; boost()    ; return *this ; }
+		Ptr& operator=(Object*    o) { unboost() ; ptr = o     ; boost()    ; return *this ; } // XXX : use copy&swap idiom
 		Ptr& operator=(Ptr const& p) { unboost() ; ptr = p.ptr ; boost()    ; return *this ; }
 		Ptr& operator=(Ptr     && p) { unboost() ; ptr = p.ptr ; p.detach() ; return *this ; }
 		// accesses

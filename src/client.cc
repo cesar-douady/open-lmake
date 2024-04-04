@@ -17,8 +17,8 @@ using namespace Time ;
 
 AutoCloseFdPair g_server_fds ;
 
-static bool server_ok( Fd fd , ::string const& tag ) {
-	Trace trace("server_ok",tag,fd) ;
+static bool _server_ok( Fd fd , ::string const& tag ) {
+	Trace trace("_server_ok",tag,fd) ;
 	bool ok  = false                             ;
 	int  cnt = ::read( fd , &ok , sizeof(bool) ) ;
 	if (cnt!=sizeof(bool)) { trace("bad_answer",cnt) ; return false ; }
@@ -26,8 +26,8 @@ static bool server_ok( Fd fd , ::string const& tag ) {
 	return ok ;
 }
 
-static void connect_to_server(bool refresh) {
-	Trace trace("connect_to_server",STR(refresh)) ;
+static pid_t _connect_to_server( bool refresh , bool sync ) { // if sync, ensure we launch our own server
+	Trace trace("_connect_to_server",STR(refresh)) ;
 	::string server_service  ;
 	bool     server_is_local = false ;
 	pid_t    server_pid      = 0     ;
@@ -48,9 +48,10 @@ static void connect_to_server(bool refresh) {
 					server_is_local = true                                                                                           ;
 				}
 				ClientSockFd req_fd { server_service , 3/*n_trials*/ , Delay(3)/*timeout*/ } ;
-				if (server_ok(req_fd,"old")) {
+				if (_server_ok(req_fd,"old")) {
 					g_server_fds = ::move(req_fd) ;
-					return ;
+					if (sync) exit(Rc::Format,"server already exists") ;
+					return 0 ;
 				}
 			} catch(::string const&) { trace("cannot_connect",server_service) ; }
 			//
@@ -75,10 +76,11 @@ static void connect_to_server(bool refresh) {
 			client_to_server.read .close() ;
 			server_to_client.write.close() ;
 			//
-			if (server_ok(server_to_client.read,"new")) {
+			if (_server_ok(server_to_client.read,"new")) {
 				g_server_fds = AutoCloseFdPair{ server_to_client.read , client_to_server.write } ;
+				pid_t pid = server.pid ;
 				server.mk_daemon() ;
-				return ;
+				return pid ;
 			}
 			client_to_server.write.close() ;
 			server_to_client.read .close() ;
@@ -172,11 +174,13 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	return res ;
 }
 
-Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
+Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
 	Trace trace("out_proc") ;
 	//
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
 	if ( !cmd_line.flags[ReqFlag::Job] && cmd_line.flags[ReqFlag::Rule] ) syntax.usage("can only force a rule to identify a job, not a file") ;
+	//
+	bool sync = cmd_line.flags[ReqFlag::Sync] ;
 	//
 	Bool3    rv     = Maybe/*garbage*/ ;
 	::string rv_str ;
@@ -193,21 +197,26 @@ Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqSyntax co
 	}
 	trace("reverse_video",rv) ;
 	//
-	ReqRpcReq rrr { proc , cmd_line.files() , { rv , cmd_line } } ;
-	connect_to_server(refresh) ;
+	ReqRpcReq rrr        { proc , cmd_line.files() , { rv , cmd_line } } ;
+	Bool3     rc         = Maybe                                         ;
+	pid_t     server_pid = _connect_to_server(refresh,sync)              ;
 	started_cb() ;
 	OMsgBuf().send(g_server_fds.out,rrr) ;
 	try {
 		for(;;) {
+			using Proc = ReqRpcReplyProc ;
 			ReqRpcReply report = IMsgBuf().receive<ReqRpcReply>(g_server_fds.in) ;
-			switch (report.kind) {
-				case ReqKind::None   : trace("none"               ) ; return Maybe            ;
-				case ReqKind::Status : trace("done",STR(report.ok)) ; return report.ok?Yes:No ;
-				case ReqKind::Txt    : os << report.txt << flush    ; break                   ;
+			switch (report.proc) {
+				case Proc::None   : trace("done"                 ) ;                                               goto Return ;
+				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           break       ;
+				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ;
+				case Proc::Txt    :                                  ::cout << report.txt << flush ;               break       ;
 			DF}
 		}
 	} catch(...) {
 		trace("disconnected") ;
-		return Maybe ;          // input has been closed by peer before reporting a status
 	}
+Return :
+	if (sync) waitpid( server_pid , nullptr , 0 ) ;
+	return rc ;
 }

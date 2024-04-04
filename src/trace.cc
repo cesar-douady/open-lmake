@@ -19,10 +19,11 @@ Channels          Trace::s_channels     = DfltChannels ; // by default, trace de
 
 #ifndef NO_TRACE
 
-	size_t                 Trace::_s_pos   =  0    ;
-	bool                   Trace::_s_ping  = false ;
-	Fd                     Trace::_s_fd    ;
-	Mutex<MutexLvl::Trace> Trace::_s_mutex ;
+	size_t                 Trace::_s_pos    =  0    ;
+	bool                   Trace::_s_ping   = false ;
+	Fd                     Trace::_s_fd     ;
+	::atomic<bool>         Trace::_s_has_fd = false ;
+	Mutex<MutexLvl::Trace> Trace::_s_mutex  ;
 
 	thread_local int            Trace::_t_lvl  = 0       ;
 	thread_local bool           Trace::_t_hide = false   ;
@@ -41,6 +42,8 @@ Channels          Trace::s_channels     = DfltChannels ; // by default, trace de
 		//
 		Lock lock{_s_mutex} ;
 		//
+		_s_has_fd = false ;
+		fence() ;
 		_s_fd.close() ;
 		*g_trace_file = trace_file ;
 		_s_open() ;
@@ -57,8 +60,10 @@ Channels          Trace::s_channels     = DfltChannels ; // by default, trace de
 		unlnk(*g_trace_file) ;              // avoid write clashes if trace is still being written by another process
 		Fd fd = open_write(*g_trace_file) ;
 		fd.no_std() ;
-		_s_pos = 0 ;
-		_s_fd = fd ;                        // ensure _s_fd is updated once everything is ok as tracing may be called from other threads while being initialized
+		_s_pos = 0   ;
+		_s_fd  = fd  ;                      // ensure _s_fd is updated once everything is ok as tracing may be called from other threads while being initialized
+		fence() ;
+		_s_has_fd = +fd ;
 	}
 
 #endif

@@ -249,8 +249,8 @@ namespace Backends::Slurm {
 		virtual uint32_t/*id*/ launch_job( JobIdx j , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
 			nice &= 0x7fffffff ;                                                                         // slurm will not accept negative values, default values overflow in ... 2091
-			Trace trace(Channel::Backend,"Slurm::launch_job",repo_key,j,nice,cmd_line,rs,STR(verbose)) ;
 			uint32_t id = slurm_spawn_job( repo_key , j , nice , cmd_line , *rs , verbose ) ;
+			Trace trace(BeChnl,"Slurm::launch_job",repo_key,j,id,nice,cmd_line,rs,STR(verbose)) ;
 			spawned_rsrcs.inc(rs) ;                                                                      // only reserv resources once we are sure job is launched
 			return id ;
 		}
@@ -398,7 +398,7 @@ namespace Backends::Slurm {
 		if (!dst) throw to_string("cannot find ",name," in ",LibSlurm) ;
 	}
 	void slurm_init() {
-		Trace trace("slurm_init") ;
+		Trace trace(BeChnl,"slurm_init") ;
 		void* handler = ::dlopen(LibSlurm,RTLD_NOW|RTLD_GLOBAL) ;
 		if (!handler) throw to_string("cannot find ",LibSlurm) ;
 		//
@@ -443,7 +443,7 @@ namespace Backends::Slurm {
 
 	RsrcsData parse_args(::string const& args) {
 		static ::string slurm = "slurm" ;                  // apparently "slurm"s.data() does not work as memory is freed right away
-		Trace trace(Channel::Backend,"parse_args",args) ;
+		Trace trace(BeChnl,"parse_args",args) ;
 		//
 		if (!args) return {} ;                             // fast path
 		//
@@ -492,7 +492,7 @@ namespace Backends::Slurm {
 		//This for loop with a retry comes from the scancel Slurm utility code
 		//Normally we kill mainly waiting jobs, but some "just started jobs" could be killed like that also
 		//Running jobs are killed by lmake/job_exec
-		Trace trace(Channel::Backend,"slurm_cancel",slurm_id) ;
+		Trace trace(BeChnl,"slurm_cancel",slurm_id) ;
 		int i   = 0/*garbage*/ ;
 		for( i=0 ; i<10/*MAX_CANCEL_RETRY*/ ; i++ ) {
 			if (SlurmApi::kill_job(slurm_id,SIGKILL,KILL_FULL_JOB)==SLURM_SUCCESS) { trace("done") ; return ; }
@@ -508,7 +508,7 @@ namespace Backends::Slurm {
 	}
 
 	::pair_s<Bool3/*job_ok*/> slurm_job_state(uint32_t slurm_id) {                                                                           // Maybe means job has not completed
-		Trace trace(Channel::Backend,"slurm_job_state",slurm_id) ;
+		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		//
 		if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS) return { "cannot load job info : "+slurm_err() , Yes/*job_ok*/ } ; // no info on job -> retry
@@ -521,7 +521,7 @@ namespace Backends::Slurm {
 			completed &= js>=JOB_COMPLETE ;
 			if (js<=JOB_COMPLETE) continue ;                                                                                                 // we only search errors
 			const char* on_nodes  = !ji.nodes||::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
-			int         exit_code = ji.exit_code                                                 ;
+			int         exit_code = ji.exit_code                                                            ;
 			// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
 			// however, the user is interested in the received signal, not mapped bash exit code, so undo mapping
 			// signaled wstatus are barely the signal number
@@ -554,7 +554,7 @@ namespace Backends::Slurm {
 	static ::string _get_stdout_path(JobIdx job) { return _get_log_dir(job) + "/stdout"                   ; }
 
 	::string read_stderr(JobIdx job) {
-		Trace trace(Channel::Backend,"Slurm::read_stderr",job) ;
+		Trace trace(BeChnl,"Slurm::read_stderr",job) ;
 		::string err_file = _get_stderr_path(job) ;
 		try {
 			::string res = read_content(err_file) ;
@@ -574,7 +574,7 @@ namespace Backends::Slurm {
 	}
 	uint32_t slurm_spawn_job( ::string const& key , JobIdx job , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
 		static char* env[1] = {const_cast<char *>("")} ;
-		Trace trace(Channel::Backend,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
+		Trace trace(BeChnl,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
 		//
 		SWEAR(rsrcs.size()> 0) ;
 		SWEAR(nice        >=0) ;
@@ -636,7 +636,7 @@ namespace Backends::Slurm {
 	}
 
 	Daemon slurm_sense_daemon() {
-		Trace trace("slurm_sense_daemon") ;
+		Trace trace(BeChnl,"slurm_sense_daemon") ;
 		slurm_conf_t* conf = nullptr ;
 		// XXX : remember last conf read so as to pass a real update_time param & optimize call
 		if (!is_target("/etc/slurm/slurm.conf")                           ) throw "no slurm config file /etc/slur/slurm.conf"s          ;

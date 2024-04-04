@@ -75,19 +75,19 @@ it has been tested with the dockers listed in the docker directory
 		- the relative positions of these 4 dirs must remain the same, i.e. they must stay in the same directory with the same names.
 - specialization
 	- you can specialize the build process to better suit your needs :
-	- this can be done by setting variables on the command line or in the environment
-		- for example, you can run : make CC=/my/gcc or CC=/my/gcc make
+	- this can be done by setting variables
+		- for example, you can run : CXX=/my/g++ make
 		- PYTHON2 can be set to your preferred Python 2 (defaults to python2). You will be told if it is not supported.
 		- PYTHON can be set to your preferred Python 3 (defaults to python3). You will be told if it is not supported.
-		- CC can be set to your preferred compiler. You will be told if it is not supported.
-		- LMAKE_OP can be defined as [0123][gG][dD][tT] (default is 3GDT)
-			- [0123] controls the -O option.
-			- [gG] controls the -g option : G passes it to enable debug, g does not.
-			- [dD] controls -DNDEBUG      : D passes it to enable asserts, d does not.
-			- [tT] controls -DNO_TRACE    : T does not pass it to enable traces, t passes it.
+		- CXX can be set to your preferred C++ compiler. You will be told if it is not supported.
+		- LMAKE_FLAGS can be defined as O[0123]G?D?T?S[AB]C?
+			- O[0123] controls the -O option (default : 3                  )
+			- G controls the -g option       (default : no debug           )
+			- d controls -DNDEBUG            (default : asserts are enabled)
+			- t controls -DNO_TRACE          (default : traces are enabled )
 		- the -j flag of make is automatically set to the number of processors, you may want to override this, though
 	- it is up to you to provide a suitable LD\_LIBRARY\_PATH value.
-	  it will be transferred as a default value for rules, to the extent it is necessary to provide lmake semantic (mostly this means we keep what is necessary to run python).
+	  it will be transferred as a default value for rules, to the extent it is necessary to provide the lmake semantic
 	- if you modify these variables, you should execute git clean as make will not detect such modifications automatically.
 
 # coding rules
@@ -181,6 +181,17 @@ When there is a choice between "if (cond) branch1 else branch2" and "if (!cond) 
 - prefer normal case to error case
 - prefer "true" case to "false" case (at semantic level)
 - prefer positive test (i.e. prefer == to !=, x or +x to !x, etc.)
+
+## bool values and if
+Most objects have a natural "empty" value, such as empty strings, empty vectors, the first value of an enum, etc.
+- It is extremely practical to write if (err\_msg) process\_err() ; rather than if (!err\+msg.empty()) process\_err() ;
+- This suggests to have casts to bool mostly everywhere, but
+	- this does not apply to enum nor to STL classes
+	- this creates a lot of ambiguities
+	- this is actually pretty dangerous as this weakens static type checking (as bool can in turn be converted to int...)
+- The pefect balance is to define the prefix operators + (non empty) and ! (empty) :
+	- we can write if (+err\_msg) process\_err() ; or if (!err\_msg) process\_ok() ; which is still very light
+	- it can apply to any type
 
 ## goto's
 - goto's are used when they allow the code to be easier to read and understand

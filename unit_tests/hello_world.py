@@ -36,6 +36,9 @@ if __name__!='__main__' :
 
 else :
 
+	import os
+	import os.path as osp
+
 	import ut
 
 	print('hello',file=open('hello','w'))
@@ -44,3 +47,7 @@ else :
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 )           # check targets are out of date
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 )           # check targets are up to date
 	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         )           # check reconvergence
+
+	os.system('ldebug hello+world_sh') # ensure no crash and server is dead
+
+	assert not osp.exists('LMAKE/server'),'server is still alive'

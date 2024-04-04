@@ -23,11 +23,13 @@
 }
 
 ::ostream& operator<<( ::ostream& os , ReqRpcReply const& rrr ) {
-	os << "ReqRpcReply("<<rrr.kind ;
-	switch (rrr.kind) {
-		case ReqKind::None   :                               break ;
-		case ReqKind::Status : os << (rrr.ok?",ok":",err") ; break ;
-		case ReqKind::Txt    : os <<','<< rrr.txt          ; break ;
+	using Proc = ReqRpcReplyProc ;
+	os << "ReqRpcReply("<<rrr.proc ;
+	switch (rrr.proc) {
+		case Proc::None   :                               break ;
+		case Proc::Status : os << (rrr.ok?",ok":",err") ; break ;
+		case Proc::File   : os <<",F:"<< rrr.txt        ; break ;
+		case Proc::Txt    : os <<",T:"<< rrr.txt        ; break ;
 	DF}
 	return os << ')' ;
 }

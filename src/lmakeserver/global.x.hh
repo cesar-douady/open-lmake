@@ -221,14 +221,21 @@ namespace Engine {
 	} ;
 
 	// sep is put before the last indent level, useful for porcelaine output
-	#define ROC ReqOptions const
-	#define SC  ::string   const
-	/**/   void audit( Fd out , ::ostream& log , ROC&    , Color   , SC&   , bool as_is=false , DepDepth  =0 , char sep=0 ) ;
-	inline void audit( Fd out ,                  ROC& ro , Color c , SC& t , bool a    =false , DepDepth l=0 , char sep=0 ) { static OFakeStream fs ; audit(out,fs ,ro,c          ,t,a,l,sep) ; }
-	inline void audit( Fd out , ::ostream& log , ROC& ro ,           SC& t , bool a    =false , DepDepth l=0 , char sep=0 ) {                         audit(out,log,ro,Color::None,t,a,l,sep) ; }
-	inline void audit( Fd out ,                  ROC& ro ,           SC& t , bool a    =false , DepDepth l=0 , char sep=0 ) { static OFakeStream fs ; audit(out,fs ,ro,Color::None,t,a,l,sep) ; }
-	#undef SC
-	#undef ROC
+	/**/   void _audit( Fd out , ::ostream* log , ReqOptions const&    , Color   , ::string const&   , bool as_is   , DepDepth     , char sep   ) ;
+	inline void audit ( Fd out , ::ostream& log , ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,&log   ,ro,c          ,t,a,l,sep) ; }
+	inline void audit ( Fd out ,                  ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,nullptr,ro,c          ,t,a,l,sep) ; }
+	inline void audit ( Fd out , ::ostream& log , ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,&log   ,ro,Color::None,t,a,l,sep) ; }
+	inline void audit ( Fd out ,                  ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,nullptr,ro,Color::None,t,a,l,sep) ; }
+	//
+	/**/   void audit_file( Fd out , ::string&& f ) ;
+	//
+	/**/   void _audit_status( Fd out , ::ostream* log , ReqOptions const&    , bool    ) ;
+	inline void audit_status ( Fd out , ::ostream& log , ReqOptions const& ro , bool ok ) { _audit_status(out,&log   ,ro,ok) ; }
+	inline void audit_status ( Fd out ,                  ReqOptions const& ro , bool ok ) { _audit_status(out,nullptr,ro,ok) ; }
+	//
+	/**/   void _audit_ctrl_c( Fd out , ::ostream* log , ReqOptions const&    ) ;
+	inline void audit_ctrl_c ( Fd out , ::ostream& log , ReqOptions const& ro ) { _audit_ctrl_c(out,&log   ,ro) ; }
+	inline void audit_ctrl_c ( Fd out ,                  ReqOptions const& ro ) { _audit_ctrl_c(out,nullptr,ro) ; }
 
 	template<class... A> ::string title    ( ReqOptions const& , A&&... ) ;
 	inline               ::string color_pfx( ReqOptions const& , Color  ) ;

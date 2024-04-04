@@ -5,10 +5,81 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+MK_FILE=$1
+H_FILE=$2
+
 unset CDPATH # ensure cd goes to the right directory and writes nothing to stdout
 
+START_DIR=$(pwd)
 mkdir -p trial
 cd       trial
+
+#
+# Python configuration (Python2 is optional)
+#
+
+PYTHON2=${PYTHON2:-python2} ; PYTHON2=$(type -p $PYTHON2||:) # ok if we have no python2
+PYTHON=${PYTHON:-python3}   ; PYTHON=$( type -p $PYTHON    )
+for python in $PYTHON2 $PYTHON ; do
+	if [ -x $python ] ; then
+		eval $($python -c 'if True :
+			import sys
+			v = sys.version_info
+			if v.major==2 :
+				if v.minor<7 : exit(0) # Python2 is optional
+				pfx = "PY2"
+			elif v.major==3 :
+				if v.minor<6 :
+					print("echo python3 version must be at least 3.6 ; exit 1")
+					exit(1)
+				pfx = "PY"
+			else :
+				print("echo unexpected python version",v.major," ; exit 1")
+				exit(1)
+			#
+			import sysconfig
+			print(pfx+"_INCLUDEDIR="+sysconfig.get_config_var("INCLUDEDIR"))
+			print(pfx+"_INCLUDEPY=" +sysconfig.get_config_var("INCLUDEPY" ))
+			print(pfx+"_LIB_BASE="  +sysconfig.get_config_var("LDLIBRARY" ))
+			lib_dir = sysconfig.get_config_var("LIBDIR")
+			if not ( (lib_dir+"/").startswith("/usr/lib/") or (lib_dir+"/").startswith("/usr/lib64/") ) :
+				print(pfx+"_LIB_DIR="+lib_dir) # suppress dir as required in case of installed package
+		')
+	fi
+done
+if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY_LIB_DIR:$PY2_LIB_DIR # both present, separate with :
+else                                          PY_LD_LIBRARY_PATH=$PY_LIB_DIR$PY2_LIB_DIR  # only one is present
+fi
+# cancel Python2 if unusable as a library
+{ [ -f $PY2_INCLUDEPY/Python.h ] && file -L $PY2_LIB_DIR/$PY2_LIB_BASE | grep -q shared ; } || PYTHON2=
+
+#
+# CXX configuration
+#
+CXX=${CXX:-g++}
+[ "$CXX" != "${CXX%++}" ] || { echo cannot recognize c++ compiler $CXX ; exit 1 ; }
+type -p $CXX >/dev/null   || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
+
+case "$($CXX --version|head -1)" in
+	*clang* ) CXX_FLAVOR=clang ; [ "$($CXX -dumpversion)" -lt 15 ] && { echo clang version must be at least 15  ; exit 1 ; } ;;
+	*g++*   ) CXX_FLAVOR=gcc   ; [ "$($CXX -dumpversion)" -lt 11 ] && { echo gcc   version must be at least 11  ; exit 1 ; } ;;
+	*       )                                                           echo cannot recognize c++ compiler $CXX ; exit 1     ;;
+esac
+
+LLP="$($CXX -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)" # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
+LLP="$(echo $LLP | sed 's/LIBRARY_PATH=//'           )" # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
+LLP="$(echo $LLP | sed 's/:/ /'                      )" # e.g. : /usr/lib/x /a/b /c /a/b/c/..
+LLP="$(echo $LLP | sort -u                           )" # e.g. : /usr/lib/x /a/b /c /a/b
+LINK_LIB_PATH=                                          # e.g. : /a/b /c /usr/lib/x
+for l in $LLP ; do                                      # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
+	case $l/ in
+		/usr/lib/*  )                                   ;;
+		/usr/lib64/*)                                   ;;
+		*           ) LINK_LIB_PATH="$LINK_LIB_PATH $l" ;;
+	esac
+done
+
+STD_INC_DIRS="$(echo $( $CXX -E -v -std=c++20 -xc++ /dev/null 2>&1 | sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' ) )"
 
 #
 # HAS_SECCOMP
@@ -18,8 +89,8 @@ cat <<"EOF" > seccomp.c
 	#include<seccomp.h>
 	struct scmp_version v ;
 EOF
-# usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccompt.h) but some systems have seccomp.h directly installed in /usr/include/linux
-if $CC -c -idirafter /usr/include/linux -o ptrace.o seccomp.c
+# usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccomp.h) but some systems have seccomp.h directly installed in /usr/include/linux
+if $CXX -c -idirafter /usr/include/linux -o ptrace.o -xc seccomp.c
 then HAS_SECCOMP=1
 else HAS_SECCOMP=0
 fi
@@ -35,7 +106,7 @@ cat <<"EOF" > undef_ptrace_macros.c
 		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
 	}
 EOF
-if $CC -c -idirafter /usr/include/linux -o undef_ptrace_macros.o undef_ptrace_macros.c
+if $CXX -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c
 then MUST_UNDEF_PTRACE_MACROS=1
 else MUST_UNDEF_PTRACE_MACROS=0
 fi
@@ -53,7 +124,7 @@ cat <<"EOF" > get_syscall_info.c
 		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
 	}
 EOF
-if $CC -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS  -o get_syscall_info.o get_syscall_info.c
+if $CXX -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS  -o get_syscall_info.o -xc get_syscall_info.c
 then HAS_PTRACE_GET_SYSCALL_INFO=1
 else HAS_PTRACE_GET_SYSCALL_INFO=0
 fi
@@ -62,7 +133,7 @@ fi
 # HAS_CLOSE_RANGE
 # test whether we can include linux/close_range.h
 #
-if $CC -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null 2>/dev/null
+if $CXX -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null 2>/dev/null
 then HAS_CLOSE_RANGE=1
 else HAS_CLOSE_RANGE=0
 fi
@@ -94,8 +165,8 @@ if [ -z "$HAS_LD_AUDIT" ] ; then
 		#include<stdlib.h>
 		unsigned int la_version(unsigned int) { printf("1") ; exit(0) ; }
 	EOF
-	$CC -o audited                   audited.c
-	$CC -o ld_audit.so -shared -fPIC ld_audit.c
+	$CXX -o audited                   -xc audited.c
+	$CXX -o ld_audit.so -shared -fPIC -xc ld_audit.c
 	HAS_LD_AUDIT=$(LD_AUDIT=./ld_audit.so ./audited)
 fi
 
@@ -108,7 +179,7 @@ cat <<"EOF" > stat.c
 	struct stat buf ;
 	int main() { stat("",&buf) ; }
 EOF
-$CC -o stat_trial stat.c
+$CXX -o stat_trial -xc stat.c
 if nm -D stat_trial | grep -wq stat
 then NEED_STAT_WRAPPERS=0
 else NEED_STAT_WRAPPERS=1
@@ -122,7 +193,7 @@ cat <<"EOF" > ostringstream_view.cc
 	#include <sstream>
 	std::string_view ossv = std::ostringstream().view() ;
 EOF
-if $CC -c -std=c++20 -o ostringstream_view.o ostringstream_view.cc 2>/dev/null
+if $CXX -c -std=c++20 -o ostringstream_view.o -xc ostringstream_view.cc 2>/dev/null
 then HAS_OSTRINGSTREAM_VIEW=1
 else HAS_OSTRINGSTREAM_VIEW=0
 fi
@@ -130,7 +201,7 @@ fi
 #
 # HAS_SLURM
 #
-if $CC -E --include slurm/slurm.h -xc - </dev/null >/dev/null 2>/dev/null
+if $CXX -E --include slurm/slurm.h -xc - </dev/null >/dev/null 2>/dev/null
 then HAS_SLURM=1
 else HAS_SLURM=0
 fi
@@ -138,9 +209,9 @@ fi
 #
 # addr2line
 #
-if   [ -x $(dirname $CC)/addr2line ] ; then ADDR2LINE=$(dirname $CC)/addr2line
-else                                        ADDR2LINE=$(type -p addr2line)
-fi
+[ ""              ] || ADDR2LINE=$(find $(dirname $(realpath $(type -p $CXX))) -name llvm-addr2line)
+[ -x "$ADDR2LINE" ] || ADDR2LINE=$(find $(dirname $(realpath $(type -p $CXX))) -name addr2line     )
+[ -x "$ADDR2LINE" ] || ADDR2LINE=$(type -p addr2line)
 
 #
 # stacktrace
@@ -149,7 +220,7 @@ cat <<"EOF" > stacktrace.cc
 	#include <stacktrace>
 	std::stacktrace st ;
 EOF
-if $CC -c -std=c++23 -o stacktrace.o stacktrace.cc 2>/dev/null
+if $CXX -c -std=c++23 -o stacktrace.o stacktrace.cc 2>/dev/null
 then HAS_STACKTRACE=1
 else HAS_STACKTRACE=0
 fi
@@ -158,11 +229,13 @@ fi
 # HAS_MEMFD
 #
 cat <<"EOF" > memfd.c
-	#define _GNU_SOURCE
+	#ifndef _GNU_SOURCE
+		#define _GNU_SOURCE
+	#endif
 	#include<sys/mman.h>
 	int main() { memfd_create("trial",0) ; }
 EOF
-if $CC -Werror -o memfd memfd.c
+if $CXX -Werror -o memfd -xc memfd.c
 then HAS_MEMFD=1
 else HAS_MEMFD=0
 fi
@@ -178,10 +251,37 @@ cat <<"EOF" > start_main.c
 	}
 	int main() { write(1,"0",1) ; }
 EOF
-$CC -o start_main start_main.c
+$CXX -o start_main -xc start_main.c
 USE_LIBC_START_MAIN=$(./start_main)
 
-cat <<EOF
+cd $START_DIR
+
+cat >$MK_FILE <<EOF
+BASH           := /bin/bash
+GIT            := $(type -p ${GIT:-git})
+#
+PYTHON2        := $PYTHON2
+PY2_INCLUDEDIR := $PY2_INCLUDEDIR
+PY2_INCLUDEPY  := $PY2_INCLUDEPY
+PY2_LIB_DIR    := $PY2_LIB_DIR
+PY2_LIB_BASE   := $PY2_LIB_BASE
+PYTHON         := $PYTHON
+PY_INCLUDEDIR  := $PY_INCLUDEDIR
+PY_INCLUDEPY   := $PY_INCLUDEPY
+PY_LIB_DIR     := $PY_LIB_DIR
+PY_LIB_BASE    := $PY_LIB_BASE
+#
+CXX            := $(type -p $CXX)
+CXX_FLAVOR     := $CXX_FLAVOR
+LINK_LIB_PATH  := $LINK_LIB_PATH
+STD_INC_DIRS   := $STD_INC_DIRS
+#
+HAS_SECCOMP    := ${HAS_SECCOMP#0}
+HAS_SLURM      := ${HAS_SLURM#0}
+STD_PATH       := $(env -i /bin/bash -c 'echo $PATH')
+EOF
+
+cat >$H_FILE <<EOF
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
@@ -189,11 +289,11 @@ cat <<EOF
 	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
-	#define HAS_STACKTRACE              $HAS_STACKTRACE
 	#define HAS_SLURM                   $HAS_SLURM
+	#define HAS_STACKTRACE              $HAS_STACKTRACE
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
-	#define PYTHON                      "$PYTHON"
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
+	#define PYTHON                      "$PYTHON"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

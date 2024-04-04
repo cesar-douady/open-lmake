@@ -135,14 +135,15 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_deferred_wakeup(DeferredEntry&& de) {
+		Trace trace(BeChnl,"_s_handle_deferred_wakeup",de) ;
 		{	Lock lock { _s_mutex }                      ;                                     // lock _s_start_tab for minimal time to avoid dead-locks
 			auto it   = _s_start_tab.find(+de.job_exec) ;
 			if (it==_s_start_tab.end()           ) return ;                                   // too late, job has ended
 			if (it->second.conn.seq_id!=de.seq_id) return ;                                   // too late, job has ended and restarted
 		}
-		Trace trace(BeChnl,"_s_handle_deferred_wakeup",de) ;
 		JobDigest jd { .status=Status::LateLost } ;                                           // job is still present, must be really lost
 		if (+de.job_exec.start_date.p) jd.stats.total = Pdate(New)-de.job_exec.start_date.p ;
+		trace("lost",jd) ;
 		_s_handle_job_end( JobRpcReq( JobProc::End , de.seq_id , +de.job_exec , ::move(jd) ) ) ;
 	}
 
@@ -388,7 +389,7 @@ namespace Backends {
 			entry.conn.port     = jrr.port                   ;
 			entry.conn.small_id = reply.small_id             ;
 			//
-			trace("started",reply) ;
+			trace("started",job_exec,reply) ;
 		}
 		bool report_now = +pre_actions.second || +start_msg_err.second || Delay(job->exec_time)>=start_none_attrs.start_delay ; // dont defer long jobs or if a message is to be delivered to user
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -484,7 +485,7 @@ namespace Backends {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) , req , false/*report*/ ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("waiting",j) ;
+					trace("queued_in_backend",j) ;
 				}
 			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                                            // /!\ we erase entries while iterating
 				JobIdx      j = jit->first  ;
@@ -509,7 +510,7 @@ namespace Backends {
 					to_wakeup.emplace_back(j,::pair(e.conn,e.start_date)) ;
 					jit++ ;
 				} else {
-					trace("not_started",j) ;
+					trace("queued_in_slurm",j) ;
 					s_tab[+e.tag]->kill_job(j) ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,e.start_date,Pdate(New)) ) ;

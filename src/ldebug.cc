@@ -12,34 +12,34 @@
 using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
-
 	app_init() ;
 	Trace trace("main") ;
-
+	//
 	ReqSyntax syntax{{},{
 		{ ReqFlag::Graphic , { .short_name='g' , .doc="launch execution under pudb control"   } }
 	,	{ ReqFlag::Vscode  , { .short_name='c' , .doc="launch execution under vscode control" } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
-
+	//
 	if ( cmd_line.args.size()<1                                              ) syntax.usage(          "need a target to debug"                                ) ;
 	if ( cmd_line.args.size()>1                                              ) syntax.usage(to_string("cannot debug ",cmd_line.args.size()," targets at once")) ;
 	if ( cmd_line.flags[ReqFlag::Graphic] && cmd_line.flags[ReqFlag::Vscode] ) syntax.usage(          "cannot debug with pudb and vscode simultaneously"      ) ;
 	cmd_line.flags |= ReqFlag::Debug ;
-
-	::ostringstream script_file_stream ;
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( script_file_stream , ReqProc::Debug , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	::string script_file = ensure_no_nl(script_file_stream.str()) ;
-	if ( Rc rc=mk_rc(ok) ; +rc ) exit(rc,script_file) ;
-
+	//
+	::vector_s script_files ;
+	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( script_files , ReqProc::Debug , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
+	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if ( Rc rc=mk_rc(ok) ; +rc ) exit(rc) ;
+	SWEAR(script_files.size()==1,script_files) ;
+	::string& script_file = script_files[0] ;
+	//
 	char* exec_args[] = { script_file.data() , nullptr } ;
-
+	//
 	::cerr << "executing : " << script_file << endl ;
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	::execv(script_file.c_str(),exec_args) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
+	//
 	exit(Rc::System,"could not run ",script_file) ;
 }

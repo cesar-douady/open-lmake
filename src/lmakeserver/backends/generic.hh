@@ -52,8 +52,7 @@ namespace Backends {
 			else               it->second--       ;                             // data is shared, just decrement refcount
 		}
 		//
-		Shared& operator=(Shared const& r) { this->~Shared() ; new(this) Shared(       r ) ; return *this ; }
-		Shared& operator=(Shared     && r) { this->~Shared() ; new(this) Shared(::move(r)) ; return *this ; }
+		Shared& operator=(Shared s) { swap(*this,s) ; return *this ; }
 		//
 		bool operator==(Shared const&) const = default ;
 		// access
@@ -65,6 +64,9 @@ namespace Backends {
 		Data const* data = nullptr ;
 	} ;
 	template< class Data , ::unsigned_integral RefCnt > ::umap<Data,RefCnt> Shared<Data,RefCnt>::_s_store ;
+	template< class Data , ::unsigned_integral RefCnt > void swap( Shared<Data,RefCnt>& s1 , Shared<Data,RefCnt>& s2 ) {
+		::swap(s1.data,s2.data) ;
+	}
 
 }
 
@@ -167,14 +169,14 @@ namespace Backends {
 			return IsLocal ;
 		}
 		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
-			Trace trace("open_req",req,n_jobs) ;
+			Trace trace(BeChnl,"open_req",req,n_jobs) ;
 			Lock lock     { Req::s_reqs_mutex }                                                              ;   // taking Req::s_reqs_mutex is compulsery to derefence req
 			bool inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
 			SWEAR(inserted) ;
 		}
 		virtual void close_req(ReqIdx req) {
 			auto it = reqs.find(req) ;
-			Trace trace("close_req",req,STR(it==reqs.end())) ;
+			Trace trace(BeChnl,"close_req",req,STR(it==reqs.end())) ;
 			if (it==reqs.end()) return ;                                                                         // req has been killed
 			ReqEntry const& re = it->second ;
 			SWEAR(!re.waiting_jobs) ;
@@ -193,31 +195,31 @@ namespace Backends {
 			SWEAR(!waiting_jobs   .contains(job)) ;                                                              // job must be a new one
 			SWEAR(!re.waiting_jobs.contains(job)) ;                                                              // in particular for this req
 			CoarseDelay pressure = submit_attrs.pressure ;
-			Trace trace("submit",rsa,pressure) ;
+			Trace trace(BeChnl,"submit",rsa,pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
 			waiting_jobs.emplace( job , WaitingEntry(rsa,submit_attrs,re.verbose) ) ;
 			re.waiting_queues[rsa].insert({pressure,job}) ;
 		}
 		virtual void add_pressure( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs ) {
-			Trace trace("add_pressure",job,req,submit_attrs) ;
+			Trace trace(BeChnl,"add_pressure",job,req,submit_attrs) ;
 			ReqEntry& re  = reqs.at(req)           ;
 			auto      wit = waiting_jobs.find(job) ;
 			if (wit==waiting_jobs.end()) {                                                                       // job is not waiting anymore, mostly ignore
 				auto sit = spawned_jobs.find(job) ;
 				if (sit==spawned_jobs.end()) {                                                                   // job is already ended
-					trace("ended") ;
+					trace(BeChnl,"ended") ;
 				} else {
 					SpawnedEntry& se = sit->second ;                                                             // if not waiting, it must be spawned if add_pressure is called
 					if (re.verbose ) se.verbose = true ;                                                         // mark it verbose, though
-					trace("queued") ;
+					trace(BeChnl,"queued") ;
 				}
 				return ;
 			}
 			WaitingEntry& we = wit->second ;
 			SWEAR(!re.waiting_jobs.contains(job)) ;                                                              // job must be new for this req
 			CoarseDelay pressure = submit_attrs.pressure ;
-			trace("adjusted_pressure",pressure) ;
+			trace(BeChnl,"adjusted_pressure",pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
 			re.waiting_queues[we.rsrcs_ask].insert({pressure,job}) ;                                             // job must be known
@@ -234,7 +236,7 @@ namespace Backends {
 			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job         ) ;                            // job must be known
 			::set<PressureEntry>& q            = re.waiting_queues.at(we.rsrcs_ask) ;                            // including for this req
 			CoarseDelay           pressure     = submit_attrs.pressure              ;
-			Trace trace("set_pressure","pressure",pressure) ;
+			Trace trace(BeChnl,"set_pressure","pressure",pressure) ;
 			we.submit_attrs |= submit_attrs ;
 			q.erase ({old_pressure,job}) ;
 			q.insert({pressure    ,job}) ;
@@ -268,7 +270,7 @@ namespace Backends {
 			::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
 			//
 			if (digest.second!=HeartbeatState::Alive) {
-				Trace trace("heartbeat",j,se.id) ;
+				Trace trace(BeChnl,"heartbeat",j,se.id) ;
 				/**/                       spawned_jobs  .erase(it) ;
 				for( auto& [r,re] : reqs ) re.queued_jobs.erase(j ) ;
 			}
@@ -277,7 +279,7 @@ namespace Backends {
 		// kill all if req==0
 		virtual ::vector<JobIdx> kill_waiting_jobs(ReqIdx req=0) {
 			::vector<JobIdx> res ;
-			Trace trace("kill_req",T,req,reqs.size()) ;
+			Trace trace(BeChnl,"kill_req",T,req,reqs.size()) ;
 			if ( !req || reqs.size()<=1 ) {
 				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first ) ;                                   // ensure the last req is the right one
 				// kill waiting jobs
@@ -299,7 +301,7 @@ namespace Backends {
 			return res ;
 		}
 		virtual void kill_job(JobIdx j) {
-			Trace trace("kill_job",j) ;
+			Trace trace(BeChnl,"kill_job",j) ;
 			auto it = spawned_jobs.find(j) ;
 			SWEAR(it!=spawned_jobs.end()) ;
 			SWEAR(!it->second.started) ;                                                                         // if job is started, it is not our responsibility any more
@@ -308,7 +310,7 @@ namespace Backends {
 		}
 		virtual void launch(                        ) { launch(Yes,{}) ; }                                       // using default arguments is not recognized to override virtual methods
 		virtual void launch( Bool3 go , Rsrcs rsrcs ) {
-			Trace trace("launch",T,go,rsrcs) ;
+			Trace trace(BeChnl,"launch",T,go,rsrcs) ;
 			RsrcsAsk rsrcs_ask ;
 			switch (go) {
 				case No    : return ;
@@ -356,7 +358,7 @@ namespace Backends {
 					try {
 						SpawnId id = launch_job( j , prio , cmd_line , rsrcs , wit->second.verbose ) ;
 						spawned_jobs[j] = { .rsrcs=rsrcs , .id=id , .verbose=wit->second.verbose } ;
-						trace("child",req,j,prio,id,cmd_line) ;
+						trace(BeChnl,"child",req,j,prio,id,cmd_line) ;
 					} catch (::string const& e) {
 						err_jobs.push_back({j,{e,rsrcs_map}}) ;
 						ok = false ;

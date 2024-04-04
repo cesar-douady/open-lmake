@@ -24,7 +24,7 @@ namespace Engine {
 		return res ;
 	}
 
-	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , ::string const& txt , bool as_is , DepDepth lvl , char sep ) {
+	void _audit( Fd out_fd , ::ostream* log , ReqOptions const& ro , Color c , ::string const& txt , bool as_is , DepDepth lvl , char sep ) {
 		if (!txt) return ;
 		//
 		::string   report_txt  = color_pfx(ro,c)                              ;
@@ -33,10 +33,34 @@ namespace Engine {
 		/**/       report_txt += color_sfx(ro,c)                              ;
 		/**/       report_txt += '\n'                                         ;
 		//
-		// if we lose connection, there is nothing much we can do about it (hoping that we can still trace)
-		/**/       try { OMsgBuf().send( out_fd , ReqRpcReply(_audit_indent(::move(report_txt)         ,lvl,sep)) )         ; } catch (::string const& e) { Trace("audit","lost_client",e) ; }
-		if (as_is) try { log <<                               _audit_indent(ensure_nl(         txt    ),lvl,sep) << ::flush ; } catch (::string const& e) { Trace("audit","lost_log"   ,e) ; }
-		else       try { log <<                               _audit_indent(ensure_nl(localize(txt,{})),lvl,sep) << ::flush ; } catch (::string const& e) { Trace("audit","lost_log"   ,e) ; }
+		using Proc = ReqRpcReplyProc ;
+		try                       { OMsgBuf().send( out_fd , ReqRpcReply(Proc::Txt,_audit_indent(::move(report_txt),lvl,sep)) ) ; } // if we lose connection, there is nothing much we can do ...
+		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                              } // ... about it (hoping that we can still trace)
+		if (log)
+			try                       { *log << _audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep) << ::flush ; }         // .
+			catch (::string const& e) { Trace("audit","lost_log",e) ;                                                     }
+	}
+
+	void audit_file( Fd out_fd , ::string&& file ) {
+		using Proc = ReqRpcReplyProc ;
+		try                       { OMsgBuf().send( out_fd , ReqRpcReply(Proc::File,::move(file)) ) ; } // if we lose connection, there is nothing much we can do ...
+		catch (::string const& e) { Trace("audit_file","lost_client",e) ;                             } // ... about it (hoping that we can still trace)
+	}
+
+	void _audit_status( Fd out_fd , ::ostream* log , ReqOptions const& , bool ok ) {
+		using Proc = ReqRpcReplyProc ;
+		try                       { OMsgBuf().send( out_fd , ReqRpcReply(Proc::Status,ok) ) ; }        // if we lose connection, there is nothing much we can do ...
+		catch (::string const& e) { Trace("audit_status","lost_client",e) ;                   }        // ... about it (hoping that we can still trace)
+		if (log)
+			try                       { *log << "status : " << (ok?"ok":"failed") <<'\n'<< ::flush ; } // .
+			catch (::string const& e) { Trace("audit_status","lost_log",e) ;                         }
+	}
+
+	void _audit_ctrl_c( Fd , ::ostream* log , ReqOptions const& ) {
+		// lmake echos a \n as soon as it sees ^C (and it does that much faster than we could), no need to do it here
+		if (log)
+			try                       { *log << "^C\n"<< ::flush ;           }
+			catch (::string const& e) { Trace("audit_ctrl_c","lost_log",e) ; }
 	}
 
 	//
@@ -95,8 +119,8 @@ namespace Engine {
 		}
 	}
 
-	Config::Config(Dict const& py_map) : booted{true} {      // if config is read from makefiles, it is booted
-		db_version = Version::Db ;                           // record current version
+	Config::Config(Dict const& py_map) : booted{true} {                                                                         // if config is read from makefiles, it is booted
+		db_version = Version::Db ;                                                                                              // record current version
 		// generate a random key
 		char     buf_char[8] ; IFStream("/dev/urandom").read(buf_char,sizeof(buf_char)) ;
 		uint64_t buf_int     ; ::memcpy( &buf_int , buf_char , sizeof(buf_int) )        ;

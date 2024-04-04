@@ -3,206 +3,81 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-ifeq ($(origin CC),default)
-undefine CC
-endif
-
 #
-# build configuration
-#vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-
+# user configurable
 MAKEFLAGS := -j$(shell nproc||echo 1) -k
-
-BASH    ?= bash
-CC      ?= gcc
-GIT     ?= git
-PYTHON2 ?= python2
-PYTHON  ?= python3
-
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#
-
-# ensure we are insitive to path from now on /!\ putting comment on var def lines put spaces in var
-override BASH    := $(shell $(BASH) -c 'type -p $(BASH)   ')
-override CC      := $(shell $(BASH) -c 'type -p $(CC)     ')
-override GIT     := $(shell $(BASH) -c 'type -p $(GIT)    ')
-override PYTHON2 := $(shell $(BASH) -c 'type -p $(PYTHON2)')
-override PYTHON  := $(shell $(BASH) -c 'type -p $(PYTHON) ')
-
-STD_PATH := $(shell env -i $(BASH) -c 'echo $$PATH')
-
+# mandatory
 MAKEFLAGS += -r -R
 
-# syntax for LMAKE_OPT : [0123][gG][aA][tT]
-# - [0123] : compiler optimization level
-# - [gG]   : -g flag    if G
-# - [dD]   : -DNDEBUG   if d
-# - [tT]   : -DNO_TRACE if t
-ifeq ($(LMAKE_OPT),)
-LMAKE_OPT := 3GDT
-endif
-ifneq ($(findstring 0,$(LMAKE_OPT)),)
-OPT_FLAGS := -O0
-else ifneq ($(findstring 1,$(LMAKE_OPT)),)
-OPT_FLAGS := -O1
-else ifneq ($(findstring 2,$(LMAKE_OPT)),)
-OPT_FLAGS := -O2
-else ifneq ($(findstring 3,$(LMAKE_OPT)),)
-OPT_FLAGS := -O3
-else
-$(error $$LMAKE_OPT must be [0123][gG][dD][tT])
-endif
-ifneq ($(findstring G,$(LMAKE_OPT)),)
-OPT_FLAGS += -g
-else ifneq ($(findstring g,$(LMAKE_OPT)),)
-else
-$(error $$LMAKE_OPT must be [0123][gG][dD][tT])
-endif
-ifneq ($(findstring D,$(LMAKE_OPT)),)
-else ifneq ($(findstring d,$(LMAKE_OPT)),)
-OPT_FLAGS += -DNDEBUG
-else
-$(error $$LMAKE_OPT must be [0123][gG][dD][tT])
-endif
-ifneq ($(findstring T,$(LMAKE_OPT)),)
-else ifneq ($(findstring t,$(LMAKE_OPT)),)
-OPT_FLAGS += -DNO_TRACE
-else
-$(error $$LMAKE_OPT must be [0123][gG][dD][tT])
-endif
+.DEFAULT_GOAL := DFLT
 
-COVERAGE :=
-ifneq ($(LMAKE_COVERAGE),)
-COVERAGE := --coverage     # XXX : not operational yet
-endif
+sys_config.log : _bin/sys_config
+	./$< $(@:%.log=%.mk) $(@:%.log=%.h) 2>$@ || cat $@
+sys_config.mk : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
+sys_config.h  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 
-WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits
-
-LANG := c++20
-
-include sys_config.h.inc_stamp # sys_config.h is used in this makefile
-
-# python configuration (python2 is optional)
-ifeq ($(PYTHON2),)
-else ifeq ($(shell $(PYTHON2) -c 'import sys ; print(sys.version_info.major==2 and sys.version_info.minor>=7)'),False)
-override PYTHON2 :=
-endif
-ifeq ($(PYTHON),)
-$(error cannot find python3)
-else ifeq ($(shell $(PYTHON) -c 'import sys ; print(sys.version_info.major==3 and sys.version_info.minor>=6)'),False)
-$(error python3 version must be at least 3.6)
-endif
-
-# CC configuration
-USE_GCC   :=
-USE_CLANG :=
-ifeq ($(CC),)
-$(error cannot find c compiler)
-else ifneq ($(findstring gcc,$(CC)),)
-ifeq ($(intcmp $(shell $(CC) -dumpversion),11,lt,eq,gt),lt)
-$(error gcc version must be at least 11)
-endif
-USE_GCC := 1
-else ifneq ($(findstring clang,$(CC)),)
-ifeq ($(intcmp $(shell $(CC) -dumpversion),15,lt,eq,gt),lt)
-$(error clang version must be at least 15)
-endif
-USE_CLANG := 1
-else
-$(error cannot recognize c compiler $(CC))
-endif
-
-ifneq ($(USE_GCC),) # for an unknown reason, clang is incompatible with -fsanitize
-# -fsanitize=address and -fsanitize=thread are exclusive of one another
-ifeq ($(LMAKE_SAN),A)
-SAN_FLAGS := -fsanitize=address -fsanitize=undefined
-endif
-ifeq ($(LMAKE_SAN),T)
-SAN_FLAGS := -fsanitize=thread
-endif
-endif
-
-ifneq ($(USE_CLANG),)
-WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
-endif
+# defines  HAS_SECCOMP & HAS_SLURM
+include sys_config.mk
 
 # this is the recommanded way to insert a , when calling functions
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA := ,
 
-.DEFAULT_GOAL := DFLT
+# syntax for LMAKE_FLAGS : O[0123]G?D?T?S[AT]C?
+# - O[0123] : compiler optimization level, defaults to 3
+# - G       : -g
+# - D       : -DNDEBUG
+# - T       : -DNO_TRACE
+# - SA      : -fsanitize address
+# - ST      : -fsanitize threads
+# - C       : coverage (not operational yet)
+OPT_FLAGS    := -O3
+OPT_FLAGS    := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(OPT_FLAGS))
+OPT_FLAGS    := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(OPT_FLAGS))
+OPT_FLAGS    := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0,$(OPT_FLAGS))
+EXTRA_FLAGS  += $(if $(findstring G, $(LMAKE_FLAGS)),-g)
+HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
+EXTRA_FLAGS  += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
+EXTRA_FLAGS  += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
+SAN_FLAGS    += $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
+SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
+COVERAGE     += $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
+#
+WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits
+#
+LANG := c++20
+#
+SAN       := $(if $(strip $(SAN_FLAGS)),.san,)
+LINK_OPTS := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread                                    # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
+LINK_O    := $(CXX) $(COVERAGE) -r
+LINK_SO   := $(CXX) $(COVERAGE) $(LINK_OPTS) -shared                                                        # some usage may have specific libs, avoid dependencies
+LINK_BIN  := $(CXX) $(COVERAGE) $(LINK_OPTS)
+LINK_LIB  := -ldl
+#
+ifeq ($(CXX_FLAVOR),clang)
+    WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
+endif
+#
+USER_FLAGS := $(OPT_FLAGS) $(EXTRA_FLAGS) -std=$(LANG)
+COMPILE    := $(CXX) -ftabstop=4 $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fvisibility=hidden -ftemplate-backtrace-limit=0 -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
+ROOT_DIR   := $(abspath .)
+LIB        := lib
+SLIB       := _lib
+BIN        := bin
+SBIN       := _bin
+DOC        := doc
+SRC        := src
+LMAKE_ENV  := lmake_env
+STORE_LIB  := $(SRC)/store
 
-SAN           := $(if $(SAN_FLAGS),.san,)
-LINK_LIB_PATH := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)                                   # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
-LINK_LIB_PATH := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                                                   # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
-LINK_LIB_PATH := $(subst :, ,$(LINK_LIB_PATH))                                                              # e.g. : /usr/lib/x /a/b /c /a/b/c/..
-LINK_LIB_PATH := $(realpath $(LINK_LIB_PATH))                                                               # e.g. : /usr/lib/x /a/b /c /a/b
-LINK_LIB_PATH := $(sort $(LINK_LIB_PATH))                                                                   # e.g. : /a/b /c /usr/lib/x
-LINK_LIB_PATH := $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(LINK_LIB_PATH))                 # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
-LINK_OPTS     := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread                                # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
-LINK_O        := $(CC) $(COVERAGE) -r
-LINK_SO       := $(CC) $(COVERAGE) $(LINK_OPTS) -shared                                                     # some usage may have specific libs, avoid dependencies
-LINK_BIN      := $(CC) $(COVERAGE) $(LINK_OPTS)
-LINK_LIB      := -ldl -lstdc++ -lm
-#
-STD_INC_DIRS := $(shell $(CC) -E -v -std=$(LANG) -xc++ /dev/null 2>&1 | sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$$d' )
-#
 ifneq ($(PYTHON2),)
-PY2_INCLUDEDIR := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEDIR"))')
-PY2_INCLUDEPY  := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEPY" ))')
-PY2_INC_DIRS   := $(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))                          # for some reasons, compilation does not work if standard inc dirs are given with -isystem
-PY2_CC_OPTS    := $(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register
-PY2_LIB_BASE   := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY" ))') # transform lib<foo>.so -> <foo>
-PY2_LIB_DIR    := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"    ))')
-# ensure we can compile and link with Python2 or exclude its support
-ifneq ($(shell [ -f $(PY2_INCLUDEPY_DIR)/Python.h ] && file -L $(PY2_LIB_DIR)/$(PY2_LIB_BASE) | grep -q shared && echo 1),1)
-override PYTHON2 :=
+    PY2_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))                          # for some reasons, compilation breaks if standard inc dirs are given with -isystem
+    PY2_CC_OPTS   := $(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register
+    PY2_LINK_OPTS := $(patsubst %,-L%,$(PY2_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY2_LIB_DIR)) -l:$(PY2_LIB_BASE)
 endif
-# suppress standard dirs as required in case of installed package /!\ comments on variable definitions insert blanks !
-PY2_LIB_DIR   := $(strip $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(PY2_LIB_DIR)))
-PY2_LINK_OPTS := $(patsubst %,-L%,$(PY2_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY2_LIB_DIR)) -l:$(PY2_LIB_BASE)
-endif
-#
-PY_INCLUDEDIR := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEDIR"))')
-PY_INCLUDEPY  := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEPY") )')
-PY_INC_DIRS   := $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR) $(PY_INCLUDEPY))                             # for some reasons, compilation does not work if standard inc dirs are given with -isystem
-PY_CC_OPTS    := $(patsubst %,-isystem %,$(PY_INC_DIRS)) -Wno-register
-PY_LIB_BASE   := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY") )')   # transform lib<foo>.so -> <foo>
-PY_LIB_DIR    := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"   ) )')
-# suppress standard dirs as required in case of installed package /!\ comments on variable definitions insert blanks !
-PY_LIB_DIR    := $(strip $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(PY_LIB_DIR)))
-PY_LINK_OPTS  := $(patsubst %,-L%,$(PY_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY_LIB_DIR)) -l:$(PY_LIB_BASE)
-#
-PY_VERSION := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"))')
-#
-CXX_FLAGS := $(OPT_FLAGS) -std=$(LANG)
-COMPILE   := $(CC) -ftabstop=4 $(COVERAGE) -fvisibility=hidden -ftemplate-backtrace-limit=0 -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
-ROOT_DIR  := $(abspath .)
-LIB       := lib
-SLIB      := _lib
-BIN       := bin
-SBIN      := _bin
-DOC       := doc
-SRC       := src
-LMAKE_ENV := lmake_env
-STORE_LIB := $(SRC)/store
-
-sys_config.h : _bin/sys_config
-	CC=$(CC) PYTHON=$(PYTHON) PY_LD_LIBRARY_PATH=$(PY_LD_LIBRARY_PATH) ./$< >$@ 2>$@.err
-
-HAS_SECCOMP := $(shell grep -q 'HAS_SECCOMP *1' sys_config.h 2>/dev/null && echo 1)
-HAS_SLURM   := $(shell grep -q 'HAS_SLURM *1'   sys_config.h 2>/dev/null && echo 1)
-#
-PY_LD_LIBRARY_PATH := $(PY_LIB_DIR)
-ifneq ($(PYTHON2),)
-ifneq ($(PY2_LIB_DIR),)
-ifeq  ($(PY_LD_LIBRARY_PATH),)
-PY_LD_LIBRARY_PATH := $(PY2_LIB_DIR)
-else
-PY_LD_LIBRARY_PATH := $(PY_LD_LIBRARY_PATH):$(PY2_LIB_DIR)
-endif
-endif
-endif
+PY_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR) $(PY_INCLUDEPY))                           # for some reasons, compilation does not work if standard inc dirs are given with -isystem
+PY_CC_OPTS   := $(patsubst %,-isystem %,$(PY_INC_DIRS)) -Wno-register
+PY_LINK_OPTS := $(patsubst %,-L%,$(PY_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY_LIB_DIR))  -l:$(PY_LIB_BASE)
 
 # Engine
 SRC_ENGINE  := $(SRC)/lmakeserver
@@ -252,7 +127,7 @@ LMAKE_REMOTE_FILES := \
 	$(BIN)/ltarget                 \
 	$(LIB)/clmake.so
 ifneq ($(PYTHON2),)
-LMAKE_REMOTE_FILES := $(LMAKE_REMOTE_FILES) $(LIB)/clmake2.so
+    LMAKE_REMOTE_FILES := $(LMAKE_REMOTE_FILES) $(LIB)/clmake2.so
 endif
 
 LMAKE_BASIC_SAN_OBJS := \
@@ -391,18 +266,18 @@ ALL_H := version.hh sys_config.h ext/xxhash.h
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . -idirafter /usr/include/linux
 
-%_py2.san.o : %.cc $(ALL_H) ; @echo $(CC) -c $(CXX_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) $(CXX_FLAGS) -c $(SAN_FLAGS) -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%_py2.i     : %.cc $(ALL_H) ; @echo $(CC) -E $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -E                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%_py2.s     : %.cc $(ALL_H) ; @echo $(CC) -S $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -S                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%_py2.o     : %.cc $(ALL_H) ; @echo $(CC) -c $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -c              -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.san.o : %.cc $(ALL_H) ; @echo $(CXX) -c $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.i     : %.cc $(ALL_H) ; @echo $(CXX) -E $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.s     : %.cc $(ALL_H) ; @echo $(CXX) -S $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.o     : %.cc $(ALL_H) ; @echo $(CXX) -c $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
 
-%.san.o     : %.cc $(ALL_H) ; @echo $(CC) -c $(CXX_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) $(CXX_FLAGS) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
-%.i         : %.cc $(ALL_H) ; @echo $(CC) -E $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -E                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
-%.s         : %.cc $(ALL_H) ; @echo $(CC) -S $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -S                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
-%.o         : %.cc $(ALL_H) ; @echo $(CC) -c $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -c              -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.san.o     : %.cc $(ALL_H) ; @echo $(CXX) -c $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.i         : %.cc $(ALL_H) ; @echo $(CXX) -E $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.s         : %.cc $(ALL_H) ; @echo $(CXX) -S $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.o         : %.cc $(ALL_H) ; @echo $(CXX) -c $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
 
-%_py2.d : %.cc $(ALL_H) ; @$(COMPILE) $(CXX_FLAGS) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY2_CC_OPTS) $(CPP_OPTS) $< 2>/dev/null || :
-%.d     : %.cc $(ALL_H) ; @$(COMPILE) $(CXX_FLAGS) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY_CC_OPTS)  $(CPP_OPTS) $< 2>/dev/null || :
+%_py2.d : %.cc $(ALL_H) ; @$(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY2_CC_OPTS) $(CPP_OPTS) $< 2>/dev/null || :
+%.d     : %.cc $(ALL_H) ; @$(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY_CC_OPTS)  $(CPP_OPTS) $< 2>/dev/null || :
 
 include $(patsubst %.cc,%.d, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) )
 include src/py_py2.d src/autodep/clmake_py2.d
@@ -525,21 +400,22 @@ $(SBIN)/ldump_job : \
 	@echo link to $@
 	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
 
+# XXX : why job_exec does not support sanitize thread ?
 $(SBIN)/job_exec : \
-	$(LMAKE_BASIC_SAN_OBJS)            \
-	$(SRC)/app$(SAN).o                 \
-	$(SRC)/py$(SAN).o                  \
-	$(SRC)/rpc_job$(SAN).o             \
-	$(SRC)/trace$(SAN).o               \
-	$(SRC)/autodep/env$(SAN).o         \
-	$(SRC)/autodep/gather$(SAN).o      \
-	$(SRC)/autodep/ptrace$(SAN).o      \
-	$(SRC)/autodep/record$(SAN).o      \
-	$(SRC)/autodep/syscall_tab$(SAN).o \
-	$(SRC)/job_exec$(SAN).o
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/app.o                 \
+	$(SRC)/py.o                  \
+	$(SRC)/rpc_job.o             \
+	$(SRC)/trace.o               \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/gather.o      \
+	$(SRC)/autodep/ptrace.o      \
+	$(SRC)/autodep/record.o      \
+	$(SRC)/autodep/syscall_tab.o \
+	$(SRC)/job_exec.o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@@$(LINK_BIN) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/align_comments : \
 	$(LMAKE_BASIC_SAN_OBJS) \
@@ -603,12 +479,13 @@ $(BIN)/lmark : \
 	@echo link to $@
 	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
+# XXX : why xxhsum does not support sanitize thread ?
 $(BIN)/xxhsum : \
-	$(LMAKE_BASIC_SAN_OBJS) \
+	$(LMAKE_BASIC_OBJS) \
 	$(SRC)/xxhsum.o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/autodep : \
 	$(LMAKE_BASIC_SAN_OBJS)            \
@@ -805,7 +682,7 @@ $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMA
 	@touch $@
 	@echo init $(LMAKE_ENV)-cache
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
-	@set -e ; cd $(LMAKE_ENV) ; export CC=$(CC) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) || rm -f $(@F) ; wait $$! || rm -f $(@F)
+	@set -e ; cd $(LMAKE_ENV) ; export CXX=$(CXX) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) || rm -f $(@F) ; wait $$! || rm -f $(@F)
 
 #
 # archive

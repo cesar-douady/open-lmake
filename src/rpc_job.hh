@@ -358,7 +358,7 @@ struct CrcDate {
 	using Crc   = Hash::Crc   ;
 	using Ddate = Time::Ddate ;
 	//cxtors & casts
-	/**/              CrcDate(                           ) : _crc{} {               }
+	/**/              CrcDate(                           ) : _crc{} {               } // XXX : implement cxtors and just provide copy assignment
 	/**/              CrcDate(Crc                     c  )          { *this = c   ; }
 	/**/              CrcDate(Ddate                   d  )          { *this = d   ; }
 	/**/              CrcDate(CrcDate const&          cd )          { *this = cd  ; }
@@ -556,7 +556,7 @@ struct JobRpcReq {
 	JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) ;
 	// services
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) *this = JobRpcReq() ;
+		if (::is_base_of_v<::istream,T>) *this = {} ;
 		::serdes(s,proc  ) ;
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
@@ -641,7 +641,7 @@ struct JobRpcReply {
 	JobRpcReply( Proc p , ::string                        const& t  , Crc c , Bool3 o ) : proc{p} , ok{o} ,                 txt{t} , crc{c} { SWEAR( proc==Proc::Decode   || proc==Proc::Encode ) ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
-		if (is_base_of_v<::istream,S>) *this = JobRpcReply() ;
+		if (is_base_of_v<::istream,S>) *this = {} ;
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::None     :
@@ -864,7 +864,7 @@ struct JobExecRpcReply {
 	JobExecRpcReply( JobRpcReply const& jrr ) ;
 	// services
 	template<IsStream S> void serdes(S& s) {
-		if (::is_base_of_v<::istream,S>) *this = JobExecRpcReply() ;
+		if (::is_base_of_v<::istream,S>) *this = {} ;
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::Access   :                         break ;

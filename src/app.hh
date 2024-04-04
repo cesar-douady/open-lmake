@@ -40,8 +40,8 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere=true> struct Syntax {
 		//
 		SWEAR(!( has_dflt_key && +ks && ks.at(Key::None).short_name )) ;
 		//
-		for( auto const& [k,s] : ks ) keys [+k] = s ;
-		for( auto const& [f,s] : fs ) flags[+f] = s ;
+		for( auto const& [k,s] : ks ) { SWEAR(!keys [+k].short_name) ; keys [+k] = s ; } // ensure no short name conflicts
+		for( auto const& [f,s] : fs ) { SWEAR(!flags[+f].short_name) ; flags[+f] = s ; } // .
 	}
 	//
 	[[noreturn]] void usage(::string const& msg={}) const ;

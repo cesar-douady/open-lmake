@@ -506,12 +506,16 @@ template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
 #define DF default : FAIL() ; // for use at end of switch statements
 
 inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
-	swear_prod(pid>1,"killing process ",pid) ;                                  // ensure no system wide catastrophe !
-	bool proc_killed  =             ::kill( pid,sig)==0 ;                       // kill process before process group as maybe, setpgid(0,0) has not been called in the child yet
-	bool group_killed = as_group && ::kill(-pid,sig)==0 ;                       // kill group if asked so, whether proc was killed or not
+	swear_prod(pid>1,"killing process ",pid) ;                                  // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
+	//
+	if (!as_group          ) return ::kill(pid,sig)==0 ;
+	if (::kill(-pid,sig)==0) return true               ;                        // fast path : group exists, nothing else to do
+	bool proc_killed  = ::kill( pid,sig)==0 ;                                   // else, there may be another possibility : the process to kill might not have had enough time to call setpgid(0,0) ...
+	bool group_killed = ::kill(-pid,sig)==0 ;                                   // ... that makes it be a group, so kill it as a process, and kill the group again in case it was created inbetween
 	return proc_killed || group_killed ;
 }
-inline bool/*done*/ kill_self(int sig) {                                        // raise kills the thread, not the process
+
+inline bool/*done*/ kill_self(int sig) {  // raise kills the thread, not the process
 	return kill_process(::getpid(),sig) ;
 }
 
@@ -568,7 +572,7 @@ template<class T> struct vector_view {
 	ViewC subvec( size_t start , size_t sz=Npos ) const requires(!IsConst) { return ViewC( begin()+start , ::min(sz,_sz-start) ) ; }
 	View  subvec( size_t start , size_t sz=Npos )       requires(!IsConst) { return View ( begin()+start , ::min(sz,_sz-start) ) ; }
 	//
-	void clear() { *this = vector_view() ; }
+	void clear() { *this = {} ; }
 	// data
 protected :
 	T*     _data = nullptr ;
@@ -815,15 +819,15 @@ template<StdEnum E> struct BitMap {
 	constexpr bool operator!() const { return !_val ; }
 	// services
 	constexpr bool    operator==( BitMap const&     ) const = default ;
-	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )      ;                 }
-	constexpr bool    operator>=( BitMap other      ) const { return !( ~_val &  other._val )      ;                 }
-	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(N<E>)&~_val)   ;                 }
-	constexpr BitMap  operator& ( BitMap other      ) const { return BitMap(_val&other._val)       ;                 }
-	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)       ;                 }
-	constexpr BitMap& operator&=( BitMap other      )       { *this = *this & other ; return *this ;                 }
-	constexpr BitMap& operator|=( BitMap other      )       { *this = *this | other ; return *this ;                 }
-	constexpr bool    operator[]( E      bit_       ) const { return bit(_val,+bit_)               ;                 }
-	constexpr uint8_t popcount  (                   ) const { return ::popcount(_val)              ;                 }
+	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )    ;                   }
+	constexpr bool    operator>=( BitMap other      ) const { return !( ~_val &  other._val )    ;                   }
+	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(N<E>)&~_val) ;                   }
+	constexpr BitMap  operator& ( BitMap other      ) const { return BitMap(_val&other._val)     ;                   }
+	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)     ;                   }
+	constexpr BitMap& operator&=( BitMap other      )       { *this = *this&other ; return *this ;                   }
+	constexpr BitMap& operator|=( BitMap other      )       { *this = *this|other ; return *this ;                   }
+	constexpr bool    operator[]( E      bit_       ) const { return bit(_val,+bit_)             ;                   }
+	constexpr uint8_t popcount  (                   ) const { return ::popcount(_val)            ;                   }
 	constexpr void    set       ( E flag , bool val )       { if (val) *this |= flag ; else *this &= ~BitMap(flag) ; } // operator~(E) is not always recognized because of namespace's
 	// data
 private :
@@ -931,11 +935,11 @@ extern thread_local MutexLvl t_mutex_lvl ;
 template<MutexLvl Lvl_,class M=void,bool S=false/*shared*/> struct Mutex : ::conditional_t<::is_void_v<M>,::conditional_t<S,::shared_mutex,::mutex>,M> {
 	using Base =                                                           ::conditional_t<::is_void_v<M>,::conditional_t<S,::shared_mutex,::mutex>,M> ;
 	static constexpr MutexLvl Lvl = Lvl_ ;
+	// services
 	void lock         (MutexLvl& lvl)             { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; Base::lock         () ; }
 	void unlock       (MutexLvl  lvl)             { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ;                     t_mutex_lvl = lvl ; Base::unlock       () ; }
 	void lock_shared  (MutexLvl& lvl) requires(S) { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; Base::lock_shared  () ; }
 	void unlock_shared(MutexLvl  lvl) requires(S) { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ;                     t_mutex_lvl = lvl ; Base::unlock_shared() ; }
-	// services
 	#ifndef NDEBUG
 		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl) ; SWEAR(!Base::try_lock       ()) ; }
 		void swear_locked_shared() requires(S) { SWEAR(t_mutex_lvl>=Lvl) ; SWEAR(!Base::try_lock_shared()) ; }

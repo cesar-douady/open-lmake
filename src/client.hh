@@ -32,4 +32,10 @@ inline Rc mk_rc(Bool3 ok) {
 	DF}
 }
 
-Bool3/*ok*/ out_proc( ::ostream& , ReqProc , bool refresh , ReqSyntax const& , ReqCmdLine const& , ::function<void()> const& started_cb = []()->void{} ) ;
+#define RSC  ReqSyntax  const
+#define RCLC ReqCmdLine const
+/**/   Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc   , bool refresh , RSC&   , RCLC&    , ::function<void()> const& started_cb      ) ;
+inline Bool3/*ok*/ out_proc ( ::vector_s& fs    , ReqProc p , bool r       , RSC& s , RCLC& cl , ::function<void()> const& cb=[]()->void{} ) { return _out_proc(&fs    ,p,r,s,cl,cb) ; }
+inline Bool3/*ok*/ out_proc (                     ReqProc p , bool r       , RSC& s , RCLC& cl , ::function<void()> const& cb=[]()->void{} ) { return _out_proc(nullptr,p,r,s,cl,cb) ; }
+#undef RCLC
+#undef RSC

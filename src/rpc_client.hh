@@ -70,11 +70,19 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	Quiet           //                                                 do not generate user oriented messages
 ,	Rule            //                                                 rule name when interpreting arg as job name
 ,	SourceOk        // if proc==                  Make               , allow lmake to overwrite source files
+,	Sync            //                                               , force synchronous operation (start server and wait for its end)
 ,	Targets         // if proc==         Forget                      , forget targets
 ,	Verbose         // if proc==                  Make        | Show , generate generous output
 ,	Video           //                                               , assume output video : n(ormal), r(everse) or f(ile)
 )
 using ReqFlags = BitMap<ReqFlag> ;
+
+ENUM( ReqRpcReplyProc
+,	None
+,	File
+,	Status
+,	Txt
+)
 
 struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 	ReqSyntax() = default ;
@@ -83,6 +91,7 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 		// add standard options
 		flags[+ReqFlag::Quiet] = { .short_name='q' , .has_arg=false , .doc="do not generate user oriented messages"              } ;
 		flags[+ReqFlag::Job  ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"                } ;
+		flags[+ReqFlag::Sync ] = { .short_name='S' , .has_arg=false , .doc="synchronous : start server and wait for its end"     } ;
 		flags[+ReqFlag::Rule ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job"             } ;
 		flags[+ReqFlag::Video] = { .short_name='V' , .has_arg=true  , .doc="assume output video : n(ormal), r(everse) or f(ile)" } ;
 	}
@@ -149,31 +158,26 @@ struct ReqRpcReq {
 	ReqOptions options ;
 } ;
 
-ENUM( ReqKind
-,	None
-,	Txt
-,	Status
-)
-
 struct ReqRpcReply {
 	friend ::ostream& operator<<( ::ostream& , ReqRpcReply const& ) ;
-	using Kind = ReqKind ;
+	using Proc = ReqRpcReplyProc ;
 	// cxtors & casts
-	ReqRpcReply(               ) = default ;
-	ReqRpcReply(bool       ok_ ) : kind{Kind::Status} , ok {ok_ }         {}
-	ReqRpcReply(::string&& txt_) : kind{Kind::Txt   } , txt{::move(txt_)} {}
+	ReqRpcReply(                          ) = default ;
+	ReqRpcReply( Proc p , bool       ok_  ) : proc{p} , ok {ok_         } { SWEAR( p==Proc::Status               ) ; }
+	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Txt ) ; }
 	//
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) *this = ReqRpcReply() ;
-		::serdes(s,kind) ;
-		switch (kind) {
-			case Kind::None   :                   break ;
-			case Kind::Status : ::serdes(s,ok ) ; break ;
-			case Kind::Txt    : ::serdes(s,txt) ; break ;
+		if (::is_base_of_v<::istream,T>) *this = {} ;
+		::serdes(s,proc) ;
+		switch (proc) {
+			case Proc::None   :                   break ;
+			case Proc::Status : ::serdes(s,ok ) ; break ;
+			case Proc::File   :
+			case Proc::Txt    : ::serdes(s,txt) ; break ;
 		DF}
 	}
 	// data
-	Kind     kind = Kind::None ;
+	Proc     proc = Proc::None ;
 	bool     ok   = false      ;
 	::string txt  ;
 } ;

@@ -12,7 +12,7 @@ import tarfile
 import zipfile
 from subprocess import run,DEVNULL,STDOUT
 
-gcc = os.environ.get('CC','gcc')
+gxx = os.environ.get('CXX','g++')
 
 import lmake
 from lmake       import config,pdict
@@ -142,11 +142,12 @@ class ConfigH(BaseRule) :
 
 class SysConfigH(Centos7Rule) :
     targets = {
-		'H'     : 'sys_config.h'
+		'MK'    : 'sys_config.mk'
+	,	'H'     : 'sys_config.h'
 	,	'TRIAL' : 'trial/{*:.*}'
 	}
     deps = { 'EXE' : '_bin/sys_config' }
-    cmd  = 'CC={gcc} PYTHON={sys.executable} ./{EXE} 2>&1  >{H}'
+    cmd  = 'CC={gxx} PYTHON={sys.executable} ./{EXE} {MK} {H} 2>&1'
 
 class VersionH(BaseRule) :
     target = 'version.hh'
@@ -181,9 +182,9 @@ basic_opts_tab = {
 ,	'cc'  : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type','-std=c++20') # on some systems, there is a warning type-limits
 ,	'cxx' : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type','-std=c++20') # .
 }
-def run_gcc(target,*args) :
-		cmd_line = ( gcc , '-o' , target , '-fdiagnostics-color=always' , *args )
-		if '/' in gcc : os.environ['PATH'] = ':'.join((osp.dirname(gcc),os.environ['PATH']))                            # gcc calls its subprograms (e.g. as) using PATH, ensure it points to gcc dir
+def run_gxx(target,*args) :
+		cmd_line = ( gxx , '-o' , target , '-fdiagnostics-color=always' , *args )
+		if '/' in gxx : os.environ['PATH'] = ':'.join((osp.dirname(gxx),os.environ['PATH']))                            # gxx calls its subprograms (e.g. as) using PATH, ensure it points to gxx dir
 		for k,v in os.environ.items() : print(f'{k}={v}')
 		print(' '.join(cmd_line))
 		run( cmd_line , check=True )
@@ -204,13 +205,13 @@ for ext,basic_opts in basic_opts_tab.items() :
 			for x in add_flags :
 				if seen_inc and x[0]!='/' :
 					if not File.startswith(x+'/') :                      # if x is a dir of File, it necessarily exists
-						mrkrs.append(osp.join(x,'mrkr'))                 # gcc does not open includes from non-existent dirs
+						mrkrs.append(osp.join(x,'mrkr'))                 # gxx does not open includes from non-existent dirs
 				seen_inc = x in ('-I','-iquote','-isystem','-idirafter')
 			lmake.depend(*mrkrs)
 			lmake.check_deps()
-			if 'clang' in gcc : clang_opts = ('-Wno-misleading-indentation','-Wno-unknown-warning-option','-Wno-c2x-extensions','-Wno-unused-function','-Wno-c++2b-extensions')
+			if 'clang' in gxx : clang_opts = ('-Wno-misleading-indentation','-Wno-unknown-warning-option','-Wno-c2x-extensions','-Wno-unused-function','-Wno-c++2b-extensions')
 			else              : clang_opts = ()
-			run_gcc( OBJ
+			run_gxx( OBJ
 			,	'-c' , '-fPIC' , '-pthread' , f'-frandom-seed={OBJ}' , '-fvisibility=hidden'
 			,	*basic_opts
 			,	*clang_opts
@@ -222,27 +223,27 @@ for ext,basic_opts in basic_opts_tab.items() :
 		if True             : resources.mem = '512M'
 		if backend=='local' : resources.cc  = 1
 
-class GccRule(Centos7Rule) :
+class GxxRule(Centos7Rule) :
 	combine       = ('pre_opts','rev_post_opts')
 	pre_opts      = []                           # options before inputs & outputs
 	rev_post_opts = []                           # options after  inputs & outputs, combine appends at each level, but here we want to prepend
 	def cmd() :
-		run_gcc( TARGET
+		run_gxx( TARGET
 		,	*pre_opts
 		,	*deps.values()
 		,	*reversed(rev_post_opts)
 		)
 
-class LinkO(GccRule) :
+class LinkO(GxxRule) :
 	pre_opts = ('-r','-fPIC')
 
-class LinkSo(GccRule) :
+class LinkSo(GxxRule) :
 	pre_opts      = ('-shared-libgcc','-shared','-pthread')
-	rev_post_opts = ('-lstdc++','-lm'                     )
+	rev_post_opts = ()
 
-class LinkExe(GccRule) :
+class LinkExe(GxxRule) :
 	pre_opts      = '-pthread'
-	rev_post_opts = ('-lstdc++','-lm')
+	rev_post_opts = ()
 
 #
 # application
@@ -355,7 +356,7 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'RPC_CLIENT' : None
 	}
 	# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
-	if run((gcc,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0 :
+	if run((gxx,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0 :
 		rev_post_opts = ('-l:libseccomp.so.2',)
 
 class LinkPythonAppExe(LinkAppExe) :

@@ -199,16 +199,17 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						case ReqProc::Forget :
 						case ReqProc::Mark   :
 						case ReqProc::Show   :
+							epoll.del(fd) ;    // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							in_tab.erase(fd) ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 							g_engine_queue.emplace( rrr.proc , fd , ofd , rrr.files , rrr.options ) ;
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						break ;
-						case ReqProc::Kill   :
-						case ReqProc::Close  :
-						case ReqProc::None   : {
-							epoll.del(fd) ;                                                 // must precede close(fd)
-							auto it = in_tab.find(fd)   ;
-							Req  r  = it->second.second ;
+						case ReqProc::Kill :
+						case ReqProc::None : {
+							epoll.del(fd) ;                                                 // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							auto it=in_tab.find(fd) ;
+							Req r = it->second.second ;
 							trace("eof",fd) ;
 							if (+r) { trace("zombie",r) ; r.zombie(true) ; }                // make req zombie immediately to optimize reaction time
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -288,7 +289,7 @@ bool/*interrupted*/ engine_loop() {
 							audit( req.out_fd , req.options , Color::Note , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) , true/*as_is*/ ) ;
 						try                        { ok = g_cmd_tab[+req.proc](req) ;                                  }
 						catch (::string  const& e) { ok = false ; if (+e) audit(req.out_fd,req.options,Color::Err,e) ; }
-						OMsgBuf().send( req.out_fd , ReqRpcReply(ok) ) ;
+						OMsgBuf().send( req.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ;
 						/**/                       req.in_fd .close() ;
 						if (req.out_fd!=req.in_fd) req.out_fd.close() ;
 					} break ;
@@ -310,8 +311,8 @@ bool/*interrupted*/ engine_loop() {
 								fd_tab[req.req] = { .in=req.in_fd , .out=req.out_fd } ;
 								break ;
 							} catch(::string const& e) {
-								audit( req.out_fd , req.options , Color::Err , e ) ;
-								OMsgBuf().send( req.out_fd , ReqRpcReply(false/*ok*/) ) ;
+								audit       ( req.out_fd , req.options , Color::Err , e ) ;
+								audit_status( req.out_fd , req.options , false/*ok*/    ) ;
 								// cannot make, process as if followed by Close
 								trace("no_make") ;
 							}

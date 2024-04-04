@@ -153,7 +153,7 @@ public :
 		_Path(        ::string const& f , bool steal=false ) :                        file{f.c_str()} { if (!steal) allocate(f.size()) ; }
 		_Path( Fd a , ::string const& f , bool steal=false ) : has_at{true} , at{a} , file{f.c_str()} { if (!steal) allocate(f.size()) ; }
 		//
-		_Path(_Path && p) { *this = ::move(p) ; }
+		_Path(_Path && p) { *this = ::move(p) ; }                // XXX : use copy&swap idiom
 		_Path& operator=(_Path&& p) {
 			deallocate() ;
 			has_at      = p.has_at    ;

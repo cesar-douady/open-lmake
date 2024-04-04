@@ -239,6 +239,8 @@ Digest analyze( bool at_end , bool killed=false ) {
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("target",ad,td,STR(unlnk),file) ;
+		} else if (!is_dep) {
+			trace("ignore",ad,file) ;
 		}
 	}
 	for( ::string const& t : g_washed ) if (!g_gather.access_map.contains(t)) {
@@ -419,8 +421,8 @@ int main( int argc , char* argv[] ) {
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		Status        status    = g_gather.exec_child( cmd_line() , child_stdin , child_stdout , Child::Pipe ) ;
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		bool          killed    = g_killed ;                          // sample g_killed to ensure coherence (even if status is correct, it may mean we were waiting for stdout/stderr)
 		Pdate         end_job   = New      ;                          // as early as possible after child ends
+		bool          killed    = g_killed ;                          // sample g_killed to ensure coherence (even if status is correct, it may mean we were waiting for stdout/stderr)
 		struct rusage rsrcs     ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//

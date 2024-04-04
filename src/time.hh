@@ -99,10 +99,10 @@ namespace Time {
 		constexpr ::strong_ordering operator<=>(Delay const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
-		constexpr Delay  operator+ (Delay other) const {                         return Delay(New,_val+other._val) ; }
-		constexpr Delay  operator- (Delay other) const {                         return Delay(New,_val-other._val) ; }
-		constexpr Delay& operator+=(Delay other)       { *this = *this + other ; return *this                      ; }
-		constexpr Delay& operator-=(Delay other)       { *this = *this - other ; return *this                      ; }
+		constexpr Delay  operator+ (Delay other) const {                       return Delay(New,_val+other._val) ; }
+		constexpr Delay  operator- (Delay other) const {                       return Delay(New,_val-other._val) ; }
+		constexpr Delay& operator+=(Delay other)       { *this = *this+other ; return *this                      ; }
+		constexpr Delay& operator-=(Delay other)       { *this = *this-other ; return *this                      ; }
 		constexpr Date   operator+ (Date       ) const ;
 		//
 		template<class T> requires(::is_arithmetic_v<T>) constexpr Delay  operator* (T f) const ;
@@ -139,7 +139,7 @@ namespace Time {
 		explicit constexpr CoarseDelay( NewType , Val v ) : _val{v} {}
 	public :
 		constexpr CoarseDelay() = default ;
-		constexpr CoarseDelay(Delay d) { *this = d ; }
+		constexpr CoarseDelay(Delay d) { *this = d ; } // XXX : implemment cxtor and remove operator=
 		constexpr CoarseDelay& operator=(Delay d) {
 			uint32_t t = ::logf(d._val)*(1<<Mantissa)+0.5 ;
 			if      ( t >= (1<<NBits<Val>)+Scale ) _val = -1      ;
@@ -184,10 +184,10 @@ namespace Time {
 		Date(::string_view const&) ;                                           // read a reasonable approximation of ISO8601
 		// services
 		using Base::operator+ ;
-		constexpr Date  operator+ (Delay other) const {                         return Date(New,_val+other._val) ; }
-		constexpr Date  operator- (Delay other) const {                         return Date(New,_val-other._val) ; }
-		constexpr Date& operator+=(Delay other)       { *this = *this + other ; return *this                     ; }
-		constexpr Date& operator-=(Delay other)       { *this = *this - other ; return *this                     ; }
+		constexpr Date  operator+ (Delay other) const {                       return Date(New,_val+other._val) ; }
+		constexpr Date  operator- (Delay other) const {                       return Date(New,_val-other._val) ; }
+		constexpr Date& operator+=(Delay other)       { *this = *this+other ; return *this                     ; }
+		constexpr Date& operator-=(Delay other)       { *this = *this-other ; return *this                     ; }
 		//
 		::string str ( uint8_t prec=0 , bool in_day=false ) const ;
 		size_t   hash(                                    ) const { return _val ; }
@@ -216,10 +216,10 @@ namespace Time {
 		constexpr ::strong_ordering operator<=>(Pdate const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
-		constexpr Pdate  operator+ (Delay other) const {                         return Pdate(New,_val+other._val) ; }
-		constexpr Pdate  operator- (Delay other) const {                         return Pdate(New,_val-other._val) ; }
-		constexpr Pdate& operator+=(Delay other)       { *this = *this + other ; return *this                      ; }
-		constexpr Pdate& operator-=(Delay other)       { *this = *this - other ; return *this                      ; }
+		constexpr Pdate  operator+ (Delay other) const {                       return Pdate(New,_val+other._val) ; }
+		constexpr Pdate  operator- (Delay other) const {                       return Pdate(New,_val-other._val) ; }
+		constexpr Pdate& operator+=(Delay other)       { *this = *this+other ; return *this                      ; }
+		constexpr Pdate& operator-=(Delay other)       { *this = *this-other ; return *this                      ; }
 		constexpr Delay  operator- (Pdate      ) const ;
 		//
 		bool/*slept*/ sleep_until(::stop_token) const ;

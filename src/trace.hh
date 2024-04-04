@@ -60,10 +60,11 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static              ::atomic<size_t> s_sz           ;                                                     // max overall size of trace, beyond, trace wraps
 		static              Channels         s_channels     ;
 	private :
-		static size_t                 _s_pos   ;                                                                  // current line number
-		static bool                   _s_ping  ;                                                                  // ping-pong to distinguish where trace stops in the middle of a trace
-		static Fd                     _s_fd    ;
-		static Mutex<MutexLvl::Trace> _s_mutex ;
+		static size_t                 _s_pos    ;                                                                 // current line number
+		static bool                   _s_ping   ;                                                                 // ping-pong to distinguish where trace stops in the middle of a trace
+		static Fd                     _s_fd     ;
+		static ::atomic<bool>         _s_has_fd ;
+		static Mutex<MutexLvl::Trace> _s_mutex  ;
 		//
 		static thread_local int            _t_lvl  ;
 		static thread_local bool           _t_hide ;                                                              // if true <=> do not generate trace
@@ -79,9 +80,9 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		/**/                  Trace(                                     ) : Trace{Channel::Default            } {}
 		template<class... Ts> Trace( const char* tag , Ts const&... args ) : Trace{Channel::Default,tag,args...} {}
 		// services
-		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                                  }
-		template<class... Ts> void operator()(Ts const&... args) { if ( +_s_fd && _active && !_sav_hide.saved ) _record<false/*protect*/>(args...) ; }
-		template<class... Ts> void protect   (Ts const&... args) { if ( +_s_fd && _active && !_sav_hide.saved ) _record<true /*protect*/>(args...) ; }
+		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                                        }
+		template<class... Ts> void operator()(Ts const&... args) { if ( _s_has_fd && _active && !_sav_hide.saved ) _record<false/*protect*/>(args...) ; }
+		template<class... Ts> void protect   (Ts const&... args) { if ( _s_has_fd && _active && !_sav_hide.saved ) _record<true /*protect*/>(args...) ; }
 	private :
 		template<bool P,class... Ts> void _record(Ts const&...     ) ;
 		template<bool P,class    T > void _output(T const&        x) { *_t_buf <<                    x  ; }
