@@ -57,8 +57,8 @@ fi
 # CXX configuration
 #
 CXX=${CXX:-g++}
-[ "$CXX" != "${CXX%++}" ] || { echo cannot recognize c++ compiler $CXX ; exit 1 ; }
-type -p $CXX >/dev/null   || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
+[ "$CXX" != "${CXX%++*}" ] || { echo cannot recognize c++ compiler $CXX ; exit 1 ; } # ensure we can find "++" in cxx, for example gcc or clang will not work, we must use g++ and clang++
+type -p $CXX >/dev/null    || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
 
 case "$($CXX --version|head -1)" in
 	*clang* ) CXX_FLAVOR=clang ; [ "$($CXX -dumpversion)" -lt 15 ] && { echo clang version must be at least 15  ; exit 1 ; } ;;
