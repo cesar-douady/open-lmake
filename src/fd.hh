@@ -27,7 +27,6 @@ struct Fd {
 	constexpr Fd( int       fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int       fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	constexpr Fd& operator=(int       fd_) { fd = fd_    ;                return *this ; }
 	constexpr Fd& operator=(Fd const& fd_) { fd = fd_.fd ;                return *this ; }
 	constexpr Fd& operator=(Fd     && fd_) { fd = fd_.fd ; fd_.detach() ; return *this ; }
 	//
