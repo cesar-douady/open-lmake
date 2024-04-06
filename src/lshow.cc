@@ -13,13 +13,15 @@ int main( int argc , char* argv[] ) {
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{
-		{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                   } }
+		{ ReqKey::Bom        , { .short_name='b' , .doc="show necessary sources"                     } }
+	,	{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                   } }
 	,	{ ReqKey::Deps       , { .short_name='d' , .doc="show existing deps"                         } }
 	,	{ ReqKey::Env        , { .short_name='E' , .doc="show envionment variables to execute job"   } }
 	,	{ ReqKey::ExecScript , { .short_name='s' , .doc="show a sh-executable script"                } }
 	,	{ ReqKey::Info       , { .short_name='i' , .doc="show info about jobs leading to files"      } }
 	,	{ ReqKey::InvDeps    , { .short_name='D' , .doc="show dependents"                            } }
 	,	{ ReqKey::InvTargets , { .short_name='T' , .doc="show producing jobs"                        } }
+	,	{ ReqKey::Running    , { .short_name='r' , .doc="show running jobs"                          } }
 	,	{ ReqKey::Stderr     , { .short_name='e' , .doc="show stderr"                                } }
 	,	{ ReqKey::Stdout     , { .short_name='o' , .doc="show stdout"                                } }
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"      } }
@@ -31,7 +33,15 @@ int main( int argc , char* argv[] ) {
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	bool may_verbose = cmd_line.key==ReqKey::Deps || cmd_line.key==ReqKey::Targets || cmd_line.key==ReqKey::Stderr ;
+	bool may_verbose = false ;
+	switch (cmd_line.key) {
+		case ReqKey::Bom     :
+		case ReqKey::Deps    :
+		case ReqKey::Targets :
+		case ReqKey::Running :
+		case ReqKey::Stderr  : may_verbose = true ;
+		default : ;
+	}
 	//
 	if ( cmd_line.key==ReqKey::ExecScript && cmd_line.args.size()!=1             ) syntax.usage("must have a single argument to generate an executable script") ;
 	if ( cmd_line.flags[ReqFlag::Verbose   ] && !may_verbose                     ) syntax.usage("verbose is only for showing deps, targets or stderr"         ) ;

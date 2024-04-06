@@ -151,12 +151,9 @@ namespace Engine {
 	struct Dep : DepDigestBase<Node> {
 		friend ::ostream& operator<<( ::ostream& , Dep const& ) ;
 		using Base = DepDigestBase<Node> ;
-		static const uint8_t NodesPerDep ;
 		// cxtors & casts
 		using Base::Base ;
 		// accesses
-		Dep const* next() const { return this+1+div_up(sz,NodesPerDep) ; }
-		Dep      * next()       { return this+1+div_up(sz,NodesPerDep) ; }
 		::string accesses_str() const ;
 		::string dflags_str  () const ;
 		// services
@@ -164,7 +161,18 @@ namespace Engine {
 		void acquire_crc() ;
 	} ;
 	static_assert(sizeof(Dep)==16) ;
-	inline constexpr uint8_t Dep::NodesPerDep = sizeof(Dep)/sizeof(Node) ; static_assert(sizeof(Dep)%sizeof(Node)==0) ;
+
+	union GenericDep {
+		static constexpr uint8_t NodesPerDep = sizeof(Dep)/sizeof(Node) ;
+		// cxtors & casts
+		GenericDep(Dep const& d={}) : hdr{d} {}
+		// services
+		GenericDep const* next() const { return this+1+div_up(hdr.sz,GenericDep::NodesPerDep) ; }
+		GenericDep      * next()       { return this+1+div_up(hdr.sz,GenericDep::NodesPerDep) ; }
+		// data
+		Dep hdr                 = {} ;
+		Node chunk[NodesPerDep] ;
+	} ;
 
 	//
 	// Deps
@@ -179,7 +187,7 @@ namespace Engine {
 		// cxtors & casts
 		DepsIter(                     ) = default ;
 		DepsIter( DepsIter const& dit ) : hdr{dit.hdr} , i_chunk{dit.i_chunk} {}
-		DepsIter( Dep const* d        ) : hdr{d      }                        {}
+		DepsIter( GenericDep const* d ) : hdr{d      }                        {}
 		DepsIter( Deps , Digest       ) ;
 		//
 		DepsIter& operator=(DepsIter const& dit) {
@@ -196,40 +204,37 @@ namespace Engine {
 			// Node's in chunk are semanticly located before header so :
 			// - if i_chunk< hdr->sz : refer to dep with no crc, flags nor parallel
 			// - if i_chunk==hdr->sz : refer to header
-			if (i_chunk==hdr->sz) return *hdr ;
-			static_cast<Node&>(tmpl) = static_cast<Node const*>(hdr+1)[i_chunk] ;
-			tmpl.accesses            = hdr->chunk_accesses                      ;
+			if (i_chunk==hdr->hdr.sz) return hdr->hdr ;
+			static_cast<Node&>(tmpl) = hdr[1].chunk[i_chunk]   ;
+			tmpl.accesses            = hdr->hdr.chunk_accesses ;
 			return tmpl ;
 		}
 		DepsIter& operator++(int) { return ++*this ; }
 		DepsIter& operator++(   ) {
-			if (i_chunk<hdr->sz)   i_chunk++ ;                         // go to next item in chunk
-			else                 { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk }
+			if (i_chunk<hdr->hdr.sz)   i_chunk++ ;                         // go to next item in chunk
+			else                     { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk }
 			return *this ;
 		}
 		// data
-		Dep const*  hdr     = nullptr                    ;               // pointer to current chunk header
-		uint8_t     i_chunk = 0                          ;               // current index in chunk
-		mutable Dep tmpl    = {{}/*accesses*/,Crc::None} ;               // template to store uncompressed Dep's
+		GenericDep const* hdr     = nullptr                    ;       // pointer to current chunk header
+		uint8_t           i_chunk = 0                          ;       // current index in chunk
+		mutable Dep       tmpl    = {{}/*accesses*/,Crc::None} ;       // template to store uncompressed Dep's
 	} ;
 
 	struct Deps : DepsBase {
-		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
 		Deps( ::vmap  <Node,Dflags> const& , Accesses ,          bool parallel ) ;
 		Deps( ::vector<Node       > const& , Accesses , Dflags , bool parallel ) ;
 		// accesses
-		Dep const& operator[](size_t i) const = delete ; // deps are compressed, cannot do random accesses
-		Dep      & operator[](size_t i)       = delete ; // .
-		NodeIdx    size      (        ) const = delete ; // .
+		NodeIdx size() const = delete ; // deps are compressed
 		// services
 		DepsIter begin() const {
-			Dep const* first = items() ;
+			GenericDep const* first = items() ;
 			return {first} ;
 		}
 		DepsIter end() const {
-			Dep const* last1 = items()+DepsBase::size() ;
+			GenericDep const* last1 = items()+DepsBase::size() ;
 			return {last1} ;
 		}
 		void assign      (            ::vector<Dep> const& ) ;
@@ -416,9 +421,10 @@ namespace Engine {
 		void mk_src   (FileTag=FileTag::Err) ;                                                  // Err means no crc update
 		void mk_no_src(                    ) ;
 		//
-		::c_vector_view<JobTgt> prio_job_tgts   (RuleIdx prio_idx) const ;
-		::c_vector_view<JobTgt> conform_job_tgts(ReqInfo const&  ) const ;
-		::c_vector_view<JobTgt> conform_job_tgts(                ) const ;
+		::c_vector_view<JobTgt> prio_job_tgts     (RuleIdx prio_idx) const ;
+		::c_vector_view<JobTgt> conform_job_tgts  (ReqInfo const&  ) const ;
+		::c_vector_view<JobTgt> conform_job_tgts  (                ) const ;
+		::c_vector_view<JobTgt> candidate_job_tgts(                ) const ; // all jobs above prio provided in conform_idx
 		//
 		void set_buildable( Req={}   , DepDepth lvl=0       ) ;                                 // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& , CoarseDelay pressure ) const ;

@@ -153,6 +153,19 @@ namespace Engine {
 		return sjts.subvec(0,sz) ;
 	}
 
+	::c_vector_view<JobTgt> NodeData::candidate_job_tgts() const {
+		RuleIdx ci = conform_idx() ;
+		if (ci==NoIdx) return {} ;
+		JobTgts const& jts  = job_tgts()          ; // /!\ jts is a CrunchVector, so if single element, a subvec would point to it, so it *must* be a ref
+		Prio           prio = jts[ci]->rule->prio ;
+		RuleIdx        idx  = ci                  ;
+		for( JobTgt jt : jts.subvec(ci) ) {
+			if (jt->rule->prio<prio) break ;
+			idx++ ;
+		}
+		return jts.subvec(0,idx) ;
+	}
+
 	struct JobTgtIter {
 		// cxtors
 		JobTgtIter( NodeData& n , NodeReqInfo const& ri ) : node{n} , idx{ri.prio_idx} , single{ri.single} {}
@@ -713,28 +726,24 @@ namespace Engine {
 		return os <<'('<< did.hdr <<','<< did.i_chunk <<')'  ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Deps const& ds ) {
-		return os << c_vector_view<Dep>(ds) ;
-	}
-
-	static void _append_dep( ::vector<Dep>& deps , Dep const& dep , size_t& hole ) {
+	static void _append_dep( ::vector<GenericDep>& deps , Dep const& dep , size_t& hole ) {
 		bool can_compress = !dep.is_date && +dep.accesses && dep.crc()==Crc::None && !dep.dflags && !dep.parallel ;
 		if (hole==Npos) {
 			if (can_compress) {                                                                       // create new open chunk
-				/**/ hole                                        = deps.size()         ;
-				Dep& hdr                                         = deps.emplace_back() ;
-				/**/ hdr.sz                                      = 1                   ;
-				/**/ hdr.chunk_accesses                          = dep.accesses        ;
-				/**/ static_cast<Node*>(&deps.emplace_back())[0] = dep                 ;
+				/**/ hole                         = deps.size()             ;
+				Dep& hdr                          = deps.emplace_back().hdr ;
+				/**/ hdr.sz                       = 1                       ;
+				/**/ hdr.chunk_accesses           = dep.accesses            ;
+				/**/ deps.emplace_back().chunk[0] = dep                     ;
 			} else {                                                                                  // create a chunk just for dep
 				deps.push_back(dep) ;
 			}
 		} else {
-			Dep& hdr = deps[hole] ;
+			Dep& hdr = deps[hole].hdr ;
 			if ( can_compress && dep.accesses==hdr.chunk_accesses && hdr.sz<lsb_msk(Dep::NSzBits) ) { // append dep to open chunk
-				uint8_t i = hdr.sz%Dep::NodesPerDep ;
+				uint8_t i = hdr.sz%GenericDep::NodesPerDep ;
 				if (i==0) deps.emplace_back() ;
-				static_cast<Node*>(&deps.back())[i] = dep ;
+				deps.back().chunk[i] = dep ;
 				hdr.sz++ ;
 			} else {                                                                                  // close chunk : copy dep to hdr, excetp sz and chunk_accesses fields
 				uint8_t  sz                 = hdr.sz             ;
@@ -746,40 +755,40 @@ namespace Engine {
 			}
 		}
 	}
-	static void _fill_hole(Dep& hdr) {
-		SWEAR(hdr.sz!=0) ;
-		uint8_t  sz                 = hdr.sz-1           ;
-		Accesses chunk_accesses     = hdr.chunk_accesses ;
-		/**/     hdr                = { static_cast<Node*>(&hdr+1)[sz] , hdr.chunk_accesses , Crc::None } ;
-		/**/     hdr.sz             = sz                 ;
-		/**/     hdr.chunk_accesses = chunk_accesses     ;
+	static void _fill_hole(GenericDep& hdr) {
+		SWEAR(hdr.hdr.sz!=0) ;
+		uint8_t  sz                     = hdr.hdr.sz-1                                                 ;
+		Accesses chunk_accesses         = hdr.hdr.chunk_accesses                                       ;
+		/**/     hdr.hdr                = { (&hdr)[1].chunk[sz] , hdr.hdr.chunk_accesses , Crc::None } ;
+		/**/     hdr.hdr.sz             = sz                                                           ;
+		/**/     hdr.hdr.chunk_accesses = chunk_accesses                                               ;
 	}
-	static void _fill_hole( ::vector<Dep>& deps , size_t hole ) {
+	static void _fill_hole( ::vector<GenericDep>& deps , size_t hole ) {
 		if (hole==Npos) return ;
-		Dep& d = deps[hole] ;
+		GenericDep& d = deps[hole] ;
 		_fill_hole(d) ;
-		if (d.sz%Dep::NodesPerDep==0) deps.pop_back() ;
+		if (d.hdr.sz%GenericDep::NodesPerDep==0) deps.pop_back() ;
 	}
 
 	Deps::Deps(::vmap<Node,Dflags> const& deps , Accesses accesses , bool parallel ) {
-		::vector<Dep> ds   ;        ds.reserve(deps.size()) ;                          // reserving deps.size() is comfortable and guarantees no reallocaiton
-		size_t        hole = Npos ;
+		::vector<GenericDep> ds   ;        ds.reserve(deps.size()) ;                   // reserving deps.size() is comfortable and guarantees no reallocaiton
+		size_t               hole = Npos ;
 		for( auto const& [d,df] : deps ) _append_dep( ds , {d,accesses,df,parallel} , hole ) ;
 		_fill_hole(ds,hole) ;
 		*this = {ds} ;
 	}
 
 	Deps::Deps( ::vector<Node> const& deps , Accesses accesses , Dflags dflags , bool parallel ) {
-		::vector<Dep> ds   ;        ds.reserve(deps.size()) ;                                      // reserving deps.size() is comfortable and guarantees no reallocaiton
-		size_t        hole = Npos ;
+		::vector<GenericDep> ds   ;        ds.reserve(deps.size()) ;                               // reserving deps.size() is comfortable and guarantees no reallocaiton
+		size_t               hole = Npos ;
 		for( auto const& d : deps ) _append_dep( ds , {d,accesses,dflags,parallel} , hole ) ;
 		_fill_hole(ds,hole) ;
 		*this = {ds} ;
 	}
 
 	void Deps::assign(::vector<Dep> const& deps) {
-		::vector<Dep> ds   ;        ds.reserve(deps.size()) ;                                      // reserving deps.size() is comfortable and guarantees no reallocaiton
-		size_t        hole = Npos ;
+		::vector<GenericDep> ds   ;        ds.reserve(deps.size()) ; // reserving deps.size() is comfortable and guarantees no reallocaiton
+		size_t               hole = Npos ;
 		for( auto const& d : deps ) _append_dep( ds , d , hole ) ;
 		_fill_hole(ds,hole) ;
 		DepsBase::assign(ds) ;
@@ -787,25 +796,25 @@ namespace Engine {
 
 	void Deps::replace_tail( DepsIter it , ::vector<Dep> const& deps ) {
 		// close current chunk
-		Dep* cur_dep = const_cast<Dep*>(it.hdr) ;
+		GenericDep* cur_dep = const_cast<GenericDep*>(it.hdr) ;
 		if (it.i_chunk!=0) {
-			cur_dep->sz = it.i_chunk ;
+			cur_dep->hdr.sz = it.i_chunk ;
 			_fill_hole(*cur_dep) ;
 			cur_dep = cur_dep->next() ;
 		}
 		// create new tail
-		::vector<Dep> ds ;
-		size_t        hole = Npos ;
+		::vector<GenericDep> ds   ;
+		size_t               hole = Npos ;
 		for( auto const& d : deps ) _append_dep( ds , d , hole ) ;
 		_fill_hole(ds,hole) ;
 		// splice it
 		NodeIdx tail_sz = cur_dep-items() ;
 		if (ds.size()<=tail_sz) {
-			for( Dep const& d : ds ) *cur_dep++ = d ;                               // copy all
-			shorten_by(tail_sz-ds.size()) ;                                         // and shorten
+			for( GenericDep const& d : ds ) *cur_dep++ = d ;                               // copy all
+			shorten_by(tail_sz-ds.size()) ;                                                // and shorten
 		} else {
-			for( Dep const& d : ::vector_view(ds.data(),tail_sz) ) *cur_dep++ = d ; // copy what can be fitted
-			append(::vector_view( &ds[tail_sz] , ds.size()-tail_sz ) ) ;            // and append for the remaining
+			for( GenericDep const& d : ::vector_view(ds.data(),tail_sz) ) *cur_dep++ = d ; // copy what can be fitted
+			append(::vector_view( &ds[tail_sz] , ds.size()-tail_sz ) ) ;                   // and append for the remaining
 		}
 	}
 

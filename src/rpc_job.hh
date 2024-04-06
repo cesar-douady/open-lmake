@@ -237,38 +237,38 @@ ENUM( MatchKind
 ,	SideDeps
 )
 
-ENUM_3( Status                                    // result of job execution
-,	Early   = EarlyLostErr                        // <=Early means output has not been modified
-,	Async   = Killed                              // <=Async means job was interrupted asynchronously
-,	Garbage = BadTarget                           // <=Garbage means job has not run reliably
-,	New                                           // job was never run
-,	EarlyChkDeps                                  // dep check failed before job actually started
-,	EarlyErr                                      // job was not started because of error
-,	EarlyLost                                     // job was lost before starting     , retry
-,	EarlyLostErr                                  // job was lost before starting     , do not retry
-,	LateLost                                      // job was lost after having started, retry
-,	LateLostErr                                   // job was lost after having started, do not retry
-,	Killed                                        // job was killed
-,	ChkDeps                                       // dep check failed
-,	BadTarget                                     // target was not correctly initialized or simultaneously written by another job
-,	Ok                                            // job execution ended successfully
-,	Err                                           // job execution ended in error
+ENUM_3( Status                                               // result of job execution
+,	Early   = EarlyLostErr                                   // <=Early means output has not been modified
+,	Async   = Killed                                         // <=Async means job was interrupted asynchronously
+,	Garbage = BadTarget                                      // <=Garbage means job has not run reliably
+,	New                                                      // job was never run
+,	EarlyChkDeps                                             // dep check failed before job actually started
+,	EarlyErr                                                 // job was not started because of error
+,	EarlyLost                                                // job was lost before starting     , retry
+,	EarlyLostErr                                             // job was lost before starting     , do not retry
+,	LateLost                                                 // job was lost after having started, retry
+,	LateLostErr                                              // job was lost after having started, do not retry
+,	Killed                                                   // job was killed
+,	ChkDeps                                                  // dep check failed
+,	BadTarget                                                // target was not correctly initialized or simultaneously written by another job
+,	Ok                                                       // job execution ended successfully
+,	Err                                                      // job execution ended in error
 )
 inline bool  is_lost(Status s) { return s<=Status::LateLostErr && s>=Status::EarlyLost ; }
 inline Bool3 is_ok  (Status s) {
 	static constexpr Bool3 IsOkTab[] = {
-		Maybe                                     // New
-	,	Maybe                                     // EarlyChkDeps
-	,	No                                        // EarlyErr
-	,	Maybe                                     // EarlyLost
-	,	No                                        // EarlyLostEr
-	,	Maybe                                     // LateLost
-	,	No                                        // LateLostErr
-	,	Maybe                                     // Killed
-	,	Maybe                                     // ChkDeps
-	,	Maybe                                     // BadTarget
-	,	Yes                                       // Ok
-	,	No                                        // Err
+		Maybe                                                // New
+	,	Maybe                                                // EarlyChkDeps
+	,	No                                                   // EarlyErr
+	,	Maybe                                                // EarlyLost
+	,	No                                                   // EarlyLostErr
+	,	Maybe                                                // LateLost
+	,	No                                                   // LateLostErr
+	,	Maybe                                                // Killed
+	,	Maybe                                                // ChkDeps
+	,	Maybe                                                // BadTarget
+	,	Yes                                                  // Ok
+	,	No                                                   // Err
 	} ;
 	static_assert(sizeof(IsOkTab)==N<Status>) ;
 	return IsOkTab[+s] ;
@@ -280,26 +280,6 @@ inline Status mk_err(Status s) {
 		case Status::LateLost  : return Status::LateLostErr  ;
 		case Status::Ok        : return Status::Err          ;
 	DF}
-}
-inline JobReasonTag mk_reason(Status s) {
-	static constexpr JobReasonTag ReasonTab[] = {
-		JobReasonTag::New                         // New
-	,	JobReasonTag::ChkDeps                     // EarlyChkDeps
-	,	JobReasonTag::None                        // EarlyErr
-	,	JobReasonTag::Lost                        // EarlyLost
-	,	JobReasonTag::Lost                        // EarlyLostEr
-	,	JobReasonTag::Lost                        // LateLost
-	,	JobReasonTag::Lost                        // LateLostErr
-	,	JobReasonTag::Killed                      // Killed
-	,	JobReasonTag::ChkDeps                     // ChkDeps
-	,	JobReasonTag::PollutedTargets             // BadTarget
-	,	JobReasonTag::None                        // Ok
-	,	JobReasonTag::None                        // Err
-	} ;
-	static_assert(sizeof(ReasonTab)==N<Status>) ;
-	JobReasonTag res = ReasonTab[+s] ;
-	SWEAR( res<JobReasonTag::HasNode , s , res ) ;
-	return res ;
 }
 
 static const ::string EnvPassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
@@ -324,9 +304,8 @@ struct JobReason {
 	JobReason( Tag t             ) : tag{t}           { SWEAR( t< Tag::HasNode       , t     ) ; }
 	JobReason( Tag t , NodeIdx n ) : tag{t} , node{n} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
 	// accesses
-	bool operator+() const { return +tag                 ; }
-	bool operator!() const { return !tag                 ; }
-	bool need_run () const { return +tag && tag<Tag::Err ; }
+	bool operator+() const { return +tag ; }
+	bool operator!() const { return !tag ; }
 	// services
 	JobReason operator|(JobReason jr) const {
 		if (JobReasonTagPrios[+tag]>=JobReasonTagPrios[+jr.tag]) return *this ; // at equal level, prefer older reason
@@ -383,7 +362,7 @@ struct CrcDate {
 	Crc   crc      () const { SWEAR(!is_date) ; return _crc             ; }
 	Ddate date     () const { SWEAR( is_date) ; return _date            ; }
 	//
-	bool seen(Accesses a) const { // return true if accesses could perceive the existence of file
+	bool seen(Accesses a) const {                                                     // return true if accesses could perceive the existence of file
 		if (!a) return false ;
 		SWEAR(+*this,*this,a) ;
 		if (is_date) return +_date && !Crc::None.match( Crc(_date.tag()) , a ) ;
@@ -393,8 +372,8 @@ struct CrcDate {
 	bool is_date = false ;
 private :
 	union {
-		Crc   _crc  ;             // ~46<64 bits
-		Ddate _date ;             // ~45<64 bits
+		Crc   _crc  ;                                                                 // ~46<64 bits
+		Ddate _date ;                                                                 // ~45<64 bits
 	} ;
 } ;
 

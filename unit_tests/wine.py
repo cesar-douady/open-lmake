@@ -33,17 +33,17 @@ if __name__!='__main__' :
 
 	class WineInit(WineRule) :
 		target       = '.wine/init'
-		targets      = { 'WINE' : '.wine/{*:.*}' } # for init wine env is not incremental
+		targets      = { 'WINE' : '.wine/{*:.*}' }                 # for init wine env is not incremental
 		side_targets = { 'WINE' : None }
 		allow_stderr = True
-		cmd          = 'wine64 cmd'                # do nothing, just to init support files (in targets)
+		cmd          = 'wine64 cmd >$TMPDIR/out ; cat $TMPDIR/out' # do nothing, just to init support files (in targets), avoid waiting for stdout
 
 	class Dut(Base,WineRule) :
 		target       = 'dut.{Method}'
 		deps         = { 'WINE_INIT' : '.wine/init' }
 		autodep      = '{Method}'
-		allow_stderr = True                     # in some systems, there are fixme messages
-		cmd          = f'wine64 {hostname_exe}'
+		allow_stderr = True                                                     # in some systems, there are fixme messages
+		cmd          = f'wine64 {hostname_exe} > $TMPDIR/out ; cat $TMPDIR/out' # avoid waiting for stdout
 
 	class Chk(Base) :
 		target = r'test.{Method}'

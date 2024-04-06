@@ -175,7 +175,7 @@ namespace Engine {
 			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {      // 2nd pass to find the loop
 				JobReqInfo const& cjri = j->c_req_info(*this) ;
 				if (cjri.done()          ) continue ;
-				if (cjri.speculative_deps) to_forget.push_back(d) ;
+				if (cjri.speculative_wait) to_forget.push_back(d) ;
 				for( Node dd : j->deps ) {
 					if (dd->done(*this)) continue ;
 					d = dd ;

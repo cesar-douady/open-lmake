@@ -25,6 +25,7 @@ ENUM_1( ReqProc     // PER_CMD : add a value that represents your command, above
 ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
 ,	None       // must stay first
 ,	Add        // if proc==Mark
+,	Bom        // if proc==Show
 ,	Clear      // if proc==Mark
 ,	Cmd        // if proc==Show
 ,	Delete     // if proc==Mark
@@ -37,6 +38,7 @@ ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other comma
 ,	InvTargets // if proc==Show
 ,	List       // if proc==Mark
 ,	Resources  // if proc==Forget, redo everything that were not redone when resources changed, to ensure reproducibility
+,	Running    // if proc==Show
 ,	Stderr     // if proc==Show
 ,	Stdout     // if proc==Show
 ,	Targets    // if proc==Show

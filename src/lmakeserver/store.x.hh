@@ -45,17 +45,17 @@ namespace Engine {
 
 	struct StoreMrkr {} ; // just a marker to disambiguate file association
 
-	struct Dep    ;
-	struct Target ;
+	union  GenericDep ;
+	struct Target     ;
 
 	extern SeqId* g_seq_id ; // used to identify launched jobs. Persistent so that we keep as many old traces as possible
 
 }
 
 namespace Engine {
-	namespace Persistent { using RuleStr     = Vector::Simple<RuleStrIdx,char  ,StoreMrkr> ; }
-	/**/                   using DepsBase    = Vector::Simple<NodeIdx   ,Dep   ,StoreMrkr> ;
-	/**/                   using TargetsBase = Vector::Simple<NodeIdx   ,Target,StoreMrkr> ;
+	namespace Persistent { using RuleStr     = Vector::Simple<RuleStrIdx,char      ,StoreMrkr> ; }
+	/**/                   using DepsBase    = Vector::Simple<NodeIdx   ,GenericDep,StoreMrkr> ;
+	/**/                   using TargetsBase = Vector::Simple<NodeIdx   ,Target    ,StoreMrkr> ;
 }
 
 #endif
@@ -261,22 +261,22 @@ namespace Engine::Persistent {
 		Targets no_triggers ; // these nodes do not trigger rebuild
 	} ;
 
-	//                                           autolock header     index             key       data       misc
+	//                                           autolock header     index             key       data         misc
 	// jobs
-	using JobFile      = Store::AllocFile       < false , JobHdr   , Job             ,           JobData                     > ;
-	using DepsFile     = Store::VectorFile      < false , void     , Deps            ,           Dep      , NodeIdx , 4      > ; // Deps are compressed when Crc==None
-	using TargetsFile  = Store::VectorFile      < false , void     , Targets         ,           Target                      > ;
+	using JobFile      = Store::AllocFile       < false , JobHdr   , Job             ,           JobData                       > ;
+	using DepsFile     = Store::VectorFile      < false , void     , Deps            ,           GenericDep , NodeIdx , 4      > ; // Deps are compressed when Crc==None
+	using TargetsFile  = Store::VectorFile      < false , void     , Targets         ,           Target                        > ;
 	// nodes
-	using NodeFile     = Store::AllocFile       < false , NodeHdr  , Node            ,           NodeData                    > ;
-	using JobTgtsFile  = Store::VectorFile      < false , void     , JobTgts::Vector ,           JobTgt   , RuleIdx          > ;
+	using NodeFile     = Store::AllocFile       < false , NodeHdr  , Node            ,           NodeData                      > ;
+	using JobTgtsFile  = Store::VectorFile      < false , void     , JobTgts::Vector ,           JobTgt     , RuleIdx          > ;
 	// rules
-	using RuleStrFile  = Store::VectorFile      < false , void     , RuleStr         ,           char     , uint32_t         > ;
-	using RuleFile     = Store::AllocFile       < false , MatchGen , Rule            ,           RuleStr                     > ;
-	using RuleTgtsFile = Store::SinglePrefixFile< false , void     , RuleTgts        , RuleTgt , void     , true /*Reverse*/ > ;
-	using SfxFile      = Store::SinglePrefixFile< false , void     , PsfxIdx         , char    , PsfxIdx  , true /*Reverse*/ > ; // map sfxes to root of pfxes, no lock : static
-	using PfxFile      = Store::MultiPrefixFile < false , void     , PsfxIdx         , char    , RuleTgts , false/*Reverse*/ > ;
+	using RuleStrFile  = Store::VectorFile      < false , void     , RuleStr         ,           char       , uint32_t         > ;
+	using RuleFile     = Store::AllocFile       < false , MatchGen , Rule            ,           RuleStr                       > ;
+	using RuleTgtsFile = Store::SinglePrefixFile< false , void     , RuleTgts        , RuleTgt , void       , true /*Reverse*/ > ;
+	using SfxFile      = Store::SinglePrefixFile< false , void     , PsfxIdx         , char    , PsfxIdx    , true /*Reverse*/ > ; // map sfxes to root of pfxes, no lock : static
+	using PfxFile      = Store::MultiPrefixFile < false , void     , PsfxIdx         , char    , RuleTgts   , false/*Reverse*/ > ;
 	// commons
-	using NameFile     = Store::SinglePrefixFile< true  , void     , Name            , char    , JobNode                     > ; // for Job's & Node's
+	using NameFile     = Store::SinglePrefixFile< true  , void     , Name            , char    , JobNode                       > ; // for Job's & Node's
 
 	static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
 

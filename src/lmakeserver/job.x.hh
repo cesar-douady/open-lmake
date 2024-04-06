@@ -185,19 +185,15 @@ namespace Engine {
 				default           : return false ;
 			}
 		}
-		bool      done  (bool is_full=false) const { return step()>=Step::Done && (!is_full||full) ; }
-		JobReason reason(                  ) const { return reasons.first | reasons.second ;         }
+		bool done(bool is_full=false) const { return step()>=Step::Done && (!is_full||full) ; }
 		//
 		Step step(      ) const { return _step ; }
 		void step(Step s) ;
 		// services
 		void reset() {
 			if (step()>Step::Dep) step(Step::Dep) ;
-			missing_dsk                 = false ;
-			iter                        = {}    ;
-			reasons.first               = {}    ;
-			stamped_err   = proto_err   = {}    ;                        // no errors in dep as no dep analyzed yet
-			stamped_modif = proto_modif = false ;
+			iter  = {}      ;
+			state = State() ;
 		}
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) {
 			ReqInfo::add_watcher(watcher,watcher_req_info) ;
@@ -213,26 +209,30 @@ namespace Engine {
 			DF}
 		}
 		// data
-		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
-		::pair<JobReason,JobReason> reasons            ;                 //  36+36<=128 bits, reasons to run job when deps are ready
-		DepsIter::Digest            iter               ;                 // ~28   <= 64 bits, deps up to this one statisfy required action
-		uint8_t                     n_submits          = 0     ;         //           8 bits, number of times job has been submitted to avoid infinite loop
-		bool                        new_cmd         :1 = false ;         //           1 bit , if true <=> cmd has been modified
-		bool                        full            :1 = false ;         //           1 bit , if true <=>, job result is asked, else only makable
-		bool                        missing_dsk     :1 = false ;         //           1 bit , if true <=>, a dep has been checked but not on disk
-		RunStatus                   stamped_err     :2 = {}    ;         //           2 bits, errors seen in dep until iter before    last parallel chunk, Maybe means missing static
-		RunStatus                   proto_err       :2 = {}    ;         //           2 bits, errors seen in dep until iter including last parallel chunk, Maybe means missing static
-		bool                        stamped_modif   :1 = false ;         //           1 bit , modifs seen in dep until iter before    last parallel chunk
-		bool                        proto_modif     :1 = false ;         //           1 bit , modifs seen in dep until iter including last parallel chunk
-		bool                        start_reported  :1 = false ;         //           1 bit , if true <=> start message has been reported to user
-		bool                        speculative_deps:1 = false ;         //           1 bit , if true <=> job is waiting for speculative deps only
-		Bool3                       speculate       :2 = Yes   ;         //           2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
-		bool                        reported        :1 = false ;         //           1 bit , used for delayed report when speculating
-		BackendTag                  backend         :2 = {}    ;         //           2 bits
+		struct State {
+			friend ::ostream& operator<<( ::ostream& , State const& ) ;
+			JobReason reason          = {}    ;                          //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
+			bool      missing_dsk  :1 = false ;                          //          1 bit , if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
+			RunStatus stamped_err  :2 = {}    ;                          //          2 bits, errors seen in dep until iter before    last parallel chunk, Maybe means missing static
+			RunStatus proto_err    :2 = {}    ;                          //          2 bits, errors seen in dep until iter including last parallel chunk, Maybe means missing static
+			bool      stamped_modif:1 = false ;                          //          1 bit , modifs seen in dep until iter before    last parallel chunk
+			bool      proto_modif  :1 = false ;                          //          1 bit , modifs seen in dep until iter including last parallel chunk
+		} ;
+		DepsIter::Digest iter               ;                            // ~20+6<= 64 bits, deps up to this one statisfy required action
+		State            state              ;                            //  43  <= 96 bits, dep analysis state
+		JobReason        reason             ;                            //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
+		uint8_t          n_submits          = 0     ;                    //          8 bits, number of times job has been submitted to avoid infinite loop
+		bool             force           :1 = false ;                    //          1 bit , if true <=> job must run because reason
+		bool             full            :1 = false ;                    //          1 bit , if true <=>, job result is asked, else only makable
+		bool             start_reported  :1 = false ;                    //          1 bit , if true <=> start message has been reported to user
+		bool             speculative_wait:1 = false ;                    //          1 bit , if true <=> job is waiting for speculative deps only
+		Bool3            speculate       :2 = Yes   ;                    //          2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
+		bool             reported        :1 = false ;                    //          1 bit , used for delayed report when speculating
+		BackendTag       backend         :2 = {}    ;                    //          2 bits
 	private :
-		Step _step :3 = {} ;                                             //           3 bits
+		Step _step:3 = {} ;                                              //          3 bits
 	} ;
-	static_assert(sizeof(JobReqInfo)==48) ;                              // check expected size
+	static_assert(sizeof(JobReqInfo)==48) ;                              // check expected size XXX : optimize size, can be 32
 
 }
 
@@ -311,12 +311,12 @@ namespace Engine {
 		//
 		Tflags tflags(Node target) const ;
 		//
-		void     end_exec      (                               ) const ;          // thread-safe
+		void     end_exec      (                               ) const ;            // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
 		JobInfo  job_info      (                               ) const { return  {                ancillary_file() } ; }
 		void     write_job_info(JobInfo const& ji              ) const { ji.write(Disk::dir_guard(ancillary_file())) ; }
 		::string special_stderr(Node                           ) const ;
-		::string special_stderr(                               ) const ;          // cannot declare a default value for incomplete type Node
+		::string special_stderr(                               ) const ;            // cannot declare a default value for incomplete type Node
 		//
 		void              invalidate_old() ;
 		Rule::SimpleMatch simple_match  () const ;                                  // thread-safe
@@ -331,7 +331,7 @@ namespace Engine {
 			_propag_speculate(ri) ;
 		}
 		//
-		JobReason make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
+		JobReason/*err*/ make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
 		//
 		void wakeup(ReqInfo& ri) { make(ri,MakeAction::Wakeup) ; }
 		//

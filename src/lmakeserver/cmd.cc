@@ -505,6 +505,97 @@ R"({
 		throw "no mark specified"s ;
 	}
 
+	template<class T> struct Show {
+		// cxtors & casts
+		Show(                                                  ) = default ;
+		Show( Fd fd_ , ReqOptions const& ro_ , DepDepth lvl_=0 ) : fd{fd_} , ro{&ro_} , lvl{lvl_} , verbose{ro_.flags[ReqFlag::Verbose]} {}
+		// data
+		Fd                fd        ;
+		ReqOptions const* ro        = nullptr          ;
+		DepDepth          lvl       = 0                ;
+		::uset<Job >      job_seen  = {}               ;
+		::uset<Node>      node_seen = {}               ;
+		::vector<T>       backlog   = {}               ;
+		bool              verbose   = false/*garbage*/ ;
+	} ;
+
+	struct ShowBom : Show<Node> {
+		using Show<Node>::Show ;
+		// services
+		void show_job(Job job) {
+			if (!job_seen.insert(job).second) return ;
+			for ( Dep const& dep : job->deps ) show_node(dep) ;
+		}
+		void show_node(Node node) {
+			if (!node_seen.insert(node).second) return ;
+			node->set_buildable() ;
+			//
+			if (!node->is_src_anti()) {
+				if (verbose) backlog.push_back(node) ;
+				lvl += verbose ;
+				for( Job j : node->candidate_job_tgts() ) show_job(j) ;
+				lvl -= verbose ;
+				if (+backlog) backlog.pop_back() ;
+			} else if (node->status()<=NodeStatus::Makable) {
+				Color c = node->buildable==Buildable::Src ? Color::None : Color::Warning ;
+				DepDepth l = lvl - backlog.size() ;
+				for( Node n : backlog ) audit( fd , *ro , Color::HiddenNote , mk_file(n   ->name()) , false/*as_is*/ , l++ ) ;
+				/**/                    audit( fd , *ro , c                 , mk_file(node->name()) , false/*as_is*/ , lvl ) ;
+				backlog = {} ;
+			}
+		}
+	} ;
+
+	struct ShowRunning : Show<Job> {
+		static constexpr BitMap<JobStep> InterestingSteps = { JobStep::Dep/*waiting*/ , JobStep::Queued , JobStep::Exec } ;
+		using Show<Job>::Show ;
+		// services
+		void show_job(Job job) {
+			JobStep step = {} ;
+			for( Req r : Req::s_reqs_by_start )
+				if ( JobStep s = job->c_req_info(r).step() ; InterestingSteps[s] && step!=s ) { // process job as soon as one Req is waiting/running, and this must be coherent
+					SWEAR(!step,step,s) ;
+					step = s ;
+				}
+			Color color = {} /*garbage*/ ;
+			char  hdr   = '?'/*garbage*/ ;
+			switch (step) {
+				case JobStep::Dep    :                                   break ;
+				case JobStep::Queued : color = Color::Note ; hdr = 'Q' ; break ;
+				case JobStep::Exec   : color = Color::None ; hdr = 'R' ; break ;
+				default : return ;
+			}
+			if (!job_seen.insert(job).second) return ;
+			//
+			switch (step) {
+				case JobStep::Dep    :
+					if (verbose) backlog.push_back(job) ;
+				break ;
+				case JobStep::Queued :
+				case JobStep::Exec   : {
+					SWEAR( lvl>=backlog.size() , lvl , backlog.size() ) ;
+					DepDepth l = lvl - backlog.size() ;
+					for( Job j : backlog ) audit( fd , *ro , Color::HiddenNote , to_string('W',' ',j  ->rule->name,' ',mk_file(j  ->name())) , false/*as_is*/ , l++ ) ;
+					/**/                   audit( fd , *ro , color             , to_string(hdr,' ',job->rule->name,' ',mk_file(job->name())) , false/*as_is*/ , lvl ) ;
+					backlog = {} ;
+					return ;
+				}
+			DF}
+			lvl += verbose ;
+			for( Dep const& dep : job->deps ) show_node(dep) ;
+			lvl -= verbose ;
+			if (+backlog) backlog.pop_back() ;
+		}
+		void show_node(Node node) {
+			for( Req r : Req::s_reqs_by_start )
+				if ( NodeReqInfo const& cri = node->c_req_info(r) ; cri.waiting() ) {           // process node as soon as one Req is waiting
+					if (!node_seen.insert(node).second) return ;
+					for( Job j : node->conform_job_tgts(cri) ) show_job(j) ;
+					return ;
+				}
+		}
+	} ;
+
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
 		Rule             rule         = job->rule                  ;
@@ -522,12 +613,13 @@ R"({
 			case ReqKey::Stdout     : {
 				if (rule->is_special()) {
 					switch (ro.key) {
-						case ReqKey::Info :
+						case ReqKey::Info   :
 						case ReqKey::Stderr : {
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job  , lvl   ) ;
 							audit    ( fd , ro , job->special_stderr() , false/*as_is*/ , lvl+1 ) ;
 						} break ;
 						case ReqKey::Cmd        :
+						case ReqKey::Env        :
 						case ReqKey::ExecScript :
 						case ReqKey::Stdout     :
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job                                    , lvl   ) ;
@@ -560,8 +652,8 @@ R"({
 						break ;
 						case ReqKey::Stdout :
 							if (!has_end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-							audit    ( fd , ro , digest.stdout , lvl+1 )         ;
+							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
+							audit    ( fd , ro , digest.stdout                         , lvl+1 ) ;
 						break ;
 						case ReqKey::Stderr :
 							if (!has_end && !(has_start&&verbose) ) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
@@ -727,9 +819,9 @@ R"({
 					DF}
 				}
 			} break ;
-			case ReqKey::Deps :
-				_send_job( fd , ro , Maybe|verbose , false/*hide*/ , job , lvl ) ;
-			break ;
+			case ReqKey::Bom     : ShowBom    (fd,ro,lvl).show_job(job) ;                             break ;
+			case ReqKey::Running : ShowRunning(fd,ro,lvl).show_job(job) ;                             break ;
+			case ReqKey::Deps    : _send_job( fd , ro , Maybe|verbose , false/*hide*/ , job , lvl ) ; break ;
 			case ReqKey::Targets : {
 				Rule::SimpleMatch match = job->simple_match() ;
 				for( auto const& [tn,td] : digest.targets ) {
@@ -759,6 +851,11 @@ R"({
 		::vector<Node> targets    = ecr.targets()                 ;
 		bool           porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		char           sep        = ' '                           ;
+		switch (ro.key) {
+			case ReqKey::Bom     : { ShowBom     sb {fd,ro} ; for( Node t : targets ) sb.show_node(t) ; goto Return ; }
+			case ReqKey::Running : { ShowRunning sr {fd,ro} ; for( Node t : targets ) sr.show_node(t) ; goto Return ; }
+			default : ;
+		}
 		if (porcelaine) audit( fd , ro , "{" , true/*as_is*/ ) ;
 		for( Node target : targets ) {
 			trace("target",target) ;
@@ -767,11 +864,12 @@ R"({
 			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target                                                          ) ;
 			else                       lvl-- ;
 			sep = ',' ;
-			bool for_job = false/*garbage*/ ;
+			bool for_job = true ;
 			switch (ro.key) {
 				case ReqKey::InvDeps    :
-				case ReqKey::InvTargets : for_job = false ; break ;
-				default                 : for_job = true  ;
+				case ReqKey::InvTargets :
+				case ReqKey::Running    : for_job = false ; break ;
+				default                 : ;
 			}
 			Job job ;
 			if (for_job) {
@@ -779,14 +877,22 @@ R"({
 				if ( !job && ro.key!=ReqKey::Info ) { ok = false ; continue ; }
 			}
 			switch (ro.key) {
+				case ReqKey::Cmd        :
+				case ReqKey::Env        :
+				case ReqKey::ExecScript :
+				case ReqKey::Stderr     :
+				case ReqKey::Stdout     :
+				case ReqKey::Targets    :
+					_show_job(fd,ro,job,lvl) ;
+				break ;
 				case ReqKey::Info :
 					if (target->status()==NodeStatus::Plain) {
 						Job    cj             = target->conform_job() ;
 						size_t w              = 0                     ;
 						bool   seen_candidate = false                 ;
 						for( Job j : target->conform_job_tgts() ) {
-							/**/       w              = ::max(w,j->rule->name.size()) ;
-							if (j!=cj) seen_candidate = true                          ;
+							w               = ::max(w,j->rule->name.size()) ;
+							seen_candidate |= j!=cj                         ;
 						}
 						for( Job j : target->conform_job_tgts() ) {
 							if      (j==job         ) continue ;
@@ -798,17 +904,12 @@ R"({
 					if (!job) {
 						Node n = target ;
 						while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
-						if (+n->asking) audit( fd , ro , to_string("required by : ",mk_file(Job(n->asking)->name())) ) ;
-						else            audit( fd , ro , to_string("required by : ",mk_file(    n         ->name())) ) ;
+						if (n!=target) {
+							if (+n->asking) audit( fd , ro , to_string("required by : ",mk_file(Job(n->asking)->name())) ) ;
+							else            audit( fd , ro , to_string("required by : ",mk_file(    n         ->name())) ) ;
+						}
 						continue ;
 					}
-				[[fallthrough]] ;
-				case ReqKey::Cmd        :
-				case ReqKey::Env        :
-				case ReqKey::ExecScript :
-				case ReqKey::Stderr     :
-				case ReqKey::Stdout     :
-				case ReqKey::Targets    :
 					_show_job(fd,ro,job,lvl) ;
 				break ;
 				case ReqKey::Deps    : {
@@ -840,6 +941,7 @@ R"({
 			DF}
 		}
 		if (porcelaine) audit( fd , ro , "}" , true/*as_is*/ ) ;
+	Return :
 		trace(STR(ok)) ;
 		return ok ;
 	}

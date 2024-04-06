@@ -74,6 +74,12 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* close socket in the management thread (M) while request is being processed
+	- such requests must go through the engine_loop
+	- this may take a while
+	- this means during this time, all jobs may connect (and actually do)
+	- requiring a coket for each slurm slot
+	- defeating the purpose of disconnecting jobs during execution
 *	fix store to be compliant with strict aliasing rules
 * support 64-bits id
 	- configure with NBits rather than types

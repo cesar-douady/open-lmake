@@ -69,8 +69,8 @@ class BaseRule(Rule) :
 	start_delay = 2
 	n_tokens    = config.backends.local.cpu
 
-class Centos7Rule(BaseRule) :
-	environ_cmd = { 'PATH' : '...:/opt/rh/devtoolset-11/root/usr/bin' }
+class PathRule(BaseRule) :                       # compiler must be accessed using the PATH as it must find its sub-binaries
+	environ_cmd = { 'PATH' : os.getenv('PATH') }
 	cache       = 'dir'
 
 class Html(BaseRule) :
@@ -140,14 +140,14 @@ class ConfigH(BaseRule) :
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 
-class SysConfigH(Centos7Rule) :
+class SysConfigH(PathRule) :
     targets = {
 		'MK'    : 'sys_config.mk'
 	,	'H'     : 'sys_config.h'
 	,	'TRIAL' : 'trial/{*:.*}'
 	}
     deps = { 'EXE' : '_bin/sys_config' }
-    cmd  = 'CC={gxx} PYTHON={sys.executable} ./{EXE} {MK} {H} 2>&1'
+    cmd  = 'CXX={gxx} PYTHON={sys.executable} ./{EXE} {MK} {H} 2>&1'
 
 class VersionH(BaseRule) :
     target = 'version.hh'
@@ -184,12 +184,12 @@ basic_opts_tab = {
 }
 def run_gxx(target,*args) :
 		cmd_line = ( gxx , '-o' , target , '-fdiagnostics-color=always' , *args )
-		if '/' in gxx : os.environ['PATH'] = ':'.join((osp.dirname(gxx),os.environ['PATH']))                            # gxx calls its subprograms (e.g. as) using PATH, ensure it points to gxx dir
+		if '/' in gxx : os.environ['PATH'] = ':'.join((osp.dirname(gxx),os.environ['PATH'])) # gxx calls its subprograms (e.g. as) using PATH, ensure it points to gxx dir
 		for k,v in os.environ.items() : print(f'{k}={v}')
 		print(' '.join(cmd_line))
 		run( cmd_line , check=True )
 for ext,basic_opts in basic_opts_tab.items() :
-	class Compile(Centos7Rule) :                                         # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
+	class Compile(PathRule) :                                            # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
 		name    = f'compile {ext}'
 		targets = { 'OBJ' : '{File}.o' }
 		deps    = {
@@ -223,7 +223,7 @@ for ext,basic_opts in basic_opts_tab.items() :
 		if True             : resources.mem = '512M'
 		if backend=='local' : resources.cc  = 1
 
-class GxxRule(Centos7Rule) :
+class LinkRule(PathRule) :
 	combine       = ('pre_opts','rev_post_opts')
 	pre_opts      = []                           # options before inputs & outputs
 	rev_post_opts = []                           # options after  inputs & outputs, combine appends at each level, but here we want to prepend
@@ -234,14 +234,14 @@ class GxxRule(Centos7Rule) :
 		,	*reversed(rev_post_opts)
 		)
 
-class LinkO(GxxRule) :
+class LinkO(LinkRule) :
 	pre_opts = ('-r','-fPIC')
 
-class LinkSo(GxxRule) :
+class LinkSo(LinkRule) :
 	pre_opts      = ('-shared-libgcc','-shared','-pthread')
 	rev_post_opts = ()
 
-class LinkExe(GxxRule) :
+class LinkExe(LinkRule) :
 	pre_opts      = '-pthread'
 	rev_post_opts = ()
 

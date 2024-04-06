@@ -23,8 +23,8 @@
 @end macro
 
 @set TITLE The lmake Manual
-@set UPDATED 22 April 2023
-@set UPDATED-MONTH April 2023
+@set UPDATED 22 April 2024
+@set UPDATED-MONTH April 2024
 @set EDITION @dfn{work in progress}
 @set VERSION 0.1
 
@@ -594,16 +594,22 @@ Once the build process is complete, a summary is generated with :
 
 @section @code{lshow}
 
-Usage : @code{lshow [ [-d|--deps] | [-D|-inv-deps] | [-T|-inv-targets] | [-i|--info] | [-s|--script] | [-S|--exec-script] | [-E|--env] | [-e|--stderr] |[-o|--stdout] [-b|--backend]
-[[-d|--debug] debug_dir] [-t|--targets] [-v|--verbose] [-p|--porcelaine] targets...}
+Usage : @code{lshow -short_cmd|--long_cmd [ -short_option|--long_option option_arg ]* files or job}
 
 @code{lshow} provides various information about jobs.
 The jobs are those officially generating the targets (i.e. the jobs that would be selected by @lmake if needing to generate it) if any,
 else it may be the jobs that actually generated the target.
 
-Options :
+There must be a single command while there may be 0 or more options.
+
+Arguments can be files or a single job as described in generic arguments description.
+
+Commands :
 @itemize @bullet
-@item @code{-d}|@code{--deps} : output the list of all the deps of the jobs.
+@item @code{-b}|@code{--bom} : Output the list of all source files necessary to build the arguments.
+If verbose (option @code{-v} or @code{--verbose}), some intermediate files are shown in gray, enough to justify why all listed source files.
+@item @code{-c}|@code{--cmd} : Output the @code{cmd} used to execute the job. If dynamic, it shows the specialized @code{cmd} for this job.
+@item @code{-d}|@code{--deps} : Output the list of all the deps of the jobs.
 Unless the verbose flag is specified, only existing deps are shown.
 Each line is composed of 6 fields  separated by spaces :
 @itemize @minus
@@ -626,18 +632,19 @@ Each line is composed of 6 fields  separated by spaces :
 @item Name of the dep.
 @end itemize
 If a dep does not exist, it is deemed secondary information and is shown in gray.
-@item @code{-D}|@code{--inv-deps}    : show jobs that depend on targets.
-@item @code{-T}|@code{--inv-targets} : show jobs that produce targets either officially (listed in @code{targets} attribute) or not (listed in @code{side_targets} attribute or not)
-@item @code{-i}|@code{--info}        : show various self-reading info about jobs, such as reason to be launched, why it was needed, execution time, host that executed it, ...
+@item @code{-D}|@code{--inv-deps} : Show jobs that depend on targets.
+@item @code{-E}|@code{--env}      : Show the environment used to run the script
+@item @code{-i}|@code{--info}     : Show various self-reading info about jobs, such as reason to be launched, why it was needed, execution time, host that executed it, ...
 If porcelaine mode (using the @code{--porcelaine} or @code{-p} option), the same information is reported as as an easy to parse Python @code{dict}.
-@item @code{-s}|@code{--script} : show the scripts used to execute the job.
+@item @code{-r}|@code{--running}  : Show the list of jobs currently running to build the arguments.
+If verbose (option @code{-v} or @code{--verbose}), some waiting jobs are shown in gray, enough to justify why all running jobs are running.
+Queued jobs are shown in blue, actively running jobs are uncolored.
+@item @code{-s}|@code{--script}   : Show the scripts used to execute the job.
 If debug is required through the @code{-d} or @code{--debug} option, a dir must be passed and generated script will write info to it using the autodep mechanism.
 Note that if job requires tmp mapping or auto mkdir, autodep is used in all cases (as it is functionally required) although minimally configured if debug is not asked.
-@item @code{-E}|@code{--env}     : show the environment used to run the script
-@item @code{-e}|@code{--stderr}  : show the stderr of the jobs.
-@item @code{-o}|@code{--stdout}  : show the stdout of the jobs.
-@item @code{-b}|@code{--backend} : show some execution information from backend generated when @lmake is run with the @code{-v} flag.
-@item @code{-t}|@code{--targets} : show the targets of the jobs.
+@item @code{-e}|@code{--stderr}   : Show the stderr of the jobs.
+@item @code{-o}|@code{--stdout}   : Show the stdout of the jobs.
+@item @code{-t}|@code{--targets}  : Show the targets of the jobs.
 Unless the verbose flag is specified, only existing targets are shown.
 Each line is composed of 3 fields  separated by spaces :
 @itemize @minus
@@ -655,6 +662,7 @@ Each line is composed of 3 fields  separated by spaces :
 @item The name of the target.
 @end itemize
 If a target does not exist, it is deemed secondary information and is shown in gray.
+@item @code{-T}|@code{--inv-targets} : Show jobs that produce targets either officially (listed in @code{targets} attribute) or not (listed in @code{side_targets} attribute or not)
 @end itemize
 
 @section @code{ldebug}
