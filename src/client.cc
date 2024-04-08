@@ -26,7 +26,7 @@ static bool _server_ok( Fd fd , ::string const& tag ) {
 	return ok ;
 }
 
-static pid_t _connect_to_server( bool refresh , bool sync ) { // if sync, ensure we launch our own server
+static pid_t _connect_to_server( bool refresh , bool sync ) {                                                                          // if sync, ensure we launch our own server
 	Trace trace("_connect_to_server",STR(refresh)) ;
 	::string server_service  ;
 	bool     server_is_local = false ;
@@ -192,7 +192,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSynt
 		case 'r' :
 		case 'R' : rv = Yes                                    ; break ;
 		case 'f' :
-		case 'F' : rv = Maybe                                  ; break ; // force no color
+		case 'F' : rv = Maybe                                  ; break ;                                                         // force no color
 		default  : rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
 	}
 	trace("reverse_video",rv) ;
@@ -208,8 +208,8 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSynt
 			ReqRpcReply report = IMsgBuf().receive<ReqRpcReply>(g_server_fds.in) ;
 			switch (report.proc) {
 				case Proc::None   : trace("done"                 ) ;                                               goto Return ;
-				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           break       ;
-				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ;
+				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           goto Return ; // XXX : why is it necessary goto Return here ? ...
+				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ; // ... we should receive None when server closes stream
 				case Proc::Txt    :                                  ::cout << report.txt << flush ;               break       ;
 			DF}
 		}
@@ -217,6 +217,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSynt
 		trace("disconnected") ;
 	}
 Return :
+	g_server_fds.out.close() ;                                                                                                   // ensure server stops living because of us
 	if (sync) waitpid( server_pid , nullptr , 0 ) ;
 	return rc ;
 }

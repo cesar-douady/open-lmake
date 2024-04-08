@@ -127,19 +127,20 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	t_thread_key = 'Q' ;
 	Trace trace("reqs_thread_func",STR(_g_is_daemon)) ;
 	//
-	::stop_callback              stop_cb  { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;                       // transform request_stop into an event we wait for
+	::stop_callback              stop_cb  { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;                         // transform request_stop into an event we wait for
 	::umap<Fd,pair<IMsgBuf,Req>> in_tab   ;
 	Epoll                        epoll    { New }                                                 ;
 	//
-	epoll.add_read( _g_server_fd , EventKind::Master ) ;
-	epoll.add_read( _g_int_fd    , EventKind::Int    ) ;
+	epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ;
+	epoll.add_read( _g_int_fd    , EventKind::Int    ) ; trace("read_int"   ,_g_int_fd   ) ;
 	//
-	if ( +_g_watch_fd && ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 )
-			epoll.add_read( _g_watch_fd , EventKind::Watch ) ;                                                            // if server marker is touched by user, we do as we received a ^C
+	if ( +_g_watch_fd && ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 ) {
+		epoll.add_read( _g_watch_fd , EventKind::Watch ) ; trace("read_watch",_g_watch_fd) ;                                // if server marker is touched by user, we do as we received a ^C
+	}
 	//
 	if (!_g_is_daemon) {
 		in_tab[in_fd] ;
-		epoll.add_read(in_fd,EventKind::Std) ;
+		epoll.add_read(in_fd,EventKind::Std) ; trace("read_std",in_fd) ;
 	}
 	//
 	for(;;) {
@@ -199,7 +200,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						case ReqProc::Forget :
 						case ReqProc::Mark   :
 						case ReqProc::Show   :
-							epoll.del(fd) ;    // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							epoll.del(fd) ; trace("stop_fd",rrr.proc,fd) ;                  // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							in_tab.erase(fd) ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 							g_engine_queue.emplace( rrr.proc , fd , ofd , rrr.files , rrr.options ) ;
@@ -207,7 +208,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						break ;
 						case ReqProc::Kill :
 						case ReqProc::None : {
-							epoll.del(fd) ;                                                 // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							epoll.del(fd) ; trace("stop_fd",rrr.proc,fd) ;                  // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							auto it=in_tab.find(fd) ;
 							Req r = it->second.second ;
 							trace("eof",fd) ;
@@ -226,9 +227,8 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 		//
 		if (new_fd) {
 			Fd slave_fd = Fd(_g_server_fd.accept()) ;
-			trace("new_req",slave_fd) ;
 			in_tab[slave_fd] ;                                                              // allocate entry
-			epoll.add_read(slave_fd,EventKind::Slave) ;
+			epoll.add_read(slave_fd,EventKind::Slave) ; trace("new_req",slave_fd) ;
 			report_server(slave_fd,true/*running*/) ;
 		}
 	}
@@ -321,7 +321,7 @@ bool/*interrupted*/ engine_loop() {
 					break ;
 					case ReqProc::Close : {
 						auto it = fd_tab.find(req.req) ;
-						trace("close_req",req,STR(it->second.killed)) ;
+						trace("close_req",req,it->second.in,it->second.out,STR(it->second.killed)) ;
 						//vvvvvvvvvvvvv
 						req.req.close() ;
 						//^^^^^^^^^^^^^
@@ -334,6 +334,9 @@ bool/*interrupted*/ engine_loop() {
 						Req  r          = req.req                                        ;
 						auto it         = fd_tab.find(r)                                 ;
 						bool req_active = it!=fd_tab.end() && it->second.out==req.out_fd ; // out_fd is held until now, and if it does not coincide with it->second, req id was reused for a new Req
+						//
+						if (it==fd_tab.end()) trace("kill_req",req                                                    ) ;
+						else                  trace("kill_req",req,it->second.in,it->second.out,STR(it->second.killed)) ;
 						//                             vvvvvvvv
 						if ( +r && +*r && req_active ) r.kill() ;
 						//                             ^^^^^^^^

@@ -36,6 +36,7 @@ if __name__!='__main__' :
 		def cmd() :
 			print(open(FIRST ).read(),end='')
 			print(open(SECOND).read(),end='')
+			lmake.get_autodep()               # check get_autodep works in a subdir
 
 else :
 

@@ -26,6 +26,7 @@ bool                                                   Record::s_static_report =
 ::vmap_s<DepDigest>                                  * Record::s_deps          = nullptr ;
 ::string                                             * Record::s_deps_err      = nullptr ;
 ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache  = nullptr ; // map file to read accesses
+bool                                                   Record::s_seen_chdir    = false   ;
 AutodepEnv*                                            Record::_s_autodep_env  = nullptr ; // declare as pointer to avoid late initialization
 Fd                                                     Record::_s_root_fd      ;
 

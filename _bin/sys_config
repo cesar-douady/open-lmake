@@ -61,17 +61,20 @@ CXX=${CXX:-g++}
 type -p $CXX >/dev/null    || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
 
 case "$($CXX --version|head -1)" in
-	*clang* ) CXX_FLAVOR=clang ; [ "$($CXX -dumpversion)" -lt 15 ] && { echo clang version must be at least 15  ; exit 1 ; } ;;
-	*g++*   ) CXX_FLAVOR=gcc   ; [ "$($CXX -dumpversion)" -lt 11 ] && { echo gcc   version must be at least 11  ; exit 1 ; } ;;
-	*       )                                                           echo cannot recognize c++ compiler $CXX ; exit 1     ;;
+	*clang* ) CXX_FLAVOR=clang ; v=$($CXX -dumpversion) ; [ ${v%%.*} -lt 15 ] && { echo clang version must be at least 15  ; exit 1 ; } ;;
+	*g++*   ) CXX_FLAVOR=gcc   ; v=$($CXX -dumpversion) ; [ ${v%%.*} -lt 11 ] && { echo gcc   version must be at least 11  ; exit 1 ; } ;;
+	*       )                                                                      echo cannot recognize c++ compiler $CXX ; exit 1     ;;
 esac
 
-LLP="$($CXX -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)" # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
-LLP="$(echo $LLP | sed 's/LIBRARY_PATH=//'           )" # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
-LLP="$(echo $LLP | sed 's/:/ /'                      )" # e.g. : /usr/lib/x /a/b /c /a/b/c/..
-LLP="$(echo $LLP | sort -u                           )" # e.g. : /usr/lib/x /a/b /c /a/b
-LINK_LIB_PATH=                                          # e.g. : /a/b /c /usr/lib/x
-for l in $LLP ; do                                      # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
+# XXX : do the equivalent probe with clang
+if [ $CXX_FLAVOR = gcc ] ; then
+	LLP="$($CXX -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)" # e.g. : LIBRARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
+fi
+LLP="$(echo $LLP | sed 's/LIBRARY_PATH=//' )"     # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
+LLP="$(echo $LLP | sed 's/:/ /'            )"     # e.g. : /usr/lib/x /a/b /c /a/b/c/..
+LLP="$(echo $LLP | sort -u                 )"     # e.g. : /usr/lib/x /a/b /c /a/b
+LINK_LIB_PATH=                                    # e.g. : /a/b /c /usr/lib/x
+for l in $LLP ; do                                # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
 	case $l/ in
 		/usr/lib/*  )                                   ;;
 		/usr/lib64/*)                                   ;;

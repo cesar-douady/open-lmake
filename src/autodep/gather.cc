@@ -117,7 +117,7 @@ void _child_wait_thread_func( int* wstatus , pid_t pid , Fd fd ) {
 }
 
 bool/*done*/ Gather::kill(int sig) {
-	Trace trace("kill",sig,pid,STR(as_session),child_stdout,child_stderr,mk_key_uset(slaves)) ;
+	Trace trace("kill",sig,pid,STR(as_session),child_stdout,child_stderr) ;
 	Lock lock { _pid_mutex }           ;
 	int       kill_sig  = sig>=0 ? sig : SIGKILL ;
 	bool      killed_   = false                  ;
@@ -129,10 +129,9 @@ bool/*done*/ Gather::kill(int sig) {
 		pid_t                    ctl_pid = as_session ? ::getpgrp() : ::getpid() ;
 		::umap_s<    GatherKind> fd_strs ;
 		::umap<pid_t,GatherKind> to_kill ;
-		trace("ctl",ctl_pid) ;
-		if (+child_stdout)                 fd_strs[ read_lnk(to_string("/proc/self/fd/",child_stdout.fd)) ] = GatherKind::Stdout ;
-		if (+child_stderr)                 fd_strs[ read_lnk(to_string("/proc/self/fd/",child_stderr.fd)) ] = GatherKind::Stderr ;
-		for( auto const& [fd,_] : slaves ) fd_strs[ read_lnk(to_string("/proc/self/fd/",fd          .fd)) ] = GatherKind::Slave  ;
+		trace("ctl",ctl_pid,mk_key_uset(slaves)) ;
+		if (+child_stdout) fd_strs[ read_lnk(to_string("/proc/self/fd/",child_stdout.fd)) ] = GatherKind::Stdout ;
+		if (+child_stderr) fd_strs[ read_lnk(to_string("/proc/self/fd/",child_stderr.fd)) ] = GatherKind::Stderr ;
 		trace("fds",fd_strs) ;
 		for( ::string const& proc_entry : lst_dir("/proc")  ) {
 			for( char c : proc_entry ) if (c>'9'||c<'0') goto NextProc ;
@@ -267,9 +266,11 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 	::jthread                       wait_jt            { _child_wait_thread_func , &wstatus , child.pid , child_fd } ;                                        // thread dedicated to wating child
 	Epoll                           epoll              { New }                                                       ;
 	Status                          status             = Status::New                                                 ;
-	PD                              end                ;
+	uint8_t                         n_active           = 0                                                           ;
 	::umap<Fd/*reply*/,ServerReply> server_replies     ;
 	::umap<Fd         ,Jerr       > delayed_check_deps ; // check_deps events are delayed to ensure all previous deps are taken into account
+	Pdate                           job_end            ;
+	Pdate                           reporting_end      ;
 	//
 	auto handle_req_to_server = [&]( Fd fd , Jerr&& jerr ) -> bool/*still_sync*/ {
 		trace("slave",fd,jerr) ;
@@ -301,37 +302,46 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 		return false ;
 	} ;
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
-		if ( status==Status::New || status==Status::Ok ) status = status_ ;                                                         // else there is already another reason
+		if ( status==Status::New || status==Status::Ok ) status = status_ ;                // else there is already another reason
 		if ( +msg_                                     ) append_line_to_string(msg,msg_) ;
+	} ;
+	auto dec_active = [&]()->void {
+		SWEAR(n_active) ;
+		n_active-- ;
+		if ( !n_active && +network_delay ) reporting_end = Pdate(New)+network_delay ;      // once job is dead, wait at most network_delay (if set) for reporting to calm down
 	} ;
 	//
 	SWEAR(!slaves) ;
 	//
 	if (+timeout) {
-		end = PD(New) + timeout ;
-		trace("set_timeout",timeout,end) ;
+		job_end = Pdate(New) + timeout ;
+		trace("set_timeout",timeout,job_end) ;
 	}
-	if (cstdout==Child::Pipe) { epoll.add_read(child_stdout=child.stdout,Kind::Stdout  ) ; trace("read_stdout",child_stdout) ; }
-	if (cstderr==Child::Pipe) { epoll.add_read(child_stderr=child.stderr,Kind::Stderr  ) ; trace("read_stderr",child_stderr) ; }
-	/**/                      { epoll.add_read(child_fd                 ,Kind::ChildEnd) ; trace("read_child ",child_fd    ) ; }
-	/**/                      { epoll.add_read(master_fd                ,Kind::Master  ) ; trace("read_master",master_fd   ) ; }
+	if (cstdout==Child::Pipe) { epoll.add_read(child_stdout=child.stdout,Kind::Stdout  ) ; n_active++ ; trace("read_stdout",child_stdout) ; }
+	if (cstderr==Child::Pipe) { epoll.add_read(child_stderr=child.stderr,Kind::Stderr  ) ; n_active++ ; trace("read_stderr",child_stderr) ; }
+	/**/                      { epoll.add_read(child_fd                 ,Kind::ChildEnd) ; n_active++ ; trace("read_child ",child_fd    ) ; }
+	/**/                      { epoll.add_read(master_fd                ,Kind::Master  ) ;              trace("read_master",master_fd   ) ; }
 	while (epoll.cnt) {
 		uint64_t wait_ns = Epoll::Forever ;
-		if (+end) {
-			PD now = New ;
-			if (now>=end) {
+		if (+reporting_end) {
+			Pdate now = {New} ;
+			if (now<reporting_end) wait_ns = (reporting_end-now).nsec() ;
+			else                   break ;
+		} else if ( !killed && +job_end ) {
+			Pdate now = {New} ;
+			if (now<job_end) {
+				wait_ns = (job_end-now).nsec() ;
+			} else {
 				trace("fire_timeout",now) ;
-				if (!killed) {
-					killed = true ;
-					set_status(Status::Err,to_string("timout after ",timeout.short_str())) ;
-				}
+				killed = true ;
+				set_status(Status::Err,to_string("timout after ",timeout.short_str())) ;
 				kill_job_cb() ;
+				wait_ns = {} ;
 			}
-			wait_ns = (end-now).nsec() ;
 		}
 		if (+delayed_check_deps) wait_ns = 0 ;
 		::vector<Epoll::Event> events = epoll.wait(wait_ns) ;
-		if ( !events && +delayed_check_deps ) {                                                                                     // process delayed check deps after all other events
+		if ( !events && +delayed_check_deps ) {                                                                                    // process delayed check deps after all other events
 			trace("delayed_chk_deps") ;
 			for( auto& [fd,jerr] : delayed_check_deps ) handle_req_to_server(fd,::move(jerr)) ;
 			delayed_check_deps.clear() ;
@@ -351,23 +361,25 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 						if (kind==Kind::Stderr)   stderr.append(buf_view) ;
 						else                    { stdout.append(buf_view) ; live_out_cb(buf_view) ; }
 					} else {
-						epoll.del(fd) ;                                                                                             // /!\ dont close as fd is closed upon child destruction
+						epoll.del(fd) ;                                                                                            // /!\ dont close as fd is closed upon child destruction
 						trace("close",kind,fd) ;
-						if (kind==Kind::Stderr) child_stderr = {} ;                                                                 // tell kill not to wait for this one
+						if (kind==Kind::Stderr) child_stderr = {} ;                                                                // tell kill not to wait for this one
 						else                    child_stdout = {} ;
+						dec_active() ;
 					}
 				} break ;
 				case Kind::ChildEnd : {
 					uint64_t one = 0/*garbage*/            ;
 					int      cnt = ::read( fd , &one , 8 ) ; SWEAR( cnt==8 && one==1 , cnt , one ) ;
 					{	Lock lock{_pid_mutex} ;
-						child.pid = -1 ;                                                                                            // too late to kill job
+						child.pid = -1 ;                                                                                           // too late to kill job
 					}
 					if      (WIFEXITED  (wstatus)) set_status( WEXITSTATUS(wstatus)!=0        ? Status::Err : Status::Ok       ) ;
-					else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG(wstatus)) ? Status::Err : Status::LateLost ) ;  // synchronous signals are actually errors
+					else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG(wstatus)) ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",wstatus) ;
 					epoll.close(fd) ;
-					epoll.cnt-- ;                                    // do not wait for new connections, but if one arrives before all flows are closed, process it
+					epoll.cnt-- ;               // do not wait for new connections, but if one arrives before all flows are closed, process it, so wait Master no more
+					dec_active() ;
 					trace("close",kind,status,::hex,wstatus,::dec) ;
 				} break ;
 				case Kind::Master : {
@@ -375,7 +387,7 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 					Fd slave = master_fd.accept() ;
 					epoll.add_read(slave,Kind::Slave) ;
 					trace("read_slave",slave) ;
-					slaves[slave] ;                                  // allocate entry
+					slaves[slave] ;             // allocate entry
 				} break ;
 				case Kind::ServerReply : {
 					JobRpcReply jrr ;

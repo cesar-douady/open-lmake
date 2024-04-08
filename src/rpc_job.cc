@@ -282,7 +282,7 @@ JobInfo::JobInfo(::string const& filename) {
 }
 
 void JobInfo::write(::string const& filename) const {
-	OFStream os{filename} ;
+	OFStream os{dir_guard(filename)} ;
 	serialize(os,start) ;
 	serialize(os,end  ) ;
 }

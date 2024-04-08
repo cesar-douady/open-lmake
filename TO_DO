@@ -12,7 +12,7 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* fix compilation with LMAKE_SAN=T
+* fix compilation with LMAKE_FLAGS=ST
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions
 * reimplement hierarchical repositories
@@ -28,8 +28,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* improve lshow -i
-	- generate info on nodes
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
 	- put adequate $PLATFORM in LD_PRELOAD
@@ -53,6 +51,10 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* report "killed while waiting for stdout or stderr"
+	- when a job is killed while the child is terminated
+	- so as to indicate to the user that something weird was on going
+	- could also report this time in lshow -i
 * generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
@@ -78,8 +80,9 @@ items :
 	- such requests must go through the engine_loop
 	- this may take a while
 	- this means during this time, all jobs may connect (and actually do)
-	- requiring a coket for each slurm slot
+	- requiring a socket for each slurm slot
 	- defeating the purpose of disconnecting jobs during execution
+	- in all cases, code must resist to an error in accept
 *	fix store to be compliant with strict aliasing rules
 * support 64-bits id
 	- configure with NBits rather than types
@@ -110,11 +113,6 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* implement a lshow -r to see what is running now and -B to see BOM (list of sources)
-	- implement a generic walk through deps
-	- use it for check_deps, which will prevent jobs post critical deps to be run
-* support dynamic values for interpreter
-	- python and shell
 * improve job isolation by using namespaces
 	- much like faketree : https://github.com/enfabrica/enkit/tree/master/faketree
 	- generalize tmp mapping

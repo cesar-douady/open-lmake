@@ -59,9 +59,9 @@ namespace Backends {
 	Backend::DeferredThread*          Backend::_s_deferred_report_thread = nullptr ;
 	Backend::DeferredThread*          Backend::_s_deferred_wakeup_thread = nullptr ;
 
-	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<pair_s<pair<Dflags,ExtraDflags>>>&& deps_attrs ) {
+	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<DepSpec>&& deps_attrs ) {
 		::vmap_s<DepDigest> res ; res.reserve(deps_attrs.size()) ;
-		for( auto& [_,ddfedf] : deps_attrs ) res.emplace_back( ::move(ddfedf.first) , DepDigest( {} , ddfedf.second.first , true/*parallel*/ ) ) ;
+		for( auto& [_,d] : deps_attrs ) res.emplace_back( ::move(d.txt) , DepDigest( {} , d.dflags , true/*parallel*/ ) ) ;
 		return res ;
 	}
 
@@ -199,7 +199,7 @@ namespace Backends {
 		::pair<vmap<Node,FileAction>,vector<Node>> pre_actions       ;
 		StartCmdAttrs                              start_cmd_attrs   ;
 		::pair_ss/*script,call*/                   cmd               ;
-		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> deps_attrs        ;
+		::vmap_s<DepSpec>                          deps_attrs        ;
 		StartRsrcsAttrs                            start_rsrcs_attrs ;
 		StartNoneAttrs                             start_none_attrs  ;
 		::pair_ss                                  start_msg_err     ;
@@ -248,7 +248,7 @@ namespace Backends {
 					case 4 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
 				DF}
 			}
-			trace("deps",deps) ;
+			trace("deps",step,deps) ;
 			// record as much info as possible in reply
 			switch (step) {
 				case 5 :
@@ -266,40 +266,40 @@ namespace Backends {
 				[[fallthrough]] ;
 				case 4 :
 				case 3 :
-					/**/                                               reply.method                    = start_rsrcs_attrs.method                     ;
-					/**/                                               reply.timeout                   = start_rsrcs_attrs.timeout                    ;
+					/**/                                               reply.method                    = start_rsrcs_attrs.method       ;
+					/**/                                               reply.timeout                   = start_rsrcs_attrs.timeout      ;
 					for( ::pair_ss& kv : start_rsrcs_attrs.env )       reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
 				case 2 :
-					/**/                                               reply.autodep_env.auto_mkdir    = start_cmd_attrs.auto_mkdir                   ;
-					/**/                                               reply.autodep_env.ignore_stat   = start_cmd_attrs.ignore_stat                  ;
-					/**/                                               reply.autodep_env.tmp_view      = ::move(start_cmd_attrs.tmp   )               ;   // tmp directory as viewed by job
-					/**/                                               reply.chroot                    = ::move(start_cmd_attrs.chroot)               ;
-					/**/                                               reply.use_script                = start_cmd_attrs.use_script                   ;
+					/**/                                               reply.interpreter               = start_cmd_attrs.interpreter    ;
+					/**/                                               reply.autodep_env.auto_mkdir    = start_cmd_attrs.auto_mkdir     ;
+					/**/                                               reply.autodep_env.ignore_stat   = start_cmd_attrs.ignore_stat    ;
+					/**/                                               reply.autodep_env.tmp_view      = ::move(start_cmd_attrs.tmp   ) ;                 // tmp directory as viewed by job
+					/**/                                               reply.chroot                    = ::move(start_cmd_attrs.chroot) ;
+					/**/                                               reply.use_script                = start_cmd_attrs.use_script     ;
 					for( ::pair_ss& kv : start_cmd_attrs.env )         reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
 				case 1 :
-					/**/                                               reply.cmd                       = ::move(cmd)                                  ;
+					/**/                                               reply.cmd                       = ::move(cmd)                    ;
 				[[fallthrough]] ;
 				case 0 : {
 					VarIdx ti = 0 ;
 					for( ::string const& tn : match.static_matches() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
 					for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
-					if (rule->stdin_idx !=Rule::NoVar)                 reply.stdin                     = deps_attrs[rule->stdin_idx ].second.first    ;
-					if (rule->stdout_idx!=Rule::NoVar)                 reply.stdout                    = reply.static_matches[rule->stdout_idx].first ;
-					/**/                                               reply.addr                      = fd.peer_addr()                               ;
-					/**/                                               reply.autodep_env.lnk_support   = g_config.lnk_support                         ;
-					/**/                                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                       ;
-					/**/                                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                 ;
-					/**/                                               reply.autodep_env.root_dir      = *g_root_dir                                  ;
-					/**/                                               reply.cwd_s                     = rule->cwd_s                                  ;
-					/**/                                               reply.hash_algo                 = g_config.hash_algo                           ;
-					/**/                                               reply.interpreter               = rule->interpreter                            ;
-					/**/                                               reply.keep_tmp                  = keep_tmp                                     ;
-					/**/                                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)           ;
-					/**/                                               reply.live_out                  = submit_attrs.live_out                        ;
-					/**/                                               reply.network_delay             = g_config.network_delay                       ;
-					/**/                                               reply.remote_admin_dir          = g_config.remote_admin_dir                    ;
+					if (rule->stdin_idx !=Rule::NoVar)                 reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt ;
+					if (rule->stdout_idx!=Rule::NoVar)                 reply.stdout                    = reply.static_matches[rule->stdout_idx].first      ;
+					/**/                                               reply.addr                      = fd.peer_addr()                                    ;
+					/**/                                               reply.autodep_env.lnk_support   = g_config.lnk_support                              ;
+					/**/                                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                            ;
+					/**/                                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                      ;
+					/**/                                               reply.autodep_env.root_dir      = *g_root_dir                                       ;
+					/**/                                               reply.cwd_s                     = rule->cwd_s                                       ;
+					/**/                                               reply.hash_algo                 = g_config.hash_algo                                ;
+					/**/                                               reply.keep_tmp                  = keep_tmp                                          ;
+					/**/                                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
+					/**/                                               reply.live_out                  = submit_attrs.live_out                             ;
+					/**/                                               reply.network_delay             = g_config.network_delay                            ;
+					/**/                                               reply.remote_admin_dir          = g_config.remote_admin_dir                         ;
 					for( ::pair_ss& kv : start_none_attrs .env )       reply.env.push_back(::move(kv)) ;
 				} break ;
 			DF}

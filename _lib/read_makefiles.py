@@ -183,8 +183,9 @@ def handle_inheritance(rule) :
 			typ,dyn = StdAttrs[k]
 			if typ and not ( dyn and callable(v) ) :
 				try :
-					if typ in (tuple,list) and not isinstance(v,(tuple,list)) : v = typ((v,))
-					else                                                      : v = typ( v  )
+					if callable(v)                                            : pass
+					elif typ in (tuple,list) and not isinstance(v,(tuple,list)) : v = typ((v,))
+					else                                                        : v = typ( v  )
 				except :
 					raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
 		attrs[k] = v
@@ -393,8 +394,6 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		if self.attrs.is_python : self.rule_rep.interpreter = self.attrs.python
-		else                    : self.rule_rep.interpreter = self.attrs.shell
 		for attr in ('cwd','ete','force','max_submit_count','n_tokens') :
 			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
 
@@ -437,31 +436,33 @@ class Handle :
 		self.rule_rep.submit_none_attrs = self._finalize()
 
 	def handle_start_cmd(self) :
+		if self.attrs.is_python : interpreter = 'python'
+		else                    : interpreter = 'shell'
 		self._init()
-		self._handle_val('auto_mkdir'               )
-		self._handle_val('env'        ,'environ_cmd')
-		self._handle_val('ignore_stat'              )
-		self._handle_val('chroot'                   )
-		self._handle_val('interpreter'              )
-		self._handle_val('tmp'                      )
-		self._handle_val('use_script'               )
+		self._handle_val('auto_mkdir'                       )
+		self._handle_val('env'        ,rep_key='environ_cmd')
+		self._handle_val('ignore_stat'                      )
+		self._handle_val('chroot'                           )
+		self._handle_val('interpreter',rep_key=interpreter  )
+		self._handle_val('tmp'                              )
+		self._handle_val('use_script'                       )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
 		self._init()
-		self._handle_val('autodep'                    )
-		self._handle_val('env'    ,'environ_resources')
-		self._handle_val('timeout'                    )
+		self._handle_val('autodep'                            )
+		self._handle_val('env'    ,rep_key='environ_resources')
+		self._handle_val('timeout'                            )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
 
 	def handle_start_none(self) :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
-		self._handle_val('keep_tmp'                       )
-		self._handle_val('start_delay'                    )
-		self._handle_val('kill_sigs'                      )
-		self._handle_val('n_retries'                      )
-		self._handle_val('env'        ,'environ_ancillary')
+		self._handle_val('keep_tmp'                               )
+		self._handle_val('start_delay'                            )
+		self._handle_val('kill_sigs'                              )
+		self._handle_val('n_retries'                              )
+		self._handle_val('env'        ,rep_key='environ_ancillary')
 		self.rule_rep.start_none_attrs = self._finalize()
 
 	def handle_end_cmd(self) :

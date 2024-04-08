@@ -2131,7 +2131,7 @@ This is typically used to access some environment variables set by @code{slurm}.
 @item Default
 @tab system Python
 @item Dynamic
-@tab False
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attribute defines the interpreter used to run the @code{cmd} if it is a @code{function}.
@@ -2151,7 +2151,7 @@ In particular, Python2.7 and all revisions of Python3 are fully supported.
 @item Default
 @tab @code{/bin/bash}
 @item Dynamic
-@tab False
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attribute defines the interpreter used to run the @code{cmd} if it is a @code{str}.

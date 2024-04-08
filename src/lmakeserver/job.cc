@@ -26,9 +26,9 @@ namespace Engine {
 		for( Node d : to_mkdirs )
 			for( Node hd=d->dir() ; +hd ; hd = hd->dir() )
 				if (!to_mkdir_uphills.insert(hd).second) break ;
-		for( auto const& [_,d] : match.deps() )                        // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
-			for( Node hd=Node(d.first)->dir() ; +hd ; hd = hd->dir() )
-				if (!locked_dirs.insert(hd).second) break ;            // if dir contains a dep, it cannot be rmdir'ed
+		for( auto const& [_,d] : match.deps() )                      // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
+			for( Node hd=Node(d.txt)->dir() ; +hd ; hd = hd->dir() )
+				if (!locked_dirs.insert(hd).second) break ;          // if dir contains a dep, it cannot be rmdir'ed
 		//
 		// remove old targets
 		for( Target t : targets ) {
@@ -178,8 +178,8 @@ namespace Engine {
 	Job::Job( Rule::SimpleMatch&& match , Req req , DepDepth lvl ) {
 		Trace trace("Job",match,lvl) ;
 		if (!match) { trace("no_match") ; return ; }
-		Rule                                       rule      = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
-		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> dep_names ;
+		Rule              rule      = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
+		::vmap_s<DepSpec> dep_names ;
 		try {
 			dep_names = rule->deps_attrs.eval(match) ;
 		} catch (::pair_ss const& msg_err) {
@@ -192,17 +192,15 @@ namespace Engine {
 		}
 		::vector<Dep> deps ; deps.reserve(dep_names.size()) ;
 		::umap<Node,VarIdx> dis  ;
-		for( auto const& [_,dndfedf] : dep_names ) {
-			auto const& [dn,dfedf] = dndfedf                                            ;
-			auto        [df,edf  ] = dfedf                                              ;
-			Node        d          { dn }                                               ;
-			Accesses    a          = edf[ExtraDflag::Ignore] ? Accesses() : ~Accesses() ;
+		for( auto const& [_,dn] : dep_names ) {
+			Node     d { dn.txt }                                                       ;
+			Accesses a = dn.extra_dflags[ExtraDflag::Ignore] ? Accesses() : ~Accesses() ;
 			//vvvvvvvvvvvvvvvvvvv
 			d->set_buildable(lvl) ;
 			//^^^^^^^^^^^^^^^^^^^
 			if ( d->buildable<=Buildable::No                    ) { trace("no_dep",d) ; return ; }
-			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , df , true/*parallel*/ ) ;
-			else                                                  { deps[it->second].dflags |= df ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
+			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , dn.dflags , true/*parallel*/ ) ;
+			else                                                  { deps[it->second].dflags |= dn.dflags ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
 		}
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		//           args for store         args for JobData
@@ -508,23 +506,23 @@ namespace Engine {
 			trace("req_before",target_reason,status,ri) ;
 			req->missing_audits.erase(*this) ;                                  // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
-			//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobReason err_reason = (*this)->make( ri , end_action , target_reason , Yes/*speculate*/ , &old_exec_time , false/*wakeup_watchers*/ ) ;
-			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobReason job_err_reason = (*this)->make( ri , end_action , target_reason , Yes/*speculate*/ , &old_exec_time , false/*wakeup_watchers*/ ) ;
+			//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			bool     full_report = ri.done() || !has_new_deps ;                 // if not done, does a full report anyway if this is not due to new deps
 			::string job_msg     ;
 			if (full_report) {
-				bool job_err = err_reason.tag>=JobReasonTag::Err ;
+				bool job_err = job_err_reason.tag>=JobReasonTag::Err ;
 				job_msg = msg ;
-				if (!job_err)   append_line_to_string( job_msg , local_msg                   ) ;                                             // report local_msg if nothing more import to report
-				else          { append_line_to_string( job_msg , reason_str(err_reason),'\n' ) ; err_reason |= err_reason ; stderr = {} ; }  // dont report user stderr if analysis made it meaningless
-				/**/            append_line_to_string( job_msg , severe_msg                  ) ;
+				if (!job_err)   append_line_to_string( job_msg , local_msg                       ) ;                                                // report local_msg if no better message
+				else          { append_line_to_string( job_msg , reason_str(job_err_reason),'\n' ) ; err_reason |= job_err_reason ; stderr = {} ; } // dont report user stderr if analysis made it ...
+				/**/            append_line_to_string( job_msg , severe_msg                      ) ;                                                // ... meaningless
 			}
 			//
 			Delay     exec_time = digest.stats.total ; if ( status<=Status::Early                                 ) SWEAR(!exec_time,exec_time) ;
 			::string  pfx       ;                      if ( !ri.done() && status>Status::Garbage && !unstable_dep ) pfx = "may_" ;
 			//
-			JobReport jr = audit_end( pfx , ri , job_msg , full_report?stderr:""s , end_none_attrs.max_stderr_len , modified , exec_time ) ; // report rerun or resubmit rather than status
+			JobReport jr = audit_end( pfx , ri , job_msg , full_report?stderr:""s , end_none_attrs.max_stderr_len , modified , exec_time ) ;        // report rerun or resubmit rather than status
 			if (ri.done()) {
 				trace("wakeup_watchers",ri) ;
 				ri.wakeup_watchers() ;

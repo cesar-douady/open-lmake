@@ -15,6 +15,7 @@ if __name__!='__main__' :
 	import os
 
 	from lmake.rules import Rule
+	from lmake.rules import python as system_python
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -22,6 +23,7 @@ if __name__!='__main__' :
 	,	'hello'
 	,	'world'
 	,	'deps.hello+world.ref'
+	,	'interpreter.hello+world.ref'
 	,	'env.hello.ref'
 	,	*(f'autodep.{ad}.ref' for ad in autodeps)
 	,	'resources.1.ref'
@@ -59,6 +61,23 @@ if __name__!='__main__' :
 				'FIRST'  : File1
 			,	'SECOND' : file2_func()
 			}
+		def cmd() :
+			print(open(deps['FIRST' ]).read(),end='')
+			print(open(deps['SECOND']).read(),end='')
+
+	class Interpreter(Rule) :
+		stems = {
+			'File1' : r'\w*'
+		,	'File2' : r'\w*'
+		}
+		target = 'interpreter.{File1}+{File2}'
+		deps = {
+			'FIRST'  : '{File1}'
+		,	'SECOND' : '{File2}'
+		}
+		def python() :
+			if step==1 : raise RuntimeError
+			return (system_python,)
 		def cmd() :
 			print(open(deps['FIRST' ]).read(),end='')
 			print(open(deps['SECOND']).read(),end='')
@@ -126,13 +145,14 @@ else :
 
 	import ut
 
-	print('hello'              ,file=open('hello'               ,'w'))
-	print('world'              ,file=open('world'               ,'w'))
-	print('hello\nworld'       ,file=open('deps.hello+world.ref','w'))
-	print('hello\nhello\nhello',file=open('env.hello.ref'       ,'w'))
-	print(1                    ,file=open('resources.1.ref'     ,'w'))
-	print(2                    ,file=open('resources.2.ref'     ,'w'))
-	print('hello'              ,file=open('auto_mkdir.yes.ref'  ,'w'))
+	print('hello'              ,file=open('hello'                      ,'w'))
+	print('world'              ,file=open('world'                      ,'w'))
+	print('hello\nworld'       ,file=open('deps.hello+world.ref'       ,'w'))
+	print('hello\nworld'       ,file=open('interpreter.hello+world.ref','w'))
+	print('hello\nhello\nhello',file=open('env.hello.ref'              ,'w'))
+	print(1                    ,file=open('resources.1.ref'            ,'w'))
+	print(2                    ,file=open('resources.2.ref'            ,'w'))
+	print('hello'              ,file=open('auto_mkdir.yes.ref'         ,'w'))
 	#
 	for ad in autodeps : print('hello',file=open(f'autodep.{ad}.ref','w'))
 	open('auto_mkdir.no.ref','w')
@@ -144,18 +164,19 @@ else :
 		print(f'step={s}',file=open('step.py','w'))
 		rc = 1 if s==1 else 0
 		#
-		ut.lmake( 'deps.hello+world.ok' , done=2-rc*2 , steady=0    , failed=0  , new=2-rc*2 , no_deps =rc ,                          rc=rc )
-		ut.lmake( 'env.hello.ok'        , done=2-rc*2 , steady=0    , failed=rc , new=rc*2   ,               resubmit=rc ,            rc=rc )
-		ut.lmake( 'start_delay.no'      , done=rc     , steady=1-rc , failed=0  , new=0      ,               resubmit=rc , start=1  , rc=0  )
-		ut.lmake( 'start_delay.yes'     , done=rc     , steady=1-rc , failed=0  , new=0      ,               resubmit=rc , start=rc , rc=0  )
-		ut.lmake( 'resources.1.ok'      , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,                                        rc=rc )
-		ut.lmake( 'resources.2.ok'      , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,                                        rc=rc )
-		ut.lmake( 'max_stderr_len.1'    , done=rc     , steady=1-rc , failed=0  , new=0      ,                                        rc=0  )
-		ut.lmake( 'max_stderr_len.2'    , done=rc     , steady=1-rc , failed=0  , new=0      ,                                        rc=0  )
-		ut.lmake( 'allow_stderr.no'     , done=0      , steady=0    , failed=1  , new=0      ,                                        rc=1  )
-		ut.lmake( 'allow_stderr.yes'    , done=0      , steady=1-rc , failed=rc , new=0      ,                                        rc=rc )
-		ut.lmake( 'auto_mkdir.no.ok'    , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,               resubmit=rc ,            rc=rc )
-		ut.lmake( 'auto_mkdir.yes.ok'   , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,               resubmit=rc ,            rc=rc )
-		ut.lmake( 'cmd'                 , done=1-rc   , steady=0    , failed=rc , new=0      ,                                        rc=rc )
+		ut.lmake( 'deps.hello+world.ok'        , done=2-rc*2 , steady=0    , failed=0  , new=1-rc , no_deps =rc ,                          rc=rc )
+		ut.lmake( 'interpreter.hello+world.ok' , done=2-rc*2 , steady=0    , failed=rc , new=3*rc ,               resubmit=rc ,            rc=rc ) # python accesses Lmakefile when it fails
+		ut.lmake( 'env.hello.ok'               , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,               resubmit=rc ,            rc=rc )
+		ut.lmake( 'start_delay.no'             , done=rc     , steady=1-rc , failed=0  , new=0    ,               resubmit=rc , start=1  , rc=0  )
+		ut.lmake( 'start_delay.yes'            , done=rc     , steady=1-rc , failed=0  , new=0    ,               resubmit=rc , start=rc , rc=0  )
+		ut.lmake( 'resources.1.ok'             , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                                        rc=rc )
+		ut.lmake( 'resources.2.ok'             , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                                        rc=rc )
+		ut.lmake( 'max_stderr_len.1'           , done=rc     , steady=1-rc , failed=0  , new=0    ,                                        rc=0  )
+		ut.lmake( 'max_stderr_len.2'           , done=rc     , steady=1-rc , failed=0  , new=0    ,                                        rc=0  )
+		ut.lmake( 'allow_stderr.no'            , done=0      , steady=0    , failed=1  , new=0    ,                                        rc=1  )
+		ut.lmake( 'allow_stderr.yes'           , done=0      , steady=1-rc , failed=rc , new=0    ,                                        rc=rc )
+		ut.lmake( 'auto_mkdir.no.ok'           , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,               resubmit=rc ,            rc=rc )
+		ut.lmake( 'auto_mkdir.yes.ok'          , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,               resubmit=rc ,            rc=rc )
+		ut.lmake( 'cmd'                        , done=1-rc   , steady=0    , failed=rc , new=0    ,                                        rc=rc )
 		#
 		for ad in autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2-rc*2 , steady=0 , failed=rc , new=rc , resubmit=rc , rc=rc )

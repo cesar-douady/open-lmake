@@ -260,9 +260,9 @@ namespace Engine {
 		auto match = [&]()->Rule::SimpleMatch const& { { if (!m) m = Rule::SimpleMatch(j) ; } return m             ; } ; // solve lazy evaluation
 		auto stems = [&]()->::vector_s        const& {                                        return match().stems ; } ;
 		//
-		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t        : match().py_matches() ) mtab.push_back   (  mk_lcl(t         ,r->cwd_s)) ; } return mtab ; } ;
-		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dndf] : match().deps      () ) dtab.emplace_back(k,mk_lcl(dndf.first,r->cwd_s)) ; } return dtab ; } ;
-		auto rsrcs   = [&]()->::umap_ss  const& { { if (!rtab) rtab = mk_umap(rsrcs_) ;                                                                                  } return rtab ; } ;
+		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,r->cwd_s)) ; } return mtab ; } ;
+		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps      () ) dtab.emplace_back(k,mk_lcl(dn.txt,r->cwd_s)) ; } return dtab ; } ;
+		auto rsrcs   = [&]()->::umap_ss  const& { { if (!rtab) rtab = mk_umap(rsrcs_) ;                                                                            } return rtab ; } ;
 		for( auto [vc,i] : ctx ) {
 			::vmap_ss dct ;
 			switch (vc) {
@@ -424,14 +424,21 @@ namespace Engine {
 			}
 			deps.emplace_back( key , DepSpec{ ::move(parsed_dep) , df , edf } ) ;
 		}
-		if (_qualify_dep( {} , rd.interpreter[0] , rd.is_python?DepKind::Python:DepKind::Shell ))
-			deps.emplace_back( "<interpreter>" , DepSpec{::copy(rd.interpreter[0]),Dflag::Static,{}} ) ;
-		if (deps.size()>=Rule::NoVar) throw to_string("too many static deps : ",deps.size()) ;
+		if (deps.size()>=Rule::NoVar-1) throw to_string("too many static deps : ",deps.size()) ; // -1 to leave some room to the interpreter, if any
 	}
 
-	::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> DynamicDepsAttrs::eval( Rule::SimpleMatch const& match ) const {
-		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> res ;
-		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , pair( parse_fstr(ds.pattern,match) , pair(ds.dflags,ds.extra_dflags) ) ) ;
+	void DepsAttrs::add_interpreter(RuleData const& rd) {
+		::vector_s const& interpreter = rd.start_cmd_attrs.spec.interpreter ;
+		if ( +interpreter && _qualify_dep( {} , interpreter[0] , rd.is_python?DepKind::Python:DepKind::Shell ) ) {
+			::string interpreter0 = interpreter[0] ;
+			rd.add_cwd(interpreter0) ;
+			deps.emplace_back( "<interpreter>" , DepSpec{::move(interpreter0),Dflags(Dflag::Static,Dflag::Required),{}} ) ;
+		}
+	}
+
+	::vmap_s<DepSpec> DynamicDepsAttrs::eval(Rule::SimpleMatch const& match) const {
+		::vmap_s<DepSpec> res ;
+		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , DepSpec{parse_fstr(ds.txt,match),ds.dflags,ds.extra_dflags} ) ;
 		//
 		if (is_dynamic) {
 			try {
@@ -448,9 +455,9 @@ namespace Engine {
 					::string    dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps
 					match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
 					_qualify_dep( key , dep , DepKind::Dep ) ;
-					::pair_s<pair<Dflags,ExtraDflags>> e { dep , {df,edf} } ;
-					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          }                // dep cannot be both static and dynamic
-					else                                                          res[dep_idxs.at(key)].second = e ;                  // if not full_dynamic, all deps must be listed in spec
+					DepSpec ds { dep , df , edf } ;
+					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          }               // dep cannot be both static and dynamic
+					else                                                          res[dep_idxs.at(key)].second = ds ;                 // if not full_dynamic, all deps must be listed in spec
 				}
 			} catch (::string const& e) { throw ::pair_ss(e/*msg*/,{}/*err*/) ; }
 		}
@@ -477,6 +484,19 @@ namespace Engine {
 			//
 			v = to_string_with_units(val) ;
 		}
+	}
+
+	//
+	// StartCmdAttrs
+	//
+
+	StartCmdAttrs DynamicStartCmdAttrs::eval( Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
+		StartCmdAttrs res = Base::eval(m,rsrcs,deps) ;
+		::string interpreter0 = res.interpreter[0] ;
+		m.rule->add_cwd(interpreter0) ;
+		AutodepLock lock{deps} ;
+		AutoCloseFd(::open(interpreter0.c_str(),O_RDONLY)) ; // speed up dep acquisition by accessing interpreter, XXX : pretend access rather than make a real one for perf
+		return res ;
 	}
 
 	//
@@ -853,8 +873,7 @@ namespace Engine {
 			//
 			field = "ete"              ; if (dct.contains(field)) Attrs::acquire( exec_time   , &dct[field]              ) ;
 			field = "force"            ; if (dct.contains(field)) Attrs::acquire( force       , &dct[field]              ) ;
-			field = "interpreter"      ; if (dct.contains(field)) Attrs::acquire( interpreter , &dct[field]              ) ; if (!interpreter) throw "no interpreter found"s ;
-			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python   , &dct[field]              ) ; else              throw "not found"s            ;
+			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python   , &dct[field]              ) ; else throw "not found"s ;
 			field = "max_submit_count" ; if (dct.contains(field)) Attrs::acquire( n_submits   , &dct[field] , uint8_t(1) ) ;
 			field = "n_tokens"         ; if (dct.contains(field)) Attrs::acquire( n_tokens    , &dct[field]              ) ;
 			//
@@ -892,6 +911,7 @@ namespace Engine {
 				stdin_idx = di ;
 				break ;
 			}
+			deps_attrs.spec.add_interpreter(*this) ;
 		}
 		catch(::string const& e) { throw to_string("while processing ",name,'.',field," :\n"  ,indent(e)     ) ; }
 	}
@@ -1086,21 +1106,21 @@ namespace Engine {
 		/**/                                                                return rd.job_name                  ;
 	}
 
-	static ::string _pretty( size_t i , DepsAttrs const& ms , RuleData const& rd ) {
+	static ::string _pretty( size_t i , DepsAttrs const& da , RuleData const& rd ) {
 		OStringStream res      ;
 		size_t        wk       = 0 ;
 		size_t        wd       = 0 ;
 		::umap_ss     patterns ;
 		//
-		for( auto const& [k,ds] : ms.deps ) {
-			if (!ds.pattern) continue ;
-			::string p = _pretty_fstr(ds.pattern,rd) ;
+		for( auto const& [k,ds] : da.deps ) {
+			if (!ds.txt) continue ;
+			::string p = _pretty_fstr(ds.txt,rd) ;
 			wk          = ::max(wk,k.size()) ;
 			wd          = ::max(wd,p.size()) ;
 			patterns[k] = ::move(p)          ;
 		}
-		for( auto const& [k,ds] : ms.deps ) {
-			if (!ds.pattern) continue ;
+		for( auto const& [k,ds] : da.deps ) {
+			if (!ds.txt) continue ;
 			::string flags ;
 			bool     first = true ;
 			for( Dflag      df  : Dflag     ::NRule ) if (ds.dflags      [df ]) { flags += first?" : ":" , " ; first = false ; flags += snake(df ) ; }
@@ -1153,19 +1173,21 @@ namespace Engine {
 		int           pass   ;
 		//
 		auto do_field = [&](::string const& key , ::string const& val )->void {
-			if (pass==1) key_sz = ::max(key_sz,key.size()) ;                                 // during 1st pass, compute max key size ;
+			if (pass==1) key_sz = ::max(key_sz,key.size()) ;                                                                // during 1st pass, compute max key size ;
 			else         res << indent( to_string(::setw(key_sz),key," : ",val,'\n') , i ) ;
 		} ;
-		for( pass=1 ; pass<=2 ; pass++ ) {                                                   // on 1st pass we compute key size, on 2nd pass we do the job
+		::string interpreter ;
+		bool     first       = true ;
+		for( ::string const& c : sca.interpreter ) { append_to_string( interpreter , first?"":" " , c ) ; first = false ; }
+		for( pass=1 ; pass<=2 ; pass++ ) {                                                                                  // on 1st pass we compute key size, on 2nd pass we do the job
+			if (+interpreter    ) do_field( "interpreter" , interpreter                ) ;
 			if ( sca.auto_mkdir ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir ) ) ;
 			if ( sca.ignore_stat) do_field( "ignore_stat" , to_string(sca.ignore_stat) ) ;
 			if (+sca.chroot     ) do_field( "chroot"      ,           sca.chroot       ) ;
 			if (+sca.tmp        ) do_field( "tmp"         ,           sca.tmp          ) ;
 			if ( sca.use_script ) do_field( "use_script"  , to_string(sca.use_script ) ) ;
 		}
-		if (+sca.env) {
-			res << indent("environ :\n",i) << _pretty_env( i+1 , sca.env ) ;
-		}
+		if (+sca.env) res << indent("environ :\n",i) << _pretty_env( i+1 , sca.env ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {
@@ -1177,7 +1199,7 @@ namespace Engine {
 		OStringStream res     ;
 		::vmap_ss     entries ;
 		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Warray-bounds"                                      // gcc -O3 complains about array bounds with a completely incoherent message (looks like a bug)
+		#pragma GCC diagnostic ignored "-Warray-bounds"                                 // gcc -O3 complains about array bounds with a completely incoherent message (looks like a bug)
 		/**/              entries.emplace_back( "autodep" , snake(sra.method)       ) ;
 		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
 		#pragma GCC diagnostic pop
@@ -1236,12 +1258,9 @@ namespace Engine {
 		/**/        entries.emplace_back( "job_name" , _pretty_job_name(*this)        ) ;
 		if (+cwd_s) entries.emplace_back( "cwd"      , cwd_s.substr(0,cwd_s.size()-1) ) ;
 		if (!is_special()) {
-			::string i ; for( ::string const& c : interpreter ) append_to_string( i , +i?" ":"" , c ) ;
-			//
 			if (force      ) entries.emplace_back( "force"            , to_string(force    ) ) ;
 			if (n_submits  ) entries.emplace_back( "max_submit_count" , to_string(n_submits) ) ;
 			if (n_tokens!=1) entries.emplace_back( "n_tokens"         , to_string(n_tokens ) ) ;
-			/**/             entries.emplace_back( "interpreter"      , i                    ) ;
 		}
 		res << _pretty_vmap(1,entries) ;
 		if (+stems) res << indent("stems :\n",1) << _pretty_vmap   (      2,stems,true/*uniq*/) ;
@@ -1288,7 +1307,7 @@ namespace Engine {
 		bool       special = is_special() ;
 		Hash::Xxh  h       ;                                                   // each crc continues after the previous one, so they are standalone
 		//
-		::vector_s targets          ;
+		::vector_s targets ;
 		for( auto const& [k,me] : matches )
 			if ( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )
 				targets.push_back(me.pattern) ;                                // keys and flags have no influence on matching
@@ -1299,11 +1318,8 @@ namespace Engine {
 		if (special) {
 			h.update(allow_ext) ;                                              // only exists for special rules
 		} else {
-			bool with_interpreter = _qualify_dep({},interpreter[0],is_python?DepKind::Python:DepKind::Shell) ;
-			/**/                  h.update(job_name      )  ;                  // job_name has no effect for source & anti as it is only used to store jobs and there are none
-			if (with_interpreter) h.update(interpreter[0])  ;                  // no interpreter for source & anti
-			else                  h.update(""s           )  ;                  // ensure type homogeneity
-			/**/                  deps_attrs.update_hash(h) ;                  // no deps for source & anti
+			h.update(job_name)        ;                                        // job_name has no effect for source & anti as it is only used to store jobs and there are none
+			deps_attrs.update_hash(h) ;                                        // no deps for source & anti
 		}
 		match_crc = h.digest() ;
 		//
@@ -1312,7 +1328,6 @@ namespace Engine {
 		h.update(matches    )          ;                                       // these define names and influence cmd execution, all is not necessary but simpler to code
 		h.update(force      )          ;
 		h.update(is_python  )          ;
-		h.update(interpreter)          ;
 		cmd            .update_hash(h) ;
 		start_cmd_attrs.update_hash(h) ;
 		end_cmd_attrs  .update_hash(h) ;

@@ -29,21 +29,21 @@ if __name__!='__main__' :
 	class WineRule(Rule) :
 		side_targets      = { 'WINE' : ('.wine/{*:.*}','incremental') }
 		environ_resources = { 'DISPLAY' : os.environ['DISPLAY'] }
-		timeout           = 30                                    # actual time should be ~5s, but seems to block from time to time
+		timeout           = 30                                    # actual time should be ~5s, but seems to block from time to time when host is loaded
 
 	class WineInit(WineRule) :
 		target       = '.wine/init'
-		targets      = { 'WINE' : '.wine/{*:.*}' }                 # for init wine env is not incremental
+		targets      = { 'WINE' : '.wine/{*:.*}' }                                                     # for init wine env is not incremental
 		side_targets = { 'WINE' : None }
 		allow_stderr = True
-		cmd          = 'wine64 cmd >$TMPDIR/out ; cat $TMPDIR/out' # do nothing, just to init support files (in targets), avoid waiting for stdout
+		cmd          = 'wine64 cmd >$TMPDIR/out 2>$TMPDIR/err ; cat $TMPDIR/out ; cat $TMPDIR/err >&2' # do nothing, just to init support files (in targets), avoid waiting for stdout/stderr
 
 	class Dut(Base,WineRule) :
 		target       = 'dut.{Method}'
 		deps         = { 'WINE_INIT' : '.wine/init' }
 		autodep      = '{Method}'
-		allow_stderr = True                                                     # in some systems, there are fixme messages
-		cmd          = f'wine64 {hostname_exe} > $TMPDIR/out ; cat $TMPDIR/out' # avoid waiting for stdout
+		allow_stderr = True                                                                                         # in some systems, there are fixme messages
+		cmd          = f'wine64 {hostname_exe} > $TMPDIR/out 2>$TMPDIR/err ; cat $TMPDIR/out ; cat $TMPDIR/err >&2' # avoid waiting for stdout/stderr
 
 	class Chk(Base) :
 		target = r'test.{Method}'

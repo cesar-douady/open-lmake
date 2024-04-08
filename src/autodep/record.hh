@@ -54,6 +54,7 @@ public :
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
 	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;                                        // map file to read accesses
+	static bool                                                   s_seen_chdir     ;
 private :
 	static AutodepEnv* _s_autodep_env ;
 	static Fd          _s_root_fd     ;                                                                                     // a file descriptor to repo root dir
@@ -334,10 +335,13 @@ public :
 		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
 	} ;
 	//
-	void chdir(const char* dir) { _real_path.chdir(dir) ; }
+	void chdir(const char* dir) {
+		s_seen_chdir = true ;
+		_real_path.chdir(dir) ;
+	}
 	//
-private :
 	// data
+private :
 	Disk::RealPath      _real_path ;
 	mutable AutoCloseFd _report_fd ;
 	mutable bool        _tmp_cache = false ; // record that tmp usage has been reported, no need to report any further

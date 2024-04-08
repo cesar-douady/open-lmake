@@ -48,17 +48,17 @@ struct Gather {
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		PD           read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access (or ignore) date for each access
-		PD           write           = PD::Future                             ;                                 // first write  (or ignore) date
-		PD           target          = PD::Future                             ;                                 // first date at which file was known to be a target
-		PD           seen            = PD::Future                             ;                                 // first date at which file has been seen existing
-		CD           crc_date        ;                                                                          // state when first read
+		PD           read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ;                                // first access (or ignore) date for each access
+		PD           write           = PD::Future                             ;                                                                // first write  (or ignore) date
+		PD           target          = PD::Future                             ;                                                                // first date at which file was known to be a target
+		PD           seen            = PD::Future                             ;                                                                // first date at which file has been seen existing
+		CD           crc_date        ;                                                                                                         // state when first read
 		NodeIdx      parallel_id     = 0                                      ;
 		AccessDigest digest          ;
 	} ;
 	struct ServerReply {
-		IMsgBuf  buf        ;                                                                                   // buf to assemble the reply
-		Fd       fd         ;                                                                                   // fd to forward reply to
+		IMsgBuf  buf        ;                                                                                                                  // buf to assemble the reply
+		Fd       fd         ;                                                                                                                  // fd to forward reply to
 		::string codec_file ;
 	} ;
 	// cxtors & casts
@@ -78,7 +78,7 @@ private :
 		bool parallel = false ;
 		for( auto& [f,dd] : jerr.files ) { _new_access( fd , jerr.date , ::move(f) , jerr.digest , dd , parallel , jerr.txt ) ; parallel = true ; }
 	}
-	void _new_guards( Fd fd , Jerr&& jerr ) {                                                                   // fd for trace purpose only
+	void _new_guards( Fd fd , Jerr&& jerr ) {                                                                                                  // fd for trace purpose only
 		Trace trace("_new_guards",fd,jerr.txt) ;
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
@@ -95,42 +95,43 @@ public : //!                                                                    
 	void new_exec( PD , ::string const& exe        , ::string const&      ="s_exec" ) ;
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
-		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                            // dont care if we cannot report the reply to job
+		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                             // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child( ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
 	//
-	bool/*done*/ kill(int sig=-1) ;                                                                               // is sig==-1, use best effort to kill job
+	bool/*done*/ kill(int sig=-1) ;                                                                                // is sig==-1, use best effort to kill job
 	//
-	void reorder(bool at_end) ;                                                                                   // reorder accesses by first read access and suppress superfluous accesses
+	void reorder(bool at_end) ;                                                                                    // reorder accesses by first read access and suppress superfluous accesses
 	// data
-	::function<Fd/*reply*/(Jerr&&              )> server_cb    = [](Jerr     &&)->Fd   { return {} ; } ;          // function to contact server when necessary, return error by default
-	::function<void       (::string_view const&)> live_out_cb  = [](::string_view const&)->void {             } ; // function to report live output, dont report by default
-	::function<void       (                    )> kill_job_cb  = [](                    )->void {             } ; // function to kill job
-	ServerSockFd                                  master_fd    ;
-	in_addr_t                                     addr         = NoSockAddr                                     ; // local addr to which we can be contacted by running job
-	::atomic<bool>                                as_session   = false                                          ; // if true <=> process is launched in its own group
-	AutodepMethod                                 method       = AutodepMethod::Dflt                            ;
-	AutodepEnv                                    autodep_env  ;
-	Time::Delay                                   timeout      ;
-	pid_t                                         pid          = -1                                             ; // pid to kill
-	bool                                          killed       = false                                          ; // do not start as child is supposed to be already killed
-	::vector<uint8_t>                             kill_sigs    ;                                                  // signals used to kill job
-	::string                                      chroot       ;
-	::string                                      cwd          ;
-	 ::map_ss const*                              env          = nullptr                                        ;
-	vmap_s<AccessInfo>                            accesses     ;
-	umap_s<NodeIdx   >                            access_map   ;
-	uset_s                                        guards       ;                                                  // dir creation/deletion that must be guarded against NFS
-	NodeIdx                                       parallel_id  = 0                                              ; // id to identify parallel deps
-	bool                                          seen_tmp     = false                                          ;
-	int                                           wstatus      = 0/*garbage*/                                   ;
-	Fd                                            child_stdout ;                                                  // fd used to gather stdout
-	Fd                                            child_stderr ;                                                  // fd used to gather stderr
-	::string                                      stdout       ;                                                  // contains child stdout if child_stdout==Pipe
-	::string                                      stderr       ;                                                  // contains child stderr if child_stderr==Pipe
-	::string                                      msg          ;                                                  // contains error messages not from job
-	::umap<Fd,pair<IMsgBuf,vector<Jerr>>>         slaves       ;                                                  // Jerr's are waiting for confirmation
+	::function<Fd/*reply*/(Jerr&&              )> server_cb     = [](Jerr &&             )->Fd   { return {} ; } ; // function to contact server when necessary, return error by default
+	::function<void       (::string_view const&)> live_out_cb   = [](::string_view const&)->void {             } ; // function to report live output, dont report by default
+	::function<void       (                    )> kill_job_cb   = [](                    )->void {             } ; // function to kill job
+	ServerSockFd                                  master_fd     ;
+	in_addr_t                                     addr          = NoSockAddr                                     ; // local addr to which we can be contacted by running job
+	::atomic<bool>                                as_session    = false                                          ; // if true <=> process is launched in its own group
+	AutodepMethod                                 method        = AutodepMethod::Dflt                            ;
+	AutodepEnv                                    autodep_env   ;
+	Time::Delay                                   timeout       ;
+	Time::Delay                                   network_delay ;
+	pid_t                                         pid           = -1                                             ; // pid to kill
+	bool                                          killed        = false                                          ; // do not start as child is supposed to be already killed
+	::vector<uint8_t>                             kill_sigs     ;                                                  // signals used to kill job
+	::string                                      chroot        ;
+	::string                                      cwd           ;
+	 ::map_ss const*                              env           = nullptr                                        ;
+	vmap_s<AccessInfo>                            accesses      ;
+	umap_s<NodeIdx   >                            access_map    ;
+	uset_s                                        guards        ;                                                  // dir creation/deletion that must be guarded against NFS
+	NodeIdx                                       parallel_id   = 0                                              ; // id to identify parallel deps
+	bool                                          seen_tmp      = false                                          ;
+	int                                           wstatus       = 0/*garbage*/                                   ;
+	Fd                                            child_stdout  ;                                                  // fd used to gather stdout
+	Fd                                            child_stderr  ;                                                  // fd used to gather stderr
+	::string                                      stdout        ;                                                  // contains child stdout if child_stdout==Pipe
+	::string                                      stderr        ;                                                  // contains child stderr if child_stderr==Pipe
+	::string                                      msg           ;                                                  // contains error messages not from job
+	::umap<Fd,pair<IMsgBuf,vector<Jerr>>>         slaves        ;                                                  // Jerr's are waiting for confirmation
 private :
 	Mutex<MutexLvl::Gather> mutable _pid_mutex ;
 } ;

@@ -11,11 +11,12 @@ import signal as _signal
 import lmake
 from . import has_ld_audit,pdict,root_dir # if not in an lmake repo, root_dir is not set to current dir
 
+shell  = '$BASH'         # .
+python = _sys.executable
+
 _std_path        = '$STD_PATH'                   # substituted at installation time
-_bash            = '$BASH'                       # .
 _ld_library_path = '$LD_LIBRARY_PATH'            # .
 _lmake_dir       = __file__.rsplit('/lib/',1)[0]
-_python          = _sys.executable
 
 _rules = lmake._rules # list of rules that must be filled in by user code
 
@@ -87,8 +88,8 @@ class Rule(_RuleBase) :
 	n_retries        = 1                                     # number of retries in case of job lost. 1 is a reasonable value
 #	n_tokens         = 1                                     # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 #	prio             = 0                                     # in case of ambiguity, rules are selected with highest prio first
-	python           = (_python,)                            # python used for callable cmd
-	shell            = (_bash  ,)                            # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
+	python           = (python,)                            # python used for callable cmd
+	shell            = (shell ,)                            # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
 	start_delay      = 3                                     # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
 	max_stderr_len   = 100                                   # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 #	timeout          = None                                  # timeout allocated to job execution (in s), must be None or an int

@@ -16,6 +16,7 @@ private :
 public :
 	AutodepLock(                                 ) = default ;
 	AutodepLock(::vmap_s<DepDigest>* deps=nullptr) : lock{_s_mutex} {
+		// SWEAR(cwd()==Record::s_autodep_env().root_dir) ;                   // too expensive
 		SWEAR( !Record::s_deps && !Record::s_deps_err ) ;
 		SWEAR( !*Record::s_access_cache               ) ;
 		Record::s_deps     = deps ;
@@ -27,6 +28,7 @@ public :
 		Record::s_deps_err = nullptr ;
 		t_active           = false   ;
 		Record::s_access_cache->clear() ;
+		if (Record::s_seen_chdir) swear_prod(::fchdir(Record::s_root_fd())) ; // restore cwd in case it has been modified during user Python code execution
 	}
 	// data
 	Lock<Mutex<MutexLvl::Autodep1>> lock ;

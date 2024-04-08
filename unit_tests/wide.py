@@ -29,4 +29,5 @@ else :
 	n = 20
 	p = 40
 	d = ut.lmake( f'out_{p}_{n}' , may_rerun=... , rerun=... , was_done=... , done=... , steady=... )
-	assert d['was_done']+d['done']+d['steady']==n*p+p+n+2,f'bad counts : {d}'
+	expected_done = n*p+p+n+2
+	assert d['was_done']+d['done']+d['steady']==n*p+p+n+2,f'bad counts : {d} expected done : {expected_done}'

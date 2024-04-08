@@ -126,16 +126,18 @@ namespace Engine {
 		::string subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed ) ;
 	} ;
 
+	struct DepSpec {
+		::string    txt          ;
+		Dflags      dflags       ;
+		ExtraDflags extra_dflags ;
+	} ;
+
 	// used at match time
 	struct DepsAttrs {
 		static constexpr const char* Msg = "deps" ;
-		struct DepSpec {
-			::string    pattern      ;
-			Dflags      dflags       ;
-			ExtraDflags extra_dflags ;
-		} ;
 		// services
-		void init( bool is_dynamic , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		void init           ( bool is_dynamic , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		void add_interpreter(                                                               RuleData const& ) ;
 		// data
 		// START_OF_VERSIONING
 		bool              full_dynamic = true ; // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys ...
@@ -218,6 +220,7 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
+			Attrs::acquire_from_dct( interpreter , py_dct , "interpreter" ) ;
 			Attrs::acquire_from_dct( auto_mkdir  , py_dct , "auto_mkdir"  ) ;
 			Attrs::acquire_from_dct( chroot      , py_dct , "chroot"      ) ;
 			Attrs::acquire_env     ( env         , py_dct , "env"         ) ;
@@ -236,6 +239,7 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING
+		::vector_s    interpreter ;
 		bool          auto_mkdir  = false ;
 		bool          ignore_stat = false ;
 		::string      chroot      ;
@@ -349,6 +353,7 @@ namespace Engine {
 
 	// the part of the Dynamic struct which is stored on disk
 	struct DynamicDskBase {
+		// statics
 		static bool s_is_dynamic(Py::Tuple const& ) ;
 	protected :
 		static void _s_eval( Job , Rule::SimpleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
@@ -481,7 +486,19 @@ namespace Engine {
 		DynamicDepsAttrs& operator=(DynamicDepsAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicDepsAttrs& operator=(DynamicDepsAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> eval( Rule::SimpleMatch const& ) const ;
+		::vmap_s<DepSpec> eval(Rule::SimpleMatch const&) const ;
+	} ;
+
+	struct DynamicStartCmdAttrs : Dynamic<StartCmdAttrs> {
+		using Base = Dynamic<StartCmdAttrs> ;
+		// cxtors & casts
+		using Base::Base ;
+		DynamicStartCmdAttrs           (DynamicStartCmdAttrs const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
+		DynamicStartCmdAttrs           (DynamicStartCmdAttrs     && src) : Base           {::move(src)} {}                 // .
+		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
+		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
+		// services
+		StartCmdAttrs eval( Rule::SimpleMatch const& , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
 	} ;
 
 	struct DynamicCmd : Dynamic<Cmd> {
@@ -554,8 +571,8 @@ namespace Engine {
 			;
 		}
 		// services
-		void add_cwd( ::string& file , bool top ) const {
-			if (!( top || !file || !cwd_s )) file.insert(0,cwd_s) ;
+		void add_cwd( ::string& file , bool top=false ) const {
+			if (!( top || !cwd_s || !file || file[0]=='/' )) file.insert(0,cwd_s) ;
 		}
 	private :
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx     ) const ;
@@ -581,14 +598,13 @@ namespace Engine {
 		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
 		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;         // in rsrcs crc, evaluated at submit time
 		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;         // in no    crc, evaluated at submit time
-		Dynamic<StartCmdAttrs   > start_cmd_attrs    ;         // in cmd   crc, evaluated before execution
+		DynamicStartCmdAttrs      start_cmd_attrs    ;         // in cmd   crc, evaluated before execution
 		DynamicCmd                cmd                ;         // in cmd   crc, evaluated before execution
 		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;         // in rsrcs crc, evaluated before execution
 		Dynamic<StartNoneAttrs  > start_none_attrs   ;         // in no    crc, evaluated before execution
 		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;         // in cmd   crc, evaluated after  execution
 		Dynamic<EndNoneAttrs    > end_none_attrs     ;         // in no    crc, evaluated after  execution
 		size_t                    n_tokens           = 1     ; // in no    crc, contains the number of tokens to determine parallelism to use for ETA computation
-		::vector_s                interpreter        ;
 		bool                      is_python          = false ;
 		bool                      force              = false ;
 		uint8_t                   n_submits          = 0     ; // max number of submission for a given job for a given req (disabled if 0)
@@ -635,7 +651,7 @@ namespace Engine {
 		::vector_s py_matches    () const ;
 		::vector_s static_matches() const ;
 		//
-		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> const& deps() const {
+		::vmap_s<DepSpec> const& deps() const {
 			if (!_has_deps) {
 				_deps = rule->deps_attrs.eval(*this) ;
 				_has_deps = true ;
@@ -651,12 +667,12 @@ namespace Engine {
 		::vector_s stems ; // static stems only of course
 		// cache
 	private :
-		mutable bool                                       _has_static_targets = false ;
-		mutable bool                                       _has_star_targets   = false ;
-		mutable bool                                       _has_deps           = false ;
-		mutable ::umap_s<VarIdx>                           _static_targets     ;
-		mutable ::vector<Re::RegExpr>                      _star_targets       ;
-		mutable ::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> _deps               ;
+		mutable bool                  _has_static_targets = false ;
+		mutable bool                  _has_star_targets   = false ;
+		mutable bool                  _has_deps           = false ;
+		mutable ::umap_s<VarIdx>      _static_targets     ;
+		mutable ::vector<Re::RegExpr> _star_targets       ;
+		mutable ::vmap_s<DepSpec>     _deps               ;
 	} ;
 
 	struct RuleTgt : Rule {
@@ -911,7 +927,6 @@ namespace Engine {
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
 			::serdes(s,n_tokens          ) ;
-			::serdes(s,interpreter       ) ;
 			::serdes(s,is_python         ) ;
 			::serdes(s,force             ) ;
 			::serdes(s,n_submits         ) ;

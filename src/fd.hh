@@ -19,7 +19,7 @@ struct Fd {
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
 	static const Fd Stderr ;
-	static const Fd Std    ;           // the highest standard fd
+	static const Fd Std    ;                                                           // the highest standard fd
 	// cxtors & casts
 	constexpr Fd(                              ) = default ;
 	constexpr Fd( Fd const& fd_                )           { *this =        fd_  ;   } // XXX : use copy&swap idiom
@@ -102,7 +102,7 @@ struct SockFd : AutoCloseFd {
 	static constexpr in_addr_t LoopBackAddr = NoSockAddr ;
 	// statics
 	static ::string s_addr_str(in_addr_t addr) {
-		::string res ; res.reserve(15) ;                                       // 3 digits per level + 5 digits for the port
+		::string res ; res.reserve(15) ;                 // 3 digits per level + 5 digits for the port
 		/**/         res += to_string((addr>>24)&0xff) ;
 		res += '.' ; res += to_string((addr>>16)&0xff) ;
 		res += '.' ; res += to_string((addr>> 8)&0xff) ;
@@ -144,7 +144,7 @@ public :
 	}
 	// services
 	in_addr_t peer_addr() const {
-		static_assert(sizeof(in_addr_t)==4) ;                                  // else use adequate ntohs/ntohl according to the size
+		static_assert(sizeof(in_addr_t)==4) ;            // else use adequate ntohs/ntohl according to the size
 		struct sockaddr_in peer_addr ;
 		socklen_t          len       = sizeof(peer_addr)                                                           ;
 		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;
@@ -228,27 +228,32 @@ struct Epoll {
 	Epoll (NewType) { init () ; }
 	~Epoll(       ) { close() ; }
 	// services
-	void init() { fd = ::epoll_create1(EPOLL_CLOEXEC) ; fd.no_std() ; }
-	template<class T> void add( bool write , Fd fd_ , T data ) {
+	void init() {
+		fd = ::epoll_create1(EPOLL_CLOEXEC) ;
+		fd.no_std() ;
+	}
+	template<class T> void add( bool write , Fd fd_ , T data , bool wait=true ) {
 		static_assert(sizeof(T)<=4) ;
 		epoll_event event { .events=write?EPOLLOUT:EPOLLIN , .data={.u64=(uint64_t(uint32_t(data))<<32)|uint32_t(fd_) } } ;
 		int rc = epoll_ctl( int(fd) , EPOLL_CTL_ADD , int(fd_) , &event ) ;
 		swear_prod(rc==0,"cannot add ",fd_," to epoll ",fd," (",strerror(errno),')') ;
-		cnt++ ;
+		cnt += wait ;
 	}
-	template<class T> void add_read ( Fd fd_ , T data ) { add(false/*write*/,fd_,data) ; }
-	template<class T> void add_write( Fd fd_ , T data ) { add(true /*write*/,fd_,data) ; }
-	void add      ( bool write , Fd fd_ ) { add(write         ,fd_,0) ; }
-	void add_read (              Fd fd_ ) { add(false/*write*/,fd_  ) ; }
-	void add_write(              Fd fd_ ) { add(true /*write*/,fd_  ) ; }
-	void del(Fd fd_) {
+	void del( Fd fd_ , bool wait=true ) {                                                                                                        // wait must be coherent with corresponding add
 		int rc = ::epoll_ctl( fd , EPOLL_CTL_DEL , fd_ , nullptr ) ;
 		swear_prod(rc==0,"cannot del",fd_,"from epoll",fd,'(',strerror(errno),')') ;
-		cnt-- ;
+		cnt -= wait ;
 	}
-	void close(Fd fd_) { SWEAR(+fd_) ; del(fd_) ; fd_.close() ; }
-	void close(      ) {                          fd .close() ; }
 	::vector<Event> wait(uint64_t timeout_ns=Forever) const ;
+	void close() {
+		fd .close() ;
+	}
+	/**/              void add      ( bool write , Fd fd_ ,          bool wait=true ) {               add(write,fd_,0   ,wait) ;               }
+	template<class T> void add_read (              Fd fd_ , T data , bool wait=true ) {               add(false,fd_,data,wait) ;               }
+	template<class T> void add_write(              Fd fd_ , T data , bool wait=true ) {               add(true ,fd_,data,wait) ;               }
+	/**/              void add_read (              Fd fd_ ,          bool wait=true ) {               add(false,fd_,     wait) ;               }
+	/**/              void add_write(              Fd fd_ ,          bool wait=true ) {               add(true ,fd_,     wait) ;               }
+	/**/              void close    (              Fd fd_ ,          bool wait=true ) { SWEAR(+fd_) ; del(      fd_,     wait) ; fd_.close() ; } // wait must be coherent with corresponding add
 	// data
 	Fd  fd  ;
 	int cnt = 0 ;

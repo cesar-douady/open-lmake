@@ -247,7 +247,7 @@ static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	if (n_args>0) return py_err_set(Exception::TypeErr,"expected no args"        ) ;
 	char c = 0/*garbage*/ ;
 	// we have a private Record with a private AutodepEnv, so we must go through the backdoor to alter the regular AutodepEnv
-	int rc [[maybe_unused]] = ::readlink( (PrivateAdminDir+"/backdoor/autodep"s ).c_str() , &c , 1 ) ;
+	int rc [[maybe_unused]] = ::readlinkat( Record::s_root_fd() , (PrivateAdminDir+"/backdoor/autodep"s ).c_str() , &c , 1 ) ;
 	SWEAR( c=='0' || c=='1' , int(c) ) ;
 	SWEAR( rc==1            , rc     ) ;
 	return Ptr<Bool>(c!='0')->to_py_boost() ;
@@ -262,8 +262,8 @@ static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	char c ;
 	// we have a private Record with a private AutodepEnv, so we must go through the backdoor to alter the regular AutodepEnv
 	int rc [[maybe_unused]] ;                                                                     // avoid compiler warning
-	if (+py_args[0]) rc = ::readlink( (PrivateAdminDir+"/backdoor/enable"s ).c_str() , &c , 1 ) ;
-	else             rc = ::readlink( (PrivateAdminDir+"/backdoor/disable"s).c_str() , &c , 1 ) ; // note that the depend and target functions are still working while disabled
+	if (+py_args[0]) rc = ::readlinkat( Record::s_root_fd() , (PrivateAdminDir+"/backdoor/enable"s ).c_str() , &c , 1 ) ;
+	else             rc = ::readlinkat( Record::s_root_fd() , (PrivateAdminDir+"/backdoor/disable"s).c_str() , &c , 1 ) ; // note that the depend and target functions are still working while disabled
 	return None.to_py_boost() ;
 }
 
