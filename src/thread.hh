@@ -10,9 +10,9 @@
 #include <latch>
 #include <thread>
 
+#include "msg.hh"
 #include "time.hh"
 #include "trace.hh"
-#include "serialize.hh"
 
 template<class T> struct ThreadQueue : private ::deque<T> {
 	using ThreadMutex = Mutex<MutexLvl::Thread> ;
@@ -131,10 +131,12 @@ private :
 				switch (kind) {
 					case EventKind::Master : {
 						SWEAR(efd==self->fd) ;
-						SlaveSockFd slave_fd{self->fd.accept()} ;
-						trace("new_req",slave_fd) ;
-						epoll.add_read(slave_fd,EventKind::Slave) ;
-						slaves.try_emplace(::move(slave_fd)) ;
+						try {
+							SlaveSockFd slave_fd { self->fd.accept() } ;
+							trace("new_req",slave_fd) ;
+							epoll.add_read(slave_fd,EventKind::Slave) ;
+							slaves.try_emplace(::move(slave_fd)) ;
+						} catch (::string const& e) { trace("cannot_accept",e) ; }                                 // ignore error as this may be fd starvation and client will retry
 					} break ;
 					case EventKind::Stop : {
 						uint64_t one ;
@@ -150,12 +152,12 @@ private :
 						try         { if (!slaves.at(efd).receive_step(efd,r)) { trace("partial") ; continue ; } }
 						catch (...) {                                            trace("bad_msg") ; continue ;   } // ignore malformed messages
 						//
-						epoll.del(efd) ;                                 // Func may trigger efd being closed by another thread, hence epoll.del must be done before
+						epoll.del(efd) ;            // Func may trigger efd being closed by another thread, hence epoll.del must be done before
 						slaves.erase(efd) ;
 						SlaveSockFd ssfd { efd }            ;
 						bool        keep = false/*garbage*/ ;
 						keep=func(::move(r),ssfd) ;
-						if (keep) ssfd.detach() ; // dont close ssfd if requested to keep it
+						if (keep) ssfd.detach() ;   // dont close ssfd if requested to keep it
 						trace("called",STR(keep)) ;
 					} break ;
 				DF}
@@ -165,7 +167,7 @@ private :
 	}
 	// cxtors & casts
 public :
-	ServerThread(char key, ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func ,int backlog=0) : fd{New,backlog} , _thread{_s_thread_func,key,this,func} {}
+	ServerThread( char key , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func , int backlog=0 ) : fd{New,backlog} , _thread{_s_thread_func,key,this,func} {}
 	// services
 	void wait_started() {
 		_ready.wait() ;
@@ -174,5 +176,5 @@ public :
 	ServerSockFd fd ;
 private :
 	::latch   _ready  {1} ;
-	::jthread _thread ;                                                  // ensure _thread is last so other fields are constructed when it starts
+	::jthread _thread ;                             // ensure _thread is last so other fields are constructed when it starts
 } ;

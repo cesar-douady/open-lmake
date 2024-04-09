@@ -112,27 +112,13 @@ using namespace Hash ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobRpcReq const& jrr ) {
-	os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
+	/**/                      os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
 	switch (jrr.proc) {
-		case JobProc::LiveOut  : os <<','<< jrr.msg         ; break ;
-		case JobProc::DepInfos : os <<','<< jrr.digest.deps ; break ;
-		case JobProc::End      : os <<','<< jrr.digest      ; break ;
-		default                :                              break ;
+		case JobProc::Start : os <<','<< jrr.port                           ; break ;
+		case JobProc::End   : os <<','<< jrr.digest <<','<< jrr.dynamic_env ; break ;
+		default             :                                                 break ;
 	}
-	return os << ')' ;
-}
-
-JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j} {
-	switch (jerr.proc) {
-		case JobExecRpcProc::Decode : proc = P::Decode  ; msg = ::move(jerr.txt) ; file = ::move(jerr.files[0].first) ; ctx = ::move(jerr.ctx) ;                          break ;
-		case JobExecRpcProc::Encode : proc = P::Encode  ; msg = ::move(jerr.txt) ; file = ::move(jerr.files[0].first) ; ctx = ::move(jerr.ctx) ; min_len = jerr.min_len ; break ;
-		case JobExecRpcProc::DepInfos : {
-			::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
-			for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,date,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
-			proc        = P::DepInfos ;
-			digest.deps = ::move(ds) ;
-		} break ;
-	DF}
+	return                    os <<','<< jrr.msg <<')' ;
 }
 
 //
@@ -140,22 +126,18 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 //
 
 ::ostream& operator<<( ::ostream& os , MatchFlags const& mf ) {
-	os << "MatchFlags(" ;
+	/**/             os << "MatchFlags(" ;
 	switch (mf.is_target) {
-		case Yes   : os << "target," << mf.tflags() ; break ;
-		case No    : os << "dep,"    << mf.dflags() ; break ;
-		case Maybe :                                  break ;
+		case Yes   : os << "target" ; if (+mf.tflags()) os<<','<<mf.tflags() ; if (+mf.extra_tflags()) os<<','<<mf.extra_tflags() ; break ;
+		case No    : os << "dep,"   ; if (+mf.dflags()) os<<','<<mf.dflags() ; if (+mf.extra_dflags()) os<<','<<mf.extra_dflags() ; break ;
+		case Maybe :                                                                                                                break ;
 	DF}
-	return os << ')' ;
+	return           os << ')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
-	os << "JobRpcReply(" << jrr.proc ;
+	/**/                             os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
-		case JobProc::ChkDeps  : os <<','<<                                 jrr.ok ; break ;
-		case JobProc::Decode   : os <<','<< jrr.txt <<','<< jrr.crc <<','<< jrr.ok ; break ;
-		case JobProc::Encode   : os <<','<< jrr.txt <<','<< jrr.crc <<','<< jrr.ok ; break ;
-		case JobProc::DepInfos : os <<','<< jrr.dep_infos                          ; break ;
 		case JobProc::Start :
 			/**/                     os <<',' << hex<<jrr.addr<<dec               ;
 			/**/                     os <<',' << jrr.autodep_env                  ;
@@ -182,7 +164,52 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 		break ;
 		default : ;
 	}
-	return os << ')' ;
+	return                           os << ')' ;
+}
+
+//
+// JobMngtRpcReq
+//
+
+::ostream& operator<<( ::ostream& os , JobMngtRpcReq const& jmrr ) {
+	/**/                             os << "JobMngtRpcReq(" << jmrr.proc <<','<< jmrr.seq_id <<','<< jmrr.job <<','<< jmrr.fd ;
+	switch (jmrr.proc) {
+		case JobMngtProc::LiveOut  : os <<','<< jmrr.txt.size() ;                             break ;
+		case JobMngtProc::ChkDeps  :
+		case JobMngtProc::DepInfos : os <<','<< jmrr.deps       ;                             break ;
+		case JobMngtProc::Encode   : os <<','<< jmrr.min_len    ;                             [[fallthrough]] ;
+		case JobMngtProc::Decode   : os <<','<< jmrr.ctx <<','<< jmrr.file <<','<< jmrr.txt ; break ;
+		default                    :                                                          break ;
+	}
+	return                           os <<')' ;
+}
+
+JobMngtRpcReq::JobMngtRpcReq( SI si , JI j , Fd fd_ , JobExecRpcReq&& jerr ) : seq_id{si} , job{j} , fd{fd_} {
+	switch (jerr.proc) {
+		case JobExecProc::Decode : proc = P::Decode ; ctx = ::move(jerr.ctx) ; file = ::move(jerr.files[0].first) ; txt = ::move(jerr.txt) ;                          break ;
+		case JobExecProc::Encode : proc = P::Encode ; ctx = ::move(jerr.ctx) ; file = ::move(jerr.files[0].first) ; txt = ::move(jerr.txt) ; min_len = jerr.min_len ; break ;
+		case JobExecProc::DepInfos : {
+			proc = P::DepInfos ;
+			deps.reserve(jerr.files.size()) ;
+			for( auto&& [dep,date] : jerr.files ) deps.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,date,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
+		} break ;
+	DF}
+}
+
+//
+// JobMngtRpcReply
+//
+
+::ostream& operator<<( ::ostream& os , JobMngtRpcReply const& jmrr ) {
+	/**/                             os << "JobMngtRpcReply(" << jmrr.proc ;
+	switch (jmrr.proc) {
+		case JobMngtProc::ChkDeps  : os <<','<< jmrr.fd <<','<<                                   jmrr.ok ; break ;
+		case JobMngtProc::DepInfos : os <<','<< jmrr.fd <<','<< jmrr.dep_infos                            ; break ;
+		case JobMngtProc::Decode   : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
+		case JobMngtProc::Encode   : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
+		default : ;
+	}
+	return                           os << ')' ;
 }
 
 //
@@ -208,7 +235,7 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 	if (jerr.no_follow) os << ",no_follow"                                    ;
 	/**/                os <<',' << jerr.digest                               ;
 	if (+jerr.txt     ) os <<',' << jerr.txt                                  ;
-	if (jerr.proc>=JobExecRpcProc::HasFiles) {
+	if (jerr.proc>=JobExecProc::HasFiles) {
 		if ( +jerr.digest.accesses && !jerr.solve ) os <<','<<               jerr.files  ;
 		else                                        os <<','<< mk_key_vector(jerr.files) ;
 	}
@@ -232,33 +259,23 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
 ::ostream& operator<<( ::ostream& os , JobExecRpcReply const& jerr ) {
 	os << "JobExecRpcReply(" << jerr.proc ;
 	switch (jerr.proc) {
-		case JobExecRpcProc::None     :                                     ; break ;
-		case JobExecRpcProc::ChkDeps  : os <<','<< jerr.ok                  ; break ;
-		case JobExecRpcProc::DepInfos : os <<','<< jerr.dep_infos           ; break ;
-		case JobExecRpcProc::Decode   :
-		case JobExecRpcProc::Encode   : os <<','<< jerr.txt <<','<< jerr.ok ; break ;
+		case JobExecProc::None     :                                     ; break ;
+		case JobExecProc::ChkDeps  : os <<','<< jerr.ok                  ; break ;
+		case JobExecProc::DepInfos : os <<','<< jerr.dep_infos           ; break ;
+		case JobExecProc::Decode   :
+		case JobExecProc::Encode   : os <<','<< jerr.txt <<','<< jerr.ok ; break ;
 	DF}
 	return os << ')' ;
 }
 
-JobExecRpcReply::JobExecRpcReply( JobRpcReply const& jrr ) {
-	switch (jrr.proc) {
-		case JobProc::None     :                        proc = Proc::None     ;                                             break ;
-		case JobProc::ChkDeps  : SWEAR(jrr.ok!=Maybe) ; proc = Proc::ChkDeps  ; ok        = jrr.ok        ;                 break ;
-		case JobProc::DepInfos :                        proc = Proc::DepInfos ; dep_infos = jrr.dep_infos ;                 break ;
-		case JobProc::Decode   :                        proc = Proc::Decode   ; ok        = jrr.ok        ; txt = jrr.txt ; break ;
-		case JobProc::Encode   :                        proc = Proc::Encode   ; ok        = jrr.ok        ; txt = jrr.txt ; break ;
+JobExecRpcReply::JobExecRpcReply( JobMngtRpcReply&& jmrr ) {
+	switch (jmrr.proc) {
+		case JobMngtProc::None     :                         proc = Proc::None     ;                                                     break ;
+		case JobMngtProc::ChkDeps  : SWEAR(jmrr.ok!=Maybe) ; proc = Proc::ChkDeps  ; ok = jmrr.ok ;                                      break ;
+		case JobMngtProc::DepInfos :                         proc = Proc::DepInfos ;                dep_infos = ::move(jmrr.dep_infos) ; break ;
+		case JobMngtProc::Decode   :                         proc = Proc::Decode   ; ok = jmrr.ok ; txt       = ::move(jmrr.txt      ) ; break ;
+		case JobMngtProc::Encode   :                         proc = Proc::Encode   ; ok = jmrr.ok ; txt       = ::move(jmrr.txt      ) ; break ;
 	DF}
-}
-
-//
-// JobSserverRpcReq
-//
-
-::ostream& operator<<( ::ostream& os , JobServerRpcReq const& jsrr ) {
-	/**/                                        os << "JobServerRpcReq(" << jsrr.proc <<','<< jsrr.seq_id ;
-	if (jsrr.proc==JobServerRpcProc::Heartbeat) os <<','<< jsrr.job                                       ;
-	return                                      os <<')'                                                  ;
 }
 
 //

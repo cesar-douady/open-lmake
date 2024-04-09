@@ -495,7 +495,7 @@ namespace Engine {
 		::string interpreter0 = res.interpreter[0] ;
 		m.rule->add_cwd(interpreter0) ;
 		AutodepLock lock{deps} ;
-		AutoCloseFd(::open(interpreter0.c_str(),O_RDONLY)) ; // speed up dep acquisition by accessing interpreter, XXX : pretend access rather than make a real one for perf
+		Record::Read( auditer() , interpreter0.c_str() , false/*no_follow*/ , false/*keep_real*/ , true/*allow_tmp_map*/ , "dyn_attr_eval" ) ;
 		return res ;
 	}
 

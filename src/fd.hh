@@ -9,6 +9,7 @@
 #include <sys/eventfd.h>
 #include <sys/socket.h>
 
+#include "serialize.hh"
 #include "time.hh"
 
 ::string host() ;
@@ -55,6 +56,9 @@ struct Fd {
 	}
 	void cloexec(bool set=true) {
 		::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ;
+	}
+	template<IsStream T> void serdes(T& s) {
+		::serdes(s,fd) ;
 	}
 	// data
 	int fd = -1 ;
@@ -213,7 +217,6 @@ namespace std {
 //
 
 struct Epoll {
-	static constexpr uint64_t Forever = -1 ;
 	struct Event : epoll_event {
 		friend ::ostream& operator<<( ::ostream& , Event const& ) ;
 		// cxtors & casts
@@ -244,7 +247,7 @@ struct Epoll {
 		swear_prod(rc==0,"cannot del",fd_,"from epoll",fd,'(',strerror(errno),')') ;
 		cnt -= wait ;
 	}
-	::vector<Event> wait(uint64_t timeout_ns=Forever) const ;
+	::vector<Event> wait(Time::Delay timeout=Time::Delay::Forever) const ;
 	void close() {
 		fd .close() ;
 	}

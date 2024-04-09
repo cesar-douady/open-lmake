@@ -20,6 +20,7 @@ namespace Codec {
 
 	struct Closure {
 		friend ::ostream& operator<<( ::ostream& , Closure const& ) ;
+		using Proc = JobMngtProc ;
 		struct Entry {
 			// log_date is the semantic date, i.e. :
 			// - all decode & encode nodes for this file have this common date
@@ -41,54 +42,59 @@ namespace Codec {
 		// cxtors & casts
 		Closure() = default ;
 		Closure(
-			JobProc                 p
+			Proc                    p
+		,	JobIdx                  j
+		,	Fd                      fd_
 		,	::string&&              code
 		,	::string&&              f
 		,	::string&&              c
 		,	::vector<ReqIdx> const& rs
-		,	Fd                      rfd
 		) :
-			proc    {        p     }
-		,	reply_fd{        rfd   }
-		,	file    { ::move(f   ) }
-		,	ctx     { ::move(c   ) }
-		,	txt     { ::move(code) }
-		,	reqs    {        rs    }
-		{ SWEAR(p==JobProc::Decode) ; }
+			proc {        p     }
+		,	job  {        j     }
+		,	fd   {        fd_   }
+		,	file { ::move(f   ) }
+		,	ctx  { ::move(c   ) }
+		,	txt  { ::move(code) }
+		,	reqs {        rs    }
+		{ SWEAR(p==Proc::Decode) ; }
 		Closure(
-			JobProc                 p
+			Proc                    p
+		,	JobIdx                  j
+		,	Fd                      fd_
 		,	::string&&              val
 		,	::string&&              f
 		,	::string&&              c
 		,	uint8_t                 ml
 		,	::vector<ReqIdx> const& rs
-		,	Fd                      rfd
 		) :
 			proc     {        p    }
 		,	_min_len {        ml   }
-		,	reply_fd {        rfd  }
+		,	job      {        j    }
+		,	fd       {        fd_  }
 		,	file     { ::move(f  ) }
 		,	ctx      { ::move(c  ) }
 		,	txt      { ::move(val) }
 		,	reqs     {        rs   }
-		{ SWEAR(p==JobProc::Encode) ; }
+		{ SWEAR(p==Proc::Encode) ; }
 		// accesses
-		uint8_t min_len() const { SWEAR(proc==JobProc::Encode) ; return _min_len ; }
+		uint8_t min_len() const { SWEAR(proc==Proc::Encode) ; return _min_len ; }
 		// services
 	private :
 	public :
-		JobRpcReply decode() const ;
-		JobRpcReply encode() const ;
+		JobMngtRpcReply decode() const ;
+		JobMngtRpcReply encode() const ;
 		// data
-		JobProc proc = {}/*garbage*/ ;
+		Proc proc = {}/*garbage*/ ;
 	private :
 		uint8_t _min_len = 0/*garbage*/ ;
 	public :
-		Fd               reply_fd ;
-		::string         file     ;
-		::string         ctx      ;
-		::string         txt      ;
-		::vector<ReqIdx> reqs     ;
+		JobIdx           job  ;
+		Fd               fd   ;
+		::string         file ;
+		::string         ctx  ;
+		::string         txt  ;
+		::vector<ReqIdx> reqs ;
 	} ;
 
 	struct ValMrkr  {} ;

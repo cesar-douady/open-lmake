@@ -14,7 +14,7 @@ struct Record {
 	using Crc         = Hash::Crc                                         ;
 	using Ddate       = Time::Ddate                                       ;
 	using SolveReport = Disk::RealPath::SolveReport                       ;
-	using Proc        = JobExecRpcProc                                    ;
+	using Proc        = JobExecProc                                       ;
 	using GetReplyCb  = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
@@ -54,7 +54,6 @@ public :
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
 	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;                                        // map file to read accesses
-	static bool                                                   s_seen_chdir     ;
 private :
 	static AutodepEnv* _s_autodep_env ;
 	static Fd          _s_root_fd     ;                                                                                     // a file descriptor to repo root dir
@@ -99,7 +98,7 @@ private :
 	//
 	void _report_access( JobExecRpcReq&& jerr                                               ) const ;
 	void _report_access( ::string&& f , Ddate d , Accesses a , bool write , ::string&& c={} ) const {
-		_report_access({ JobExecRpcProc::Access , {{::move(f),d}} , {.write=Maybe&write,.accesses=a} , ::move(c) }) ;
+		_report_access({ Proc::Access , {{::move(f),d}} , {.write=Maybe&write,.accesses=a} , ::move(c) }) ;
 	}
 	// for modifying accesses (_report_update, _report_target, _report_unlnk, _report_targets) :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
@@ -121,27 +120,27 @@ private :
 	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
 		::vmap_s<Ddate> fds ;
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_root_fd(),f) ) ;
-		_report_access({ JobExecRpcProc::Access , ::move(fds) , {.write=Maybe&u,.accesses=a} , ::move(c) }) ;
+		_report_access({ Proc::Access , ::move(fds) , {.write=Maybe&u,.accesses=a} , ::move(c) }) ;
 	}
 	void _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
 		vmap_s<Ddate> mdd ;
 		for( ::string& f : fs ) mdd.emplace_back(::move(f),Ddate()) ;
-		_report_access({ JobExecRpcProc::Access , ::move(mdd) , {.write=Maybe} , ::move(c) }) ;
+		_report_access({ Proc::Access , ::move(mdd) , {.write=Maybe} , ::move(c) }) ;
 	}
 	void _report_tmp( bool sync=false , ::string&& c={} ) const {
 		if      (!_tmp_cache) _tmp_cache = true ;
 		else if (!sync     ) return ;
-		_report({JobExecRpcProc::Tmp,sync,::move(c)}) ;
+		_report({Proc::Tmp,sync,::move(c)}) ;
 	}
 	void _report_confirm( FileLoc fl , bool ok ) const {
-		if (fl==FileLoc::Repo) _report({ JobExecRpcProc::Confirm , ok }) ;
+		if (fl==FileLoc::Repo) _report({ Proc::Confirm , ok }) ;
 	}
 	void _report_guard( ::string&& f , ::string&& c={} ) const {
-		_report({ JobExecRpcProc::Guard , {::move(f)} , ::move(c) }) ;
+		_report({ Proc::Guard , {::move(f)} , ::move(c) }) ;
 	}
 public :
-	template<class... A> [[noreturn]] void report_panic(A const&... args) { _report({JobExecRpcProc::Panic,to_string(args...)}) ; exit(Rc::Usage) ; } // continuing is meaningless
-	template<class... A>              void report_trace(A const&... args) { _report({JobExecRpcProc::Trace,to_string(args...)}) ;                   }
+	template<class... A> [[noreturn]] void report_panic(A const&... args) { _report({Proc::Panic,to_string(args...)}) ; exit(Rc::Usage) ; } // continuing is meaningless
+	template<class... A>              void report_trace(A const&... args) { _report({Proc::Trace,to_string(args...)}) ;                   }
 	JobExecRpcReply direct( JobExecRpcReq&& jerr) ;
 	//
 	template<bool Writable=false> struct _Path {
@@ -154,7 +153,7 @@ public :
 		_Path(        ::string const& f , bool steal=false ) :                        file{f.c_str()} { if (!steal) allocate(f.size()) ; }
 		_Path( Fd a , ::string const& f , bool steal=false ) : has_at{true} , at{a} , file{f.c_str()} { if (!steal) allocate(f.size()) ; }
 		//
-		_Path(_Path && p) { *this = ::move(p) ; }                // XXX : use copy&swap idiom
+		_Path(_Path && p) { *this = ::move(p) ; }
 		_Path& operator=(_Path&& p) {
 			deallocate() ;
 			has_at      = p.has_at    ;
@@ -336,11 +335,12 @@ public :
 	} ;
 	//
 	void chdir(const char* dir) {
-		s_seen_chdir = true ;
+		seen_chdir = true ;
 		_real_path.chdir(dir) ;
 	}
 	//
 	// data
+	bool seen_chdir = false ;
 private :
 	Disk::RealPath      _real_path ;
 	mutable AutoCloseFd _report_fd ;

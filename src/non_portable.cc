@@ -123,9 +123,9 @@ void np_ptrace_set_res( int pid , long val ) {
 		ptrace( PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
 		if (errno) throw 0 ;
 		#if __arm__
-			regs.r0 = val ;                                                  // XXX : to be validated
+			regs.r0 = val ;
 		#elif __aarch64__
-			regs.regs[0] = val ;                                             // XXX : to be validated
+			regs.regs[0] = val ;
 		#endif
 		ptrace( PTRACE_SETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
 		if (errno) throw 0 ;

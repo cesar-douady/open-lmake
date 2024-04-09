@@ -116,6 +116,7 @@ src/lmakeserver/store.x.hh
 src/lmark.cc
 src/lrepair.cc
 src/lshow.cc
+src/msg.hh
 src/non_portable.cc
 src/non_portable.hh
 src/process.cc
@@ -237,6 +238,7 @@ unit_tests/test17.script
 unit_tests/test18.script
 unit_tests/test19.script
 unit_tests/tmp.py
+unit_tests/tmp2.py
 unit_tests/trancient.py
 unit_tests/unstable.script
 unit_tests/uphill.py

@@ -15,15 +15,19 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 	return os << "Event(" << e.fd() <<','<< e.data() <<')' ;
 }
 
-::vector<Epoll::Event> Epoll::wait(uint64_t timeout_ns) const {
+::vector<Epoll::Event> Epoll::wait(Delay timeout) const {
+	if (!cnt) {
+		SWEAR(timeout<Delay::Forever) ;                                       // if we wait for nothing with no timeout, this would block forever
+		timeout.sleep_for() ;
+		return {} ;
+	}
 	struct ::timespec now ;
 	struct ::timespec end ;
-	SWEAR(cnt) ;
-	bool has_timeout = timeout_ns>0 && timeout_ns<Forever ;
+	bool has_timeout = timeout>Delay() && timeout!=Delay::Forever ;
 	if (has_timeout) {
 		::clock_gettime(CLOCK_MONOTONIC,&now) ;
-		end.tv_sec  = now.tv_sec  + timeout_ns/1'000'000'000l ;
-		end.tv_nsec = now.tv_nsec + timeout_ns%1'000'000'000l ;
+		end.tv_sec  = now.tv_sec  + timeout.sec()       ;
+		end.tv_nsec = now.tv_nsec + timeout.nsec_in_s() ;
 		if (end.tv_nsec>=1'000'000'000l) {
 			end.tv_nsec -= 1'000'000'000l ;
 			end.tv_sec  += 1              ;
@@ -41,7 +45,7 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 			wait_ms  = wait_s                    * 1'000      ;
 			wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ;               // protect against possible conversion to time_t which may be unsigned
 		} else {
-			wait_ms = timeout_ns ? -1 : 0 ;
+			wait_ms = +timeout ? -1 : 0 ;
 		}
 		cnt_ = ::epoll_wait( fd , events.data() , cnt , wait_ms ) ;
 		switch (cnt_) {

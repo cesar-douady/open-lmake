@@ -96,11 +96,11 @@ struct Child {
 		spawn(as_session,args,stdin_fd,stdout_fd,stderr_fd,env,add_env,chroot,cwd,pre_exec) ;
 	}
 	~Child() {
-		swear_prod(pid==-1,"bad pid ",pid) ;
+		swear_prod(pid==0,"bad pid ",pid) ;
 	}
 	// accesses
-	bool operator +() const { return pid!=-1 ; }
-	bool operator !() const { return !+*this ; }
+	bool operator+() const { return pid     ; }
+	bool operator!() const { return !+*this ; }
 	// services
 	bool/*parent*/ spawn(
 		bool            as_session         , ::vector_s const& args
@@ -111,16 +111,16 @@ struct Child {
 	,	void (*pre_exec)()      =nullptr
 	) ;
 	void mk_daemon() {
-		pid = -1 ;
+		pid = 0 ;
 		stdin .detach() ;
 		stdout.detach() ;
 		stderr.detach() ;
 	}
 	void waited() {
-		pid = -1 ;
+		pid = 0 ;
 	}
 	int/*wstatus*/ wait() {
-		SWEAR(pid!=-1) ;
+		SWEAR(pid!=0) ;
 		int wstatus ;
 		int rc = ::waitpid(pid,&wstatus,0) ;
 		swear_prod(rc==pid,"cannot wait for pid ",pid) ;
@@ -134,7 +134,7 @@ struct Child {
 	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
 	bool         is_alive(       ) const { return kill_process(pid,0                         ) ; }
 	//data
-	pid_t       pid        = -1    ;
+	pid_t       pid        = 0     ;
 	AutoCloseFd stdin      ;
 	AutoCloseFd stdout     ;
 	AutoCloseFd stderr     ;

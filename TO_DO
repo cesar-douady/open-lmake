@@ -12,6 +12,8 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* crash if python() dynamic attribute returns None
+* crash in regexpr (cf mail NM 2024/04/08 21:29)
 * fix compilation with LMAKE_FLAGS=ST
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions
@@ -34,14 +36,6 @@ items :
 * generate meaningful message in case of I/O error such as disk full
 ! before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
-? mimic slurm killing procedure
-	- use PR_SET_CHILD_SUBREAPER (cf man 2 prctl) to ensure we get all sub-processes
-	- follow process hierarchy
-	- recognize stdin, stdout, stderr
-	- do it in 2 passes
-		- as process hierarchy moves while we walk through it
-		- stop during discovery pass
-		- kill when everything is steady
 ? improve hard link management
 	- when ln a b
 	- followed by write to b
@@ -51,10 +45,6 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* report "killed while waiting for stdout or stderr"
-	- when a job is killed while the child is terminated
-	- so as to indicate to the user that something weird was on going
-	- could also report this time in lshow -i
 * generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
@@ -76,18 +66,17 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* close socket in the management thread (M) while request is being processed
-	- such requests must go through the engine_loop
-	- this may take a while
-	- this means during this time, all jobs may connect (and actually do)
-	- requiring a socket for each slurm slot
-	- defeating the purpose of disconnecting jobs during execution
-	- in all cases, code must resist to an error in accept
-*	fix store to be compliant with strict aliasing rules
+* add size check to date check
+	- create a file version by aggregating Ddate, FileTag & size
+	- keep FileTag accessible from such version
+	- this improves protection against continuing writing without change mtime
+		- this is not perfect, though, as one can write w/o change the size, but decreases probability (already low) by a significant factor
+	- as granularity is several ms
 * support 64-bits id
 	- configure with NBits rather than types
 	- in store/file.hh, reserve address space after NBits instead of type
 	- first candidate would be deps, by far the most demanding
+* fix store to be compliant with strict aliasing rules
 * add a warning when ids reach 15/16 of their limits
 * implement noexcept/except everywhere pertinent
 * use the Path struct instead of at/file
@@ -113,9 +102,13 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* improve job isolation by using namespaces
+*3 improve job isolation by using namespaces
 	- much like faketree : https://github.com/enfabrica/enkit/tree/master/faketree
 	- generalize tmp mapping
+	- provide a container with just : system + repo + tmp
+		- this way, no harm can be done outside repo
+* provide a reasonable default value when dynamic functions return None
+	- at least, dont crash
 * implement cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
@@ -171,6 +164,11 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+*2 regexprs
+	- consider using PCRE2 instead of std::regex
+	- consider handling prefix/suffix apart
+		- most importantly sufixes
+		? maybe a pre-pass searching for infix is advisable
 * when rounding resources using config.backends.precisions
 	- round to prioritize jobs
 	- do not round for actual allocation
@@ -186,11 +184,6 @@ items :
 	- total number of deps
 	- total number of pressure updates
 * gprof
-* regexprs
-	- consider using PCRE2 instead of std::regex
-	- consider handling prefix/suffix apart
-		- most importantly sufixes
-		? maybe a pre-pass searching for infix is advisable
 * no req_info for non-buildable nodes
 * there can be 1 backend thread per backend
 	- with one master socket
@@ -204,25 +197,15 @@ items :
 	- does not work straight forward
 	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
 	- need to do some trials
-? implement deps compression
-	- store words (NodeIdx)
-	- MSB=1, no flag and crc=None, use a single word
-	- else if 2nd word does not look like a flag word (with a marker inside flag word), no flag and crc : use 3 words
-	- else if 2nd indicates no presence of crc, flag and crc=None, use 2 words
-	- else flag and crc, use 4 words
-	- there is marginal case where crc looks like flag, in this case use 4 words instead of 3 when no flag, not a drama, even with a 8 bits marker
-	- should bring about 3x reduction in deps size
-	- targets can be compressed similarly when no flag
 ? record dep crcs in Job rather than in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless
 	- this way we can severely reduce the Deps size (4x if we can manage accesses)
 ? avoid ack at job start
 	- pass all infos in command line
-		- or pass a tmp file that contains all info if too large
-		- specially if it becomes necessary to pass targets & deps
+		- pass JobRpcReply as argument through mk_shell_str
+		- fall back to current implementation if command line would be too large
 	- find a way to be certain that seq_id is not necessary to qualify job start
-	- either wash targets at acquire_cmd_line time or wash in job_exec
 ? launch deps as soon as they are discovered
 	- w/o waiting for dependent job to complete
 	- for non-phony non-existent deps, else there is a risk that a steady target is modified while job is on going

@@ -18,7 +18,7 @@ cd       trial
 # Python configuration (Python2 is optional)
 #
 
-PYTHON2=${PYTHON2:-python2} ; PYTHON2=$(type -p $PYTHON2||:) # ok if we have no python2
+PYTHON2=${PYTHON2:-python2} ; PYTHON2=$(type -p $PYTHON2||:)                                              # ok if we have no python2
 PYTHON=${PYTHON:-python3}   ; PYTHON=$( type -p $PYTHON    )
 for python in $PYTHON2 $PYTHON ; do
 	if [ -x $python ] ; then
@@ -26,7 +26,7 @@ for python in $PYTHON2 $PYTHON ; do
 			import sys
 			v = sys.version_info
 			if v.major==2 :
-				if v.minor<7 : exit(0) # Python2 is optional
+				if v.minor<7 : exit(0)                                                                    # Python2 is optional
 				pfx = "PY2"
 			elif v.major==3 :
 				if v.minor<6 :
@@ -43,12 +43,12 @@ for python in $PYTHON2 $PYTHON ; do
 			print(pfx+"_LIB_BASE="  +sysconfig.get_config_var("LDLIBRARY" ))
 			lib_dir = sysconfig.get_config_var("LIBDIR")
 			if not ( (lib_dir+"/").startswith("/usr/lib/") or (lib_dir+"/").startswith("/usr/lib64/") ) :
-				print(pfx+"_LIB_DIR="+lib_dir) # suppress dir as required in case of installed package
+				print(pfx+"_LIB_DIR="+lib_dir)                                                            # suppress dir as required in case of installed package
 		')
 	fi
 done
-if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY_LIB_DIR:$PY2_LIB_DIR # both present, separate with :
-else                                          PY_LD_LIBRARY_PATH=$PY_LIB_DIR$PY2_LIB_DIR  # only one is present
+if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY_LIB_DIR:$PY2_LIB_DIR                 # both present, separate with :
+else                                          PY_LD_LIBRARY_PATH=$PY_LIB_DIR$PY2_LIB_DIR                  # only one is present
 fi
 # cancel Python2 if unusable as a library
 { [ -f $PY2_INCLUDEPY/Python.h ] && file -L $PY2_LIB_DIR/$PY2_LIB_BASE | grep -q shared ; } || PYTHON2=
@@ -66,15 +66,25 @@ case "$($CXX --version|head -1)" in
 	*       )                                                                      echo cannot recognize c++ compiler $CXX ; exit 1     ;;
 esac
 
-# XXX : do the equivalent probe with clang
+$CXX -v -o /dev/null -std=c++20 -xc++ -<<< "int main(){}" 2>compiler_info
 if [ $CXX_FLAVOR = gcc ] ; then
-	LLP="$($CXX -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)" # e.g. : LIBRARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
+	LLP="$(grep LIBRARY_PATH= compiler_info)" # e.g. : LIBRARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
+	LLP="${LLP#LIBRARY_PATH=}"                # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
+	LLP="$(sed 's/:/ /' -<<< $LLP)"           # e.g. : /usr/lib/x /a/b /c /a/b/c/..
+elif [ $CXX_FLAVOR = clang ] ; then
+	set $(grep -- -L compiler_info)
+	while [ $# != 0 ] ; do
+		case $1 in
+			-L  ) LLP="$LLP $2" ; shift ;;
+			-L* ) LLP="$LLP ${1#-L}"    ;;
+			*   )                       ;;
+		esac
+		shift
+	done
 fi
-LLP="$(echo $LLP | sed 's/LIBRARY_PATH=//' )"     # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
-LLP="$(echo $LLP | sed 's/:/ /'            )"     # e.g. : /usr/lib/x /a/b /c /a/b/c/..
-LLP="$(echo $LLP | sort -u                 )"     # e.g. : /usr/lib/x /a/b /c /a/b
-LINK_LIB_PATH=                                    # e.g. : /a/b /c /usr/lib/x
-for l in $LLP ; do                                # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
+LLP="$(realpath $LLP | sort -u)"              # e.g. : /a/b /c /usr/lib/x
+LINK_LIB_PATH=
+for l in $LLP ; do                            # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
 	case $l/ in
 		/usr/lib/*  )                                   ;;
 		/usr/lib64/*)                                   ;;
@@ -82,7 +92,7 @@ for l in $LLP ; do                                # e.g. : /a/b /c (suppress sta
 	esac
 done
 
-STD_INC_DIRS="$(echo $( $CXX -E -v -std=c++20 -xc++ /dev/null 2>&1 | sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' ) )"
+STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' compiler_info)) )" # echo is used to replace \n by space
 
 #
 # HAS_SECCOMP

@@ -15,14 +15,15 @@
 #include "autodep/env.hh"
 
 // START_OF_VERSIONING
-
 ENUM_1( BackendTag // PER_BACKEND : add a tag for each backend
 ,	Dflt = Local
 ,	Unknown        // must be first
 ,	Local
 ,	Slurm
 )
+// END_OF_VERSIONING
 
+// START_OF_VERSIONING
 ENUM_1( FileActionTag
 ,	HasFile = Uniquify                                                                                  // <=HasFile means action acts on file
 ,	None                                                                                                // no action, just check integrity
@@ -32,6 +33,7 @@ ENUM_1( FileActionTag
 ,	Mkdir
 ,	Rmdir
 )
+// END_OF_VERSIONING
 struct FileAction {
 	friend ::ostream& operator<<( ::ostream& , FileAction const& ) ;
 	// cxtors & casts
@@ -45,6 +47,7 @@ struct FileAction {
 inline ::pair_s<bool/*ok*/> do_file_actions( ::vector_s& unlnks/*out*/ , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng , Algo a ) { return do_file_actions(&unlnks,::move(pa),ng,a) ; }
 inline ::pair_s<bool/*ok*/> do_file_actions(                             ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng , Algo a ) { return do_file_actions(nullptr,::move(pa),ng,a) ; }
 
+// START_OF_VERSIONING
 ENUM_2( Dflag                          // flags for deps
 ,	NRule = Required                   // number of Dflag's allowed in rule definition
 ,	NDyn  = Static                     // number of Dflag's allowed in lside flags
@@ -55,6 +58,7 @@ ENUM_2( Dflag                          // flags for deps
 ,	Required                           // dep must be buildable
 ,	Static                             // is static dep, for internal use only
 )
+// END_OF_VERSIONING
 static constexpr char DflagChars[] = {
 	'E'                                // Essential
 ,	'c'                                // Critical
@@ -65,12 +69,14 @@ static constexpr char DflagChars[] = {
 static_assert(::size(DflagChars)==N<Dflag>) ;
 using Dflags = BitMap<Dflag> ;
 
+// START_OF_VERSIONING
 ENUM_1( ExtraDflag
 ,	NRule                                   // all flags allowed
 ,	Top
 ,	Ignore
 ,	StatReadData
 )
+// END_OF_VERSIONING
 static constexpr char ExtraDflagChars[] = {
 	0                                       // Top
 ,	'I'                                     // Ignore
@@ -79,6 +85,7 @@ static constexpr char ExtraDflagChars[] = {
 static_assert(::size(ExtraDflagChars)==N<ExtraDflag>) ;
 using ExtraDflags = BitMap<ExtraDflag> ;
 
+// START_OF_VERSIONING
 ENUM_2( Tflag                          // flags for targets
 ,	NRule = Static                     // number of Tflag's allowed in rule definition
 ,	NDyn  = Phony                      // number of Tflag's allowed inlside flags
@@ -90,6 +97,7 @@ ENUM_2( Tflag                          // flags for targets
 ,	Static                             // is static  , for internal use only, only if also a Target
 ,	Target                             // is a target, for internal use only
 )
+// END_OF_VERSIONING
 static constexpr char TflagChars[] = {
 	'E'                                // Essential
 ,	'i'                                // Incremental
@@ -105,6 +113,7 @@ inline bool static_phony(Tflags tf) {
 	return tf[Tflag::Target] && (tf[Tflag::Static]||tf[Tflag::Phony]) ;
 }
 
+// START_OF_VERSIONING
 ENUM_1( ExtraTflag
 ,	NRule = Allow                           // number of Tflag's allowed in rule definition
 ,	Top
@@ -113,6 +122,7 @@ ENUM_1( ExtraTflag
 ,	Allow                                   // writing to this target is allowed (for use in clmake.target and ltarget)
 ,	Wash                                    // target was unlinked when washing before job execution
 )
+// END_OF_VERSIONING
 static constexpr char ExtraTflagChars[] = {
 	0                                       // Top
 ,	'I'                                     // Ignore
@@ -123,19 +133,30 @@ static constexpr char ExtraTflagChars[] = {
 static_assert(::size(ExtraTflagChars)==N<ExtraTflag>) ;
 using ExtraTflags = BitMap<ExtraTflag> ;
 
+// START_OF_VERSIONING
+ENUM( JobMngtProc
+,	None
+,	ChkDeps
+,	DepInfos
+,	LiveOut
+,	Decode
+,	Encode
+,	Heartbeat
+,	Kill
+)
+// END_OF_VERSIONING
+
+// START_OF_VERSIONING
 ENUM( JobProc
 ,	None
 ,	Start
 ,	ReportStart
 ,	GiveUp      // Req (all if 0) was killed and job was not (either because of other Req's or it did not start yet)
-,	ChkDeps
-,	DepInfos
-,	Decode
-,	Encode
-,	LiveOut
 ,	End
 )
+// END_OF_VERSIONING
 
+// START_OF_VERSIONING
 ENUM_3( JobReasonTag                                // see explanations in table below
 ,	HasNode = NoTarget                              // if >=HasNode, a node is associated
 ,	Err     = DepOverwritten
@@ -169,6 +190,7 @@ ENUM_3( JobReasonTag                                // see explanations in table
 // with missing
 ,	DepMissingStatic                                // this prevents the job from being selected
 )
+// END_OF_VERSIONING
 static constexpr const char* JobReasonTagStrs[] = {
 	"no reason"                                     // None
 //	with reason
@@ -231,12 +253,15 @@ static constexpr uint8_t JobReasonTagPrios[] = {
 } ;
 static_assert(::size(JobReasonTagPrios)==N<JobReasonTag>) ;
 
+// START_OF_VERSIONING
 ENUM( MatchKind
 ,	Target
 ,	SideTargets
 ,	SideDeps
 )
+// END_OF_VERSIONING
 
+// START_OF_VERSIONING
 ENUM_3( Status                                               // result of job execution
 ,	Early   = EarlyLostErr                                   // <=Early means output has not been modified
 ,	Async   = Killed                                         // <=Async means job was interrupted asynchronously
@@ -254,6 +279,7 @@ ENUM_3( Status                                               // result of job ex
 ,	Ok                                                       // job execution ended successfully
 ,	Err                                                      // job execution ended in error
 )
+// END_OF_VERSIONING
 inline bool  is_lost(Status s) { return s<=Status::LateLostErr && s>=Status::EarlyLost ; }
 inline Bool3 is_ok  (Status s) {
 	static constexpr Bool3 IsOkTab[] = {
@@ -292,8 +318,10 @@ struct AccDflags {
 	AccDflags  operator| (AccDflags other) const { return { accesses|other.accesses , dflags|other.dflags } ; }
 	AccDflags& operator|=(AccDflags other)       { *this = *this | other ; return *this ;                     }
 	// data
+	// START_OF_VERSIONING
 	Accesses accesses ;
 	Dflags   dflags   ;
+	// END_OF_VERSIONING
 } ;
 
 struct JobReason {
@@ -317,17 +345,21 @@ struct JobReason {
 		return JobReasonTagStrs[+tag] ;
 	}
 	// data
+	// START_OF_VERSIONING
 	Tag     tag  = JobReasonTag::None ;
 	NodeIdx node = 0                  ;
+	// END_OF_VERSIONING
 } ;
 
 struct JobStats {
 	using Delay = Time::Delay ;
 	// data
+	// START_OF_VERSIONING
 	Delay  cpu   = {} ;
 	Delay  job   = {} ; // elapsed in job
 	Delay  total = {} ; // elapsed including overhead
 	size_t mem   = 0  ; // in bytes
+	// END_OF_VERSIONING
 } ;
 
 template<class B> struct DepDigestBase ;
@@ -337,19 +369,14 @@ struct CrcDate {
 	using Crc   = Hash::Crc   ;
 	using Ddate = Time::Ddate ;
 	//cxtors & casts
-	/**/              CrcDate(                           ) : _crc{} {               } // XXX : implement cxtors and just provide copy assignment
-	/**/              CrcDate(Crc                     c  )          { *this = c   ; }
-	/**/              CrcDate(Ddate                   d  )          { *this = d   ; }
-	/**/              CrcDate(CrcDate const&          cd )          { *this = cd  ; }
-	template<class B> CrcDate(DepDigestBase<B> const& ddb)          { *this = ddb ; }
+	CrcDate(                          ) :                  _crc { } {}
+	CrcDate(Crc                     c ) : is_date{false} , _crc {c} {}
+	CrcDate(Ddate                   d ) : is_date{true } , _date{d} {}
 	//
-	/**/              CrcDate& operator=(Crc                     c  ) { is_date = false ; _crc  = c ;                                 return *this ; }
-	/**/              CrcDate& operator=(Ddate                   d  ) { is_date = true  ; _date = d ;                                 return *this ; }
-	/**/              CrcDate& operator=(CrcDate          const& cd ) { { if (cd .is_date) *this=cd.date() ; else *this=cd .crc() ; } return *this ; }
-	template<class B> CrcDate& operator=(DepDigestBase<B> const& ddb) {
-		if (!ddb.accesses) return *this = Crc()      ;
-		if ( ddb.is_date ) return *this = ddb.date() ;
-		/**/               return *this = ddb.crc () ;
+	template<class B> CrcDate(DepDigestBase<B> const& ddb) {
+		if      (!ddb.accesses) *this = Crc()      ;
+		else if ( ddb.is_date ) *this = ddb.date() ;
+		else                    *this = ddb.crc () ;
 	}
 	// accesses
 	bool operator==(CrcDate const& other) const {
@@ -369,12 +396,14 @@ struct CrcDate {
 		else         return           !Crc::None.match( _crc             , a ) ;
 	}
 	// data
+	// START_OF_VERSIONING
 	bool is_date = false ;
 private :
 	union {
 		Crc   _crc  ;                                                                 // ~46<64 bits
 		Ddate _date ;                                                                 // ~45<64 bits
 	} ;
+	// END_OF_VERSIONING
 } ;
 
 // for Dep recording in book-keeping, we want to derive from Node
@@ -457,6 +486,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		}
 	}
 	// data
+	// START_OF_VERSIONING
 	static constexpr uint8_t NSzBits = 6 ;
 	Accesses accesses         ;                                                  //   3< 8 bits
 	Dflags   dflags           ;                                                  //   6< 8 bits
@@ -469,8 +499,8 @@ private :
 		Crc   _crc  = {} ;                                                       // ~45<64 bits
 		Ddate _date ;                                                            // ~40<64 bits
 	} ;
+	// END_OF_VERSIONING
 } ;
-// END_OF_VERSIONING
 template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
 	const char* sep = "" ;
 	/**/                                                os << "D("                           ;
@@ -482,7 +512,6 @@ template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const&
 	else if      ( +dd.accesses && +dd.crc()        ) { os <<sep<< dd.crc()                  ; sep = "," ; }
 	return                                              os <<')'                             ;
 }
-// START_OF_VERSIONING
 
 using DepDigest = DepDigestBase<void> ;
 static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, we do not have to bother about union member cxtor/dxtor
@@ -491,16 +520,19 @@ struct TargetDigest {
 	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
 	using Crc = Hash::Crc ;
 	// data
+	// START_OF_VERSIONING
 	Tflags      tflags       = {}    ;
 	ExtraTflags extra_tflags = {}    ;
 	bool        polluted     = false ; // if true <=  file was seen as existing while not incremental
 	Crc         crc          = {}    ; // if None <=> file was unlinked, if Unknown => file is idle (not written, not unlinked)
 	Time::Ddate date         = {}    ;
+	// END_OF_VERSIONING
 } ;
 
 struct JobDigest {
 	friend ::ostream& operator<<( ::ostream& , JobDigest const& ) ;
 	// data
+	// START_OF_VERSIONING
 	Status                 status   = Status::New ;
 	::vmap_s<TargetDigest> targets  = {}          ;
 	::vmap_s<DepDigest   > deps     = {}          ; // INVARIANT : sorted in first access order
@@ -509,6 +541,7 @@ struct JobDigest {
 	int                    wstatus  = 0           ;
 	Time::Pdate            end_date = {}          ;
 	JobStats               stats    = {}          ;
+	// END_OF_VERSIONING
 } ;
 
 struct JobExecRpcReq ;
@@ -522,15 +555,9 @@ struct JobRpcReq {
 	// statics
 	// cxtors & casts
 	JobRpcReq() = default ;
-	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                             { SWEAR( p==P::None                      ) ; }
-	JobRpcReq( P p , SI si , JI j , in_port_t   pt , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , port  {pt              } , msg{::move(m)} { SWEAR( p==P::Start                     ) ; }
-	JobRpcReq( P p , SI si , JI j , Status      s  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{.status=s       } , msg{::move(m)} { SWEAR( p==P::End && s<=Status::Garbage ) ; }
-	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)       } , msg{::move(m)} { SWEAR( p==P::End                       ) ; }
-	JobRpcReq( P p , SI si , JI j ,                  ::string&& m    ) : proc{p} , seq_id{si} , job{j} ,                            msg{::move(m)} { SWEAR( p==P::LiveOut                   ) ; }
-	JobRpcReq( P p , SI si , JI j , MDD&&       ds                   ) : proc{p} , seq_id{si} , job{j} , digest{.deps=::move(ds)}                  { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
-	//
-	JobRpcReq( P p , SI si , JI j , ::string&& code , ::string&& f , ::string&& c              ) : proc{p} , seq_id{si} , job{j} , msg{code} , file{f} , ctx{c}               { SWEAR(p==P::Decode) ; }
-	JobRpcReq( P p , SI si , JI j , ::string&& val  , ::string&& f , ::string&& c , uint8_t ml ) : proc{p} , seq_id{si} , job{j} , msg{val } , file{f} , ctx{c} , min_len{ml} { SWEAR(p==P::Encode) ; }
+	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                      { SWEAR(p==P::None ) ; }
+	JobRpcReq( P p , SI si , JI j , in_port_t   pt , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , port  {pt       } , msg{::move(m)} { SWEAR(p==P::Start) ; }
+	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)} , msg{::move(m)} { SWEAR(p==P::End  ) ; }
 	//
 	JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) ;
 	// services
@@ -545,17 +572,6 @@ struct JobRpcReq {
 				::serdes(s,port) ;
 				::serdes(s,msg ) ;
 			break ;
-			case P::LiveOut  : ::serdes(s,msg   ) ; break ;
-			case P::ChkDeps  : ::serdes(s,digest) ; break ;
-			case P::DepInfos : ::serdes(s,digest) ; break ;
-			case P::Encode :
-				::serdes(s,min_len) ;
-				[[fallthrough]] ;
-			case P::Decode :
-				::serdes(s,msg ) ;
-				::serdes(s,file) ;
-				::serdes(s,ctx ) ;
-			break ;
 			case P::End :
 				::serdes(s,digest     ) ;
 				::serdes(s,dynamic_env) ;
@@ -564,16 +580,15 @@ struct JobRpcReq {
 		DF}
 	}
 	// data
+	// START_OF_VERSIONING
 	P         proc        = P::None ;
 	SI        seq_id      = 0       ;
 	JI        job         = 0       ;
-	in_port_t port        = 0       ; // if proc == Start
-	JobDigest digest      ;           // if proc ==         ChkDeps | DepInfos |                              End
-	::vmap_ss dynamic_env ;           // if proc ==                                                           End env variables computed in job_exec
-	::string  msg         ;           // if proc == Start |                      LiveOut  | Decode | Encode | End
-	::string  file        ;           // if proc ==                                         Decode | Encode
-	::string  ctx         ;           // if proc ==                                         Decode | Encode
-	uint8_t   min_len     = 0       ; // if proc ==                                                  Encode
+	in_port_t port        = 0       ; // if proc==Start
+	JobDigest digest      ;           // if proc==      End
+	::vmap_ss dynamic_env ;           // if proc==      End, env variables computed in job_exec
+	::string  msg         ;
+	// END_OF_VERSIONING
 } ;
 
 struct MatchFlags {
@@ -592,12 +607,15 @@ struct MatchFlags {
 	// data
 	Bool3 is_target = Maybe ;
 private :
+	// START_OF_VERSIONING
 	Tflags      _tflags       ; // if  is_target
 	Dflags      _dflags       ; // if !is_target
 	ExtraTflags _extra_tflags ; // if  is_target
 	ExtraDflags _extra_dflags ; // if !is_target
+	// END_OF_VERSIONING
 } ;
 
+// START_OF_VERSIONING
 ENUM_2( AutodepMethod                     // PER_AUTODEP_METHOD : add entry here
 ,	Ld   = LdAudit                        // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 ,	Dflt = HAS_LD_AUDIT?LdAudit:LdPreload // by default, use  a compromize between speed an reliability
@@ -607,32 +625,22 @@ ENUM_2( AutodepMethod                     // PER_AUTODEP_METHOD : add entry here
 ,	LdPreload
 ,	LdPreloadJemalloc
 )
+// END_OF_VERSIONING
 
 struct JobRpcReply {
 	friend ::ostream& operator<<( ::ostream& , JobRpcReply const& ) ;
 	using Crc  = Hash::Crc ;
 	using Proc = JobProc   ;
 	// cxtors & casts
-	JobRpcReply(                                                                      ) = default ;
-	JobRpcReply( Proc p                                                               ) : proc{p}                                           {                                                       }
-	JobRpcReply( Proc p , Bool3                                  o                    ) : proc{p} , ok{o}                                   { SWEAR( proc==Proc::ChkDeps                        ) ; }
-	JobRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>> const& is                   ) : proc{p} ,         dep_infos{is}                   { SWEAR( proc==Proc::DepInfos                       ) ; }
-	JobRpcReply( Proc p , ::string                        const& t  , Crc c , Bool3 o ) : proc{p} , ok{o} ,                 txt{t} , crc{c} { SWEAR( proc==Proc::Decode   || proc==Proc::Encode ) ; }
+	JobRpcReply(      ) = default ;
+	JobRpcReply(Proc p) : proc{p} {}
 	// services
 	template<IsStream S> void serdes(S& s) {
 		if (is_base_of_v<::istream,S>) *this = {} ;
 		::serdes(s,proc) ;
 		switch (proc) {
-			case Proc::None     :
-			case Proc::End      :                         break ;
-			case Proc::DepInfos : ::serdes(s,dep_infos) ; break ;
-			case Proc::ChkDeps  : ::serdes(s,ok       ) ; break ;
-			case Proc::Decode :
-			case Proc::Encode :
-				::serdes(s,ok ) ;
-				::serdes(s,txt) ;
-				::serdes(s,crc) ;
-			break ;
+			case Proc::None :
+			case Proc::End  : break ;
 			case Proc::Start :
 				::serdes(s,addr            ) ;
 				::serdes(s,autodep_env     ) ;
@@ -661,39 +669,143 @@ struct JobRpcReply {
 		DF}
 	}
 	// data
-	Proc                      proc             = Proc::None    ;
-	in_addr_t                 addr             = 0             ; // proc == Start                 , the address at which server and subproccesses can contact job_exec
-	AutodepEnv                autodep_env      ;                 // proc == Start
-	::string                  chroot           ;                 // proc == Start
-	::pair_ss/*script,call*/  cmd              ;                 // proc == Start
-	::string                  cwd_s            ;                 // proc == Start
-	::vmap_s<DepDigest>       deps             ;                 // proc == Start                 , deps already accessed (always includes static deps)
-	::vmap_ss                 env              ;                 // proc == Start
-	Algo                      hash_algo        = Algo::Xxh     ; // proc == Start
-	::vector_s                interpreter      ;                 // proc == Start                 , actual interpreter used to execute cmd
-	bool                      keep_tmp         = false         ; // proc == Start
-	vector<uint8_t>           kill_sigs        ;                 // proc == Start
-	bool                      live_out         = false         ; // proc == Start
-	AutodepMethod             method           = {}/*garbage*/ ; // proc == Start
-	Time::Delay               network_delay    ;                 // proc == Start
-	::vmap_s<FileAction>      pre_actions      ;                 // proc == Start
-	::string                  remote_admin_dir ;                 // proc == Start
-	SmallId                   small_id         = 0             ; // proc == Start
-	::vmap_s<MatchFlags>      star_matches     ;                 // proc == Start                 , maps regexprs to flags
-	::vmap_s<MatchFlags>      static_matches   ;                 // proc == Start
-	::string                  stdin            ;                 // proc == Start
-	::string                  stdout           ;                 // proc == Start
-	Time::Delay               timeout          ;                 // proc == Start
-	bool                      use_script       = false         ; // proc == Start
-	::vector<pair<Bool3,Crc>> dep_infos        ;                 // proc == DepInfos
-	Bool3                     ok               = Maybe         ; // proc == ChkDeps|Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
-	::string                  txt              ;                 // proc ==         Decode|Encode , value for Decode, code for Encode
-	Crc                       crc              ;                 // proc ==         Decode|Encode , crc of txt
+	// START_OF_VERSIONING
+	Proc                     proc             = Proc::None ;
+	in_addr_t                addr             = 0          ; // proc == Start , the address at which server and subproccesses can contact job_exec
+	AutodepEnv               autodep_env      ;              // proc == Start
+	::string                 chroot           ;              // proc == Start
+	::pair_ss/*script,call*/ cmd              ;              // proc == Start
+	::string                 cwd_s            ;              // proc == Start
+	::vmap_s<DepDigest>      deps             ;              // proc == Start , deps already accessed (always includes static deps)
+	::vmap_ss                env              ;              // proc == Start
+	Algo                     hash_algo        = Algo::Xxh  ; // proc == Start
+	::vector_s               interpreter      ;              // proc == Start , actual interpreter used to execute cmd
+	bool                     keep_tmp         = false      ; // proc == Start
+	vector<uint8_t>          kill_sigs        ;              // proc == Start
+	bool                     live_out         = false      ; // proc == Start
+	AutodepMethod            method           = {}         ; // proc == Start
+	Time::Delay              network_delay    ;              // proc == Start
+	::vmap_s<FileAction>     pre_actions      ;              // proc == Start
+	::string                 remote_admin_dir ;              // proc == Start
+	SmallId                  small_id         = 0          ; // proc == Start
+	::vmap_s<MatchFlags>     star_matches     ;              // proc == Start , maps regexprs to flags
+	::vmap_s<MatchFlags>     static_matches   ;              // proc == Start
+	::string                 stdin            ;              // proc == Start
+	::string                 stdout           ;              // proc == Start
+	Time::Delay              timeout          ;              // proc == Start
+	bool                     use_script       = false      ; // proc == Start
+	// END_OF_VERSIONING
 } ;
 
-// END_OF_VERSIONING
+struct JobMngtRpcReq {
+	using JMMR = JobMngtRpcReq       ;
+	using P    = JobMngtProc         ;
+	using SI   = SeqId               ;
+	using JI   = JobIdx              ;
+	using MDD  = ::vmap_s<DepDigest> ;
+	friend ::ostream& operator<<( ::ostream& , JobMngtRpcReq const& ) ;
+	// statics
+	// cxtors & casts
+	#define S ::string
+	#define M ::move
+	JobMngtRpcReq(                             ) = default ;
+	JobMngtRpcReq( P p , SI si , JI j , Fd fd_ ) : proc{p} , seq_id{si} , job{j} , fd{fd_} {}
+	//
+	JobMngtRpcReq(P p,SI si,JI j,       S&& t   ) : proc{p},seq_id{si},job{j},        txt{M(t)}   { SWEAR(p==P::LiveOut                ) ; }
+	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,MDD&& ds) : proc{p},seq_id{si},job{j},fd{fd_},deps{M(ds)} { SWEAR(p==P::ChkDeps||p==P::DepInfos) ; }
+	//
+	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& code,S&& f,S&& c           ) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(code)}             { SWEAR(p==P::Decode) ; }
+	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& val ,S&& f,S&& c,uint8_t ml) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(val )},min_len{ml} { SWEAR(p==P::Encode) ; }
+	//
+	JobMngtRpcReq( SI , JI , Fd , JobExecRpcReq&& ) ;
+	#undef M
+	#undef S
+	// services
+	template<IsStream T> void serdes(T& s) {
+		if (::is_base_of_v<::istream,T>) *this = {} ;
+		::serdes(s,proc  ) ;
+		::serdes(s,seq_id) ;
+		::serdes(s,job   ) ;
+		switch (proc) {
+			case P::None     :                    break ;
+			case P::LiveOut  : ::serdes(s,txt ) ; break ;
+			case P::ChkDeps  :
+			case P::DepInfos :
+				::serdes(s,fd  ) ;
+				::serdes(s,deps) ;
+			break ;
+			case P::Encode :
+				::serdes(s,min_len) ;
+				[[fallthrough]] ;
+			case P::Decode :
+				::serdes(s,fd  ) ;
+				::serdes(s,ctx ) ;
+				::serdes(s,file) ;
+				::serdes(s,txt ) ;
+			break ;
+		DF}
+	}
+	// data
+	P                   proc    = P::None ;
+	SI                  seq_id  = 0       ;
+	JI                  job     = 0       ;
+	Fd                  fd      ;           // fd to which reply must be forwarded
+	::vmap_s<DepDigest> deps    ;           // proc==ChkDeps|DepInfos
+	::string            ctx     ;           // proc==                         Decode|Encode
+	::string            file    ;           // proc==                         Decode|Encode
+	::string            txt     ;           // proc==                 LiveOut|Decode|Encode
+	uint8_t             min_len = 0       ; // proc==                                Encode
+} ;
 
-ENUM_1( JobExecRpcProc
+struct JobMngtRpcReply {
+	friend ::ostream& operator<<( ::ostream& , JobMngtRpcReply const& ) ;
+	using Crc  = Hash::Crc   ;
+	using Proc = JobMngtProc ;
+	// cxtors & casts
+	JobMngtRpcReply() = default ;
+	//
+	JobMngtRpcReply( Proc p , SeqId si ) : proc{p} , seq_id{si} { SWEAR(proc==Proc::Kill||proc==Proc::Heartbeat) ; }
+	//
+	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , Bool3                                  o  ) : proc{p},seq_id{si},fd{fd_},ok{o}               { SWEAR(proc==Proc::ChkDeps                   ) ; }
+	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p},seq_id{si},fd{fd_},      dep_infos{is} { SWEAR(proc==Proc::DepInfos                  ) ; }
+	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::string const& t  , Crc c , Bool3 o      ) : proc{p},seq_id{si},fd{fd_},ok{o},txt{t},crc{c} { SWEAR(proc==Proc::Decode||proc==Proc::Encode) ; }
+	// services
+	template<IsStream S> void serdes(S& s) {
+		if (is_base_of_v<::istream,S>) *this = {} ;
+		::serdes(s,proc  ) ;
+		::serdes(s,seq_id) ;
+		switch (proc) {
+			case Proc::None      :
+			case Proc::Kill      :
+			case Proc::Heartbeat : break ;
+			case Proc::DepInfos  :
+				::serdes(s,fd       ) ;
+				::serdes(s,dep_infos) ;
+			break ;
+			case Proc::ChkDeps :
+				::serdes(s,fd) ;
+				::serdes(s,ok) ;
+			break ;
+			case Proc::Decode :
+			case Proc::Encode :
+				::serdes(s,fd ) ;
+				::serdes(s,ok ) ;
+				::serdes(s,txt) ;
+				::serdes(s,crc) ;
+			break ;
+		DF}
+	}
+	// data
+	Proc                      proc      = {}    ;
+	SeqId                     seq_id    = 0     ;
+	Fd                        fd        ;         // proc == ChkDeps|DepInfos|Decode|Encode , fd to which reply must be forwarded
+	::vector<pair<Bool3,Crc>> dep_infos ;         // proc ==         DepInfos
+	Bool3                     ok        = Maybe ; // proc == ChkDeps|         Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
+	::string                  txt       ;         // proc ==                  Decode|Encode , value for Decode, code for Encode
+	Crc                       crc       ;         // proc ==                  Decode|Encode , crc of txt
+} ;
+
+ENUM_1( JobExecProc
 ,	HasFiles = Access  // >=HasFiles means files field is significative
 ,	None
 ,	ChkDeps
@@ -729,10 +841,10 @@ struct AccessDigest {                                                  // order 
 struct JobExecRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobExecRpcReq const& ) ;
 	// make short lines
-	using AD = AccessDigest   ;
-	using P  = JobExecRpcProc ;
-	using PD = Time::Pdate    ;
-	using DD = Time::Ddate    ;
+	using AD = AccessDigest ;
+	using P  = JobExecProc  ;
+	using PD = Time::Pdate  ;
+	using DD = Time::Ddate  ;
 	// statics
 private :
 	static ::vmap_s<DD> _s_mk_mdd(::vector_s&& fs) { ::vmap_s<DD> res ; for( ::string& f : fs ) res.emplace_back(::move(f),DD()) ; return res ; }
@@ -831,8 +943,8 @@ public :
 
 struct JobExecRpcReply {
 	friend ::ostream& operator<<( ::ostream& , JobExecRpcReply const& ) ;
-	using Proc = JobExecRpcProc ;
-	using Crc  = Hash::Crc      ;
+	using Proc = JobExecProc ;
+	using Crc  = Hash::Crc   ;
 	// cxtors & casts
 	JobExecRpcReply(                                                    ) = default ;
 	JobExecRpcReply( Proc p                                             ) : proc{p}                 { SWEAR( proc!=Proc::ChkDeps && proc!=Proc::DepInfos ) ; }
@@ -840,7 +952,7 @@ struct JobExecRpcReply {
 	JobExecRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p} , dep_infos{is} { SWEAR( proc==Proc::DepInfos                        ) ; }
 	JobExecRpcReply( Proc p , ::string const&                        t  ) : proc{p} , txt      {t } { SWEAR( proc==Proc::Decode  || proc==Proc::Encode   ) ; }
 	//
-	JobExecRpcReply( JobRpcReply const& jrr ) ;
+	JobExecRpcReply( JobMngtRpcReply&& jrr ) ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		if (::is_base_of_v<::istream,S>) *this = {} ;
@@ -858,42 +970,9 @@ struct JobExecRpcReply {
 	}
 	// data
 	Proc                            proc      = Proc::None ;
-	Bool3                           ok        = Maybe      ; // if proc==ChkDeps
+	Bool3                           ok        = Maybe      ; // if proc==ChkDeps |Decode|Encode
 	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;              // if proc==DepInfos
-	::string                        txt       ;              // if proc==Decode|Encode (value for Decode, code for Encode)
-} ;
-
-// START_OF_VERSIONING
-
-//
-// JobSserverRpcReq
-//
-
-ENUM( JobServerRpcProc
-,	Heartbeat
-,	Kill
-)
-
-struct JobServerRpcReq {
-	friend ::ostream& operator<<( ::ostream& , JobServerRpcReq const& ) ;
-	using Proc = JobServerRpcProc ;
-	// cxtors & casts
-	JobServerRpcReq(                              ) = default ;
-	JobServerRpcReq( Proc p , SeqId si            ) : proc{p} , seq_id{si}          { SWEAR(proc==Proc::Kill     ) ; }
-	JobServerRpcReq( Proc p , SeqId si , JobIdx j ) : proc{p} , seq_id{si} , job{j} {                                } // need a job for heartbeat as we may have to reply on its behalf
-	// services
-	template<IsStream S> void serdes(S& s) {
-		::serdes(s,proc  ) ;
-		::serdes(s,seq_id) ;
-		switch (proc) {
-			case Proc::Heartbeat : ::serdes(s,job) ;                          break ;
-			case Proc::Kill      : if (::is_base_of_v<::istream,S>) job = 0 ; break ;
-		DF}
-	}
-	// data
-	Proc   proc   = {} ;
-	SeqId  seq_id = 0  ;
-	JobIdx job    = 0  ;
+	::string                        txt       ;              // if proc==         Decode|Encode (value for Decode, code for Encode)
 } ;
 
 struct SubmitAttrs {
@@ -915,17 +994,20 @@ struct SubmitAttrs {
 		return res ;
 	}
 	// data
+	// START_OF_VERSIONING
 	BackendTag          tag       = {}    ;
 	bool                live_out  = false ;
 	uint8_t             n_retries = 0     ;
 	Time::CoarseDelay   pressure  = {}    ;
 	::vmap_s<DepDigest> deps      = {}    ;
 	JobReason           reason    = {}    ;
+	// END_OF_VERSIONING
 } ;
 
 struct JobInfoStart {
 	friend ::ostream& operator<<( ::ostream& , JobInfoStart const& ) ;
 	// data
+	// START_OF_VERSIONING
 	Hash::Crc   rule_cmd_crc = {}         ;
 	::vector_s  stems        = {}         ;
 	Time::Pdate eta          = {}         ;
@@ -935,12 +1017,15 @@ struct JobInfoStart {
 	JobRpcReq   pre_start    = {}         ;
 	JobRpcReply start        = {}         ;
 	::string    stderr       = {}         ;
+	// END_OF_VERSIONING
 } ;
 
 struct JobInfoEnd {
 	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
 	// data
+	// START_OF_VERSIONING
 	JobRpcReq end = {} ;
+	// END_OF_VERSIONING
 } ;
 
 struct JobInfo {
@@ -951,8 +1036,10 @@ struct JobInfo {
 	// ervices
 	void write(::string const& filename) const ;
 	// data
+	// START_OF_VERSIONING
 	JobInfoStart start ;
 	JobInfoEnd   end   ;
+	// END_OF_VERSIONING
 } ;
 
 //
@@ -969,5 +1056,3 @@ namespace Codec {
 	::string mk_file(::string const& node) ; // node may have been obtained from mk_decode_node or mk_encode_node
 
 }
-
-// END_OF_VERSIONING

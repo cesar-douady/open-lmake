@@ -87,6 +87,7 @@ namespace Time {
 		friend CoarseDelay ;
 		static const Delay Lowest  ;
 		static const Delay Highest ;
+		static const Delay Forever ;
 		// statics
 	private :
 		static bool/*slept*/ _s_sleep( ::stop_token tkn , Delay sleep , Pdate until ) ;
@@ -119,6 +120,7 @@ namespace Time {
 	} ;
 	constexpr Delay Delay::Lowest  { New , ::numeric_limits<Tick>::min() } ;
 	constexpr Delay Delay::Highest { New , ::numeric_limits<Tick>::max() } ;
+	constexpr Delay Delay::Forever { New , ::numeric_limits<Tick>::max() } ;
 
 	// short float representation of time (positive)
 	// when exp<=0, representation is linear after TicksPerSecond
@@ -138,14 +140,12 @@ namespace Time {
 		// cxtors & casts
 		explicit constexpr CoarseDelay( NewType , Val v ) : _val{v} {}
 	public :
-		constexpr CoarseDelay() = default ;
-		constexpr CoarseDelay(Delay d) { *this = d ; } // XXX : implemment cxtor and remove operator=
-		constexpr CoarseDelay& operator=(Delay d) {
+		constexpr CoarseDelay(       ) = default ;
+		constexpr CoarseDelay(Delay d) {
 			uint32_t t = ::logf(d._val)*(1<<Mantissa)+0.5 ;
 			if      ( t >= (1<<NBits<Val>)+Scale ) _val = -1      ;
 			else if ( t <                  Scale ) _val =  0      ;
 			else                                   _val = t-Scale ;
-			return *this ;
 		}
 		constexpr operator Delay() const {
 			if (!_val) return Delay() ;

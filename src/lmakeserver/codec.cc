@@ -32,9 +32,9 @@ namespace Codec {
 	void codec_thread_func(Closure const& cc) ;
 
 	::ostream& operator<<( ::ostream& os , Closure const& cc ) {
-		/**/                          os << "Closure(" << cc.proc                                              ;
-		if (cc.proc==JobProc::Encode) os <<','<< cc.min_len()                                                  ;
-		return                        os <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<','<< cc.reqs <<')' ;
+		/**/                              os << "Closure(" << cc.proc                                              ;
+		if (cc.proc==JobMngtProc::Encode) os <<','<< cc.min_len()                                                  ;
+		return                            os <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<','<< cc.reqs <<')' ;
 	}
 
 	void Closure::s_init() {
@@ -211,35 +211,35 @@ namespace Codec {
 		return true/*ok*/ ;
 	}
 
-	JobRpcReply Closure::decode() const {
+	JobMngtRpcReply Closure::decode() const {
 		Trace trace("decode",*this) ;
-		SWEAR(proc==JobProc::Decode,proc) ;
+		SWEAR(proc==JobMngtProc::Decode,proc) ;
 		Node decode_node { mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
 		bool refreshed = s_refresh( file , +decode_node , reqs ) ;
-		if (refreshed) {                                           // else codec file not available
+		if (refreshed) {                                                                                  // else codec file not available
 			if (_buildable_ok(file,decode_node)) {
 				::string val { decode_node->codec_val().str_view() } ;
 				trace("found",val) ;
-				return JobRpcReply( JobProc::Decode , val , decode_node->crc , Yes ) ;
+				return { JobMngtProc::Decode , {}/*seq_id*/ , {}/*fd*/ , val , decode_node->crc , Yes } ; // seq_id and fd will be filled in later
 			}
 		}
 		trace("fail",STR(refreshed)) ;
-		return JobRpcReply(JobProc::Decode,{}/*val*/,Crc::None,No) ;
+		return {JobMngtProc::Decode , {}/*seq_id*/ , {}/*fd*/ , {}/*val*/ , Crc::None , No } ;            // seq_id and fd will be filled in later
 	}
 
-	JobRpcReply Closure::encode() const {
+	JobMngtRpcReply Closure::encode() const {
 		Trace trace("encode",*this) ;
-		SWEAR(proc==JobProc::Encode,proc) ;
+		SWEAR(proc==JobMngtProc::Encode,proc) ;
 		Node encode_node { mk_encode_node(file,ctx,txt) , true/*no_dir*/ } ;
 		if ( !s_refresh( file , +encode_node , reqs ) ) {
 			trace("no_refresh") ;
-			return JobRpcReply(JobProc::Encode,{}/*code*/,Crc::None,No) ; // codec file not available
+			return { JobMngtProc::Encode , {}/*seq_id*/ , {}/*fd*/ , {}/*code*/ , Crc::None , No } ;   // codec file not available, seq_id and fd will be filled in later
 		}
 		//
 		if (_buildable_ok(file,encode_node)) {
 			::string code { encode_node->codec_code().str_view() } ;
 			trace("found",code) ;
-			return JobRpcReply( JobProc::Encode , code , encode_node->crc , Yes ) ;
+			return { JobMngtProc::Encode , {}/*seq_id*/ , {}/*fd*/ , code , encode_node->crc , Yes } ; // seq_id and fd will be filled in later
 		}
 		//
 		::string full_code   = ::string(Xxh(txt).digest())   ;
@@ -250,7 +250,7 @@ namespace Codec {
 			if (!_buildable_ok(file,decode_node)) goto NewCode ;
 		}
 		trace("clash") ;
-		return JobRpcReply(JobProc::Encode,"crc clash",{},No) ;           // this is a true full crc clash
+		return { JobMngtProc::Encode , {}/*seq_id*/ , {}/*fd*/ , "crc clash" , {} , No } ;             // this is a true full crc clash, seq_id and fd will be filled in later
 	NewCode :
 		trace("new_code",code) ;
 		OFStream(file,::ios::app) << _codec_line(ctx,code,txt,true/*with_nl*/) ;
@@ -259,10 +259,10 @@ namespace Codec {
 		_create_pair( file , decode_node , txt , encode_node , code ) ;
 		decode_node->date = {entry.log_date,now} ;
 		encode_node->date = {entry.log_date,now} ;
-		entry.phys_date   = file_date(file)      ;                             // we have touched the file but not the semantic, update phys_date but not log_date
+		entry.phys_date   = file_date(file)      ;                                                     // we have touched the file but not the semantic, update phys_date but not log_date
 		//
 		trace("found",code) ;
-		return JobRpcReply( JobProc::Encode , code , encode_node->crc , Yes ) ;
+		return { JobMngtProc::Encode , {}/*seq_id*/ , {}/*fd*/ , code , encode_node->crc , Yes } ;
 	}
 
 	bool/*ok*/ refresh( NodeIdx ni , ReqIdx r ) {
@@ -276,11 +276,13 @@ namespace Codec {
 	}
 
 	void codec_thread_func(Closure const& cc) {
+		JobMngtRpcReply jmrr ;
 		switch (cc.proc) {
-			case JobProc::Decode : OMsgBuf().send( cc.reply_fd , cc.decode() ) ; break ;
-			case JobProc::Encode : OMsgBuf().send( cc.reply_fd , cc.encode() ) ; break ;
+			case JobMngtProc::Decode : jmrr = cc.decode() ; break ;
+			case JobMngtProc::Encode : jmrr = cc.encode() ; break ;
 		DF}
-		::close(cc.reply_fd) ;
+		jmrr.fd = cc.fd ;                               // seq_id will be filled in by send_reply
+		Backends::send_reply( cc.job , ::move(jmrr) ) ;
 	}
 
 }

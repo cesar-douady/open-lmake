@@ -10,9 +10,10 @@ import sys
 import sysconfig
 import tarfile
 import zipfile
-from subprocess import run,DEVNULL,STDOUT
+from subprocess import run,check_output,DEVNULL,STDOUT
 
-gxx = os.environ.get('CXX','g++')
+gxx          = os.environ.get('CXX','g++')
+gxx_is_clang = 'clang' in check_output( (gxx,"--version") , universal_newlines=True )
 
 import lmake
 from lmake       import config,pdict
@@ -140,10 +141,10 @@ class ConfigH(BaseRule) :
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 
-class SysConfigH(PathRule) :
+class SysConfig(PathRule) :
     targets = {
-		'MK'    : 'sys_config.mk'
-	,	'H'     : 'sys_config.h'
+		'H'     : 'sys_config.h'
+	,	'MK'    : 'sys_config.mk'
 	,	'TRIAL' : 'trial/{*:.*}'
 	}
     deps = { 'EXE' : '_bin/sys_config' }
@@ -209,8 +210,8 @@ for ext,basic_opts in basic_opts_tab.items() :
 				seen_inc = x in ('-I','-iquote','-isystem','-idirafter')
 			lmake.depend(*mrkrs)
 			lmake.check_deps()
-			if 'clang' in gxx : clang_opts = ('-Wno-misleading-indentation','-Wno-unknown-warning-option','-Wno-c2x-extensions','-Wno-unused-function','-Wno-c++2b-extensions')
-			else              : clang_opts = ()
+			if gxx_is_clang : clang_opts = ('-Wno-misleading-indentation','-Wno-unknown-warning-option','-Wno-c2x-extensions','-Wno-unused-function','-Wno-c++2b-extensions')
+			else            : clang_opts = ()
 			run_gxx( OBJ
 			,	'-c' , '-fPIC' , '-pthread' , f'-frandom-seed={OBJ}' , '-fvisibility=hidden'
 			,	*basic_opts

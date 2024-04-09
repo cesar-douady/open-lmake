@@ -290,33 +290,31 @@ class Handle :
 	def _fstring(self,x,mk_fstring=True,for_deps=False) :
 		if callable(x) : return True,x
 		if isinstance(x,(tuple,list,set)) :
-			res_id  = False
+			res_is_dyn  = False
 			res_val = []
 			first = True
 			for c in x :
-				id,v = self._fstring(c,mk_fstring,first and for_deps) # only transmit for_deps to first item of dep when it is a tuple
-				first   = False
-				res_id |= id
+				is_dyn,v    = self._fstring(c,mk_fstring,first and for_deps) # only transmit for_deps to first item of dep when it is a tuple
+				first       = False
+				res_is_dyn |= is_dyn
 				res_val.append(v)
-			return res_id,tuple(res_val)
+			return res_is_dyn,tuple(res_val)
 		if isinstance(x,dict) :
-			res_id  = False
-			res_dct = {}
+			res_is_dyn = False
+			res_dct    = {}
 			for key,val in x.items() :
-				id_k,k = self._fstring(key,False     )
-				id_v,v = self._fstring(val,mk_fstring)
-				res_id |= id_k or id_v
-				res_dct[k] = v
-			return res_id,res_dct
-		if not mk_fstring  or not isinstance(x,str) :
+				is_dyn_k,k  = self._fstring(key,False     )
+				is_dyn_v,v  = self._fstring(val,mk_fstring)
+				res_is_dyn |= is_dyn_k or is_dyn_v
+				res_dct[k]  = v
+			return res_is_dyn,res_dct
+		if not mk_fstring or not isinstance(x,str) :
 			return False,x
 		if for_deps :
-			if self._is_simple_fstr(x) :
-				return False,x
+			if self._is_simple_fstr(x) : return False,x
 		else :
-			if SimpleStrRe.match(x)  :
-				return False,static_fstring(x)                        # v has no variable parts, can be interpreted statically as an f-string
-		return True,serialize.f_str(x)                                # x is made an f-string
+			if SimpleStrRe.match(x)    : return False,static_fstring(x)      # v has no variable parts, can be interpreted statically as an f-string
+		return True,serialize.f_str(x)                                       # x is made an f-string
 
 	def _handle_val(self,key,rep_key=None,for_deps=False) :
 		if not rep_key               : rep_key = key
@@ -329,16 +327,16 @@ class Handle :
 			sv = {}
 			dv = {}
 			for k,v in val.items() :
-				id_k,k = self._fstring(k,False                  )
-				id_v,v = self._fstring(v      ,for_deps=for_deps)
-				if   id_k or id_v : dv[k],sv[k] = self._fstring(v)[1],None # static_val must have an entry for each dynamic one, simple dep stems are only interpreted by engine if static
-				else              : sv[k]       = v
+				is_dyn_k,k = self._fstring(k,False                  )
+				is_dyn_v,v = self._fstring(v      ,for_deps=for_deps)
+				if   is_dyn_k or is_dyn_v : dv[k],sv[k] = self._fstring(v)[1],None # static_val must have an entry for each dynamic one, simple dep stems are only interpreted by engine if static
+				else                      : sv[k]       = v
 			if sv : self.static_val [key] = sv
 			if dv : self.dynamic_val[key] = dv
 		else :
-			id,v = self._fstring(val)
-			if id : self.dynamic_val[key] = v
-			else  : self.static_val [key] = v
+			is_dyn,v = self._fstring(val,for_deps=for_deps)
+			if is_dyn : self.dynamic_val[key] = v
+			else      : self.static_val [key] = v
 
 	def _finalize(self) :
 		static_val  = self.static_val
@@ -350,7 +348,7 @@ class Handle :
 		code,ctx,names,dbg = serialize.get_expr(
 			dynamic_val
 		,	ctx            = serialize_ctx
-		,	no_imports     = in_repo_re                                                      # non-static deps are forbidden, transport all local modules by value
+		,	no_imports     = in_repo_re    # non-static deps are forbidden, transport all local modules by value
 		,	call_callables = True
 		)
 		return ( static_val , tuple(names) , ctx , code , *mk_dbg_info(dbg,serialize_ctx) )
@@ -500,7 +498,7 @@ class Handle :
 			)
 			if multi :
 				cmd += 'def cmd() : \n'
-				x = avoid_ctx('x',serialize_ctx)                                                                         # find a non-conflicting name
+				x = avoid_ctx('x',serialize_ctx) # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					a = '' if c.__code__.co_argcount==0 else 'None' if i==0 else x
 					if   i==len(self.attrs.cmd)-1          : cmd += f'\treturn {c.__name__}({a})\n'
@@ -509,7 +507,7 @@ class Handle :
 			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , *mk_dbg_info(dbg,serialize_ctx) )
 			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                              )
 		else :
-			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
+			self.attrs.cmd = '\n'.join(self.attrs.cmd)
 			self._init()
 			self._handle_val('cmd',for_deps=True)
 			if 'cmd' in self.dynamic_val : self.dynamic_val = self.dynamic_val['cmd']

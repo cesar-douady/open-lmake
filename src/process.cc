@@ -72,7 +72,7 @@ bool/*parent*/ Child::spawn(
 		child_args[args.size()] = nullptr ;
 		if (env) ::execve( child_args[0] , const_cast<char**>(child_args) , const_cast<char**>(child_env) ) ;
 		else     ::execv ( child_args[0] , const_cast<char**>(child_args)                                 ) ;
-		pid = -1 ;
+		pid = 0 ;
 		exit(Rc::System,"cannot exec (",strerror(errno),") : ",args) ; // in case exec fails
 	}
 	if (stdin_fd ==Pipe) { stdin  = p2c .write ; p2c .read .close() ; }

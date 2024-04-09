@@ -48,9 +48,9 @@ WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits
 LANG := c++20
 #
 SAN       := $(if $(strip $(SAN_FLAGS)),.san,)
-LINK_OPTS := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread                                    # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
+LINK_OPTS := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 LINK_O    := $(CXX) $(COVERAGE) -r
-LINK_SO   := $(CXX) $(COVERAGE) $(LINK_OPTS) -shared                                                        # some usage may have specific libs, avoid dependencies
+LINK_SO   := $(CXX) $(COVERAGE) $(LINK_OPTS) -shared                     # some usage may have specific libs, avoid dependencies
 LINK_BIN  := $(CXX) $(COVERAGE) $(LINK_OPTS)
 LINK_LIB  := -ldl
 #
@@ -71,11 +71,11 @@ LMAKE_ENV  := lmake_env
 STORE_LIB  := $(SRC)/store
 
 ifneq ($(PYTHON2),)
-    PY2_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))                          # for some reasons, compilation breaks if standard inc dirs are given with -isystem
+    PY2_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY)) # for some reasons, compilation breaks if standard inc dirs are given with -isystem
     PY2_CC_OPTS   := $(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register
     PY2_LINK_OPTS := $(patsubst %,-L%,$(PY2_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY2_LIB_DIR)) -l:$(PY2_LIB_BASE)
 endif
-PY_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR) $(PY_INCLUDEPY))                           # for some reasons, compilation does not work if standard inc dirs are given with -isystem
+PY_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR) $(PY_INCLUDEPY))        # for some reasons, compilation does not work if standard inc dirs are given with -isystem
 PY_CC_OPTS   := $(patsubst %,-isystem %,$(PY_INC_DIRS)) -Wno-register
 PY_LINK_OPTS := $(patsubst %,-L%,$(PY_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY_LIB_DIR))  -l:$(PY_LIB_BASE)
 
@@ -646,14 +646,18 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	@( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ) ; : # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	@for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	@( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) >$@.out 2>$@.err && mv $@.out $@ || ( cat $@ $@.err ; exit 1 )
+	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) >$@.out 2>$@.err \
+	&&	mv $@.out $@                                                                                \
+	||	( cat $@.out $@.err ; exit 1 )
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
 	@echo py test to $@
 	@mkdir -p $(@D)
 	@( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ) ; : # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	@cp $< $(@D)/Lmakefile.py
-	@( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@.out 2>$@.err && mv $@.out $@ || ( cat $@ $@.err ; exit 1 )
+	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@.out 2>$@.err \
+	&&	mv $@.out $@                                                                                                                                          \
+	||	( cat $@.out $@.err ; exit 1 )
 
 #
 # lmake env

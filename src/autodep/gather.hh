@@ -9,6 +9,7 @@
 
 #include "disk.hh"
 #include "hash.hh"
+#include "msg.hh"
 #include "process.hh"
 #include "rpc_job.hh"
 #include "time.hh"
@@ -22,13 +23,32 @@
 // This way, we do not generate spurious errors.
 // To do so, we maintain, for each access entry (i.e. a file), a list of sockets that are unordered, i.e. for which a following Write could actually have been done before by the user.
 
+ENUM( GatherKind // epoll events
+,	Stdout
+,	Stderr
+,	ServerReply
+,	ChildStart  // just a marker, not actually used as epoll event
+,	ChildEnd
+,	JobMaster
+,	JobSlave
+,	ServerMaster
+,	ServerSlave
+)
+
+ENUM( KillStep
+,	None
+,	Report
+,	Kill   // must be last as following values are used
+)
+
 struct Gather {
 	friend ::ostream& operator<<( ::ostream& os , Gather const& ad ) ;
-	using Proc   = JobExecRpcProc ;
-	using Jerr   = JobExecRpcReq  ;
-	using Crc    = Hash::Crc      ;
-	using PD     = Time::Pdate    ;
-	using CD     = CrcDate        ;
+	using Kind = GatherKind    ;
+	using Proc = JobExecProc   ;
+	using Jerr = JobExecRpcReq ;
+	using Crc  = Hash::Crc     ;
+	using PD   = Time::Pdate   ;
+	using CD   = CrcDate       ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// cxtors & casts
@@ -56,17 +76,6 @@ struct Gather {
 		NodeIdx      parallel_id     = 0                                      ;
 		AccessDigest digest          ;
 	} ;
-	struct ServerReply {
-		IMsgBuf  buf        ;                                                                                                                  // buf to assemble the reply
-		Fd       fd         ;                                                                                                                  // fd to forward reply to
-		::string codec_file ;
-	} ;
-	// cxtors & casts
-public :
-	Gather(       ) = default ;
-	Gather(NewType) { init() ; }
-	//
-	void init() { master_fd.listen() ; }
 	// services
 private :
 	void _solve( Fd , Jerr& jerr) ;
@@ -82,10 +91,8 @@ private :
 		Trace trace("_new_guards",fd,jerr.txt) ;
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
-	void _codec( ServerReply&& sr , JobRpcReply const& jrr , ::string const& comment="codec" ) {
-		Trace trace("_codec",jrr) ;
-		_new_access( sr.fd , PD(New) , ::move(sr.codec_file) , {.accesses=Access::Reg} , jrr.crc , false/*parallel*/ , comment ) ;
-	}
+	void _kill          ( KillStep , Child const& ) ;
+	void _send_to_server( Fd fd , Jerr&& jerr     ) ;
 public : //!                                                                                                           crc_date parallel
 	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}     ,false  ,c) ; }
 	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}     ,false  ,c) ; } // new_unlnk is used for internal wash
@@ -95,43 +102,46 @@ public : //!                                                                    
 	void new_exec( PD , ::string const& exe        , ::string const&      ="s_exec" ) ;
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
-		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                             // dont care if we cannot report the reply to job
+		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}         // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child( ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
 	//
-	bool/*done*/ kill(int sig=-1) ;                                                                                // is sig==-1, use best effort to kill job
-	//
-	void reorder(bool at_end) ;                                                                                    // reorder accesses by first read access and suppress superfluous accesses
-	// data
-	::function<Fd/*reply*/(Jerr&&              )> server_cb     = [](Jerr &&             )->Fd   { return {} ; } ; // function to contact server when necessary, return error by default
-	::function<void       (::string_view const&)> live_out_cb   = [](::string_view const&)->void {             } ; // function to report live output, dont report by default
-	::function<void       (                    )> kill_job_cb   = [](                    )->void {             } ; // function to kill job
-	ServerSockFd                                  master_fd     ;
-	in_addr_t                                     addr          = NoSockAddr                                     ; // local addr to which we can be contacted by running job
-	::atomic<bool>                                as_session    = false                                          ; // if true <=> process is launched in its own group
-	AutodepMethod                                 method        = AutodepMethod::Dflt                            ;
-	AutodepEnv                                    autodep_env   ;
-	Time::Delay                                   timeout       ;
-	Time::Delay                                   network_delay ;
-	pid_t                                         pid           = -1                                             ; // pid to kill
-	bool                                          killed        = false                                          ; // do not start as child is supposed to be already killed
-	::vector<uint8_t>                             kill_sigs     ;                                                  // signals used to kill job
-	::string                                      chroot        ;
-	::string                                      cwd           ;
-	 ::map_ss const*                              env           = nullptr                                        ;
-	vmap_s<AccessInfo>                            accesses      ;
-	umap_s<NodeIdx   >                            access_map    ;
-	uset_s                                        guards        ;                                                  // dir creation/deletion that must be guarded against NFS
-	NodeIdx                                       parallel_id   = 0                                              ; // id to identify parallel deps
-	bool                                          seen_tmp      = false                                          ;
-	int                                           wstatus       = 0/*garbage*/                                   ;
-	Fd                                            child_stdout  ;                                                  // fd used to gather stdout
-	Fd                                            child_stderr  ;                                                  // fd used to gather stderr
-	::string                                      stdout        ;                                                  // contains child stdout if child_stdout==Pipe
-	::string                                      stderr        ;                                                  // contains child stderr if child_stderr==Pipe
-	::string                                      msg           ;                                                  // contains error messages not from job
-	::umap<Fd,pair<IMsgBuf,vector<Jerr>>>         slaves        ;                                                  // Jerr's are waiting for confirmation
+	void reorder(bool at_end) ;                                                // reorder accesses by first read access and suppress superfluous accesses
 private :
-	Mutex<MutexLvl::Gather> mutable _pid_mutex ;
+	void _spawn_child( Child& , ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
+	// data
+public :
+	umap_s<NodeIdx   >                access_map       ;
+	vmap_s<AccessInfo>                accesses         ;
+	in_addr_t                         addr             = NoSockAddr          ; // local addr to which we can be contacted by running job
+	::atomic<bool>                    as_session       = false               ; // if true <=> process is launched in its own group
+	AutodepEnv                        autodep_env      ;
+	::string                          chroot           ;
+	::function<::vmap_s<DepDigest>()> cur_deps_cb      ;
+	::string                          cwd              ;
+	Time::Pdate                       end_time         ;
+	 ::map_ss const*                  env              = nullptr             ;
+	uset_s                            guards           ;                       // dir creation/deletion that must be guarded against NFS
+	JobIdx                            job              = 0                   ;
+	::vector<uint8_t>                 kill_sigs        ;                       // signals used to kill job
+	bool                              live_out         = false               ;
+	AutodepMethod                     method           = AutodepMethod::Dflt ;
+	::string                          msg              ;                       // contains error messages not from job
+	Time::Delay                       network_delay    ;
+	pid_t                             pid              = -1                  ; // pid to kill
+	bool                              seen_tmp         = false               ;
+	SeqId                             seq_id           = 0                   ;
+	ServerSockFd                      server_master_fd ;
+	::string                          service_mngt     ;
+	Time::Pdate                       start_time       ;
+	::string                          stdout           ;                       // contains child stdout if child_stdout==Pipe
+	::string                          stderr           ;                       // contains child stderr if child_stderr==Pipe
+	Time::Delay                       timeout          ;
+	int                               wstatus          = 0                   ;
+private :
+	::umap<Fd,::string> _codec_files   ;
+	bool                _kill_reported = false ;
+	NodeIdx             _parallel_id   = 0     ;                               // id to identify parallel deps
+	BitMap<Kind>        _wait          ;                                       // events we are waiting for
 } ;

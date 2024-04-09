@@ -62,7 +62,10 @@ static thread_local bool                      _t_loop  = false ; // prevent recu
 // In that case, they may come before our own Audit is constructed if declared global (in the case of LD_PRELOAD).
 // To face this order problem, we declare our Audit as a static within a funciton which will be constructed upon first call.
 // As all statics with cxtor/dxtor, we define it through new so as to avoid destruction during finalization.
-static Record& auditer() {
+#ifndef IN_SERVER
+	static // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
+#endif
+Record& auditer() {
 	static Record* s_res = new Record{New} ;
 	return *s_res ;
 }

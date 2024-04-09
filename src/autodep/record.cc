@@ -26,7 +26,6 @@ bool                                                   Record::s_static_report =
 ::vmap_s<DepDigest>                                  * Record::s_deps          = nullptr ;
 ::string                                             * Record::s_deps_err      = nullptr ;
 ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache  = nullptr ; // map file to read accesses
-bool                                                   Record::s_seen_chdir    = false   ;
 AutodepEnv*                                            Record::_s_autodep_env  = nullptr ; // declare as pointer to avoid late initialization
 Fd                                                     Record::_s_root_fd      ;
 
@@ -72,7 +71,7 @@ bool Record::s_is_simple(const char* file) {
 
 void Record::_static_report(JobExecRpcReq&& jerr) const {
 	switch (jerr.proc) {
-		case JobExecRpcProc::Access  :
+		case Proc::Access  :
 			if      (jerr.digest.write!=No) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected write/unlink to " ,f,'\n') ; // can have only deps from within server
 			else if (!s_deps              ) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected access of "       ,f,'\n') ; // can have no deps when no way to record them
 			else {
@@ -80,16 +79,16 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 				if (+jerr.files) s_deps->back().second.parallel = false ; // parallel bit is marked false on last of a series of parallel accesses
 			}
 		break ;
-		case JobExecRpcProc::Confirm :
-		case JobExecRpcProc::Guard   :
-		case JobExecRpcProc::Tmp     :
-		case JobExecRpcProc::Trace   : break ;
-		default                      : append_to_string(*s_deps_err,"unexpected proc ",jerr.proc,'\n') ;
+		case Proc::Confirm :
+		case Proc::Guard   :
+		case Proc::Tmp     :
+		case Proc::Trace   : break ;
+		default            : append_to_string(*s_deps_err,"unexpected proc ",jerr.proc,'\n') ;
 	}
 }
 
 void Record::_report_access( JobExecRpcReq&& jerr ) const {
-	SWEAR( jerr.proc==JobExecRpcProc::Access , jerr.proc ) ;
+	SWEAR( jerr.proc==Proc::Access , jerr.proc ) ;
 	if (s_autodep_env().disabled) return ;                                                 // dont update cache as report is not actually done
 	if (!jerr.sync) {
 		bool miss = false ;
@@ -123,8 +122,8 @@ JobExecRpcReply Record::direct(JobExecRpcReq&& jerr) {
 	} else {
 		// not under lmake, try to mimic server as much as possible, but of course no real info available
 		// XXX : for Encode/Decode, we should interrogate the server or explore association file directly so as to allow jobs to run with reasonable data
-		if ( jerr.sync && jerr.proc==JobExecRpcProc::DepInfos) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Hash::Crc>>(jerr.files.size(),{Yes,{}}) } ;
-		else                                                   return {                                                                               } ;
+		if ( jerr.sync && jerr.proc==Proc::DepInfos) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Hash::Crc>>(jerr.files.size(),{Yes,{}}) } ;
+		else                                         return {                                                                               } ;
 	}
 }
 

@@ -241,13 +241,13 @@ namespace Engine {
 	}
 
 	// answer to job execution requests
-	JobRpcReply JobExec::job_info( JobProc proc , ::vector<Dep> const& deps ) const {
+	JobMngtRpcReply JobExec::job_info( JobMngtProc proc , ::vector<Dep> const& deps ) const {
 		::vector<Req> reqs = (*this)->running_reqs(false/*with_zombies*/) ;
 		Trace trace("job_info",proc,deps.size()) ;
-		if (!reqs) return proc ;                   // if job is not running, it is too late
 		//
 		switch (proc) {
-			case JobProc::DepInfos : {
+			case JobMngtProc::DepInfos : {
+				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ;           // if job is not running, it is too late, seq_id will be filled in later
 				::vector<pair<Bool3/*ok*/,Crc>> res ; res.reserve(deps.size()) ;
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;
@@ -260,20 +260,22 @@ namespace Engine {
 					trace("dep_info",dep,dep_ok) ;
 					res.emplace_back(dep_ok,dep->crc) ;
 				}
-				return {proc,res} ;
+				return {proc,{}/*seq_id*/,{}/*fd*/,res} ;
 			}
-			case JobProc::ChkDeps :
+			case JobMngtProc::ChkDeps :
+				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,{}} ;              // if job is not running, it is too late, seq_id will be filled in later
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;
 					for( Req req : reqs ) {
-						NodeReqInfo const& cdri = dep->c_req_info(req) ;
-						if (!cdri.done(NodeGoal::Dsk)     ) { trace("waiting",dep,req) ; return {proc,Maybe} ; }
-						if (dep->ok(cdri,dep.accesses)==No) { trace("bad"    ,dep,req) ; return {proc,No   } ; }
+						NodeReqInfo const& cdri = dep->c_req_info(req)                             ;
+						NodeGoal           goal = +dep.accesses ? NodeGoal::Dsk : NodeGoal::Status ;                                   // if no access, we do not care about file on disk
+						if (!cdri.done(goal)              ) { trace("waiting",dep,req) ; return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ; } // seq_id will be filled in later
+						if (dep->ok(cdri,dep.accesses)==No) { trace("bad"    ,dep,req) ; return {proc,{}/*seq_id*/,{}/*fd*/,No   } ; } // .
 					}
 					trace("ok",dep) ;
 				}
 				trace("done") ;
-				return {proc,Yes} ;
+				return {proc,{}/*seq_id*/,{}/*fd*/,Yes} ;                                                                              // seq_id will be filled in later
 		DF}
 	}
 
@@ -602,6 +604,7 @@ namespace Engine {
 		req->stats.ended(jr)++ ;
 		req->stats.jobs_time[jr<=JR::Useful] += exec_time ;
 		if (with_stderr) req->audit_stderr(msg,stderr,max_stderr_len,1) ;
+		else             req->audit_stderr(msg,{}    ,max_stderr_len,1) ;
 		return res ;
 	}
 
@@ -677,7 +680,7 @@ namespace Engine {
 		} ;
 		auto need_run = [&](ReqInfo::State const& s)->bool {
 			SWEAR( pre_reason.tag<JobReasonTag::Err && ri.reason.tag<JobReasonTag::Err , pre_reason , ri.reason ) ;
-			return( +pre_reason || +s.reason || +ri.reason ) && s.reason.tag<JobReasonTag::Err ;                    // equivalent to +reason() && reason().tag<Err
+			return ( +pre_reason || +s.reason || +ri.reason ) && s.reason.tag<JobReasonTag::Err ;                   // equivalent to +reason() && reason().tag<Err
 		} ;
 		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(stop_speculate),old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers),prev_step) ;
 	RestartFullAnalysis :

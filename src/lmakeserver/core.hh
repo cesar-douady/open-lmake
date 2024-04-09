@@ -10,8 +10,8 @@
 #include "config.hh"
 
 #include "disk.hh"
-#include "fd.hh"
 #include "hash.hh"
+#include "msg.hh"
 #include "process.hh"
 #include "thread.hh"
 #include "time.hh"

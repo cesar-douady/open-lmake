@@ -54,7 +54,7 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::NoAllow    ]) ad.extra_tflags |= ExtraTflag::Allow       ;
 	if ( cmd_line.flags[Flag::SourceOk   ]) ad.extra_tflags |= ExtraTflag::SourceOk    ;
 	//
-	JobExecRpcReq jerr { JobExecRpcProc::Access , ::move(cmd_line.args) , ad , no_follow , false/*sync*/ , "ltarget" } ;
+	JobExecRpcReq jerr { JobExecProc::Access , ::move(cmd_line.args) , ad , no_follow , false/*sync*/ , "ltarget" } ;
 	Record(New,Yes/*enable*/).direct(::move(jerr)) ;
 	//
 	return 0 ;

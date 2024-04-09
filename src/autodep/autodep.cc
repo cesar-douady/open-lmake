@@ -36,7 +36,7 @@ int main( int argc , char* argv[] ) {
 	//
 	if (!cmd_line.flags[CmdFlag::AutodepMethod]) syntax.usage("must have both autodep-method and link-support options") ;
 	//
-	Gather gather{ New } ;
+	Gather gather ;
 	//
 	try {
 		/**/                                      gather.method                  = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;

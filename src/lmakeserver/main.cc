@@ -263,7 +263,7 @@ bool/*interrupted*/ engine_loop() {
 		EngineClosure closure = g_engine_queue.pop() ;
 		switch (closure.kind) {
 			case EngineClosureKind::Global : {
-				switch (closure.global_proc) {
+				switch (closure.ecg.proc) {
 					case GlobalProc::Int :
 						trace("int") ;
 						//       vvvvvvvvvvvv
@@ -276,22 +276,23 @@ bool/*interrupted*/ engine_loop() {
 				DF}
 			} break ;
 			case EngineClosureKind::Req : {
-				EngineClosureReq& req           = closure.req               ;
-				::string const&   startup_dir_s = req.options.startup_dir_s ;
-				switch (req.proc) {
+				EngineClosureReq& ecr           = closure.ecr               ;
+				Req               req           = ecr.req                   ;
+				::string const&   startup_dir_s = ecr.options.startup_dir_s ;
+				switch (ecr.proc) {
 					case ReqProc::Debug  :     // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 					case ReqProc::Forget :
 					case ReqProc::Mark   :
 					case ReqProc::Show   : {
-						trace(req) ;
+						trace(ecr) ;
 						bool ok = true/*garbage*/ ;
-						if ( !req.options.flags[ReqFlag::Quiet] && +startup_dir_s )
-							audit( req.out_fd , req.options , Color::Note , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) , true/*as_is*/ ) ;
-						try                        { ok = g_cmd_tab[+req.proc](req) ;                                  }
-						catch (::string  const& e) { ok = false ; if (+e) audit(req.out_fd,req.options,Color::Err,e) ; }
-						OMsgBuf().send( req.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ;
-						/**/                       req.in_fd .close() ;
-						if (req.out_fd!=req.in_fd) req.out_fd.close() ;
+						if ( !ecr.options.flags[ReqFlag::Quiet] && +startup_dir_s )
+							audit( ecr.out_fd , ecr.options , Color::Note , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) , true/*as_is*/ ) ;
+						try                        { ok = g_cmd_tab[+ecr.proc](ecr) ;                                  }
+						catch (::string  const& e) { ok = false ; if (+e) audit(ecr.out_fd,ecr.options,Color::Err,e) ; }
+						OMsgBuf().send( ecr.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ;
+						/**/                       ecr.in_fd .close() ;
+						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;
 					} break ;
 					// Make, Kill and Close management :
 					// there is exactly one Kill and one Close and one Make for each with only one guarantee : Close comes after Make
@@ -299,74 +300,86 @@ bool/*interrupted*/ engine_loop() {
 					// read  side is closed upon Kill  (cannot be upon Close as epoll.del must be called before close)
 					// write side is closed upon Close (cannot be upon Kill  as this may trigger lmake command termination, which, in turn, will trigger eof on the read side
 					case ReqProc::Make :
-						if (!req.req.zombie()) // if already zombie, dont make req.req
+						if (req.zombie()) // if already zombie, dont make req
+							trace("already_killed",req) ;
+						else
 							try {
 								::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
-								if (+msg) audit( req.out_fd , req.options , Color::Note , msg ) ;
+								if (+msg) audit( ecr.out_fd , ecr.options , Color::Note , msg ) ;
 								trace("new_req",req) ;
-								//vvvvvvvvvvvvvvv
-								req.req.make(req) ;
-								//^^^^^^^^^^^^^^^
-								if (!req.as_job()) record_targets(req.req->job) ;
-								fd_tab[req.req] = { .in=req.in_fd , .out=req.out_fd } ;
+								//vvvvvvvvvvv
+								req.make(ecr) ;
+								//^^^^^^^^^^^
+								if (!ecr.as_job()) record_targets(req->job) ;
+								fd_tab[req] = { .in=ecr.in_fd , .out=ecr.out_fd } ;
 								break ;
 							} catch(::string const& e) {
-								audit       ( req.out_fd , req.options , Color::Err , e ) ;
-								audit_status( req.out_fd , req.options , false/*ok*/    ) ;
-								// cannot make, process as if followed by Close
-								trace("no_make") ;
+								audit       ( ecr.out_fd , ecr.options , Color::Err , e ) ;
+								audit_status( ecr.out_fd , ecr.options , false/*ok*/    ) ;
+								trace("no_make",req) ;
 							}
-						/**/                       req.in_fd .close() ;
-						if (req.out_fd!=req.in_fd) req.out_fd.close() ;
+						// cannot make, process as if followed by Close
+						req.close() ;
+						/**/                       ecr.in_fd .close() ;
+						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;
 					break ;
 					case ReqProc::Close : {
-						auto it = fd_tab.find(req.req) ;
-						trace("close_req",req,it->second.in,it->second.out,STR(it->second.killed)) ;
-						//vvvvvvvvvvvvv
-						req.req.close() ;
-						//^^^^^^^^^^^^^
+						auto it = fd_tab.find(req) ;
+						trace("close_req",ecr,it->second.in,it->second.out,STR(it->second.killed)) ;
+						//vvvvvvvvv
+						req.close() ;
+						//^^^^^^^^^
 						if      (it->second.in!=it->second.out) ::close   (it->second.out        ) ;
 						else if (it->second.killed            ) ::close   (it->second.out        ) ; // we are after  Kill, finalize close of file descriptor
 						else                                    ::shutdown(it->second.out,SHUT_WR) ; // we are before Kill, shutdown until final close upon Close
 						fd_tab.erase(it) ;
 					} break ;
 					case ReqProc::Kill : {
-						Req  r          = req.req                                        ;
-						auto it         = fd_tab.find(r)                                 ;
-						bool req_active = it!=fd_tab.end() && it->second.out==req.out_fd ; // out_fd is held until now, and if it does not coincide with it->second, req id was reused for a new Req
+						auto it         = fd_tab.find(req)                               ;
+						bool req_active = it!=fd_tab.end() && it->second.out==ecr.out_fd ; // out_fd is held until now, and if it does not coincide with it->second, req id was reused for a new Req
 						//
-						if (it==fd_tab.end()) trace("kill_req",req                                                    ) ;
-						else                  trace("kill_req",req,it->second.in,it->second.out,STR(it->second.killed)) ;
-						//                             vvvvvvvv
-						if ( +r && +*r && req_active ) r.kill() ;
-						//                             ^^^^^^^^
+						if (it==fd_tab.end()) trace("kill_req",ecr                                                    ) ;
+						else                  trace("kill_req",ecr,it->second.in,it->second.out,STR(it->second.killed)) ;
+						//                                 vvvvvvvvvv
+						if ( +req && +*req && req_active ) req.kill() ;
+						//                                 ^^^^^^^^^^
 						if      (req_active           ) it->second.killed = true ;
-						if      (req.in_fd!=req.out_fd) ::close   (req.in_fd        ) ;
-						else if (!req_active          ) ::close   (req.in_fd        ) ;    // we are after  Close, finalize close of file descriptor
-						else                            ::shutdown(req.in_fd,SHUT_RD) ;    // we are before Close, shutdown until final close upon Close
+						if      (ecr.in_fd!=ecr.out_fd) ::close   (ecr.in_fd        ) ;
+						else if (!req_active          ) ::close   (ecr.in_fd        ) ;    // we are after  Close, finalize close of file descriptor
+						else                            ::shutdown(ecr.in_fd,SHUT_RD) ;    // we are before Close, shutdown until final close upon Close
 					} break ;
 				DF}
 			} break ;
 			case EngineClosureKind::Job : {
-				EngineClosureJob& job = closure.job ;
-				JobExec         & je  = job.exec    ;
-				trace("job",job.proc,je) ;
-				switch (job.proc) {
-					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::Start       : je.started     (job.report,job.report_unlnks,job.txt,job.backend_msg) ; break ;
-					case JobProc::ReportStart : je.report_start(                                                    ) ; break ;
-					case JobProc::LiveOut     : je.live_out    (job.txt                                             ) ; break ;
-					case JobProc::GiveUp      : je.give_up     (job.req , job.report                                ) ; break ;
-					case JobProc::End         : je.end         (job.rsrcs,job.digest,::move(job.backend_msg)        ) ; break ;
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					case JobProc::ChkDeps     :
-					case JobProc::DepInfos    : {
-						::vector<Dep> deps ; deps.reserve(job.digest.deps.size()) ;
-						for( auto const& [dn,dd] : job.digest.deps ) deps.emplace_back(Node(dn),dd) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						OMsgBuf().send( job.reply_fd , je.job_info(job.proc,deps) ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						::close(job.reply_fd) ;
+				EngineClosureJob& ecj = closure.ecj  ;
+				JobExec         & je  = ecj.job_exec ;
+				trace("job",ecj.proc,je) ;
+				switch (ecj.proc) {
+					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobProc::Start       : je.started     (ecj.report,ecj.report_unlnks,ecj.txt,ecj.msg) ; break ;
+					case JobProc::ReportStart : je.report_start(                                            ) ; break ;
+					case JobProc::GiveUp      : je.give_up     (ecj.req , ecj.report                        ) ; break ;
+					case JobProc::End         : je.end         (ecj.rsrcs,ecj.digest,::move(ecj.msg)        ) ; break ;
+					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				DF}
+			} break ;
+			case EngineClosureKind::JobMngt : {
+				EngineClosureJobMngt& ecjm = closure.ecjm ;
+				JobExec             & je   = ecjm.job_exec    ;
+				trace("job_mngt",ecjm.proc,je) ;
+				switch (ecjm.proc) {
+					//                           vvvvvvvvvvvvvvvvvvvv
+					case JobMngtProc::LiveOut  : je.live_out(ecjm.txt) ; break ;
+					//                           ^^^^^^^^^^^^^^^^^^^^
+					case JobMngtProc::ChkDeps  :
+					case JobMngtProc::DepInfos : {
+						::vector<Dep> deps ; deps.reserve(ecjm.deps.size()) ;
+						for( auto const& [dn,dd] : ecjm.deps ) deps.emplace_back(Node(dn),dd) ;
+						JobMngtRpcReply jmrr = je.job_info(ecjm.proc,deps) ;
+						jmrr.fd = ecjm.fd ;                                                // seq_id will be filled in by send_reply
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						Backends::send_reply( +je , ::move(jmrr) ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					} break ;
 				DF}
 			} break ;

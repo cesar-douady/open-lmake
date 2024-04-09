@@ -18,7 +18,7 @@ using namespace Hash ;
 using namespace Py   ;
 using namespace Time ;
 
-using Proc = JobExecRpcProc ;
+using Proc = JobExecProc ;
 
 static Record _g_record ;
 
@@ -123,7 +123,7 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
-	JobExecRpcReq jerr { JobExecRpcProc::Access , ::move(files) , ad , no_follow , false/*sync*/ , "target" } ;
+	JobExecRpcReq jerr { Proc::Access , ::move(files) , ad , no_follow , false/*sync*/ , "target" } ;
 	_g_record.direct(::move(jerr)) ;
 	//
 	return None.to_py_boost() ;

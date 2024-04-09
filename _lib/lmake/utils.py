@@ -24,10 +24,11 @@ class pdict(dict) :
 
 def multi_strip(txt) :
 	'in addition to stripping its input, this function also suppresses the common blank prefix of all lines'
-	ls = txt.strip().split('\n')
-	if not ls: return ''
+	ls = txt.split('\n')
+	while ls and ( not ls[ 0] or ls[ 0].isspace() ) : ls = ls[1:  ]
+	while ls and ( not ls[-1] or ls[-1].isspace() ) : ls = ls[ :-1]
+	if not ls : return ''
 	l0 = ls[0]
-	assert l0,'first line cannot be empty because input was stripped'
 	while l0[0].isspace() and all(not l or l[0]==l0[0] for l in ls) :
 		ls = [ l[1:] for l in ls ]
 		l0 = ls[0]

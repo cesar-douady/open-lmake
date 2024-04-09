@@ -354,11 +354,17 @@ namespace Engine {
 
 	static ::string _set_dir( ::string const& user_dir , ::string const& key , ::string const& file ) {
 		::string std_file = to_string(PrivateAdminDir,'/',file) ;
-		if (!user_dir) return std_file ;
+		if (!user_dir) {
+			if (!is_dir(std_file)) unlnk(std_file) ;
+			return std_file ;
+		}
 		::string special_file = to_string(user_dir,'/',key)                 ;
 		::string lnk_target   = mk_rel(special_file,dir_name(std_file)+'/') ;
-		if ( ::string t=read_lnk(std_file) ; +t ) swear_prod(t==lnk_target)               ;
-		else                                      lnk( dir_guard(std_file) , lnk_target ) ;
+		::string t            = read_lnk(std_file)                          ;
+		if (t!=lnk_target) {
+			unlnk(           std_file  , true/*dir_ok*/ ) ;
+			lnk  ( dir_guard(std_file) , lnk_target     ) ;
+		}
 		return special_file ;
 	}
 	void Config::open(bool dynamic) {
@@ -381,41 +387,54 @@ namespace Engine {
 	// EngineClosure
 	//
 
+	::ostream& operator<<( ::ostream& os , EngineClosureGlobal const& ecg ) {
+		return os << "Glb(" << ecg.proc <<')' ;
+	}
+
 	::ostream& operator<<( ::ostream& os , EngineClosureReq const& ecr ) {
-		os << "Req(" << ecr.proc <<',' ;
+		/**/                       os << "Req(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
 			case ReqProc::Debug  : // PER_CMD : format for tracing
 			case ReqProc::Forget :
 			case ReqProc::Mark   :
 			case ReqProc::Make   :
 			case ReqProc::Show   : os << ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
-			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                                        ; break ;
-			case ReqProc::Close  : os << ecr.req                                                              ; break ;
+			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
+			case ReqProc::Close  : os << ecr.req                                                             ; break ;
 		DF}
-		return os << ')' ;
+		return                     os << ')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosureJob const& ecj ) {
-		os << "Job(" << ecj.proc <<','<< ecj.exec ;
+		/**/                                            os << "Job(" << ecj.proc <<','<< ecj.job_exec ;
 		switch (ecj.proc) {
 			case JobProc::Start       : if (ecj.report) os <<",report" ; break ;
-			case JobProc::LiveOut     : os <<','<< ecj.txt.size()      ; break ;
-			case JobProc::GiveUp      : os <<','<< ecj.req             ; break ;
+			case JobProc::GiveUp      :                 os <<','<< ecj.req             ; break ;
 			case JobProc::ReportStart :                                  break ;
-			case JobProc::End         : os <<','<< ecj.digest          ; break ;
-			case JobProc::ChkDeps     : os <<','<< ecj.digest.deps     ; break ;
+			case JobProc::End         :                 os <<','<< ecj.digest          ; break ;
 		DF}
-		return os << ')' ;
+		return                                          os << ')' ;
+	}
+
+	::ostream& operator<<( ::ostream& os , EngineClosureJobMngt const& ecjm ) {
+		/**/                             os << "JobMngt(" << ecjm.proc <<','<< ecjm.job_exec ;
+		switch (ecjm.proc) {
+			case JobMngtProc::LiveOut  : os <<','<< ecjm.txt.size() ; break ;
+			case JobMngtProc::DepInfos : os <<','<< ecjm.deps       ; break ;
+			case JobMngtProc::ChkDeps  : os <<','<< ecjm.deps       ; break ;
+		DF}
+		return                           os << ')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosure const& ec ) {
-		os << "EngineClosure(" << ec.kind <<',' ;
+		/**/                                    os << "EngineClosure(" << ec.kind <<',' ;
 		switch (ec.kind) {
-			case EngineClosure::Kind::Global : os << ec.global_proc ; break ;
-			case EngineClosure::Kind::Job    : os << ec.job         ; break ;
-			case EngineClosure::Kind::Req    : os << ec.req         ; break ;
+			case EngineClosure::Kind::Global  : os << ec.ecg  ; break ;
+			case EngineClosure::Kind::Req     : os << ec.ecr  ; break ;
+			case EngineClosure::Kind::Job     : os << ec.ecj  ; break ;
+			case EngineClosure::Kind::JobMngt : os << ec.ecjm ; break ;
 		DF}
-		return os << ')' ;
+		return                                  os << ')' ;
 	}
 
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {

@@ -12,3 +12,20 @@ static bool started() { return AutodepLock::t_active ; } // no auto-start for se
 
 #define IN_SERVER
 #include "ld.x.cc"
+
+AutodepLock::AutodepLock(::vmap_s<DepDigest>* deps) : lock{_s_mutex} {
+	// SWEAR(cwd()==Record::s_autodep_env().root_dir) ;                   // too expensive
+	SWEAR( !Record::s_deps && !Record::s_deps_err ) ;
+	SWEAR( !*Record::s_access_cache               ) ;
+	Record::s_deps     = deps ;
+	Record::s_deps_err = &err ;
+	t_active           = true ;
+}
+
+AutodepLock::~AutodepLock() {
+	Record::s_deps     = nullptr ;
+	Record::s_deps_err = nullptr ;
+	t_active           = false   ;
+	Record::s_access_cache->clear() ;
+	if (auditer().seen_chdir) swear_prod(::fchdir(Record::s_root_fd())==0) ; // restore cwd in case it has been modified during user Python code execution
+}

@@ -134,7 +134,6 @@ namespace Py {
 		//
 		~Ptr() { unboost() ; }
 		//
-		Ptr& operator=(Object*    o) { unboost() ; ptr = o     ; boost()    ; return *this ; } // XXX : use copy&swap idiom
 		Ptr& operator=(Ptr const& p) { unboost() ; ptr = p.ptr ; boost()    ; return *this ; }
 		Ptr& operator=(Ptr     && p) { unboost() ; ptr = p.ptr ; p.detach() ; return *this ; }
 		// accesses
@@ -157,7 +156,8 @@ namespace Py {
 	} ;
 
 	template<class T> requires(!::is_same_v<Object,T>) struct PtrBase : Ptr<typename T::Base> {
-		using Base = Ptr<typename T::Base> ;
+		using TBase = typename T::Base ;
+		using Base = Ptr<TBase> ;
 		// cxtors & casts
 		PtrBase() = default ;
 		//
@@ -165,25 +165,20 @@ namespace Py {
 		PtrBase(Object*     o) : Base{       o } { _chk(&**this) ; }
 		PtrBase(Base const& o) : Base{       o } { _chk(&**this) ; }
 		PtrBase(Base     && o) : Base{::move(o)} { _chk(&**this) ; }
+		PtrBase(T*          o) : Base{       o } {                 }
 		//
-		PtrBase(T*             o) : Base{       o } {}
-		PtrBase(PtrBase const& o) : Base{       o } {}
-		PtrBase(PtrBase     && o) : Base{::move(o)} {}
-		//
-		PtrBase& operator=(PtrBase const&) = default ; // XXX : why is this necessary ?
-		PtrBase& operator=(PtrBase     &&) = default ; // .
 		// accesses
 		T      & operator* ()       { return *static_cast<T      *>(this->ptr) ; }
 		T const& operator* () const { return *static_cast<T const*>(this->ptr) ; }
 		T      * operator->()       { return &**this                           ; }
 		T const* operator->() const { return &**this                           ; }
 		//
-		operator Object                *()                                                       { return &**this ; }
-		operator Object           const*() const                                                 { return &**this ; }
-		operator typename T::Base      *()       requires(!::is_same_v<Object,typename T::Base>) { return &**this ; }
-		operator typename T::Base const*() const requires(!::is_same_v<Object,typename T::Base>) { return &**this ; }
-		operator T                     *()                                                       { return &**this ; }
-		operator T                const*() const                                                 { return &**this ; }
+		operator Object      *()                                            { return &**this ; }
+		operator Object const*() const                                      { return &**this ; }
+		operator TBase       *()       requires(!::is_same_v<Object,TBase>) { return &**this ; }
+		operator TBase  const*() const requires(!::is_same_v<Object,TBase>) { return &**this ; }
+		operator T           *()                                            { return &**this ; }
+		operator T      const*() const                                      { return &**this ; }
 	} ;
 
 	//

@@ -149,7 +149,7 @@ namespace Engine {
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
 		//
-		JobRpcReply      job_info( JobProc , ::vector<Dep> const& deps                                ) const ; // answer to requests from job execution
+		JobMngtRpcReply  job_info( JobMngtProc , ::vector<Dep> const& deps                            ) const ; // answer to requests from job execution
 		bool/*modified*/ end     ( ::vmap_ss const& rsrcs , JobDigest const& , ::string&& backend_msg ) ;       // hit indicates that result is from a cache hit
 		void             give_up ( Req={} , bool report=true                                          ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
@@ -419,7 +419,7 @@ namespace Engine {
 
 	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                    jd.targets.forget() ; jd.deps.forget() ;                }
 	inline JobData::~JobData          (            ) {                                                     targets.pop   () ;    deps.pop   () ;                }
-	inline JobData& JobData::operator=(JobData&& jd) { SWEAR(rule==jd.rule,rule,jd.rule) ; *this = jd ; jd.targets.forget() ; jd.deps.forget() ; return *this ; } // XXX : use copy&swap idiom
+	inline JobData& JobData::operator=(JobData&& jd) { SWEAR(rule==jd.rule,rule,jd.rule) ; *this = jd ; jd.targets.forget() ; jd.deps.forget() ; return *this ; }
 
 	inline ::string JobData::special_stderr   (                                 ) const { return special_stderr   (      {}) ; }
 	inline void     JobData::audit_end_special( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}) ; }

@@ -5,6 +5,7 @@
 
 #include "app.hh"
 #include "disk.hh"
+#include "msg.hh"
 #include "process.hh"
 #include "rpc_client.hh"
 #include "time.hh"
@@ -144,8 +145,8 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 				if (::write(out_fd,&c,1)!=1) throw "cannot send request"s ;
 			trace("sent",STR(fg),mk_printable(reqs[fg])) ;
 			for(;;) {
-				char                   c      = 0/*garbage*/                  ;
-				::vector<Epoll::Event> events = epoll.wait(500'000'000/*ns*/) ;                        // 500ms, normal reaction time is 20-50ms
+				char                   c      = 0/*garbage*/           ;
+				::vector<Epoll::Event> events = epoll.wait(Delay(0.5)) ;                               // normal reaction time is 20-50ms
 				SWEAR( events.size()<=1 , events.size() ) ;
 				if (!events.size()       ) throw "timeout"s ;                                          // there is a single fd, there may not be more than 1 event
 				SWEAR( events[0].fd()==in_fd , events[0].fd() , in_fd ) ;
@@ -208,7 +209,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSynt
 			ReqRpcReply report = IMsgBuf().receive<ReqRpcReply>(g_server_fds.in) ;
 			switch (report.proc) {
 				case Proc::None   : trace("done"                 ) ;                                               goto Return ;
-				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           goto Return ; // XXX : why is it necessary goto Return here ? ...
+				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           goto Return ; // XXX : why is it necessary to goto Return here ? ...
 				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ; // ... we should receive None when server closes stream
 				case Proc::Txt    :                                  ::cout << report.txt << flush ;               break       ;
 			DF}

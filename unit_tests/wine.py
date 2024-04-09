@@ -23,6 +23,8 @@ if __name__!='__main__' :
 
 	lmake.manifest = ('Lmakefile.py',)
 
+	lmake.config.network_delay = 10 # WineInit is still alive after job end for ~1s but may last more than 5s
+
 	class Base(Rule) :
 		stems = { 'Method' : r'\w+' }
 
@@ -34,7 +36,7 @@ if __name__!='__main__' :
 	class WineInit(WineRule) :
 		target       = '.wine/init'
 		targets      = { 'WINE' : '.wine/{*:.*}' }                                                     # for init wine env is not incremental
-		side_targets = { 'WINE' : None }
+		side_targets = { 'WINE' : None           }
 		allow_stderr = True
 		cmd          = 'wine64 cmd >$TMPDIR/out 2>$TMPDIR/err ; cat $TMPDIR/out ; cat $TMPDIR/err >&2' # do nothing, just to init support files (in targets), avoid waiting for stdout/stderr
 

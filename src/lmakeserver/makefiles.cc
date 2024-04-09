@@ -161,7 +161,7 @@ namespace Engine::Makefiles {
 		//
 		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
 		//
-		Gather     gather   { New }                                                                        ;
+		Gather     gather   ;
 		::string   data     = to_string(PrivateAdminDir,'/',action,"_data.py")                             ; dir_guard(data) ;
 		::vector_s cmd_line = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
 		gather.autodep_env.src_dirs_s = {"/"}       ;
