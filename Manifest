@@ -159,6 +159,7 @@ unit_tests/codec.py
 unit_tests/conflict.py
 unit_tests/conflict2.py
 unit_tests/critical.py
+unit_tests/critical2.py
 unit_tests/cwd.py
 unit_tests/cycle.py
 unit_tests/depend.py

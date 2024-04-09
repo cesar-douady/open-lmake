@@ -797,8 +797,8 @@ namespace Engine {
 	void Deps::replace_tail( DepsIter it , ::vector<Dep> const& deps ) {
 		// close current chunk
 		GenericDep* cur_dep = const_cast<GenericDep*>(it.hdr) ;
+		cur_dep->hdr.sz = it.i_chunk ;
 		if (it.i_chunk!=0) {
-			cur_dep->hdr.sz = it.i_chunk ;
 			_fill_hole(*cur_dep) ;
 			cur_dep = cur_dep->next() ;
 		}
@@ -808,7 +808,7 @@ namespace Engine {
 		for( auto const& d : deps ) _append_dep( ds , d , hole ) ;
 		_fill_hole(ds,hole) ;
 		// splice it
-		NodeIdx tail_sz = cur_dep-items() ;
+		NodeIdx tail_sz = items()+DepsBase::size()-cur_dep ;
 		if (ds.size()<=tail_sz) {
 			for( GenericDep const& d : ds ) *cur_dep++ = d ;                               // copy all
 			shorten_by(tail_sz-ds.size()) ;                                                // and shorten
