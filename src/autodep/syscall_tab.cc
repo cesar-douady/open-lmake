@@ -107,6 +107,7 @@ template<int FlagArg> bool _flag( uint64_t args[6] , int flag ) {
 }
 
 // chdir
+#if defined(SYS_chdir) || defined(SYS_fchdir)
 template<bool At> void _entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		if (At) { Record::Chdir* cd = new Record::Chdir( r , {Fd(args[0])          } , comment ) ; ctx = cd ;                           }
@@ -120,8 +121,10 @@ static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t pid , int64_t r
 	delete cd ;
 	return res ;
 }
+#endif
 
 // chmod
+#if defined(SYS_chmod) || defined (SYS_fchmodat)
 template<bool At,int FlagArg> void _entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Chmod* cm = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
@@ -136,8 +139,10 @@ static int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_t res )
 	delete cm ;
 	return res ;
 }
+#endif
 
 // creat
+#ifdef SYS_creat
 static void _entry_creat( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Open* o = new Record::Open( r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , comment ) ;
@@ -146,9 +151,11 @@ static void _entry_creat( void* & ctx , Record& r , pid_t pid , uint64_t args[6]
 	}
 	catch (int) {}
 }
+#endif
 // use _exit_open as exit proc
 
 // execve
+#if defined(SYS_execve) || defined(SYS_execveat)
 // must be called before actual syscall execution as after execution, info is no more available
 template<bool At,int FlagArg> static void _entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
@@ -156,8 +163,10 @@ template<bool At,int FlagArg> static void _entry_execve( void* & /*ctx*/ , Recor
 		_update<At>(args+0,e) ;
 	} catch (int) {}
 }
+#endif
 
 // getcwd
+#ifdef SYS_getcwd
 // getcwd is only necessary if tmp is mapped (not in table with ptrace)
 static void _entry_getcwd( void* & ctx , Record& , pid_t , uint64_t args[6] , const char* /*comment*/ ) {
 	size_t* sz = new size_t{args[1]} ;
@@ -173,8 +182,10 @@ static int64_t/*res*/ _exit_getcwd( void* ctx , Record& , pid_t pid , int64_t re
 	delete sz ;
 	return res ;
 }
+#endif
 
 // hard link
+#if defined(SYS_link) || defined(SYS_linkat)
 template<bool At,int FlagArg> void _entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
@@ -190,16 +201,20 @@ static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t
 	delete l ;
 	return res ;
 }
+#endif
 
 // mkdir
+#if defined(SYS_mkdir) || defined(SYS_mkdirat)
 template<bool At> void _entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Mkdir m{ r , _path<At>(pid,args+0) , comment } ;
 		_update<At>(args+0,m) ;
 	} catch (int) {}
 }
+#endif
 
 // open
+#if defined(SYS_name_to_handle_at) || defined(SYS_open) || defined(SYS_openat) || defined(SYS_openat2)
 template<bool At> void _entry_open( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Open* o = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , comment ) ;
@@ -215,8 +230,10 @@ static int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_
 	delete o ;
 	return res ;
 }
+#endif
 
 // read_lnk
+#if defined(SYS_readlink) || defined(SYS_readlinkat)
 using RLB = ::pair<Record::Readlink,uint64_t/*buf*/> ;
 template<bool At> void _entry_read_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
@@ -241,8 +258,10 @@ static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_
 	delete rlb ;
 	return res ;
 }
+#endif
 
 // rename
+#if defined(SYS_rename) || defined(SYS_renameat) || defined(SYS_renameat2)
 template<bool At,int FlagArg> void _entry_rename( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		#ifdef RENAME_EXCHANGE
@@ -268,8 +287,10 @@ static int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int6
 	delete rn ;
 	return res ;
 }
+#endif
 
 // symlink
+#if defined(SYS_symlink) || defined(SYS_symlinkat)
 template<bool At> void _entry_sym_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Symlnk* sl = new Record::Symlnk( r , _path<At>(pid,args+1) , comment ) ;
@@ -284,8 +305,10 @@ static int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res
 	delete sl ;
 	return res ;
 }
+#endif
 
 // unlink
+#if defined(SYS_rmdir) || defined(SYS_unlink) || defined(SYS_unlinkat)
 template<bool At,int FlagArg> void _entry_unlnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		bool           rmdir = _flag<FlagArg>(args,AT_REMOVEDIR)                                ;
@@ -301,6 +324,7 @@ static int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , pid_t , int64_t res )
 	delete u ;
 	return res ;
 }
+#endif
 
 // access
 template<bool At,int FlagArg> void _entry_stat( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
@@ -354,7 +378,7 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // this m
 	#ifdef SYS_execveat
 		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { _entry_execve  <true ,4         > , nullptr        ,0    , 1  , true     , "Execveat"          } ;
 	#endif
-	#if defined(SYS_getcwd)
+	#ifdef SYS_getcwd
 		// tmp mapping is not supported with ptrace
 		if (!for_ptrace) {
 		static_assert(SYS_getcwd           <NSyscalls) ; s_tab[SYS_getcwd           ] = { _entry_getcwd                     , _exit_getcwd   ,0    , 1  , true     , "Getcwd"            } ;
