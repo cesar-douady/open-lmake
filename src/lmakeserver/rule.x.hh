@@ -622,7 +622,7 @@ namespace Engine {
 		// END_OF_VERSIONING
 
 		// not stored on disk
-		::vector<VarIdx>        stem_mark_counts ;
+		::vector<size_t>        stem_mark_counts ;
 		/**/     TargetPattern  job_name_pattern ;
 		::vector<TargetPattern> patterns         ;
 		Crc                     match_crc        = Crc::None ;

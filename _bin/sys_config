@@ -267,6 +267,18 @@ EOF
 $CXX -o start_main -xc start_main.c
 USE_LIBC_START_MAIN=$(./start_main)
 
+#
+# PCRE
+#
+cat <<"EOF" > pcre.cc
+	#define PCRE2_CODE_UNIT_WIDTH 8
+	#include <pcre2.h>
+EOF
+if $CXX -c -std=c++20 -o pcre.o pcre.cc 2>/dev/null
+then HAS_PCRE=1
+else HAS_PCRE=0
+fi
+
 cd $START_DIR
 
 cat >$MK_FILE <<EOF
@@ -289,17 +301,21 @@ CXX_FLAVOR     := $CXX_FLAVOR
 LINK_LIB_PATH  := $LINK_LIB_PATH
 STD_INC_DIRS   := $STD_INC_DIRS
 #
+HAS_PCRE       := ${HAS_PCRE#0}
 HAS_SECCOMP    := ${HAS_SECCOMP#0}
 HAS_SLURM      := ${HAS_SLURM#0}
+#
 STD_PATH       := $(env -i /bin/bash -c 'echo $PATH')
 EOF
 
 cat >$H_FILE <<EOF
+	#pragma once
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD
 	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW
+	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_SLURM                   $HAS_SLURM

@@ -501,9 +501,9 @@ namespace Engine {
 
 	void ReqData::_report_no_rule( Node node , NfsGuard& nfs_guard , DepDepth lvl ) {
 		::string                          name      = node->name() ;
-		::vmap<RuleTgt,Rule::SimpleMatch> mrts      ;                                              // matching rules
-		RuleTgt                           art       ;                                              // set if an anti-rule matches
-		RuleIdx                           n_missing = 0            ;                               // number of rules missing deps
+		::vmap<RuleTgt,Rule::SimpleMatch> mrts      ;                                                   // matching rules
+		RuleTgt                           art       ;                                                   // set if an anti-rule matches
+		RuleIdx                           n_missing = 0            ;                                    // number of rules missing deps
 		//
 		if (name.size()>g_config.path_max) {
 			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
@@ -520,23 +520,24 @@ namespace Engine {
 			return ;
 		}
 		//
-		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                                       // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
+		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                                            // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
 			if (!rt.pattern().match(name) )              continue ;
 			if (rt->special==Special::Anti) { art = rt ; break    ; }
 			Rule::SimpleMatch m{rt,name} ;
-			mrts.emplace_back(rt,m) ;
-			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::MissingStatic ) continue ; // do not pass *this as req to avoid generating error message at cxtor time
+			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::MissingStatic ) goto Continue ; // do not pass *this as req to avoid generating error message at cxtor time
 			try                      { rt->deps_attrs.eval(m) ; }
-			catch (::pair_ss const&) { continue ;               }                                  // do not consider rule if deps cannot be computed
+			catch (::pair_ss const&) { goto Continue ;          }                                       // do not consider rule if deps cannot be computed
 			n_missing++ ;
+		Continue :
+			mrts.emplace_back(rt,::move(m)) ;
 		}
 		//
 		if ( !art && !mrts                             ) audit_node( Color::Err  , "no rule match"      , node , lvl   ) ;
 		else                                             audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
 		if ( !art && is_target(nfs_guard.access(name)) ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
 		//
-		for( auto const& [rt,m] : mrts ) {                                                         // second pass to do report
-			JobTgt            jt          { rt , name } ;                                          // do not pass *this as req to avoid generating error message at cxtor time
+		for( auto const& [rt,m] : mrts ) {                                                              // second pass to do report
+			JobTgt            jt          { rt , name } ;                                               // do not pass *this as req to avoid generating error message at cxtor time
 			::string          reason      ;
 			Node              missing_dep ;
 			::vmap_s<DepSpec> static_deps ;
@@ -544,7 +545,7 @@ namespace Engine {
 			try                                                    { static_deps = rt->deps_attrs.eval(m)                                                ;               }
 			catch (::pair_ss const& msg_err)                       { reason      = to_string("cannot compute its deps :\n",msg_err.first,msg_err.second) ; goto Report ; }
 			{	::string missing_key ;
-				for( bool search_non_buildable : {true,false} )                                    // first search a non-buildable, if not found, search for non makable as deps have been made
+				for( bool search_non_buildable : {true,false} )                                         // first search a non-buildable, if not found, search for non makable as deps have been made
 					for( auto const& [k,dn] : static_deps ) {
 						Node d{dn.txt} ;
 						if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
@@ -553,7 +554,7 @@ namespace Engine {
 						goto Found ;
 					}
 			Found :
-				SWEAR(+missing_dep) ;                                                              // else why wouldn't it apply ?!?
+				SWEAR(+missing_dep) ;                                                                   // else why wouldn't it apply ?!?
 				::string mdn = missing_dep->name()     ;
 				FileInfo fi  { nfs_guard.access(mdn) } ;
 				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag()==FileTag::Dir?" (dir)":"") ) ;

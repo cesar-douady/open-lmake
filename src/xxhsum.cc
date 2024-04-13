@@ -5,9 +5,12 @@
 
 #include "hash.hh"
 
+#include "re.hh"
+
 using namespace Hash ;
 
 int main( int argc , char* argv[] ) {
+
 	for( int i=1 ; i<argc ; i++ ) {
 		::cout << ::string(Crc(argv[i],Algo::Xxh)) ;
 		if (argc>2) ::cout <<' '<< argv[i] ;

@@ -141,19 +141,25 @@ class ConfigH(BaseRule) :
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 
-class SysConfig(PathRule) :
-    targets = {
+class SysConfig(PathRule) : # XXX : handle PCRE
+	targets = {
 		'H'     : 'sys_config.h'
-	,	'MK'    : 'sys_config.mk'
 	,	'TRIAL' : 'trial/{*:.*}'
 	}
-    deps = { 'EXE' : '_bin/sys_config' }
-    cmd  = 'CXX={gxx} PYTHON={sys.executable} ./{EXE} {MK} {H} 2>&1'
+	side_targets = {
+		'MK'    : 'sys_config.mk'
+	}
+	deps = { 'EXE' : '_bin/sys_config' }
+	cmd  = '''
+		CXX={gxx} PYTHON={sys.executable} ./{EXE} {MK} {H} 2>&1
+		echo '#undef  HAS_PCRE'   >> {H}
+		echo '#define HAS_PCRE 0' >> {H}
+	'''
 
 class VersionH(BaseRule) :
-    target = 'version.hh'
-    deps = { 'EXE' : '_bin/version' }
-    cmd  = "./{EXE} $(grep '\.cc$' Manifest) $(grep '\.hh$' Manifest)"
+	target = 'version.hh'
+	deps = { 'EXE' : '_bin/version' }
+	cmd  = "./{EXE} $(grep '\.cc$' Manifest) $(grep '\.hh$' Manifest)"
 
 opt_tab = {}
 class GenOpts(BaseRule) :

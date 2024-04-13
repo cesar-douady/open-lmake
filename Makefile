@@ -53,6 +53,9 @@ LINK_O    := $(CXX) $(COVERAGE) -r
 LINK_SO   := $(CXX) $(COVERAGE) $(LINK_OPTS) -shared                     # some usage may have specific libs, avoid dependencies
 LINK_BIN  := $(CXX) $(COVERAGE) $(LINK_OPTS)
 LINK_LIB  := -ldl
+ifneq ($(HAS_PCRE),)
+    LINK_LIB += -lpcre2-8
+endif
 #
 ifeq ($(CXX_FLAVOR),clang)
     WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
