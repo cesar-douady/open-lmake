@@ -1827,6 +1827,9 @@ The flags may be any combination of the following flags, optionally preceded by 
 @item Incremental   @tab incremental @tab No      @tab Previous content may be used to produce these targets.
 In that case, these are not unlinked before execution.
 However, if the link count is more than 1, they are uniquified, i.e. they are copied in place to ensure modification to the link does not alter other links.
+@item Optional      @tab optional    @tab No      @tab If this target is not generated, it is not deemed to be produced by the job.
+@lmake will try to find an alternative rule.
+This is equivalent to being a star target, except that there is no star stem.
 @item Phony         @tab phony       @tab No      @tab Accept that this target is not generated, this target is deemed generated even not physically on disk.
 If a star target, do not search for an alternative rule to produce the file.
 @item SourceOk      @tab source_ok   @tab No      @tab Do not generate an error if target is actually a source

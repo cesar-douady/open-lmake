@@ -67,7 +67,6 @@ static bool started() { return true ; }
 ,	{ "execvp"              , { reinterpret_cast<void*>(Audited::execvp              ) } }
 ,	{ "execvpe"             , { reinterpret_cast<void*>(Audited::execvpe             ) } }
 ,	{ "fchdir"              , { reinterpret_cast<void*>(Audited::fchdir              ) } }
-,	{ "fchmod"              , { reinterpret_cast<void*>(Audited::fchmod              ) } }
 ,	{ "fchmodat"            , { reinterpret_cast<void*>(Audited::fchmodat            ) } }
 ,	{ "fopen"               , { reinterpret_cast<void*>(Audited::fopen               ) } }
 ,	{ "fopen64"             , { reinterpret_cast<void*>(Audited::fopen64             ) } }
@@ -75,12 +74,14 @@ static bool started() { return true ; }
 ,	{ "__fork"              , { reinterpret_cast<void*>(Audited::__fork              ) } }
 ,	{ "freopen"             , { reinterpret_cast<void*>(Audited::freopen             ) } }
 ,	{ "freopen64"           , { reinterpret_cast<void*>(Audited::freopen64           ) } }
+,	{ "futimesat"           , { reinterpret_cast<void*>(Audited::futimesat           ) } }
 ,	{ "getcwd"              , { reinterpret_cast<void*>(Audited::getcwd              ) } } // necessary when tmp_view is not empty to map back to job view
 ,	{ "getwd"               , { reinterpret_cast<void*>(Audited::getwd               ) } } // .
 ,	{ "get_current_dir_name", { reinterpret_cast<void*>(Audited::get_current_dir_name) } } // .
 ,	{ "__libc_fork"         , { reinterpret_cast<void*>(Audited::__libc_fork         ) } }
 ,	{ "link"                , { reinterpret_cast<void*>(Audited::link                ) } }
 ,	{ "linkat"              , { reinterpret_cast<void*>(Audited::linkat              ) } }
+,	{ "lutimes"             , { reinterpret_cast<void*>(Audited::lutimes             ) } }
 ,	{ "mkdir"               , { reinterpret_cast<void*>(Audited::mkdir               ) } } // necessary against NFS strange notion of coherence as this touches containing dir
 ,	{ "mkostemp"            , { reinterpret_cast<void*>(Audited::mkostemp            ) } }
 ,	{ "mkostemp64"          , { reinterpret_cast<void*>(Audited::mkostemp64          ) } }
@@ -118,6 +119,9 @@ static bool started() { return true ; }
 ,	{ "truncate64"          , { reinterpret_cast<void*>(Audited::truncate64          ) } }
 ,	{ "unlink"              , { reinterpret_cast<void*>(Audited::unlink              ) } }
 ,	{ "unlinkat"            , { reinterpret_cast<void*>(Audited::unlinkat            ) } }
+,	{ "utime"               , { reinterpret_cast<void*>(Audited::utime               ) } }
+,	{ "utimensat"           , { reinterpret_cast<void*>(Audited::utimensat           ) } }
+,	{ "utimes"              , { reinterpret_cast<void*>(Audited::utimes              ) } }
 ,	{ "vfork"               , { reinterpret_cast<void*>(Audited::vfork               ) } } // because vfork semantic does not allow instrumentation of following exec
 ,	{ "__vfork"             , { reinterpret_cast<void*>(Audited::__vfork             ) } } // .
 //

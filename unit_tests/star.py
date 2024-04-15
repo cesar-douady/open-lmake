@@ -15,6 +15,10 @@ if __name__!='__main__' :
 	,	'hello'
 	)
 
+	class Opt(Rule) :
+		targets = { 'DST' : ('{File:.*}.opt','Optional') }
+		cmd     = '[ {File} != ok ] || echo > {DST}'
+
 	class Star(Rule) :
 		targets = { 'DST' : ('{File:.*}.star{D*:\\d+}',) }
 		dep     = '{File}'
@@ -34,7 +38,9 @@ else :
 
 	print( 'hello' , file=open('hello','w') )
 
-	ut.lmake( 'hello.star1.cpy' ,        done=2 , new=1 )
-	ut.lmake( 'hello.star2'     ,        done=0 , new=0 )
-	ut.lmake( 'hello.star3'     , rc=1 , done=0 , new=0 )
+	ut.lmake( 'hello.star1.cpy' ,        done=2   , new=1 )
+	ut.lmake( 'hello.star2'     ,        done=0   , new=0 )
+	ut.lmake( 'hello.star3'     , rc=1 , done=0   , new=0 )
+	ut.lmake( 'ok.opt'          ,        done=1   , new=0 )
+	ut.lmake( 'ko.opt'          , rc=1 , steady=1 , new=0 ) # no rule to make target
 

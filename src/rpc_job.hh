@@ -118,6 +118,7 @@ ENUM_1( ExtraTflag
 ,	NRule = Allow                           // number of Tflag's allowed in rule definition
 ,	Top
 ,	Ignore
+,	Optional
 ,	SourceOk                                // ok to overwrite source files
 ,	Allow                                   // writing to this target is allowed (for use in clmake.target and ltarget)
 ,	Wash                                    // target was unlinked when washing before job execution
@@ -126,6 +127,7 @@ ENUM_1( ExtraTflag
 static constexpr char ExtraTflagChars[] = {
 	0                                       // Top
 ,	'I'                                     // Ignore
+,	0                                       // Optional
 ,	's'                                     // SourceOk
 ,	'a'                                     // Allow
 ,	0                                       // Wash
@@ -419,9 +421,9 @@ struct DepInfo {
 	DepInfoKind kind = Kind::Crc ;
 private :
 	union {
-		Crc      _crc  ;     // ~46< 64 bits
-		FileSig  _sig  ;     //      64 bits
-		FileInfo _info ;     //     128 bits
+		Crc      _crc  ;          // ~46< 64 bits
+		FileSig  _sig  ;          //      64 bits
+		FileInfo _info ;          //     128 bits
 	} ;
 	// END_OF_VERSIONING
 } ;
@@ -611,8 +613,8 @@ struct JobRpcReq {
 	JobDigest digest      ;           // if proc==      End
 	::vmap_ss dynamic_env ;           // if proc==      End, env variables computed in job_exec
 	::string  msg         ;
-	// END_OF_VERSIONING
-} ;
+	// END_OF_VERSIONING)
+} ;                      
 
 struct MatchFlags {
 	friend ::ostream& operator<<( ::ostream& , MatchFlags const& ) ;

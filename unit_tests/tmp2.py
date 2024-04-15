@@ -81,7 +81,7 @@ if __name__!='__main__' :
 			sleep 0.1 # ensure a and b have different dates
 			cp b c
 			ls -l --full-time c > date1
-			touch -r b c
+			touch -r /tmp/d/b /tmp/d/c
 			ls -l --full-time c > date2
 			cmp date1 date2 >/dev/null && {{ echo 'touch did not change date' >&2 ; exit 1 ; }}
 			cd ..

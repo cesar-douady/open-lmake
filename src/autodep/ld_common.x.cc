@@ -9,7 +9,9 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/time.h>
 #include <unistd.h>
+#include <utime.h>
 
 #include "disk.hh"
 
@@ -294,16 +296,15 @@ struct Mkstemp : WSolve {
 	// chdir
 	// chdir must be tracked as we must tell Record of the new cwd
 	// /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int chdir (CC* pth) NE { HEADER0(chdir ,(pth)) ; NO_SERVER(chdir ) ; Chdir r{pth   ,"chdir" } ; return r(orig(F(r))) ; }
-	int fchdir(int fd ) NE { HEADER0(fchdir,(fd )) ; NO_SERVER(fchdir) ; Chdir r{Fd(fd),"fchdir"} ; return r(orig(A(r))) ; }
+	int chdir (CC* p ) NE { HEADER0(chdir ,(p )) ; NO_SERVER(chdir ) ; Chdir r{p     ,"chdir" } ; return r(orig(F(r))) ; }
+	int fchdir(int fd) NE { HEADER0(fchdir,(fd)) ; NO_SERVER(fchdir) ; Chdir r{Fd(fd),"fchdir"} ; return r(orig(A(r))) ; }
 
 	// chmod
 	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy
 
-	//                                                                                                                     exe     no_follow
-	int chmod   (        CC* pth,mode_t mod          ) NE { HEADER1(chmod   ,pth,(    pth,mod     )) ; Chmod r{     pth ,EXE(mod),false      ,"chmod"   } ; return r(orig(F(r),mod     )) ; }
-	int fchmod  (int fd ,        mode_t mod          ) NE { HEADER0(fchmod  ,    (fd     ,mod     )) ; Chmod r{Fd(fd)   ,EXE(mod),false      ,"fchmod"  } ; return r(orig(A(r),mod     )) ; }
-	int fchmodat(int dfd,CC* pth,mode_t mod, int flgs) NE { HEADER1(fchmodat,pth,(dfd,pth,mod,flgs)) ; Chmod r{{dfd,pth},EXE(mod),ASLNF(flgs),"fchmodat"} ; return r(orig(P(r),mod,flgs)) ; }
+	//                                                                                          exe   no_follow
+	int chmod   (      CC* p,mode_t m      ) NE { HEADER1(chmod   ,p,(  p,m  )) ; Chmod r{   p ,EXE(m),false   ,"chmod"   } ; return r(orig(F(r),m  )) ; }
+	int fchmodat(int d,CC* p,mode_t m,int f) NE { HEADER1(fchmodat,p,(d,p,m,f)) ; Chmod r{{d,p},EXE(m),ASLNF(f),"fchmodat"} ; return r(orig(P(r),m,f)) ; }
 
 	#ifndef IN_SERVER
 		// close
@@ -313,23 +314,23 @@ struct Mkstemp : WSolve {
 		int  close  (int fd ) { HEADER0(close  ,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
 		int  __close(int fd ) { HEADER0(__close,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
 		#if HAS_CLOSE_RANGE
-			int  close_range(uint fd1,uint fd2,int flgs) NE { HEADER0(close_range,(fd1,fd2,flgs)) ; Hide r{fd1,fd2,flgs} ; return r(orig(fd1,fd2,flgs)) ; }
+			int  close_range(uint fd1,uint fd2,int f) NE { HEADER0(close_range,(fd1,fd2,f)) ; Hide r{fd1,fd2,f} ; return r(orig(fd1,fd2,f)) ; }
 		#endif
 	#endif
 
 	#ifdef LD_PRELOAD
 		// dlopen
 		// not necessary with ld_audit as auditing mechanism provides a reliable way of finding indirect deps
-		void* dlopen (          CC* pth,int fs) NE { HEADER(dlopen ,!pth||!*pth,(   pth,fs)) ; Dlopen r{pth,"dlopen" } ; return r(orig(   pth,fs)) ; } // we do not support tmp mapping for indirect ...
-		void* dlmopen(Lmid_t lm,CC* pth,int fs) NE { HEADER(dlmopen,!pth||!*pth,(lm,pth,fs)) ; Dlopen r{pth,"dlmopen"} ; return r(orig(lm,pth,fs)) ; } // ... deps, so we can pass pth to orig
+		void* dlopen (          CC* p,int f) NE { HEADER(dlopen ,!p||!*p,(   p,f)) ; Dlopen r{p,"dlopen" } ; return r(orig(   p,f)) ; } // we do not support tmp mapping for indirect ...
+		void* dlmopen(Lmid_t lm,CC* p,int f) NE { HEADER(dlmopen,!p||!*p,(lm,p,f)) ; Dlopen r{p,"dlmopen"} ; return r(orig(lm,p,f)) ; } // ... deps, so we can pass pth to orig
 	#endif
 
 	#ifndef IN_SERVER
 		// dup2
 		// in case dup2/3 is called with one our fd's, we must hide somewhere else (unless in server)
-		int dup2  (int oldfd,int newfd         ) NE { HEADER0(dup2  ,(oldfd,newfd     )) ; Hide r{newfd} ; return r(orig(oldfd,newfd     )) ; }
-		int dup3  (int oldfd,int newfd,int flgs) NE { HEADER0(dup3  ,(oldfd,newfd,flgs)) ; Hide r{newfd} ; return r(orig(oldfd,newfd,flgs)) ; }
-		int __dup2(int oldfd,int newfd         ) NE { HEADER0(__dup2,(oldfd,newfd     )) ; Hide r{newfd} ; return r(orig(oldfd,newfd     )) ; }
+		int dup2  (int ofd,int nfd      ) NE { HEADER0(dup2  ,(ofd,nfd  )) ; Hide r{nfd} ; return r(orig(ofd,nfd  )) ; }
+		int dup3  (int ofd,int nfd,int f) NE { HEADER0(dup3  ,(ofd,nfd,f)) ; Hide r{nfd} ; return r(orig(ofd,nfd,f)) ; }
+		int __dup2(int ofd,int nfd      ) NE { HEADER0(__dup2,(ofd,nfd  )) ; Hide r{nfd} ; return r(orig(ofd,nfd  )) ; }
 	#endif
 
 	#ifdef LD_PRELOAD
@@ -343,11 +344,11 @@ struct Mkstemp : WSolve {
 
 	// execv
 	// execv*p cannot be simple as we do not know which file will be accessed
-	// exec may not support tmp mapping if it is involved along the interpreter path                                                       no_follow
-	int execv  (CC* pth,char* const argv[]                   ) NE { HEADER0(execv  ,(pth,argv     )) ; NO_SERVER(execv  ) ; Exec  r{pth,false  ,environ,"execv"  } ; return r(orig(F(r),argv     )) ; }
-	int execve (CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execve ,(pth,argv,envp)) ; NO_SERVER(execve ) ; Exec  r{pth,false  ,envp   ,"execve" } ; return r(orig(F(r),argv,envp)) ; }
-	int execvp (CC* pth,char* const argv[]                   ) NE { HEADER0(execvp ,(pth,argv     )) ; NO_SERVER(execvp ) ; Execp r{pth,        environ,"execvp" } ; return r(orig(F(r),argv     )) ; }
-	int execvpe(CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execvpe,(pth,argv,envp)) ; NO_SERVER(execvpe) ; Execp r{pth,        envp   ,"execvpe"} ; return r(orig(F(r),argv,envp)) ; }
+	// exec may not support tmp mapping if it is involved along the interpreter path                                             no_follow
+	int execv  (CC* p,char* const argv[]                   ) NE { HEADER0(execv  ,(p,argv     )) ; NO_SERVER(execv  ) ; Exec  r{p,false  ,environ,"execv"  } ; return r(orig(F(r),argv     )) ; }
+	int execve (CC* p,char* const argv[],char* const envp[]) NE { HEADER0(execve ,(p,argv,envp)) ; NO_SERVER(execve ) ; Exec  r{p,false  ,envp   ,"execve" } ; return r(orig(F(r),argv,envp)) ; }
+	int execvp (CC* p,char* const argv[]                   ) NE { HEADER0(execvp ,(p,argv     )) ; NO_SERVER(execvp ) ; Execp r{p,        environ,"execvp" } ; return r(orig(F(r),argv     )) ; }
+	int execvpe(CC* p,char* const argv[],char* const envp[]) NE { HEADER0(execvpe,(p,argv,envp)) ; NO_SERVER(execvpe) ; Execp r{p,        envp   ,"execvpe"} ; return r(orig(F(r),argv,envp)) ; }
 	//
 	int execveat( int dfd , CC* pth , char* const argv[] , char *const envp[] , int flgs ) NE {
 		HEADER1(execveat,pth,(dfd,pth,argv,envp,flgs)) ;
@@ -371,17 +372,16 @@ struct Mkstemp : WSolve {
 		int rc = value      ;                                                \
 		delete[] args ;                                                      \
 		return rc
-	int execl (CC* pth,CC* arg,...) NE { MK_ARGS(                                             , execv (pth,args     ) ) ; }
-	int execle(CC* pth,CC* arg,...) NE { MK_ARGS( char* const* envp = va_arg(args_lst,char**) , execve(pth,args,envp) ) ; }
-	int execlp(CC* pth,CC* arg,...) NE { MK_ARGS(                                             , execvp(pth,args     ) ) ; }
+	int execl (CC* p,CC* arg,...) NE { MK_ARGS(                                             , execv (p,args     ) ) ; }
+	int execle(CC* p,CC* arg,...) NE { MK_ARGS( char* const* envp = va_arg(args_lst,char**) , execve(p,args,envp) ) ; }
+	int execlp(CC* p,CC* arg,...) NE { MK_ARGS(                                             , execvp(p,args     ) ) ; }
 	#undef MK_ARGS
 
 	// fopen
-	FILE* fopen    (CC* pth,CC* mod         ) { HEADER1(fopen    ,pth,(pth,mod   )) ; Fopen r{pth   ,mod,"fopen"    } ; return r(orig(F(r),mod   )) ; }
-	FILE* fopen64  (CC* pth,CC* mod         ) { HEADER1(fopen64  ,pth,(pth,mod   )) ; Fopen r{pth   ,mod,"fopen64"  } ; return r(orig(F(r),mod   )) ; }
-	FILE* freopen  (CC* pth,CC* mod,FILE* fp) { HEADER1(freopen  ,pth,(pth,mod,fp)) ; Fopen r{pth   ,mod,"freopen"  } ; return r(orig(F(r),mod,fp)) ; }
-	FILE* freopen64(CC* pth,CC* mod,FILE* fp) { HEADER1(freopen64,pth,(pth,mod,fp)) ; Fopen r{pth   ,mod,"freopen64"} ; return r(orig(F(r),mod,fp)) ; }
-	FILE* fdopen   (int fd ,CC* mod         ) { HEADER0(fdopen   ,    (fd ,mod   )) ; Fopen r{Fd(fd),mod,"fdopen"   } ; return r(orig(A(r),mod   )) ; }
+	FILE* fopen    (CC* p,CC* m         ) { HEADER1(fopen    ,p,(p,m   )) ; Fopen r{p,m,"fopen"    } ; return r(orig(F(r),m   )) ; }
+	FILE* fopen64  (CC* p,CC* m         ) { HEADER1(fopen64  ,p,(p,m   )) ; Fopen r{p,m,"fopen64"  } ; return r(orig(F(r),m   )) ; }
+	FILE* freopen  (CC* p,CC* m,FILE* fp) { HEADER1(freopen  ,p,(p,m,fp)) ; Fopen r{p,m,"freopen"  } ; return r(orig(F(r),m,fp)) ; }
+	FILE* freopen64(CC* p,CC* m,FILE* fp) { HEADER1(freopen64,p,(p,m,fp)) ; Fopen r{p,m,"freopen64"} ; return r(orig(F(r),m,fp)) ; }
 
 	// fork
 	// not recursively called by auditing code
@@ -402,8 +402,8 @@ struct Mkstemp : WSolve {
 		// cf man 3 getcwd (Linux)
 		// needed for tmp mapping (not available in server)
 		// nothing to hide, but calling Hide guarantees all invariants (in particular errno management and auditer initialization)
-		char* getcwd              (char* buf,size_t sz) NE { HEADER0(getcwd              ,(buf,sz)) ; Getcwd r{sz      ,buf?No:sz?Maybe:Yes} ; return r(orig(buf,sz)) ; }
-		char* get_current_dir_name(                   ) NE { HEADER0(get_current_dir_name,(      )) ; Getcwd r{PATH_MAX,Yes                } ; return r(orig(      )) ; }
+		char* getcwd              (char* b,size_t sz) NE { HEADER0(getcwd              ,(b,sz)) ; Getcwd r{sz      ,b?No:sz?Maybe:Yes} ; return r(orig(b,sz)) ; }
+		char* get_current_dir_name(                 ) NE { HEADER0(get_current_dir_name,(    )) ; Getcwd r{PATH_MAX,Yes              } ; return r(orig(    )) ; }
 		#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 		char* getwd               (char* buf          ) NE { HEADER0(getwd               ,(buf   )) ; Getcwd r{PATH_MAX,No                 } ; return r(orig(buf   )) ; }
@@ -419,14 +419,14 @@ struct Mkstemp : WSolve {
 	int mkdirat(int d,CC* p,mode_t m) NE { HEADER1(mkdirat,p,(d,p,m)) ; Mkdir r{{d,p},"mkdir"  } ; return r(orig(P(r),m)) ; }
 
 	// mkstemp
-	int mkstemp    (char* tmpl                     ) { HEADER0(mkstemp    ,(tmpl             )) ; Mkstemp r{tmpl,        "mkstemp"    } ; return r(orig(F(r)             )) ; }
-	int mkostemp   (char* tmpl,int flgs            ) { HEADER0(mkostemp   ,(tmpl,flgs        )) ; Mkstemp r{tmpl,        "mkostemp"   } ; return r(orig(F(r),flgs        )) ; }
-	int mkstemps   (char* tmpl,         int sfx_len) { HEADER0(mkstemps   ,(tmpl,     sfx_len)) ; Mkstemp r{tmpl,sfx_len,"mkstemps"   } ; return r(orig(F(r),     sfx_len)) ; }
-	int mkostemps  (char* tmpl,int flgs,int sfx_len) { HEADER0(mkostemps  ,(tmpl,flgs,sfx_len)) ; Mkstemp r{tmpl,sfx_len,"mkostemps"  } ; return r(orig(F(r),flgs,sfx_len)) ; }
-	int mkstemp64  (char* tmpl                     ) { HEADER0(mkstemp64  ,(tmpl             )) ; Mkstemp r{tmpl,        "mkstemp64"  } ; return r(orig(F(r)             )) ; }
-	int mkostemp64 (char* tmpl,int flgs            ) { HEADER0(mkostemp64 ,(tmpl,flgs        )) ; Mkstemp r{tmpl,        "mkostemp64" } ; return r(orig(F(r),flgs        )) ; }
-	int mkstemps64 (char* tmpl,         int sfx_len) { HEADER0(mkstemps64 ,(tmpl,     sfx_len)) ; Mkstemp r{tmpl,sfx_len,"mkstemps64" } ; return r(orig(F(r),     sfx_len)) ; }
-	int mkostemps64(char* tmpl,int flgs,int sfx_len) { HEADER0(mkostemps64,(tmpl,flgs,sfx_len)) ; Mkstemp r{tmpl,sfx_len,"mkostemps64"} ; return r(orig(F(r),flgs,sfx_len)) ; }
+	int mkstemp    (char* t             ) { HEADER0(mkstemp    ,(t     )) ; Mkstemp r{t,   "mkstemp"    } ; return r(orig(F(r)     )) ; }
+	int mkostemp   (char* t,int f       ) { HEADER0(mkostemp   ,(t,f   )) ; Mkstemp r{t,   "mkostemp"   } ; return r(orig(F(r),f   )) ; }
+	int mkstemps   (char* t,      int sl) { HEADER0(mkstemps   ,(t,  sl)) ; Mkstemp r{t,sl,"mkstemps"   } ; return r(orig(F(r),  sl)) ; }
+	int mkostemps  (char* t,int f,int sl) { HEADER0(mkostemps  ,(t,f,sl)) ; Mkstemp r{t,sl,"mkostemps"  } ; return r(orig(F(r),f,sl)) ; }
+	int mkstemp64  (char* t             ) { HEADER0(mkstemp64  ,(t     )) ; Mkstemp r{t,   "mkstemp64"  } ; return r(orig(F(r)     )) ; }
+	int mkostemp64 (char* t,int f       ) { HEADER0(mkostemp64 ,(t,f   )) ; Mkstemp r{t,   "mkostemp64" } ; return r(orig(F(r),f   )) ; }
+	int mkstemps64 (char* t,      int sl) { HEADER0(mkstemps64 ,(t,  sl)) ; Mkstemp r{t,sl,"mkstemps64" } ; return r(orig(F(r),  sl)) ; }
+	int mkostemps64(char* t,int f,int sl) { HEADER0(mkostemps64,(t,f,sl)) ; Mkstemp r{t,sl,"mkostemps64"} ; return r(orig(F(r),f,sl)) ; }
 
 	// open
 	#define MOD mode_t m = 0 ; if ( f & (O_CREAT|O_TMPFILE) ) { va_list lst ; va_start(lst,f) ; m = va_arg(lst,mode_t) ; va_end(lst) ; }
@@ -491,16 +491,23 @@ struct Mkstemp : WSolve {
 	int rmdir(CC* p) NE { HEADER1(rmdir,p,(p)) ; Unlnk r{p,true/*rmdir*/,"rmdir"} ; return r(orig(F(r))) ; }
 
 	// symlink
-	int symlink  (CC* target,        CC* pth) NE { HEADER1(symlink  ,pth,(target,    pth)) ; Symlnk r{     pth ,"symlink"  } ; return r(orig(target,F(r))) ; }
-	int symlinkat(CC* target,int dfd,CC* pth) NE { HEADER1(symlinkat,pth,(target,dfd,pth)) ; Symlnk r{{dfd,pth},"symlinkat"} ; return r(orig(target,P(r))) ; }
+	int symlink  (CC* t,      CC* p) NE { HEADER1(symlink  ,p,(t,  p)) ; Symlnk r{   p ,"symlink"  } ; return r(orig(t,F(r))) ; }
+	int symlinkat(CC* t,int d,CC* p) NE { HEADER1(symlinkat,p,(t,d,p)) ; Symlnk r{{d,p},"symlinkat"} ; return r(orig(t,P(r))) ; }
 
 	// truncate
-	int truncate  (CC* pth,off_t len) NE { HEADER1(truncate  ,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate"  } ; return r(orig(F(r),len)) ; }
-	int truncate64(CC* pth,off_t len) NE { HEADER1(truncate64,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(F(r),len)) ; }
+	int truncate  (CC* p,off_t l) NE { HEADER1(truncate  ,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate"  } ; return r(orig(F(r),l)) ; }
+	int truncate64(CC* p,off_t l) NE { HEADER1(truncate64,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(F(r),l)) ; }
 
 	// unlink
-	int unlink  (        CC* pth         ) NE { HEADER1(unlink  ,pth,(    pth     )) ; Unlnk r{     pth ,false/*rmdir*/         ,"unlink"  } ; return r(orig(F(r)     )) ; }
-	int unlinkat(int dfd,CC* pth,int flgs) NE { HEADER1(unlinkat,pth,(dfd,pth,flgs)) ; Unlnk r{{dfd,pth},bool(flgs&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),flgs)) ; }
+	int unlink  (      CC* p      ) NE { HEADER1(unlink  ,p,(  p  )) ; Unlnk r{   p ,false/*rmdir*/      ,"unlink"  } ; return r(orig(F(r)  )) ; }
+	int unlinkat(int d,CC* p,int f) NE { HEADER1(unlinkat,p,(d,p,f)) ; Unlnk r{{d,p},bool(f&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),f)) ; }
+
+	// utime                                                                                                    no_follow read allow_tmp_map
+	int utime    (      CC* p,const struct utimbuf* t         ) { HEADER1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,true       ,"utime"    } ; return r(orig(F(r),t  )) ; }
+	int utimes   (      CC* p,const struct timeval  t[2]      ) { HEADER1(utimes   ,p,(  p,t  )) ; Solve r{   p ,false   ,false,true       ,"utimes"   } ; return r(orig(F(r),t  )) ; }
+	int futimesat(int d,CC* p,const struct timeval  t[2]      ) { HEADER1(futimesat,p,(d,p,t  )) ; Solve r{{d,p},false   ,false,true       ,"futimesat"} ; return r(orig(P(r),t  )) ; }
+	int lutimes  (      CC* p,const struct timeval  t[2]      ) { HEADER1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,true       ,"lutimes"  } ; return r(orig(F(r),t  )) ; }
+	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HEADER1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,true       ,"utimensat"} ; return r(orig(P(r),t,f)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
 	//                                                                                         no_follow read allow_tmp_map

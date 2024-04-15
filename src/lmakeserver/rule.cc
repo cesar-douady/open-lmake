@@ -271,10 +271,10 @@ namespace Engine {
 				case VarCmd::Dep   :                                                                        cb_str(vc,i,deps()    [i].first,deps   ()[i].second) ;   break ;
 				case VarCmd::Rsrc  : { auto it = rsrcs().find(rsrcs_spec[i].first) ; if (it!=rsrcs().end()) cb_str(vc,i,it->first          ,it->second         ) ; } break ;
 				//
-				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems  ; j++ ) dct.emplace_back(r->stems  [j].first,stems  ()[j]) ; cb_dct(vc,i,"stems"    ,dct   ) ; break ;
-				case VarCmd::Targets : for( VarIdx j=0 ; j<r->n_static_targets; j++ ) dct.emplace_back(r->matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
-				case VarCmd::Deps    : for( auto const& [k,d] : deps()              ) dct.emplace_back(k                  ,d           ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
-				case VarCmd::Rsrcs   :                                                                                                     cb_dct(vc,i,"resources",rsrcs_) ; break ;
+				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems   ; j++ ) dct.emplace_back(r->stems  [j].first,stems  ()[j]) ; cb_dct(vc,i,"stems"    ,dct   ) ; break ;
+				case VarCmd::Targets : for( VarIdx j=0 ; j<r->n_static_targets ; j++ ) dct.emplace_back(r->matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
+				case VarCmd::Deps    : for( auto const& [k,d] : deps()               ) dct.emplace_back(k                  ,d           ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
+				case VarCmd::Rsrcs   :                                                                                                      cb_dct(vc,i,"resources",rsrcs_) ; break ;
 			DF}
 		}
 	}
@@ -424,7 +424,7 @@ namespace Engine {
 			}
 			deps.emplace_back( key , DepSpec{ ::move(parsed_dep) , df , edf } ) ;
 		}
-		if (deps.size()>=Rule::NoVar-1) throw to_string("too many static deps : ",deps.size()) ; // -1 to leave some room to the interpreter, if any
+		if (deps.size()>=Rule::NoVar-1) throw to_string("too many static deps : ",deps.size()) ;                                     // -1 to leave some room to the interpreter, if any
 	}
 
 	void DepsAttrs::add_interpreter(RuleData const& rd) {
@@ -695,7 +695,7 @@ namespace Engine {
 					stem_defs.emplace( ::string(py_k.as_a<Str>()) , ::string(py_v.as_a<Str>()) ) ;
 			//
 			// augment stems with definitions found in job_name and targets
-			size_t unnamed_star_idx = 1 ;                                                                                // free running while walking over job_name + targets
+			size_t unnamed_star_idx = 1 ;                                                                             // free running while walking over job_name + targets
 			auto augment_stems = [&]( ::string const& k , bool star , ::string const* re , bool star_only ) -> void {
 				if (re) {
 					auto [it,inserted] = stem_defs.emplace(k,*re) ;
@@ -703,7 +703,7 @@ namespace Engine {
 				}
 				if ( !star_only || star ) {
 					auto [it,inserted] = stem_stars.emplace(k,No|star) ;
-					if ( !inserted && (No|star)!=it->second ) it->second = Maybe ;                                       // stem is used both as static and star
+					if ( !inserted && (No|star)!=it->second ) it->second = Maybe ;                                    // stem is used both as static and star
 				}
 			} ;
 			field = "job_name" ;
@@ -718,8 +718,8 @@ namespace Engine {
 			::string job_name_msg = "job_name" ;
 			for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {
 				field = py_k.as_a<Str>() ;
-				::string  target =                    py_tkfs.as_a<Sequence>()[0].as_a<Str>()  ;                         // .
-				MatchKind kind   = mk_enum<MatchKind>(py_tkfs.as_a<Sequence>()[1].as_a<Str>()) ;                         // targets are a tuple (target_pattern,kind,flags...)
+				::string  target =                    py_tkfs.as_a<Sequence>()[0].as_a<Str>()  ;                      // .
+				MatchKind kind   = mk_enum<MatchKind>(py_tkfs.as_a<Sequence>()[1].as_a<Str>()) ;                      // targets are a tuple (target_pattern,kind,flags...)
 				// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 				if (target!=job_name) {
 					_parse_py( target , &unnamed_star_idx ,
@@ -736,7 +736,7 @@ namespace Engine {
 			//
 			// gather job_name and targets
 			field            = "job_name" ;
-			unnamed_star_idx = 1          ;                                                                              // reset free running at each pass over job_name+targets
+			unnamed_star_idx = 1          ;                                                                           // reset free running at each pass over job_name+targets
 			VarIdx n_static_unnamed_stems = 0     ;
 			bool   job_name_is_star       = false ;
 			auto   stem_words             = []( ::string const& k , bool star , bool unnamed ) -> ::string {
@@ -752,25 +752,25 @@ namespace Engine {
 			) ;
 			//
 			field = "matches" ;
-			{	::vmap_s<MatchEntry> star_matches                 ;                                                      // defer star matches so that static targets are put first
-				::vmap_s<MatchEntry> static_matches[N<MatchKind>] ;                                                      // defer star matches so that static targets are put first
+			{	::vmap_s<MatchEntry> star_matches                 ;                                                   // defer star matches so that static targets are put first
+				::vmap_s<MatchEntry> static_matches[N<MatchKind>] ;                                                   // defer star matches so that static targets are put first
 				bool                 seen_top                     = false ;
 				bool                 seen_target                  = false ;
-				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                            // targets are a tuple (target_pattern,flags...)
+				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                                      // targets are a tuple (target_pattern,flags...)
 					field = py_k.as_a<Str>() ;
 					Sequence const& pyseq_tkfs         = py_tkfs.as_a<Sequence>()                      ;
-					::string        target             =                    pyseq_tkfs[0].as_a<Str>()  ;                 // .
-					MatchKind       kind               = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                 // targets are a tuple (target_pattern,kind,flags...)
+					::string        target             =                    pyseq_tkfs[0].as_a<Str>()  ;                                           // .
+					MatchKind       kind               = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                                           // targets are a tuple (target_pattern,kind,flags...)
 					bool            is_star            = false                                         ;
 					::set_s         missing_stems      ;
 					bool            is_target          = kind!=MatchKind::SideDeps                     ;
 					bool            is_official_target = kind==MatchKind::Target                       ;
 					bool            is_stdout          = field=="<stdout>"                             ;
+					MatchFlags      flags              ;
 					Tflags          tflags             ;
 					Dflags          dflags             ;
 					ExtraTflags     extra_tflags       ;
 					ExtraDflags     extra_dflags       ;
-					MatchFlags      flags              ;
 					//
 					// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 					if (target==job_name) {
@@ -793,20 +793,25 @@ namespace Engine {
 							}
 						) ;
 					}
-					if ( !is_star                       ) tflags |= Tflag::Static    ;
-					if (             is_official_target ) tflags |= Tflag::Target    ;
-					if ( !is_star && is_official_target ) tflags |= Tflag::Essential ;                                   // static targets are essential by default
-					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
-					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
+					bool is_native_star = is_star ;
+					if (             is_official_target     ) tflags |= Tflag::Target    ;
+					if ( !is_star && is_official_target     ) tflags |= Tflag::Essential ;                                                         // static targets are essential by default
+					if ( is_target                          ) _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ;
+					else                                      _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ;
+					if ( extra_tflags[ExtraTflag::Optional] ) is_star  = true                  ;
+					if ( !is_star                           ) tflags  |= Tflag::Static         ;
+					if (is_target                           ) flags    = {tflags,extra_tflags} ;
+					else                                      flags    = {dflags,extra_dflags} ;
 					// check
-					if ( target.starts_with(root_dir_s)             ) throw to_string(snake(kind)," must be relative to root dir : "         ,target) ;
-					if ( !is_lcl(target)                            ) throw to_string(snake(kind)," must be local : "                        ,target) ;
-					if ( !is_canon(target)                          ) throw to_string(snake(kind)," must be canonical : "                    ,target) ;
-					if ( +missing_stems                             ) throw to_string("missing stems ",missing_stems," in ",snake(kind)," : ",target) ;
-					if ( !is_official_target        && is_special() ) throw           "flags are meaningless for source and anti-rules"s              ;
-					if (  is_star                   && is_special() ) throw to_string("star ",kind,"s are meaningless for source and anti-rules")     ;
-					if (  is_star                   && is_stdout    ) throw           "stdout cannot be directed to a star target"s                   ;
-					if ( tflags[Tflag::Incremental] && is_stdout    ) throw           "stdout cannot be directed to an incremental target"s           ;
+					if ( target.starts_with(root_dir_s)                          ) throw to_string(snake(kind)," must be relative to root dir : "         ,target) ;
+					if ( !is_lcl(target)                                         ) throw to_string(snake(kind)," must be local : "                        ,target) ;
+					if ( !is_canon(target)                                       ) throw to_string(snake(kind)," must be canonical : "                    ,target) ;
+					if ( +missing_stems                                          ) throw to_string("missing stems ",missing_stems," in ",snake(kind)," : ",target) ;
+					if ( !is_official_target                   && is_special()   ) throw           "flags are meaningless for source and anti-rules"s              ;
+					if (  is_star                              && is_special()   ) throw to_string("star ",kind,"s are meaningless for source and anti-rules")     ;
+					if (  is_star                              && is_stdout      ) throw           "stdout cannot be directed to a star target"s                   ;
+					if ( tflags      [Tflag     ::Incremental] && is_stdout      ) throw           "stdout cannot be directed to an incremental target"s           ;
+					if ( extra_tflags[ExtraTflag::Optional   ] && is_native_star ) throw           "star targets are natively optional"                            ;
 					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;
@@ -1046,10 +1051,20 @@ namespace Engine {
 					flags << (first?" : ":" , ") << snake(df) ;
 					first = false ;
 				}
+				for( ExtraDflag edf : ExtraDflag::NRule ) {
+					if (!me.flags.extra_dflags()[edf]) continue ;
+					flags << (first?" : ":" , ") << snake(edf) ;
+					first = false ;
+				}
 			} else {
 				for( Tflag tf : Tflag::NRule ) {
 					if (!me.flags.tflags()[tf]) continue ;
 					flags << (first?" : ":" , ") << snake(tf) ;
+					first = false ;
+				}
+				for( ExtraTflag etf : ExtraTflag::NRule ) {
+					if (!me.flags.extra_tflags()[etf]) continue ;
+					flags << (first?" : ":" , ") << snake(etf) ;
 					first = false ;
 				}
 				if (me.flags.tflags()[Tflag::Target]) {
