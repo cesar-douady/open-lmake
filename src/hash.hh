@@ -61,7 +61,7 @@ namespace Hash {
 		static const Crc None    ;
 		static const Crc Empty   ;
 		// statics
-		static bool s_sense( Accesses a , FileTag t ) { // return whether accesses a can see the difference between files with tag t
+		static bool s_sense( Accesses a , FileTag t ) {              // return whether accesses a can see the difference between files with tag t
 			Crc crc{t} ;
 			return !crc.match(crc,a) ;
 		}
@@ -70,19 +70,19 @@ namespace Hash {
 		constexpr Crc( uint64_t v , bool is_lnk ) : _val{bit(v,0,is_lnk)} {}
 		constexpr Crc(FileTag tag) {
 			switch (tag) {
-				case FileTag::Reg  :
-				case FileTag::Exe  : *this = Crc::Reg     ; break ;
-				case FileTag::Lnk  : *this = Crc::Lnk     ; break ;
-				case FileTag::None :
-				case FileTag::Dir  : *this = Crc::None    ; break ;
-				default            : *this = Crc::Unknown ; break ;
-			}
+				case FileTag::None  :
+				case FileTag::Dir   : *this = Crc::None  ; break ;
+				case FileTag::Lnk   : *this = Crc::Lnk   ; break ;
+				case FileTag::Reg   :
+				case FileTag::Exe   : *this = Crc::Reg   ; break ;
+				case FileTag::Empty : *this = Crc::Empty ; break ;
+			DF}
 		}
-		Crc(                         ::string const& filename , Algo a ) ;
-		Crc( Time::Ddate&/*out*/ d , ::string const& filename , Algo a ) {
-			d     = Disk::file_date(filename) ;
-			*this = Crc(filename,a)           ;
-			if (Disk::file_date(filename)!=d) *this = Crc(d.tag()) ; // file was moving, association date<=>crc is not reliable
+		Crc(                             ::string const& filename , Algo a ) ;
+		Crc( Disk::FileSig&/*out*/ sig , ::string const& filename , Algo a ) {
+			sig   = Disk::FileSig(filename) ;
+			*this = Crc(filename,a)         ;
+			if (Disk::FileSig(filename)!=sig) *this = Crc(sig.tag()) ; // file was moving, association date<=>crc is not reliable
 		}
 	private :
 		constexpr Crc( CrcSpecial special ) : _val{+special} {}

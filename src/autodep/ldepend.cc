@@ -56,7 +56,7 @@ int main( int argc , char* argv[]) {
 	if ( cmd_line.flags[Flag::StatReadData]) ad.extra_dflags |= ExtraDflag::StatReadData ;
 	//
 	if (verbose) {
-		JobExecRpcReply reply = Record(New).direct(JobExecRpcReq( JobExecProc::DepInfos , ::copy(cmd_line.args) , ad , no_follow , true/*sync*/ , "ldepend" )) ;
+		JobExecRpcReply reply = Record(New).direct(JobExecRpcReq( JobExecProc::DepVerbose , ::copy(cmd_line.args) , ad , no_follow , true/*sync*/ , "ldepend" )) ;
 		//
 		SWEAR( reply.dep_infos.size()==cmd_line.args.size() , reply.dep_infos.size() , cmd_line.args.size() ) ;
 		//

@@ -85,7 +85,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		Ptr<Dict> res { New } ;
 		if (+files) {           // fast path : else, depend on no files
 			//
-			JobExecRpcReply reply = _g_record.direct(JobExecRpcReq( Proc::DepInfos , ::copy(files) , ad , no_follow , true/*sync*/ , "depend" )) ;
+			JobExecRpcReply reply = _g_record.direct(JobExecRpcReq( Proc::DepVerbose , ::copy(files) , ad , no_follow , true/*sync*/ , "depend" )) ;
 			//
 			SWEAR( reply.dep_infos.size()==files.size() , reply.dep_infos.size() , files.size() ) ;
 			for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {

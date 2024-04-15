@@ -34,14 +34,15 @@ namespace Engine {
 		for( int i=0 ;; i++ ) {                                                                  // try increasing resolution in file name until no conflict
 			::string lcl_log_file = "outputs/"+Pdate(New).str(i)         ;
 			::string log_file     = to_string(AdminDir,'/',lcl_log_file) ;
-			if (is_reg(log_file)) { SWEAR(i<=9,i) ; continue ; }                                 // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
+			if (FileInfo(log_file).tag()>=FileTag::Reg) { SWEAR(i<=9,i) ; continue ; }           // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
 			//
 			::string last = AdminDir+"/last_output"s ;
 			//
 			data.log_stream.open(log_file) ;
 			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                               }
 			catch (...) { exit(Rc::System,"cannot create symlink ",last," to ",lcl_log_file) ; }
-			data.start_date = { file_date(log_file) , New } ;                                    // use log_file as a date marker
+			data.start_ddate = file_date(log_file) ;                                             // use log_file as a date marker
+			data.start_pdate = New                 ;                                             // use log_file as a date marker
 			break ;
 		}
 		//
@@ -65,7 +66,7 @@ namespace Engine {
 			close() ;
 			throw ;
 		}
-		Trace trace("make",*this,s_n_reqs(),data.start_date,data.job) ;
+		Trace trace("make",*this,s_n_reqs(),data.start_ddate,data.start_pdate,data.job) ;
 		//
 		Job::ReqInfo& jri = data.job->req_info(*this) ;
 		jri.live_out = (*this)->options.flags[ReqFlag::LiveOut] ;
@@ -386,7 +387,7 @@ namespace Engine {
 			}
 		/**/                                   audit_info( Color::Note , to_string( "useful    time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
 		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun     time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "elapsed   time : " , (Pdate(New)-start_date.p)       .short_str()                  ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "elapsed   time : " , (Pdate(New)-start_pdate)        .short_str()                  ) ) ;
 		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string( "startup   dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (+up_to_dates) {
@@ -555,9 +556,9 @@ namespace Engine {
 					}
 			Found :
 				SWEAR(+missing_dep) ;                                                                   // else why wouldn't it apply ?!?
-				::string mdn = missing_dep->name()     ;
-				FileInfo fi  { nfs_guard.access(mdn) } ;
-				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag()==FileTag::Dir?" (dir)":"") ) ;
+				::string mdn = missing_dep->name()                   ;
+				FileTag tag  = FileInfo(nfs_guard.access(mdn)).tag() ;
+				reason = to_string( "misses static dep ", missing_key , (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ) ;
 			}
 		Report :
 			if (+missing_dep) audit_node( Color::Note , to_string("rule ",rt->name,' ',reason," :") , missing_dep , lvl+1 ) ;

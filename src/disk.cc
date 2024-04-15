@@ -6,6 +6,7 @@
 #include <sys/mman.h>
 
 #include "disk.hh"
+#include "hash.hh"
 
 using namespace filesystem ;
 
@@ -161,10 +162,9 @@ namespace Disk {
 	}
 
 	static void _walk( ::vector_s& res , Fd at , ::string const& file , ::string const& prefix ) {
-		switch (FileInfo(at,file).tag()) {
-			case FileTag::Err :                         return ;
-			case FileTag::Dir :                         break  ;
-			default           : res.push_back(prefix) ; return ;
+		if (FileInfo(at,file).tag()!=FileTag::Dir) {
+			res.push_back(prefix) ;
+			return ;
 		}
 		::vector_s lst ;
 		try                     { lst = lst_dir(at,file) ; }
@@ -289,25 +289,45 @@ namespace Disk {
 
 	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {
 		Stat st ;
-		errno = 0 ;
-		::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|(no_follow?AT_SYMLINK_NOFOLLOW:0) ) ;
-		FileTag tag = FileTag::Err ;
-		switch (errno) {
-			case 0       :                       break        ;
-			case ENOENT  :
-			case ENOTDIR : tag = FileTag::None ; goto TagOnly ;                                                   // no available info
-			default      :                       goto TagOnly ;                                                   // .
+		if (::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|(no_follow?AT_SYMLINK_NOFOLLOW:0) )!=0) return ;
+		//
+		FileTag tag ;
+		if (S_ISREG(st.st_mode)) {
+			if      (st.st_mode&S_IXUSR) tag = FileTag::Exe   ;
+			else if (!st.st_size       ) tag = FileTag::Empty ;
+			else                         tag = FileTag::Reg   ;
+		} else if (S_ISLNK(st.st_mode)) {
+			tag = FileTag::Lnk ;
+		} else {
+			if (S_ISDIR(st.st_mode)) date = Ddate(FileTag::Dir) ;
+			return ;
 		}
-		if      (S_ISREG(st.st_mode)) { tag = st.st_mode&S_IXUSR ? FileTag::Exe : FileTag::Reg ;                }
-		else if (S_ISLNK(st.st_mode)) { tag =                      FileTag::Lnk                ;                }
-		else if (S_ISDIR(st.st_mode)) { tag =                      FileTag::Dir                ; goto TagOnly ; } // no reliable info
-		else                          { tag =                      FileTag::Err                ; goto TagOnly ; } // .
 		sz   = st.st_size   ;
 		date = Ddate(st,tag);
-		return ;
-	TagOnly :
-		date = Ddate(tag) ;
 	}
+
+	//
+	// FileSig
+	//
+
+	::ostream& operator<<( ::ostream& os , FileSig const& sig ) {
+		return os<< "FileSig(" << ::hex<<(sig._val>>NBits<FileTag>)<<::dec <<':'<< sig.tag() <<')' ;
+	}
+
+	FileSig::FileSig( FileInfo const& fi ) {
+		_val = +fi.tag() ;
+		if (!fi) return ;
+		Hash::Xxh h ;
+		h.update(fi.date) ;
+		h.update(fi.sz  ) ;
+		_val |= (+h.digest()<<NBits<FileTag>) ;
+	}
+
+	//
+	// SigDate
+	//
+
+	::ostream& operator<<( ::ostream& os , SigDate const& sd ) { return os <<'('<< sd.sig <<','<< sd.date <<')' ; }
 
 	//
 	// FileMap

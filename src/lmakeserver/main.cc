@@ -280,7 +280,7 @@ bool/*interrupted*/ engine_loop() {
 				Req               req           = ecr.req                   ;
 				::string const&   startup_dir_s = ecr.options.startup_dir_s ;
 				switch (ecr.proc) {
-					case ReqProc::Debug  :     // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+					case ReqProc::Debug  :                // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 					case ReqProc::Forget :
 					case ReqProc::Mark   :
 					case ReqProc::Show   : {
@@ -300,7 +300,7 @@ bool/*interrupted*/ engine_loop() {
 					// read  side is closed upon Kill  (cannot be upon Close as epoll.del must be called before close)
 					// write side is closed upon Close (cannot be upon Kill  as this may trigger lmake command termination, which, in turn, will trigger eof on the read side
 					case ReqProc::Make :
-						if (req.zombie()) // if already zombie, dont make req
+						if (req.zombie())                 // if already zombie, dont make req
 							trace("already_killed",req) ;
 						else
 							try {
@@ -368,11 +368,11 @@ bool/*interrupted*/ engine_loop() {
 				JobExec             & je   = ecjm.job_exec    ;
 				trace("job_mngt",ecjm.proc,je) ;
 				switch (ecjm.proc) {
-					//                           vvvvvvvvvvvvvvvvvvvv
-					case JobMngtProc::LiveOut  : je.live_out(ecjm.txt) ; break ;
-					//                           ^^^^^^^^^^^^^^^^^^^^
-					case JobMngtProc::ChkDeps  :
-					case JobMngtProc::DepInfos : {
+					//                          vvvvvvvvvvvvvvvvvvvvv
+					case JobMngtProc::LiveOut : je.live_out(ecjm.txt) ; break ;
+					//                          ^^^^^^^^^^^^^^^^^^^^^
+					case JobMngtProc::ChkDeps    :
+					case JobMngtProc::DepVerbose : {
 						::vector<Dep> deps ; deps.reserve(ecjm.deps.size()) ;
 						for( auto const& [dn,dd] : ecjm.deps ) deps.emplace_back(Node(dn),dd) ;
 						JobMngtRpcReply jmrr = je.job_info(ecjm.proc,deps) ;

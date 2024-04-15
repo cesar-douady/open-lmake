@@ -13,7 +13,6 @@ items :
 ****************************************************************************************************
 
 * crash if python() dynamic attribute returns None
-* crash in regexpr (cf mail NM 2024/04/08 21:29)
 * fix compilation with LMAKE_FLAGS=ST
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions

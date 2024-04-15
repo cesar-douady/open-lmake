@@ -97,13 +97,13 @@ struct Digest {
 
 Digest analyze( bool at_end , bool killed=false ) {
 	Trace trace("analyze",STR(at_end),g_gather.accesses.size()) ;
-	Digest  res              ; res.deps.reserve(g_gather.accesses.size()) ;                                     // typically most of accesses are deps
+	Digest  res              ; res.deps.reserve(g_gather.accesses.size()) ;                                                                       // typically most of accesses are deps
 	NodeIdx prev_parallel_id = 0                                     ;
 	Pdate   relax            = Pdate(New)+g_start_info.network_delay ;
 	//
-	for( auto const& [file,info] : g_gather.accesses ) {
-		MatchFlags   flags = g_match_dct.at(file) ;
-		AccessDigest ad    = info.digest          ;
+	for( auto& [file,info] : g_gather.accesses ) {
+		MatchFlags    flags = g_match_dct.at(file) ;
+		AccessDigest& ad    = info.digest          ;
 		switch (flags.is_target) {
 			// if Ignore is in flags, it is there since the beginning
 			case Yes   : ad.tflags |= flags.tflags() ; ad.extra_tflags |= flags.extra_tflags() ; if (flags.extra_tflags()[ExtraTflag::Ignore]) { ad.accesses = {} ; ad.write = No ; } break ;
@@ -111,17 +111,11 @@ Digest analyze( bool at_end , bool killed=false ) {
 			case Maybe :                                                                       ;                                                                                      break ;
 		DF}
 		//
-		if (ad.write==Yes)                                                                                      // ignore reads after earliest confirmed write
+		if (ad.write==Yes)                                                                                                                        // ignore reads after earliest confirmed write
 			for( Access a : All<Access> )
 				if (info.read[+a]>info.write) ad.accesses &= ~a ;
-		bool is_dep = ad.dflags[Dflag::Static] ;
-		Access dep_access = {}            ;
-		Pdate  dep_date   = Pdate::Future ;
-		if (flags.is_target!=Yes) {                                                                             // if a target or a side target, it is a target since the beginning
-			for( Access a : All<Access> )
-				if ( ad.accesses[a] && info.read[+a]<dep_date ) { dep_date = info.read[+a] ; dep_access = a ; }
-			is_dep |= +ad.accesses && dep_date<=info.target ;                                                   // protect date test against info.target==Future
-		}
+		::pair<Pdate,Access> first_read = info.first_read()                                                                                     ;
+		bool                 is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && +ad.accesses && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
@@ -130,20 +124,22 @@ Digest analyze( bool at_end , bool killed=false ) {
 		;
 		// handle deps
 		if (is_dep) {
-			DepDigest dd { ad.accesses , info.crc_date , ad.dflags } ;
+			DepDigest dd { ad.accesses , info.dep_info , ad.dflags } ;
 			//
 			if ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = ~Accesses() ;
 			//
-			dd.parallel      = info.parallel_id && info.parallel_id==prev_parallel_id ;
-			prev_parallel_id = info.parallel_id                                       ;
+			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
+			dd.hot           = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.date_prec) ;
+			dd.parallel      = info.parallel_id && info.parallel_id==prev_parallel_id                                                                ;
+			prev_parallel_id = info.parallel_id                                                                                                      ;
 			//
-			if ( +dd.accesses && dd.is_date ) {                                                // try to transform date into crc as far as possible
+			if ( +dd.accesses && !dd.is_crc ) {                                                // try to transform date into crc as far as possible
 				if      ( info.seen==Pdate::Future||info.seen>info.write ) dd.crc(Crc::None) ; // the whole job has been executed without seeing the file (before possibly writing to it)
-				else if ( !dd.date()                                     ) dd.crc({}       ) ; // file was not present initially but was seen, it is incoherent even if not present finally
+				else if ( !dd.sig()                                      ) dd.crc({}       ) ; // file was not present initially but was seen, it is incoherent even if not present finally
 				else if ( ad.write!=No                                   ) {}                  // cannot check stability as we wrote to it, clash will be detecte in server if any
-				else if ( FileInfo dfi{file} ; dfi.date!=dd.date()       ) dd.crc({}       ) ; // file dates are incoherent from first access to end of job, dont know what has been read
-				else if ( !dfi                                           ) dd.crc({}       ) ; // file is awkward
-				else if ( !Crc::s_sense(dd.accesses,dfi.tag())           ) dd.crc(dfi.tag()) ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+				else if ( FileSig sig{file} ; sig!=dd.sig()              ) dd.crc({}       ) ; // file dates are incoherent from first access to end of job, dont know what has been read
+				else if ( !sig                                           ) dd.crc({}       ) ; // file is awkward
+				else if ( !Crc::s_sense(dd.accesses,sig.tag())           ) dd.crc(sig.tag()) ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			}
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
@@ -157,15 +153,15 @@ Digest analyze( bool at_end , bool killed=false ) {
 			TargetDigest td    { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
 			//
 			if (is_dep                        ) td.tflags   |= Tflag::Incremental              ;                    // if is_dep, previous target state is guaranteed by being a dep, use it
-			if (!td.tflags[Tflag::Incremental]) td.polluted  = info.crc_date.seen(ad.accesses) ;                    // polluted means that target was seen as existing before execution
+			if (!td.tflags[Tflag::Incremental]) td.polluted  = info.dep_info.seen(ad.accesses) ;                    // polluted means that target was seen as existing before execution
 			if ( is_dep && !unlnk ) {
 				trace("dep_and_target",ad,flags) ;
 				const char* read ;
-				switch (dep_access) {
-					case Access::Reg  : read = "read"     ; break ;
+				switch (first_read.second) {
 					case Access::Lnk  : read = "readlink" ; break ;
 					case Access::Stat : read = "stat"     ; break ;
-				DF}
+					default           : read = "read"     ;
+				}
 				append_to_string( res.msg , read," as dep before being known as a target : ",mk_file(file),'\n' ) ;
 				ad.tflags |= Tflag::Incremental ;                                                                   // file will have a predictible content, no reason to wash it
 			} else switch (flags.is_target) {
@@ -190,7 +186,7 @@ Digest analyze( bool at_end , bool killed=false ) {
 				case Maybe : relax.sleep_until() ; [[fallthrough]] ; // no need to optimize (could compute other crcs while waiting) as this is exceptional
 				case Yes   :
 					if      ( unlnk                               )   td.crc = Crc::None ;
-					else if ( killed || !td.tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag()) ; td.date = fi.date ; } // no crc if meaningless
+					else if ( killed || !td.tflags[Tflag::Target] ) { FileSig sig{file} ; td.crc = Crc(sig.tag()) ; td.sig = sig ; } // no crc if meaningless
 					else                                              res.crcs.emplace_back(res.targets.size()) ; // record index in res.targets for deferred (parallel) crc computation
 				break ;
 			DF}
@@ -243,8 +239,8 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
 		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ci]] ;
 		Pdate                   before = New                     ;
-		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;
-		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.date,e.first) ;
+		e.second.crc = Crc( e.second.sig/*out*/ , e.first , g_start_info.hash_algo ) ;
+		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.sig,e.first) ;
 		if (!e.second.crc.valid()) {
 			Lock lock{*msg_mutex} ;
 			append_to_string(*msg,"cannot compute crc for ",e.first) ;

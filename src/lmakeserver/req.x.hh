@@ -214,7 +214,7 @@ namespace Engine {
 namespace Engine {
 
 	struct ReqData {
-		friend struct Req ;
+		friend Req ;
 		using Idx = ReqIdx ;
 		template<IsWatcher T> struct InfoMap : ::umap<T,typename T::ReqInfo> {
 			typename T::ReqInfo dflt ;
@@ -246,9 +246,9 @@ namespace Engine {
 		void audit_job( Color , Pdate , SC& step , Job                          , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , SC& step , JobExec const&                                           , Delay exec_time={} ) const ;
 		//
-		void audit_job( Color c , SC& s , SC& rn , SC& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                          ,s,rn,jn,h,et) ; }
-		void audit_job( Color c , SC& s , Job j           , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                          ,s,j    ,h,et) ; }
-		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_date.p:je.start_date.p,s,je     ,et) ; }
+		void audit_job( Color c , SC& s , SC& rn , SC& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                                ,s,rn,jn,h,et) ; }
+		void audit_job( Color c , SC& s , Job j           , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                                ,s,j    ,h,et) ; }
+		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_date.date:je.start_date.date,s,je     ,et) ; }
 		#undef SC
 		//
 		void         audit_status( bool ok                                                                                    ) const ;
@@ -270,7 +270,8 @@ namespace Engine {
 		OFStream mutable     log_stream     ;           // saved output
 		Job      mutable     last_info      ;           // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
-		FullDate             start_date     ;
+		Pdate                start_pdate    ;
+		Ddate                start_ddate    ;
 		Delay                ete            ;           // Estimated Time Enroute
 		Pdate                eta            ;           // Estimated Time of Arrival
 		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule

@@ -61,7 +61,7 @@ CXX=${CXX:-g++}
 type -p $CXX >/dev/null    || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
 
 case "$($CXX --version|head -1)" in
-	*clang* ) CXX_FLAVOR=clang ; v=$($CXX -dumpversion) ; [ ${v%%.*} -lt 15 ] && { echo clang version must be at least 15  ; exit 1 ; } ;;
+	*clang* ) CXX_FLAVOR=clang ; v=$($CXX -dumpversion) ; [ ${v%%.*} -lt 14 ] && { echo clang version must be at least 14  ; exit 1 ; } ;;
 	*g++*   ) CXX_FLAVOR=gcc   ; v=$($CXX -dumpversion) ; [ ${v%%.*} -lt 11 ] && { echo gcc   version must be at least 11  ; exit 1 ; } ;;
 	*       )                                                                      echo cannot recognize c++ compiler $CXX ; exit 1     ;;
 esac

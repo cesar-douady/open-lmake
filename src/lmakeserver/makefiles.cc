@@ -40,16 +40,16 @@ namespace Engine::Makefiles {
 			::string              reason ;
 			FileInfo              fi     { nfs_guard.access(src) }                ;
 			if (+sr.lnks) {
-				/**/                                                      reason = to_string(" has symbolic link ",sr.lnks[0]," in its path") ;
+				/**/                                                               reason = to_string(" has symbolic link ",sr.lnks[0]," in its path") ;
 			} else if (is_dir_) {
-				if      ( !is_canon(src)                                ) reason =           " is not canonical"                              ;
-				else if ( src==".." || src.ends_with("/..")             ) reason =           " is a directory of the repo"                    ;
-				else if ( fi.tag()!=FileTag::Dir                        ) reason =           " is not a directory"                            ;
+				if      ( !is_canon(src)                                         ) reason =           " is not canonical"                              ;
+				else if ( src==".." || src.ends_with("/..")                      ) reason =           " is a directory of the repo"                    ;
+				else if ( fi.tag()!=FileTag::Dir                                 ) reason =           " is not a directory"                            ;
 			} else {
-				if      ( sr.file_loc!=FileLoc::Repo                    ) reason =           " is not in repo"                                ;
-				else if ( sr.real!=src                                  ) reason = to_string(" canonical form is ",sr.real)                   ;
-				else if ( lnk_support==LnkSupport::None && !fi.is_reg() ) reason =           " is not a regular file"                         ;
-				else if ( lnk_support!=LnkSupport::None && !fi          ) reason =           " is not a regular file nor a symbolic link"     ;
+				if      ( sr.file_loc!=FileLoc::Repo                             ) reason =           " is not in repo"                                ;
+				else if ( sr.real!=src                                           ) reason = to_string(" canonical form is ",sr.real)                   ;
+				else if ( lnk_support!=LnkSupport::None && !fi                   ) reason =           " is not a regular file nor a symbolic link"     ;
+				else if ( lnk_support==LnkSupport::None && fi.tag()<FileTag::Reg ) reason =           " is not a regular file"                         ;
 			}
 			if (+reason) throw to_string( is_dir_?"source dir ":"source " , src , reason ) ;
 			if (is_dir_) src_dirs_s.push_back   (src+'/')          ;

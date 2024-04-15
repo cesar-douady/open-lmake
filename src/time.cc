@@ -52,7 +52,6 @@ namespace Time {
 
 	::ostream& operator<<( ::ostream& os , Ddate    const  d ) { return os <<"DD:" << d.str(9) <<':'<< d.tag() ; }
 	::ostream& operator<<( ::ostream& os , Pdate    const  d ) { return os <<"PD:" << d.str(9)                 ; }
-	::ostream& operator<<( ::ostream& os , FullDate const& d ) { return os <<'('<< d.d <<','<< d.p <<')'       ; }
 
 	::string Date::str( uint8_t prec , bool in_day ) const {
 		if (!*this) return "None" ;

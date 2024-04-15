@@ -26,7 +26,7 @@ namespace Re {
 
 		inline void swap( Match& a , Match& b ) ;
 		struct Match {
-			friend class RegExpr ;
+			friend RegExpr ;
 			friend void swap( Match& a , Match& b ) ;
 			// statics
 		private :
@@ -63,7 +63,7 @@ namespace Re {
 
 		inline void swap( RegExpr& a , RegExpr& b ) ;
 		struct RegExpr {
-			friend class Match ;
+			friend Match ;
 			friend void swap( RegExpr& a , RegExpr& b ) ;
 			static constexpr size_t ErrMsgSz = 120 ; // per PCRE doc
 			// cxtors & casts
@@ -126,7 +126,7 @@ namespace Re {
 	#else
 
 		struct Match : private ::smatch {
-			friend class RegExpr ;
+			friend RegExpr ;
 			// cxtors & casts
 		private :
 			using smatch::smatch ;
@@ -142,7 +142,7 @@ namespace Re {
 		} ;
 
 		struct RegExpr : private ::regex {
-			friend class Match ;
+			friend Match ;
 			static constexpr ::regex_constants::syntax_option_type None { 0 } ;
 			// cxtors & casts
 			RegExpr() = default ;

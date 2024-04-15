@@ -51,6 +51,8 @@ namespace Disk {
 	::string dir_name (::string const&) ;
 	::string base_name(::string const&) ;
 
+	struct FileSig ;
+
 	struct FileInfo {
 		friend ::ostream& operator<<( ::ostream& , FileInfo const& ) ;
 		using Stat = struct ::stat ;
@@ -69,27 +71,56 @@ namespace Disk {
 		FileInfo(         ::string const& name , bool no_follow=true ) : FileInfo{Fd::Cwd,name,no_follow} {}
 		FileInfo( Fd at , ::string const& name , bool no_follow=true ) ;
 		// accesses
-		bool operator+() const {
-			switch (tag()) {
-				case FileTag::Reg :
-				case FileTag::Exe :
-				case FileTag::Lnk : return true  ;
-				default           : return false ;
-			}
-		}
-		bool    operator!() const { return !+*this    ; } // i.e. sz & date are not present
-		FileTag tag      () const { return date.tag() ; }
+		bool    operator==(FileInfo const&) const = default ;
 		//
-		bool is_reg() const {
-			switch (tag()) {
-				case FileTag::Reg :
-				case FileTag::Exe : return true  ;
-				default           : return false ;
-			}
-		}
+		bool    operator+() const { return tag()>=FileTag::Target ; }
+		bool    operator!() const { return !+*this                ; } // i.e. sz & date are not present
+		FileTag tag      () const { return date.tag()             ; }
+		FileSig sig      () const ;
 		// data
 		DiskSz sz   = 0 ;
 		Ddate  date ;
+	} ;
+
+	struct FileSig {
+		friend ::ostream& operator<<( ::ostream& , FileSig const& ) ;
+		// cxtors & casts
+	public :
+		FileSig(                                                    ) = default ;
+		FileSig( Fd at                                              ) : FileSig{at     ,{}                 } {}
+		FileSig(         ::string const& name , bool no_follow=true ) : FileSig{Fd::Cwd,name,no_follow     } {}
+		FileSig( Fd at , ::string const& name , bool no_follow=true ) : FileSig{FileInfo(at,name,no_follow)} {}
+		FileSig( FileInfo const&                                    ) ;
+		// accesses
+	public :
+		bool    operator==(FileSig const&) const = default ;
+		//
+		bool    operator+() const { return tag()>=FileTag::Target                ; }
+		bool    operator!() const { return !+*this                               ; }
+		FileTag tag      () const { return FileTag(_val&lsb_msk(NBits<FileTag>)) ; }
+		// data
+	private :
+		uint64_t _val = 0 ; // by default, no file
+	} ;
+
+	inline FileSig FileInfo::sig() const { return FileSig(*this) ; }
+
+	struct SigDate {
+		friend ::ostream& operator<<( ::ostream& , SigDate const& ) ;
+		using Pdate = Time::Pdate ;
+		// cxtors & casts
+		SigDate(                     ) = default ;
+		SigDate( NewType             ) :          date{New} {}
+		SigDate( FileSig s           ) : sig{s} , date{New} {}
+		SigDate(             Pdate d ) :          date{d  } {}
+		SigDate( FileSig s , Pdate d ) : sig{s} , date{d  } {}
+		// accesses
+		bool operator==(SigDate const&) const = default ;
+		bool operator+ (              ) const { return +date || +sig ; }
+		bool operator! (              ) const { return !+*this       ; }
+		// data
+		FileSig sig  ;
+		Pdate   date ;
 	} ;
 
 	struct NfsGuard {
@@ -173,7 +204,6 @@ namespace Disk {
 		return {buf,size_t(cnt)} ;
 	}
 
-	inline bool  is_reg   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).is_reg()            ; }
 	inline bool  is_dir   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag()==FileTag::Dir ; }
 	inline bool  is_target( Fd at , ::string const& file={} , bool no_follow=true ) { return +FileInfo(at,file,no_follow)                     ; }
 	inline bool  is_exe   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag()==FileTag::Exe ; }
@@ -192,7 +222,6 @@ namespace Disk {
 	inline Fd              open_read   ( ::string const& file                                                             ) { return open_read   (Fd::Cwd,file                     ) ; }
 	inline Fd              open_write  ( ::string const& file , bool append=false , bool exe=false , bool read_only=false ) { return open_write  (Fd::Cwd,file,append,exe,read_only) ; }
 	inline ::string        read_lnk    ( ::string const& file                                                             ) { return read_lnk    (Fd::Cwd,file                     ) ; }
-	inline bool            is_reg      ( ::string const& file , bool no_follow=true                                       ) { return is_reg      (Fd::Cwd,file,no_follow           ) ; }
 	inline bool            is_dir      ( ::string const& file , bool no_follow=true                                       ) { return is_dir      (Fd::Cwd,file,no_follow           ) ; }
 	inline bool            is_target   ( ::string const& file , bool no_follow=true                                       ) { return is_target   (Fd::Cwd,file,no_follow           ) ; }
 	inline bool            is_exe      ( ::string const& file , bool no_follow=true                                       ) { return is_exe      (Fd::Cwd,file,no_follow           ) ; }

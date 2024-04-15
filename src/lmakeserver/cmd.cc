@@ -135,9 +135,9 @@ namespace Engine {
 
 	static void _send_node( Fd fd , ReqOptions const& ro , bool always , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
 		Color color = Color::None ;
-		if      ( hide==Yes                                          ) color =                         Color::HiddenNote ;
-		else if ( !node->has_actual_job() && !FileInfo(node->name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
-		else if ( node->ok()==No                                     ) color =            Color::Err                     ;
+		if      ( hide==Yes                                           ) color =                         Color::HiddenNote ;
+		else if ( !node->has_actual_job() && !is_target(node->name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
+		else if ( node->ok()==No                                      ) color =            Color::Err                     ;
 		//
 		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , to_string(pfx,' ',mk_file(node->name())) , false/*as_is*/ , lvl ) ;
 	}

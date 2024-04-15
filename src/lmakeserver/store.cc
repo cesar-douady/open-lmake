@@ -234,10 +234,10 @@ namespace Engine::Persistent {
 				for( auto const& [tn,td] : job_info.end.end.digest.targets ) {
 					if ( td.crc==Crc::None && !static_phony(td.tflags) ) continue     ; // this is not a target
 					if ( !td.crc.valid()                               ) goto NextJob ; // XXX : handle this case
-					if ( td.date!=file_date(tn)                        ) goto NextJob ; // if dates do not match, we will rerun the job anyway, no interest to repair
+					if ( td.sig!=FileSig(tn)                           ) goto NextJob ; // if dates do not match, we will rerun the job anyway, no interest to repair
 					//
 					Node t{tn} ;
-					t->refresh( td.crc , {td.date,{}} ) ;                               // if file does not exist, the Epoch as a date is fine
+					t->refresh( td.crc , {td.sig,{}} ) ;                                // if file does not exist, the Epoch as a date is fine
 					targets.emplace_back( t , td.tflags ) ;
 				}
 				::sort(targets) ;                                                       // ease search in targets
@@ -245,7 +245,7 @@ namespace Engine::Persistent {
 				::vector<Dep> deps ; deps.reserve(job_info.end.end.digest.deps.size()) ;
 				for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
 					Dep dep { Node(dn) , dd } ;
-					if ( dep.is_date                         ) goto NextJob ;           // dep could not be identified when job ran, hum, better not to repair that
+					if ( !dep.is_crc                         ) goto NextJob ;           // dep could not be identified when job ran, hum, better not to repair that
 					if ( +dep.accesses && !dep.crc().valid() ) goto NextJob ;           // no valid crc, no interest to repair as job will rerun anyway
 					deps.emplace_back(dep) ;
 				}

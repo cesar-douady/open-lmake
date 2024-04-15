@@ -139,6 +139,7 @@ namespace Engine {
 		// services
 		bool operator==(ConfigStatic const&) const = default ;
 		// data
+		Time::Delay    date_prec      ;
 		Time::Delay    heartbeat      ;
 		Time::Delay    heartbeat_tick ;
 		DepDepth       max_dep_depth  = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
@@ -339,7 +340,7 @@ namespace Engine {
 		// JobMngt
 		EngineClosure( JMP p , JE&& je , ::string&& t                       ) : kind{K::JobMngt} , ecjm{.proc=p,.job_exec=::move(je),.txt=::move(t)             } { SWEAR(p==JMP::LiveOut) ; }
 		EngineClosure( JMP p , JE&& je , Fd fd_ , ::vmap_s<DepDigest>&& dds ) : kind{K::JobMngt} , ecjm{.proc=p,.job_exec=::move(je),.fd{fd_},.deps{::move(dds)}} {
-			SWEAR( p==JMP::DepInfos || p==JMP::ChkDeps ) ;
+			SWEAR( p==JMP::DepVerbose || p==JMP::ChkDeps ) ;
 		}
 		//
 		EngineClosure(EngineClosure&& ec) : kind(ec.kind) {

@@ -13,6 +13,7 @@
 struct Record {
 	using Crc         = Hash::Crc                                         ;
 	using Ddate       = Time::Ddate                                       ;
+	using FileInfo    = Disk::FileInfo                                    ;
 	using SolveReport = Disk::RealPath::SolveReport                       ;
 	using Proc        = JobExecProc                                       ;
 	using GetReplyCb  = ::function<JobExecRpcReply(                    )> ;
@@ -96,9 +97,9 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>(report_fd()) ;
 	}
 	//
-	void _report_access( JobExecRpcReq&& jerr                                               ) const ;
-	void _report_access( ::string&& f , Ddate d , Accesses a , bool write , ::string&& c={} ) const {
-		_report_access({ Proc::Access , {{::move(f),d}} , {.write=Maybe&write,.accesses=a} , ::move(c) }) ;
+	void _report_access( JobExecRpcReq&& jerr                                                 ) const ;
+	void _report_access( ::string&& f , FileInfo fi , Accesses a , bool write , ::string&& c={} ) const {
+		_report_access({ Proc::Access , {{::move(f),fi}} , {.write=Maybe&write,.accesses=a} , ::move(c) }) ;
 	}
 	// for modifying accesses (_report_update, _report_target, _report_unlnk, _report_targets) :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
@@ -108,24 +109,24 @@ private :
 	// - it is then confirmed (with an ok arg to manage errors) after the access
 	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
 	//
-	//                                                                                                                                  write
-	void _report_dep   ( ::string&& f , Ddate dd , Accesses a , ::string&& c={} ) const { if (+a) _report_access( ::move(f) , dd , a  , false , ::move(c) ) ; }
-	void _report_update( ::string&& f , Ddate dd , Accesses a , ::string&& c={} ) const {         _report_access( ::move(f) , dd , a  , true  , ::move(c) ) ; }
-	void _report_target( ::string&& f ,                         ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
-	void _report_unlnk ( ::string&& f ,                         ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
+	//                                                                                                                                     write
+	void _report_dep   ( ::string&& f , FileInfo fi , Accesses a , ::string&& c={} ) const { if (+a) _report_access( ::move(f) , fi , a  , false , ::move(c) ) ; }
+	void _report_update( ::string&& f , FileInfo fi , Accesses a , ::string&& c={} ) const {         _report_access( ::move(f) , fi , a  , true  , ::move(c) ) ; }
+	void _report_target( ::string&& f ,                            ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
+	void _report_unlnk ( ::string&& f ,                            ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
 	//
-	void _report_update( ::string&& f ,            Accesses a , ::string&& c={} ) const {         _report_update( ::move(f) , +a?Disk::file_date(s_root_fd(),f):Ddate() , a  , ::move(c) ) ; }
-	void _report_dep   ( ::string&& f ,            Accesses a , ::string&& c={} ) const {         _report_dep   ( ::move(f) , +a?Disk::file_date(s_root_fd(),f):Ddate() , a  , ::move(c) ) ; }
+	void _report_update( ::string&& f , Accesses a , ::string&& c={} ) const { _report_update( ::move(f) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ; }
+	void _report_dep   ( ::string&& f , Accesses a , ::string&& c={} ) const { _report_dep   ( ::move(f) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ; }
 	//
 	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
-		::vmap_s<Ddate> fds ;
-		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_root_fd(),f) ) ;
-		_report_access({ Proc::Access , ::move(fds) , {.write=Maybe&u,.accesses=a} , ::move(c) }) ;
+		::vmap_s<FileInfo> files ;
+		for( ::string const& f : fs ) files.emplace_back( f , FileInfo(s_root_fd(),f) ) ;
+		_report_access({ Proc::Access , ::move(files) , {.write=Maybe&u,.accesses=a} , ::move(c) }) ;
 	}
 	void _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
-		vmap_s<Ddate> mdd ;
-		for( ::string& f : fs ) mdd.emplace_back(::move(f),Ddate()) ;
-		_report_access({ Proc::Access , ::move(mdd) , {.write=Maybe} , ::move(c) }) ;
+		vmap_s<FileInfo> files ;
+		for( ::string& f : fs ) files.emplace_back(::move(f),FileInfo()) ;
+		_report_access({ Proc::Access , ::move(files) , {.write=Maybe} , ::move(c) }) ;
 	}
 	void _report_tmp( bool sync=false , ::string&& c={} ) const {
 		if      (!_tmp_cache) _tmp_cache = true ;
@@ -209,14 +210,14 @@ public :
 			/**/                       file_loc = sr.file_loc     ;
 			/**/                       real     = ::move(sr.real) ;
 			//
-			for( ::string& lnk : sr.lnks )            r._report_dep( ::move(lnk)          ,           Access::Lnk , c+".lnk"  ) ;
-			if ( !read && sr.file_accessed==Maybe   ) r._report_dep( Disk::dir_name(real) , Ddate() , Access::Lnk , c+".last" ) ; // real dir is not protected by real
-			if ( !read && sr.file_loc==FileLoc::Tmp ) r._report_tmp(                                                          ) ;
+			for( ::string& lnk : sr.lnks )            r._report_dep( ::move(lnk)          ,              Access::Lnk , c+".lnk"  ) ;
+			if ( !read && sr.file_accessed==Maybe   ) r._report_dep( Disk::dir_name(real) , FileInfo() , Access::Lnk , c+".last" ) ; // real dir is not protected by real
+			if ( !read && sr.file_loc==FileLoc::Tmp ) r._report_tmp(                                                             ) ;
 			//
 			if (!sr.mapped) return ;
 			//
 			if      (!allow_tmp_map    ) r.report_panic("cannot use tmp mapping to map ",file," to ",real) ;
-			else if (Disk::is_abs(real)) allocate( +real?real:"/"s                              ) ;                               // dont share real with file as real may be moved
+			else if (Disk::is_abs(real)) allocate( +real?real:"/"s                              ) ;                                  // dont share real with file as real may be moved
 			else if (has_at            ) allocate( s_root_fd() , real                           ) ;
 			else                         allocate( to_string(s_autodep_env().root_dir,'/',real) ) ;
 		}
@@ -224,7 +225,7 @@ public :
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 		// data
 		::string real     ;
-		Accesses accesses ;                                                                                                       // Access::Lnk if real was accessed as a sym link
+		Accesses accesses ;                                                                                                          // Access::Lnk if real was accessed as a sym link
 	} ;
 	using Solve  = _Solve<false/*Writable*/> ;
 	using WSolve = _Solve<true /*Writable*/> ;
@@ -243,7 +244,7 @@ public :
 		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
 	} ;
 	struct Hide {
-		Hide( Record&            ) {              }                                                                               // in case nothing to hide, just to ensure invariants
+		Hide( Record&            ) {              }                                                                                  // in case nothing to hide, just to ensure invariants
 		Hide( Record& r , int fd ) { r.hide(fd) ; }
 		#if HAS_CLOSE_RANGE
 			#ifdef CLOSE_RANGE_CLOEXEC
@@ -296,7 +297,7 @@ public :
 		// data
 		char*  buf      = nullptr ;
 		size_t sz       = 0       ;
-		bool   emulated = false   ;                                                                                               // if true <=> backdoor was used
+		bool   emulated = false   ;                                                                                                  // if true <=> backdoor was used
 	} ;
 	struct Rename {
 		// cxtors & casts

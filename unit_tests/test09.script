@@ -9,7 +9,7 @@ ut_launch -dangling 0 -done 2 -failed 0            -steady 0 -manual 0 -rc 0 lma
 
 touch src3
 rm src3.hide
-ut_launch -dangling 1 -done 1 -failed 1 -dep_err 1 -steady 0 -manual 0 -rc 1 lmake src3.hide
+ut_launch -dangling 1 -done 1 -failed 0 -dep_err 0 -steady 0 -manual 0 -rc 1 lmake src3.hide
 
 rm src3
 ut_launch -dangling 0 -done 1 -failed 0            -steady 2 -manual 0 -rc 0 lmake src3.hide

@@ -164,6 +164,7 @@ unit_tests/critical2.py
 unit_tests/cwd.py
 unit_tests/cycle.py
 unit_tests/depend.py
+unit_tests/depend2.py
 unit_tests/depend_verbose.py
 unit_tests/dup.py
 unit_tests/dyn_accesses.py
@@ -177,6 +178,7 @@ unit_tests/hard_lnks.py
 unit_tests/hello_world.py
 unit_tests/hide.py
 unit_tests/home.py
+unit_tests/hot.py
 unit_tests/ignore.py
 unit_tests/ignore_err.py
 unit_tests/jemalloc.py

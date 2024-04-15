@@ -18,7 +18,6 @@ ENUM( Exception
 
 namespace Py {
 	struct Gil :     Lock<Mutex<MutexLvl::Gil>> {
-		friend class AntiGil ;
 		using Base = Lock<Mutex<MutexLvl::Gil>> ;
 		// statics
 		static void s_swear_locked() { _s_mutex.swear_locked() ; }
@@ -90,7 +89,7 @@ namespace Py {
 
 	struct Object : PyObject {
 		template<class T> friend struct Ptr ;
-		friend struct Code ;
+		friend Code ;
 		friend Ptr<Object> py_eval(::string const&) ;
 		friend Ptr<Dict  > py_run (::string const&) ;
 		// cxtors & casts

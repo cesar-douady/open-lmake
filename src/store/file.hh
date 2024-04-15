@@ -123,7 +123,7 @@ namespace Store {
 			//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			SWEAR_PROD(+_fd) ;
 			Disk::FileInfo fi{_fd} ;
-			SWEAR(fi.is_reg()) ;
+			SWEAR(fi.tag()>=FileTag::Reg) ;
 			size = fi.sz ;
 		}
 		_alloc() ;

@@ -18,13 +18,13 @@
 #include "trace.hh"
 
 namespace Engine {
-	using FileInfo    = Disk::FileInfo    ;
+	using FileSig     = Disk::FileSig     ;
 	using Crc         = Hash::Crc         ;
 	using Delay       = Time::Delay       ;
 	using CoarseDelay = Time::CoarseDelay ;
 	using Ddate       = Time::Ddate       ;
 	using Pdate       = Time::Pdate       ;
-	using FullDate    = Time::FullDate    ;
+	using SigDate     = Disk::SigDate     ;
 }
 
 #define STRUCT_DECL

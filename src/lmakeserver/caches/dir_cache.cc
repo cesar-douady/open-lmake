@@ -135,15 +135,15 @@ namespace Caches {
 	}
 
 	static void _copy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , bool unlnk_dst , bool mk_read_only ) {
-		FileInfo fi{src_at,src_file} ;
+		FileTag tag = FileInfo(src_at,src_file).tag() ;
 		if (unlnk_dst) unlnk(dst_at,dst_file)                                         ;
 		else           SWEAR( !is_target(dst_at,dst_file) , '@',dst_at,':',dst_file ) ;
-		switch (fi.tag()) {
+		switch (tag) {
 			case FileTag::None : break ;
 			case FileTag::Reg  :
 			case FileTag::Exe  : {
 				FileMap     fm  { src_at , src_file } ;
-				AutoCloseFd wfd = open_write( dst_at , dst_file , false/*append*/ , fi.tag()==FileTag::Exe , mk_read_only ) ;
+				AutoCloseFd wfd = open_write( dst_at , dst_file , false/*append*/ , tag==FileTag::Exe , mk_read_only ) ;
 				for( size_t pos=0 ; pos<fm.sz ;) {
 					ssize_t cnt = ::write( wfd , fm.data+pos , fm.sz-pos ) ;
 					if (cnt<=0) throw ""s ;
@@ -285,7 +285,7 @@ namespace Caches {
 					copied.push_back(tn) ;
 					nfs_guard.change(tn) ;
 					_copy( dfd , to_string(ti) , tn , true/*unlnk_dst*/ , false/*mk_read_only*/ ) ;
-					entry.second.date = file_date(tn) ;                                             // target date is not stored in cache
+					entry.second.sig = FileSig(tn) ;                                                // target digest is not stored in cache
 				}
 				job_info.end.end.digest.end_date = New ;                                            // date must be after files are copied
 				copied.push_back(job->ancillary_file()) ;
@@ -324,12 +324,12 @@ namespace Caches {
 		job_info.start.rsrcs.clear() ;                                    // caching resources is meaningless as they have no impact on content
 		for( auto& [tn,td] : job_info.end.end.digest.targets ) {
 			SWEAR(!td.polluted) ;                                         // cannot be a candidate for upload as this must have failed
-			td.date.clear() ;
+			td.sig          = {} ;
 			td.extra_tflags = {} ;
 		}
 		job_info.end.end.digest.end_date = {} ;
 		// check deps
-		for( auto const& [dn,dd] : job_info.end.end.digest.deps ) if (dd.is_date) return false/*ok*/ ;
+		for( auto const& [dn,dd] : job_info.end.end.digest.deps ) if (!dd.is_crc) return false/*ok*/ ;
 		//
 		mkdir(dir_fd,jn) ;
 		AutoCloseFd dfd = open_read(dir_fd,jn) ;

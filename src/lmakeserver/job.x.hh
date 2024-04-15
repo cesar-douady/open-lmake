@@ -133,10 +133,10 @@ namespace Engine {
 	struct JobExec : Job {
 		friend ::ostream& operator<<( ::ostream& , JobExec const& ) ;
 		// cxtors & casts
-		JobExec( Job j={} ,               FullDate s={} , FullDate e={} ) : Job{j} ,           start_date{s} , end_date{e} {}
-		JobExec( Job j    , in_addr_t h , FullDate s={} , FullDate e={} ) : Job{j} , host{h} , start_date{s} , end_date{e} {}
-		JobExec( Job j    ,               FullDate s    , NewType       ) : Job{j} ,           start_date{s} , end_date{s} {} // end=New means job is instantaneous
-		JobExec( Job j    , in_addr_t h , FullDate s    , NewType       ) : Job{j} , host{h} , start_date{s} , end_date{s} {} // .
+		JobExec( Job j={} ,               SigDate s={} , SigDate e={} ) : Job{j} ,           start_date{s} , end_date{e} {}
+		JobExec( Job j    , in_addr_t h , SigDate s={} , SigDate e={} ) : Job{j} , host{h} , start_date{s} , end_date{e} {}
+		JobExec( Job j    ,               SigDate s    , NewType      ) : Job{j} ,           start_date{s} , end_date{s} {} // end=New means job is instantaneous
+		JobExec( Job j    , in_addr_t h , SigDate s    , NewType      ) : Job{j} , host{h} , start_date{s} , end_date{s} {} // .
 		// services
 		// called in main thread after start
 		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start and started
@@ -159,9 +159,9 @@ namespace Engine {
 			return audit_end(pfx,ri,{}/*msg*/,stderr,max_stderr_len,modified,exec_time) ;
 		}
 		// data
-		in_addr_t host      = NoSockAddr ;
-		FullDate start_date ;
-		FullDate end_date   ;                                                                                   // if no end_date, job is stil on going
+		in_addr_t host       = NoSockAddr ;
+		SigDate   start_date ;
+		SigDate   end_date   ;                                                                                  // if no end_date, job is stil on going
 	} ;
 
 }

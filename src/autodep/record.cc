@@ -122,8 +122,8 @@ JobExecRpcReply Record::direct(JobExecRpcReq&& jerr) {
 	} else {
 		// not under lmake, try to mimic server as much as possible, but of course no real info available
 		// XXX : for Encode/Decode, we should interrogate the server or explore association file directly so as to allow jobs to run with reasonable data
-		if ( jerr.sync && jerr.proc==Proc::DepInfos) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Hash::Crc>>(jerr.files.size(),{Yes,{}}) } ;
-		else                                         return {                                                                               } ;
+		if ( jerr.sync && jerr.proc==Proc::DepVerbose) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Hash::Crc>>(jerr.files.size(),{Yes,{}}) } ;
+		else                                           return {                                                                               } ;
 	}
 }
 
@@ -143,9 +143,9 @@ int Record::Chdir::operator()( Record& r , int rc , pid_t pid ) {
 
 Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,true/*allow_tmp_map*/,c} { // behave like a read-modify-write
 	if (file_loc>FileLoc::Dep) return ;
-	FileInfo fi{s_root_fd(),real} ;
-	if ( !fi || exe==(fi.tag()==FileTag::Exe) ) file_loc = FileLoc::Ext ;                                                       // only consider as a target if exe bit changes
-	if ( file_loc==FileLoc::Repo              ) r._report_update( ::move(real) , fi.date , accesses|Access::Reg , ::move(c) ) ; // file date is updated if created, use original date
+	FileInfo fi {s_root_fd() , real } ;
+	if ( !fi || exe==(fi.tag()==FileTag::Exe) ) file_loc = FileLoc::Ext ;                                                  // only consider as a target if exe bit changes
+	if ( file_loc==FileLoc::Repo              ) r._report_update( ::move(real) , fi , accesses|Access::Reg , ::move(c) ) ; // file date is updated if created, use original date
 }
 
 Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,true/*allow_tmp_map*/,c} {

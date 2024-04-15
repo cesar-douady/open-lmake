@@ -128,19 +128,20 @@ namespace Engine {
 		//
 		::vector_s fields = {{}} ;
 		try {
-			fields[0] = "hash_algo"        ; if (py_map.contains(fields[0])) hash_algo             = mk_enum<Algo>             (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "local_admin_dir"  ; if (py_map.contains(fields[0])) user_local_admin_dir  =                           (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "heartbeat"        ; if (py_map.contains(fields[0])) heartbeat             = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "heartbeat_tick"   ; if (py_map.contains(fields[0])) heartbeat_tick        = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "max_dep_depth"    ; if (py_map.contains(fields[0])) max_dep_depth         = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "max_error_lines"  ; if (py_map.contains(fields[0])) max_err_lines         = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "network_delay"    ; if (py_map.contains(fields[0])) network_delay         = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "path_max"         ; if (py_map.contains(fields[0])) path_max              = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "reliable_dirs"    ; if (py_map.contains(fields[0])) reliable_dirs         =                           +py_map[fields[0]]                          ;
-			fields[0] = "rules_module"     ; if (py_map.contains(fields[0])) rules_module          =                            py_map[fields[0]].as_a<Str  >()            ;
-			fields[0] = "sources_module"   ; if (py_map.contains(fields[0])) srcs_module           =                            py_map[fields[0]].as_a<Str  >()            ;
-			fields[0] = "remote_admin_dir" ; if (py_map.contains(fields[0])) user_remote_admin_dir =                            py_map[fields[0]].as_a<Str  >()            ;
-			fields[0] = "remote_tmp_dir"   ; if (py_map.contains(fields[0])) user_remote_tmp_dir   =                            py_map[fields[0]].as_a<Str  >()            ;
+			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) date_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
+			fields[0] = "hash_algo"           ; if (py_map.contains(fields[0])) hash_algo             = mk_enum<Algo>             (py_map[fields[0]].as_a<Str  >())           ;
+			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir  =                           (py_map[fields[0]].as_a<Str  >())           ;
+			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat             = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
+			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick        = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
+			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth         = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
+			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines         = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
+			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay         = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
+			fields[0] = "path_max"            ; if (py_map.contains(fields[0])) path_max              = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
+			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs         =                           +py_map[fields[0]]                          ;
+			fields[0] = "rules_module"        ; if (py_map.contains(fields[0])) rules_module          =                            py_map[fields[0]].as_a<Str  >()            ;
+			fields[0] = "sources_module"      ; if (py_map.contains(fields[0])) srcs_module           =                            py_map[fields[0]].as_a<Str  >()            ;
+			fields[0] = "remote_admin_dir"    ; if (py_map.contains(fields[0])) user_remote_admin_dir =                            py_map[fields[0]].as_a<Str  >()            ;
+			fields[0] = "remote_tmp_dir"      ; if (py_map.contains(fields[0])) user_remote_tmp_dir   =                            py_map[fields[0]].as_a<Str  >()            ;
 			//
 			fields[0] = "link_support" ;
 			if (py_map.contains(fields[0])) {
@@ -279,14 +280,15 @@ namespace Engine {
 		// static
 		//
 		res << "static :\n" ;
-		if (heartbeat     >Delay()     ) res << "\theartbeat      : " << heartbeat     .short_str() <<'\n' ;
-		if (heartbeat_tick>Delay()     ) res << "\theartbeat_tick : " << heartbeat_tick.short_str() <<'\n' ;
-		if (max_dep_depth!=DepDepth(-1)) res << "\tmax_dep_depth  : " << size_t(max_dep_depth)      <<'\n' ;
-		/**/                             res << "\tnetwork_delay  : " << network_delay .short_str() <<'\n' ;
-		if (path_max!=size_t(-1)       ) res << "\tpath_max       : " << size_t(path_max     )      <<'\n' ;
-		else                             res << "\tpath_max       : " <<        "<unlimited>"       <<'\n' ;
-		if (+rules_module              ) res << "\trules_module   : " <<        rules_module        <<'\n' ;
-		if (+srcs_module               ) res << "\tsources_module : " <<        srcs_module         <<'\n' ;
+		/**/                             res << "\tdisk_date_precision : " << date_prec     .short_str() <<'\n' ;
+		if (heartbeat     >Delay()     ) res << "\theartbeat           : " << heartbeat     .short_str() <<'\n' ;
+		if (heartbeat_tick>Delay()     ) res << "\theartbeat_tick      : " << heartbeat_tick.short_str() <<'\n' ;
+		if (max_dep_depth!=DepDepth(-1)) res << "\tmax_dep_depth       : " << size_t(max_dep_depth)      <<'\n' ;
+		/**/                             res << "\tnetwork_delay       : " << network_delay .short_str() <<'\n' ;
+		if (path_max!=size_t(-1)       ) res << "\tpath_max            : " << size_t(path_max     )      <<'\n' ;
+		else                             res << "\tpath_max            : " <<        "<unlimited>"       <<'\n' ;
+		if (+rules_module              ) res << "\trules_module        : " <<        rules_module        <<'\n' ;
+		if (+srcs_module               ) res << "\tsources_module      : " <<        srcs_module         <<'\n' ;
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;
@@ -417,13 +419,13 @@ namespace Engine {
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosureJobMngt const& ecjm ) {
-		/**/                             os << "JobMngt(" << ecjm.proc <<','<< ecjm.job_exec ;
+		/**/                               os << "JobMngt(" << ecjm.proc <<','<< ecjm.job_exec ;
 		switch (ecjm.proc) {
-			case JobMngtProc::LiveOut  : os <<','<< ecjm.txt.size() ; break ;
-			case JobMngtProc::DepInfos : os <<','<< ecjm.deps       ; break ;
-			case JobMngtProc::ChkDeps  : os <<','<< ecjm.deps       ; break ;
+			case JobMngtProc::LiveOut    : os <<','<< ecjm.txt.size() ; break ;
+			case JobMngtProc::DepVerbose : os <<','<< ecjm.deps       ; break ;
+			case JobMngtProc::ChkDeps    : os <<','<< ecjm.deps       ; break ;
 		DF}
-		return                           os << ')' ;
+		return                             os << ')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosure const& ec ) {

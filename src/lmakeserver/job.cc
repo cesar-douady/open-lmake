@@ -40,7 +40,7 @@ namespace Engine {
 			else if (!t.tflags[Tflag::Incremental]) fat = FileActionTag::Unlnk    ;
 			else if ( t.tflags[Tflag::NoUniquify ]) fat = FileActionTag::None     ;
 			else                                    fat = FileActionTag::Uniquify ;
-			FileAction fa { fat , t->crc , t->date.d } ;
+			FileAction fa { fat , t->crc , t->date().sig } ;
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
@@ -246,7 +246,7 @@ namespace Engine {
 		Trace trace("job_info",proc,deps.size()) ;
 		//
 		switch (proc) {
-			case JobMngtProc::DepInfos : {
+			case JobMngtProc::DepVerbose : {
 				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ;           // if job is not running, it is too late, seq_id will be filled in later
 				::vector<pair<Bool3/*ok*/,Crc>> res ; res.reserve(deps.size()) ;
 				for( Dep const& dep : deps ) {
@@ -284,7 +284,7 @@ namespace Engine {
 		if (!ri.live_out) return ;
 		Req r = ri.req ;
 		// identify job (with a continue message if no start message), dated as now and with current exec time
-		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,{{},New}),false/*at_end*/,Pdate(New)-start_date.p) ;
+		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,{{},New}),false/*at_end*/,Pdate(New)-start_date.date) ;
 		r->last_info = *this ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		r->audit_info(Color::None,txt,0) ;
@@ -385,7 +385,7 @@ namespace Engine {
 				//
 				if (+crc) {
 					// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
-					if ( +start_date.p && target->date.p>start_date.p ) {                          // if no start_date.p, job did not execute, it cannot generate a clash
+					if ( +start_date.date && target->date().date>start_date.date ) {               // if no start_date.p, job did not execute, it cannot generate a clash
 						// /!\ This may be very annoying !
 						// A job was running in parallel with us and there was a clash on this target.
 						// There are 2 problems : for us and for them.
@@ -395,11 +395,11 @@ namespace Engine {
 						// This is too complex and too rare to detect (and ideally handle).
 						// Putting target in clash_nodes will generate a frightening message to user asking to relaunch all commands that were running in parallel.
 						if ( crc.valid() && td.tflags[Tflag::Target] ) {                           // official targets should have a valid crc, but if not, we dont care
-							trace("clash",start_date.p,target->date.p) ;
+							trace("clash",start_date.date,target->date().date) ;
 							target_reason |= {JobReasonTag::ClashTarget,+target} ;                 // crc is actually unreliable, rerun
 						}
 						if ( target->crc.valid() && target->has_actual_job() && target->actual_tflags()[Tflag::Target] && !target->is_src_anti() ) { // existing crc was believed to be reliable ...
-							trace("critical_clash",start_date.p,target->date.p) ;                                                                    // ... but actually was not (if no execution, ...
+							trace("critical_clash",start_date.date,target->date().date) ;                                                            // ... but actually was not (if no execution, ...
 							for( Req r : target->reqs() ) {                                                                                          // ... there is no problem)
 								r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
 								target->req_info(r).reset() ;                          // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
@@ -419,8 +419,8 @@ namespace Engine {
 					SourceOk : ;
 					}
 					//
-					target_modified  = target->refresh( crc , { td.date , td.extra_tflags[ExtraTflag::Wash]?start_date.p:end_date.p } ) ;
-					modified        |= target_modified && tflags[Tflag::Target]                                                         ;
+					target_modified  = target->refresh( crc , { td.sig , td.extra_tflags[ExtraTflag::Wash]?start_date.date:end_date.date } ) ;
+					modified        |= target_modified && tflags[Tflag::Target]                                                              ;
 				}
 				if ( crc==Crc::None && !static_phony ) {
 					target->actual_job   () = {}    ;
@@ -453,11 +453,18 @@ namespace Engine {
 			::vector<Dep> deps     ; deps.reserve(digest.deps.size()) ;
 			for( auto const& [dn,dd] : digest.deps ) {
 				Dep dep { Node(dn) , dd } ;
-				if (!old_deps.contains(dep)) has_new_deps = true ;
-				if (dep.is_date) {
+				if (!old_deps.contains(dep)) {
+					has_new_deps = true ;
+					// dep.hot means dep has been accessed within g_config.date_prc after its mtime (according to Pdate::now())
+					// because of disk date granularity (usually a few ms) and because of date discrepancy between executing host and disk server (usually a few ms when using NTP)
+					// this means that the file could actually have been accessed before and have gotten wrong data.
+					// if this occurs, consider dep as unstable if it was not a known dep (we know known deps have been finish before job started).
+					if (dep.hot) dep.crc({}) ;
+				}
+				if (!dep.is_crc) {
 					dep->full_refresh(true/*report_no_file*/,running_reqs_,dn) ;
 					dep.acquire_crc() ;                                                                           // retry crc acquisition in case previous cleaning aligned the dates
-					seen_dep_date |= !dep.is_date ;                                                               // if a dep has become a crc, we must fix ancillary file
+					seen_dep_date |= dep.is_crc ;                                                                 // if a dep has become a crc, we must fix ancillary file
 				} else if (dep.never_match()) {
 					if (dep->is_src_anti()) dep->refresh_src_anti(true/*report_no_file*/,running_reqs_,dn) ;      // the goal is to detect overwritten
 					unstable_dep = true ;
@@ -550,9 +557,9 @@ namespace Engine {
 				NodeIdx              di  = 0                      ;
 				for( Dep const& d : (*this)->deps ) {
 					DepDigest& dd = dds[di].second ;
-					if (dd.is_date) {
-						dd.crc_date(d) ;
-						updated |= !dd.is_date ;                                       // in case of ^C, dep.make may not transform date into crc
+					if (!dd.is_crc) {
+						dd.crc_sig(d) ;
+						updated |= dd.is_crc ;                                         // in case of ^C, dep.make may not transform date into crc
 					}
 					di++ ;
 				}
@@ -783,13 +790,14 @@ namespace Engine {
 				bool               modif       = state.stamped_modif || ri.force              ;
 				NodeReqInfo const* cdri        = &dep->c_req_info(req)                        ; // avoid allocating req_info as long as not necessary
 				NodeReqInfo      * dri         = nullptr                                      ; // .
-				NodeGoal           dg          =
+				NodeGoal           dep_goal    =
 					ri.full && care && (need_run(state)||archive) ? NodeGoal::Dsk
 				:	ri.full && (care||sense_err)                  ? NodeGoal::Status
 				:	required                                      ? NodeGoal::Makable
 				:	                                                NodeGoal::None
 				;
-				if (!dg             ) continue ;                                                // this is not a dep (not static while asked for makable only)
+				if (!dep_goal) continue ;                                                       // this is not a dep (not static while asked for makable only)
+			RestartDep :
 				if (!cdri->waiting()) {
 					ReqInfo::WaitInc sav_n_wait{ri} ;                                           // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 					if (!dri        ) cdri = dri    = &dep->req_info(*cdri) ;                   // refresh cdri in case dri allocated a new one
@@ -801,9 +809,9 @@ namespace Engine {
 					:	                                ri.speculate                            // this dep will not disappear from us
 					;
 					if (special!=Special::Req) dnd.asking = idx() ;                             // Req jobs are fugitive, dont record them
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					dnd.make( *dri , mk_action(dg) , speculate_dep ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					dnd.make( *dri , mk_action(dep_goal) , speculate_dep ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
 				if ( is_static && dnd.buildable<Buildable::Yes ) sure = false ;                 // buildable is better after make()
 				if (cdri->waiting()) {
@@ -813,47 +821,64 @@ namespace Engine {
 					if (!dri) cdri = dri = &dnd.req_info(*cdri) ;                                                  // refresh cdri in case dri allocated a new one
 					dnd.add_watcher(*dri,idx(),ri,dep_pressure) ;
 					critical_waiting |= is_critical ;
-					goto Continue ;
-				}
-				SWEAR(dnd.done(*cdri,dg)) ;                                                                        // after having called make, dep must be either waiting or done
-				if ( ri.full && care && !dnd.done(*cdri,NodeGoal::Dsk) ) state.missing_dsk = true ;                // job needs this dep if it must run
-				if (dg==NodeGoal::Makable                              ) continue ;                                // dont check modifs and errors
-				dep_modif = care && !dep.up_to_date() ;
-				if ( dep_modif && status==Status::Ok && dep.no_trigger() ) {                                       // no_trigger only applies to successful jobs
-					trace("no_trigger",dep) ;
-					req->no_triggers.emplace(dep,req->no_triggers.size()) ;                                        // record to repeat in summary, value is just to order summary in discovery order
-					dep_modif = false ;
-				}
-				if (dep_modif) state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
-				if ( +state.stamped_err  ) goto Continue ;                                                         // we are already in error, no need to analyze errors any further
-				if ( !is_static && modif ) goto Continue ;                                                         // if not static, errors may be washed by previous modifs, dont record them
-				//
-				{	Bool3 dep_ok = dnd.ok(*cdri,dep.accesses) ;
-					switch (dep_ok) {
-						case Yes   : break ;
-						case Maybe :
+				} else {
+					SWEAR(dnd.done(*cdri,dep_goal)) ;                                                              // after having called make, dep must be either waiting or done
+					bool dep_missing_dsk = ri.full && care && !dnd.done(*cdri,NodeGoal::Dsk) ;
+					state.missing_dsk |= dep_missing_dsk ;                                                         // job needs this dep if it must run
+					if (dep_goal==NodeGoal::Makable) {
+						if ( is_static && required && dnd.ok(*cdri,dep.accesses)==Maybe ) {
+							state.reason |= {JobReasonTag::DepMissingStatic,+dep} ;
+							dep_err = RunStatus::MissingStatic ;
+						}
+						continue ;                                                                                 // dont check modifs and errors
+					}
+					if (!care) goto Continue ;
+					dep_modif = !dep.up_to_date() ;
+					if ( dep_modif && status==Status::Ok && dep.no_trigger() ) {                                   // no_trigger only applies to successful jobs
+						trace("no_trigger",dep) ;
+						req->no_triggers.emplace(dep,req->no_triggers.size()) ;                                    // record to repeat in summary, value is just to order summary in discovery order
+						dep_modif = false ;
+					}
+					if ( +state.stamped_err  ) goto Continue ;                                                     // we are already in error, no need to analyze errors any further
+					if ( !is_static && modif ) goto Continue ;                                                     // if not static, errors may be washed by previous modifs, dont record them
+					if ( dep_modif           ) state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
+					//
+					switch (dnd.ok(*cdri,dep.accesses)) {
+						case Maybe :                                                                                        // dep is not buidlable, check if required
+							if (dnd.status()==NodeStatus::Transcient) {                                                     // dep uphill is a symlink, it will disappear at next run
+								trace("transcient",dep) ;
+								state.reason |= {JobReasonTag::DepTranscient,+dep} ;
+								break ;
+							}
 							if (required) {
-								if (is_static) { dep_err = RunStatus::MissingStatic ; state.reason |= {JobReasonTag::DepMissingStatic  ,+dep} ; }
-								else           { dep_err = RunStatus::DepErr        ; state.reason |= {JobReasonTag::DepMissingRequired,+dep} ; }
+								if (is_static) { state.reason |= {JobReasonTag::DepMissingStatic  ,+dep} ; dep_err = RunStatus::MissingStatic ; }
+								else           { state.reason |= {JobReasonTag::DepMissingRequired,+dep} ; dep_err = RunStatus::DepErr        ; }
 								trace("missing",STR(is_static),dep) ;
-								goto Continue ;
+								break ;
+							}
+						[[fallthrough]] ;
+						case Yes :
+							if ( dep_modif && make_action==MakeAction::End && dep_goal<NodeGoal::Dsk && dep_missing_dsk ) { // dep out of date but we do not wait for it being rebuilt
+								dep_goal = NodeGoal::Dsk ;                                                                  // we must ensure disk integrity for detailed analysis
+								trace("restart_dep",dep) ;
+								goto RestartDep ;                                                                           // BACKWARD, if necessary, reanalyze dep
+							}
+							if (dep_goal==NodeGoal::Dsk) {                                                                  // if asking for disk, we must check disk integrity
+								trace("unstable",dep,cdri->manual) ;
+								switch(cdri->manual) {
+									case Manual::Empty   :
+									case Manual::Modif   :                state.reason |= {JobReasonTag::DepDangling,+dep} ; dep_err = RunStatus::DepErr ; break ;
+									case Manual::Unlnked :                state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               break ;
+									default              : if (dep_modif) state.reason |= {JobReasonTag::DepUnstable,+dep} ;
+								}
 							}
 						break ;
 						case No :
 							trace("dep_err",dep,STR(sense_err)) ;
-							if (+(cdri->overwritten&dep.accesses)) { dep_err = RunStatus::DepErr ; state.reason |= {JobReasonTag::DepOverwritten,+dep} ; goto Continue ; } // even with !sense_err
-							if (sense_err                        ) { dep_err = RunStatus::DepErr ; state.reason |= {JobReasonTag::DepErr        ,+dep} ; goto Continue ; }
+							if      (+(cdri->overwritten&dep.accesses)) { state.reason |= {JobReasonTag::DepOverwritten,+dep} ; dep_err = RunStatus::DepErr ; } // even with !sense_err
+							else if (sense_err                        ) { state.reason |= {JobReasonTag::DepErr        ,+dep} ; dep_err = RunStatus::DepErr ; }
 						break ;
 					DF}
-					if ( care && dep.is_date && +dep.date() ) {       // if still waiting for a crc here, it will never come
-						SWEAR(!dnd.running(*cdri)) ;
-						SWEAR(dep_modif          ) ;                  // this dep was moving, retry job
-						if (!dri) cdri = dri = &dnd.req_info(*cdri) ; // refresh cdri in case dri allocated a new one
-						Manual manual = dnd.manual_wash(*dri) ;
-						if      (manual>=Manual::Changed) { trace("dangling",dep       ) ; dep_err = RunStatus::DepErr ; state.reason |= {JobReasonTag::DepDangling,+dep} ; }
-						else if (manual==Manual::Unlnked) { trace("washed"  ,dep       ) ;                               state.reason |= {JobReasonTag::DepUnlnked ,+dep} ; }
-						else                                trace("unstable",dep,manual) ;
-					}
 				}
 			Continue :
 				trace("dep",ri,dep,*cdri,STR(dnd.done(*cdri)),STR(dnd.ok()),dnd.crc,dep_err,STR(dep_modif),STR(critical_modif),STR(critical_waiting),state.reason) ;
@@ -861,17 +886,17 @@ namespace Engine {
 				if ( state.missing_dsk && need_run(state) ) {
 					trace("restart_analysis") ;
 					ri.reset() ;
-					SWEAR(!ri.reason,ri.reason) ;                     // we should have asked for dep on disk if we had a reason to run
-					ri.reason = state.reason ;                        // record that we must ask for dep on disk
-					goto RestartAnalysis ;                            // BACKWARD
+					SWEAR(!ri.reason,ri.reason) ;                    // we should have asked for dep on disk if we had a reason to run
+					ri.reason = state.reason ;                       // record that we must ask for dep on disk
+					goto RestartAnalysis ;                           // BACKWARD
 				}
-				SWEAR(!( +dep_err && modif && !is_static )) ;         // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
-				state.proto_err    = state.proto_err   | dep_err   ;  // |= is forbidden for bit fields
-				state.proto_modif  = state.proto_modif | dep_modif ;  // .
+				SWEAR(!( +dep_err && modif && !is_static )) ;        // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
+				state.proto_err    = state.proto_err   | dep_err   ; // |= is forbidden for bit fields
+				state.proto_modif  = state.proto_modif | dep_modif ; // .
 				critical_modif    |= dep_modif && is_critical      ;
 			}
 			if ( ri.waiting()                       ) goto Wait ;
-			if ( sure                               ) mk_sure() ;     // improve sure (sure is pessimistic)
+			if ( sure                               ) mk_sure() ;    // improve sure (sure is pessimistic)
 			if ( +(run_status=ri.state.stamped_err) ) goto Done ;
 			if ( !need_run(ri.state)                ) goto Done ;
 		}
@@ -958,7 +983,7 @@ namespace Engine {
 			dep->propag_speculate( cri.req , cri.speculate | (speculate&(!dep.dflags[Dflag::Static])) ) ; // static deps are never speculative
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			NodeReqInfo const& cdri = dep->c_req_info(cri.req) ;
-			if ( dep.is_date || cdri.waiting() ) { proto_speculate = Yes ; continue ; }
+			if ( !dep.is_crc || cdri.waiting() ) { proto_speculate = Yes ; continue ; }
 			Bool3 dep_ok = cdri.done(NodeGoal::Status) ? dep->ok(cdri,dep.accesses) : Maybe ;
 			switch (dep_ok) {
 				case Yes   :                                                                                                               break ;
@@ -1003,22 +1028,19 @@ namespace Engine {
 				Bool3       modified     = No                       ;
 				NfsGuard    nfs_guard    { g_config.reliable_dirs } ;
 				for( Target t : targets ) {
-					::string    tn = t->name()              ;
-					FileInfo    fi { nfs_guard.access(tn) } ;
-					SpecialStep ss = {}/*garbage*/          ;
-					if ( t->crc.valid() && fi.date==t->date.d ) {
-						ss = SpecialStep::Idle ;
-					} else {
-						Ddate dd  ;
-						Crc   crc { dd , tn , g_config.hash_algo } ;
+					::string    tn = t->name()         ;
+					SpecialStep ss = SpecialStep::Idle ;
+					if (!( t->crc.valid() && FileSig(nfs_guard.access(tn))==t->date().sig )) {
+						FileSig sig  ;
+						Crc   crc { sig , tn , g_config.hash_algo } ;
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
-						Trace trace( "frozen" , t->crc ,"->", crc , t->date ,"->", dd ) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvv
-						t->refresh( crc , {dd,{}} ) ; // if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
-						//^^^^^^^^^^^^^^^^^^^^^^^^^
-						if      ( crc!=Crc::None || t.tflags[Tflag::Phony]           )                          ss = SpecialStep::Ok   ;
-						else if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] )                          ss = SpecialStep::Err  ;
-						else                                                           { t->actual_job() = {} ; ss = SpecialStep::Idle ; } // unlink of a star or side target is nothing
+						Trace trace( "frozen" , t->crc ,"->", crc , t->date() ,"->", sig ) ;
+						//vvvvvvvvvvvvvvvvvvvvvvvvvv
+						t->refresh( crc , {sig,{}} ) ; // if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^
+						if      ( crc!=Crc::None || t.tflags[Tflag::Phony]           ) ss = SpecialStep::Ok  ;
+						else if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] ) ss = SpecialStep::Err ;
+						else                                                           t->actual_job() = {} ;  // unlink of a star or side target is nothing
 					}
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
 				}
@@ -1086,7 +1108,7 @@ namespace Engine {
 						}
 						//
 						JobDigest digest = cache->download(idx(),cache_match.id,reason,nfs_guard) ;
-						JobExec  je      { idx() , {file_date(ancillary_file()),New} , New }      ;           // job starts and ends, no host
+						JobExec  je      { idx() , FileSig(ancillary_file()) , New }      ;                   // job starts and ends, no host
 						if (ri.live_out) je.live_out(ri,digest.stdout) ;
 						ri.step(Step::Hit) ;
 						trace("hit_result") ;

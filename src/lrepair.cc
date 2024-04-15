@@ -17,8 +17,8 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
 	bool has_admin_dir = is_dir(AdminDir) ;
-	g_trace_file = new ::string() ;                                // no trace as we are repairing AdminDir in which traces are made
-	app_init(No/*chk_version*/) ;                                  // lrepair must always be launched at root
+	g_trace_file = new ::string() ;                      // no trace as we are repairing AdminDir in which traces are made
+	app_init(No/*chk_version*/) ;                        // lrepair must always be launched at root
 	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
@@ -26,9 +26,9 @@ int main( int argc , char* /*argv*/[] ) {
 	}
 	if (is_target(ServerMrkr)) exit(Rc::Format,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
 	//
-	::string backup_admin_dir = AdminDir+".bck"s       ;           // rename in same dir to be sure not to break sym links that can be inside (e.g. lmake/local_admin_dir and lmake/remote_admin_dir)
+	::string backup_admin_dir = AdminDir+".bck"s       ; // rename in same dir to be sure not to break sym links that can be inside (e.g. lmake/local_admin_dir and lmake/remote_admin_dir)
 	::string repair_mrkr      = AdminDir+"/repairing"s ;
-	if (is_reg(repair_mrkr)     ) unlnk(AdminDir,true/*dir_ok*/) ; // if last lrepair was interrupted, AdminDir contains no useful information
+	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(AdminDir,true/*dir_ok*/) ;                     // if last lrepair was interrupted, AdminDir contains no useful information
 	if (is_dir(backup_admin_dir)) {
 		if      (has_admin_dir                                    ) exit(Rc::Format,"backup already existing, consider : rm -r ",backup_admin_dir) ;
 	} else {

@@ -48,7 +48,7 @@ namespace Backends {
 		using SmallId     = uint32_t          ;
 		using CoarseDelay = Time::CoarseDelay ;
 		using Pdate       = Time::Pdate       ;
-		using FullDate    = Time::FullDate    ;
+		using SigDate     = Disk::SigDate     ;
 
 		struct StartEntry {
 			friend ::ostream& operator<<( ::ostream& , StartEntry const& ) ;
@@ -74,7 +74,7 @@ namespace Backends {
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
 			Conn             conn         ;
-			FullDate         start_date   ;
+			SigDate          start_date   ;
 			::uset_s         washed       ;
 			::vmap_ss        rsrcs        ;
 			::vector<ReqIdx> reqs         ;
@@ -121,15 +121,15 @@ namespace Backends {
 			s_tab[+t] = &be ;
 		}
 	private :
-		static void            _s_kill_req              ( ReqIdx=0                                                               ) ; // kill all if req==0
-		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , FullDate const& start , JobMngtProc ) ;
-		static void            _s_heartbeat_thread_func ( ::stop_token                                                           ) ;
-		static bool/*keep_fd*/ _s_handle_job_start      ( JobRpcReq    && , SlaveSockFd const& ={}                               ) ;
-		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobMngtRpcReq&& , SlaveSockFd const& ={}                               ) ;
-		static bool/*keep_fd*/ _s_handle_job_end        ( JobRpcReq    && , SlaveSockFd const& ={}                               ) ;
-		static void            _s_handle_deferred_report( DeferredEntry&&                                                        ) ;
-		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                                        ) ;
-		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status                            ) ;
+		static void            _s_kill_req              ( ReqIdx=0                                                              ) ; // kill all if req==0
+		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , SigDate const& start , JobMngtProc ) ;
+		static void            _s_heartbeat_thread_func ( ::stop_token                                                          ) ;
+		static bool/*keep_fd*/ _s_handle_job_start      ( JobRpcReq    && , SlaveSockFd const& ={}                              ) ;
+		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobMngtRpcReq&& , SlaveSockFd const& ={}                              ) ;
+		static bool/*keep_fd*/ _s_handle_job_end        ( JobRpcReq    && , SlaveSockFd const& ={}                              ) ;
+		static void            _s_handle_deferred_report( DeferredEntry&&                                                       ) ;
+		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                                       ) ;
+		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status                           ) ;
 		//
 		using JobThread      = ServerThread<JobRpcReq    > ;
 		using JobMngtThread  = ServerThread<JobMngtRpcReq> ;

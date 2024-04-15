@@ -72,9 +72,9 @@ namespace Codec {
 	static bool _buildable_ok( ::string const& file , Node node ) {
 		switch (node->buildable) {
 			case Buildable::No      :
-			case Buildable::Unknown : return false                                          ;
+			case Buildable::Unknown : return false                                              ;
 			case Buildable::Decode  :
-			case Buildable::Encode  : return node->date.d==Closure::s_tab.at(file).log_date ;
+			case Buildable::Encode  : return node->log_date()==Closure::s_tab.at(file).log_date ;
 		DF}
 	}
 
@@ -173,8 +173,8 @@ namespace Codec {
 				for( auto const& [val,code] : e_entry ) process_node(ctx,code,val) ;
 		}
 		// wrap up
-		FullDate log_date = s_tab.at(file).log_date ;
-		for( Node n : nodes ) n->date = log_date ;
+		Ddate log_date = s_tab.at(file).log_date ;
+		for( Node n : nodes ) n->log_date() = log_date ;
 		trace("done",nodes.size()/2) ;
 	}
 
@@ -182,7 +182,7 @@ namespace Codec {
 		auto   [it,inserted] = s_tab.try_emplace(file,Entry()) ;
 		Entry& entry         = it->second                      ;
 		if (!inserted) {
-			for( ReqIdx r : reqs ) if ( entry.sample_date < Req(r)->start_date.p ) goto Refresh ;                   // we sample disk once per Req
+			for( ReqIdx r : reqs ) if ( entry.sample_date < Req(r)->start_pdate ) goto Refresh ;                         // we sample disk once per Req
 			return true/*ok*/ ;
 		}
 	Refresh :
@@ -202,9 +202,9 @@ namespace Codec {
 		entry.sample_date = New ;
 		if (inserted) {
 			Node node{ni} ;
-			if ( inserted && node->buildable==Buildable::Decode ) entry.phys_date = entry.log_date = node->date.d ; // initialize from known info
+			if ( inserted && node->buildable==Buildable::Decode ) entry.phys_date = entry.log_date  = node->log_date() ; // initialize from known info
 		}
-		if ( phys_date==entry.phys_date                         ) return true/*ok*/ ;                               // file has not changed, nothing to do
+		if (phys_date==entry.phys_date) return true/*ok*/ ;                                                              // file has not changed, nothing to do
 		entry.log_date = phys_date ;
 		//
 		_s_canonicalize(file,reqs) ;
@@ -257,9 +257,9 @@ namespace Codec {
 		Entry& entry = s_tab.at(file) ;
 		Pdate  now   { New }          ;
 		_create_pair( file , decode_node , txt , encode_node , code ) ;
-		decode_node->date = {entry.log_date,now} ;
-		encode_node->date = {entry.log_date,now} ;
-		entry.phys_date   = file_date(file)      ;                                                     // we have touched the file but not the semantic, update phys_date but not log_date
+		decode_node->log_date() = entry.log_date  ;
+		encode_node->log_date() = entry.log_date  ;
+		entry.phys_date         = file_date(file) ;                                                    // we have touched the file but not the semantic, update phys_date but not log_date
 		//
 		trace("found",code) ;
 		return { JobMngtProc::Encode , {}/*seq_id*/ , {}/*fd*/ , code , encode_node->crc , Yes } ;
@@ -272,7 +272,7 @@ namespace Codec {
 			node->refresh(Crc::None) ;
 			return false/*ok*/ ;
 		}
-		return node->crc!=Crc::None && node->date.d!=Closure::s_tab.at(file).log_date ;
+		return node->crc!=Crc::None && node->log_date()!=Closure::s_tab.at(file).log_date ;
 	}
 
 	void codec_thread_func(Closure const& cc) {

@@ -216,9 +216,9 @@ namespace Engine {
 			return *this ;
 		}
 		// data
-		GenericDep const* hdr     = nullptr                    ;       // pointer to current chunk header
-		uint8_t           i_chunk = 0                          ;       // current index in chunk
-		mutable Dep       tmpl    = {{}/*accesses*/,Crc::None} ;       // template to store uncompressed Dep's
+		GenericDep const* hdr     = nullptr                    ;           // pointer to current chunk header
+		uint8_t           i_chunk = 0                          ;           // current index in chunk
+		mutable Dep       tmpl    = {{}/*accesses*/,Crc::None} ;           // template to store uncompressed Dep's
 	} ;
 
 	struct Deps : DepsBase {
@@ -285,12 +285,12 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                  // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                           // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData(                                          ) = delete ;      // if necessary, we must take care of the union
+		NodeData(                                          ) = delete ;                                               // if necessary, we must take care of the union
 		NodeData( Name n , bool no_dir , bool locked=false ) : DataBase{n} {
 			if (!no_dir) dir() = Node(_dir_name(),false/*no_dir*/,locked) ;
 		}
@@ -306,32 +306,35 @@ namespace Engine {
 		bool is_encode() const { return buildable==Buildable::Encode ; }
 		bool is_plain () const { return !is_decode() && !is_encode() ; }
 		//
-		Node             & dir          ()       { SWEAR( is_plain () , buildable ) ; return _if_plain .dir        ; }
-		Node        const& dir          () const { SWEAR( is_plain () , buildable ) ; return _if_plain .dir        ; }
-		JobTgts          & job_tgts     ()       { SWEAR( is_plain () , buildable ) ; return _if_plain .job_tgts   ; }
-		JobTgts     const& job_tgts     () const { SWEAR( is_plain () , buildable ) ; return _if_plain .job_tgts   ; }
-		RuleTgts         & rule_tgts    ()       { SWEAR( is_plain () , buildable ) ; return _if_plain .rule_tgts  ; }
-		RuleTgts    const& rule_tgts    () const { SWEAR( is_plain () , buildable ) ; return _if_plain .rule_tgts  ; }
-		Job              & actual_job   ()       { SWEAR( is_plain () , buildable ) ; return _if_plain .actual_job ; }
-		Job         const& actual_job   () const { SWEAR( is_plain () , buildable ) ; return _if_plain .actual_job ; }
-		Tflags           & actual_tflags()       { SWEAR( is_plain () , buildable ) ; return _actual_tflags        ; }
-		Tflags      const& actual_tflags() const { SWEAR( is_plain () , buildable ) ; return _actual_tflags        ; }
-		Codec::Val       & codec_val    ()       { SWEAR( is_decode() , buildable ) ; return _if_decode.val        ; }
-		Codec::Val  const& codec_val    () const { SWEAR( is_decode() , buildable ) ; return _if_decode.val        ; }
-		Codec::Code      & codec_code   ()       { SWEAR( is_encode() , buildable ) ; return _if_encode.code       ; }
-		Codec::Code const& codec_code   () const { SWEAR( is_encode() , buildable ) ; return _if_encode.code       ; }
+		Node             & dir          ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .dir                                      ; }
+		Node        const& dir          () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .dir                                      ; }
+		JobTgts          & job_tgts     ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .job_tgts                                 ; }
+		JobTgts     const& job_tgts     () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .job_tgts                                 ; }
+		RuleTgts         & rule_tgts    ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .rule_tgts                                ; }
+		RuleTgts    const& rule_tgts    () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .rule_tgts                                ; }
+		Job              & actual_job   ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .actual_job                               ; }
+		Job         const& actual_job   () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .actual_job                               ; }
+		Tflags           & actual_tflags()       { SWEAR(  is_plain () , buildable ) ; return _actual_tflags                                      ; }
+		Tflags      const& actual_tflags() const { SWEAR(  is_plain () , buildable ) ; return _actual_tflags                                      ; }
+		SigDate          & date         ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .date                                     ; }
+		SigDate     const& date         () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .date                                     ; }
+		Codec::Val       & codec_val    ()       { SWEAR(  is_decode() , buildable ) ; return _if_decode.val                                      ; }
+		Codec::Val  const& codec_val    () const { SWEAR(  is_decode() , buildable ) ; return _if_decode.val                                      ; }
+		Codec::Code      & codec_code   ()       { SWEAR(  is_encode() , buildable ) ; return _if_encode.code                                     ; }
+		Codec::Code const& codec_code   () const { SWEAR(  is_encode() , buildable ) ; return _if_encode.code                                     ; }
+		Ddate            & log_date     ()       { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
+		Ddate       const& log_date     () const { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
 		//
-		bool newer   (            FullDate const& fd ) const { return crc==Crc::None ? date.p>fd.p : date.d>fd.d ; }
-		void crc_date( Crc crc_ , FullDate const& fd ) {
-			crc  = {}   ; fence() ;                                          // ensure crc is never associated with a wrong date, even in case of crash
-			date = fd   ; fence() ;                                          // .
-			crc  = crc_ ;
+		void crc_date( Crc crc_ , SigDate const& sd ) {
+			crc    = {}   ; fence() ;                                                                                 // ensure crc is never associated with a wrong date, even in case of crash
+			date() = sd   ; fence() ;                                                                                 // .
+			crc    = crc_ ;
 		}
 		//
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;       // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -343,15 +346,14 @@ namespace Engine {
 		bool has_actual_job    (         ) const {                          return is_plain() && +actual_job() && !actual_job()->rule.old() ; }
 		bool has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return is_plain() && actual_job()==j                            ; }
 		//
-		Manual manual        ( Ddate , bool empty                        ) const ;
-		Manual manual        (                  Disk::FileInfo const& fi ) const {                             return manual(fi.date,!fi.sz) ; }
-		Manual manual        (                                           ) const { Disk::FileInfo fi{name()} ; return manual(fi            ) ; }
-		Manual manual_refresh( Req            , Disk::FileInfo const& fi ) ;                                                                     // refresh date if file was updated but steady
-		Manual manual_refresh( JobData const& , Disk::FileInfo const& fi ) ;                                                                     // .
-		Manual manual_refresh( Req            r                          )       { Disk::FileInfo fi{name()} ; return manual_refresh(r,fi)   ; }
-		Manual manual_refresh( JobData const& j                          )       { Disk::FileInfo fi{name()} ; return manual_refresh(j,fi)   ; }
+		Manual manual        (                  FileSig const& ) const ;
+		Manual manual        (                                 ) const { return manual(FileSig(name())) ; }
+		Manual manual_refresh( Req            , FileSig const& ) ;                                                    // refresh date if file was updated but steady
+		Manual manual_refresh( JobData const& , FileSig const& ) ;                                                    // .
+		Manual manual_refresh( Req            r                )       { return manual_refresh(r,FileSig(name())) ; }
+		Manual manual_refresh( JobData const& j                )       { return manual_refresh(j,FileSig(name())) ; }
 		//
-		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;                                 // Req's are for reporting only
+		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;      // Req's are for reporting only
 		//
 		void full_refresh( bool report_no_file , ::vector<Req> const& reqs , ::string const& name ) {
 			set_buildable() ;
@@ -372,15 +374,18 @@ namespace Engine {
 			Job cj = conform_job() ;
 			return +cj && ( cj->is_special() || has_actual_job(cj) ) ;
 		}
-		Bool3 ok() const {                                                                      // if Maybe <=> not built
+		Bool3 ok(bool force_err=false) const {                                                                      // if Maybe <=> not built
 			switch (status()) {
-				case NodeStatus::Plain : return No    | !conform_job()->err() ;
-				case NodeStatus::Multi : return No                            ;
-				case NodeStatus::Src   : return Yes   & (crc!=Crc::None)      ;
-				default                : return Maybe                         ;
+				case NodeStatus::Plain : return No | !( force_err || conform_job()->err() ) ;
+				case NodeStatus::Multi : return No                                          ;
+				case NodeStatus::Src   : return No | !( force_err || crc==Crc::None       ) ;
+				default                : return Maybe                                       ;
 			}
 		}
-		Bool3 ok     ( ReqInfo const& cri , Accesses a=~Accesses() ) const { SWEAR(cri.done(NodeGoal::Status)) ; return +(cri.overwritten&a) ? No : ok() ; }
+		Bool3 ok( ReqInfo const& cri , Accesses a=~Accesses() ) const {
+			SWEAR(cri.done(NodeGoal::Status)) ;
+			return ok(+(cri.overwritten&a)) ;
+		}
 		bool  running( ReqInfo const& cri ) const {
 			for( Job j : conform_job_tgts(cri) )
 				for( Req r : j->running_reqs() )
@@ -417,14 +422,15 @@ namespace Engine {
 		//
 		Manual manual_wash( ReqInfo& ri , bool lazy=false ) ;
 		//
-		void mk_old   (                    ) ;
-		void mk_src   (FileTag=FileTag::Err) ;                                                  // Err means no crc update
-		void mk_no_src(                    ) ;
+		void mk_old   (                        ) ;
+		void mk_src   (Buildable=Buildable::Src) ;
+		void mk_src   (FileTag                 ) ;
+		void mk_no_src(                        ) ;
 		//
 		::c_vector_view<JobTgt> prio_job_tgts     (RuleIdx prio_idx) const ;
 		::c_vector_view<JobTgt> conform_job_tgts  (ReqInfo const&  ) const ;
 		::c_vector_view<JobTgt> conform_job_tgts  (                ) const ;
-		::c_vector_view<JobTgt> candidate_job_tgts(                ) const ; // all jobs above prio provided in conform_idx
+		::c_vector_view<JobTgt> candidate_job_tgts(                ) const ;                    // all jobs above prio provided in conform_idx
 		//
 		void set_buildable( Req={}   , DepDepth lvl=0       ) ;                                 // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& , CoarseDelay pressure ) const ;
@@ -445,8 +451,8 @@ namespace Engine {
 		//
 		template<class RI> void add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) ;
 		//
-		bool/*modified*/ refresh( Crc , FullDate const& ={} ) ;
-		void             refresh(                           ) ;
+		bool/*modified*/ refresh( Crc , SigDate const& ={} ) ;
+		void             refresh(                          ) ;
 	private :
 		void         _set_buildable_raw( Req      , DepDepth                         ) ;        // req is for error reporting only
 		bool/*done*/ _make_pre         ( ReqInfo&                                    ) ;
@@ -466,24 +472,26 @@ namespace Engine {
 		// START_OF_VERSIONING
 	public :
 		struct IfPlain {
+			SigDate  date       ;                                // ~40+40<128 bits,         p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
 			Node     dir        ;                                //  31   < 32 bits, shared
 			JobTgts  job_tgts   ;                                //         32 bits, owned , ordered by prio, valid if match_ok
 			RuleTgts rule_tgts  ;                                // ~20   < 32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 			Job      actual_job ;                                //  31   < 32 bits, shared, job that generated node
 		} ;
 		struct IfDecode {
-			Codec::Val val ;                                     //         32 bits,         offset in association file where the association line can be found
+			Ddate      log_date ;                                // ~40   < 64 bits,         logical date to detect overwritten
+			Codec::Val val      ;                                //         32 bits,         offset in association file where the association line can be found
 		} ;
 		struct IfEncode {
-			Codec::Code code ;                                   //         32 bits,         offset in association file where the association line can be found
+			Ddate       log_date ;                               // ~40   < 64 bits,         logical date to detect overwritten
+			Codec::Code code     ;                               //         32 bits,         offset in association file where the association line can be found
 		} ;
 		//Name   name   ;                                        //         32 bits, inherited
 		Watcher  asking ;                                        //         32 bits,         last watcher needing this node
 		Crc      crc    = Crc::None ;                            // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
-		FullDate date   ;                                        // ~40+40<128 bits,         p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
 	private :
 		union {
-			IfPlain  _if_plain  = {} ;                           //         28 bits
+			IfPlain  _if_plain  = {} ;                           //        256 bits
 			IfDecode _if_decode ;                                //         32 bits
 			IfEncode _if_encode ;                                //         32 bits
 		} ;
@@ -545,20 +553,12 @@ namespace Engine {
 	inline bool NodeData::done( Req            r   , NodeGoal ng ) const { return done(c_req_info(r),ng      ) ; }
 	inline bool NodeData::done( Req            r                 ) const { return done(c_req_info(r)         ) ; }
 
-	inline Manual NodeData::manual(Ddate dd,bool empty) const {
-		Manual res = {}/*garbage*/ ;
-		if (crc==Crc::None) {
-			if      (!dd       ) return Manual::Ok      ;
-			else if (empty     ) res =  Manual::Empty   ;
-			else                 res =  Manual::Modif   ;
-		} else {
-			if      (!dd       ) res =  Manual::Unlnked ;
-			else if (dd==date.d) return Manual::Ok      ;
-			else if (empty     ) res =  Manual::Empty   ;
-			else                 res =  Manual::Modif   ;
-		}
-		//
-		Trace("manual",idx(),dd,crc,date,res,STR(empty)) ;
+	inline Manual NodeData::manual(FileSig const& sig) const {
+		if (sig==date().sig) return Manual::Ok ;
+		Manual res = Manual::Modif ;
+		if      (!sig                     ) res = Manual::Unlnked ;
+		else if (sig.tag()==FileTag::Empty) res = Manual::Empty   ;
+		Trace("manual",idx(),sig,crc,date(),res) ;
 		return res ;
 	}
 
@@ -599,12 +599,12 @@ namespace Engine {
 	}
 
 	inline void NodeData::refresh() {
-		FileInfo fi = Disk::FileInfo{name()} ;
-		switch (manual(fi)) {
+		FileSig sig { name() } ;
+		switch (manual(sig)) {
 			case Manual::Ok      :                                      break ;
 			case Manual::Unlnked : refresh( Crc::None  , Pdate(New) ) ; break ;
-			case Manual::Empty   : refresh( Crc::Empty , fi.date    ) ; break ;
-			case Manual::Modif   : refresh( {}         , fi.date    ) ; break ;
+			case Manual::Empty   : refresh( Crc::Empty , sig        ) ; break ;
+			case Manual::Modif   : refresh( {}         , sig        ) ; break ;
 		DF}
 	}
 
@@ -613,11 +613,11 @@ namespace Engine {
 	//
 
 	inline bool Dep::up_to_date() const {
-		return !is_date && crc().match((*this)->crc,accesses) ;
+		return is_crc && crc().match((*this)->crc,accesses) ;
 	}
 
 	inline void Dep::acquire_crc() {
-		if ( is_date && (*this)->crc.valid() && (*this)->crc!=Crc::None && date()==(*this)->date.d ) crc((*this)->crc) ;
+		if ( !is_crc && (*this)->crc.valid() && (*this)->crc!=Crc::None && sig()==(*this)->date().sig ) crc((*this)->crc) ;
 	}
 
 	//
