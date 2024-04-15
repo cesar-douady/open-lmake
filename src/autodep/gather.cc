@@ -395,15 +395,16 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 						if (kind==Kind::Stderr) {
 							stderr.append(buf_view) ;
 						} else {
+							size_t old_sz = stdout.size() ;
 							stdout.append(buf_view) ;
 							if (live_out) {
 								if ( size_t pos = buf_view.rfind('\n') ;  pos!=Npos ) {
-									size_t old_sz = stdout.size() ;
 									pos++ ;
-									trace("live_out",old_sz-live_out_pos,'+',pos) ;
-									//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-									OMsgBuf().send( ClientSockFd(service_mngt) , JobMngtRpcReq( JobMngtProc::LiveOut , seq_id , job , stdout.substr(live_out_pos,old_sz+pos-live_out_pos) ) ) ;
-									//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+									size_t len = old_sz + pos - live_out_pos ;
+									trace("live_out",live_out_pos,len) ;
+									//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+									OMsgBuf().send( ClientSockFd(service_mngt) , JobMngtRpcReq( JobMngtProc::LiveOut , seq_id , job , stdout.substr(live_out_pos,len) ) ) ;
+									//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 									live_out_pos = old_sz+pos ;
 								}
 							}
