@@ -59,14 +59,13 @@ ENUM_2( Dflag                          // flags for deps
 ,	Static                             // is static dep, for internal use only
 )
 // END_OF_VERSIONING
-static constexpr char DflagChars[] = {
-	'E'                                // Essential
-,	'c'                                // Critical
-,	'e'                                // IgnoreError
-,	'r'                                // Required
-,	'S'                                // Static
-} ;
-static_assert(::size(DflagChars)==N<Dflag>) ;
+static constexpr ::amap<Dflag,char,N<Dflag>> DflagChars {{
+	{ Dflag::Critical    , 'c' }
+,	{ Dflag::Essential   , 'E' }
+,	{ Dflag::IgnoreError , 'e' }
+,	{ Dflag::Required    , 'r' }
+,	{ Dflag::Static      , 'S' }
+}} ;
 using Dflags = BitMap<Dflag> ;
 
 // START_OF_VERSIONING
@@ -77,12 +76,11 @@ ENUM_1( ExtraDflag
 ,	StatReadData
 )
 // END_OF_VERSIONING
-static constexpr char ExtraDflagChars[] = {
-	0                                       // Top
-,	'I'                                     // Ignore
-,	'd'                                     // StatReadData
-} ;
-static_assert(::size(ExtraDflagChars)==N<ExtraDflag>) ;
+static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
+	{ ExtraDflag::Top          , 0   }
+,	{ ExtraDflag::Ignore       , 'I' }
+,	{ ExtraDflag::StatReadData , 'd' }
+}} ;
 using ExtraDflags = BitMap<ExtraDflag> ;
 
 // START_OF_VERSIONING
@@ -98,16 +96,15 @@ ENUM_2( Tflag                          // flags for targets
 ,	Target                             // is a target, for internal use only
 )
 // END_OF_VERSIONING
-static constexpr char TflagChars[] = {
-	'E'                                // Essential
-,	'i'                                // Incremental
-,	'p'                                // Phony
-,	'u'                                // NoUniquify
-,	'w'                                // NoWarning
-,	'S'                                // Static
-,	'T'                                // Target
-} ;
-static_assert(::size(TflagChars)==N<Tflag>) ;
+static constexpr ::amap<Tflag,char,N<Tflag>> TflagChars {{
+	{ Tflag::Essential   , 'E' }
+,	{ Tflag::Incremental , 'i' }
+,	{ Tflag::NoUniquify  , 'u' }
+,	{ Tflag::NoWarning   , 'w' }
+,	{ Tflag::Phony       , 'p' }
+,	{ Tflag::Static      , 'S' }
+,	{ Tflag::Target      , 'T' }
+}} ;
 using Tflags = BitMap<Tflag> ;
 inline bool static_phony(Tflags tf) {
 	return tf[Tflag::Target] && (tf[Tflag::Static]||tf[Tflag::Phony]) ;
@@ -124,15 +121,14 @@ ENUM_1( ExtraTflag
 ,	Wash                                    // target was unlinked when washing before job execution
 )
 // END_OF_VERSIONING
-static constexpr char ExtraTflagChars[] = {
-	0                                       // Top
-,	'I'                                     // Ignore
-,	0                                       // Optional
-,	's'                                     // SourceOk
-,	'a'                                     // Allow
-,	0                                       // Wash
-} ;
-static_assert(::size(ExtraTflagChars)==N<ExtraTflag>) ;
+static constexpr ::amap<ExtraTflag,char,N<ExtraTflag>> ExtraTflagChars {{
+	{ ExtraTflag::Top      , 0   }
+,	{ ExtraTflag::Ignore   , 'I' }
+,	{ ExtraTflag::Optional , 0   }
+,	{ ExtraTflag::SourceOk , 's' }
+,	{ ExtraTflag::Allow    , 'a' }
+,	{ ExtraTflag::Wash     , 0   }
+}} ;
 using ExtraTflags = BitMap<ExtraTflag> ;
 
 // START_OF_VERSIONING

@@ -854,8 +854,8 @@ template<StdEnum E> struct EnumIterator {
 	E val ;
 } ;
 
-template<StdEnum E> EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; }
-template<StdEnum E> EnumIterator<E> end  (E e) { return EnumIterator<E>(e   ) ; }
+template<StdEnum E> constexpr EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; }
+template<StdEnum E> constexpr EnumIterator<E> end  (E e) { return EnumIterator<E>(e   ) ; }
 
 template<StdEnum E> ::ostream& operator<<( ::ostream& os , BitMap<E> const bm ) {
 	os <<'(' ;

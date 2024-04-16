@@ -108,6 +108,10 @@ items :
 		- this way, no harm can be done outside repo
 * provide a reasonable default value when dynamic functions return None
 	- at least, dont crash
+* provide more options to stderr management :
+	- redirect to stdout
+	- hide it (still accessible in lshow -e)
+	? rename allow_stderr to stderr
 * implement cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy

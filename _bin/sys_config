@@ -14,12 +14,16 @@ START_DIR=$(pwd)
 mkdir -p trial
 cd       trial
 
+PYTHON2=${PYTHON2:-python2} ; PYTHON2=$(type -p $PYTHON2||:)                                              # ok if we have no python2
+PYTHON=${PYTHON:-python3}   ; PYTHON=$( type -p $PYTHON    )
+CXX=${CXX:-g++}             ; CXX=$(    type -p $CXX       )
+
+echo /$PYTHON2/ /$PYTHON/ /$CXX/
+
 #
 # Python configuration (Python2 is optional)
 #
 
-PYTHON2=${PYTHON2:-python2} ; PYTHON2=$(type -p $PYTHON2||:)                                              # ok if we have no python2
-PYTHON=${PYTHON:-python3}   ; PYTHON=$( type -p $PYTHON    )
 for python in $PYTHON2 $PYTHON ; do
 	if [ -x $python ] ; then
 		eval $($python -c 'if True :
@@ -51,12 +55,19 @@ if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY_LIB_DIR:$PY
 else                                          PY_LD_LIBRARY_PATH=$PY_LIB_DIR$PY2_LIB_DIR                  # only one is present
 fi
 # cancel Python2 if unusable as a library
-{ [ -f $PY2_INCLUDEPY/Python.h ] && file -L $PY2_LIB_DIR/$PY2_LIB_BASE | grep -q shared ; } || PYTHON2=
+cat <<"EOF" > python2.c
+	#include <Python.h>
+	int main() {
+		PyObject* none = Py_None ;
+	}
+EOF
+p2ld=$PY2_LIB_DIR
+[ "$p2ld" ] && p2ld="-L$p2ld"
+$CXX -o python2 -I$PY2_INCLUDEPY $p2ld python2.c -l:$PY2_LIB_BASE || PYTHON2=
 
 #
 # CXX configuration
 #
-CXX=${CXX:-g++}
 [ "$CXX" != "${CXX%++*}" ] || { echo cannot recognize c++ compiler $CXX ; exit 1 ; } # ensure we can find "++" in cxx, for example gcc or clang will not work, we must use g++ and clang++
 type -p $CXX >/dev/null    || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
 
@@ -99,7 +110,7 @@ STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of 
 # test whether we have seccomp : warning, include <seccomp.h> is not enough to test, check its content too
 #
 cat <<"EOF" > seccomp.c
-	#include<seccomp.h>
+	#include <seccomp.h>
 	struct scmp_version v ;
 EOF
 # usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccomp.h) but some systems have seccomp.h directly installed in /usr/include/linux
@@ -222,8 +233,8 @@ fi
 #
 # addr2line
 #
-[ ""              ] || ADDR2LINE=$(find $(dirname $(realpath $(type -p $CXX))) -name llvm-addr2line)
-[ -x "$ADDR2LINE" ] || ADDR2LINE=$(find $(dirname $(realpath $(type -p $CXX))) -name addr2line     )
+[ ""              ] || ADDR2LINE=$(find $(dirname $(realpath $CXX)) -name llvm-addr2line)
+[ -x "$ADDR2LINE" ] || ADDR2LINE=$(find $(dirname $(realpath $CXX)) -name addr2line     )
 [ -x "$ADDR2LINE" ] || ADDR2LINE=$(type -p addr2line)
 
 #
@@ -296,7 +307,7 @@ PY_INCLUDEPY   := $PY_INCLUDEPY
 PY_LIB_DIR     := $PY_LIB_DIR
 PY_LIB_BASE    := $PY_LIB_BASE
 #
-CXX            := $(type -p $CXX)
+CXX            := $CXX
 CXX_FLAVOR     := $CXX_FLAVOR
 LINK_LIB_PATH  := $LINK_LIB_PATH
 STD_INC_DIRS   := $STD_INC_DIRS

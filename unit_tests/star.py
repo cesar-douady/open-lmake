@@ -13,11 +13,18 @@ if __name__!='__main__' :
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello'
+	,	'ok.opt.ref'
+	,	'ko.opt.ref'
 	)
 
 	class Opt(Rule) :
 		targets = { 'DST' : ('{File:.*}.opt','Optional') }
-		cmd     = '[ {File} != ok ] || echo > {DST}'
+		cmd     = '[ {File} != ok ] || echo 1 > {DST}'
+
+	class Opt2(Rule) :
+		prio = -1
+		targets = { 'DST' : '{File:.*}.opt' }
+		cmd     = 'echo 2 > {DST}'
 
 	class Star(Rule) :
 		targets = { 'DST' : ('{File:.*}.star{D*:\\d+}',) }
@@ -32,15 +39,25 @@ if __name__!='__main__' :
 		dep    = '{File}'
 		cmd    = 'cat'
 
+	class Chk(Rule) :
+		target = '{File:.*}.ok'
+		deps = {
+			'DUT' : '{File}'
+		,	'REF' : '{File}.ref'
+		}
+		cmd = 'diff {REF} {DUT}'
+
 else :
 
 	import ut
 
-	print( 'hello' , file=open('hello','w') )
+	print( 'hello' , file=open('hello'     ,'w') )
+	print( '1'     , file=open('ok.opt.ref','w') )
+	print( '2'     , file=open('ko.opt.ref','w') )
 
-	ut.lmake( 'hello.star1.cpy' ,        done=2   , new=1 )
-	ut.lmake( 'hello.star2'     ,        done=0   , new=0 )
-	ut.lmake( 'hello.star3'     , rc=1 , done=0   , new=0 )
-	ut.lmake( 'ok.opt'          ,        done=1   , new=0 )
-	ut.lmake( 'ko.opt'          , rc=1 , steady=1 , new=0 ) # no rule to make target
+	ut.lmake( 'hello.star1.cpy' ,                   done=2 , new=1 )
+	ut.lmake( 'hello.star2'     ,                   done=0 , new=0 )
+	ut.lmake( 'hello.star3'     , rc=1 ,            done=0 , new=0 )
+	ut.lmake( 'ok.opt.ok'       ,                   done=2 , new=1 ) # select Opt
+	ut.lmake( 'ko.opt.ok'       ,        steady=1 , done=2 , new=1 ) # select Opt2
 

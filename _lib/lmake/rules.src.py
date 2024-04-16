@@ -11,10 +11,10 @@ import signal as _signal
 import lmake
 from . import has_ld_audit,pdict,root_dir # if not in an lmake repo, root_dir is not set to current dir
 
-shell  = '$BASH'         # .
-python = _sys.executable
-
-_std_path        = '$STD_PATH'                   # substituted at installation time
+shell            = '$BASH'                       # substituted at installation time
+python2          = '$PYTHON2'                    # .
+python           = '$PYTHON'                     # .
+_std_path        = '$STD_PATH'                   # .
 _ld_library_path = '$LD_LIBRARY_PATH'            # .
 _lmake_dir       = __file__.rsplit('/lib/',1)[0]
 
@@ -88,8 +88,8 @@ class Rule(_RuleBase) :
 	n_retries        = 1                                     # number of retries in case of job lost. 1 is a reasonable value
 #	n_tokens         = 1                                     # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 #	prio             = 0                                     # in case of ambiguity, rules are selected with highest prio first
-	python           = (python,)                            # python used for callable cmd
-	shell            = (shell ,)                            # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
+	python           = (python,)                             # python used for callable cmd
+	shell            = (shell ,)                             # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
 	start_delay      = 3                                     # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
 	max_stderr_len   = 100                                   # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 #	timeout          = None                                  # timeout allocated to job execution (in s), must be None or an int
@@ -140,7 +140,7 @@ class _PyRule(Rule) :
 	def cmd() :                                                                           # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 		if gen_module_deps or mask_python_deps :                                          # fast path :if nothing to do, do nothing
 			try : import lmake
-			except ModuleNotFoundError :
+			except ImportError :
 				import sys
 				sys.path[0:0] = (_lmake_dir+'/lib',)
 			from lmake.import_machinery import fix_import
@@ -150,6 +150,7 @@ class Py2Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	side_targets    = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }
 	gen_module_deps = True
+	python          = python2
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	side_targets     = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental'  ) }

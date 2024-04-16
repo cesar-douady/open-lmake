@@ -34,9 +34,9 @@ namespace Engine {
 		for( Target t : targets ) {
 			FileActionTag fat = {}/*garbage*/ ;
 			//
-			if      (t->polluted                  ) fat = FileActionTag::Unlnk    ;                                                       // wash pollution
-			else if (t->crc==Crc::None            ) fat = FileActionTag::None     ;                                                       // nothing to wash
-			else if (t->is_src_anti()             ) fat = FileActionTag::Src      ;                                                       // dont touch sources, not even integrity check
+			if      (t->polluted                  ) fat = FileActionTag::Unlnk    ;                                                                      // wash pollution
+			else if (t->crc==Crc::None            ) fat = FileActionTag::None     ;                                                                      // nothing to wash
+			else if (t->is_src_anti()             ) fat = FileActionTag::Src      ;                                                                      // dont touch sources, not even integrity check
 			else if (!t.tflags[Tflag::Incremental]) fat = FileActionTag::Unlnk    ;
 			else if ( t.tflags[Tflag::NoUniquify ]) fat = FileActionTag::None     ;
 			else                                    fat = FileActionTag::Uniquify ;
@@ -44,10 +44,10 @@ namespace Engine {
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
-				case FileActionTag::Src      : if (t->crc!=Crc::None) locked_dirs.insert(t->dir()) ;                              break ; // nothing to do in job_exec, not even integrity check
-				case FileActionTag::Uniquify :                        locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
-				case FileActionTag::None     : if (t->crc!=Crc::None) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ; // integrity check in job_exec
-				case FileActionTag::Unlnk    :                                                       actions.emplace_back(t,fa) ; break ;
+				case FileActionTag::Src      : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ;                              break ; // nothing to do, not even integrity check
+				case FileActionTag::Uniquify : if ( +t->dir()                      ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
+				case FileActionTag::None     : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ; // integrity check
+				case FileActionTag::Unlnk    :                                                                      actions.emplace_back(t,fa) ; break ;
 					if ( !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ) warnings.push_back(t) ;
 					if ( Node td=t->dir() ; +td ) {
 						//
@@ -449,8 +449,12 @@ namespace Engine {
 		//
 		bool has_new_deps = false ;
 		if (fresh_deps) {
-			::uset<Node>  old_deps ; for( Dep const& d : (*this)->deps ) old_deps.insert(d) ;
+			::uset<Node>  old_deps ;
 			::vector<Dep> deps     ; deps.reserve(digest.deps.size()) ;
+			for( Dep const& d : (*this)->deps )
+				if (d->is_plain())
+					for( Node dd=d ; +dd ; dd=dd->dir() )
+						if (!old_deps.insert(dd).second) break ;                       // record old deps and all uphill dirs as these are implicit deps
 			for( auto const& [dn,dd] : digest.deps ) {
 				Dep dep { Node(dn) , dd } ;
 				if (!old_deps.contains(dep)) {
@@ -459,13 +463,14 @@ namespace Engine {
 					// because of disk date granularity (usually a few ms) and because of date discrepancy between executing host and disk server (usually a few ms when using NTP)
 					// this means that the file could actually have been accessed before and have gotten wrong data.
 					// if this occurs, consider dep as unstable if it was not a known dep (we know known deps have been finish before job started).
-					if (dep.hot) dep.crc({}) ;
+					if (dep.hot) { trace("reset",dep) ; dep.crc({}) ; }
 				}
 				if (!dep.is_crc) {
 					dep->full_refresh(true/*report_no_file*/,running_reqs_,dn) ;
 					dep.acquire_crc() ;                                                                           // retry crc acquisition in case previous cleaning aligned the dates
 					seen_dep_date |= dep.is_crc ;                                                                 // if a dep has become a crc, we must fix ancillary file
 				} else if (dep.never_match()) {
+					dep->set_buildable() ;
 					if (dep->is_src_anti()) dep->refresh_src_anti(true/*report_no_file*/,running_reqs_,dn) ;      // the goal is to detect overwritten
 					unstable_dep = true ;
 				}
@@ -507,7 +512,7 @@ namespace Engine {
 		}
 		CoarseDelay old_exec_time = (*this)->best_exec_time().first                              ;
 		MakeAction  end_action    = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
-		bool        all_done      = true ;
+		bool        all_done      = true                                                         ;
 		JobReason   err_reason    ;
 		for( Req req : running_reqs_ ) (*this)->req_info(req).step(Step::End) ; // ensure no confusion with previous run
 		for( Req req : running_reqs_ ) {

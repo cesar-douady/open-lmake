@@ -19,9 +19,12 @@ def _mask_python_deps() :
 	# - if a file can be generated, there will be no dep (as the file is not accessed), this may lead to a non-existing module without job rerun or worse, a following file may be used
 	# - a lot of sibling files will be accessed, triggering potentially unwanted deps
 	# to prevent that, autodep is deactivated during import
-	if _sys.version_info.major==2 : import __builtins__ as builtins
-	else                          : import   builtins
-	orig_import = builtins.__import__
+	if _sys.version_info.major==2 :
+		builtins_dct = __builtins__
+	else :
+		import builtins
+		builtins_dct = builtins.__dict__
+	orig_import = builtins_dct['__import__']
 	def new_import(*args,**kwds) :
 		with Autodep(False) :
 			return orig_import(*args,**kwds)
@@ -35,13 +38,16 @@ def _mask_python_deps() :
 		_LoaderBasics.exec_module = orig_exec_module
 	except :
 		raise RuntimeError('masking python deps during import is not available for python%d.%d'%_sys.version_info[:2])
-	builtins.__import__ = new_import # wrap at the end to avoid wraping our own imports
+	builtins_dct['__import__'] = new_import                                                                            # wrap at the end to avoid wraping our own imports
 
 def _maybe_local(file) :
 	'fast check for local files, avoiding full absolute path generation'
 	return not file or file[0]!='/' or file.startswith(root_dir)
-import importlib.machinery as _machinery
-_std_suffixes = _machinery.all_suffixes()+['/__init__.py'] # account for packages, not included in all_suffixes()
+if _sys.version_info.major==2 :
+	_std_suffixes = ['.py','.so','/__init__.py']               # standard suffixes are not available with Python2
+else :
+	import importlib.machinery as _machinery
+	_std_suffixes = _machinery.all_suffixes()+['/__init__.py'] # account for packages, not included in all_suffixes()
 
 def _gen_module_deps() :
 	'''fixes imports so as to be sure all files needed to do an import is correctly reported (not merely those that exist)'''

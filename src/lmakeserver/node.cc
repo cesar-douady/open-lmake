@@ -735,7 +735,7 @@ namespace Engine {
 
 	::string Dep::dflags_str() const {
 		::string res ; res.reserve(N<Dflag>) ;
-		for( Dflag df : All<Dflag> ) res.push_back( dflags[df] ? DflagChars[+df] : '-' ) ;
+		for( Dflag df : All<Dflag> ) res.push_back( dflags[df] ? DflagChars[+df].second : '-' ) ;
 		return res ;
 	}
 

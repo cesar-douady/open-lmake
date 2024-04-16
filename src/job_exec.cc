@@ -191,10 +191,11 @@ Digest analyze( bool at_end , bool killed=false ) {
 				break ;
 			DF}
 			if ( td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] ) {
-				if (td.tflags[Tflag::Static]) {
+				if ( td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ) {
 					if (unlnk        ) append_to_string( res.msg , "missing static target " , mk_file(file,No/*exists*/) , '\n' ) ;
 				} else {
-					if (ad.write==Yes) { if (unlnk           ) td.tflags &= ~Tflag::Target ; }                    // unless static or phony, a target loses its official status if not actually produced
+					// unless static and non-optional or phony, a target loses its official status if not actually produced
+					if (ad.write==Yes) { if (unlnk           ) td.tflags &= ~Tflag::Target ; }
 					else               { if (!is_target(file)) td.tflags &= ~Tflag::Target ; }
 				}
 			}
@@ -342,7 +343,8 @@ int main( int argc , char* argv[] ) {
 		end_report.msg += wash_report.first ;
 		if (!wash_report.second) { end_report.digest.status = Status::LateLostErr ; goto End ; }
 		g_gather.new_deps( start_overhead , ::move(g_start_info.deps) , g_start_info.stdin ) ;
-		for( auto const& [t,f] : g_match_dct.knowns ) if (f.is_target==Yes) g_gather.new_unlnk(start_overhead,t) ;
+		// non-optional static targets must be reported in all cases
+		for( auto const& [t,f] : g_match_dct.knowns ) if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] ) g_gather.new_unlnk(start_overhead,t) ;
 		//
 		Fd child_stdin ;
 		if (+g_start_info.stdin) child_stdin = open_read(g_start_info.stdin) ;

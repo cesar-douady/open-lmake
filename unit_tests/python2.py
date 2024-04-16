@@ -20,7 +20,7 @@ if __name__!='__main__' :
 	import sys
 
 	import lmake
-	from lmake.rules import PyRule
+	from lmake.rules import Py2Rule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -29,7 +29,7 @@ if __name__!='__main__' :
 	,	'a_dep'
 	)
 
-	class Cat(PyRule) :
+	class Cat(Py2Rule) :
 		stems = {
 			'File1' : r'.*'
 		,	'File2' : r'.*'
@@ -39,7 +39,6 @@ if __name__!='__main__' :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		python = python2
 		def cmd() :
 			lmake.depend('a_dep')
 			sys.stdout.write(open(FIRST ).read())

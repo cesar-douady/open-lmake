@@ -11,8 +11,12 @@ MAKEFLAGS += -r -R
 
 .DEFAULT_GOAL := DFLT
 
-sys_config.log : _bin/sys_config
-	./$< $(@:%.log=%.mk) $(@:%.log=%.h) 2>$@ || cat $@
+$(shell { echo CXX=$$CXX ; echo PYTHON2=$$PYTHON2 ; echo PYTHON=$$PYTHON ; } >sys_config_env.tmp                                                     )
+$(shell cmp sys_config_env sys_config_env.tmp 2>/dev/null || { cp sys_config_env.tmp sys_config_env ; echo new env : >&2 ; cat sys_config_env >&2 ; })
+$(shell rm -f sys_config_env.tmp                                                                                                                     )
+
+sys_config.log : _bin/sys_config sys_config_env
+	. ./sys_config_env ; ./$< $(@:%.log=%.mk) $(@:%.log=%.h) 2>$@ || cat $@
 sys_config.mk : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 
@@ -217,6 +221,8 @@ $(LIB)/%.py : $(SLIB)/%.src.py
 	@mkdir -p $(@D)
 	sed \
 		-e 's!\$$BASH!$(BASH)!'                          \
+		-e 's!\$$PYTHON2!$(PYTHON2)!'                    \
+		-e 's!\$$PYTHON!$(PYTHON)!'                      \
 		-e 's!\$$GIT!$(GIT)!'                            \
 		-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
 		-e 's!\$$STD_PATH!$(STD_PATH)!'                  \
@@ -649,8 +655,8 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	@( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ) ; : # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	@for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) >$@.out 2>$@.err \
-	&&	mv $@.out $@                                                                                \
+	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH CXX=$(CXX) $(ROOT_DIR)/$< ) >$@.out 2>$@.err \
+	&&	mv $@.out $@                                                                                           \
 	||	( cat $@.out $@.err ; exit 1 )
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
@@ -658,8 +664,8 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	@mkdir -p $(@D)
 	@( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ) ; : # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	@cp $< $(@D)/Lmakefile.py
-	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@.out 2>$@.err \
-	&&	mv $@.out $@                                                                                                                                          \
+	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= CXX=$(CXX) $(PYTHON) Lmakefile.py ) >$@.out 2>$@.err \
+	&&	mv $@.out $@                                                                                                                                                     \
 	||	( cat $@.out $@.err ; exit 1 )
 
 #

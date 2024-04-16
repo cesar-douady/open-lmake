@@ -153,6 +153,7 @@ unit_tests/base/Lmakefile.py
 unit_tests/base/hello.py
 unit_tests/base/src1
 unit_tests/base/src2
+unit_tests/bench.py
 unit_tests/cache.py
 unit_tests/cargo.py
 unit_tests/chain.py

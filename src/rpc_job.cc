@@ -11,6 +11,17 @@
 using namespace Disk ;
 using namespace Hash ;
 
+template<class E,class T> static constexpr bool _chk_flags_tab(::array<::pair<E,T>,N<E>> tab) {
+	bool res = true ;
+	for( E e=E(0) ; e!=All<E> ; e++ ) res &= tab[+e].first==e ;
+	return res ;
+}
+
+static_assert(_chk_flags_tab(DflagChars     )) ;
+static_assert(_chk_flags_tab(ExtraDflagChars)) ;
+static_assert(_chk_flags_tab(TflagChars     )) ;
+static_assert(_chk_flags_tab(ExtraTflagChars)) ;
+
 //
 // FileAction
 //

@@ -31,12 +31,12 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::Verbose        , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"           } }
 	,	{ Flag::NoRead         , { .short_name='R' , .has_arg=false , .doc="does not report a read, only flags" } }
 	//
-	,	{ Flag::Critical     , { .short_name=DflagChars     [+Dflag     ::Critical    ] , .has_arg=false , .doc="report critical deps"                            } }
-	,	{ Flag::Essential    , { .short_name=DflagChars     [+Dflag     ::Essential   ] , .has_arg=false , .doc="ask that deps be seen in graphical flow"         } }
-	,	{ Flag::IgnoreError  , { .short_name=DflagChars     [+Dflag     ::IgnoreError ] , .has_arg=false , .doc="accept that deps are in error"                   } }
-	,	{ Flag::NoRequired   , { .short_name=DflagChars     [+Dflag     ::Required    ] , .has_arg=false , .doc="accept that deps cannot be built"                } }
-	,	{ Flag::Ignore       , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore      ] , .has_arg=false , .doc="ignore reads"                                    } }
-	,	{ Flag::StatReadData , { .short_name=ExtraDflagChars[+ExtraDflag::StatReadData] , .has_arg=false , .doc="stat access implies access to full file content" } }
+	,	{ Flag::Critical     , { .short_name=DflagChars     [+Dflag     ::Critical    ].second , .has_arg=false , .doc="report critical deps"                            } }
+	,	{ Flag::Essential    , { .short_name=DflagChars     [+Dflag     ::Essential   ].second , .has_arg=false , .doc="ask that deps be seen in graphical flow"         } }
+	,	{ Flag::IgnoreError  , { .short_name=DflagChars     [+Dflag     ::IgnoreError ].second , .has_arg=false , .doc="accept that deps are in error"                   } }
+	,	{ Flag::NoRequired   , { .short_name=DflagChars     [+Dflag     ::Required    ].second , .has_arg=false , .doc="accept that deps cannot be built"                } }
+	,	{ Flag::Ignore       , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore      ].second , .has_arg=false , .doc="ignore reads"                                    } }
+	,	{ Flag::StatReadData , { .short_name=ExtraDflagChars[+ExtraDflag::StatReadData].second , .has_arg=false , .doc="stat access implies access to full file content" } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
 	//

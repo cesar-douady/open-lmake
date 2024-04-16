@@ -18,13 +18,16 @@
 
 #ifdef STRUCT_DECL
 
+// START_OF_VERSIONING
 ENUM( VarCmd
 ,	Stems   , Stem
-,	Targets , Match
+,	Targets , Match , StarMatch
 ,	Deps    , Dep
 ,	Rsrcs   , Rsrc
 )
+// END_OF_VERSIONING
 
+// START_OF_VERSIONING
 ENUM_1( EnvFlag
 ,	Dflt = Rsrc
 //
@@ -32,7 +35,9 @@ ENUM_1( EnvFlag
 ,	Rsrc // consider variable as a resource : upon modification, rebuild job if it was in error
 ,	Cmd  // consider variable as a cmd      : upon modification, rebuild job
 )
+// END_OF_VERSIONING
 
+// START_OF_VERSIONING
 ENUM_2( Special
 ,	Shared  = Infinite // <=Shared means there is a single such rule
 ,	HasJobs = Plain    // <=HasJobs means jobs can refer to this rule
@@ -45,6 +50,7 @@ ENUM_2( Special
 ,	Anti
 ,	GenericSrc
 )
+// END_OF_VERSIONING
 
 namespace Engine {
 
@@ -682,14 +688,16 @@ namespace Engine {
 		RuleTgt(                    ) = default ;
 		RuleTgt( Rule r , VarIdx ti ) : Rule{r} , tgt_idx{ti} {}
 		// accesses
-		Rep                operator+  (              ) const { return (+Rule(*this)<<NBits<VarIdx>) | tgt_idx  ; }
-		bool               operator== (RuleTgt const&) const = default ;
-		::partial_ordering operator<=>(RuleTgt const&) const = default ;
-		::string const&    key        (              ) const {                                                          return _matches().first          ; }
-		::string const&    target     (              ) const { SWEAR(_matches().second.flags.tflags()[Tflag::Target]) ; return _matches().second.pattern ; }
+		Rep                operator+   (              ) const { return (+Rule(*this)<<NBits<VarIdx>) | tgt_idx  ; }
+		bool               operator==  (RuleTgt const&) const = default ;
+		::partial_ordering operator<=> (RuleTgt const&) const = default ;
 		//
-		Tflags tflags() const { return _matches().second.flags.tflags()                            ; }
-		bool   sure  () const { return tgt_idx<(*this)->n_static_targets || tflags()[Tflag::Phony] ; }
+		::string const& key         () const {                                                          return _matches().first                       ; }
+		::string const& target      () const { SWEAR(_matches().second.flags.tflags()[Tflag::Target]) ; return _matches().second.pattern              ; }
+		Tflags          tflags      () const {                                                          return _matches().second.flags.tflags      () ; }
+		ExtraTflags     extra_tflags() const {                                                          return _matches().second.flags.extra_tflags() ; }
+		//
+		bool sure() const { return ( tgt_idx<(*this)->n_static_targets && !extra_tflags()[ExtraTflag::Optional] ) || tflags()[Tflag::Phony] ; }
 	private :
 		::pair_s<RuleData::MatchEntry> const& _matches() const { return (*this)->matches[tgt_idx] ; }
 		// services

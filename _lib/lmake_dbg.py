@@ -79,7 +79,8 @@ def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
 		debugger.runcall(func,*args,**kwds)
 	except BaseException as e :
 		traceback.print_exc()
-		debugger.interaction(None,sys.exc_traceback)
+		debugger.reset()
+		debugger.interaction(None,sys.exc_info()[2])
 
 def run_vscode(dbg_dir,redirected,func,*args,**kwds) :
 	import json

@@ -829,7 +829,7 @@ R"({
 					::string flags_str ;
 					/**/                         flags_str += t->crc==Crc::None ? 'U' : +t->crc ? 'W' : '-' ;
 					/**/                         flags_str += ' '                                           ;
-					for( Tflag tf : All<Tflag> ) flags_str += td.tflags[tf] ? TflagChars[+tf] : '-'         ;
+					for( Tflag tf : All<Tflag> ) flags_str += td.tflags[tf] ? TflagChars[+tf].second : '-'  ;
 					//
 					_send_node( fd , ro , verbose , Maybe|!td.tflags[Tflag::Target]/*hide*/ , flags_str , t , lvl ) ;
 				}
@@ -913,10 +913,9 @@ R"({
 					_show_job(fd,ro,job,lvl) ;
 				break ;
 				case ReqKey::Deps    : {
-					bool     always      = ro.flags[ReqFlag::Verbose] ;
-					::string uphill_name = dir_name(target->name())   ;
-					double   prio        = -Infinity                  ;
-					if (+uphill_name) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
+					bool     always = ro.flags[ReqFlag::Verbose] ;
+					double   prio   = -Infinity                  ;
+					if ( target->is_plain() && +target->dir() ) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
 					for( JobTgt jt : target->conform_job_tgts() ) {
 						bool hide = !jt.produces(target) ;
 						if      (always) _send_job( fd , ro , Yes   , hide          , jt , lvl ) ;
