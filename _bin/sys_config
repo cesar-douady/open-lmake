@@ -18,8 +18,6 @@ PYTHON2=${PYTHON2:-python2} ; PYTHON2=$(type -p $PYTHON2||:)                    
 PYTHON=${PYTHON:-python3}   ; PYTHON=$( type -p $PYTHON    )
 CXX=${CXX:-g++}             ; CXX=$(    type -p $CXX       )
 
-echo /$PYTHON2/ /$PYTHON/ /$CXX/
-
 #
 # Python configuration (Python2 is optional)
 #
