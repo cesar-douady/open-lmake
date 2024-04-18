@@ -282,6 +282,9 @@ USE_LIBC_START_MAIN=$(./start_main)
 cat <<"EOF" > pcre.cc
 	#define PCRE2_CODE_UNIT_WIDTH 8
 	#include <pcre2.h>
+	void foo() {
+		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
+	}
 EOF
 if $CXX -c -std=c++20 -o pcre.o pcre.cc 2>/dev/null
 then HAS_PCRE=1
