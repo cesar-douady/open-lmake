@@ -79,7 +79,7 @@ $CXX -v -o /dev/null -std=c++20 -xc++ -<<< "int main(){}" 2>compiler_info
 if [ $CXX_FLAVOR = gcc ] ; then
 	LLP="$(grep LIBRARY_PATH= compiler_info)" # e.g. : LIBRARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
 	LLP="${LLP#LIBRARY_PATH=}"                # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
-	LLP="$(sed 's/:/ /' -<<< $LLP)"           # e.g. : /usr/lib/x /a/b /c /a/b/c/..
+	LLP="$(sed 's/:/ /g' -<<< $LLP)"          # e.g. : /usr/lib/x /a/b /c /a/b/c/..
 elif [ $CXX_FLAVOR = clang ] ; then
 	set $(grep -- -L compiler_info)
 	while [ $# != 0 ] ; do
