@@ -64,7 +64,7 @@ else :
 
 	import ut
 
-	ut.lmake( 'chk'   , new=1 , done=8 , may_rerun=2                      )
-	ut.lmake( 'chk'                                                       ) # ensure up to date
-	ut.lmake( 'chk.w' , new=0 , done=7 , may_rerun=2 , rerun=1 , steady=1 )
-	ut.lmake( 'chk.w'                                                     ) # ensure up to date
+	ut.lmake( 'chk'   , new=1 , may_rerun=2 , done=5 ,           was_failed=1 ,           rc=1 )
+	ut.lmake( 'chk'   ,                       done=3                                           ) # finish job
+	ut.lmake( 'chk.w' , new=0 , may_rerun=2 , done=4 , rerun=1 , was_failed=1 , steady=1 ,rc=1 )
+	ut.lmake( 'chk.w' ,                       done=3                                           ) # ensure up to date

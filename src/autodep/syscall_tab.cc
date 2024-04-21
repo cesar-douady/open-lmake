@@ -179,8 +179,8 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & c
 	try {
 		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 		ctx = l ;
-		_update<At>(args+0,l->src) ;
-		_update<At>(args+2,l->dst) ;
+		_update<At>(args+0   ,l->src) ;
+		_update<At>(args+1+At,l->dst) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
@@ -257,8 +257,8 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* 
 		#endif
 		Record::Rename* rn = new Record::Rename( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , comment ) ;
 		ctx = rn ;
-		_update<At>(args+0,rn->src) ;
-		_update<At>(args+2,rn->dst) ;
+		_update<At>(args+0   ,rn->src) ;
+		_update<At>(args+1+At,rn->dst) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {

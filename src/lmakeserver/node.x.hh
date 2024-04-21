@@ -264,7 +264,7 @@ namespace Engine {
 		void reset(NodeGoal ng=NodeGoal::None) { done_ &= ng ; }
 		// data
 	public :
-		RuleIdx  prio_idx    = NoIdx           ;                                //    16 bits, index to the first job of the current prio being analyzed
+		RuleIdx  prio_idx    = NoIdx           ;                                //    16 bits, index to the first job of the current prio being or having been analyzed
 		bool     single      = false           ;                                // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
 		Accesses overwritten ;                                                  // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
 		Manual   manual      = Manual::Unknown ;                                // 3<= 8 bits
@@ -386,7 +386,7 @@ namespace Engine {
 			SWEAR(cri.done(NodeGoal::Status)) ;
 			return ok(+(cri.overwritten&a)) ;
 		}
-		bool  running( ReqInfo const& cri ) const {
+		bool running(ReqInfo const& cri) const {
 			for( Job j : conform_job_tgts(cri) )
 				for( Req r : j->running_reqs() )
 					if (j->c_req_info(r).step()==JobStep::Exec) return true ;
@@ -558,7 +558,7 @@ namespace Engine {
 		Manual res = Manual::Modif ;
 		if      (!sig                     ) res = Manual::Unlnked ;
 		else if (sig.tag()==FileTag::Empty) res = Manual::Empty   ;
-		Trace("manual",idx(),sig,crc,date(),res) ;
+		Trace("manual",res,idx(),sig,crc,date()) ;
 		return res ;
 	}
 

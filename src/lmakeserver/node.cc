@@ -411,9 +411,9 @@ namespace Engine {
 	Src :
 		{	bool modified = refresh_src_anti( status()!=NodeStatus::None , {req} , lazy_name() ) ;
 			if (crc     !=Crc::None       ) status(NodeStatus::Src) ;                                   // overwrite status if it was pre-set to None
-			if (status()==NodeStatus::None) goto NoSrc        ;                                         // if status was pre-set to None, it means we accept NoSrc
-			if (modified                  ) goto ActuallyDone ;
-			goto DoneDsk ;                                                                              // we are done, but done_ is already updated
+			if (status()==NodeStatus::None) goto NoSrc           ;                                      // if status was pre-set to None, it means we accept NoSrc
+			if (modified                  ) goto ActuallyDoneDsk ;                                      // sources are always done on disk, as it is by probing it that we are done
+			else                            goto DoneDsk         ;                                      // .
 		}
 	Codec :
 		{	SWEAR(crc.valid()) ;
@@ -456,22 +456,23 @@ namespace Engine {
 		return ri.done() ;
 	}
 
-	static bool _must_regenerate( NodeData const& nd , NodeReqInfo& ri ) {
-		SWEAR(ri.done_>=ri.goal) ;                                                                       // must be done to ask for regeneration
-		Job cj = nd.conform_job() ;
-		if (!cj                ) return false ;                                                          // no hope to regenerate, proceed as a done target
-		if (cj->err()          ) return false ;                                                          // dont regenerate errors as content will not be used
-		if (cj==nd.actual_job()) return false ;
-		Trace trace("_must_regerate",nd.idx(),ri) ;
-		ri.done_    = NodeGoal::Status ;                                                                 // regenerate
-		ri.prio_idx = nd.conform_idx() ;                                                                 // .
-		ri.single   = true             ;                                                                 // only ask to run conform job
+	static bool _may_need_regenerate( NodeData const& nd , NodeReqInfo& ri , NodeMakeAction make_action ) {
+		/**/                        if (make_action==NodeMakeAction::Wakeup) return false ;                 // do plain analysis
+		/**/                        if (!ri.done(NodeGoal::Status)         ) return false ;                 // do plain analysis
+		Job cj = nd.conform_job() ; if (!cj                                ) return false ;                 // no hope to regenerate, proceed normally
+		/**/                        if ( cj->err()                         ) return false ;                 // err() is up to date and cannot regenerate error
+		Job aj = nd.actual_job () ;
+		/**/                        if (cj!=aj                             ) ri.done_ &= NodeGoal::Status ; // disk cannot be ok if node was polluted, does not change conform_job()
+		/**/                        if (ri.done()                          ) return false ;
+		Trace trace("_may_need_regenerate",nd.idx(),ri,cj,aj) ;
+		ri.prio_idx = nd.conform_idx() ;                                                                    // ask to run only conform job
+		ri.single   = true             ;                                                                    // .
 		return true ;
 	}
 	void NodeData::_make_raw( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
 		RuleIdx prod_idx       = NoIdx                              ;
 		Req     req            = ri.req                             ;
-		Bool3   clean          = Maybe                              ;                                    // lazy evaluate manual()==No
+		Bool3   clean          = Maybe                              ;                                       // lazy evaluate manual()==No
 		bool    multi          = false                              ;
 		bool    stop_speculate = speculate<ri.speculate && +ri.goal ;
 		Trace trace("Nmake",idx(),ri,make_action) ;
@@ -497,43 +498,41 @@ namespace Engine {
 			ri.prio_idx = 0 ;
 		} else {
 			// check if we need to regenerate node
-			if (ri.done()) {
-				if (_must_regenerate(*this,ri)) goto Make   ;
-				else                            goto Wakeup ;
-			}
+			if ( ri.done(NodeGoal::Status) && _may_need_regenerate(*this,ri,make_action) ) goto Make   ;
+			if ( ri.done()                                                               ) goto Wakeup ;
 			// fast path : check jobs we were waiting for, lighter than full analysis
 			JobTgtIter it{*this,ri} ;
 			for(; it ; it++ ) {
 				JobTgt jt   = *it                                                 ;
 				bool   done = jt->c_req_info(req).done(ri.goal>=NodeGoal::Status) ;
 				trace("check",jt,jt->c_req_info(req)) ;
-				if (!done             ) { prod_idx = NoIdx ; goto Make ;                               } // we waited for it and it is not done, retry
-				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
+				if (!done             ) { prod_idx = NoIdx ; goto Make ;                               }    // we waited for it and it is not done, retry
+				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }    // jobs in error are deemed to produce all their potential targets
 			}
-			if (prod_idx!=NoIdx) goto DoWakeup ;                                                         // we have at least one done job, no need to investigate any further
-			if (ri.single) ri.single   = false  ;                                                        // if regenerating but job does not generate us, something strange happened, retry this prio
-			else           ri.prio_idx = it.idx ;                                                        // else go on with next prio
+			if (prod_idx!=NoIdx) goto DoWakeup ;                                                            // we have at least one done job, no need to investigate any further
+			if (ri.single) ri.single   = false  ;                                                           // if regenerating but job does not generate us, something strange happened, retry this prio
+			else           ri.prio_idx = it.idx ;                                                           // else go on with next prio
 		}
 	Make :
 		for(;;) {
 			SWEAR(prod_idx==NoIdx,prod_idx) ;
-			if (ri.prio_idx>=job_tgts().size()) {                                                        // gather new job_tgts from rule_tgts
-				SWEAR(!ri.single) ;                                                                      // we only regenerate using an existing job
+			if (ri.prio_idx>=job_tgts().size()) {                                                           // gather new job_tgts from rule_tgts
+				SWEAR(!ri.single) ;                                                                         // we only regenerate using an existing job
 				try {
 					//                      vvvvvvvvvvvvvvvvvvvvvvvvvv
 					buildable = buildable | _gather_prio_job_tgts(req) ;
 					//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
-					if (ri.prio_idx>=job_tgts().size()) break ;                                          // fast path
+					if (ri.prio_idx>=job_tgts().size()) break ;                                             // fast path
 				} catch (::vector<Node> const& e) {
 					set_infinite(e) ;
 					break ;
 				}
 			}
 			JobTgtIter it{*this,ri} ;
-			if (!ri.single) {                                                                            // fast path : cannot have several jobs if we consider only a single job
-				for(; it ; it++ ) {                                                                      // check if we obviously have several jobs, in which case make nothing
+			if (!ri.single) {                                                                               // fast path : cannot have several jobs if we consider only a single job
+				for(; it ; it++ ) {                                                                         // check if we obviously have several jobs, in which case make nothing
 					JobTgt jt = *it ;
-					if      ( jt.sure()                 )   buildable = Buildable::Yes ;                 // buildable is data independent & pessimistic (may be Maybe instead of Yes)
+					if      ( jt.sure()                 )   buildable = Buildable::Yes ;                    // buildable is data independent & pessimistic (may be Maybe instead of Yes)
 					else if (!jt->c_req_info(req).done())   continue ;
 					else if (!jt.produces(idx())        )   continue ;
 					if      (prod_idx!=NoIdx            ) { multi = true ; goto DoWakeup ; }
@@ -543,7 +542,7 @@ namespace Engine {
 				prod_idx = NoIdx ;
 			}
 			// make eligible jobs
-			{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                        // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
+			{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                           // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
 				for(; it ; it++ ) {
 					JobTgt     jt   = *it                    ;
 					JobMakeAction ma = JobMakeAction::Status ;
@@ -555,7 +554,7 @@ namespace Engine {
 							if      (!jt.produces(idx())              ) {}
 							else if (!has_actual_job(  )              ) reason = {JobReasonTag::NoTarget      ,+idx()} ; // this is important for NodeGoal::Status as crc is not correct
 							else if (!has_actual_job(jt)              ) reason = {JobReasonTag::PollutedTarget,+idx()} ; // .
-							else if (ri.goal==NodeGoal::Status        ) {}
+							else if (ri.goal==NodeGoal::Status        ) {}                                               // dont check disk if asked for Status
 							else if (jt->running(true/*with_zombies*/)) reason =  JobReasonTag::Garbage                ; // be pessimistic and dont check target as it is not manual ...
 							else                                                                                         // ... and checking may modify it
 								switch (manual_wash(ri,true/*lazy*/)) {
@@ -594,7 +593,7 @@ namespace Engine {
 			for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule->name         ,2) ;
 		}
 		ri.done_ = ri.goal ;
-		if (_must_regenerate(*this,ri)) { prod_idx = NoIdx ; goto Make ; }                                               // BACKWARD
+		if (_may_need_regenerate(*this,ri,make_action)) { prod_idx = NoIdx ; goto Make ; }                               // BACKWARD
 	Wakeup :
 		SWEAR(done(ri)) ;
 		trace("wakeup",ri,conform_idx(),is_plain()?actual_job():Job()) ;

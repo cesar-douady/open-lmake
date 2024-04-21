@@ -15,11 +15,13 @@ using namespace Engine ;
 namespace Backends {
 
 	void send_reply( JobIdx job , JobMngtRpcReply&& jmrr ) {
-		Lock                             lock { Backend::_s_mutex }                ;
-		Backend::StartEntry::Conn const& conn = Backend::_s_start_tab.at(job).conn ;
-		ClientSockFd                     fd   ( conn.host , conn.port )            ;
+		Lock lock { Backend::_s_mutex }             ;
+		auto it   = Backend::_s_start_tab.find(job) ;
+		if (it==Backend::_s_start_tab.end()) return ;                     // job is dead without waiting for reply, curious but possible
+		Backend::StartEntry::Conn const& conn = it->second.conn         ;
+		ClientSockFd                     fd   ( conn.host , conn.port ) ;
 		jmrr.seq_id = conn.seq_id ;
-		OMsgBuf().send( fd , jmrr ) ; // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
+		OMsgBuf().send( fd , jmrr ) ;                                     // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
 	}
 
 	//

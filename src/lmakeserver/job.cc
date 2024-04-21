@@ -454,7 +454,7 @@ namespace Engine {
 			for( Dep const& d : (*this)->deps )
 				if (d->is_plain())
 					for( Node dd=d ; +dd ; dd=dd->dir() )
-						if (!old_deps.insert(dd).second) break ;                       // record old deps and all uphill dirs as these are implicit deps
+						if (!old_deps.insert(dd).second) break ;                                                  // record old deps and all uphill dirs as these are implicit deps
 			for( auto const& [dn,dd] : digest.deps ) {
 				Dep dep { Node(dn) , dd } ;
 				if (!old_deps.contains(dep)) {
@@ -675,7 +675,7 @@ namespace Engine {
 	JobReason JobData::make( ReqInfo& ri , MakeAction make_action , JobReason asked_reason , Bool3 speculate , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
 		using Step = JobStep ;
 		static constexpr Dep Sentinel { false/*parallel*/ } ;                                                       // used to clean up after all deps are processed
-		SWEAR( asked_reason.tag<JobReasonTag::Err , asked_reason ) ;
+		SWEAR( asked_reason.tag<JobReasonTag::Err,asked_reason) ;
 		Step        prev_step      = make_action==MakeAction::End?Step::Exec:ri.step()             ;                // capture previous level before any update (compensate preparation in end)
 		Req         req            = ri.req                                                        ;
 		bool        stop_speculate = speculate<ri.speculate                                        ;
@@ -720,7 +720,10 @@ namespace Engine {
 				}
 			break ;
 		DF}
-		ri.reason    |= asked_reason             ;
+		if (+asked_reason) {
+			if (ri.state.missing_dsk) { trace("reset",asked_reason) ; ri.reset() ; }
+			ri.reason |= asked_reason ;
+		}
 		ri.speculate  = ri.speculate & speculate ;                                                                  // cannot use &= with bit fields
 		if (ri.done()) {
 			if ( !ri.reason && !ri.state.reason                  )                              goto Wakeup ;
@@ -907,6 +910,7 @@ namespace Engine {
 		}
 	Run :
 		trace("run",pre_reason,ri,run_status) ;
+		SWEAR(!ri.state.missing_dsk) ;                                                          // cant run if we are missing some deps on disk
 		if (rule->n_submits) {
 			if (ri.n_submits>=rule->n_submits) {
 				trace("submit_loop") ;
