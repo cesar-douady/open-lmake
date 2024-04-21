@@ -11,7 +11,7 @@ else                         : from clmake  import * # .
 
 from .utils import *
 
-native_version = (1,0)
+native_version = (2,0)
 
 def version(major,minor) :
 	'''check version'''
@@ -58,7 +58,6 @@ config = pdict(
 #	                                     # - forced true if only local backend is used
 #	                                     # - set   true  for ceph
 #	                                     # - leave false for NFS
-#,	remote_admin_dir    = 'LMAKE_REMOTE' # directory in which to store job trace during remote job execution                                      (default is within LMAKE dir)
 #,	remote_tmp_dir      = 'LMAKE_TMP'    # directory in which to store tmp data  during remote job execution (not used when keep_tmp is enforced) (default is within LMAKE dir)
 #,	rules_module        = 'rules'        # module to import to define rules  . By default, rules are directly defined in Lmakefile.py
 #,	sources_module      = 'sources'      # module to import to define sources. By default, 'lmake.auto_sources' which lists files in Manifest or searches git (recursively) if lmake.sources is not set

@@ -56,7 +56,6 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	}
 	pos++ ;
 	{ SWEAR(env[pos]=='"',env) ; tie(tmp_dir ,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ; pos ++/*final"*/ ; if (env[pos]!=':') goto Fail ; pos++/*:*/ ; }
-	{ SWEAR(env[pos]=='"',env) ; tie(tmp_view,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ; pos ++/*final"*/ ; if (env[pos]!=':') goto Fail ; pos++/*:*/ ; }
 	{ SWEAR(env[pos]=='"',env) ; tie(root_dir,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ; pos ++/*final"*/ ; if (env[pos]!=0  ) goto Fail ; pos++/*:*/ ; }
 	//
 	return ;
@@ -91,7 +90,7 @@ AutodepEnv::operator ::string() const {
 		res +=              '"'        ;
 	}
 	// other dirs
-	append_to_string( res ,":\"", mk_printable<'"'>(tmp_dir) ,"\":\"", mk_printable<'"'>(tmp_view) ,"\":\"", mk_printable<'"'>(root_dir) ,'"' ) ;
+	append_to_string( res ,":\"", mk_printable<'"'>(tmp_dir) ,"\":\"", mk_printable<'"'>(root_dir) ,'"' ) ;
 	//
 	return res ;
 }

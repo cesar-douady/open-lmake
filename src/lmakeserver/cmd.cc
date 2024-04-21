@@ -352,7 +352,7 @@ R"({
 		::string tmp_dir ;
 		if (!dbg_dir) {
 			tmp_dir = mk_abs(ade.tmp_dir,*g_root_dir+'/') ;
-			if (!start.keep_tmp)
+			if (!start.autodep_env.tmp_dir)
 				for( auto&& [k,v] : start.env )
 					if ( k=="TMPDIR" && v!=EnvPassMrkr )
 						tmp_dir = env_decode(::copy(v)) ;
@@ -382,7 +382,7 @@ R"({
 			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                , " \\\n" ) ;
 			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                 , " \\\n" ) ;
 			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)               , " \\\n" ) ;
-			if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                    // in addition of dbg, autodep may be needed for functional reasons
+			if ( dbg || ade.auto_mkdir ) {                                                                                     // in addition of dbg, autodep may be needed for functional reasons
 				/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
 				if      ( dbg )                    append_to_string( script , "-s " , snake(ade.lnk_support)     , ' ' ) ;
 				else                               append_to_string( script , "-s " , "none"                     , ' ' ) ;     // dont care about deps
@@ -391,7 +391,6 @@ R"({
 				else if ( +dbg_dir               ) append_to_string( script , "-o " , dbg_dir,"/accesses"        , ' ' ) ;
 				if      ( ade.auto_mkdir         ) append_to_string( script , "-d"                               , ' ' ) ;
 				if      ( dbg && ade.ignore_stat ) append_to_string( script , "-i"                               , ' ' ) ;
-				if      ( +ade.tmp_view          ) append_to_string( script , "-t " , mk_shell_str(ade.tmp_view) , ' ' ) ;
 			}
 			for( ::string const& c : start.interpreter )                     append_to_string( script , mk_shell_str(c) , ' '                                               ) ;
 			if ( dbg && !is_python                     )                     append_to_string( script , "-x "                                                               ) ;
@@ -701,15 +700,15 @@ R"({
 								else            push_entry("required by",localize(mk_file(    n         ->name()),ro.startup_dir_s)) ;
 							}
 							if (has_start) {
-								JobInfoStart const& rs       = job_info.start                             ;
-								SubmitAttrs  const& sa       = rs.submit_attrs                            ;
-								::string            cwd      = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
-								::string            tmp_dir  = start.autodep_env.tmp_dir                  ;
-								::string            pressure = sa.pressure.short_str()                    ;
+								JobInfoStart const& rs          = job_info.start                             ;
+								SubmitAttrs  const& sa          = rs.submit_attrs                            ;
+								::string            cwd         = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
+								::string            phy_tmp_dir = start.autodep_env.tmp_dir                  ;
+								::string            pressure    = sa.pressure.short_str()                    ;
 								//
-								if (!start.keep_tmp)
+								if (!phy_tmp_dir)
 									for( auto const& [k,v] : start.env )
-										if (k=="TMPDIR") { tmp_dir = v==EnvPassMrkr ? "..." : v ; break ; }
+										if (k=="TMPDIR") { phy_tmp_dir = v==EnvPassMrkr ? "..." : v ; break ; }
 								//
 								if (+sa.reason         ) push_entry( "reason" , localize(reason_str(sa.reason) , ro.startup_dir_s) ) ;
 								if (rs.host!=NoSockAddr) push_entry( "host"   , SockFd::s_host(rs.host)                            ) ;
@@ -719,16 +718,17 @@ R"({
 									else            push_entry( "scheduling" , to_string(               rs.eta.str() ," - ",       sa.pressure.short_str()     )                             ) ;
 								}
 								//
-								if (+tmp_dir                      ) push_entry( "tmp dir"     , localize(mk_file(tmp_dir),ro.startup_dir_s) ) ;
-								if (+start.autodep_env.tmp_view   ) push_entry( "tmp view"    , start.autodep_env.tmp_view                  ) ;
-								if ( sa.live_out                  ) push_entry( "live_out"    , "true"                                      ) ;
-								if (+start.chroot                 ) push_entry( "chroot"      , start.chroot                                ) ;
-								if (+start.cwd_s                  ) push_entry( "cwd"         , cwd                                         ) ;
-								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"  , "true"                                      ) ;
-								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat" , "true"                                      ) ;
-								/**/                                push_entry( "autodep"     , snake_str(start.method)                     ) ;
-								if (+start.timeout                ) push_entry( "timeout"     , start.timeout.short_str()                   ) ;
-								if (sa.tag!=BackendTag::Local     ) push_entry( "backend"     , snake_str(sa.tag)                           ) ;
+								if (+phy_tmp_dir                  ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),ro.startup_dir_s) ) ;
+								if ( sa.live_out                  ) push_entry( "live_out"         , "true"                                          ) ;
+								if (+start.chroot                 ) push_entry( "chroot"           , start.chroot                                    ) ;
+								if (+start.root_dir               ) push_entry( "root_dir"         , start.root_dir                                  ) ;
+								if (+start.tmp_dir                ) push_entry( "tmp_dir"          , start.tmp_dir                                   ) ;
+								if (+start.cwd_s                  ) push_entry( "cwd"              , cwd                                             ) ;
+								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"       , "true"                                          ) ;
+								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat"      , "true"                                          ) ;
+								/**/                                push_entry( "autodep"          , snake_str(start.method)                         ) ;
+								if (+start.timeout                ) push_entry( "timeout"          , start.timeout.short_str()                       ) ;
+								if (sa.tag!=BackendTag::Local     ) push_entry( "backend"          , snake_str(sa.tag)                               ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;

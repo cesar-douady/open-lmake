@@ -242,11 +242,7 @@ namespace Backends {
 				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
 				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
 				//
-				try                       { start_cmd_attrs.chk(start_rsrcs_attrs.method) ; }
-				catch (::string const& e) { throw ::pair_ss/*msg,err*/(e,{}) ;              }
-				step = 4 ;
-				//
-				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 5 ;
+				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
 			} catch (::pair_ss const& msg_err) {
 				append_line_to_string(start_msg_err.first  , msg_err.first  ) ;
 				append_line_to_string(start_msg_err.second , msg_err.second ) ;
@@ -254,14 +250,13 @@ namespace Backends {
 					case 0 : append_line_to_string( start_msg_err.first , rule->cmd              .s_exc_msg(false/*using_static*/) ) ; break ;
 					case 1 : append_line_to_string( start_msg_err.first , rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ) ; break ;
 					case 2 : append_line_to_string( start_msg_err.first , rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ) ; break ;
-					case 3 :                                                                                                           break ;
-					case 4 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
+					case 3 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
 				DF}
 			}
 			trace("deps",step,deps) ;
 			// record as much info as possible in reply
 			switch (step) {
-				case 5 :
+				case 4 :
 					// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 					try {
 						start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&deps) ;
@@ -272,45 +267,54 @@ namespace Backends {
 					}
 					keep_tmp |= start_none_attrs.keep_tmp ;
 					//
-					for( auto [t,a] : pre_actions.first )              reply.pre_actions.emplace_back(t->name(),a) ;
+					for( auto [t,a] : pre_actions.first ) reply.pre_actions.emplace_back(t->name(),a) ;
 				[[fallthrough]] ;
-				case 4 :
 				case 3 :
-					/**/                                               reply.method                    = start_rsrcs_attrs.method       ;
-					/**/                                               reply.timeout                   = start_rsrcs_attrs.timeout      ;
-					for( ::pair_ss& kv : start_rsrcs_attrs.env )       reply.env.push_back(::move(kv)) ;
+					/**/                                           reply.method       =                             start_rsrcs_attrs.method      ;
+					/**/                                           reply.timeout      =                             start_rsrcs_attrs.timeout     ;
+					if      ( start_rsrcs_attrs.tmp_origin=="...") reply.tmp_from_var =                             true                          ;
+					else if (+start_rsrcs_attrs.tmp_origin       ) reply.tmp_sz_mb    = from_string_with_units<'M'>(start_rsrcs_attrs.tmp_origin) ;
+					for( ::pair_ss& kv : start_rsrcs_attrs.env )   reply.env.push_back(::move(kv)) ;
+					if (!reply.tmp_from_var) {
+						::string const* sz_mb = nullptr ;
+						if                                       (+start_rsrcs_attrs.tmp_origin)   sz_mb = &start_rsrcs_attrs.tmp_origin ;
+						else for( auto const& [k,v] : rsrcs ) if (k=="tmp"                     ) { sz_mb = &v                            ; break ; }      // if not specified take value from resources
+						//
+						if (sz_mb) reply.tmp_sz_mb = from_string_with_units<'M'>(*sz_mb) ;
+					}
 				[[fallthrough]] ;
 				case 2 :
-					/**/                                               reply.interpreter               = start_cmd_attrs.interpreter    ;
-					/**/                                               reply.autodep_env.auto_mkdir    = start_cmd_attrs.auto_mkdir     ;
-					/**/                                               reply.autodep_env.ignore_stat   = start_cmd_attrs.ignore_stat    ;
-					/**/                                               reply.autodep_env.tmp_view      = ::move(start_cmd_attrs.tmp   ) ;                 // tmp directory as viewed by job
-					/**/                                               reply.chroot                    = ::move(start_cmd_attrs.chroot) ;
-					/**/                                               reply.use_script                = start_cmd_attrs.use_script     ;
-					for( ::pair_ss& kv : start_cmd_attrs.env )         reply.env.push_back(::move(kv)) ;
+					/**/                                       reply.interpreter             = start_cmd_attrs.interpreter      ;
+					/**/                                       reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir       ;
+					/**/                                       reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat      ;
+					/**/                                       reply.chroot                  = ::move(start_cmd_attrs.chroot  ) ;
+					/**/                                       reply.root_dir                = ::move(start_cmd_attrs.root_dir) ;
+					/**/                                       reply.tmp_dir                 = ::move(start_cmd_attrs.tmp_dir ) ;                         // tmp directory as viewed by job
+					/**/                                       reply.use_script              = start_cmd_attrs.use_script       ;
+					for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
 				case 1 :
-					/**/                                               reply.cmd                       = ::move(cmd)                    ;
+					reply.cmd = ::move(cmd) ;
 				[[fallthrough]] ;
 				case 0 : {
 					VarIdx ti = 0 ;
 					for( ::string const& tn : match.static_matches() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
 					for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
-					if (rule->stdin_idx !=Rule::NoVar)                 reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt ;
-					if (rule->stdout_idx!=Rule::NoVar)                 reply.stdout                    = reply.static_matches[rule->stdout_idx].first      ;
-					/**/                                               reply.addr                      = fd.peer_addr()                                    ;
-					/**/                                               reply.autodep_env.lnk_support   = g_config.lnk_support                              ;
-					/**/                                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                            ;
-					/**/                                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                      ;
-					/**/                                               reply.autodep_env.root_dir      = *g_root_dir                                       ;
-					/**/                                               reply.cwd_s                     = rule->cwd_s                                       ;
-					/**/                                               reply.date_prec                 = g_config.date_prec                                ;
-					/**/                                               reply.hash_algo                 = g_config.hash_algo                                ;
-					/**/                                               reply.keep_tmp                  = keep_tmp                                          ;
-					/**/                                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
-					/**/                                               reply.live_out                  = submit_attrs.live_out                             ;
-					/**/                                               reply.network_delay             = g_config.network_delay                            ;
-					/**/                                               reply.remote_admin_dir          = g_config.remote_admin_dir                         ;
+					if ( rule->stdin_idx !=Rule::NoVar               ) reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt     ;
+					if ( rule->stdout_idx!=Rule::NoVar               ) reply.stdout                    = reply.static_matches[rule->stdout_idx].first          ;
+					/**/                                               reply.addr                      = fd.peer_addr()                                        ;
+					/**/                                               reply.autodep_env.lnk_support   = g_config.lnk_support                                  ;
+					/**/                                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                                ;
+					/**/                                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                          ;
+					/**/                                               reply.autodep_env.root_dir      = *g_root_dir                                           ;
+					if      ( keep_tmp                               ) reply.autodep_env.tmp_dir       = to_string(job->ancillary_file(AncillaryTag::KeepTmp)) ;
+					else if ( reply.tmp_from_var                     ) reply.remote_tmp_dir            = g_config.remote_tmp_dir                               ;
+					/**/                                               reply.cwd_s                     = rule->cwd_s                                           ;
+					/**/                                               reply.date_prec                 = g_config.date_prec                                    ;
+					/**/                                               reply.hash_algo                 = g_config.hash_algo                                    ;
+					/**/                                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                    ;
+					/**/                                               reply.live_out                  = submit_attrs.live_out                                 ;
+					/**/                                               reply.network_delay             = g_config.network_delay                                ;
 					for( ::pair_ss& kv : start_none_attrs .env )       reply.env.push_back(::move(kv)) ;
 				} break ;
 			DF}
@@ -329,7 +333,7 @@ namespace Backends {
 					// to be sure, we should check done(Dsk) rather than done(Status), but we do not seek security here, we seek perf (real check will be done at end of job)
 					// and most of the time, done(Status) implies file is ok, and we have less false positive as we do not have the opportunity to fully assess sources
 					if (!Node(dn)->done(r,NodeGoal::Status)) { dep_ready = false ; goto EarlyEnd ; }
-			if (step<5) {
+			if (step<4) {
 			EarlyEnd :
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				OMsgBuf().send(fd,JobRpcReply(JobProc::None)) ;                                                                 // silently tell job_exec to give up
@@ -372,10 +376,6 @@ namespace Backends {
 			}
 			//
 			reply.small_id            = _s_small_ids.acquire() ;
-			reply.autodep_env.tmp_dir = keep_tmp ?
-				to_string(*g_root_dir            ,'/',job->ancillary_file(AncillaryTag::KeepTmp))
-			:	to_string(g_config.remote_tmp_dir,'/',reply.small_id                            )
-			;
 			//vvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send(fd,reply) ;                                                                                          // send reply ASAP to minimize overhead
 			//^^^^^^^^^^^^^^^^^^^^^^
@@ -415,7 +415,7 @@ namespace Backends {
 
 	bool/*keep_fd*/ Backend::_s_handle_job_mngt( JobMngtRpcReq&& jmrr , SlaveSockFd const& fd ) {
 		switch (jmrr.proc) {
-			case JobMngtProc::None       : return false ;                 // if connection is lost, ignore it
+			case JobMngtProc::None       : return false/*keep_fd*/ ;      // if connection is lost, ignore it
 			case JobMngtProc::ChkDeps    :
 			case JobMngtProc::DepVerbose :
 			case JobMngtProc::Decode     :
@@ -424,7 +424,7 @@ namespace Backends {
 		DF}
 		Job job { jmrr.job } ;
 		Trace trace(BeChnl,"_s_handle_job_mngt",jmrr) ;
-		{	Lock lock { _s_mutex } ;                                    // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	Lock lock { _s_mutex } ;                                      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//                                                                                                                                            keep_fd
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab"                              ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jmrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jmrr.seq_id) ; return false ; }
@@ -669,10 +669,10 @@ namespace Backends {
 		,	_s_job_start_thread->fd.service(s_tab[+tag]->addr)
 		,	_s_job_mngt_thread ->fd.service(s_tab[+tag]->addr)
 		,	_s_job_end_thread  ->fd.service(s_tab[+tag]->addr)
-		,	::to_string(entry.conn.seq_id)
-		,	::to_string(job              )
+		,	to_string(entry.conn.seq_id                      )
+		,	to_string(job                                    )
 		,	*g_root_dir
-		,	to_string(g_config.remote_admin_dir,"/job_trace/",entry.conn.seq_id%g_config.trace.n_jobs)
+		,	to_string(entry.conn.seq_id%g_config.trace.n_jobs)
 		} ;
 		trace("cmd_line",cmd_line) ;
 		return cmd_line ;

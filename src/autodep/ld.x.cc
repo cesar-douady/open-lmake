@@ -215,8 +215,8 @@ Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , :
 	if (!file) return {} ;
 	if (file.find('/')!=Npos) {
 		if (!seen.try_emplace(file,Maybe).second) return {} ;
-		::string     dc  = comment+".dep"                                                                                    ;
-		Record::Read res = { *r , file , false/*no_follow*/ , true/*keep_real*/ , false/*allow_tmp_map*/ , ::move(comment) } ;
+		::string     dc  = comment+".dep"                                                           ;
+		Record::Read res = { *r , file , false/*no_follow*/ , true/*keep_real*/ , ::move(comment) } ;
 		elf_deps( res , false/*top*/ , ::move(dc) ) ;
 		return res ;
 	}
@@ -232,7 +232,7 @@ Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , :
 		::string        full_file  = path.substr(pos,end-pos) ;
 		if (+full_file) full_file += '/'                      ;
 		/**/            full_file += file                     ;
-		Record::Read rr { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , false/*allow_tmp_map*/ , ::copy(comment) } ;
+		Record::Read rr { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , ::copy(comment) } ;
 		auto [it,inserted] = seen.try_emplace(rr.real,Maybe) ;
 		if ( it->second==Maybe           )   it->second = No | is_target(Record::s_root_fd(),rr.real,false/*no_follow*/) ; // real may be a sym link in the system directories
 		if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , comment+".dep" ) ; return rr ; }

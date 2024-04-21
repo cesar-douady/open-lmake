@@ -27,7 +27,7 @@ namespace Codec {
 			// - when file physical date was this date, it was canonic
 			Time::Pdate sample_date ; // date at which file has been sampled on disk
 			Time::Ddate log_date    ;
-			Time::Ddate phys_date   ; // actual file date on disk
+			Time::Ddate phy_date    ; // actual file date on disk
 		} ;
 		// statics
 		static void s_init    () ;

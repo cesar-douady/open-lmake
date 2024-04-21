@@ -173,13 +173,13 @@ namespace Disk {
 	// deep list files within dir with prefix in front of each entry, return a single entry {prefix} if file is not a dir (including if file does not exist)
 	::vector_s walk( Fd at , ::string const& file , ::string const& prefix={} ) ;
 	//
-	int/*n_dirs*/ mkdir       ( Fd at , ::string const& dir     ,             bool multi=true , bool unlnk_ok=false ) ; // if unlnk <=> unlink any file on the path if necessary to make dir
-	int/*n_dirs*/ mkdir       ( Fd at , ::string const& dir     , NfsGuard& , bool multi=true , bool unlnk_ok=false ) ; // if unlnk <=> unlink any file on the path if necessary to make dir
-	void          dir_guard   ( Fd at , ::string const& file                                                        ) ;
-	void          unlnk_inside( Fd at , ::string const& dir ={}                                                     ) ;
-	bool/*done*/  unlnk       ( Fd at , ::string const& file    , bool dir_ok=false                                 ) ; // if dir_ok <=> unlink whole dir if it is one
-	bool/*done*/  uniquify    ( Fd at , ::string const& file                                                        ) ;
-	void          rmdir       ( Fd at , ::string const& dir                                                         ) ;
+	size_t/*pos*/ mk_dir      ( Fd at , ::string const& dir     ,             bool unlnk_ok=false ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+	size_t/*pos*/ mk_dir      ( Fd at , ::string const& dir     , NfsGuard& , bool unlnk_ok=false ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+	void          dir_guard   ( Fd at , ::string const& file                                      ) ;
+	void          unlnk_inside( Fd at , ::string const& dir ={}                                   ) ;
+	bool/*done*/  unlnk       ( Fd at , ::string const& file    , bool dir_ok=false               ) ; // if dir_ok <=> unlink whole dir if it is one
+	bool/*done*/  uniquify    ( Fd at , ::string const& file                                      ) ;
+	void          rmdir       ( Fd at , ::string const& dir                                       ) ;
 	//
 	inline void lnk( Fd at , ::string const& file , ::string const& target ) {
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
@@ -211,8 +211,8 @@ namespace Disk {
 
 	inline ::vector_s      lst_dir     ( ::string const& dir  , ::string const& prefix={}                                 ) { return lst_dir     (Fd::Cwd,dir ,prefix              ) ; }
 	inline ::vector_s      walk        ( ::string const& file , ::string const& prefix={}                                 ) { return walk        (Fd::Cwd,file,prefix              ) ; }
-	inline int/*n_dirs*/   mkdir       ( ::string const& dir  ,                bool multi=true , bool unlnk_ok=false      ) { return mkdir       (Fd::Cwd,dir ,   multi,unlnk_ok   ) ; }
-	inline int/*n_dirs*/   mkdir       ( ::string const& dir  , NfsGuard& ng , bool multi=true , bool unlnk_ok=false      ) { return mkdir       (Fd::Cwd,dir ,ng,multi,unlnk_ok   ) ; }
+	inline size_t/*pos*/   mk_dir      ( ::string const& dir  ,                bool unlnk_ok=false                        ) { return mk_dir      (Fd::Cwd,dir ,   unlnk_ok         ) ; }
+	inline size_t/*pos*/   mk_dir      ( ::string const& dir  , NfsGuard& ng , bool unlnk_ok=false                        ) { return mk_dir      (Fd::Cwd,dir ,ng,unlnk_ok         ) ; }
 	inline ::string const& dir_guard   ( ::string const& file                                                             ) {        dir_guard   (Fd::Cwd,file) ; return file ;        }
 	inline void            unlnk_inside( ::string const& dir                                                              ) {        unlnk_inside(Fd::Cwd,dir                      ) ; }
 	inline bool/*done*/    unlnk       ( ::string const& file , bool dir_ok=false                                         ) { return unlnk       (Fd::Cwd,file,dir_ok              ) ; }
@@ -301,7 +301,6 @@ namespace Disk {
 		bool       reliable_dirs = false            ;                     // if true => dirs coherence is enforced when files are updated (unlike NFS)
 		::string   root_dir      = {}               ;
 		::string   tmp_dir       = {}               ;
-		::string   tmp_view      = {}               ;
 		::vector_s src_dirs_s    = {}               ;
 	} ;
 
@@ -310,11 +309,10 @@ namespace Disk {
 		struct SolveReport {
 			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;
 			// data
-			::string   real          = {}           ; // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir or mapped in tmp, else empty
+			::string   real          = {}           ; // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir, else empty
 			::vector_s lnks          = {}           ; // links followed to get to real
 			Bool3      file_accessed = No           ; // if True, file was accessed as sym link, if Maybe file dir was accessed as sym link
 			FileLoc    file_loc      = FileLoc::Ext ; // do not process awkard files
-			bool       mapped        = false        ; // if true <=> tmp mapping has been used
 		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp
@@ -353,7 +351,7 @@ namespace Disk {
 	public :
 		RealPath() = default ;
 		// src_dirs_s may be either absolute or relative, but must be canonic
-		// tmp_dir and tmp_view must be absolute and canonic
+		// tmp_dir must be absolute and canonic
 		RealPath ( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe ,                                                  p ) ; }
 		RealPath ( RealPathEnv const& rpe , ::string&& cwd , pid_t p=0 ) { init( rpe , ::move(cwd)                                    , p ) ; }
 		void init( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe , p?read_lnk(to_string("/proc/",p,"/cwd")):cwd() , p ) ; }
@@ -365,21 +363,18 @@ namespace Disk {
 		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve(at     ,         {}   ,no_follow) ; }
 		//
 		vmap_s<Accesses> exec (SolveReport&  ) ;                                                                                      // arg is updated to reflect last interpreter
-		void             chdir(::string&& dir) {                                                                                      // dir is in disk space, i.e. mapped in case of tmp mapping
+		void             chdir(::string&& dir) {
 			SWEAR(is_abs(dir),dir) ;
-			if ( has_tmp_view && dir.starts_with(_env->tmp_dir) ) cwd_ = *_tmp_view + (dir.c_str()+_env->tmp_dir.size()) ;
-			else                                                  cwd_ = ::move(dir)                                     ;
+			cwd_ = ::move(dir) ;
 		}
 	private :
 		size_t _find_src_idx(::string const& real) const ;
 		// data
 	public :
-		pid_t    pid          = 0                ;
-		bool     has_tmp_view = false/*garbage*/ ;
-		::string cwd_         ;                                                                                                       // in view space, i.e. not mapped in case of tmp mapping
+		pid_t    pid  = 0 ;
+		::string cwd_ ;
 	private :
 		RealPathEnv const* _env            ;
-		::string    const* _tmp_view       ;
 		::string           _admin_dir      ;
 		::vector_s         _abs_src_dirs_s ;                                                                                          // this is an absolute version of src_dirs
 		size_t             _root_dir_sz1   ;

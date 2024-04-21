@@ -65,7 +65,7 @@ class Rule(_RuleBase) :
 #	allow_stderr     = False                                 # if set, writing to stderr is not an error but a warning
 #	auto_mkdir       = False                                 # auto mkdir directory in case of chdir
 	backend          = 'local'                               # may be set anywhere in the inheritance hierarchy if execution must be remote
-#	chroot           = ''                                    # chroot directory to execute cmd (if empty, chroot cmd is not done)
+#	chroot           = None                                  # chroot directory to execute cmd (if None, empty or absent, no chroot is not done)
 #	cache            = None                                  # cache used to store results for this rule. None means no caching
 #	cmd                                                      # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
 #	cwd                                                      # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
@@ -89,18 +89,34 @@ class Rule(_RuleBase) :
 #	n_tokens         = 1                                     # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 #	prio             = 0                                     # in case of ambiguity, rules are selected with highest prio first
 	python           = (python,)                             # python used for callable cmd
+#	root_dir         = None                                  # absolute path under which the root directory of the repo is seen (if None, empty, '/' or absent, no bind mount is done)
 	shell            = (shell ,)                             # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
 	start_delay      = 3                                     # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
 	max_stderr_len   = 100                                   # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 #	timeout          = None                                  # timeout allocated to job execution (in s), must be None or an int
-#	tmp              = '/tmp'                                # path under which the temporary directory (automatically generated) is seen in the job
+	tmp              = ...                                   # may be :
+	#                                                        # - not specified : equivalent to (None,... )
+	#                                                        # - None          : equivalent to (None,None)
+	#                                                        # - ...           : equivalent to (None,... )
+	#                                                        # - a str         : equivalent to (str ,... ) (i.e. 'foo' is equivalent to ('foo',...)
+	#                                                        # - (view,origin) of tmp directory for the job (if a string 'foo', then it is equivalent to ('foo',...)
+	#                                                        #   - view may be :is the name to which the tmp dir is mapped through bind mount
+	#                                                        #     - None  : no bind mount is done
+	#                                                        #     - a str : tmp directory is mounted under this name (must be an absolute path outside the repo)
+	#                                                        #   - origin may be :
+	#                                                        #     - a size (e.g. '1G') : a tmpfs of that size is created for the job (view must be a str)
+	#                                                        #     - ...                : the value of the $TMPDIR env variable is used if specified
+	#                                                        #                            else a tmpfs of sized after the 'tmp' resource if specified
+	#                                                        #                            else an auto-generated dir
+	#                                                        #     -                    : no tmp dir is provided (view must be None)
+	#                                                        # in all cases, the TMPDIR env variable is set to the view if a tmp dir is available
 #	use_script       = False                                 # use a script to run job rather than calling interpreter with -c
 	if has_ld_audit : autodep = 'ld_audit'                   # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
 	else            : autodep = 'ld_preload'                 # .
 	resources = {                                            # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
 		'cpu' : 1                                            # number of cpu's to allocate to job
-#	,	'mem' : '0M'                                         # memory to allocate to job
-#	,	'tmp' : '0M'                                         # temporary disk space to allocate to job
+#	,	'mem' : '100M'                                       # memory to allocate to job
+#	,	'tmp' : '1G'                                         # temporary disk space to allocate to job
 	}                                                        # follow the same syntax as deps
 	environ_cmd = pdict(                                     # job execution environment, handled as part of cmd (trigger rebuild upon modification)
 		HOME       = root_dir                                # favor repeatability by hiding use home dir some tools use at start up time
@@ -124,6 +140,7 @@ class SourceRule(_RuleBase) :
 
 class HomelessRule(Rule) :
 	'base rule to redirect the HOME environment variable to TMPDIR'
+	tmp = ...
 	def cmd() :
 		import os
 		os.environ['HOME'] = os.environ['TMPDIR']

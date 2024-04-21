@@ -421,10 +421,10 @@ template<::integral I> void encode_int( char* p , I x ) {
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
 
-template<char U,::integral I> I        from_string_with_units(::string const& s) ;                                           // provide default unit in U. ...
-template<char U,::integral I> ::string to_string_with_units  (I               x) ;                                           // ... If provided, return value is expressed in this unit
-template<       ::integral I> I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
-template<       ::integral I> ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
+template<char U,::integral I=size_t> I        from_string_with_units(::string const& s) ;                                           // provide default unit in U. ...
+template<char U,::integral I=size_t> ::string to_string_with_units  (I               x) ;                                           // ... If provided, return value is expressed in this unit
+template<       ::integral I=size_t> I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
+template<       ::integral I=size_t> ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
 
 //
 // assert

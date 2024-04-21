@@ -12,6 +12,7 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+? check that last component link check in record.cc is only applied if link_support!=None
 * crash if python() dynamic attribute returns None
 * fix compilation with LMAKE_FLAGS=ST
 * missing some deps when reading elf
@@ -29,6 +30,15 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* when searching for uphill, if target is phony and generated as non-existent, accept child
+* manage so that ^C behave normally in ldebug python
+* when ldebug is a bash job, stay in interactive interpreter at the end
+* ensure ldebug & lenter provide a different prompt
+* ensure tmp mapping does not imply sandboxing just for itself
+	- provide a way to escape sandboxing if possible
+* generate a 'consider tmp=...' if tmp is accessed with no tmp available
+* add pid in namespace to ease killing job
+	- but beware of jobs using pid as a unique id
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
 	- put adequate $PLATFORM in LD_PRELOAD
@@ -167,8 +177,10 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*2 regexprs
-	- consider using PCRE2 instead of std::regex
+* prepare namespace while waiting for server if possible
+	- i.e. when info is static
+	- implies a dyn bit for each variable, rather than globally for the struct
+* regexprs
 	- consider handling prefix/suffix apart
 		- most importantly sufixes
 		? maybe a pre-pass searching for infix is advisable

@@ -78,6 +78,7 @@ src/job_exec.cc
 src/ldebug.cc
 src/ldump.cc
 src/ldump_job.cc
+src/lenter.cc
 src/lforget.cc
 src/lib.cc
 src/lib.hh

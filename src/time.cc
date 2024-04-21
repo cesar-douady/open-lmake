@@ -23,6 +23,19 @@ namespace Time {
 		return                os << to_string(s,'.',::setfill('0'),::setw(9),::right,ns) ;
 	}
 
+	::string Delay::str(uint8_t prec) const {
+		Tick          s   = sec      () ;
+		int32_t       ns  = nsec_in_s() ;
+		OStringStream out ;
+		if (*this<Delay()) { out<<"-" ; s = -s ; ns = -ns ; }
+		out << s ;
+		if (prec) {
+			for( int i=prec ; i<9 ; i++ ) ns /= 10 ;
+			out <<'.'<< ::setfill('0')<<::setw(prec)<<::right<<ns ;
+		}
+		return out.str() ;
+	}
+
 	::string Delay::short_str() const {
 		Tick     v      = msec() ;
 		bool     is_neg = v<0    ;

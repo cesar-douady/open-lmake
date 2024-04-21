@@ -30,7 +30,6 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::IgnoreStat    , { .short_name='i' , .has_arg=false , .doc="stat-like syscalls do not trigger dependencies"                                       } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='s' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                      } }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output file"                                                                          } }
-	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which $TMPDIR is viewed when running job"                                  } }
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line{syntax,argc,argv} ;
 	//
@@ -45,10 +44,6 @@ int main( int argc , char* argv[] ) {
 		if (cmd_line.flags[CmdFlag::LinkSupport]) gather.autodep_env.lnk_support = mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])      ;
 		/**/                                      gather.autodep_env.root_dir    = *g_root_dir                                                         ;
 		/**/                                      gather.autodep_env.tmp_dir     = get_env("TMPDIR",P_tmpdir)                                          ;
-		if (cmd_line.flags[CmdFlag::TmpView]) {
-			gather.autodep_env.tmp_view = cmd_line.flag_args[+CmdFlag::TmpView]   ;
-			set_env( "TMPDIR"           , cmd_line.flag_args[+CmdFlag::TmpView] ) ;
-		}
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Status status ;

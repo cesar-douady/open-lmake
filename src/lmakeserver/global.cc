@@ -140,7 +140,6 @@ namespace Engine {
 			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs         =                           +py_map[fields[0]]                          ;
 			fields[0] = "rules_module"        ; if (py_map.contains(fields[0])) rules_module          =                            py_map[fields[0]].as_a<Str  >()            ;
 			fields[0] = "sources_module"      ; if (py_map.contains(fields[0])) srcs_module           =                            py_map[fields[0]].as_a<Str  >()            ;
-			fields[0] = "remote_admin_dir"    ; if (py_map.contains(fields[0])) user_remote_admin_dir =                            py_map[fields[0]].as_a<Str  >()            ;
 			fields[0] = "remote_tmp_dir"      ; if (py_map.contains(fields[0])) user_remote_tmp_dir   =                            py_map[fields[0]].as_a<Str  >()            ;
 			//
 			fields[0] = "link_support" ;
@@ -272,7 +271,7 @@ namespace Engine {
 		//
 		res << "clean :\n" ;
 		/**/                       res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		if (hash_algo!=Algo::Xxh ) res << "\thash_algo       : " << snake(hash_algo  )                      <<'\n' ;
+		if (+hash_algo           ) res << "\thash_algo       : " << snake(hash_algo  )                      <<'\n' ;
 		/**/                       res << "\tlink_support    : " << snake(lnk_support)                      <<'\n' ;
 		/**/                       res << "\tkey             : " << key                                     <<'\n' ;
 		if (+user_local_admin_dir) res << "\tlocal_admin_dir : " << user_local_admin_dir                    <<'\n' ;
@@ -304,10 +303,9 @@ namespace Engine {
 		// dynamic
 		//
 		res << "dynamic :\n" ;
-		/**/                        res << "\tmax_error_lines  : " << max_err_lines         <<'\n' ;
-		/**/                        res << "\treliable_dirs    : " << reliable_dirs         <<'\n' ;
-		if (+user_remote_admin_dir) res << "\tremote_admin_dir : " << user_remote_admin_dir <<'\n' ;
-		if (+user_remote_tmp_dir  ) res << "\tremote_tmp_dir   : " << user_remote_tmp_dir   <<'\n' ;
+		/**/                        res << "\tmax_error_lines : " << max_err_lines        <<'\n' ;
+		/**/                        res << "\treliable_dirs   : " << reliable_dirs        <<'\n' ;
+		if (+user_remote_tmp_dir  ) res << "\tremote_tmp_dir  : " << user_remote_tmp_dir  <<'\n' ;
 		//
 		res << "\tconsole :\n" ;
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
@@ -373,10 +371,9 @@ namespace Engine {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
-		SWEAR(+key) ;                                                                        // ensure no init problem
-		local_admin_dir  = _set_dir( user_local_admin_dir  , key+"-la" , "local_admin"s  ) ; // add key and suffix to ensure different dirs
-		remote_admin_dir = _set_dir( user_remote_admin_dir , key+"-ra" , "remote_admin"s ) ; // .
-		remote_tmp_dir   = _set_dir( user_remote_tmp_dir   , key+"-tmp", "remote_tmp"s   ) ; // .
+		SWEAR(+key) ;                                                                     // ensure no init problem
+		local_admin_dir = _set_dir( user_local_admin_dir , key+"-la" , "local_admin"s ) ; // add key and suffix to ensure different dirs
+		remote_tmp_dir  = _set_dir( user_remote_tmp_dir  , key+"-tmp", "remote_tmp"s  ) ; // .
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
 		//

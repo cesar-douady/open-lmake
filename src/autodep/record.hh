@@ -19,9 +19,8 @@ struct Record {
 	using GetReplyCb  = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
-	static bool s_is_simple   (const char*) ;
-	static bool s_has_tmp_view(           ) { return +s_autodep_env().tmp_view ;                      }
-	static void s_set_enable  (bool e     ) { SWEAR(_s_autodep_env) ; _s_autodep_env->disabled = !e ; }
+	static bool s_is_simple (const char*) ;
+	static void s_set_enable(bool e     ) { SWEAR(_s_autodep_env) ; _s_autodep_env->disabled = !e ; }
 	//
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
@@ -147,17 +146,17 @@ public :
 	template<bool Writable=false> struct _Path {
 		using Char = ::conditional_t<Writable,char,const char> ;
 		// cxtors & casts
-		_Path(                                             )                                          {                                  }
-		_Path( Fd a                                        ) : has_at{true} , at{a}                   {                                  }
-		_Path(        Char*           f , bool steal=true  ) :                        file{f        } { if (!steal) allocate(        ) ; }
-		_Path( Fd a , Char*           f , bool steal=true  ) : has_at{true} , at{a} , file{f        } { if (!steal) allocate(        ) ; }
-		_Path(        ::string const& f , bool steal=false ) :                        file{f.c_str()} { if (!steal) allocate(f.size()) ; }
-		_Path( Fd a , ::string const& f , bool steal=false ) : has_at{true} , at{a} , file{f.c_str()} { if (!steal) allocate(f.size()) ; }
+		_Path(                          )                                          {                       }
+		_Path( Fd a                     ) : /*has_at{true} , */at{a}                   {                       }
+		_Path(        Char*           f ) : /*               */        file{f        } {                       }
+		_Path( Fd a , Char*           f ) : /*has_at{true} , */at{a} , file{f        } {                       }
+		_Path(        ::string const& f ) : /*               */        file{f.c_str()} { _allocate(f.size()) ; }
+		_Path( Fd a , ::string const& f ) : /*has_at{true} , */at{a} , file{f.c_str()} { _allocate(f.size()) ; }
 		//
 		_Path(_Path && p) { *this = ::move(p) ; }
 		_Path& operator=(_Path&& p) {
-			deallocate() ;
-			has_at      = p.has_at    ;
+			_deallocate() ;
+//			has_at      = p.has_at    ;
 			file_loc    = p.file_loc  ;
 			at          = p.at        ;
 			file        = p.file      ;
@@ -167,25 +166,20 @@ public :
 			return *this ;
 		}
 		//
-		~_Path() { deallocate() ; }
+		~_Path() { _deallocate() ; }
 		// services
-		void deallocate() { if (allocated) delete[] file ; }
+	private :
+		void _deallocate() { if (allocated) delete[] file ; }
 		//
-		void allocate(                            ) { if (!allocated) allocate( at      , file      , strlen(file) ) ; }
-		void allocate(          size_t sz         ) { if (!allocated) allocate( at      , file      , sz           ) ; }
-		void allocate(          ::string const& f ) {                 allocate( Fd::Cwd , f.c_str() , f.size()     ) ; }
-		void allocate( Fd a   , ::string const& f ) {                 allocate( a       , f.c_str() , f.size()     ) ; }
-		void allocate( Fd at_ , const char* file_ , size_t sz ) {
-			SWEAR( has_at || at_==Fd::Cwd , has_at ,' ', at_ ) ;
+		void _allocate(size_t sz) {
 			char* buf = new char[sz+1] ;                         // +1 to account for terminating null
-			::memcpy(buf,file_,sz+1) ;
-			deallocate() ;                                       // safer to deallocate after memcpy in case file_ points into file
+			::memcpy(buf,file,sz+1) ;
 			file      = buf  ;
-			at        = at_  ;
 			allocated = true ;
 		}
 		// data
-		bool    has_at    = false            ;                   // if false => at is not managed and may not be substituted any non-default value
+	public :
+//		bool    has_at    = false            ;                   // if false => at is not managed and may not be substituted any non-default value
 		bool    allocated = false            ;                   // if true <=> file has been allocated and must be freed upon destruction
 		FileLoc file_loc  = FileLoc::Unknown ;                   // updated when analysis is done
 		Fd      at        = Fd::Cwd          ;                   // at & file may be modified, but together, they always refer to the same file ...
@@ -195,14 +189,13 @@ public :
 	using WPath = _Path<true /*Writable*/> ;
 	template<bool Writable=false> struct _Solve : _Path<Writable> {
 		using Base = _Path<Writable> ;
-		using Base::allocate ;
-		using Base::has_at   ;
+//		using Base::has_at   ;
 		using Base::file_loc ;
 		using Base::at       ;
 		using Base::file     ;
 		// search (executable if asked so) file in path_var
 		_Solve()= default ;
-		_Solve( Record& r , Base&& path , bool no_follow , bool read , bool allow_tmp_map , ::string const& c={} ) : Base{::move(path)} {
+		_Solve( Record& r , Base&& path , bool no_follow , bool read , ::string const& c={} ) : Base{::move(path)} {
 			if ( !file || !file[0] ) return ;
 			//
 			SolveReport sr = r._real_path.solve(at,file,no_follow) ;
@@ -213,13 +206,6 @@ public :
 			for( ::string& lnk : sr.lnks )            r._report_dep( ::move(lnk)          ,              Access::Lnk , c+".lnk"  ) ;
 			if ( !read && sr.file_accessed==Maybe   ) r._report_dep( Disk::dir_name(real) , FileInfo() , Access::Lnk , c+".last" ) ; // real dir is not protected by real
 			if ( !read && sr.file_loc==FileLoc::Tmp ) r._report_tmp(                                                             ) ;
-			//
-			if (!sr.mapped) return ;
-			//
-			if      (!allow_tmp_map    ) r.report_panic("cannot use tmp mapping to map ",file," to ",real) ;
-			else if (Disk::is_abs(real)) allocate( +real?real:"/"s                              ) ;                                  // dont share real with file as real may be moved
-			else if (has_at            ) allocate( s_root_fd() , real                           ) ;
-			else                         allocate( to_string(s_autodep_env().root_dir,'/',real) ) ;
 		}
 		// services
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
@@ -285,7 +271,7 @@ public :
 	} ;
 	struct Read : Solve {
 		Read() = default ;
-		Read( Record& , Path&& , bool no_follow , bool keep_real , bool allow_tmp_map , ::string&& comment ) ;
+		Read( Record& , Path&& , bool no_follow , bool keep_real , ::string&& comment ) ;
 	} ;
 	struct Readlink : Solve {
 		// cxtors & casts
@@ -319,10 +305,10 @@ public :
 		/**/              void operator()( Record&           ) {                            }
 		template<class T> T    operator()( Record& , T&& res ) { return ::forward<T>(res) ; }
 	} ;
-	struct Symlnk : Solve {
+	struct Symlink : Solve {
 		// cxtors & casts
-		Symlnk() = default ;
-		Symlnk( Record& r , Path&& p , ::string&& comment ) ;
+		Symlink() = default ;
+		Symlink( Record& r , Path&& p , ::string&& comment ) ;
 		// services
 		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
 		// data

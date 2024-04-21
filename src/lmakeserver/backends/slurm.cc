@@ -588,7 +588,7 @@ namespace Backends::Slurm {
 		if(verbose) {
 			s_errPath = _get_stderr_path(job) ;
 			s_outPath = _get_stdout_path(job) ;
-			mkdir(_get_log_dir(job)) ;
+			mk_dir(_get_log_dir(job)) ;
 		}
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			job_desc_msg_t* j = &job_descr[i] ;

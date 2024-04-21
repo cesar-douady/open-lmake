@@ -109,7 +109,7 @@ namespace Engine::Persistent {
 		Trace trace("_init_srcs_rules",Pdate(New)) ;
 		::string dir = g_config.local_admin_dir+"/store" ;
 		//
-		mkdir(dir) ;
+		mk_dir(dir) ;
 		// jobs
 		_job_file      .init( dir+"/job"       , writable ) ;
 		_deps_file     .init( dir+"/deps"      , writable ) ;
@@ -191,7 +191,7 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate(New),STR(dynamic),STR(rescue)) ;
-		if ( !dynamic                                              ) mkdir( AdminDir+"/outputs"s , true/*multi*/ , true/*unlnk_ok*/ ) ;
+		if ( !dynamic                                              ) mk_dir( AdminDir+"/outputs"s , true/*unlnk_ok*/ ) ;
 		if ( !dynamic                                              ) _init_config() ;
 		else                                                         SWEAR(g_config.booted,g_config) ; // we must update something
 		if (                                       g_config.booted ) config.key = g_config.key ;

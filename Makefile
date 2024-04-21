@@ -11,12 +11,12 @@ MAKEFLAGS += -r -R
 
 .DEFAULT_GOAL := DFLT
 
-$(shell { echo CXX=$$CXX ; echo PYTHON2=$$PYTHON2 ; echo PYTHON=$$PYTHON ; } >sys_config_env.tmp                                                     )
-$(shell cmp sys_config_env sys_config_env.tmp 2>/dev/null || { cp sys_config_env.tmp sys_config_env ; echo new env : >&2 ; cat sys_config_env >&2 ; })
-$(shell rm -f sys_config_env.tmp                                                                                                                     )
+$(shell { echo CXX=$$CXX ; echo PYTHON2=$$PYTHON2 ; echo PYTHON=$$PYTHON ; } >sys_config.env.tmp                                                     )
+$(shell cmp sys_config.env sys_config.env.tmp 2>/dev/null || { cp sys_config.env.tmp sys_config.env ; echo new env : >&2 ; cat sys_config.env >&2 ; })
+$(shell rm -f sys_config.env.tmp                                                                                                                     )
 
-sys_config.log : _bin/sys_config sys_config_env
-	. ./sys_config_env ; ./$< $(@:%.log=%.mk) $(@:%.log=%.h) 2>$@ || cat $@
+sys_config.log : _bin/sys_config sys_config.env
+	. ./sys_config.env ; ./$< $(@:%.log=%.mk) $(@:%.log=%.h) 2>$@ || cat $@
 sys_config.mk : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 
@@ -111,6 +111,7 @@ LMAKE_SERVER_BIN_FILES := \
 	$(SBIN)/align_comments \
 	$(BIN)/autodep         \
 	$(BIN)/ldebug          \
+	$(BIN)/lenter          \
 	$(BIN)/lforget         \
 	$(BIN)/lmake           \
 	$(BIN)/lmark           \
@@ -137,16 +138,6 @@ ifneq ($(PYTHON2),)
     LMAKE_REMOTE_FILES := $(LMAKE_REMOTE_FILES) $(LIB)/clmake2.so
 endif
 
-LMAKE_BASIC_SAN_OBJS := \
-	src/disk$(SAN).o    \
-	src/fd$(SAN).o      \
-	src/hash$(SAN).o    \
-	src/lib$(SAN).o     \
-	src/non_portable.o  \
-	src/process$(SAN).o \
-	src/time$(SAN).o    \
-	src/utils$(SAN).o
-
 LMAKE_BASIC_OBJS := \
 	src/disk.o         \
 	src/fd.o           \
@@ -156,6 +147,8 @@ LMAKE_BASIC_OBJS := \
 	src/process.o      \
 	src/time.o         \
 	src/utils.o
+
+LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS:%.o=%$(SAN).o)
 
 LMAKE_FILES := $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
 
@@ -487,6 +480,13 @@ $(BIN)/lmark : \
 	@mkdir -p $(BIN)
 	@echo link to $@
 	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+
+$(BIN)/lenter : \
+	$(LMAKE_BASIC_SAN_OBJS) \
+	$(SRC)/lenter$(SAN).o
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 # XXX : why xxhsum does not support sanitize thread ?
 $(BIN)/xxhsum : \

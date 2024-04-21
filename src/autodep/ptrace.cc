@@ -45,7 +45,6 @@ struct PidInfo {
 ::umap<pid_t,PidInfo > PidInfo::s_tab ;
 
 void AutodepPtrace::_init(pid_t cp) {
-	SWEAR( !s_autodep_env->tmp_view , s_autodep_env->tmp_view ) ;      // mapping tmp is incompatible with ptrace as memory allocation in child process is impossible
 	Record::s_autodep_env(*s_autodep_env) ;
 	child_pid = cp ;
 	//
@@ -62,14 +61,13 @@ void AutodepPtrace::_init(pid_t cp) {
 }
 
 void AutodepPtrace::s_prepare_child() {
-	AutodepEnv const& ade = Record::s_autodep_env(*s_autodep_env) ;
-	SWEAR( !ade.tmp_view , ade.tmp_view ) ;                                       // cannot support directory mapping as there is no way to allocate memory in the traced process
 	#if HAS_SECCOMP
 		// prepare seccomp filter
-		bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ; // if full link support, we need to analyze uphill dirs
-		scmp_filter_ctx scmp = seccomp_init(SCMP_ACT_ALLOW) ;
+		AutodepEnv const& ade         = Record::s_autodep_env(*s_autodep_env)                ;
+		bool              ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ; // if full link support, we need to analyze uphill dirs
+		scmp_filter_ctx   scmp        = seccomp_init(SCMP_ACT_ALLOW)                         ;
 		SWEAR(scmp) ;
-		static SyscallDescr::Tab const& tab = SyscallDescr::s_tab(true/*for_ptrace*/) ;
+		static SyscallDescr::Tab const& tab = SyscallDescr::s_tab() ;
 		for( long syscall=0 ; syscall<SyscallDescr::NSyscalls ; syscall++ ) {
 			SyscallDescr const& entry = tab[syscall] ;
 			if ( !entry                            ) continue ;                   // entry is not allocated
@@ -100,7 +98,7 @@ void AutodepPtrace::s_prepare_child() {
 			default : SWEAR(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;             // ignore other events
 		}
 	DoSyscall :
-		{	static SyscallDescr::Tab const& tab = SyscallDescr::s_tab(true/*for_ptrace*/) ;
+		{	static SyscallDescr::Tab const& tab = SyscallDescr::s_tab() ;
 			sig = 0 ;
 			#if HAS_PTRACE_GET_SYSCALL_INFO                                              // use portable calls if implemented
 				struct ptrace_syscall_info syscall_info ;
@@ -116,7 +114,7 @@ void AutodepPtrace::s_prepare_child() {
 					#endif
 					int syscall = entry_info.nr ;
 				#else
-					int syscall = np_ptrace_get_nr(pid) ;                           // use non-portable calls if portable accesses are not implemented
+					int syscall = np_ptrace_get_nr(pid) ;                                // use non-portable calls if portable accesses are not implemented
 				#endif
 				SWEAR( syscall>=0 && syscall<SyscallDescr::NSyscalls ) ;
 				SyscallDescr const& descr = tab[syscall] ;

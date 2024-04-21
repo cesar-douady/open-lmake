@@ -3,8 +3,11 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <sys/resource.h>
 #include <linux/limits.h> // ARG_MAX
+#include <sched.h>
+#include <sys/mount.h>
+#include <sys/resource.h>
+
 
 #include "app.hh"
 #include "disk.hh"
@@ -43,14 +46,17 @@ struct PatternDict {
 } ;
 
 Gather         g_gather        ;
-JobRpcReply    g_start_info    ;
-::string       g_service_start ;
-::string       g_service_mngt  ;
-::string       g_service_end   ;
-SeqId          g_seq_id        = 0/*garbage*/ ;
 JobIdx         g_job           = 0/*garbage*/ ;
 PatternDict    g_match_dct     ;
 NfsGuard       g_nfs_guard     ;
+SeqId          g_seq_id        = 0/*garbage*/ ;
+::string       g_phy_root_dir  ;
+::string       g_phy_tmp_dir   ;
+::string       g_service_start ;
+::string       g_service_mngt  ;
+::string       g_service_end   ;
+JobRpcReply    g_start_info    ;
+SeqId          g_trace_id      = 0/*garbage*/ ;
 ::vector_s     g_washed        ;
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
@@ -66,26 +72,102 @@ NfsGuard       g_nfs_guard     ;
 	for( auto& [k,v] : g_start_info.env ) {
 		if (v!=EnvPassMrkr) {
 			res[k] = env_decode(::move(v)) ;
-		} else if (has_env(k)) {                                                                             // if value is special illegal value, use value from environement (typically from slurm)
+		} else if (has_env(k)) {                                           // if value is special illegal value, use value from environement (typically from slurm)
 			::string v = get_env(k) ;
 			end_report.dynamic_env.emplace_back(k,env_encode(::copy(v))) ;
 			res[k] =                                         ::move(v)   ;
 		}
 	}
-	if ( g_start_info.keep_tmp || !res.contains("TMPDIR") )
-		res["TMPDIR"] = mk_abs( g_start_info.autodep_env.tmp_dir , g_start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
-	g_start_info.autodep_env.tmp_dir = res["TMPDIR"] ;
-	if (+g_start_info.autodep_env.tmp_view) res["TMPDIR"] = g_start_info.autodep_env.tmp_view ;              // job must use the job view
+	if ( g_start_info.tmp_from_var || g_start_info.tmp_sz_mb ) {
+		if      ( +g_start_info.autodep_env.tmp_dir          ) g_phy_tmp_dir = *g_root_dir + g_start_info.autodep_env.tmp_dir                                   ;
+		else if ( !g_start_info.tmp_from_var                 ) {}
+		else if ( auto it=res.find("TMPDIR") ; it!=res.end() ) g_phy_tmp_dir = it->second                                                                       ;
+		else if ( +g_start_info.remote_tmp_dir               ) g_phy_tmp_dir = to_string(*g_root_dir,'/',g_start_info.remote_tmp_dir,'/',g_start_info.small_id) ;
+		else                                                   g_phy_tmp_dir = to_string(*g_root_dir,'/',PrivateAdminDir,"/tmp"     ,'/',g_start_info.small_id) ;
+		//
+		if (+g_start_info.tmp_dir)                           g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_start_info.tmp_dir ;
+		else                       { SWEAR(+g_phy_tmp_dir) ; g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_phy_tmp_dir        ; }
+	} else {
+		SWEAR(!g_start_info.tmp_dir,g_start_info.tmp_dir) ;
+	}
 	//
-	Trace trace("prepare_env",res) ;
+	Trace trace("prepare_env",g_start_info.autodep_env.tmp_dir,g_phy_tmp_dir,res) ;
 	//
 	try {
-		unlnk_inside(g_start_info.autodep_env.tmp_dir) ;                                                     // ensure tmp dir is clean
+		if (+g_phy_tmp_dir) unlnk_inside(g_phy_tmp_dir) ;                  // ensure tmp dir is clean
 	} catch (::string const&) {
-		try                       { mkdir(g_start_info.autodep_env.tmp_dir) ; }                              // ensure tmp dir exists
-		catch (::string const& e) { throw "cannot create tmp dir : "+e ;      }
+		try                       { mk_dir(g_phy_tmp_dir) ;              } // ensure tmp dir exists
+		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
 	}
 	return res ;
+}
+
+static void _bind_mount( ::string const& src , ::string const& dst ) {
+	if (::mount( src.c_str() ,  dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0) throw to_string("cannot bind mount ",src," onto ",dst," : ",strerror(errno)) ;
+}
+static void _tmp_mount( size_t sz_mb , ::string const& dst ) {
+	SWEAR(sz_mb) ;
+	if (::mount( "" ,  dst.c_str() , "tmpfs" , 0/*flags*/ , to_string(sz_mb,"m").c_str() )!=0) throw to_string("cannot mount tmpfs of size",sz_mb," MB onto ",dst," : ",strerror(errno)) ;
+}
+static void _chroot(::string const& dir) {
+	if (::chroot(dir.c_str())!=0) throw to_string("cannot chroot to ",dir," : ",strerror(errno)) ;
+}
+static void _atomic_write( ::string const& file , ::string const& data ) {
+	ssize_t cnt = ::write( AutoCloseFd(::open(file.c_str(),O_WRONLY)) , data.c_str() , data.size() ) ;
+	if (cnt<0                  ) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : ",strerror(errno)          ) ;
+	if (size_t(cnt)<data.size()) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : only ",cnt," bytes written") ;
+}
+void prepare_namespace() {
+	Trace trace("prepare_namespace",g_start_info.chroot,g_start_info.root_dir,g_start_info.tmp_dir) ;
+	//
+	if ( !g_start_info.chroot && !g_start_info.root_dir && !g_start_info.tmp_dir ) return ;
+	//
+	int uid = getuid() ; // must be done before unshare that invents a new user
+	int gid = getgid() ; // .
+	//
+	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw to_string("cannot create namespace : ",strerror(errno)) ;
+	//
+	bool            must_create_root = +g_start_info.root_dir && !is_dir(g_start_info.chroot+g_start_info.root_dir) ;
+	bool            must_create_tmp  = +g_start_info.tmp_dir  && !is_dir(g_start_info.chroot+g_start_info.tmp_dir ) ;
+	::string const* used_chroot      = &g_start_info.chroot                                                         ;
+	::string        private_chroot   ;
+	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
+	if ( must_create_root || must_create_tmp ) {                                                                                                    // we may mount directly in chroot dir
+		::vector_s top_lvls = lst_dir(g_start_info.chroot,"/") ;
+		private_chroot = to_string(PrivateAdminDir,"/chroot/",g_start_info.small_id) ;
+		used_chroot    = &private_chroot ;
+		mk_dir(private_chroot) ;
+		unlnk_inside(private_chroot) ;
+		trace("top_lvls",private_chroot,top_lvls) ;
+		for( ::string const& f : top_lvls ) {
+			::string src_f     = g_start_info.chroot+f ;
+			::string private_f = private_chroot     +f ;
+			switch (FileInfo(src_f).tag()) {
+				case FileTag::Reg   :
+				case FileTag::Empty :
+				case FileTag::Exe   : OFStream{private_f                } ; break    ;                                                              // create file
+				case FileTag::Dir   : mk_dir  (private_f                ) ; break    ;                                                              // create dir
+				case FileTag::Lnk   : lnk     (private_f,read_lnk(src_f)) ; continue ;                                                              // copy symlink
+				default             :                                       continue ;                                                              // exclude weird files
+			}
+			_bind_mount(src_f,private_f) ;
+		}
+		if (must_create_root) { SWEAR(g_start_info.root_dir.rfind('/')==0,g_start_info.root_dir) ; mk_dir(private_chroot+g_start_info.root_dir) ; } // XXX : handle cases where dir is not top level
+		if (must_create_tmp ) { SWEAR(g_start_info.tmp_dir .rfind('/')==0,g_start_info.tmp_dir ) ; mk_dir(private_chroot+g_start_info.tmp_dir ) ; } // .
+	}
+	if ( +g_start_info.root_dir                  ) _bind_mount( g_phy_root_dir          , *used_chroot+g_start_info.root_dir ) ;
+	if ( +g_start_info.tmp_dir && +g_phy_tmp_dir ) _bind_mount( g_phy_tmp_dir           , *used_chroot+g_start_info.tmp_dir  ) ;
+	if ( +g_start_info.tmp_dir && !g_phy_tmp_dir ) _tmp_mount ( g_start_info.tmp_sz_mb  , *used_chroot+g_start_info.tmp_dir  ) ;
+	//
+	trace("chroot",*used_chroot) ;
+	if (+*used_chroot) _chroot(*used_chroot) ;
+	//
+	_atomic_write( "/proc/self/uid_map"   , to_string(uid,' ',uid,' ',1,'\n') ) ;
+	_atomic_write( "/proc/self/setgroups" , "deny"                            ) ;                                                                   // necessary to be allowed to write the gid_map
+	_atomic_write( "/proc/self/gid_map"   , to_string(gid,' ',gid,' ',1,'\n') ) ;
+	//
+	if (::setuid(uid)!=0) throw to_string("cannot set uid as ",uid,strerror(errno)) ;
+	if (::setgid(gid)!=0) throw to_string("cannot set gid as ",uid,strerror(errno)) ;
 }
 
 struct Digest {
@@ -220,7 +302,7 @@ Digest analyze( bool at_end , bool killed=false ) {
 ::vector_s cmd_line() {
 	::vector_s cmd_line = ::move(g_start_info.interpreter) ;                                                     // avoid copying as interpreter is used only here
 	if ( g_start_info.use_script || (g_start_info.cmd.first.size()+g_start_info.cmd.second.size())>ARG_MAX/2 ) { // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		::string cmd_file = to_string(g_start_info.remote_admin_dir,"/job_cmds/",g_start_info.small_id) ;
+		::string cmd_file = to_string(PrivateAdminDir,"/cmds/",g_start_info.small_id) ;
 		OFStream(dir_guard(cmd_file)) << g_start_info.cmd.first << g_start_info.cmd.second ;
 		cmd_line.reserve(cmd_line.size()+1) ;
 		cmd_line.push_back(::move(cmd_file)) ;
@@ -276,24 +358,26 @@ int main( int argc , char* argv[] ) {
 	g_service_end   =                     argv[3]  ;
 	g_seq_id        = from_string<SeqId >(argv[4]) ;
 	g_job           = from_string<JobIdx>(argv[5]) ;
-	g_root_dir      = new ::string       (argv[6]) ; // passed early so we can chdir and trace early
-	g_trace_file    = new ::string       (argv[7]) ; // .
+	g_phy_root_dir  =                     argv[6]  ; // passed early so we can chdir and trace early
+	g_trace_id      = from_string<SeqId >(argv[7]) ;
+	//
+	g_trace_file = new ::string{to_string(g_phy_root_dir,'/',PrivateAdminDir,"/trace/job_exec/",g_trace_id)} ;
 	//
 	JobRpcReq end_report { JobProc::End , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error, so we can goto End anytime
 	//
-	if (::chdir(g_root_dir->c_str())!=0) {
-		append_to_string(end_report.msg,"cannot chdir to root : ",*g_root_dir) ;
+	if (::chdir(g_phy_root_dir.c_str())!=0) {
+		append_to_string(end_report.msg,"cannot chdir to root : ",g_phy_root_dir) ;
 		goto End ;
 	}
 	Trace::s_sz = 10<<20 ;        // this is more than enough
 	unlnk(*g_trace_file) ;        // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 	app_init(No/*chk_version*/) ;
-	{
-		Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
+	//
+	{	Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
-		bool         found_server = false ;
+		bool found_server = false ;
 		try {
 			ClientSockFd fd {g_service_start,NConnectionTrials} ;
 			found_server = true ;
@@ -306,11 +390,16 @@ int main( int argc , char* argv[] ) {
 			if (found_server) exit(Rc::Fail                                                          ) ; // this is typically a ^C
 			else              exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ; // this may be a server config problem, better to report
 		}
-		trace("g_start_info",g_start_info) ;
+		trace("g_start_info",Pdate(New),g_start_info) ;
 		switch (g_start_info.proc) {
 			case JobProc::None  : return 0 ;                                                             // server ask us to give up
 			case JobProc::Start : break    ;                                                             // normal case
 		DF}
+		//
+		bool keep_tmp = +g_start_info.autodep_env.tmp_dir ;
+		//
+		g_root_dir = +g_start_info.root_dir ? &g_start_info.root_dir : &g_phy_root_dir ;
+		//
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
 		for( auto const& [d ,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add( false/*star*/ , d  , digest.dflags ) ;
@@ -318,8 +407,13 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
 		//
 		::map_ss cmd_env ;
-		try                       { cmd_env = prepare_env(end_report) ; }
-		catch (::string const& e) { end_report.msg += e ; goto End ;    }
+		try {
+			cmd_env = prepare_env(end_report) ;
+			prepare_namespace() ;
+		} catch (::string const& e) {
+			end_report.msg += e ; goto End ;
+		}
+		trace("prepared",g_start_info.autodep_env,g_phy_tmp_dir) ;
 		//
 		g_gather.addr             = g_start_info.addr          ;
 		g_gather.as_session       = true                       ;
@@ -372,7 +466,7 @@ int main( int argc , char* argv[] ) {
 			g_nfs_guard.close() ;
 		}
 		//
-		if ( g_gather.seen_tmp && !g_start_info.keep_tmp )
+		if ( g_gather.seen_tmp && !keep_tmp )
 			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}          // cleaning is done at job start any way, so no harm
 		//
 		if ( status==Status::Ok && +digest.msg ) status = Status::Err ;

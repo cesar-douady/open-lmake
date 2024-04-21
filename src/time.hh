@@ -101,6 +101,7 @@ namespace Time {
 		constexpr ::strong_ordering operator<=>(Delay const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
+		constexpr Delay  operator- (           ) const {                       return Delay(New,-_val          ) ; }
 		constexpr Delay  operator+ (Delay other) const {                       return Delay(New,_val+other._val) ; }
 		constexpr Delay  operator- (Delay other) const {                       return Delay(New,_val-other._val) ; }
 		constexpr Delay& operator+=(Delay other)       { *this = *this+other ; return *this                      ; }
@@ -116,8 +117,9 @@ namespace Time {
 		bool/*slept*/ sleep_for(::stop_token) const ;
 		void          sleep_for(            ) const ;
 		//
-		::string short_str() const ;
-		size_t   hash     () const { return _val ; }
+		::string str      (uint8_t prec=0) const ;
+		::string short_str(              ) const ;
+		size_t   hash     (              ) const { return _val ; }
 	} ;
 	constexpr Delay Delay::Lowest  { New , ::numeric_limits<Tick>::min() } ;
 	constexpr Delay Delay::Highest { New , ::numeric_limits<Tick>::max() } ;

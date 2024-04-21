@@ -59,7 +59,6 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "stdout      : "  << jrr.stdout                  <<'\n' ;
 	::cout << "timeout     : "  << jrr.timeout                 <<'\n' ;
 	::cout << "tmp_dir     : "  << jrr.autodep_env.tmp_dir     <<'\n' ; // tmp directory on disk
-	::cout << "tmp_view    : "  << jrr.autodep_env.tmp_view    <<'\n' ; // tmp directory as viewed by job
 	::cout << "use_script  : "  << jrr.use_script              <<'\n' ;
 	//
 	::cout << "deps :\n"           ; _print_map(jrr.deps          )                            ;

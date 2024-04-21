@@ -75,9 +75,6 @@ static bool started() { return true ; }
 ,	{ "freopen"             , { reinterpret_cast<void*>(Audited::freopen             ) } }
 ,	{ "freopen64"           , { reinterpret_cast<void*>(Audited::freopen64           ) } }
 ,	{ "futimesat"           , { reinterpret_cast<void*>(Audited::futimesat           ) } }
-,	{ "getcwd"              , { reinterpret_cast<void*>(Audited::getcwd              ) } } // necessary when tmp_view is not empty to map back to job view
-,	{ "getwd"               , { reinterpret_cast<void*>(Audited::getwd               ) } } // .
-,	{ "get_current_dir_name", { reinterpret_cast<void*>(Audited::get_current_dir_name) } } // .
 ,	{ "__libc_fork"         , { reinterpret_cast<void*>(Audited::__libc_fork         ) } }
 ,	{ "link"                , { reinterpret_cast<void*>(Audited::link                ) } }
 ,	{ "linkat"              , { reinterpret_cast<void*>(Audited::linkat              ) } }
@@ -202,17 +199,17 @@ extern "C" {
 	}
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		auditer() ;                                                                                                                 // force Audit static init
+		auditer() ;                                                                                          // force Audit static init
 		if ( !map->l_name || !*map->l_name ) {
 			*cookie = true/*not_std*/ ;
 			return LA_FLG_BINDFROM ;
 		}
-		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                                                               // linux-vdso.so is listed, but is not a real file
-			Read(static_cast<const char*>(map->l_name),false/*no_follow*/,false/*keep_real*/,false/*allow_tmp_map*/,"la_objopen") ;
+		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                                        // linux-vdso.so is listed, but is not a real file
+			Read(static_cast<const char*>(map->l_name),false/*no_follow*/,false/*keep_real*/,"la_objopen") ;
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(map->l_name) ;
 		*cookie = !known.first ;
 		if (known.second) {
-			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ; // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
+			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ;                  // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
 			g_libc_name = map->l_name ;
 		}
 		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;
@@ -220,9 +217,9 @@ extern "C" {
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , unsigned int flag ) {
 		switch (flag) {
-			case LA_SER_ORIG    : if (strrchr(name,'/')) Read(name,false/*no_follow*/,false/*keep_real*/,false/*allow_tmp_map*/,"la_objsearch") ; break ;
+			case LA_SER_ORIG    : if (strrchr(name,'/')) Read(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
 			case LA_SER_LIBPATH :
-			case LA_SER_RUNPATH :                        Read(name,false/*no_follow*/,false/*keep_real*/,false/*allow_tmp_map*/,"la_objsearch") ; break ;
+			case LA_SER_RUNPATH :                        Read(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
 			default : ;
 		}
 		return const_cast<char*>(name) ;

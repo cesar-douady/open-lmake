@@ -42,7 +42,7 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 		switch (a.tag) {
 			case FileActionTag::None     :                                                                                          break ;
 			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f),'\n') ; break ;
-			case FileActionTag::Mkdir    : mkdir(f,nfs_guard) ;                                                                     break ;
+			case FileActionTag::Mkdir    : mk_dir(f,nfs_guard) ;                                                                    break ;
 			case FileActionTag::Unlnk    : {
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                                                                                                    // file does not exist, nothing to do
@@ -160,13 +160,13 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 			if (+jrr.date_prec     ) os <<',' << jrr.date_prec                    ;
 			/**/                     os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
 			/**/                     os <<',' << jrr.interpreter                  ;
-			if (jrr.keep_tmp       ) os <<',' << "keep_tmp"                       ;
 			/**/                     os <<',' << jrr.kill_sigs                    ;
 			if (jrr.live_out       ) os <<',' << "live_out"                       ;
 			/**/                     os <<',' << jrr.method                       ;
 			if (+jrr.network_delay ) os <<',' << jrr.network_delay                ;
 			if (+jrr.pre_actions   ) os <<',' << jrr.pre_actions                  ;
-			/**/                     os <<',' << jrr.remote_admin_dir             ;
+			/**/                     os <<',' << jrr.remote_tmp_dir               ;
+			if (+jrr.root_dir      ) os <<',' << jrr.root_dir                     ;
 			/**/                     os <<',' << jrr.small_id                     ;
 			if (+jrr.star_matches  ) os <<',' << jrr.star_matches                 ;
 			if (+jrr.deps          ) os <<'<' << jrr.deps                         ;
@@ -174,6 +174,9 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 			if (+jrr.stdin         ) os <<'<' << jrr.stdin                        ;
 			if (+jrr.stdout        ) os <<'>' << jrr.stdout                       ;
 			if (+jrr.timeout       ) os <<',' << jrr.timeout                      ;
+			if (+jrr.tmp_dir       ) os <<',' << jrr.tmp_dir                      ;
+			if (+jrr.tmp_from_var  ) os <<',' << "..."                            ;
+			else                     os <<',' << jrr.tmp_sz_mb                    ;
 			/**/                     os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
 			;
 		break ;

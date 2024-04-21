@@ -533,8 +533,8 @@ namespace Engine {
 				/**/            append_line_to_string( job_msg , severe_msg                      ) ;                                                // ... meaningless
 			}
 			//
-			Delay     exec_time = digest.stats.total ; if ( status<=Status::Early                                 ) SWEAR(!exec_time,exec_time) ;
-			::string  pfx       ;                      if ( !ri.done() && status>Status::Garbage && !unstable_dep ) pfx = "may_" ;
+			Delay     exec_time = digest.stats.total ;
+			::string  pfx       = !ri.done() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
 			//
 			JobReport jr = audit_end( pfx , ri , job_msg , full_report?stderr:""s , end_none_attrs.max_stderr_len , modified , exec_time ) ;        // report rerun or resubmit rather than status
 			if (ri.done()) {
@@ -581,7 +581,7 @@ namespace Engine {
 		return modified ;
 	}
 
-	JobReport JobExec::audit_end( ::string const& pfx , ReqInfo& ri , ::string const& msg , ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time) const {
+	JobReport JobExec::audit_end( ::string const& pfx , ReqInfo& ri , ::string const& msg , ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time ) const {
 		using JR = JobReport ;
 		//
 		Req            req         = ri.req        ;

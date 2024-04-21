@@ -53,7 +53,7 @@ if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY_LIB_DIR:$PY
 else                                          PY_LD_LIBRARY_PATH=$PY_LIB_DIR$PY2_LIB_DIR                  # only one is present
 fi
 # cancel Python2 if unusable as a library
-cat <<"EOF" > python2.c
+cat <<"EOF" > probe_python2.c
 	#include <Python.h>
 	int main() {
 		PyObject* none = Py_None ;
@@ -61,13 +61,13 @@ cat <<"EOF" > python2.c
 EOF
 p2ld=$PY2_LIB_DIR
 [ "$p2ld" ] && p2ld="-L$p2ld"
-$CXX -o python2 -I$PY2_INCLUDEPY $p2ld python2.c -l:$PY2_LIB_BASE || PYTHON2=
+$CXX -o probe_python2 -I$PY2_INCLUDEPY $p2ld probe_python2.c -l:$PY2_LIB_BASE || PYTHON2=
 
 #
 # CXX configuration
 #
 [ "$CXX" != "${CXX%++*}" ] || { echo cannot recognize c++ compiler $CXX ; exit 1 ; } # ensure we can find "++" in cxx, for example gcc or clang will not work, we must use g++ and clang++
-type -p $CXX >/dev/null    || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
+type -p $CXX               || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
 
 case "$($CXX --version|head -1)" in
 	*clang* ) CXX_FLAVOR=clang ; v=$($CXX -dumpversion) ; [ ${v%%.*} -lt 14 ] && { echo clang version must be at least 14  ; exit 1 ; } ;;
@@ -155,7 +155,7 @@ fi
 # HAS_CLOSE_RANGE
 # test whether we can include linux/close_range.h
 #
-if $CXX -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null 2>/dev/null
+if $CXX -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null
 then HAS_CLOSE_RANGE=1
 else HAS_CLOSE_RANGE=0
 fi
@@ -215,7 +215,7 @@ cat <<"EOF" > ostringstream_view.cc
 	#include <sstream>
 	std::string_view ossv = std::ostringstream().view() ;
 EOF
-if $CXX -c -std=c++20 -o ostringstream_view.o -xc ostringstream_view.cc 2>/dev/null
+if $CXX -c -std=c++20 -o ostringstream_view.o ostringstream_view.cc
 then HAS_OSTRINGSTREAM_VIEW=1
 else HAS_OSTRINGSTREAM_VIEW=0
 fi
@@ -223,7 +223,7 @@ fi
 #
 # HAS_SLURM
 #
-if $CXX -E --include slurm/slurm.h -xc - </dev/null >/dev/null 2>/dev/null
+if $CXX -E --include slurm/slurm.h -xc - </dev/null >/dev/null
 then HAS_SLURM=1
 else HAS_SLURM=0
 fi
@@ -242,7 +242,7 @@ cat <<"EOF" > stacktrace.cc
 	#include <stacktrace>
 	std::stacktrace st ;
 EOF
-if $CXX -c -std=c++23 -o stacktrace.o stacktrace.cc 2>/dev/null
+if $CXX -c -std=c++23 -o stacktrace.o stacktrace.cc
 then HAS_STACKTRACE=1
 else HAS_STACKTRACE=0
 fi
@@ -286,7 +286,7 @@ cat <<"EOF" > pcre.cc
 		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
 	}
 EOF
-if $CXX -c -std=c++20 -o pcre.o pcre.cc 2>/dev/null
+if $CXX -c -std=c++20 -o pcre.o pcre.cc
 then HAS_PCRE=1
 else HAS_PCRE=0
 fi

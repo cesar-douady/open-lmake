@@ -331,7 +331,7 @@ namespace Caches {
 		// check deps
 		for( auto const& [dn,dd] : job_info.end.end.digest.deps ) if (!dd.is_crc) return false/*ok*/ ;
 		//
-		mkdir(dir_fd,jn) ;
+		mk_dir(dir_fd,jn) ;
 		AutoCloseFd dfd = open_read(dir_fd,jn) ;
 		//
 		// upload is the only one to take several locks and it starts with the global lock

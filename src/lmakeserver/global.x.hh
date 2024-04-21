@@ -103,7 +103,7 @@ namespace Engine {
 		bool operator==(ConfigClean const&) const = default ;
 		// data
 		Version    db_version           ;                    // must always stay first so it is always understood, by default, db version does not match
-		Algo       hash_algo            = Algo::Xxh        ;
+		Algo       hash_algo            = {}               ;
 		LnkSupport lnk_support          = LnkSupport::Full ;
 		::string   user_local_admin_dir ;
 		::string   key                  ;                    // random key to differentiate repo from other repos
@@ -185,14 +185,13 @@ namespace Engine {
 		bool   errs_overflow(size_t n) const { return n>max_err_lines ;                                       }
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
-		size_t                                                                  max_err_lines         = 0     ; // unlimited
-		bool                                                                    reliable_dirs         = false ; // if true => dirs coherence is enforced when files are modified
-		::string                                                                user_remote_admin_dir ;
-		::string                                                                user_remote_tmp_dir   ;
-		Console                                                                 console               ;
-		::array<uint8_t,N<StdRsrc>>                                             rsrc_digits           = {}    ; // precision of standard resources
-		::array<Backend,N<BackendTag>>                                          backends              ;         // backend may refuse dynamic modification
-		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors                = {}    ;
+		size_t                                                                  max_err_lines       = 0     ; // unlimited
+		bool                                                                    reliable_dirs       = false ; // if true => dirs coherence is enforced when files are modified
+		::string                                                                user_remote_tmp_dir ;
+		Console                                                                 console             ;
+		::array<uint8_t,N<StdRsrc>>                                             rsrc_digits         = {}    ; // precision of standard resources
+		::array<Backend,N<BackendTag>>                                          backends            ;         // backend may refuse dynamic modification
+		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors              = {}    ;
 	} ;
 
 	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {
@@ -216,10 +215,9 @@ namespace Engine {
 			else                                     return ConfigDiff::None    ;
 		}
 		// data (derived info not saved on disk)
-		bool     booted           = false ;                  // a marker to distinguish clean repository
-		::string local_admin_dir  ;
-		::string remote_admin_dir ;
-		::string remote_tmp_dir   ;
+		bool     booted          = false ;                  // a marker to distinguish clean repository
+		::string local_admin_dir ;
+		::string remote_tmp_dir  ;
 	} ;
 
 	// sep is put before the last indent level, useful for porcelaine output

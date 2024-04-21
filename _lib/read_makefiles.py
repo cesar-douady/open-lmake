@@ -66,11 +66,12 @@ StdAttrs = {
 ,	'order'             : ( list  , False )
 ,	'python'            : ( tuple , False )
 ,	'resources'         : ( dict  , True  )
+,	'root_dir'          : ( str   , True  )
 ,	'shell'             : ( tuple , False )
 ,	'start_delay'       : ( float , True  )
 ,	'side_targets'      : ( dict  , True  )
 ,	'timeout'           : ( float , True  )
-,	'tmp'               : ( str   , True  )
+,	'tmp'               : ( tuple , True  )
 ,	'use_script'        : ( bool  , True  )
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
@@ -178,17 +179,38 @@ def handle_inheritance(rule) :
 	# reformat dct
 	attrs = pdict()
 	for k,v in dct.items() :
-		if k in StdAttrs and k!='cmd' :                                     # special case cmd
+		if k in StdAttrs :
 			if v is None : continue                                         # None is not transported
 			typ,dyn = StdAttrs[k]
-			if typ and not ( dyn and callable(v) ) :
-				try :
-					if callable(v)                                            : pass
-					elif typ in (tuple,list) and not isinstance(v,(tuple,list)) : v = typ((v,))
-					else                                                        : v = typ( v  )
-				except :
-					raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
-		attrs[k] = v
+			# special cases
+			if   k=='cmd' :
+				attrs[k] = v
+			elif k=='tmp' :
+				if callable(v) :
+					raise NotImplementedError("function must be split into 2 functions, one for the view part, one for the origin part")
+				elif v==... :
+					attrs['tmp.dir'   ] = None
+					attrs['tmp.origin'] = ...
+				elif isinstance(v,str) :
+					attrs['tmp.dir'   ] = v
+					attrs['tmp.origin'] = ...
+				elif isinstance(v,(tuple,list)) and len(v)==2 :
+					attrs['tmp.dir'   ] = v[0]
+					attrs['tmp.origin'] = v[1]
+				else :
+					raise TypeError(f'cannot recognize value {v}')
+			# generic cases
+			else :
+				if typ and not ( dyn and callable(v) ) :
+					try :
+						if   callable(v)                                            : pass
+						elif typ in (tuple,list) and not isinstance(v,(tuple,list)) : v = typ((v,))
+						else                                                        : v = typ( v  )
+					except :
+						raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
+				attrs[k] = v
+		else :
+			attrs[k] = v
 	attrs.name        = rule.__dict__.get('name',rule.__name__)             # name is not inherited as it must be different for each rule and defaults to class name
 	attrs.__special__ = rule.__special__
 	attrs.is_python   = is_python
@@ -442,15 +464,16 @@ class Handle :
 		self._handle_val('ignore_stat'                      )
 		self._handle_val('chroot'                           )
 		self._handle_val('interpreter',rep_key=interpreter  )
-		self._handle_val('tmp'                              )
+		self._handle_val('tmp.dir'                          )
 		self._handle_val('use_script'                       )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
 		self._init()
-		self._handle_val('autodep'                            )
-		self._handle_val('env'    ,rep_key='environ_resources')
-		self._handle_val('timeout'                            )
+		self._handle_val('autodep'                               )
+		self._handle_val('env'       ,rep_key='environ_resources')
+		self._handle_val('timeout'                               )
+		self._handle_val('tmp.origin'                            )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
 
 	def handle_start_none(self) :

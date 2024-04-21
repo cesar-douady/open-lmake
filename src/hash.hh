@@ -21,8 +21,8 @@
 // ENUM macro does not work inside namespace's
 
 ENUM(Algo
+,	Xxh   // default, must be first
 ,	Md5
-,	Xxh
 )
 
 ENUM_1( CrcSpecial
@@ -61,7 +61,7 @@ namespace Hash {
 		static const Crc None    ;
 		static const Crc Empty   ;
 		// statics
-		static bool s_sense( Accesses a , FileTag t ) {              // return whether accesses a can see the difference between files with tag t
+		static bool s_sense( Accesses a , FileTag t ) {                // return whether accesses a can see the difference between files with tag t
 			Crc crc{t} ;
 			return !crc.match(crc,a) ;
 		}

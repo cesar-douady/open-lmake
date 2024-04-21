@@ -182,7 +182,7 @@ namespace Codec {
 		auto   [it,inserted] = s_tab.try_emplace(file,Entry()) ;
 		Entry& entry         = it->second                      ;
 		if (!inserted) {
-			for( ReqIdx r : reqs ) if ( entry.sample_date < Req(r)->start_pdate ) goto Refresh ;                         // we sample disk once per Req
+			for( ReqIdx r : reqs ) if ( entry.sample_date < Req(r)->start_pdate ) goto Refresh ;                        // we sample disk once per Req
 			return true/*ok*/ ;
 		}
 	Refresh :
@@ -198,14 +198,14 @@ namespace Codec {
 			return false/*ok*/ ;
 		}
 		//
-		Ddate phys_date = file_date(file) ;
+		Ddate phy_date = file_date(file) ;
 		entry.sample_date = New ;
 		if (inserted) {
 			Node node{ni} ;
-			if ( inserted && node->buildable==Buildable::Decode ) entry.phys_date = entry.log_date  = node->log_date() ; // initialize from known info
+			if ( inserted && node->buildable==Buildable::Decode ) entry.phy_date = entry.log_date  = node->log_date() ; // initialize from known info
 		}
-		if (phys_date==entry.phys_date) return true/*ok*/ ;                                                              // file has not changed, nothing to do
-		entry.log_date = phys_date ;
+		if (phy_date==entry.phy_date) return true/*ok*/ ;                                                               // file has not changed, nothing to do
+		entry.log_date = phy_date ;
 		//
 		_s_canonicalize(file,reqs) ;
 		return true/*ok*/ ;
@@ -259,7 +259,7 @@ namespace Codec {
 		_create_pair( file , decode_node , txt , encode_node , code ) ;
 		decode_node->log_date() = entry.log_date  ;
 		encode_node->log_date() = entry.log_date  ;
-		entry.phys_date         = file_date(file) ;                                                    // we have touched the file but not the semantic, update phys_date but not log_date
+		entry.phy_date          = file_date(file) ;                                                    // we have touched the file but not the semantic, update phy_date but not log_date
 		//
 		trace("found",code) ;
 		return { JobMngtProc::Encode , {}/*seq_id*/ , {}/*fd*/ , code , encode_node->crc , Yes } ;

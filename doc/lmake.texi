@@ -1989,14 +1989,39 @@ The order may be partial : other keys are put after the mentioned keys, keeping 
 @item Type
 @tab @code{str}
 @item Default
-@tab -
+@tab @code{None}
 @item Dynamic
 @tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attribute defines a directory in which jobs will @code{chroot} into before execution begins.
+It must be an absoluted path (e.g. @code{'/ubuntu22.04'}).
 
-The job wrapper itself stays in the original file system in which it is launched, only the job does a @code{chroot}.
+Note that unless the @code{root_dir} is set, the repository must be visible under its original name in this @code{chroot} environment.
+
+If @code{None}, @code{''}, @code{'/'}, no @code{chroot} is performed unless required to manage the @code{tmp} and @code{root_dir} attributes (in which case it is transparent).
+
+@section @code{root_dir}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Python
+@item Type
+@tab @code{str}
+@item Default
+@tab @code{None}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
+@end multitable
+
+This attribute defines a directory in which jobs will see the top-level directory of the repo (the root directory).
+This is done by using @code{mount -rbind}.
+
+It must be an absolute path not lying in the temporary directory (e.g. @code{'/repo'}).
+
+If @code{None} or @code{''}, no bind mount is performed.
+
+If performed, the @code{$ROOT_DIR} env variable will reflect this value.
 
 @section @code{tmp}
 
@@ -2006,13 +2031,42 @@ The job wrapper itself stays in the original file system in which it is launched
 @item Type
 @tab @code{str}
 @item Default
-@tab -
+@tab @code{None}
 @item Dynamic
 @tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
-This attribute defines the name under which the temporary directory allocated for the job is seen by it.
-This means the job runs in a sand box in which the temporary directory is mapped to a directory named after this attribute (cf @pxref{tmp} for the usefulness of this feature).
+This attribute defines the characteristics and the name of the temporary directory.
+It is a 2-tuple specifying the view and the origin of this directory as (view,origin)(cf @pxref{tmp} for the usefulness of mapping).
+
+View may be :
+@itemize @minus
+@item @code{None}                       : The temporary directory is not mapped.
+@item a @code{str} (e.g. @code{'/tmp'}) : The temporary directory is mapped to that value using @code{mount -rbind}.
+It must be an absolute path not lying in the repository.
+@end itemize
+
+Origin may be :
+@itemize @minus
+@item @code{None} or @code{0}                       : No temporary directory is provided unless the @code{'tmp'} resources is set in which case it is used as described below.
+If no temporary is provided, the view must be @code{None}.
+@item a @code{int} or @code{str} (e.g. @code{'1G'}) : A @code{tmpfs} file system of that size is created for the job (in that case, the view must be a @code{str}).
+The syntax used to specify the size is the same as for the @code{resources} attribute.
+@item @code{...}                                    : The value of the @code{$TMPDIR} environment variable is used if it is specified in the job environment
+(through the @code{environ_cmd}, @code{environ_resources} or  @code{environ_ancillary} attributes ).
+Else, a @code{tmpfs} file system sized after the @code{'tmp'} resource is created if this resource is specified.
+Else, an auto-generated directory with no size control is used.
+@end itemize
+
+Instead of 2-tuple, this attribute may specified as :
+@itemize @minus
+@item @code{None}                       : equivalent to @code{(None,None)}.
+@item @code{...}                        : equivalent to @code{(None,...)}.
+@item a @code{str} (e.g. @code{'/foo'}) : equivalent to @code{(str,...)} (e.g. @code{('/foo',...)}).
+@end itemize
+
+In all cases, the @code{$TMPDIR} environment variable is set to the view if a temporary directory is available.
+Also, the standard @file{/tmp} directory is made unusable (hidden or mounted as a read-only empty dir, whichever is faster) as this is a source of pollution and instability.
 
 @section @code{cwd}
 
@@ -2029,6 +2083,7 @@ This means the job runs in a sand box in which the temporary directory is mapped
 
 This attribute defines a directory in which jobs will @code{chdir} into before execution begins.
 It must be empty to specify the repository root.
+Else, it must be a relative path (to the repository root).
 
 This attribute is also prepended to targets and deps unless they have the @code{top} flag.
 

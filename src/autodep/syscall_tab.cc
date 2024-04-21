@@ -10,32 +10,6 @@
 
 #include "syscall_tab.hh"
 
-::pair<char*,ssize_t> fix_cwd( char* buf , size_t buf_sz , ssize_t sz , Bool3 allocated ) noexcept { // allocated=Maybe means allocated of fixed size, getcwd unused if no error is generated
-	if ( !buf || sz<0              ) return {buf,sz} ;                                               // error
-	if ( !Record::s_has_tmp_view() ) return {buf,sz} ;                                               // no tmp mapping
-	//
-	::string const& tmp_dir  = Record::s_autodep_env().tmp_dir  ;
-	::string const& tmp_view = Record::s_autodep_env().tmp_view ;
-	//
-	if ( !::string_view(buf,buf_sz).starts_with(tmp_dir)    ) return {buf,sz} ; // no match
-	if ( buf[tmp_dir.size()]!='/' && buf[tmp_dir.size()]!=0 ) return {buf,sz} ; // false match
-	//
-	if (!sz) sz = strlen(buf) ;
-	sz += tmp_view.size() - tmp_dir.size() ;
-	if (allocated==Yes) {
-		buf = static_cast<char*>(realloc(buf,sz)) ;
-	} else if (sz>=ssize_t(buf_sz)) {
-		char  x                  ;
-		char* _ [[maybe_unused]] = getcwd(&x,1) ;                               // force an error in user land as we have not enough space (a cwd cannot fit within 1 byte with its terminating null)
-		if (allocated!=No) free(buf) ;
-		return {nullptr,ERANGE} ;
-	}
-	if (tmp_view.size()>tmp_dir.size()) ::memmove( buf+tmp_view.size() , buf+tmp_dir.size() , sz-tmp_view.size()+1 ) ; // +1 for the terminating null
-	/**/                                ::memcpy ( buf                 , tmp_view.c_str()   ,    tmp_view.size()   ) ;
-	if (tmp_view.size()<tmp_dir.size()) ::memmove( buf+tmp_view.size() , buf+tmp_dir.size() , sz-tmp_view.size()+1 ) ; // .
-	return {buf,sz} ;
-}
-
 // return null terminated string pointed by src in process pid's space
 [[maybe_unused]] static ::string _get_str( pid_t pid , uint64_t src ) {
 	if (!pid) return {reinterpret_cast<const char*>(src)} ;
@@ -88,14 +62,6 @@ template<bool At> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64
 	else    return {               _get_str(pid,args[0]) } ;
 }
 
-// updating args is meaningful only when processing calls to the syscall function with ld_audit & ld_preload
-// when autodep is ptrace, tmp mapping is not supported and such args updating is ignored as args have been copied from tracee and are not copied back to it
-template<bool At> [[maybe_unused]] static void _update( uint64_t* args , Record::Path const& p ) {
-	SWEAR(p.has_at==At) ;
-	if (At) args[0 ] =                            p.at    ;
-	/**/    args[At] = reinterpret_cast<uint64_t>(p.file) ;
-}
-
 static constexpr int FlagAlways = -1 ;
 static constexpr int FlagNever  = -2 ;
 template<int FlagArg> [[maybe_unused]] static bool _flag( uint64_t args[6] , int flag ) {
@@ -109,8 +75,8 @@ template<int FlagArg> [[maybe_unused]] static bool _flag( uint64_t args[6] , int
 // chdir
 template<bool At> [[maybe_unused]] static void _entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		if (At) { Record::Chdir* cd = new Record::Chdir( r , {Fd(args[0])          } , comment ) ; ctx = cd ;                           }
-		else    { Record::Chdir* cd = new Record::Chdir( r , {_path<At>(pid,args+0)} , comment ) ; ctx = cd ; _update<At>(args+0,*cd) ; }
+		if (At) { Record::Chdir* cd = new Record::Chdir( r , {Fd(args[0])          } , comment ) ; ctx = cd ; }
+		else    { Record::Chdir* cd = new Record::Chdir( r , {_path<At>(pid,args+0)} , comment ) ; ctx = cd ; }
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res ) {
@@ -124,9 +90,7 @@ template<bool At> [[maybe_unused]] static void _entry_chdir( void* & ctx , Recor
 // chmod
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Chmod* cm = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
-		ctx = cm ;
-		_update<At>(args+0,*cm) ;
+		ctx = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -140,9 +104,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void* &
 // creat
 [[maybe_unused]] static void _entry_creat( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Open* o = new Record::Open( r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , comment ) ;
-		ctx = o ;
-		_update<false>(args+0,*o) ;
+		ctx = new Record::Open( r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , comment ) ;
 	}
 	catch (int) {}
 }
@@ -152,35 +114,14 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void* &
 // must be called before actual syscall execution as after execution, info is no more available
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Exec e{ r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
-		_update<At>(args+0,e) ;
+		Record::Exec( r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 	} catch (int) {}
-}
-
-// getcwd
-// getcwd is only necessary if tmp is mapped (not in table with ptrace)
-[[maybe_unused]] static void _entry_getcwd( void* & ctx , Record& , pid_t , uint64_t args[6] , const char* /*comment*/ ) {
-	size_t* sz = new size_t{args[1]} ;
-	ctx = sz ;
-}
-[[maybe_unused]] static int64_t/*res*/ _exit_getcwd( void* ctx , Record& , pid_t pid , int64_t res ) {
-	if (!res                     ) return res ;                                       // in case of error, man getcwd says buffer is undefined => nothing to do
-	if (!Record::s_has_tmp_view()) return res ;                                       // no tmp mapping                                        => nothing to do
-	SWEAR(pid==0,pid) ;                                                               // tmp mapping is not supported with ptrace (need to report fixed result to caller)
-	char*   buf = reinterpret_cast<char*  >(res) ;
-	size_t* sz  = reinterpret_cast<size_t*>(ctx) ;
-	res = fix_cwd(buf,*sz,res).second ;
-	delete sz ;
-	return res ;
 }
 
 // hard link
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
-		ctx = l ;
-		_update<At>(args+0   ,l->src) ;
-		_update<At>(args+1+At,l->dst) ;
+		ctx = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
@@ -194,17 +135,14 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & c
 // mkdir
 template<bool At> [[maybe_unused]] static void _entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Mkdir m{ r , _path<At>(pid,args+0) , comment } ;
-		_update<At>(args+0,m) ;
+		Record::Mkdir( r , _path<At>(pid,args+0) , comment ) ;
 	} catch (int) {}
 }
 
 // open
 template<bool At> [[maybe_unused]] static void _entry_open( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Open* o = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , comment ) ;
-		ctx = o ;
-		_update<At>(args+0,*o) ;
+		ctx = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , comment ) ;
 	}
 	catch (int) {}
 }
@@ -220,12 +158,10 @@ template<bool At> [[maybe_unused]] static void _entry_open( void* & ctx , Record
 using RLB = ::pair<Record::Readlink,uint64_t/*buf*/> ;
 template<bool At> [[maybe_unused]] static void _entry_read_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		uint64_t orig_buf = args[At+1]                                                                               ;
-		size_t   sz       = args[At+2]                                                                               ;
-		char*    buf      = pid ? new char[sz] : reinterpret_cast<char*>(orig_buf)                                   ;
-		RLB*     rlb      = new RLB( Record::Readlink( r , _path<At>(pid,args+0) , buf , sz , comment ) , orig_buf ) ;
-		ctx = rlb ;
-		_update<At>(args+0,rlb->first) ;
+		uint64_t orig_buf = args[At+1]                                             ;
+		size_t   sz       = args[At+2]                                             ;
+		char*    buf      = pid ? new char[sz] : reinterpret_cast<char*>(orig_buf) ;
+		ctx = new RLB( Record::Readlink( r , _path<At>(pid,args+0) , buf , sz , comment ) , orig_buf ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
@@ -255,10 +191,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* 
 		#else
 			bool no_replace = false                                 ;
 		#endif
-		Record::Rename* rn = new Record::Rename( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , comment ) ;
-		ctx = rn ;
-		_update<At>(args+0   ,rn->src) ;
-		_update<At>(args+1+At,rn->dst) ;
+		ctx = new Record::Rename{ r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , comment } ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
@@ -270,28 +203,25 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* 
 }
 
 // symlink
-template<bool At> [[maybe_unused]] static void _entry_sym_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> [[maybe_unused]] static void _entry_symlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Symlnk* sl = new Record::Symlnk( r , _path<At>(pid,args+1) , comment ) ;
-		ctx = sl ;
-		_update<At>(args+1,*sl) ;
+		ctx = new Record::Symlink{ r , _path<At>(pid,args+1) , comment } ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (!ctx) return res ;
-	Record::Symlnk* sl = static_cast<Record::Symlnk*>(ctx) ;
+	Record::Symlink* sl = static_cast<Record::Symlink*>(ctx) ;
 	(*sl)(r,res) ;
 	delete sl ;
 	return res ;
 }
 
 // unlink
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		bool           rmdir = _flag<FlagArg>(args,AT_REMOVEDIR)                                ;
-		Record::Unlnk* u     = new Record::Unlnk( r , _path<At>(pid,args+0) , rmdir , comment ) ;
-		if (!rmdir) ctx = u ;                                                                     // rmdir calls us without exit, and we must not set ctx in that case
-		_update<At>(args+0,*u) ;
+		bool rmdir = _flag<FlagArg>(args,AT_REMOVEDIR) ;
+		if (rmdir)           Record::Unlnk( r , _path<At>(pid,args+0) , rmdir , comment ) ; // rmdir calls us without exit, and we must not set ctx in that case
+		else       ctx = new Record::Unlnk{ r , _path<At>(pid,args+0) , rmdir , comment } ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -305,14 +235,12 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlnk( void* &
 // access
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Stat s{ r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
-		_update<At>(args+0,s) ;
-		s(r) ;
+		Record::Stat( r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 	} catch (int) {}
 }
 
 // XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)
-SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
+SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
 	static Tab                         s_tab    = {}    ;
 	static ::atomic<bool>              s_inited = false ;              // set to true once s_tab is initialized
 	if (s_inited) return s_tab ;                                       // fast test not even taking the lock
@@ -353,12 +281,6 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // this m
 	#endif
 	#ifdef SYS_execveat
 		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { _entry_execve  <true ,4         > , nullptr        ,0    , 1  , true     , "Execveat"          } ;
-	#endif
-	#if defined(SYS_getcwd)
-		// tmp mapping is not supported with ptrace
-		if (!for_ptrace) {
-		static_assert(SYS_getcwd           <NSyscalls) ; s_tab[SYS_getcwd           ] = { _entry_getcwd                     , _exit_getcwd   ,0    , 1  , true     , "Getcwd"            } ;
-        }
 	#endif
 	#ifdef SYS_link
 		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { _entry_lnk     <false,FlagNever > , _exit_lnk      ,2    , 1  , true     , "Link"              } ;
@@ -403,7 +325,7 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // this m
 		static_assert(SYS_renameat2        <NSyscalls) ; s_tab[SYS_renameat2        ] = { _entry_rename  <true ,4         > , _exit_rename   ,4    , 1  , true     , "Renameat2"         } ;
 	#endif
 	#ifdef SYS_rmdir
-		static_assert(SYS_rmdir            <NSyscalls) ; s_tab[SYS_rmdir            ] = { _entry_unlnk   <false,FlagAlways> , nullptr        ,1    , 1  , NFS_GUARD, "Rmdir"             } ;
+		static_assert(SYS_rmdir            <NSyscalls) ; s_tab[SYS_rmdir            ] = { _entry_unlink  <false,FlagAlways> , nullptr        ,1    , 1  , NFS_GUARD, "Rmdir"             } ;
 	#endif
 	#ifdef SYS_stat
 		static_assert(SYS_stat             <NSyscalls) ; s_tab[SYS_stat             ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 2  , false    , "Stat"              } ;
@@ -433,16 +355,16 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // this m
 		static_assert(SYS_oldlstat         <NSyscalls) ; s_tab[SYS_oldlstat         ] = { _entry_stat    <false,FlagAlways> , nullptr        ,1    , 1  , false    , "Oldlstat"          } ;
 	#endif
 	#ifdef SYS_symlink
-		static_assert(SYS_symlink          <NSyscalls) ; s_tab[SYS_symlink          ] = { _entry_sym_lnk <false           > , _exit_sym_lnk  ,2    , 1  , true     , "Symlink"           } ;
+		static_assert(SYS_symlink          <NSyscalls) ; s_tab[SYS_symlink          ] = { _entry_symlink <false           > , _exit_sym_lnk  ,2    , 1  , true     , "Symlink"           } ;
 	#endif
 	#ifdef SYS_symlinkat
-		static_assert(SYS_symlinkat        <NSyscalls) ; s_tab[SYS_symlinkat        ] = { _entry_sym_lnk <true            > , _exit_sym_lnk  ,3    , 1  , true     , "Symlinkat"         } ;
+		static_assert(SYS_symlinkat        <NSyscalls) ; s_tab[SYS_symlinkat        ] = { _entry_symlink <true            > , _exit_sym_lnk  ,3    , 1  , true     , "Symlinkat"         } ;
 	#endif
 	#ifdef SYS_unlink
-		static_assert(SYS_unlink           <NSyscalls) ; s_tab[SYS_unlink           ] = { _entry_unlnk   <false,FlagNever > , _exit_unlnk    ,1    , 1  , true     , "Unlink"            } ;
+		static_assert(SYS_unlink           <NSyscalls) ; s_tab[SYS_unlink           ] = { _entry_unlink  <false,FlagNever > , _exit_unlnk    ,1    , 1  , true     , "Unlink"            } ;
 	#endif
 	#ifdef SYS_unlinkat
-		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlnk   <true ,2         > , _exit_unlnk    ,2    , 1  , true     , "Unlinkat"          } ;
+		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlink  <true ,2         > , _exit_unlnk    ,2    , 1  , true     , "Unlinkat"          } ;
 	#endif
 	#undef NFS_GUARD
 	fence() ;                                                          // ensure serializatino
