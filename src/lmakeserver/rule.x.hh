@@ -228,23 +228,23 @@ namespace Engine {
 			using namespace Attrs ;
 			Attrs::acquire_from_dct( interpreter , py_dct , "interpreter" ) ;
 			Attrs::acquire_from_dct( auto_mkdir  , py_dct , "auto_mkdir"  ) ;
-			Attrs::acquire_from_dct( chroot      , py_dct , "chroot"      ) ;
+			Attrs::acquire_from_dct( chroot_dir  , py_dct , "chroot"      ) ;
 			Attrs::acquire_env     ( env         , py_dct , "env"         ) ;
 			Attrs::acquire_from_dct( ignore_stat , py_dct , "ignore_stat" ) ;
-			Attrs::acquire_from_dct( root_dir    , py_dct , "root_dir"    ) ;
-			Attrs::acquire_from_dct( tmp_dir     , py_dct , "tmp.dir"     ) ;
+			Attrs::acquire_from_dct( root_dir    , py_dct , "root"        ) ;
+			Attrs::acquire_from_dct( tmp_dir     , py_dct , "tmp"         ) ;
 			Attrs::acquire_from_dct( use_script  , py_dct , "use_script"  ) ;
 			::sort(env) ;                                                     // stabilize cmd crc
 			// check
-			if ( +chroot   && !Disk::is_abs(chroot  ) ) throw to_string("chroot must be an absolute path : "  ,chroot  ) ;
-			if ( +root_dir && !Disk::is_abs(root_dir) ) throw to_string("root_dir must be an absolute path : ",root_dir) ;
-			if ( +tmp_dir  && !Disk::is_abs(tmp_dir ) ) throw to_string("tmp_dir must be an absolute path : " ,tmp_dir ) ;
+			if ( +chroot_dir && !Disk::is_abs(chroot_dir) ) throw to_string("chroot must be an absolute path : ",chroot_dir) ;
+			if ( +root_dir   && !Disk::is_abs(root_dir  ) ) throw to_string("root must be an absolute path : "  ,root_dir  ) ;
+			if ( +tmp_dir    && !Disk::is_abs(tmp_dir   ) ) throw to_string("tmp must be an absolute path : "   ,tmp_dir   ) ;
 		}
 		// data
 		// START_OF_VERSIONING
 		::vector_s interpreter ;
 		bool       auto_mkdir  = false ;
-		::string   chroot      ;
+		::string   chroot_dir  ;
 		bool       ignore_stat = false ;
 		::vmap_ss  env         ;
 		::string   root_dir    ;
@@ -286,21 +286,18 @@ namespace Engine {
 		static constexpr const char* Msg = "execution resources attributes" ;
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
-			Attrs::acquire_env     ( env        , py_dct , "env"                            ) ;
-			Attrs::acquire_from_dct( method     , py_dct , "autodep"                        ) ;
-			Attrs::acquire_from_dct( timeout    , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( tmp_origin , py_dct , "tmp.origin"                     ) ;
-			::sort(env) ;                                                                                                       // stabilize rsrcs crc
+			Attrs::acquire_env     ( env     , py_dct , "env"                            ) ;
+			Attrs::acquire_from_dct( method  , py_dct , "autodep"                        ) ;
+			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
+			::sort(env) ;                                                                    // stabilize rsrcs crc
 			// check
 			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw to_string(method," is not supported on this system") ;
-			if ( +tmp_origin && tmp_origin!="..."                ) from_string_with_units<'M'>(tmp_origin) ;
 		}
 		// data
 		// START_OF_VERSIONING
-		::vmap_ss     env        ;
-		AutodepMethod method     = {} ;
-		Time::Delay   timeout    ;                                                                                              // if 0 <=> no timeout, maximum time allocated to job execution in s
-		::string      tmp_origin ;
+		::vmap_ss     env     ;
+		AutodepMethod method  = {} ;
+		Time::Delay   timeout ;                                                              // if 0 <=> no timeout, maximum time allocated to job execution in s
 		// END_OF_VERSIONING
 	} ;
 
@@ -311,20 +308,20 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
-			Attrs::acquire_from_dct( keep_tmp    , py_dct , "keep_tmp"                           ) ;
-			Attrs::acquire_from_dct( start_delay , py_dct , "start_delay" , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( kill_sigs   , py_dct , "kill_sigs"                          ) ;
-			Attrs::acquire_from_dct( n_retries   , py_dct , "n_retries"                          ) ;
-			Attrs::acquire_env     ( env         , py_dct , "env"                                ) ;
-			::sort(env) ;                                                                            // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
+			Attrs::acquire_from_dct( keep_tmp_dir , py_dct , "keep_tmp"                           ) ;
+			Attrs::acquire_from_dct( start_delay  , py_dct , "start_delay" , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( kill_sigs    , py_dct , "kill_sigs"                          ) ;
+			Attrs::acquire_from_dct( n_retries    , py_dct , "n_retries"                          ) ;
+			Attrs::acquire_env     ( env          , py_dct , "env"                                ) ;
+			::sort(env) ;                                                                             // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
 		// START_OF_VERSIONING
-		bool              keep_tmp    = false ;
-		Time::Delay       start_delay ;                                                              // job duration above which a start message is generated
-		::vector<uint8_t> kill_sigs   ;                                                              // signals to use to kill job (tried in sequence, 1s apart from each other)
-		uint8_t           n_retries   = 0     ;                                                      // max number of retry if job is lost
-		::vmap_ss         env         ;
+		bool              keep_tmp_dir = false ;
+		Time::Delay       start_delay  ;                                                              // job duration above which a start message is generated
+		::vector<uint8_t> kill_sigs    ;                                                              // signals to use to kill job (tried in sequence, 1s apart from each other)
+		uint8_t           n_retries    = 0     ;                                                      // max number of retry if job is lost
+		::vmap_ss         env          ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -764,8 +761,8 @@ namespace Engine {
 			if ( !Env && *py_src==Py::None     ) { if (!dst) return false ; dst = {}         ; return true  ; }
 			if ( !Env && *py_src==Py::Ellipsis ) {                          dst = "..."      ; return true  ; }
 			//
-			if (Env) dst = env_encode(*py_src->str()) ;                                                     // for environment, replace occurrences of lmake & root absolute paths par markers ...
-			else     dst =            *py_src->str()  ;                                                     // ... so as to make repo rebust to moves of lmake or itself
+			if (Env) dst = env_encode(*py_src->str()) ;                                                         // for environment, replace occurrences of lmake & root absolute paths par markers ...
+			else     dst =            *py_src->str()  ;                                                         // ... so as to make repo rebust to moves of lmake or itself
 			return true ;
 		}
 

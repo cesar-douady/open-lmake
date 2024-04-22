@@ -161,8 +161,8 @@ public :
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
-			p.file      = nullptr     ;                          // safer to avoid dangling pointers
-			p.allocated = false       ;                          // we have clobbered allocation, so it is no more p's responsibility
+			p.file      = nullptr     ;        // safer to avoid dangling pointers
+			p.allocated = false       ;        // we have clobbered allocation, so it is no more p's responsibility
 			return *this ;
 		}
 		//
@@ -172,18 +172,18 @@ public :
 		void _deallocate() { if (allocated) delete[] file ; }
 		//
 		void _allocate(size_t sz) {
-			char* buf = new char[sz+1] ;                         // +1 to account for terminating null
+			char* buf = new char[sz+1] ;       // +1 to account for terminating null
 			::memcpy(buf,file,sz+1) ;
 			file      = buf  ;
 			allocated = true ;
 		}
 		// data
 	public :
-//		bool    has_at    = false            ;                   // if false => at is not managed and may not be substituted any non-default value
-		bool    allocated = false            ;                   // if true <=> file has been allocated and must be freed upon destruction
-		FileLoc file_loc  = FileLoc::Unknown ;                   // updated when analysis is done
-		Fd      at        = Fd::Cwd          ;                   // at & file may be modified, but together, they always refer to the same file ...
-		Char*   file      = nullptr          ;                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
+//		bool    has_at    = false            ; // if false => at is not managed and may not be substituted any non-default value
+		bool    allocated = false            ; // if true <=> file has been allocated and must be freed upon destruction
+		FileLoc file_loc  = FileLoc::Unknown ; // updated when analysis is done
+		Fd      at        = Fd::Cwd          ; // at & file may be modified, but together, they always refer to the same file ...
+		Char*   file      = nullptr          ; // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ;
 	using Path  = _Path<false/*Writable*/> ;
 	using WPath = _Path<true /*Writable*/> ;

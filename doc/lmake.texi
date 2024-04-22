@@ -1232,7 +1232,7 @@ Such disk are typically rather slow, compared to local disks.
 So there a possibility to store administration data that do not mandate sharing into local disks.
 
 @anchor{dir-local_admin_dir}
-@section @code{lmake.local_admin_dir}
+@section @code{lmake.config.local_admin_dir}
 
 This variable specifies the directory to use for data that are accessed by the @lmake server only.
 It can be set to a directory mounted on a local disk which may be visible only by the @lmake server (i.e. on the host on which you launch the @lmake command).
@@ -1240,26 +1240,6 @@ It can be set to a directory mounted on a local disk which may be visible only b
 This directory need not be unique for each repository as @lmake will create a unique sub-directory per repository (identified by its absolute path).
 
 It is of paramount importance to leave this directory intact as this is where @lmake stores most of its bookkeeping data.
-
-@anchor{dir-remote_admin_dir}
-@section @code{lmake.remote_admin_dir}
-
-This variable specifies the directory to use for data that are accessed by the remote executing hosts only (not shared among them).
-It can be set to a directory mounted on a local disk of each remote hosts, i.e. it must exist on each remote host but does not necessarily designate the same area on all of them.
-
-This directory need not be unique for each repository as @lmake will create a unique sub-directory per repository (identified by its absolute path).
-
-It can be freely modified (or removed) when @lmake is not running.
-
-@anchor{dir-remote_tmp_dir}
-@section @code{lmake.remote_tmp_dir}
-
-This variable specifies the path name of the file system available to user jobs for temporary storage for the remote executing hosts only (not shared among them).
-It can be set to a directory mounted on a local disk of each remote hosts, i.e. it must exist on each remote host but does not necessarily designate the same area on all of them.
-
-This directory need not be unique for each repository as @lmake will create a unique sub-directory per repository (identified by its absolute path).
-
-The per repository sub-directory is removed when @lmake is not running.
 
 @chapter Config
 
@@ -1313,16 +1293,6 @@ The default value should suit the needs of most users.
 @tab Clean
 @tab This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
 Actually most of the accesses are made in this directory (cf @pxref{dir-local_admin_dir}).
-
-@item @code{remote_admin_dir}
-@tab @code{LMAKE}
-@tab Dynamic
-@tab This variable contains a directory to be used for remote execution administration (cf @pxref{dir-remote_admin_dir}).
-
-@item @code{remote_tmp_dir}
-@tab @code{LMAKE}
-@tab Dynamic
-@tab This variable contains a directory to be used as a temporary storage for remote execution (cf @pxref{dir-remote_tmp_dir}).
 
 @item @code{link_support}
 @tab @code{'Full'}
@@ -2001,7 +1971,7 @@ Note that unless the @code{root_dir} is set, the repository must be visible unde
 
 If @code{None}, @code{''}, @code{'/'}, no @code{chroot} is performed unless required to manage the @code{tmp} and @code{root_dir} attributes (in which case it is transparent).
 
-@section @code{root_dir}
+@section @code{root}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -2036,37 +2006,19 @@ If performed, the @code{$ROOT_DIR} env variable will reflect this value.
 @tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
-This attribute defines the characteristics and the name of the temporary directory.
-It is a 2-tuple specifying the view and the origin of this directory as (view,origin)(cf @pxref{tmp} for the usefulness of mapping).
+This attribute defines the name which the temporary directory available for job execution is mounted on.
 
-View may be :
-@itemize @minus
-@item @code{None}                       : The temporary directory is not mapped.
-@item a @code{str} (e.g. @code{'/tmp'}) : The temporary directory is mapped to that value using @code{mount -rbind}.
-It must be an absolute path not lying in the repository.
+If @code{None}, @code{''} or not specified, this directory is not mounted and job must use the @code{$TMPDIR} environment variable to identify it.
+Else, it must be an absolute path.
+in this case, the @code{$TMPDIR} environment variable is redefined as this value when job is executed.
+
+The physical directory is :
+@itemize
+@item @code{$TMPDIR} if it is specified in the environment of the job. Note that it need not be unique as @lmake will create a unique sub-directory within it.
+@item Else, a @code{tmpfs} file system created for the job execution if the @code{'tmp'} resource is defined, in which case this resource indicates the size of the created @code{tmpfs}.
+if the value of this resource is 0, no @code{tmpfs} file system is created.
+@item Else, a directory determined by @lmake lying in the @code{LMAKE} directory.
 @end itemize
-
-Origin may be :
-@itemize @minus
-@item @code{None} or @code{0}                       : No temporary directory is provided unless the @code{'tmp'} resources is set in which case it is used as described below.
-If no temporary is provided, the view must be @code{None}.
-@item a @code{int} or @code{str} (e.g. @code{'1G'}) : A @code{tmpfs} file system of that size is created for the job (in that case, the view must be a @code{str}).
-The syntax used to specify the size is the same as for the @code{resources} attribute.
-@item @code{...}                                    : The value of the @code{$TMPDIR} environment variable is used if it is specified in the job environment
-(through the @code{environ_cmd}, @code{environ_resources} or  @code{environ_ancillary} attributes ).
-Else, a @code{tmpfs} file system sized after the @code{'tmp'} resource is created if this resource is specified.
-Else, an auto-generated directory with no size control is used.
-@end itemize
-
-Instead of 2-tuple, this attribute may specified as :
-@itemize @minus
-@item @code{None}                       : equivalent to @code{(None,None)}.
-@item @code{...}                        : equivalent to @code{(None,...)}.
-@item a @code{str} (e.g. @code{'/foo'}) : equivalent to @code{(str,...)} (e.g. @code{('/foo',...)}).
-@end itemize
-
-In all cases, the @code{$TMPDIR} environment variable is set to the view if a temporary directory is available.
-Also, the standard @file{/tmp} directory is made unusable (hidden or mounted as a read-only empty dir, whichever is faster) as this is a source of pollution and instability.
 
 @section @code{cwd}
 

@@ -44,8 +44,8 @@ StdAttrs = {
 ,	'autodep'           : ( str   , True  )
 ,	'auto_mkdir'        : ( bool  , True  )
 ,	'backend'           : ( str   , True  )
-,	'chroot'            : ( str   , True  )
 ,	'cache'             : ( str   , True  )
+,	'chroot'            : ( str   , True  )
 ,	'cmd'               : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
 ,	'cwd'               : ( str   , True  )
 ,	'side_deps'         : ( dict  , True  )
@@ -66,12 +66,12 @@ StdAttrs = {
 ,	'order'             : ( list  , False )
 ,	'python'            : ( tuple , False )
 ,	'resources'         : ( dict  , True  )
-,	'root_dir'          : ( str   , True  )
+,	'root'              : ( str   , True  )
 ,	'shell'             : ( tuple , False )
 ,	'start_delay'       : ( float , True  )
 ,	'side_targets'      : ( dict  , True  )
 ,	'timeout'           : ( float , True  )
-,	'tmp'               : ( tuple , True  )
+,	'tmp'               : ( str   , True  )
 ,	'use_script'        : ( bool  , True  )
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
@@ -183,22 +183,8 @@ def handle_inheritance(rule) :
 			if v is None : continue                                         # None is not transported
 			typ,dyn = StdAttrs[k]
 			# special cases
-			if   k=='cmd' :
+			if k=='cmd' :
 				attrs[k] = v
-			elif k=='tmp' :
-				if callable(v) :
-					raise NotImplementedError("function must be split into 2 functions, one for the view part, one for the origin part")
-				elif v==... :
-					attrs['tmp.dir'   ] = None
-					attrs['tmp.origin'] = ...
-				elif isinstance(v,str) :
-					attrs['tmp.dir'   ] = v
-					attrs['tmp.origin'] = ...
-				elif isinstance(v,(tuple,list)) and len(v)==2 :
-					attrs['tmp.dir'   ] = v[0]
-					attrs['tmp.origin'] = v[1]
-				else :
-					raise TypeError(f'cannot recognize value {v}')
 			# generic cases
 			else :
 				if typ and not ( dyn and callable(v) ) :
@@ -460,20 +446,20 @@ class Handle :
 		else                    : interpreter = 'shell'
 		self._init()
 		self._handle_val('auto_mkdir'                       )
+		self._handle_val('chroot'                           )
 		self._handle_val('env'        ,rep_key='environ_cmd')
 		self._handle_val('ignore_stat'                      )
-		self._handle_val('chroot'                           )
 		self._handle_val('interpreter',rep_key=interpreter  )
-		self._handle_val('tmp.dir'                          )
+		self._handle_val('root'                             )
+		self._handle_val('tmp'                              )
 		self._handle_val('use_script'                       )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
 		self._init()
-		self._handle_val('autodep'                               )
-		self._handle_val('env'       ,rep_key='environ_resources')
-		self._handle_val('timeout'                               )
-		self._handle_val('tmp.origin'                            )
+		self._handle_val('autodep'                            )
+		self._handle_val('env'    ,rep_key='environ_resources')
+		self._handle_val('timeout'                            )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
 
 	def handle_start_none(self) :

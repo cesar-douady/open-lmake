@@ -187,7 +187,6 @@ namespace Engine {
 		// data
 		size_t                                                                  max_err_lines       = 0     ; // unlimited
 		bool                                                                    reliable_dirs       = false ; // if true => dirs coherence is enforced when files are modified
-		::string                                                                user_remote_tmp_dir ;
 		Console                                                                 console             ;
 		::array<uint8_t,N<StdRsrc>>                                             rsrc_digits         = {}    ; // precision of standard resources
 		::array<Backend,N<BackendTag>>                                          backends            ;         // backend may refuse dynamic modification
@@ -217,7 +216,6 @@ namespace Engine {
 		// data (derived info not saved on disk)
 		bool     booted          = false ;                  // a marker to distinguish clean repository
 		::string local_admin_dir ;
-		::string remote_tmp_dir  ;
 	} ;
 
 	// sep is put before the last indent level, useful for porcelaine output

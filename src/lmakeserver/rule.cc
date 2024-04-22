@@ -1197,8 +1197,9 @@ namespace Engine {
 			if (+interpreter    ) do_field( "interpreter" , interpreter                ) ;
 			if ( sca.auto_mkdir ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir ) ) ;
 			if ( sca.ignore_stat) do_field( "ignore_stat" , to_string(sca.ignore_stat) ) ;
-			if (+sca.chroot     ) do_field( "chroot"      ,           sca.chroot       ) ;
-			if (+sca.tmp_dir    ) do_field( "tmp.dir"     ,           sca.tmp_dir      ) ;
+			if (+sca.chroot_dir ) do_field( "chroot"      ,           sca.chroot_dir   ) ;
+			if (+sca.root_dir   ) do_field( "root"        ,           sca.root_dir     ) ;
+			if (+sca.tmp_dir    ) do_field( "tmp"         ,           sca.tmp_dir      ) ;
 			if ( sca.use_script ) do_field( "use_script"  , to_string(sca.use_script ) ) ;
 		}
 		if (+sca.env) res << indent("environ :\n",i) << _pretty_env( i+1 , sca.env ) ;
@@ -1214,22 +1215,21 @@ namespace Engine {
 		::vmap_ss     entries ;
 		#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Warray-bounds"                                 // gcc -O3 complains about array bounds with a completely incoherent message (looks like a bug)
-		/**/                 entries.emplace_back( "autodep"    , snake(sra.method)       ) ;
-		if (+sra.timeout   ) entries.emplace_back( "timeout"    , sra.timeout.short_str() ) ;
-		if (+sra.tmp_origin) entries.emplace_back( "tmp.origin" , sra.tmp_origin          ) ;
+		/**/              entries.emplace_back( "autodep" , snake(sra.method)       ) ;
+		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
 		#pragma GCC diagnostic pop
-		/**/              res << _pretty_vmap(i,entries)                                  ;
-		if (+sra.env    ) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env )  ;
+		/**/              res << _pretty_vmap(i,entries)                                 ;
+		if (+sra.env    ) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , StartNoneAttrs const& sna ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
-		if ( sna.keep_tmp   ) entries.emplace_back( "keep_tmp"    , to_string   (sna.keep_tmp   )            ) ;
-		if (+sna.start_delay) entries.emplace_back( "start_delay" ,              sna.start_delay.short_str() ) ;
-		if (+sna.kill_sigs  ) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
-		/**/              res << _pretty_vmap(i,entries)                                         ;
-		if (+sna.env    ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env     ) ;
+		if ( sna.keep_tmp_dir) entries.emplace_back( "keep_tmp"    , to_string   (sna.keep_tmp_dir)            ) ;
+		if (+sna.start_delay ) entries.emplace_back( "start_delay" ,              sna.start_delay .short_str() ) ;
+		if (+sna.kill_sigs   ) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs   )            ) ;
+		/**/              res << _pretty_vmap(i,entries)                                     ;
+		if (+sna.env    ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , EndCmdAttrs const& eca ) {

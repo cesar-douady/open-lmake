@@ -182,7 +182,7 @@ namespace Disk {
 	static size_t/*pos*/ _mk_dir( Fd at , ::string const& dir , NfsGuard* nfs_guard , bool unlnk_ok ) {
 		::vector_s  to_mk { dir }              ;
 		const char* msg   = nullptr            ;
-		int         res   = dir[0]=='/'?0:Npos ;                                                        // return the pos of the / between existing and new components
+		size_t      res   = dir[0]=='/'?0:Npos ;                                                        // return the pos of the / between existing and new components
 		while (+to_mk) {
 			::string const& d = to_mk.back() ;                                                          // parents are after children in to_mk
 			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d) ; }

@@ -243,7 +243,6 @@ void Gather::_spawn_child( Child& child , ::vector_s const& args , Fd cstdin , F
 					false/*as_group*/ , args                               // first level child has created the group
 				,	Fd::Stdin , Fd::Stdout , Fd::Stderr
 				,	env , &add_env
-				,	chroot
 				,	cwd
 				,	AutodepPtrace::s_prepare_child
 				) ;
@@ -278,7 +277,6 @@ void Gather::_spawn_child( Child& child , ::vector_s const& args , Fd cstdin , F
 			as_session , args
 		,	cstdin , cstdout , cstderr
 		,	env , &add_env
-		,	chroot
 		,	cwd
 		) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -9,7 +9,6 @@ bool/*parent*/ Child::spawn(
 	bool            as_session_ , ::vector_s const& args
 ,	Fd              stdin_fd    , Fd                stdout_fd , Fd stderr_fd
 ,	::map_ss const* env         , ::map_ss   const* add_env
-,	::string const& chroot_
 ,	::string const& cwd_
 ,	void (*pre_exec)()
 ) {
@@ -59,8 +58,7 @@ bool/*parent*/ Child::spawn(
 		} else {
 			if (add_env) for( auto const& [k,v] : *add_env ) set_env(k,v) ;
 		}
-		if (+chroot_) { if (::chroot(chroot_.c_str())!=0) throw to_string("cannot chroot to : ",chroot_) ; }
-		if (+cwd_   ) { if (::chdir (cwd_   .c_str())!=0) throw to_string("cannot chdir to : " ,cwd_   ) ; }
+		if (+cwd_   ) { if (::chdir (cwd_.c_str())!=0) throw to_string("cannot chdir to : " ,cwd_) ; }
 		if (pre_exec)   pre_exec() ;
 		//
 		if (!args) return false ;

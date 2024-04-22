@@ -32,12 +32,12 @@ if __name__!='__main__' :
 		side_targets      = { 'WINE' : ('.wine/{*:.*}','incremental') }
 		environ_resources = { 'DISPLAY' : os.environ['DISPLAY'] }
 		timeout           = 30                                    # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
+		allow_stderr      = True
 
 	class WineInit(WineRule) :
 		target       = '.wine/init'
 		targets      = { 'WINE' : '.wine/{*:.*}' }                                                     # for init wine env is not incremental
 		side_targets = { 'WINE' : None           }
-		allow_stderr = True
 		cmd          = 'wine64 cmd >$TMPDIR/out 2>$TMPDIR/err ; cat $TMPDIR/out ; cat $TMPDIR/err >&2' # do nothing, just to init support files (in targets), avoid waiting for stdout/stderr
 
 	class Dut(Base,WineRule) :

@@ -89,27 +89,18 @@ class Rule(_RuleBase) :
 #	n_tokens         = 1                                     # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 #	prio             = 0                                     # in case of ambiguity, rules are selected with highest prio first
 	python           = (python,)                             # python used for callable cmd
-#	root_dir         = None                                  # absolute path under which the root directory of the repo is seen (if None, empty, '/' or absent, no bind mount is done)
+#	root             = '/repo'                               # absolute path under which the root directory of the repo is seen (if None, empty, or absent, no bind mount is done)
 	shell            = (shell ,)                             # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
 	start_delay      = 3                                     # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
 	max_stderr_len   = 100                                   # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 #	timeout          = None                                  # timeout allocated to job execution (in s), must be None or an int
-	tmp              = ...                                   # may be :
-	#                                                        # - not specified : equivalent to (None,... )
-	#                                                        # - None          : equivalent to (None,None)
-	#                                                        # - ...           : equivalent to (None,... )
-	#                                                        # - a str         : equivalent to (str ,... ) (i.e. 'foo' is equivalent to ('foo',...)
-	#                                                        # - (view,origin) of tmp directory for the job (if a string 'foo', then it is equivalent to ('foo',...)
-	#                                                        #   - view may be :is the name to which the tmp dir is mapped through bind mount
-	#                                                        #     - None  : no bind mount is done
-	#                                                        #     - a str : tmp directory is mounted under this name (must be an absolute path outside the repo)
-	#                                                        #   - origin may be :
-	#                                                        #     - a size (e.g. '1G') : a tmpfs of that size is created for the job (view must be a str)
-	#                                                        #     - ...                : the value of the $TMPDIR env variable is used if specified
-	#                                                        #                            else a tmpfs of sized after the 'tmp' resource if specified
-	#                                                        #                            else an auto-generated dir
-	#                                                        #     -                    : no tmp dir is provided (view must be None)
-	#                                                        # in all cases, the TMPDIR env variable is set to the view if a tmp dir is available
+#	tmp              = '/tmp'                                # may be :
+	#                                                        # - not specified, '' or None : do not mount tmp dir
+	#                                                        # - str                       : must be an absolute path which tmp dir is mounted on.
+	#                                                        # physical tmp dir is :
+	#                                                        # - $TMPDIR if provided in the environment
+	#                                                        # - else a tmpfs sized after the 'tmp' resource if specified (no tmpfs is created if value is 0)
+	#                                                        # - else a private sub-directory in the LMAKE directory
 #	use_script       = False                                 # use a script to run job rather than calling interpreter with -c
 	if has_ld_audit : autodep = 'ld_audit'                   # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
 	else            : autodep = 'ld_preload'                 # .
@@ -140,7 +131,6 @@ class SourceRule(_RuleBase) :
 
 class HomelessRule(Rule) :
 	'base rule to redirect the HOME environment variable to TMPDIR'
-	tmp = ...
 	def cmd() :
 		import os
 		os.environ['HOME'] = os.environ['TMPDIR']

@@ -17,7 +17,6 @@ if __name__!='__main__' :
 	file = 'a/b/c'
 	class Tar(Rule) :
 		targets = { 'TAR' : r'hello.tar{*:.*}' }
-		tmp     = ...
 		cmd = multi_strip('''
 			cd $TMPDIR
 			mkdir -p $(dirname {file})

@@ -88,12 +88,11 @@ struct Child {
 	Child(
 		bool            as_session         , ::vector_s const& args
 	,	Fd              stdin_fd=Fd::Stdin , Fd                stdout_fd=Fd::Stdout , Fd stderr_fd=Fd::Stderr
-	,	::map_ss const* env     =nullptr   , ::map_ss   const* add_env  =nullptr
-	,	::string const& chroot  ={}
-	,	::string const& cwd     ={}
-	,	void (*pre_exec)()      =nullptr
+	,	::map_ss const* env       =nullptr   , ::map_ss   const* add_env  =nullptr
+	,	::string const& cwd       ={}
+	,	void (*pre_exec)()        =nullptr
 	) {
-		spawn(as_session,args,stdin_fd,stdout_fd,stderr_fd,env,add_env,chroot,cwd,pre_exec) ;
+		spawn(as_session,args,stdin_fd,stdout_fd,stderr_fd,env,add_env,cwd,pre_exec) ;
 	}
 	~Child() {
 		swear_prod(pid==0,"bad pid ",pid) ;
@@ -103,12 +102,11 @@ struct Child {
 	bool operator!() const { return !+*this ; }
 	// services
 	bool/*parent*/ spawn(
-		bool            as_session         , ::vector_s const& args
-	,	Fd              stdin_fd=Fd::Stdin , Fd                stdout_fd=Fd::Stdout , Fd stderr_fd=Fd::Stderr
-	,	::map_ss const* env     =nullptr   , ::map_ss   const* add_env  =nullptr
-	,	::string const& chroot  ={}
-	,	::string const& cwd     ={}
-	,	void (*pre_exec)()      =nullptr
+		bool            as_session           , ::vector_s const& args
+	,	Fd              stdin_fd  =Fd::Stdin , Fd                stdout_fd=Fd::Stdout , Fd stderr_fd=Fd::Stderr
+	,	::map_ss const* env       =nullptr   , ::map_ss   const* add_env  =nullptr
+	,	::string const& cwd       ={}
+	,	void (*pre_exec)()        =nullptr
 	) ;
 	void mk_daemon() {
 		pid = 0 ;

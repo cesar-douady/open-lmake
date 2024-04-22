@@ -233,8 +233,8 @@ namespace Backends {
 			::vmap_s<DepDigest>& deps          = submit_attrs.deps ;
 			size_t               n_submit_deps = deps.size()       ;
 			int                  step          = 0                 ;
-			bool                 keep_tmp      = false/*garbage*/  ;
-			tie(eta,keep_tmp) = entry.req_info() ;
+			bool                 keep_tmp_dir  = false/*garbage*/  ;
+			tie(eta,keep_tmp_dir) = entry.req_info() ;
 			trace("submit_attrs",submit_attrs) ;
 			deps_attrs = rule->deps_attrs.eval(match) ;                // this cannot fail as it was already run to construct job
 			try {
@@ -265,32 +265,24 @@ namespace Backends {
 						set_nl(jrr.msg) ; jrr.msg          += rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
 						/**/              start_msg_err     = msg_err                                                ;
 					}
-					keep_tmp |= start_none_attrs.keep_tmp ;
+					keep_tmp_dir |= start_none_attrs.keep_tmp_dir ;
 					//
 					for( auto [t,a] : pre_actions.first ) reply.pre_actions.emplace_back(t->name(),a) ;
 				[[fallthrough]] ;
 				case 3 :
-					/**/                                           reply.method       =                             start_rsrcs_attrs.method      ;
-					/**/                                           reply.timeout      =                             start_rsrcs_attrs.timeout     ;
-					if      ( start_rsrcs_attrs.tmp_origin=="...") reply.tmp_from_var =                             true                          ;
-					else if (+start_rsrcs_attrs.tmp_origin       ) reply.tmp_sz_mb    = from_string_with_units<'M'>(start_rsrcs_attrs.tmp_origin) ;
-					for( ::pair_ss& kv : start_rsrcs_attrs.env )   reply.env.push_back(::move(kv)) ;
-					if (!reply.tmp_from_var) {
-						::string const* sz_mb = nullptr ;
-						if                                       (+start_rsrcs_attrs.tmp_origin)   sz_mb = &start_rsrcs_attrs.tmp_origin ;
-						else for( auto const& [k,v] : rsrcs ) if (k=="tmp"                     ) { sz_mb = &v                            ; break ; }      // if not specified take value from resources
-						//
-						if (sz_mb) reply.tmp_sz_mb = from_string_with_units<'M'>(*sz_mb) ;
-					}
+					reply.method  = start_rsrcs_attrs.method  ;
+					reply.timeout = start_rsrcs_attrs.timeout ;
+					//
+					for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
 				case 2 :
-					/**/                                       reply.interpreter             = start_cmd_attrs.interpreter      ;
-					/**/                                       reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir       ;
-					/**/                                       reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat      ;
-					/**/                                       reply.chroot                  = ::move(start_cmd_attrs.chroot  ) ;
-					/**/                                       reply.root_dir                = ::move(start_cmd_attrs.root_dir) ;
-					/**/                                       reply.tmp_dir                 = ::move(start_cmd_attrs.tmp_dir ) ;                         // tmp directory as viewed by job
-					/**/                                       reply.use_script              = start_cmd_attrs.use_script       ;
+					/**/                                       reply.interpreter             = start_cmd_attrs.interpreter        ;
+					/**/                                       reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir         ;
+					/**/                                       reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat        ;
+					/**/                                       reply.chroot_dir              = ::move(start_cmd_attrs.chroot_dir) ;
+					/**/                                       reply.root_dir                = ::move(start_cmd_attrs.root_dir  ) ;
+					/**/                                       reply.tmp_dir                 = ::move(start_cmd_attrs.tmp_dir   ) ;                       // tmp directory as viewed by job
+					/**/                                       reply.use_script              = start_cmd_attrs.use_script         ;
 					for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
 				case 1 :
@@ -300,22 +292,25 @@ namespace Backends {
 					VarIdx ti = 0 ;
 					for( ::string const& tn : match.static_matches() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
 					for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
-					if ( rule->stdin_idx !=Rule::NoVar               ) reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt     ;
-					if ( rule->stdout_idx!=Rule::NoVar               ) reply.stdout                    = reply.static_matches[rule->stdout_idx].first          ;
-					/**/                                               reply.addr                      = fd.peer_addr()                                        ;
-					/**/                                               reply.autodep_env.lnk_support   = g_config.lnk_support                                  ;
-					/**/                                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                                ;
-					/**/                                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                          ;
-					/**/                                               reply.autodep_env.root_dir      = *g_root_dir                                           ;
-					if      ( keep_tmp                               ) reply.autodep_env.tmp_dir       = to_string(job->ancillary_file(AncillaryTag::KeepTmp)) ;
-					else if ( reply.tmp_from_var                     ) reply.remote_tmp_dir            = g_config.remote_tmp_dir                               ;
-					/**/                                               reply.cwd_s                     = rule->cwd_s                                           ;
-					/**/                                               reply.date_prec                 = g_config.date_prec                                    ;
-					/**/                                               reply.hash_algo                 = g_config.hash_algo                                    ;
-					/**/                                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                    ;
-					/**/                                               reply.live_out                  = submit_attrs.live_out                                 ;
-					/**/                                               reply.network_delay             = g_config.network_delay                                ;
-					for( ::pair_ss& kv : start_none_attrs .env )       reply.env.push_back(::move(kv)) ;
+					//
+					if (rule->stdin_idx !=Rule::NoVar) reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt ;
+					if (rule->stdout_idx!=Rule::NoVar) reply.stdout                    = reply.static_matches[rule->stdout_idx].first      ;
+					/**/                               reply.addr                      = fd.peer_addr()                                    ;
+					/**/                               reply.autodep_env.lnk_support   = g_config.lnk_support                              ;
+					/**/                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                            ;
+					/**/                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                      ;
+					/**/                               reply.autodep_env.root_dir      = *g_root_dir                                       ;
+					/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
+					/**/                               reply.date_prec                 = g_config.date_prec                                ;
+					/**/                               reply.hash_algo                 = g_config.hash_algo                                ;
+					/**/                               reply.keep_tmp_dir              = keep_tmp_dir                                      ;
+					/**/                               reply.key                       = g_config.key                                      ;
+					/**/                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
+					/**/                               reply.live_out                  = submit_attrs.live_out                             ;
+					/**/                               reply.network_delay             = g_config.network_delay                            ;
+					//
+					for( ::pair_ss& kv : start_none_attrs.env )      reply.env.push_back(::move(kv)) ;
+					for( auto const& [k,v] : rsrcs ) if (k=="tmp") { reply.tmp_sz_mb = from_string_with_units<'M'>(v) ; break ; }
 				} break ;
 			DF}
 			//

@@ -435,6 +435,7 @@ int main( int argc , char** argv ) {
 	//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if (!_g_is_daemon     ) report_server(out_fd,_g_server_running/*server_running*/) ; // inform lmake we did not start
 	if (!_g_server_running) return 0 ;
+	mk_dir(PrivateAdminDir+"/tmp"s,true/*unlink_ok*/) ;
 	try {
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvv
 		::string msg = Makefiles::refresh(crashed,refresh_) ;
@@ -455,7 +456,7 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	unlnk(g_config.remote_tmp_dir,true/*dir_ok*/) ;                                     // cleanup
+	unlnk(PrivateAdminDir+"/tmp"s,true/*dir_ok*/) ;                                     // cleanup
 	//
 	trace("done",STR(interrupted),Pdate(New)) ;
 	return interrupted ;

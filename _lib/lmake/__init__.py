@@ -58,7 +58,6 @@ config = pdict(
 #	                                     # - forced true if only local backend is used
 #	                                     # - set   true  for ceph
 #	                                     # - leave false for NFS
-#,	remote_tmp_dir      = 'LMAKE_TMP'    # directory in which to store tmp data  during remote job execution (not used when keep_tmp is enforced) (default is within LMAKE dir)
 #,	rules_module        = 'rules'        # module to import to define rules  . By default, rules are directly defined in Lmakefile.py
 #,	sources_module      = 'sources'      # module to import to define sources. By default, 'lmake.auto_sources' which lists files in Manifest or searches git (recursively) if lmake.sources is not set
 ,	sub_prio_boost      = 1              # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules

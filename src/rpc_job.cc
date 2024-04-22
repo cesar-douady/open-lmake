@@ -150,34 +150,34 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
-	/**/                             os << "JobRpcReply(" << jrr.proc ;
+	/**/                                   os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
 		case JobProc::Start :
-			/**/                     os <<',' << hex<<jrr.addr<<dec               ;
-			/**/                     os <<',' << jrr.autodep_env                  ;
-			if (+jrr.chroot        ) os <<',' << jrr.chroot                       ;
-			if (+jrr.cwd_s         ) os <<',' << jrr.cwd_s                        ;
-			if (+jrr.date_prec     ) os <<',' << jrr.date_prec                    ;
-			/**/                     os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
-			/**/                     os <<',' << jrr.interpreter                  ;
-			/**/                     os <<',' << jrr.kill_sigs                    ;
-			if (jrr.live_out       ) os <<',' << "live_out"                       ;
-			/**/                     os <<',' << jrr.method                       ;
-			if (+jrr.network_delay ) os <<',' << jrr.network_delay                ;
-			if (+jrr.pre_actions   ) os <<',' << jrr.pre_actions                  ;
-			/**/                     os <<',' << jrr.remote_tmp_dir               ;
-			if (+jrr.root_dir      ) os <<',' << jrr.root_dir                     ;
-			/**/                     os <<',' << jrr.small_id                     ;
-			if (+jrr.star_matches  ) os <<',' << jrr.star_matches                 ;
-			if (+jrr.deps          ) os <<'<' << jrr.deps                         ;
-			if (+jrr.static_matches) os <<'>' << jrr.static_matches               ;
-			if (+jrr.stdin         ) os <<'<' << jrr.stdin                        ;
-			if (+jrr.stdout        ) os <<'>' << jrr.stdout                       ;
-			if (+jrr.timeout       ) os <<',' << jrr.timeout                      ;
-			if (+jrr.tmp_dir       ) os <<',' << jrr.tmp_dir                      ;
-			if (+jrr.tmp_from_var  ) os <<',' << "..."                            ;
-			else                     os <<',' << jrr.tmp_sz_mb                    ;
-			/**/                     os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
+			/**/                           os <<',' << hex<<jrr.addr<<dec               ;
+			/**/                           os <<',' << jrr.autodep_env                  ;
+			if      (+jrr.chroot_dir     ) os <<',' << jrr.chroot_dir                   ;
+			if      (+jrr.root_dir       ) os <<',' << jrr.root_dir                     ;
+			if      (+jrr.tmp_dir        ) os <<',' << jrr.tmp_dir                      ;
+			if      ( jrr.keep_tmp_dir   ) os <<',' << "keep"                           ;
+			else if ( jrr.tmp_sz_mb==Npos) os <<',' << "..."                            ;
+			else                           os <<',' << jrr.tmp_sz_mb                    ;
+			if (+jrr.cwd_s               ) os <<',' << jrr.cwd_s                        ;
+			if (+jrr.date_prec           ) os <<',' << jrr.date_prec                    ;
+			/**/                           os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+			/**/                           os <<',' << jrr.interpreter                  ;
+			/**/                           os <<',' << jrr.kill_sigs                    ;
+			if (jrr.live_out             ) os <<',' << "live_out"                       ;
+			/**/                           os <<',' << jrr.method                       ;
+			if (+jrr.network_delay       ) os <<',' << jrr.network_delay                ;
+			if (+jrr.pre_actions         ) os <<',' << jrr.pre_actions                  ;
+			/**/                           os <<',' << jrr.small_id                     ;
+			if (+jrr.star_matches        ) os <<',' << jrr.star_matches                 ;
+			if (+jrr.deps                ) os <<'<' << jrr.deps                         ;
+			if (+jrr.static_matches      ) os <<'>' << jrr.static_matches               ;
+			if (+jrr.stdin               ) os <<'<' << jrr.stdin                        ;
+			if (+jrr.stdout              ) os <<'>' << jrr.stdout                       ;
+			if (+jrr.timeout             ) os <<',' << jrr.timeout                      ;
+			/**/                           os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
 			;
 		break ;
 		default : ;

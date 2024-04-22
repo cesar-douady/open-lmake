@@ -665,7 +665,7 @@ struct JobRpcReply {
 			case Proc::Start :
 				::serdes(s,addr          ) ;
 				::serdes(s,autodep_env   ) ;
-				::serdes(s,chroot        ) ;
+				::serdes(s,chroot_dir    ) ;
 				::serdes(s,cmd           ) ;
 				::serdes(s,cwd_s         ) ;
 				::serdes(s,date_prec     ) ;
@@ -673,12 +673,13 @@ struct JobRpcReply {
 				::serdes(s,env           ) ;
 				::serdes(s,hash_algo     ) ;
 				::serdes(s,interpreter   ) ;
+				::serdes(s,keep_tmp_dir  ) ;
+				::serdes(s,key           ) ;
 				::serdes(s,kill_sigs     ) ;
 				::serdes(s,live_out      ) ;
 				::serdes(s,method        ) ;
 				::serdes(s,network_delay ) ;
 				::serdes(s,pre_actions   ) ;
-				::serdes(s,remote_tmp_dir) ;
 				::serdes(s,root_dir      ) ;
 				::serdes(s,small_id      ) ;
 				::serdes(s,star_matches  ) ;
@@ -687,7 +688,6 @@ struct JobRpcReply {
 				::serdes(s,stdout        ) ;
 				::serdes(s,timeout       ) ;
 				::serdes(s,tmp_dir       ) ;
-				::serdes(s,tmp_from_var  ) ;
 				::serdes(s,tmp_sz_mb     ) ;
 				::serdes(s,use_script    ) ;
 			break ;
@@ -695,34 +695,34 @@ struct JobRpcReply {
 	}
 	// data
 	// START_OF_VERSIONING
-	Proc                     proc             = {}    ;
-	in_addr_t                addr             = 0     ; // proc==Start , the address at which server and subproccesses can contact job_exec
-	AutodepEnv               autodep_env      ;         // proc==Start
-	::string                 chroot           ;         // proc==Start , if not empty, dir to chroot to
-	::pair_ss/*script,call*/ cmd              ;         // proc==Start
-	::string                 cwd_s            ;         // proc==Start
-	Time::Delay              date_prec        ;         // proc==Start
-	::vmap_s<DepDigest>      deps             ;         // proc==Start , deps already accessed (always includes static deps)
-	::vmap_ss                env              ;         // proc==Start
-	Algo                     hash_algo        = {}    ; // proc==Start
-	::vector_s               interpreter      ;         // proc==Start , actual interpreter used to execute cmd
-	vector<uint8_t>          kill_sigs        ;         // proc==Start
-	bool                     live_out         = false ; // proc==Start
-	AutodepMethod            method           = {}    ; // proc==Start
-	Time::Delay              network_delay    ;         // proc==Start
-	::vmap_s<FileAction>     pre_actions      ;         // proc==Start
-	::string                 remote_tmp_dir   ;         // proc==Start
-	::string                 root_dir         ;         // proc==Start , if not empty, dir where root_dir must be mounted
-	SmallId                  small_id         = 0     ; // proc==Start
-	::vmap_s<MatchFlags>     star_matches     ;         // proc==Start , maps regexprs to flags
-	::vmap_s<MatchFlags>     static_matches   ;         // proc==Start
-	::string                 stdin            ;         // proc==Start
-	::string                 stdout           ;         // proc==Start
-	Time::Delay              timeout          ;         // proc==Start
-	::string                 tmp_dir          ;         // proc==Start
-	bool                     tmp_from_var     = false ; // proc==Start , if true <=> take tmp physical dir from TMPDIR variable, else allocate tmpfs of given size of !=0
-	size_t                   tmp_sz_mb        = 0     ; // proc==Start , tmp size in MB
-	bool                     use_script       = false ; // proc==Start
+	Proc                     proc           = {}                  ;
+	in_addr_t                addr           = 0                   ; // proc==Start , the address at which server and subproccesses can contact job_exec
+	AutodepEnv               autodep_env    ;                       // proc==Start
+	::string                 chroot_dir     ;                       // proc==Start , if not empty, dir to chroot to
+	::pair_ss/*script,call*/ cmd            ;                       // proc==Start
+	::string                 cwd_s          ;                       // proc==Start
+	Time::Delay              date_prec      ;                       // proc==Start
+	::vmap_s<DepDigest>      deps           ;                       // proc==Start , deps already accessed (always includes static deps)
+	::vmap_ss                env            ;                       // proc==Start
+	Algo                     hash_algo      = {}                  ; // proc==Start
+	::vector_s               interpreter    ;                       // proc==Start , actual interpreter used to execute cmd
+	bool                     keep_tmp_dir   = false               ; // proc==Start
+	::string                 key            ;                       // proc==Start , key used to uniquely identify repo
+	vector<uint8_t>          kill_sigs      ;                       // proc==Start
+	bool                     live_out       = false               ; // proc==Start
+	AutodepMethod            method         = AutodepMethod::Dflt ; // proc==Start
+	Time::Delay              network_delay  ;                       // proc==Start
+	::vmap_s<FileAction>     pre_actions    ;                       // proc==Start
+	::string                 root_dir       ;                       // proc==Start , if not empty, dir where root dir must be mounted
+	SmallId                  small_id       = 0                   ; // proc==Start
+	::vmap_s<MatchFlags>     star_matches   ;                       // proc==Start , maps regexprs to flags
+	::vmap_s<MatchFlags>     static_matches ;                       // proc==Start , maps individual files to flags
+	::string                 stdin          ;                       // proc==Start
+	::string                 stdout         ;                       // proc==Start
+	Time::Delay              timeout        ;                       // proc==Start
+	::string                 tmp_dir        ;                       // proc==Start , if not empty, dir where tmp dir must be mounted
+	size_t                   tmp_sz_mb      = Npos                ; // proc==Start , if not Npos and TMPDIR not defined, tmp size in MB
+	bool                     use_script     = false               ; // proc==Start
 	// END_OF_VERSIONING
 } ;
 
