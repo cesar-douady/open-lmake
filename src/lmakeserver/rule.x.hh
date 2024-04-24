@@ -231,14 +231,14 @@ namespace Engine {
 			Attrs::acquire_from_dct( chroot_dir  , py_dct , "chroot"      ) ;
 			Attrs::acquire_env     ( env         , py_dct , "env"         ) ;
 			Attrs::acquire_from_dct( ignore_stat , py_dct , "ignore_stat" ) ;
-			Attrs::acquire_from_dct( root_dir    , py_dct , "root"        ) ;
-			Attrs::acquire_from_dct( tmp_dir     , py_dct , "tmp"         ) ;
+			Attrs::acquire_from_dct( root_view   , py_dct , "root"        ) ;
+			Attrs::acquire_from_dct( tmp_view    , py_dct , "tmp"         ) ;
 			Attrs::acquire_from_dct( use_script  , py_dct , "use_script"  ) ;
 			::sort(env) ;                                                     // stabilize cmd crc
 			// check
 			if ( +chroot_dir && !Disk::is_abs(chroot_dir) ) throw to_string("chroot must be an absolute path : ",chroot_dir) ;
-			if ( +root_dir   && !Disk::is_abs(root_dir  ) ) throw to_string("root must be an absolute path : "  ,root_dir  ) ;
-			if ( +tmp_dir    && !Disk::is_abs(tmp_dir   ) ) throw to_string("tmp must be an absolute path : "   ,tmp_dir   ) ;
+			if ( +root_view  && !Disk::is_abs(root_view ) ) throw to_string("root must be an absolute path : "  ,root_view ) ;
+			if ( +tmp_view   && !Disk::is_abs(tmp_view  ) ) throw to_string("tmp must be an absolute path : "   ,tmp_view  ) ;
 		}
 		// data
 		// START_OF_VERSIONING
@@ -247,8 +247,8 @@ namespace Engine {
 		::string   chroot_dir  ;
 		bool       ignore_stat = false ;
 		::vmap_ss  env         ;
-		::string   root_dir    ;
-		::string   tmp_dir     ;
+		::string   root_view   ;
+		::string   tmp_view    ;
 		bool       use_script  = false ;
 		// END_OF_VERSIONING
 	} ;

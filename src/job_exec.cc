@@ -61,15 +61,12 @@ SeqId          g_trace_id      = 0/*garbage*/ ;
 ::vector_s     g_washed        ;
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
-	::map_ss res ;
-	::string abs_cwd = g_start_info.autodep_env.root_dir ;
-	if (+g_start_info.cwd_s) {
-		append_to_string(abs_cwd,'/',g_start_info.cwd_s) ; abs_cwd.pop_back() ;
-	}
-	res["PWD"        ] = abs_cwd                           ;
-	res["ROOT_DIR"   ] = g_start_info.autodep_env.root_dir ;
-	res["SEQUENCE_ID"] = to_string(g_seq_id             )  ;
-	res["SMALL_ID"   ] = to_string(g_start_info.small_id)  ;
+	::map_ss        res      ;
+	::string        abs_cwd  = *g_root_dir ; if (+g_start_info.cwd_s) { append_to_string(abs_cwd,'/',g_start_info.cwd_s) ; abs_cwd.pop_back() ; }
+	/**/                                res["PWD"        ] = abs_cwd                           ;
+	g_start_info.autodep_env.root_dir = res["ROOT_DIR"   ] = *g_root_dir                       ;
+	/**/                                res["SEQUENCE_ID"] = to_string(g_seq_id             )  ;
+	/**/                                res["SMALL_ID"   ] = to_string(g_start_info.small_id)  ;
 	for( auto& [k,v] : g_start_info.env ) {
 		if (v!=EnvPassMrkr) {
 			res[k] = env_decode(::move(v)) ;
@@ -79,11 +76,11 @@ SeqId          g_trace_id      = 0/*garbage*/ ;
 			res[k] =                                         ::move(v)   ;
 		}
 	}
-	if      ( g_start_info.keep_tmp_dir                                         ) g_phy_tmp_dir = to_string(*g_root_dir,'/',AdminDir       ,"/tmp/",g_job                ) ;
-	else if ( auto it=res.find("TMPDIR") ; it!=res.end()                        ) g_phy_tmp_dir = to_string(it->second,'/',g_start_info.key,'/'    ,g_start_info.small_id) ;
-	else if ( g_start_info.tmp_sz_mb==Npos                                      ) g_phy_tmp_dir = to_string(*g_root_dir,'/',PrivateAdminDir,"/tmp/",g_start_info.small_id) ;
-	if      ( +g_start_info.tmp_dir && (+g_phy_tmp_dir||g_start_info.tmp_sz_mb) ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_start_info.tmp_dir ;
-	else if ( +g_phy_tmp_dir                                                    ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_phy_tmp_dir        ;
+	if      ( g_start_info.keep_tmp_dir                                          ) g_phy_tmp_dir = to_string(g_phy_root_dir,'/',AdminDir       ,"/tmp/",g_job                ) ;
+	else if ( auto it=res.find("TMPDIR") ; it!=res.end()                         ) g_phy_tmp_dir = to_string(it->second,'/',g_start_info.key,'/'       ,g_start_info.small_id) ;
+	else if ( g_start_info.tmp_sz_mb==Npos                                       ) g_phy_tmp_dir = to_string(g_phy_root_dir,'/',PrivateAdminDir,"/tmp/",g_start_info.small_id) ;
+	if      ( +g_start_info.tmp_view && (+g_phy_tmp_dir||g_start_info.tmp_sz_mb) ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_start_info.tmp_view ;
+	else if ( +g_phy_tmp_dir                                                     ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_phy_tmp_dir         ;
 	//
 	Trace trace("prepare_env",g_start_info.autodep_env.tmp_dir,g_phy_tmp_dir,res) ;
 	//
@@ -96,37 +93,45 @@ SeqId          g_trace_id      = 0/*garbage*/ ;
 	return res ;
 }
 
-static void _bind_mount( ::string const& src , ::string const& dst ) {
+static void _mount( ::string const& dst , ::string const& src ) {
+	Trace trace("_mount","bind",dst,src) ;
 	if (::mount( src.c_str() ,  dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0) throw to_string("cannot bind mount ",src," onto ",dst," : ",strerror(errno)) ;
 }
-static void _tmp_mount( size_t sz_mb , ::string const& dst ) {
+static void _mount( ::string const& dst , size_t sz_mb ) {
 	SWEAR(sz_mb) ;
+	Trace trace("_mount","tmp",dst,sz_mb) ;
 	if (::mount( "" ,  dst.c_str() , "tmpfs" , 0/*flags*/ , to_string(sz_mb,"m").c_str() )!=0) throw to_string("cannot mount tmpfs of size",sz_mb," MB onto ",dst," : ",strerror(errno)) ;
 }
 static void _chroot(::string const& dir) {
+	Trace trace("_chroot",dir) ;
 	if (::chroot(dir.c_str())!=0) throw to_string("cannot chroot to ",dir," : ",strerror(errno)) ;
 }
+static void _chdir(::string const& dir) {
+	Trace trace("_chdir",dir) ;
+	if (::chdir(dir.c_str())!=0) throw to_string("cannot chdir to ",dir," : ",strerror(errno)) ;
+}
 static void _atomic_write( ::string const& file , ::string const& data ) {
+	Trace trace("_atomic_write",file,data) ;
 	ssize_t cnt = ::write( AutoCloseFd(::open(file.c_str(),O_WRONLY)) , data.c_str() , data.size() ) ;
 	if (cnt<0                  ) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : ",strerror(errno)          ) ;
 	if (size_t(cnt)<data.size()) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : only ",cnt," bytes written") ;
 }
 void prepare_namespace() {
-	Trace trace("prepare_namespace",g_start_info.chroot_dir,g_start_info.root_dir,g_start_info.tmp_dir) ;
+	Trace trace("prepare_namespace",g_start_info.chroot_dir,g_start_info.root_view,g_start_info.tmp_view) ;
 	//
-	if ( !g_start_info.chroot_dir && !g_start_info.root_dir && !g_start_info.tmp_dir ) return ;
+	if ( !g_start_info.chroot_dir && !g_start_info.root_view && !g_start_info.tmp_view ) return ;
 	//
-	int uid = getuid() ;                                                                                                                        // must be done before unshare that invents a new user
-	int gid = getgid() ;                                                                                                                        // .
+	int uid = getuid() ; // must be done before unshare that invents a new user
+	int gid = getgid() ; // .
 	//
 	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw to_string("cannot create namespace : ",strerror(errno)) ;
 	//
 	::string chroot_dir       ;
-	bool     must_create_root = +g_start_info.root_dir && !is_dir(g_start_info.chroot_dir+g_start_info.root_dir) ;
-	bool     must_create_tmp  = +g_start_info.tmp_dir  && !is_dir(g_start_info.chroot_dir+g_start_info.tmp_dir ) ;
+	bool     must_create_root = +g_start_info.root_view && !is_dir(g_start_info.chroot_dir+g_start_info.root_view) ;
+	bool     must_create_tmp  = +g_start_info.tmp_view  && !is_dir(g_start_info.chroot_dir+g_start_info.tmp_view ) ;
 	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
-	if ( must_create_root || must_create_tmp ) {                                                                                                // we may mount directly in chroot_dir
-		::vector_s top_lvls           = lst_dir(g_start_info.chroot_dir,"/")                        ;
+	if ( must_create_root || must_create_tmp ) {                                                                                                   // we may mount directly in chroot_dir
+		::vector_s top_lvls = lst_dir(+g_start_info.chroot_dir?g_start_info.chroot_dir:"/","/") ;
 		chroot_dir = to_string(PrivateAdminDir,"/chroot/",g_start_info.small_id) ;
 		mk_dir(chroot_dir) ;
 		unlnk_inside(chroot_dir) ;
@@ -137,27 +142,29 @@ void prepare_namespace() {
 			switch (FileInfo(src_f).tag()) {
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : OFStream{private_f                } ; break    ;                                                          // create file
-				case FileTag::Dir   : mk_dir  (private_f                ) ; break    ;                                                          // create dir
-				case FileTag::Lnk   : lnk     (private_f,read_lnk(src_f)) ; continue ;                                                          // copy symlink
-				default             :                                       continue ;                                                          // exclude weird files
+				case FileTag::Exe   : OFStream{private_f                } ; break    ;                                                             // create file
+				case FileTag::Dir   : mk_dir  (private_f                ) ; break    ;                                                             // create dir
+				case FileTag::Lnk   : lnk     (private_f,read_lnk(src_f)) ; continue ;                                                             // copy symlink
+				default             :                                       continue ;                                                             // exclude weird files
 			}
-			_bind_mount(src_f,private_f) ;
+			_mount(private_f,src_f) ;
 		}
-		if (must_create_root) { SWEAR(g_start_info.root_dir.rfind('/')==0,g_start_info.root_dir) ; mk_dir(chroot_dir+g_start_info.root_dir) ; } // XXX : handle cases where dir is not top level
-		if (must_create_tmp ) { SWEAR(g_start_info.tmp_dir .rfind('/')==0,g_start_info.tmp_dir ) ; mk_dir(chroot_dir+g_start_info.tmp_dir ) ; } // .
+		if (must_create_root) { SWEAR(g_start_info.root_view.rfind('/')==0,g_start_info.root_view) ; mk_dir(chroot_dir+g_start_info.root_view) ; } // XXX : handle cases where dir is not top level
+		if (must_create_tmp ) { SWEAR(g_start_info.tmp_view .rfind('/')==0,g_start_info.tmp_view ) ; mk_dir(chroot_dir+g_start_info.tmp_view ) ; } // .
 	} else {
 		chroot_dir = ::move(g_start_info.chroot_dir) ;
 	}
-	if ( +g_start_info.root_dir                  ) _bind_mount( g_phy_root_dir          , chroot_dir+g_start_info.root_dir ) ;                  // XXX : unclear this is desirable
-	if ( +g_start_info.tmp_dir && +g_phy_tmp_dir ) _bind_mount( g_phy_tmp_dir           , chroot_dir+g_start_info.tmp_dir  ) ;                  // .
-	if ( +g_start_info.tmp_dir && !g_phy_tmp_dir ) _tmp_mount ( g_start_info.tmp_sz_mb  , chroot_dir+g_start_info.tmp_dir  ) ;                  // .
+	if ( +g_start_info.root_view                  ) _mount( chroot_dir+g_start_info.root_view , g_phy_root_dir          ) ;                        // XXX : unclear this is desirable
+	if ( +g_start_info.tmp_view && +g_phy_tmp_dir ) _mount( chroot_dir+g_start_info.tmp_view  , g_phy_tmp_dir           ) ;                        // .
+	if ( +g_start_info.tmp_view && !g_phy_tmp_dir ) _mount( chroot_dir+g_start_info.tmp_view  , g_start_info.tmp_sz_mb  ) ;                        // .
 	//
-	trace("chroot_dir",chroot_dir) ;
-	if ( +chroot_dir && chroot_dir!="/" ) _chroot(chroot_dir) ;
+	if ( +chroot_dir && chroot_dir!="/" ) {
+		_chroot(chroot_dir ) ;
+		_chdir (*g_root_dir) ;
+	}
 	//
 	_atomic_write( "/proc/self/uid_map"   , to_string(uid,' ',uid,' ',1,'\n') ) ;
-	_atomic_write( "/proc/self/setgroups" , "deny"                            ) ;                                                               // necessary to be allowed to write the gid_map
+	_atomic_write( "/proc/self/setgroups" , "deny"                            ) ;                                                                  // necessary to be allowed to write the gid_map
 	_atomic_write( "/proc/self/gid_map"   , to_string(gid,' ',gid,' ',1,'\n') ) ;
 	//
 	if (::setuid(uid)!=0) throw to_string("cannot set uid as ",uid,strerror(errno)) ;
@@ -390,7 +397,7 @@ int main( int argc , char* argv[] ) {
 			case JobProc::Start : break    ;                                                             // normal case
 		DF}
 		//
-		g_root_dir = +g_start_info.root_dir ? &g_start_info.root_dir : &g_phy_root_dir ;
+		g_root_dir = +g_start_info.root_view ? &g_start_info.root_view : &g_phy_root_dir ;
 		//
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//

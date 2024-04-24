@@ -680,14 +680,14 @@ struct JobRpcReply {
 				::serdes(s,method        ) ;
 				::serdes(s,network_delay ) ;
 				::serdes(s,pre_actions   ) ;
-				::serdes(s,root_dir      ) ;
+				::serdes(s,root_view     ) ;
 				::serdes(s,small_id      ) ;
 				::serdes(s,star_matches  ) ;
 				::serdes(s,static_matches) ;
 				::serdes(s,stdin         ) ;
 				::serdes(s,stdout        ) ;
 				::serdes(s,timeout       ) ;
-				::serdes(s,tmp_dir       ) ;
+				::serdes(s,tmp_view      ) ;
 				::serdes(s,tmp_sz_mb     ) ;
 				::serdes(s,use_script    ) ;
 			break ;
@@ -713,14 +713,14 @@ struct JobRpcReply {
 	AutodepMethod            method         = AutodepMethod::Dflt ; // proc==Start
 	Time::Delay              network_delay  ;                       // proc==Start
 	::vmap_s<FileAction>     pre_actions    ;                       // proc==Start
-	::string                 root_dir       ;                       // proc==Start , if not empty, dir where root dir must be mounted
+	::string                 root_view      ;                       // proc==Start , if not empty, dir where root dir must be mounted
 	SmallId                  small_id       = 0                   ; // proc==Start
 	::vmap_s<MatchFlags>     star_matches   ;                       // proc==Start , maps regexprs to flags
 	::vmap_s<MatchFlags>     static_matches ;                       // proc==Start , maps individual files to flags
 	::string                 stdin          ;                       // proc==Start
 	::string                 stdout         ;                       // proc==Start
 	Time::Delay              timeout        ;                       // proc==Start
-	::string                 tmp_dir        ;                       // proc==Start , if not empty, dir where tmp dir must be mounted
+	::string                 tmp_view       ;                       // proc==Start , if not empty, dir where tmp dir must be mounted
 	size_t                   tmp_sz_mb      = Npos                ; // proc==Start , if not Npos and TMPDIR not defined, tmp size in MB
 	bool                     use_script     = false               ; // proc==Start
 	// END_OF_VERSIONING

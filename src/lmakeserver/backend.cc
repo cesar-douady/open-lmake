@@ -56,18 +56,18 @@ namespace Backends {
 	// Backend
 	//
 
-	::string                          Backend::s_executable              ;
-	Backend*                          Backend::s_tab[N<Tag>]             ;
-	Mutex<MutexLvl::Backend >         Backend::_s_mutex                  ;
-	Mutex<MutexLvl::StartJob>         Backend::_s_starting_job_mutex     ;
-	::atomic<JobIdx>                  Backend::_s_starting_job           ;
-	::map<JobIdx,Backend::StartEntry> Backend::_s_start_tab              ;
-	SmallIds<SmallId>                 Backend::_s_small_ids              ;
-	Backend::JobThread     *          Backend::_s_job_start_thread       = nullptr ;
-	Backend::JobMngtThread *          Backend::_s_job_mngt_thread        = nullptr ;
-	Backend::JobThread     *          Backend::_s_job_end_thread         = nullptr ;
-	Backend::DeferredThread*          Backend::_s_deferred_report_thread = nullptr ;
-	Backend::DeferredThread*          Backend::_s_deferred_wakeup_thread = nullptr ;
+	::string                  Backend::s_executable              ;
+	Backend*                  Backend::s_tab[N<Tag>]             ;
+	Mutex<MutexLvl::Backend > Backend::_s_mutex                  ;
+	Mutex<MutexLvl::StartJob> Backend::_s_starting_job_mutex     ;
+	::atomic<JobIdx>          Backend::_s_starting_job           ;
+	Backend::StartTab         Backend::_s_start_tab              ;
+	SmallIds<SmallId>         Backend::_s_small_ids              ;
+	Backend::JobThread     *  Backend::_s_job_start_thread       = nullptr ;
+	Backend::JobMngtThread *  Backend::_s_job_mngt_thread        = nullptr ;
+	Backend::JobThread     *  Backend::_s_job_end_thread         = nullptr ;
+	Backend::DeferredThread*  Backend::_s_deferred_report_thread = nullptr ;
+	Backend::DeferredThread*  Backend::_s_deferred_wakeup_thread = nullptr ;
 
 	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<DepSpec>&& deps_attrs ) {
 		::vmap_s<DepDigest> res ; res.reserve(deps_attrs.size()) ;
@@ -146,10 +146,8 @@ namespace Backends {
 
 	void Backend::_s_handle_deferred_wakeup(DeferredEntry&& de) {
 		Trace trace(BeChnl,"_s_handle_deferred_wakeup",de) ;
-		{	Lock lock { _s_mutex }                      ;                                           // lock _s_start_tab for minimal time to avoid dead-locks
-			auto it   = _s_start_tab.find(+de.job_exec) ;
-			if (it==_s_start_tab.end()           ) return ;                                         // too late, job has ended
-			if (it->second.conn.seq_id!=de.seq_id) return ;                                         // too late, job has ended and restarted
+		{	Lock lock { _s_mutex } ;                                                                // lock _s_start_tab for minimal time to avoid dead-locks
+			if (_s_start_tab.find(+de.job_exec,de.seq_id)==_s_start_tab.end()) return ;             // too late, job has ended
 		}
 		JobDigest jd { .status=Status::LateLost } ;                                                 // job is still present, must be really lost
 		if (+de.job_exec.start_date.date) jd.stats.total = Pdate(New)-de.job_exec.start_date.date ;
@@ -170,15 +168,13 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_deferred_report(DeferredEntry&& dre) {
-		Lock lock { _s_mutex }                       ;             // lock _s_start_tab for minimal time to avoid dead-locks
-		auto it   = _s_start_tab.find(+dre.job_exec) ;
-		if (it==_s_start_tab.end()            ) return ;
-		if (it->second.conn.seq_id!=dre.seq_id) return ;
+		Lock lock { _s_mutex }                       ;                                // lock _s_start_tab for minimal time to avoid dead-locks
+		if (_s_start_tab.find(+dre.job_exec,dre.seq_id)==_s_start_tab.end()) return ;
 		Trace trace(BeChnl,"_s_handle_deferred_report",dre) ;
 		g_engine_queue.emplace( JobProc::ReportStart , ::move(dre.job_exec) ) ;
 	}
 
-	Status Backend::_s_release_start_entry( ::map<JobIdx,StartEntry>::iterator it , Status status=Status::Ok ) {
+	Status Backend::_s_release_start_entry( ::map<JobIdx,StartEntry>::iterator it , Status status ) {
 		Trace trace(BeChnl,"_s_release_start_entry",it->first,status) ;
 		if ( is_lost(status) && is_ok(status)==Maybe ) {
 			uint8_t& n_retries = it->second.submit_attrs.n_retries ;
@@ -221,8 +217,8 @@ namespace Backends {
 		Lock lock { _s_starting_job_mutex } ;
 		{	Lock lock { _s_mutex } ;                                   // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
+			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
+			StartEntry& entry = it->second                         ;
 			trace("entry",entry) ;
 			if (!entry.useful()) { trace("useless") ; return false ; } // no Req found, job has been cancelled but start message still arrives, give up
 			submit_attrs = ::move(entry.submit_attrs) ;
@@ -280,8 +276,8 @@ namespace Backends {
 					/**/                                       reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir         ;
 					/**/                                       reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat        ;
 					/**/                                       reply.chroot_dir              = ::move(start_cmd_attrs.chroot_dir) ;
-					/**/                                       reply.root_dir                = ::move(start_cmd_attrs.root_dir  ) ;
-					/**/                                       reply.tmp_dir                 = ::move(start_cmd_attrs.tmp_dir   ) ;                       // tmp directory as viewed by job
+					/**/                                       reply.root_view               = ::move(start_cmd_attrs.root_view ) ;
+					/**/                                       reply.tmp_view                = ::move(start_cmd_attrs.tmp_view  ) ;                       // tmp directory as viewed by job
 					/**/                                       reply.use_script              = start_cmd_attrs.use_script         ;
 					for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
@@ -299,7 +295,6 @@ namespace Backends {
 					/**/                               reply.autodep_env.lnk_support   = g_config.lnk_support                              ;
 					/**/                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                            ;
 					/**/                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                      ;
-					/**/                               reply.autodep_env.root_dir      = *g_root_dir                                       ;
 					/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
 					/**/                               reply.date_prec                 = g_config.date_prec                                ;
 					/**/                               reply.hash_algo                 = g_config.hash_algo                                ;
@@ -421,8 +416,8 @@ namespace Backends {
 		Trace trace(BeChnl,"_s_handle_job_mngt",jmrr) ;
 		{	Lock lock { _s_mutex } ;                                      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//                                                                                                                                            keep_fd
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab"                              ) ; return false ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jmrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jmrr.seq_id) ; return false ; }
+			auto        it    = _s_start_tab.find(+job,jmrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
+			StartEntry& entry = it->second                          ;
 			trace("entry",job,entry) ;
 			switch (jmrr.proc) { //!           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				case JobMngtProc::ChkDeps    :
@@ -449,8 +444,8 @@ namespace Backends {
 		if (jrr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ; // ensure _s_handled_job_start is done for this job
 		{	Lock lock { _s_mutex } ;                                     // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
+			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
+			StartEntry& entry = it->second                         ;
 			je    = JobExec( job , entry.conn.host , entry.start_date ) ;
 			rsrcs = ::move(entry.rsrcs)                                 ;
 			_s_small_ids.release(entry.conn.small_id) ;
@@ -498,6 +493,7 @@ namespace Backends {
 			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) { // /!\ we erase entries while iterating
 				JobIdx      j = jit->first  ;
 				StartEntry& e = jit->second ;
+				if (!e.conn.seq_id) continue ;
 				if (ri) {
 					if ( e.reqs.size()==1 && e.reqs[0]==ri ) goto Kill ;
 					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) { // e.reqs is a non-sorted vector, we must search ri by hand
@@ -607,9 +603,9 @@ namespace Backends {
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
 		static ::jthread      heartbeat_thread      {    _s_heartbeat_thread_func                 } ;
-		static JobThread      job_start_thread      {'S',_s_handle_job_start      ,1000/*backlog*/} ; _s_job_start_thread       = &job_start_thread       ;
-		static JobMngtThread  job_mngt_thread       {'M',_s_handle_job_mngt       ,1000/*backlog*/} ; _s_job_mngt_thread        = &job_mngt_thread        ;
-		static JobThread      job_end_thread        {'E',_s_handle_job_end        ,1000/*backlog*/} ; _s_job_end_thread         = &job_end_thread         ;
+		static JobThread      job_start_thread      {'S',_s_handle_job_start      ,4096/*backlog*/} ; _s_job_start_thread       = &job_start_thread       ; // 4096 : max usual value as set in ...
+		static JobMngtThread  job_mngt_thread       {'M',_s_handle_job_mngt       ,4096/*backlog*/} ; _s_job_mngt_thread        = &job_mngt_thread        ; // ... /proc/sys/net/core/somaxconn
+		static JobThread      job_end_thread        {'E',_s_handle_job_end        ,4096/*backlog*/} ; _s_job_end_thread         = &job_end_thread         ; // .
 		static DeferredThread deferred_report_thread{'R',_s_handle_deferred_report                } ; _s_deferred_report_thread = &deferred_report_thread ;
 		static DeferredThread deferred_wakeup_thread{'W',_s_handle_deferred_wakeup                } ; _s_deferred_wakeup_thread = &deferred_wakeup_thread ;
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;

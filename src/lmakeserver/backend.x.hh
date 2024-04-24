@@ -91,6 +91,15 @@ namespace Backends {
 			JobExec job_exec ;
 		} ;
 
+		struct StartTab : ::map<JobIdx,StartEntry> {
+			using Base = ::map<JobIdx,StartEntry> ;
+			// if !seq_id, entry is kept solely for its sbmit_attrs.n_retries attribute, behave as if it does not exist
+			auto find( JobIdx j             ) const { auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }
+			auto find( JobIdx j             )       { auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }
+			auto find( JobIdx j , SeqId sid ) const { auto res = Base::find(j) ; if ( res!=end() &&  res->second.conn.seq_id!=sid ) return end() ; else return res ; }
+			auto find( JobIdx j , SeqId sid )       { auto res = Base::find(j) ; if ( res!=end() &&  res->second.conn.seq_id!=sid ) return end() ; else return res ; }
+		} ;
+
 		// statics
 		static bool             s_is_local  (Tag) ;
 		static bool             s_ready     (Tag) ;
@@ -129,7 +138,7 @@ namespace Backends {
 		static bool/*keep_fd*/ _s_handle_job_end        ( JobRpcReq    && , SlaveSockFd const& ={}                              ) ;
 		static void            _s_handle_deferred_report( DeferredEntry&&                                                       ) ;
 		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                                       ) ;
-		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status                           ) ;
+		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status=Status::Ok                ) ;
 		//
 		using JobThread      = ServerThread<JobRpcReq    > ;
 		using JobMngtThread  = ServerThread<JobMngtRpcReq> ;
@@ -148,7 +157,7 @@ namespace Backends {
 		static Mutex<MutexLvl::Backend>  _s_mutex                  ;
 		static ::atomic<JobIdx>          _s_starting_job           ;                                      // this job is starting when _starting_job_mutex is locked
 		static Mutex<MutexLvl::StartJob> _s_starting_job_mutex     ;
-		static ::map<JobIdx,StartEntry>  _s_start_tab              ;                                      // use map instead of umap because heartbeat iterates over while tab is moving
+		static StartTab                  _s_start_tab              ;                                      // use map instead of umap because heartbeat iterates over while tab is moving
 		static SmallIds<SmallId>         _s_small_ids              ;
 		static SmallId                   _s_max_small_id           ;
 	public :

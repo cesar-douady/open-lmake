@@ -7,6 +7,10 @@
 
 FROM centos:7
 
+#
+# necessary to compile lmake
+#
+
 RUN yum install -y centos-release-scl
 RUN yum install -y devtoolset-11
 RUN yum install -y ed
@@ -20,7 +24,20 @@ RUN yum install -y epel-release
 RUN yum install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel
 #RUN yum install -y libseccomp
 
-RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
+#
+# not necessary for lmake
+#
+
+# necessary to compile slurm 23.11
+RUN yum install -y sudo
+RUN yum install -y rpm-build
+RUN yum install -y munge-devel
+RUN yum install -y readline-devel
+RUN yum install -y mariadb-devel
+RUN yum install -y 'perl(ExtUtils::MakeMaker)'
+RUN yum install -y pam-devel
+
+RUN     useradd --uid 1001 --home-dir /home/cdy cdy
 USER    1001:1001
 WORKDIR /home/cdy
 ENV     USER=cdy

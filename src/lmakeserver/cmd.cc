@@ -721,8 +721,8 @@ R"({
 								if (+phy_tmp_dir                  ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),ro.startup_dir_s) ) ;
 								if ( sa.live_out                  ) push_entry( "live_out"         , "true"                                          ) ;
 								if (+start.chroot_dir             ) push_entry( "chroot"           , start.chroot_dir                                ) ;
-								if (+start.root_dir               ) push_entry( "root"             , start.root_dir                                  ) ;
-								if (+start.tmp_dir                ) push_entry( "tmp"              , start.tmp_dir                                   ) ;
+								if (+start.root_view              ) push_entry( "root"             , start.root_view                                 ) ;
+								if (+start.tmp_view               ) push_entry( "tmp"              , start.tmp_view                                  ) ;
 								if (+start.cwd_s                  ) push_entry( "cwd"              , cwd                                             ) ;
 								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"       , "true"                                          ) ;
 								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat"      , "true"                                          ) ;

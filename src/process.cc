@@ -58,7 +58,7 @@ bool/*parent*/ Child::spawn(
 		} else {
 			if (add_env) for( auto const& [k,v] : *add_env ) set_env(k,v) ;
 		}
-		if (+cwd_   ) { if (::chdir (cwd_.c_str())!=0) throw to_string("cannot chdir to : " ,cwd_) ; }
+		if (+cwd_   ) { if (::chdir(cwd_.c_str())!=0) throw to_string("cannot chdir to : " ,cwd_) ; }
 		if (pre_exec)   pre_exec() ;
 		//
 		if (!args) return false ;

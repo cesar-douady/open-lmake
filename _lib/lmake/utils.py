@@ -32,4 +32,4 @@ def multi_strip(txt) :
 	while l0[0].isspace() and all(not l or l[0]==l0[0] for l in ls) :
 		ls = [ l[1:] for l in ls ]
 		l0 = ls[0]
-	return '\n'.join(ls)
+	return ''.join(l+'\n' for l in ls)

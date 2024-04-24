@@ -1198,8 +1198,8 @@ namespace Engine {
 			if ( sca.auto_mkdir ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir ) ) ;
 			if ( sca.ignore_stat) do_field( "ignore_stat" , to_string(sca.ignore_stat) ) ;
 			if (+sca.chroot_dir ) do_field( "chroot"      ,           sca.chroot_dir   ) ;
-			if (+sca.root_dir   ) do_field( "root"        ,           sca.root_dir     ) ;
-			if (+sca.tmp_dir    ) do_field( "tmp"         ,           sca.tmp_dir      ) ;
+			if (+sca.root_view  ) do_field( "root"        ,           sca.root_view    ) ;
+			if (+sca.tmp_view   ) do_field( "tmp"         ,           sca.tmp_view     ) ;
 			if ( sca.use_script ) do_field( "use_script"  , to_string(sca.use_script ) ) ;
 		}
 		if (+sca.env) res << indent("environ :\n",i) << _pretty_env( i+1 , sca.env ) ;

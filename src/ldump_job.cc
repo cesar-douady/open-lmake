@@ -47,8 +47,8 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "addr         : "  << hex<<jrr.addr<<dec          <<'\n' ;
 	::cout << "auto_mkdir   : "  << jrr.autodep_env.auto_mkdir  <<'\n' ;
 	::cout << "chroot       : "  << jrr.chroot_dir              <<'\n' ;
-	::cout << "root         : "  << jrr.root_dir                <<'\n' ;
-	::cout << "tmp          : "  << jrr.tmp_dir                 <<'\n' ;
+	::cout << "root         : "  << jrr.root_view               <<'\n' ;
+	::cout << "tmp          : "  << jrr.tmp_view                <<'\n' ;
 	::cout << "cwd_s        : "  << jrr.cwd_s                   <<'\n' ;
 	::cout << "hash_algo    : "  << jrr.hash_algo               <<'\n' ;
 	::cout << "ignore_stat  : "  << jrr.autodep_env.ignore_stat <<'\n' ;
