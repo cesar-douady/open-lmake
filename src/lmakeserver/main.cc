@@ -150,6 +150,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 		for( Epoll::Event event : events ) {
 			EventKind kind = event.data<EventKind>() ;
 			Fd        fd   = event.fd()              ;
+			trace("event",kind,fd) ;
 			switch (kind) {
 				// it may be that in a single poll, we get the end of a previous run and a request for a new one
 				// problem lies in this sequence :
@@ -167,7 +168,6 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						trace("stop_requested") ;
 						goto Done ;
 					}
-					trace("int",kind) ;
 					switch (kind) {
 						case EventKind::Int   : { struct signalfd_siginfo event ; ssize_t cnt = ::read(_g_int_fd  ,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
 						case EventKind::Watch : { struct inotify_event    event ; ssize_t cnt = ::read(_g_watch_fd,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
@@ -186,7 +186,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					try         { if (!in_tab.at(fd).first.receive_step(fd,rrr)) continue ; }
 					catch (...) { rrr.proc = ReqProc::None ;                                }
 					Fd ofd = kind==EventKind::Std ? out_fd : fd ;
-					trace("req",kind,fd,rrr) ;
+					trace("req",rrr) ;
 					switch (rrr.proc) {
 						case ReqProc::Make   : {
 							Req r{New} ;
@@ -200,7 +200,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						case ReqProc::Forget :
 						case ReqProc::Mark   :
 						case ReqProc::Show   :
-							epoll.del(fd) ; trace("stop_fd",rrr.proc,fd) ;                  // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							epoll.del(fd) ; trace("del_fd",rrr.proc,fd) ;                   // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							in_tab.erase(fd) ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 							g_engine_queue.emplace( rrr.proc , fd , ofd , rrr.files , rrr.options ) ;
@@ -424,6 +424,7 @@ int main( int argc , char** argv ) {
 	else                 g_startup_dir_s = new ::string ;
 	//
 	_g_int_fd = open_sig_fd({SIGINT,SIGHUP}) ;                                          // must be done before app_init so that all threads block the signal
+	set_sig({SIGPIPE},true/*block*/) ;
 	//          vvvvvvvvvvvvvvv
 	Persistent::writable = true ;
 	Codec     ::writable = true ;
