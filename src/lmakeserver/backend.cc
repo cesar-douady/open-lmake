@@ -612,9 +612,9 @@ namespace Backends {
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
 		static ::jthread      heartbeat_thread      {    _s_heartbeat_thread_func                 } ;
-		static JobThread      job_start_thread      {'S',_s_handle_job_start      ,1000/*backlog*/} ; _s_job_start_thread       = &job_start_thread       ;
-		static JobMngtThread  job_mngt_thread       {'M',_s_handle_job_mngt       ,1000/*backlog*/} ; _s_job_mngt_thread        = &job_mngt_thread        ;
-		static JobThread      job_end_thread        {'E',_s_handle_job_end        ,1000/*backlog*/} ; _s_job_end_thread         = &job_end_thread         ;
+		static JobThread      job_start_thread      {'S',_s_handle_job_start      ,4096/*backlog*/} ; _s_job_start_thread       = &job_start_thread       ; // 4096 : max usual value as set in ...
+		static JobMngtThread  job_mngt_thread       {'M',_s_handle_job_mngt       ,4096/*backlog*/} ; _s_job_mngt_thread        = &job_mngt_thread        ; // ... /proc/sys/net/core/somaxconn
+		static JobThread      job_end_thread        {'E',_s_handle_job_end        ,4096/*backlog*/} ; _s_job_end_thread         = &job_end_thread         ; // .
 		static DeferredThread deferred_report_thread{'R',_s_handle_deferred_report                } ; _s_deferred_report_thread = &deferred_report_thread ;
 		static DeferredThread deferred_wakeup_thread{'W',_s_handle_deferred_wakeup                } ; _s_deferred_wakeup_thread = &deferred_wakeup_thread ;
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;

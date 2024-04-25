@@ -51,8 +51,7 @@ inline bool/*all_done*/ set_sig( ::vector<int> const& sigs , bool block ) {
 inline Fd open_sig_fd(::vector<int> const& sigs) {
 	swear_prod(set_sig(sigs,true/*block*/),"some of signals",sigs,"are already blocked") ;
 	//
-	sigset_t mask ;
-	::sigemptyset(&mask) ;
+	sigset_t mask ; ::sigemptyset(&mask) ;
 	for( int s : sigs) ::sigaddset(&mask,s) ;
 	//
 	return ::signalfd( -1 , &mask , SFD_CLOEXEC ) ;
