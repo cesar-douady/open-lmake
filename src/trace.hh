@@ -48,7 +48,8 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static void s_start         (Channels=DfltChannels) ;
 		static void s_new_trace_file(::string const&      ) ;
 	private :
-		static void _s_open() ;
+		static void _s_open  () ;
+		static void _t_commit() ;
 		//
 	public :
 		template<class T> static ::string s_str( T const& v , ::string const& s ) { return s+"="+to_string(v) ; }
@@ -56,15 +57,17 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		/**/              static ::string s_str( uint8_t  v , ::string const& s ) { return s_str(int(v),s)    ; } // avoid confusion with char
 		/**/              static ::string s_str( int8_t   v , ::string const& s ) { return s_str(int(v),s)    ; } // avoid confusion with char
 		// static data
-		static              bool             s_backup_trace ;
-		static              ::atomic<size_t> s_sz           ;                                                     // max overall size of trace, beyond, trace wraps
-		static              Channels         s_channels     ;
+		static bool             s_backup_trace ;
+		static ::atomic<size_t> s_sz           ;                                                                  // max overall size of trace, beyond, trace wraps
+		static Channels         s_channels     ;
 	private :
-		static size_t                 _s_pos    ;                                                                 // current line number
-		static bool                   _s_ping   ;                                                                 // ping-pong to distinguish where trace stops in the middle of a trace
-		static Fd                     _s_fd     ;
-		static ::atomic<bool>         _s_has_fd ;
-		static Mutex<MutexLvl::Trace> _s_mutex  ;
+		static size_t                 _s_pos       ;                                                              // current line number
+		static bool                   _s_ping      ;                                                              // ping-pong to distinguish where trace stops in the middle of a trace
+		static Fd                     _s_fd        ;
+		static ::atomic<bool>         _s_has_trace ;
+		static uint8_t*               _s_data      ;                                                              // pointer to mmap'ped trace file
+		static size_t                 _s_cur_sz    ;                                                              // current size of trace file
+		static Mutex<MutexLvl::Trace> _s_mutex     ;
 		//
 		static thread_local int            _t_lvl  ;
 		static thread_local bool           _t_hide ;                                                              // if true <=> do not generate trace
@@ -80,9 +83,9 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		/**/                  Trace(                                     ) : Trace{Channel::Default            } {}
 		template<class... Ts> Trace( const char* tag , Ts const&... args ) : Trace{Channel::Default,tag,args...} {}
 		// services
-		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                                        }
-		template<class... Ts> void operator()(Ts const&... args) { if ( _s_has_fd && _active && !_sav_hide.saved ) _record<false/*protect*/>(args...) ; }
-		template<class... Ts> void protect   (Ts const&... args) { if ( _s_has_fd && _active && !_sav_hide.saved ) _record<true /*protect*/>(args...) ; }
+		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                                           }
+		template<class... Ts> void operator()(Ts const&... args) { if ( _s_has_trace && _active && !_sav_hide.saved ) _record<false/*protect*/>(args...) ; }
+		template<class... Ts> void protect   (Ts const&... args) { if ( _s_has_trace && _active && !_sav_hide.saved ) _record<true /*protect*/>(args...) ; }
 	private :
 		template<bool P,class... Ts> void _record(Ts const&...     ) ;
 		template<bool P,class    T > void _output(T const&        x) { *_t_buf <<                    x  ; }
@@ -111,28 +114,7 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		*_t_buf << _tag ;
 		int _[1+sizeof...(Ts)] = { 0 , (*_t_buf<<' ',_output<P>(args),0)... } ; (void)_ ;
 		*_t_buf << '\n' ;
-		//
-		#if HAS_OSTRINGSTREAM_VIEW
-			::string_view buf_view = _t_buf->view() ;
-		#else
-			::string      buf_view = _t_buf->str () ;
-		#endif
-		//
-		{	Lock   lock    { _s_mutex }             ;
-			size_t new_pos = _s_pos+buf_view.size() ;
-			if (new_pos>s_sz) {
-				if (_s_pos<s_sz) _s_fd.write(to_string(::right,::setw(s_sz-_s_pos),'\n')) ;
-				::lseek(_s_fd,0,SEEK_SET) ;
-				_s_ping = !_s_ping        ;
-				_s_pos  = 0               ;
-				new_pos = buf_view.size() ;
-			}
-			try {
-				_s_fd.write(buf_view) ;
-				_s_pos = new_pos ;
-			} catch (::string const&) {} // ignore errors, as this has no impact on actual program being executed
-		}
-		_t_buf->str({}) ;
+		_t_commit() ;
 	}
 
 #endif
