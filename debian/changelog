@@ -1,5 +1,5 @@
-open-lmake (0.1-1) UNRELEASED; urgency=low
+open-lmake (1.0-1) UNRELEASED; urgency=low
 
   * Initial release.
 
- -- Cesar Douady <cesar.douady@doliam.fr>  Fri, 15 Dec 2023 10:28:21 +0100
+ -- Cesar Douady <cesar.douady@doliam.fr>  Wed, 24 Apr 2024 14:22:52 +0200

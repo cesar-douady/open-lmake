@@ -226,13 +226,14 @@ for ext,basic_opts in basic_opts_tab.items() :
 			)
 		n_tokens  = config.backends.local.cc
 		resources = pdict()
-		if True             : resources.mem = '512M'
+		if True             : resources.mem = '1G'
 		if backend=='local' : resources.cc  = 1
 
 class LinkRule(PathRule) :
 	combine       = ('pre_opts','rev_post_opts')
 	pre_opts      = []                           # options before inputs & outputs
 	rev_post_opts = []                           # options after  inputs & outputs, combine appends at each level, but here we want to prepend
+	resources     = {'mem': '1G'}
 	def cmd() :
 		run_gxx( TARGET
 		,	*pre_opts
