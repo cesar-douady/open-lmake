@@ -215,7 +215,7 @@ cat <<"EOF" > ostringstream_view.cc
 	#include <sstream>
 	std::string_view ossv = std::ostringstream().view() ;
 EOF
-if $CXX -c -std=c++20 -o ostringstream_view.o -xc ostringstream_view.cc 2>/dev/null
+if $CXX -c -std=c++20 -o ostringstream_view.o ostringstream_view.cc
 then HAS_OSTRINGSTREAM_VIEW=1
 else HAS_OSTRINGSTREAM_VIEW=0
 fi
