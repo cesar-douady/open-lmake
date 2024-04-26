@@ -228,17 +228,17 @@ namespace Engine {
 			using namespace Attrs ;
 			Attrs::acquire_from_dct( interpreter , py_dct , "interpreter" ) ;
 			Attrs::acquire_from_dct( auto_mkdir  , py_dct , "auto_mkdir"  ) ;
-			Attrs::acquire_from_dct( chroot_dir  , py_dct , "chroot"      ) ;
+			Attrs::acquire_from_dct( chroot_dir  , py_dct , "chroot_dir"  ) ;
 			Attrs::acquire_env     ( env         , py_dct , "env"         ) ;
 			Attrs::acquire_from_dct( ignore_stat , py_dct , "ignore_stat" ) ;
-			Attrs::acquire_from_dct( root_view   , py_dct , "root"        ) ;
-			Attrs::acquire_from_dct( tmp_view    , py_dct , "tmp"         ) ;
+			Attrs::acquire_from_dct( root_view   , py_dct , "root_view"   ) ;
+			Attrs::acquire_from_dct( tmp_view    , py_dct , "tmp_view"    ) ;
 			Attrs::acquire_from_dct( use_script  , py_dct , "use_script"  ) ;
 			::sort(env) ;                                                     // stabilize cmd crc
 			// check
-			if ( +chroot_dir && !Disk::is_abs(chroot_dir) ) throw to_string("chroot must be an absolute path : ",chroot_dir) ;
-			if ( +root_view  && !Disk::is_abs(root_view ) ) throw to_string("root must be an absolute path : "  ,root_view ) ;
-			if ( +tmp_view   && !Disk::is_abs(tmp_view  ) ) throw to_string("tmp must be an absolute path : "   ,tmp_view  ) ;
+			if ( +chroot_dir && !Disk::is_abs(chroot_dir) ) throw to_string("chroot_dir must be an absolute path : ",chroot_dir) ;
+			if ( +root_view  && !Disk::is_abs(root_view ) ) throw to_string("root_view must be an absolute path : " ,root_view ) ;
+			if ( +tmp_view   && !Disk::is_abs(tmp_view  ) ) throw to_string("tmp_view must be an absolute path : "  ,tmp_view  ) ;
 		}
 		// data
 		// START_OF_VERSIONING
@@ -896,8 +896,11 @@ namespace Engine {
 		if (is_dynamic) {
 			Py::Gil             gil    ;
 			Py::Ptr<Py::Object> py_obj = _eval_code( job , match , rsrcs , deps ) ;
-			try                       { res.update(py_obj->template as_a<Py::Dict>()) ; }
-			catch (::string const& e) { throw ::pair_ss(e,{}) ;                         }
+			if (*py_obj!=Py::None) {
+				if (!py_obj->is_a<Py::Dict>()) throw to_string("type error : ",py_obj->ob_type->tp_name," is not a dict") ;
+				try                       { res.update(py_obj->template as_a<Py::Dict>()) ; }
+				catch (::string const& e) { throw ::pair_ss({}/*msg*/,e/*err*/) ;           }
+			}
 		}
 		return res ;
 	}

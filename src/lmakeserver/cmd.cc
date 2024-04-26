@@ -187,20 +187,27 @@ namespace Engine {
 		// try to use stdin/stdout to debug with pdb as much as possible as readline does not work on alternate streams
 		//
 		// header is not strictly necessary, but at least, it allows editors (e.g. vi) to do syntax coloring
-		::string res   = "#!" ;
-		bool     first = true ;
+		::string res         = "#!" ;
+		bool     first       = true ;
+		::string interpreter ;
 		for( ::string const& c : start.interpreter ) {
-			if (first) first  = false ;
-			else       res   += ' '   ;
-			res += c ;
+			if (first) first        = false ;
+			else       interpreter += ' '   ;
+			interpreter += c ;
 		}
-		res+='\n' ;
+		res += interpreter ;
+		res += '\n'        ;
 		if ( start.interpreter.size()>2 || res.size()>BINPRM_BUF_SIZE )                                  // inform user we do not use the sheebang line if it actually does not work ...
 			res += "# the sheebang line above is informative only, interpreter is called explicitly\n" ; // ... just so that it gets no headache wondering why it works with a apparently buggy line
 		//
 		res += start.cmd.first ;
 		//
-		if ( flags[ReqFlag::Debug] && j->rule->is_python ) {
+		if (!flags[ReqFlag::Debug]) {
+			res += start.cmd.second ;
+		} else if (!j->rule->is_python) {
+			res += start.cmd.second ;
+			append_line_to_string(res,"HOME=",get_env("HOME")," SHLVL=2 exec ",interpreter," -i <&3 >&4 2>&5\n") ;
+		} else {
 			::string runner = flags[ReqFlag::Vscode] ? "run_vscode" : flags[ReqFlag::Graphic] ? "run_pudb" : "run_pdb" ;
 			//
 			size_t   open_pos  = start.cmd.second.find ('(')         ;
@@ -220,8 +227,6 @@ namespace Engine {
 			res += ")\n" ;
 			//
 			append_line_to_string( res , "lmake_dbg[" , mk_py_str(runner) , "](" , mk_py_str(dbg_dir) , ',' , redirected?"True":"False" , ',' ,run_call ,")\n" ) ;
-		} else {
-			res += start.cmd.second ;
 		}
 		return res ;
 	}
@@ -397,6 +402,7 @@ R"({
 			if ( with_cmd                              ) { SWEAR(+dbg_dir) ; append_to_string( script , dbg_dir,"/cmd"                                                      ) ; }
 			else                                                             append_to_string( script , "-c \\\n" , mk_shell_str(_mk_cmd(j,flags,start,dbg_dir,redirected)) ) ;
 			//
+			if      (  dbg && !is_python               ) append_to_string( script , " 3<&0 4>&1 5>&2"                  ) ;
 			if      ( +start.stdout                    ) append_to_string( script , " > " , mk_shell_str(start.stdout) ) ;
 			if      ( +start.stdin                     ) append_to_string( script , " < " , mk_shell_str(start.stdin ) ) ;
 			else if ( !dbg || !is_python || redirected ) append_to_string( script , " < /dev/null"                     ) ;

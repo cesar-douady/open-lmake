@@ -45,7 +45,7 @@ StdAttrs = {
 ,	'auto_mkdir'        : ( bool  , True  )
 ,	'backend'           : ( str   , True  )
 ,	'cache'             : ( str   , True  )
-,	'chroot'            : ( str   , True  )
+,	'chroot_dir'        : ( str   , True  )
 ,	'cmd'               : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
 ,	'cwd'               : ( str   , True  )
 ,	'side_deps'         : ( dict  , True  )
@@ -66,12 +66,12 @@ StdAttrs = {
 ,	'order'             : ( list  , False )
 ,	'python'            : ( tuple , False )
 ,	'resources'         : ( dict  , True  )
-,	'root'              : ( str   , True  )
+,	'root_view'         : ( str   , True  )
 ,	'shell'             : ( tuple , False )
 ,	'start_delay'       : ( float , True  )
 ,	'side_targets'      : ( dict  , True  )
 ,	'timeout'           : ( float , True  )
-,	'tmp'               : ( str   , True  )
+,	'tmp_view'          : ( str   , True  )
 ,	'use_script'        : ( bool  , True  )
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
@@ -446,12 +446,12 @@ class Handle :
 		else                    : interpreter = 'shell'
 		self._init()
 		self._handle_val('auto_mkdir'                       )
-		self._handle_val('chroot'                           )
+		self._handle_val('chroot_dir'                       )
 		self._handle_val('env'        ,rep_key='environ_cmd')
 		self._handle_val('ignore_stat'                      )
 		self._handle_val('interpreter',rep_key=interpreter  )
-		self._handle_val('root'                             )
-		self._handle_val('tmp'                              )
+		self._handle_val('root_view'                        )
+		self._handle_val('tmp_view'                         )
 		self._handle_val('use_script'                       )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 

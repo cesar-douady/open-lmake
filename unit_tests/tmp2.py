@@ -22,9 +22,9 @@ if __name__!='__main__' :
 	from step import autodep
 
 	class TmpRule(Rule) :
-		tmp     = '/tmp'
-		autodep = autodep
-		cmd     = f'#{autodep}' # force cmd modification
+		tmp_view = '/tmp'
+		autodep  = autodep
+		cmd      = f'#{autodep}' # force cmd modification
 
 	class Src(Rule) :
 		target = 'src'

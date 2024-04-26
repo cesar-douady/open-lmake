@@ -397,13 +397,16 @@ namespace Engine {
 		}
 		// step 4 : handle what needs dir crc
 		switch (dir()->buildable) {
-			case Buildable::Maybe     :
-			case Buildable::Yes       :
+			case Buildable::Maybe :
+			case Buildable::Yes   :
+				if (dir()->crc==Crc::None) { status(NodeStatus::Unknown) ; goto NotDone ; }             // uphill is buildable, but does not actually exist
+				goto DirSrc ;
 			case Buildable::SubSrcDir :
-				if (dir()->crc==Crc::None) { status(NodeStatus::None) ; goto Src ; }                    // status is overwritten Src if node actually exists
+				if (dir()->crc==Crc::None) { status(NodeStatus::None   ) ; goto Src     ; }             // status is overwritten Src if node actually exists
 				[[fallthrough]] ;
 			case Buildable::DynSrc :
 			case Buildable::Src    :
+			DirSrc :
 				if (dir()->crc.is_lnk()) status(NodeStatus::Transcient) ;                               // our dir is a link, we are transcient
 				else                     status(NodeStatus::Uphill    ) ;                               // a non-existent source stays a source, hence its sub-files are uphill
 				goto NoSrc ;
@@ -544,19 +547,19 @@ namespace Engine {
 			// make eligible jobs
 			{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                           // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
 				for(; it ; it++ ) {
-					JobTgt     jt   = *it                    ;
-					JobMakeAction ma = JobMakeAction::Status ;
-					JobReason reason ;
+					JobTgt        jt     = *it                    ;
+					JobMakeAction ma     = JobMakeAction::Status ;
+					JobReason     reason ;
 					switch (ri.goal) {
-						case NodeGoal::Makable : if (jt.sure()) ma = JobMakeAction::Makable ; break ;                    // if star, job must be run to know if we are generated
+						case NodeGoal::Makable : if (jt.sure()) ma = JobMakeAction::Makable ; break ;                     // if star, job must be run to know if we are generated
 						case NodeGoal::Status  :
 						case NodeGoal::Dsk     :
-							if      (!jt.produces(idx())              ) {}
-							else if (!has_actual_job(  )              ) reason = {JobReasonTag::NoTarget      ,+idx()} ; // this is important for NodeGoal::Status as crc is not correct
-							else if (!has_actual_job(jt)              ) reason = {JobReasonTag::PollutedTarget,+idx()} ; // .
-							else if (ri.goal==NodeGoal::Status        ) {}                                               // dont check disk if asked for Status
-							else if (jt->running(true/*with_zombies*/)) reason =  JobReasonTag::Garbage                ; // be pessimistic and dont check target as it is not manual ...
-							else                                                                                         // ... and checking may modify it
+							if      (!jt.produces(idx(),true/*actual*/)) {}
+							else if (!has_actual_job(  )               ) reason = {JobReasonTag::NoTarget      ,+idx()} ; // this is important for NodeGoal::Status as crc is not correct
+							else if (!has_actual_job(jt)               ) reason = {JobReasonTag::PollutedTarget,+idx()} ; // .
+							else if (ri.goal==NodeGoal::Status         ) {}                                               // dont check disk if asked for Status
+							else if (jt->running(true/*with_zombies*/) ) reason =  JobReasonTag::Garbage                ; // be pessimistic and dont check target as it is not manual ...
+							else                                                                                          // ... and checking may modify it
 								switch (manual_wash(ri,true/*lazy*/)) {
 									case Manual::Ok      :                                                  break ;
 									case Manual::Unlnked : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
@@ -566,14 +569,14 @@ namespace Engine {
 						break ;
 					DF}
 					JobReqInfo& jri = jt->req_info(req) ;
-					if (ri.live_out) jri.live_out = ri.live_out ;                                                        // transmit user request to job for last level live output
+					if (ri.live_out) jri.live_out = ri.live_out ;                                                         // transmit user request to job for last level live output
 					jt->asking = idx() ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					jt->make( jri , ma , reason , ri.speculate ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("job",ri,clean,ma,jt,STR(jri.waiting()),STR(jt.produces(idx()))) ;
 					if      (jri.waiting()     ) jt->add_watcher(jri,idx(),ri,ri.pressure) ;
-					else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }        // jobs in error are deemed to produce all their potential targets
+					else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }         // jobs in error are deemed to produce all their potential targets
 				}
 			}
 			if (ri.waiting()   ) goto Wait ;
@@ -593,7 +596,7 @@ namespace Engine {
 			for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule->name         ,2) ;
 		}
 		ri.done_ = ri.goal ;
-		if (_may_need_regenerate(*this,ri,make_action)) { prod_idx = NoIdx ; goto Make ; }                               // BACKWARD
+		if (_may_need_regenerate(*this,ri,make_action)) { prod_idx = NoIdx ; goto Make ; }                                // BACKWARD
 	Wakeup :
 		SWEAR(done(ri)) ;
 		trace("wakeup",ri,conform_idx(),is_plain()?actual_job():Job()) ;

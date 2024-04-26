@@ -121,7 +121,7 @@ namespace Engine {
 		void is_static_phony(bool isp)       { { if (isp) SWEAR(+*this) ; } Job::side<1>(isp) ; }
 		bool sure           (        ) const ;
 		// services
-		bool produces(Node) const ;
+		bool produces( Node , bool actual=false ) const ; // if actual, return if node was actually produced, in addition to being officially produced
 	} ;
 
 	struct JobTgts : JobTgtsBase {
@@ -403,11 +403,11 @@ namespace Engine {
 
 	inline bool JobTgt::sure() const { return is_static_phony() && (*this)->sure() ; }
 
-	inline bool JobTgt::produces(Node t) const {
-		if ((*this)->missing()      ) return false                             ; // missing jobs produce nothing
-		if ((*this)->err()          ) return true                              ; // jobs in error are deemed to produce all their potential targets
-		if (sure()                  ) return true                              ;
-		if (t->has_actual_job(*this)) return t->actual_tflags()[Tflag::Target] ; // .
+	inline bool JobTgt::produces(Node t,bool actual) const {
+		if ( (*this)->missing()        ) return false                             ; // missing jobs produce nothing
+		if ( !actual && (*this)->err() ) return true                              ; // jobs in error are deemed to produce all their potential targets
+		if ( !actual && sure()         ) return true                              ;
+		if ( t->has_actual_job(*this)  ) return t->actual_tflags()[Tflag::Target] ; // .
 		//
 		auto it = ::lower_bound( (*this)->targets , {t,{}} ) ;
 		return it!=(*this)->targets.end() && *it==t && it->tflags[Tflag::Target] ;

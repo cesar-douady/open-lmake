@@ -16,9 +16,9 @@ if __name__!='__main__' :
 		stems = { 'N' : r'\d' }
 
 	class Tmp(Base) :
-		target  = 'dut{N}'
-		targets = { 'LNK' : 'lnk{N}' }
-		tmp     = '/tmp'
+		target   = 'dut{N}'
+		targets  = { 'LNK' : 'lnk{N}' }
+		tmp_view = '/tmp'
 		cmd     = multi_strip('''
 			ln -s $TMPDIR/a       {LNK}
 			ln -s $ROOT_DIR/{LNK} $TMPDIR/b
@@ -52,9 +52,9 @@ if __name__!='__main__' :
 		cmd = 'diff {REF} {DUT}'
 
 	class GenDir(Base) :
-		targets = { 'DST' : '{File:.*}.dir/{*:.*}' }
-		tmp     = '/tmp'
-		cmd     = '''
+		targets  = { 'DST' : '{File:.*}.dir/{*:.*}' }
+		tmp_view = '/tmp'
+		cmd      = '''
 			cd $TMPDIR
 			mkdir d
 			echo a >d/a
@@ -64,10 +64,10 @@ if __name__!='__main__' :
 		'''
 
 	class UpdateDir(Base) :
-		targets = { 'DST' : '{File:.*}.dir2/{*:.*}' }
-		deps    = { 'SRC' : '{File}.dir/d/a'        }
-		tmp     = '/tmp'
-		cmd     = '''
+		targets  = { 'DST' : '{File:.*}.dir2/{*:.*}' }
+		deps     = { 'SRC' : '{File}.dir/d/a'        }
+		tmp_view = '/tmp'
+		cmd      = '''
 			cd $TMPDIR
 			cp -a $ROOT_DIR/{File}.dir/d d
 			a=$(cat d/a)

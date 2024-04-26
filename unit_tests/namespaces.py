@@ -14,21 +14,21 @@ if __name__!='__main__' :
 	class Base(Rule) :
 		stems = { 'N' : r'\d' }
 
-	for tmp in (None,'/tmp','/new_tmp') :
-		for repo in (None,'/repo') :
+	for tmp_view in (None,'/tmp','/new_tmp') :
+		for root_view in (None,'/repo') :
 			class Dut(Rule) :
-				name   = f'dut {tmp} {repo}'
-				target = f'dut.{tmp}{repo}'
-				if tmp  : tmp  = tmp
-				if repo : root = repo
+				name   = f'dut {tmp_view} {root_view}'
+				target = f'dut.{tmp_view}{root_view}'
+				if tmp_view  : tmp_view  = tmp_view
+				if root_view : root_view = root_view
 				cmd = multi_strip('''
 					unset PWD                     # ensure pwd calls getcwd
 					pwd          > $TMPDIR/stdout
 					echo $TMPDIR > $TMPDIR/stdout
 					cat $TMPDIR/stdout
 				''')
-				if tmp  : cmd += f'[ $TMPDIR = {tmp } ] || exit 1\n'
-				if repo : cmd += f'[ $(pwd)  = {repo} ] || exit 1\n'
+				if tmp_view  : cmd += f'[ $TMPDIR = {tmp_view } ] || exit 1\n'
+				if root_view : cmd += f'[ $(pwd)  = {root_view} ] || exit 1\n'
 else :
 
 	import ut

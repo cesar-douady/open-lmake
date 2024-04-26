@@ -30,12 +30,8 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* when searching for uphill, if target is phony and generated as non-existent, accept child
 * manage so that ^C behave normally in ldebug python
-* when ldebug is a bash job, stay in interactive interpreter at the end
 * ensure ldebug & lenter provide a different prompt
-* ensure tmp mapping does not imply sandboxing just for itself
-	- provide a way to escape sandboxing if possible
 * generate a 'consider tmp=...' if tmp is accessed with no tmp available
 * add pid in namespace to ease killing job
 	- but beware of jobs using pid as a unique id
@@ -111,13 +107,11 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*3 improve job isolation by using namespaces
-	- much like faketree : https://github.com/enfabrica/enkit/tree/master/faketree
-	- generalize tmp mapping
-	- provide a container with just : system + repo + tmp
-		- this way, no harm can be done outside repo
-* provide a reasonable default value when dynamic functions return None
-	- at least, dont crash
+*1 improve namespaces
+	- provide a generic mapping
+		- repo->repo, repo->ext, ext->ext, but not ext->repo
+* implement fuse as an autodep method
+	- use namespaces
 * provide more options to stderr management :
 	- redirect to stdout
 	- hide it (still accessible in lshow -e)
@@ -136,6 +130,8 @@ items :
 		- while suspended, consider resources to be freed
 		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 		- then resume participates to allocation competition
+? provide only visibility to system+repo+tmp to jobs
+	- how to identify system ?
 ? implement a ref/check mechanism
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
@@ -150,14 +146,6 @@ items :
 			- then pyc would be broken if py is updated steady as pyc would not be remade
 			- requires a dep flag to say we are depending on date
 			? or use the python crc based mechanism
-? consider fuse as an autodep method
-	? unclear it is faster than ptrace
-		? all data traffic goes through it
-		? many context switches
-		? an advantage is that accesses to system files (outside the repository) are transparent
-	? there must be one fuse mount for each job so as to recognize which job does the access
-	? how to manage so that the job sees the repository with its nominal name
-		? requires a chroot
 ? provide a lock mechanism in local backend
 	? much like a bunch of resources w/ capacity=1
 	? stored as a set
@@ -178,8 +166,9 @@ items :
 ****************************************************************************************************
 
 * prepare namespace while waiting for server if possible
-	- i.e. when info is static
-	- implies a dyn bit for each variable, rather than globally for the struct
+	- i.e. when tmp info is static
+	- move views to submit_cmd_attrs
+	- share views in submit_attrs as there is very few variability
 * regexprs
 	- consider handling prefix/suffix apart
 		- most importantly sufixes

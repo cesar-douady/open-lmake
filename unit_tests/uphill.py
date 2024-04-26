@@ -10,16 +10,24 @@ if __name__!='__main__' :
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	class A(Rule):
+	class A(Rule) :
 		targets = { 'A' : 'a/{*:.*}' }
 		cmd     = 'exit 1'
 
+	class E(Rule) :
+		targets = { 'E' : ('e','phony') }
+		cmd     = ''
+
+	class Ef(Rule) :
+		target = 'e/f'
+		cmd    = ''
+
 	class D(Rule):
 		target = 'res'
-		cmd    = 'cat a/b/c/d'
+		cmd    = 'cat a/b/c/d e/f'
 
 else :
 
 	import ut
 
-	ut.lmake( 'res' , may_rerun=1 , failed=1 , was_failed=1 , rc=1 )           # check no loop
+	ut.lmake( 'res' , may_rerun=1 , failed=1 , steady=1 , done=1 , was_dep_err=1 , rc=1 )

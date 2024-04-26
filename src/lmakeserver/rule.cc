@@ -448,17 +448,20 @@ namespace Engine {
 				//
 				::map_s<VarIdx> dep_idxs ;
 				for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
-				for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
-					if (py_val==None) continue ;
-					::string key = py_key.as_a<Str>() ;
-					Dflags      df  { Dflag::Essential , Dflag::Static }                           ;
-					ExtraDflags edf ;
-					::string    dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps
-					match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
-					_qualify_dep( key , dep , DepKind::Dep ) ;
-					DepSpec ds { dep , df , edf } ;
-					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          }               // dep cannot be both static and dynamic
-					else                                                          res[dep_idxs.at(key)].second = ds ;                 // if not full_dynamic, all deps must be listed in spec
+				if (*py_obj!=Py::None) {
+					if (!py_obj->is_a<Py::Dict>()) throw to_string("type error : ",py_obj->ob_type->tp_name," is not a dict") ;
+					for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
+						if (py_val==None) continue ;
+						::string key = py_key.as_a<Str>() ;
+						Dflags      df  { Dflag::Essential , Dflag::Static }                           ;
+						ExtraDflags edf ;
+						::string    dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps
+						match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
+						_qualify_dep( key , dep , DepKind::Dep ) ;
+						DepSpec ds { dep , df , edf } ;
+						if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          }               // dep cannot be both static and dynamic
+						else                                                          res[dep_idxs.at(key)].second = ds ;                 // if not full_dynamic, all deps must be listed in spec
+					}
 				}
 			} catch (::string const& e) { throw ::pair_ss(e/*msg*/,{}/*err*/) ; }
 		}
@@ -522,6 +525,7 @@ namespace Engine {
 			if (!is_dynamic) return {parse_fstr(spec.cmd,match,rsrcs),{}} ;
 			Gil         gil    ;
 			Ptr<Object> py_obj = _eval_code( match , rsrcs , deps ) ;
+			if (!py_obj->is_a<Py::Str>()) throw to_string("type error : ",py_obj->ob_type->tp_name," is not a str") ;
 			::string    cmd    ;
 			Attrs::acquire( cmd , &py_obj->as_a<Str>() ) ;
 			return {cmd,{}} ;
@@ -1197,9 +1201,9 @@ namespace Engine {
 			if (+interpreter    ) do_field( "interpreter" , interpreter                ) ;
 			if ( sca.auto_mkdir ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir ) ) ;
 			if ( sca.ignore_stat) do_field( "ignore_stat" , to_string(sca.ignore_stat) ) ;
-			if (+sca.chroot_dir ) do_field( "chroot"      ,           sca.chroot_dir   ) ;
-			if (+sca.root_view  ) do_field( "root"        ,           sca.root_view    ) ;
-			if (+sca.tmp_view   ) do_field( "tmp"         ,           sca.tmp_view     ) ;
+			if (+sca.chroot_dir ) do_field( "chroot_dir"  ,           sca.chroot_dir   ) ;
+			if (+sca.root_view  ) do_field( "root_view"   ,           sca.root_view    ) ;
+			if (+sca.tmp_view   ) do_field( "tmp_view"    ,           sca.tmp_view     ) ;
 			if ( sca.use_script ) do_field( "use_script"  , to_string(sca.use_script ) ) ;
 		}
 		if (+sca.env) res << indent("environ :\n",i) << _pretty_env( i+1 , sca.env ) ;

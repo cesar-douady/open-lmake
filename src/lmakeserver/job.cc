@@ -126,11 +126,11 @@ namespace Engine {
 
 	::ostream& operator<<( ::ostream& os , JobReqInfo::State const& ris ) {
 		const char* sep = "" ;
-		/**/                                            os <<'('                                            ;
-		if (+ris.reason                             ) { os <<sep<< ris.reason                               ; sep = "," ; }
-		if ( +ris.stamped_err   || +ris.proto_err   ) { os <<sep<< ris.proto_err  <<"->"<<ris.stamped_err   ; sep = "," ; }
-		if ( +ris.stamped_modif || +ris.proto_modif ) { os <<sep<< ris.proto_modif<<"->"<<ris.stamped_modif ; sep = "," ; }
-		return                                          os <<')'                                            ;
+		/**/                                            os <<'('                                                  ;
+		if (+ris.reason                             ) { os <<sep<<       ris.reason                               ; sep = "," ; }
+		if ( +ris.stamped_err   || +ris.proto_err   ) { os <<sep<<"E:"<< ris.proto_err  <<"->"<<ris.stamped_err   ; sep = "," ; }
+		if ( +ris.stamped_modif || +ris.proto_modif ) { os <<sep<<"M:"<< ris.proto_modif<<"->"<<ris.stamped_modif ; sep = "," ; }
+		return                                          os <<')'                                                  ;
 	}
 
 	::ostream& operator<<( ::ostream& os , JobReqInfo const& ri ) {

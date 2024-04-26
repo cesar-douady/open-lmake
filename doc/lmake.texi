@@ -1951,7 +1951,7 @@ By default @code{target}, @code{side_targets} and @code{side_deps} are handled i
 If this order is inadequate, this attribute may be used to specify the order.
 The order may be partial : other keys are put after the mentioned keys, keeping their relative order.
 
-@section @code{chroot}
+@section @code{chroot_dir}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -1961,17 +1961,17 @@ The order may be partial : other keys are put after the mentioned keys, keeping 
 @item Default
 @tab @code{None}
 @item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
+@tab Yes. Environment includes stems, targets and deps.
 @end multitable
 
 This attribute defines a directory in which jobs will @code{chroot} into before execution begins.
 It must be an absoluted path (e.g. @code{'/ubuntu22.04'}).
 
-Note that unless the @code{root_dir} is set, the repository must be visible under its original name in this @code{chroot} environment.
+Note that unless the @code{root_view} is set, the repository must be visible under its original name in this chroot environment.
 
-If @code{None}, @code{''}, @code{'/'}, no @code{chroot} is performed unless required to manage the @code{tmp} and @code{root_dir} attributes (in which case it is transparent).
+If @code{None}, @code{''}, @code{'/'}, no @code{chroot} is performed unless required to manage the @code{tmp_view} and @code{root_view} attributes (in which case it is transparent).
 
-@section @code{root}
+@section @code{root_view}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -1981,7 +1981,7 @@ If @code{None}, @code{''}, @code{'/'}, no @code{chroot} is performed unless requ
 @item Default
 @tab @code{None}
 @item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
+@tab Yes. Environment includes stems, targets and deps.
 @end multitable
 
 This attribute defines a directory in which jobs will see the top-level directory of the repo (the root directory).
@@ -1993,7 +1993,7 @@ If @code{None} or @code{''}, no bind mount is performed.
 
 If performed, the @code{$ROOT_DIR} env variable will reflect this value.
 
-@section @code{tmp}
+@section @code{tmp_view}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -2003,7 +2003,7 @@ If performed, the @code{$ROOT_DIR} env variable will reflect this value.
 @item Default
 @tab @code{None}
 @item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
+@tab Yes. Environment includes stems, targets and deps.
 @end multitable
 
 This attribute defines the name which the temporary directory available for job execution is mounted on.
