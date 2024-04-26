@@ -36,7 +36,7 @@ else :
 	sp.run(('lmark','-f','-a','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' , missing=1 ,                     rc=1 ) # check missing dep
 	None                                              ; print(1,file=open('test','w'))    ; ut.lmake( 'test.cpy' , new    =1 , done=1 ,            rc=0 ) # check ok
 	sp.run(('lmark','-f','-d','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' ,                      unlink=1 , rc=1 ) # check no_rule unlink
-	sp.run(('lmark','-f','-a','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' ,             done=1 ,            rc=0 ) # check rebuild
+	sp.run(('lmark','-f','-a','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' ,             done=0 ,            rc=0 ) # check no rebuild as test did not change
 	None                                              ; print(2,file=open('test','w'))    ; ut.lmake( 'test.cpy' , changed=1 , done=1 ,            rc=0 ) # check rebuild
 	sp.run(('lmark','-f','-a','test.cpy'),check=True) ; print(3,file=open('test','w'))    ; ut.lmake( 'test.cpy' , frozen =1 ,                     rc=0 ) # check frozen
 

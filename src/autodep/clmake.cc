@@ -248,6 +248,7 @@ static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	char c = 0/*garbage*/ ;
 	// we have a private Record with a private AutodepEnv, so we must go through the backdoor to alter the regular AutodepEnv
 	int rc [[maybe_unused]] = ::readlinkat( Record::s_root_fd() , (PrivateAdminDir+"/backdoor/autodep"s ).c_str() , &c , 1 ) ;
+	if (rc<0) return None.to_py_boost() ;
 	SWEAR( c=='0' || c=='1' , int(c) ) ;
 	SWEAR( rc==1            , rc     ) ;
 	return Ptr<Bool>(c!='0')->to_py_boost() ;

@@ -272,13 +272,11 @@ namespace Backends {
 					for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
 				case 2 :
-					/**/                                       reply.interpreter             = start_cmd_attrs.interpreter        ;
-					/**/                                       reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir         ;
-					/**/                                       reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat        ;
-					/**/                                       reply.chroot_dir              = ::move(start_cmd_attrs.chroot_dir) ;
-					/**/                                       reply.root_view               = ::move(start_cmd_attrs.root_view ) ;
-					/**/                                       reply.tmp_view                = ::move(start_cmd_attrs.tmp_view  ) ;                       // tmp directory as viewed by job
-					/**/                                       reply.use_script              = start_cmd_attrs.use_script         ;
+					/**/                                       reply.interpreter             = start_cmd_attrs.interpreter       ;
+					/**/                                       reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir        ;
+					/**/                                       reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat       ;
+					/**/                                       reply.job_space               = ::move(start_cmd_attrs.job_space) ;
+					/**/                                       reply.use_script              = start_cmd_attrs.use_script        ;
 					for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
 				case 1 :

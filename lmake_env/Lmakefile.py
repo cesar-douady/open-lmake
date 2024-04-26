@@ -333,7 +333,7 @@ class Link(BaseRule) :
 	rev_post_opts = '-ldl'
 
 class LinkLibSo(Link,LinkSo) :
-	deps = { 'RPC_JOB' : 'src/rpc_job.o' }
+	deps = { 'RPC_JOB_EXEC' : 'src/rpc_job_exec.o' }
 
 class LinkAppExe(Link,LinkExe) :
 	deps = {
@@ -354,13 +354,13 @@ class LinkAutodepEnv(Link) :
 
 class LinkAutodep(LinkAutodepEnv) :
 	deps = {
-		'GATHER'     : 'src/autodep/gather.o'
-	,	'LD'         : 'src/autodep/ld_server.o'
-	,	'PTRACE'     : 'src/autodep/ptrace.o'
-	,	'RECORD'     : 'src/autodep/record.o'
-	,	'SYSCALL'    : 'src/autodep/syscall_tab.o'
-	,	'RPC_JOB'    : 'src/rpc_job.o'
-	,	'RPC_CLIENT' : None
+		'GATHER'       : 'src/autodep/gather.o'
+	,	'PTRACE'       : 'src/autodep/ptrace.o'
+	,	'RECORD'       : 'src/autodep/record.o'
+	,	'SYSCALL'      : 'src/autodep/syscall_tab.o'
+	,	'RPC_JOB'      : 'src/rpc_job.o'
+	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
+	,	'RPC_CLIENT'   : None
 	}
 	# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
 	if run((gxx,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0 :
@@ -379,13 +379,6 @@ class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
 	,	'LD'  : 'src/autodep/ld_{Method}.o'
 	}
 
-class LinkClmakeSo(LinkLibSo,LinkAutodep) :
-	targets = { 'TARGET' : 'lib/clmake.so' }
-	deps = {
-		'RECORD' : 'src/autodep/record.o'
-	,	'MAIN'   : 'src/autodep/clmake.o'
-	}
-
 class LinkAutodepExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/autodep'          }
 	deps    = { 'MAIN'   : 'src/autodep/autodep.o' }
@@ -398,6 +391,7 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/lmakeserver' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
+	,	'RPC_JOB'    : 'src/rpc_job.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
@@ -428,6 +422,7 @@ class LinkLdumpExe(LinkPythonAppExe,LinkAutodep) :
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
+	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'CACHE'      : 'src/lmakeserver/cache.o'
@@ -461,14 +456,18 @@ for app in ('xxhsum','align_comments') :
 		targets = { 'TARGET' : f'bin/{app}'   }
 		deps    = { 'MAIN'   : f'src/{app}.o' }
 
-class LinkJobSupport(LinkClientAppExe) :
+class LinkJobSupport(LinkAutodepEnv) :
 	deps = {
-		'RECORD'  : 'src/autodep/record.o'
-	,	'RPC_JOB' : 'src/rpc_job.o'
+		'RECORD'       : 'src/autodep/record.o'
+	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
 	}
 
+class LinkClmakeSo(LinkLibSo,LinkJobSupport) :
+	targets = { 'TARGET' : 'lib/clmake.so'        }
+	deps    = { 'MAIN'   : 'src/autodep/clmake.o' }
+
 for remote in ('lcheck_deps','ldecode','ldepend','lencode','ltarget') :
-	class LinkRemote(LinkJobSupport,LinkAutodepEnv) :
+	class LinkRemote(LinkAppExe,LinkJobSupport) :
 		name    = f'link {remote}'
 		targets = { 'TARGET' : f'bin/{remote}'           }
 		deps    = { 'MAIN'   : f'src/autodep/{remote}.o' }

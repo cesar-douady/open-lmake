@@ -305,6 +305,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/py$(SAN).o                                            \
 	$(SRC)/rpc_client$(SAN).o                                    \
 	$(SRC)/rpc_job$(SAN).o                                       \
+	$(SRC)/rpc_job_exec$(SAN).o                                  \
 	$(SRC)/trace$(SAN).o                                         \
 	$(SRC)/store/file$(SAN).o                                    \
 	$(SRC)/autodep/env$(SAN).o                                   \
@@ -338,6 +339,7 @@ $(BIN)/lrepair : \
 	$(SRC)/py$(SAN).o                                            \
 	$(SRC)/rpc_client$(SAN).o                                    \
 	$(SRC)/rpc_job$(SAN).o                                       \
+	$(SRC)/rpc_job_exec$(SAN).o                                  \
 	$(SRC)/trace$(SAN).o                                         \
 	$(SRC)/autodep/env$(SAN).o                                   \
 	$(SRC)/autodep/gather$(SAN).o                                \
@@ -408,6 +410,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/app.o                 \
 	$(SRC)/py.o                  \
 	$(SRC)/rpc_job.o             \
+	$(SRC)/rpc_job_exec.o        \
 	$(SRC)/trace.o               \
 	$(SRC)/autodep/env.o         \
 	$(SRC)/autodep/gather.o      \
@@ -500,6 +503,7 @@ $(BIN)/autodep : \
 	$(LMAKE_BASIC_SAN_OBJS)            \
 	$(SRC)/app$(SAN).o                 \
 	$(SRC)/rpc_job$(SAN).o             \
+	$(SRC)/rpc_job_exec$(SAN).o        \
 	$(SRC)/trace$(SAN).o               \
 	$(SRC)/autodep/env$(SAN).o         \
 	$(SRC)/autodep/gather$(SAN).o      \
@@ -520,7 +524,7 @@ $(BIN)/autodep : \
 $(BIN)/ldecode : \
 	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/app.o             \
-	$(SRC)/rpc_job.o         \
+	$(SRC)/rpc_job_exec.o    \
 	$(SRC)/trace.o           \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
@@ -532,7 +536,7 @@ $(BIN)/ldecode : \
 $(BIN)/ldepend : \
 	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/app.o             \
-	$(SRC)/rpc_job.o         \
+	$(SRC)/rpc_job_exec.o    \
 	$(SRC)/trace.o           \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
@@ -544,7 +548,7 @@ $(BIN)/ldepend : \
 $(BIN)/lencode : \
 	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/app.o             \
-	$(SRC)/rpc_job.o         \
+	$(SRC)/rpc_job_exec.o    \
 	$(SRC)/trace.o           \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
@@ -556,7 +560,7 @@ $(BIN)/lencode : \
 $(BIN)/ltarget : \
 	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/app.o             \
-	$(SRC)/rpc_job.o         \
+	$(SRC)/rpc_job_exec.o    \
 	$(SRC)/trace.o           \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
@@ -568,7 +572,7 @@ $(BIN)/ltarget : \
 $(BIN)/lcheck_deps : \
 	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/app.o             \
-	$(SRC)/rpc_job.o         \
+	$(SRC)/rpc_job_exec.o    \
 	$(SRC)/trace.o           \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
@@ -581,7 +585,7 @@ $(BIN)/lcheck_deps : \
 
 $(SLIB)/ld_preload.so : \
 	$(LMAKE_BASIC_OBJS)          \
-	$(SRC)/rpc_job.o             \
+	$(SRC)/rpc_job_exec.o        \
 	$(SRC)/autodep/env.o         \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/syscall_tab.o \
@@ -592,7 +596,7 @@ $(SLIB)/ld_preload.so : \
 
 $(SLIB)/ld_preload_jemalloc.so : \
 	$(LMAKE_BASIC_OBJS)          \
-	$(SRC)/rpc_job.o             \
+	$(SRC)/rpc_job_exec.o        \
 	$(SRC)/autodep/env.o         \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/syscall_tab.o \
@@ -603,7 +607,7 @@ $(SLIB)/ld_preload_jemalloc.so : \
 
 $(SLIB)/ld_audit.so : \
 	$(LMAKE_BASIC_OBJS)          \
-	$(SRC)/rpc_job.o             \
+	$(SRC)/rpc_job_exec.o        \
 	$(SRC)/autodep/env.o         \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/syscall_tab.o \
@@ -616,7 +620,7 @@ ifneq ($(PYTHON2),)
 $(LIB)/clmake2.so : \
 	$(LMAKE_BASIC_OBJS)     \
 	$(SRC)/py_py2.o         \
-	$(SRC)/rpc_job.o        \
+	$(SRC)/rpc_job_exec.o   \
 	$(SRC)/autodep/env.o    \
 	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/clmake_py2.o
@@ -628,7 +632,7 @@ endif
 $(LIB)/clmake.so : \
 	$(LMAKE_BASIC_OBJS)     \
 	$(SRC)/py.o             \
-	$(SRC)/rpc_job.o        \
+	$(SRC)/rpc_job_exec.o   \
 	$(SRC)/autodep/env.o    \
 	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/clmake.o

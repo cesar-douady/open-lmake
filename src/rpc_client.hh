@@ -57,6 +57,7 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	Backend         // if proc==                  Make               , send argument to backends
 ,	Debug           // if proc==                                Show , generate debug executable script
 ,	Deps            // if proc==         Forget                      , forget deps
+,	Enter           // if proc== Debug                               , generate script to enter into job view w/o executing it
 ,	Force           // if proc==                         Mark        , act if doable, even if awkward
 ,	ForgetOldErrors // if proc==                  Make               , assume old errors are transcient
 ,	Freeze          // if proc==                         Mark        , prevent job rebuild

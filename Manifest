@@ -129,6 +129,9 @@ src/rpc_client.cc
 src/rpc_client.hh
 src/rpc_job.cc
 src/rpc_job.hh
+src/rpc_job_common.hh
+src/rpc_job_exec.cc
+src/rpc_job_exec.hh
 src/serialize.hh
 src/store/alloc.hh
 src/store/big_test.py
@@ -193,6 +196,7 @@ unit_tests/manual_target.py
 unit_tests/misc1.py
 unit_tests/misc10.py
 unit_tests/misc11.py
+unit_tests/misc12.py
 unit_tests/misc2.py
 unit_tests/misc3.py
 unit_tests/misc4.py

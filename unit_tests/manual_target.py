@@ -40,7 +40,7 @@ else :
 
 	open('a2','w').write('bad1')
 
-	ut.lmake( 'cpy' , rerun=1 , done=2 , new=1 )
+	ut.lmake( 'cpy' , quarantined=1 , done=2 , new=1 )
 
 	open('a2','w').write('bad1')
 

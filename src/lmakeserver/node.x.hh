@@ -140,7 +140,6 @@ namespace Engine {
 		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
 		// data
 		Tflags tflags   ;
-		Bool3  polluted = No ; // if Yes <=> target existed while not incremental, if Maybe <=> target clash (simultaneously written by another job)
 	} ;
 	static_assert(sizeof(Target)==8) ;
 
@@ -366,20 +365,20 @@ namespace Engine {
 		NodeStatus status     (              ) const { if   (_conform_idx> MaxRuleIdx)   return NodeStatus(-_conform_idx) ; else return NodeStatus::Plain ; }
 		void       status     (NodeStatus s  )       { SWEAR(+s                      ) ; _conform_idx = -+s               ;                                 }
 		//
-		Job conform_job() const {
+		JobTgt conform_job_tgt() const {
 			if (status()==NodeStatus::Plain) return job_tgts()[conform_idx()] ;
 			else                             return {}                        ;
 		}
 		bool conform() const {
-			Job cj = conform_job() ;
+			Job cj = conform_job_tgt() ;
 			return +cj && ( cj->is_special() || has_actual_job(cj) ) ;
 		}
 		Bool3 ok(bool force_err=false) const {                                                                      // if Maybe <=> not built
 			switch (status()) {
-				case NodeStatus::Plain : return No | !( force_err || conform_job()->err() ) ;
-				case NodeStatus::Multi : return No                                          ;
-				case NodeStatus::Src   : return No | !( force_err || crc==Crc::None       ) ;
-				default                : return Maybe                                       ;
+				case NodeStatus::Plain : return No | !( force_err || conform_job_tgt()->err() ) ;
+				case NodeStatus::Multi : return No                                              ;
+				case NodeStatus::Src   : return No | !( force_err || crc==Crc::None           ) ;
+				default                : return Maybe                                           ;
 			}
 		}
 		Bool3 ok( ReqInfo const& cri , Accesses a=~Accesses() ) const {
@@ -498,7 +497,7 @@ namespace Engine {
 	public :
 		MatchGen  match_gen:NMatchGenBits = 0                  ; //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4             = Buildable::Unknown ; //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		bool      polluted :1             = false              ; //          1 bit ,          if true <=  node was polluted when produced by actual_job
+		bool      polluted :1             = false              ; //          1 bit ,          if true <=  node was polluted produced by a non-official job or badly produced by official job
 	private :
 		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		Tflags  _actual_tflags ;                                 //          8 bits,          tflags associated with actual_job

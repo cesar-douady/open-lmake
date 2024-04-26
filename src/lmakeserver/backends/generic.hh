@@ -317,7 +317,7 @@ namespace Backends {
 				case Yes   : break ;
 				case Maybe :
 					if constexpr (::is_same_v<RsrcsData,RsrcsDataAsk>) rsrcs_ask = rsrcs ;                       // only process jobs with same resources if possible
-					else                                               FAIL("cannot convert resources") ;        // if possible
+					else                                               FAIL("cannot convert resources") ;
 				break ;
 			DF}
 			//

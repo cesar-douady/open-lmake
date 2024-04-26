@@ -11,9 +11,11 @@
 #include "hash.hh"
 #include "msg.hh"
 #include "process.hh"
-#include "rpc_job.hh"
 #include "time.hh"
 #include "trace.hh"
+
+#include "rpc_job.hh"
+#include "rpc_job_exec.hh"
 
 #include "env.hh"
 

@@ -16,14 +16,16 @@ int main( int argc , char* argv[] ) {
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{},{
-		{ ReqFlag::Graphic , { .short_name='g' , .doc="launch execution under pudb control"   } }
+		{ ReqFlag::Enter   , { .short_name='e' , .doc="enter into job view"                   } }
+	,	{ ReqFlag::Graphic , { .short_name='g' , .doc="launch execution under pudb control"   } }
 	,	{ ReqFlag::Vscode  , { .short_name='c' , .doc="launch execution under vscode control" } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	if ( cmd_line.args.size()<1                                              ) syntax.usage(          "need a target to debug"                                ) ;
-	if ( cmd_line.args.size()>1                                              ) syntax.usage(to_string("cannot debug ",cmd_line.args.size()," targets at once")) ;
-	if ( cmd_line.flags[ReqFlag::Graphic] && cmd_line.flags[ReqFlag::Vscode] ) syntax.usage(          "cannot debug with pudb and vscode simultaneously"      ) ;
+	int n_flags = cmd_line.flags[ReqFlag::Enter] + cmd_line.flags[ReqFlag::Graphic] + cmd_line.flags[ReqFlag::Vscode] ;
+	if ( cmd_line.args.size()<1 ) syntax.usage(          "need a target to debug"                                ) ;
+	if ( cmd_line.args.size()>1 ) syntax.usage(to_string("cannot debug ",cmd_line.args.size()," targets at once")) ;
+	if ( n_flags             >1 ) syntax.usage(          "cannot debug with several methods simultaneously"      ) ;
 	cmd_line.flags |= ReqFlag::Debug ;
 	//
 	::vector_s script_files ;

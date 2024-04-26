@@ -208,8 +208,16 @@ void Gather::_send_to_server ( Fd fd , Jerr&& jerr ) {
 	}
 	try {
 		JobMngtRpcReq jmrr ;
-		if (jerr.proc==JobExecProc::ChkDeps) jmrr = { JobMngtProc::ChkDeps , seq_id , job , fd , cur_deps_cb() } ;
-		else                                 jmrr = {                        seq_id , job , fd , ::move(jerr)  } ;
+		switch (jerr.proc) {
+			case JobExecProc::ChkDeps : jmrr = { JobMngtProc::ChkDeps , seq_id , job , fd , cur_deps_cb()                                                                    } ; break ;
+			case JobExecProc::Decode  : jmrr = { JobMngtProc::Decode  , seq_id , job , fd , ::move(jerr.txt) , ::move(jerr.files[0].first) , ::move(jerr.ctx)                } ; break ;
+			case JobExecProc::Encode  : jmrr = { JobMngtProc::Encode  , seq_id , job , fd , ::move(jerr.txt) , ::move(jerr.files[0].first) , ::move(jerr.ctx) , jerr.min_len } ; break ;
+			case JobExecProc::DepVerbose : {
+				JobMngtRpcReq::MDD deps ; deps.reserve(jerr.files.size()) ;
+				for( auto&& [dep,date] : jerr.files ) deps.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,date,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
+				jmrr = { JobMngtProc::DepVerbose , seq_id , job , fd , ::move(deps) } ;
+			} break ;
+		DF}
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		OMsgBuf().send( ClientSockFd(service_mngt) , jmrr ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -454,9 +462,19 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 								_codec_files.erase(it) ;
 							} break ;
 						DF}
-						//        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						if (+rfd) sync( rfd , JobExecRpcReply(::move(jmrr)) ) ;
-						//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						if (+rfd) {
+							JobExecRpcReply jerr ;
+							switch (jmrr.proc) {
+								case JobMngtProc::None       :                                                                                          break ;
+								case JobMngtProc::ChkDeps    : SWEAR(jmrr.ok!=Maybe) ; jerr = { Proc::ChkDeps    , jmrr.ok                          } ; break ;
+								case JobMngtProc::DepVerbose :                         jerr = { Proc::DepVerbose ,           ::move(jmrr.dep_infos) } ; break ;
+								case JobMngtProc::Decode     :                         jerr = { Proc::Decode     , jmrr.ok , ::move(jmrr.txt      ) } ; break ;
+								case JobMngtProc::Encode     :                         jerr = { Proc::Encode     , jmrr.ok , ::move(jmrr.txt      ) } ; break ;
+							DF}
+							//vvvvvvvvvvvvvvvvvvvvvvvv
+							sync( rfd , ::move(jerr) ) ;
+							//^^^^^^^^^^^^^^^^^^^^^^^^
+						}
 					}
 					epoll.close(fd) ;
 					trace("close",kind,fd) ;

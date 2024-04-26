@@ -667,22 +667,26 @@ If a target does not exist, it is deemed secondary information and is shown in g
 
 @section @code{ldebug}
 
-Usage : @code{ldebug [-g|--graphic] [-c|--vscode] target}
+Usage : @code{ldebug [-e|--enter] [-g|--graphic] [-c|--vscode] target}
 
 @code{ldebug} runs a job in a debug environment.
 
 The job must have been run with @lmake before (but may not have finished, it just need to be started).
 For now, this command is rudimentary :
 @itemize @minus
-@item it runs the script under @code{pdb} or (@code{pudb} with the graphic option) for python rules
-@item it runs the script with @code{-x} flag set for shell rules
-@item it runs the script under vscode to allow debugging python and C++ code by attaching it to the python process.
+@item It runs the script under @code{pdb} or (@code{pudb} with the graphic option) for python rules.
+@item It runs the script with @code{-x} flag set for shell rules, after which an interactive shell session is started.
+@item It runs the script under vscode to allow debugging python and C++ code by attaching it to the python process.
+@item If given the @code{-e} flag, the job is not run, a user interactive shell est launched instead, in the environment of the job
+(@code{chroot_dir}, @code{root_view}, @code{tmp_view} and the environment variables.
 @end itemize
 
 Special care has been taken so that :
 @itemize
-@item debug session do not interfere with I/O redirection (when the @code{target} and @code{dep} @code{Rule} attributes are used instead of @code{targets} and @code{deps}).
-@item the module list contains all read modules and no more
+@item Debug session do not interfere with I/O redirection (when the @code{target} and @code{dep} @code{Rule} attributes are used instead of @code{targets} and @code{deps}).
+@item The module list contains all read modules and no more.
+@item When an interactive shell is launched, the @code{$HOME} environment variable is set back to its original value and @code{$SHLVL} is incremented so as to allow the user to provide
+a differentiated prompte (if set in @file{~/.bashrc}).
 @end itemize
 
 These items necessitated to patch pudb (but the patch is dynamically applied, standard pudb can be used).

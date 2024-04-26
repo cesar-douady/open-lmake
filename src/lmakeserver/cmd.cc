@@ -77,7 +77,7 @@ namespace Engine {
 					else if ( t->is_src_anti()                                          ) handle_node(t) ;
 					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
 					else {
-						Job cj = t->conform_job() ;
+						Job cj = t->conform_job_tgt() ;
 						trace("fail",t->buildable,t->conform_idx(),t->status(),cj) ;
 						if (+cj) throw to_string("target was produced by ",j->rule->name," instead of ",cj->rule->name," (use -F to override) : ",mk_file(t->name(),Yes/*exists*/)) ;
 						else     throw to_string("target was produced by ",j->rule->name,                              " (use -F to override) : ",mk_file(t->name(),Yes/*exists*/)) ;
@@ -182,6 +182,13 @@ namespace Engine {
 		return res ;
 	}
 
+	static ::string _user_env() {
+			return to_string(
+				/**/  "HOME="  ,                     get_env("HOME"     )
+			,	' ' , "SHLVL=" , from_string<size_t>(get_env("SHLVL","1"))+1
+			) ;
+	}
+
 	static ::string _mk_cmd( Job j , ReqFlags flags , JobRpcReply const& start , ::string const& dbg_dir , bool redirected ) {
 		// add debug prelude if asked to do so
 		// try to use stdin/stdout to debug with pdb as much as possible as readline does not work on alternate streams
@@ -206,7 +213,7 @@ namespace Engine {
 			res += start.cmd.second ;
 		} else if (!j->rule->is_python) {
 			res += start.cmd.second ;
-			append_line_to_string(res,"HOME=",get_env("HOME")," SHLVL=2 exec ",interpreter," -i <&3 >&4 2>&5\n") ;
+			append_line_to_string(res,_user_env()," exec ",interpreter," -i <&3 >&4 2>&5\n") ;
 		} else {
 			::string runner = flags[ReqFlag::Vscode] ? "run_vscode" : flags[ReqFlag::Graphic] ? "run_pudb" : "run_pdb" ;
 			//
@@ -231,8 +238,8 @@ namespace Engine {
 		return res ;
 	}
 
-	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , JobInfoEnd const& report_end , ::string const& dbg_dir , ::vector_s const& vs_ext ) {
-		JobRpcReply const& start = report_start.start ;
+	static ::string _mk_vscode( Job j , JobInfo const& job_info , ::string const& dbg_dir , ::vector_s const& vs_exts ) {
+		JobRpcReply const& start = job_info.start.start ;
 		::string res =
 R"({
 	"folders": [
@@ -285,7 +292,7 @@ R"({
 )" ;
 		::string extensions ;
 		bool     first      = true ;
-		for ( auto& ext : vs_ext ) {
+		for ( auto& ext : vs_exts ) {
 			if (!first) append_to_string( extensions , "\n\t\t,\t" ) ;
 			/**/        append_to_string( extensions , '"',ext,'"' ) ;
 			first = false ;
@@ -295,30 +302,30 @@ R"({
 		res = ::regex_replace( res , ::regex("\\$g_root_dir") , mk_json_str(          *g_root_dir                    ) ) ;
 		res = ::regex_replace( res , ::regex("\\$program"   ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
 		//
-		::vmap_ss env     = _mk_env(start.env,report_end.end.dynamic_env) ;
+		::vmap_ss env     = _mk_env(start.env,job_info.end.end.dynamic_env) ;
 		size_t    kw      = 13/*SEQUENCE_ID*/ ; for( auto&& [k,v] : env ) if (k!="TMPDIR") kw = ::max(kw,mk_json_str(k).size()) ;
 		::string  env_str ;
-		append_to_string( env_str ,                 to_string(::setw(kw),mk_json_str("ROOT_DIR"   ))," : ",mk_json_str(*g_root_dir                              ) ) ;
-		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("SEQUENCE_ID"))," : ",mk_json_str(to_string(report_start.pre_start.seq_id) ) ) ;
-		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("SMALL_ID"   ))," : ",mk_json_str(to_string(start.small_id               ) ) ) ;
-		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("TMPDIR"     ))," : ",mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/tmp")) ) ;
+		append_to_string( env_str ,                 to_string(::setw(kw),mk_json_str("ROOT_DIR"   ))," : ",mk_json_str(*g_root_dir                               ) ) ;
+		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("SEQUENCE_ID"))," : ",mk_json_str(to_string(job_info.start.pre_start.seq_id)) ) ;
+		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("SMALL_ID"   ))," : ",mk_json_str(to_string(start.small_id                 )) ) ;
+		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("TMPDIR"     ))," : ",mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/tmp" )) ) ;
 		for( auto&& [k,v] : env )
 			if (k!="TMPDIR") append_to_string ( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str(k))," : ",mk_json_str(v) ) ;
 		res = ::regex_replace( res , ::regex("\\$env") , env_str );
 		return res ;
 	}
 
-	static ::string _mk_script( Job j , ReqFlags flags , JobInfoStart const& report_start , JobInfoEnd const& report_end ,::string const& dbg_dir , bool with_cmd , ::vector_s const& vs_ext={} ) {
-		JobRpcReply const& start   = report_start.start ;
-		AutodepEnv  const& ade     = start.autodep_env  ;
-		::string           abs_cwd = *g_root_dir        ;
+	static ::string _mk_script( Job j , ReqFlags flags , JobInfo const& job_info , ::string const& dbg_dir , bool with_cmd , ::vector_s const& vs_exts={} ) {
+		JobRpcReply const& start   = job_info.start.start ;
+		AutodepEnv  const& ade     = start.autodep_env    ;
+		::string           abs_cwd = *g_root_dir          ;
 		if (+start.cwd_s) {
 			append_to_string(abs_cwd,'/',start.cwd_s) ;
 			abs_cwd.pop_back() ;
 		}
 		Rule::SimpleMatch match = j->simple_match() ;
 		//
-		for( Node t  : j->targets ) t->set_buildable() ;                                                                       // necessary for pre_actions()
+		for( Node t  : j->targets ) t->set_buildable() ;                                                                                        // necessary for pre_actions()
 		//
 		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match)         ;
 		::string                                           script      = "#!/bin/bash\n"               ;
@@ -355,67 +362,70 @@ R"({
 		}
 		//
 		::string tmp_dir ;
-		if (!dbg_dir) {
+		if (+dbg_dir) {
+			tmp_dir = to_string(*g_root_dir,'/',dbg_dir,"/tmp") ;
+		} else {
 			tmp_dir = mk_abs(ade.tmp_dir,*g_root_dir+'/') ;
 			if (!start.autodep_env.tmp_dir)
 				for( auto&& [k,v] : start.env )
 					if ( k=="TMPDIR" && v!=EnvPassMrkr )
 						tmp_dir = env_decode(::copy(v)) ;
-		} else {
-			tmp_dir = to_string(*g_root_dir,'/',dbg_dir,"/tmp") ;
 		}
 		//
 		append_to_string( script , "export      TMPDIR="  , mk_shell_str(tmp_dir) , '\n' ) ;
 		append_to_string( script , "rm -rf   \"$TMPDIR\""                         , '\n' ) ;
 		append_to_string( script , "mkdir -p \"$TMPDIR\""                         , '\n' ) ;
 		if (flags[ReqFlag::Vscode]) {
-			for (auto const& extension : vs_ext )
-				append_to_string( script , "code --list-extensions | grep -q '^",extension,"$' || code --install-extension ",extension,'\n' ) ;
-			append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir),'\n'                                          ) ;
-			append_to_string( script , "args=()\n"                                                                                      ) ;
-			append_to_string( script , "type code | grep -q .vscode-server || args+=( \"--user-data-dir ${DEBUG_DIR}/vscode/user\" )\n" ) ;
-			for( Dep const& dep : j->deps )
-				if (dep.dflags[Dflag::Static]) append_to_string( script , "args+=( ",mk_shell_str("-g "+dep->name()),")\n" ) ; // list dependences file to open in vscode
-			append_to_string( script , "args+=(\"-g ${DEBUG_DIR}/cmd\")\n"                       ) ;
-			append_to_string( script , "args+=(\"${DEBUG_DIR}/vscode/ldebug.code-workspace\")\n" ) ;
-			append_to_string( script , "code -n -w ${args[@]} &"                                 ) ;
+			vector_s static_deps ; for( Dep      const& d : j->deps ) if (d.dflags[Dflag::Static]) static_deps.push_back(d->name()      ) ;
+			vector_s sh_vs_exts  ; for( ::string const& e : vs_exts )                              sh_vs_exts .push_back(mk_shell_str(e)) ;
+			for( ::string const& e : sh_vs_exts  ) append_to_string( script , "code --list-extensions | grep -Fxq ",e," || code --install-extension ",e                   ,'\n') ;
+			/**/                                   append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir)                                          ,'\n') ;
+			/**/                                   append_to_string( script , "args=()"                                                                                   ,'\n') ;
+			/**/                                   append_to_string( script , "type -p code | grep -q .vscode-server || args+=( --user-data-dir $DEBUG_DIR/vscode/user )" ,'\n') ;
+			for( ::string const& d : static_deps ) append_to_string( script , "args+=( -g ",mk_shell_str(d)," )"                                                          ,'\n') ;
+			/**/                                   append_to_string( script , "args+=(-g \"$DEBUG_DIR/cmd\")"                                                             ,'\n') ;
+			/**/                                   append_to_string( script , "args+=(\"$DEBUG_DIR/vscode/ldebug.code-workspace\")"                                       ,'\n') ;
+			/**/                                   append_to_string( script , "code -n -w ${args[@]} &"                                                                   ,'\n') ;
 		} else {
-			::vmap_ss env = _mk_env(start.env,report_end.end.dynamic_env) ;
-			/**/                                      append_to_string( script , "exec env -i"    ,                                 " \\\n" ) ;
-			/**/                                      append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir)     , " \\\n" ) ;
-			/**/                                      append_to_string( script , "\tSEQUENCE_ID=" , report_start.pre_start.seq_id , " \\\n" ) ;
-			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                , " \\\n" ) ;
-			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                 , " \\\n" ) ;
-			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)               , " \\\n" ) ;
-			if ( dbg || ade.auto_mkdir ) {                                                                                     // in addition of dbg, autodep may be needed for functional reasons
-				/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
-				if      ( dbg )                    append_to_string( script , "-s " , snake(ade.lnk_support)     , ' ' ) ;
-				else                               append_to_string( script , "-s " , "none"                     , ' ' ) ;     // dont care about deps
-				/**/                               append_to_string( script , "-m " , snake(start.method   )     , ' ' ) ;
-				if      ( !dbg                   ) append_to_string( script , "-o " , "/dev/null"                , ' ' ) ;
-				else if ( +dbg_dir               ) append_to_string( script , "-o " , dbg_dir,"/accesses"        , ' ' ) ;
-				if      ( ade.auto_mkdir         ) append_to_string( script , "-d"                               , ' ' ) ;
-				if      ( dbg && ade.ignore_stat ) append_to_string( script , "-i"                               , ' ' ) ;
+			::vmap_ss env = _mk_env(start.env,job_info.end.end.dynamic_env) ;
+			/**/                                      append_to_string( script , "exec env -i"    ,                                  " \\\n") ;
+			/**/                                      append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir)       ," \\\n") ;
+			/**/                                      append_to_string( script , "\tSEQUENCE_ID=" , job_info.start.pre_start.seq_id ," \\\n") ;
+			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                  ," \\\n") ;
+			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                   ," \\\n") ;
+			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)                 ," \\\n") ;
+			if ( dbg || ade.auto_mkdir || +start.job_space ) {                                                                                  // in addition to debug, autodep may be needed ...
+				/**/                                    append_to_string( script , *g_lmake_dir,"/bin/autodep"                      ,' ') ;     // ... for functional reasons
+				if      ( dbg )                         append_to_string( script , "-s " , snake(ade.lnk_support)                   ,' ') ;
+				else                                    append_to_string( script , "-s " , "none"                                   ,' ') ;     // dont care about deps
+				/**/                                    append_to_string( script , "-m " , snake(start.method   )                   ,' ') ;
+				if      ( !dbg                        ) append_to_string( script , "-o " , "/dev/null"                              ,' ') ;
+				else if ( +dbg_dir                    ) append_to_string( script , "-o " , mk_shell_str(dbg_dir+"/accesses")        ,' ') ;
+				if      ( ade.auto_mkdir              ) append_to_string( script , "-d"                                             ,' ') ;
+				if      ( dbg && ade.ignore_stat      ) append_to_string( script , "-i"                                             ,' ') ;
+				if      ( +start.job_space.chroot_dir ) append_to_string( script , "-c"  , mk_shell_str(start.job_space.chroot_dir) ,' ') ;
+				if      ( +start.job_space.root_view  ) append_to_string( script , "-r"  , mk_shell_str(start.job_space.root_view ) ,' ') ;
+				if      ( +start.job_space.tmp_view   ) append_to_string( script , "-t"  , mk_shell_str(start.job_space.tmp_view  ) ,' ') ;
+				if      ( +dbg_dir                    ) append_to_string( script , "-w"  , mk_shell_str(dbg_dir+"/work"           ) ,' ') ;
 			}
 			for( ::string const& c : start.interpreter )                     append_to_string( script , mk_shell_str(c) , ' '                                               ) ;
-			if ( dbg && !is_python                     )                     append_to_string( script , "-x "                                                               ) ;
-			if ( with_cmd                              ) { SWEAR(+dbg_dir) ; append_to_string( script , dbg_dir,"/cmd"                                                      ) ; }
+			if      ( dbg && !is_python                )                     append_to_string( script , "-x "                                                               ) ;
+			if      ( with_cmd                         ) { SWEAR(+dbg_dir) ; append_to_string( script ,             mk_shell_str(dbg_dir+"/cmd"                           ) ) ; }
 			else                                                             append_to_string( script , "-c \\\n" , mk_shell_str(_mk_cmd(j,flags,start,dbg_dir,redirected)) ) ;
-			//
-			if      (  dbg && !is_python               ) append_to_string( script , " 3<&0 4>&1 5>&2"                  ) ;
-			if      ( +start.stdout                    ) append_to_string( script , " > " , mk_shell_str(start.stdout) ) ;
-			if      ( +start.stdin                     ) append_to_string( script , " < " , mk_shell_str(start.stdin ) ) ;
-			else if ( !dbg || !is_python || redirected ) append_to_string( script , " < /dev/null"                     ) ;
+			if      (  dbg && !is_python               )                     append_to_string( script , " 3<&0 4>&1 5>&2"                                                   ) ;
+			if      ( +start.stdout                    )                     append_to_string( script , " > " , mk_shell_str(start.stdout)                                  ) ;
+			if      ( +start.stdin                     )                     append_to_string( script , " < " , mk_shell_str(start.stdin )                                  ) ;
+			else if ( !dbg || !is_python || redirected )                     append_to_string( script , " < /dev/null"                                                      ) ;
+			script += '\n' ;
 		}
-		script += '\n' ;
 		return script ;
 	}
 
 	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
 		JobTgt job = target->actual_job() ;
 		if (!job.active()) {
-			/**/                          if (target->status()>NodeStatus::Makable) goto NoJob ;
-			job = target->conform_job() ; if (!job.active()                       ) goto NoJob ;
+			/**/                              if (target->status()>NodeStatus::Makable) goto NoJob ;
+			job = target->conform_job_tgt() ; if (!job.active()                       ) goto NoJob ;
 		}
 		Trace("target",target,job) ;
 		return job ;
@@ -458,19 +468,15 @@ R"({
 		::string           cmd_file    = dbg_dir+"/cmd"                          ;
 		::string           vscode_file = dbg_dir+"/vscode/ldebug.code-workspace" ;
 		//
-		::vector_s vs_ext {
+		::vector_s vs_exts {   // XXX : move to rule
 			"ms-python.python"
 		,	"ms-vscode.cpptools"
 		,	"coolchyni.beyond-debug"
 		} ;
 		//
-		::string script = _mk_script( job , ro.flags , job_info.start , job_info.end , dbg_dir , true/*with_cmd*/ , vs_ext ) ;
-		::string cmd    = _mk_cmd   ( job , ro.flags , start        ,                  dbg_dir , redirected                ) ;
-		::string vscode = _mk_vscode( job ,            job_info.start , job_info.end , dbg_dir ,                    vs_ext ) ;
-		//
-		OFStream(dir_guard(script_file)) << script ; ::chmod(script_file.c_str(),0755) ; // make executable
-		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
-		OFStream(dir_guard(vscode_file)) << vscode ;
+		/**/                              OFStream(dir_guard(script_file)) << _mk_script(job,ro.flags,job_info,dbg_dir,true/*with_cmd*/,vs_exts) ; ::chmod(script_file.c_str(),0755) ;
+		if (!ro.flags[ReqFlag::Enter] ) { OFStream(dir_guard(cmd_file   )) << _mk_cmd   (job,ro.flags,start   ,dbg_dir,redirected              ) ; ::chmod(cmd_file   .c_str(),0755) ; }
+		if ( ro.flags[ReqFlag::Vscode])   OFStream(dir_guard(vscode_file)) << _mk_vscode(job,         job_info,dbg_dir,                 vs_exts) ;
 		//
 		audit_file( fd , ::move(script_file) ) ;
 		return true ;
@@ -647,9 +653,9 @@ R"({
 							for( auto const& [k,v] : env ) w = ::max(w,k.size()) ;
 							for( auto const& [k,v] : env ) audit( fd , ro , to_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
 						} break ;
-						case ReqKey::ExecScript : //!                                                                                                                           as_is
-							if (!has_start) audit( fd , ro , Color::Err , "no info available"                                                                                  , true , lvl ) ;
-							else            audit( fd , ro ,              _mk_script(job,ro.flags,job_info.start,job_info.end,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , true , lvl ) ;
+						case ReqKey::ExecScript : //!                                                                                                        as_is
+							if (!has_start) audit( fd , ro , Color::Err , "no info available"                                                               , true , lvl ) ;
+							else            audit( fd , ro ,              _mk_script(job,ro.flags,job_info,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , true , lvl ) ;
 						break ;
 						case ReqKey::Cmd : //!                                                                       as_is
 							if (!has_start) audit( fd , ro , Color::Err , "no info available"                       , true , lvl ) ;
@@ -726,9 +732,9 @@ R"({
 								//
 								if (+phy_tmp_dir                  ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),ro.startup_dir_s) ) ;
 								if ( sa.live_out                  ) push_entry( "live_out"         , "true"                                          ) ;
-								if (+start.chroot_dir             ) push_entry( "chroot"           , start.chroot_dir                                ) ;
-								if (+start.root_view              ) push_entry( "root"             , start.root_view                                 ) ;
-								if (+start.tmp_view               ) push_entry( "tmp"              , start.tmp_view                                  ) ;
+								if (+start.job_space.chroot_dir   ) push_entry( "chroot"           , start.job_space.chroot_dir                      ) ;
+								if (+start.job_space.root_view    ) push_entry( "root"             , start.job_space.root_view                       ) ;
+								if (+start.job_space.tmp_view     ) push_entry( "tmp"              , start.job_space.tmp_view                        ) ;
 								if (+start.cwd_s                  ) push_entry( "cwd"              , cwd                                             ) ;
 								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"       , "true"                                          ) ;
 								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat"      , "true"                                          ) ;
@@ -893,9 +899,9 @@ R"({
 				break ;
 				case ReqKey::Info :
 					if (target->status()==NodeStatus::Plain) {
-						Job    cj             = target->conform_job() ;
-						size_t w              = 0                     ;
-						bool   seen_candidate = false                 ;
+						Job    cj             = target->conform_job_tgt() ;
+						size_t w              = 0                         ;
+						bool   seen_candidate = false                     ;
 						for( Job j : target->conform_job_tgts() ) {
 							w               = ::max(w,j->rule->name.size()) ;
 							seen_candidate |= j!=cj                         ;

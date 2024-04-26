@@ -13,7 +13,6 @@ items :
 ****************************************************************************************************
 
 ? check that last component link check in record.cc is only applied if link_support!=None
-* crash if python() dynamic attribute returns None
 * fix compilation with LMAKE_FLAGS=ST
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions
@@ -30,11 +29,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* manage so that ^C behave normally in ldebug python
-* ensure ldebug & lenter provide a different prompt
-* generate a 'consider tmp=...' if tmp is accessed with no tmp available
-* add pid in namespace to ease killing job
-	- but beware of jobs using pid as a unique id
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
 	- put adequate $PLATFORM in LD_PRELOAD
@@ -50,6 +44,7 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* generate a 'consider tmp=...' if tmp is accessed with no tmp available
 * generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
@@ -71,24 +66,21 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* add size check to date check
-	- create a file version by aggregating Ddate, FileTag & size
-	- keep FileTag accessible from such version
-	- this improves protection against continuing writing without change mtime
-		- this is not perfect, though, as one can write w/o change the size, but decreases probability (already low) by a significant factor
-	- as granularity is several ms
+* suppress awkard manipulations of env variables to go back and forth from absolute view to relative view
+* add pid in namespace to ease killing job
+	- but beware of jobs using pid as a unique id
 * support 64-bits id
 	- configure with NBits rather than types
 	- in store/file.hh, reserve address space after NBits instead of type
 	- first candidate would be deps, by far the most demanding
 * fix store to be compliant with strict aliasing rules
 * add a warning when ids reach 15/16 of their limits
-* implement noexcept/except everywhere pertinent
-* use the Path struct instead of at/file
-	- everywhere applicable
 * get rid of double crc (md5+xxh)
 	- keep only xxh
 	- superior on all metrics
+? use the Path struct instead of at/file
+	- everywhere applicable
+? implement noexcept/except everywhere pertinent
 ? replace if (...) throw by throw_if or throw_unless
 	? or vice versa
 ? if a job cannot connect to job_exec to report deps
@@ -166,7 +158,7 @@ items :
 ****************************************************************************************************
 
 * prepare namespace while waiting for server if possible
-	- i.e. when tmp info is static
+	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs
 	- share views in submit_attrs as there is very few variability
 * regexprs

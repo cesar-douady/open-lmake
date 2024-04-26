@@ -42,9 +42,9 @@ def load_modules(func) :
 	func_lst = []
 	try :
 		for k,f in func.__globals__.items() :
-			try                   : m = f.__module__
+			try                   : f.__qualname__ ; m = f.__module__
 			except AttributeError : continue
-			func_lst.append((f,import_module(f.__module__)))
+			func_lst.append((f,import_module(m)))
 	except :
 		return                                                                     # do not pretend we are in original source code if we have trouble importing any required module
 	for f,m in func_lst :
@@ -73,13 +73,13 @@ def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
 	import sys
 	import traceback
 	load_modules(func)
-	if redirected : debugger = pdb.Pdb(stdin=open('/dev/tty','r'),stdout=open('/dev/tty','w'))
-	else          : debugger = pdb.Pdb(                                                      )
+	stdin    = open('/dev/tty','r') if redirected[0] else None
+	stdout   = open('/dev/tty','w') if redirected[1] else None
+	debugger = pdb.Pdb(stdin=stdin,stdoutstdout)
 	try :
 		debugger.runcall(func,*args,**kwds)
 	except BaseException as e :
 		traceback.print_exc()
-		debugger.reset()
 		debugger.interaction(None,sys.exc_info()[2])
 
 def run_vscode(dbg_dir,redirected,func,*args,**kwds) :

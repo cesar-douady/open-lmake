@@ -323,7 +323,7 @@ namespace Caches {
 		job_info.start.submit_attrs.reason = {} ;                         // cache does not care about original reason
 		job_info.start.rsrcs.clear() ;                                    // caching resources is meaningless as they have no impact on content
 		for( auto& [tn,td] : job_info.end.end.digest.targets ) {
-			SWEAR(!td.polluted) ;                                         // cannot be a candidate for upload as this must have failed
+			SWEAR(!td.pre_exist) ;                                        // cannot be a candidate for upload as this must have failed
 			td.sig          = {} ;
 			td.extra_tflags = {} ;
 		}

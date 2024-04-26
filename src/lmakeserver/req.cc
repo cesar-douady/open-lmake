@@ -74,9 +74,9 @@ namespace Engine {
 		data.job->make(jri,JobMakeAction::Status,{}/*JobReason*/,No/*speculate*/) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		for( Node d : data.job->deps ) {
-			/**/                       if (!d->done(*this)             ) continue ;
-			Job j = d->conform_job() ; if (!j                          ) continue ;
-			/**/                       if (j->run_status!=RunStatus::Ok) continue ;
+			/**/                           if (!d->done(*this)             ) continue ;
+			Job j = d->conform_job_tgt() ; if (!j                          ) continue ;
+			/**/                           if (j->run_status!=RunStatus::Ok) continue ;
 			//
 			(*this)->up_to_dates.push_back(d) ;
 		}

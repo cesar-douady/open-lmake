@@ -226,29 +226,27 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
-			Attrs::acquire_from_dct( interpreter , py_dct , "interpreter" ) ;
-			Attrs::acquire_from_dct( auto_mkdir  , py_dct , "auto_mkdir"  ) ;
-			Attrs::acquire_from_dct( chroot_dir  , py_dct , "chroot_dir"  ) ;
-			Attrs::acquire_env     ( env         , py_dct , "env"         ) ;
-			Attrs::acquire_from_dct( ignore_stat , py_dct , "ignore_stat" ) ;
-			Attrs::acquire_from_dct( root_view   , py_dct , "root_view"   ) ;
-			Attrs::acquire_from_dct( tmp_view    , py_dct , "tmp_view"    ) ;
-			Attrs::acquire_from_dct( use_script  , py_dct , "use_script"  ) ;
+			Attrs::acquire_from_dct( interpreter          , py_dct , "interpreter" ) ;
+			Attrs::acquire_from_dct( auto_mkdir           , py_dct , "auto_mkdir"  ) ;
+			Attrs::acquire_from_dct( job_space.chroot_dir , py_dct , "chroot_dir"  ) ;
+			Attrs::acquire_env     ( env                  , py_dct , "env"         ) ;
+			Attrs::acquire_from_dct( ignore_stat          , py_dct , "ignore_stat" ) ;
+			Attrs::acquire_from_dct( job_space.root_view  , py_dct , "root_view"   ) ;
+			Attrs::acquire_from_dct( job_space.tmp_view   , py_dct , "tmp_view"    ) ;
+			Attrs::acquire_from_dct( use_script           , py_dct , "use_script"  ) ;
 			::sort(env) ;                                                     // stabilize cmd crc
 			// check
-			if ( +chroot_dir && !Disk::is_abs(chroot_dir) ) throw to_string("chroot_dir must be an absolute path : ",chroot_dir) ;
-			if ( +root_view  && !Disk::is_abs(root_view ) ) throw to_string("root_view must be an absolute path : " ,root_view ) ;
-			if ( +tmp_view   && !Disk::is_abs(tmp_view  ) ) throw to_string("tmp_view must be an absolute path : "  ,tmp_view  ) ;
+			if ( +job_space.chroot_dir && !Disk::is_abs(job_space.chroot_dir) ) throw to_string("chroot_dir must be an absolute path : ",job_space.chroot_dir) ;
+			if ( +job_space.root_view  && !Disk::is_abs(job_space.root_view ) ) throw to_string("root_view must be an absolute path : " ,job_space.root_view ) ;
+			if ( +job_space.tmp_view   && !Disk::is_abs(job_space.tmp_view  ) ) throw to_string("tmp_view must be an absolute path : "  ,job_space.tmp_view  ) ;
 		}
 		// data
 		// START_OF_VERSIONING
 		::vector_s interpreter ;
 		bool       auto_mkdir  = false ;
-		::string   chroot_dir  ;
 		bool       ignore_stat = false ;
 		::vmap_ss  env         ;
-		::string   root_view   ;
-		::string   tmp_view    ;
+		JobSpace   job_space   ;
 		bool       use_script  = false ;
 		// END_OF_VERSIONING
 	} ;

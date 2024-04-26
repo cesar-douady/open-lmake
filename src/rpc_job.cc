@@ -3,24 +3,16 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <sys/mount.h>
+
 #include "disk.hh"
 #include "hash.hh"
+#include "trace.hh"
 
 #include "rpc_job.hh"
 
 using namespace Disk ;
 using namespace Hash ;
-
-template<class E,class T> static constexpr bool _chk_flags_tab(::array<::pair<E,T>,N<E>> tab) {
-	bool res = true ;
-	for( E e=E(0) ; e!=All<E> ; e++ ) res &= tab[+e].first==e ;
-	return res ;
-}
-
-static_assert(_chk_flags_tab(DflagChars     )) ;
-static_assert(_chk_flags_tab(ExtraDflagChars)) ;
-static_assert(_chk_flags_tab(TflagChars     )) ;
-static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 
 //
 // FileAction
@@ -45,7 +37,7 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 			case FileActionTag::Mkdir    : mk_dir(f,nfs_guard) ;                                                                    break ;
 			case FileActionTag::Unlnk    : {
 				FileSig sig { nfs_guard.access(f) } ;
-				if (!sig) break ;                                                                                                    // file does not exist, nothing to do
+				if (!sig) break ;                                                                                                   // file does not exist, nothing to do
 				bool done = true/*garbage*/ ;
 				if ( sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ) {
 					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
@@ -91,19 +83,94 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 }
 
 //
-// SubmitAttrs
+// JobSpace
 //
 
-::ostream& operator<<( ::ostream& os , SubmitAttrs const& sa ) {
+::ostream& operator<<( ::ostream& os , JobSpace const& js ) {
 	const char* sep = "" ;
-	/**/                 os << "SubmitAttrs("          ;
-	if (+sa.tag      ) { os <<      sa.tag       <<',' ; sep = "," ; }
-	if ( sa.live_out ) { os <<sep<< "live_out,"        ; sep = "," ; }
-	if ( sa.n_retries) { os <<sep<< sa.n_retries <<',' ; sep = "," ; }
-	if (+sa.pressure ) { os <<sep<< sa.pressure  <<',' ; sep = "," ; }
-	if (+sa.deps     ) { os <<sep<< sa.deps      <<',' ; sep = "," ; }
-	if (+sa.reason   )   os <<sep<< sa.reason    <<',' ;
-	return               os <<')'                      ;
+	/**/                  os <<'('                       ;
+	if (+js.chroot_dir) { os <<     "C:"<< js.chroot_dir ; sep = "," ; }
+	if (+js.root_view ) { os <<sep<<"R:"<< js.root_view  ; sep = "," ; }
+	if (+js.tmp_view  )   os <<sep<<"T:"<< js.tmp_view   ;
+	return                os <<')'                       ;
+}
+
+static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; if (::chroot(dir.c_str())!=0) throw to_string("cannot chroot to ",dir," : ",strerror(errno)) ; }
+static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; if (::chdir (dir.c_str())!=0) throw to_string("cannot chdir to " ,dir," : ",strerror(errno)) ; }
+//
+static void _mount( ::string const& dst , ::string const& src ) {
+	Trace trace("_mount","bind",dst,src) ;
+	if (::mount( src.c_str() ,  dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0) throw to_string("cannot bind mount ",src," onto ",dst," : ",strerror(errno)) ;
+}
+static void _mount( ::string const& dst , size_t sz_mb ) {
+	SWEAR(sz_mb) ;
+	Trace trace("_mount","tmp",dst,sz_mb) ;
+	if (::mount( "" ,  dst.c_str() , "tmpfs" , 0/*flags*/ , to_string(sz_mb,"m").c_str() )!=0) throw to_string("cannot mount tmpfs of size",sz_mb," MB onto ",dst," : ",strerror(errno)) ;
+}
+static void _atomic_write( ::string const& file , ::string const& data ) {
+	Trace trace("_atomic_write",file,data) ;
+	ssize_t cnt = ::write( AutoCloseFd(::open(file.c_str(),O_WRONLY)) , data.c_str() , data.size() ) ;
+	if (cnt<0                  ) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : ",strerror(errno)          ) ;
+	if (size_t(cnt)<data.size()) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : only ",cnt," bytes written") ;
+}
+void JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir ) const {
+	Trace trace("enter",*this) ;
+	//
+	if (!*this) return ;
+	//
+	int uid = ::getuid() ;                                                                                    // must be done before unshare that invents a new user
+	int gid = ::getgid() ;                                                                                    // .
+	//
+	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw to_string("cannot create namespace : ",strerror(errno)) ;
+	//
+	::string const* chrd               = &chroot_dir                                 ;
+	bool            must_create_root   = +root_view && !is_dir(chroot_dir+root_view) ;
+	bool            must_create_tmp    = +tmp_view  && !is_dir(chroot_dir+tmp_view ) ;
+	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
+	if ( must_create_root || must_create_tmp ) {                                                              // we may not mount directly in chroot_dir
+		if (!work_dir)
+			throw to_string(
+				"need a work dir to create"
+			,	must_create_root                    ? " root view" : ""
+			,	must_create_root && must_create_tmp ? " and"       : ""
+			,	                    must_create_tmp ? " tmp view"  : ""
+			) ;
+		::vector_s top_lvls = lst_dir(+chroot_dir?chroot_dir:"/","/") ;
+		mk_dir      (work_dir) ;
+		unlnk_inside(work_dir) ;
+		trace("top_lvls",work_dir,top_lvls) ;
+		for( ::string const& f : top_lvls ) {
+			::string src_f     = chroot_dir+f ;
+			::string private_f = work_dir  +f ;
+			switch (FileInfo(src_f).tag()) {
+				case FileTag::Reg   :
+				case FileTag::Empty :
+				case FileTag::Exe   : OFStream{private_f                } ; _mount(private_f,src_f) ; break ; // create file
+				case FileTag::Dir   : mk_dir  (private_f                ) ; _mount(private_f,src_f) ; break ; // create dir
+				case FileTag::Lnk   : lnk     (private_f,read_lnk(src_f)) ;                           break ; // copy symlink
+				default             : ;                                                                       // exclude weird files
+			}
+		}
+		if (must_create_root) { SWEAR(root_view.rfind('/')==0,root_view) ; mk_dir(work_dir+root_view) ; }     // XXX : handle cases where dir is not top level
+		if (must_create_tmp ) { SWEAR(tmp_view .rfind('/')==0,tmp_view ) ; mk_dir(work_dir+tmp_view ) ; }     // .
+		chrd = &work_dir ;
+	}
+	if      (+root_view  ) _mount( *chrd+root_view , phy_root_dir ) ;
+	if      (!tmp_view   ) {}
+	else if (+phy_tmp_dir) _mount( *chrd+tmp_view  , phy_tmp_dir  ) ;
+	else if (tmp_sz_mb   ) _mount( *chrd+tmp_view  , tmp_sz_mb    ) ;
+	//
+	if ( +*chrd && *chrd!="/" ) {
+		_chroot( *chrd                                       ) ;
+		_chdir ( +root_view ? *chrd+root_view : phy_root_dir ) ;
+	}
+	//
+	_atomic_write( "/proc/self/setgroups" , "deny"                            ) ;                             // necessary to be allowed to write the gid_map (if desirable)
+	_atomic_write( "/proc/self/uid_map"   , to_string(uid,' ',uid,' ',1,'\n') ) ;                             // XXX : unclear this is desirable as default is to map all id to self
+	_atomic_write( "/proc/self/gid_map"   , to_string(gid,' ',gid,' ',1,'\n') ) ;                             // .
+	//
+	if (::setuid(uid)!=0) throw to_string("cannot set uid as ",uid,strerror(errno)) ;
+	if (::setgid(gid)!=0) throw to_string("cannot set gid as ",uid,strerror(errno)) ;
 }
 
 //
@@ -113,7 +180,7 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 ::ostream& operator<<( ::ostream& os , TargetDigest const& td ) {
 	const char* sep = "" ;
 	/**/                    os << "TargetDigest("      ;
-	if ( td.polluted    ) { os <<sep<< "polluted"      ; sep = "," ; }
+	if ( td.pre_exist   ) { os <<sep<< "pre_exist"     ; sep = "," ; }
 	if (+td.tflags      ) { os <<sep<< td.tflags       ; sep = "," ; }
 	if (+td.extra_tflags) { os <<sep<< td.extra_tflags ; sep = "," ; }
 	if (+td.crc         ) { os <<sep<< td.crc          ; sep = "," ; }
@@ -155,9 +222,7 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 		case JobProc::Start :
 			/**/                           os <<',' << hex<<jrr.addr<<dec               ;
 			/**/                           os <<',' << jrr.autodep_env                  ;
-			if      (+jrr.chroot_dir     ) os <<',' << jrr.chroot_dir                   ;
-			if      (+jrr.root_view      ) os <<',' << jrr.root_view                    ;
-			if      (+jrr.tmp_view       ) os <<',' << jrr.tmp_view                     ;
+			if      (+jrr.job_space      ) os <<',' << jrr.job_space                    ;
 			if      ( jrr.keep_tmp_dir   ) os <<',' << "keep"                           ;
 			else if ( jrr.tmp_sz_mb==Npos) os <<',' << "..."                            ;
 			else                           os <<',' << jrr.tmp_sz_mb                    ;
@@ -202,18 +267,6 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 	return                             os <<')' ;
 }
 
-JobMngtRpcReq::JobMngtRpcReq( SI si , JI j , Fd fd_ , JobExecRpcReq&& jerr ) : seq_id{si} , job{j} , fd{fd_} {
-	switch (jerr.proc) {
-		case JobExecProc::Decode : proc = P::Decode ; ctx = ::move(jerr.ctx) ; file = ::move(jerr.files[0].first) ; txt = ::move(jerr.txt) ;                          break ;
-		case JobExecProc::Encode : proc = P::Encode ; ctx = ::move(jerr.ctx) ; file = ::move(jerr.files[0].first) ; txt = ::move(jerr.txt) ; min_len = jerr.min_len ; break ;
-		case JobExecProc::DepVerbose : {
-			proc = P::DepVerbose ;
-			deps.reserve(jerr.files.size()) ;
-			for( auto&& [dep,date] : jerr.files ) deps.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,date,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
-		} break ;
-	DF}
-}
-
 //
 // JobMngtRpcReply
 //
@@ -231,69 +284,19 @@ JobMngtRpcReq::JobMngtRpcReq( SI si , JI j , Fd fd_ , JobExecRpcReq&& jerr ) : s
 }
 
 //
-// JobExecRpcReq
+// SubmitAttrs
 //
 
-::ostream& operator<<( ::ostream& os , AccessDigest const& ad ) {
+::ostream& operator<<( ::ostream& os , SubmitAttrs const& sa ) {
 	const char* sep = "" ;
-	/**/                         os << "AccessDigest("                          ;
-	if      (+ad.accesses    ) { os <<      ad.accesses                         ; sep = "," ; }
-	if      (+ad.dflags      ) { os <<sep<< ad.dflags                           ; sep = "," ; }
-	if      (+ad.extra_dflags) { os <<sep<< ad.extra_dflags                     ; sep = "," ; }
-	if      (+ad.tflags      ) { os <<sep<< ad.tflags                           ; sep = "," ; }
-	if      (+ad.extra_tflags) { os <<sep<< ad.extra_tflags                     ; sep = "," ; }
-	if      ( ad.write!=No   )   os <<sep<< "written"<<(ad.write==Maybe?"?":"") ;
-	return                       os <<')'                                       ;
-}
-
-::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
-	/**/                os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
-	if (jerr.sync     ) os << ",sync"                                         ;
-	if (jerr.solve    ) os << ",solve"                                        ;
-	if (jerr.no_follow) os << ",no_follow"                                    ;
-	/**/                os <<',' << jerr.digest                               ;
-	if (+jerr.txt     ) os <<',' << jerr.txt                                  ;
-	if (jerr.proc>=JobExecProc::HasFiles) {
-		if ( +jerr.digest.accesses && !jerr.solve ) os <<','<<               jerr.files  ;
-		else                                        os <<','<< mk_key_vector(jerr.files) ;
-	}
-	return os <<')' ;
-}
-
-AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
-	if (write!=Yes) accesses     |= other.accesses     ;
-	/**/            write        |= other.write        ;
-	/**/            tflags       |= other.tflags       ;
-	/**/            extra_tflags |= other.extra_tflags ;
-	/**/            dflags       |= other.dflags       ;
-	/**/            extra_dflags |= other.extra_dflags ;
-	return *this ;
-}
-
-//
-// JobExecRpcReply
-//
-
-::ostream& operator<<( ::ostream& os , JobExecRpcReply const& jerr ) {
-	os << "JobExecRpcReply(" << jerr.proc ;
-	switch (jerr.proc) {
-		case JobExecProc::None       :                                     ; break ;
-		case JobExecProc::ChkDeps    : os <<','<< jerr.ok                  ; break ;
-		case JobExecProc::DepVerbose : os <<','<< jerr.dep_infos           ; break ;
-		case JobExecProc::Decode     :
-		case JobExecProc::Encode     : os <<','<< jerr.txt <<','<< jerr.ok ; break ;
-	DF}
-	return os << ')' ;
-}
-
-JobExecRpcReply::JobExecRpcReply( JobMngtRpcReply&& jmrr ) {
-	switch (jmrr.proc) {
-		case JobMngtProc::None       :                         proc = Proc::None       ;                                                     break ;
-		case JobMngtProc::ChkDeps    : SWEAR(jmrr.ok!=Maybe) ; proc = Proc::ChkDeps    ; ok = jmrr.ok ;                                      break ;
-		case JobMngtProc::DepVerbose :                         proc = Proc::DepVerbose ;                dep_infos = ::move(jmrr.dep_infos) ; break ;
-		case JobMngtProc::Decode     :                         proc = Proc::Decode     ; ok = jmrr.ok ; txt       = ::move(jmrr.txt      ) ; break ;
-		case JobMngtProc::Encode     :                         proc = Proc::Encode     ; ok = jmrr.ok ; txt       = ::move(jmrr.txt      ) ; break ;
-	DF}
+	/**/                 os << "SubmitAttrs("          ;
+	if (+sa.tag      ) { os <<      sa.tag       <<',' ; sep = "," ; }
+	if ( sa.live_out ) { os <<sep<< "live_out,"        ; sep = "," ; }
+	if ( sa.n_retries) { os <<sep<< sa.n_retries <<',' ; sep = "," ; }
+	if (+sa.pressure ) { os <<sep<< sa.pressure  <<',' ; sep = "," ; }
+	if (+sa.deps     ) { os <<sep<< sa.deps      <<',' ; sep = "," ; }
+	if (+sa.reason   )   os <<sep<< sa.reason    <<',' ;
+	return               os <<')'                      ;
 }
 
 //

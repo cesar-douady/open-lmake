@@ -64,7 +64,7 @@ else :
 
 	import ut
 
-	ut.lmake( 'chk'   , new=1 , may_rerun=2 , done=5 ,           was_failed=1 ,           rc=1 )
-	ut.lmake( 'chk'   ,                       done=3                                           ) # finish job
-	ut.lmake( 'chk.w' , new=0 , may_rerun=2 , done=4 , rerun=1 , was_failed=1 , steady=1 ,rc=1 )
-	ut.lmake( 'chk.w' ,                       done=3                                           ) # ensure up to date
+	ut.lmake( 'res2' , 'res2.w' , new=1 , may_rerun=2 , done=5 , rerun=1 , steady=1                       )
+	ut.lmake( 'res1' , 'res1.w' ,         may_rerun=2 , done=4 ,                      was_failed=2 , rc=1 ) # target clash
+	ut.lmake( 'res1' , 'res1.w' ,                       done=2 ,           steady=2                , rc=1 ) # try to recover
+	ut.lmake( 'res1' , 'res1.w' ,                       done=2 ,           steady=2                , rc=1 ) # but this is impossible
