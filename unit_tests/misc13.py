@@ -20,18 +20,20 @@ if __name__!='__main__' :
 
 	class Hdep(Rule) :
 		target = r'hdep'
-		cmd    = 'echo 2'
+		cmd    = 'echo {step}'
 
 	class Sdep(Rule) :
 		target = r'sdep'
-		cmd    = 'echo {step}'
+		cmd    = 'echo sdep'
 
 	class Dut(Rule) :
 		target = 'dut'
-		dep    = 'sdep'
-		cmd    = '[ $(cat hdep) = {step} ] && cat sdep'
+		deps   = { 'SDEP' : 'sdep' }
+		cmd    = '[ $(cat hdep) = 2 ] && cat sdep'
 
 else :
+
+	import os
 
 	import ut
 
@@ -39,4 +41,5 @@ else :
 	ut.lmake( 'dut' , may_rerun=1 , done=2 , failed=1 , rc=1 )
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'dut' , done=2 ) # check sdep is not forgetten due to execution w/o hdep
+	os.unlink('sdep')
+	ut.lmake( 'dut' , done=2 , steady=1 )               # check sdep is not forgetten due to execution w/o hdep

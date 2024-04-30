@@ -796,13 +796,14 @@ namespace Engine {
 				bool               sense_err   = !dep.dflags[Dflag::IgnoreError]              ;
 				bool               required    =  dep.dflags[Dflag::Required   ] || is_static ;
 				bool               modif       = state.stamped_modif || ri.force              ;
+				bool               may_care    = care || (modif&&is_static)                   ; // if previous modif, consider static deps as fully accessed, as initially
 				NodeReqInfo const* cdri        = &dep->c_req_info(req)                        ; // avoid allocating req_info as long as not necessary
 				NodeReqInfo      * dri         = nullptr                                      ; // .
 				NodeGoal           dep_goal    =
-					ri.full && care && (need_run(state)||archive) ? NodeGoal::Dsk
-				:	ri.full && (care||sense_err)                  ? NodeGoal::Status
-				:	required                                      ? NodeGoal::Makable
-				:	                                                NodeGoal::None
+					ri.full && may_care && (need_run(state)||archive) ? NodeGoal::Dsk
+				:	ri.full && (may_care||sense_err)                  ? NodeGoal::Status
+				:	required                                          ? NodeGoal::Makable
+				:	                                                    NodeGoal::None
 				;
 				if (!dep_goal) continue ;                                                       // this is not a dep (not static while asked for makable only)
 			RestartDep :
@@ -831,7 +832,7 @@ namespace Engine {
 					critical_waiting |= is_critical ;
 				} else {
 					SWEAR(dnd.done(*cdri,dep_goal)) ;                                                              // after having called make, dep must be either waiting or done
-					bool dep_missing_dsk = ri.full && care && !dnd.done(*cdri,NodeGoal::Dsk) ;
+					bool dep_missing_dsk = ri.full && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
 					state.missing_dsk |= dep_missing_dsk ;                                                         // job needs this dep if it must run
 					if (dep_goal==NodeGoal::Makable) {
 						if ( is_static && required && dnd.ok(*cdri,dep.accesses)==Maybe ) {

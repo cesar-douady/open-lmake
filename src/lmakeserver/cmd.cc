@@ -374,7 +374,7 @@ R"({
 				if (dep.dflags[Dflag::Static]) append_to_string( script , "args+=( ",mk_shell_str(dep->name()),")\n" ) ; // list dependences file to open in vscode
 			append_to_string( script , "args+=(\"${DEBUG_DIR}/cmd\")\n"                          ) ;
 			append_to_string( script , "args+=(\"${DEBUG_DIR}/vscode/ldebug.code-workspace\")\n" ) ;
-			append_to_string( script , "code -n -w ${args[@]} &"                                 ) ;
+			append_to_string( script , "code -n -w --password-store=basic ${args[@]} &"          ) ;
 		} else {
 			::vmap_ss env = _mk_env(start.env,report_end.end.dynamic_env) ;
 			/**/                                      append_to_string( script , "exec env -i"    ,                                 " \\\n" ) ;

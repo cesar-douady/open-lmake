@@ -85,8 +85,6 @@ def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
 def run_vscode(dbg_dir,redirected,func,*args,**kwds) :
 	import json
 	import os
-	import signal
-	signal.signal(signal.SIGPIPE,signal.SIG_IGN) # vscode seems to be sensitive to SIGPIPE
 	try :
 		# Write python process information to vscode debug workspace to allow gdb to attache to it
 		workspace = dbg_dir + '/vscode/ldebug.code-workspace'
