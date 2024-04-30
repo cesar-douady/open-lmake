@@ -838,17 +838,17 @@ namespace Engine {
 							state.reason |= {JobReasonTag::DepMissingStatic,+dep} ;
 							dep_err = RunStatus::MissingStatic ;
 						}
-						continue ;                                                                                 // dont check modifs and errors
+						continue ;                                               // dont check modifs and errors
 					}
 					if (!care) goto Continue ;
-					dep_modif = !dep.up_to_date() ;
-					if ( dep_modif && status==Status::Ok && dep.no_trigger() ) {                                   // no_trigger only applies to successful jobs
+					dep_modif = !dep.up_to_date( is_static && modif ) ;          // after a modified dep, consider static deps as being fully accessed to avoid reruns due to previous errors
+					if ( dep_modif && status==Status::Ok && dep.no_trigger() ) { // no_trigger only applies to successful jobs
 						trace("no_trigger",dep) ;
-						req->no_triggers.emplace(dep,req->no_triggers.size()) ;                                    // record to repeat in summary, value is just to order summary in discovery order
+						req->no_triggers.emplace(dep,req->no_triggers.size()) ;  // record to repeat in summary, value is just to order summary in discovery order
 						dep_modif = false ;
 					}
-					if ( +state.stamped_err  ) goto Continue ;                                                     // we are already in error, no need to analyze errors any further
-					if ( !is_static && modif ) goto Continue ;                                                     // if not static, errors may be washed by previous modifs, dont record them
+					if ( +state.stamped_err  ) goto Continue ;                                                              // we are already in error, no need to analyze errors any further
+					if ( !is_static && modif ) goto Continue ;                                                              // if not static, errors may be washed by previous modifs, dont record them
 					if ( dep_modif           ) state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
 					//
 					switch (dnd.ok(*cdri,dep.accesses)) {

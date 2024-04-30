@@ -265,7 +265,7 @@ R"({
 				"type"      : "by-gdb"
 			,	"request"   : "attach"
 			,	"name"      : "Attach C/C++"
-			,	"program"   : ""
+			,	"program"   : $interpreter
 			,	"cwd"       : $g_root_dir
 			,	"processId" : 0
 			}
@@ -285,10 +285,11 @@ R"({
 			/**/        append_to_string( extensions , '"',ext,'"' ) ;
 			first = false ;
 		}
-		res = ::regex_replace( res , ::regex("\\$extensions") , extensions                                             ) ;
-		res = ::regex_replace( res , ::regex("\\$name"      ) , mk_json_str(          j->name()                      ) ) ;
-		res = ::regex_replace( res , ::regex("\\$g_root_dir") , mk_json_str(          *g_root_dir                    ) ) ;
-		res = ::regex_replace( res , ::regex("\\$program"   ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
+		res = ::regex_replace( res , ::regex("\\$extensions" ) , extensions                                             ) ;
+		res = ::regex_replace( res , ::regex("\\$name"       ) , mk_json_str(          j->name()                      ) ) ;
+		res = ::regex_replace( res , ::regex("\\$g_root_dir" ) , mk_json_str(          *g_root_dir                    ) ) ;
+		res = ::regex_replace( res , ::regex("\\$program"    ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
+		res = ::regex_replace( res , ::regex("\\$interpreter") , mk_json_str(to_string(start.interpreter[0]          )) ) ;
 		//
 		::vmap_ss env     = _mk_env(start.env,report_end.end.dynamic_env) ;
 		size_t    kw      = 13/*SEQUENCE_ID*/ ; for( auto&& [k,v] : env ) if (k!="TMPDIR") kw = ::max(kw,mk_json_str(k).size()) ;
@@ -370,8 +371,8 @@ R"({
 			append_to_string( script , "args=()\n"                                                                                      ) ;
 			append_to_string( script , "type code | grep -q .vscode-server || args+=( \"--user-data-dir ${DEBUG_DIR}/vscode/user\" )\n" ) ;
 			for( Dep const& dep : j->deps )
-				if (dep.dflags[Dflag::Static]) append_to_string( script , "args+=( ",mk_shell_str("-g "+dep->name()),")\n" ) ; // list dependences file to open in vscode
-			append_to_string( script , "args+=(\"-g ${DEBUG_DIR}/cmd\")\n"                       ) ;
+				if (dep.dflags[Dflag::Static]) append_to_string( script , "args+=( ",mk_shell_str(dep->name()),")\n" ) ; // list dependences file to open in vscode
+			append_to_string( script , "args+=(\"${DEBUG_DIR}/cmd\")\n"                          ) ;
 			append_to_string( script , "args+=(\"${DEBUG_DIR}/vscode/ldebug.code-workspace\")\n" ) ;
 			append_to_string( script , "code -n -w ${args[@]} &"                                 ) ;
 		} else {

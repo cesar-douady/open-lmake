@@ -192,6 +192,7 @@ unit_tests/manual_target.py
 unit_tests/misc1.py
 unit_tests/misc10.py
 unit_tests/misc11.py
+unit_tests/misc13.py
 unit_tests/misc2.py
 unit_tests/misc3.py
 unit_tests/misc4.py
