@@ -20,7 +20,7 @@ using namespace Time ;
 //
 
 // if strict, user might look at the st_size field which gives access to regular and link content
-static constexpr Accesses UserStatAccess = StrictUserAccesses ? ~Accesses() : Accesses(Access::Stat) ;
+static constexpr Accesses UserStatAccesses = StrictUserAccesses ? ~Accesses() : Accesses(Access::Stat) ;
 
 bool                                                   Record::s_static_report = false   ;
 ::vmap_s<DepDigest>                                  * Record::s_deps          = nullptr ;
@@ -177,30 +177,28 @@ Record::Mkdir::Mkdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(
 // However :
 // - if it is an official target, it is not a dep, whether you declare reading it or not
 // - else, we do not compute a CRC on it and its actual content is not guaranteed. What is important in this case is that the execution of the job does not see the content.
-static bool _do_stat (int flags) { return flags&O_PATH                                                        ; }
-static bool _do_read (int flags) { return !_do_stat(flags) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC) ; }
-static bool _do_write(int flags) { return !_do_stat(flags) && (flags&O_ACCMODE)!=O_RDONLY                     ; }
-Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
-	Solve{ r , ::move(path) , bool(flags&O_NOFOLLOW) , _do_read(flags) , true/*allow_tmp_map*/ , to_string(c,::hex,'.',flags) }
-,	do_write{_do_write(flags)}
-{
-	bool do_read = _do_read(flags) ;
-	bool do_stat = _do_stat(flags) ;
+//
+static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
+static bool _do_stat  (int flags) { return   flags&O_PATH     || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
+static bool _do_read  (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC) ; }
+static bool _do_write (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY                     ; }
+//
+Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) : Solve{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , true/*allow_tmp_map*/ , to_string(c,::hex,'.',flags) } {
+	if ( flags&(O_DIRECTORY|O_TMPFILE)                  ) return ; // we already solved, this is enough
+	if ( !(flags&O_PATH) && s_autodep_env().ignore_stat ) return ;
+	if ( file_loc>FileLoc::Dep                          ) return ;
 	//
-	if ( flags&(O_DIRECTORY|O_TMPFILE)          ) { file_loc = FileLoc::Ext ; return ; }                       // we already solved, this is enough
-	if ( do_stat && s_autodep_env().ignore_stat ) { file_loc = FileLoc::Ext ; return ; }
-	if ( file_loc>FileLoc::Dep                  )                             return ;
+	bool do_stat  = _do_stat (flags)                            ;
+	bool do_read  = _do_read (flags)                            ;
+	bool do_write = _do_write(flags) && file_loc==FileLoc::Repo ;
 	//
-	if (!do_write) {
-		if      (do_read) r._report_dep   ( ::move(real) , accesses|Access::Reg|UserStatAccess , c+".rd"   ) ; // user might do fstat on returned fd and if strict user might look at st_size field
-		else if (do_stat) r._report_dep   ( ::move(real) , accesses            |UserStatAccess , c+".path" ) ; // .
-	} else if (file_loc==FileLoc::Repo) {
-		if      (do_read) r._report_update( ::move(real) , accesses|Access::Reg|UserStatAccess , c+".upd"  ) ; // file date may be updated if created, user might do a meaningful fstat
-		else              r._report_update( ::move(real) , accesses                            , c+".wr"   ) ; // file date may be updated if created, user cannot see file stat before the write
-	} else {
-		if      (do_read) r._report_dep   ( ::move(real) , accesses|Access::Reg|UserStatAccess , c+".upd"  ) ; // in src dirs, only the read side is reported
-		else              r._report_dep   ( ::move(real) , accesses                            , c+".wr"   ) ; // .
-	}
+	c += '.' ;
+	if (do_stat ) { c += 'S' ; accesses |= UserStatAccesses             ; }
+	if (do_read ) { c += 'R' ; accesses |= UserStatAccesses|Access::Reg ; }
+	if (do_write)   c += 'W' ;
+	//
+	if      ( do_write           ) { r._report_update( ::move(real) , accesses , ::move(c) ) ; confirm = true ; }
+	else if ( do_read || do_stat )   r._report_dep   ( ::move(real) , accesses , ::move(c) ) ;
 }
 
 Record::Read::Read( Record& r , Path&& path , bool no_follow , bool keep_real , bool allow_tmp_map , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,allow_tmp_map,c} {
@@ -303,7 +301,7 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 }
 
 Record::Stat::Stat( Record& r , Path&& path , bool no_follow , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,true/*allow_tmp_map*/,c} {
-	if ( !s_autodep_env().ignore_stat && file_loc<=FileLoc::Dep ) r._report_dep( ::move(real) , accesses|UserStatAccess , ::move(c) ) ;
+	if ( !s_autodep_env().ignore_stat && file_loc<=FileLoc::Dep ) r._report_dep( ::move(real) , accesses|UserStatAccesses , ::move(c) ) ;
 }
 
 Record::Symlnk::Symlnk( Record& r , Path&& p , ::string&& c ) : Solve{r,::move(p),true/*no_follow*/,false/*read*/,true/*allow_tmp_map*/,c} {

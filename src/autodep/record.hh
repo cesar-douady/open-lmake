@@ -279,9 +279,9 @@ public :
 		Open() = default ;
 		Open( Record& , Path&& , int flags , ::string&& comment ) ;
 		// services
-		int operator()( Record& r , int rc ) { { if (do_write) r._report_confirm(file_loc,rc>=0) ; } return rc ; }
+		int operator()( Record& r , int rc ) { { if (confirm) r._report_confirm(file_loc,rc>=0) ; } return rc ; }
 		// data
-		bool do_write = false ;
+		bool confirm = false ;
 	} ;
 	struct Read : Solve {
 		Read() = default ;
