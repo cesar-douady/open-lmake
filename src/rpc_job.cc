@@ -40,10 +40,8 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 	for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
 		SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
 		switch (a.tag) {
-			case FileActionTag::None     :                                                                                          break ;
-			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f),'\n') ; break ;
-			case FileActionTag::Mkdir    : mkdir(f,nfs_guard) ;                                                                     break ;
-			case FileActionTag::Unlnk    : {
+			case FileActionTag::None  :
+			case FileActionTag::Unlnk : {
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                                                                                                    // file does not exist, nothing to do
 				bool done = true/*garbage*/ ;
@@ -58,7 +56,9 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 				if ( done && unlnks ) unlnks->push_back(f) ;
 				ok &= done ;
 			} break ;
-			case FileActionTag::Rmdir :
+			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f),'\n') ; break ;
+			case FileActionTag::Mkdir    : mkdir(f,nfs_guard) ;                                                                     break ;
+			case FileActionTag::Rmdir    :
 				if (!keep_dirs.contains(f))
 					try                     { rmdir(nfs_guard.change(f)) ;                                                        }
 					catch (::string const&) { for( ::string d=f ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ; } // if a dir cannot rmdir'ed, no need to try those uphill
