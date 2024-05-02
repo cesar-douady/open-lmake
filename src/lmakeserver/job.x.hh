@@ -232,7 +232,7 @@ namespace Engine {
 	private :
 		Step _step:3 = {} ;                                              //          3 bits
 	} ;
-	static_assert(sizeof(JobReqInfo)==48) ;                              // check expected size XXX : optimize size, can be 32
+	static_assert(sizeof(JobReqInfo)==48) ;                              // check expected size, XXX : optimize size, can be 32
 
 }
 

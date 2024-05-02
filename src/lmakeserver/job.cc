@@ -911,6 +911,10 @@ namespace Engine {
 		}
 	Run :
 		trace("run",pre_reason,ri,run_status) ;
+		if ( ri.state.missing_dsk) {
+			ri.reset() ;
+			goto RestartAnalysis ;
+		}
 		SWEAR(!ri.state.missing_dsk) ;                                                          // cant run if we are missing some deps on disk
 		if (rule->n_submits) {
 			if (ri.n_submits>=rule->n_submits) {

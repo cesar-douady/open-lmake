@@ -212,7 +212,7 @@ namespace Engine {
 		DepsIter& operator++(int) { return ++*this ; }
 		DepsIter& operator++(   ) {
 			if (i_chunk<hdr->hdr.sz)   i_chunk++ ;                         // go to next item in chunk
-			else                     { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk }
+			else                     { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk
 			return *this ;
 		}
 		// data

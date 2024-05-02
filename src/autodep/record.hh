@@ -97,7 +97,7 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>(report_fd()) ;
 	}
 	//
-	void _report_access( JobExecRpcReq&& jerr                                                 ) const ;
+	void _report_access( JobExecRpcReq&& jerr                                                   ) const ;
 	void _report_access( ::string&& f , FileInfo fi , Accesses a , bool write , ::string&& c={} ) const {
 		_report_access({ Proc::Access , {{::move(f),fi}} , {.write=Maybe&write,.accesses=a} , ::move(c) }) ;
 	}

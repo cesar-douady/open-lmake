@@ -376,10 +376,12 @@ bool/*interrupted*/ engine_loop() {
 						::vector<Dep> deps ; deps.reserve(ecjm.deps.size()) ;
 						for( auto const& [dn,dd] : ecjm.deps ) deps.emplace_back(Node(dn),dd) ;
 						JobMngtRpcReply jmrr = je.job_info(ecjm.proc,deps) ;
-						jmrr.fd = ecjm.fd ;                                                // seq_id will be filled in by send_reply
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						Backends::send_reply( +je , ::move(jmrr) ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						if (+ecjm.fd) {
+							jmrr.fd = ecjm.fd ;                                            // seq_id will be filled in by send_reply
+							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+							Backends::send_reply( +je , ::move(jmrr) ) ;
+							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						}
 					} break ;
 				DF}
 			} break ;

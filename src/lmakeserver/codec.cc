@@ -281,8 +281,10 @@ namespace Codec {
 			case JobMngtProc::Decode : jmrr = cc.decode() ; break ;
 			case JobMngtProc::Encode : jmrr = cc.encode() ; break ;
 		DF}
-		jmrr.fd = cc.fd ;                               // seq_id will be filled in by send_reply
-		Backends::send_reply( cc.job , ::move(jmrr) ) ;
+		if (cc.fd) {
+			jmrr.fd = cc.fd ;                               // seq_id will be filled in by send_reply
+			Backends::send_reply( cc.job , ::move(jmrr) ) ;
+		}
 	}
 
 }
