@@ -202,10 +202,11 @@ void Gather::_send_to_server ( Fd fd , Jerr&& jerr ) {
 		case Proc::ChkDeps    : reorder(false/*at_end*/) ;       break ;      // ensure server sees a coherent view
 		case Proc::DepVerbose : _new_accesses(fd,::copy(jerr)) ; break ;
 		//
-		case Proc::Decode   : SWEAR(jerr.files.size()==1) ; _codec_files[fd] = Codec::mk_decode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
-		case Proc::Encode   : SWEAR(jerr.files.size()==1) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
+		case Proc::Decode : SWEAR( jerr.sync && jerr.files.size()==1 ) ; _codec_files[fd] = Codec::mk_decode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
+		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		default : ;
 	}
+	if (!jerr.sync) fd = {} ;                                                 // dont reply if not sync
 	try {
 		JobMngtRpcReq jmrr ;
 		if (jerr.proc==JobExecProc::ChkDeps) jmrr = { JobMngtProc::ChkDeps , seq_id , job , fd , cur_deps_cb() } ;
@@ -451,6 +452,7 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 							case JobMngtProc::ChkDeps    : if (jmrr.ok==Maybe) { set_status(Status::ChkDeps) ; kill_step = KillStep::Kill ; rfd = {} ; } break ;
 							case JobMngtProc::Decode :
 							case JobMngtProc::Encode : {
+								SWEAR(+jmrr.fd) ;
 								auto it = _codec_files.find(jmrr.fd) ;
 								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , false/*parallel*/ , ::string(snake(jmrr.proc)) ) ;
 								_codec_files.erase(it) ;

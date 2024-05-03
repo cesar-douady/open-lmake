@@ -199,7 +199,8 @@ static_assert(_chk_flags_tab(ExtraTflagChars)) ;
 	return                             os <<')' ;
 }
 
-JobMngtRpcReq::JobMngtRpcReq( SI si , JI j , Fd fd_ , JobExecRpcReq&& jerr ) : seq_id{si} , job{j} , fd{jerr.sync?fd_:Fd()} {
+JobMngtRpcReq::JobMngtRpcReq( SI si , JI j , Fd fd_ , JobExecRpcReq&& jerr ) : seq_id{si} , job{j} , fd{fd_} {
+	SWEAR( jerr.sync || !fd , jerr,fd ) ;
 	switch (jerr.proc) {
 		case JobExecProc::Decode : proc = P::Decode ; ctx = ::move(jerr.ctx) ; file = ::move(jerr.files[0].first) ; txt = ::move(jerr.txt) ;                          break ;
 		case JobExecProc::Encode : proc = P::Encode ; ctx = ::move(jerr.ctx) ; file = ::move(jerr.files[0].first) ; txt = ::move(jerr.txt) ; min_len = jerr.min_len ; break ;
