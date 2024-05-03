@@ -19,6 +19,7 @@ namespace Backends {
 		auto it   = Backend::_s_start_tab.find(job) ;
 		if (it==Backend::_s_start_tab.end()) return ;                      // job is dead without waiting for reply, curious but possible
 		Backend::StartEntry const& e = it->second ;
+		if (!e                             ) return ;                      // .
 		try {
 			jmrr.seq_id = e.conn.seq_id ;
 			ClientSockFd fd( e.conn.host , e.conn.port , 3/*n_trials*/ ) ;
@@ -166,6 +167,7 @@ namespace Backends {
 
 	void Backend::_s_wakeup_remote( JobIdx job , StartEntry::Conn const& conn , SigDate const& start_date , JobMngtProc proc ) {
 		Trace trace(BeChnl,"_s_wakeup_remote",job,conn,proc) ;
+		SWEAR(conn.seq_id,job,conn) ;
 		try {
 			ClientSockFd fd(conn.host,conn.port) ;
 			OMsgBuf().send( fd , JobMngtRpcReply(proc,conn.seq_id) ) ; // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
@@ -510,6 +512,7 @@ namespace Backends {
 			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) { // /!\ we erase entries while iterating
 				JobIdx      j = jit->first  ;
 				StartEntry& e = jit->second ;
+				if (!e) { jit++ ; continue ; }
 				if (ri) {
 					if ( e.reqs.size()==1 && e.reqs[0]==ri ) goto Kill ;
 					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) { // e.reqs is a non-sorted vector, we must search ri by hand
