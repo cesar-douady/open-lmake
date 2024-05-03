@@ -64,26 +64,3 @@ void chk_version( bool may_init , ::string const& admin_dir ) {
 		write_lines( dir_guard(version_file) , {VersionMrkr} ) ;
 	}
 }
-
-//
-// env encoding
-//
-
-ENUM( EnvMrkr
-,	Root
-,	Lmake
-)
-
-static constexpr char LmakeMrkrData[2] = {0,+EnvMrkr::Lmake} ; static const ::string LmakeMrkr {LmakeMrkrData,2} ;
-static constexpr char RootMrkrData [2] = {0,+EnvMrkr::Root } ; static const ::string RootMrkr  {RootMrkrData ,2} ;
-::string env_encode(::string&& txt) {
-	txt = glb_subst(::move(txt),*g_root_dir ,RootMrkr ) ;
-	txt = glb_subst(::move(txt),*g_lmake_dir,LmakeMrkr) ;
-	return txt ;
-}
-
-::string env_decode(::string&& txt) {
-	txt = glb_subst(::move(txt),RootMrkr ,*g_root_dir ) ;
-	txt = glb_subst(::move(txt),LmakeMrkr,*g_lmake_dir) ;
-	return txt ;
-}

@@ -3,7 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <syscall.h> // for SYS_* macros
+#include <syscall.h>   // for SYS_* macros
+#include <sys/mount.h>
 
 #include "ptrace.hh"
 #include "record.hh"
@@ -27,6 +28,19 @@
 }
 
 // copy src to process pid's space @ dst
+[[maybe_unused]] static void _peek( pid_t pid , char* dst , uint64_t src , size_t sz ) {
+	SWEAR(pid) ;
+	errno = 0 ;
+	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) { // invariant : copy src[i:sz] to dst
+		uint64_t offset = src%sizeof(long) ;
+		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
+		if (errno) throw 0 ;
+		chunk = ::min( sizeof(long) - offset , sz ) ;
+		::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
+	}
+}
+
+// copy src to process pid's space @ dst
 [[maybe_unused]] static void _poke( pid_t pid , uint64_t dst , const char* src , size_t sz ) {
 	SWEAR(pid) ;
 	errno = 0 ;
@@ -41,19 +55,6 @@
 		::memcpy( reinterpret_cast<char*>(&word)+offset , src , chunk ) ;
 		ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
 		if (errno) throw 0 ;
-	}
-}
-
-// copy src to process pid's space @ dst
-[[maybe_unused]] static void _peek( pid_t pid , char* dst , uint64_t src , size_t sz ) {
-	SWEAR(pid) ;
-	errno = 0 ;
-	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) { // invariant : copy src[i:sz] to dst
-		uint64_t offset = src%sizeof(long) ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		if (errno) throw 0 ;
-		chunk = ::min( sizeof(long) - offset , sz ) ;
-		::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
 	}
 }
 
@@ -136,6 +137,13 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & c
 template<bool At> [[maybe_unused]] static void _entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Mkdir( r , _path<At>(pid,args+0) , comment ) ;
+	} catch (int) {}
+}
+
+// mount
+[[maybe_unused]] static void _entry_mount( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+	try {
+		if (args[3]&MS_BIND) Record::Mount( r , _path<false>(pid,args+0) , _path<false>(pid,args+1) , comment ) ;
 	} catch (int) {}
 }
 
@@ -273,6 +281,15 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // this m
 	#ifdef SYS_fchmodat
 		static_assert(SYS_fchmodat         <NSyscalls) ; s_tab[SYS_fchmodat         ] = { _entry_chmod   <true ,3         > , _exit_chmod    ,2    , 1  , true     , "Fchmodat"          } ;
 	#endif
+	#ifdef SYS_clone
+		static_assert(SYS_clone            <NSyscalls) ; s_tab[SYS_clone            ] = { nullptr                           , nullptr        ,0    , 2  , true     , "Clone"             } ;
+	#endif
+	#ifdef SYS_clone2
+		static_assert(SYS_clone2           <NSyscalls) ; s_tab[SYS_clone2           ] = { nullptr                           , nullptr        ,0    , 2  , true     , "Clone2"            } ;
+	#endif
+	#ifdef SYS_clone3
+		static_assert(SYS_clone3           <NSyscalls) ; s_tab[SYS_clone3           ] = { nullptr                           , nullptr        ,0    , 2  , true     , "Clone3"            } ;
+	#endif
 	#ifdef SYS_creat
 		static_assert(SYS_creat            <NSyscalls) ; s_tab[SYS_creat            ] = { _entry_creat                      , _exit_open     ,1    , 2  , true     , "Creat"             } ;
 	#endif
@@ -281,6 +298,12 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // this m
 	#endif
 	#ifdef SYS_execveat
 		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { _entry_execve  <true ,4         > , nullptr        ,0    , 1  , true     , "Execveat"          } ;
+	#endif
+	#ifdef SYS_fork
+		static_assert(SYS_fork             <NSyscalls) ; s_tab[SYS_fork             ] = { nullptr                           , nullptr        ,0    , 2  , true     , "Fork"              } ;
+	#endif
+	#ifdef SYS_vfork
+		static_assert(SYS_vfork            <NSyscalls) ; s_tab[SYS_vfork            ] = { nullptr                           , nullptr        ,0    , 2  , true     , "Vfork"             } ;
 	#endif
 	#ifdef SYS_link
 		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { _entry_lnk     <false,FlagNever > , _exit_lnk      ,2    , 1  , true     , "Link"              } ;
@@ -293,6 +316,9 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // this m
 	#endif
 	#ifdef SYS_mkdirat
 		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { _entry_mkdir   <true            > , nullptr        ,2    , 1  , NFS_GUARD, "Mkdirat"           } ;
+	#endif
+	#ifdef SYS_mount
+		static_assert(SYS_mount            <NSyscalls) ; s_tab[SYS_mount            ] = { _entry_mount                      , nullptr        ,0    , 2  , true     , "Mount"             } ;
 	#endif
 	#ifdef SYS_name_to_handle_at
 		static_assert(SYS_name_to_handle_at<NSyscalls) ; s_tab[SYS_name_to_handle_at] = { _entry_open    <true            > , _exit_open     ,2    , 1  , true     , "Name_to_handle_at" } ;

@@ -74,12 +74,13 @@ namespace Engine {
 		ReqData      * operator->()       { return &**this ; }
 		//
 		bool zombie(      ) const { return                     bit( uint8_t(_s_zombie_tab[+*this>>3]) , +*this&0x7     ) ; } // req has been killed, waiting to be closed when all jobs are done
-		void zombie(bool z)       { _s_zombie_tab[+*this>>3] = bit( uint8_t(_s_zombie_tab[+*this>>3]) , +*this&0x7 , z ) ; } // dont care about atomicity as this is called by a single thread
+		void zombie(bool z)       { _s_zombie_tab[+*this>>3] = bit( uint8_t(_s_zombie_tab[+*this>>3]) , +*this&0x7 , z ) ; }
 		// services
 		void make   (EngineClosureReq const&) ;
 		void kill   (                       ) ;
 		void close  (                       ) ;
 		void chk_end(                       ) ;
+		void dealloc(                       ) { s_small_ids.release(+*this) ; }
 		//
 		void inc_rule_exec_time( Rule ,                                            Delay delta     , Tokens1 ) ;
 		void new_exec_time     ( JobData const& , bool remove_old , bool add_new , Delay old_exec_time       ) ;

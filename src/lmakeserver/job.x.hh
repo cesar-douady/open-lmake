@@ -149,9 +149,9 @@ namespace Engine {
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
 		//
-		JobMngtRpcReply  job_info( JobMngtProc , ::vector<Dep> const& deps                            ) const ; // answer to requests from job execution
-		bool/*modified*/ end     ( ::vmap_ss const& rsrcs , JobDigest const& , ::string&& backend_msg ) ;       // hit indicates that result is from a cache hit
-		void             give_up ( Req={} , bool report=true                                          ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
+		JobMngtRpcReply  job_analysis( JobMngtProc , ::vector<Dep> const& deps                            ) const ; // answer to requests from job execution
+		bool/*modified*/ end         ( ::vmap_ss const& rsrcs , JobDigest const& , ::string&& backend_msg ) ;       // hit indicates that result is from a cache hit
+		void             give_up     ( Req={} , bool report=true                                          ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
 		JobReport audit_end( ::string const& pfx , ReqInfo&    , ::string const& msg , ::string const& stderr    , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const ;

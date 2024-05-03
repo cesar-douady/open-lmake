@@ -173,6 +173,14 @@ Record::Mkdir::Mkdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(
 	if (file_loc==FileLoc::Repo) r._report_guard( ::move(real) ,                         ::move(c) ) ;
 }
 
+Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , ::string&& c ) :
+	src { r , ::move(src_) , true/*no_follow*/ , false/*read*/ , c+".src" }
+,	dst { r , ::move(dst_) , true/*no_follow*/ , false/*read*/ , c+".dst" }
+{
+	if (src.file_loc<=FileLoc::Dep) r.report_panic("mount from ",src.real) ;
+	if (dst.file_loc<=FileLoc::Dep) r.report_panic("mount to "  ,dst.real) ;
+}
+
 // note : in case the file is open WR_ONLY w/o O_TRUNC, it is true that the final content depends on the initial content.
 // However :
 // - if it is an official target, it is not a dep, whether you declare reading it or not

@@ -14,6 +14,7 @@ using namespace std ;
 
 static constexpr int  MaxErrno            = 255                ;               // this is pretty comfortable, actual value is 133 // XXX : find a way to use a documented value
 static constexpr char NpErrnoSymbolName[] = "__errno_location" ;               // XXX : find a way to stick to documented interfaces
+static constexpr bool StackGrowsDownward  = true               ;               // XXX : find a way to determine that
 
 int np_get_fd(std::filebuf& fb) ;
 

@@ -18,6 +18,7 @@ int main( int argc , char* /*argv*/[] ) {
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
 	bool has_admin_dir = is_dir(AdminDir) ;
 	g_trace_file = new ::string() ;                      // no trace as we are repairing AdminDir in which traces are made
+	block_sigs({SIGCHLD}) ;
 	app_init(No/*chk_version*/) ;                        // lrepair must always be launched at root
 	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
 	if (+*g_startup_dir_s) {

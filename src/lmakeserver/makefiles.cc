@@ -161,11 +161,12 @@ namespace Engine::Makefiles {
 		//
 		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
 		//
-		Gather     gather   ;
-		::string   data     = to_string(PrivateAdminDir,'/',action,"_data.py")                             ; dir_guard(data) ;
-		::vector_s cmd_line = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
-		gather.autodep_env.src_dirs_s = {"/"}       ;
-		gather.autodep_env.root_dir   = *g_root_dir ;
+		Gather   gather ;
+		::string data   = to_string(PrivateAdminDir,'/',action,"_data.py") ; dir_guard(data) ;
+		gather.autodep_env.src_dirs_s = {"/"}                                                                        ;
+		gather.autodep_env.root_dir   = *g_root_dir                                                                  ;
+		gather.cmd_line               = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
+		gather.child_stdin            = Child::None                                                                  ;
 		Trace trace("_read_makefiles",action,module,Pdate(New)) ;
 		//
 		::string sav_ld_library_path ;
@@ -174,9 +175,9 @@ namespace Engine::Makefiles {
 			if (+sav_ld_library_path) set_env( "LD_LIBRARY_PATH" , to_string(sav_ld_library_path,':',PY_LD_LIBRARY_PATH) ) ;
 			else                      set_env( "LD_LIBRARY_PATH" ,                                   PY_LD_LIBRARY_PATH  ) ;
 		}
-		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		Status status = gather.exec_child( cmd_line , Child::None/*stdin*/ ) ;                            // redirect stdout to stderr as our stdout may be used to communicate with client
-		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//              vvvvvvvvvvvvvvvvvvv
+		Status status = gather.exec_child() ;
+		//              ^^^^^^^^^^^^^^^^^^^
 		if (PY_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
 		//
 		if (status!=Status::Ok) throw to_string( "cannot read " , action , +gather.msg?" : ":"" , localize(gather.msg) ) ;

@@ -73,7 +73,8 @@ static pid_t _connect_to_server( bool refresh , bool sync ) {                   
 		/**/          cmd_line.push_back(          "--"                             ) ; // ensure no further option processing in case a file starts with a -
 		trace("try_new",i,cmd_line) ;
 		try {
-			Child server{ true/*as_session*/ , cmd_line } ;
+			Child server { .as_session=true , .cmd_line=cmd_line } ;
+			server.spawn() ;
 			client_to_server.read .close() ;
 			server_to_client.write.close() ;
 			//
@@ -120,7 +121,6 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	Bool3          res       = Maybe                         ;
 	struct termios old_attrs ;
 	struct termios new_attrs ;
-	bool           blocked   = set_sig({SIGINT},true/*block*/) ;
 	//
 	::tcgetattr( in_fd , &old_attrs ) ;
 	//
@@ -130,6 +130,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	new_attrs.c_cc[VTIME]  = 0               ;                                    // .
 	//
 	try {
+		BlockedSig blocked{{SIGINT}} ;
 		::tcsetattr( in_fd , TCSANOW , &new_attrs ) ;
 		//
 		// prefer to do manual I/O rather than going through getline & co (which should do the job) as all this part is quite tricky
@@ -169,7 +170,6 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 		res = lum[true/*foreground*/]>lum[false/*foreground*/] ? Yes : No ;
 		trace("found",lum[0],lum[1],res) ;
 	} catch (::string const& e) { trace("catch",e) ; }
-	if (blocked) set_sig({SIGINT},false/*block*/) ;
 	trace("restore") ;
 	::tcsetattr( in_fd , TCSANOW , &old_attrs ) ;
 	return res ;

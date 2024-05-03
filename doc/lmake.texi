@@ -1974,6 +1974,7 @@ It must be an absoluted path (e.g. @code{'/ubuntu22.04'}).
 Note that unless the @code{root_view} is set, the repository must be visible under its original name in this chroot environment.
 
 If @code{None}, @code{''}, @code{'/'}, no @code{chroot} is performed unless required to manage the @code{tmp_view} and @code{root_view} attributes (in which case it is transparent).
+However, if @code{'/'}, namespaces are used nonetheless (cf @pxref{namespaces}).
 
 @section @code{root_view}
 
@@ -1989,7 +1990,7 @@ If @code{None}, @code{''}, @code{'/'}, no @code{chroot} is performed unless requ
 @end multitable
 
 This attribute defines a directory in which jobs will see the top-level directory of the repo (the root directory).
-This is done by using @code{mount -rbind}.
+This is done by using @code{mount -rbind} (cf @pxref {namespaces}).
 
 It must be an absolute path not lying in the temporary directory (e.g. @code{'/repo'}).
 
@@ -2010,7 +2011,7 @@ If performed, the @code{$ROOT_DIR} env variable will reflect this value.
 @tab Yes. Environment includes stems, targets and deps.
 @end multitable
 
-This attribute defines the name which the temporary directory available for job execution is mounted on.
+This attribute defines the name which the temporary directory available for job execution is mounted on (cf @pxref {namespaces}).
 
 If @code{None}, @code{''} or not specified, this directory is not mounted and job must use the @code{$TMPDIR} environment variable to identify it.
 Else, it must be an absolute path.
@@ -2525,7 +2526,7 @@ It is thus possible to refer to backend resources.
 @item Type
 @tab @code{float}
 @item Default
-@tab @code{0}
+@tab @code{3}
 @item Dynamic
 @tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
@@ -2813,6 +2814,17 @@ In the case @lmake determines that a file may have actually been written manuall
 In that case, @lmake quarantines the file under the @file{LMAKE/quarantine} directory with its original name.
 This quarantine mechanism, which is not necessary for @lmake processing but is a facility for the user, is best effort.
 There are cases where @lmake cannot anticipate such an overwrite.
+
+@anchor{namespaces}
+@section Namespaces
+
+Namespaces are used to isolate jobs.
+This is used to provide the semantic for the @code{chroot_dir}, @code{root_view} and @code{tmp_view} attributes.
+
+In that case, pid's are also isolated which allow reliable job end : when the top-level process exits, the namespaces are destroyed and no other process can survive.
+This guarantees that no daemon is left behind, uncontrolled.
+
+Note that this is true even when @code{chroot_dir} is @code{'/'}, which otherwise provides no other effect by itself.
 
 @anchor{backends}
 @section Backends

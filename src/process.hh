@@ -37,29 +37,31 @@ struct Pipe {
 	Fd write ; // write side of the pipe
 } ;
 
-inline bool/*all_done*/ set_sig( ::vector<int> const& sigs , bool block ) {
-	sigset_t new_mask ;
+inline sigset_t _mk_sigset(::vector<int> const& sigs) {
+	sigset_t res ;
+	::sigemptyset(&res) ;
+	for( int s : sigs) ::sigaddset(&res,s) ;
+	return res ;
+}
+inline bool is_blocked_sig(int sig) {
 	sigset_t old_mask ;
-	::sigemptyset(&new_mask) ;
-	for( int s : sigs) ::sigaddset(&new_mask,s) ;
-	//
-	swear( ::pthread_sigmask( block?SIG_BLOCK:SIG_UNBLOCK , &new_mask , &old_mask )==0 , "cannot ",block?"block":"unblock"," sigs ",sigs ) ;
-	//
-	for( int s : sigs ) if (::sigismember(&old_mask,s)==block) return false ;
-	return true ;
+	swear( ::pthread_sigmask(0,nullptr,&old_mask)==0 , "cannot get sig ",sig ) ;
+	return ::sigismember(&old_mask,sig) ;
 }
-inline Fd open_sig_fd(::vector<int> const& sigs) {
-	swear_prod(set_sig(sigs,true/*block*/),"some of signals",sigs,"are already blocked") ;
-	//
-	sigset_t mask ; ::sigemptyset(&mask) ;
-	for( int s : sigs) ::sigaddset(&mask,s) ;
-	//
-	return ::signalfd( -1 , &mask , SFD_CLOEXEC ) ;
+inline void block_sigs  (::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_BLOCK   , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot block sigs "  ,sigs) ; }
+inline void unblock_sigs(::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_UNBLOCK , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot unblock sigs ",sigs) ; }
+inline Fd open_sigs_fd(::vector<int> const& sigs) {
+	return ::signalfd( -1 , &::ref(_mk_sigset(sigs)) , SFD_CLOEXEC ) ;
 }
-inline void close_sig_fd( Fd fd , ::vector<int> const& sigs ) {
-	fd.close() ;
-	set_sig(sigs,false/*block*/) ;
-}
+struct BlockedSig {
+	BlockedSig (                         ) = default ;
+	BlockedSig (BlockedSig&&             ) = default ;                                         // copy is meaningless
+	BlockedSig (::vector<int> const& sigs) : blocked{       sigs } { block_sigs  (blocked) ; }
+	BlockedSig (::vector<int>     && sigs) : blocked{::move(sigs)} { block_sigs  (blocked) ; }
+	~BlockedSig(                         )                         { unblock_sigs(blocked) ; }
+	// data
+	::vector<int> blocked ;
+} ;
 
 inline bool is_sig_sync(int sig) {
 	switch (sig) {
@@ -82,17 +84,10 @@ inline ::string wstatus_str(int wstatus) {
 struct Child {
 	static constexpr Fd None{-1} ;
 	static constexpr Fd Pipe{-2} ;
+	// statics
+	[[noreturn]] static int _s_do_child                  (void* self) { reinterpret_cast<Child*>(self)->_do_child                  () ; }
+	[[noreturn]] static int _s_do_child_new_pid_namespace(void* self) { reinterpret_cast<Child*>(self)->_do_child_new_pid_namespace() ; }
 	// cxtors & casts
-	Child() = default ;
-	Child(
-		bool            as_session         , ::vector_s const& args
-	,	Fd              stdin_fd=Fd::Stdin , Fd                stdout_fd=Fd::Stdout , Fd stderr_fd=Fd::Stderr
-	,	::map_ss const* env       =nullptr   , ::map_ss   const* add_env  =nullptr
-	,	::string const& cwd       ={}
-	,	void (*pre_exec)()        =nullptr
-	) {
-		spawn(as_session,args,stdin_fd,stdout_fd,stderr_fd,env,add_env,cwd,pre_exec) ;
-	}
 	~Child() {
 		swear_prod(pid==0,"bad pid ",pid) ;
 	}
@@ -100,13 +95,7 @@ struct Child {
 	bool operator+() const { return pid     ; }
 	bool operator!() const { return !+*this ; }
 	// services
-	bool/*parent*/ spawn(
-		bool            as_session           , ::vector_s const& args
-	,	Fd              stdin_fd  =Fd::Stdin , Fd                stdout_fd=Fd::Stdout , Fd stderr_fd=Fd::Stderr
-	,	::map_ss const* env       =nullptr   , ::map_ss   const* add_env  =nullptr
-	,	::string const& cwd       ={}
-	,	void (*pre_exec)()        =nullptr
-	) ;
+	void spawn() ;
 	void mk_daemon() {
 		pid = 0 ;
 		stdin .detach() ;
@@ -130,10 +119,30 @@ struct Child {
 	}
 	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
 	bool         is_alive(       ) const { return kill_process(pid,0                         ) ; }
+private :
+	[[noreturn]] void _do_child                  () ;
+	[[noreturn]] void _do_child_new_pid_namespace() ;
 	//data
-	pid_t       pid        = 0     ;
-	AutoCloseFd stdin      ;
-	AutoCloseFd stdout     ;
-	AutoCloseFd stderr     ;
-	bool        as_session = false ;
+public :
+	// spawn parameters
+	bool            as_session         = false      ;
+	pid_t           first_pid          = 0          ;
+	::vector_s      cmd_line           = {}         ;
+	Fd              stdin_fd           = Fd::Stdin  ;
+	Fd              stdout_fd          = Fd::Stdout ;
+	Fd              stderr_fd          = Fd::Stderr ;
+	::map_ss const* env                = nullptr    ;
+	::map_ss const* add_env            = nullptr    ;
+	::string        cwd_               = {}         ;
+	int/*rc*/       (*pre_exec)(void*) = nullptr    ; // if no cmd_line, this is the entire function exected as child returning the exit status
+	void*           pre_exec_arg       = nullptr    ;
+	// child info
+	pid_t       pid    = 0  ;
+	AutoCloseFd stdin  = {} ;
+	AutoCloseFd stdout = {} ;
+	AutoCloseFd stderr = {} ;
+	// private (cannot really declare private or it would not be an aggregate any more)
+	::Pipe _p2c  = {} ;
+	::Pipe _c2po = {} ;
+	::Pipe _c2pe = {} ;
 } ;

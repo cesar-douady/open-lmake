@@ -754,13 +754,11 @@ namespace Engine {
 		}
 
 		template<bool Env> bool/*updated*/ acquire( ::string& dst , Py::Object const* py_src ) {
-			if ( !py_src                       )                                               return false ;
-			if (  Env && *py_src==Py::None     ) {                          dst = EnvDynMrkr ; return true  ; } // special case environment variable to mark dynamic values
-			if ( !Env && *py_src==Py::None     ) { if (!dst) return false ; dst = {}         ; return true  ; }
-			if ( !Env && *py_src==Py::Ellipsis ) {                          dst = "..."      ; return true  ; }
-			//
-			if (Env) dst = env_encode(*py_src->str()) ;                                                         // for environment, replace occurrences of lmake & root absolute paths par markers ...
-			else     dst =            *py_src->str()  ;                                                         // ... so as to make repo rebust to moves of lmake or itself
+			if      ( !py_src                       )             return false ;
+			else if (  Env && *py_src==Py::None     )                            dst = EnvDynMrkr     ;   // special case environment variable to mark dynamic values
+			else if ( !Env && *py_src==Py::None     ) { if (!dst) return false ; dst = {}             ; }
+			else if ( !Env && *py_src==Py::Ellipsis )                            dst = "..."          ;
+			else                                                                 dst = *py_src->str() ;
 			return true ;
 		}
 

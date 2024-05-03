@@ -75,7 +75,7 @@ def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
 	load_modules(func)
 	stdin    = open('/dev/tty','r') if redirected[0] else None
 	stdout   = open('/dev/tty','w') if redirected[1] else None
-	debugger = pdb.Pdb(stdin=stdin,stdoutstdout)
+	debugger = pdb.Pdb(stdin=stdin,stdout=stdout)
 	try :
 		debugger.runcall(func,*args,**kwds)
 	except BaseException as e :

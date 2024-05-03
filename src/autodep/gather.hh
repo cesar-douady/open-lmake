@@ -78,8 +78,10 @@ struct Gather {
 		NodeIdx      parallel_id     = 0                                      ;
 		AccessDigest digest          ;
 	} ;
-	// services
+	// statics
 private :
+	[[noreturn]] static int _s_do_child(void* self) { reinterpret_cast<Gather*>(self)->_do_child() ; }
+	// services
 	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only
 	void _new_access( Fd , PD    , ::string&& file , AccessDigest    , DI const&    , bool parallel , ::string const& comment ) ;
@@ -93,8 +95,8 @@ private :
 		Trace trace("_new_guards",fd,jerr.txt) ;
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
-	void _kill          ( KillStep , Child const& ) ;
-	void _send_to_server( Fd fd , Jerr&& jerr     ) ;
+	void _kill          ( bool force          ) ;
+	void _send_to_server( Fd fd , Jerr&& jerr ) ;
 public : //!                                                                                                           crc_file_info parallel
 	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,false  ,c) ; }
 	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,false  ,c) ; } // new_unlnk is used for internal wash
@@ -107,13 +109,18 @@ public : //!                                                                    
 		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}         // dont care if we cannot report the reply to job
 	}
 	//
-	Status exec_child( ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
+	Status exec_child() ;
 	//
 	void reorder(bool at_end) ;                                                // reorder accesses by first read access and suppress superfluous accesses
 private :
-	void _spawn_child( Child& , ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
+	void              _spawn_child() ;
+	[[noreturn]] void _do_child   () ;
 	// data
 public :
+	::vector_s                        cmd_line         ;
+	Fd                                child_stdin      = Fd::Stdin           ;
+	Fd                                child_stdout     = Fd::Stdout          ;
+	Fd                                child_stderr     = Fd::Stderr          ;
 	umap_s<NodeIdx   >                access_map       ;
 	vmap_s<AccessInfo>                accesses         ;
 	in_addr_t                         addr             = NoSockAddr          ; // local addr to which we can be contacted by running job
@@ -121,8 +128,9 @@ public :
 	AutodepEnv                        autodep_env      ;
 	::function<::vmap_s<DepDigest>()> cur_deps_cb      ;
 	::string                          cwd              ;
-	Time::Pdate                       end_time         ;
+	PD                                end_date         ;
 	 ::map_ss const*                  env              = nullptr             ;
+	pid_t                             first_pid        = 0                   ;
 	uset_s                            guards           ;                       // dir creation/deletion that must be guarded against NFS
 	JobIdx                            job              = 0                   ;
 	::vector<uint8_t>                 kill_sigs        ;                       // signals used to kill job
@@ -135,14 +143,20 @@ public :
 	SeqId                             seq_id           = 0                   ;
 	ServerSockFd                      server_master_fd ;
 	::string                          service_mngt     ;
-	Time::Pdate                       start_time       ;
+	PD                                start_date       ;
 	::string                          stdout           ;                       // contains child stdout if child_stdout==Pipe
 	::string                          stderr           ;                       // contains child stderr if child_stderr==Pipe
 	Time::Delay                       timeout          ;
 	int                               wstatus          = 0                   ;
 private :
+	::map_ss            _add_env       ;
+	Child               _child         ;
 	::umap<Fd,::string> _codec_files   ;
-	bool                _kill_reported = false ;
-	NodeIdx             _parallel_id   = 0     ;                               // id to identify parallel deps
+	PD                  _end_timeout   = PD::Future ;
+	PD                  _end_child     = PD::Future ;
+	PD                  _end_kill      = PD::Future ;
+	size_t              _kill_step     = 0          ;
+	NodeIdx             _parallel_id   = 0          ;                          // id to identify parallel deps
+	bool                _timeout_fired = false      ;
 	BitMap<Kind>        _wait          ;                                       // events we are waiting for
 } ;

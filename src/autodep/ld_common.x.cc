@@ -7,8 +7,10 @@
 #include <stdarg.h>
 
 #include <errno.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/mount.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <utime.h>
@@ -65,7 +67,7 @@ static thread_local bool                      _t_loop  = false ; // prevent recu
 // To face this order problem, we declare our Audit as a static within a funciton which will be constructed upon first call.
 // As all statics with cxtor/dxtor, we define it through new so as to avoid destruction during finalization.
 #ifndef IN_SERVER
-	static // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
+	static        // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
 #endif
 Record& auditer() {
 	static Record* s_res = new Record{New} ;
@@ -92,6 +94,7 @@ using Chmod    = AuditAction<Record::Chmod         > ;
 using Hide     = AuditAction<Record::Hide    ,0    > ;
 using Mkdir    = AuditAction<Record::Mkdir         > ;
 using Lnk      = AuditAction<Record::Lnk     ,2    > ;
+using Mount    = AuditAction<Record::Mount   ,2    > ;
 using Open     = AuditAction<Record::Open          > ;
 using Read     = AuditAction<Record::Read          > ;
 using Readlink = AuditAction<Record::Readlink      > ;
@@ -290,6 +293,20 @@ struct Mkstemp : WSolve {
 	int chmod   (      CC* p,mode_t m      ) NE { HEADER1(chmod   ,p,(  p,m  )) ; Chmod r{   p ,EXE(m),false   ,"chmod"   } ; return r(orig(  p,m  )) ; }
 	int fchmodat(int d,CC* p,mode_t m,int f) NE { HEADER1(fchmodat,p,(d,p,m,f)) ; Chmod r{{d,p},EXE(m),ASLNF(f),"fchmodat"} ; return r(orig(d,p,m,f)) ; }
 
+	// clone
+	// cf fork about why this wrapper is necessary
+	int clone( int (*fn)(void*) , void *stack , int flags , void *arg , ... ) NE {
+		va_list args ;
+		va_start(args,arg) ;
+		pid_t* parent_tid = va_arg(args,pid_t*) ;
+		void * tls        = va_arg(args,void *) ;
+		pid_t* child_tid  = va_arg(args,pid_t*) ;
+		va_end(args) ;
+		HEADER0(clone,(fn,stack,flags,arg,parent_tid,tls,child_tid)) ;
+		NO_SERVER(clone) ;
+		return orig(fn,stack,flags,arg,parent_tid,tls,child_tid) ;
+	}
+
 	#ifndef IN_SERVER
 		// close
 		// close must be tracked as we must call hide
@@ -399,29 +416,37 @@ struct Mkstemp : WSolve {
 	int mkstemps64 (char* t,      int sl) { HEADER0(mkstemps64 ,(t,  sl)) ; Mkstemp r{t,sl,"mkstemps64" } ; return r(orig(t,  sl)) ; }
 	int mkostemps64(char* t,int f,int sl) { HEADER0(mkostemps64,(t,f,sl)) ; Mkstemp r{t,sl,"mkostemps64"} ; return r(orig(t,f,sl)) ; }
 
-	// open
-	#define MOD mode_t m = 0 ; if ( f & (O_CREAT|O_TMPFILE) ) { va_list lst ; va_start(lst,f) ; m = va_arg(lst,mode_t) ; va_end(lst) ; }
-	int open             (      CC* p,int f , ...) { MOD ; HEADER1(open             ,p,(  p,f,m)) ; Open r{   p ,f                         ,"open"             } ; return r(orig(  p,f,m)) ; }
-	int __open           (      CC* p,int f , ...) { MOD ; HEADER1(__open           ,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open"           } ; return r(orig(  p,f,m)) ; }
-	int __open_nocancel  (      CC* p,int f , ...) { MOD ; HEADER1(__open_nocancel  ,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open_nocancel"  } ; return r(orig(  p,f,m)) ; }
-	int __open_2         (      CC* p,int f      ) {       HEADER1(__open_2         ,p,(  p,f  )) ; Open r{   p ,f                         ,"__open_2"         } ; return r(orig(  p,f  )) ; }
-	int open64           (      CC* p,int f , ...) { MOD ; HEADER1(open64           ,p,(  p,f,m)) ; Open r{   p ,f                         ,"open64"           } ; return r(orig(  p,f,m)) ; }
-	int __open64         (      CC* p,int f , ...) { MOD ; HEADER1(__open64         ,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64"         } ; return r(orig(  p,f,m)) ; }
-	int __open64_nocancel(      CC* p,int f , ...) { MOD ; HEADER1(__open64_nocancel,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64_nocancel"} ; return r(orig(  p,f,m)) ; }
-	int __open64_2       (      CC* p,int f      ) {       HEADER1(__open64_2       ,p,(  p,f  )) ; Open r{   p ,f                         ,"__open64_2"       } ; return r(orig(  p,f  )) ; }
-	int openat           (int d,CC* p,int f , ...) { MOD ; HEADER1(openat           ,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat"           } ; return r(orig(d,p,f,m)) ; }
-	int __openat_2       (int d,CC* p,int f      ) {       HEADER1(__openat_2       ,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat_2"       } ; return r(orig(d,p,f  )) ; }
-	int openat64         (int d,CC* p,int f , ...) { MOD ; HEADER1(openat64         ,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat64"         } ; return r(orig(d,p,f,m)) ; }
-	int __openat64_2     (int d,CC* p,int f      ) {       HEADER1(__openat64_2     ,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat64_2"     } ; return r(orig(d,p,f  )) ; }
-	int creat            (      CC* p,mode_t m   ) {       HEADER1(creat            ,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat"            } ; return r(orig(  p,  m)) ; }
-	int creat64          (      CC* p,mode_t m   ) {       HEADER1(creat64          ,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat64"          } ; return r(orig(  p,  m)) ; }
-	#undef MOD
-	//
+	// mount
+	int mount(CC* sp,CC* tp,CC* fst,ulong f,const void* d) {
+		HEADER( mount , !(f&MS_BIND) || (Record::s_is_simple(sp)&&Record::s_is_simple(tp)) , (sp,tp,fst,f,d) ) ;
+		Mount r{sp,tp,"mount"} ;
+		return r(orig(sp,tp,fst,f,d)) ;
+	}
+
+	// name_to_handle_at
 	int name_to_handle_at( int d , CC* p , struct ::file_handle *h , int *mount_id , int f ) NE {
 		HEADER1(name_to_handle_at,p,(d,p,h,mount_id,f)) ;
 		Open r{{d,p},f,"name_to_handle_at"} ;
 		return r(orig(d,p,h,mount_id,f)) ;
 	}
+
+	// open
+	#define MOD mode_t m = 0 ; if ( f & (O_CREAT|O_TMPFILE) ) { va_list lst ; va_start(lst,f) ; m = va_arg(lst,mode_t) ; va_end(lst) ; }
+	int open             (      CC* p,int f,...) { MOD ; HEADER1(open             ,p,(  p,f,m)) ; Open r{   p ,f                         ,"open"             } ; return r(orig(  p,f,m)) ; }
+	int __open           (      CC* p,int f,...) { MOD ; HEADER1(__open           ,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open"           } ; return r(orig(  p,f,m)) ; }
+	int __open_nocancel  (      CC* p,int f,...) { MOD ; HEADER1(__open_nocancel  ,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open_nocancel"  } ; return r(orig(  p,f,m)) ; }
+	int __open_2         (      CC* p,int f    ) {       HEADER1(__open_2         ,p,(  p,f  )) ; Open r{   p ,f                         ,"__open_2"         } ; return r(orig(  p,f  )) ; }
+	int open64           (      CC* p,int f,...) { MOD ; HEADER1(open64           ,p,(  p,f,m)) ; Open r{   p ,f                         ,"open64"           } ; return r(orig(  p,f,m)) ; }
+	int __open64         (      CC* p,int f,...) { MOD ; HEADER1(__open64         ,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64"         } ; return r(orig(  p,f,m)) ; }
+	int __open64_nocancel(      CC* p,int f,...) { MOD ; HEADER1(__open64_nocancel,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64_nocancel"} ; return r(orig(  p,f,m)) ; }
+	int __open64_2       (      CC* p,int f    ) {       HEADER1(__open64_2       ,p,(  p,f  )) ; Open r{   p ,f                         ,"__open64_2"       } ; return r(orig(  p,f  )) ; }
+	int openat           (int d,CC* p,int f,...) { MOD ; HEADER1(openat           ,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat"           } ; return r(orig(d,p,f,m)) ; }
+	int __openat_2       (int d,CC* p,int f    ) {       HEADER1(__openat_2       ,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat_2"       } ; return r(orig(d,p,f  )) ; }
+	int openat64         (int d,CC* p,int f,...) { MOD ; HEADER1(openat64         ,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat64"         } ; return r(orig(d,p,f,m)) ; }
+	int __openat64_2     (int d,CC* p,int f    ) {       HEADER1(__openat64_2     ,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat64_2"     } ; return r(orig(d,p,f  )) ; }
+	int creat            (      CC* p,mode_t m ) {       HEADER1(creat            ,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat"            } ; return r(orig(  p,  m)) ; }
+	int creat64          (      CC* p,mode_t m ) {       HEADER1(creat64          ,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat64"          } ; return r(orig(  p,  m)) ; }
+	#undef MOD
 
 	// readlink
 	#ifdef LD_PRELOAD_JEMALLOC
@@ -549,18 +574,19 @@ struct Mkstemp : WSolve {
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
 		void* descr_ctx = nullptr ;
-		Ctx audit_ctx ;                                                          // save user errno when required
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		descr.entry( descr_ctx , auditer() , 0/*pid*/ , args , descr.comment ) ; // may modify args if tmp is mapped
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		Ctx audit_ctx ;             // save user errno when required
+		//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (descr.entry) descr.entry( descr_ctx , auditer() , 0/*pid*/ , args , descr.comment ) ;
+		//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		audit_ctx.restore_errno() ;
 		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		long res = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
 		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		audit_ctx.save_errno() ;
-		//     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		return descr.exit( descr_ctx , auditer() , 0/*pid*/ , res ) ;
-		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (descr.exit) return descr.exit( descr_ctx , auditer() , 0/*pid*/ , res ) ;
+		else            return res                                                  ;
+		//                     ^^^
 	}
 
 	#undef NO_SERVER

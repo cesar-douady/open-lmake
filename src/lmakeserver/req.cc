@@ -92,7 +92,7 @@ namespace Engine {
 
 	void Req::close() {
 		Trace trace("close",*this) ;
-		SWEAR((*this)->is_open()) ;
+		SWEAR( (*this)->is_open  ()) ;
 		SWEAR(!(*this)->n_running()) ;
 		if ((*this)->has_backend) Backend::s_close_req(+*this) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
@@ -110,8 +110,6 @@ namespace Engine {
 			_s_reqs_by_eta.pop_back() ;
 		}
 		(*this)->clear() ;
-		zombie(false) ;
-		s_small_ids.release(+*this) ;
 	}
 
 	void Req::inc_rule_exec_time( Rule rule , Delay delta , Tokens1 tokens1 ) {

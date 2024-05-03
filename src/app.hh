@@ -184,12 +184,3 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 	args.reserve(argc-a) ;
 	for( ; a<argc ; a++ ) args.emplace_back(argv[a]) ;
 }
-
-//
-// env encoding
-//
-
-// replace occurrences of repo and lmake absolute references by markers and vice versa
-// this is important not only for user comfort, but also to make the cache entries independent of these 2 directories
-::string env_encode(::string&& txt) ;
-::string env_decode(::string&& txt) ;

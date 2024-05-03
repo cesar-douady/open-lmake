@@ -291,6 +291,11 @@ then HAS_PCRE=1
 else HAS_PCRE=0
 fi
 
+#
+# MAX_PID
+#
+MAX_PID=$(cat /proc/sys/kernel/pid_max)
+
 cd $START_DIR
 
 cat >$MK_FILE <<EOF
@@ -332,6 +337,7 @@ cat >$H_FILE <<EOF
 	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE
+	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"

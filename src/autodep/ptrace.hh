@@ -24,9 +24,9 @@
 
 struct AutodepPtrace {
 	// statics
-	static void s_prepare_child() ;    // must be called from child
+	static int/*rc*/ s_prepare_child(void*) ; // must be called from child
 	// static data
-	static AutodepEnv* s_autodep_env ; // declare as pointer to avoid static late initialization
+	static AutodepEnv* s_autodep_env ;   // declare as pointer to avoid static late initialization
 	// cxtors & casts
 	AutodepPtrace(        ) = default ;
 	AutodepPtrace(pid_t cp) { _init(cp) ; }

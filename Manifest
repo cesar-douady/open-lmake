@@ -78,7 +78,6 @@ src/job_exec.cc
 src/ldebug.cc
 src/ldump.cc
 src/ldump_job.cc
-src/lenter.cc
 src/lforget.cc
 src/lib.cc
 src/lib.hh
@@ -243,10 +242,10 @@ unit_tests/test11.script
 unit_tests/test12.script
 unit_tests/test13.script
 unit_tests/test14.script
-unit_tests/test15.script
 unit_tests/test17.script
 unit_tests/test18.script
 unit_tests/test19.script
+unit_tests/timeout.py
 unit_tests/tmp.py
 unit_tests/tmp2.py
 unit_tests/trancient.py

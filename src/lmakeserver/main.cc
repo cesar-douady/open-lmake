@@ -190,6 +190,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					switch (rrr.proc) {
 						case ReqProc::Make   : {
 							Req r{New} ;
+							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 							g_engine_queue.emplace( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ;
@@ -329,6 +330,7 @@ bool/*interrupted*/ engine_loop() {
 						//vvvvvvvvv
 						req.close() ;
 						//^^^^^^^^^
+						if      (it->second.killed            ) req.dealloc() ;                      // dealloc when req can be reused
 						if      (it->second.in!=it->second.out) ::close   (it->second.out        ) ;
 						else if (it->second.killed            ) ::close   (it->second.out        ) ; // we are after  Kill, finalize close of file descriptor
 						else                                    ::shutdown(it->second.out,SHUT_WR) ; // we are before Kill, shutdown until final close upon Close
@@ -344,6 +346,7 @@ bool/*interrupted*/ engine_loop() {
 						if ( +req && +*req && req_active ) req.kill() ;
 						//                                 ^^^^^^^^^^
 						if      (req_active           ) it->second.killed = true ;
+						else                            req.dealloc() ;                    // dealloc when req can be reused
 						if      (ecr.in_fd!=ecr.out_fd) ::close   (ecr.in_fd        ) ;
 						else if (!req_active          ) ::close   (ecr.in_fd        ) ;    // we are after  Close, finalize close of file descriptor
 						else                            ::shutdown(ecr.in_fd,SHUT_RD) ;    // we are before Close, shutdown until final close upon Close
@@ -375,7 +378,7 @@ bool/*interrupted*/ engine_loop() {
 					case JobMngtProc::DepVerbose : {
 						::vector<Dep> deps ; deps.reserve(ecjm.deps.size()) ;
 						for( auto const& [dn,dd] : ecjm.deps ) deps.emplace_back(Node(dn),dd) ;
-						JobMngtRpcReply jmrr = je.job_info(ecjm.proc,deps) ;
+						JobMngtRpcReply jmrr = je.job_analysis(ecjm.proc,deps) ;
 						jmrr.fd = ecjm.fd ;                                                // seq_id will be filled in by send_reply
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						Backends::send_reply( +je , ::move(jmrr) ) ;
@@ -391,7 +394,7 @@ bool/*interrupted*/ engine_loop() {
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
-	app_init(Maybe/*chk_version*/) ;                                                    // server is always launched at root
+	app_init(Maybe/*chk_version*/) ;                  // server is always launched at root
 	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
 	AutodepEnv ade ;
 	ade.root_dir = *g_root_dir ;
@@ -423,8 +426,8 @@ int main( int argc , char** argv ) {
 	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	_g_int_fd = open_sig_fd({SIGINT,SIGHUP}) ;                                          // must be done before app_init so that all threads block the signal
-	set_sig({SIGPIPE},true/*block*/) ;
+	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;     // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
+	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;       // must be done before app_init so that all threads block the signal
 	//          vvvvvvvvvvvvvvv
 	Persistent::writable = true ;
 	Codec     ::writable = true ;

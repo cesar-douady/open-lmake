@@ -1050,8 +1050,6 @@ private :
 
 inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
 
-template<class T> T clone(T const& x) { return x ; } // simply clone a value
-
 template<class T,bool Fence=false> struct Save {
 	 Save( T& ref , T const& val ) : saved{ref},_ref{ref} { _ref = val ; if (Fence) fence() ;                } // save and init, ensure sequentiality if asked to do so
 	 Save( T& ref                ) : saved{ref},_ref{ref} {                                                  } // in some cases, we do not care about the value, just saving and restoring

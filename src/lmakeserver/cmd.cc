@@ -177,8 +177,8 @@ namespace Engine {
 		::umap_ss de  = mk_umap(dynamic_env) ;
 		::vmap_ss res ;
 		for( auto const& [k,v] : env )
-			if      (v!=EnvPassMrkr) res.emplace_back(k,env_decode(::copy(v       ))) ;
-			else if (de.contains(k)) res.emplace_back(k,env_decode(::copy(de.at(k)))) ;
+			if      (v!=EnvPassMrkr) res.emplace_back(k,v       ) ;
+			else if (de.contains(k)) res.emplace_back(k,de.at(k)) ;
 		return res ;
 	}
 
@@ -189,7 +189,7 @@ namespace Engine {
 			) ;
 	}
 
-	static ::string _mk_cmd( Job j , ReqFlags flags , JobRpcReply const& start , ::string const& dbg_dir , bool redirected ) {
+	static ::string _mk_cmd( Job j , ReqFlags flags , JobRpcReply const& start , ::string const& dbg_dir ) {
 		// add debug prelude if asked to do so
 		// try to use stdin/stdout to debug with pdb as much as possible as readline does not work on alternate streams
 		//
@@ -233,7 +233,7 @@ namespace Engine {
 			}
 			res += ")\n" ;
 			//
-			append_line_to_string( res , "lmake_dbg[" , mk_py_str(runner) , "](" , mk_py_str(dbg_dir) , ',' , redirected?"True":"False" , ',' ,run_call ,")\n" ) ;
+			append_line_to_string( res , "lmake_dbg[",mk_py_str(runner),"](",mk_py_str(dbg_dir),",(",+start.stdin?"True":"False",',',+start.stdout?"True":"False","),",run_call,")\n" ) ;
 		}
 		return res ;
 	}
@@ -327,11 +327,10 @@ R"({
 		//
 		for( Node t  : j->targets ) t->set_buildable() ;                                                                                        // necessary for pre_actions()
 		//
-		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match)         ;
-		::string                                           script      = "#!/bin/bash\n"               ;
-		bool                                               is_python   = j->rule->is_python            ;
-		bool                                               dbg         = flags[ReqFlag::Debug]         ;
-		bool                                               redirected  = +start.stdin || +start.stdout ;
+		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match) ;
+		::string                                           script      = "#!/bin/bash\n"       ;
+		bool                                               is_python   = j->rule->is_python    ;
+		bool                                               dbg         = flags[ReqFlag::Debug] ;
 		//
 		::uset<Node> warn      ; for( auto n     : pre_actions.second )                                  warn     .insert(n) ;
 		::uset<Node> to_mkdirs ; for( auto [d,a] : pre_actions.first  ) if (a.tag==FileActionTag::Mkdir) to_mkdirs.insert(d) ;
@@ -369,7 +368,7 @@ R"({
 			if (!start.autodep_env.tmp_dir)
 				for( auto&& [k,v] : start.env )
 					if ( k=="TMPDIR" && v!=EnvPassMrkr )
-						tmp_dir = env_decode(::copy(v)) ;
+						tmp_dir = v ;
 		}
 		//
 		append_to_string( script , "export      TMPDIR="  , mk_shell_str(tmp_dir) , '\n' ) ;
@@ -396,7 +395,7 @@ R"({
 			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)                 ," \\\n") ;
 			if ( dbg || ade.auto_mkdir || +start.job_space ) {                                                                                  // in addition to debug, autodep may be needed ...
 				/**/                                    append_to_string( script , *g_lmake_dir,"/bin/autodep"                      ,' ') ;     // ... for functional reasons
-				if      ( dbg )                         append_to_string( script , "-s " , snake(ade.lnk_support)                   ,' ') ;
+				if      ( dbg                         ) append_to_string( script , "-s " , snake(ade.lnk_support)                   ,' ') ;
 				else                                    append_to_string( script , "-s " , "none"                                   ,' ') ;     // dont care about deps
 				/**/                                    append_to_string( script , "-m " , snake(start.method   )                   ,' ') ;
 				if      ( !dbg                        ) append_to_string( script , "-o " , "/dev/null"                              ,' ') ;
@@ -408,14 +407,14 @@ R"({
 				if      ( +start.job_space.tmp_view   ) append_to_string( script , "-t"  , mk_shell_str(start.job_space.tmp_view  ) ,' ') ;
 				if      ( +dbg_dir                    ) append_to_string( script , "-w"  , mk_shell_str(dbg_dir+"/work"           ) ,' ') ;
 			}
-			for( ::string const& c : start.interpreter )                     append_to_string( script , mk_shell_str(c) , ' '                                               ) ;
-			if      ( dbg && !is_python                )                     append_to_string( script , "-x "                                                               ) ;
-			if      ( with_cmd                         ) { SWEAR(+dbg_dir) ; append_to_string( script ,             mk_shell_str(dbg_dir+"/cmd"                           ) ) ; }
-			else                                                             append_to_string( script , "-c \\\n" , mk_shell_str(_mk_cmd(j,flags,start,dbg_dir,redirected)) ) ;
-			if      (  dbg && !is_python               )                     append_to_string( script , " 3<&0 4>&1 5>&2"                                                   ) ;
-			if      ( +start.stdout                    )                     append_to_string( script , " > " , mk_shell_str(start.stdout)                                  ) ;
-			if      ( +start.stdin                     )                     append_to_string( script , " < " , mk_shell_str(start.stdin )                                  ) ;
-			else if ( !dbg || !is_python || redirected )                     append_to_string( script , " < /dev/null"                                                      ) ;
+			for( ::string const& c : start.interpreter )                     append_to_string( script , mk_shell_str(c) , ' '                                    ) ;
+			if      ( dbg && !is_python )                                    append_to_string( script , "-x "                                                    ) ;
+			if      ( with_cmd          )                { SWEAR(+dbg_dir) ; append_to_string( script ,             mk_shell_str(dbg_dir+"/cmd"                ) ) ; }
+			else                                                             append_to_string( script , "-c \\\n" , mk_shell_str(_mk_cmd(j,flags,start,dbg_dir)) ) ;
+			if      ( dbg && !is_python )                                    append_to_string( script , " 3<&0 4>&1 5>&2"                                        ) ; // must be before job redirections
+			if      ( +start.stdin      )                                    append_to_string( script , " <" , mk_shell_str(start.stdin )                        ) ;
+			else if ( !dbg              )                                    append_to_string( script , " </dev/null"                                            ) ;
+			if      ( +start.stdout     )                                    append_to_string( script , " >" , mk_shell_str(start.stdout)                        ) ;
 			script += '\n' ;
 		}
 		return script ;
@@ -462,7 +461,6 @@ R"({
 		}
 		//
 		JobRpcReply const& start       = job_info.start.start                    ;
-		bool               redirected  = +start.stdin || +start.stdout           ;
 		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg)  ;
 		::string           script_file = dbg_dir+"/script"                       ;
 		::string           cmd_file    = dbg_dir+"/cmd"                          ;
@@ -475,7 +473,7 @@ R"({
 		} ;
 		//
 		/**/                              OFStream(dir_guard(script_file)) << _mk_script(job,ro.flags,job_info,dbg_dir,true/*with_cmd*/,vs_exts) ; ::chmod(script_file.c_str(),0755) ;
-		if (!ro.flags[ReqFlag::Enter] ) { OFStream(dir_guard(cmd_file   )) << _mk_cmd   (job,ro.flags,start   ,dbg_dir,redirected              ) ; ::chmod(cmd_file   .c_str(),0755) ; }
+		if (!ro.flags[ReqFlag::Enter] ) { OFStream(dir_guard(cmd_file   )) << _mk_cmd   (job,ro.flags,start   ,dbg_dir                         ) ; ::chmod(cmd_file   .c_str(),0755) ; }
 		if ( ro.flags[ReqFlag::Vscode])   OFStream(dir_guard(vscode_file)) << _mk_vscode(job,         job_info,dbg_dir,                 vs_exts) ;
 		//
 		audit_file( fd , ::move(script_file) ) ;
@@ -638,10 +636,9 @@ R"({
 						break ;
 					DF}
 				} else {
-					JobRpcReq   const& pre_start  = job_info.start.pre_start      ;
-					JobRpcReply const& start      = job_info.start.start          ;
-					JobRpcReq   const& end        = job_info.end  .end            ;
-					bool               redirected = +start.stdin || +start.stdout ;
+					JobRpcReq   const& pre_start = job_info.start.pre_start ;
+					JobRpcReply const& start     = job_info.start.start     ;
+					JobRpcReq   const& end       = job_info.end  .end       ;
 					//
 					if (pre_start.job) SWEAR(pre_start.job==+job,pre_start.job,+job) ;
 					//
@@ -657,9 +654,9 @@ R"({
 							if (!has_start) audit( fd , ro , Color::Err , "no info available"                                                               , true , lvl ) ;
 							else            audit( fd , ro ,              _mk_script(job,ro.flags,job_info,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , true , lvl ) ;
 						break ;
-						case ReqKey::Cmd : //!                                                                       as_is
-							if (!has_start) audit( fd , ro , Color::Err , "no info available"                       , true , lvl ) ;
-							else            audit( fd , ro ,              _mk_cmd(job,ro.flags,start,{},redirected) , true , lvl ) ;
+						case ReqKey::Cmd : //!                                                            as_is
+							if (!has_start) audit( fd , ro , Color::Err , "no info available"            , true , lvl ) ;
+							else            audit( fd , ro ,              _mk_cmd(job,ro.flags,start,{}) , true , lvl ) ;
 						break ;
 						case ReqKey::Stdout :
 							if (!has_end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }

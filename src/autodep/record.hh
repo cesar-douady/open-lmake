@@ -260,6 +260,14 @@ public :
 		Mkdir() = default ;
 		Mkdir( Record& , Path&& , ::string&& comment ) ;
 	} ;
+	struct Mount {
+		Mount() = default ;
+		Mount( Record& , Path&& src , Path&& dst , ::string&& comment ) ;
+		int operator()( Record& , int rc ) { return rc ; }
+		// data
+		Solve src ;
+		Solve dst ;
+	} ;
 	struct Open : Solve {
 		// cxtors & casts
 		Open() = default ;

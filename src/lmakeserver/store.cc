@@ -331,8 +331,8 @@ namespace Engine::Persistent {
 			for( size_t l=1 ; l<=long_psfx.size() ; l++ ) {
 				::string short_psfx = long_psfx.substr( IsSfx?l:0 , long_psfx.size()-l ) ;
 				if (psfx_map.contains(short_psfx)) {
-					psfx_map.at(long_psfx).merge(::clone(psfx_map.at(short_psfx))) ; // copy arg as merge clobbers it
-					break ;                                                          // psfx's are sorted shortest first, so as soon as a short one is found, it is already merged with previous ones
+					psfx_map.at(long_psfx).merge(::copy(psfx_map.at(short_psfx))) ; // copy arg as merge clobbers it
+					break ;                                                         // psfx's are sorted shortest first, so as soon as a short one is found, it is already merged with previous ones
 				}
 			}
 		}

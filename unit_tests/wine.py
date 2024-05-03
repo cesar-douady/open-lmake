@@ -29,22 +29,23 @@ if __name__!='__main__' :
 		stems = { 'Method' : r'\w+' }
 
 	class WineRule(Rule) :
+		chroot_dir        = '/'                                         # ensure pid namespace is used to ensure reliale job termination
 		side_targets      = { 'WINE' : ('.wine/{*:.*}','incremental') }
 		environ_resources = { 'DISPLAY' : os.environ['DISPLAY'] }
-		timeout           = 30                                    # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
+		timeout           = 30                                          # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
 		allow_stderr      = True
 
 	class WineInit(WineRule) :
 		target       = '.wine/init'
-		targets      = { 'WINE' : '.wine/{*:.*}' }                                                     # for init wine env is not incremental
+		targets      = { 'WINE' : '.wine/{*:.*}' } # for init wine env is not incremental
 		side_targets = { 'WINE' : None           }
-		cmd          = 'wine64 cmd >$TMPDIR/out 2>$TMPDIR/err ; cat $TMPDIR/out ; cat $TMPDIR/err >&2' # do nothing, just to init support files (in targets), avoid waiting for stdout/stderr
+		cmd          = 'wine64 cmd'                # do nothing, just to init support files (in targets)
 
 	class Dut(Base,WineRule) :
 		target  = 'dut.{Method}'
 		deps    = { 'WINE_INIT' : '.wine/init' }
 		autodep = '{Method}'
-		cmd     = f'wine64 {hostname_exe} > $TMPDIR/out 2>$TMPDIR/err ; cat $TMPDIR/out ; cat $TMPDIR/err >&2' # avoid waiting for stdout/stderr
+		cmd     = 'wine64 {hostname_exe} ; sleep 1'
 
 	class Chk(Base) :
 		target = r'test.{Method}'

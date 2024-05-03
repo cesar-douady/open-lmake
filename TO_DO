@@ -12,7 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-? check that last component link check in record.cc is only applied if link_support!=None
 * fix compilation with LMAKE_FLAGS=ST
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions
@@ -66,9 +65,8 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* suppress awkard manipulations of env variables to go back and forth from absolute view to relative view
-* add pid in namespace to ease killing job
-	- but beware of jobs using pid as a unique id
+* rework dep analysis in JobData::make
+	- to ensure SWEAR(!ri.state.missing_dsk) does not fire
 * support 64-bits id
 	- configure with NBits rather than types
 	- in store/file.hh, reserve address space after NBits instead of type
@@ -104,6 +102,12 @@ items :
 		- repo->repo, repo->ext, ext->ext, but not ext->repo
 * implement fuse as an autodep method
 	- use namespaces
+	- interestingly enough : it is a wait to accept bind mount from repo
+* provide a mechansim to prevent writing non-targets
+	- mount an overlay over the repo
+	- at the end, transport targets to their real location
+	- drop other written files
+	- generate an error or not if any such files, depending on user declaration
 * provide more options to stderr management :
 	- redirect to stdout
 	- hide it (still accessible in lshow -e)
@@ -161,10 +165,6 @@ items :
 	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs
 	- share views in submit_attrs as there is very few variability
-* regexprs
-	- consider handling prefix/suffix apart
-		- most importantly sufixes
-		? maybe a pre-pass searching for infix is advisable
 * when rounding resources using config.backends.precisions
 	- round to prioritize jobs
 	- do not round for actual allocation
@@ -193,6 +193,10 @@ items :
 	- does not work straight forward
 	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
 	- need to do some trials
+? regexprs
+	- consider handling prefix/suffix apart
+		- most importantly sufixes
+		? maybe a pre-pass searching for infix is advisable
 ? record dep crcs in Job rather than in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless

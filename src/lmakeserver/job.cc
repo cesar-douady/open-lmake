@@ -241,9 +241,10 @@ namespace Engine {
 	}
 
 	// answer to job execution requests
-	JobMngtRpcReply JobExec::job_info( JobMngtProc proc , ::vector<Dep> const& deps ) const {
+	// XXX : use same analysis as for end/make, possibly sharing code
+	JobMngtRpcReply JobExec::job_analysis( JobMngtProc proc , ::vector<Dep> const& deps ) const {
 		::vector<Req> reqs = (*this)->running_reqs(false/*with_zombies*/) ;
-		Trace trace("job_info",proc,deps.size()) ;
+		Trace trace("job_analysis",proc,deps.size()) ;
 		//
 		switch (proc) {
 			case JobMngtProc::DepVerbose : {
@@ -701,7 +702,6 @@ namespace Engine {
 	RestartFullAnalysis :
 		switch (make_action) {
 			case MakeAction::End :
-				SWEAR(cmd_ok()) ;
 				ri.force   = false ;                                                                                // cmd has been executed, it is not new any more
 				ri.reason  = {}    ;                                                                                // reasons were to trigger the ending job, there are none now
 				ri.reset() ;                                                                                        // deps have changed

@@ -50,6 +50,7 @@ static bool started() { return true ; }
 ::umap_s<SymEntry> const* const g_syscall_tab = new ::umap_s<SymEntry>{
 	{ "chdir"               , { reinterpret_cast<void*>(Audited::chdir               ) } }
 ,	{ "chmod"               , { reinterpret_cast<void*>(Audited::chmod               ) } }
+,	{ "clone"               , { reinterpret_cast<void*>(Audited::clone               ) } }
 ,	{ "close"               , { reinterpret_cast<void*>(Audited::close               ) } }
 ,	{ "__close"             , { reinterpret_cast<void*>(Audited::__close             ) } }
 ,	{ "creat"               , { reinterpret_cast<void*>(Audited::creat               ) } }
@@ -88,6 +89,7 @@ static bool started() { return true ; }
 ,	{ "mkstemp64"           , { reinterpret_cast<void*>(Audited::mkstemp64           ) } }
 ,	{ "mkstemps"            , { reinterpret_cast<void*>(Audited::mkstemps            ) } }
 ,	{ "mkstemps64"          , { reinterpret_cast<void*>(Audited::mkstemps64          ) } }
+,	{ "mount"               , { reinterpret_cast<void*>(Audited::mount               ) } }
 ,	{ "open"                , { reinterpret_cast<void*>(Audited::open                ) } }
 ,	{ "__open"              , { reinterpret_cast<void*>(Audited::__open              ) } }
 ,	{ "__open_nocancel"     , { reinterpret_cast<void*>(Audited::__open_nocancel     ) } }

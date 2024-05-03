@@ -60,12 +60,13 @@ int main( int argc , char* argv[] ) {
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Status status ;
-	set_sig({SIGINT},true/*block*/) ;                                                                 // block ^C so that job can handl it at will
-	//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                       { status = gather.exec_child( cmd_line.args ) ; }
-	//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch (::string const& e) { exit(Rc::System,e) ;                          }
-	set_sig({SIGINT},false/*block*/) ;                                                                // restore
+	try {
+		BlockedSig blocked{{SIGCHLD,SIGINT}} ;
+		gather.cmd_line = cmd_line.args ;
+		//       vvvvvvvvvvvvvvvvvvv
+		status = gather.exec_child() ;
+		//       ^^^^^^^^^^^^^^^^^^^
+	} catch (::string const& e) { exit(Rc::System,e) ; }
 	//
 	::ostream* ds       ;
 	OFStream   user_out ;

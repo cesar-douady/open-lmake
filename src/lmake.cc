@@ -38,16 +38,20 @@ static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 
 static void _handle_int() {
 	struct Exit {
-		Exit() : int_fd{open_sig_fd({SIGINT})} {}
-		~Exit() {                                                              // this must be executed after _int_thread_func has completed
+		Exit() {
+			block_sigs({SIGINT}) ;
+			int_fd = open_sigs_fd({SIGINT}) ;
+		}
+		~Exit() {                                     // this must be executed after _int_thread_func has completed
 			if (!g_seen_int) return ;
-			close_sig_fd(int_fd,{SIGINT}) ;
-			kill_self(SIGINT) ;                                                // appear as being interrupted : important for shell scripts to actually stop
-			kill_self(SIGHUP) ;                                                // for some reason, the above kill_self does not work in some situations (e.g. if you type bash -c 'lmake&')
+			unblock_sigs({SIGINT}) ;
+			kill_self(SIGINT) ;                       // appear as being interrupted : important for shell scripts to actually stop
+			kill_self(SIGHUP) ;                       // for some reason, the above kill_self does not work in some situations (e.g. if you type bash -c 'lmake&')
 			fail_prod("lmake does not want to die") ;
 		}
-		Fd int_fd ;
+		Fd   int_fd  ;
 	} ;
+	if (is_blocked_sig(SIGINT)) return ; // nothing to handle if ^C is blocked
 	static Exit      exit   ;
 	static ::jthread int_jt { _int_thread_func , exit.int_fd } ;
 }

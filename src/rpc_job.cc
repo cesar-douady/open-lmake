@@ -32,10 +32,8 @@ using namespace Hash ;
 	for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
 		SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
 		switch (a.tag) {
-			case FileActionTag::None     :                                                                                          break ;
-			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f),'\n') ; break ;
-			case FileActionTag::Mkdir    : mk_dir(f,nfs_guard) ;                                                                    break ;
-			case FileActionTag::Unlnk    : {
+			case FileActionTag::None  :
+			case FileActionTag::Unlnk : {
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                                                                                                   // file does not exist, nothing to do
 				bool done = true/*garbage*/ ;
@@ -50,7 +48,9 @@ using namespace Hash ;
 				if ( done && unlnks ) unlnks->push_back(f) ;
 				ok &= done ;
 			} break ;
-			case FileActionTag::Rmdir :
+			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f),'\n') ; break ;
+			case FileActionTag::Mkdir    : mk_dir(f,nfs_guard) ;                                                                    break ;
+			case FileActionTag::Rmdir    :
 				if (!keep_dirs.contains(f))
 					try                     { rmdir(nfs_guard.change(f)) ;                                                        }
 					catch (::string const&) { for( ::string d=f ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ; } // if a dir cannot rmdir'ed, no need to try those uphill
@@ -113,10 +113,10 @@ static void _atomic_write( ::string const& file , ::string const& data ) {
 	if (cnt<0                  ) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : ",strerror(errno)          ) ;
 	if (size_t(cnt)<data.size()) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : only ",cnt," bytes written") ;
 }
-void JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir ) const {
+bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir ) const {
 	Trace trace("enter",*this) ;
 	//
-	if (!*this) return ;
+	if (!*this) return false/*entered*/ ;
 	//
 	int uid = ::getuid() ;                                                                                    // must be done before unshare that invents a new user
 	int gid = ::getgid() ;                                                                                    // .
@@ -171,6 +171,7 @@ void JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir
 	//
 	if (::setuid(uid)!=0) throw to_string("cannot set uid as ",uid,strerror(errno)) ;
 	if (::setgid(gid)!=0) throw to_string("cannot set gid as ",uid,strerror(errno)) ;
+	return true/*entered*/ ;
 }
 
 //

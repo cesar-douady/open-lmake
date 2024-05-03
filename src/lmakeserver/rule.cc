@@ -1175,12 +1175,12 @@ namespace Engine {
 		//
 		for( auto const& [k,v] : m ) wk = ::max(wk,k.size()) ;
 		for( auto const& [k,v] : m ) {
-			res << ::setw(wk)<<k ;
-			if      (v==EnvPassMrkr) res<<"   ..."                     ;
-			else if (v==EnvDynMrkr ) res<<"   <dynamic>"               ;
-			else if (+v            ) res<<" : "<<env_decode(::copy(v)) ;
-			else                     res<<" :"                         ;
-			res << '\n' ;
+			/**/                     res << ::setw(wk)<<k ;
+			if      (v==EnvPassMrkr) res <<"   ..."       ;
+			else if (v==EnvDynMrkr ) res <<"   <dynamic>" ;
+			else if (+v            ) res <<" : "<< v      ;
+			else                     res <<" :"           ;
+			/**/                     res <<'\n'           ;
 		}
 		//
 		return indent(res.str(),i) ;

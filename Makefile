@@ -111,7 +111,6 @@ LMAKE_SERVER_BIN_FILES := \
 	$(SBIN)/align_comments \
 	$(BIN)/autodep         \
 	$(BIN)/ldebug          \
-	$(BIN)/lenter          \
 	$(BIN)/lforget         \
 	$(BIN)/lmake           \
 	$(BIN)/lmark           \
@@ -483,13 +482,6 @@ $(BIN)/lmark : \
 	@mkdir -p $(BIN)
 	@echo link to $@
 	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
-
-$(BIN)/lenter : \
-	$(LMAKE_BASIC_SAN_OBJS) \
-	$(SRC)/lenter$(SAN).o
-	@mkdir -p $(BIN)
-	@echo link to $@
-	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 # XXX : why xxhsum does not support sanitize thread ?
 $(BIN)/xxhsum : \

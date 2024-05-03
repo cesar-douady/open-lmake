@@ -60,7 +60,7 @@ void AutodepPtrace::_init(pid_t cp) {
 	::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , 0/*data*/ ) ;
 }
 
-void AutodepPtrace::s_prepare_child() {
+int/*rc*/ AutodepPtrace::s_prepare_child(void*) {
 	#if HAS_SECCOMP
 		// prepare seccomp filter
 		AutodepEnv const& ade         = Record::s_autodep_env(*s_autodep_env)                ;
@@ -69,11 +69,11 @@ void AutodepPtrace::s_prepare_child() {
 		SWEAR(scmp) ;
 		static SyscallDescr::Tab const& tab = SyscallDescr::s_tab() ;
 		for( long syscall=0 ; syscall<SyscallDescr::NSyscalls ; syscall++ ) {
-			SyscallDescr const& entry = tab[syscall] ;
-			if ( !entry                            ) continue ;                   // entry is not allocated
-			if ( !entry.data_access && ignore_stat ) continue ;                   // non stat-like access are always needed
+			SyscallDescr const& descr = tab[syscall] ;
+			if ( !descr || !descr.entry            ) continue ;                                // descr is not allocated
+			if ( !descr.data_access && ignore_stat ) continue ;                                // non stat-like access are always needed
 			//
-			seccomp_syscall_priority( scmp ,                                 syscall , entry.prio ) ;
+			seccomp_syscall_priority( scmp ,                                 syscall , descr.prio ) ;
 			seccomp_rule_add        ( scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0          ) ;
 		}
 		// Load in the kernel & trace
@@ -81,7 +81,8 @@ void AutodepPtrace::s_prepare_child() {
 		SWEAR_PROD( rc==0 , rc ) ;
 	#endif
 	::ptrace( PTRACE_TRACEME , 0/*pid*/ , 0/*addr*/ , 0/*data*/ ) ;
-	kill_self(FirstSignal) ;                                                      // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
+	kill_self(FirstSignal) ;                                        // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
+	return 0 ;
 }
 
 ::pair<bool/*done*/,int/*wstatus*/> AutodepPtrace::_changed( pid_t pid , int wstatus ) {
@@ -119,7 +120,7 @@ void AutodepPtrace::s_prepare_child() {
 				SWEAR( syscall>=0 && syscall<SyscallDescr::NSyscalls ) ;
 				SyscallDescr const& descr = tab[syscall] ;
 				if (HAS_SECCOMP) SWEAR(+descr,"should not be awaken for nothing") ;
-				if (+descr) {
+				if ( +descr && descr.entry ) {
 					info.idx = syscall ;
 					#if HAS_PTRACE_GET_SYSCALL_INFO                                      // use portable calls if implemented
 						// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unesigned long long
@@ -131,12 +132,10 @@ void AutodepPtrace::s_prepare_child() {
 					#endif
 					SWEAR(!info.ctx,syscall) ;                                           // ensure following SWEAR on info.ctx is pertinent
 					descr.entry( info.ctx , info.record , pid , args , descr.comment ) ;
-					info.has_exit_proc = descr.exit ;
-					if (!info.has_exit_proc) SWEAR(!info.ctx,syscall) ;                  // no need for a context if we are not called at exit
-				} else {
-					info.has_exit_proc = false ;
+					if (!descr.exit) SWEAR(!info.ctx,syscall) ;                          // no need for a context if we are not called at exit
 				}
-				info.on_going = !HAS_SECCOMP || info.has_exit_proc ;                     // if using seccomp and we have no exit proc, we skip the syscall-exit
+				info.has_exit_proc = descr.exit                         ;
+				info.on_going      = !HAS_SECCOMP || info.has_exit_proc ;                // if using seccomp and we have no exit proc, we skip the syscall-exit
 				if (info.has_exit_proc) goto SyscallExit ;
 				else                    goto NextSyscall ;
 			} else {

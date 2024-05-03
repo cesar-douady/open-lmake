@@ -388,7 +388,7 @@ namespace Engine {
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosureReq const& ecr ) {
-		/**/                       os << "Req(" << ecr.proc <<',' ;
+		/**/                       os << "Ecr(" << ecr.proc <<','                                            ;
 		switch (ecr.proc) {
 			case ReqProc::Debug  : // PER_CMD : format for tracing
 			case ReqProc::Forget :
@@ -398,18 +398,18 @@ namespace Engine {
 			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
 			case ReqProc::Close  : os << ecr.req                                                             ; break ;
 		DF}
-		return                     os << ')' ;
+		return                     os <<')'                                                                  ;
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosureJob const& ecj ) {
-		/**/                                            os << "Job(" << ecj.proc <<','<< ecj.job_exec ;
+		/**/                                            os << "Ecj(" << ecj.proc <<','<< ecj.job_exec ;
 		switch (ecj.proc) {
-			case JobProc::Start       : if (ecj.report) os <<",report" ; break ;
-			case JobProc::GiveUp      :                 os <<','<< ecj.req             ; break ;
-			case JobProc::ReportStart :                                  break ;
-			case JobProc::End         :                 os <<','<< ecj.digest          ; break ;
+			case JobProc::Start       : if (ecj.report) os <<",report"                                ; break ;
+			case JobProc::GiveUp      :                 os <<','<< ecj.req                            ; break ;
+			case JobProc::ReportStart :                                                                 break ;
+			case JobProc::End         :                 os <<','<< ecj.digest                         ; break ;
 		DF}
-		return                                          os << ')' ;
+		return                                          os <<')'                                      ;
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosureJobMngt const& ecjm ) {
