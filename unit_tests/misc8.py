@@ -50,4 +50,4 @@ else :
 	ut.lmake( 'dep' , done=1 )
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'chk' , may_rerun=2 , done=5 ) # check that dut1 is remade after first run of dut2 despite having been done before
+	ut.lmake( 'chk' , may_rerun=1 , done=5 ) # check that dut1 is remade after first run of dut2 despite having been done before

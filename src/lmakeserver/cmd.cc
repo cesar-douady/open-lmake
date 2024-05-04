@@ -277,7 +277,7 @@ R"({
 				"type"      : "by-gdb"
 			,	"request"   : "attach"
 			,	"name"      : "Attach C/C++"
-			,	"program"   : ""
+			,	"program"   : $interpreter
 			,	"cwd"       : $g_root_dir
 			,	"processId" : 0
 			}
@@ -297,10 +297,11 @@ R"({
 			/**/        append_to_string( extensions , '"',ext,'"' ) ;
 			first = false ;
 		}
-		res = ::regex_replace( res , ::regex("\\$extensions") , extensions                                             ) ;
-		res = ::regex_replace( res , ::regex("\\$name"      ) , mk_json_str(          j->name()                      ) ) ;
-		res = ::regex_replace( res , ::regex("\\$g_root_dir") , mk_json_str(          *g_root_dir                    ) ) ;
-		res = ::regex_replace( res , ::regex("\\$program"   ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
+		res = ::regex_replace( res , ::regex("\\$extensions" ) , extensions                                             ) ;
+		res = ::regex_replace( res , ::regex("\\$name"       ) , mk_json_str(          j->name()                      ) ) ;
+		res = ::regex_replace( res , ::regex("\\$g_root_dir" ) , mk_json_str(          *g_root_dir                    ) ) ;
+		res = ::regex_replace( res , ::regex("\\$program"    ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
+		res = ::regex_replace( res , ::regex("\\$interpreter") , mk_json_str(to_string(start.interpreter[0]          )) ) ;
 		//
 		::vmap_ss env     = _mk_env(start.env,job_info.end.end.dynamic_env) ;
 		size_t    kw      = 13/*SEQUENCE_ID*/ ; for( auto&& [k,v] : env ) if (k!="TMPDIR") kw = ::max(kw,mk_json_str(k).size()) ;
@@ -375,16 +376,15 @@ R"({
 		append_to_string( script , "rm -rf   \"$TMPDIR\""                         , '\n' ) ;
 		append_to_string( script , "mkdir -p \"$TMPDIR\""                         , '\n' ) ;
 		if (flags[ReqFlag::Vscode]) {
-			vector_s static_deps ; for( Dep      const& d : j->deps ) if (d.dflags[Dflag::Static]) static_deps.push_back(d->name()      ) ;
-			vector_s sh_vs_exts  ; for( ::string const& e : vs_exts )                              sh_vs_exts .push_back(mk_shell_str(e)) ;
-			for( ::string const& e : sh_vs_exts  ) append_to_string( script , "code --list-extensions | grep -Fxq ",e," || code --install-extension ",e                   ,'\n') ;
-			/**/                                   append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir)                                          ,'\n') ;
-			/**/                                   append_to_string( script , "args=()"                                                                                   ,'\n') ;
-			/**/                                   append_to_string( script , "type -p code | grep -q .vscode-server || args+=( --user-data-dir $DEBUG_DIR/vscode/user )" ,'\n') ;
-			for( ::string const& d : static_deps ) append_to_string( script , "args+=( -g ",mk_shell_str(d)," )"                                                          ,'\n') ;
-			/**/                                   append_to_string( script , "args+=(-g \"$DEBUG_DIR/cmd\")"                                                             ,'\n') ;
-			/**/                                   append_to_string( script , "args+=(\"$DEBUG_DIR/vscode/ldebug.code-workspace\")"                                       ,'\n') ;
-			/**/                                   append_to_string( script , "code -n -w ${args[@]} &"                                                                   ,'\n') ;
+			vector_s static_deps ; for( Dep const& d : j->deps ) if (d.dflags[Dflag::Static]) static_deps.push_back(d->name()      ) ;
+			for( ::string const& e : vs_exts     ) append_to_string( script , "code --list-extensions | grep -Fxq ",mk_shell_str(e)," || code --install-extension ",mk_shell_str(e),'\n') ;
+			/**/                                   append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir)                                                   ,'\n') ;
+			/**/                                   append_to_string( script , "args=()"                                                                                            ,'\n') ;
+			/**/                                   append_to_string( script , "type -p code | grep -q .vscode-server || args+=( --user-data-dir \"$DEBUG_DIR/vscode/user\" )"      ,'\n') ;
+			for( ::string const& d : static_deps ) append_to_string( script , "args+=( ",mk_shell_str(d)," )"                                                                      ,'\n') ;
+			/**/                                   append_to_string( script , "args+=( \"$DEBUG_DIR/cmd\" )"                                                                       ,'\n') ;
+			/**/                                   append_to_string( script , "args+=( \"$DEBUG_DIR/vscode/ldebug.code-workspace\" )"                                              ,'\n') ;
+			/**/                                   append_to_string( script , "code -n -w --password-store=basic ${args[@]} &"                                                     ,'\n') ;
 		} else {
 			::vmap_ss env = _mk_env(start.env,job_info.end.end.dynamic_env) ;
 			/**/                                      append_to_string( script , "exec env -i"    ,                                  " \\\n") ;

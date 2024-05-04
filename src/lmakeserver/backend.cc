@@ -59,6 +59,23 @@ namespace Backends {
 		return {eta,keep_tmp} ;
 	}
 
+	Status Backend::StartTab::release( ::map<JobIdx,StartEntry>::iterator it , Status status ) {
+		Trace trace(BeChnl,"release",it->first,status) ;
+		if ( is_lost(status) && is_ok(status)==Maybe ) {
+			uint8_t& n_retries = it->second.submit_attrs.n_retries ;
+			if (n_retries!=0) {                                      // keep entry to keep on going retry count
+				uint8_t nr = n_retries - 1 ;                         // record trial and save value
+				it->second = {} ;                                    // clear other entries, as if we do not exist
+				n_retries = nr ;                                     // restore value
+				return status ;
+			}
+			status = mk_err(status) ;
+		}
+		trace("erase") ;
+		erase(it) ;
+		return status ;
+	}
+
 	//
 	// Backend
 	//
@@ -164,6 +181,7 @@ namespace Backends {
 
 	void Backend::_s_wakeup_remote( JobIdx job , StartEntry::Conn const& conn , SigDate const& start_date , JobMngtProc proc ) {
 		Trace trace(BeChnl,"_s_wakeup_remote",job,conn,proc) ;
+		SWEAR(conn.seq_id,job,conn) ;
 		try {
 			ClientSockFd fd(conn.host,conn.port) ;
 			OMsgBuf().send( fd , JobMngtRpcReply(proc,conn.seq_id) ) ; // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
@@ -179,23 +197,6 @@ namespace Backends {
 		if (_s_start_tab.find(+dre.job_exec,dre.seq_id)==_s_start_tab.end()) return ;
 		Trace trace(BeChnl,"_s_handle_deferred_report",dre) ;
 		g_engine_queue.emplace( JobProc::ReportStart , ::move(dre.job_exec) ) ;
-	}
-
-	Status Backend::_s_release_start_entry( ::map<JobIdx,StartEntry>::iterator it , Status status ) {
-		Trace trace(BeChnl,"_s_release_start_entry",it->first,status) ;
-		if ( is_lost(status) && is_ok(status)==Maybe ) {
-			uint8_t& n_retries = it->second.submit_attrs.n_retries ;
-			if (n_retries!=0) {                                      // keep entry to keep on going retry count
-				uint8_t nr = n_retries - 1 ;                         // we just try one time, note it
-				it->second = {} ;                                    // clear other entries, as if we do not exist
-				n_retries = nr ;
-				return status ;
-			}
-			status = mk_err(status) ;
-		}
-		trace("erase") ;
-		_s_start_tab.erase(it) ;
-		return status ;
 	}
 
 	bool/*keep_fd*/ Backend::_s_handle_job_start( JobRpcReq&& jrr , SlaveSockFd const& fd ) {
@@ -366,7 +367,7 @@ namespace Backends {
 				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , ::move(digest)                         , ::move(start_msg_err.first) ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("release_start_tab",entry,step,start_msg_err) ;
-				_s_release_start_entry(it) ;
+				_s_start_tab.release(it) ;
 				return false ;
 			}
 			//
@@ -461,9 +462,9 @@ namespace Backends {
 			auto [msg,ok] = s_end( entry.tag , +job , jrr.digest.status ) ;
 			//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			set_nl(jrr.msg) ; jrr.msg += msg ;
-			if ( jrr.digest.status==Status::LateLost && !msg ) jrr.msg           += "vanished after start\n"                     ;
-			if ( is_lost(jrr.digest.status) && !ok           ) jrr.digest.status  = Status::LateLostErr                          ;
-			/**/                                               jrr.digest.status  = _s_release_start_entry(it,jrr.digest.status) ;
+			if ( jrr.digest.status==Status::LateLost && !msg ) jrr.msg           += "vanished after start\n"                   ;
+			if ( is_lost(jrr.digest.status) && !ok           ) jrr.digest.status  = Status::LateLostErr                        ;
+			/**/                                               jrr.digest.status  = _s_start_tab.release(it,jrr.digest.status) ;
 		}
 		trace("info") ;
 		for( auto& [dn,dd] : jrr.digest.deps ) {
@@ -498,7 +499,7 @@ namespace Backends {
 			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) { // /!\ we erase entries while iterating
 				JobIdx      j = jit->first  ;
 				StartEntry& e = jit->second ;
-				if (!e.conn.seq_id) continue ;
+				if (!e) { jit++ ; continue ; }
 				if (ri) {
 					if ( e.reqs.size()==1 && e.reqs[0]==ri ) goto Kill ;
 					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) { // e.reqs is a non-sorted vector, we must search ri by hand
@@ -549,9 +550,8 @@ namespace Backends {
 			{	Lock lock { _s_mutex }                    ;                                                  // lock _s_start_tab for minimal time
 				auto it   = _s_start_tab.lower_bound(job) ;
 				if (it==_s_start_tab.end()) goto WrapAround ;
-				//
-				job = it->first ;                                                                            // job is now the next valid entry
 				StartEntry& entry = it->second ;
+				job = it->first ;                                                                            // job is now the next valid entry
 				//
 				if (!entry    )                      continue ;                                              // not a real entry                        ==> no check, no wait
 				if (!entry.old) { entry.old = true ; continue ; }                                            // entry is too new, wait until next round ==> no check, no wait
@@ -564,10 +564,10 @@ namespace Backends {
 				//
 				Status hbs = lost_report.second==HeartbeatState::Err ? Status::EarlyLostErr : Status::LateLost ;
 				//
-				rsrcs        = ::move(entry.rsrcs       )     ;
-				submit_attrs = ::move(entry.submit_attrs)     ;
-				eta          = entry.req_info().first         ;
-				status       = _s_release_start_entry(it,hbs) ;
+				rsrcs        = ::move(entry.rsrcs       )   ;
+				submit_attrs = ::move(entry.submit_attrs)   ;
+				eta          = entry.req_info().first       ;
+				status       = _s_start_tab.release(it,hbs) ;
 				trace("handle_job",job,entry,status) ;
 			}
 			{	Job       j  { job            } ;

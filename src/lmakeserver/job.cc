@@ -799,13 +799,14 @@ namespace Engine {
 				bool               sense_err   = !dep.dflags[Dflag::IgnoreError]              ;
 				bool               required    =  dep.dflags[Dflag::Required   ] || is_static ;
 				bool               modif       = state.stamped_modif || ri.force              ;
+				bool               may_care    = care || (modif&&is_static)                   ; // if previous modif, consider static deps as fully accessed, as initially
 				NodeReqInfo const* cdri        = &dep->c_req_info(req)                        ; // avoid allocating req_info as long as not necessary
 				NodeReqInfo      * dri         = nullptr                                      ; // .
 				NodeGoal           dep_goal    =
-					ri.full && care && (need_run(state)||archive) ? NodeGoal::Dsk
-				:	ri.full && (care||sense_err)                  ? NodeGoal::Status
-				:	required                                      ? NodeGoal::Makable
-				:	                                                NodeGoal::None
+					ri.full && may_care && (need_run(state)||archive) ? NodeGoal::Dsk
+				:	ri.full && (may_care||sense_err)                  ? NodeGoal::Status
+				:	required                                          ? NodeGoal::Makable
+				:	                                                    NodeGoal::None
 				;
 				if (!dep_goal) continue ;                                                       // this is not a dep (not static while asked for makable only)
 			RestartDep :
@@ -834,20 +835,20 @@ namespace Engine {
 					critical_waiting |= is_critical ;
 				} else {
 					SWEAR(dnd.done(*cdri,dep_goal)) ;                                                              // after having called make, dep must be either waiting or done
-					bool dep_missing_dsk = ri.full && care && !dnd.done(*cdri,NodeGoal::Dsk) ;
+					bool dep_missing_dsk = ri.full && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
 					state.missing_dsk |= dep_missing_dsk ;                                                         // job needs this dep if it must run
 					if (dep_goal==NodeGoal::Makable) {
 						if ( is_static && required && dnd.ok(*cdri,dep.accesses)==Maybe ) {
 							state.reason |= {JobReasonTag::DepMissingStatic,+dep} ;
 							dep_err = RunStatus::MissingStatic ;
 						}
-						continue ;                                                                                 // dont check modifs and errors
+						continue ;                                               // dont check modifs and errors
 					}
 					if (!care) goto Continue ;
-					dep_modif = !dep.up_to_date() ;
-					if ( dep_modif && status==Status::Ok && dep.no_trigger() ) {                                   // no_trigger only applies to successful jobs
+					dep_modif = !dep.up_to_date( is_static && modif ) ;          // after a modified dep, consider static deps as being fully accessed to avoid reruns due to previous errors
+					if ( dep_modif && status==Status::Ok && dep.no_trigger() ) { // no_trigger only applies to successful jobs
 						trace("no_trigger",dep) ;
-						req->no_triggers.emplace(dep,req->no_triggers.size()) ;                                    // record to repeat in summary, value is just to order summary in discovery order
+						req->no_triggers.emplace(dep,req->no_triggers.size()) ;  // record to repeat in summary, value is just to order summary in discovery order
 						dep_modif = false ;
 					}
 					if ( +state.stamped_err  ) goto Continue ;                                                     // we are already in error, no need to analyze errors any further
@@ -916,6 +917,10 @@ namespace Engine {
 		}
 	Run :
 		trace("run",pre_reason,ri,run_status) ;
+		if ( ri.state.missing_dsk) {
+			ri.reset() ;
+			goto RestartAnalysis ;
+		}
 		SWEAR(!ri.state.missing_dsk) ;                                                          // cant run if we are missing some deps on disk
 		if (rule->n_submits) {
 			if (ri.n_submits>=rule->n_submits) {

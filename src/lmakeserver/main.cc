@@ -146,7 +146,6 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	for(;;) {
 		::vector<Epoll::Event> events  = epoll.wait() ;
 		bool                   new_fd  = false        ;
-		::umap<Fd,Req>         req_tab ;
 		for( Epoll::Event event : events ) {
 			EventKind kind = event.data<EventKind>() ;
 			Fd        fd   = event.fd()              ;
@@ -157,7 +156,8 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 				// - lmake foo
 				// - touch Lmakefile.py
 				// - lmake bar          => maybe we get this request in the same poll as the end of lmake foo and we would eroneously say that it cannot be processed
-				// solution is to delay master events after other events and ignore them if we are done inbetween
+				// solution is to delay Master event after other events and ignore them if we are done inbetween
+				// note that there may at most a single Master event
 				case EventKind::Master :
 					SWEAR( !new_fd , new_fd ) ;
 					new_fd = true ;

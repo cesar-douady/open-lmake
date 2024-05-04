@@ -54,6 +54,10 @@ namespace Backends {
 			friend ::ostream& operator<<( ::ostream& , StartEntry const& ) ;
 			struct Conn {
 				friend ::ostream& operator<<( ::ostream& , Conn const& ) ;
+				// accesses
+				bool operator+() const { return seq_id  ; }
+				bool operator!() const { return !+*this ; }
+				// data
 				in_addr_t host     = NoSockAddr ;
 				in_port_t port     = 0          ;
 				SeqId     seq_id   = 0          ;
@@ -63,8 +67,8 @@ namespace Backends {
 			StartEntry(       ) = default ;
 			StartEntry(NewType) { open() ; }
 			// accesses
-			bool operator+() const { return conn.seq_id ; }
-			bool operator!() const { return !+*this     ; }
+			bool operator+() const { return +conn   ; }
+			bool operator!() const { return !+*this ; }
 			bool useful   () const ;
 			// services
 			void open() {
@@ -94,10 +98,12 @@ namespace Backends {
 		struct StartTab : ::map<JobIdx,StartEntry> {
 			using Base = ::map<JobIdx,StartEntry> ;
 			// if !seq_id, entry is kept solely for its sbmit_attrs.n_retries attribute, behave as if it does not exist
-			auto find( JobIdx j             ) const { auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }
-			auto find( JobIdx j             )       { auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }
-			auto find( JobIdx j , SeqId sid ) const { auto res = Base::find(j) ; if ( res!=end() &&  res->second.conn.seq_id!=sid ) return end() ; else return res ; }
-			auto find( JobIdx j , SeqId sid )       { auto res = Base::find(j) ; if ( res!=end() &&  res->second.conn.seq_id!=sid ) return end() ; else return res ; }
+			auto find( JobIdx j             ) const {              auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }
+			auto find( JobIdx j             )       {              auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }
+			auto find( JobIdx j , SeqId sid ) const { SWEAR(sid) ; auto res = Base::find(j) ; if ( res!=end() &&  res->second.conn.seq_id!=sid ) return end() ; else return res ; }
+			auto find( JobIdx j , SeqId sid )       { SWEAR(sid) ; auto res = Base::find(j) ; if ( res!=end() &&  res->second.conn.seq_id!=sid ) return end() ; else return res ; }
+			//
+			Status release( ::map<JobIdx,StartEntry>::iterator , Status=Status::Ok ) ; // much like erase, but manage retry count
 		} ;
 
 		// statics
@@ -138,7 +144,6 @@ namespace Backends {
 		static bool/*keep_fd*/ _s_handle_job_end        ( JobRpcReq    && , SlaveSockFd const& ={}                              ) ;
 		static void            _s_handle_deferred_report( DeferredEntry&&                                                       ) ;
 		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                                       ) ;
-		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status=Status::Ok                ) ;
 		//
 		using JobThread      = ServerThread<JobRpcReq    > ;
 		using JobMngtThread  = ServerThread<JobMngtRpcReq> ;

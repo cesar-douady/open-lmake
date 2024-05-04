@@ -91,9 +91,7 @@ def run_vscode(dbg_dir,redirected,func,*args,**kwds) :
 		if os.path.exists(workspace) :
 			data = json.load(open(workspace))
 			for elmt in data['launch']['configurations'] :
-				if elmt.get('type') == 'by-gdb' :
-					if 'processId' in elmt : elmt['processId'] = os.getpid()
-					if 'program'   in elmt : elmt['program'  ] = open('/proc/self/cmdline').read().split('\x00')[:-1]
+				if elmt.get('type')=='by-gdb' and 'processId' in elmt : elmt['processId'] = os.getpid()
 			with open(workspace,'w') as out :
 				json.dump(data,out,indent='\t')
 				out.write('\n')

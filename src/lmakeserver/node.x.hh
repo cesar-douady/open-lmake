@@ -156,7 +156,7 @@ namespace Engine {
 		::string accesses_str() const ;
 		::string dflags_str  () const ;
 		// services
-		bool up_to_date () const ;
+		bool up_to_date (bool full=false) const ;
 		void acquire_crc() ;
 	} ;
 	static_assert(sizeof(Dep)==16) ;
@@ -211,7 +211,7 @@ namespace Engine {
 		DepsIter& operator++(int) { return ++*this ; }
 		DepsIter& operator++(   ) {
 			if (i_chunk<hdr->hdr.sz)   i_chunk++ ;                         // go to next item in chunk
-			else                     { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk }
+			else                     { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk
 			return *this ;
 		}
 		// data
@@ -357,7 +357,7 @@ namespace Engine {
 		void full_refresh( bool report_no_file , ::vector<Req> const& reqs , ::string const& name ) {
 			set_buildable() ;
 			if (is_src_anti()) refresh_src_anti(report_no_file,reqs,name) ;
-			else               manual_refresh  (Req()                   ) ;                     // no manual_steady diagnostic as this may be because of another job
+			else               manual_refresh  (Req()                   ) ;                    // no manual_steady diagnostic as this may be because of another job
 		}
 		//
 		RuleIdx    conform_idx(              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
@@ -373,7 +373,7 @@ namespace Engine {
 			Job cj = conform_job_tgt() ;
 			return +cj && ( cj->is_special() || has_actual_job(cj) ) ;
 		}
-		Bool3 ok(bool force_err=false) const {                                                                      // if Maybe <=> not built
+		Bool3 ok(bool force_err=false) const {                                                 // if Maybe <=> not built
 			switch (status()) {
 				case NodeStatus::Plain : return No | !( force_err || conform_job_tgt()->err() ) ;
 				case NodeStatus::Multi : return No                                              ;
@@ -410,14 +410,16 @@ namespace Engine {
 		}
 		//
 		// services
-		bool read(Accesses a) const {                                                           // return true <= file was perceived different from non-existent, assuming access provided in a
-			if (crc==Crc::None ) return false          ;                                        // file does not exist, cannot perceive difference
-			if (a[Access::Stat]) return true           ;                                        // if file exists, stat is different
+		bool read(Accesses a) const {                                                          // return true <= file was perceived different from non-existent, assuming access provided in a
+			if (crc==Crc::None ) return false          ;                                       // file does not exist, cannot perceive difference
+			if (a[Access::Stat]) return true           ;                                       // if file exists, stat is different
 			if (crc.is_lnk()   ) return a[Access::Lnk] ;
 			if (crc.is_reg()   ) return a[Access::Reg] ;
-			else                 return +a             ;                                        // dont know if file is a link, any access may have perceived a difference
+			else                 return +a             ;                                       // dont know if file is a link, any access may have perceived a difference
 		}
-		bool up_to_date(DepDigest const& dd) const { return crc.match(dd.crc(),dd.accesses) ; } // only manage crc, not dates
+		bool up_to_date( DepDigest const& dd , bool full=false ) const {                       // only manage crc, not dates
+			return crc.match( dd.crc() , full?~Accesses():dd.accesses ) ;
+		}
 		//
 		Manual manual_wash( ReqInfo& ri , bool lazy=false ) ;
 		//
@@ -429,13 +431,13 @@ namespace Engine {
 		::c_vector_view<JobTgt> prio_job_tgts     (RuleIdx prio_idx) const ;
 		::c_vector_view<JobTgt> conform_job_tgts  (ReqInfo const&  ) const ;
 		::c_vector_view<JobTgt> conform_job_tgts  (                ) const ;
-		::c_vector_view<JobTgt> candidate_job_tgts(                ) const ;                    // all jobs above prio provided in conform_idx
+		::c_vector_view<JobTgt> candidate_job_tgts(                ) const ;                   // all jobs above prio provided in conform_idx
 		//
-		void set_buildable( Req={}   , DepDepth lvl=0       ) ;                                 // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
+		void set_buildable( Req={}   , DepDepth lvl=0       ) ;                                // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& , CoarseDelay pressure ) const ;
 		//
 		void propag_speculate( Req req , Bool3 speculate ) const {
-			/**/                          if (speculate==Yes         ) return ;                 // fast path : nothing to propagate
+			/**/                          if (speculate==Yes         ) return ;                // fast path : nothing to propagate
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			_propag_speculate(ri) ;
@@ -453,7 +455,7 @@ namespace Engine {
 		bool/*modified*/ refresh( Crc , SigDate const& ={} ) ;
 		void             refresh(                          ) ;
 	private :
-		void         _set_buildable_raw( Req      , DepDepth                         ) ;        // req is for error reporting only
+		void         _set_buildable_raw( Req      , DepDepth                         ) ;       // req is for error reporting only
 		bool/*done*/ _make_pre         ( ReqInfo&                                    ) ;
 		void         _make_raw         ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
 		void         _set_pressure_raw ( ReqInfo&                                    ) const ;
@@ -462,7 +464,7 @@ namespace Engine {
 		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
 		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
 		Buildable _gather_prio_job_tgts    (                        Req r , DepDepth lvl=0 ) {
-			if (!rule_tgts()) return Buildable::No                             ;                // fast path : avoid computing name()
+			if (!rule_tgts()) return Buildable::No                             ;               // fast path : avoid computing name()
 			else              return _gather_prio_job_tgts( name() , r , lvl ) ;
 		}
 		//
@@ -611,8 +613,8 @@ namespace Engine {
 	// Dep
 	//
 
-	inline bool Dep::up_to_date() const {
-		return is_crc && crc().match((*this)->crc,accesses) ;
+	inline bool Dep::up_to_date(bool full) const {
+		return is_crc && crc().match( (*this)->crc , full?~Accesses():accesses ) ;
 	}
 
 	inline void Dep::acquire_crc() {
