@@ -146,7 +146,6 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	for(;;) {
 		::vector<Epoll::Event> events  = epoll.wait() ;
 		bool                   new_fd  = false        ;
-		::umap<Fd,Req>         req_tab ;
 		for( Epoll::Event event : events ) {
 			EventKind kind = event.data<EventKind>() ;
 			Fd        fd   = event.fd()              ;
@@ -157,7 +156,8 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 				// - lmake foo
 				// - touch Lmakefile.py
 				// - lmake bar          => maybe we get this request in the same poll as the end of lmake foo and we would eroneously say that it cannot be processed
-				// solution is to delay master events after other events and ignore them if we are done inbetween
+				// solution is to delay Master event after other events and ignore them if we are done inbetween
+				// note that there may at most a single Master event
 				case EventKind::Master :
 					SWEAR( !new_fd , new_fd ) ;
 					new_fd = true ;
@@ -190,6 +190,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					switch (rrr.proc) {
 						case ReqProc::Make   : {
 							Req r{New} ;
+							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 							g_engine_queue.emplace( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ;
@@ -329,6 +330,7 @@ bool/*interrupted*/ engine_loop() {
 						//vvvvvvvvv
 						req.close() ;
 						//^^^^^^^^^
+						if      (it->second.killed            ) req.dealloc() ;                      // dealloc when req can be reused
 						if      (it->second.in!=it->second.out) ::close   (it->second.out        ) ;
 						else if (it->second.killed            ) ::close   (it->second.out        ) ; // we are after  Kill, finalize close of file descriptor
 						else                                    ::shutdown(it->second.out,SHUT_WR) ; // we are before Kill, shutdown until final close upon Close
@@ -344,6 +346,7 @@ bool/*interrupted*/ engine_loop() {
 						if ( +req && +*req && req_active ) req.kill() ;
 						//                                 ^^^^^^^^^^
 						if      (req_active           ) it->second.killed = true ;
+						else                            req.dealloc() ;                    // dealloc when req can be reused
 						if      (ecr.in_fd!=ecr.out_fd) ::close   (ecr.in_fd        ) ;
 						else if (!req_active          ) ::close   (ecr.in_fd        ) ;    // we are after  Close, finalize close of file descriptor
 						else                            ::shutdown(ecr.in_fd,SHUT_RD) ;    // we are before Close, shutdown until final close upon Close

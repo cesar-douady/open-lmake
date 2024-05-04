@@ -80,6 +80,7 @@ namespace Engine {
 		void kill   (                       ) ;
 		void close  (                       ) ;
 		void chk_end(                       ) ;
+		void dealloc(                       ) { s_small_ids.release(+*this) ; }
 		//
 		void inc_rule_exec_time( Rule ,                                            Delay delta     , Tokens1 ) ;
 		void new_exec_time     ( JobData const& , bool remove_old , bool add_new , Delay old_exec_time       ) ;

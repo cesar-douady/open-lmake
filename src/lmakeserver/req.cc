@@ -110,8 +110,6 @@ namespace Engine {
 			_s_reqs_by_eta.pop_back() ;
 		}
 		(*this)->clear() ;
-		zombie(false) ;
-		s_small_ids.release(+*this) ;
 	}
 
 	void Req::inc_rule_exec_time( Rule rule , Delay delta , Tokens1 tokens1 ) {
