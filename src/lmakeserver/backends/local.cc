@@ -91,11 +91,6 @@ namespace Backends::Local {
 
 	struct LocalBackend : GenericBackend<MyTag,pid_t,RsrcsData,RsrcsDataAsk,true/*IsLocal*/> {
 
-		static void _wait_thread_func( ::stop_token stop , LocalBackend* self ) {
-			t_thread_key = 'L' ;
-			self->_wait_jobs(stop) ;
-		}
-
 		// init
 		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
@@ -103,10 +98,17 @@ namespace Backends::Local {
 			s_register(MyTag,self) ;
 		}
 
-		// accesses
+		// statics
+	private :
+		static void _s_wait_job(pid_t pid) {                                   // execute in a separate thread
+			Trace trace("wait",pid) ;
+			::waitpid(pid,nullptr,0) ;
+			trace("waited",pid) ;
+		}
 
-		virtual Bool3 call_launch_after_start() const { return No  ; }         // if Maybe, only launch jobs w/ same resources
-		virtual Bool3 call_launch_after_end  () const { return Yes ; }         // .
+		// accesses
+	public :
+		virtual bool call_launch_after_end() const { return true ; }
 
 		// services
 
@@ -114,7 +116,7 @@ namespace Backends::Local {
 			return capacity() ;
 		}
 
-		virtual void config( ::vmap_ss const& dct , bool dynamic ) {
+		virtual void sub_config( ::vmap_ss const& dct , bool dynamic ) {
 			Trace trace("Local::config",STR(dynamic),dct) ;
 			if (dynamic) {
 				/**/                                         if (rsrc_keys.size()!=dct.size()) throw "cannot change resource names while lmake is running"s ;
@@ -131,7 +133,7 @@ namespace Backends::Local {
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
 			trace("capacity",capacity()) ;
-			static ::jthread wait_jt{_wait_thread_func,this} ;
+			_wait_queue.open( 'T' , _s_wait_job ) ;
 			//
 			if ( !dynamic && rsrc_idxs.contains("cpu") ) {                     // ensure each job can compute CRC on all cpu's in parallel
 				struct rlimit rl ;
@@ -185,27 +187,14 @@ namespace Backends::Local {
 			return pid ;
 		}
 
-	private :
-		void _wait_jobs(::stop_token stop) {                                   // execute in a separate thread
-			Trace trace("_wait_jobs",MyTag) ;
-			for(;;) {
-				auto [popped,pid] = _wait_queue.pop(stop) ;
-				if (!popped) return ;
-				trace("wait",pid) ;
-				::waitpid(pid,nullptr,0) ;
-				trace("waited",pid) ;
-			}
-		}
-
 		// data
-	public :
 		::umap_s<size_t>  rsrc_idxs       ;
 		::vector_s        rsrc_keys       ;
 		RsrcsData         capacity_       ;
 		RsrcsData mutable occupied        ;
 		::vmap_s<size_t>  public_capacity ;
 	private :
-		ThreadQueue<pid_t> mutable _wait_queue ;
+		DequeThread<pid_t> mutable _wait_queue ;
 
 	} ;
 

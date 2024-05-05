@@ -24,7 +24,7 @@ namespace Backends {
 			ClientSockFd fd( e.conn.host , e.conn.port , 3/*n_trials*/ ) ;
 			OMsgBuf().send( fd , jmrr ) ;                                  // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
 		} catch (...) {                                                    // if we cannot connect to job, assume it is dead while we processed the request
-			Backend::_s_deferred_wakeup_thread->emplace_after(
+			Backend::_s_deferred_wakeup_thread.emplace_after(
 				g_config.network_delay
 			,	Backend::DeferredEntry { e.conn.seq_id , JobExec(Job(job),e.conn.host,e.start_date,New) }
 			) ;
@@ -87,11 +87,11 @@ namespace Backends {
 	::atomic<JobIdx>          Backend::_s_starting_job           ;
 	Backend::StartTab         Backend::_s_start_tab              ;
 	SmallIds<SmallId>         Backend::_s_small_ids              ;
-	Backend::JobThread     *  Backend::_s_job_start_thread       = nullptr ;
-	Backend::JobMngtThread *  Backend::_s_job_mngt_thread        = nullptr ;
-	Backend::JobThread     *  Backend::_s_job_end_thread         = nullptr ;
-	Backend::DeferredThread*  Backend::_s_deferred_report_thread = nullptr ;
-	Backend::DeferredThread*  Backend::_s_deferred_wakeup_thread = nullptr ;
+	Backend::JobThread        Backend::_s_job_start_thread       ;
+	Backend::JobMngtThread    Backend::_s_job_mngt_thread        ;
+	Backend::JobThread        Backend::_s_job_end_thread         ;
+	Backend::DeferredThread   Backend::_s_deferred_report_thread ;
+	Backend::DeferredThread   Backend::_s_deferred_wakeup_thread ;
 
 	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<DepSpec>&& deps_attrs ) {
 		::vmap_s<DepDigest> res ; res.reserve(deps_attrs.size()) ;
@@ -188,7 +188,7 @@ namespace Backends {
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
 			// if job cannot be connected to, assume it is dead and pretend it died if it still exists after network delay
-			_s_deferred_wakeup_thread->emplace_after( g_config.network_delay , DeferredEntry{conn.seq_id,JobExec(Job(job),conn.host,start_date,New)} ) ;
+			_s_deferred_wakeup_thread.emplace_after( g_config.network_delay , DeferredEntry{conn.seq_id,JobExec(Job(job),conn.host,start_date,New)} ) ;
 		}
 	}
 
@@ -217,12 +217,17 @@ namespace Backends {
 		StartRsrcsAttrs                            start_rsrcs_attrs ;
 		StartNoneAttrs                             start_none_attrs  ;
 		::pair_ss                                  start_msg_err     ;
-		Pdate                                      eta               ;
 		SubmitAttrs                                submit_attrs      ;
 		::vmap_ss                                  rsrcs             ;
+		Pdate                                      eta               ;
+		bool                                       keep_tmp_dir      = false/*garbage*/      ;
+		::vector<ReqIdx>                           reqs              ;
 		Trace trace(BeChnl,"_s_handle_job_start",jrr) ;
 		_s_starting_job = jrr.job ;
 		Lock lock { _s_starting_job_mutex } ;
+		// to lock for minimal time, we lock twice
+		// 1st time, we only gather info, real decisions will be taken when we lock the 2nd time
+		// because the only thing that can happend between the 2 locks is that entry disappears, we can move info from entry during 1st lock
 		{	Lock lock { _s_mutex } ;                                   // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
@@ -231,116 +236,130 @@ namespace Backends {
 			if (!entry.useful()) { trace("useless") ; return false ; } // no Req found, job has been cancelled but start message still arrives, give up
 			submit_attrs = ::move(entry.submit_attrs) ;
 			rsrcs        =        entry.rsrcs         ;
+			reqs         =        entry.reqs          ;
 			//                               vvvvvvvvvvvvvvvvvvvvvvv
 			append_line_to_string( jrr.msg , s_start(entry.tag,+job) ) ;
 			//                               ^^^^^^^^^^^^^^^^^^^^^^^
-			::vmap_s<DepDigest>& deps          = submit_attrs.deps ;
-			size_t               n_submit_deps = deps.size()       ;
-			int                  step          = 0                 ;
-			bool                 keep_tmp_dir  = false/*garbage*/  ;
 			tie(eta,keep_tmp_dir) = entry.req_info() ;
-			trace("submit_attrs",submit_attrs) ;
-			deps_attrs = rule->deps_attrs.eval(match) ;                // this cannot fail as it was already run to construct job
-			try {
-				cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 1 ;
-				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
-				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
-				//
-				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
-			} catch (::pair_ss const& msg_err) {
-				append_line_to_string(start_msg_err.first  , msg_err.first  ) ;
-				append_line_to_string(start_msg_err.second , msg_err.second ) ;
-				switch (step) {
-					case 0 : append_line_to_string( start_msg_err.first , rule->cmd              .s_exc_msg(false/*using_static*/) ) ; break ;
-					case 1 : append_line_to_string( start_msg_err.first , rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ) ; break ;
-					case 2 : append_line_to_string( start_msg_err.first , rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ) ; break ;
-					case 3 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
-				DF}
-			}
-			trace("deps",step,deps) ;
-			// record as much info as possible in reply
+		}
+		trace("submit_attrs",submit_attrs) ;
+		::vmap_s<DepDigest>& deps          = submit_attrs.deps ;
+		size_t               n_submit_deps = deps.size()       ;
+		int                  step          = 0                 ;
+		deps_attrs = rule->deps_attrs.eval(match) ;                    // this cannot fail as it was already run to construct job
+		try {
+			cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 1 ;
+			start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
+			start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
+			//
+			pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
+		} catch (::pair_ss const& msg_err) {
+			append_line_to_string(start_msg_err.first  , msg_err.first  ) ;
+			append_line_to_string(start_msg_err.second , msg_err.second ) ;
 			switch (step) {
-				case 4 :
-					// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
-					try {
-						start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&deps) ;
-					} catch (::pair_ss const& msg_err) {
-						/**/              start_none_attrs  = rule->start_none_attrs.spec                            ;
-						set_nl(jrr.msg) ; jrr.msg          += rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
-						/**/              start_msg_err     = msg_err                                                ;
-					}
-					keep_tmp_dir |= start_none_attrs.keep_tmp_dir ;
-					//
-					for( auto [t,a] : pre_actions.first ) reply.pre_actions.emplace_back(t->name(),a) ;
-				[[fallthrough]] ;
-				case 3 :
-					reply.method  = start_rsrcs_attrs.method  ;
-					reply.timeout = start_rsrcs_attrs.timeout ;
-					//
-					for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
-				[[fallthrough]] ;
-				case 2 :
-					/**/                                       reply.interpreter             = start_cmd_attrs.interpreter       ;
-					/**/                                       reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir        ;
-					/**/                                       reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat       ;
-					/**/                                       reply.job_space               = ::move(start_cmd_attrs.job_space) ;
-					/**/                                       reply.use_script              = start_cmd_attrs.use_script        ;
-					for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
-				[[fallthrough]] ;
-				case 1 :
-					reply.cmd = ::move(cmd) ;
-				[[fallthrough]] ;
-				case 0 : {
-					VarIdx ti = 0 ;
-					for( ::string const& tn : match.static_matches() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
-					for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
-					//
-					if (rule->stdin_idx !=Rule::NoVar) reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt ;
-					if (rule->stdout_idx!=Rule::NoVar) reply.stdout                    = reply.static_matches[rule->stdout_idx].first      ;
-					/**/                               reply.addr                      = fd.peer_addr()                                    ;
-					/**/                               reply.autodep_env.lnk_support   = g_config.lnk_support                              ;
-					/**/                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                            ;
-					/**/                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                      ;
-					/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
-					/**/                               reply.date_prec                 = g_config.date_prec                                ;
-					/**/                               reply.hash_algo                 = g_config.hash_algo                                ;
-					/**/                               reply.keep_tmp_dir              = keep_tmp_dir                                      ;
-					/**/                               reply.key                       = g_config.key                                      ;
-					/**/                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
-					/**/                               reply.live_out                  = submit_attrs.live_out                             ;
-					/**/                               reply.network_delay             = g_config.network_delay                            ;
-					//
-					for( ::pair_ss& kv : start_none_attrs.env )      reply.env.push_back(::move(kv)) ;
-					for( auto const& [k,v] : rsrcs ) if (k=="tmp") { reply.tmp_sz_mb = from_string_with_units<'M'>(v) ; break ; }
-				} break ;
+				case 0 : append_line_to_string( start_msg_err.first , rule->cmd              .s_exc_msg(false/*using_static*/) ) ; break ;
+				case 1 : append_line_to_string( start_msg_err.first , rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ) ; break ;
+				case 2 : append_line_to_string( start_msg_err.first , rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ) ; break ;
+				case 3 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
 			DF}
-			//
-			reply.deps = _mk_digest_deps(::move(deps_attrs)) ;
-			if (+deps) {
-				::umap_s<VarIdx> dep_idxes ; for( VarIdx i=0 ; i<reply.deps.size() ; i++ ) dep_idxes[reply.deps[i].first] = i ;
-				for( auto const& [dn,dd] : deps )
-					if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;   // update existing dep
-					else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      } // create new dep
+		}
+		trace("deps",step,deps) ;
+		// record as much info as possible in reply
+		switch (step) {
+			case 4 :
+				// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
+				try {
+					start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&deps) ;
+				} catch (::pair_ss const& msg_err) {
+					start_none_attrs  = rule->start_none_attrs.spec ;
+					start_msg_err     = msg_err                     ;
+					append_line_to_string( jrr.msg , rule->start_none_attrs.s_exc_msg(true/*using_static*/) ) ;
+				}
+				keep_tmp_dir |= start_none_attrs.keep_tmp_dir ;
+				//
+				for( auto [t,a] : pre_actions.first ) reply.pre_actions.emplace_back(t->name(),a) ;
+			[[fallthrough]] ;
+			case 3 :
+				reply.method  = start_rsrcs_attrs.method  ;
+				reply.timeout = start_rsrcs_attrs.timeout ;
+				//
+				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
+			[[fallthrough]] ;
+			case 2 :
+				/**/                                       reply.interpreter             = start_cmd_attrs.interpreter       ;
+				/**/                                       reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir        ;
+				/**/                                       reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat       ;
+				/**/                                       reply.job_space               = ::move(start_cmd_attrs.job_space) ;
+				/**/                                       reply.use_script              = start_cmd_attrs.use_script        ;
+				for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
+			[[fallthrough]] ;
+			case 1 :
+				reply.cmd = ::move(cmd) ;
+			[[fallthrough]] ;
+			case 0 : {
+				VarIdx ti = 0 ;
+				for( ::string const& tn : match.static_matches() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
+				for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
+				//
+				if (rule->stdin_idx !=Rule::NoVar) reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt ;
+				if (rule->stdout_idx!=Rule::NoVar) reply.stdout                    = reply.static_matches[rule->stdout_idx].first      ;
+				/**/                               reply.addr                      = fd.peer_addr()                                    ;
+				/**/                               reply.autodep_env.lnk_support   = g_config.lnk_support                              ;
+				/**/                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                            ;
+				/**/                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                      ;
+				/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
+				/**/                               reply.date_prec                 = g_config.date_prec                                ;
+				/**/                               reply.hash_algo                 = g_config.hash_algo                                ;
+				/**/                               reply.keep_tmp_dir              = keep_tmp_dir                                      ;
+				/**/                               reply.key                       = g_config.key                                      ;
+				/**/                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
+				/**/                               reply.live_out                  = submit_attrs.live_out                             ;
+				/**/                               reply.network_delay             = g_config.network_delay                            ;
+				//
+				for( ::pair_ss& kv : start_none_attrs.env )      reply.env.push_back(::move(kv)) ;
+				for( auto const& [k,v] : rsrcs ) if (k=="tmp") { reply.tmp_sz_mb = from_string_with_units<'M'>(v) ; break ; }
+			} break ;
+		DF}
+		//
+		reply.deps = _mk_digest_deps(::move(deps_attrs)) ;
+		if (+deps) {
+			::umap_s<VarIdx> dep_idxes ; for( VarIdx i=0 ; i<reply.deps.size() ; i++ ) dep_idxes[reply.deps[i].first] = i ;
+			for( auto const& [dn,dd] : deps )
+				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;   // update existing dep
+				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      } // create new dep
+		}
+		//
+		bool deps_ready = true ;
+		for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) ) {                                             // note : this is ok even if deps is empty
+			bool useful = false ;
+			for( ReqIdx& r : reqs ) {
+				// to be sure, we should check done(Dsk) rather than done(Status), but we do not seek security here, we seek perf (real check will be done at end of job)
+				// and most of the time, done(Status) implies file is ok, and we have less false positive as we do not have the opportunity to fully assess sources
+				if (!r                                      ) continue ;
+				if (!Node(dn)->done(Req(r),NodeGoal::Status)) r      = 0    ;
+				else                                          useful = true ;
 			}
+			if (!useful) { deps_ready = false ; break ; }                                                                                             // if we can serv no Req, give up
+		}
+		//
+		{	Lock lock { _s_mutex } ;                                    // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
-			bool dep_ready = true ;
-			for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )                     // note : this is ok even if deps is empty
-				for( Req r : entry.reqs )
-					// to be sure, we should check done(Dsk) rather than done(Status), but we do not seek security here, we seek perf (real check will be done at end of job)
-					// and most of the time, done(Status) implies file is ok, and we have less false positive as we do not have the opportunity to fully assess sources
-					if (!Node(dn)->done(r,NodeGoal::Status)) { dep_ready = false ; goto EarlyEnd ; }
-			if (step<4) {
-			EarlyEnd :
+			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
+			StartEntry& entry = it->second                         ;
+			trace("entry",entry) ;
+			if (!entry.useful()) { trace("useless") ; return false ; }  // no Req found, job has been cancelled but start message still arrives, give up
+			//
+			if ( step<4 || !deps_ready ) {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				OMsgBuf().send(fd,JobRpcReply(JobProc::None)) ;                                                                 // silently tell job_exec to give up
+				OMsgBuf().send(fd,JobRpcReply(JobProc::None)) ;         // silently tell job_exec to give up
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				Status status = Status::EarlyErr ;
-				if (!dep_ready) {
+				if (!deps_ready) {
 					status        = Status::EarlyChkDeps ;
 					start_msg_err = {}                   ;
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				s_end( entry.tag , +job , status ) ;                                                                            // dont care about backend, job is dead for other reasons
+				s_end( entry.tag , +job , status ) ;                    // dont care about backend, job is dead for other reasons
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				JobDigest digest {
 					.status = status
@@ -361,7 +380,7 @@ namespace Backends {
 				,	{	{ JobProc::End , jrr.seq_id , jrr.job , ::copy(digest) } }
 				} ;
 				ji.write(jaf) ;
-				job_exec = { job , reply.addr , FileSig(jaf) , New } ;                                                          // job starts and ends
+				job_exec = { job , reply.addr , FileSig(jaf) , New } ;  // job starts and ends
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_actions.second) , ""s , ::move(jrr.msg            ) ) ;
 				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , ::move(digest)                         , ::move(start_msg_err.first) ) ;
@@ -371,11 +390,11 @@ namespace Backends {
 				return false ;
 			}
 			//
-			reply.small_id            = _s_small_ids.acquire() ;
+			reply.small_id = _s_small_ids.acquire() ;
 			//vvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send(fd,reply) ;                                                                                          // send reply ASAP to minimize overhead
+			OMsgBuf().send(fd,reply) ;                                  // send reply ASAP to minimize overhead
 			//^^^^^^^^^^^^^^^^^^^^^^
-			in_addr_t reply_addr = reply.addr ;                                                                                 // save before move
+			in_addr_t reply_addr = reply.addr ;                         // save before move
 			serialize(
 				OFStream(dir_guard(jaf))
 			,	JobInfoStart({
@@ -390,21 +409,20 @@ namespace Backends {
 				,	.stderr       =        start_msg_err.second
 				})
 			) ;
-			job_exec            = { job , reply.addr , FileSig(jaf) } ;                                                         // job starts
+			job_exec            = { job , reply.addr , FileSig(jaf) } ; // job starts
 			entry.start_date    = job_exec.start_date                 ;
 			entry.conn.host     = job_exec.host                       ;
 			entry.conn.port     = jrr.port                            ;
 			entry.conn.small_id = reply.small_id                      ;
-			//
-			trace("started",job_exec,reply) ;
 		}
+		trace("started",job_exec,reply) ;
 		bool report_now = +pre_actions.second || +start_msg_err.second || Delay(job->exec_time)>=start_none_attrs.start_delay ; // dont defer long jobs or if a message is to be delivered to user
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace( JobProc::Start , ::copy(job_exec) , report_now , ::move(pre_actions.second) , ::move(start_msg_err.second) , jrr.msg+start_msg_err.first ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (!report_now) {
 			Pdate start_report = job_exec.start_date.date+start_none_attrs.start_delay ;                                        // record before moving job_exec
-			_s_deferred_report_thread->emplace_at( start_report , jrr.seq_id , ::move(job_exec) ) ;
+			_s_deferred_report_thread.emplace_at( start_report , jrr.seq_id , ::move(job_exec) ) ;
 		}
 		return false/*keep_fd*/ ;
 	}
@@ -607,12 +625,12 @@ namespace Backends {
 	}
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
-		static ::jthread      heartbeat_thread      {    _s_heartbeat_thread_func                 } ;
-		static JobThread      job_start_thread      {'S',_s_handle_job_start      ,4096/*backlog*/} ; _s_job_start_thread       = &job_start_thread       ; // 4096 : max usual value as set in ...
-		static JobMngtThread  job_mngt_thread       {'M',_s_handle_job_mngt       ,4096/*backlog*/} ; _s_job_mngt_thread        = &job_mngt_thread        ; // ... /proc/sys/net/core/somaxconn
-		static JobThread      job_end_thread        {'E',_s_handle_job_end        ,4096/*backlog*/} ; _s_job_end_thread         = &job_end_thread         ; // .
-		static DeferredThread deferred_report_thread{'R',_s_handle_deferred_report                } ; _s_deferred_report_thread = &deferred_report_thread ;
-		static DeferredThread deferred_wakeup_thread{'W',_s_handle_deferred_wakeup                } ; _s_deferred_wakeup_thread = &deferred_wakeup_thread ;
+		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
+		_s_job_start_thread      .open( 'S' , _s_handle_job_start      ,4096/*backlog*/ ) ;                           // 4096 : max usual value as set in /proc/sys/net/core/somaxconn
+		_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt       ,4096/*backlog*/ ) ;                           // .
+		_s_job_end_thread        .open( 'E' , _s_handle_job_end        ,4096/*backlog*/ ) ;                           // .
+		_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                 ) ;
+		_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                 ) ;
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
 		if (!dynamic) s_executable = *g_lmake_dir+"/_bin/job_exec" ;
 		//
@@ -638,11 +656,11 @@ namespace Backends {
 				be->addr = ServerSockFd::s_addr(ifce) ;
 			}
 			try                       { be->config(cfg.dct,dynamic) ; be->config_err.clear() ; trace("ready",t  ) ; }
-			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e     ; trace("err"  ,t,e) ; }                                       // empty config_err means ready
+			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e     ; trace("err"  ,t,e) ; } // empty config_err means ready
 		}
-		job_start_thread.wait_started() ;
-		job_mngt_thread .wait_started() ;
-		job_end_thread  .wait_started() ;
+		_s_job_start_thread.wait_started() ;
+		_s_job_mngt_thread .wait_started() ;
+		_s_job_end_thread  .wait_started() ;
 	}
 
 	::vector_s Backend::acquire_cmd_line( Tag tag , JobIdx job , ::vector<ReqIdx> const& reqs , ::vmap_ss&& rsrcs , SubmitAttrs const& submit_attrs ) {
@@ -651,22 +669,22 @@ namespace Backends {
 		//
 		SubmitRsrcsAttrs::s_canon(rsrcs) ;
 		//
-		auto        [it,fresh] = _s_start_tab.emplace(job,StartEntry()) ;                                                                                // create entry
+		auto        [it,fresh] = _s_start_tab.emplace(job,StartEntry()) ;                                                                  // create entry
 		StartEntry& entry      = it->second                             ;
 		entry.open() ;
 		entry.tag   = tag           ;
 		entry.reqs  = reqs          ;
 		entry.rsrcs = ::move(rsrcs) ;
-		if (fresh) {                                                    entry.submit_attrs = submit_attrs ;                                            }
-		else       { uint8_t n_retries = entry.submit_attrs.n_retries ; entry.submit_attrs = submit_attrs ; entry.submit_attrs.n_retries = n_retries ; } // keep retry count if it was counting
+		if (fresh) {                                             entry.submit_attrs = submit_attrs ;                                     }
+		else       { uint8_t nr = entry.submit_attrs.n_retries ; entry.submit_attrs = submit_attrs ; entry.submit_attrs.n_retries = nr ; } // keep retry count if it was counting
 		trace("create_start_tab",job,entry) ;
 		::vector_s cmd_line {
 			s_executable
-		,	_s_job_start_thread->fd.service(s_tab[+tag]->addr)
-		,	_s_job_mngt_thread ->fd.service(s_tab[+tag]->addr)
-		,	_s_job_end_thread  ->fd.service(s_tab[+tag]->addr)
-		,	to_string(entry.conn.seq_id                      )
-		,	to_string(job                                    )
+		,	_s_job_start_thread.fd.service(s_tab[+tag]->addr)
+		,	_s_job_mngt_thread .fd.service(s_tab[+tag]->addr)
+		,	_s_job_end_thread  .fd.service(s_tab[+tag]->addr)
+		,	to_string(entry.conn.seq_id                     )
+		,	to_string(job                                   )
 		,	*g_root_dir
 		,	to_string(entry.conn.seq_id%g_config.trace.n_jobs)
 		} ;

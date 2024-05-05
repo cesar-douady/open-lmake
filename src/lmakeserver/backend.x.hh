@@ -145,21 +145,22 @@ namespace Backends {
 		static void            _s_handle_deferred_report( DeferredEntry&&                                                       ) ;
 		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                                       ) ;
 		//
-		using JobThread      = ServerThread<JobRpcReq    > ;
-		using JobMngtThread  = ServerThread<JobMngtRpcReq> ;
-		using DeferredThread = QueueThread <DeferredEntry> ;
+		using JobThread      = ServerThread    <JobRpcReq    > ;
+		using JobMngtThread  = ServerThread    <JobMngtRpcReq> ;
+		using DeferredThread = TimedDequeThread<DeferredEntry> ;
 		// static data
 	public :
 		static ::string s_executable  ;
 		static Backend* s_tab[N<Tag>] ;
 
-	private :
-		static JobThread     *           _s_job_start_thread       ;
-		static JobMngtThread *           _s_job_mngt_thread        ;
-		static JobThread     *           _s_job_end_thread         ;
-		static DeferredThread*           _s_deferred_report_thread ;
-		static DeferredThread*           _s_deferred_wakeup_thread ;
+	protected :
 		static Mutex<MutexLvl::Backend>  _s_mutex                  ;
+	private :
+		static JobThread                 _s_job_start_thread       ;
+		static JobMngtThread             _s_job_mngt_thread        ;
+		static JobThread                 _s_job_end_thread         ;
+		static DeferredThread            _s_deferred_report_thread ;
+		static DeferredThread            _s_deferred_wakeup_thread ;
 		static ::atomic<JobIdx>          _s_starting_job           ;                                      // this job is starting when _starting_job_mutex is locked
 		static Mutex<MutexLvl::StartJob> _s_starting_job_mutex     ;
 		static StartTab                  _s_start_tab              ;                                      // use map instead of umap because heartbeat iterates over while tab is moving

@@ -14,59 +14,97 @@
 #include "time.hh"
 #include "trace.hh"
 
-template<class T> struct ThreadQueue : private ::deque<T> {
+template<class Q> struct ThreadQueue : private Q {
 	using ThreadMutex = Mutex<MutexLvl::Thread> ;
-private :
-	using Base = ::deque<T> ;
-public :
-	using Base::size ;
+	using Val         = typename Q::value_type  ;
+	using Q::size ;
 	// cxtors & casts
 	ThreadQueue() = default ;
 	bool operator+() const {
 		Lock<ThreadMutex> lock{_mutex} ;
-		return !Base::empty() ;
+		return !Q::empty() ;
 	}
 	bool operator!() const { return !+*this ; }
 	// services
-	/**/                 void push          (T const& x) { Lock<ThreadMutex> lock{_mutex} ; Base::push_back    (x                 ) ; _cond.notify_one() ; }
-	/**/                 void push_urgent   (T const& x) { Lock<ThreadMutex> lock{_mutex} ; Base::push_front   (x                 ) ; _cond.notify_one() ; }
-	template<class... A> void emplace       (A&&...   a) { Lock<ThreadMutex> lock{_mutex} ; Base::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
-	template<class... A> void emplace_urgent(A&&...   a) { Lock<ThreadMutex> lock{_mutex} ; Base::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
-	T pop() {
+	/**/                 void push          (Val const& x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_back    (       x          ) ; _cond.notify_one() ; }
+	/**/                 void push          (Val     && x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_back    (::move(x)         ) ; _cond.notify_one() ; }
+	/**/                 void push_urgent   (Val const& x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_front   (       x          ) ; _cond.notify_one() ; }
+	/**/                 void push_urgent   (Val     && x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_front   (::move(x)         ) ; _cond.notify_one() ; }
+	template<class... A> void emplace       (A&&...     a) { Lock<ThreadMutex> lock{_mutex} ; Q::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
+	template<class... A> void emplace_urgent(A&&...     a) { Lock<ThreadMutex> lock{_mutex} ; Q::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
+	Val pop() {
 		Lock<ThreadMutex> lock { _mutex } ;
-		_cond.wait( lock , [&](){ return !Base::empty() ; } ) ;
+		_cond.wait( lock , [&](){ return !Q::empty() ; } ) ;
 		return _pop() ;
 	}
-	::pair<bool/*popped*/,T> try_pop() {
+	::pair<bool/*popped*/,Val> try_pop() {
 		Lock<ThreadMutex> lock { _mutex } ;
-		if (Base::empty()) return {false/*popped*/,T()   } ;
-		else               return {true /*popped*/,_pop()} ;
+		if (Q::empty()) return {false/*popped*/,{}    } ;
+		else            return {true /*popped*/,_pop()} ;
 	}
-	::pair<bool/*popped*/,T> pop(::stop_token tkn) {
+	::pair<bool/*popped*/,Val> pop(::stop_token stop) {
 		Lock<ThreadMutex> lock { _mutex } ;
-		if (!_cond.wait( lock , tkn , [&](){ return !Base::empty() ; } )) return {false/*popped*/,T()} ;
+		if (!_cond.wait( lock , stop , [&](){ return !Q::empty() ; } )) return {false/*popped*/,{}} ;
 		return {true/*popped*/,_pop()} ;
 	}
 private :
-	T _pop() {
-		T res = ::move(Base::front()) ;
-		Base::pop_front() ;
+	Val _pop() {
+		Val res = ::move(Q::front()) ;
+		Q::pop_front() ;
 		return res ;
 	}
 	// data
 	ThreadMutex mutable      _mutex ;
 	::condition_variable_any _cond  ;
 } ;
+template<class T> using ThreadDeque = ThreadQueue<::deque<T>> ;
 
-template<class Item> struct QueueThread {
-	using Ddate = Time::Ddate                     ;
-	using Pdate = Time::Pdate                     ;
-	using Delay = Time::Delay                     ;
-	using Queue = ThreadQueue<::pair<Pdate,Item>> ;
+template<class Q> struct QueueThread {
+	using Queue = ThreadQueue<Q>      ;
+	using Val   = typename Queue::Val ;
+	// statics
 private :
-	static void _s_thread_func( ::stop_token stop , char key , QueueThread* self , ::function<void(Item&&)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , QueueThread* self , ::function<void(Val&&)> func ) {
 		t_thread_key = key ;
-		Trace trace("QueueThread::_s_thread_func") ;
+		Trace trace("DequeThread::_s_thread_func") ;
+		for(;;) {
+			auto [popped,info] = self->_queue.pop(stop) ;
+			if (!popped) break ;
+			func(::move(info)) ;
+		}
+		trace("done") ;
+	}
+	// cxtors & casts
+public :
+	QueueThread() = default ;
+	QueueThread( char key , ::function<void(Val&&)> func ) { open(key,func) ; }
+	void open( char key , ::function<void(Val&&)> func ) {
+		_thread = ::jthread( _s_thread_func , key , this , func ) ;
+	}
+	// services
+	template<class    U> void push         (U&&    x) { _queue.push   (::forward<U>(x)   ) ; }
+	template<class    U> void push_at      (U&&    x) { _queue.push   (::forward<U>(x)   ) ; }
+	template<class    U> void push_after   (U&&    x) { _queue.push   (::forward<U>(x)   ) ; }
+	template<class... A> void emplace      (A&&... a) { _queue.emplace(::forward<A>(a)...) ; }
+	template<class... A> void emplace_at   (A&&... a) { _queue.emplace(::forward<A>(a)...) ; }
+	template<class... A> void emplace_after(A&&... a) { _queue.emplace(::forward<A>(a)...) ; }
+	// data
+private :
+	Queue     _queue  ;
+	::jthread _thread ; // ensure _thread is last so other fields are constructed when it starts
+} ;
+template<class T> using DequeThread = QueueThread<::deque<T>> ;
+
+template<class T> struct TimedDequeThread {
+	using Pdate = Time::Pdate                  ;
+	using Delay = Time::Delay                  ;
+	using Queue = ThreadDeque<::pair<Pdate,T>> ;
+	using Val   = T                            ;
+	// statics
+private :
+	static void _s_thread_func( ::stop_token stop , char key , TimedDequeThread* self , ::function<void(Val&&)> func ) {
+		t_thread_key = key ;
+		Trace trace("TimedDequeThread::_s_thread_func") ;
 		for(;;) {
 			auto [popped,info] = self->_queue.pop(stop) ;
 			if ( !popped                       ) break ;
@@ -77,19 +115,60 @@ private :
 	}
 	// cxtors & casts
 public :
-	QueueThread() = default ;
-	QueueThread( char key , ::function<void(Item&&)> func ) : _thread{_s_thread_func,key,this,func} {}
+	TimedDequeThread() = default ;
+	TimedDequeThread( char key , ::function<void(Val&&)> func ) { open(key,func) ; }
+	void open       ( char key , ::function<void(Val&&)> func ) {
+		_thread = ::jthread( _s_thread_func , key , this , func ) ;
+	}
 	// services
-	/**/                 void push         (           Item const& x ) { _queue.push   ({Pdate()     ,x                       }) ; }
-	/**/                 void push_at      ( Pdate d , Item const& x ) { _queue.push   ({d           ,x                       }) ; }
-	/**/                 void push_after   ( Delay d , Item const& x ) { _queue.push   ({Pdate(New)+d,x                       }) ; }
-	template<class... A> void emplace      (           A&&...      a ) { _queue.emplace( Pdate()     ,Item(::forward<A>(a)...) ) ; }
-	template<class... A> void emplace_at   ( Pdate d , A&&...      a ) { _queue.emplace( d           ,Item(::forward<A>(a)...) ) ; }
-	template<class... A> void emplace_after( Delay d , A&&...      a ) { _queue.emplace( Pdate(New)+d,Item(::forward<A>(a)...) ) ; }
+	template<class    U> void push         (           U&&    x ) { _queue.push   ({Pdate()     ,    ::forward<U>(x)    }) ; }
+	template<class    U> void push_at      ( Pdate d , U&&    x ) { _queue.push   ({d           ,    ::forward<U>(x)    }) ; }
+	template<class    U> void push_after   ( Delay d , U&&    x ) { _queue.push   ({Pdate(New)+d,    ::forward<U>(x)    }) ; }
+	template<class... A> void emplace      (           A&&... a ) { _queue.emplace( Pdate()     ,Val(::forward<A>(a)...) ) ; }
+	template<class... A> void emplace_at   ( Pdate d , A&&... a ) { _queue.emplace( d           ,Val(::forward<A>(a)...) ) ; }
+	template<class... A> void emplace_after( Delay d , A&&... a ) { _queue.emplace( Pdate(New)+d,Val(::forward<A>(a)...) ) ; }
 	// data
 private :
 	Queue     _queue  ;
 	::jthread _thread ; // ensure _thread is last so other fields are constructed when it starts
+} ;
+
+struct WakeupThread {
+	using ThreadMutex = Mutex<MutexLvl::Thread> ;
+	// statics
+private :
+	static void _s_thread_func( ::stop_token stop , char key , WakeupThread* self , ::function<void()> func ) {
+		t_thread_key = key ;
+		Trace trace("WakeupThread::_s_thread_func") ;
+		for(;;) {
+			{	Lock<ThreadMutex> lock { self->_mutex } ;
+				if ( !self->_cond.wait( lock , stop , [&]()->bool { return self->_active ; } ) ) break ;
+				self->_active = false ;
+			}
+			func() ;
+		}
+		trace("done") ;
+	}
+	// cxtors & casts
+public :
+	WakeupThread() = default ;
+	WakeupThread( char key , ::function<void()> func ) { open(key,func) ; }
+	void open   ( char key , ::function<void()> func ) {
+		_thread = ::jthread( _s_thread_func , key , this , func ) ;
+	}
+	// services
+	void wakeup() {
+		if (_active) return ;
+		Lock<ThreadMutex> lock{_mutex} ;
+		_active = true ;
+		_cond.notify_one() ;
+	}
+private :
+	// data
+	ThreadMutex mutable      _mutex  ;
+	::condition_variable_any _cond   ;
+	::atomic<bool>           _active = false ;
+	::jthread                _thread ;         // ensure _thread is last so other fields are constructed when it starts
 } ;
 
 ENUM(ServerThreadEventKind
@@ -167,7 +246,12 @@ private :
 	}
 	// cxtors & casts
 public :
-	ServerThread( char key , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func , int backlog=0 ) : fd{New,backlog} , _thread{_s_thread_func,key,this,func} {}
+	ServerThread() = default ;
+	ServerThread( char key , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func , int backlog=0 ) { open(key,func,backlog) ; }
+	void open   ( char key , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func , int backlog=0 ) {
+		fd      = {New,backlog}                                   ;
+		_thread = ::jthread( _s_thread_func , key , this , func ) ;
+	}
 	// services
 	void wait_started() {
 		_ready.wait() ;

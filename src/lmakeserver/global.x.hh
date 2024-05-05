@@ -367,7 +367,7 @@ namespace Engine {
 		} ;
 	} ;
 
-	extern ThreadQueue<EngineClosure> g_engine_queue ;
+	extern ThreadDeque<EngineClosure> g_engine_queue ;
 
 }
 

@@ -25,7 +25,7 @@ namespace Codec {
 
 	bool writable = false ;
 
-	QueueThread<Codec::Closure>* g_codec_queue = nullptr ;
+	DequeThread<Codec::Closure>* g_codec_queue = nullptr ;
 
 	::umap_s<Closure::Entry> Closure::s_tab      ;
 
@@ -38,7 +38,7 @@ namespace Codec {
 	}
 
 	void Closure::s_init() {
-		static QueueThread<Closure> s_queue{'D',Codec::codec_thread_func} ;
+		static DequeThread<Closure> s_queue{'D',Codec::codec_thread_func} ;
 		g_codec_queue = &s_queue ;
 		//
 		Persistent::val_file .init(to_string(CodecPfx,"/vals" ),writable) ; // writing CodecPfx+"/vals"s triggers a warning with -O3, probably a gcc bug

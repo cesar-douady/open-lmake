@@ -909,6 +909,7 @@ ENUM( MutexLvl // identify who is owning the current level to ease debugging
 ,	JobExec
 ,	Rule
 ,	StartJob
+,	Time
 // level 2
 ,	Backend    // must follow StartJob
 // level 3
@@ -927,7 +928,6 @@ ENUM( MutexLvl // identify who is owning the current level to ease debugging
 ,	Hash
 ,	SmallId
 ,	SyscallTab
-,	Time
 ,	Trace      // last to allow tracing anywhere
 )
 
@@ -941,8 +941,8 @@ template<MutexLvl Lvl_,class M=void,bool S=false/*shared*/> struct Mutex : ::con
 	void lock_shared  (MutexLvl& lvl) requires(S) { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; Base::lock_shared  () ; }
 	void unlock_shared(MutexLvl  lvl) requires(S) { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ;                     t_mutex_lvl = lvl ; Base::unlock_shared() ; }
 	#ifndef NDEBUG
-		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl) ; SWEAR(!Base::try_lock       ()) ; }
-		void swear_locked_shared() requires(S) { SWEAR(t_mutex_lvl>=Lvl) ; SWEAR(!Base::try_lock_shared()) ; }
+		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock       ()) ; }
+		void swear_locked_shared() requires(S) { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock_shared()) ; }
 	#else
 		void swear_locked       ()             {}
 		void swear_locked_shared() requires(S) {}

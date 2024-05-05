@@ -294,14 +294,13 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 		- D : handle lencode/ldecode
 		- E : job end
 		- H : heartbeat
-		- L : wait terminated processes in local backend
+		- L : launch jobs, both in local and slurm backends (2 threads)
 		- M : job management
 		- R : deferred reports
 		- S : job start
+		- T : wait terminated processes in local backend
 		- W : deferred processing of wakeup connection errors
 	- in job exec :
-		- K        : kill job in a timely fashion
-		- S        : reply to server requests
 		- <number> : compute crc
 	- in lmake :
 		- I : manage ^C

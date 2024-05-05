@@ -132,19 +132,18 @@ namespace Backends::Slurm {
 		}
 
 		// static data
-		static QueueThread<uint32_t>* _s_slurm_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
+		static TimedDequeThread<uint32_t>* _s_slurm_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
 
 		// accesses
 
-		virtual Bool3 call_launch_after_start() const { return Maybe ; } // if Maybe, only launch jobs w/ same resources
-		virtual Bool3 call_launch_after_end  () const { return No    ; } // .
+		virtual bool call_launch_after_start() const { return true ; }
 
 		// services
 
-		virtual void config( vmap_ss const& dct , bool dynamic ) {
+		virtual void sub_config( vmap_ss const& dct , bool dynamic ) {
 			Trace trace(BeChnl,"Slurm::config",STR(dynamic),dct) ;
 			if (!dynamic) slurm_init() ;
-			static QueueThread<uint32_t> slurm_cancel_thread{'C',slurm_cancel} ; _s_slurm_cancel_thread = &slurm_cancel_thread ;
+			static TimedDequeThread<uint32_t> slurm_cancel_thread{'C',slurm_cancel} ; _s_slurm_cancel_thread = &slurm_cancel_thread ;
 			//
 			repo_key = base_name(*g_root_dir)+':' ; // cannot put this code directly as init value as g_root_dir is not available early enough
 			for( auto const& [k,v] : dct ) {
@@ -264,7 +263,7 @@ namespace Backends::Slurm {
 		Daemon              daemon            ;         // info sensed from slurm daemon
 	} ;
 
-	QueueThread<uint32_t>* SlurmBackend::_s_slurm_cancel_thread ;
+	TimedDequeThread<uint32_t>* SlurmBackend::_s_slurm_cancel_thread ;
 
 	//
 	// init

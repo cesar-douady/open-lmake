@@ -12,7 +12,7 @@ using namespace Time ;
 
 namespace Engine {
 
-	ThreadQueue<EngineClosure> g_engine_queue ;
+	ThreadDeque<EngineClosure> g_engine_queue ;
 
 	static ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
 		if (!l) {
