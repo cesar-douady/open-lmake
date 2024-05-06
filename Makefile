@@ -491,21 +491,22 @@ $(BIN)/xxhsum : \
 	@echo link to $@
 	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
+# XXX : why autodep does not support sanitize thread ?
 $(BIN)/autodep : \
-	$(LMAKE_BASIC_SAN_OBJS)            \
-	$(SRC)/app$(SAN).o                 \
-	$(SRC)/rpc_job$(SAN).o             \
-	$(SRC)/rpc_job_exec$(SAN).o        \
-	$(SRC)/trace$(SAN).o               \
-	$(SRC)/autodep/env$(SAN).o         \
-	$(SRC)/autodep/gather$(SAN).o      \
-	$(SRC)/autodep/ptrace$(SAN).o      \
-	$(SRC)/autodep/record$(SAN).o      \
-	$(SRC)/autodep/syscall_tab$(SAN).o \
-	$(SRC)/autodep/autodep$(SAN).o
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/app.o                 \
+	$(SRC)/rpc_job.o             \
+	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/trace.o               \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/gather.o      \
+	$(SRC)/autodep/ptrace.o      \
+	$(SRC)/autodep/record.o      \
+	$(SRC)/autodep/syscall_tab.o \
+	$(SRC)/autodep/autodep.o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK_BIN) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
 
 #
 # remote
@@ -550,24 +551,24 @@ $(BIN)/lencode : \
 	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ltarget : \
-	$(LMAKE_BASIC_OBJS)      \
-	$(SRC)/app.o             \
-	$(SRC)/rpc_job_exec.o    \
-	$(SRC)/trace.o           \
-	$(SRC)/autodep/env.o     \
-	$(SRC)/autodep/record.o  \
+	$(LMAKE_BASIC_OBJS)     \
+	$(SRC)/app.o            \
+	$(SRC)/rpc_job_exec.o   \
+	$(SRC)/trace.o          \
+	$(SRC)/autodep/env.o    \
+	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/ltarget.o
 	@mkdir -p $(BIN)
 	@echo link to $@
 	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lcheck_deps : \
-	$(LMAKE_BASIC_OBJS)      \
-	$(SRC)/app.o             \
-	$(SRC)/rpc_job_exec.o    \
-	$(SRC)/trace.o           \
-	$(SRC)/autodep/env.o     \
-	$(SRC)/autodep/record.o  \
+	$(LMAKE_BASIC_OBJS)     \
+	$(SRC)/app.o            \
+	$(SRC)/rpc_job_exec.o   \
+	$(SRC)/trace.o          \
+	$(SRC)/autodep/env.o    \
+	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/lcheck_deps.o
 	@mkdir -p $(BIN)
 	@echo link to $@

@@ -173,7 +173,7 @@ namespace Engine::Persistent {
 	}
 
 	static void _save_config() {
-		serialize( OFStream(dir_guard(PrivateAdminDir+"/config_store"s)) , g_config ) ;
+		serialize( OFStream(PrivateAdminDir+"/config_store"s) , g_config ) ;
 		OFStream(AdminDir+"/config"s) << g_config.pretty_str() ;
 	}
 
@@ -221,10 +221,10 @@ namespace Engine::Persistent {
 			{	JobInfo job_info { jd } ;
 				if (!job_info.end.end.proc) goto NextJob ;
 				// qualify report
-				if (job_info.start.pre_start.proc!=JobProc::Start) goto NextJob ;
-				if (job_info.start.start    .proc!=JobProc::Start) goto NextJob ;
-				if (job_info.end  .end      .proc!=JobProc::End  ) goto NextJob ;
-				if (job_info.end  .end.digest.status!=Status::Ok ) goto NextJob ;       // repairing jobs in error is useless
+				if (job_info.start.pre_start.proc!=JobRpcProc::Start) goto NextJob ;
+				if (job_info.start.start    .proc!=JobRpcProc::Start) goto NextJob ;
+				if (job_info.end  .end      .proc!=JobRpcProc::End  ) goto NextJob ;
+				if (job_info.end  .end.digest.status!=Status::Ok    ) goto NextJob ;    // repairing jobs in error is useless
 				// find rule
 				auto it = rule_tab.find(job_info.start.rule_cmd_crc) ;
 				if (it==rule_tab.end()) goto NextJob ;                                  // no rule
@@ -261,7 +261,7 @@ namespace Engine::Persistent {
 					t->actual_tflags() = t.tflags ;
 				}
 				// restore job_data
-				job->write_job_info(job_info) ;
+				job_info.write(job.ancillary_file()) ;
 			}
 		NextJob : ;
 		}

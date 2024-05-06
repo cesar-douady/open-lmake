@@ -217,6 +217,15 @@ namespace Engine {
 		trace("found",*this) ;
 	}
 
+	::string Job::ancillary_file(AncillaryTag tag) const {
+		switch (tag) {
+			case AncillaryTag::Backend : return to_string(PrivateAdminDir         ,"/backend/"  , +*this ) ;
+			case AncillaryTag::Data    : return to_string(g_config.local_admin_dir,"/job_data/" , +*this ) ;
+			case AncillaryTag::Dbg     : return to_string(AdminDir                ,"/debug/"    , +*this ) ;
+			case AncillaryTag::KeepTmp : return to_string(AdminDir                ,"/tmp/"      , +*this ) ;
+		DF}
+	}
+
 	//
 	// JobExec
 	//
@@ -284,8 +293,10 @@ namespace Engine {
 		if (!txt        ) return ;
 		if (!ri.live_out) return ;
 		Req r = ri.req ;
-		// identify job (with a continue message if no start message), dated as now and with current exec time
-		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,{{},New}),false/*at_end*/,Pdate(New)-start_date.date) ;
+		if ( !report_start(ri) && r->last_info!=*this ) {
+			Pdate now = New ;
+			r->audit_job( Color::HiddenNote , "continue" , JobExec(*this,host,start_date,now) , true/*at_end*/ , now-start_date ) ; // identify job (with a continue message if no start message)
+		}
 		r->last_info = *this ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		r->audit_info(Color::None,txt,0) ;
@@ -314,9 +325,10 @@ namespace Engine {
 		for( Req req : (*this)->running_reqs(false/*with_zombies*/) ) report_start((*this)->req_info(req)) ;
 	}
 
-	void JobExec::started( bool report , ::vector<Node> const& report_unlnks , ::string const& stderr , ::string const& msg ) {
+	void JobExec::started( JobInfoStart&& jis , bool report , ::vector<Node> const& report_unlnks , ::string const& stderr , ::string const& msg ) {
 		Trace trace("started",*this) ;
 		SWEAR( !(*this)->rule->is_special() , (*this)->rule->special ) ;
+		serialize( OFStream((*this)->ancillary_file()) , jis ) ;
 		report |= +report_unlnks || +stderr ;
 		for( Req req : (*this)->running_reqs() ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
@@ -326,7 +338,9 @@ namespace Engine {
 		}
 	}
 
-	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest , ::string&& msg ) {
+	bool/*modified*/ JobExec::end( JobRpcReq&& jrr , bool sav_jrr , ::vmap_ss const& rsrcs ) {
+		JobDigest      &  digest           = jrr.digest                                           ;
+		::string  const&  msg              = jrr.msg                                              ;
 		Status            status           = digest.status                                        ;           // status will be modified, need to make a copy
 		Bool3             ok               = is_ok  (status)                                      ;
 		bool              lost             = is_lost(status)                                      ;
@@ -353,9 +367,9 @@ namespace Engine {
 			cache_none_attrs = rule->cache_none_attrs.spec ;
 			for( Req req : running_reqs_ ) {
 				req->audit_job(Color::Note,"dynamic",*this,true/*at_end*/) ;
-				append_line_to_string(msg,rule->cache_none_attrs.s_exc_msg(true/*using_static*/)) ;
-				append_line_to_string(msg,msg_err.first                                         ) ;
-				req->audit_stderr( msg , msg_err.second , -1 , 1 ) ;
+				::string req_msg = rule->cache_none_attrs.s_exc_msg(true/*using_static*/) ;
+				append_line_to_string(req_msg,msg_err.first) ;
+				req->audit_stderr( req_msg , msg_err.second , -1 , 1 ) ;
 			}
 		}
 		try                                  { end_cmd_attrs = rule->end_cmd_attrs.eval(*this,match) ;                        }
@@ -391,7 +405,7 @@ namespace Engine {
 				//
 				if (+crc) {
 					// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
-					if ( +start_date.date && target->date().date>start_date.date ) {               // if no start_date.p, job did not execute, it cannot generate a clash
+					if ( +start_date && target->date().date>start_date ) {                         // if no start_date.p, job did not execute, it cannot generate a clash
 						// /!\ This may be very annoying !
 						// A job was running in parallel with us and there was a clash on this target.
 						// There are 2 problems : for us and for them.
@@ -401,11 +415,11 @@ namespace Engine {
 						// This is too complex and too rare to detect (and ideally handle).
 						// Putting target in clash_nodes will generate a frightening message to user asking to relaunch all commands that were running in parallel.
 						if ( crc.valid() && td.tflags[Tflag::Target] ) {                           // official targets should have a valid crc, but if not, we dont care
-							trace("clash",start_date.date,target->date().date) ;
+							trace("clash",start_date,target->date().date) ;
 							target_reason |= {JobReasonTag::ClashTarget,+target} ;                 // crc is actually unreliable, rerun
 						}
 						if ( target->crc.valid() && target->has_actual_job() && target->actual_tflags()[Tflag::Target] && !target->is_src_anti() ) { // existing crc was believed to be reliable ...
-							trace("critical_clash",start_date.date,target->date().date) ;                                                            // ... but actually was not (if no execution, ...
+							trace("critical_clash",start_date,target->date().date) ;                                                                 // ... but actually was not (if no execution, ...
 							for( Req r : target->reqs() ) {                                                                                          // ... there is no problem)
 								r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
 								target->req_info(r).reset() ;                          // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
@@ -425,8 +439,8 @@ namespace Engine {
 					SourceOk : ;
 					}
 					//
-					target_modified  = target->refresh( crc , { td.sig , td.extra_tflags[ExtraTflag::Wash]?start_date.date:end_date.date } ) ;
-					modified        |= target_modified && tflags[Tflag::Target]                                                              ;
+					target_modified  = target->refresh( crc , { td.sig , td.extra_tflags[ExtraTflag::Wash]?start_date:end_date } ) ;
+					modified        |= target_modified && tflags[Tflag::Target]                                                    ;
 				}
 				if ( crc==Crc::None && !static_phony ) {
 					target->actual_job   () = {} ;
@@ -459,7 +473,7 @@ namespace Engine {
 				if (d->is_plain())
 					for( Node dd=d ; +dd ; dd=dd->dir() )
 						if (!old_deps.insert(dd).second) break ;                                                  // record old deps and all uphill dirs as these are implicit deps
-			for( auto const& [dn,dd] : digest.deps ) {
+			for( auto& [dn,dd] : digest.deps ) {
 				Dep dep { Node(dn) , dd } ;
 				if (!old_deps.contains(dep)) {
 					has_new_deps = true ;
@@ -471,8 +485,8 @@ namespace Engine {
 				}
 				if (!dep.is_crc) {
 					dep->full_refresh(true/*report_no_file*/,running_reqs_,dn) ;
-					dep.acquire_crc() ;                                                                           // retry crc acquisition in case previous cleaning aligned the dates
-					seen_dep_date |= dep.is_crc ;                                                                 // if a dep has become a crc, we must fix ancillary file
+					dep.acquire_crc() ;
+					if (dep.is_crc) { dd.crc_sig(dep) ; seen_dep_date = true ; }                                  // if a dep has become a crc, update digest so that ancillary file reflects it
 				} else if (dep.never_match()) {
 					dep->set_buildable() ;
 					if (dep->is_src_anti()) dep->refresh_src_anti(true/*report_no_file*/,running_reqs_,dn) ;      // the goal is to detect overwritten
@@ -509,7 +523,16 @@ namespace Engine {
 		//vvvvvvvvvvvvvvvvvvvvvv
 		(*this)->status = status ;
 		//^^^^^^^^^^^^^^^^^^^^^^
-		if (ok==Yes) {                   // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
+		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
+		// XXX : put file updating in a separate thread, taking care of the questions above (search the queue before fetching from disk)
+		if (sav_jrr) {
+			append_line_to_string( jrr.msg , local_msg , severe_msg ) ;
+			serialize( OFStream(ancillary_file(),::ios::app) , JobInfoEnd{::move(jrr)} ) ;
+		} else {
+			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ; // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
+		}
+		//
+		if (ok==Yes) {                                             // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 			SWEAR(+digest.stats.total) ;
 			(*this)->exec_time = digest.stats.total ;
 			rule.new_job_exec_time( digest.stats.total , (*this)->tokens1 ) ;
@@ -517,30 +540,29 @@ namespace Engine {
 		CoarseDelay old_exec_time = (*this)->best_exec_time().first                              ;
 		MakeAction  end_action    = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
 		bool        all_done      = true                                                         ;
-		JobReason   err_reason    ;
-		for( Req req : running_reqs_ ) (*this)->req_info(req).step(Step::End) ; // ensure no confusion with previous run
+		for( Req req : running_reqs_ ) (*this)->req_info(req).step(Step::End) ;                                      // ensure no confusion with previous run
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
 			trace("req_before",target_reason,status,ri) ;
-			req->missing_audits.erase(*this) ;                                  // old missing audit is obsolete as soon as we have rerun the job
+			req->missing_audits.erase(*this) ;                                                                       // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason job_err_reason = (*this)->make( ri , end_action , target_reason , Yes/*speculate*/ , &old_exec_time , false/*wakeup_watchers*/ ) ;
 			//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			bool     full_report = ri.done() || !has_new_deps ;                 // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = ri.done() || !has_new_deps ;                                                      // if not done, does a full report anyway if this is not due to new deps
 			::string job_msg     ;
 			if (full_report) {
 				bool job_err = job_err_reason.tag>=JobReasonTag::Err ;
 				job_msg = msg ;
-				if (!job_err)   append_line_to_string( job_msg , local_msg                       ) ;                                                // report local_msg if no better message
-				else          { append_line_to_string( job_msg , reason_str(job_err_reason),'\n' ) ; err_reason |= job_err_reason ; stderr = {} ; } // dont report user stderr if analysis made it ...
-				/**/            append_line_to_string( job_msg , severe_msg                      ) ;                                                // ... meaningless
+				if (!job_err)   append_line_to_string( job_msg , local_msg                       ) ;                 // report local_msg if no better message
+				else          { append_line_to_string( job_msg , reason_str(job_err_reason),'\n' ) ; stderr = {} ; } // dont report user stderr if analysis made it ...
+				/**/            append_line_to_string( job_msg , severe_msg                      ) ;                 // ... meaningless
 			}
 			//
-			Delay     exec_time = digest.stats.total ;
-			::string  pfx       = !ri.done() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
+			Delay    exec_time = digest.stats.total ;
+			::string pfx       = !ri.done() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
 			//
-			JobReport jr = audit_end( pfx , ri , job_msg , full_report?stderr:""s , end_none_attrs.max_stderr_len , modified , exec_time ) ;        // report rerun or resubmit rather than status
+			JobReport jr = audit_end( pfx , ri , job_msg , full_report?stderr:""s , end_none_attrs.max_stderr_len , modified , exec_time ) ; // report rerun or resubmit rather than status
 			if (ri.done()) {
 				trace("wakeup_watchers",ri) ;
 				ri.wakeup_watchers() ;
@@ -552,32 +574,8 @@ namespace Engine {
 			req.chk_end() ;
 		}
 		bool full_ok     = all_done && (*this)->run_status==RunStatus::Ok && ok==Yes ;
-		bool update_deps = seen_dep_date && full_ok                                  ; // if full_ok, all deps have been resolved and we can update the record for a more reliable info
-		bool update_msg  = all_done && (+err_reason||+local_msg||+severe_msg)        ; // if recorded local_msg was incomplete, update it
-		if ( update_deps || update_msg ) {
-			JobInfo ji      = (*this)->job_info() ;
-			bool    updated = false               ;
-			if (update_msg) {
-				append_line_to_string( ji.end.end.msg , +err_reason ? reason_str(err_reason)+'\n' : local_msg , severe_msg ) ;
-				updated = true ;
-			}
-			if (update_deps) {
-				::vmap_s<DepDigest>& dds = ji.end.end.digest.deps ;
-				NodeIdx              di  = 0                      ;
-				for( Dep const& d : (*this)->deps ) {
-					DepDigest& dd = dds[di].second ;
-					if (!dd.is_crc) {
-						dd.crc_sig(d) ;
-						updated |= dd.is_crc ;                                         // in case of ^C, dep.make may not transform date into crc
-					}
-					di++ ;
-				}
-				SWEAR(di==dds.size()) ;                                                // deps must be coherent between ancillary file and internal info
-			}
-			if (updated) (*this)->write_job_info(ji) ;
-		}
 		// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
-		if ( full_ok && +cache_none_attrs.key ) {                                      // cache only successful results
+		if ( full_ok && +cache_none_attrs.key ) {                                                                                            // cache only successful results
 			NfsGuard nfs_guard{g_config.reliable_dirs} ;
 			Cache::s_tab.at(cache_none_attrs.key)->upload( *this , digest , nfs_guard ) ;
 		}
@@ -851,8 +849,8 @@ namespace Engine {
 						req->no_triggers.emplace(dep,req->no_triggers.size()) ;  // record to repeat in summary, value is just to order summary in discovery order
 						dep_modif = false ;
 					}
-					if ( +state.stamped_err  ) goto Continue ;                                                     // we are already in error, no need to analyze errors any further
-					if ( !is_static && modif ) goto Continue ;                                                     // if not static, errors may be washed by previous modifs, dont record them
+					if ( +state.stamped_err  ) goto Continue ;                   // we are already in error, no need to analyze errors any further
+					if ( !is_static && modif ) goto Continue ;                   // if not static, errors may be washed by previous modifs, dont record them
 					if ( dep_modif           ) {
 						if ( dep.is_crc && dep.never_match() ) state.reason |= {JobReasonTag::DepUnstable ,+dep} ;
 						else                                   state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
@@ -950,8 +948,7 @@ namespace Engine {
 		if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req.zombie() ) {
 			JobAudit const& ja = it->second ;
 			trace("report_missing",ja) ;
-			JobInfo         ji     = job_info()               ;
-			::string const& stderr = ji.end.end.digest.stderr ;
+			::string const& stderr = JobInfo(ancillary_file()).end.end.digest.stderr ;
 			//
 			if (ja.report!=JobReport::Hit) {                                                    // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
 				SWEAR(req->stats.ended(JobReport::Rerun)>0) ;
@@ -1127,12 +1124,12 @@ namespace Engine {
 							if (!dfa_msg.second) return false/*maybe_new_deps*/ ;
 						}
 						//
-						JobDigest digest = cache->download(idx(),cache_match.id,reason,nfs_guard) ;
-						JobExec  je      { idx() , FileSig(ancillary_file()) , New }      ;                   // job starts and ends, no host
-						if (ri.live_out) je.live_out(ri,digest.stdout) ;
+						JobInfo job_info = cache->download(idx(),cache_match.id,reason,nfs_guard) ;
+						JobExec je       { idx() , New }                                          ;           // job starts and ends, no host
+						if (ri.live_out) je.live_out(ri,job_info.end.end.digest.stdout) ;
 						ri.step(Step::Hit) ;
 						trace("hit_result") ;
-						bool modified = je.end({}/*rsrcs*/,digest,{}/*backend_msg*/) ;                        // no resources nor backend for cached jobs
+						bool modified = je.end( ::move(job_info.end.end) , false/*sav_jrr*/ ) ;               // no resources nor backend for cached jobs
 						req->stats.ended(JobReport::Hit)++ ;
 						req->missing_audits[idx()] = { JobReport::Hit , modified , {} } ;
 						return true/*maybe_new_deps*/ ;
@@ -1265,23 +1262,6 @@ namespace Engine {
 	::vector<Req> JobData::running_reqs(bool with_zombies) const {                                                           // sorted by start
 		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                                                                   // pessimistic, so no realloc
 		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running() ) res.push_back(r) ;
-		return res ;
-	}
-
-	::string JobData::ancillary_file(AncillaryTag tag) const {
-		::string str        = to_string('0',+idx()) ;                                              // ensure size is even as we group by 100
-		bool     skip_first = str.size()&0x1        ;                                              // need initial 0 if required to have an even size
-		size_t   i          ;
-		::string res        ;
-		switch (tag) {
-			case AncillaryTag::Backend : res = PrivateAdminDir          + "/backend"s ; break ;
-			case AncillaryTag::Data    : res = g_config.local_admin_dir + "/job_data" ; break ;
-			case AncillaryTag::Dbg     : res = AdminDir                 + "/debug"s   ; break ;
-			case AncillaryTag::KeepTmp : res = AdminDir                 + "/tmp"s     ; break ;
-		DF}
-		res.reserve( res.size() + str.size() + str.size()/2 + 1 ) ;                                // 1.5*str.size() as there is a / for 2 digits + final _
-		for( i=skip_first ; i<str.size()-1 ; i+=2 ) { res.push_back('/') ; res.append(str,i,2) ; } // create a dir hierarchy with 100 files at each level
-		res.push_back('_') ;                                                                       // avoid name clashes with directories
 		return res ;
 	}
 

@@ -136,7 +136,7 @@ namespace Engine::Makefiles {
 		for( ::string const& sd_s : g_src_dirs_s )
 			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_root_dir),is_abs_s(sd_s)) ;
 		//
-		{	OFStream os { ::dir_guard(new_deps_file) } ;  // ensure os is closed, or at least it must be flushed before calling _chk_dangling
+		{	OFStream os { new_deps_file } ;               // ensure os is closed, or at least it must be flushed before calling _chk_dangling
 			for( ::string d : deps ) {
 				SWEAR(+d) ;
 				FileInfo fi{d} ;
@@ -162,7 +162,7 @@ namespace Engine::Makefiles {
 		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
 		//
 		Gather   gather ;
-		::string data   = to_string(PrivateAdminDir,'/',action,"_data.py") ; dir_guard(data) ;
+		::string data   = to_string(PrivateAdminDir,'/',action,"_data.py") ;
 		gather.autodep_env.src_dirs_s = {"/"}                                                                        ;
 		gather.autodep_env.root_dir   = *g_root_dir                                                                  ;
 		gather.cmd_line               = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;

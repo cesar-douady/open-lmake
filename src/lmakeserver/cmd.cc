@@ -213,7 +213,15 @@ namespace Engine {
 			res += start.cmd.second ;
 		} else if (!j->rule->is_python) {
 			res += start.cmd.second ;
-			append_line_to_string(res,_user_env()," exec ",interpreter," -i <&3 >&4 2>&5\n") ;
+			append_line_to_string(res
+			,	_user_env()
+			,	"HOME="   , mk_shell_str       (get_env("HOME"     ))
+			,	" SHLVL=" , from_string<size_t>(get_env("SHLVL","1"))+1
+			,	" exec "  , interpreter," -i"
+			,	+start.stdin  ? " <&3" : ""
+			,	+start.stdout ? " >&4" : ""
+			,	'\n'
+			) ;
 		} else {
 			::string runner = flags[ReqFlag::Vscode] ? "run_vscode" : flags[ReqFlag::Graphic] ? "run_pudb" : "run_pdb" ;
 			//
@@ -399,22 +407,23 @@ R"({
 				else                                    append_to_string( script , "-s " , "none"                                   ,' ') ;     // dont care about deps
 				/**/                                    append_to_string( script , "-m " , snake(start.method   )                   ,' ') ;
 				if      ( !dbg                        ) append_to_string( script , "-o " , "/dev/null"                              ,' ') ;
-				else if ( +dbg_dir                    ) append_to_string( script , "-o " , mk_shell_str(dbg_dir+"/accesses")        ,' ') ;
+				else if ( +dbg_dir                    ) append_to_string( script , "-o " , dbg_dir+"/accesses"                      ,' ') ;
 				if      ( ade.auto_mkdir              ) append_to_string( script , "-d"                                             ,' ') ;
 				if      ( dbg && ade.ignore_stat      ) append_to_string( script , "-i"                                             ,' ') ;
 				if      ( +start.job_space.chroot_dir ) append_to_string( script , "-c"  , mk_shell_str(start.job_space.chroot_dir) ,' ') ;
 				if      ( +start.job_space.root_view  ) append_to_string( script , "-r"  , mk_shell_str(start.job_space.root_view ) ,' ') ;
 				if      ( +start.job_space.tmp_view   ) append_to_string( script , "-t"  , mk_shell_str(start.job_space.tmp_view  ) ,' ') ;
-				if      ( +dbg_dir                    ) append_to_string( script , "-w"  , mk_shell_str(dbg_dir+"/work"           ) ,' ') ;
+				if      ( +dbg_dir                    ) append_to_string( script , "-w " ,dbg_dir+"/work"                           ,' ') ;
 			}
-			for( ::string const& c : start.interpreter )                     append_to_string( script , mk_shell_str(c) , ' '                                    ) ;
-			if      ( dbg && !is_python )                                    append_to_string( script , "-x "                                                    ) ;
-			if      ( with_cmd          )                { SWEAR(+dbg_dir) ; append_to_string( script ,             mk_shell_str(dbg_dir+"/cmd"                ) ) ; }
-			else                                                             append_to_string( script , "-c \\\n" , mk_shell_str(_mk_cmd(j,flags,start,dbg_dir)) ) ;
-			if      ( dbg && !is_python )                                    append_to_string( script , " 3<&0 4>&1 5>&2"                                        ) ; // must be before job redirections
-			if      ( +start.stdin      )                                    append_to_string( script , " <" , mk_shell_str(start.stdin )                        ) ;
-			else if ( !dbg              )                                    append_to_string( script , " </dev/null"                                            ) ;
-			if      ( +start.stdout     )                                    append_to_string( script , " >" , mk_shell_str(start.stdout)                        ) ;
+			for( ::string const& c : start.interpreter )   append_to_string( script , mk_shell_str(c) , ' '                                    ) ;
+			if      ( dbg && !is_python )                  append_to_string( script , "-x "                                                    ) ;
+			if      ( with_cmd          )                  append_to_string( script , dbg_dir+"/cmd"                                           ) ;
+			else                                           append_to_string( script , "-c \\\n" , mk_shell_str(_mk_cmd(j,flags,start,dbg_dir)) ) ;
+			if      ( +start.stdin  && dbg && !is_python ) append_to_string( script , " 3<&0"                                                  ) ; // must be before job redirections
+			if      ( +start.stdout && dbg && !is_python ) append_to_string( script , " 4>&1"                                                  ) ; // must be before job redirections
+			if      ( +start.stdin      )                  append_to_string( script , " <" , mk_shell_str(start.stdin )                        ) ;
+			else if ( !dbg              )                  append_to_string( script , " </dev/null"                                            ) ;
+			if      ( +start.stdout     )                  append_to_string( script , " >" , mk_shell_str(start.stdout)                        ) ;
 			script += '\n' ;
 		}
 		return script ;
@@ -454,7 +463,7 @@ R"({
 		if (!job                   ) throw "no job found"s                                    ;
 		if (job->rule->is_special()) throw to_string("cannot debug ",job->rule->name," jobs") ;
 		//
-		JobInfo job_info = job->job_info() ;
+		JobInfo job_info = job.ancillary_file() ;
 		if (!job_info.start.start.proc) {
 			audit( fd , ro , Color::Err , "no info available" ) ;
 			return false ;
@@ -465,6 +474,7 @@ R"({
 		::string           script_file = dbg_dir+"/script"                       ;
 		::string           cmd_file    = dbg_dir+"/cmd"                          ;
 		::string           vscode_file = dbg_dir+"/vscode/ldebug.code-workspace" ;
+		mk_dir(dbg_dir) ;
 		//
 		::vector_s vs_exts {   // XXX : move to rule
 			"ms-python.python"
@@ -472,9 +482,9 @@ R"({
 		,	"coolchyni.beyond-debug"
 		} ;
 		//
-		/**/                              OFStream(dir_guard(script_file)) << _mk_script(job,ro.flags,job_info,dbg_dir,true/*with_cmd*/,vs_exts) ; ::chmod(script_file.c_str(),0755) ;
-		if (!ro.flags[ReqFlag::Enter] ) { OFStream(dir_guard(cmd_file   )) << _mk_cmd   (job,ro.flags,start   ,dbg_dir                         ) ; ::chmod(cmd_file   .c_str(),0755) ; }
-		if ( ro.flags[ReqFlag::Vscode])   OFStream(dir_guard(vscode_file)) << _mk_vscode(job,         job_info,dbg_dir,                 vs_exts) ;
+		/**/                              OFStream(script_file) << _mk_script(job,ro.flags,job_info,dbg_dir,true/*with_cmd*/,vs_exts) ; ::chmod(script_file.c_str(),0755) ;
+		if (!ro.flags[ReqFlag::Enter] ) { OFStream(cmd_file   ) << _mk_cmd   (job,ro.flags,start   ,dbg_dir                         ) ; ::chmod(cmd_file   .c_str(),0755) ; }
+		if ( ro.flags[ReqFlag::Vscode])   OFStream(vscode_file) << _mk_vscode(job,         job_info,dbg_dir,                 vs_exts) ;
 		//
 		audit_file( fd , ::move(script_file) ) ;
 		return true ;
@@ -608,7 +618,7 @@ R"({
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
 		Rule             rule         = job->rule                  ;
-		JobInfo          job_info     = job->job_info()            ;
+		JobInfo          job_info     = job.ancillary_file()       ;
 		bool             has_start    = +job_info.start.start.proc ;
 		bool             has_end      = +job_info.end  .end  .proc ;
 		bool             verbose      = ro.flags[ReqFlag::Verbose] ;

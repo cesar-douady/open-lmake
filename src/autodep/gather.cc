@@ -364,7 +364,8 @@ Status Gather::exec_child() {
 					int                     cnt = ::read( fd , &si , sizeof(si) ) ; SWEAR( cnt==sizeof(si) , cnt ) ;
 					::waitpid(si.ssi_pid,&wstatus,0) ;
 					if (!WIFSTOPPED(wstatus)) {
-						_end_child = Pdate(New) + network_delay ; // wait at most network_delay for reporting & stdout & stderr to settle down
+						end_date = New ;
+						_end_child = end_date + network_delay ; // wait at most network_delay for reporting & stdout & stderr to settle down
 						if      (WIFEXITED  (wstatus)) set_status(             WEXITSTATUS(wstatus)!=0 ? Status::Err : Status::Ok       ) ;
 						else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG   (wstatus))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
 						else                           fail("unexpected wstatus : ",wstatus) ;

@@ -297,7 +297,7 @@ int main( int argc , char* argv[] ) {
 	//
 	g_trace_file = new ::string{to_string(g_phy_root_dir,'/',PrivateAdminDir,"/trace/job_exec/",g_trace_id)} ;
 	//
-	JobRpcReq end_report { JobProc::End , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error, so we can goto End anytime
+	JobRpcReq end_report { JobRpcProc::End , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error, so we can goto End anytime
 	//
 	if (::chdir(g_phy_root_dir.c_str())!=0) {
 		append_to_string(end_report.msg,"cannot chdir to root : ",g_phy_root_dir) ;
@@ -316,10 +316,10 @@ int main( int argc , char* argv[] ) {
 		try {
 			ClientSockFd fd {g_service_start,NConnectionTrials} ;
 			found_server = true ;
-			//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			/**/           OMsgBuf().send                ( fd , JobRpcReq{JobProc::Start,g_seq_id,g_job,server_fd.port()} ) ;
-			g_start_info = IMsgBuf().receive<JobRpcReply>( fd                                                             ) ;
-			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			/**/           OMsgBuf().send                ( fd , JobRpcReq{JobRpcProc::Start,g_seq_id,g_job,server_fd.port()} ) ;
+			g_start_info = IMsgBuf().receive<JobRpcReply>( fd                                                                ) ;
+			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			trace("no_server",g_service_start,STR(found_server),e) ;
 			if (found_server) exit(Rc::Fail                                                          ) ; // this is typically a ^C
@@ -327,8 +327,8 @@ int main( int argc , char* argv[] ) {
 		}
 		trace("g_start_info",Pdate(New),g_start_info) ;
 		switch (g_start_info.proc) {
-			case JobProc::None  : return 0 ;                                                             // server ask us to give up
-			case JobProc::Start : break    ;                                                             // normal case
+			case JobRpcProc::None  : return 0 ;                                                          // server ask us to give up
+			case JobRpcProc::Start : break    ;                                                          // normal case
 		DF}
 		//
 		g_root_dir = +g_start_info.job_space.root_view ? &g_start_info.job_space.root_view : &g_phy_root_dir ;

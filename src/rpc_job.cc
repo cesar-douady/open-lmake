@@ -196,9 +196,9 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 ::ostream& operator<<( ::ostream& os , JobRpcReq const& jrr ) {
 	/**/                      os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
 	switch (jrr.proc) {
-		case JobProc::Start : os <<','<< jrr.port                           ; break ;
-		case JobProc::End   : os <<','<< jrr.digest <<','<< jrr.dynamic_env ; break ;
-		default             :                                                 break ;
+		case JobRpcProc::Start : os <<','<< jrr.port                           ; break ;
+		case JobRpcProc::End   : os <<','<< jrr.digest <<','<< jrr.dynamic_env ; break ;
+		default                :                                                 break ;
 	}
 	return                    os <<','<< jrr.msg <<')' ;
 }
@@ -220,7 +220,7 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
 	/**/                                   os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
-		case JobProc::Start :
+		case JobRpcProc::Start :
 			/**/                           os <<',' << hex<<jrr.addr<<dec               ;
 			/**/                           os <<',' << jrr.autodep_env                  ;
 			if      (+jrr.job_space      ) os <<',' << jrr.job_space                    ;

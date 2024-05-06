@@ -302,7 +302,7 @@ struct Mkstemp : WSolve {
 		void * tls        = va_arg(args,void *) ;
 		pid_t* child_tid  = va_arg(args,pid_t*) ;
 		va_end(args) ;
-		HEADER0(clone,(fn,stack,flags,arg,parent_tid,tls,child_tid)) ;
+		HEADER(clone, flags&CLONE_VM , (fn,stack,flags,arg,parent_tid,tls,child_tid)) ;
 		NO_SERVER(clone) ;
 		return orig(fn,stack,flags,arg,parent_tid,tls,child_tid) ;
 	}

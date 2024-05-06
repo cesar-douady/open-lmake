@@ -548,9 +548,9 @@ namespace Backends::Slurm {
 		return { {} , Maybe|completed } ;
 	}
 
-	static ::string _get_log_dir    (JobIdx job) { return Job(job)->ancillary_file(AncillaryTag::Backend) ; }
-	static ::string _get_stderr_path(JobIdx job) { return _get_log_dir(job) + "/stderr"                   ; }
-	static ::string _get_stdout_path(JobIdx job) { return _get_log_dir(job) + "/stdout"                   ; }
+	static ::string _get_log_dir    (JobIdx job) { return Job(job).ancillary_file(AncillaryTag::Backend) ; }
+	static ::string _get_stderr_path(JobIdx job) { return _get_log_dir(job) + "/stderr"                  ; }
+	static ::string _get_stdout_path(JobIdx job) { return _get_log_dir(job) + "/stdout"                  ; }
 
 	::string read_stderr(JobIdx job) {
 		Trace trace(BeChnl,"Slurm::read_stderr",job) ;

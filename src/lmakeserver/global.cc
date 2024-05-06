@@ -350,27 +350,23 @@ namespace Engine {
 		return res.str() ;
 	}
 
-	static ::string _set_dir( ::string const& user_dir , ::string const& key , ::string const& file ) {
-		::string std_file = to_string(PrivateAdminDir,'/',file) ;
-		if (!user_dir) {
-			if (!is_dir(std_file)) unlnk(std_file) ;
-			return std_file ;
-		}
-		::string special_file = to_string(user_dir,'/',key)                 ;
-		::string lnk_target   = mk_rel(special_file,dir_name(std_file)+'/') ;
-		::string t            = read_lnk(std_file)                          ;
-		if (t!=lnk_target) {
-			unlnk(           std_file  , true/*dir_ok*/ ) ;
-			lnk  ( dir_guard(std_file) , lnk_target     ) ;
-		}
-		return special_file ;
-	}
 	void Config::open(bool dynamic) {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
-		SWEAR(+key) ;                                                                     // ensure no init problem
-		local_admin_dir = _set_dir( user_local_admin_dir , key+"-la" , "local_admin"s ) ; // add key and suffix to ensure different dirs
+		SWEAR(+key) ;                                                                    // ensure no init problem
+		::string std_file = to_string(PrivateAdminDir,"/local_admin") ;
+		if (!user_local_admin_dir) {
+			local_admin_dir = ::move(std_file) ;
+		} else {
+			local_admin_dir = to_string(user_local_admin_dir,'/',key+"-la") ;
+			::string lnk_target   = mk_rel( local_admin_dir , dir_name(std_file)+'/' ) ;
+			if (read_lnk(std_file)!=lnk_target) {
+				unlnk( std_file , true/*dir_ok*/ ) ;
+				lnk  ( std_file , lnk_target     ) ;
+			}
+		}
+		mk_dir(local_admin_dir,true/*unlnk_ok*/) ;
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
 		//
@@ -388,7 +384,7 @@ namespace Engine {
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosureReq const& ecr ) {
-		/**/                       os << "Ecr(" << ecr.proc <<','                                            ;
+		/**/                       os << "Ecr(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
 			case ReqProc::Debug  : // PER_CMD : format for tracing
 			case ReqProc::Forget :
@@ -398,18 +394,40 @@ namespace Engine {
 			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
 			case ReqProc::Close  : os << ecr.req                                                             ; break ;
 		DF}
-		return                     os <<')'                                                                  ;
+		return                     os <<')' ;
+	}
+
+	::ostream& operator<<( ::ostream& os , EngineClosureJobStart const& ecjs ) {
+		/**/                     os << "Ecjs(" << ecjs.start   ;
+		if (ecjs.report        ) os <<",report"                ;
+		if (+ecjs.report_unlnks) os <<','<< ecjs.report_unlnks ;
+		if (+ecjs.txt          ) os <<','<< ecjs.txt           ;
+		if (+ecjs.msg          ) os <<','<< ecjs.msg           ;
+		return                   os <<')'                      ;
+	}
+
+	::ostream& operator<<( ::ostream& os , EngineClosureJobEtc const& ecje ) {
+		const char* sep = "" ;
+		/**/                os << "Ecje("       ;
+		if ( ecje.report) { os <<      "report" ; sep = "," ; }
+		if (+ecje.req   )   os <<sep<< ecje.req ;
+		return              os <<')'            ;
+	}
+
+	::ostream& operator<<( ::ostream& os , EngineClosureJobEnd const& ecje ) {
+		/**/   os << "Ecje("        ;
+		return os << ecje.end <<')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosureJob const& ecj ) {
-		/**/                                            os << "Ecj(" << ecj.proc <<','<< ecj.job_exec ;
+		/**/                               os << "(" << ecj.proc <<','<< ecj.job_exec ;
 		switch (ecj.proc) {
-			case JobProc::Start       : if (ecj.report) os <<",report"                                ; break ;
-			case JobProc::GiveUp      :                 os <<','<< ecj.req                            ; break ;
-			case JobProc::ReportStart :                                                                 break ;
-			case JobProc::End         :                 os <<','<< ecj.digest                         ; break ;
+			case JobRpcProc::Start       : os << ecj.start ; break ;
+			case JobRpcProc::ReportStart :
+			case JobRpcProc::GiveUp      : os << ecj.etc   ; break ;
+			case JobRpcProc::End         : os << ecj.end   ; break ;
 		DF}
-		return                                          os <<')'                                      ;
+		return                             os <<')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosureJobMngt const& ecjm ) {

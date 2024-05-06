@@ -44,10 +44,17 @@ int main( int argc , char* /*argv*/[] ) {
 	::cout << "to continue with what has been repaired consider : rm "<<repair_mrkr<<" ; rm -r "<<backup_admin_dir             << endl ;
 	try                       { chk_version( false/*may_init*/ , backup_admin_dir ) ; }
 	catch (::string const& e) { exit(Rc::Format,e) ;                                  }
+	//
+	mk_dir(AdminDir       ) ;
+	mk_dir(PrivateAdminDir) ;
+	//
 	try {
 		::string msg = Makefiles::refresh(false/*crashed*/,true/*refresh*/) ;
 		if (+msg) ::cerr << ensure_nl(msg) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
+	//
+	for( AncillaryTag tag : All<AncillaryTag> ) dir_guard(Job().ancillary_file(tag)) ;
+	//
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Persistent::repair(to_string(backup_admin_dir,'/',PRIVATE_ADMIN_SUBDIR,"/local_admin/job_data")) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

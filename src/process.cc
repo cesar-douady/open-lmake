@@ -64,8 +64,8 @@ static constexpr size_t StackSz = 16<<10 ; // we just need s small stack before 
 [[noreturn]] void Child::_do_child_new_pid_namespace() {
 	if (as_session) ::setsid() ;                                                           // if we are here, we are the init process and we must be in the new session to receive the kill signal
 	SWEAR(first_pid>1,first_pid) ;
-	::mount(nullptr,"/proc","proc",0,nullptr) ;                                            // XXX : find a way to allow this mount when running in docker ...
-	AutoCloseFd      lpfd    = ::open("/proc/sys/kernel/ns_last_pid",O_WRONLY|O_TRUNC) ;   // ... for now, ignore and use original /proc as this is probably harmless
+	if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) exit(Rc::System,"cannot mount /proc") ;
+	AutoCloseFd      lpfd    = ::open("/proc/sys/kernel/ns_last_pid",O_WRONLY|O_TRUNC) ;
 	::string         lp      = to_string(first_pid-1)                                  ;
 	[[maybe_unused]] int wrc = ::write(lpfd,lp.c_str(),lp.size())                      ;   // dont care about errors, this is best effort
 	//

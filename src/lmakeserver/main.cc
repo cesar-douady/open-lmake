@@ -67,7 +67,6 @@ bool/*crashed*/ start_server(bool start) {
 	bool  crashed = false    ;
 	pid_t pid     = getpid() ;
 	Trace trace("start_server",_g_host,pid,STR(start)) ;
-	dir_guard(ServerMrkr) ;
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	if ( +mrkr.first && mrkr.first!=_g_host ) {
 		trace("already_existing_elsewhere",mrkr) ;
@@ -118,7 +117,7 @@ void record_targets(Job job) {
 		for( ::string& ktn : known_targets ) if (ktn==tn) ktn.clear() ;
 		known_targets.push_back(tn) ;
 	}
-	{	OFStream targets_stream { dir_guard(targets_file) } ;
+	{	OFStream targets_stream { targets_file } ;
 		for( ::string tn : known_targets ) if (+tn) targets_stream << tn << '\n' ;
 	}
 }
@@ -358,12 +357,12 @@ bool/*interrupted*/ engine_loop() {
 				JobExec         & je  = ecj.job_exec ;
 				trace("job",ecj.proc,je) ;
 				switch (ecj.proc) {
-					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::Start       : je.started     (ecj.report,ecj.report_unlnks,ecj.txt,ecj.msg) ; break ;
-					case JobProc::ReportStart : je.report_start(                                            ) ; break ;
-					case JobProc::GiveUp      : je.give_up     (ecj.req , ecj.report                        ) ; break ;
-					case JobProc::End         : je.end         (ecj.rsrcs,ecj.digest,::move(ecj.msg)        ) ; break ;
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobRpcProc::Start       : je.started     ( ::move(ecj.start.start) ,ecj.start.report , ecj.start.report_unlnks , ecj.start.txt , ecj.start.msg ) ; break ;
+					case JobRpcProc::ReportStart : je.report_start(                                                                                                     ) ; break ;
+					case JobRpcProc::GiveUp      : je.give_up     ( ecj.etc.req , ecj.etc.report                                                                        ) ; break ;
+					case JobRpcProc::End         : je.end         ( ::move(ecj.end.end.end) , true/*sav_jrr*/ , ecj.end.rsrcs                                           ) ; break ;
+					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				DF}
 			} break ;
 			case EngineClosureKind::JobMngt : {
@@ -434,12 +433,13 @@ int main( int argc , char** argv ) {
 	//          ^^^^^^^^^^^^^^^
 	Trace trace("main",getpid(),*g_lmake_dir,*g_root_dir) ;
 	for( int i=0 ; i<argc ; i++ ) trace("arg",i,argv[i]) ;
+	mk_dir(AdminDir       ) ;
+	mk_dir(PrivateAdminDir) ;
 	//             vvvvvvvvvvvvvvvvvvvvvvvvvvv
 	bool crashed = start_server(true/*start*/) ;
 	//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if (!_g_is_daemon     ) report_server(out_fd,_g_server_running/*server_running*/) ; // inform lmake we did not start
 	if (!_g_server_running) return 0 ;
-	mk_dir(PrivateAdminDir+"/tmp"s,true/*unlink_ok*/) ;
 	try {
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvv
 		::string msg = Makefiles::refresh(crashed,refresh_) ;
@@ -447,6 +447,9 @@ int main( int argc , char** argv ) {
 		if (+msg  ) ::cerr << ensure_nl(msg) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                                 // once we have reported we have started, lmake will send us a message to kill us
+	//
+	for( AncillaryTag tag : All<AncillaryTag> ) dir_guard(Job().ancillary_file(tag)) ;
+	mk_dir(PrivateAdminDir+"/tmp"s,true/*unlnk_ok*/) ;
 	//
 	{	::string v ;
 		Trace::s_channels = g_config.trace.channels ;
@@ -460,8 +463,8 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	unlnk(PrivateAdminDir+"/tmp"s,true/*dir_ok*/) ;                                     // cleanup
+	unlnk_inside(PrivateAdminDir+"/tmp"s) ;                                             // cleanup
 	//
-	trace("done",STR(interrupted),Pdate(New)) ;
+	trace("done",STR(interrupted),New) ;
 	return interrupted ;
 }

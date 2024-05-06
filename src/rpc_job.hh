@@ -63,7 +63,7 @@ ENUM( JobMngtProc
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
-ENUM( JobProc
+ENUM( JobRpcProc
 ,	None
 ,	Start
 ,	ReportStart
@@ -534,7 +534,7 @@ struct JobSpace {
 } ;
 
 struct JobRpcReq {
-	using P   = JobProc             ;
+	using P   = JobRpcProc          ;
 	using SI  = SeqId               ;
 	using JI  = JobIdx              ;
 	using MDD = ::vmap_s<DepDigest> ;
@@ -577,8 +577,8 @@ struct JobRpcReq {
 
 struct JobRpcReply {
 	friend ::ostream& operator<<( ::ostream& , JobRpcReply const& ) ;
-	using Crc  = Hash::Crc ;
-	using Proc = JobProc   ;
+	using Crc  = Hash::Crc  ;
+	using Proc = JobRpcProc ;
 	// cxtors & casts
 	JobRpcReply(      ) = default ;
 	JobRpcReply(Proc p) : proc{p} {}
@@ -813,7 +813,7 @@ struct JobInfo {
 	JobInfo(                                       ) = default ;
 	JobInfo( ::string const& ancillary_file        ) ;
 	JobInfo( JobInfoStart&& jis , JobInfoEnd&& jie ) : start{::move(jis)} , end{::move(jie)} {}
-	// ervices
+	// services
 	void write(::string const& filename) const ;
 	// data
 	// START_OF_VERSIONING

@@ -248,7 +248,7 @@ namespace Engine {
 		//
 		if ( !seen_stderr && job->run_status==RunStatus::Ok && !job->rule->is_special() ) { // show first stderr
 			Rule::SimpleMatch match          ;
-			JobInfo           job_info       = job->job_info()                                                ;
+			JobInfo           job_info       = job.ancillary_file()                                           ;
 			EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,job_info.start.rsrcs) ;
 			//
 			if (!job_info.end.end.proc) (*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;

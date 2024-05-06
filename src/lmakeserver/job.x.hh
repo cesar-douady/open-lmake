@@ -102,6 +102,7 @@ namespace Engine {
 		Job( Special , Node target , ::vector<JobTgt> const& ) ;        // multi
 		// accesses
 		bool active() const ;
+		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
 	} ;
 
 	struct JobTgt : Job {
@@ -133,25 +134,25 @@ namespace Engine {
 	struct JobExec : Job {
 		friend ::ostream& operator<<( ::ostream& , JobExec const& ) ;
 		// cxtors & casts
-		JobExec( Job j={} ,               SigDate s={} , SigDate e={} ) : Job{j} ,           start_date{s} , end_date{e} {}
-		JobExec( Job j    , in_addr_t h , SigDate s={} , SigDate e={} ) : Job{j} , host{h} , start_date{s} , end_date{e} {}
-		JobExec( Job j    ,               SigDate s    , NewType      ) : Job{j} ,           start_date{s} , end_date{s} {} // end=New means job is instantaneous
-		JobExec( Job j    , in_addr_t h , SigDate s    , NewType      ) : Job{j} , host{h} , start_date{s} , end_date{s} {} // .
+		JobExec(                                         ) = default ;
+		JobExec( Job j ,               Pdate s           ) : Job{j} ,           start_date{s} , end_date{s} {}
+		JobExec( Job j , in_addr_t h , Pdate s           ) : Job{j} , host{h} , start_date{s} , end_date{s} {}
+		JobExec( Job j ,               Pdate s , Pdate e ) : Job{j} ,           start_date{s} , end_date{e} {}
+		JobExec( Job j , in_addr_t h , Pdate s , Pdate e ) : Job{j} , host{h} , start_date{s} , end_date{e} {}
 		// services
 		// called in main thread after start
 		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start and started
-		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlnks , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
-		bool/*reported*/ report_start( ReqInfo&                                                                                                       ) const ;
-		void             report_start(                                                                                                                ) const ;
-		void             started     ( bool report , ::vector<Node> const& report_unlnks , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
-		void             started     ( bool report                                                                                                    ) ;
+		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlnks , ::string const& stderr={} , ::string const& backend_msg={}                  ) const ;
+		bool/*reported*/ report_start( ReqInfo&                                                                                                                        ) const ;
+		void             report_start(                                                                                                                                 ) const ;
+		void             started     ( JobInfoStart&& , bool report , ::vector<Node> const& report_unlnks , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
 		//
-		JobMngtRpcReply  job_analysis( JobMngtProc , ::vector<Dep> const& deps                            ) const ; // answer to requests from job execution
-		bool/*modified*/ end         ( ::vmap_ss const& rsrcs , JobDigest const& , ::string&& backend_msg ) ;       // hit indicates that result is from a cache hit
-		void             give_up     ( Req={} , bool report=true                                          ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
+		JobMngtRpcReply  job_analysis( JobMngtProc , ::vector<Dep> const& deps                ) const ; // answer to requests from job execution
+		bool/*modified*/ end         ( JobRpcReq&& , bool sav_jrr , ::vmap_ss const& rsrcs={} ) ;       // hit indicates that result is from a cache hit
+		void             give_up     ( Req={} , bool report=true                              ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
 		JobReport audit_end( ::string const& pfx , ReqInfo&    , ::string const& msg , ::string const& stderr    , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const ;
@@ -160,8 +161,8 @@ namespace Engine {
 		}
 		// data
 		in_addr_t host       = NoSockAddr ;
-		SigDate   start_date ;
-		SigDate   end_date   ;                                                                                  // if no end_date, job is stil on going
+		Pdate     start_date ;
+		Pdate     end_date   ;                                                                          // if no end_date, job is stil on going
 	} ;
 
 }
@@ -311,12 +312,10 @@ namespace Engine {
 		//
 		Tflags tflags(Node target) const ;
 		//
-		void     end_exec      (                               ) const ;            // thread-safe
-		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
-		JobInfo  job_info      (                               ) const { return  {                ancillary_file() } ; }
-		void     write_job_info(JobInfo const& ji              ) const { ji.write(Disk::dir_guard(ancillary_file())) ; }
-		::string special_stderr(Node                           ) const ;
-		::string special_stderr(                               ) const ;            // cannot declare a default value for incomplete type Node
+		void     end_exec      (                                   ) const ;                                                                   // thread-safe
+		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const { return idx().ancillary_file(tag) ; }
+		::string special_stderr(Node                               ) const ;
+		::string special_stderr(                                   ) const ;        // cannot declare a default value for incomplete type Node
 		//
 		void              invalidate_old() ;
 		Rule::SimpleMatch simple_match  () const ;                                  // thread-safe
@@ -393,7 +392,6 @@ namespace Engine {
 	//
 
 	inline bool/*reported*/ JobExec::report_start(ReqInfo& ri) const { return report_start(ri,{}) ; }
-	inline void             JobExec::started     (bool     r )       {        started     (r ,{}) ; }
 
 	//
 	// JobTgt
@@ -449,7 +447,7 @@ namespace Engine {
 	}
 
 	template<class... A> void JobData::audit_end(A&&... args) const {
-		JobExec(idx(),New,New).audit_end(::forward<A>(args)...) ;
+		JobExec(idx(),New).audit_end(::forward<A>(args)...) ;
 	}
 
 	inline bool JobData::sure() const {

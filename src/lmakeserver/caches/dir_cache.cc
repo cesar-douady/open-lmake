@@ -266,7 +266,7 @@ namespace Caches {
 		return { .completed=true , .hit=Maybe , .new_deps{::mk_vector(new_deps)} } ;
 	}
 
-	JobDigest DirCache::download( Job job , Id const& id , JobReason const& reason , NfsGuard& nfs_guard ) {
+	JobInfo DirCache::download( Job job , Id const& id , JobReason const& reason , NfsGuard& nfs_guard ) {
 		::string    jn     = _unique_name(job,id) ;
 		AutoCloseFd dfd    = open_read(dir_fd,jn) ;
 		::vector_s  copied ;
@@ -298,7 +298,7 @@ namespace Caches {
 				_lru_first(jn,sz_) ;
 				trace("done",sz_) ;
 			}
-			return job_info.end.end.digest ;
+			return job_info ;
 		} catch(::string const& e) {
 			for( ::string const& f : copied ) unlnk(f) ;                                            // clean up partial job
 			trace("failed") ;
@@ -310,7 +310,7 @@ namespace Caches {
 		::string jn = _unique_name(job,repo) ;
 		Trace trace("DirCache::upload",job,jn) ;
 		//
-		JobInfo job_info = job->job_info() ;
+		JobInfo job_info = job.ancillary_file() ;
 		if (!job_info.end.end.proc) {                                     // we need a full report to cache job
 			trace("no_ancillary_file") ;
 			return false/*ok*/ ;

@@ -247,9 +247,9 @@ namespace Engine {
 		void audit_job( Color , Pdate , SC& step , Job                          , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , SC& step , JobExec const&                                           , Delay exec_time={} ) const ;
 		//
-		void audit_job( Color c , SC& s , SC& rn , SC& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                                ,s,rn,jn,h,et) ; }
-		void audit_job( Color c , SC& s , Job j           , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                                ,s,j    ,h,et) ; }
-		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_date.date:je.start_date.date,s,je     ,et) ; }
+		void audit_job( Color c , SC& s , SC& rn , SC& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                      ,s,rn,jn,h,et) ; }
+		void audit_job( Color c , SC& s , Job j           , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                      ,s,j    ,h,et) ; }
+		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je     ,et) ; }
 		#undef SC
 		//
 		void         audit_status( bool ok                                                                                    ) const ;

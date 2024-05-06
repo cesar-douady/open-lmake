@@ -269,17 +269,60 @@ namespace Engine {
 		ReqOptions options = {}            ;                             // .
 	} ;
 
+	struct EngineClosureJobStart {
+		friend ::ostream& operator<<( ::ostream& , EngineClosureJobStart const& ) ;
+		JobInfoStart   start         = {}    ;
+		bool           report        = false ;
+		::vector<Node> report_unlnks = {}    ;
+		::string       txt           = {}    ;
+		::string       msg           = {}    ;
+	} ;
+
+	struct EngineClosureJobEtc {
+		friend ::ostream& operator<<( ::ostream& , EngineClosureJobEtc const& ) ;
+		bool report = false ;
+		Req  req    = {}    ;
+	} ;
+
+	struct EngineClosureJobEnd {
+		friend ::ostream& operator<<( ::ostream& , EngineClosureJobEnd const& ) ;
+		::vmap_ss  rsrcs = {} ;
+		JobInfoEnd end   = {} ;
+	} ;
+
 	struct EngineClosureJob {
 		friend ::ostream& operator<<( ::ostream& , EngineClosureJob const& ) ;
-		JobProc        proc          = {}    ;
-		JobExec        job_exec      = {}    ;
-		bool           report        = false ; // proc==Start |GiveUp
-		::vector<Node> report_unlnks = {}    ; // proc==Start
-		::string       txt           = {}    ; // proc==Start |LiveOut
-		Req            req           = {}    ; // proc==       GiveUp
-		::vmap_ss      rsrcs         = {}    ; // proc==End
-		JobDigest      digest        = {}    ; // proc==End
-		::string       msg           = {}    ; // proc==End
+		// cxtors & casts
+		EngineClosureJob( JobRpcProc p , JobExec const& je , EngineClosureJobStart&& ecjs ) : proc{p} , job_exec{je} , start{ecjs} {}
+		EngineClosureJob( JobRpcProc p , JobExec const& je , EngineClosureJobEtc  && ecje ) : proc{p} , job_exec{je} , etc  {ecje} {}
+		EngineClosureJob( JobRpcProc p , JobExec const& je , EngineClosureJobEnd  && ecje ) : proc{p} , job_exec{je} , end  {ecje} {}
+		//
+		EngineClosureJob(EngineClosureJob&& ecj) : proc{ecj.proc} , job_exec{::move(ecj.job_exec)} {
+			switch (ecj.proc) {
+				case JobRpcProc::Start       : new(&start) EngineClosureJobStart{::move(ecj.start)} ; break ;
+				case JobRpcProc::ReportStart :
+				case JobRpcProc::GiveUp      : new(&etc  ) EngineClosureJobEtc  {::move(ecj.etc  )} ; break ;
+				case JobRpcProc::End         : new(&end  ) EngineClosureJobEnd  {::move(ecj.end  )} ; break ;
+			DF}
+		}
+		~EngineClosureJob() {
+			switch (proc) {
+				case JobRpcProc::Start       : start.~EngineClosureJobStart() ; break ;
+				case JobRpcProc::ReportStart :
+				case JobRpcProc::GiveUp      : etc  .~EngineClosureJobEtc  () ; break ;
+				case JobRpcProc::End         : end  .~EngineClosureJobEnd  () ; break ;
+			DF}
+		}
+		EngineClosureJob& operator=(EngineClosureJob const&) = delete ;
+		EngineClosureJob& operator=(EngineClosureJob     &&) = delete ;
+		// data
+		JobRpcProc proc     = {} ;
+		JobExec    job_exec = {} ;
+		union {
+			EngineClosureJobStart start ;
+			EngineClosureJobEtc   etc   ;
+			EngineClosureJobEnd   end   ;
+		} ;
 	} ;
 
 	struct EngineClosureJobMngt {
@@ -294,15 +337,15 @@ namespace Engine {
 	struct EngineClosure {
 		friend ::ostream& operator<<( ::ostream& , EngineClosure const& ) ;
 		//
-		using Kind = EngineClosureKind    ;
-		using ECG  = EngineClosureGlobal  ;
-		using ECR  = EngineClosureReq     ;
-		using ECJ  = EngineClosureJob     ;
-		using ECJM = EngineClosureJobMngt ;
+		using Kind = EngineClosureKind     ;
+		using ECG  = EngineClosureGlobal   ;
+		using ECR  = EngineClosureReq      ;
+		using ECJ  = EngineClosureJob      ;
+		using ECJM = EngineClosureJobMngt  ;
 		//
 		using GP  = GlobalProc  ;
 		using RP  = ReqProc     ;
-		using JP  = JobProc     ;
+		using JRP = JobRpcProc  ;
 		using JMP = JobMngtProc ;
 		using J   = Engine::Job ;
 		using JD  = JobDigest   ;
@@ -321,18 +364,18 @@ namespace Engine {
 		EngineClosure(RP p,R r,Fd ifd,Fd ofd                          ) : kind{K::Req},ecr{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill                ) ; }
 		EngineClosure(RP p,R r                                        ) : kind{K::Req},ecr{.proc=p,.req=r                                             } { SWEAR(p==RP::Close               ) ; }
 		// Job
-		EngineClosure( JP p , JE&& je , bool r , ::vector<Node>&& rus={} , ::string&& t={} , ::string&& bem={} ) :
-			kind { K::Job                                                                                                  }
-		,	ecj  { .proc=p , .job_exec=::move(je) , .report=r , .report_unlnks=::move(rus) , .txt=::move(t) , .msg=::move(bem) }
-		{ SWEAR(p==JP::Start) ; }
+		EngineClosure( JRP p , JE&& je , JobInfoStart&& jis , bool r , ::vector<Node>&& rus={} , ::string&& t={} , ::string&& m={} ) :
+			kind { K::Job                                                                                                       }
+		,	ecj  { p , ::move(je) , EngineClosureJobStart{.start=jis,.report=r,.report_unlnks=::move(rus),.txt=::move(t),.msg=::move(m)} }
+		{ SWEAR(p==JRP::Start) ; }
 		//
-		EngineClosure( JP p , JE&& je , R rq , bool rpt ) : kind{K::Job} , ecj{.proc=p,.job_exec=::move(je),.report=rpt,.req=rq} { SWEAR( p==JP::GiveUp                       ) ; }
-		EngineClosure( JP p , JE&& je                   ) : kind{K::Job} , ecj{.proc=p,.job_exec=::move(je)                    } { SWEAR( p==JP::GiveUp || p==JP::ReportStart ) ; }
+		EngineClosure( JRP p , JE&& je , R rq , bool rpt ) : kind{K::Job} , ecj{p,::move(je),EngineClosureJobEtc{.report=rpt,.req=rq}} { SWEAR( p==JRP::GiveUp                        ) ; }
+		EngineClosure( JRP p , JE&& je                   ) : kind{K::Job} , ecj{p,::move(je),EngineClosureJobEtc{                   }} { SWEAR( p==JRP::GiveUp || p==JRP::ReportStart ) ; }
 		//
-		EngineClosure( JP p , JE&& je , ::vmap_ss&& r , JD&& jd , ::string&& bem={}  ) :
-			kind { K::Job                                                                                        }
-		,	ecj  { .proc=p , .job_exec=::move(je) , .rsrcs=::move(r) , .digest=::move(jd) , .msg=::move(bem) }
-		{ SWEAR(p==JP::End) ; }
+		EngineClosure( JRP p , JE&& je , JobRpcReq&& jrr , ::vmap_ss&& r ) :
+			kind { K::Job                                                               }
+		,	ecj  { p , ::move(je) , EngineClosureJobEnd{.rsrcs=::move(r),.end={::move(jrr)}} }
+		{ SWEAR(p==JRP::End) ; }
 		// JobMngt
 		EngineClosure( JMP p , JE&& je , ::string&& t                       ) : kind{K::JobMngt} , ecjm{.proc=p,.job_exec=::move(je),.txt=::move(t)             } { SWEAR(p==JMP::LiveOut) ; }
 		EngineClosure( JMP p , JE&& je , Fd fd_ , ::vmap_s<DepDigest>&& dds ) : kind{K::JobMngt} , ecjm{.proc=p,.job_exec=::move(je),.fd{fd_},.deps{::move(dds)}} {
@@ -355,8 +398,8 @@ namespace Engine {
 				case K::JobMngt : ecjm.~ECJM() ; break ;
 			DF}
 		}
-		EngineClosure& operator=(EngineClosure const& ec) = delete ;
-		EngineClosure& operator=(EngineClosure     && ec) = delete ;
+		EngineClosure& operator=(EngineClosure const&) = delete ;
+		EngineClosure& operator=(EngineClosure     &&) = delete ;
 		// data
 		Kind kind = K::Global ;
 		union {
