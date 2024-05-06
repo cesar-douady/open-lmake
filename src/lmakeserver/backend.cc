@@ -480,11 +480,13 @@ namespace Backends {
 			/**/                                               jrr.digest.status  = _s_release_start_entry(it,jrr.digest.status) ;
 		}
 		trace("info") ;
-		for( auto& [dn,dd] : jrr.digest.deps ) {
-			if (dd.is_crc) continue ;                                    // fast path
-			Dep dep { Node(dn) , dd } ;
-			dep.acquire_crc() ;
-			dd.crc_sig(dep) ;
+		{	Lock lock { NodeData::s_crc_date_mutex } ; // crc and dates could be moving while we acquire crc
+			for( auto& [dn,dd] : jrr.digest.deps ) {
+				if (dd.is_crc) continue ;                                    // fast path
+				Dep dep { Node(dn) , dd } ;
+				dep.acquire_crc() ;
+				dd.crc_sig(dep) ;
+			}
 		}
 		::string jaf = job->ancillary_file() ;
 		serialize( OFStream(jaf,::ios::app) , JobInfoEnd{jrr} ) ;        // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it

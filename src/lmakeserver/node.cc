@@ -37,6 +37,8 @@ namespace Engine {
 	// NodeData
 	//
 
+	Mutex<MutexLvl::NodeCrcDate> NodeData::s_crc_date_mutex ;
+
 	::ostream& operator<<( ::ostream& os , NodeData const& nd ) {
 		/**/                    os <<'('<< nd.crc ;
 		if (nd.is_plain()) {
@@ -674,8 +676,11 @@ namespace Engine {
 		//
 		Trace trace( "refresh" , STR(modified) , idx() , reqs() , crc ,"->", crc_ , date() ,"->", sd ) ;
 		//
-		if (modified) { crc_date(crc_,sd) ; for( Req r : reqs() ) req_info(r).reset(NodeGoal::Status) ; } // target is not conform on disk any more
-		else            date() = sd ;
+		{	Lock lock { s_crc_date_mutex } ;
+			if (modified) crc_date(crc_,sd) ;
+			else          date() = sd ;
+		}
+		if (modified) for( Req r : reqs() ) req_info(r).reset(NodeGoal::Status) ; // target is not conform on disk any more
 		return modified ;
 	}
 

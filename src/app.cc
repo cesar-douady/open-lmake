@@ -57,8 +57,12 @@ void chk_version( bool may_init , ::string const& admin_dir ) {
 	::string   version_file = to_string(admin_dir,"/version") ;
 	::vector_s stored       = read_lines(version_file)        ;
 	if (+stored) {
-		if (stored.size()!=1u     ) throw to_string("bad version file ",version_file)     ;
-		if (stored[0]!=VersionMrkr) throw "version mismatch, consider : git clean -ffdx"s ;
+		if (stored.size()!=1u     ) throw to_string("bad version file ",version_file) ;
+		if (stored[0]!=VersionMrkr) {
+			::string d ;
+			if (g_startup_dir_s) d = to_string(' ',dir_name(mk_rel(".",*g_startup_dir_s))) ;
+			throw to_string("version mismatch, consider : git clean -ffdx",d) ;
+		}
 	} else {
 		if (!may_init) throw "repo not initialized, consider : lmake"s ;
 		write_lines( dir_guard(version_file) , {VersionMrkr} ) ;
