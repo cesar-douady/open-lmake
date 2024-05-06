@@ -557,7 +557,7 @@ namespace Engine {
 	inline bool NodeData::done( Req            r                 ) const { return done(c_req_info(r)         ) ; }
 
 	inline Manual NodeData::manual(FileSig const& sig) const {
-		if (sig==date().sig) return Manual::Ok ;
+		if (sig==date().sig) return Manual::Ok ;               // None and Dir are deemed identical
 		Manual res = Manual::Modif ;
 		if      (!sig                     ) res = Manual::Unlnked ;
 		else if (sig.tag()==FileTag::Empty) res = Manual::Empty   ;

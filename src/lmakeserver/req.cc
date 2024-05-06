@@ -520,9 +520,10 @@ namespace Engine {
 		}
 		//
 		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                                            // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
-			if (!rt.pattern().match(name) )              continue ;
-			if (rt->special==Special::Anti) { art = rt ; break    ; }
 			Rule::SimpleMatch m{rt,name} ;
+			if (!m                        )              continue ;
+			if (rt->special==Special::Anti) { art = rt ; break    ; }
+			//
 			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::MissingStatic ) goto Continue ; // do not pass *this as req to avoid generating error message at cxtor time
 			try                      { rt->deps_attrs.eval(m) ; }
 			catch (::pair_ss const&) { goto Continue ;          }                                       // do not consider rule if deps cannot be computed

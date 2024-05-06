@@ -93,7 +93,10 @@ namespace Disk {
 		FileSig( FileInfo const&                                    ) ;
 		// accesses
 	public :
-		bool    operator==(FileSig const&) const = default ;
+		bool    operator==(FileSig const& fs) const {
+			if( !*this && !fs ) return true          ; // consider Dir and None as identical
+			else                return _val==fs._val ;
+		}
 		//
 		bool    operator+() const { return tag()>=FileTag::Target                ; }
 		bool    operator!() const { return !+*this                               ; }
