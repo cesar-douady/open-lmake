@@ -902,7 +902,7 @@ inline Bool3  common     ( bool   b1 , bool  b2 ) {                return b1    
 
 // prevent dead locks by associating a level to each mutex, so we can verify the absence of dead-locks even in absence of race
 // use of identifiers (in the form of an enum) allows easy identification of the origin of misorder
-ENUM( MutexLvl // identify who is owning the current level to ease debugging
+ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	None
 // level 1
 ,	Audit
@@ -911,24 +911,30 @@ ENUM( MutexLvl // identify who is owning the current level to ease debugging
 ,	StartJob
 ,	Time
 // level 2
-,	Backend    // must follow StartJob
+,	Backend     // must follow StartJob
 // level 3
-,	Gil        // must follow Backend
-,	Node       // must follow Backend
-,	Req        // must follow Backend
-,	TargetDir  // must follow Backend
-,	Thread     // must follow Backend
+,	Gil         // must follow Backend
+,	NodeCrcDate // must follow Backend
+,	Req         // must follow Backend
+,	TargetDir   // must follow Backend
+,	Thread      // must follow Backend
 // level 4
-,	Autodep1   // must follow Gil
-,	Gather     // must follow Gil
+,	Autodep1    // must follow Gil
+,	Gather      // must follow Gil
+,	Node        // must follow NodeCrcDate
 // level 5
-,	Autodep2   // must follow Autodep1
+,	Autodep2    // must follow Autodep1
 // inner (locks that take no other locks)
 ,	File
 ,	Hash
 ,	SmallId
 ,	SyscallTab
+<<<<<<< HEAD
 ,	Trace      // last to allow tracing anywhere
+=======
+,	Time
+,	Trace       // last to allow tracing anywhere
+>>>>>>> 6ca218b (improve user message when version mismatch)
 )
 
 extern thread_local MutexLvl t_mutex_lvl ;

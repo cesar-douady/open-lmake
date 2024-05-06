@@ -288,6 +288,8 @@ namespace Engine {
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
+		// static data
+		static Mutex<MutexLvl::NodeCrcDate> s_crc_date_mutex ;
 		// cxtors & casts
 		NodeData(                                          ) = delete ;                                               // if necessary, we must take care of the union
 		NodeData( Name n , bool no_dir , bool locked=false ) : DataBase{n} {
@@ -325,8 +327,7 @@ namespace Engine {
 		Ddate       const& log_date     () const { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
 		//
 		void crc_date( Crc crc_ , SigDate const& sd ) {
-			crc    = {}   ; fence() ;                                                                                 // ensure crc is never associated with a wrong date, even in case of crash
-			date() = sd   ; fence() ;                                                                                 // .
+			date() = sd   ;
 			crc    = crc_ ;
 		}
 		//
