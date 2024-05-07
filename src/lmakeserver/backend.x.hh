@@ -145,16 +145,15 @@ namespace Backends {
 		static void            _s_handle_deferred_report( DeferredEntry&&                                              ) ;
 		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                              ) ;
 		//
-		using JobThread      = ServerThread    <JobRpcReq    > ;
-		using JobMngtThread  = ServerThread    <JobMngtRpcReq> ;
-		using DeferredThread = TimedDequeThread<DeferredEntry> ;
+		using JobThread      = ServerThread    <JobRpcReq    ,false/*Flush*/> ;
+		using JobMngtThread  = ServerThread    <JobMngtRpcReq,false/*Flush*/> ;
+		using DeferredThread = TimedDequeThread<DeferredEntry,false/*Flush*/> ;
 		// static data
 	public :
 		static ::string s_executable  ;
 		static Backend* s_tab[N<Tag>] ;
-
 	protected :
-		static Mutex<MutexLvl::Backend>  _s_mutex                  ;
+		static Mutex<MutexLvl::Backend> _s_mutex ;
 	private :
 		static JobThread                 _s_job_start_thread       ;
 		static JobMngtThread             _s_job_mngt_thread        ;

@@ -49,10 +49,10 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di , NodeId
 	NotFirst : ;
 	}
 	//
-	for( Access a : All<Access> ) { PD& d=read[+a] ; if ( ad.accesses[a]                     && pd<d ) { d = pd ; digest.accesses.set(a,!dfi) ; } }
-	/**/                          { PD& d=write    ; if ( ad.write==Yes                      && pd<d ) { d = pd ; digest.write = Yes &  !tfi  ; } }
-	/**/                          { PD& d=target   ; if ( ad.extra_tflags[ExtraTflag::Allow] && pd<d )   d = pd ;                                 }
-	/**/                          { PD& d=seen     ; if ( !dfi && di.seen(ad.accesses)       && pd<d )   d = pd ;                                 }
+	for( Access a : All<Access> ) { if (!dfi) {                            if ( PD& d=read[+a] ; ad.accesses[a]                     && pd<d ) { digest.accesses |= a ; d = pd ; } } }
+	/**/                          { if (!dfi) {                            if ( PD& d=seen     ; di.seen(ad.accesses)               && pd<d )                          d = pd ;   } }
+	/**/                          { if (!tfi) { digest.write |= ad.write ; if ( PD& d=write    ; ad.write==Yes                      && pd<d )                          d = pd ;   } }
+	/**/                          { if (!tfi) {                            if ( PD& d=target   ; ad.extra_tflags[ExtraTflag::Allow] && pd<d )                          d = pd ;   } }
 	//
 }
 

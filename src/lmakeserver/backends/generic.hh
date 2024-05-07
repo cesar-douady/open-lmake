@@ -378,12 +378,12 @@ namespace Backends {
 		}
 
 		// data
-		::umap<ReqIdx,ReqEntry    > reqs         ;         // all open Req's
-		::umap<JobIdx,WaitingEntry> waiting_jobs ;         // jobs retained here
-		::umap<JobIdx,SpawnedEntry> spawned_jobs ;         // jobs spawned until end
+		::umap<ReqIdx,ReqEntry    > reqs         ;                         // all open Req's
+		::umap<JobIdx,WaitingEntry> waiting_jobs ;                         // jobs retained here
+		::umap<JobIdx,SpawnedEntry> spawned_jobs ;                         // jobs spawned until end
 	private :
-		WakeupThread mutable _launch_queue       ;
-		bool                 _new_submitted_jobs = false ; // submit and launch are both called from main thread, so no need for protection
+		WakeupThread<false/*Flush*/> mutable _launch_queue       ;
+		bool                                 _new_submitted_jobs = false ; // submit and launch are both called from main thread, so no need for protection
 
 	} ;
 

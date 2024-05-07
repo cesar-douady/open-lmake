@@ -86,12 +86,22 @@ namespace Engine {
 
 	struct Job : JobBase {
 		friend ::ostream& operator<<( ::ostream& , Job const ) ;
+		friend struct JobData ;
+		//
 		using JobBase::side ;
 		//
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
 		using Step       = JobStep       ;
+		// statics
+		static void s_init() {
+			_s_record_thread.open('J',[](::pair<Job,JobInfo> const& jji)->void { jji.first.record(jji.second) ; } ) ;
+		}
+		// static data
+	protected :
+		static DequeThread<::pair<Job,JobInfo>> _s_record_thread ;
 		// cxtors & casts
+	public :
 		using JobBase::JobBase ;
 		Job( Rule::SimpleMatch&&          , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting
 		Job( RuleTgt , ::string const& t  , Req={} , DepDepth lvl=0 ) ; // plain Job, match on target
@@ -103,6 +113,9 @@ namespace Engine {
 		// accesses
 		bool active() const ;
 		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
+		JobInfo job_info( bool need_start=true , bool need_end=true ) const ;
+		// services
+		void record(JobInfo const&) const ;
 	} ;
 
 	struct JobTgt : Job {
@@ -134,6 +147,7 @@ namespace Engine {
 	struct JobExec : Job {
 		friend ::ostream& operator<<( ::ostream& , JobExec const& ) ;
 		// cxtors & casts
+	public :
 		JobExec(                                         ) = default ;
 		JobExec( Job j ,               Pdate s           ) : Job{j} ,           start_date{s} , end_date{s} {}
 		JobExec( Job j , in_addr_t h , Pdate s           ) : Job{j} , host{h} , start_date{s} , end_date{s} {}

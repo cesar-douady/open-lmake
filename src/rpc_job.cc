@@ -29,6 +29,7 @@ using namespace Hash ;
 	::string msg       ;
 	bool     ok        = true ;
 	//
+	Trace trace("do_file_actions",pre_actions) ;
 	for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
 		SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
 		switch (a.tag) {
@@ -37,7 +38,8 @@ using namespace Hash ;
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                                                                                                   // file does not exist, nothing to do
 				bool done = true/*garbage*/ ;
-				if ( sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ) {
+				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ;
+				if (quarantine) {
 					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
 					if (done) append_to_string(msg,"quarantined "         ,mk_file(f),'\n') ;
 					else      append_to_string(msg,"failed to quarantine ",mk_file(f),'\n') ;
@@ -45,6 +47,7 @@ using namespace Hash ;
 					done = unlnk(nfs_guard.change(f)) ;
 					if (!done ) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
 				}
+				trace(STR(quarantine),STR(done),f) ;
 				if ( done && unlnks ) unlnks->push_back(f) ;
 				ok &= done ;
 			} break ;
@@ -57,6 +60,7 @@ using namespace Hash ;
 			break ;
 		DF}
 	}
+	trace("done",STR(ok),msg) ;
 	return {msg,ok} ;
 }
 

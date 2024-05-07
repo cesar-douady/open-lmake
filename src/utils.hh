@@ -221,10 +221,9 @@ inline void sanitize(::ostream& os) {
 struct OFStream : ::ofstream {
 	using Base = ::ofstream ;
 	// cxtors & casts
-	OFStream(                                 ) : Base{           } { sanitize(*this) ;                         }
-	OFStream( ::string const& f               ) : Base{f          } { sanitize(*this) ; _set_cloexec(rdbuf()) ; }
-	OFStream( ::string const& f , openmode om ) : Base{f,om       } { sanitize(*this) ; _set_cloexec(rdbuf()) ; }
-	OFStream( OFStream&& ofs                  ) : Base{::move(ofs)} {                                           }
+	OFStream(                                                                     ) : Base{           } { sanitize(*this) ;                         }
+	OFStream( ::string const& f , ::ios_base::openmode om=::ios::out|::ios::trunc ) : Base{f,om       } { sanitize(*this) ; _set_cloexec(rdbuf()) ; }
+	OFStream( OFStream&& ofs                                                      ) : Base{::move(ofs)} {                                           }
 	//
 	OFStream& operator=(OFStream&& ofs) { Base::operator=(::move(ofs)) ; return *this ; }
 	// services

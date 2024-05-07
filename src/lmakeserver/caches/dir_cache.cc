@@ -288,8 +288,6 @@ namespace Caches {
 					entry.second.sig = FileSig(tn) ;                                                // target digest is not stored in cache
 				}
 				job_info.end.end.digest.end_date = New ;                                            // date must be after files are copied
-				copied.push_back(job->ancillary_file()) ;
-				job_info.write(dir_guard(copied.back())) ;
 			}
 			// ensure we take a single lock at a time to avoid deadlocks
 			// upload is the only one to take several locks
@@ -310,7 +308,7 @@ namespace Caches {
 		::string jn = _unique_name(job,repo) ;
 		Trace trace("DirCache::upload",job,jn) ;
 		//
-		JobInfo job_info = job.ancillary_file() ;
+		JobInfo job_info = job.job_info() ;
 		if (!job_info.end.end.proc) {                                     // we need a full report to cache job
 			trace("no_ancillary_file") ;
 			return false/*ok*/ ;

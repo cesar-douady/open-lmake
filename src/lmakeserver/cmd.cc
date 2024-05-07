@@ -463,7 +463,7 @@ R"({
 		if (!job                   ) throw "no job found"s                                    ;
 		if (job->rule->is_special()) throw to_string("cannot debug ",job->rule->name," jobs") ;
 		//
-		JobInfo job_info = job.ancillary_file() ;
+		JobInfo job_info = job.job_info() ;
 		if (!job_info.start.start.proc) {
 			audit( fd , ro , Color::Err , "no info available" ) ;
 			return false ;
@@ -618,7 +618,7 @@ R"({
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
 		Rule             rule         = job->rule                  ;
-		JobInfo          job_info     = job.ancillary_file()       ;
+		JobInfo          job_info     = job.job_info()             ;
 		bool             has_start    = +job_info.start.start.proc ;
 		bool             has_end      = +job_info.end  .end  .proc ;
 		bool             verbose      = ro.flags[ReqFlag::Verbose] ;

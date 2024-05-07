@@ -261,7 +261,7 @@ namespace Engine::Persistent {
 					t->actual_tflags() = t.tflags ;
 				}
 				// restore job_data
-				job_info.write(job.ancillary_file()) ;
+				job.record(job_info) ;
 			}
 		NextJob : ;
 		}

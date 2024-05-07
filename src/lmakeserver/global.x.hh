@@ -410,7 +410,7 @@ namespace Engine {
 		} ;
 	} ;
 
-	extern ThreadDeque<EngineClosure> g_engine_queue ;
+	extern ThreadDeque<EngineClosure,true/*Flush*/> g_engine_queue ;
 
 }
 

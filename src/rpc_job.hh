@@ -544,6 +544,9 @@ struct JobRpcReq {
 	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                      { SWEAR(p==P::None ) ; }
 	JobRpcReq( P p , SI si , JI j , in_port_t   pt , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , port  {pt       } , msg{::move(m)} { SWEAR(p==P::Start) ; }
 	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)} , msg{::move(m)} { SWEAR(p==P::End  ) ; }
+	// accesses
+	bool operator+() const { return +proc   ; }
+	bool operator!() const { return !+*this ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = {} ;
@@ -786,6 +789,9 @@ struct SubmitAttrs {
 
 struct JobInfoStart {
 	friend ::ostream& operator<<( ::ostream& , JobInfoStart const& ) ;
+	// accesses
+	bool operator+() const { return +pre_start ; }
+	bool operator!() const { return !+*this    ; }
 	// data
 	// START_OF_VERSIONING
 	Hash::Crc   rule_cmd_crc = {}         ;
@@ -802,6 +808,9 @@ struct JobInfoStart {
 
 struct JobInfoEnd {
 	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
+	// accesses
+	bool operator+() const { return +end    ; }
+	bool operator!() const { return !+*this ; }
 	// data
 	// START_OF_VERSIONING
 	JobRpcReq end = {} ;
@@ -812,6 +821,8 @@ struct JobInfo {
 	// cxtors & casts
 	JobInfo(                                       ) = default ;
 	JobInfo( ::string const& ancillary_file        ) ;
+	JobInfo( JobInfoStart&& jis                    ) : start{::move(jis)}                    {}
+	JobInfo(                      JobInfoEnd&& jie ) :                      end{::move(jie)} {}
 	JobInfo( JobInfoStart&& jis , JobInfoEnd&& jie ) : start{::move(jis)} , end{::move(jie)} {}
 	// services
 	void write(::string const& filename) const ;

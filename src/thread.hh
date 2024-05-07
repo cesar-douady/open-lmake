@@ -14,24 +14,26 @@
 #include "time.hh"
 #include "trace.hh"
 
-template<class Q> struct ThreadQueue : private Q {
+template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process remaining items when asked to stop
 	using ThreadMutex = Mutex<MutexLvl::Thread> ;
 	using Val         = typename Q::value_type  ;
 	using Q::size ;
 	// cxtors & casts
 	ThreadQueue() = default ;
+	// accesses
 	bool operator+() const {
 		Lock<ThreadMutex> lock{_mutex} ;
 		return !Q::empty() ;
 	}
-	bool operator!() const { return !+*this ; }
+	bool operator!() const { return !+*this ;  }
+	//
+	void lock  (MutexLvl lvl) const { _mutex.lock  (lvl) ; }
+	void unlock(MutexLvl lvl) const { _mutex.unlock(lvl) ; }
 	// services
-	/**/                 void push          (Val const& x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_back    (       x          ) ; _cond.notify_one() ; }
-	/**/                 void push          (Val     && x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_back    (::move(x)         ) ; _cond.notify_one() ; }
-	/**/                 void push_urgent   (Val const& x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_front   (       x          ) ; _cond.notify_one() ; }
-	/**/                 void push_urgent   (Val     && x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_front   (::move(x)         ) ; _cond.notify_one() ; }
-	template<class... A> void emplace       (A&&...     a) { Lock<ThreadMutex> lock{_mutex} ; Q::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
-	template<class... A> void emplace_urgent(A&&...     a) { Lock<ThreadMutex> lock{_mutex} ; Q::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
+	template<class    T> void push_urgent   (T&&    x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_front   (::forward<T>(x)   ) ; _cond.notify_one() ; }
+	template<class    T> void push          (T&&    x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_back    (::forward<T>(x)   ) ; _cond.notify_one() ; }
+	template<class... A> void emplace_urgent(A&&... a) { Lock<ThreadMutex> lock{_mutex} ; Q::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
+	template<class... A> void emplace       (A&&... a) { Lock<ThreadMutex> lock{_mutex} ; Q::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
 	Val pop() {
 		Lock<ThreadMutex> lock { _mutex } ;
 		_cond.wait( lock , [&](){ return !Q::empty() ; } ) ;
@@ -44,8 +46,9 @@ template<class Q> struct ThreadQueue : private Q {
 	}
 	::pair<bool/*popped*/,Val> pop(::stop_token stop) {
 		Lock<ThreadMutex> lock { _mutex } ;
-		if (!_cond.wait( lock , stop , [&](){ return !Q::empty() ; } )) return {false/*popped*/,{}} ;
-		return {true/*popped*/,_pop()} ;
+		if ( Flush && !Q::empty()                                       ) return {true /*popped*/,_pop()} ;
+		if ( !_cond.wait( lock , stop , [&](){ return !Q::empty() ; } ) ) return {false/*popped*/,{}    } ;
+		/**/                                                              return {true /*popped*/,_pop()} ;
 	}
 private :
 	Val _pop() {
@@ -57,18 +60,18 @@ private :
 	ThreadMutex mutable      _mutex ;
 	::condition_variable_any _cond  ;
 } ;
-template<class T> using ThreadDeque = ThreadQueue<::deque<T>> ;
+template<class T,bool Flush=true> using ThreadDeque = ThreadQueue<::deque<T>,Flush> ;
 
-template<class Q> struct QueueThread {
-	using Queue = ThreadQueue<Q>      ;
-	using Val   = typename Queue::Val ;
+template<class Q,bool Flush=true> struct QueueThread : ThreadQueue<Q,Flush> { // if Flush, process remaining items when asked to stop
+	using Base = ThreadQueue<Q,Flush> ;
+	using Val  = typename Base::Val  ;
 	// statics
 private :
 	static void _s_thread_func( ::stop_token stop , char key , QueueThread* self , ::function<void(Val&&)> func ) {
 		t_thread_key = key ;
 		Trace trace("DequeThread::_s_thread_func") ;
 		for(;;) {
-			auto [popped,info] = self->_queue.pop(stop) ;
+			auto [popped,info] = self->pop(stop) ;
 			if (!popped) break ;
 			func(::move(info)) ;
 		}
@@ -81,34 +84,26 @@ public :
 	void open( char key , ::function<void(Val&&)> func ) {
 		_thread = ::jthread( _s_thread_func , key , this , func ) ;
 	}
-	// services
-	template<class    U> void push         (U&&    x) { _queue.push   (::forward<U>(x)   ) ; }
-	template<class    U> void push_at      (U&&    x) { _queue.push   (::forward<U>(x)   ) ; }
-	template<class    U> void push_after   (U&&    x) { _queue.push   (::forward<U>(x)   ) ; }
-	template<class... A> void emplace      (A&&... a) { _queue.emplace(::forward<A>(a)...) ; }
-	template<class... A> void emplace_at   (A&&... a) { _queue.emplace(::forward<A>(a)...) ; }
-	template<class... A> void emplace_after(A&&... a) { _queue.emplace(::forward<A>(a)...) ; }
 	// data
 private :
-	Queue     _queue  ;
-	::jthread _thread ; // ensure _thread is last so other fields are constructed when it starts
+	::jthread _thread ;                                // ensure _thread is last so other fields are constructed when it starts
 } ;
-template<class T> using DequeThread = QueueThread<::deque<T>> ;
+template<class T,bool Flush=true> using DequeThread = QueueThread<::deque<T>,Flush> ;
 
-template<class T> struct TimedDequeThread {
-	using Pdate = Time::Pdate                  ;
-	using Delay = Time::Delay                  ;
-	using Queue = ThreadDeque<::pair<Pdate,T>> ;
-	using Val   = T                            ;
+template<class T,bool Flush=true> struct TimedDequeThread : ThreadDeque<::pair<Time::Pdate,T>,Flush> { // if Flush, process immediately executable remaining items when asked to stop
+	using Base  = ThreadDeque<::pair<Time::Pdate,T>,Flush> ;
+	using Pdate = Time::Pdate                              ;
+	using Delay = Time::Delay                              ;
+	using Val   = T                                        ;
 	// statics
 private :
 	static void _s_thread_func( ::stop_token stop , char key , TimedDequeThread* self , ::function<void(Val&&)> func ) {
 		t_thread_key = key ;
 		Trace trace("TimedDequeThread::_s_thread_func") ;
 		for(;;) {
-			auto [popped,info] = self->_queue.pop(stop) ;
-			if ( !popped                       ) break ;
-			if ( !info.first.sleep_until(stop) ) break ;
+			auto [popped,info] = self->pop(stop) ;
+			if ( !popped                             ) break ;
+			if ( !info.first.sleep_until(stop,Flush) ) break ;
 			func(::move(info.second)) ;
 		}
 		trace("done") ;
@@ -121,19 +116,21 @@ public :
 		_thread = ::jthread( _s_thread_func , key , this , func ) ;
 	}
 	// services
-	template<class    U> void push         (           U&&    x ) { _queue.push   ({Pdate()     ,    ::forward<U>(x)    }) ; }
-	template<class    U> void push_at      ( Pdate d , U&&    x ) { _queue.push   ({d           ,    ::forward<U>(x)    }) ; }
-	template<class    U> void push_after   ( Delay d , U&&    x ) { _queue.push   ({Pdate(New)+d,    ::forward<U>(x)    }) ; }
-	template<class... A> void emplace      (           A&&... a ) { _queue.emplace( Pdate()     ,Val(::forward<A>(a)...) ) ; }
-	template<class... A> void emplace_at   ( Pdate d , A&&... a ) { _queue.emplace( d           ,Val(::forward<A>(a)...) ) ; }
-	template<class... A> void emplace_after( Delay d , A&&... a ) { _queue.emplace( Pdate(New)+d,Val(::forward<A>(a)...) ) ; }
+	template<class U> void push_urgent(           U&& x ) { Base::emplace_urgent(Pdate()     , ::forward<U>(x) ) ; }
+	template<class U> void push       (           U&& x ) { Base::emplace       (Pdate()     , ::forward<U>(x) ) ; }
+	template<class U> void push_at    ( Pdate d , U&& x ) { Base::emplace       (d           , ::forward<U>(x) ) ; }
+	template<class U> void push_after ( Delay d , U&& x ) { Base::emplace       (Pdate(New)+d, ::forward<U>(x) ) ; }
+	//
+	template<class... A> void emplace_urgent(           A&&... a ) { push_urgent(  Val(::forward<A>(a)...)) ; }
+	template<class... A> void emplace       (           A&&... a ) { push       (  Val(::forward<A>(a)...)) ; }
+	template<class... A> void emplace_at    ( Pdate d , A&&... a ) { push_at    (d,Val(::forward<A>(a)...)) ; }
+	template<class... A> void emplace_after ( Delay d , A&&... a ) { push_after (d,Val(::forward<A>(a)...)) ; }
 	// data
 private :
-	Queue     _queue  ;
-	::jthread _thread ; // ensure _thread is last so other fields are constructed when it starts
+	::jthread _thread ;                                     // ensure _thread is last so other fields are constructed when it starts
 } ;
 
-struct WakeupThread {
+template<bool Flush=true> struct WakeupThread {
 	using ThreadMutex = Mutex<MutexLvl::Thread> ;
 	// statics
 private :
@@ -141,7 +138,10 @@ private :
 		t_thread_key = key ;
 		Trace trace("WakeupThread::_s_thread_func") ;
 		for(;;) {
-			{	Lock<ThreadMutex> lock { self->_mutex } ;
+			if ( Flush && self->_active ) {
+				self->_active = false ;
+			} else {
+				Lock<ThreadMutex> lock { self->_mutex } ;
 				if ( !self->_cond.wait( lock , stop , [&]()->bool { return self->_active ; } ) ) break ;
 				self->_active = false ;
 			}
@@ -176,8 +176,8 @@ ENUM(ServerThreadEventKind
 ,	Slave
 ,	Stop
 )
-template<class Req> struct ServerThread {
-	using Ddate = Time::Ddate ;
+template<class Req,bool Flush=true> struct ServerThread {                                 // if Flush, finish on going connections
+	using Delay = Time::Delay ;
 	using EventKind = ServerThreadEventKind ;
 private :
 	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func ) {
@@ -186,7 +186,7 @@ private :
 		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
 		Epoll              epoll   { New }                  ;
 		::umap<Fd,IMsgBuf> slaves  ;
-		::stop_callback    stop_cb {                                                                               // transform request_stop into an event Epoll can wait for
+		::stop_callback    stop_cb {                                                       // transform request_stop into an event Epoll can wait for
 			stop
 		,	[&](){
 				Trace trace("ServerThread::_s_thread_func::stop_cb",stop_fd) ;
@@ -202,7 +202,8 @@ private :
 		epoll.add_read(stop_fd ,EventKind::Stop  ) ;
 		for(;;) {
 			trace("wait") ;
-			::vector<Epoll::Event> events = epoll.wait() ;                                                         // wait for 1 event, no timeout
+			::vector<Epoll::Event> events = epoll.wait(epoll.cnt?Delay::Forever:Delay()) ; // wait for 1 event, no timeout unless stopped
+			if (!events) { SWEAR(Flush) ; return ; }                                       // if !Flush, we should have returned immediately
 			for( Epoll::Event event : events ) {
 				EventKind kind = event.data<EventKind>() ;
 				Fd        efd  = event.fd()              ;
@@ -215,7 +216,7 @@ private :
 							trace("new_req",slave_fd) ;
 							epoll.add_read(slave_fd,EventKind::Slave) ;
 							slaves.try_emplace(::move(slave_fd)) ;
-						} catch (::string const& e) { trace("cannot_accept",e) ; }                                 // ignore error as this may be fd starvation and client will retry
+						} catch (::string const& e) { trace("cannot_accept",e) ; }         // ignore error as this may be fd starvation and client will retry
 					} break ;
 					case EventKind::Stop : {
 						uint64_t one ;
@@ -224,7 +225,8 @@ private :
 						trace("stop",mk_key_vector(slaves)) ;
 						for( auto const& [sfd,_] : slaves ) epoll.close(sfd) ;
 						trace("done") ;
-						return ;
+						if (Flush) epoll.cnt-- ;                                           // dont wait for new incoming connections, but finish on going connections and process what comes
+						else       return ;                                                // stop immediately
 					} break ;
 					case EventKind::Slave : {
 						Req r ;

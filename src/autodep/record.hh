@@ -113,9 +113,8 @@ private :
 	void _report_update( ::string&& f , FileInfo fi , Accesses a , ::string&& c={} ) const {         _report_access( ::move(f) , fi , a  , true  , ::move(c) ) ; }
 	void _report_target( ::string&& f ,                            ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
 	void _report_unlnk ( ::string&& f ,                            ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
-	//
-	void _report_update( ::string&& f , Accesses a , ::string&& c={} ) const { _report_update( ::move(f) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ; }
-	void _report_dep   ( ::string&& f , Accesses a , ::string&& c={} ) const { _report_dep   ( ::move(f) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ; }
+	void _report_update( ::string&& f ,               Accesses a , ::string&& c={} ) const { _report_update( ::move(f) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ; }
+	void _report_dep   ( ::string&& f ,               Accesses a , ::string&& c={} ) const { _report_dep   ( ::move(f) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ; }
 	//
 	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
 		::vmap_s<FileInfo> files ;
@@ -298,12 +297,15 @@ public :
 		Rename() = default ;
 		Rename( Record& , Path&& src , Path&& dst , bool exchange , bool no_replace , ::string&& comment ) ;
 		// services
-		int operator()( Record& r , int rc ) { r._report_confirm( src.file_loc&dst.file_loc , rc>=0 ) ; return rc ; }
+		int operator()( Record& r , int rc ) {
+			FileLoc fl = dst.file_loc ; if (exchange) fl &= src.file_loc ;                                                           // if exchange, we confirm if either src or dst is in repo
+			r._report_confirm( fl , rc>=0 ) ;
+			return rc ;
+		}
 		// data
-		Solve src        ;
-		Solve dst        ;
-		bool  has_unlnks ;
-		bool  has_writes ;
+		Solve src      ;
+		Solve dst      ;
+		bool  exchange ;
 	} ;
 	struct Stat : Solve {
 		// cxtors & casts

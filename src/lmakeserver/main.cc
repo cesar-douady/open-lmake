@@ -457,6 +457,7 @@ int main( int argc , char** argv ) {
 		Trace::s_new_trace_file(to_string( g_config.local_admin_dir , "/trace/" , base_name(read_lnk("/proc/self/exe")) )) ;
 	}
 	Codec::Closure::s_init() ;
+	Job           ::s_init() ;
 	//
 	static ::jthread reqs_thread { reqs_thread_func , in_fd , out_fd } ;
 	//

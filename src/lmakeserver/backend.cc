@@ -189,7 +189,6 @@ namespace Backends {
 			case Proc::Start : SWEAR(+fd,jrr.proc) ; break ;           // fd is needed to reply
 		DF}
 		Job                                        job               { jrr.job }             ;
-		::string                                   jaf               = job->ancillary_file() ;
 		JobExec                                    job_exec          ;
 		Rule                                       rule              = job->rule             ;
 		Rule::SimpleMatch                          match             = job->simple_match()   ;

@@ -149,6 +149,8 @@ namespace Engine {
 	// Job
 	//
 
+	DequeThread<::pair<Job,JobInfo>> Job::_s_record_thread ;
+
 	::ostream& operator<<( ::ostream& os , Job j ) {
 		/**/    os << "J(" ;
 		if (+j) os << +j   ;
@@ -219,11 +221,42 @@ namespace Engine {
 
 	::string Job::ancillary_file(AncillaryTag tag) const {
 		switch (tag) {
-			case AncillaryTag::Backend : return to_string(PrivateAdminDir         ,"/backend/"  , +*this ) ;
-			case AncillaryTag::Data    : return to_string(g_config.local_admin_dir,"/job_data/" , +*this ) ;
-			case AncillaryTag::Dbg     : return to_string(AdminDir                ,"/debug/"    , +*this ) ;
-			case AncillaryTag::KeepTmp : return to_string(AdminDir                ,"/tmp/"      , +*this ) ;
+			case AncillaryTag::Backend : return to_string(PrivateAdminDir         ,"/backend/" ,+*this) ;
+			case AncillaryTag::Data    : return to_string(g_config.local_admin_dir,"/job_data/",+*this) ;
+			case AncillaryTag::Dbg     : return to_string(AdminDir                ,"/debug/"   ,+*this) ;
+			case AncillaryTag::KeepTmp : return to_string(AdminDir                ,"/tmp/"     ,+*this) ;
 		DF}
+	}
+
+	JobInfo Job::job_info( bool need_start , bool need_end ) const {              // read job info from ancillary file, taking care of queued events
+		Lock lock { _s_record_thread } ;
+		JobInfo res         ;
+		bool    found_start = false ;
+		bool    found_end   = false ;
+		SWEAR( need_start || need_end ) ;                                         // else, this is useless
+		for( auto const& [j,ji] : _s_record_thread ) if (j==*this) {              // linear searching is not fast, but this is rather exceptional and this queue is small (actually mostly empty)
+			if (+ji.start) {
+				/**/               found_start = true     ;
+				if ( need_start)   res.start   = ji.start ;
+				if (found_end  ) { res.end     = {}       ; found_end = false ; } // start event replace file
+			}
+			if (+ji.end) {                                                        // end event append to file
+				/**/          found_end = true   ;
+				if (need_end) res.end   = ji.end ;
+			}
+		}
+		if (!found_start) {
+			IFStream jas { ancillary_file() } ;
+			/**/                          try { deserialize( jas , res.start ) ; } catch (::string const&) { res.start = {} ; } // even if we do not need start, we need to skip it ...
+			if ( need_end && !found_end ) try { deserialize( jas , res.end   ) ; } catch (::string const&) { res.end   = {} ; } // ... ignore errors, we get what exists
+		}
+		return res ;
+	}
+
+	void Job::record(JobInfo const& ji) const {
+		OFStream jas { ancillary_file() , +ji.start ? ::ios::out|::ios::trunc : ::ios::app } ; // start event write to file, end event append to it
+		if (+ji.start) serialize( jas , ji.start ) ;
+		if (+ji.end  ) serialize( jas , ji.end   ) ;
 	}
 
 	//
@@ -328,7 +361,7 @@ namespace Engine {
 	void JobExec::started( JobInfoStart&& jis , bool report , ::vector<Node> const& report_unlnks , ::string const& stderr , ::string const& msg ) {
 		Trace trace("started",*this) ;
 		SWEAR( !(*this)->rule->is_special() , (*this)->rule->special ) ;
-		serialize( OFStream((*this)->ancillary_file()) , jis ) ;
+		_s_record_thread.emplace(*this,::move(jis)) ;
 		report |= +report_unlnks || +stderr ;
 		for( Req req : (*this)->running_reqs() ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
@@ -474,7 +507,7 @@ namespace Engine {
 					for( Node dd=d ; +dd ; dd=dd->dir() )
 						if (!old_deps.insert(dd).second) break ;                                                  // record old deps and all uphill dirs as these are implicit deps
 			for( auto& [dn,dd] : digest.deps ) {
-				Dep dep { Node(dn) , dd } ;
+				Dep dep { dn , dd } ;
 				if (!old_deps.contains(dep)) {
 					has_new_deps = true ;
 					// dep.hot means dep has been accessed within g_config.date_prc after its mtime (according to Pdate::now())
@@ -524,15 +557,14 @@ namespace Engine {
 		(*this)->status = status ;
 		//^^^^^^^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
-		// XXX : put file updating in a separate thread, taking care of the questions above (search the queue before fetching from disk)
 		if (sav_jrr) {
 			append_line_to_string( jrr.msg , local_msg , severe_msg ) ;
-			serialize( OFStream(ancillary_file(),::ios::app) , JobInfoEnd{::move(jrr)} ) ;
+			_s_record_thread.emplace(*this,JobInfoEnd{::move(jrr)}) ;
 		} else {
-			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ; // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
+			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ;                         // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
 		}
 		//
-		if (ok==Yes) {                                             // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
+		if (ok==Yes) {                   // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 			SWEAR(+digest.stats.total) ;
 			(*this)->exec_time = digest.stats.total ;
 			rule.new_job_exec_time( digest.stats.total , (*this)->tokens1 ) ;
@@ -852,11 +884,16 @@ namespace Engine {
 					if ( +state.stamped_err  ) goto Continue ;                   // we are already in error, no need to analyze errors any further
 					if ( !is_static && modif ) goto Continue ;                   // if not static, errors may be washed by previous modifs, dont record them
 					if ( dep_modif           ) {
-						if ( dep.is_crc && dep.never_match() ) state.reason |= {JobReasonTag::DepUnstable ,+dep} ;
-						else                                   state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
+						if ( dep.is_crc && dep.never_match() ) { state.reason |= {JobReasonTag::DepUnstable ,+dep} ; trace("unstable_modif",dep) ; }
+						else                                     state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
 					}
 					//
 					switch (dnd.ok(*cdri,dep.accesses)) {
+						case No :
+							trace("dep_err",dep,STR(sense_err)) ;
+							if      (+(cdri->overwritten&dep.accesses)) { state.reason |= {JobReasonTag::DepOverwritten,+dep} ; dep_err = RunStatus::DepErr ; } // even with !sense_err
+							else if (sense_err                        ) { state.reason |= {JobReasonTag::DepErr        ,+dep} ; dep_err = RunStatus::DepErr ; }
+						break ;
 						case Maybe :                                                                                        // dep is not buidlable, check if required
 							if (dnd.status()==NodeStatus::Transcient) {                                                     // dep uphill is a symlink, it will disappear at next run
 								trace("transcient",dep) ;
@@ -877,19 +914,13 @@ namespace Engine {
 								goto RestartDep ;                                                                           // BACKWARD, if necessary, reanalyze dep
 							}
 							if (dep_goal==NodeGoal::Dsk) {                                                                  // if asking for disk, we must check disk integrity
-								trace("unstable",dep,cdri->manual) ;
 								switch(cdri->manual) {
 									case Manual::Empty   :
-									case Manual::Modif   : state.reason |= {JobReasonTag::DepDangling,+dep} ; dep_err = RunStatus::DepErr ; break ;
-									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               break ;
+									case Manual::Modif   : state.reason |= {JobReasonTag::DepDangling,+dep} ; dep_err = RunStatus::DepErr ; trace("unstable",dep,cdri->manual) ; break ;
+									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               trace("unstable",dep,cdri->manual) ; break ;
 									default              : ;
 								}
 							}
-						break ;
-						case No :
-							trace("dep_err",dep,STR(sense_err)) ;
-							if      (+(cdri->overwritten&dep.accesses)) { state.reason |= {JobReasonTag::DepOverwritten,+dep} ; dep_err = RunStatus::DepErr ; } // even with !sense_err
-							else if (sense_err                        ) { state.reason |= {JobReasonTag::DepErr        ,+dep} ; dep_err = RunStatus::DepErr ; }
 						break ;
 					DF}
 				}
@@ -948,7 +979,7 @@ namespace Engine {
 		if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req.zombie() ) {
 			JobAudit const& ja = it->second ;
 			trace("report_missing",ja) ;
-			::string const& stderr = JobInfo(ancillary_file()).end.end.digest.stderr ;
+			::string const& stderr = idx().job_info(false/*need_start*/,true/*need_end*/).end.end.digest.stderr ;
 			//
 			if (ja.report!=JobReport::Hit) {                                                    // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
 				SWEAR(req->stats.ended(JobReport::Rerun)>0) ;
@@ -1125,6 +1156,7 @@ namespace Engine {
 						}
 						//
 						JobInfo job_info = cache->download(idx(),cache_match.id,reason,nfs_guard) ;
+						Job::_s_record_thread.emplace(idx(),job_info) ;
 						JobExec je       { idx() , New }                                          ;           // job starts and ends, no host
 						if (ri.live_out) je.live_out(ri,job_info.end.end.digest.stdout) ;
 						ri.step(Step::Hit) ;

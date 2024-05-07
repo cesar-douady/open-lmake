@@ -294,6 +294,7 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 		- D : handle lencode/ldecode
 		- E : job end
 		- H : heartbeat
+		- J : record job data
 		- L : launch jobs, both in local and slurm backends (2 threads)
 		- M : job management
 		- R : deferred reports

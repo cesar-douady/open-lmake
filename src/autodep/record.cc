@@ -205,8 +205,9 @@ Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) : Solve
 	if (do_read ) { c += 'R' ; accesses |= UserStatAccesses|Access::Reg ; }
 	if (do_write)   c += 'W' ;
 	//
-	if      ( do_write           ) { r._report_update( ::move(real) , accesses , ::move(c) ) ; confirm = true ; }
-	else if ( do_read || do_stat )   r._report_dep   ( ::move(real) , accesses , ::move(c) ) ;
+	confirm = do_write ;
+	if      ( do_write           ) r._report_update( ::move(real) , accesses , ::move(c) ) ;
+	else if ( do_read || do_stat ) r._report_dep   ( ::move(real) , accesses , ::move(c) ) ;
 }
 
 Record::Read::Read( Record& r , Path&& path , bool no_follow , bool keep_real , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,c} {
@@ -239,9 +240,10 @@ ssize_t Record::Readlink::operator()( Record& , ssize_t len ) {
 }
 
 // flags is not used if exchange is not supported
-Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , bool no_replace , ::string&& c ) :
-	src{ r , ::move(src_) , true/*no_follow*/ , true/*read*/ , c+".src" }
-,	dst{ r , ::move(dst_) , true/*no_follow*/ , exchange     , c+".dst" }
+Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange_ , bool no_replace , ::string&& c ) :
+	src     { r , ::move(src_) , true/*no_follow*/ , true/*read*/ , c+".src" }
+,	dst     { r , ::move(dst_) , true/*no_follow*/ , exchange_    , c+".dst" }
+,	exchange{ exchange_                                                      }
 {
 	if (src.real==dst.real) return ;                                                                                                // posix says in this case, it is nop
 	if (exchange          ) c += "<>" ;
@@ -272,8 +274,6 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 		reads.push_back(w) ;
 		unlnks.erase(it) ;
 	}
-	has_unlnks = +unlnks ;
-	has_writes = +writes ;
 	//                                                                                                       unlnk
 	if ( +reads                                    ) r._report_deps   ( ::move   (reads   ) , DataAccesses , false , c+".src"   ) ;
 	if ( +unlnks                                   ) r._report_deps   ( mk_vector(unlnks  ) , DataAccesses , true  , c+".unlnk" ) ;
