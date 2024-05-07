@@ -928,12 +928,7 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	Hash
 ,	SmallId
 ,	SyscallTab
-<<<<<<< HEAD
-,	Trace      // last to allow tracing anywhere
-=======
-,	Time
 ,	Trace       // last to allow tracing anywhere
->>>>>>> 6ca218b (improve user message when version mismatch)
 )
 
 extern thread_local MutexLvl t_mutex_lvl ;

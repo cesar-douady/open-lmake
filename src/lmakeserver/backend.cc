@@ -457,19 +457,6 @@ namespace Backends {
 			/**/                                               jrr.digest.status  = _s_start_tab.release(it,jrr.digest.status) ;
 		}
 		trace("info") ;
-<<<<<<< HEAD
-=======
-		{	Lock lock { NodeData::s_crc_date_mutex } ; // crc and dates could be moving while we acquire crc
-			for( auto& [dn,dd] : jrr.digest.deps ) {
-				if (dd.is_crc) continue ;                                    // fast path
-				Dep dep { Node(dn) , dd } ;
-				dep.acquire_crc() ;
-				dd.crc_sig(dep) ;
-			}
-		}
-		::string jaf = job->ancillary_file() ;
-		serialize( OFStream(jaf,::ios::app) , JobInfoEnd{jrr} ) ;        // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
->>>>>>> 6ca218b (improve user message when version mismatch)
 		job->end_exec() ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jrr) , ::move(rsrcs) ) ; // /!\ _s_starting_job ensures Start has been queued before we enqueue End
