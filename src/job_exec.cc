@@ -342,6 +342,13 @@ int main( int argc , char* argv[] ) {
 		::pair_s<bool/*ok*/> wash_report = do_file_actions( g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
 		end_report.msg += wash_report.first ;
 		if (!wash_report.second) { end_report.digest.status = Status::LateLostErr ; goto End ; }
+		//
+		if (!g_start_info.method)                                                                        // if no autodep, consider all static deps are fully accessed
+			for( auto& [d,digest] : g_start_info.deps ) {
+				digest.accesses = ~Accesses() ;
+				if ( digest.is_crc && !digest.crc().valid() ) digest.sig(FileSig(d)) ;
+			}
+		//
 		g_gather.new_deps( start_overhead , ::move(g_start_info.deps) , g_start_info.stdin ) ;
 		// non-optional static targets must be reported in all cases
 		for( auto const& [t,f] : g_match_dct.knowns ) if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] ) g_gather.new_unlnk(start_overhead,t) ;
