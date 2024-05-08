@@ -15,9 +15,9 @@ using namespace Disk ;
 
 namespace Engine {
 
-	SeqId*     g_seq_id     = nullptr ;
-	Config     g_config     ;
-	::vector_s g_src_dirs_s ;
+	SeqId     * g_seq_id     = nullptr ;
+	Config    * g_config     = nullptr ;
+	::vector_s* g_src_dirs_s = nullptr ;
 
 }
 
@@ -71,10 +71,11 @@ namespace Engine::Persistent {
 	::vector<RuleData> _rule_datas   ;
 
 	static void _compile_srcs() {
-		g_src_dirs_s.clear() ;
+		if (g_src_dirs_s) g_src_dirs_s->clear() ;
+		else              g_src_dirs_s = new ::vector_s ;
 		for( Node const n : Node::s_srcs(true/*dirs*/) ) {
 			::string nn_s = n->name() ; nn_s += '/' ;
-			g_src_dirs_s.push_back(nn_s) ;
+			g_src_dirs_s->push_back(nn_s) ;
 		}
 	}
 
@@ -99,15 +100,15 @@ namespace Engine::Persistent {
 	}
 
 	static void _init_config() {
-		try         { g_config = deserialize<Config>(IFStream(PrivateAdminDir+"/config_store"s)) ; }
-		catch (...) { return ;                                                                     }
+		try         { g_config = new Config{deserialize<Config>(IFStream(PrivateAdminDir+"/config_store"s))} ; }
+		catch (...) { g_config = new Config                                                                  ; }
 	}
 
 	// START_OF_VERSIONING
 
 	static void _init_srcs_rules(bool rescue) {
 		Trace trace("_init_srcs_rules",Pdate(New)) ;
-		::string dir = g_config.local_admin_dir+"/store" ;
+		::string dir = g_config->local_admin_dir+"/store" ;
 		//
 		mk_dir(dir) ;
 		// jobs
@@ -173,80 +174,80 @@ namespace Engine::Persistent {
 	}
 
 	static void _save_config() {
-		serialize( OFStream(PrivateAdminDir+"/config_store"s) , g_config ) ;
-		OFStream(AdminDir+"/config"s) << g_config.pretty_str() ;
+		serialize( OFStream(PrivateAdminDir+"/config_store"s) , *g_config ) ;
+		OFStream(AdminDir+"/config"s) << g_config->pretty_str() ;
 	}
 
 	static void _diff_config( Config const& old_config , bool dynamic ) {
 		Trace trace("_diff_config",old_config) ;
 		for( BackendTag t : All<BackendTag> ) {
-			if (g_config.backends[+t].ifce==old_config.backends[+t].ifce) continue ;
-			if (dynamic                                                 ) throw "cannot change server address while running"s ; // remote hosts may have been unreachable do as if we have new resources
-			invalidate_exec(true/*cmd_ok*/) ;
+			if (g_config->backends[+t].ifce==old_config.backends[+t].ifce) continue ;
+			if (dynamic                                                  ) throw "cannot change server address while running"s ; // remote hosts may have been unreachable ...
+			invalidate_exec(true/*cmd_ok*/) ;                                                                                    // ... do as if we have new resources
 			break ;
 		}
 		//
-		if (g_config.path_max!=old_config.path_max) invalidate_match() ;                                                        // we may discover new buildable nodes or vice versa
+		if (g_config->path_max!=old_config.path_max) invalidate_match() ;                                                         // we may discover new buildable nodes or vice versa
 	}
 
 	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate(New),STR(dynamic),STR(rescue)) ;
-		if ( !dynamic                                              ) mk_dir( AdminDir+"/outputs"s , true/*unlnk_ok*/ ) ;
-		if ( !dynamic                                              ) _init_config() ;
-		else                                                         SWEAR(g_config.booted,g_config) ; // we must update something
-		if (                                       g_config.booted ) config.key = g_config.key ;
+		if ( !dynamic                                               ) mk_dir( AdminDir+"/outputs"s , true/*unlnk_ok*/ ) ;
+		if ( !dynamic                                               ) _init_config() ;
+		else                                                          SWEAR(g_config->booted,*g_config) ; // we must update something
+		if (                                       g_config->booted ) config.key = g_config->key ;
 		//
-		/**/                                                         diff(g_config,config) ;
+		/**/                                                         diff(*g_config,config) ;
 		//
-		/**/                                                         ConfigDiff d = config.booted ? g_config.diff(config) : ConfigDiff::None ;
-		if (              d>ConfigDiff::Static  && g_config.booted ) throw "repo must be clean"s  ;
-		if (  dynamic &&  d>ConfigDiff::Dynamic                    ) throw "repo must be steady"s ;
+		/**/                                                         ConfigDiff d = config.booted ? g_config->diff(config) : ConfigDiff::None ;
+		if (              d>ConfigDiff::Static  && g_config->booted ) throw "repo must be clean"s  ;
+		if (  dynamic &&  d>ConfigDiff::Dynamic                     ) throw "repo must be steady"s ;
 		//
-		if (  dynamic && !d                                        ) return ;                          // fast path, nothing to update
+		if (  dynamic && !d                                         ) return ;                          // fast path, nothing to update
 		//
-		/**/                                                         Config old_config = g_config ;
-		if (             +d                                        ) g_config = ::move(config) ;
-		if (!g_config.booted) throw "no config available"s ;
-		/**/                                                         g_config.open(dynamic)           ;
-		if (             +d                                        ) _save_config()                   ;
-		if ( !dynamic                                              ) _init_srcs_rules(rescue)         ;
-		if (             +d                                        ) _diff_config(old_config,dynamic) ;
+		/**/                                                          Config old_config = *g_config ;
+		if (             +d                                         ) *g_config = ::move(config) ;
+		if (!g_config->booted) throw "no config available"s ;
+		/**/                                                          g_config->open(dynamic)          ;
+		if (             +d                                         ) _save_config()                   ;
+		if ( !dynamic                                               ) _init_srcs_rules(rescue)         ;
+		if (             +d                                         ) _diff_config(old_config,dynamic) ;
 		trace("done",Pdate(New)) ;
 	}
 
 	void repair(::string const& from_dir) {
+		Trace trace("repair",from_dir) ;
 		::vector<Rule>   rules    = rule_lst() ;
 		::umap<Crc,Rule> rule_tab ; for( Rule r : Rule::s_lst() ) rule_tab[r->cmd_crc] = r ; SWEAR(rule_tab.size()==rules.size()) ;
 		for( ::string const& jd : walk(from_dir,from_dir) ) {
 			{	JobInfo job_info { jd } ;
-				if (!job_info.end.end.proc) goto NextJob ;
 				// qualify report
-				if (job_info.start.pre_start.proc!=JobRpcProc::Start) goto NextJob ;
-				if (job_info.start.start    .proc!=JobRpcProc::Start) goto NextJob ;
-				if (job_info.end  .end      .proc!=JobRpcProc::End  ) goto NextJob ;
-				if (job_info.end  .end.digest.status!=Status::Ok    ) goto NextJob ;    // repairing jobs in error is useless
+				if (job_info.start.pre_start.proc!=JobRpcProc::Start) { trace("no_pre_start",jd) ; goto NextJob ; }
+				if (job_info.start.start    .proc!=JobRpcProc::Start) { trace("no_start"    ,jd) ; goto NextJob ; }
+				if (job_info.end  .end      .proc!=JobRpcProc::End  ) { trace("no_end"      ,jd) ; goto NextJob ; }
+				if (job_info.end  .end.digest.status!=Status::Ok    ) { trace("not_ok"      ,jd) ; goto NextJob ; }         // repairing jobs in error is useless
 				// find rule
 				auto it = rule_tab.find(job_info.start.rule_cmd_crc) ;
-				if (it==rule_tab.end()) goto NextJob ;                                  // no rule
+				if (it==rule_tab.end()) { trace("no_rule",jd) ; goto NextJob ; }                                            // no rule
 				Rule rule = it->second ;
 				// find targets
 				::vector<Target> targets ; targets.reserve(job_info.end.end.digest.targets.size()) ;
 				for( auto const& [tn,td] : job_info.end.end.digest.targets ) {
-					if ( td.crc==Crc::None && !static_phony(td.tflags) ) continue     ; // this is not a target
-					if ( !td.crc.valid()                               ) goto NextJob ; // XXX : handle this case
-					if ( td.sig!=FileSig(tn)                           ) goto NextJob ; // if dates do not match, we will rerun the job anyway, no interest to repair
+					if ( td.crc==Crc::None && !static_phony(td.tflags) ) continue     ;                                     // this is not a target
+					if ( !td.crc.valid()                               ) { trace("invalid_target",jd,tn) ; goto NextJob ; } // XXX : handle this case
+					if ( td.sig!=FileSig(tn)                           ) { trace("disk_mismatch" ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
 					//
 					Node t{tn} ;
-					t->refresh( td.crc , {td.sig,{}} ) ;                                // if file does not exist, the Epoch as a date is fine
+					t->refresh( td.crc , {td.sig,{}} ) ;                                                                    // if file does not exist, the Epoch as a date is fine
 					targets.emplace_back( t , td.tflags ) ;
 				}
-				::sort(targets) ;                                                       // ease search in targets
+				::sort(targets) ;                                                                                           // ease search in targets
 				// find deps
 				::vector<Dep> deps ; deps.reserve(job_info.end.end.digest.deps.size()) ;
 				for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
 					Dep dep { Node(dn) , dd } ;
-					if ( !dep.is_crc                         ) goto NextJob ;           // dep could not be identified when job ran, hum, better not to repair that
-					if ( +dep.accesses && !dep.crc().valid() ) goto NextJob ;           // no valid crc, no interest to repair as job will rerun anyway
+					if ( !dep.is_crc                         ) { trace("no_dep_crc" ,jd,dn) ; goto NextJob ; }              // dep could not be identified when job ran, hum, better not to repair that
+					if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep",jd,dn) ; goto NextJob ; }              // no valid crc, no interest to repair as job will rerun anyway
 					deps.emplace_back(dep) ;
 				}
 				// set job
@@ -254,7 +255,7 @@ namespace Engine::Persistent {
 				job->targets.assign(targets) ;
 				job->deps   .assign(deps   ) ;
 				job->status = job_info.end.end.digest.status ;
-				job->exec_ok(true) ;                                                    // pretend job just ran
+				job->exec_ok(true) ;                                                                                        // pretend job just ran
 				// set target actual_job's
 				for( Target t : targets ) {
 					t->actual_job   () = job      ;
@@ -262,6 +263,7 @@ namespace Engine::Persistent {
 				}
 				// restore job_data
 				job.record(job_info) ;
+				trace("restored",jd,job->name()) ;
 			}
 		NextJob : ;
 		}

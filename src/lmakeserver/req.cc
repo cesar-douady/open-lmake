@@ -275,11 +275,11 @@ namespace Engine {
 				if (!d->done(*this)) { _report_cycle(d) ; goto Done ; }
 			fail_prod("job not done but all deps are done : ",job->name()) ;
 		} else {
-			size_t       n_err       = g_config.max_err_lines ? g_config.max_err_lines : size_t(-1) ;
-			bool         seen_stderr = false                                                        ;
+			size_t       n_err       = g_config->max_err_lines ? g_config->max_err_lines : size_t(-1) ;
+			bool         seen_stderr = false                                                          ;
 			::uset<Job > seen_jobs   ;
 			::uset<Node> seen_nodes  ;
-			NfsGuard     nfs_guard   { g_config.reliable_dirs }                                     ;
+			NfsGuard     nfs_guard   { g_config->reliable_dirs }                                      ;
 			if (job->rule->special==Special::Req) {
 				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable) _report_err             (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
 				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) (*this)->_report_no_rule(d,nfs_guard                                  ) ;
@@ -405,9 +405,9 @@ namespace Engine {
 			size_t               pm          = 0                   ;
 			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                    // sort in discovery order
 			for( auto [n,_] :                 long_names_                                        ) pm = ::max( pm , n->name().size() ) ;
-			for( auto [n,_] : ::c_vector_view(long_names_,0,g_config.n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
-			if ( g_config.errs_overflow(long_names_.size())                                      ) audit_info( Color::Warning , "..."               ) ;
-			SWEAR(pm>g_config.path_max) ;
+			for( auto [n,_] : ::c_vector_view(long_names_,0,g_config->n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
+			if ( g_config->errs_overflow(long_names_.size())                                      ) audit_info( Color::Warning , "..."               ) ;
+			SWEAR(pm>g_config->path_max) ;
 			audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",pm) ) ;
 		}
 		if (+frozen_jobs) {
@@ -444,11 +444,11 @@ namespace Engine {
 
 	void ReqData::audit_job( Color c , Pdate date , ::string const& step , ::string const& rule_name , ::string const& job_name , in_addr_t host , Delay exec_time ) const {
 		::OStringStream msg ;
-		if (g_config.console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config.console.date_prec,true/*in_day*/)                      <<' ' ;
-		if (g_config.console.host_len              ) msg <<      ::setw(g_config.console.host_len)<<SockFd::s_host(host)                  <<' ' ;
-		/**/                                         msg <<      ::setw(StepSz                   )<<step                                        ;
-		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule_name                                   ;
-		if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
+		if (g_config->console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config->console.date_prec,true/*in_day*/)     <<' '           ;
+		if (g_config->console.host_len              ) msg <<      ::setw(g_config->console.host_len)<<SockFd::s_host(host) <<' '           ;
+		/**/                                          msg <<      ::setw(StepSz                   )<<step                                  ;
+		/**/                                          msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule_name                             ;
+		if (g_config->console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"") ;
 		audit( audit_fd , log_stream , options , c , to_string(msg.str(),' ',mk_file(job_name)) ) ;
 		last_info = {} ;
 	}
@@ -477,13 +477,13 @@ namespace Engine {
 				ReqRpcReplyProc::Txt
 			,	title(
 					options
-				,	stats.ended(JobReport::Failed)==0                ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
-				,	                                                                    "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
-				,	!g_config.caches || !stats.ended(JobReport::Hit) ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
-				,	stats.ended(JobReport::Rerun )==0                ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
-				,	                                                                   " running:" , stats.cur  (JobStep  ::Exec  )
-				,	stats.cur  (JobStep  ::Queued)==0                ? ""s : to_string(" queued:"  , stats.cur  (JobStep  ::Queued))
-				,	stats.cur  (JobStep  ::Dep   )==0                ? ""s : to_string(" waiting:" , stats.cur  (JobStep  ::Dep   ))
+				,	stats.ended(JobReport::Failed)==0                 ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
+				,	                                                                     "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
+				,	!g_config->caches || !stats.ended(JobReport::Hit) ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
+				,	stats.ended(JobReport::Rerun )==0                 ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
+				,	                                                                    " running:" , stats.cur  (JobStep  ::Exec  )
+				,	stats.cur  (JobStep  ::Queued)==0                 ? ""s : to_string(" queued:"  , stats.cur  (JobStep  ::Queued))
+				,	stats.cur  (JobStep  ::Dep   )==0                 ? ""s : to_string(" waiting:" , stats.cur  (JobStep  ::Dep   ))
 				)
 			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;
@@ -504,7 +504,7 @@ namespace Engine {
 		RuleTgt                           art       ;                                                   // set if an anti-rule matches
 		RuleIdx                           n_missing = 0            ;                                    // number of rules missing deps
 		//
-		if (name.size()>g_config.path_max) {
+		if (name.size()>g_config->path_max) {
 			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
 			return ;
 		}
@@ -563,7 +563,7 @@ namespace Engine {
 			if (+missing_dep) audit_node( Color::Note , to_string("rule ",rt->name,' ',reason," :") , missing_dep , lvl+1 ) ;
 			else              audit_info( Color::Note , to_string("rule ",rt->name,' ',reason     ) ,               lvl+1 ) ;
 			//
-			if ( +missing_dep && n_missing==1 && (!g_config.max_err_lines||lvl<g_config.max_err_lines) ) _report_no_rule( missing_dep , nfs_guard , lvl+2 ) ;
+			if ( +missing_dep && n_missing==1 && (!g_config->max_err_lines||lvl<g_config->max_err_lines) ) _report_no_rule( missing_dep , nfs_guard , lvl+2 ) ;
 		}
 		//
 		if (+art) audit_info( Color::Note , to_string("anti-rule ",art->name," matches") , lvl+1 ) ;

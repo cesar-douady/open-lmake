@@ -432,7 +432,7 @@ namespace Engine {
 
 	inline ::string color_pfx( ReqOptions const& ro , Color color ) {
 		if ( color==Color::None || ro.reverse_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
-		::array<uint8_t,3/*RGB*/> const& colors = g_config.colors[+color][ro.reverse_video==Yes] ;
+		::array<uint8_t,3/*RGB*/> const& colors = g_config->colors[+color][ro.reverse_video==Yes] ;
 		return to_string( "\x1b[38;2;" , int(colors[0/*R*/]) ,';', int(colors[1/*G*/]) ,';', int(colors[2/*B*/]) , 'm' ) ;
 	}
 

@@ -25,7 +25,7 @@ namespace Backends {
 			OMsgBuf().send( fd , jmrr ) ;                                  // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
 		} catch (...) {                                                    // if we cannot connect to job, assume it is dead while we processed the request
 			Backend::_s_deferred_wakeup_thread.emplace_after(
-				g_config.network_delay
+				g_config->network_delay
 			,	Backend::DeferredEntry { e.conn.seq_id , JobExec(Job(job),e.conn.host,e.start_date) }
 			) ;
 		}
@@ -172,7 +172,7 @@ namespace Backends {
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
 			// if job cannot be connected to, assume it is dead and pretend it died if it still exists after network delay
-			_s_deferred_wakeup_thread.emplace_after( g_config.network_delay , DeferredEntry{conn.seq_id,JobExec(Job(job),conn.host,start_date)} ) ;
+			_s_deferred_wakeup_thread.emplace_after( g_config->network_delay , DeferredEntry{conn.seq_id,JobExec(Job(job),conn.host,start_date)} ) ;
 		}
 	}
 
@@ -287,17 +287,17 @@ namespace Backends {
 				if (rule->stdin_idx !=Rule::NoVar) reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt ;
 				if (rule->stdout_idx!=Rule::NoVar) reply.stdout                    = reply.static_matches[rule->stdout_idx].first      ;
 				/**/                               reply.addr                      = fd.peer_addr()                                    ;
-				/**/                               reply.autodep_env.lnk_support   = g_config.lnk_support                              ;
-				/**/                               reply.autodep_env.reliable_dirs = g_config.reliable_dirs                            ;
-				/**/                               reply.autodep_env.src_dirs_s    = g_src_dirs_s                                      ;
+				/**/                               reply.autodep_env.lnk_support   = g_config->lnk_support                             ;
+				/**/                               reply.autodep_env.reliable_dirs = g_config->reliable_dirs                           ;
+				/**/                               reply.autodep_env.src_dirs_s    = *g_src_dirs_s                                     ;
 				/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
-				/**/                               reply.date_prec                 = g_config.date_prec                                ;
-				/**/                               reply.hash_algo                 = g_config.hash_algo                                ;
+				/**/                               reply.date_prec                 = g_config->date_prec                               ;
+				/**/                               reply.hash_algo                 = g_config->hash_algo                               ;
 				/**/                               reply.keep_tmp_dir              = keep_tmp_dir                                      ;
-				/**/                               reply.key                       = g_config.key                                      ;
+				/**/                               reply.key                       = g_config->key                                     ;
 				/**/                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
 				/**/                               reply.live_out                  = submit_attrs.live_out                             ;
-				/**/                               reply.network_delay             = g_config.network_delay                            ;
+				/**/                               reply.network_delay             = g_config->network_delay                           ;
 				//
 				for( ::pair_ss& kv : start_none_attrs.env )      reply.env.push_back(::move(kv)) ;
 				for( auto const& [k,v] : rsrcs ) if (k=="tmp") { reply.tmp_sz_mb = from_string_with_units<'M'>(v) ; break ; }
@@ -570,11 +570,11 @@ namespace Backends {
 		Wakeup :
 			_s_wakeup_remote(job,conn,start_date,JobMngtProc::Heartbeat) ;
 		Next :
-			if (!g_config.heartbeat_tick.sleep_for(stop)) break ;                                            // limit job checks
+			if (!g_config->heartbeat_tick.sleep_for(stop)) break ;                                           // limit job checks
 			continue ;
 		WrapAround :
 			job = 0 ;
-			Delay d = g_config.heartbeat + g_config.network_delay ;                                          // ensure jobs have had a minimal time to start and signal it
+			Delay d = g_config->heartbeat + g_config->network_delay ;                                        // ensure jobs have had a minimal time to start and signal it
 			if ((last_wrap_around+d).sleep_until(stop)) { last_wrap_around = Pdate(New) ; continue ; }       // limit job checks
 			else                                        {                                 break    ; }
 		}
@@ -643,7 +643,7 @@ namespace Backends {
 		,	to_string(entry.conn.seq_id                     )
 		,	to_string(job                                   )
 		,	*g_root_dir
-		,	to_string(entry.conn.seq_id%g_config.trace.n_jobs)
+		,	to_string(entry.conn.seq_id%g_config->trace.n_jobs)
 		} ;
 		trace("cmd_line",cmd_line) ;
 		return cmd_line ;

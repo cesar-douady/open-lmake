@@ -100,7 +100,7 @@ namespace Engine {
 		bool        prev_ok   = crc.valid() && crc.exists() ;
 		bool        frozen    = idx().frozen()              ;
 		const char* msg       = frozen ? "frozen" : "src"   ;
-		NfsGuard    nfs_guard { g_config.reliable_dirs }    ;
+		NfsGuard    nfs_guard { g_config->reliable_dirs }   ;
 		FileInfo    fi        { nfs_guard.access(name_) }   ;
 		FileSig     sig       { fi  }                       ;
 		Trace trace("refresh_src_anti",STR(report_no_file),reqs_,sig) ;
@@ -114,7 +114,7 @@ namespace Engine {
 		} else {
 			if ( crc.valid() && sig==date().sig ) return false/*updated*/ ;
 			Crc crc_ = Crc::Reg ;
-			while ( crc_==Crc::Reg || crc_==Crc::Lnk ) crc_ = Crc(sig,name_,g_config.hash_algo) ;                             // ensure file is stable when computing crc
+			while ( crc_==Crc::Reg || crc_==Crc::Lnk ) crc_ = Crc(sig,name_,g_config->hash_algo) ;                            // ensure file is stable when computing crc
 			Accesses mismatch = crc.diff_accesses(crc_) ;
 			//vvvvvvvvvvvvvvvvvvv
 			refresh( crc_ , sig ) ;
@@ -260,7 +260,7 @@ namespace Engine {
 
 	void NodeData::_set_buildable_raw( Req req , DepDepth lvl ) {
 		Trace trace("set_buildable",idx(),lvl) ;
-		switch (buildable) {                                                                            // ensure we do no update sources
+		switch (buildable) {                                                                             // ensure we do no update sources
 			case Buildable::Src    :
 			case Buildable::SrcDir :
 			case Buildable::Anti   : SWEAR(!rule_tgts(),rule_tgts()) ; goto Return ;
@@ -274,17 +274,17 @@ namespace Engine {
 		{	::string name_ = name() ;
 			//
 			{	Buildable buildable_ = _gather_special_rule_tgts(name_) ;
-				//                                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (buildable_<=Buildable::No     ) { buildable = Buildable::No       ; goto Return ; } // AntiRule have priority so no warning message is generated
-				if (name_.size()>g_config.path_max) { buildable = Buildable::LongName ; goto Return ; } // path is ridiculously long, make it unbuildable
-				if (buildable_>=Buildable::Yes    ) { buildable = buildable_          ; goto Return ; }
-				//                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				if (buildable_<=Buildable::No      ) { buildable = Buildable::No       ; goto Return ; } // AntiRule have priority so no warning message is generated
+				if (name_.size()>g_config->path_max) { buildable = Buildable::LongName ; goto Return ; } // path is ridiculously long, make it unbuildable
+				if (buildable_>=Buildable::Yes     ) { buildable = buildable_          ; goto Return ; }
+				//                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
-			buildable = Buildable::Loop ;                                                               // during analysis, temporarily set buildable to break loops (will be caught at exec time) ...
-			try {                                                                                       // ... in case of crash, rescue mode is used and ensures all matches are recomputed
+			buildable = Buildable::Loop ;                                                                // during analysis, temporarily set buildable to break loops (will be caught at exec time) ...
+			try {                                                                                        // ... in case of crash, rescue mode is used and ensures all matches are recomputed
 				Buildable db = Buildable::No ;
 				if (+dir()) {
-					if (lvl>=g_config.max_dep_depth) throw ::vector<Node>() ;                           // infinite dep path
+					if (lvl>=g_config->max_dep_depth) throw ::vector<Node>() ;                           // infinite dep path
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvv
 					dir()->set_buildable(req,lvl+1) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -308,13 +308,13 @@ namespace Engine {
 				//                    ^^^^^^^^^^^^^^^^^^^^^^^^^
 				//
 				Buildable buildable_ = _gather_prio_job_tgts(name_,req,lvl) ;
-				if (db==Buildable::Maybe) buildable_ |= Buildable::Maybe ;                              // we are at least as buildable as our dir
+				if (db==Buildable::Maybe) buildable_ |= Buildable::Maybe ;                               // we are at least as buildable as our dir
 				//vvvvvvvvvvvvvvvvvvvv
 				buildable = buildable_ ;
 				//^^^^^^^^^^^^^^^^^^^^
 				goto Return ;
 			} catch (::vector<Node>& e) {
-				_set_match_gen(false/*ok*/) ;                                                           // restore Unknown as we do not want to appear as having been analyzed
+				_set_match_gen(false/*ok*/) ;                                                            // restore Unknown as we do not want to appear as having been analyzed
 				e.push_back(idx()) ;
 				throw ;
 			}
@@ -338,8 +338,8 @@ namespace Engine {
 			case Buildable::LongName :
 				if (req->long_names.try_emplace(idx(),req->long_names.size()).second) {                 // if inserted
 					size_t sz = lazy_name().size() ;
-					SWEAR( sz>g_config.path_max , sz , g_config.path_max ) ;
-					req->audit_node( Color::Warning , to_string("name is too long (",sz,'>',g_config.path_max,") for") , idx() ) ;
+					SWEAR( sz>g_config->path_max , sz , g_config->path_max ) ;
+					req->audit_node( Color::Warning , to_string("name is too long (",sz,'>',g_config->path_max,") for") , idx() ) ;
 				}
 				[[fallthrough]] ;
 			case Buildable::DynAnti   :
@@ -697,7 +697,7 @@ namespace Engine {
 			nd.date() = FileSig(ndn) ;
 		} else {
 			FileSig sig ;
-			Crc     crc { sig , ndn , g_config.hash_algo } ;
+			Crc     crc { sig , ndn , g_config->hash_algo } ;
 			if (!nd.crc.match(crc)) return {m,false/*refreshed*/} ; // real modif
 			nd.date() = sig ;
 		}

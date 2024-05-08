@@ -53,6 +53,7 @@ int main( int argc , char* /*argv*/[] ) {
 		if (+msg) ::cerr << ensure_nl(msg) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	//
+	Trace::s_new_trace_file(to_string( g_config->local_admin_dir , "/trace/" , base_name(read_lnk("/proc/self/exe")) )) ;
 	for( AncillaryTag tag : All<AncillaryTag> ) dir_guard(Job().ancillary_file(tag)) ;
 	//
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

@@ -149,7 +149,7 @@ namespace Engine {
 	// Job
 	//
 
-	DequeThread<::pair<Job,JobInfo>> Job::_s_record_thread ;
+	DequeThread<::pair<Job,JobInfo>,true/*Flush*/,true/*QueueAccess*/> Job::_s_record_thread ;
 
 	::ostream& operator<<( ::ostream& os , Job j ) {
 		/**/    os << "J(" ;
@@ -221,30 +221,34 @@ namespace Engine {
 
 	::string Job::ancillary_file(AncillaryTag tag) const {
 		switch (tag) {
-			case AncillaryTag::Backend : return to_string(PrivateAdminDir         ,"/backend/" ,+*this) ;
-			case AncillaryTag::Data    : return to_string(g_config.local_admin_dir,"/job_data/",+*this) ;
-			case AncillaryTag::Dbg     : return to_string(AdminDir                ,"/debug/"   ,+*this) ;
-			case AncillaryTag::KeepTmp : return to_string(AdminDir                ,"/tmp/"     ,+*this) ;
+			case AncillaryTag::Backend : return to_string(PrivateAdminDir          ,"/backend/" ,+*this) ;
+			case AncillaryTag::Data    : return to_string(g_config->local_admin_dir,"/job_data/",+*this) ;
+			case AncillaryTag::Dbg     : return to_string(AdminDir                 ,"/debug/"   ,+*this) ;
+			case AncillaryTag::KeepTmp : return to_string(AdminDir                 ,"/tmp/"     ,+*this) ;
 		DF}
 	}
 
-	JobInfo Job::job_info( bool need_start , bool need_end ) const {              // read job info from ancillary file, taking care of queued events
+	JobInfo Job::job_info( bool need_start , bool need_end ) const {                 // read job info from ancillary file, taking care of queued events
 		Lock lock { _s_record_thread } ;
 		JobInfo res         ;
 		bool    found_start = false ;
 		bool    found_end   = false ;
-		SWEAR( need_start || need_end ) ;                                         // else, this is useless
-		for( auto const& [j,ji] : _s_record_thread ) if (j==*this) {              // linear searching is not fast, but this is rather exceptional and this queue is small (actually mostly empty)
+		SWEAR( need_start || need_end ) ;                                            // else, this is useless
+		auto do_entry = [&](::pair<Job,JobInfo> const& jji)->void {
+			if (jji.first!=*this) return ;
+			JobInfo const& ji = jji.second ;
 			if (+ji.start) {
 				/**/               found_start = true     ;
 				if ( need_start)   res.start   = ji.start ;
-				if (found_end  ) { res.end     = {}       ; found_end = false ; } // start event replace file
+				if (found_end  ) { res.end     = {}       ; found_end = false ; }    // start event replace file
 			}
-			if (+ji.end) {                                                        // end event append to file
+			if (+ji.end) {                                                           // end event append to file
 				/**/          found_end = true   ;
 				if (need_end) res.end   = ji.end ;
 			}
-		}
+		} ;
+		for( auto const& jji : _s_record_thread ) do_entry(jji                   ) ; // linear searching is not fast, but this is rather exceptional and this queue is small (actually mostly empty)
+		/**/                                      do_entry(_s_record_thread.cur()) ; // dont forget entry being processed
 		if (!found_start) {
 			IFStream jas { ancillary_file() } ;
 			/**/                          try { deserialize( jas , res.start ) ; } catch (::string const&) { res.start = {} ; } // even if we do not need start, we need to skip it ...
@@ -254,6 +258,7 @@ namespace Engine {
 	}
 
 	void Job::record(JobInfo const& ji) const {
+		Trace trace("record",*this,STR(+ji.start),STR(+ji.end)) ;
 		OFStream jas { ancillary_file() , +ji.start ? ::ios::out|::ios::trunc : ::ios::app } ; // start event write to file, end event append to it
 		if (+ji.start) serialize( jas , ji.start ) ;
 		if (+ji.end  ) serialize( jas , ji.end   ) ;
@@ -277,7 +282,7 @@ namespace Engine {
 				}
 			req.chk_end() ;
 		} else {
-			for( Req r : (*this)->running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                       ;
+			for( Req r : (*this)->running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                      ;
 			for( Req r : (*this)->running_reqs(true/*with_zombies*/) ) FAIL((*this)->name(),"is still running for",r,"after kill all") ;
 		}
 	}
@@ -372,8 +377,7 @@ namespace Engine {
 	}
 
 	bool/*modified*/ JobExec::end( JobRpcReq&& jrr , bool sav_jrr , ::vmap_ss const& rsrcs ) {
-		JobDigest      &  digest           = jrr.digest                                           ;
-		::string  const&  msg              = jrr.msg                                              ;
+		JobDigest&        digest           = jrr.digest                                           ;
 		Status            status           = digest.status                                        ;           // status will be modified, need to make a copy
 		Bool3             ok               = is_ok  (status)                                      ;
 		bool              lost             = is_lost(status)                                      ;
@@ -461,7 +465,7 @@ namespace Engine {
 					}
 					//
 					if (target->is_src_anti()) {                                       // source may have been modified
-						if (!crc.valid()) crc = Crc(tn,g_config.hash_algo) ;           // force crc computation if updating a source
+						if (!crc.valid()) crc = Crc(tn,g_config->hash_algo) ;          // force crc computation if updating a source
 						//
 						/**/                           if (td.extra_tflags[ExtraTflag::SourceOk]) goto SourceOk ;
 						for( Req req : running_reqs_ ) if (req->options.flags[ReqFlag::SourceOk]) goto SourceOk ;
@@ -510,7 +514,7 @@ namespace Engine {
 				Dep dep { dn , dd } ;
 				if (!old_deps.contains(dep)) {
 					has_new_deps = true ;
-					// dep.hot means dep has been accessed within g_config.date_prc after its mtime (according to Pdate::now())
+					// dep.hot means dep has been accessed within g_config->date_prc after its mtime (according to Pdate::now())
 					// because of disk date granularity (usually a few ms) and because of date discrepancy between executing host and disk server (usually a few ms when using NTP)
 					// this means that the file could actually have been accessed before and have gotten wrong data.
 					// if this occurs, consider dep as unstable if it was not a known dep (we know known deps have been finish before job started).
@@ -540,11 +544,11 @@ namespace Engine {
 		::string     stderr         ;
 		try {
 			end_none_attrs = rule->end_none_attrs.eval( *this , match , rsrcs , &::ref(::vmap_s<DepDigest>()) ) ; // we cant record deps here, but we dont care, no impact on target
-			stderr = ::move(digest.stderr) ;
+			stderr = digest.stderr ;
 		} catch (::pair_ss const& msg_err) {
 			end_none_attrs = rule->end_none_attrs.spec ;
 			append_to_string( severe_msg , rule->end_none_attrs.s_exc_msg(true/*using_static*/) , '\n' , msg_err.first ) ;
-			stderr  = msg_err.second ;
+			stderr  = ensure_nl(msg_err.second) + digest.stderr ;
 			append_line_to_string(stderr,digest.stderr) ;
 		}
 		//
@@ -557,11 +561,17 @@ namespace Engine {
 		(*this)->status = status ;
 		//^^^^^^^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
+		bool     upload = sav_jrr && (*this)->run_status==RunStatus::Ok && ok==Yes  && +cache_none_attrs.key ;
+		::string msg    ;
+		trace("wrap_up",STR(sav_jrr),ok,cache_none_attrs.key,(*this)->run_status,STR(upload)) ;
 		if (sav_jrr) {
 			append_line_to_string( jrr.msg , local_msg , severe_msg ) ;
-			_s_record_thread.emplace(*this,JobInfoEnd{::move(jrr)}) ;
+			msg = jrr.msg ;
+			if (upload) _s_record_thread.emplace(*this,JobInfoEnd{::copy(jrr)}) ;          // leave jrr intact so upload can be done later on
+			else        _s_record_thread.emplace(*this,JobInfoEnd{::move(jrr)}) ;
 		} else {
 			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ;                         // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
+			msg = ::move(jrr.msg) ;
 		}
 		//
 		if (ok==Yes) {                   // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
@@ -571,44 +581,43 @@ namespace Engine {
 		}
 		CoarseDelay old_exec_time = (*this)->best_exec_time().first                              ;
 		MakeAction  end_action    = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
-		bool        all_done      = true                                                         ;
-		for( Req req : running_reqs_ ) (*this)->req_info(req).step(Step::End) ;                                      // ensure no confusion with previous run
+		bool        one_done      = false                                                        ;
+		for( Req req : running_reqs_ ) (*this)->req_info(req).step(Step::End) ;                    // ensure no confusion with previous run
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
 			trace("req_before",target_reason,status,ri) ;
-			req->missing_audits.erase(*this) ;                                                                       // old missing audit is obsolete as soon as we have rerun the job
+			req->missing_audits.erase(*this) ;                                                     // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason job_err_reason = (*this)->make( ri , end_action , target_reason , Yes/*speculate*/ , &old_exec_time , false/*wakeup_watchers*/ ) ;
 			//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			bool     full_report = ri.done() || !has_new_deps ;                                                      // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = ri.done() || !has_new_deps            ;                         // if not done, does a full report anyway if this is not due to new deps
+			bool     job_err     = job_err_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
-				bool job_err = job_err_reason.tag>=JobReasonTag::Err ;
 				job_msg = msg ;
-				if (!job_err)   append_line_to_string( job_msg , local_msg                       ) ;                 // report local_msg if no better message
-				else          { append_line_to_string( job_msg , reason_str(job_err_reason),'\n' ) ; stderr = {} ; } // dont report user stderr if analysis made it ...
-				/**/            append_line_to_string( job_msg , severe_msg                      ) ;                 // ... meaningless
+				if (!job_err) append_line_to_string( job_msg , local_msg                       ) ; // report local_msg if no better message
+				else          append_line_to_string( job_msg , reason_str(job_err_reason),'\n' ) ;
+				/**/          append_line_to_string( job_msg , severe_msg                      ) ;
 			}
 			//
 			Delay    exec_time = digest.stats.total ;
 			::string pfx       = !ri.done() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
 			//
-			JobReport jr = audit_end( pfx , ri , job_msg , full_report?stderr:""s , end_none_attrs.max_stderr_len , modified , exec_time ) ; // report rerun or resubmit rather than status
-			if (ri.done()) {
+			JobReport jr = audit_end( pfx , ri , job_msg , full_report&&!job_err?stderr:""s , end_none_attrs.max_stderr_len , modified , exec_time ) ; // dont report user stderr if analysis ...
+			if (ri.done()) {                                                                                                                           // ... made it meaningless
 				trace("wakeup_watchers",ri) ;
 				ri.wakeup_watchers() ;
+				one_done = true ;
 			} else {
 				req->missing_audits[*this] = { jr , modified , msg } ;
-				all_done                   = false                   ;
 			}
 			trace("req_after",ri) ;
 			req.chk_end() ;
 		}
-		bool full_ok     = all_done && (*this)->run_status==RunStatus::Ok && ok==Yes ;
 		// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
-		if ( full_ok && +cache_none_attrs.key ) {                                                                                            // cache only successful results
-			NfsGuard nfs_guard{g_config.reliable_dirs} ;
+		if ( upload && one_done ) {                                                                                                                    // cache only successful results
+			NfsGuard nfs_guard{g_config->reliable_dirs} ;
 			Cache::s_tab.at(cache_none_attrs.key)->upload( *this , digest , nfs_guard ) ;
 		}
 		trace("summary",*this) ;
@@ -1071,16 +1080,16 @@ namespace Engine {
 		switch (special) {
 			case Special::Plain : {
 				SWEAR(frozen_) ;                                               // only case where we are here without special rule
-				SpecialStep special_step = SpecialStep::Idle        ;
+				SpecialStep special_step = SpecialStep::Idle         ;
 				Node        worst_target ;
-				Bool3       modified     = No                       ;
-				NfsGuard    nfs_guard    { g_config.reliable_dirs } ;
+				Bool3       modified     = No                        ;
+				NfsGuard    nfs_guard    { g_config->reliable_dirs } ;
 				for( Target t : targets ) {
 					::string    tn = t->name()         ;
 					SpecialStep ss = SpecialStep::Idle ;
 					if (!( t->crc.valid() && FileSig(nfs_guard.access(tn))==t->date().sig )) {
 						FileSig sig  ;
-						Crc   crc { sig , tn , g_config.hash_algo } ;
+						Crc   crc { sig , tn , g_config->hash_algo } ;
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
 						Trace trace( "frozen" , t->crc ,"->", crc , t->date() ,"->", sig ) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -1141,11 +1150,11 @@ namespace Engine {
 			switch (cache_match.hit) {
 				case Yes :
 					try {
-						NfsGuard nfs_guard { g_config.reliable_dirs } ;
+						NfsGuard nfs_guard { g_config->reliable_dirs } ;
 						//
 						vmap<Node,FileAction> fas     = pre_actions(match).first ;
 						::vmap_s<FileAction>  actions ; for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
-						::pair_s<bool/*ok*/>  dfa_msg = do_file_actions( ::move(actions) , nfs_guard , g_config.hash_algo ) ;
+						::pair_s<bool/*ok*/>  dfa_msg = do_file_actions( ::move(actions) , nfs_guard , g_config->hash_algo ) ;
 						//
 						if ( +dfa_msg.first || !dfa_msg.second ) {
 							run_status = RunStatus::Err ;

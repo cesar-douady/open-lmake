@@ -5,15 +5,16 @@
 
 # build command : cd docker ; docker build -f ubuntu22.docker -t ubuntu22 .
 
+FROM ubuntu:22.04
+
 # in case the necesary packages are not found, it may come from a bad /etc/apt//sources.list
 # and this may change from time to time. it has been seen that it was necessary to replace archive.ubuntu.com by fr.archive.ubuntu.com with a line such as :
-#RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: -i.bak /etc/apt/sources.list
-
-FROM ubuntu:22.04
+RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: -i.bak /etc/apt/sources.list
 
 RUN apt-get update --fix-missing       # 1 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN apt-get install -y build-essential
-RUN apt-get install -y ed g++-12 git texinfo libseccomp-dev
+RUN apt-get install -y ed git texinfo libseccomp-dev
+RUN apt-get install -y g++-12 gdb
 RUN apt-get install -y python2 python3-dev python3-numba python3-venv
 RUN apt-get install -y clang
 

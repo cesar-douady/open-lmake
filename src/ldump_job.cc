@@ -69,8 +69,8 @@ void print_start(JobRpcReply const& jrr) {
 }
 
 void print_end(JobRpcReq const& jrr) {
-	JobDigest const& jd  = jrr.digest ;
-	JobStats  const& st  = jd.stats   ;
+	JobDigest const& jd = jrr.digest ;
+	JobStats  const& st = jd.stats   ;
 	SWEAR( jrr.proc==JobRpcProc::End , jrr.proc ) ;
 	//
 	::cout << "--end--\n" ;
@@ -96,14 +96,15 @@ int main( int argc , char* argv[] ) {
 	app_init() ;
 	//
 	JobInfo job_info { argv[1] } ;
+	if (+job_info.start) {
+		::cout << "eta  : " << job_info.start.eta                  <<'\n' ;
+		::cout << "host : " << SockFd::s_host(job_info.start.host) <<'\n' ;
+		print_submit_attrs(job_info.start.submit_attrs) ;
+		::cout << "rsrcs :\n" ; _print_map(job_info.start.rsrcs) ;
+		print_pre_start   (job_info.start.pre_start   ) ;
+		print_start       (job_info.start.start       ) ;
+	}
 	//
-	::cout << "eta  : " << job_info.start.eta                  <<'\n' ;
-	::cout << "host : " << SockFd::s_host(job_info.start.host) <<'\n' ;
-	print_submit_attrs(job_info.start.submit_attrs) ;
-	::cout << "rsrcs :\n" ; _print_map(job_info.start.rsrcs) ;
-	print_pre_start   (job_info.start.pre_start   ) ;
-	print_start       (job_info.start.start       ) ;
-	//
-	print_end(job_info.end.end) ;
+	if (+job_info.end) print_end(job_info.end.end) ;
 	return 0 ;
 }

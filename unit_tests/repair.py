@@ -43,11 +43,11 @@ else :
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
 
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 )     # check targets are out of date
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 ) # check targets are out of date
 
-	assert os.system('rm -rf LMAKE.bck ; lrepair')==0
+	assert os.system('lrepair')==0
 	print('hello2',file=open('hello','w'))
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 ) # check targets are remade
 
-	assert os.system('rm -rf LMAKE.bck ; lrepair')==0
+	assert os.system('mv LMAKE.bck LMAKE.bck2 ; lrepair')==0
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=2 ) # check targets are up to date

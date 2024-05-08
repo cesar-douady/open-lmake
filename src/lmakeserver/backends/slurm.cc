@@ -210,22 +210,22 @@ namespace Backends::Slurm {
 			if ( !se.verbose && s>Status::Async ) return {{},true/*retry*/} ;                           // common case, must be fast, if job was ended asynchronously, better to ask slurm controler why
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
-				Delay d { 0.01 }                                              ;
-				Pdate e = Pdate(New) + ::max(g_config.network_delay,Delay(1)) ; // ensure a reasonable minimum
+				Delay d { 0.01 }                                               ;
+				Pdate e = Pdate(New) + ::max(g_config->network_delay,Delay(1)) ; // ensure a reasonable minimum
 				for( Pdate c = New ;; c+=d ) {
 					info = slurm_job_state(se.id) ;
 					if (info.second!=Maybe) goto JobDead ;
 					if (c>=e              ) break        ;
-					d.sleep_for() ;                                             // wait, hoping job is dying, double delay every loop until hearbeat tick
-					d = ::min( d+d , g_config.heartbeat_tick ) ;
+					d.sleep_for() ;                                              // wait, hoping job is dying, double delay every loop until hearbeat tick
+					d = ::min( d+d , g_config->heartbeat_tick ) ;
 				}
-				if (c==0) _s_slurm_cancel_thread->push(se.id) ;                 // if still alive after network delay, (asynchronously as faster and no return value) cancel job and retry
+				if (c==0) _s_slurm_cancel_thread->push(se.id) ;                  // if still alive after network delay, (asynchronously as faster and no return value) cancel job and retry
 			}
 			info.first = "job is still alive" ;
 		JobDead :
 			if (se.verbose) {
 				::string stderr = read_stderr(j) ;
-				if (+stderr) { set_nl(info.first) ; info.first += stderr ; }    // full report
+				if (+stderr) { set_nl(info.first) ; info.first += stderr ; }     // full report
 			}
 			return { info.first , info.second!=No } ;
 		}
@@ -242,15 +242,15 @@ namespace Backends::Slurm {
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
 		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
-			_s_slurm_cancel_thread->push(se.id) ;                               // asynchronous (as faster and no return value) cancel
+			_s_slurm_cancel_thread->push(se.id) ;                                // asynchronous (as faster and no return value) cancel
 			spawned_rsrcs.dec(se.rsrcs) ;
 		}
 		virtual uint32_t/*id*/ launch_job( JobIdx j , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
-			nice &= 0x7fffffff ;                                                                         // slurm will not accept negative values, default values overflow in ... 2091
+			nice &= 0x7fffffff ;                                                                        // slurm will not accept negative values, default values overflow in ... 2091
 			uint32_t id = slurm_spawn_job( repo_key , j , nice , cmd_line , *rs , verbose ) ;
 			Trace trace(BeChnl,"Slurm::launch_job",repo_key,j,id,nice,cmd_line,rs,STR(verbose)) ;
-			spawned_rsrcs.inc(rs) ;                                                                      // only reserv resources once we are sure job is launched
+			spawned_rsrcs.inc(rs) ;                                                                     // only reserv resources once we are sure job is launched
 			return id ;
 		}
 

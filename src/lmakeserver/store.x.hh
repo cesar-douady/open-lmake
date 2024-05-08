@@ -238,8 +238,8 @@ namespace Engine {
 #ifdef INFO_DEF
 
 namespace Engine {
-	extern Config     g_config     ;
-	extern ::vector_s g_src_dirs_s ;
+	extern Config    * g_config     ; // ensure g_config is not destroyed upon exit, while we may still need it
+	extern ::vector_s* g_src_dirs_s ;
 }
 
 #endif

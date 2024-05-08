@@ -393,7 +393,7 @@ namespace Engine {
 		::string rel_dir_s = mk_rel(dir_s,*g_root_dir+'/') ; if (is_lcl_s(rel_dir_s)) bad_canon(rel_dir_s) ;
 		::string abs_dir_s = mk_abs(dir_s,*g_root_dir+'/') ;
 		//
-		for( ::string const& sd_s : g_src_dirs_s ) {
+		for( ::string const& sd_s : *g_src_dirs_s ) {
 			if (is_lcl_s(sd_s)) continue ;                                                                              // nothing to recognize inside repo
 			if (abs_dir_s.starts_with(sd_s)) { { if (abs_dir_s==dir_s) return true/*keep*/ ; } bad_canon(abs_dir_s) ; }
 			if (rel_dir_s.starts_with(sd_s)) { { if (rel_dir_s==dir_s) return true/*keep*/ ; } bad_canon(rel_dir_s) ; }
@@ -475,15 +475,15 @@ namespace Engine {
 
 	void SubmitRsrcsAttrs::s_canon(::vmap_ss& rsrcs) {
 		for ( auto& [k,v] : rsrcs ) {
-			/**/                                 if (!can_mk_enum<StdRsrc>(k)) continue ; // resource is not standard
-			StdRsrc  r   = mk_enum<StdRsrc>(k) ; if (k!=snake(r)             ) continue ; // .
+			/**/                                 if (!can_mk_enum<StdRsrc>(k)) continue ;  // resource is not standard
+			StdRsrc  r   = mk_enum<StdRsrc>(k) ; if (k!=snake(r)             ) continue ;  // .
 			uint64_t val = 0 /*garbage*/       ;
 			try                     { val = from_string_with_units<uint64_t>(v) ; }
-			catch (::string const&) { continue ;                                  }       // value is not recognized
+			catch (::string const&) { continue ;                                  }        // value is not recognized
 			//
-			if ( g_config.rsrc_digits[+r] && val ) {
-				uint8_t sw = ::max(0,int(bit_width(val))-int(g_config.rsrc_digits[+r])) ; // compute necessary shift for rounding, /!\ beware of signness with unsigned arithmetic
-				val = (((val-1)>>sw)+1)<<sw ;                                             // quantify by rounding up
+			if ( g_config->rsrc_digits[+r] && val ) {
+				uint8_t sw = ::max(0,int(bit_width(val))-int(g_config->rsrc_digits[+r])) ; // compute necessary shift for rounding, /!\ beware of signness with unsigned arithmetic
+				val = (((val-1)>>sw)+1)<<sw ;                                              // quantify by rounding up
 			}
 			//
 			v = to_string_with_units(val) ;

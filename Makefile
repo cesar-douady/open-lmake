@@ -137,17 +137,17 @@ ifneq ($(PYTHON2),)
     LMAKE_REMOTE_FILES := $(LMAKE_REMOTE_FILES) $(LIB)/clmake2.so
 endif
 
-LMAKE_BASIC_OBJS := \
-	src/disk.o         \
-	src/fd.o           \
-	src/hash.o         \
-	src/lib.o          \
-	src/non_portable.o \
-	src/process.o      \
-	src/time.o         \
+LMAKE_BASIC_OBJS_ := \
+	src/disk.o    \
+	src/fd.o      \
+	src/hash.o    \
+	src/lib.o     \
+	src/process.o \
+	src/time.o    \
 	src/utils.o
 
-LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS:%.o=%$(SAN).o)
+LMAKE_BASIC_OBJS     := $(LMAKE_BASIC_OBJS_)               src/non_portable.o
+LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS_:%.o=%$(SAN).o) src/non_portable.o
 
 LMAKE_FILES := $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
 
@@ -183,7 +183,10 @@ ext/%.dir.stamp : ext/%.zip
 # Manifest
 #
 Manifest : .git/index
-	git ls-files >$@
+	@git ls-files >$@.new
+	@if cmp -s $@.new $@ ; then rm $@.new    ; echo steady Manifest ; \
+	else                        mv $@.new $@ ; echo new    Manifest ; \
+	fi
 include Manifest.inc_stamp # Manifest is used in this makefile
 
 #
@@ -198,7 +201,7 @@ version.hh.stamp : _bin/version Manifest $(CPP_SOURCES)
 	@./$< $(CPP_SOURCES) > $@
 	@# dont touch output if it is steady
 	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version ; \
-	else                                mv $@ $(@:%.stamp=%) ; echo new version    ; \
+	else                                mv $@ $(@:%.stamp=%) ; echo new    version ; \
 	fi
 version.hh : version.hh.stamp ;
 
@@ -439,16 +442,17 @@ $(BIN)/lmake : \
 	@echo link to $@
 	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
+# XXX : why ldebug does not support sanitize thread ?
 $(BIN)/ldebug : \
-	$(LMAKE_BASIC_SAN_OBJS)   \
-	$(SRC)/app$(SAN).o        \
-	$(SRC)/client$(SAN).o     \
-	$(SRC)/rpc_client$(SAN).o \
-	$(SRC)/trace$(SAN).o      \
-	$(SRC)/ldebug$(SAN).o
+	$(LMAKE_BASIC_OBJS) \
+	$(SRC)/app.o        \
+	$(SRC)/client.o     \
+	$(SRC)/rpc_client.o \
+	$(SRC)/trace.o      \
+	$(SRC)/ldebug.o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lshow : \
 	$(LMAKE_BASIC_SAN_OBJS)   \
@@ -680,8 +684,8 @@ LMAKE_SRCS := $(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^sr
 $(LMAKE_ENV)/Manifest : Manifest
 	@mkdir -p $(@D)
 	@for f in $(LMAKE_SRCS) ; do echo $$f ; done > $@
-	@grep ^$(@D)/ Manifest | sed s:$(@D)/::       >>$@
-	@echo $(@F)                                   >>$@
+	@grep ^$(@D)/ Manifest | sed s:$(@D)/::      >>$@
+	@echo $(@F)                                  >>$@
 	@echo generate $@
 $(LMAKE_ENV)/% : %
 	@mkdir -p $(@D)
@@ -692,7 +696,14 @@ $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMA
 	@touch $@
 	@echo init $(LMAKE_ENV)-cache
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
-	@set -e ; cd $(LMAKE_ENV) ; export CXX=$(CXX) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) || rm -f $(@F) ; wait $$! || rm -f $(@F)
+	@set -e ;                                                               \
+	cd $(LMAKE_ENV) ;                                                       \
+	export CXX=$(CXX) ;                                                     \
+	rc=0 ;                                                                  \
+	$(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ;                      \
+	$(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) || { rm -f $(@F) ; rc=1 ; } ; \
+	wait $$!                                  || { rm -f $(@F) ; rc=1 ; } ; \
+	exit $$rc
 
 #
 # archive

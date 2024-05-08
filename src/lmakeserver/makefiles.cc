@@ -133,7 +133,7 @@ namespace Engine::Makefiles {
 		::string              new_deps_file = _deps_file(action,true /*new*/) ;
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
 		//
-		for( ::string const& sd_s : g_src_dirs_s )
+		for( ::string const& sd_s : *g_src_dirs_s )
 			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_root_dir),is_abs_s(sd_s)) ;
 		//
 		{	OFStream os { new_deps_file } ;               // ensure os is closed, or at least it must be flushed before calling _chk_dangling
@@ -224,20 +224,20 @@ namespace Engine::Makefiles {
 	,	NfsGuard&          nfs_guard
 	) {
 		Trace trace("_refresh_srcs") ;
-		if ( !g_config.srcs_module && !py_info && !new_ ) return {{},false/*done*/} ; // config has not been read
+		if ( !g_config->srcs_module && !py_info && !new_ ) return {{},false/*done*/} ; // config has not been read
 		::string  reason      ;
 		Ptr<Dict> py_new_info ;
-		if (+g_config.srcs_module) {
+		if (+g_config->srcs_module) {
 			if (+new_  ) reason = to_string("config.sources_module was "s,new_)      ;
 			else         reason = _chk_deps( "sources" , startup_dir_s , nfs_guard ) ;
 			if (!reason) return {{},false/*done*/} ;
-			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			tie(py_new_info,deps) = _read_makefiles( "srcs" , g_config.srcs_module ) ;
-			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			tie(py_new_info,deps) = _read_makefiles( "srcs" , g_config->srcs_module ) ;
+			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
-		try                      { tie(srcs,src_dirs_s) = _gather_srcs( (*py_info)["manifest"s].as_a<Sequence>() , g_config.lnk_support , nfs_guard ) ; }
-		catch(::string const& e) { throw to_string("while processing sources :\n",indent(e)) ;                                                          }
+		try                      { tie(srcs,src_dirs_s) = _gather_srcs( (*py_info)["manifest"s].as_a<Sequence>() , g_config->lnk_support , nfs_guard ) ; }
+		catch(::string const& e) { throw to_string("while processing sources :\n",indent(e)) ;                                                           }
 		return {reason,true/*done*/} ;
 	}
 
@@ -250,17 +250,17 @@ namespace Engine::Makefiles {
 	,	NfsGuard&             nfs_guard
 ) {
 		Trace trace("_refresh_rules") ;
-		if ( !g_config.rules_module && !py_info && !new_ ) return {{},false/*done*/} ; // config has not been read
+		if ( !g_config->rules_module && !py_info && !new_ ) return {{},false/*done*/} ; // config has not been read
 		::string  reason      ;
 		Ptr<Dict> py_new_info ;
 		// rules depend on source dirs as deps are adapted if they lie outside repo
-		if (+g_config.rules_module) {
+		if (+g_config->rules_module) {
 			if (+new_  ) reason = to_string("config.rules_module was "s,new_)      ;
 			else         reason = _chk_deps( "rules" , startup_dir_s , nfs_guard ) ;
 			if (!reason) return {{},false/*done*/} ;
-			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			tie(py_new_info,deps) = _read_makefiles( "rules" , g_config.rules_module ) ;
-			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			tie(py_new_info,deps) = _read_makefiles( "rules" , g_config->rules_module ) ;
+			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
 		try                      { rules = _gather_rules((*py_info)["rules"s].as_a<Sequence>()) ; }
@@ -303,7 +303,7 @@ namespace Engine::Makefiles {
 		} catch (::string const& e) {
 			throw to_string("cannot dynamically read config (because ",config_digest.first,") : ",e) ;
 		}
-		nfs_guard.reliable_dirs = g_config.reliable_dirs ;                                         // now that config is loaded, we can optimize protection against NFS
+		nfs_guard.reliable_dirs = g_config->reliable_dirs ;                                        // now that config is loaded, we can optimize protection against NFS
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//

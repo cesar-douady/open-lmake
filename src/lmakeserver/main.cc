@@ -452,9 +452,9 @@ int main( int argc , char** argv ) {
 	mk_dir(PrivateAdminDir+"/tmp"s,true/*unlnk_ok*/) ;
 	//
 	{	::string v ;
-		Trace::s_channels = g_config.trace.channels ;
-		Trace::s_sz       = g_config.trace.sz       ;
-		Trace::s_new_trace_file(to_string( g_config.local_admin_dir , "/trace/" , base_name(read_lnk("/proc/self/exe")) )) ;
+		Trace::s_channels = g_config->trace.channels ;
+		Trace::s_sz       = g_config->trace.sz       ;
+		Trace::s_new_trace_file(to_string( g_config->local_admin_dir , "/trace/" , base_name(read_lnk("/proc/self/exe")) )) ;
 	}
 	Codec::Closure::s_init() ;
 	Job           ::s_init() ;

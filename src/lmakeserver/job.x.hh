@@ -99,7 +99,7 @@ namespace Engine {
 		}
 		// static data
 	protected :
-		static DequeThread<::pair<Job,JobInfo>> _s_record_thread ;
+		static DequeThread<::pair<Job,JobInfo>,true/*Flush*/,true/*QueueAccess*/> _s_record_thread ;
 		// cxtors & casts
 	public :
 		using JobBase::JobBase ;

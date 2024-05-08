@@ -354,7 +354,7 @@ namespace Engine {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
-		SWEAR(+key) ;                                                                    // ensure no init problem
+		SWEAR(+key) ;                                                   // ensure no init problem
 		::string std_file = to_string(PrivateAdminDir,"/local_admin") ;
 		if (!user_local_admin_dir) {
 			local_admin_dir = ::move(std_file) ;
@@ -453,9 +453,9 @@ namespace Engine {
 
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
 		SWEAR(!as_job()) ;
-		RealPathEnv    rpe       { .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir } ;
-		RealPath       real_path { rpe }                                                       ;
-		::vector<Node> targets   ; targets.reserve(files.size())                               ;                                     // typically, there is no bads
+		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .root_dir=*g_root_dir } ;
+		RealPath       real_path { rpe }                                                        ;
+		::vector<Node> targets   ; targets.reserve(files.size())                                ;                                    // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
 			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                                   // we may refer to a symbolic link

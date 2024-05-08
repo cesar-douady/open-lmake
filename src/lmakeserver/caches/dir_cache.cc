@@ -304,7 +304,7 @@ namespace Caches {
 		}
 	}
 
-	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) {
+	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) { // XXX : defer upload in a dedicated thread
 		::string jn = _unique_name(job,repo) ;
 		Trace trace("DirCache::upload",job,jn) ;
 		//
@@ -355,8 +355,10 @@ namespace Caches {
 			for( auto const& [tn,_] : digest.targets ) new_sz += FileInfo(nfs_guard.access(tn)).sz ;
 			_mk_room(old_sz,new_sz) ;
 			made_room = true ;
-			for( NodeIdx ti=0 ; ti<digest.targets.size() ; ti++ )
+			for( NodeIdx ti=0 ; ti<digest.targets.size() ; ti++ ) {
 				_copy( digest.targets[ti].first , dfd , to_string(ti) , false/*unlnk_dst*/ , true/*mk_read_only*/ ) ;
+				// XXX : ensure file is still valid after copy
+			}
 		} catch (::string const& e) {
 			trace("failed",e) ;
 			unlnk_inside(dfd) ;                                           // clean up in case of partial execution
