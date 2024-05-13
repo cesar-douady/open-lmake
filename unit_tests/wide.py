@@ -10,8 +10,21 @@ if __name__!='__main__' :
 
 	lmake.manifest = ('Lmakefile.py',)
 
+	lmake.config.backends.local.cpu = 10
+
+	if 'slurm' in lmake.backends :
+		backend = 'slurm'
+		lmake.config.backends.slurm = {
+			'use_nice'          : True
+		,	'n_max_queued_jobs' : 10
+		}
+	else :
+		backend = 'local'
+
 	class GenFile(PyRule) :
-		target = 'file_{:\d+}'
+		target    = 'file_{:\d+}'
+		backend   = backend
+		resources = { 'mem' : '1M' }
 		def cmd() :
 			for x in range(1000) : print(x)
 

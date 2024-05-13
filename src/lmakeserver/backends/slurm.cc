@@ -17,6 +17,9 @@ using namespace Disk ;
 
 namespace Backends::Slurm {
 
+	static constexpr int SlurmSpawnTrials  = 15 ;
+	static constexpr int SlurmCancelTrials = 10 ;
+
 	//
 	// daemon info
 	//
@@ -89,37 +92,42 @@ namespace std {
 namespace Backends::Slurm {
 
 	using p_cxxopts = ::unique_ptr<cxxopts::Options> ;
+	using SlurmId   = uint32_t                       ;
+
+	Mutex<MutexLvl::Slurm> _slurm_mutex ; // ensure no more than a single outstanding request to daemon
 
 	void slurm_init() ;
 
 	p_cxxopts                 create_parser     (                        ) ;
 	RsrcsData                 parse_args        (::string const& args    ) ;
-	void                      slurm_cancel      (uint32_t        slurm_id) ;
-	::pair_s<Bool3/*job_ok*/> slurm_job_state   (uint32_t        slurm_id) ;
+	void                      slurm_cancel      (SlurmId         slurm_id) ;
+	::pair_s<Bool3/*job_ok*/> slurm_job_state   (SlurmId         slurm_id) ;
 	::string                  read_stderr       (JobIdx                  ) ;
 	Daemon                    slurm_sense_daemon(                        ) ;
 	//
-	uint32_t slurm_spawn_job( ::string const& key , JobIdx , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
+	SlurmId slurm_spawn_job( ::stop_token , ::string const& key , JobIdx , ::vector<ReqIdx> const& , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
 
 	p_cxxopts g_optParse = create_parser() ;
 
 	constexpr Tag MyTag = Tag::Slurm ;
 
 	struct SlurmBackend
-	:	             GenericBackend<MyTag,uint32_t,RsrcsData,RsrcsData,false/*IsLocal*/>
-	{	using Base = GenericBackend<MyTag,uint32_t,RsrcsData,RsrcsData,false/*IsLocal*/> ;
+	:	             GenericBackend<MyTag,SlurmId,RsrcsData,RsrcsData,false/*IsLocal*/>
+	{	using Base = GenericBackend<MyTag,SlurmId,RsrcsData,RsrcsData,false/*IsLocal*/> ;
 
 		struct SpawnedMap : ::umap<Rsrcs,JobIdx> {
 			// count number of jobs spawned but not started yet
 			// no entry is equivalent to entry with 0
-			void inc(Rsrcs rs) { try_emplace(rs,0).first->second++ ; } // create 0 entry if necessary
-			void dec(Rsrcs rs) {                                       // entry must exist
+			void inc(Rsrcs rs) {
+				try_emplace(rs,0).first->second++ ; // create 0 entry if necessary
+			}
+			void dec(Rsrcs rs) {                    // entry must exist
 				auto sit = find(rs) ;
-				if(!--sit->second) erase(sit) ;                        // no entry means 0, so collect when possible (questionable)
+				if(!--sit->second) erase(sit) ;     // no entry means 0, so collect when possible (questionable)
 			}
 			JobIdx n_spawned(Rsrcs rs) {
 				auto it = find(rs) ;
-				if (it==end()) return 0          ;                     // no entry means 0
+				if (it==end()) return 0          ;  // no entry means 0
 				else           return it->second ;
 			}
 		} ;
@@ -132,7 +140,7 @@ namespace Backends::Slurm {
 		}
 
 		// static data
-		static TimedDequeThread<uint32_t>* _s_slurm_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
+		static TimedDequeThread<SlurmId> _s_slurm_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
 
 		// accesses
 
@@ -143,7 +151,7 @@ namespace Backends::Slurm {
 		virtual void sub_config( vmap_ss const& dct , bool dynamic ) {
 			Trace trace(BeChnl,"Slurm::config",STR(dynamic),dct) ;
 			if (!dynamic) slurm_init() ;
-			static TimedDequeThread<uint32_t> slurm_cancel_thread{'C',slurm_cancel} ; _s_slurm_cancel_thread = &slurm_cancel_thread ;
+			_s_slurm_cancel_thread.open('C',slurm_cancel) ;
 			//
 			repo_key = base_name(*g_root_dir)+':' ; // cannot put this code directly as init value as g_root_dir is not available early enough
 			for( auto const& [k,v] : dct ) {
@@ -195,14 +203,18 @@ namespace Backends::Slurm {
 			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
 		}
 
-		virtual RsrcsData adapt  ( RsrcsData const& rsa              ) const { return rsa                                            ; }
 		virtual ::vmap_ss export_( RsrcsData const& rs               ) const { return rs.mk_vmap()                                   ; }
 		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req ) const { return blend( {::move(rsa),daemon} ,req_forces[req] ) ; }
 		//
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			return spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
 		}
+		virtual Rsrcs acquire_rsrcs(RsrcsAsk const& rsa) const {
+			spawned_rsrcs.inc(rsa) ;
+			return rsa ;
+		}
 		virtual ::string start_job( JobIdx , SpawnedEntry const& se ) const {
+			SWEAR(+se.rsrcs) ;
 			spawned_rsrcs.dec(se.rsrcs) ;
 			return to_string("slurm_id:",se.id) ;
 		}
@@ -219,13 +231,13 @@ namespace Backends::Slurm {
 					d.sleep_for() ;                                              // wait, hoping job is dying, double delay every loop until hearbeat tick
 					d = ::min( d+d , g_config->heartbeat_tick ) ;
 				}
-				if (c==0) _s_slurm_cancel_thread->push(se.id) ;                  // if still alive after network delay, (asynchronously as faster and no return value) cancel job and retry
+				if (c==0) _s_slurm_cancel_thread.push(se.id) ;                   // if still alive after network delay, (asynchronously as faster and no return value) cancel job and retry
 			}
 			info.first = "job is still alive" ;
 		JobDead :
 			if (se.verbose) {
 				::string stderr = read_stderr(j) ;
-				if (+stderr) { set_nl(info.first) ; info.first += stderr ; }     // full report
+				if (+stderr) append_line_to_string(info.first,stderr) ;          // full report
 			}
 			return { info.first , info.second!=No } ;
 		}
@@ -237,20 +249,18 @@ namespace Backends::Slurm {
 				::string stderr = read_stderr(j) ;
 				if (+stderr) { set_nl(info.first) ; info.first += stderr ; }
 			}
-			spawned_rsrcs.dec(se.rsrcs) ;
 			if (info.second==Yes) return { info.first , HeartbeatState::Lost } ;
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
-		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
-			_s_slurm_cancel_thread->push(se.id) ;                                // asynchronous (as faster and no return value) cancel
-			spawned_rsrcs.dec(se.rsrcs) ;
+		virtual void kill_queued_job(SpawnedEntry const& se) const {
+			if (se.id    ) _s_slurm_cancel_thread.push(se.id) ;                  // asynchronous (as faster and no return value) cancel
+			if (+se.rsrcs) spawned_rsrcs.dec(se.rsrcs)        ;
 		}
-		virtual uint32_t/*id*/ launch_job( JobIdx j , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
+		virtual SlurmId launch_job( ::stop_token st , JobIdx j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
-			nice &= 0x7fffffff ;                                                                        // slurm will not accept negative values, default values overflow in ... 2091
-			uint32_t id = slurm_spawn_job( repo_key , j , nice , cmd_line , *rs , verbose ) ;
+			nice &= 0x7fffffff ;                                                                         // slurm will not accept negative values, default values overflow in ... 2091
+			SlurmId id = slurm_spawn_job( st , repo_key , j , reqs , nice , cmd_line , *rs , verbose ) ;
 			Trace trace(BeChnl,"Slurm::launch_job",repo_key,j,id,nice,cmd_line,rs,STR(verbose)) ;
-			spawned_rsrcs.inc(rs) ;                                                                     // only reserv resources once we are sure job is launched
 			return id ;
 		}
 
@@ -263,7 +273,7 @@ namespace Backends::Slurm {
 		Daemon              daemon            ;         // info sensed from slurm daemon
 	} ;
 
-	TimedDequeThread<uint32_t>* SlurmBackend::_s_slurm_cancel_thread ;
+	TimedDequeThread<SlurmId> SlurmBackend::_s_slurm_cancel_thread ;
 
 	//
 	// init
@@ -487,13 +497,14 @@ namespace Backends::Slurm {
 		return res ;
 	}
 
-	void slurm_cancel(uint32_t slurm_id) {
+	void slurm_cancel(SlurmId slurm_id) {
 		//This for loop with a retry comes from the scancel Slurm utility code
 		//Normally we kill mainly waiting jobs, but some "just started jobs" could be killed like that also
 		//Running jobs are killed by lmake/job_exec
 		Trace trace(BeChnl,"slurm_cancel",slurm_id) ;
-		int i   = 0/*garbage*/ ;
-		for( i=0 ; i<10/*MAX_CANCEL_RETRY*/ ; i++ ) {
+		int i = 0/*garbage*/ ;
+		Lock lock { _slurm_mutex } ;
+		for( i=0 ; i<SlurmCancelTrials ; i++ ) {
 			if (SlurmApi::kill_job(slurm_id,SIGKILL,KILL_FULL_JOB)==SLURM_SUCCESS) { trace("done") ; return ; }
 			switch (errno) {
 				case ESLURM_INVALID_JOB_ID             :
@@ -506,19 +517,21 @@ namespace Backends::Slurm {
 		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",slurm_err()) ;
 	}
 
-	::pair_s<Bool3/*job_ok*/> slurm_job_state(uint32_t slurm_id) {                                                                           // Maybe means job has not completed
+	::pair_s<Bool3/*job_ok*/> slurm_job_state(SlurmId slurm_id) { // Maybe means job has not completed
 		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
-		//
-		if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS) return { "cannot load job info : "+slurm_err() , Yes/*job_ok*/ } ; // no info on job -> retry
-		//
-		bool completed = true ;                                                                                                              // job is completed if all tasks are
+		{	Lock lock { _slurm_mutex } ;
+			//                                                                                                                                                    job_ok
+			if (!slurm_id                                                   ) return { "no slurm id"s                                                             , Yes } ; // no job      -> retry
+			if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS) return { to_string("cannot load job info for slurm id ",slurm_id," : ",slurm_err()) , Yes } ; // no job info -> retry
+		}
+		bool completed = true ;                                                                                                      // job is completed if all tasks are
 		for ( uint32_t i=0 ; i<resp->record_count ; i++ ) {
 			slurm_job_info_t const& ji = resp->job_array[i]                          ;
 			job_states              js = job_states( ji.job_state & JOB_STATE_BASE ) ;
 			//
 			completed &= js>=JOB_COMPLETE ;
-			if (js<=JOB_COMPLETE) continue ;                                                                                                 // we only search errors
+			if (js<=JOB_COMPLETE) continue ;                                                                                         // we only search errors
 			const char* on_nodes  = !ji.nodes||::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
 			int         exit_code = ji.exit_code                                                            ;
 			// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
@@ -532,14 +545,14 @@ namespace Backends::Slurm {
 				//   JOB_RUNNING                                                                                                        allocated resources and executing
 				//   JOB_SUSPENDED                                                                                                      allocated resources, execution suspended
 				//   JOB_COMPLETE                                                                                                       completed execution successfully
-				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ;         // cancelled by user
-				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ;         // completed execution unsuccessfully
-				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ;         // terminated on reaching time limit
-				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated on node failure
-				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated due to preemption
-				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated due to node boot failure
-				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated on deadline
-				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ;         // experienced out of memory error
+				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ; // cancelled by user
+				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ; // completed execution unsuccessfully
+				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // terminated on reaching time limit
+				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on node failure
+				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to preemption
+				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to node boot failure
+				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on deadline
+				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // experienced out of memory error
 				//   JOB_END                                                                                                            not a real state, last entry in table
 				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
 			}
@@ -571,7 +584,7 @@ namespace Backends::Slurm {
 		res += '\n' ;
 		return res ;
 	}
-	uint32_t slurm_spawn_job( ::string const& key , JobIdx job , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
+	SlurmId slurm_spawn_job( ::stop_token st , ::string const& key , JobIdx job , ::vector<ReqIdx> const& reqs , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
 		static char* env[1] = {const_cast<char *>("")} ;
 		Trace trace(BeChnl,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
 		//
@@ -615,31 +628,59 @@ namespace Backends::Slurm {
 			/**/            j->nice          = NICE_OFFSET+nice                           ;
 			i++ ;
 		}
-		bool                   err = false  /*garbage*/ ;
-		submit_response_msg_t* msg = nullptr/*garbage*/ ;
-		if (job_descr.size()==1) {
-			err = SlurmApi::submit_batch_job(&job_descr[0],&msg) ;
-		} else {
-			List l = SlurmApi::list_create(nullptr) ; for ( job_desc_msg_t& c : job_descr ) SlurmApi::list_append(l,&c) ;
-			err = SlurmApi::submit_batch_het_job(l,&msg) ;
-			SlurmApi::list_destroy(l) ;
-		}
-		if (err) {
-			::string err_str = slurm_err() ;
-			trace("spawn_error",err_str) ;
+		for( int i=0 ; i<SlurmSpawnTrials ; i++ ) {
+			submit_response_msg_t* msg = nullptr/*garbage*/ ;
+			bool                   err = false  /*garbage*/ ;
+			errno = 0 ;                                                                        // normally useless
+			{	Lock lock { _slurm_mutex } ;
+				if (job_descr.size()==1) {
+					err = SlurmApi::submit_batch_job(&job_descr[0],&msg)!=SLURM_SUCCESS ;
+				} else {
+					List l = SlurmApi::list_create(nullptr) ; for ( job_desc_msg_t& c : job_descr ) SlurmApi::list_append(l,&c) ;
+					err = SlurmApi::submit_batch_het_job(l,&msg)!=SLURM_SUCCESS ;
+					SlurmApi::list_destroy(l) ;
+				}
+			}
+			int     sav_errno = errno                 ;                                        // save value before calling any slurm or libc function
+			SlurmId res       = msg ? msg->job_id : 0 ;
+			if (msg) {
+				res = msg->job_id ;
+				SWEAR(res!=0) ;                                                                // null id is used to signal absence of id
+				SlurmApi::free_submit_response_response_msg(msg) ;
+				if (!sav_errno) { SWEAR(!err) ; return res ; }
+			}
+			SWEAR(sav_errno!=0) ;                                                              // if err, we should have a errno, else if no errno, we should have had a msg containing an id
+			switch (sav_errno) {
+				case EAGAIN                              :
+				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY :
+				case ESLURM_NODES_BUSY                   : {
+					trace("retry",sav_errno,SlurmApi::strerror(sav_errno)) ;
+					bool zombie = true ;
+					for ( Req r : reqs ) if (!r.zombie()) { zombie = false ; break ; }
+					if ( zombie || !Delay(1).sleep_for(st) ) {
+						trace("interrupted",i,STR(zombie)) ;
+						throw "interrupted while connecting to slurm daemon"s ;
+					}
+					continue ;
+				}
+				default : ;
+			}
+			::string err_str = SlurmApi::strerror(sav_errno) ;
+			trace("spawn_error",sav_errno,err_str) ;
 			throw "slurm spawn job error : " + err_str ;
 		}
-		uint32_t res = msg->job_id ;
-		SlurmApi::free_submit_response_response_msg(msg) ;
-		return res ;
+		trace("cannot_spawn") ;
+		throw "cannot connect to slurm daemon"s ;
 	}
 
 	Daemon slurm_sense_daemon() {
 		Trace trace(BeChnl,"slurm_sense_daemon") ;
 		slurm_conf_t* conf = nullptr ;
 		// XXX : remember last conf read so as to pass a real update_time param & optimize call
-		if (!is_target("/etc/slurm/slurm.conf")                           ) throw "no slurm config file /etc/slur/slurm.conf"s          ;
-		if (SlurmApi::load_ctl_conf(0/*update_time*/,&conf)!=SLURM_SUCCESS) throw to_string("cannot reach slurm daemon : ",slurm_err()) ;
+		{	Lock lock { _slurm_mutex } ;
+			if (!is_target("/etc/slurm/slurm.conf")                           ) throw "no slurm config file /etc/slur/slurm.conf"s          ;
+			if (SlurmApi::load_ctl_conf(0/*update_time*/,&conf)!=SLURM_SUCCESS) throw to_string("cannot reach slurm daemon : ",slurm_err()) ;
+		}
 		SWEAR(conf) ;
 		Daemon res ;
 		trace("conf",STR(conf)) ;

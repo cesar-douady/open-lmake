@@ -249,11 +249,11 @@ namespace Engine {
 		} ;
 		for( auto const& jji : _s_record_thread ) do_entry(jji                   ) ; // linear searching is not fast, but this is rather exceptional and this queue is small (actually mostly empty)
 		/**/                                      do_entry(_s_record_thread.cur()) ; // dont forget entry being processed
-		if (!found_start) {
+		if (!found_start) try {                                                      // ignore errors, we get what exists
 			IFStream jas { ancillary_file() } ;
-			/**/                          try { deserialize( jas , res.start ) ; } catch (::string const&) { res.start = {} ; } // even if we do not need start, we need to skip it ...
-			if ( need_end && !found_end ) try { deserialize( jas , res.end   ) ; } catch (::string const&) { res.end   = {} ; } // ... ignore errors, we get what exists
-		}
+			/**/                          try { deserialize( jas , res.start ) ; } catch (...) { res.start = {} ; } // even if we do not need start, we need to skip it
+			if ( need_end && !found_end ) try { deserialize( jas , res.end   ) ; } catch (...) { res.end   = {} ; }
+		} catch (...) {}
 		return res ;
 	}
 

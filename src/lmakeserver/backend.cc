@@ -185,14 +185,14 @@ namespace Backends {
 
 	bool/*keep_fd*/ Backend::_s_handle_job_start( JobRpcReq&& jrr , SlaveSockFd const& fd ) {
 		switch (jrr.proc) {
-			case Proc::None  : return false ;                          // if connection is lost, ignore it
-			case Proc::Start : SWEAR(+fd,jrr.proc) ; break ;           // fd is needed to reply
+			case Proc::None  : return false ;                    // if connection is lost, ignore it
+			case Proc::Start : SWEAR(+fd,jrr.proc) ; break ;     // fd is needed to reply
 		DF}
-		Job                                        job               { jrr.job }             ;
+		Job                                        job               { jrr.job }           ;
 		JobExec                                    job_exec          ;
-		Rule                                       rule              = job->rule             ;
-		Rule::SimpleMatch                          match             = job->simple_match()   ;
-		JobRpcReply                                reply             { Proc::Start }         ;
+		Rule                                       rule              = job->rule           ;
+		Rule::SimpleMatch                          match             = job->simple_match() ;
+		JobRpcReply                                reply             { Proc::Start }       ;
 		::pair<vmap<Node,FileAction>,vector<Node>> pre_actions       ;
 		StartCmdAttrs                              start_cmd_attrs   ;
 		::pair_ss/*script,call*/                   cmd               ;
@@ -203,7 +203,7 @@ namespace Backends {
 		SubmitAttrs                                submit_attrs      ;
 		::vmap_ss                                  rsrcs             ;
 		Pdate                                      eta               ;
-		bool                                       keep_tmp_dir      = false/*garbage*/      ;
+		bool                                       keep_tmp_dir      = false/*garbage*/    ;
 		::vector<ReqIdx>                           reqs              ;
 		Trace trace(BeChnl,"_s_handle_job_start",jrr) ;
 		_s_starting_job = jrr.job ;
@@ -211,25 +211,25 @@ namespace Backends {
 		// to lock for minimal time, we lock twice
 		// 1st time, we only gather info, real decisions will be taken when we lock the 2nd time
 		// because the only thing that can happend between the 2 locks is that entry disappears, we can move info from entry during 1st lock
-		{	Lock lock { _s_mutex } ;                                   // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	Lock lock { _s_mutex } ;                             // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
 			StartEntry& entry = it->second                         ;
 			trace("entry",entry) ;
-			if (!entry.useful()) { trace("useless") ; return false ; } // no Req found, job has been cancelled but start message still arrives, give up
+			for( Req r : entry.reqs ) if ( +r && !r.zombie() ) goto Useful ;
+			trace("useless") ;
+			return false/*keep_fd*/ ;                            // no Req found, job has been cancelled but start message still arrives, give up
+		Useful :
 			submit_attrs = ::move(entry.submit_attrs) ;
 			rsrcs        =        entry.rsrcs         ;
 			reqs         =        entry.reqs          ;
-			//                               vvvvvvvvvvvvvvvvvvvvvvv
-			append_line_to_string( jrr.msg , s_start(entry.tag,+job) ) ;
-			//                               ^^^^^^^^^^^^^^^^^^^^^^^
 			tie(eta,keep_tmp_dir) = entry.req_info() ;
 		}
 		trace("submit_attrs",submit_attrs) ;
 		::vmap_s<DepDigest>& deps          = submit_attrs.deps ;
 		size_t               n_submit_deps = deps.size()       ;
 		int                  step          = 0                 ;
-		deps_attrs = rule->deps_attrs.eval(match) ;                    // this cannot fail as it was already run to construct job
+		deps_attrs = rule->deps_attrs.eval(match) ;              // this cannot fail as it was already run to construct job
 		try {
 			cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 1 ;
 			start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
@@ -311,38 +311,56 @@ namespace Backends {
 				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;   // update existing dep
 				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      } // create new dep
 		}
-		//
-		bool deps_ready = true ;
-		for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) ) {                                             // note : this is ok even if deps is empty
-			bool useful = false ;
+		bool useful = false ;                                                                             // true if a req is non-zombie
+		for( ReqIdx& r : reqs ) {
+			if (!r             ) continue ;
+			if (Req(r).zombie()) r      = 0    ;
+			else                 useful = true ;
+		}
+		if (!useful) {
+			trace("useless") ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send(fd,JobRpcReply(Proc::None)) ;                                                  // silently tell job_exec to give up
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			return false/*keep_fd*/ ;
+		}
+		// keep in entry.reqs only non-zombie reqs that see all deps as ready
+		bool deps_done = true ;                                                                           // true if all deps are done for at least a non-zombie req
+		for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) ) { // note : this is ok even if deps is empty
+			bool dep_done = false ;
 			for( ReqIdx& r : reqs ) {
 				// to be sure, we should check done(Dsk) rather than done(Status), but we do not seek security here, we seek perf (real check will be done at end of job)
 				// and most of the time, done(Status) implies file is ok, and we have less false positive as we do not have the opportunity to fully assess sources
-				if (!r                                      ) continue ;
-				if (!Node(dn)->done(Req(r),NodeGoal::Status)) r      = 0    ;
-				else                                          useful = true ;
+				if      (!r                                      ) continue ;
+				else if (!Node(dn)->done(Req(r),NodeGoal::Status)) r        = 0    ;                      // this req has a dep which is not done
+				else                                               dep_done = true ;
 			}
-			if (!useful) { deps_ready = false ; break ; }                                                                                             // if we can serv no Req, give up
+			if (!dep_done) {                                                                              // if we can serv no Req, give up
+				deps_done = false ;
+				trace("not_done",dn,dd) ;
+				break ;
+			}
 		}
 		//
-		{	Lock lock { _s_mutex } ;                                   // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	Lock lock { _s_mutex } ;                                                                      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
 			StartEntry& entry = it->second                         ;
 			trace("entry",entry) ;
-			if (!entry.useful()) { trace("useless") ; return false ; } // no Req found, job has been cancelled but start message still arrives, give up
-			//
-			if ( step<4 || !deps_ready ) {
+			//                               vvvvvvvvvvvvvvvvvvvvvvv
+			append_line_to_string( jrr.msg , s_start(entry.tag,+job) ) ;
+			//                               ^^^^^^^^^^^^^^^^^^^^^^^
+			if ( step<4 || !deps_done ) {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				OMsgBuf().send(fd,JobRpcReply(Proc::None)) ;           // silently tell job_exec to give up
+				OMsgBuf().send(fd,JobRpcReply(Proc::None)) ;                                              // silently tell job_exec to give up
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				Status status = Status::EarlyErr ;
-				if (!deps_ready) {
+				if (!deps_done) {
 					status        = Status::EarlyChkDeps ;
 					start_msg_err = {}                   ;
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				s_end( entry.tag , +job , status ) ;                   // dont care about backend, job is dead for other reasons
+				s_end( entry.tag , +job , status ) ;                                                      // dont care about backend, job is dead for other reasons
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("early",start_msg_err) ;
 				job_exec = { job , reply.addr , New } ;                                                                                                                          // job starts and ends
@@ -362,14 +380,14 @@ namespace Backends {
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("release_start_tab",entry,step) ;
 				_s_start_tab.release(it) ;
-				return false ;
+				return false/*keep_fd*/ ;
 			}
 			//
 			reply.small_id = _s_small_ids.acquire() ;
 			//vvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send(fd,reply) ;                                                                                          // send reply ASAP to minimize overhead
 			//^^^^^^^^^^^^^^^^^^^^^^
-			job_exec            = { job , reply.addr , New , {} } ;                                                             // job starts
+			job_exec            = { job , reply.addr , New , {} } ; SWEAR(+job_exec.start_date) ;                               // job starts
 			entry.start_date    = job_exec.start_date             ;
 			entry.conn.host     = job_exec.host                   ;
 			entry.conn.port     = jrr.port                        ;
@@ -489,10 +507,11 @@ namespace Backends {
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						g_engine_queue.emplace( Proc::GiveUp , JobExec(j,e.start_date) , req , +e.start_date/*report*/ ) ; // job is useful for some other Req
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						trace("continue",j) ;
+						trace("give_up",j) ;
 						break ;
 					}
 					jit++ ;
+					trace("keep",j) ;
 					continue ;
 				}
 			Kill :
@@ -501,7 +520,7 @@ namespace Backends {
 					to_wakeup.emplace_back(j,::pair(e.conn,e.start_date)) ;
 					jit++ ;
 				} else {
-					trace("queued_in_slurm",j) ;
+					trace("queued",j) ;
 					s_tab[+e.tag]->kill_job(j) ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( Proc::GiveUp , JobExec(j,e.start_date) ) ;
@@ -637,11 +656,11 @@ namespace Backends {
 		trace("create_start_tab",job,entry) ;
 		::vector_s cmd_line {
 			s_executable
-		,	_s_job_start_thread.fd.service(s_tab[+tag]->addr)
-		,	_s_job_mngt_thread .fd.service(s_tab[+tag]->addr)
-		,	_s_job_end_thread  .fd.service(s_tab[+tag]->addr)
-		,	to_string(entry.conn.seq_id                     )
-		,	to_string(job                                   )
+		,	_s_job_start_thread.fd.service(s_tab[+tag]->addr  )
+		,	_s_job_mngt_thread .fd.service(s_tab[+tag]->addr  )
+		,	_s_job_end_thread  .fd.service(s_tab[+tag]->addr  )
+		,	to_string(entry.conn.seq_id                       )
+		,	to_string(job                                     )
 		,	*g_root_dir
 		,	to_string(entry.conn.seq_id%g_config->trace.n_jobs)
 		} ;

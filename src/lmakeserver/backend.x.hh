@@ -69,7 +69,6 @@ namespace Backends {
 			// accesses
 			bool operator+() const { return +conn   ; }
 			bool operator!() const { return !+*this ; }
-			bool useful   () const ;
 			// services
 			void open() {
 				SWEAR(!*this) ;
@@ -222,10 +221,6 @@ namespace Backends {
 	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , JobIdx j , Status s ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
 	inline ::pair_s<HeartbeatState> Backend::s_heartbeat( Tag t , JobIdx j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
 
-	inline bool Backend::StartEntry::useful() const {
-		for( Req r : reqs ) if (!r.zombie()) return true ;
-		return false ;
-	}
 }
 
 #endif

@@ -12,6 +12,8 @@ if __name__!='__main__' :
 
 	gxx = os.environ.get('CXX','g++')
 
+	depth = len(lmake.root_dir.split('/')) - 1
+
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello.h'
@@ -37,10 +39,9 @@ if __name__!='__main__' :
 		cmd = "{gxx} -fprofile-arcs -o {EXE} {' '.join((f for k,f in deps.items()))}"
 
 	class Dut(Rule) :
-		target       = 'dut'
-		side_targets = { 'GCDA' : r'{File*:.*}.gcda' }
-		deps         = { 'EXE'  : 'hello_world'      }
-		cmd          = './{EXE}'
+		targets = { 'DUT':'dut' , 'GCDA':'gcda_dir/{File*:.*}' }
+		deps    = { 'EXE':'hello_world'                        }
+		cmd     = 'GCOV_PREFIX=gcda_dir GCOV_PREFIX_STRIP={depth} ./{EXE} >{DUT}'
 
 	class Test(Rule) :
 		target = 'test'

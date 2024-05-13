@@ -19,7 +19,7 @@ namespace Backends::Local {
 	using Rsrc = uint32_t ;
 	struct RsrcAsk {
 		friend ::ostream& operator<<( ::ostream& , RsrcAsk const& ) ;
-		bool operator==(RsrcAsk const&) const = default ;                      // XXX : why is this necessary ?
+		bool operator==(RsrcAsk const&) const = default ;             // XXX : why is this necessary ?
 		// data
 		Rsrc min = 0/*garbage*/ ;
 		Rsrc max = 0/*garbage*/ ;
@@ -45,11 +45,11 @@ namespace Backends::Local {
 			for( size_t i=0 ; i<size() ; i++ ) if ( occupied[i]+(*this)[i].min > capacity[i] ) return false ;
 			return true ;
 		}
-		bool fit_in(RsrcsData const& capacity) const {                                            // true if all resources fit within capacity
+		bool fit_in(RsrcsData const& capacity) const {                                                        // true if all resources fit within capacity
 			for( size_t i=0 ; i<size() ; i++ ) if ( (*this)[i].min > capacity[i] ) return false ;
 			return true ;
 		}
-		RsrcsData within( RsrcsData const& occupied , RsrcsData const& capacity ) const { // what fits within capacity on top of occupied
+		RsrcsData within( RsrcsData const& occupied , RsrcsData const& capacity ) const {                     // what fits within capacity on top of occupied
 			RsrcsData res ; res.reserve(size()) ;
 			for( size_t i=0 ; i<size() ; i++ ) {
 				SWEAR( occupied[i]+(*this)[i].min <= capacity[i] , *this , occupied , capacity ) ;
@@ -100,8 +100,8 @@ namespace Backends::Local {
 
 		// statics
 	private :
-		static void _s_wait_job(pid_t pid) {                                   // execute in a separate thread
-			Trace trace("wait",pid) ;
+		static void _s_wait_job(pid_t pid) { // execute in a separate thread
+			Trace trace(BeChnl,"wait",pid) ;
 			::waitpid(pid,nullptr,0) ;
 			trace("waited",pid) ;
 		}
@@ -117,7 +117,7 @@ namespace Backends::Local {
 		}
 
 		virtual void sub_config( ::vmap_ss const& dct , bool dynamic ) {
-			Trace trace("Local::config",STR(dynamic),dct) ;
+			Trace trace(BeChnl,"Local::config",STR(dynamic),dct) ;
 			if (dynamic) {
 				/**/                                         if (rsrc_keys.size()!=dct.size()) throw "cannot change resource names while lmake is running"s ;
 				for( size_t i=0 ; i<rsrc_keys.size() ; i++ ) if (rsrc_keys[i]!=dct[i].first  ) throw "cannot change resource names while lmake is running"s ;
@@ -135,7 +135,7 @@ namespace Backends::Local {
 			trace("capacity",capacity()) ;
 			_wait_queue.open( 'T' , _s_wait_job ) ;
 			//
-			if ( !dynamic && rsrc_idxs.contains("cpu") ) {                     // ensure each job can compute CRC on all cpu's in parallel
+			if ( !dynamic && rsrc_idxs.contains("cpu") ) {                                                          // ensure each job can compute CRC on all cpu's in parallel
 				struct rlimit rl ;
 				::getrlimit(RLIMIT_NPROC,&rl) ;
 				if ( rl.rlim_cur!=RLIM_INFINITY && rl.rlim_cur<rl.rlim_max ) {
@@ -155,35 +155,44 @@ namespace Backends::Local {
 		}
 		//
 		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const& rsa          ) const { return rsa. fit_in(         capacity_)     ; }
-		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const& rsa          ) const { return rsa->fit_in(occupied,capacity_)     ; }
-		virtual RsrcsData    adapt         ( RsrcsDataAsk const& rsa          ) const { return rsa. within(occupied,capacity_)     ; }
 		virtual ::vmap_ss    export_       ( RsrcsData    const& rs           ) const { return rs.mk_vmap(rsrc_keys)               ; }
 		virtual RsrcsDataAsk import_       ( ::vmap_ss        && rsa , ReqIdx ) const { return RsrcsDataAsk(::move(rsa),rsrc_idxs) ; }
+		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
+			return rsa->fit_in(occupied,capacity_) ;
+		}
+		virtual Rsrcs acquire_rsrcs(RsrcsAsk const& rsa) const {
+			RsrcsData rsd = rsa->within(occupied,capacity_) ;
+			occupied += rsd ;
+			Trace trace(BeChnl,"occupied_rsrcs",rsd,'+',occupied) ;
+			return {New,rsd} ;
+		}
 		//
 		virtual ::string start_job( JobIdx , SpawnedEntry const& e ) const {
 			return to_string("pid:",e.id) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx , SpawnedEntry const& se , Status ) const {
 			occupied -= *se.rsrcs ;
-			Trace trace("end","occupied_rsrcs",'-',occupied) ;
-			_wait_queue.push(se.id) ;                                          // defer wait in case job_exec process does some time consuming book-keeping
-			return {{},true/*retry*/} ;                                        // retry if garbage
+			Trace trace(BeChnl,"end","occupied_rsrcs",*se.rsrcs,'-',occupied) ;
+			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
+			return {{},true/*retry*/} ;                                                                             // retry if garbage
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const { // called after job_exec has had time to start
-			kill_queued_job(j,se) ;                                                                        // ensure job_exec is dead or will die shortly
-			return {{}/*msg*/,HeartbeatState::Lost} ;
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx , SpawnedEntry const& se ) const {            // called after job_exec has had time to start
+			if (!se.id               ) return {{}/*msg*/,HeartbeatState::Alive} ;
+			if (kill_process(se.id,0)) return {{}/*msg*/,HeartbeatState::Alive} ;
+			/**/                       return {{}/*msg*/,HeartbeatState::Lost } ;
 		}
-		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
-			kill_process(se.id,SIGHUP) ;                                        // jobs killed here have not started yet, so we just want to kill job_exec
-			_wait_queue.push(se.id) ;                                           // defer wait in case job_exec process does some time consuming book-keeping
+		virtual void kill_queued_job(SpawnedEntry const& se) const {
+			if (se.id) {
+				kill_process(se.id,SIGHUP) ;                                                                        // jobs killed here have not started yet, so we just want to kill job_exec
+				_wait_queue.push(se.id) ;                                                                           // defer wait in case job_exec process does some time consuming book-keeping
+			}
+			if (+se.rsrcs) occupied -= *se.rsrcs ;
 		}
-		virtual pid_t launch_job( JobIdx , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rsrcs , bool /*verbose*/ ) const {
+		virtual pid_t launch_job( ::stop_token , JobIdx , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& , bool /*verbose*/ ) const {
 			Child child { .as_session=true , .cmd_line=cmd_line , .stdin_fd=Child::None , .stdout_fd=Child::None } ;
 			child.spawn() ;
 			pid_t pid = child.pid ;
-			child.mk_daemon() ;                                                // we have recorded the pid to wait and there is no fd to close
-			occupied += *rsrcs ;
-			Trace trace("occupied_rsrcs",'+',occupied) ;
+			child.mk_daemon() ;                                                                                     // we have recorded the pid to wait and there is no fd to close
 			return pid ;
 		}
 

@@ -113,7 +113,9 @@ static void _mount( ::string const& dst , size_t sz_mb ) {
 }
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
-	ssize_t cnt = ::write( AutoCloseFd(::open(file.c_str(),O_WRONLY)) , data.c_str() , data.size() ) ;
+	AutoCloseFd fd = ::open(file.c_str(),O_WRONLY|O_TRUNC) ;
+	if (!fd) throw to_string("cannot open ",file," for writing") ;
+	ssize_t cnt = ::write( fd , data.c_str() , data.size() ) ;
 	if (cnt<0                  ) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : ",strerror(errno)          ) ;
 	if (size_t(cnt)<data.size()) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : only ",cnt," bytes written") ;
 }

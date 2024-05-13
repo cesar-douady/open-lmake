@@ -62,13 +62,13 @@
 static constexpr size_t StackSz = 16<<10 ; // we just need s small stack before exec, experiment shows 8k is enough, take 16k
 
 [[noreturn]] void Child::_do_child_new_pid_namespace() {
-	if (as_session) ::setsid() ;                                                           // if we are here, we are the init process and we must be in the new session to receive the kill signal
+	if (as_session) ::setsid() ;                         // if we are here, we are the init process and we must be in the new session to receive the kill signal
 	SWEAR(first_pid>1,first_pid) ;
 	if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) exit(Rc::System,"cannot mount /proc") ;
-	AutoCloseFd      lpfd    = ::open("/proc/sys/kernel/ns_last_pid",O_WRONLY|O_TRUNC) ;
-	::string         lp      = to_string(first_pid-1)                                  ;
-	[[maybe_unused]] int wrc = ::write(lpfd,lp.c_str(),lp.size())                      ;   // dont care about errors, this is best effort
-	//
+	{	AutoCloseFd              fd  = ::open("/proc/sys/kernel/ns_last_pid",O_WRONLY|O_TRUNC) ;
+		::string                 val = to_string(first_pid-1)                                  ;
+		[[maybe_unused]] ssize_t wrc = ::write(fd,val.c_str(),val.size())                      ;      // dont care about errors, this is best effort
+	}
 	::vector<uint64_t> stack     ( StackSz/sizeof(uint64_t) )                       ;
 	void*              stack_ptr = stack.data()+(StackGrowsDownward?stack.size():0) ;
 	pid_t pid = ::clone( _s_do_child , stack_ptr , SIGCHLD , this ) ;
@@ -78,9 +78,9 @@ static constexpr size_t StackSz = 16<<10 ; // we just need s small stack before 
 		int   wstatus   ;
 		pid_t child_pid = ::wait(&wstatus) ;
 		if (child_pid==pid) {
-			if (WIFEXITED  (wstatus))   ::exit (WEXITSTATUS(wstatus)) ;                    // exit as transparently as possible
-			if (WIFSIGNALED(wstatus)) { ::raise(WTERMSIG   (wstatus)) ; raise(SIGABRT) ; } // .
-			SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) ) ;                        // ensure we have not forgotten a case
+			if (WIFEXITED  (wstatus))   ::exit (WEXITSTATUS(wstatus)) ;                               // exit as transparently as possible
+			if (WIFSIGNALED(wstatus)) { ::raise(WTERMSIG   (wstatus)) ; raise(SIGABRT) ; }            // .
+			SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) ) ;                                   // ensure we have not forgotten a case
 		}
 	}
 }

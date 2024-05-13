@@ -60,7 +60,7 @@ private :
 } ;
 template<class T,bool Flush=true> using ThreadDeque = ThreadQueue<::deque<T>,Flush> ;
 
-template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : private ThreadQueue<Q,Flush> {                                   // if Flush, process remaining items when asked to stop
+template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : private ThreadQueue<Q,Flush> { // if Flush, process remaining items when asked to stop
 	using Base = ThreadQueue<Q,Flush> ;
 	using Val  = typename Base::Val  ;
 	using Base::push_urgent    ;
@@ -71,41 +71,49 @@ template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : pr
 	using Base::unlock         ;
 	using Base::swear_locked   ;
 	using Base::key            ;
+	#define RQA  requires( QueueAccess)
+	#define RNQA requires(!QueueAccess)
 	// statics
 private :
 	// XXX : why gcc refuses to call both functions _s_thread_func ?
-	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self , ::function<void(Val const&)> func ) requires(QueueAccess) {
+	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self , ::function<void(::stop_token,Val const&)> func ) requires(QueueAccess) {
 		t_thread_key = key ;
-		Trace trace("QueueThread::_s_thread_func") ;
-		while(self->pop(stop,self->_cur)) func(self->_cur) ;
+		Trace trace("QueueThread::_s_thread_func2") ;
+		while(self->pop(stop,self->_cur)) func(stop,self->_cur) ;
 		trace("done") ;
 	}
-	static void _s_thread_func2( ::stop_token stop , char key , QueueThread* self , ::function<void(Val&&)> func ) requires(!QueueAccess) {
+	static void _s_thread_func2( ::stop_token stop , char key , QueueThread* self , ::function<void(::stop_token,Val&&)> func ) requires(!QueueAccess) {
 		t_thread_key = key ;
-		Trace trace("QueueThread::_s_thread_func") ;
+		Trace trace("QueueThread::_s_thread_func4") ;
 		for(;;) {
 			auto [popped,info] = self->pop(stop) ;
 			if (!popped) break ;
-			func(::move(info)) ;
+			func(stop,::move(info)) ;
 		}
 		trace("done") ;
 	}
 	// cxtors & casts
 public :
 	QueueThread() = default ;
-	QueueThread( char k , ::function<void(Val const&)> func ) requires( QueueAccess) { open(k,func) ; }
-	QueueThread( char k , ::function<void(Val     &&)> func ) requires(!QueueAccess) { open(k,func) ; }
-	void open  ( char k , ::function<void(Val const&)> func ) requires( QueueAccess) { key = k ; _thread = ::jthread( _s_thread_func1 , k , this , func ) ; }
-	void open  ( char k , ::function<void(Val     &&)> func ) requires(!QueueAccess) { key = k ; _thread = ::jthread( _s_thread_func2 , k , this , func ) ; }
+	QueueThread( char k , ::function<void(             Val const&)> f ) RQA  { open(k,f) ; }
+	QueueThread( char k , ::function<void(::stop_token,Val const&)> f ) RQA  { open(k,f) ; }
+	QueueThread( char k , ::function<void(             Val     &&)> f ) RNQA { open(k,f) ; }
+	QueueThread( char k , ::function<void(::stop_token,Val     &&)> f ) RNQA { open(k,f) ; }
+	void open  ( char k , ::function<void(             Val const&)> f ) RQA  { key = k ; _thread = ::jthread( _s_thread_func1 , k , this , [=](::stop_token,Val const& v)->void {f(       v );} ) ; }
+	void open  ( char k , ::function<void(::stop_token,Val const&)> f ) RQA  { key = k ; _thread = ::jthread( _s_thread_func1 , k , this , f                                                    ) ; }
+	void open  ( char k , ::function<void(             Val     &&)> f ) RNQA { key = k ; _thread = ::jthread( _s_thread_func2 , k , this , [=](::stop_token,Val     && v)->void {f(::move(v));} ) ; }
+	void open  ( char k , ::function<void(::stop_token,Val     &&)> f ) RNQA { key = k ; _thread = ::jthread( _s_thread_func2 , k , this , f                                                    ) ; }
 	~QueueThread() { Trace("~QueueThread",key) ; }
 	// accesses
-	Val const& cur() const requires(QueueAccess) { return _cur ; }
-	Val      & cur()       requires(QueueAccess) { return _cur ; }
+	Val const& cur() const RQA { return _cur ; }
+	Val      & cur()       RQA { return _cur ; }
 	// services
-	auto begin()       requires(QueueAccess) { swear_locked() ; return Base::begin() ; }
-	auto begin() const requires(QueueAccess) { swear_locked() ; return Base::begin() ; }
-	auto end  ()       requires(QueueAccess) { swear_locked() ; return Base::end  () ; }
-	auto end  () const requires(QueueAccess) { swear_locked() ; return Base::end  () ; }
+	auto begin()       RQA { swear_locked() ; return Base::begin() ; }
+	auto begin() const RQA { swear_locked() ; return Base::begin() ; }
+	auto end  ()       RQA { swear_locked() ; return Base::end  () ; }
+	auto end  () const RQA { swear_locked() ; return Base::end  () ; }
+	#undef RQA
+	#undef RNQA
 	// data
 private :
 	::conditional_t<QueueAccess,Val,Void> _cur    ;
@@ -121,25 +129,24 @@ template<class T,bool Flush=true> struct TimedDequeThread : ThreadDeque<::pair<T
 	using Base::key ;
 	// statics
 private :
-	static void _s_thread_func( ::stop_token stop , char key , TimedDequeThread* self , ::function<void(Val&&)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , TimedDequeThread* self , ::function<void(::stop_token,Val&&)> func ) {
 		t_thread_key = key ;
 		Trace trace("TimedDequeThread::_s_thread_func") ;
 		for(;;) {
 			auto [popped,info] = self->pop(stop) ;
 			if (!popped                            ) break ;
 			if (!info.first.sleep_until(stop,Flush)) break ;
-			func(::move(info.second)) ;
+			func(stop,::move(info.second)) ;
 		}
 		trace("done") ;
 	}
 	// cxtors & casts
 public :
 	TimedDequeThread() = default ;
-	TimedDequeThread( char k , ::function<void(Val&&)> func ) { open(k,func) ; }
-	void open       ( char k , ::function<void(Val&&)> func ) {
-		key = k ;
-		_thread = ::jthread( _s_thread_func , k , this , func ) ;
-	}
+	TimedDequeThread( char k , ::function<void(             Val&&)> f ) { open(k,f) ; }
+	TimedDequeThread( char k , ::function<void(::stop_token,Val&&)> f ) { open(k,f) ; }
+	void open       ( char k , ::function<void(             Val&&)> f ) { key = k ; _thread = ::jthread( _s_thread_func , k , this , [=](::stop_token,Val&& v)->void {f(::move(v));} ) ; }
+	void open       ( char k , ::function<void(::stop_token,Val&&)> f ) { key = k ; _thread = ::jthread( _s_thread_func , k , this , f                                               ) ; }
 	~TimedDequeThread() { Trace("~TimedDequeThread",key) ; }
 	// services
 	template<class U> void push_urgent(           U&& x ) { Base::emplace_urgent(Pdate()     , ::forward<U>(x) ) ; }
@@ -160,7 +167,7 @@ template<bool Flush=true> struct WakeupThread {
 	using ThreadMutex = Mutex<MutexLvl::Thread> ;
 	// statics
 private :
-	static void _s_thread_func( ::stop_token stop , char key , WakeupThread* self , ::function<void()> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , WakeupThread* self , ::function<void(::stop_token)> func ) {
 		t_thread_key = key ;
 		Trace trace("WakeupThread::_s_thread_func") ;
 		for(;;) {
@@ -171,17 +178,17 @@ private :
 				if ( !self->_cond.wait( lock , stop , [&]()->bool { return self->_active ; } ) ) break ;
 				self->_active = false ;
 			}
-			func() ;
+			func(stop) ;
 		}
 		trace("done") ;
 	}
 	// cxtors & casts
 public :
 	WakeupThread() = default ;
-	WakeupThread( char key , ::function<void()> func ) { open(key,func) ; }
-	void open   ( char key , ::function<void()> func ) {
-		_thread = ::jthread( _s_thread_func , key , this , func ) ;
-	}
+	WakeupThread( char key , ::function<void(            )> f ) { open(key,f) ; }
+	WakeupThread( char key , ::function<void(::stop_token)> f ) { open(key,f) ; }
+	void open   ( char key , ::function<void(            )> f ) { _thread = ::jthread( _s_thread_func , key , this , [=](::stop_token)->void {f();}) ; }
+	void open   ( char key , ::function<void(::stop_token)> f ) { _thread = ::jthread( _s_thread_func , key , this , f                             ) ; }
 	// services
 	void wakeup() {
 		if (_active) return ;
@@ -206,7 +213,7 @@ template<class Req,bool Flush=true> struct ServerThread {                       
 	using Delay = Time::Delay ;
 	using EventKind = ServerThreadEventKind ;
 private :
-	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> func ) {
 		static constexpr uint64_t One = 1 ;
 		t_thread_key = key ;
 		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
@@ -259,12 +266,12 @@ private :
 						try         { if (!slaves.at(efd).receive_step(efd,r)) { trace("partial") ; continue ; } }
 						catch (...) {                                            trace("bad_msg") ; continue ;   } // ignore malformed messages
 						//
-						epoll.del(efd) ;            // Func may trigger efd being closed by another thread, hence epoll.del must be done before
+						epoll.del(efd) ;                                               // Func may trigger efd being closed by another thread, hence epoll.del must be done before
 						slaves.erase(efd) ;
 						SlaveSockFd ssfd { efd }            ;
 						bool        keep = false/*garbage*/ ;
-						keep=func(::move(r),ssfd) ;
-						if (keep) ssfd.detach() ;   // dont close ssfd if requested to keep it
+						keep=func(stop,::move(r),ssfd) ;
+						if (keep) ssfd.detach() ;                                      // dont close ssfd if requested to keep it
 						trace("called",STR(keep)) ;
 					} break ;
 				DF}
@@ -275,10 +282,15 @@ private :
 	// cxtors & casts
 public :
 	ServerThread() = default ;
-	ServerThread( char key , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func , int backlog=0 ) { open(key,func,backlog) ; }
-	void open   ( char key , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func , int backlog=0 ) {
-		fd      = {New,backlog}                                   ;
-		_thread = ::jthread( _s_thread_func , key , this , func ) ;
+	ServerThread( char key , ::function<bool/*keep_fd*/(             Req&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
+	ServerThread( char key , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
+	void open( char key , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> f , int backlog=0 ) {
+		fd      = {New,backlog}                                                                                                                            ;
+		_thread = ::jthread( _s_thread_func , key , this , [=](::stop_token,Req&& r,SlaveSockFd const& fd)->bool/*keep_fd*/ { return f(::move(r),fd) ; } ) ;
+	}
+	void open( char key , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> f , int backlog=0 ) {
+		fd      = {New,backlog}                                ;
+		_thread = ::jthread( _s_thread_func , key , this , f ) ;
 	}
 	// services
 	void wait_started() {
@@ -287,6 +299,6 @@ public :
 	// data
 	ServerSockFd fd ;
 private :
-	::latch   _ready  {1} ;
-	::jthread _thread ;                             // ensure _thread is last so other fields are constructed when it starts
+	::latch   _ready  { 1 } ;
+	::jthread _thread ;       // ensure _thread is last so other fields are constructed when it starts
 } ;

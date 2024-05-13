@@ -926,6 +926,7 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 // inner (locks that take no other locks)
 ,	File
 ,	Hash
+,	Slurm
 ,	SmallId
 ,	SyscallTab
 ,	Trace       // last to allow tracing anywhere
