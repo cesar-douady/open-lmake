@@ -34,6 +34,7 @@ class _RuleBase :
 	,	'order'
 	,	'environ_cmd' , 'environ_resources' , 'environ_ancillary'
 	,	'resources'
+	,	'views'
 	}
 	# atributes listed in paths must be part of a combined dict and values are concatenated :
 	# if a value contains '...' surrounded by separators, or at the beginning or end, these '...' are replaced by the inherited value

@@ -27,16 +27,23 @@ if __name__!='__main__' :
 	class Compile(Rule) :
 		targets = { 'OBJ' : r'{File:.*}.o' }
 		deps    = { 'SRC' :  '{File}.c'    }
-		cmd     = '{gxx} -fprofile-arcs -c -O0 -o {OBJ} -xc {SRC}'
+		cmd     = '{gxx} -fprofile-arcs -c -O0 -fPIC -o {OBJ} -xc {SRC}'
 
 	class Link(Rule) :
 		targets = { 'EXE' :'hello_world' }
 		deps    = {
+			'MAIN' : 'hello_world.o'
+		,	'SO'   : 'hello_world.so'
+		}
+		cmd = "{gxx} -fprofile-arcs -o {EXE} {' '.join((f'./{f}' for k,f in deps.items()))}"
+
+	class So(Rule) :
+		targets = { 'SO' : 'hello_world.so' }
+		deps    = {
 			'H'  : 'hello.o'
 		,	'W'  : 'world.o'
-		,	'HW' : 'hello_world.o'
 		}
-		cmd = "{gxx} -fprofile-arcs -o {EXE} {' '.join((f for k,f in deps.items()))}"
+		cmd = "{gxx} -fprofile-arcs -o {SO} -shared {' '.join((f for k,f in deps.items()))}"
 
 	class Dut(Rule) :
 		targets = { 'DUT':'dut' , 'GCDA':'gcda_dir/{File*:.*}' }
@@ -71,4 +78,4 @@ else :
 	'''))
 	print('hello\nworld',file=open('ref','w'))
 
-	ut.lmake( 'test' , new=6 , done=6 )
+	ut.lmake( 'test' , new=6 , done=7 )

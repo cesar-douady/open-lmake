@@ -33,7 +33,7 @@ RUN yum install -y sudo
 RUN yum install -y rpm-build
 RUN yum install -y munge-devel
 RUN yum install -y readline-devel
-RUN yum install -y mariadb-devel
+RUN yum install -y mariadb-client mariadb-shared mariadb-devel mariadb-server mariadb-backup
 RUN yum install -y 'perl(ExtUtils::MakeMaker)'
 RUN yum install -y pam-devel
 

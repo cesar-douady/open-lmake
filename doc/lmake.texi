@@ -678,7 +678,7 @@ For now, this command is rudimentary :
 @item It runs the script with @code{-x} flag set for shell rules, after which an interactive shell session is started.
 @item It runs the script under vscode to allow debugging python and C++ code by attaching it to the python process.
 @item If given the @code{-e} flag, the job is not run, a user interactive shell est launched instead, in the environment of the job
-(@code{chroot_dir}, @code{root_view}, @code{tmp_view} and the environment variables.
+(i.e. sets @code{chroot_dir}, @code{root_view}, @code{tmp_view}, @code{views} and the environment variables).
 @end itemize
 
 Special care has been taken so that :
@@ -787,7 +787,7 @@ The @code{-r} option is useful in the following scenario :
 
 @section @code{autodep}
 
-Usage : @code{autodep [[-o|--out] file] [[-m|--autodep-method] method] [[-s|--link-support] level] [[-d|--auto-mkdir]] [[-i|--ignore-stat]] [[-t|--tmp-view] tmp_view_dir] executable args...}
+Usage : @code{autodep [[-o|--out] file] [[-m|--autodep-method] method] [[-s|--link-support] level] [[-d|--auto-mkdir]] [[-i|--ignore-stat]] [[-c|--chroot-dir] chroot_dir] [[-r|--root-view] root_view_dir] [[-t|--tmp-view] tmp_view_dir] [[-v|--views] mapping] executable args...}
 
 @code{autodep} is a small tool that may be useful when designing a flow.
 It allows to see what information (dependencies and targets) are recorded by code instrumentation @lmake injects in jobs to track activity without actually run a job under its control.
@@ -829,8 +829,15 @@ This may be necessary if your command does an equivalent of @code{cd a ; cat b} 
 In that case, without this option, if directory @file{a} does not exist, the @code{cd} is not done and @lmake generates a dependency to @file{b} instead of @file{a/b}.
 @item @code{-i}|@code{--ignore-stat} : Stat-like accesses (i.e. access that just access the inode) are ignored.
 This may be a performance boost as it is not uncommon that such accesses represent the vast majority of tracked system calls, at the expense of reliability.
+@item @code{-c}|@code{--chroot-dir} : chroot to @code{chroot_dir} before executing the job.
+This mimics the behavior of the @code{chroot_dir} rule attribute.
+@item @code{-r}|@code{--root-view} : map the root directory of the repository to @code{root_view_dir}.
+This mimics the behavior of the @code{root_view} rule attribute.
 @item @code{-t}|@code{--tmp-view} : map accesses to @file{tmp_view_dir} to directory mentioned in the @code{TMPDIR} environment variable, which is redefined as @file{tmp_view_dir}.
-This mimics the behavior of the @code{tmp} attribute of rules.
+This mimics the behavior of the @code{tmp_view} rule attribute.
+@item @code{-v}|@code{--views} : @code{mapping} is a (single) space separated list of alternating view and physical dirs.
+Accesses to dirs listed as views are mapped to their corresponding physical dir.
+This mimics the behavior of the @code{views} rule attribute.
 @end itemize
 
 @section @code{xxhsum}
@@ -2025,6 +2032,23 @@ if the value of this resource is 0, no @code{tmpfs} file system is created.
 @item Else, a directory determined by @lmake lying in the @code{LMAKE} directory.
 @end itemize
 
+@section @code{views}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Combined
+@item Type
+@tab @code{dict}
+@item Default
+@tab @code{@{@}}
+@item Dynamic
+@tab Yes. Environment includes stems, targets and deps.
+@end multitable
+
+This attribute defines a mapping from logical views to physical directories.
+Both logical views and physical directories can be inside or outside the repository, but the physical directory of an external view cannot lie within the repository.
+The mapping is done through a bind mount of the physical directory to the logical view (cf @pxref {namespaces}).
+
 @section @code{cwd}
 
 @multitable @columnfractions 0.1 0.9
@@ -2819,12 +2843,29 @@ There are cases where @lmake cannot anticipate such an overwrite.
 @section Namespaces
 
 Namespaces are used to isolate jobs.
-This is used to provide the semantic for the @code{chroot_dir}, @code{root_view} and @code{tmp_view} attributes.
+This is used to provide the semantic for the @code{chroot_dir}, @code{root_view}, @code{tmp_view} and @code{views} attributes.
 
 In that case, pid's are also isolated which allow reliable job end : when the top-level process exits, the namespaces are destroyed and no other process can survive.
 This guarantees that no daemon is left behind, uncontrolled.
 
 Note that this is true even when @code{chroot_dir} is @code{'/'}, which otherwise provides no other effect by itself.
+
+Namespaces can be used in the following situations :
+@itemize @bullet
+@item @lmake provides a cache mechanism allowing to prevent executing a job which was already executed in the same or another repository.
+However, some jobs may use and record absolute paths.
+In that case, the cache will be inefficient as the result in a repository is not identical to the one in another repository.
+This is current practice, in particular in the EDA tools community (which may be rather heavy and where caching is mostly desirable).
+Using the @code{root_view} attribute is a good way to work around this obstacle.
+@item @lmake tracks all dependencies inside the reposity and listed source directories. But it does not track external dependencies, typically the system (e.g.the @file{/usr} directory).
+However, the @code{chroot_dir} attribute is part of the command definition and a job will be considered out of date if its value is modified.
+Hence, this can be used as a marker representing the whole system to ensure jobs are rerun upon system updates.
+@item some softwares (e.g. EDA tools) are designed to operate on a directory rather than dealing with input files/directories and output files/directories.
+This goes against reentrancy and thus reliability, repeatability, parallelism etc.
+This problem can be solved with symbolic links if they are allowed.
+In all cases, it can be solved by using the @code{tmp_view} and copying data back and forth between the repository and the tmp directory.
+Or, more efficient, it can be solved by adequately mapping a logical steady directory name to a per job physical directory.
+@end itemize
 
 @anchor{backends}
 @section Backends

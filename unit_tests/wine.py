@@ -23,7 +23,8 @@ if __name__!='__main__' :
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	lmake.config.network_delay = 10 # WineInit is still alive after job end for ~1s but may last more than 5s
+	lmake.config.network_delay = 10    # WineInit is still alive after job end for ~1s but may last more than 5s
+	lmake.config.trace.n_jobs  = 10000 # ensure we keep all traces
 
 	class Base(Rule) :
 		stems = { 'Method' : r'\w+' }

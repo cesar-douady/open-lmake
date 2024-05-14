@@ -21,6 +21,7 @@ ENUM( CmdFlag
 ,	Out
 ,	RootView
 ,	TmpView
+,   Views
 ,	WorkDir
 )
 
@@ -36,6 +37,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output file"                                                                          } }
 	,	{ CmdFlag::RootView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                          } }
 	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                     } }
+	,	{ CmdFlag::Views         , { .short_name='v' , .has_arg=true  , .doc="view mapping as space separated alternating list of view and physical dir"            } }
 	,	{ CmdFlag::WorkDir       , { .short_name='w' , .has_arg=true  , .doc="work dir in which to prepare a chroot env if necessary"                               } }
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
@@ -47,7 +49,13 @@ int main( int argc , char* argv[] ) {
 		,	.root_view  = cmd_line.flag_args[+CmdFlag::RootView ]
 		,	.tmp_view   = cmd_line.flag_args[+CmdFlag::TmpView  ]
 		} ;
+		if (cmd_line.flags[CmdFlag::Views]) {
+			::vector_s vs = split(cmd_line.flag_args[+CmdFlag::Views],' ') ;
+			if (vs.size()%2) syntax.usage("view mapping must contain an even number of alternating views and physical dirs") ;
+			for( size_t i=0 ; i<vs.size() ; i+=2 ) job_space.views.emplace_back(vs[i],vs[i+1]) ;
+		}
 		job_space.enter( *g_root_dir , get_env("TMPDIR",P_tmpdir) , 0 , cmd_line.flag_args[+CmdFlag::WorkDir] ) ;
+		//
 		if (+job_space.root_view) set_env("ROOT_DIR",job_space.root_view) ;
 		if (+job_space.tmp_view ) set_env("TMPDIR"  ,job_space.tmp_view ) ;
 		//
@@ -55,8 +63,10 @@ int main( int argc , char* argv[] ) {
 		/**/                                        gather.autodep_env.auto_mkdir  = cmd_line.flags[CmdFlag::AutoMkdir ]                                 ;
 		/**/                                        gather.autodep_env.ignore_stat = cmd_line.flags[CmdFlag::IgnoreStat]                                 ;
 		if (cmd_line.flags[CmdFlag::LinkSupport  ]) gather.autodep_env.lnk_support = mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])      ;
-		/**/                                        gather.autodep_env.root_dir    = *g_root_dir                                                         ;
+		if (+job_space.root_view                  ) gather.autodep_env.root_dir    = job_space.root_view                                                 ;
+		else                                        gather.autodep_env.root_dir    = *g_root_dir                                                         ;
 		/**/                                        gather.autodep_env.tmp_dir     = get_env("TMPDIR",P_tmpdir)                                          ;
+		/**/                                        gather.set_views(job_space.views) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Status status ;

@@ -523,14 +523,18 @@ private :
 struct JobSpace {
 	friend ::ostream& operator<<( ::ostream& , JobSpace const& ) ;
 	// accesses
-	bool operator+() const { return +chroot_dir || +root_view || +tmp_view ; }
-	bool operator!() const { return !+*this                                ; }
+	bool operator+() const { return +chroot_dir || +root_view || +tmp_view || +views ; }
+	bool operator!() const { return !+*this                                          ; }
 	// services
 	bool/*entered*/ enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir ) const ;
+	void chk() const ;
 	// data
-	::string chroot_dir ; // dir which job chroot's to before execution
-	::string root_view  ; // name under which job sees repo root dir
-	::string tmp_view   ; // name under which job sees tmp dir
+	// START_OF_VERSIONING
+	::string  chroot_dir = {} ; // dir which job chroot's to before execution
+	::string  root_view  = {} ; // name under which job sees repo root dir
+	::string  tmp_view   = {} ; // name under which job sees tmp dir
+	::vmap_ss views      = {} ; // map logical views to physical dirs
+	// END_OF_VERSIONING
 } ;
 
 struct JobRpcReq {

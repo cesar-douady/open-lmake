@@ -12,6 +12,11 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* provide a protection mechanism to ensure jobs are not cached if they used absolute paths
+	- record usage of getcwd() and accesses to /proc/xxx/cwd
+	- emit a "dont cache" message
+	- unless root_view is used
+	- provide a warning to user if the case arises
 * fix compilation with LMAKE_FLAGS=ST
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions
@@ -97,9 +102,6 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*1 improve namespaces
-	- provide a generic mapping
-		- repo->repo, repo->ext, ext->ext, but not ext->repo
 * implement fuse as an autodep method
 	- use namespaces
 	- interestingly enough : it is a wait to accept bind mount from repo

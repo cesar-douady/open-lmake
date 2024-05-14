@@ -363,21 +363,22 @@ int main( int argc , char* argv[] ) {
 		}
 		trace("prepared",g_start_info.autodep_env,g_phy_tmp_dir) ;
 		//
-		g_gather.addr             = g_start_info.addr          ;
-		g_gather.as_session       = true                       ;
-		g_gather.autodep_env      = g_start_info.autodep_env   ;
-		g_gather.cur_deps_cb      = cur_deps_cb                ;
-		g_gather.cwd              = g_start_info.cwd_s         ; if (+g_gather.cwd) g_gather.cwd.pop_back() ;
-		g_gather.env              = &cmd_env                   ;
-		g_gather.job              = g_job                      ;
-		g_gather.kill_sigs        = g_start_info.kill_sigs     ;
-		g_gather.live_out         = g_start_info.live_out      ;
-		g_gather.method           = g_start_info.method        ;
-		g_gather.network_delay    = g_start_info.network_delay ;
-		g_gather.seq_id           = g_seq_id                   ;
-		g_gather.server_master_fd = ::move(server_fd)          ;
-		g_gather.service_mngt     = g_service_mngt             ;
-		g_gather.timeout          = g_start_info.timeout       ;
+		g_gather.addr             = g_start_info.addr                    ;
+		g_gather.as_session       = true                                 ;
+		g_gather.autodep_env      = g_start_info.autodep_env             ;
+		g_gather.cur_deps_cb      = cur_deps_cb                          ;
+		g_gather.cwd              = g_start_info.cwd_s                   ; if (+g_gather.cwd) g_gather.cwd.pop_back() ;
+		g_gather.env              = &cmd_env                             ;
+		g_gather.job              = g_job                                ;
+		g_gather.kill_sigs        = g_start_info.kill_sigs               ;
+		g_gather.live_out         = g_start_info.live_out                ;
+		g_gather.method           = g_start_info.method                  ;
+		g_gather.network_delay    = g_start_info.network_delay           ;
+		g_gather.seq_id           = g_seq_id                             ;
+		g_gather.server_master_fd = ::move(server_fd)                    ;
+		g_gather.service_mngt     = g_service_mngt                       ;
+		g_gather.timeout          = g_start_info.timeout                 ;
+		g_gather.set_views(g_start_info.job_space.views) ;
 		//
 		trace("wash",g_start_info.pre_actions) ;
 		::pair_s<bool/*ok*/> wash_report = do_file_actions( g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;

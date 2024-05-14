@@ -66,9 +66,18 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di , NodeId
 	return           os << ')'                      ;
 }
 
-void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , bool parallel , ::string const& comment ) {
+void Gather::_new_access( Fd fd , PD pd , ::string&& file , bool map_file , AccessDigest ad , DI const& di , bool parallel , ::string const& comment ) {
 	SWEAR( +file , comment        ) ;
 	SWEAR( +pd   , comment , file ) ;
+	if (map_file) {
+	Remap :
+		for( auto const& [view_s,phy_dir_s] : views_s )
+			if (file.starts_with(view_s)) {
+				if (!phy_dir_s) return ;
+				file = phy_dir_s + file.substr(view_s.size()) ;
+				goto Remap ;                                                                                                                                 // BACKWARD
+			}
+	}
 	AccessInfo* info        = nullptr/*garbage*/                       ;
 	auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
 	if (is_new) {
@@ -85,6 +94,11 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI
 	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
 }
 
+void Gather::set_views(::vmap_ss const& views) {
+	for( auto const& [view,phy_dir] : views )
+		if (is_lcl(view)) views_s[view+'/'] = is_lcl(phy_dir) ? phy_dir+'/' : ""s ; // XXX : support src dirs that typically lie outside repo
+}
+
 void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdin ) {
 	bool parallel = false ;
 	for( auto& [f,dd] : deps ) {
@@ -93,7 +107,7 @@ void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdi
 			if (!dd.accesses) dd.sig(FileInfo(f)) ; // record now if not previously accessed
 			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , parallel , is_stdin?"stdin"s:"s_deps"s ) ;
+		_new_access( pd , ::move(f) , false/*map_file*/ , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , parallel , is_stdin?"stdin"s:"s_deps"s ) ;
 		parallel = true ;
 	}
 }
@@ -103,7 +117,7 @@ void Gather::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
 	bool                  parallel = false                            ;
 	for( auto&& [f,a] : rp.exec(sr) ) {
-		_new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , parallel , c ) ;
+		_new_access( pd , ::move(f) , false/*map_file*/ , {.accesses=a} , FileInfo(f) , parallel , c ) ;
 		parallel = true ;
 	}
 }
@@ -116,11 +130,11 @@ void Gather::_solve( Fd fd , JobExecRpcReq& jerr ) {
 		for( auto const& [f,fi] : jerr.files ) {
 			SWEAR(+f) ;
 			RealPath::SolveReport sr = real_path.solve(f,jerr.no_follow) ;
-			// cf Record::_solve for explanation                                                                                        parallel
-			for( ::string& lnk : sr.lnks )    _new_access( fd , jerr.date , ::move  (lnk    ) , {.accesses=Access::Lnk} , FileInfo(lnk) , false , "solve.lnk" ) ;
+			// cf Record::_solve for explanation                                              map_file                                         parallel
+			for( ::string& lnk : sr.lnks )    _new_access( fd , jerr.date , ::move  (lnk    ) , true , {.accesses=Access::Lnk} , FileInfo(lnk) , false , "solve.lnk" ) ;
 			if      (read                   ) {}
-			else if (sr.file_accessed==Yes  ) _new_access( fd , jerr.date , ::copy  (sr.real) , {.accesses=Access::Lnk} , FileInfo()    , false , "solve.lst" ) ;
-			else if (sr.file_accessed==Maybe) _new_access( fd , jerr.date , dir_name(sr.real) , {.accesses=Access::Lnk} , FileInfo()    , false , "solve.lst" ) ;
+			else if (sr.file_accessed==Yes  ) _new_access( fd , jerr.date , ::copy  (sr.real) , true , {.accesses=Access::Lnk} , FileInfo()    , false , "solve.lst" ) ;
+			else if (sr.file_accessed==Maybe) _new_access( fd , jerr.date , dir_name(sr.real) , true , {.accesses=Access::Lnk} , FileInfo()    , false , "solve.lst" ) ;
 			//
 			seen_tmp |= sr.file_loc==FileLoc::Tmp && jerr.digest.write!=No && !read ; // if reading before writing, then we cannot populate tmp
 			if (sr.file_loc>FileLoc::Repo) jerr.digest.write = No ;
@@ -132,20 +146,20 @@ void Gather::_solve( Fd fd , JobExecRpcReq& jerr ) {
 		jerr.solve = false         ;                                                  // files are now real and dated
 }
 
-void Gather::_send_to_server ( Fd fd , Jerr&& jerr ) {
+void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 	Trace trace("_send_to_server",fd,jerr) ;
 	//
-	Proc   proc = jerr.proc         ;                                    // capture essential info before moving to server_cb
-	size_t sz   = jerr.files.size() ;                                    // .
+	Proc   proc = jerr.proc         ;                                                      // capture essential info before moving to server_cb
+	size_t sz   = jerr.files.size() ;                                                      // .
 	switch (proc) {
-		case Proc::ChkDeps    : reorder(false/*at_end*/) ;       break ; // ensure server sees a coherent view
-		case Proc::DepVerbose : _new_accesses(fd,::copy(jerr)) ; break ;
+		case Proc::ChkDeps    : reorder(false/*at_end*/)                         ; break ; // ensure server sees a coherent view
+		case Proc::DepVerbose : _new_accesses(fd,true/*map_files*/,::copy(jerr)) ; break ;
 		//
 		case Proc::Decode : SWEAR( jerr.sync && jerr.files.size()==1 ) ; _codec_files[fd] = Codec::mk_decode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		default : ;
 	}
-	if (!jerr.sync) fd = {} ;                                                 // dont reply if not sync
+	if (!jerr.sync) fd = {} ;                                                              // dont reply if not sync
 	try {
 		JobMngtRpcReq jmrr ;
 		switch (jerr.proc) {
@@ -196,14 +210,14 @@ void Gather::_spawn_child() {
 	_child.stdout_fd  = child_stdout                          ;
 	_child.stderr_fd  = child_stderr                          ;
 	_child.first_pid  = first_pid                             ;
-	if (method==AutodepMethod::Ptrace) {                                                                                                                   // PER_AUTODEP_METHOD : handle case
+	if (method==AutodepMethod::Ptrace) {                        // PER_AUTODEP_METHOD : handle case
 		// we split the responsability into 2 processes :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
 		_child.pre_exec     = _s_do_child ;
 		_child.pre_exec_arg = this        ;
 		_child.spawn() ;
-		start_date = New ;                                                                                                                                 // record job start time as late as possible
+		start_date = New ;                                      // record job start time as late as possible
 	} else {
 		if (method>=AutodepMethod::Ld) {                                                                                                                   // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
@@ -300,13 +314,13 @@ Status Gather::exec_child() {
 		}
 		::vector<Epoll::Event> events = epoll.wait(wait_for) ;
 		if (!events) {
-			if (+delayed_check_deps) {                            // process delayed check deps after all other events
+			if (+delayed_check_deps) {                          // process delayed check deps after all other events
 				trace("delayed_chk_deps") ;
 				for( auto& [fd,jerr] : delayed_check_deps ) _send_to_server(fd,::move(jerr)) ;
 				delayed_check_deps.clear() ;
 				continue ;
 			}
-			if (_wait[Kind::ChildStart]) {                        // handle case where we are killed before starting : create child when we have processed waiting connections from server
+			if (_wait[Kind::ChildStart]) {                      // handle case where we are killed before starting : create child when we have processed waiting connections from server
 				try {
 					_spawn_child() ;
 					_wait &= ~Kind::ChildStart ;
@@ -404,7 +418,7 @@ Status Gather::exec_child() {
 							case JobMngtProc::Encode : {
 								SWEAR(+jmrr.fd) ;
 								auto it = _codec_files.find(jmrr.fd) ;
-								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , false/*parallel*/ , ::string(snake(jmrr.proc)) ) ;
+								_new_access( rfd , PD(New) , ::move(it->second) , false/*map_file*/ , {.accesses=Access::Reg} , jmrr.crc , false/*parallel*/ , ::string(snake(jmrr.proc)) ) ;
 								_codec_files.erase(it) ;
 							} break ;
 						DF}
@@ -437,19 +451,19 @@ Status Gather::exec_child() {
 					if ( proc>=Proc::HasFiles && jerr.solve ) _solve(fd,jerr)     ;
 					switch (proc) {
 						case Proc::Confirm :
-							for( Jerr& j : slave_entry.second ) { j.digest.write = jerr.digest.write ; _new_accesses(fd,::move(j)) ; }
+							for( Jerr& j : slave_entry.second ) { j.digest.write = jerr.digest.write ; _new_accesses(fd,true/*map_files*/,::move(j)) ; }
 							slave_entry.second.clear() ;
 						break ;
 						case Proc::None :
 							epoll.close(fd) ;
 							trace("close",kind,fd,"wait",_wait,epoll.cnt) ;
-							for( Jerr& j : slave_entry.second ) _new_accesses(fd,::move(j)) ;                              // process deferred entries although with uncertain outcome
+							for( Jerr& j : slave_entry.second ) _new_accesses(fd,true/*map_files*/,::move(j)) ;            // process deferred entries although with uncertain outcome
 							slaves.erase(it) ;
 						break ;
 						case Proc::Access   :
 							// for read accesses, trying is enough to trigger a dep, so confirm is useless
-							if ( jerr.digest.write==Maybe ) slave_entry.second.push_back(::move(jerr)) ;                   // defer until confirm resolution
-							else                            _new_accesses(fd,::move(jerr))             ;
+							if ( jerr.digest.write==Maybe ) slave_entry.second.push_back(::move(jerr))       ;             // defer until confirm resolution
+							else                            _new_accesses(fd,true/*map_files*/,::move(jerr)) ;
 						break ;
 						case Proc::Tmp        : seen_tmp = true ;                                        break           ;
 						case Proc::Guard      : _new_guards(fd,::move(jerr)) ;                           break           ;

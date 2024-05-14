@@ -414,6 +414,15 @@ R"({
 				if      ( +start.job_space.root_view  ) append_to_string( script , "-r"  , mk_shell_str(start.job_space.root_view ) ,' ') ;
 				if      ( +start.job_space.tmp_view   ) append_to_string( script , "-t"  , mk_shell_str(start.job_space.tmp_view  ) ,' ') ;
 				if      ( +dbg_dir                    ) append_to_string( script , "-w " ,dbg_dir+"/work"                           ,' ') ;
+				if      ( +start.job_space.views      ) {
+					::string vs    ;
+					bool     first = true ;
+					for( auto const& [view,phy_dir] : start.job_space.views ) {
+						append_to_string( vs , first?"":" " , mk_printable<' '>(view) ,' ', mk_printable<' '>(phy_dir) ) ;
+						first = false ;
+					}
+					append_to_string( script , "-v" ,' ', mk_shell_str(vs) ) ;
+				}
 			}
 			for( ::string const& c : start.interpreter )   append_to_string( script , mk_shell_str(c) , ' '                                    ) ;
 			if      ( dbg && !is_python )                  append_to_string( script , "-x "                                                    ) ;

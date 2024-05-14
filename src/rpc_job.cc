@@ -120,6 +120,8 @@ static void _atomic_write( ::string const& file , ::string const& data ) {
 	if (size_t(cnt)<data.size()) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : only ",cnt," bytes written") ;
 }
 bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir ) const {
+// XXX : implement views
+// XXX : implement non top level views for tmp and repo
 	Trace trace("enter",*this) ;
 	//
 	if (!*this) return false/*entered*/ ;
@@ -161,14 +163,23 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 		if (must_create_tmp ) { SWEAR(tmp_view .rfind('/')==0,tmp_view ) ; mk_dir(work_dir+tmp_view ) ; }     // .
 		chrd = &work_dir ;
 	}
-	if      (+root_view  ) _mount( *chrd+root_view , phy_root_dir ) ;
+	::string root_dir ;
+	if      (+root_view  ) { root_dir = *chrd+root_view ; _mount( root_dir       , phy_root_dir ) ; }
+	else                     root_dir = phy_root_dir    ;
 	if      (!tmp_view   ) {}
-	else if (+phy_tmp_dir) _mount( *chrd+tmp_view  , phy_tmp_dir  ) ;
-	else if (tmp_sz_mb   ) _mount( *chrd+tmp_view  , tmp_sz_mb    ) ;
+	else if (+phy_tmp_dir)                                _mount( *chrd+tmp_view , phy_tmp_dir  ) ;
+	else if (tmp_sz_mb   )                                _mount( *chrd+tmp_view , tmp_sz_mb    ) ;
 	//
-	if ( +*chrd && *chrd!="/" ) {
-		_chroot( *chrd                                       ) ;
-		_chdir ( +root_view ? *chrd+root_view : phy_root_dir ) ;
+	if      ( +*chrd && *chrd!="/" ) { _chroot(*chrd) ; _chdir(root_dir) ; }
+	else if ( +root_view           )                    _chdir(root_dir) ;
+
+	if (+views) {
+		root_dir += '/' ;
+		for( auto [view,phy_dir] : views ) {
+			mk_dir(view   ) ;
+			mk_dir(phy_dir) ;
+			_mount( mk_abs(view,root_dir) , mk_abs(phy_dir,root_dir) ) ;
+		}
 	}
 	//
 	_atomic_write( "/proc/self/setgroups" , "deny"                            ) ;                             // necessary to be allowed to write the gid_map (if desirable)
@@ -178,6 +189,17 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 	if (::setuid(uid)!=0) throw to_string("cannot set uid as ",uid,strerror(errno)) ;
 	if (::setgid(gid)!=0) throw to_string("cannot set gid as ",uid,strerror(errno)) ;
 	return true/*entered*/ ;
+}
+
+void JobSpace::chk() const {
+	::umap_ss vs ;
+	if ( +chroot_dir && !Disk::is_abs(chroot_dir) ) throw to_string("chroot_dir must be an absolute path : ",chroot_dir) ;
+	if ( +root_view  && !Disk::is_abs(root_view ) ) throw to_string("root_view must be an absolute path : " ,root_view ) ;
+	if ( +tmp_view   && !Disk::is_abs(tmp_view  ) ) throw to_string("tmp_view must be an absolute path : "  ,tmp_view  ) ;
+	for( auto const& [view,phy_dir] : views ) {
+		if ( !Disk::is_lcl(view) && Disk::is_lcl(phy_dir) ) throw to_string("cannot map external view ",view," to local dir ",phy_dir                     ) ;
+		if ( !vs.emplace(view,phy_dir).second             ) throw to_string("cannot map simultaneously view ",view," to dirs ",vs.at(view)," and ",phy_dir) ;
+	}
 }
 
 //

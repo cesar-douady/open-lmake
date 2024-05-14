@@ -234,11 +234,11 @@ namespace Engine {
 			Attrs::acquire_from_dct( job_space.root_view  , py_dct , "root_view"   ) ;
 			Attrs::acquire_from_dct( job_space.tmp_view   , py_dct , "tmp_view"    ) ;
 			Attrs::acquire_from_dct( use_script           , py_dct , "use_script"  ) ;
-			::sort(env) ;                                                     // stabilize cmd crc
+			Attrs::acquire_from_dct( job_space.views      , py_dct , "views"       ) ;
+			::sort(env            ) ;                                                  // stabilize cmd crc
+			::sort(job_space.views) ;                                                  // .
 			// check
-			if ( +job_space.chroot_dir && !Disk::is_abs(job_space.chroot_dir) ) throw to_string("chroot_dir must be an absolute path : ",job_space.chroot_dir) ;
-			if ( +job_space.root_view  && !Disk::is_abs(job_space.root_view ) ) throw to_string("root_view must be an absolute path : " ,job_space.root_view ) ;
-			if ( +job_space.tmp_view   && !Disk::is_abs(job_space.tmp_view  ) ) throw to_string("tmp_view must be an absolute path : "  ,job_space.tmp_view  ) ;
+			job_space.chk() ;
 		}
 		// data
 		// START_OF_VERSIONING

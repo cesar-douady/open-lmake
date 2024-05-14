@@ -1199,14 +1199,15 @@ namespace Engine {
 		for( ::string const& c : sca.interpreter ) { append_to_string( interpreter , first?"":" " , c ) ; first = false ; }
 		for( pass=1 ; pass<=2 ; pass++ ) {                                                                                  // on 1st pass we compute key size, on 2nd pass we do the job
 			if (+interpreter              ) do_field( "interpreter" , interpreter                         ) ;
+			if ( sca.use_script           ) do_field( "use_script"  , to_string(sca.use_script          ) ) ;
 			if ( sca.auto_mkdir           ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir          ) ) ;
 			if ( sca.ignore_stat          ) do_field( "ignore_stat" , to_string(sca.ignore_stat         ) ) ;
 			if (+sca.job_space.chroot_dir ) do_field( "chroot_dir"  ,           sca.job_space.chroot_dir  ) ;
 			if (+sca.job_space.root_view  ) do_field( "root_view"   ,           sca.job_space.root_view   ) ;
 			if (+sca.job_space.tmp_view   ) do_field( "tmp_view"    ,           sca.job_space.tmp_view    ) ;
-			if ( sca.use_script           ) do_field( "use_script"  , to_string(sca.use_script          ) ) ;
 		}
-		if (+sca.env) res << indent("environ :\n",i) << _pretty_env( i+1 , sca.env ) ;
+		if (+sca.job_space.views) res << indent("views :\n"  ,i) << _pretty_vmap( i+1 , sca.job_space.views ) ;
+		if (+sca.env            ) res << indent("environ :\n",i) << _pretty_env ( i+1 , sca.env             ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {

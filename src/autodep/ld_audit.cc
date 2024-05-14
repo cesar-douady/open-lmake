@@ -174,13 +174,13 @@ Qualify :
 
 template<class Sym> uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
 	//
-	auditer() ;                                                                   // force Audit static init
 	if (g_force_orig) goto Ignore ;                                               // avoid recursion loop
 	if (*def_cook   ) goto Ignore ;                                               // cookie is used to identify libc (when cookie==0)
 	//
 	{	auto it = g_syscall_tab->find(sym_name) ;
 		if (it==g_syscall_tab->end()) goto Ignore ;
 		//
+		auditer() ;                                                               // force Audit static init
 		SymEntry const& entry = it->second ;
 		if ( Record::s_autodep_env().lnk_support>=entry.lnk_support) goto Catch ;
 		if (!Record::s_autodep_env().ignore_stat                   ) goto Catch ; // we need to generate deps for stat-like accesses
@@ -201,7 +201,6 @@ extern "C" {
 	}
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		auditer() ;                                                                                          // force Audit static init
 		if ( !map->l_name || !*map->l_name ) {
 			*cookie = true/*not_std*/ ;
 			return LA_FLG_BINDFROM ;

@@ -192,9 +192,9 @@ static bool _do_read  (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!
 static bool _do_write (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY                     ; }
 //
 Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) : Solve{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , to_string(c,::hex,'.',flags) } {
-	if ( flags&(O_DIRECTORY|O_TMPFILE)                  ) return ; // we already solved, this is enough
-	if ( !(flags&O_PATH) && s_autodep_env().ignore_stat ) return ;
-	if ( file_loc>FileLoc::Dep                          ) return ;
+	if ( flags&(O_DIRECTORY|O_TMPFILE)                 ) return ; // we already solved, this is enough
+	if ( (flags&O_PATH) && s_autodep_env().ignore_stat ) return ;
+	if ( file_loc>FileLoc::Dep                         ) return ;
 	//
 	bool do_stat  = _do_stat (flags)                            ;
 	bool do_read  = _do_read (flags)                            ;

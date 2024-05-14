@@ -51,12 +51,13 @@ extern "C" {
 	extern int __fxstatat  ( int v , int dfd , const char* pth , struct stat  * buf , int flgs ) noexcept ;
 	extern int __fxstatat64( int v , int dfd , const char* pth , struct stat64* buf , int flgs ) noexcept ;
 	// following syscalls may not be defined on all systems (but it does not hurt to redeclare them if they are already declared)
-	extern int  close_range( uint fd1 , uint fd2 , int flgs                                                   ) noexcept ;
-	extern void closefrom  ( int  fd1                                                                         ) noexcept ;
-	extern int  execveat   ( int dirfd , const char* pth , char* const argv[] , char *const envp[] , int flgs ) noexcept ;
-	extern int  faccessat2 ( int dirfd , const char* pth , int mod , int flgs                                 ) noexcept ;
-	extern int  renameat2  ( int odfd  , const char* op  , int ndfd , const char* np , uint flgs              ) noexcept ;
-	extern int  statx      ( int dirfd , const char* pth , int flgs , uint msk , struct statx* buf            ) noexcept ;
+	int         __clone2   ( int (*fn)(void *) , void *stack_base , size_t stack_size , int flags , void *arg , ... )          ;
+	extern int  close_range( uint fd1 , uint fd2 , int flgs                                                         ) noexcept ;
+	extern void closefrom  ( int  fd1                                                                               ) noexcept ;
+	extern int  execveat   ( int dirfd , const char* pth , char* const argv[] , char *const envp[] , int flgs       ) noexcept ;
+	extern int  faccessat2 ( int dirfd , const char* pth , int mod , int flgs                                       ) noexcept ;
+	extern int  renameat2  ( int odfd  , const char* op  , int ndfd , const char* np , uint flgs                    ) noexcept ;
+	extern int  statx      ( int dirfd , const char* pth , int flgs , uint msk , struct statx* buf                  ) noexcept ;
 }
 
 static              Mutex<MutexLvl::Autodep2> _g_mutex ;         // ensure exclusivity between threads
@@ -295,6 +296,12 @@ struct Mkstemp : WSolve {
 
 	// clone
 	// cf fork about why this wrapper is necessary
+	static int (*_clone_fn)(void*) ;       // variable to hold actual function to call
+	static int _call_clone_fn(void* arg) {
+		_t_loop = false ;
+		_g_mutex.unlock(MutexLvl::None) ;  // contrarily to fork, clone does not proceed but calls a function and we must release the lock both in parent and child (and we are the only thread here)
+		return _clone_fn(arg) ;
+	}
 	int clone( int (*fn)(void*) , void *stack , int flags , void *arg , ... ) NE {
 		va_list args ;
 		va_start(args,arg) ;
@@ -302,9 +309,30 @@ struct Mkstemp : WSolve {
 		void * tls        = va_arg(args,void *) ;
 		pid_t* child_tid  = va_arg(args,pid_t*) ;
 		va_end(args) ;
-		HEADER(clone, flags&CLONE_VM , (fn,stack,flags,arg,parent_tid,tls,child_tid)) ;
+		//
+		ORIG(clone) ;
+		if ( _t_loop || !started() || flags&CLONE_VM ) return orig(fn,stack,flags,arg,parent_tid,tls,child_tid) ; // if flags contains CLONE_VM, lock is not duplicated and there is nothing to do
+		Lock lock{_g_mutex} ;                                                                                     // no need to set _t_loop as clone calls no other piggy-backed function
+		//
 		NO_SERVER(clone) ;
-		return orig(fn,stack,flags,arg,parent_tid,tls,child_tid) ;
+		_clone_fn = fn ;                                                                                          // _g_mutex is held, so there is no risk of clash
+		return orig(_call_clone_fn,stack,flags,arg,parent_tid,tls,child_tid) ;
+	}
+	int __clone2( int (*fn)(void*) , void *stack , size_t stack_size , int flags , void *arg , ... ) {
+		va_list args ;
+		va_start(args,arg) ;
+		pid_t* parent_tid = va_arg(args,pid_t*) ;
+		void * tls        = va_arg(args,void *) ;
+		pid_t* child_tid  = va_arg(args,pid_t*) ;
+		va_end(args) ;
+		//
+		ORIG(__clone2) ;
+		if ( _t_loop || !started() || flags&CLONE_VM ) return orig(fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ; // cf clone
+		Lock lock{_g_mutex} ;                                                                                                // cf clone
+		//
+		NO_SERVER(__clone2) ;
+		_clone_fn = fn ;                                                                                                     // cf clone
+		return orig(_call_clone_fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ;
 	}
 
 	#ifndef IN_SERVER

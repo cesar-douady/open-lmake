@@ -73,6 +73,7 @@ StdAttrs = {
 ,	'timeout'           : ( float , True  )
 ,	'tmp_view'          : ( str   , True  )
 ,	'use_script'        : ( bool  , True  )
+,	'views'             : ( dict  , True  )
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
@@ -453,6 +454,7 @@ class Handle :
 		self._handle_val('root_view'                        )
 		self._handle_val('tmp_view'                         )
 		self._handle_val('use_script'                       )
+		self._handle_val('views'                            )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :

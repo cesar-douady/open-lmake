@@ -160,6 +160,8 @@ unit_tests/bench.py
 unit_tests/cache.py
 unit_tests/cargo.py
 unit_tests/chain.py
+unit_tests/clone.cc
+unit_tests/clone.py
 unit_tests/codec.py
 unit_tests/conflict.py
 unit_tests/conflict2.py
@@ -256,5 +258,6 @@ unit_tests/trancient.py
 unit_tests/unstable.script
 unit_tests/uphill.py
 unit_tests/use_script.py
+unit_tests/views.py
 unit_tests/wide.py
 unit_tests/wine.py
