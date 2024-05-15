@@ -610,7 +610,7 @@ struct JobRpcReq {
 	::vmap_ss dynamic_env ;           // if proc==      End, env variables computed in job_exec
 	::string  msg         ;
 	// END_OF_VERSIONING)
-} ;                      
+} ;
 
 struct MatchFlags {
 	friend ::ostream& operator<<( ::ostream& , MatchFlags const& ) ;

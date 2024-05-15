@@ -710,7 +710,7 @@ lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
 
 #
-# For debian packaging
+# /!\ this rule is necessary for debian packaging to work, it is not primarily made to be executed by user
 #
 install : $(LMAKE_BINS) $(LMAKE_REMOTE_FILES) $(LMAKE_SERVER_PY_FILES) $(DOC)/lmake.html
 	for f in $(LMAKE_SERVER_BIN_FILES); do install -D        $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
@@ -719,11 +719,12 @@ install : $(LMAKE_BINS) $(LMAKE_REMOTE_FILES) $(LMAKE_SERVER_PY_FILES) $(DOC)/lm
 	install -D $(DOC)/lmake.html $(DESTDIR)/$(prefix)/share/doc/open-lmake/html/lmake.html
 
 #
-# Install debian packges needed to build open-lmake package
+# Install debian packages needed to build open-lmake package
+# /!\ use : sudo make debdeps, as you need privileges for these commands
 #
 debdeps:
-	sudo apt install dh-make devscripts debhelper equivs
-	sudo mk-build-deps --install debian/control
+	apt install dh-make devscripts debhelper equivs
+	mk-build-deps --install debian/control
 
 #
 # Build debian package (then install it using: apt install <pkg>)
