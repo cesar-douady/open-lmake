@@ -40,10 +40,10 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 	# compute directories
 	#
 	git_base  = root_dir
-	git_dir_s = '.git/'
-	while git_base!='/' and not _osp.isdir(_osp.join(git_base,'.git')) :
+	git_path_s = ''
+	while git_base!='/' and not _osp.exists(_osp.join(git_base,'.git')) :
 		git_base   = _osp.dirname(git_base)
-		git_dir_s = '../' + git_dir_s
+		git_path_s = '../' + git_path_s
 	if git_base =='/' : raise NotImplementedError('not in a git repository')
 	git_base_s = _osp.join(git_base ,'')
 	root_dir_s = _osp.join(root_dir ,'')
@@ -82,6 +82,16 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 	#
 	#  update source_dirs
 	#
+	dot_git =  _osp.join(git_base,'.git')
+	if _osp.isdir(dot_git) :
+		git_dir_s = git_path_s + '.git/'
+	else : 
+		srcs.append(git_path_s + '.git')
+		git_dir_s = open(dot_git).read().replace('gitdir:','').strip() + '/'
+		common_dir = _osp.join(git_dir_s,'commondir')
+		if _osp.exists(common_dir):
+			cd = open(common_dir).read().strip()
+			srcs.append(_osp.normpath(_osp.join(git_dir_s,cd)) + '/')
 	srcs.append(git_dir_s)
 	return srcs
 

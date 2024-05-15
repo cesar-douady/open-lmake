@@ -1,3 +1,9 @@
+open-lmake (24.05.1-1) UNRELEASED; urgency=low
+
+  * bugfix release
+
+ -- Cesar Douady <cesar.douady@doliam.fr>  Wed, 15 May 2024 09:40:19 +0200
+
 open-lmake (1.0-1) UNRELEASED; urgency=low
 
   * Initial release.

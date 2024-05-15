@@ -718,6 +718,19 @@ install : $(LMAKE_BINS) $(LMAKE_REMOTE_FILES) $(LMAKE_SERVER_PY_FILES) $(DOC)/lm
 	for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
 	install -D $(DOC)/lmake.html $(DESTDIR)/$(prefix)/share/doc/open-lmake/html/lmake.html
 
+#
+# Install debian packges needed to build open-lmake package
+#
+debdeps:
+	sudo apt install dh-make devscripts debhelper equivs
+	sudo mk-build-deps --install debian/control
+
+#
+# Build debian package (then install it using: apt install <pkg>)
+#
+deb:
+	debuild -b -us -uc
+
 # uncoment to automatically cleanup repo before building package
 # clean:
 # 	git clean -ffdx
