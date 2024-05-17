@@ -247,8 +247,9 @@ namespace Engine {
 		//
 		switch (proc) {
 			case JobMngtProc::DepVerbose : {
-				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,{}} ;              // if job is not running, it is too late, seq_id will be filled in later
-				::vector<pair<Bool3/*ok*/,Crc>> res ; res.reserve(deps.size()) ;
+				::vector<pair<Bool3/*ok*/,Crc>> res ;
+				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,res} ;   // if job is not running, it is too late, seq_id will be filled in later
+				res.reserve(deps.size()) ;
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;
 					Bool3 dep_ok = Yes ;
@@ -263,7 +264,7 @@ namespace Engine {
 				return {proc,{}/*seq_id*/,{}/*fd*/,res} ;
 			}
 			case JobMngtProc::ChkDeps :
-				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ;           // if job is not running, it is too late, seq_id will be filled in later
+				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ; // if job is not running, it is too late, seq_id will be filled in later
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;
 					for( Req req : reqs ) {
