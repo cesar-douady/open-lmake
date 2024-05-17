@@ -383,7 +383,7 @@ namespace Backends {
 				}
 				for( auto& [ji,ld] : launch_descrs ) {
 					try {
-						ld.id = launch_job( st , ji , ld.reqs , ld.prio , ld.cmd_line , ld.rsrcs , ld.verbose ) ;    // XXX : manage errors, for now rely on heartbeat
+						ld.id = launch_job( st , ji , ld.reqs , ld.prio , ld.cmd_line , ld.rsrcs , ld.verbose ) ; // XXX : manage errors, for now rely on heartbeat
 						trace("child",ji,ld.prio,ld.id,ld.cmd_line) ;
 					} catch (::string const& e) {
 						trace("fail",ji,ld.prio,e) ;
@@ -400,6 +400,7 @@ namespace Backends {
 							it->second.rsrcs = {} ;
 						}
 					}
+					launch_descrs.clear() ;                                                                       // destroy entries while holding the lock
 				}
 				trace("done") ;
 			}

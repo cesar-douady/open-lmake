@@ -835,8 +835,9 @@ This mimics the behavior of the @code{chroot_dir} rule attribute.
 This mimics the behavior of the @code{root_view} rule attribute.
 @item @code{-t}|@code{--tmp-view} : map accesses to @file{tmp_view_dir} to directory mentioned in the @code{TMPDIR} environment variable, which is redefined as @file{tmp_view_dir}.
 This mimics the behavior of the @code{tmp_view} rule attribute.
-@item @code{-v}|@code{--views} : @code{mapping} is a (single) space separated list of alternating view and physical dirs.
-Accesses to dirs listed as views are mapped to their corresponding physical dir.
+@item @code{-v}|@code{--views} : @code{mapping} is a (single) space separated list of alternating views and physical locations.
+Accesses to views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a @code{/} or not.
+Files must be mapped to files and directories to directories.
 This mimics the behavior of the @code{views} rule attribute.
 @end itemize
 
@@ -2046,8 +2047,10 @@ if the value of this resource is 0, no @code{tmpfs} file system is created.
 @end multitable
 
 This attribute defines a mapping from logical views to physical directories.
-Both logical views and physical directories can be inside or outside the repository, but the physical directory of an external view cannot lie within the repository.
-The mapping is done through a bind mount of the physical directory to the logical view (cf @pxref {namespaces}).
+Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a @code{/} or not.
+Files must be mapped to files and directories to directories.
+Both logical views and physical locations may be inside or outside the repository, but it is not possible to map an external view to a local location.
+The mapping is done through bind mounts (cf @pxref {namespaces}).
 
 @section @code{cwd}
 
@@ -2864,7 +2867,7 @@ Hence, this can be used as a marker representing the whole system to ensure jobs
 This goes against reentrancy and thus reliability, repeatability, parallelism etc.
 This problem can be solved with symbolic links if they are allowed.
 In all cases, it can be solved by using the @code{tmp_view} and copying data back and forth between the repository and the tmp directory.
-Or, more efficient, it can be solved by adequately mapping a logical steady directory name to a per job physical directory.
+Or, more efficient, it can be solved by adequately mapping a logical steady file or directory to a per job physical file or directory (respectively).
 @end itemize
 
 @anchor{backends}

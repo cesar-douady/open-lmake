@@ -3,6 +3,11 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#define LD_PRELOAD_JEMALLOC 1
+#define LD_PRELOAD          1
+
+#include <dlfcn.h>
+
 #include "utils.hh"
 
 // ensure malloc has been initialized (at least at first call to malloc) in case jemalloc is used with ld_preload to avoid malloc_init->open->malloc->malloc_init loop
@@ -10,14 +15,20 @@ static bool _g_started = false ;
 
 static bool started() { return _g_started ; }
 
-#define LD_PRELOAD_JEMALLOC
+void* get_orig(const char* syscall) {
+	void* res = ::dlsym(RTLD_NEXT,syscall) ;
+	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
+	return res ;
+}
+
 #include "ld.x.cc"
+#include "ld_common.x.cc"
 
 // if we can intercept program start, the semantic is clear : it is right before global constructors in main program
 // else we define a static, which is somewhere before global constructors in main program, but unknown relative to other global contructors
 // the first solution may not be the best, but at least it has a clear and reproductible semantic
 #if USE_LIBC_START_MAIN
-	#pragma GCC visibility push(default)                                                                              // force visibility of functions defined hereinafter, until the corresponding pop
+	#pragma GCC visibility push(default) // force visibility of functions defined hereinafter, until the corresponding pop
 	extern "C" {
 		int __libc_start_main( void* main , int argc , void* argv , void* auxvec , void* init , void* fini , void* rtld_fini , void* stack_end) {
 			static auto orig = reinterpret_cast<decltype(__libc_start_main)*>(dlsym(RTLD_NEXT,"__libc_start_main")) ;

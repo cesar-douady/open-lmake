@@ -40,8 +40,8 @@
 		// /!\ : c_str() seems to be invalidated by vector reallocation although this does not appear in doc : https://en.cppreference.com/w/cpp/string/basic_string/c_str
 		for( size_t i=0 ; i<n_env ; i++ ) child_env[i] = env_vector[i].c_str() ;
 		child_env[n_env] = nullptr ;
-	} else {
-		if (add_env) for( auto const& [k,v] : *add_env ) set_env(k,v) ;
+	} else if (add_env) {
+		for( auto const& [k,v] : *add_env ) set_env(k,v) ;
 	}
 	if (+cwd_   ) { if (::chdir(cwd_.c_str())!=0) exit(Rc::System,to_string("cannot chdir to : " ,cwd_)) ; }
 	if (pre_exec)   pre_exec_rc = pre_exec(pre_exec_arg) ;

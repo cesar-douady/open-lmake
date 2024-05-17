@@ -34,7 +34,7 @@ void crazy_open( ::stop_token stop , int i ) {
 
 int dut(void*) {
 	trace("in child before") ;
-	::open("dep",O_RDONLY) ;              // access a file : the goal is to ensure that this triggers a dep
+	::open("dep",O_RDONLY) ;   // access a file : the goal is to ensure that this triggers a dep
 	trace("in child after") ;
 	return 0 ;
 }

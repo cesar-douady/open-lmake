@@ -24,12 +24,6 @@ struct Ctx {
 	int errno_ ;
 } ;
 
-void* get_orig(const char* syscall) {
-	void* res = ::dlsym(RTLD_NEXT,syscall) ;
-	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
-	return res ;
-}
-
 void load_exec(::string const& file) {
 	(void)file ;
 }
@@ -270,6 +264,3 @@ void elf_deps( Record& r , Record::Solve const& file , const char* ld_library_pa
 	try                       { Elf(r,file.real,ld_library_path).elf_deps( file , true/*top*/ , ::move(comment) ) ; }
 	catch (::string const& e) { r.report_panic("while analyzing elf executable ",mk_file(file.real)," : ",e) ;      } // if we cannot report the dep, panic
 }
-
-#define LD_PRELOAD 1
-#include "ld_common.x.cc"

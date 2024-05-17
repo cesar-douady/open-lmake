@@ -417,8 +417,8 @@ R"({
 				if      ( +start.job_space.views      ) {
 					::string vs    ;
 					bool     first = true ;
-					for( auto const& [view,phy_dir] : start.job_space.views ) {
-						append_to_string( vs , first?"":" " , mk_printable<' '>(view) ,' ', mk_printable<' '>(phy_dir) ) ;
+					for( auto const& [view,phy] : start.job_space.views ) {
+						append_to_string( vs , first?"":" " , mk_printable<' '>(view) ,' ', mk_printable<' '>(phy) ) ;
 						first = false ;
 					}
 					append_to_string( script , "-v" ,' ', mk_shell_str(vs) ) ;

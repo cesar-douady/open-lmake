@@ -59,14 +59,14 @@ int main( int argc , char* argv[] ) {
 		if (+job_space.root_view) set_env("ROOT_DIR",job_space.root_view) ;
 		if (+job_space.tmp_view ) set_env("TMPDIR"  ,job_space.tmp_view ) ;
 		//
-		if (cmd_line.flags[CmdFlag::AutodepMethod]) gather.method                  = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
-		/**/                                        gather.autodep_env.auto_mkdir  = cmd_line.flags[CmdFlag::AutoMkdir ]                                 ;
-		/**/                                        gather.autodep_env.ignore_stat = cmd_line.flags[CmdFlag::IgnoreStat]                                 ;
-		if (cmd_line.flags[CmdFlag::LinkSupport  ]) gather.autodep_env.lnk_support = mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])      ;
-		if (+job_space.root_view                  ) gather.autodep_env.root_dir    = job_space.root_view                                                 ;
-		else                                        gather.autodep_env.root_dir    = *g_root_dir                                                         ;
-		/**/                                        gather.autodep_env.tmp_dir     = get_env("TMPDIR",P_tmpdir)                                          ;
-		/**/                                        gather.set_views(job_space.views) ;
+		if (cmd_line.flags[CmdFlag::AutodepMethod]) gather.method                  =        mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod])  ;
+		/**/                                        gather.autodep_env.auto_mkdir  =        cmd_line.flags[CmdFlag::AutoMkdir ]                                  ;
+		/**/                                        gather.autodep_env.ignore_stat =        cmd_line.flags[CmdFlag::IgnoreStat]                                  ;
+		if (cmd_line.flags[CmdFlag::LinkSupport  ]) gather.autodep_env.lnk_support =        mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])       ;
+		if (+job_space.root_view                  ) gather.autodep_env.root_dir    = ::move(job_space.root_view                                                ) ;
+		else                                        gather.autodep_env.root_dir    =        *g_root_dir                                                          ;
+		/**/                                        gather.autodep_env.tmp_dir     =        get_env("TMPDIR",P_tmpdir)                                           ;
+		/**/                                        gather.views                   = ::move(job_space.views                                                    ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Status status ;

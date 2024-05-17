@@ -38,6 +38,7 @@ using namespace Hash ;
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                                                                                                   // file does not exist, nothing to do
 				bool done = true/*garbage*/ ;
+trace(sig,a.sig,a.crc) ;
 				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ;
 				if (quarantine) {
 					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
@@ -172,14 +173,10 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 	//
 	if      ( +*chrd && *chrd!="/" ) { _chroot(*chrd) ; _chdir(root_dir) ; }
 	else if ( +root_view           )                    _chdir(root_dir) ;
-
 	if (+views) {
 		root_dir += '/' ;
-		for( auto [view,phy_dir] : views ) {
-			mk_dir(view   ) ;
-			mk_dir(phy_dir) ;
-			_mount( mk_abs(view,root_dir) , mk_abs(phy_dir,root_dir) ) ;
-		}
+		for( auto [view,phy] : views ) _mount( mk_abs(view,root_dir) , mk_abs(phy,root_dir) ) ;
+		root_dir.pop_back() ;                                                                                 // restore original value
 	}
 	//
 	_atomic_write( "/proc/self/setgroups" , "deny"                            ) ;                             // necessary to be allowed to write the gid_map (if desirable)
@@ -196,9 +193,16 @@ void JobSpace::chk() const {
 	if ( +chroot_dir && !Disk::is_abs(chroot_dir) ) throw to_string("chroot_dir must be an absolute path : ",chroot_dir) ;
 	if ( +root_view  && !Disk::is_abs(root_view ) ) throw to_string("root_view must be an absolute path : " ,root_view ) ;
 	if ( +tmp_view   && !Disk::is_abs(tmp_view  ) ) throw to_string("tmp_view must be an absolute path : "  ,tmp_view  ) ;
-	for( auto const& [view,phy_dir] : views ) {
-		if ( !Disk::is_lcl(view) && Disk::is_lcl(phy_dir) ) throw to_string("cannot map external view ",view," to local dir ",phy_dir                     ) ;
-		if ( !vs.emplace(view,phy_dir).second             ) throw to_string("cannot map simultaneously view ",view," to dirs ",vs.at(view)," and ",phy_dir) ;
+	for( auto const& [view,phy] : views ) {
+		if ( !view                                    ) throw to_string("cannot map empty view"                                             ) ;
+		if ( !phy                                     ) throw to_string("cannot map to empty location"                                      ) ;
+		if ( !is_canon(view)                          ) throw to_string("cannot map non-canonic view "   ,view                              ) ;
+		if ( !is_canon(phy )                          ) throw to_string("cannot map to non-canonic view ",phy                               ) ;
+		if ( !Disk::is_lcl(view) && Disk::is_lcl(phy) ) throw to_string("cannot map external view ",view," locally to ",phy                 ) ;
+		if ( view.back()=='/' && phy.back()!='/'      ) throw to_string("cannot map dir " ,view," to file ",phy                             ) ;
+		if ( view.back()!='/' && phy.back()=='/'      ) throw to_string("cannot map file ",view," to dir " ,phy                             ) ;
+		::string key = view ; if (key.back()=='/') key.pop_back() ;
+		if ( !vs.emplace(key,phy).second              ) throw to_string("cannot map simultaneously view ",view," to ",vs.at(key)," and ",phy) ;
 	}
 }
 

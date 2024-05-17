@@ -15,9 +15,9 @@ using namespace Time ;
 
 ::string* g_trace_file = nullptr ; // pointer to avoid init/fini order hazards, relative to admin dir
 
-bool              Trace::s_backup_trace = false        ;
-::atomic<size_t>  Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden
-Channels          Trace::s_channels     = DfltChannels ; // by default, trace default channel
+::atomic<bool    > Trace::s_backup_trace = false        ;
+::atomic<size_t  > Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden
+::atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace default channel
 
 #ifndef NO_TRACE
 
@@ -33,10 +33,10 @@ Channels          Trace::s_channels     = DfltChannels ; // by default, trace de
 	thread_local bool           Trace::_t_hide = false   ;
 	thread_local OStringStream* Trace::_t_buf  = nullptr ;
 
-	void Trace::s_start(Channels cs) {
+	void Trace::s_start() {
 		t_thread_key = '=' ;                            // called from main thread
 		if ( !g_trace_file || !*g_trace_file ) return ;
-		s_channels   = cs  ;
+		Lock lock{_s_mutex} ;
 		dir_guard(*g_trace_file) ;
 		_s_open() ;
 	}
@@ -58,24 +58,31 @@ Channels          Trace::s_channels     = DfltChannels ; // by default, trace de
 	}
 
 	void Trace::_s_open() {
-		if (!s_sz      ) return ;                                                // no room to trace
-		if (!s_channels) return ;                                                // nothing to trace
+		if (!s_sz             ) return ;  // no room to trace
+		if (!s_channels.load()) return ;  // nothing to trace
 		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
 			for( char c : "54321"s ) { ::string old = to_string(*g_trace_file,'.',c) ; if (+prev_old) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
 			/**/                                                                       if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
 		}
-		unlnk(*g_trace_file) ;                                                   // avoid write clashes if trace is still being written by another process
-		dir_guard(*g_trace_file) ;
-		_s_fd     = ::open( g_trace_file->c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0666 ) ; _s_fd.no_std() ;
-		_s_cur_sz = 4096                                                                                 ;
-		if (::ftruncate(_s_fd,_s_cur_sz)!=0) FAIL() ;
+		::string trace_dir      = dir_name(*g_trace_file)                                      ;
+		::string tmp_trace_file = to_string(trace_dir,'/',Pdate(New).nsec_in_s(),'-',getpid()) ;
+		try                        { mk_dir(trace_dir) ;                               }
+		catch (::string const& e ) { FAIL("cannot create trace dir",trace_dir,':',e) ; }
+		//
+		_s_cur_sz = 4096                                                                                  ;
+		_s_fd     = ::open( tmp_trace_file.c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0666 ) ; _s_fd.no_std() ;
+		//
+		if ( !_s_fd                                                        ) FAIL("cannot create temporary trace file",tmp_trace_file,':',strerror(errno)            ) ;
+		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) FAIL("cannot create trace file"          ,*g_trace_file ,':',strerror(errno)            ) ;
+		if ( ::ftruncate(_s_fd,_s_cur_sz)!=0                               ) FAIL("cannot truncate trace file"        ,*g_trace_file ,"to its initial size",_s_cur_sz) ;
+		//
 		_s_pos  = 0                                                                                                    ;
 		_s_data = static_cast<uint8_t*>(::mmap( nullptr , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0 )) ;
-		SWEAR(_s_data!=MAP_FAILED) ;
+		SWEAR(_s_data!=MAP_FAILED,*g_trace_file) ;
 		fence() ;
-		_s_has_trace = +_s_fd ; // ensure _s_has_trace is updated once everything is ok as tracing may be called from other threads while being initialized
+		_s_has_trace = +_s_fd ;    // ensure _s_has_trace is updated once everything is ok as tracing may be called from other threads while being initialized
 	}
 
 	void Trace::_t_commit() {

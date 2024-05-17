@@ -97,8 +97,7 @@ private :
 	}
 	void _kill          ( bool force          ) ;
 	void _send_to_server( Fd fd , Jerr&& jerr ) ;
-public :
-	void set_views(::vmap_ss const& views) ; //!                                                          map_file            crc_file_info parallel
+public : //!                                                                                              map_file            crc_file_info parallel
 	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),false ,{.write=Yes},{}          ,false  ,c) ; }
 	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),false ,{.write=Yes},{}          ,false  ,c) ; } // new_unlnk is used for internal wash
 	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                                     }
@@ -148,7 +147,7 @@ public :
 	::string                          stdout           ;                       // contains child stdout if child_stdout==Pipe
 	::string                          stderr           ;                       // contains child stderr if child_stderr==Pipe
 	Time::Delay                       timeout          ;
-	::map_ss                          views_s          ;
+	::vmap_ss                         views            ;
 	int                               wstatus          = 0                   ;
 private :
 	::map_ss            _add_env       ;

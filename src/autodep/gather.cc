@@ -71,10 +71,10 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , bool map_file , Acce
 	SWEAR( +pd   , comment , file ) ;
 	if (map_file) {
 	Remap :
-		for( auto const& [view_s,phy_dir_s] : views_s )
-			if (file.starts_with(view_s)) {
-				if (!phy_dir_s) return ;
-				file = phy_dir_s + file.substr(view_s.size()) ;
+		for( auto const& [view,phy] : views )
+			if ( view.back()=='/' ? file.starts_with(view) : file==view ) {
+				if (!phy) return ;
+				file = phy + file.substr(view.size()) ;
 				goto Remap ;                                                                                                                                 // BACKWARD
 			}
 	}
@@ -92,11 +92,6 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , bool map_file , Acce
 	info->update( pd , ad , di , _parallel_id ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
-}
-
-void Gather::set_views(::vmap_ss const& views) {
-	for( auto const& [view,phy_dir] : views )
-		if (is_lcl(view)) views_s[view+'/'] = is_lcl(phy_dir) ? phy_dir+'/' : ""s ; // XXX : support src dirs that typically lie outside repo
 }
 
 void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdin ) {
@@ -280,6 +275,8 @@ Status Gather::exec_child() {
 		_kill_step++ ;
 		trace("kill_done",_end_kill) ;
 	} ;
+	//
+	for( auto& [view,phy] : views ) if (!is_lcl(phy)) phy.clear() ; // XXX : support mapping to src dirs that typically lie outside the repo
 	//
 	if (+server_master_fd) {
 		epoll.add_read(server_master_fd,Kind::ServerMaster) ;

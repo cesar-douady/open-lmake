@@ -11,6 +11,7 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	lmake.config.backends.local.cpu = 10
+	lmake.config.trace.n_jobs       = 10000
 
 	if 'slurm' in lmake.backends :
 		backend = 'slurm'

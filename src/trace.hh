@@ -23,13 +23,13 @@ static constexpr Channels DfltChannels = ~Channels() ;
 
 	struct Trace {
 		// statics
-		static void s_start         (Channels=DfltChannels) {}
-		static void s_new_trace_file(::string const&      ) {}
+		static void s_start         (               ) {}
+		static void s_new_trace_file(::string const&) {}
 		template<class T> static ::string s_str( T const& , ::string const& ) { return {} ; }
 		// static data
-		static bool             s_backup_trace ;
-		static ::atomic<size_t> s_sz           ;
-		static Channels         s_channels     ;
+		static ::atomic<bool    > s_backup_trace ;
+		static ::atomic<size_t  > s_sz           ;
+		static ::atomic<Channels> s_channels     ;
 		// cxtors & casts
 		/**/                  Trace( Channel                              ) {}
 		template<class... Ts> Trace( Channel , const char* , Ts const&... ) {}
@@ -45,8 +45,8 @@ static constexpr Channels DfltChannels = ~Channels() ;
 
 	struct Trace {
 		// statics
-		static void s_start         (Channels=DfltChannels) ;
-		static void s_new_trace_file(::string const&      ) ;
+		static void s_start         (               ) ;
+		static void s_new_trace_file(::string const&) ;
 	private :
 		static void _s_open  () ;
 		static void _t_commit() ;
@@ -57,9 +57,9 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		/**/              static ::string s_str( uint8_t  v , ::string const& s ) { return s_str(int(v),s)    ; } // avoid confusion with char
 		/**/              static ::string s_str( int8_t   v , ::string const& s ) { return s_str(int(v),s)    ; } // avoid confusion with char
 		// static data
-		static bool             s_backup_trace ;
-		static ::atomic<size_t> s_sz           ;                                                                  // max overall size of trace, beyond, trace wraps
-		static Channels         s_channels     ;
+		static ::atomic<bool    > s_backup_trace ;
+		static ::atomic<size_t  > s_sz           ;                                                                // max overall size of trace, beyond, trace wraps
+		static ::atomic<Channels> s_channels     ;
 	private :
 		static size_t                 _s_pos       ;                                                              // current line number
 		static bool                   _s_ping      ;                                                              // ping-pong to distinguish where trace stops in the middle of a trace
@@ -75,8 +75,8 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		//
 		// cxtors & casts
 	public :
-		/**/                  Trace( Channel channel                                       ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels[channel]}                            {}
-		template<class... Ts> Trace( Channel channel , const char* tag , Ts const&... args ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels[channel]} , _first{true} , _tag{tag} {
+		/**/                  Trace( Channel channel                                       ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels.load()[channel]}                            {}
+		template<class... Ts> Trace( Channel channel , const char* tag , Ts const&... args ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels.load()[channel]} , _first{true} , _tag{tag} {
 			(*this)(args...) ;
 			_first = false ;
 		}

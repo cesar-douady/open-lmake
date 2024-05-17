@@ -3,6 +3,19 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#define LD_PRELOAD 1
+
+#include <dlfcn.h>
+
+#include "utils.hh"
+
 static bool started() { return true ; }
 
+void* get_orig(const char* syscall) {
+	void* res = ::dlsym(RTLD_NEXT,syscall) ;
+	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
+	return res ;
+}
+
 #include "ld.x.cc"
+#include "ld_common.x.cc"

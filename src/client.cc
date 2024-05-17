@@ -175,7 +175,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	return res ;
 }
 
-Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
+Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb=[](bool)->void{} ) {
 	Trace trace("out_proc") ;
 	//
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
@@ -201,7 +201,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSynt
 	ReqRpcReq rrr        { proc , cmd_line.files() , { rv , cmd_line } } ;
 	Bool3     rc         = Maybe                                         ;
 	pid_t     server_pid = _connect_to_server(refresh,sync)              ;
-	started_cb() ;
+	cb(true/*start*/) ;
 	OMsgBuf().send(g_server_fds.out,rrr) ;
 	try {
 		for(;;) {
@@ -218,6 +218,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSynt
 		trace("disconnected") ;
 	}
 Return :
+	cb(false/*start*/) ;
 	g_server_fds.out.close() ;                                                                                                   // ensure server stops living because of us
 	if (sync) waitpid( server_pid , nullptr , 0 ) ;
 	return rc ;

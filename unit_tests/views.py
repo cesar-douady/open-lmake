@@ -10,14 +10,19 @@ if __name__!='__main__' :
 
 	lmake.manifest = (
 		'Lmakefile.py'
-	,	'phy/dep'
+	,	'phy_dir/dep'
+	,	'phy_dep'
 	,	'ref'
 	)
 
 	class Dut(Rule) :
-		views = { 'log' : 'phy' }
-		target = 'dut'
-		cmd    = 'cat log/dep'
+		views = {
+			'log_dir/' : 'phy_dir/'
+		,	'log_dep'  : 'phy_dep'
+		}
+		target       = 'dut'
+		side_targets = { 'LOG' : ( 'log_dep' , 'Incremental' ) }
+		cmd          = 'cat log_dep log_dir/dep'
 
 	class Test(Rule) :
 		target = 'test'
@@ -33,12 +38,16 @@ else :
 
 	import ut
 
-	print('good',file=open('ref','w'))
+	print('good\ngood',file=open('ref','w'))
 
-	os.makedirs('phy',exist_ok=True)
+	os.makedirs('phy_dir',exist_ok=True)
 
-	print('bad',file=open('phy/dep','w'))
-	ut.lmake( 'test' , new=2 , done=1 , failed=1 , rc=1 ) # check deps are mapped from log to phy
-
-	print('good',file=open('phy/dep','w'))
-	ut.lmake( 'test' , changed=1 , done=2 )         # check deps are correctly recorded
+	print('bad',file=open('phy_dir/dep','w'))
+	print('bad',file=open('phy_dep'    ,'w'))
+	ut.lmake( 'test' , new=3 , done=1 , failed=1 , rc=1 )     # check deps are mapped from log to phy
+	#
+	print('good',file=open('phy_dir/dep','w'))
+	ut.lmake( 'test' , changed=1 , done=1 , failed=1 , rc=1 ) # check deps are correctly recorded through dir views
+	#
+	print('good',file=open('phy_dep','w'))
+	ut.lmake( 'test' , changed=1 , done=2 )                   # check deps are correctly recorded through file views
