@@ -157,6 +157,7 @@ unit_tests/bench.py
 unit_tests/cache.py
 unit_tests/cargo.py
 unit_tests/chain.py
+unit_tests/cmd.py
 unit_tests/codec.py
 unit_tests/conflict.py
 unit_tests/conflict2.py

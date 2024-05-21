@@ -500,10 +500,15 @@ class Handle :
 				cmd += 'def cmd() : \n'
 				x = avoid_ctx('x',serialize_ctx) # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
-					a = '' if c.__code__.co_argcount==0 else 'None' if i==0 else x
-					if   i==len(self.attrs.cmd)-1          : cmd += f'\treturn {c.__name__}({a})\n'
-					elif cmd_lst[i+1].__code__.co_argcount : cmd += f'\t{a} = { c.__name__}({a})\n'
-					else                                   : cmd += f'\t{       c.__name__}({a})\n'
+					b = c.__code__.co_argcount!=0
+					a = '' if not b else 'None' if i==0 else x
+					if i==len(self.attrs.cmd)-1 :
+						cmd += f'\treturn {c.__name__}({a})\n'
+					else :
+						b1 = cmd_lst[i+1].__code__.co_argcount!=0
+						a1 = '' if not b1 else x
+						if b1 : cmd += f'\t{a1} = { c.__name__}({a})\n'
+						else  : cmd += f'\t{        c.__name__}({a})\n'
 			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , *mk_dbg_info(dbg,serialize_ctx) )
 			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                              )
 		else :
