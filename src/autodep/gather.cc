@@ -69,13 +69,12 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di , NodeId
 void Gather::_new_access( Fd fd , PD pd , ::string&& file , bool map_file , AccessDigest ad , DI const& di , bool parallel , ::string const& comment ) {
 	SWEAR( +file , comment        ) ;
 	SWEAR( +pd   , comment , file ) ;
-	if (map_file) {
-	Remap :
+	if (map_file) {                                                                                                                                          // XXX : move views to record
 		for( auto const& [view,phy] : views )
 			if ( view.back()=='/' ? file.starts_with(view) : file==view ) {
 				if (!phy) return ;
 				file = phy + file.substr(view.size()) ;
-				goto Remap ;                                                                                                                                 // BACKWARD
+				break ;
 			}
 	}
 	AccessInfo* info        = nullptr/*garbage*/                       ;
@@ -117,30 +116,6 @@ void Gather::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 	}
 }
 
-void Gather::_solve( Fd fd , JobExecRpcReq& jerr ) {
-		SWEAR( jerr.proc>=Proc::HasFiles && jerr.solve ) ;
-		::vmap_s<FileInfo> files     ;
-		RealPath           real_path { autodep_env , ::move(jerr.cwd) } ;             // solve is set to false, cwd is not used anymore
-		bool               read      = +jerr.digest.accesses            ;
-		for( auto const& [f,fi] : jerr.files ) {
-			SWEAR(+f) ;
-			RealPath::SolveReport sr = real_path.solve(f,jerr.no_follow) ;
-			// cf Record::_solve for explanation                                              map_file                                         parallel
-			for( ::string& lnk : sr.lnks )    _new_access( fd , jerr.date , ::move  (lnk    ) , true , {.accesses=Access::Lnk} , FileInfo(lnk) , false , "solve.lnk" ) ;
-			if      (read                   ) {}
-			else if (sr.file_accessed==Yes  ) _new_access( fd , jerr.date , ::copy  (sr.real) , true , {.accesses=Access::Lnk} , FileInfo()    , false , "solve.lst" ) ;
-			else if (sr.file_accessed==Maybe) _new_access( fd , jerr.date , dir_name(sr.real) , true , {.accesses=Access::Lnk} , FileInfo()    , false , "solve.lst" ) ;
-			//
-			seen_tmp |= sr.file_loc==FileLoc::Tmp && jerr.digest.write!=No && !read ; // if reading before writing, then we cannot populate tmp
-			if (sr.file_loc>FileLoc::Repo) jerr.digest.write = No ;
-			if (sr.file_loc>FileLoc::Dep ) continue ;
-			if (+fi                      ) files.emplace_back( sr.real , fi                ) ;
-			else                           files.emplace_back( sr.real , FileInfo(sr.real) ) ;
-		}
-		jerr.files = ::move(files) ;
-		jerr.solve = false         ;                                                  // files are now real and dated
-}
-
 void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 	Trace trace("_send_to_server",fd,jerr) ;
 	//
@@ -150,8 +125,8 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 		case Proc::ChkDeps    : reorder(false/*at_end*/)                         ; break ; // ensure server sees a coherent view
 		case Proc::DepVerbose : _new_accesses(fd,true/*map_files*/,::copy(jerr)) ; break ;
 		//
-		case Proc::Decode : SWEAR( jerr.sync && jerr.files.size()==1 ) ; _codec_files[fd] = Codec::mk_decode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
-		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
+		case Proc::Decode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_decode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
+		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		default : ;
 	}
 	if (!jerr.sync) fd = {} ;                                                              // dont reply if not sync
@@ -276,7 +251,7 @@ Status Gather::exec_child() {
 		trace("kill_done",_end_kill) ;
 	} ;
 	//
-	for( auto& [view,phy] : views ) if (!is_lcl(phy)) phy.clear() ; // XXX : support mapping to src dirs that typically lie outside the repo
+	for( auto& [view,phy] : views ) if (!is_lcl(phy)) phy.clear() ; // XXX : move views to record, support mapping to src dirs that typically lie outside the repo
 	//
 	if (+server_master_fd) {
 		epoll.add_read(server_master_fd,Kind::ServerMaster) ;
@@ -311,13 +286,13 @@ Status Gather::exec_child() {
 		}
 		::vector<Epoll::Event> events = epoll.wait(wait_for) ;
 		if (!events) {
-			if (+delayed_check_deps) {                          // process delayed check deps after all other events
+			if (+delayed_check_deps) {                              // process delayed check deps after all other events
 				trace("delayed_chk_deps") ;
 				for( auto& [fd,jerr] : delayed_check_deps ) _send_to_server(fd,::move(jerr)) ;
 				delayed_check_deps.clear() ;
 				continue ;
 			}
-			if (_wait[Kind::ChildStart]) {                      // handle case where we are killed before starting : create child when we have processed waiting connections from server
+			if (_wait[Kind::ChildStart]) {                          // handle case where we are killed before starting : create child when we have processed waiting connections from server
 				try {
 					_spawn_child() ;
 					_wait &= ~Kind::ChildStart ;
@@ -376,7 +351,7 @@ Status Gather::exec_child() {
 					::waitpid(si.ssi_pid,&wstatus,0) ;
 					if (!WIFSTOPPED(wstatus)) {
 						end_date = New ;
-						_end_child = end_date + network_delay ; // wait at most network_delay for reporting & stdout & stderr to settle down
+						_end_child = end_date + network_delay ;     // wait at most network_delay for reporting & stdout & stderr to settle down
 						if      (WIFEXITED  (wstatus)) set_status(             WEXITSTATUS(wstatus)!=0 ? Status::Err : Status::Ok       ) ;
 						else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG   (wstatus))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
 						else                           fail("unexpected wstatus : ",wstatus) ;
@@ -444,8 +419,7 @@ Status Gather::exec_child() {
 					catch (...) { trace("no_jerr",kind,fd,jerr) ; jerr.proc = Proc::None ; }                               // fd was closed, ensure no partially received jerr
 					Proc proc  = jerr.proc ;                                                                               // capture essential info so as to be able to move jerr
 					bool sync_ = jerr.sync ;                                                                               // .
-					if ( proc!=Proc::Access                 ) trace(kind,fd,proc) ;                                        // there may be too many Access'es, only trace within _new_accesses
-					if ( proc>=Proc::HasFiles && jerr.solve ) _solve(fd,jerr)     ;
+					if (proc!=Proc::Access) trace(kind,fd,proc) ;                                                          // there may be too many Access'es, only trace within _new_accesses
 					switch (proc) {
 						case Proc::Confirm :
 							for( Jerr& j : slave_entry.second ) { j.digest.write = jerr.digest.write ; _new_accesses(fd,true/*map_files*/,::move(j)) ; }

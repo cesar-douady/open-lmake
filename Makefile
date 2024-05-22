@@ -310,6 +310,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/rpc_job_exec$(SAN).o                                  \
 	$(SRC)/trace$(SAN).o                                         \
 	$(SRC)/store/file$(SAN).o                                    \
+	$(SRC)/autodep/backdoor$(SAN).o                              \
 	$(SRC)/autodep/env$(SAN).o                                   \
 	$(SRC)/autodep/gather$(SAN).o                                \
 	$(SRC)/autodep/ld_server$(SAN).o                             \
@@ -343,6 +344,7 @@ $(BIN)/lrepair : \
 	$(SRC)/rpc_job$(SAN).o                                       \
 	$(SRC)/rpc_job_exec$(SAN).o                                  \
 	$(SRC)/trace$(SAN).o                                         \
+	$(SRC)/autodep/backdoor$(SAN).o                              \
 	$(SRC)/autodep/env$(SAN).o                                   \
 	$(SRC)/autodep/gather$(SAN).o                                \
 	$(SRC)/autodep/ld_server$(SAN).o                             \
@@ -377,6 +379,7 @@ $(SBIN)/ldump : \
 	$(SRC)/trace$(SAN).o                        \
 	$(SRC)/autodep/env$(SAN).o                  \
 	$(SRC)/autodep/ld_server$(SAN).o            \
+	$(SRC)/autodep/backdoor$(SAN).o             \
 	$(SRC)/autodep/record$(SAN).o               \
 	$(SRC)/autodep/syscall_tab$(SAN).o          \
 	$(SRC)/store/file$(SAN).o                   \
@@ -414,6 +417,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/rpc_job.o             \
 	$(SRC)/rpc_job_exec.o        \
 	$(SRC)/trace.o               \
+	$(SRC)/autodep/backdoor.o    \
 	$(SRC)/autodep/env.o         \
 	$(SRC)/autodep/gather.o      \
 	$(SRC)/autodep/ptrace.o      \
@@ -502,6 +506,7 @@ $(BIN)/autodep : \
 	$(SRC)/rpc_job.o             \
 	$(SRC)/rpc_job_exec.o        \
 	$(SRC)/trace.o               \
+	$(SRC)/autodep/backdoor.o    \
 	$(SRC)/autodep/env.o         \
 	$(SRC)/autodep/gather.o      \
 	$(SRC)/autodep/ptrace.o      \
@@ -519,60 +524,70 @@ $(BIN)/autodep : \
 # remote executables generate errors when -fsanitize=thread, but are mono-thread, so we don't care
 
 $(BIN)/ldecode : \
-	$(LMAKE_BASIC_OBJS)      \
-	$(SRC)/app.o             \
-	$(SRC)/rpc_job_exec.o    \
-	$(SRC)/trace.o           \
-	$(SRC)/autodep/env.o     \
-	$(SRC)/autodep/record.o  \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/app.o                 \
+	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/trace.o               \
+	$(SRC)/autodep/backdoor.o    \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/job_support.o \
+	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/ldecode.o
 	@mkdir -p $(BIN)
 	@echo link to $@
 	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ldepend : \
-	$(LMAKE_BASIC_OBJS)      \
-	$(SRC)/app.o             \
-	$(SRC)/rpc_job_exec.o    \
-	$(SRC)/trace.o           \
-	$(SRC)/autodep/env.o     \
-	$(SRC)/autodep/record.o  \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/app.o                 \
+	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/trace.o               \
+	$(SRC)/autodep/backdoor.o    \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/job_support.o \
+	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/ldepend.o
 	@mkdir -p $(BIN)
 	@echo link to $@
 	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lencode : \
-	$(LMAKE_BASIC_OBJS)      \
-	$(SRC)/app.o             \
-	$(SRC)/rpc_job_exec.o    \
-	$(SRC)/trace.o           \
-	$(SRC)/autodep/env.o     \
-	$(SRC)/autodep/record.o  \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/app.o                 \
+	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/trace.o               \
+	$(SRC)/autodep/backdoor.o    \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/job_support.o \
+	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/lencode.o
 	@mkdir -p $(BIN)
 	@echo link to $@
 	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ltarget : \
-	$(LMAKE_BASIC_OBJS)     \
-	$(SRC)/app.o            \
-	$(SRC)/rpc_job_exec.o   \
-	$(SRC)/trace.o          \
-	$(SRC)/autodep/env.o    \
-	$(SRC)/autodep/record.o \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/app.o                 \
+	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/trace.o               \
+	$(SRC)/autodep/backdoor.o    \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/job_support.o \
+	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/ltarget.o
 	@mkdir -p $(BIN)
 	@echo link to $@
 	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lcheck_deps : \
-	$(LMAKE_BASIC_OBJS)     \
-	$(SRC)/app.o            \
-	$(SRC)/rpc_job_exec.o   \
-	$(SRC)/trace.o          \
-	$(SRC)/autodep/env.o    \
-	$(SRC)/autodep/record.o \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/app.o                 \
+	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/trace.o               \
+	$(SRC)/autodep/backdoor.o    \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/job_support.o \
+	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/lcheck_deps.o
 	@mkdir -p $(BIN)
 	@echo link to $@
@@ -583,6 +598,7 @@ $(BIN)/lcheck_deps : \
 $(SLIB)/ld_preload.so : \
 	$(LMAKE_BASIC_OBJS)          \
 	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/autodep/backdoor.o    \
 	$(SRC)/autodep/env.o         \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/syscall_tab.o \
@@ -594,6 +610,7 @@ $(SLIB)/ld_preload.so : \
 $(SLIB)/ld_preload_jemalloc.so : \
 	$(LMAKE_BASIC_OBJS)          \
 	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/autodep/backdoor.o    \
 	$(SRC)/autodep/env.o         \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/syscall_tab.o \
@@ -605,6 +622,7 @@ $(SLIB)/ld_preload_jemalloc.so : \
 $(SLIB)/ld_audit.so : \
 	$(LMAKE_BASIC_OBJS)          \
 	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/autodep/backdoor.o    \
 	$(SRC)/autodep/env.o         \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/syscall_tab.o \
@@ -615,11 +633,13 @@ $(SLIB)/ld_audit.so : \
 
 ifneq ($(PYTHON2),)
 $(LIB)/clmake2.so : \
-	$(LMAKE_BASIC_OBJS)     \
-	$(SRC)/py_py2.o         \
-	$(SRC)/rpc_job_exec.o   \
-	$(SRC)/autodep/env.o    \
-	$(SRC)/autodep/record.o \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/py_py2.o              \
+	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/autodep/backdoor.o    \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/job_support.o \
+	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/clmake_py2.o
 	@mkdir -p $(@D)
 	@echo link to $@
@@ -627,11 +647,13 @@ $(LIB)/clmake2.so : \
 endif
 
 $(LIB)/clmake.so : \
-	$(LMAKE_BASIC_OBJS)     \
-	$(SRC)/py.o             \
-	$(SRC)/rpc_job_exec.o   \
-	$(SRC)/autodep/env.o    \
-	$(SRC)/autodep/record.o \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/py.o                  \
+	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/autodep/backdoor.o    \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/job_support.o \
+	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/clmake.o
 	@mkdir -p $(@D)
 	@echo link to $@

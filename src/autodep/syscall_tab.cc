@@ -179,7 +179,7 @@ template<bool At> [[maybe_unused]] static void _entry_read_lnk( void* & ctx , Re
 	if ( pid && res>=0 ) _peek( pid , rlb->first.buf , rlb->second , res ) ;
 	res = (rlb->first)(r,res) ;
 	if (pid) {
-		if (rlb->first.emulated) _poke( pid , rlb->second , rlb->first.buf , res ) ; // access to backdoor was emulated, we must transport result to actual use space
+		if ( rlb->first.emulated && res>=0 ) _poke( pid , rlb->second , rlb->first.buf , res ) ; // access to backdoor was emulated, we must transport result to actual user space
 		delete[] rlb->first.buf ;
 	}
 	delete rlb ;

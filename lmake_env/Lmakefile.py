@@ -354,7 +354,8 @@ class LinkAutodepEnv(Link) :
 
 class LinkAutodep(LinkAutodepEnv) :
 	deps = {
-		'GATHER'       : 'src/autodep/gather.o'
+		'BACKDOOR'     : 'src/autodep/backdoor.o'
+	,	'GATHER'       : 'src/autodep/gather.o'
 	,	'PTRACE'       : 'src/autodep/ptrace.o'
 	,	'RECORD'       : 'src/autodep/record.o'
 	,	'SYSCALL'      : 'src/autodep/syscall_tab.o'
@@ -458,7 +459,9 @@ for app in ('xxhsum','align_comments') :
 
 class LinkJobSupport(LinkAutodepEnv) :
 	deps = {
-		'RECORD'       : 'src/autodep/record.o'
+		'BACKDOOR'     : 'src/autodep/backdoor.o'
+	,	'JOB_SUPPORT'  : 'src/autodep/job_support.o'
+	,	'RECORD'       : 'src/autodep/record.o'
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
 	}
 

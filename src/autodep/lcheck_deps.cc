@@ -5,6 +5,7 @@
 
 #include "app.hh"
 
+#include "job_support.hh"
 #include "record.hh"
 
 ENUM(Key,None)
@@ -16,9 +17,9 @@ int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax{{
 		{ Flag::Verbose , { .short_name='v' , .has_arg=false , .doc="return in error if deps are out of date" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }        ;
-	bool              verbose  = cmd_line.flags[Flag::Verbose] ;
-	if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
-	JobExecRpcReply reply = Record(New,Yes/*enable*/).direct( JobExecRpcReq( JobExecProc::ChkDeps , cmd_line.flags[Flag::Verbose]/*sync*/ ) ) ;
-	return verbose && reply.ok!=Yes ? 1 : 0 ;
+	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }                                   ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
+	bool              verbose  = cmd_line.flags[Flag::Verbose]                            ;
+	Bool3             ok       = JobSupport::check_deps( {New,Yes/*enabled*/} , verbose ) ;
+	if (!verbose) return 0               ;
+	else          return ok!=Yes ? 1 : 0 ;
 }

@@ -295,8 +295,9 @@ namespace Engine {
 		//
 		switch (proc) {
 			case JobMngtProc::DepVerbose : {
-				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,{}} ;              // if job is not running, it is too late, seq_id will be filled in later
-				::vector<pair<Bool3/*ok*/,Crc>> res ; res.reserve(deps.size()) ;
+				::vector<pair<Bool3/*ok*/,Crc>> res ;
+				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,res} ;   // if job is not running, it is too late, seq_id will be filled in later, /!\ {} would be interpreted as Bool3 !
+				res.reserve(deps.size()) ;
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;
 					Bool3 dep_ok = Yes ;
@@ -311,7 +312,7 @@ namespace Engine {
 				return {proc,{}/*seq_id*/,{}/*fd*/,res} ;
 			}
 			case JobMngtProc::ChkDeps :
-				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ;           // if job is not running, it is too late, seq_id will be filled in later
+				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ; // if job is not running, it is too late, seq_id will be filled in later
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;
 					for( Req req : reqs ) {
@@ -565,8 +566,8 @@ namespace Engine {
 		::string msg    ;
 		trace("wrap_up",STR(sav_jrr),ok,cache_none_attrs.key,(*this)->run_status,STR(upload)) ;
 		if (sav_jrr) {
-			append_line_to_string( jrr.msg , local_msg , severe_msg ) ;
 			msg = jrr.msg ;
+			append_line_to_string( jrr.msg , local_msg , severe_msg ) ;
 			if (upload) _s_record_thread.emplace(*this,JobInfoEnd{::copy(jrr)}) ;          // leave jrr intact so upload can be done later on
 			else        _s_record_thread.emplace(*this,JobInfoEnd{::move(jrr)}) ;
 		} else {

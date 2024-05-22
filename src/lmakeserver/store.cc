@@ -187,7 +187,7 @@ namespace Engine::Persistent {
 			break ;
 		}
 		//
-		if (g_config->path_max!=old_config.path_max) invalidate_match() ;                                                         // we may discover new buildable nodes or vice versa
+		if (g_config->path_max!=old_config.path_max) invalidate_match() ;                                                        // we may discover new buildable nodes or vice versa
 	}
 
 	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
@@ -203,7 +203,7 @@ namespace Engine::Persistent {
 		if (              d>ConfigDiff::Static  && g_config->booted ) throw "repo must be clean"s  ;
 		if (  dynamic &&  d>ConfigDiff::Dynamic                     ) throw "repo must be steady"s ;
 		//
-		if (  dynamic && !d                                         ) return ;                          // fast path, nothing to update
+		if (  dynamic && !d                                         ) return ;                            // fast path, nothing to update
 		//
 		/**/                                                          Config old_config = *g_config ;
 		if (             +d                                         ) *g_config = ::move(config) ;
@@ -241,13 +241,20 @@ namespace Engine::Persistent {
 					t->refresh( td.crc , {td.sig,{}} ) ;                                                                    // if file does not exist, the Epoch as a date is fine
 					targets.emplace_back( t , td.tflags ) ;
 				}
-				::sort(targets) ;                                                                                           // ease search in targets
+				::sort(targets) ;                                               // ease search in targets
 				// find deps
-				::vector<Dep> deps ; deps.reserve(job_info.end.end.digest.deps.size()) ;
+				::vector_s    src_dirs ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs.push_back(s->name()) ;
+				::vector<Dep> deps     ; deps.reserve(job_info.end.end.digest.deps.size()) ;
 				for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
+					if ( !is_canon(dn)) goto NextJob ;                                              // this should never happen, there is a problem with this job
+					if (!is_lcl(dn)) {
+						for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ; // this could be optimized by searching the longest match in the name prefix tree
+						continue ;                                                                  // this dep is a slag acquired when it was in a src dir, which is no longer the case, ignore
+					KeepDep : ;
+					}
 					Dep dep { Node(dn) , dd } ;
-					if ( !dep.is_crc                         ) { trace("no_dep_crc" ,jd,dn) ; goto NextJob ; }              // dep could not be identified when job ran, hum, better not to repair that
-					if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep",jd,dn) ; goto NextJob ; }              // no valid crc, no interest to repair as job will rerun anyway
+					if ( !dep.is_crc                         ) { trace("no_dep_crc" ,jd,dn) ; goto NextJob ; } // dep could not be identified when job ran, hum, better not to repair that
+					if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep",jd,dn) ; goto NextJob ; } // no valid crc, no interest to repair as job will rerun anyway
 					deps.emplace_back(dep) ;
 				}
 				// set job
@@ -255,7 +262,7 @@ namespace Engine::Persistent {
 				job->targets.assign(targets) ;
 				job->deps   .assign(deps   ) ;
 				job->status = job_info.end.end.digest.status ;
-				job->exec_ok(true) ;                                                                                        // pretend job just ran
+				job->exec_ok(true) ;                                                                           // pretend job just ran
 				// set target actual_job's
 				for( Target t : targets ) {
 					t->actual_job   () = job      ;

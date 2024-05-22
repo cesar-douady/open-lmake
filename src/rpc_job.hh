@@ -328,11 +328,11 @@ struct DepInfo {
 			case Kind::Info : return info()==di.info() ;
 		DF}
 	}
-	bool     operator+() const {                           return kind!=Kind::Crc || +_crc             ; }
-	bool     operator!() const {                           return !+*this                              ; }
-	Crc      crc      () const { SWEAR(kind==Kind::Crc ) ; return _crc                                 ; }
-	FileSig  sig      () const { SWEAR(kind!=Kind::Crc ) ; return kind==Kind::Sig ? _sig : _info.sig() ; }
-	FileInfo info     () const { SWEAR(kind==Kind::Info) ; return _info                                ; }
+	bool     operator+() const {                                return kind!=Kind::Crc || +_crc             ; }
+	bool     operator!() const {                                return !+*this                              ; }
+	Crc      crc      () const { SWEAR(kind==Kind::Crc ,kind) ; return _crc                                 ; }
+	FileSig  sig      () const { SWEAR(kind!=Kind::Crc ,kind) ; return kind==Kind::Sig ? _sig : _info.sig() ; }
+	FileInfo info     () const { SWEAR(kind==Kind::Info,kind) ; return _info                                ; }
 	//
 	bool seen(Accesses a) const { // return true if accesses could perceive the existence of file
 		if (!a) return false ;
@@ -410,9 +410,9 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	// services
 	constexpr DepDigestBase& operator|=(DepDigestBase const& other) {            // assumes other has been accessed after us
-		if constexpr (HasBase) SWEAR(Base::operator==(other),other) ;
+		if constexpr (HasBase) SWEAR(Base::operator==(other),*this,other) ;
 		if (+accesses) {
-			SWEAR(is_crc==other.is_crc,is_crc) ;                                 // else, cannot make fusion
+			SWEAR(is_crc==other.is_crc,*this,other) ;                            // else, cannot make fusion
 			if (is_crc) { if (crc()!=other.crc()) crc({}) ; }                    // destroy info if digests disagree
 			else        { if (sig()!=other.sig()) crc({}) ; }                    // .
 			// parallel is kept untouched as we are the first access
@@ -425,7 +425,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		return *this ;
 	}
 	constexpr void tag(Tag tag) {
-		SWEAR(!is_crc) ;
+		SWEAR(!is_crc,*this) ;
 		if (!_sig) { crc(Crc::None) ; return ; }                                 // even if file appears, the whole job has been executed seeing the file as absent
 		switch (tag) {
 			case Tag::Reg  :
@@ -503,16 +503,16 @@ struct MatchFlags {
 	MatchFlags( Tflags tf , ExtraTflags etf={} ) : is_target{Yes} , _tflags{tf} , _extra_tflags{etf} {}
 	MatchFlags( Dflags df , ExtraDflags edf={} ) : is_target{No } , _dflags{df} , _extra_dflags{edf} {}
 	// accesses
-	bool        operator+   () const {                         return is_target!=Maybe ; }
-	bool        operator!   () const {                         return !+*this          ; }
-	Tflags      tflags      () const { SWEAR(is_target==Yes) ; return _tflags          ; }
-	Dflags      dflags      () const { SWEAR(is_target==No ) ; return _dflags          ; }
-	ExtraTflags extra_tflags() const { SWEAR(is_target==Yes) ; return _extra_tflags    ; }
-	ExtraDflags extra_dflags() const { SWEAR(is_target==No ) ; return _extra_dflags    ; }
+	bool        operator+   () const {                               return is_target!=Maybe ; }
+	bool        operator!   () const {                               return !+*this          ; }
+	Tflags      tflags      () const { SWEAR(is_target==Yes,*this) ; return _tflags          ; }
+	Dflags      dflags      () const { SWEAR(is_target==No ,*this) ; return _dflags          ; }
+	ExtraTflags extra_tflags() const { SWEAR(is_target==Yes,*this) ; return _extra_tflags    ; }
+	ExtraDflags extra_dflags() const { SWEAR(is_target==No ,*this) ; return _extra_dflags    ; }
 	// data
+	// START_OF_VERSIONING
 	Bool3 is_target = Maybe ;
 private :
-	// START_OF_VERSIONING
 	Tflags      _tflags       ; // if  is_target
 	Dflags      _dflags       ; // if !is_target
 	ExtraTflags _extra_tflags ; // if  is_target
@@ -530,10 +530,10 @@ struct JobSpace {
 	void chk() const ;
 	// data
 	// START_OF_VERSIONING
-	::string  chroot_dir = {} ; // dir which job chroot's to before execution
-	::string  root_view  = {} ; // name under which job sees repo root dir
-	::string  tmp_view   = {} ; // name under which job sees tmp dir
-	::vmap_ss views      = {} ; // map logical views to physical dirs
+	::string             chroot_dir = {} ; // dir which job chroot's to before execution
+	::string             root_view  = {} ; // name under which job sees repo root dir
+	::string             tmp_view   = {} ; // name under which job sees tmp dir
+	::vmap_s<::vector_s> views      = {} ; // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
 } ;
 
@@ -545,9 +545,9 @@ struct JobRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobRpcReq const& ) ;
 	// cxtors & casts
 	JobRpcReq() = default ;
-	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                      { SWEAR(p==P::None ) ; }
-	JobRpcReq( P p , SI si , JI j , in_port_t   pt , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , port  {pt       } , msg{::move(m)} { SWEAR(p==P::Start) ; }
-	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)} , msg{::move(m)} { SWEAR(p==P::End  ) ; }
+	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                      { SWEAR(p==P::None ,p) ; }
+	JobRpcReq( P p , SI si , JI j , in_port_t   pt , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , port  {pt       } , msg{::move(m)} { SWEAR(p==P::Start,p) ; }
+	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)} , msg{::move(m)} { SWEAR(p==P::End  ,p) ; }
 	// accesses
 	bool operator+() const { return +proc   ; }
 	bool operator!() const { return !+*this ; }
@@ -670,11 +670,11 @@ struct JobMngtRpcReq {
 	JobMngtRpcReq(                             ) = default ;
 	JobMngtRpcReq( P p , SI si , JI j , Fd fd_ ) : proc{p} , seq_id{si} , job{j} , fd{fd_} {}
 	//
-	JobMngtRpcReq(P p,SI si,JI j,       S&& t   ) : proc{p},seq_id{si},job{j},        txt{M(t)}   { SWEAR(p==P::LiveOut                  ) ; }
-	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,MDD&& ds) : proc{p},seq_id{si},job{j},fd{fd_},deps{M(ds)} { SWEAR(p==P::ChkDeps||p==P::DepVerbose) ; }
+	JobMngtRpcReq(P p,SI si,JI j,       S&& t   ) : proc{p},seq_id{si},job{j},        txt{M(t)}   { SWEAR(p==P::LiveOut                  ,p) ; }
+	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,MDD&& ds) : proc{p},seq_id{si},job{j},fd{fd_},deps{M(ds)} { SWEAR(p==P::ChkDeps||p==P::DepVerbose,p) ; }
 	//
-	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& code,S&& f,S&& c           ) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(code)}             { SWEAR(p==P::Decode) ; }
-	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& val ,S&& f,S&& c,uint8_t ml) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(val )},min_len{ml} { SWEAR(p==P::Encode) ; }
+	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& code,S&& f,S&& c           ) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(code)}             { SWEAR(p==P::Decode,p) ; }
+	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& val ,S&& f,S&& c,uint8_t ml) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(val )},min_len{ml} { SWEAR(p==P::Encode,p) ; }
 	#undef M
 	#undef S
 	// services
@@ -721,11 +721,11 @@ struct JobMngtRpcReply {
 	// cxtors & casts
 	JobMngtRpcReply() = default ;
 	//
-	JobMngtRpcReply( Proc p , SeqId si ) : proc{p} , seq_id{si} { SWEAR(proc==Proc::Kill||proc==Proc::Heartbeat) ; }
+	JobMngtRpcReply( Proc p , SeqId si ) : proc{p} , seq_id{si} { SWEAR(p==Proc::Kill||p==Proc::Heartbeat,p) ; }
 	//
-	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , Bool3                                  o  ) : proc{p},seq_id{si},fd{fd_},ok{o}               { SWEAR(proc==Proc::ChkDeps                   ) ; }
-	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p},seq_id{si},fd{fd_},      dep_infos{is} { SWEAR(proc==Proc::DepVerbose                ) ; }
-	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::string const& t  , Crc c , Bool3 o      ) : proc{p},seq_id{si},fd{fd_},ok{o},txt{t},crc{c} { SWEAR(proc==Proc::Decode||proc==Proc::Encode) ; }
+	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , Bool3                                  o  ) : proc{p},seq_id{si},fd{fd_},ok{o}               { SWEAR(p==Proc::ChkDeps                   ,p) ; }
+	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p},seq_id{si},fd{fd_},      dep_infos{is} { SWEAR(p==Proc::DepVerbose                ,p) ; }
+	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::string const& t  , Crc c , Bool3 o      ) : proc{p},seq_id{si},fd{fd_},ok{o},txt{t},crc{c} { SWEAR(p==Proc::Decode||proc==Proc::Encode,p) ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
 		if (is_base_of_v<::istream,S>) *this = {} ;

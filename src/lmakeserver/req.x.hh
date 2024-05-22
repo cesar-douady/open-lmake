@@ -62,7 +62,7 @@ namespace Engine {
 	private :
 		static ::vector<Req> _s_reqs_by_eta ;                                                                                // INVARIANT : ordered by item->stats.eta
 		static_assert(sizeof(ReqIdx)==1) ;                                                                                   // else an array to hold zombie state is not ideal
-		static ::array<atomic<uint8_t>,1<<(sizeof(ReqIdx)*8-3)> _s_zombie_tab ;
+		static ::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> _s_zombie_tab ;
 		// cxtors & casts
 	public :
 		using Base::Base ;
@@ -73,8 +73,8 @@ namespace Engine {
 		ReqData const* operator->() const { return &**this ; }
 		ReqData      * operator->()       { return &**this ; }
 		//
-		bool zombie(      ) const { return                     bit( uint8_t(_s_zombie_tab[+*this>>3]) , +*this&0x7     ) ; } // req has been killed, waiting to be closed when all jobs are done
-		void zombie(bool z)       { _s_zombie_tab[+*this>>3] = bit( uint8_t(_s_zombie_tab[+*this>>3]) , +*this&0x7 , z ) ; }
+		bool zombie(      ) const { return _s_zombie_tab[+*this] ;              } // req has been killed, waiting to be closed when all jobs are done
+		void zombie(bool z)       { SWEAR(+*this) ; _s_zombie_tab[+*this] = z ; } // ensure Req 0 is always zombie
 		// services
 		void make   (EngineClosureReq const&) ;
 		void kill   (                       ) ;

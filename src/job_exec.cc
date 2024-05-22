@@ -303,12 +303,12 @@ int main( int argc , char* argv[] ) {
 	JobRpcReq end_report { JobRpcProc::End , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error, so we can goto End anytime
 	//
 	if (::chdir(g_phy_root_dir.c_str())!=0) {
-		append_to_string(end_report.msg,"cannot chdir to root : ",g_phy_root_dir) ;
+		append_to_string(end_report.msg,"cannot chdir to root : ",g_phy_root_dir,'\n') ;
 		goto End ;
 	}
-	Trace::s_sz = 10<<20 ;        // this is more than enough
-	unlnk(*g_trace_file) ;        // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
-	block_sigs({SIGCHLD}) ;       // necessary to capture it using signalfd
+	Trace::s_sz = 10<<20 ;                                                                            // this is more than enough
+	unlnk(*g_trace_file) ;                                                                            // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+	block_sigs({SIGCHLD}) ;                                                                           // necessary to capture it using signalfd
 	app_init(No/*chk_version*/) ;
 	//
 	{	Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
@@ -325,14 +325,16 @@ int main( int argc , char* argv[] ) {
 			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			trace("no_server",g_service_start,STR(found_server),e) ;
-			if (found_server) exit(Rc::Fail                                                          ) ; // this is typically a ^C
-			else              exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ; // this may be a server config problem, better to report
+			if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
+			else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
 		}
 		trace("g_start_info",Pdate(New),g_start_info) ;
 		switch (g_start_info.proc) {
-			case JobRpcProc::None  : return 0 ;                                                          // server ask us to give up
-			case JobRpcProc::Start : break    ;                                                          // normal case
+			case JobRpcProc::None  : return 0 ;                                                       // server ask us to give up
+			case JobRpcProc::Start : break    ;                                                       // normal case
 		DF}
+		try                       { g_start_info.job_space.chk() ;   }
+		catch (::string const& e) { end_report.msg += e ; goto End ; }
 		//
 		g_root_dir = +g_start_info.job_space.root_view ? &g_start_info.job_space.root_view : &g_phy_root_dir ;
 		//
@@ -343,28 +345,29 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
 		//
 		trace("wash",g_start_info.pre_actions) ;
-		::pair_s<bool/*ok*/> wash_report = do_file_actions( g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
-		end_report.msg += wash_report.first ;
-		if (!wash_report.second) { end_report.digest.status = Status::LateLostErr ; goto End ; }
-		//
-		for( auto const& [view,phy] : g_start_info.job_space.views )
-			for( auto const& [f,is_view] : { ::pair_s<bool>{view,true} , ::pair_s<bool>{phy,false} } ) {
-				SWEAR(+f) ;
-				if (!is_lcl(f)) continue ;
-				if (f.back()=='/') {
-					mk_dir(f) ;
-				} else {
-					FileInfo fi{f} ;
-					g_start_info.deps.emplace_back(f,DepDigest(Access::Stat,fi)) ;
-					if (!fi.tag()) {
-						::close(::open(dir_guard(f).c_str(),O_RDWR|O_CREAT,0644)) ;
-						if (is_view) {
-							g_created_views.emplace(f,FileSig(f)) ;
-							trace("created",f) ;
-						}
-					}
-				}
+		{	::pair_s<bool/*ok*/> wash_report = do_file_actions( g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
+			end_report.msg += ensure_nl(::move(wash_report.first)) ;
+			if (!wash_report.second) {
+				end_report.digest.status = Status::LateLostErr ;
+				goto End ;
 			}
+		}
+		auto handle_entry = [&]( ::string const& f , bool is_view )->void {
+			SWEAR(+f) ;
+			if (!is_lcl(f)   )               return ;
+			if (f.back()=='/') { mk_dir(f) ; return ; }
+			FileInfo fi{f} ;
+			g_start_info.deps.emplace_back(f,DepDigest(Access::Stat,fi)) ;
+			if (+fi.tag()) return ;
+			::close(::open(dir_guard(f).c_str(),O_RDWR|O_CREAT,0644)) ;
+			if (!is_view) return ;
+			g_created_views.emplace(f,FileSig(f)) ;
+			trace("created",f) ;
+		} ;
+		for( auto const& [view,phys] : g_start_info.job_space.views ) {
+			handle_entry(view        ,true /*is_view*/) ;
+			for( ::string const& phy : phys ) handle_entry(phy,false/*is_view*/) ;
+		}
 		//
 		::map_ss cmd_env ;
 		try {
@@ -379,9 +382,9 @@ int main( int argc , char* argv[] ) {
 				// this way there is a conflict between job 1 and job 2 when (id2-id1)*phi is near an integer
 				// because phi is the irrational which is as far from rationals as possible, and id's are as small as possible, this probability is minimized
 				// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
-				static constexpr uint32_t FirstPid  = 300                                 ;              // apparently, pid's wrap around back to 300
-				static constexpr uint64_t NPids     = MAX_PID - FirstPid                  ;              // number of available pid's
-				static constexpr uint64_t delta_pid = (1640531527*NPids) >> n_bits(NPids) ;              // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
+				static constexpr uint32_t FirstPid  = 300                                 ;           // apparently, pid's wrap around back to 300
+				static constexpr uint64_t NPids     = MAX_PID - FirstPid                  ;           // number of available pid's
+				static constexpr uint64_t delta_pid = (1640531527*NPids) >> n_bits(NPids) ;           // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
 				//
 				g_gather.first_pid =FirstPid + ((g_start_info.small_id*delta_pid)>>(32-n_bits(NPids)))%NPids ; // delta_pid on 64 bits to avoid rare overflow in multiplication
 			}
@@ -390,22 +393,30 @@ int main( int argc , char* argv[] ) {
 		}
 		trace("prepared",g_start_info.autodep_env,g_phy_tmp_dir) ;
 		//
-		g_gather.addr             =        g_start_info.addr             ;
-		g_gather.as_session       =        true                          ;
-		g_gather.autodep_env      =        g_start_info.autodep_env      ;
-		g_gather.cur_deps_cb      =        cur_deps_cb                   ;
-		g_gather.cwd              = ::move(g_start_info.cwd_s          ) ; if (+g_gather.cwd) g_gather.cwd.pop_back() ;
-		g_gather.env              =        &cmd_env                      ;
-		g_gather.job              =        g_job                         ;
-		g_gather.kill_sigs        =        g_start_info.kill_sigs        ;
-		g_gather.live_out         =        g_start_info.live_out         ;
-		g_gather.method           =        g_start_info.method           ;
-		g_gather.network_delay    =        g_start_info.network_delay    ;
-		g_gather.seq_id           =        g_seq_id                      ;
-		g_gather.server_master_fd = ::move(server_fd                   ) ;
-		g_gather.service_mngt     =        g_service_mngt                ;
-		g_gather.timeout          =        g_start_info.timeout          ;
-		g_gather.views            =        g_start_info.job_space.views  ;
+		g_gather.addr             =        g_start_info.addr           ;
+		g_gather.as_session       =        true                        ;
+		g_gather.autodep_env      =        g_start_info.autodep_env    ;
+		g_gather.cur_deps_cb      =        cur_deps_cb                 ;
+		g_gather.cwd              = ::move(g_start_info.cwd_s        ) ; if (+g_gather.cwd) g_gather.cwd.pop_back() ;
+		g_gather.env              =        &cmd_env                    ;
+		g_gather.job              =        g_job                       ;
+		g_gather.kill_sigs        =        g_start_info.kill_sigs      ;
+		g_gather.live_out         =        g_start_info.live_out       ;
+		g_gather.method           =        g_start_info.method         ;
+		g_gather.network_delay    =        g_start_info.network_delay  ;
+		g_gather.seq_id           =        g_seq_id                    ;
+		g_gather.server_master_fd = ::move(server_fd                 ) ;
+		g_gather.service_mngt     =        g_service_mngt              ;
+		g_gather.timeout          =        g_start_info.timeout        ;
+		//
+		for( auto& [view,phys] : g_start_info.job_space.views ) {
+			::vmap_s<FileLoc> phys_loc ;
+			for( ::string& phy : phys ) {
+				if (is_lcl(phy)) phys_loc.emplace_back(::move(phy),FileLoc::Repo) ; // XXX : make a finer analyze, in particular recognize src dirs
+				else             phys_loc.emplace_back(::move(phy),FileLoc::Ext ) ; // .
+			}
+			g_gather.autodep_env.views.emplace_back(::move(view),::move(phys_loc)) ;
+		}
 		//
 		if (!g_start_info.method)                                                                              // if no autodep, consider all static deps are fully accessed
 			for( auto& [d,digest] : g_start_info.deps ) if (digest.dflags[Dflag::Static]) {

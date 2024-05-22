@@ -46,15 +46,11 @@ struct AccessDigest {                                                  // order 
 struct JobExecRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobExecRpcReq const& ) ;
 	// make short lines
-	using Pdate    = Time::Pdate    ;
-	using FileInfo = Disk::FileInfo ;
-	using AD       = AccessDigest   ;
-	using P        = JobExecProc    ;
-	// statics
-private :
-	static ::vmap_s<FileInfo> _s_mk_mdd(::vector_s&& fs) { ::vmap_s<FileInfo> res ; for( ::string& f : fs ) res.emplace_back(::move(f),FileInfo()) ; return res ; }
+	using Pdate = Time::Pdate    ;
+	using FI    = Disk::FileInfo ;
+	using AD    = AccessDigest   ;
+	using P     = JobExecProc    ;
 	// cxtors & casts
-public :
 	JobExecRpcReq() = default ;
 	// Confirm always has a confirm argument
 	static constexpr P Confirm = P::Confirm ;
@@ -62,60 +58,24 @@ public :
 	JobExecRpcReq( P p , bool sc         , ::string&& t={} ) : proc{p} , sync{sc&&p!=Confirm} , digest{.write=(No|sc)&(p==Confirm)} , txt{::move(t)} { SWEAR( p<P::HasFiles               ) ; }
 	JobExecRpcReq( P p , bool s , bool c , ::string&& t={} ) : proc{p} , sync{s             } , digest{.write= No|c               } , txt{::move(t)} { SWEAR(                  p==Confirm ) ; }
 	//
-private :
-	JobExecRpcReq( P p , bool slv , ::string&& cwd_ , ::vmap_s<FileInfo>&& fs , AccessDigest const& d , bool nf , bool s , ::string&& comment ) :
-		proc     { p               }
-	,	sync     { s               }
-	,	solve    { slv             }
-	,	no_follow{ nf              }
-	,	cwd      { ::move(cwd_)    }
-	,	files    { ::move(fs)      }
-	,	digest   { d               }
-	,	txt      { ::move(comment) }
-	{ SWEAR( p==P::Access || p==P::DepVerbose ) ; }
-public : //!                                                                                                         solve cwd                                 no_follow sync
-	JobExecRpcReq( P p , ::vmap_s<FileInfo>&& fs , AD const& ad ,           bool s , ::string&& c ) : JobExecRpcReq{p,false,{}         ,          ::move(fs) ,ad,false   ,s    ,::move(c)} {}
-	JobExecRpcReq( P p , ::vmap_s<FileInfo>&& fs , AD const& ad ,                    ::string&& c ) : JobExecRpcReq{p,false,{}         ,          ::move(fs) ,ad,false   ,false,::move(c)} {}
-	JobExecRpcReq( P p , ::vector_s        && fs , AD const& ad , bool nf , bool s , ::string&& c ) : JobExecRpcReq{p,true ,Disk::cwd(),_s_mk_mdd(::move(fs)),ad,nf      ,s    ,::move(c)} {}
-	JobExecRpcReq( P p , ::vector_s        && fs , AD const& ad , bool nf ,          ::string&& c ) : JobExecRpcReq{p,true ,Disk::cwd(),_s_mk_mdd(::move(fs)),ad,nf      ,false,::move(c)} {}
+	JobExecRpcReq( P p , ::vmap_s<FI>&& fs , AD const& d , bool s , ::string&& c ) : proc{p} , sync{s} , files{::move(fs)} , digest{d} , txt{::move(c)} { SWEAR(p==P::Access||p==P::DepVerbose) ; }
+	JobExecRpcReq( P p , ::vmap_s<FI>&& fs , AD const& d ,          ::string&& c ) : JobExecRpcReq{p,::move(fs),d,false/*sync*/,::move(c)} {}
 	//
-	JobExecRpcReq( P p , ::vector_s&& fs , ::string&& c={} ) : proc{p} , files{_s_mk_mdd(::move(fs))} , txt{::move(c)} { SWEAR(p==P::Guard) ; }
+	JobExecRpcReq( P p , ::string&& f , ::string&& c ) : proc{p} , files{{{::move(f),{}}}} , txt{::move(c)} { SWEAR(p==P::Guard) ; }
 	//
-	JobExecRpcReq( P p , ::string&& f , ::string&& code , ::string&& c ) :
-		proc   { p                     }
-	,	sync   { true                  }
-	,	solve  { true                  }
-	,	cwd    { Disk::cwd()           }
-	,	files  { {{::move(f),{}}}      }                       // no need for date for codec
-	,	digest { .accesses=Access::Reg }
-	,	txt    { code                  }
-	,	ctx    { c                     }
-	{ SWEAR(p==P::Decode) ; }
-	JobExecRpcReq( P p , ::string&& f , ::string&& val , ::string&& c , uint8_t ml ) :
-		proc    { p                     }
-	,	sync    { true                  }
-	,	solve   { true                  }
-	,	min_len { ml                    }
-	,	cwd     { Disk::cwd()           }
-	,	files   { {{::move(f),{}}}      }                      // no need for date for codec
-	,	digest  { .accesses=Access::Reg }
-	,	txt     { val                   }
-	,	ctx     { c                     }
-	{ SWEAR(p==P::Encode) ; }
+	#define S ::string
+	// no need for dates for codec
+	JobExecRpcReq(P p,S&& f,S&& code,S&& c           ) : proc{p} , sync{true} ,               files{{{::move(f),{}}}} , digest{.accesses=Access::Reg} , txt{code} , ctx{c} { SWEAR(p==P::Decode) ; }
+	JobExecRpcReq(P p,S&& f,S&& val ,S&& c,uint8_t ml) : proc{p} , sync{true} , min_len{ml} , files{{{::move(f),{}}}} , digest{.accesses=Access::Reg} , txt{val } , ctx{c} { SWEAR(p==P::Encode) ; }
+	#undef S
 	// services
-public :
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = {} ;
 		::serdes(s,proc) ;
 		::serdes(s,date) ;
 		::serdes(s,sync) ;
 		if (proc>=P::HasFiles) {
-			::serdes(s,solve) ;
 			::serdes(s,files) ;
-			if (solve) {
-				::serdes(s,cwd      ) ;
-				::serdes(s,no_follow) ;
-			}
 		}
 		switch (proc) {
 			case P::ChkDeps    :
@@ -133,17 +93,14 @@ public :
 		::serdes(s,txt) ;
 	}
 	// data
-	P                  proc      = P::None                   ;
-	bool               sync      = false                     ;
-	bool               solve     = false                     ; // if proc>=HasFiles, if true <=> files must be solved and dates added by probing disk
-	bool               no_follow = false                     ; // if solve, whether links should not be followed
-	uint8_t            min_len   = 0                         ; // if proc==Encode
-	Pdate              date      = New                       ; // access date to reorder accesses during analysis
-	::string           cwd       ;                             // if solve, cwd to use to solve files
-	::vmap_s<FileInfo> files     ;
-	AccessDigest       digest    ;
-	::string           txt       ;                             // if proc==Access|Decode|Encode|Trace (comment for Access, code for Decode, value for Encode)
-	::string           ctx       ;                             // if proc==Decode|Encode
+	P            proc    = {}    ;
+	bool         sync    = false ;
+	uint8_t      min_len = 0     ; // if proc==Encode
+	Pdate        date    = New   ; // access date to reorder accesses during analysis
+	::vmap_s<FI> files   ;
+	AD           digest  ;
+	::string     txt     ;         // if proc==Access|Decode|Encode|Trace (comment for Access, code for Decode, value for Encode)
+	::string     ctx     ;         // if proc==Decode|Encode
 } ;
 
 struct JobExecRpcReply {

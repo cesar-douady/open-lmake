@@ -52,7 +52,7 @@ int main( int argc , char* argv[] ) {
 		if (cmd_line.flags[CmdFlag::Views]) {
 			::vector_s vs = split(cmd_line.flag_args[+CmdFlag::Views],' ') ;
 			if (vs.size()%2) syntax.usage("view mapping must contain an even number of alternating views and physical dirs") ;
-			for( size_t i=0 ; i<vs.size() ; i+=2 ) job_space.views.emplace_back(vs[i],vs[i+1]) ;
+			for( size_t i=0 ; i<vs.size() ; i+=2 ) job_space.views.emplace_back( vs[i] , ::vector_s{vs[i+1]} ) ;                                                        // implement overlays
 		}
 		job_space.enter( *g_root_dir , get_env("TMPDIR",P_tmpdir) , 0 , cmd_line.flag_args[+CmdFlag::WorkDir] ) ;
 		//
@@ -66,7 +66,8 @@ int main( int argc , char* argv[] ) {
 		if (+job_space.root_view                  ) gather.autodep_env.root_dir    = ::move(job_space.root_view                                                ) ;
 		else                                        gather.autodep_env.root_dir    =        *g_root_dir                                                          ;
 		/**/                                        gather.autodep_env.tmp_dir     =        get_env("TMPDIR",P_tmpdir)                                           ;
-		/**/                                        gather.views                   = ::move(job_space.views                                                    ) ;
+		//
+		for( auto const& [view,phys] : job_space.views ) { SWEAR(phys.size()==1) ; gather.views.emplace_back(view,phys.front()) ; }                                     // XXX : move views to record
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Status status ;

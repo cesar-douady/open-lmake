@@ -42,15 +42,13 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
 //
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
-	/**/                os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
-	if (jerr.sync     ) os << ",sync"                                         ;
-	if (jerr.solve    ) os << ",solve"                                        ;
-	if (jerr.no_follow) os << ",no_follow"                                    ;
-	/**/                os <<',' << jerr.digest                               ;
-	if (+jerr.txt     ) os <<',' << jerr.txt                                  ;
+	/**/           os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
+	if (jerr.sync) os << ",sync"                                         ;
+	/**/           os <<',' << jerr.digest                               ;
+	if (+jerr.txt) os <<',' << jerr.txt                                  ;
 	if (jerr.proc>=JobExecProc::HasFiles) {
-		if ( +jerr.digest.accesses && !jerr.solve ) os <<','<<               jerr.files  ;
-		else                                        os <<','<< mk_key_vector(jerr.files) ;
+		if (+jerr.digest.accesses) os <<','<<               jerr.files  ;
+		else                       os <<','<< mk_key_vector(jerr.files) ;
 	}
 	return os <<')' ;
 }

@@ -16,12 +16,12 @@ namespace Engine {
 	// Req
 	//
 
-	SmallIds<ReqIdx,true/*ThreadSafe*/>              Req::s_small_ids     ;
-	::vector<Req>                                    Req::s_reqs_by_start ;
-	Mutex<MutexLvl::Req>                             Req::s_reqs_mutex    ;
-	::vector<ReqData>                                Req::s_store(1)      ;
-	::vector<Req>                                    Req::_s_reqs_by_eta  ;
-	::array<atomic<uint8_t>,1<<(sizeof(ReqIdx)*8-3)> Req::_s_zombie_tab   = {} ;
+	SmallIds<ReqIdx,true/*ThreadSafe*/>         Req::s_small_ids     ;
+	::vector<Req>                               Req::s_reqs_by_start ;
+	Mutex<MutexLvl::Req>                        Req::s_reqs_mutex    ;
+	::vector<ReqData>                           Req::s_store(1)      ;
+	::vector<Req>                               Req::_s_reqs_by_eta  ;
+	::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> Req::_s_zombie_tab   = { true } ; // Req 0 is zombie, all other ones are not
 
 	::ostream& operator<<( ::ostream& os , Req const r ) {
 		return os << "Rq(" << int(+r) << ')' ;

@@ -42,11 +42,15 @@ src/align_comments.cc
 src/app.cc
 src/app.hh
 src/autodep/autodep.cc
+src/autodep/backdoor.cc
+src/autodep/backdoor.hh
 src/autodep/clmake.cc
 src/autodep/env.cc
 src/autodep/env.hh
 src/autodep/gather.cc
 src/autodep/gather.hh
+src/autodep/job_support.cc
+src/autodep/job_support.hh
 src/autodep/lcheck_deps.cc
 src/autodep/ld.x.cc
 src/autodep/ld_audit.cc
@@ -160,6 +164,7 @@ unit_tests/bench.py
 unit_tests/cache.py
 unit_tests/cargo.py
 unit_tests/chain.py
+unit_tests/chdir.py
 unit_tests/clone.cc
 unit_tests/clone.py
 unit_tests/codec.py
@@ -214,6 +219,7 @@ unit_tests/name.py
 unit_tests/namespaces.py
 unit_tests/numba.py
 unit_tests/numpy.py
+unit_tests/overlay.py
 unit_tests/path.py
 unit_tests/path_max.py
 unit_tests/perf.py
@@ -249,7 +255,6 @@ unit_tests/test12.script
 unit_tests/test13.script
 unit_tests/test14.script
 unit_tests/test17.script
-unit_tests/test18.script
 unit_tests/test19.script
 unit_tests/timeout.py
 unit_tests/tmp.py

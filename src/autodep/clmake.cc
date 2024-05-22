@@ -10,7 +10,9 @@
 #include "hash.hh"
 #include "time.hh"
 
+#include "backdoor.hh"
 #include "env.hh"
+#include "job_support.hh"
 #include "record.hh"
 
 using namespace Disk ;
@@ -81,28 +83,23 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
-	if (verbose) {
-		Ptr<Dict> res { New } ;
-		if (+files) {           // fast path : else, depend on no files
-			//
-			JobExecRpcReply reply = _g_record.direct(JobExecRpcReq( Proc::DepVerbose , ::copy(files) , ad , no_follow , true/*sync*/ , "depend" )) ;
-			//
-			SWEAR( reply.dep_infos.size()==files.size() , reply.dep_infos.size() , files.size() ) ;
-			for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
-				Object* py_ok = nullptr/*garbage*/ ;
-				switch (reply.dep_infos[i].first) {
-					case Yes   : py_ok = &True  ; break ;
-					case Maybe : py_ok = &None  ; break ;
-					case No    : py_ok = &False ; break ;
-				}
-				res->set_item( files[i] , *Ptr<Tuple>( *py_ok , *Ptr<Str>(::string(reply.dep_infos[i].second)) ) ) ;
-			}
+	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ;
+	//
+	if (!verbose) return None.to_py_boost() ;
+	//
+	Ptr<Dict> res { New } ;
+	//
+	SWEAR( dep_infos.size()==files.size() , dep_infos.size() , files.size() ) ;
+	for( size_t i=0 ; i<dep_infos.size() ; i++ ) {
+		Object* py_ok = nullptr/*garbage*/ ;
+		switch (dep_infos[i].first) {
+			case Yes   : py_ok = &True  ; break ;
+			case Maybe : py_ok = &None  ; break ;
+			case No    : py_ok = &False ; break ;
 		}
-		return res->to_py_boost() ;
-	} else {
-		_g_record.direct(JobExecRpcReq( Proc::Access , ::move(files) , ad , no_follow , "depend" )) ;
-		return None.to_py_boost() ;
+		res->set_item( files[i] , *Ptr<Tuple>( *py_ok , *Ptr<Str>(::string(dep_infos[i].second)) ) ) ;
 	}
+	return res->to_py_boost() ;
 }
 
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
@@ -122,9 +119,7 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	::vector_s files ;
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
-	//
-	JobExecRpcReq jerr { Proc::Access , ::move(files) , ad , no_follow , false/*sync*/ , "target" } ;
-	_g_record.direct(::move(jerr)) ;
+	JobSupport::target( _g_record , ::move(files) , ad , no_follow ) ;
 	//
 	return None.to_py_boost() ;
 }
@@ -134,10 +129,10 @@ static PyObject* check_deps( PyObject* /*null*/ , PyObject* args , PyObject* kwd
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds)                  ;
 	size_t       n_args  = py_args.size() + (py_kwds?py_kwds->size():0) ;
 	if (n_args>1) return py_err_set(Exception::TypeErr,"too many args") ;
-	bool            verbose = +py_args ? +py_args[0] : !py_kwds ? false : !py_kwds->contains("verbose") ? false : +(*py_kwds)["verbose"] ;
-	JobExecRpcReply reply   = _g_record.direct(JobExecRpcReq(Proc::ChkDeps,verbose/*sync*/))                                             ;
+	bool  verbose = +py_args ? +py_args[0] : !py_kwds ? false : !py_kwds->contains("verbose") ? false : +(*py_kwds)["verbose"] ;
+	Bool3 ok      = JobSupport::check_deps(_g_record,verbose)                                                                  ;
 	if (!verbose) return None.to_py_boost() ;
-	switch (reply.ok) {
+	switch (ok) {
 		case Yes   : return True .to_py_boost()                                           ;
 		case Maybe : return py_err_set(Exception::RuntimeErr,"some deps are out-of-date") ;
 		case No    : return False.to_py_boost()                                           ;
@@ -155,9 +150,9 @@ static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		//
 		if (n_kwds) throw "unexpected keyword arg"s ;
 		//
-		JobExecRpcReply reply = _g_record.direct(JobExecRpcReq( Proc::Decode , ::move(file) , ::move(code) , ::move(ctx) )) ;
-		if (reply.ok!=Yes) throw reply.txt ;
-		return Ptr<Str>(reply.txt)->to_py_boost() ;
+		::pair_s<bool/*ok*/> reply = JobSupport::decode( _g_record , ::move(file) , ::move(code) , ::move(ctx) ) ;
+		if (!reply.second) throw reply.first ;
+		else               return Ptr<Str>(reply.first)->to_py_boost() ;
 	} catch (::string const& e) {
 		return py_err_set(Exception::TypeErr,e) ;
 	}
@@ -170,15 +165,15 @@ static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	try {
 		::string file    = _mk_str  ( _gather_arg( py_args , 0 , py_kwds , "file"    , n_kwds ) ,     "file"    ) ;
 		::string ctx     = _mk_str  ( _gather_arg( py_args , 1 , py_kwds , "ctx"     , n_kwds ) ,     "ctx"     ) ;
-		::string val     = _mk_str  ( _gather_arg( py_args , 2 , py_kwds , "val"     , n_kwds ) ,     "code"    ) ;
+		::string val     = _mk_str  ( _gather_arg( py_args , 2 , py_kwds , "val"     , n_kwds ) ,     "val"     ) ;
 		uint8_t  min_len = _mk_uint8( _gather_arg( py_args , 3 , py_kwds , "min_len" , n_kwds ) , 1 , "min_len" ) ;
 		//
 		if (n_kwds                ) throw "unexpected keyword arg"s                                                                      ;
 		if (min_len>MaxCodecBits/4) throw to_string("min_len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits/4,')') ; // codes are output in hex, 4 bits/digit
 		//
-		JobExecRpcReply reply = _g_record.direct(JobExecRpcReq( Proc::Encode , ::move(file) , ::move(val) , ::move(ctx) , min_len )) ;
-		if (reply.ok!=Yes) throw reply.txt ;
-		return Ptr<Str>(reply.txt)->to_py_boost() ;
+		::pair_s<bool/*ok*/> reply = JobSupport::encode( _g_record , ::move(file) , ::move(val) , ::move(ctx) , min_len ) ;
+		if (!reply.second) throw reply.first ;
+		return Ptr<Str>(reply.first)->to_py_boost() ;
 	} catch (::string const& e) {
 		return py_err_set(Exception::TypeErr,e) ;
 	}
@@ -232,26 +227,14 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	}
 }
 
-static PyObject* autodep_env( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args = *from_py<Tuple const>(args) ;
-	size_t       n_args  = py_args.size()              ;
-	if (kwds    ) return py_err_set(Exception::TypeErr,"no keyword args") ;
-	if (n_args>0) return py_err_set(Exception::TypeErr,"no arg expected") ;
-	return Ptr<Str>(Record::s_autodep_env())->to_py_boost() ;
-}
-
 static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	size_t       n_args  = py_args.size()              ;
 	if (kwds    ) return py_err_set(Exception::TypeErr,"expected no keyword args") ;
 	if (n_args>0) return py_err_set(Exception::TypeErr,"expected no args"        ) ;
-	char c = 0/*garbage*/ ;
-	// we have a private Record with a private AutodepEnv, so we must go through the backdoor to alter the regular AutodepEnv
-	int rc [[maybe_unused]] = ::readlinkat( Record::s_root_fd() , (PrivateAdminDir+"/backdoor/autodep"s ).c_str() , &c , 1 ) ;
-	if (rc<0) return None.to_py_boost() ;
-	SWEAR( c=='0' || c=='1' , int(c) ) ;
-	SWEAR( rc==1            , rc     ) ;
-	return Ptr<Bool>(c!='0')->to_py_boost() ;
+	//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	return Ptr<Bool>(Backdoor::call(Backdoor::Enable()))->to_py_boost() ;
+	//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 }
 
 static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
@@ -260,18 +243,15 @@ static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	if (kwds    ) return py_err_set(Exception::TypeErr,"no keyword args") ;
 	if (n_args>1) return py_err_set(Exception::TypeErr,"too many args"  ) ;
 	if (n_args<1) return py_err_set(Exception::TypeErr,"missing arg"    ) ;
-	char c ;
-	// we have a private Record with a private AutodepEnv, so we must go through the backdoor to alter the regular AutodepEnv
-	int rc [[maybe_unused]] ;                                                                     // avoid compiler warning
-	if (+py_args[0]) rc = ::readlinkat( Record::s_root_fd() , (PrivateAdminDir+"/backdoor/enable"s ).c_str() , &c , 1 ) ;
-	else             rc = ::readlinkat( Record::s_root_fd() , (PrivateAdminDir+"/backdoor/disable"s).c_str() , &c , 1 ) ; // note that the depend and target functions are still working while disabled
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Backdoor::call(Backdoor::Enable(No|+py_args[0])) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return None.to_py_boost() ;
 }
 
 #define F(name,descr) { #name , reinterpret_cast<PyCFunction>(name) , METH_VARARGS|METH_KEYWORDS , descr }
 static PyMethodDef funcs[] = {
-	F( autodep_env         , "autodep_env()"                                                                         " Return the value to put in $LMAKE_AUTODEP_ENV to set the current behavior." )
-,	F( check_deps          , "check_deps(verbose=False)"                                                             " Ensure that all previously seen deps are up-to-date."                       )
+	F( check_deps          , "check_deps(verbose=False)"                                                             " Ensure that all previously seen deps are up-to-date."                       )
 ,	F( decode              , "decode(code,file,ctx)"                                                                 " Return the associated value passed by encode(value,file,ctx)."              )
 ,	F( depend              , "depend(dep1,dep2,...,verbose=False,follow_symlinks=True,<dep flags=True>,...)"         " Pretend read of all argument and mark them with flags mentioned as True."   )
 ,	F( encode              , "encode(value,file,ctx,min_length=1)"                                                   " Return a code associated with value. If necessary create such a code of"
@@ -296,7 +276,7 @@ PyMODINIT_FUNC
 {
 	Ptr<Module> mod { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
 	//
-	_g_record = {New,Yes/*enable*/} ;
+	_g_record = {New,Yes/*enabled*/} ;
 	Ptr<Tuple> py_bes{ 1+HAS_SLURM } ;                      // PER_BACKEND : add an entry here
 	/**/           py_bes->set_item(0,*Ptr<Str>("local")) ;
 	if (HAS_SLURM) py_bes->set_item(1,*Ptr<Str>("slurm")) ;

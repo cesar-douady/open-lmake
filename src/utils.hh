@@ -916,7 +916,6 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	NodeCrcDate // must follow Backend
 ,	Req         // must follow Backend
 ,	TargetDir   // must follow Backend
-,	Thread      // must follow Backend
 // level 4
 ,	Autodep1    // must follow Gil
 ,	Gather      // must follow Gil
@@ -928,8 +927,10 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	Hash
 ,	Slurm
 ,	SmallId
-,	SyscallTab
-,	Trace       // last to allow tracing anywhere
+,	Thread
+// very inner
+,	Trace       // allow tracing anywhere (but tracing may call some syscall)
+,	SyscallTab  // any syscall may need this mutex
 )
 
 extern thread_local MutexLvl t_mutex_lvl ;
@@ -1088,6 +1089,8 @@ template<class... A> [[noreturn]] void exit( Rc rc , A const&... args ) {
 //
 // string
 //
+
+template<class T> ::string& operator<<( ::string& s , T&& v ) { s += ::forward<T>(v) ; return s ; } // work aroung stupid right to left associativity of +=
 
 inline constexpr bool _can_be_delimiter(char c) {                   // ensure delimiter does not clash with encoding
 	if ( c=='\\'          ) return false ;

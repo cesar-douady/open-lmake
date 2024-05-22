@@ -5,9 +5,10 @@
 
 #include "app.hh"
 
-#include "record.hh"
-
 #include "rpc_job.hh"
+
+#include "job_support.hh"
+#include "record.hh"
 
 ENUM(Key,None)
 ENUM(Flag
@@ -28,12 +29,10 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::File   ]) syntax.usage("must have file to retrieve associated value"   ) ;
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to retrieve associated value") ;
 	//
-	JobExecRpcReply reply = Record(New,Yes/*enable*/).direct(JobExecRpcReq(
-		JobExecProc::Decode
-	,	::move(cmd_line.flag_args[+Flag::File   ])
-	,	::move(cmd_line.flag_args[+Flag::Code   ])
-	,	::move(cmd_line.flag_args[+Flag::Context])
-	)) ;
-	if (reply.ok==Yes) { ::cout<<reply.txt ; return 0 ; }
-	else               { ::cerr<<reply.txt ; return 1 ; }
+	try {
+		auto&                fa    = cmd_line.flag_args                                                                                                          ;
+		::pair_s<bool/*ok*/> reply = JobSupport::decode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , ::move(fa[+Flag::Code]) , ::move(fa[+Flag::Context]) ) ;
+		if (reply.second) { ::cout<<reply.first ; return 0 ; }
+		else              { ::cerr<<reply.first ; return 1 ; }
+	} catch (::string const& e) { exit(Rc::Format,e) ; }
 }

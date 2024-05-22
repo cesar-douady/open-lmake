@@ -6,9 +6,10 @@
 #include "app.hh"
 #include "disk.hh"
 
-#include "record.hh"
-
 #include "rpc_job.hh"
+
+#include "job_support.hh"
+#include "record.hh"
 
 using namespace Disk ;
 
@@ -46,7 +47,6 @@ int main( int argc , char* argv[]) {
 	bool         no_follow = !cmd_line.flags[Flag::FollowSymlinks] ;
 	bool         verbose   =  cmd_line.flags[Flag::Verbose       ] ;
 	AccessDigest ad        = { .accesses=~Accesses() }             ;
-	bool         err       = false                                 ;
 	if ( cmd_line.flags[Flag::NoRead      ]) ad.accesses      = {}                       ;
 	if ( cmd_line.flags[Flag::Critical    ]) ad.dflags       |= Dflag     ::Critical     ;
 	if ( cmd_line.flags[Flag::Essential   ]) ad.dflags       |= Dflag     ::Essential    ;
@@ -55,22 +55,19 @@ int main( int argc , char* argv[]) {
 	if ( cmd_line.flags[Flag::Ignore      ]) ad.extra_dflags |= ExtraDflag::Ignore       ;
 	if ( cmd_line.flags[Flag::StatReadData]) ad.extra_dflags |= ExtraDflag::StatReadData ;
 	//
-	if (verbose) {
-		JobExecRpcReply reply = Record(New).direct(JobExecRpcReq( JobExecProc::DepVerbose , ::copy(cmd_line.args) , ad , no_follow , true/*sync*/ , "ldepend" )) ;
-		//
-		SWEAR( reply.dep_infos.size()==cmd_line.args.size() , reply.dep_infos.size() , cmd_line.args.size() ) ;
-		//
-		for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
-			switch (reply.dep_infos[i].first) {
-				case Yes   : ::cout << "ok  " ;              break ;
-				case Maybe : ::cout << "??? " ; err = true ; break ;
-				case No    : ::cout << "err " ; err = true ; break ;
-			DF}
-			::cout << ::string(reply.dep_infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
-		}
-		//
-	} else {
-		Record(New,Yes/*enable*/).direct(JobExecRpcReq( JobExecProc::Access , ::move(cmd_line.args) , ad , no_follow , "ldepend" )) ;
+	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose ) ;
+	//
+	if (!verbose) return 0 ;
+	//
+	SWEAR( dep_infos.size()==cmd_line.args.size() , dep_infos.size() , cmd_line.args.size() ) ;
+	int rc = 0 ;
+	for( size_t i=0 ; i<dep_infos.size() ; i++ ) {
+		switch (dep_infos[i].first) {
+			case Yes   : ::cout << "ok  " ;          break ;
+			case Maybe : ::cout << "??? " ; rc = 1 ; break ;
+			case No    : ::cout << "err " ; rc = 1 ; break ;
+		DF}
+		::cout << ::string(dep_infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
 	}
-	return err ? 1 : 0 ;
+	return rc ;
 }

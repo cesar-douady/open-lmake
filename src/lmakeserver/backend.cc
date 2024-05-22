@@ -215,11 +215,7 @@ namespace Backends {
 			//
 			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
 			StartEntry& entry = it->second                         ;
-			trace("entry",entry) ;
-			for( Req r : entry.reqs ) if ( +r && !r.zombie() ) goto Useful ;
-			trace("useless") ;
-			return false/*keep_fd*/ ;                            // no Req found, job has been cancelled but start message still arrives, give up
-		Useful :
+			trace("entry1",entry) ;
 			submit_attrs = ::move(entry.submit_attrs) ;
 			rsrcs        =        entry.rsrcs         ;
 			reqs         =        entry.reqs          ;
@@ -311,42 +307,26 @@ namespace Backends {
 				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;   // update existing dep
 				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      } // create new dep
 		}
-		bool useful = false ;                                                                             // true if a req is non-zombie
-		for( ReqIdx& r : reqs ) {
-			if (!r             ) continue ;
-			if (Req(r).zombie()) r      = 0    ;
-			else                 useful = true ;
-		}
-		if (!useful) {
-			trace("useless") ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send(fd,JobRpcReply(Proc::None)) ;                                                  // silently tell job_exec to give up
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			return false/*keep_fd*/ ;
-		}
-		// keep in entry.reqs only non-zombie reqs that see all deps as ready
-		bool deps_done = true ;                                                                           // true if all deps are done for at least a non-zombie req
-		for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) ) { // note : this is ok even if deps is empty
-			bool dep_done = false ;
-			for( ReqIdx& r : reqs ) {
-				// to be sure, we should check done(Dsk) rather than done(Status), but we do not seek security here, we seek perf (real check will be done at end of job)
-				// and most of the time, done(Status) implies file is ok, and we have less false positive as we do not have the opportunity to fully assess sources
-				if      (!r                                      ) continue ;
-				else if (!Node(dn)->done(Req(r),NodeGoal::Status)) r        = 0    ;                      // this req has a dep which is not done
-				else                                               dep_done = true ;
-			}
-			if (!dep_done) {                                                                              // if we can serv no Req, give up
-				deps_done = false ;
-				trace("not_done",dn,dd) ;
-				break ;
-			}
+		bool deps_done = false ;                                                                           // true if all deps are done for at least a non-zombie req
+		for( Req r : reqs ) if (!r.zombie()) {
+			for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )
+				if (!Node(dn)->done(r,NodeGoal::Status)) goto NextReq ;
+			deps_done = true ;
+			break ;
+		NextReq : ;
 		}
 		//
 		{	Lock lock { _s_mutex } ;                                                                      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
 			StartEntry& entry = it->second                         ;
-			trace("entry",entry) ;
+			trace("entry2",entry) ;
+			for( Req r : entry.reqs ) if (!r.zombie()) goto Useful ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send(fd,JobRpcReply(Proc::None)) ;                                                  // silently tell job_exec to give up
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			return false/*keep_fd*/ ;
+		Useful :
 			//                               vvvvvvvvvvvvvvvvvvvvvvv
 			append_line_to_string( jrr.msg , s_start(entry.tag,+job) ) ;
 			//                               ^^^^^^^^^^^^^^^^^^^^^^^

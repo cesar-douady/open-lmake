@@ -12,6 +12,13 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* rework src_dirs update
+	- if a new src_dir appears, all jobs must be rerun
+		- they may have read files in there and did not record it
+		- this is better than git clean as we keep deps
+		- an easy way to do that is to increment cmd_gen for all rules
+	- if an old src_dir disappears, deps must be ignored
+		- they will not be recorded if job is rerun
 * provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
 	- emit a "dont cache" message
@@ -33,6 +40,13 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* when links are accessed, it is instantaneous
+	- then record fileinfo or filesig
+	- and only consider file hot if it has been accessed with potentially different content
+* make ldebug -c fully parametrizable
+	- all vscode specific codes must be moved to the python world
+	- and put in rule attributes
+	- then provide base classes for usual cases
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
 	- put adequate $PLATFORM in LD_PRELOAD
@@ -131,6 +145,11 @@ items :
 ? provide only visibility to system+repo+tmp to jobs
 	- how to identify system ?
 ? implement a ref/check mechanism
+				::umap_s      src_dirs = mk_umap(Node::s_srcs(true/*dirs*/)) ;
+				::vector<Dep> deps     ;                                       deps.reserve(job_info.end.end.digest.deps.size()) ;
+				for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
+					if ( !is_canon(dn)                         ) goto NextJob ; // this should never happen, there is a problem with this job
+					if ( !is_lcl(dn) && !src_dirs.contains(dn) ) continue     ; // this dep is a slag acquired when it was in a src dir, which is no longer the case, ignore
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
 	- implement "lref file crc" to record/update map

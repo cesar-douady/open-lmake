@@ -217,7 +217,7 @@ struct Fopen : AuditAction<Record::Open> {
 
 struct Mkstemp : WSolve {
 	using Base = AuditAction<Record::WSolve> ;
-	Mkstemp( char* t , int sl , ::string&& comment_ ) : Base{ t , true/*no_follow*/ , false/*read*/ , comment_ } , tmpl{t} , sfx_len{sl} , comment{::move(comment_)} {}
+	Mkstemp( char* t , int sl , ::string&& comment_ ) : Base{ t , true/*no_follow*/ , false/*read*/ , true/*create*/ , comment_ } , tmpl{t} , sfx_len{sl} , comment{::move(comment_)} {}
 	Mkstemp( char* t ,          ::string&& comment_ ) : Mkstemp(t,0,::move(comment_)) {}
 	int operator()(int fd) {
 		// in case of success, tmpl is modified to contain the file that was actually opened, and it was called with file instead of tmpl
@@ -526,18 +526,18 @@ struct Mkstemp : WSolve {
 	int unlink  (      CC* p      ) NE { HEADER1(unlink  ,p,(  p  )) ; Unlnk r{   p ,false/*rmdir*/      ,"unlink"  } ; return r(orig(  p  )) ; }
 	int unlinkat(int d,CC* p,int f) NE { HEADER1(unlinkat,p,(d,p,f)) ; Unlnk r{{d,p},bool(f&AT_REMOVEDIR),"unlinkat"} ; return r(orig(d,p,f)) ; }
 
-	// utime                                                                                                    no_follow read
-	int utime    (      CC* p,const struct utimbuf* t         ) { HEADER1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,"utime"    } ; return r(orig(  p,t  )) ; }
-	int utimes   (      CC* p,const struct timeval  t[2]      ) { HEADER1(utimes   ,p,(  p,t  )) ; Solve r{   p ,false   ,false,"utimes"   } ; return r(orig(  p,t  )) ; }
-	int futimesat(int d,CC* p,const struct timeval  t[2]      ) { HEADER1(futimesat,p,(d,p,t  )) ; Solve r{{d,p},false   ,false,"futimesat"} ; return r(orig(d,p,t  )) ; }
-	int lutimes  (      CC* p,const struct timeval  t[2]      ) { HEADER1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,"lutimes"  } ; return r(orig(  p,t  )) ; }
-	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HEADER1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,"utimensat"} ; return r(orig(d,p,t,f)) ; }
+	// utime                                                                                                    no_follow read create
+	int utime    (      CC* p,const struct utimbuf* t         ) { HEADER1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,false,"utime"    } ; return r(orig(  p,t  )) ; }
+	int utimes   (      CC* p,const struct timeval  t[2]      ) { HEADER1(utimes   ,p,(  p,t  )) ; Solve r{   p ,false   ,false,false,"utimes"   } ; return r(orig(  p,t  )) ; }
+	int futimesat(int d,CC* p,const struct timeval  t[2]      ) { HEADER1(futimesat,p,(d,p,t  )) ; Solve r{{d,p},false   ,false,false,"futimesat"} ; return r(orig(d,p,t  )) ; }
+	int lutimes  (      CC* p,const struct timeval  t[2]      ) { HEADER1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,false,"lutimes"  } ; return r(orig(  p,t  )) ; }
+	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HEADER1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,false,"utimensat"} ; return r(orig(d,p,t,f)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
-	//                                                                                         no_follow read
-	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false   ,      "access"   } ; return r(orig(  p,m  )) ; }
-	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f),      "faccessat"} ; return r(orig(d,p,m,f)) ; }
-	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true    ,false,"opendir"  } ; return r(orig(  p    )) ; }
+	//                                                                                         no_follow read create
+	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false   ,            "access"   } ; return r(orig(  p,m  )) ; }
+	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f),            "faccessat"} ; return r(orig(d,p,m,f)) ; }
+	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true    ,false,false,"opendir"  } ; return r(orig(  p    )) ; }
 	//                                                                                                                no_follow
 	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false   ,"__xstat"     } ; return r(orig(v,  p,b  )) ; }
 	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false   ,"__xstat64"   } ; return r(orig(v,  p,b  )) ; }
@@ -569,11 +569,11 @@ struct Mkstemp : WSolve {
 	using Fltr64  = int (*)(const struct dirent64*                         ) ;
 	using Cmp     = int (*)(const struct dirent**  ,const struct dirent  **) ;
 	using Cmp64   = int (*)(const struct dirent64**,const struct dirent64**) ;
-	//                                                                                                            no_follow read
-	int scandir    (      CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandir    ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,"scandir"    } ; return r(orig(  p,nl,f,c)) ; }
-	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,"scandir64"  } ; return r(orig(  p,nl,f,c)) ; }
-	int scandirat  (int d,CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandirat  ,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,"scandirat"  } ; return r(orig(d,p,nl,f,c)) ; }
-	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,"scandirat64"} ; return r(orig(d,p,nl,f,c)) ; }
+	//                                                                                                            no_follow read create
+	int scandir    (      CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandir    ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,"scandir"    } ; return r(orig(  p,nl,f,c)) ; }
+	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,"scandir64"  } ; return r(orig(  p,nl,f,c)) ; }
+	int scandirat  (int d,CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandirat  ,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,"scandirat"  } ; return r(orig(d,p,nl,f,c)) ; }
+	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,"scandirat64"} ; return r(orig(d,p,nl,f,c)) ; }
 
 	#undef CC
 

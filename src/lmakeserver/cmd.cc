@@ -334,7 +334,7 @@ R"({
 		}
 		Rule::SimpleMatch match = j->simple_match() ;
 		//
-		for( Node t  : j->targets ) t->set_buildable() ;                                                                                        // necessary for pre_actions()
+		for( Node t  : j->targets ) t->set_buildable() ;                                                                                           // necessary for pre_actions()
 		//
 		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match) ;
 		::string                                           script      = "#!/bin/bash\n"       ;
@@ -401,10 +401,10 @@ R"({
 			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                  ," \\\n") ;
 			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                   ," \\\n") ;
 			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)                 ," \\\n") ;
-			if ( dbg || ade.auto_mkdir || +start.job_space ) {                                                                                  // in addition to debug, autodep may be needed ...
-				/**/                                    append_to_string( script , *g_lmake_dir,"/bin/autodep"                      ,' ') ;     // ... for functional reasons
+			if ( dbg || ade.auto_mkdir || +start.job_space ) {                                                                                     // in addition to debug, autodep may be needed ...
+				/**/                                    append_to_string( script , *g_lmake_dir,"/bin/autodep"                      ,' ') ;        // ... for functional reasons
 				if      ( dbg                         ) append_to_string( script , "-s " , snake(ade.lnk_support)                   ,' ') ;
-				else                                    append_to_string( script , "-s " , "none"                                   ,' ') ;     // dont care about deps
+				else                                    append_to_string( script , "-s " , "none"                                   ,' ') ;        // dont care about deps
 				/**/                                    append_to_string( script , "-m " , snake(start.method   )                   ,' ') ;
 				if      ( !dbg                        ) append_to_string( script , "-o " , "/dev/null"                              ,' ') ;
 				else if ( +dbg_dir                    ) append_to_string( script , "-o " , dbg_dir+"/accesses"                      ,' ') ;
@@ -417,8 +417,9 @@ R"({
 				if      ( +start.job_space.views      ) {
 					::string vs    ;
 					bool     first = true ;
-					for( auto const& [view,phy] : start.job_space.views ) {
-						append_to_string( vs , first?"":" " , mk_printable<' '>(view) ,' ', mk_printable<' '>(phy) ) ;
+					for( auto const& [view,phys] : start.job_space.views ) {
+						SWEAR(phys.size()==1) ;                                                                                                    // XXX : implement overlays
+						append_to_string( vs , first?"":" " , mk_printable<' '>(view) ,' ', mk_printable<' '>(phys.front()) ) ;
 						first = false ;
 					}
 					append_to_string( script , "-v" ,' ', mk_shell_str(vs) ) ;

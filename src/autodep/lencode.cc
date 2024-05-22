@@ -6,9 +6,10 @@
 #include "app.hh"
 #include "disk.hh"
 
-#include "record.hh"
-
 #include "rpc_job.hh"
+
+#include "job_support.hh"
+#include "record.hh"
 
 using namespace Disk ;
 
@@ -39,13 +40,11 @@ int main( int argc , char* argv[]) {
 	} catch (::string const& e) {
 		syntax.usage(to_string("bad min len value : ",e)) ;
 	}
-	JobExecRpcReply reply = Record(New,Yes/*enable*/).direct(JobExecRpcReq(
-		JobExecProc::Encode
-	,	::move(cmd_line.flag_args[+Flag::File   ])
-	,	to_string(::cin.rdbuf())
-	,	::move(cmd_line.flag_args[+Flag::Context])
-	,	min_len
-	)) ;
-	if (reply.ok==Yes) { ::cout<<reply.txt<<'\n' ; return 0 ; }
-	else               { ::cerr<<reply.txt       ; return 1 ; }
+	//
+	try {
+		auto&                fa    = cmd_line.flag_args                                                                                                                     ;
+		::pair_s<bool/*ok*/> reply = JobSupport::encode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , to_string(::cin.rdbuf()) , ::move(fa[+Flag::Context]) , min_len ) ;
+		if (reply.second) { ::cout<<reply.first<<'\n' ; return 0 ; }
+		else              { ::cerr<<reply.first       ; return 1 ; }
+	} catch (::string const& e) { exit(Rc::Format,e) ; }
 }

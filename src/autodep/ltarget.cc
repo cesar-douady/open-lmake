@@ -5,9 +5,10 @@
 
 #include "app.hh"
 
-#include "record.hh"
-
 #include "rpc_job.hh"
+
+#include "job_support.hh"
+#include "record.hh"
 
 ENUM(Key,None)
 ENUM(Flag
@@ -54,8 +55,7 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::NoAllow    ]) ad.extra_tflags |= ExtraTflag::Allow       ;
 	if ( cmd_line.flags[Flag::SourceOk   ]) ad.extra_tflags |= ExtraTflag::SourceOk    ;
 	//
-	JobExecRpcReq jerr { JobExecProc::Access , ::move(cmd_line.args) , ad , no_follow , false/*sync*/ , "ltarget" } ;
-	Record(New,Yes/*enable*/).direct(::move(jerr)) ;
+	JobSupport::target( {New,Yes/*enabled*/} , ::move(cmd_line.args) , ad , no_follow ) ;
 	//
 	return 0 ;
 }

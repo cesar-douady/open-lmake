@@ -237,8 +237,6 @@ namespace Engine {
 			Attrs::acquire_from_dct( job_space.views      , py_dct , "views"       ) ;
 			::sort(env            ) ;                                                  // stabilize cmd crc
 			::sort(job_space.views) ;                                                  // .
-			// check
-			job_space.chk() ;
 		}
 		// data
 		// START_OF_VERSIONING
@@ -766,22 +764,23 @@ namespace Engine {
 			if (!py_src          )             return false ;
 			if (*py_src==Py::None) { if (!dst) return false ; dst = {} ; return true  ; }
 			//
-			bool                updated = false                        ;
-			Py::Sequence const& py_seq  = py_src->as_a<Py::Sequence>() ;
-			size_t              n       = py_seq.size()                ;
-			if (n!=dst.size()) {
-				updated = true ;
-				dst.resize(n) ;
-			}
-			size_t i = 0 ;
-			for( Py::Object const& py_item : py_seq ) {
-				if (py_item==Py::None) continue ;
+			bool   updated = false      ;
+			size_t n       = dst.size() ;
+			size_t i       = 0          ;
+			auto handle_entry = [&](Py::Object const& py_item)->void {
+				if (py_item==Py::None) return ;
 				try {
-					if constexpr (Env) updated |= acquire<Env>(dst[i++],&py_item) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
-					else               updated |= acquire     (dst[i++],&py_item) ; // ... to make repo robust to moves of lmake or itself
+					if constexpr (Env) updated |= acquire<Env>(grow(dst,i++),&py_item) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
+					else               updated |= acquire     (grow(dst,i++),&py_item) ; // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
 					throw to_string("for item ",i," : ",e) ;
 				}
+			} ;
+			if (py_src->is_a<Py::Sequence>()) for( Py::Object const& py_item : py_src->as_a<Py::Sequence>() ) handle_entry(py_item) ;
+			else                                                                                              handle_entry(*py_src) ;
+			if (i!=n) {
+				updated = true ;
+				dst.resize(i) ;
 			}
 			return updated ;
 		}

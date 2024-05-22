@@ -2,17 +2,13 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-from lmake.rules import Rule
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
 	from lmake       import multi_strip
 
 	lmake.manifest = ('Lmakefile.py',)
-
-	class Base(Rule) :
-		stems = { 'N' : r'\d' }
 
 	for tmp_view in (None,'/tmp','/new_tmp') :
 		for root_view in (None,'/repo') :
