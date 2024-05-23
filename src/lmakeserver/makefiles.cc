@@ -317,7 +317,7 @@ namespace Engine::Makefiles {
 				invalidate_src &= Persistent::new_srcs( ::move(srcs) , ::move(src_dirs_s) , dynamic ) ;
 			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// if srcs_digest is empty, sources were in config
-				throw to_string( "cannot dynamically read sources (because " , +srcs_digest.first?srcs_digest.first:config_digest.first ,") : " , e ) ;
+				throw "cannot "s+(dynamic?"dynamically ":"")+"read sources (because "+(+srcs_digest.first?srcs_digest.first:config_digest.first)+") : "+e ;
 			}
 		}
 		//

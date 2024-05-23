@@ -59,9 +59,7 @@ void chk_version( bool may_init , ::string const& admin_dir ) {
 	if (+stored) {
 		if (stored.size()!=1u     ) throw to_string("bad version file ",version_file) ;
 		if (stored[0]!=VersionMrkr) {
-			::string d ;
-			if (g_startup_dir_s) d = to_string(' ',dir_name(mk_rel(".",*g_startup_dir_s))) ;
-			throw to_string("version mismatch, consider : git clean -ffdx",d) ;
+			throw "version mismatch, "+git_clean_msg() ;
 		}
 	} else {
 		if (!may_init) throw "repo not initialized, consider : lmake"s ;

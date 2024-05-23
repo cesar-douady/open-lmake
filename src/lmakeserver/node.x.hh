@@ -118,6 +118,11 @@ namespace Engine {
 		//
 		static constexpr RuleIdx NoIdx      = -1                 ;
 		static constexpr RuleIdx MaxRuleIdx = -(N<NodeStatus>+1) ;
+		// statics
+		static Hash::Crc s_src_dirs_crc() ;
+		// static data
+	private :
+		static Hash::Crc _s_src_dirs_crc ;
 		// cxtors & casts
 		using NodeBase::NodeBase ;
 	} ;

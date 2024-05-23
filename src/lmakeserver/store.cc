@@ -224,29 +224,36 @@ namespace Engine::Persistent {
 				if (job_info.start.pre_start.proc!=JobProc::Start) goto NextJob ;
 				if (job_info.start.start    .proc!=JobProc::Start) goto NextJob ;
 				if (job_info.end  .end      .proc!=JobProc::End  ) goto NextJob ;
-				if (job_info.end  .end.digest.status!=Status::Ok ) goto NextJob ;       // repairing jobs in error is useless
+				if (job_info.end  .end.digest.status!=Status::Ok ) goto NextJob ;                   // repairing jobs in error is useless
 				// find rule
 				auto it = rule_tab.find(job_info.start.rule_cmd_crc) ;
-				if (it==rule_tab.end()) goto NextJob ;                                  // no rule
+				if (it==rule_tab.end()) goto NextJob ;                                              // no rule
 				Rule rule = it->second ;
 				// find targets
 				::vector<Target> targets ; targets.reserve(job_info.end.end.digest.targets.size()) ;
 				for( auto const& [tn,td] : job_info.end.end.digest.targets ) {
-					if ( td.crc==Crc::None && !static_phony(td.tflags) ) continue     ; // this is not a target
-					if ( !td.crc.valid()                               ) goto NextJob ; // XXX : handle this case
-					if ( td.sig!=FileSig(tn)                           ) goto NextJob ; // if dates do not match, we will rerun the job anyway, no interest to repair
+					if ( td.crc==Crc::None && !static_phony(td.tflags) ) continue     ;             // this is not a target
+					if ( !td.crc.valid()                               ) goto NextJob ;             // XXX : handle this case
+					if ( td.sig!=FileSig(tn)                           ) goto NextJob ;             // if dates do not match, we will rerun the job anyway, no interest to repair
 					//
 					Node t{tn} ;
-					t->refresh( td.crc , {td.sig,{}} ) ;                                // if file does not exist, the Epoch as a date is fine
+					t->refresh( td.crc , {td.sig,{}} ) ;                                            // if file does not exist, the Epoch as a date is fine
 					targets.emplace_back( t , td.tflags ) ;
 				}
-				::sort(targets) ;                                                       // ease search in targets
+				::sort(targets) ;                                                                   // ease search in targets
 				// find deps
-				::vector<Dep> deps ; deps.reserve(job_info.end.end.digest.deps.size()) ;
+				::vector_s    src_dirs ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs.push_back(s->name()) ;
+				::vector<Dep> deps     ; deps.reserve(job_info.end.end.digest.deps.size()) ;
 				for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
+					if ( !is_canon(dn)) goto NextJob ;                                              // this should never happen, there is a problem with this job
+					if (!is_lcl(dn)) {
+						for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ; // this could be optimized by searching the longest match in the name prefix tree
+						goto NextJob ;                                                              // this should never happen as src_dirs are part of cmd definition
+					KeepDep : ;
+					}
 					Dep dep { Node(dn) , dd } ;
-					if ( !dep.is_crc                         ) goto NextJob ;           // dep could not be identified when job ran, hum, better not to repair that
-					if ( +dep.accesses && !dep.crc().valid() ) goto NextJob ;           // no valid crc, no interest to repair as job will rerun anyway
+					if ( !dep.is_crc                         ) goto NextJob ;                       // dep could not be identified when job ran, hum, better not to repair that
+					if ( +dep.accesses && !dep.crc().valid() ) goto NextJob ;                       // no valid crc, no interest to repair as job will rerun anyway
 					deps.emplace_back(dep) ;
 				}
 				// set job
@@ -254,7 +261,7 @@ namespace Engine::Persistent {
 				job->targets.assign(targets) ;
 				job->deps   .assign(deps   ) ;
 				job->status = job_info.end.end.digest.status ;
-				job->exec_ok(true) ;                                                    // pretend job just ran
+				job->exec_ok(true) ;                                                                // pretend job just ran
 				// set target actual_job's
 				for( Target t : targets ) {
 					t->actual_job   () = job      ;
@@ -568,10 +575,15 @@ namespace Engine::Persistent {
 			FAIL(nn,"is a source dir of no source") ;
 		}
 		// compute diff
+		bool fresh = !old_srcs ;
 		for( auto nt : srcs ) {
 			auto it = old_srcs.find(nt.first) ;
 			if (it==old_srcs.end()) new_srcs_.insert(nt) ;
 			else                    old_srcs .erase (it) ;
+		}
+		if (!fresh) {
+			for( auto [n,t] : new_srcs_ ) if (t==FileTag::Dir) throw "new source dir "+n->name()+' '+git_clean_msg() ;
+			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ;
 		}
 		//
 		for( Node d : src_dirs ) { if (old_src_dirs.contains(d)) old_src_dirs.erase(d) ; else new_src_dirs.insert(d) ; }

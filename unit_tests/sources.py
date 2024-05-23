@@ -8,7 +8,7 @@ if __name__!='__main__' :
 	import os.path as osp
 
 	import lmake
-	from lmake.rules import Rule,SourceRule
+	from lmake.rules import Rule
 
 	lmake.manifest = (
 		'Lmakefile.py'

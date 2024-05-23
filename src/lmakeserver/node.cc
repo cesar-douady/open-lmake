@@ -27,10 +27,21 @@ namespace Engine {
 	// Node
 	//
 
+	Hash::Crc Node::_s_src_dirs_crc ;
+
 	::ostream& operator<<( ::ostream& os , Node const n ) {
 		/**/    os << "N(" ;
 		if (+n) os << +n   ;
 		return  os << ')'  ;
+	}
+
+	Hash::Crc Node::s_src_dirs_crc() {
+		if (!_s_src_dirs_crc) {
+			Hash::Xxh h ;
+			for( const Node s : s_srcs(true/*dirs*/) ) h.update(s->name()) ; // ensure it works with in RO mode
+			_s_src_dirs_crc = h.digest() ;
+		}
+		return _s_src_dirs_crc ;
 	}
 
 	//
@@ -65,7 +76,9 @@ namespace Engine {
 				case Manual::Empty :
 					if (!dangling) {
 						Trace trace("manual_wash","unlnk",idx()) ;
-						unlnk(name()) ;
+						::string n = name() ;
+						SWEAR(is_lcl(n),n) ;
+						unlnk(n) ;
 						req->audit_node( Color::Note , "unlinked (empty)" , idx() ) ;
 						ri.manual = Manual::Unlnked ;
 						break ;
@@ -232,7 +245,7 @@ namespace Engine {
 		Buildable         buildable  = Buildable::No      ;                    // return val if we find no job candidate
 		::vector<RuleTgt> rule_tgts_ = rule_tgts().view() ;
 		//
-		SWEAR(is_lcl(name_)) ;
+		SWEAR(is_lcl(name_),name_) ;
 		::vector<JobTgt> jts ; jts.reserve(rule_tgts_.size()) ;                // typically, there is a single priority
 		for( RuleTgt const& rt : rule_tgts_ ) {
 			SWEAR(!rt->is_special()) ;
@@ -434,6 +447,7 @@ namespace Engine {
 				manual_wash(ri,true/*lazy*/) ;                                                          // always check manual if asking for disk
 				if (crc==Crc::None       ) goto Done ;                                                  // node is not polluted
 				if (ri.manual==Manual::Ok) {                                                            // if already unlinked, no need to unlink it again
+					SWEAR(is_lcl(lazy_name()),lazy_name()) ;
 					unlnk(lazy_name(),true/*dir_ok*/) ;                                                 // wash pollution if not manual
 					req->audit_job( Color::Warning , "unlink" , "no_rule" , lazy_name() ) ;
 				}
