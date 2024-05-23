@@ -244,7 +244,7 @@ static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	if (n_args>1) return py_err_set(Exception::TypeErr,"too many args"  ) ;
 	if (n_args<1) return py_err_set(Exception::TypeErr,"missing arg"    ) ;
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Backdoor::call(Backdoor::Enable(No|+py_args[0])) ;
+	Backdoor::call(Backdoor::Enable{No|+py_args[0]}) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return None.to_py_boost() ;
 }

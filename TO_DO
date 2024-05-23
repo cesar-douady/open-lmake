@@ -12,13 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* rework src_dirs update
-	- if a new src_dir appears, all jobs must be rerun
-		- they may have read files in there and did not record it
-		- this is better than git clean as we keep deps
-		- an easy way to do that is to increment cmd_gen for all rules
-	- if an old src_dir disappears, deps must be ignored
-		- they will not be recorded if job is rerun
 * provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
 	- emit a "dont cache" message
