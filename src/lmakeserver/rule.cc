@@ -1346,12 +1346,13 @@ namespace Engine {
 		//
 		if (special) return ;                                                                    // source & anti are only capable of matching
 		//
-		h.update(matches    )          ;                                                         // these define names and influence cmd execution, all is not necessary but simpler to code
-		h.update(force      )          ;
-		h.update(is_python  )          ;
-		cmd            .update_hash(h) ;
-		start_cmd_attrs.update_hash(h) ;
-		end_cmd_attrs  .update_hash(h) ;
+		h.update(Node::s_src_dirs_crc()) ;                                                       // src_dirs influences deps recording
+		h.update(matches               ) ;                                                       // these define names and influence cmd execution, all is not necessary but simpler to code
+		h.update(force                 ) ;
+		h.update(is_python             ) ;
+		cmd            .update_hash(h)   ;
+		start_cmd_attrs.update_hash(h)   ;
+		end_cmd_attrs  .update_hash(h)   ;
 		cmd_crc = h.digest() ;
 		//
 		submit_rsrcs_attrs.update_hash(h) ;

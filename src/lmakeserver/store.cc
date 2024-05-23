@@ -241,15 +241,15 @@ namespace Engine::Persistent {
 					t->refresh( td.crc , {td.sig,{}} ) ;                                                                    // if file does not exist, the Epoch as a date is fine
 					targets.emplace_back( t , td.tflags ) ;
 				}
-				::sort(targets) ;                                               // ease search in targets
+				::sort(targets) ;                                                                              // ease search in targets
 				// find deps
 				::vector_s    src_dirs ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs.push_back(s->name()) ;
 				::vector<Dep> deps     ; deps.reserve(job_info.end.end.digest.deps.size()) ;
 				for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
-					if ( !is_canon(dn)) goto NextJob ;                                              // this should never happen, there is a problem with this job
+					if ( !is_canon(dn)) goto NextJob ;                                                         // this should never happen, there is a problem with this job
 					if (!is_lcl(dn)) {
-						for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ; // this could be optimized by searching the longest match in the name prefix tree
-						continue ;                                                                  // this dep is a slag acquired when it was in a src dir, which is no longer the case, ignore
+						for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ;            // this could be optimized by searching the longest match in the name prefix tree
+						goto NextJob ;                                                                         // this should never happen as src_dirs are part of cmd definition
 					KeepDep : ;
 					}
 					Dep dep { Node(dn) , dd } ;
@@ -577,10 +577,15 @@ namespace Engine::Persistent {
 			FAIL(nn,"is a source dir of no source") ;
 		}
 		// compute diff
+		bool fresh = !old_srcs ;
 		for( auto nt : srcs ) {
 			auto it = old_srcs.find(nt.first) ;
 			if (it==old_srcs.end()) new_srcs_.insert(nt) ;
 			else                    old_srcs .erase (it) ;
+		}
+		if (!fresh) {
+			for( auto [n,t] : new_srcs_ ) if (t==FileTag::Dir) throw "new source dir "+n->name()+' '+git_clean_msg() ;
+			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ;
 		}
 		//
 		for( Node d : src_dirs ) { if (old_src_dirs.contains(d)) old_src_dirs.erase(d) ; else new_src_dirs.insert(d) ; }

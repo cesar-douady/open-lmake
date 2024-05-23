@@ -167,6 +167,7 @@ unit_tests/chain.py
 unit_tests/chdir.py
 unit_tests/clone.cc
 unit_tests/clone.py
+unit_tests/cmd.py
 unit_tests/codec.py
 unit_tests/conflict.py
 unit_tests/conflict2.py
@@ -236,6 +237,7 @@ unit_tests/rust.py
 unit_tests/scratchpad.py
 unit_tests/slurm.py
 unit_tests/sources.py
+unit_tests/sources2.py
 unit_tests/src.py
 unit_tests/star.py
 unit_tests/static_deps.py

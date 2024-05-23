@@ -19,6 +19,11 @@ extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, 
 inline void app_init(                          bool cd_root      ) { app_init(Yes,cd_root) ; }
 
 void chk_version( bool may_init=false , ::string const& admin_dir=AdminDir ) ;
+inline ::string git_clean_msg() {
+	::string d ;
+	if (g_startup_dir_s) d = ' '+Disk::dir_name(Disk::mk_rel(".",*g_startup_dir_s)) ;
+	return "consider : git clean -ffdx"+d ;
+}
 
 struct KeySpec {
 	char     short_name = 0 ;

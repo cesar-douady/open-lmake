@@ -45,8 +45,9 @@ trace(sig,a.sig,a.crc) ;
 					if (done) append_to_string(msg,"quarantined "         ,mk_file(f),'\n') ;
 					else      append_to_string(msg,"failed to quarantine ",mk_file(f),'\n') ;
 				} else {
+					SWEAR(is_lcl(f)) ;
 					done = unlnk(nfs_guard.change(f)) ;
-					if (!done ) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
+					if (!done) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
 				}
 				trace(STR(quarantine),STR(done),f) ;
 				if ( done && unlnks ) unlnks->push_back(f) ;
