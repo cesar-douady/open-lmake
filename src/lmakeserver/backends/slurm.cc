@@ -217,7 +217,7 @@ namespace Backends::Slurm {
 					info = slurm_job_state(se.id) ;
 					if (info.second!=Maybe) goto JobDead ;
 					if (c>=e              ) break        ;
-					d.sleep_for() ;                                             // wait, hoping job is dying, double delay every loop until hearbeat tick
+					d.sleep_for() ;                                             // wait, hoping job is dying, double delay every loop until network delay
 					d = ::min( d+d , g_config.heartbeat_tick ) ;
 				}
 				if (c==0) _s_slurm_cancel_thread->push(se.id) ;                 // if still alive after network delay, (asynchronously as faster and no return value) cancel job and retry
@@ -248,10 +248,10 @@ namespace Backends::Slurm {
 		}
 		virtual uint32_t/*id*/ launch_job( JobIdx j , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
-			nice &= 0x7fffffff ;                                                                         // slurm will not accept negative values, default values overflow in ... 2091
+			nice &= 0x7fffffff ;                                                                        // slurm will not accept negative values, default values overflow in ... 2091
 			uint32_t id = slurm_spawn_job( repo_key , j , nice , cmd_line , *rs , verbose ) ;
 			Trace trace(BeChnl,"Slurm::launch_job",repo_key,j,id,nice,cmd_line,rs,STR(verbose)) ;
-			spawned_rsrcs.inc(rs) ;                                                                      // only reserv resources once we are sure job is launched
+			spawned_rsrcs.inc(rs) ;                                                                     // only reserv resources once we are sure job is launched
 			return id ;
 		}
 
@@ -511,7 +511,14 @@ namespace Backends::Slurm {
 		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		//
-		if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS) return { "cannot load job info : "+slurm_err() , Yes/*job_ok*/ } ; // no info on job -> retry
+		if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS) {
+			switch (errno) {
+				case EAGAIN                              :
+				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                             job_ok
+				case ESLURM_NODES_BUSY                   : return { "slurm daemon busy : "   +slurm_err() , Maybe } ;
+				default                                  : return { "cannot load job info : "+slurm_err() , Yes   } ;
+			}
+		}
 		//
 		bool completed = true ;                                                                                                              // job is completed if all tasks are
 		for ( uint32_t i=0 ; i<resp->record_count ; i++ ) {
@@ -529,10 +536,10 @@ namespace Backends::Slurm {
 			switch(js) {
 				// if slurm sees job failure, somthing weird occurred (if actual job fails, job_exec reports an error and completes successfully) -> retry
 				// possible job_states values (from slurm.h) :
-				//   JOB_PENDING                                                                                                        queued waiting for initiation
-				//   JOB_RUNNING                                                                                                        allocated resources and executing
-				//   JOB_SUSPENDED                                                                                                      allocated resources, execution suspended
-				//   JOB_COMPLETE                                                                                                       completed execution successfully
+				//   JOB_PENDING                                                                                                             // queued waiting for initiation
+				//   JOB_RUNNING                                                                                                             // allocated resources and executing
+				//   JOB_SUSPENDED                                                                                                           // allocated resources, execution suspended
+				//   JOB_COMPLETE                                                                                                            // completed execution successfully
 				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ;         // cancelled by user
 				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ;         // completed execution unsuccessfully
 				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ;         // terminated on reaching time limit
@@ -541,7 +548,7 @@ namespace Backends::Slurm {
 				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated due to node boot failure
 				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated on deadline
 				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ;         // experienced out of memory error
-				//   JOB_END                                                                                                            not a real state, last entry in table
+				//   JOB_END                                                                                                                 // not a real state, last entry in table
 				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
 			}
 		}
