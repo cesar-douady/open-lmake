@@ -271,8 +271,9 @@ namespace Backends {
 			return digest ;
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat(JobIdx j) {                                                   // called on jobs that did not start after at least newwork_delay time
-			auto                     it     = spawned_jobs.find(j)       ; SWEAR(it!=spawned_jobs.end(),j) ;
-			SpawnedEntry&            se     = it->second                 ; SWEAR(!se.started           ,j) ;     // we should not be called on started jobs
+			auto          it = spawned_jobs.find(j) ; SWEAR(it!=spawned_jobs.end(),j) ;
+			SpawnedEntry& se = it->second           ; SWEAR(!se.started           ,j) ;                          // we should not be called on started jobs
+			if (!se.id) return {{},HeartbeatState::Alive} ;                                                      // job is being launched
 			::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
 			//
 			if (digest.second!=HeartbeatState::Alive) {

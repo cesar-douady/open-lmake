@@ -749,9 +749,9 @@ R"({
 								//
 								if (+phy_tmp_dir                  ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),ro.startup_dir_s) ) ;
 								if ( sa.live_out                  ) push_entry( "live_out"         , "true"                                          ) ;
-								if (+start.job_space.chroot_dir   ) push_entry( "chroot"           , start.job_space.chroot_dir                      ) ;
-								if (+start.job_space.root_view    ) push_entry( "root"             , start.job_space.root_view                       ) ;
-								if (+start.job_space.tmp_view     ) push_entry( "tmp"              , start.job_space.tmp_view                        ) ;
+								if (+start.job_space.chroot_dir   ) push_entry( "chroot_dir"       , start.job_space.chroot_dir                      ) ;
+								if (+start.job_space.root_view    ) push_entry( "root_view"        , start.job_space.root_view                       ) ;
+								if (+start.job_space.tmp_view     ) push_entry( "tmp_view"         , start.job_space.tmp_view                        ) ;
 								if (+start.cwd_s                  ) push_entry( "cwd"              , cwd                                             ) ;
 								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"       , "true"                                          ) ;
 								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat"      , "true"                                          ) ;

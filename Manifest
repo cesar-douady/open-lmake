@@ -91,8 +91,6 @@ src/lmakeserver/backend.x.hh
 src/lmakeserver/backends/generic.hh
 src/lmakeserver/backends/local.cc
 src/lmakeserver/backends/slurm.cc
-src/lmakeserver/backends/slurm.cc
-src/lmakeserver/backends/slurm.cc
 src/lmakeserver/cache.cc
 src/lmakeserver/cache.x.hh
 src/lmakeserver/caches/dir_cache.cc

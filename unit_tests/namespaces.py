@@ -25,6 +25,7 @@ if __name__!='__main__' :
 				''')
 				if tmp_view  : cmd += f'[ $TMPDIR = {tmp_view } ] || exit 1\n'
 				if root_view : cmd += f'[ $(pwd)  = {root_view} ] || exit 1\n'
+
 else :
 
 	import ut
