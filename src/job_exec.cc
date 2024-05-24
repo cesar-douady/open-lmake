@@ -131,7 +131,7 @@ Digest analyze(Status status=Status::New) {                                     
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
-			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                   // fast path : no matching, no pollution, no washing => forget it
+			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                                   // fast path : no matching, no pollution, no washing => forget it
 			)
 		;
 		// handle deps
@@ -145,18 +145,19 @@ Digest analyze(Status status=Status::New) {                                     
 			dd.parallel      = info.parallel_id && info.parallel_id==prev_parallel_id                                                                ;
 			prev_parallel_id = info.parallel_id                                                                                                      ;
 			//
-			if ( +dd.accesses && !dd.is_crc ) {                                                   // try to transform date into crc as far as possible
-				if      ( info.seen==Pdate::Future||info.seen>info.write ) dd.crc(Crc::None) ;    // the whole job has been executed without seeing the file (before possibly writing to it)
-				else if ( !dd.sig()                                      ) dd.crc({}       ) ;    // file was not present initially but was seen, it is incoherent even if not present finally
-				else if ( ad.write!=No                                   ) {}                     // cannot check stability as we wrote to it, clash will be detecte in server if any
-				else if ( FileSig sig{file} ; sig!=dd.sig()              ) dd.crc({}       ) ;    // file dates are incoherent from first access to end of job, dont know what has been read
-				else if ( !sig                                           ) dd.crc({}       ) ;    // file is awkward
-				else if ( !Crc::s_sense(dd.accesses,sig.tag())           ) dd.crc(sig.tag()) ;    // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			if ( +dd.accesses && !dd.is_crc ) {                                                                   // try to transform date into crc as far as possible
+				if      ( info.seen==Pdate::Future||info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false ; } // job has been executed without seeing the file (before possibly writing to it)
+				else if ( !dd.sig()                                      )   dd.crc({}       ) ;  // file was not present initially but was seen, it is incoherent even if not present finally
+				else if ( ad.write!=No                                   )   {}                   // cannot check stability as we wrote to it, clash will be detected in server if any
+				else if ( FileSig sig{file} ; sig!=dd.sig()              )   dd.crc({}       ) ;  // file dates are incoherent from first access to end of job, dont know what has been read
+				else if ( !sig                                           )   dd.crc({}       ) ;  // file is awkward
+				else if ( !Crc::s_sense(dd.accesses,sig.tag())           )   dd.crc(sig.tag()) ;  // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			}
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("dep   ",dd,flags,file) ;
+			if (dd.hot) trace("dep   ",dd,flags,info.dep_info,first_read,g_start_info.date_prec,file) ;
+			else        trace("dep   ",dd,flags,                                                file) ;
 		}
 		if (status==Status::New) continue ;                                                       // we are handling chk_deps and we only care about deps
 		// handle targets
@@ -412,8 +413,8 @@ int main( int argc , char* argv[] ) {
 		for( auto& [view,phys] : g_start_info.job_space.views ) {
 			::vmap_s<FileLoc> phys_loc ;
 			for( ::string& phy : phys ) {
-				if (is_lcl(phy)) phys_loc.emplace_back(::move(phy),FileLoc::Repo) ; // XXX : make a finer analyze, in particular recognize src dirs
-				else             phys_loc.emplace_back(::move(phy),FileLoc::Ext ) ; // .
+				if (is_lcl(phy)) phys_loc.emplace_back(::move(phy),FileLoc::Repo) ;                            // XXX : make a finer analyze, in particular recognize src dirs
+				else             phys_loc.emplace_back(::move(phy),FileLoc::Ext ) ;                            // .
 			}
 			g_gather.autodep_env.views.emplace_back(::move(view),::move(phys_loc)) ;
 		}

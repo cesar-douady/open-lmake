@@ -33,9 +33,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* when links are accessed, it is instantaneous
-	- then record fileinfo or filesig
-	- and only consider file hot if it has been accessed with potentially different content
 * make ldebug -c fully parametrizable
 	- all vscode specific codes must be moved to the python world
 	- and put in rule attributes
@@ -175,6 +172,9 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* when links are accessed, it is instantaneous
+	- then record fileinfo or filesig
+	- and only consider file incoherent if it has been accessed with potentially different content
 * prepare namespace while waiting for server if possible
 	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs

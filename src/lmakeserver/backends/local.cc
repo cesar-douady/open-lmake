@@ -177,7 +177,7 @@ namespace Backends::Local {
 			return {{},true/*retry*/} ;                                                                             // retry if garbage
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx , SpawnedEntry const& se ) const {            // called after job_exec has had time to start
-			if (!se.id               ) return {{}/*msg*/,HeartbeatState::Alive} ;
+			SWEAR(se.id) ;
 			if (kill_process(se.id,0)) return {{}/*msg*/,HeartbeatState::Alive} ;
 			/**/                       return {{}/*msg*/,HeartbeatState::Lost } ;
 		}

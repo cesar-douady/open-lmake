@@ -517,13 +517,18 @@ namespace Backends::Slurm {
 		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",slurm_err()) ;
 	}
 
-	::pair_s<Bool3/*job_ok*/> slurm_job_state(SlurmId slurm_id) { // Maybe means job has not completed
+	::pair_s<Bool3/*job_ok*/> slurm_job_state(SlurmId slurm_id) {                                                                    // Maybe means job has not completed
 		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
+		SWEAR(slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		{	Lock lock { _slurm_mutex } ;
-			//                                                                                                                                                    job_ok
-			if (!slurm_id                                                   ) return { "no slurm id"s                                                             , Yes } ; // no job      -> retry
-			if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS) return { to_string("cannot load job info for slurm id ",slurm_id," : ",slurm_err()) , Yes } ; // no job info -> retry
+			if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS)
+				switch (errno) {
+					case EAGAIN                              :
+					case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                             job_ok
+					case ESLURM_NODES_BUSY                   : return { "slurm daemon busy : "   +slurm_err() , Maybe } ;            // no info : heartbeat will retry, end will eventually cancel
+					default                                  : return { "cannot load job info : "+slurm_err() , Yes   } ;
+				}
 		}
 		bool completed = true ;                                                                                                      // job is completed if all tasks are
 		for ( uint32_t i=0 ; i<resp->record_count ; i++ ) {
@@ -541,10 +546,10 @@ namespace Backends::Slurm {
 			switch(js) {
 				// if slurm sees job failure, somthing weird occurred (if actual job fails, job_exec reports an error and completes successfully) -> retry
 				// possible job_states values (from slurm.h) :
-				//   JOB_PENDING                                                                                                        queued waiting for initiation
-				//   JOB_RUNNING                                                                                                        allocated resources and executing
-				//   JOB_SUSPENDED                                                                                                      allocated resources, execution suspended
-				//   JOB_COMPLETE                                                                                                       completed execution successfully
+				//   JOB_PENDING                                                                                                     // queued waiting for initiation
+				//   JOB_RUNNING                                                                                                     // allocated resources and executing
+				//   JOB_SUSPENDED                                                                                                   // allocated resources, execution suspended
+				//   JOB_COMPLETE                                                                                                    // completed execution successfully
 				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ; // cancelled by user
 				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ; // completed execution unsuccessfully
 				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // terminated on reaching time limit
@@ -553,7 +558,7 @@ namespace Backends::Slurm {
 				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to node boot failure
 				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on deadline
 				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // experienced out of memory error
-				//   JOB_END                                                                                                            not a real state, last entry in table
+				//   JOB_END                                                                                                         // not a real state, last entry in table
 				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
 			}
 		}
