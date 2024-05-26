@@ -32,9 +32,9 @@ using Accesses = BitMap<Access> ;                                      // distin
 static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
 
 ENUM_1(FileLoc
-,	Dep = SrcDirs // <=Dep means that file must be reported as a dep
+,	Dep = SrcDir // <=Dep means that file must be reported as a dep
 ,	Repo
-,	SrcDirs       // file has been found in source dirs
+,	SrcDir       // file has been found in source dirs
 ,	Root          // file is the root dir
 ,	Tmp
 ,	Proc          // file is in /proc
@@ -166,23 +166,23 @@ namespace Disk {
 		bool     reliable_dirs = false/*garbage*/ ;
 	} ;
 
-	::vector_s read_lines   ( ::string const& file                     ) ;
-	::string   read_content ( ::string const& file                     ) ;
-	void       write_lines  ( ::string const& file , ::vector_s const& ) ;
-	void       write_content( ::string const& file , ::string   const& ) ;
+	::vector_s read_lines   ( ::string const& file                       ) ;
+	::string   read_content ( ::string const& file , bool no_block=false ) ;
+	void       write_lines  ( ::string const& file , ::vector_s const&   ) ;
+	void       write_content( ::string const& file , ::string   const&   ) ;
 
 	// list files within dir with prefix in front of each entry
 	::vector_s lst_dir( Fd at , ::string const& dir={} , ::string const& prefix={} ) ;
 	// deep list files within dir with prefix in front of each entry, return a single entry {prefix} if file is not a dir (including if file does not exist)
 	::vector_s walk( Fd at , ::string const& file , ::string const& prefix={} ) ;
 	//
-	size_t/*pos*/ mk_dir      ( Fd at , ::string const& dir     ,             bool unlnk_ok=false ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
-	size_t/*pos*/ mk_dir      ( Fd at , ::string const& dir     , NfsGuard& , bool unlnk_ok=false ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
-	void          dir_guard   ( Fd at , ::string const& file                                      ) ;
-	void          unlnk_inside( Fd at , ::string const& dir ={}                                   ) ;
-	bool/*done*/  unlnk       ( Fd at , ::string const& file    , bool dir_ok=false               ) ; // if dir_ok <=> unlink whole dir if it is one
-	bool/*done*/  uniquify    ( Fd at , ::string const& file                                      ) ;
-	void          rmdir       ( Fd at , ::string const& dir                                       ) ;
+	size_t/*pos*/ mk_dir      ( Fd at , ::string const& dir  ,             bool unlnk_ok=false      ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+	size_t/*pos*/ mk_dir      ( Fd at , ::string const& dir  , NfsGuard& , bool unlnk_ok=false      ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+	void          dir_guard   ( Fd at , ::string const& file                                        ) ;
+	void          unlnk_inside( Fd at , ::string const& dir                      , bool force=false ) ;
+	bool/*done*/  unlnk       ( Fd at , ::string const& file , bool dir_ok=false , bool force=false ) ; // if dir_ok <=> unlink whole dir if it is one
+	bool/*done*/  uniquify    ( Fd at , ::string const& file                                        ) ;
+	void          rmdir       ( Fd at , ::string const& dir                                         ) ;
 	//
 	inline void lnk( Fd at , ::string const& file , ::string const& target ) {
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
@@ -217,8 +217,9 @@ namespace Disk {
 	inline size_t/*pos*/   mk_dir      ( ::string const& dir  ,                bool unlnk_ok=false                        ) { return mk_dir      (Fd::Cwd,dir ,   unlnk_ok         ) ; }
 	inline size_t/*pos*/   mk_dir      ( ::string const& dir  , NfsGuard& ng , bool unlnk_ok=false                        ) { return mk_dir      (Fd::Cwd,dir ,ng,unlnk_ok         ) ; }
 	inline ::string const& dir_guard   ( ::string const& file                                                             ) {        dir_guard   (Fd::Cwd,file) ; return file ;        }
-	inline void            unlnk_inside( ::string const& dir                                                              ) {        unlnk_inside(Fd::Cwd,dir                      ) ; }
-	inline bool/*done*/    unlnk       ( ::string const& file , bool dir_ok=false                                         ) { return unlnk       (Fd::Cwd,file,dir_ok              ) ; }
+	inline void            unlnk_inside( Fd at                                                                            ) {        unlnk_inside(at     ,{}         ,true/*force*/) ; }
+	inline void            unlnk_inside( ::string const& dir                      , bool force=false                      ) {        unlnk_inside(Fd::Cwd,dir        ,force        ) ; }
+	inline bool/*done*/    unlnk       ( ::string const& file , bool dir_ok=false , bool force=false                      ) { return unlnk       (Fd::Cwd,file,dir_ok,force        ) ; }
 	inline bool/*done*/    uniquify    ( ::string const& file                                                             ) { return uniquify    (Fd::Cwd,file                     ) ; }
 	inline void            rmdir       ( ::string const& file                                                             ) {        rmdir       (Fd::Cwd,file                     ) ; }
 	inline void            lnk         ( ::string const& file , ::string const& target                                    ) {        lnk         (Fd::Cwd,file,target              ) ; }
@@ -240,11 +241,13 @@ namespace Disk {
 		else               return res ;
 	}
 
-	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
 	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
+	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
 	//
-	inline bool is_lcl  (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ; }
-	inline bool is_lcl_s(::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ; }
+	inline bool   is_lcl_s    (::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ;                          }
+	inline bool   is_lcl      (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ;                          }
+	inline size_t uphill_lvl_s(::string const& name_s) { SWEAR(!is_abs_s(name_s)) ; size_t l ; for( l=0 ; name_s.substr(3*l,3)=="../" ; l++ ) {} return l ; }
+	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                   }
 	//
 	/**/   ::string mk_lcl( ::string const& file , ::string const& dir_s ) ;          // return file (passed as from dir_s origin) as seen from dir_s
 	/**/   ::string mk_glb( ::string const& file , ::string const& dir_s ) ;          // return file (passed as from dir_s       ) as seen from dir_s origin
@@ -300,6 +303,9 @@ namespace Disk {
 
 	struct RealPathEnv {
 		friend ::ostream& operator<<( ::ostream& , RealPathEnv const& ) ;
+		// services
+		FileLoc file_loc(::string const& file) const ;
+		// data
 		LnkSupport lnk_support   = LnkSupport::Full ;                     // by default, be pessimistic
 		bool       reliable_dirs = false            ;                     // if true => dirs coherence is enforced when files are updated (unlike NFS)
 		::string   root_dir      = {}               ;
@@ -360,6 +366,8 @@ namespace Disk {
 		void init( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe , p?read_lnk(to_string("/proc/",p,"/cwd")):cwd() , p ) ; }
 		void init( RealPathEnv const&     , ::string&& cwd , pid_t  =0 ) ;
 		// services
+		FileLoc file_loc( ::string const& real ) const { return _env->file_loc(real) ; }
+		//
 		SolveReport solve( Fd at , ::string const&      , bool no_follow=false ) ;
 		SolveReport solve( Fd at , const char*     file , bool no_follow=false ) { return solve(at     ,::string(file),no_follow) ; } // ensure proper types
 		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,         file ,no_follow) ; }

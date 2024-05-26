@@ -69,19 +69,15 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 		//
 		if (env[pos++]!=':') goto Fail ;
 		//
-		::vmap_s<FileLoc> phys ;
+		::vector_s phys ;
 		if (env[pos++]!='(') goto Fail ;
 		for ( bool first2=true ; env[pos]!=')' ; first2=false ) {
 			if (!first2 && env[pos++]!=',') goto Fail ;
-			size_t col = env.find(':',pos) ;
-			if (col==Npos) goto Fail ;
-			FileLoc fl ; try { fl = mk_enum<FileLoc>(env.substr(pos,col-pos)) ; } catch (::string const&) { goto Fail ; }
-			pos = col+1 ;
 			::string phy ;
 			if (env[pos++]!='"') goto Fail ;
 			tie(phy,pos) = parse_printable<'"'>(env,pos) ;
 			if (env[pos++]!='"') goto Fail ;
-			phys.emplace_back(::move(phy),fl) ;
+			phys.push_back(::move(phy)) ;
 		}
 		if (env[pos++]!=')') goto Fail ;
 		views.emplace_back(view,phys) ;
@@ -131,9 +127,9 @@ AutodepEnv::operator ::string() const {
 		res << ':'                               ;
 		bool first2 = true ;
 		res << '(' ;
-		for( ::pair_s<FileLoc> const& phy : phys ) {
+		for( ::string const& phy : phys ) {
 			if (!first2) res <<',' ; else first2 = false ;
-			append_to_string( res , phy.second ,':', '"',mk_printable<'"'>(phy.first),'"' ) ;
+			append_to_string( res , '"',mk_printable<'"'>(phy),'"' ) ;
 		}
 		res << ')' ;
 	}

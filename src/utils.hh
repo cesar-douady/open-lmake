@@ -912,6 +912,7 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 // level 2
 ,	Backend     // must follow StartJob
 // level 3
+,	BackendId   // must follow Backend
 ,	Gil         // must follow Backend
 ,	NodeCrcDate // must follow Backend
 ,	Req         // must follow Backend
@@ -959,10 +960,10 @@ template<class M,bool S=false/*shared*/> struct Lock {
 		Lock& _lock ;
 	} ;
 	// cxtors & casts
-	Lock (        ) = default ;
-	Lock (Lock&& l)              { *this = ::move(l) ;     }
-	Lock (M& m    ) : _mutex{&m} {              lock  () ; }
-	~Lock(        )              { if (_locked) unlock() ; }
+	Lock (                          ) = default ;
+	Lock ( Lock&& l                 )              { *this = ::move(l) ;     }
+	Lock ( M& m , bool do_lock=true ) : _mutex{&m} { if (do_lock) lock  () ; }
+	~Lock(                          )              { if (_locked) unlock() ; }
 	Lock& operator=(Lock&& l) {
 		if (_locked) unlock() ;
 		_mutex    = l._mutex  ;

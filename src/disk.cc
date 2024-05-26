@@ -63,10 +63,10 @@ namespace Disk {
 		Fd dir_fd = at ;
 		if      (+dir       ) dir_fd = ::openat( at , dir.c_str() , O_RDONLY|O_DIRECTORY ) ;
 		else if (at==Fd::Cwd) dir_fd = ::openat( at , "."         , O_RDONLY|O_DIRECTORY ) ;
-		if (!dir_fd) throw to_string("cannot open dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
+		if (!dir_fd) throw to_string("cannot open dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir," : ",strerror(errno)) ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
-		if (!dir_fp) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
+		if (!dir_fp) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir," : ",strerror(errno)) ;
 		//
 		::vector_s res ;
 		while ( struct dirent* entry = ::readdir(dir_fp) ) {
@@ -81,17 +81,21 @@ namespace Disk {
 		return res ;
 	}
 
-	void unlnk_inside( Fd at , ::string const& dir ) {
+	void unlnk_inside( Fd at , ::string const& dir , bool force ) {
+		if (!force) SWEAR( is_lcl(dir)         , dir   ) ;
+		else        SWEAR( at!=Fd::Cwd || +dir , force ) ;
 		::string dir_s = +dir ? dir+'/' : ""s ;
-		for( ::string const& f : lst_dir(at,dir,dir_s) ) unlnk(at,f,true/*dir_ok*/) ;
+		for( ::string const& f : lst_dir(at,dir,dir_s) ) unlnk(at,f,true/*dir_ok*/,force) ;
 	}
 
-	bool/*done*/ unlnk( Fd at , ::string const& file , bool dir_ok ) {
+	bool/*done*/ unlnk( Fd at , ::string const& file , bool dir_ok , bool force ) {
+		if (!force) SWEAR( is_lcl(file)         , file  ) ;
+		else        SWEAR( at!=Fd::Cwd || +file , force ) ;
 		if (::unlinkat(at,file.c_str(),0)==0           ) return true /*done*/ ;
 		if (errno==ENOENT                              ) return false/*done*/ ;
 		if (!dir_ok                                    ) throw to_string("cannot unlink "     ,file) ;
 		if (errno!=EISDIR                              ) throw to_string("cannot unlink file ",file) ;
-		unlnk_inside(at,file) ;
+		unlnk_inside(at,file,force) ;
 		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw to_string("cannot unlink dir " ,file) ;
 		return true/*done*/ ;
 	}
@@ -142,14 +146,17 @@ namespace Disk {
 		return res ;
 	}
 
-	::string read_content(::string const& file) {
-		AutoCloseFd fd = ::open(file.c_str(),O_RDONLY) ;
+	::string read_content( ::string const& file , bool no_block ) {
+		AutoCloseFd fd = ::open( file.c_str() , O_RDONLY | (no_block?O_NONBLOCK:0) ) ;
 		if (!fd) throw "file not found : "+file ;
 		::string res ;
 		ssize_t  cnt ;
 		::string buf ( 4096 , 0 ) ;
 		while ((cnt=::read(fd,buf.data(),buf.size()))>0) res += buf.substr(0,cnt) ;
-		if (cnt<0) throw "error while reading "+file ;
+		if (cnt<0) {
+			if ( no_block && (errno==EAGAIN||errno==EWOULDBLOCK) ) return res + "..." ;
+			throw "error while reading "+file ;
+		}
 		return res ;
 	}
 
@@ -377,6 +384,25 @@ namespace Disk {
 		return                   os <<')'                      ;
 	}
 
+	// /!\ : this code must be in sync with RealPath::solve
+	FileLoc RealPathEnv::file_loc(::string const& real) const {
+		static constexpr size_t AdminDirSz =sizeof(AdminDir)-1 ; // -1 to account for terminating null
+		::string root_dir_s = root_dir+'/'            ;
+		::string abs_real   = mk_abs(real,root_dir_s) ;
+		if ( abs_real.starts_with(tmp_dir) && abs_real[tmp_dir.size()]=='/' ) return FileLoc::Tmp  ;
+		if ( abs_real.starts_with("/proc/")                                 ) return FileLoc::Proc ;
+		if ( abs_real.starts_with(root_dir_s)                               ) {
+			::string lcl_real = mk_lcl(abs_real,root_dir_s) ;
+			if ( lcl_real.starts_with(AdminDir) && (lcl_real.size()==AdminDirSz||lcl_real[AdminDirSz]=='/') ) return FileLoc::Admin ;
+			else                                                                                              return FileLoc::Repo  ;
+		} else {
+			::string lcl_real = mk_lcl(real,root_dir_s) ;
+			for( ::string const& sd_s : src_dirs_s )
+				if ((is_abs_s(sd_s)?abs_real:lcl_real).starts_with(sd_s)) return FileLoc::SrcDir ;
+			return FileLoc::Ext ;
+		}
+	}
+
 	void RealPath::init( RealPathEnv const& rpe , ::string&& cwd , pid_t p ) {
 		SWEAR( is_abs(rpe.root_dir) , rpe.root_dir ) ;
 		SWEAR( is_abs(rpe.tmp_dir ) , rpe.tmp_dir  ) ;
@@ -509,26 +535,26 @@ namespace Disk {
 		}
 		// admin is in repo, tmp might be, repo root is in_repo
 		if (is_in_tmp) //!                                                                                                                     file_accessed
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Tmp     } ;
+			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Tmp    } ;
 		if (+in_proc)
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Proc    } ;
+			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Proc   } ;
 		if (+in_repo) {
-			if (real.size()<_root_dir_sz1                                                               ) return { ::move(real) , ::move(lnks) , No        , FileLoc::Root    } ;
+			if (real.size()<_root_dir_sz1                                                               ) return { ::move(real) , ::move(lnks) , No        , FileLoc::Root   } ;
 			real = real.substr(_root_dir_sz1) ;
-			if ( +in_admin                                                                              ) return { ::move(real) , ::move(lnks) , No        , FileLoc::Admin   } ;
-			if ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) return { ::move(real) , ::move(lnks) , Yes       , FileLoc::Repo    } ;
-			if ( _env->lnk_support>=LnkSupport::Full && real.find('/')!=Npos                            ) return { ::move(real) , ::move(lnks) , Maybe     , FileLoc::Repo    } ;
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Repo    } ;
+			if ( +in_admin                                                                              ) return { ::move(real) , ::move(lnks) , No        , FileLoc::Admin  } ;
+			if ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) return { ::move(real) , ::move(lnks) , Yes       , FileLoc::Repo   } ;
+			if ( _env->lnk_support>=LnkSupport::Full && real.find('/')!=Npos                            ) return { ::move(real) , ::move(lnks) , Maybe     , FileLoc::Repo   } ;
+			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Repo   } ;
 		}
 		SWEAR(!in_admin) ;
 		if ( size_t i=_find_src_idx(real) ; i!=Npos ) {
 			real = _env->src_dirs_s[i] + (real.c_str()+_abs_src_dirs_s[i].size()) ;
-			if ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) return { ::move(real) , ::move(lnks) , Yes       , FileLoc::SrcDirs } ;
-			if ( _env->lnk_support>=LnkSupport::Full && real.find('/',_env->src_dirs_s[i].size())!=Npos ) return { ::move(real) , ::move(lnks) , Maybe     , FileLoc::SrcDirs } ;
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::SrcDirs } ;
+			if ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) return { ::move(real) , ::move(lnks) , Yes       , FileLoc::SrcDir } ;
+			if ( _env->lnk_support>=LnkSupport::Full && real.find('/',_env->src_dirs_s[i].size())!=Npos ) return { ::move(real) , ::move(lnks) , Maybe     , FileLoc::SrcDir } ;
+			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::SrcDir } ;
 		}
 		{
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Ext     } ;
+			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Ext    } ;
 		}
 	}
 

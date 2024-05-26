@@ -112,10 +112,24 @@ namespace Backends {
 		} ;
 
 		struct SpawnedEntry {
-			Rsrcs   rsrcs   ;
-			SpawnId id      = 0     ;
-			bool    started = false ; // if true <=> start() has been called for this job, for assert only
-			bool    verbose = false ;
+			SpawnedEntry( Rsrcs rsrcs_ , bool v  ) : rsrcs{rsrcs_  } ,                                          verbose{v         }                     {}
+			SpawnedEntry( SpawnedEntry const& se ) : rsrcs{se.rsrcs} , id{se.id.load()} , started{se.started} , verbose{se.verbose} , zombie{se.zombie} {}
+			Rsrcs             rsrcs   ;
+			::atomic<SpawnId> id      = 0     ;
+			bool              started = false ; // if true <=> start() has been called for this job, for assert only
+			bool              verbose = false ;
+			bool              zombie  = false ; // entry waiting for suppression
+		} ;
+		struct SpawnedTab : ::umap<JobIdx,SpawnedEntry> {
+			using Base = ::umap<JobIdx,SpawnedEntry> ;
+			using typename Base::iterator ;
+			void erase(iterator it) {
+				if (it->second.id)   Base::erase(it) ;
+				else               { it->second.zombie = true ; it->second.rsrcs = {} ; }
+			} ;
+			void flush(iterator it) {
+				if (it->second.zombie) Base::erase(it) ;
+			}
 		} ;
 
 		struct PressureEntry {
@@ -324,12 +338,12 @@ namespace Backends {
 		}
 		void _launch(::stop_token st) {
 			struct LaunchDescr {
-				::vector<ReqIdx> reqs     ;
-				Rsrcs            rsrcs    ;
-				::vector_s       cmd_line ;
-				Pdate            prio     ;
-				bool             verbose  = false ;
-				SpawnId          id       = 0     ;
+				::vector<ReqIdx>   reqs     ;
+				Rsrcs              rsrcs    ;
+				::vector_s         cmd_line ;
+				Pdate              prio     ;
+				bool               verbose  = false   ;
+				::atomic<SpawnId>* id       = nullptr ;
 			} ;
 			for( auto [req,eta] : Req::s_etas() ) {                                                              // /!\ it is forbidden to dereference req without taking Req::s_reqs_mutex first
 				Trace trace(BeChnl,"launch",req) ;
@@ -360,8 +374,9 @@ namespace Backends {
 						for( auto const& [r,re] : reqs )
 							if      (!re.waiting_jobs.contains(j)) SWEAR(r!=+req,r) ;
 							else if (r!=+req                     ) rs.push_back(r)  ;
-						launch_descrs.emplace_back( j , LaunchDescr{ rs , rsrcs , acquire_cmd_line(T,j,rs,export_(*rsrcs),wit->second.submit_attrs) , prio , verbose } ) ;
-						spawned_jobs[j] = { .rsrcs=rsrcs , .verbose=verbose } ;
+						auto [sjit,inserted] = spawned_jobs.emplace( j , SpawnedEntry(rsrcs,verbose) ) ;
+						SWEAR(inserted) ;
+						launch_descrs.emplace_back( j , LaunchDescr{ rs , rsrcs , acquire_cmd_line(T,j,rs,export_(*rsrcs),wit->second.submit_attrs) , prio , verbose , &sjit->second.id } ) ;
 						waiting_jobs.erase(wit) ;
 						//
 						for( ReqIdx r : rs ) {
@@ -370,38 +385,39 @@ namespace Backends {
 							if (r!=+req) {
 								auto                  wit2 = re.waiting_queues.find(candidate->first) ;
 								::set<PressureEntry>& pes  = wit2->second                             ;
-								PressureEntry         pe   { wit1->second , j }                       ;           // /!\ pressure is job pressure for r, not for req
+								PressureEntry         pe   { wit1->second , j }                       ;                // /!\ pressure is job pressure for r, not for req
 								SWEAR(pes.contains(pe)) ;
-								if (pes.size()==1) re.waiting_queues.erase(wit2) ;                                // last entry for this rsrcs, erase the entire queue
+								if (pes.size()==1) re.waiting_queues.erase(wit2) ;                                     // last entry for this rsrcs, erase the entire queue
 								else               pes              .erase(pe  ) ;
 							}
 							re.waiting_jobs.erase (wit1) ;
 							re.queued_jobs .insert(j   ) ;
 						}
-						if (pressure_set.size()==1) queues      .erase(candidate     ) ;                          // last entry for this rsrcs, erase the entire queue
+						if (pressure_set.size()==1) queues      .erase(candidate     ) ;                               // last entry for this rsrcs, erase the entire queue
 						else                        pressure_set.erase(pressure_first) ;
 					}
 				}
-				for( auto& [ji,ld] : launch_descrs ) {
-					try {
-						ld.id = launch_job( st , ji , ld.reqs , ld.prio , ld.cmd_line , ld.rsrcs , ld.verbose ) ; // XXX : manage errors, for now rely on heartbeat
-						trace("child",ji,ld.prio,ld.id,ld.cmd_line) ;
-					} catch (::string const& e) {
-						trace("fail",ji,ld.prio,e) ;
+				{	Lock lock { id_mutex } ;
+					for( auto& [ji,ld] : launch_descrs ) {
+						try {
+							*ld.id = launch_job( st , ji , ld.reqs , ld.prio , ld.cmd_line , ld.rsrcs , ld.verbose ) ; // XXX : manage errors, for now rely on heartbeat
+							trace("child",ji,ld.prio,ld.id,ld.cmd_line) ;
+						} catch (::string const& e) {
+							trace("fail",ji,ld.prio,e) ;
+						}
 					}
 				}
 				{	Lock lock { _s_mutex } ;
 					for( auto const& [ji,ld] : launch_descrs ) {
 						auto it=spawned_jobs.find(ji) ;
-						if (it==spawned_jobs.end()) continue ;                                                    // job has gone (killed or ended) since it was launched, rsrcs are already freed
-						if (ld.id) {
-							it->second.id = ld.id ;
-						} else {
-							kill_queued_job(it->second) ;                                                         // job could not be launched, inform sub-backend rsrcs are released
+						if (it==spawned_jobs.end()) continue ;                                                         // job has gone (killed or ended) since it was launched, rsrcs are already freed
+						if (!it->second.id) {
+							kill_queued_job(it->second) ;                                                              // job could not be launched, inform sub-backend rsrcs are released
 							it->second.rsrcs = {} ;
 						}
+						spawned_jobs.flush(it) ;                                                                       // collect unused entries
 					}
-					launch_descrs.clear() ;                                                                       // destroy entries while holding the lock
+					launch_descrs.clear() ;                                                                            // destroy entries while holding the lock
 				}
 				trace("done") ;
 			}
@@ -410,7 +426,9 @@ namespace Backends {
 		// data
 		::umap<ReqIdx,ReqEntry    > reqs         ;                         // all open Req's
 		::umap<JobIdx,WaitingEntry> waiting_jobs ;                         // jobs retained here
-		::umap<JobIdx,SpawnedEntry> spawned_jobs ;                         // jobs spawned until end
+		SpawnedTab                  spawned_jobs ;                         // jobs spawned until end
+	protected :
+		Mutex<MutexLvl::BackendId> mutable id_mutex ;
 	private :
 		WakeupThread<false/*Flush*/> mutable _launch_queue       ;
 		bool                                 _new_submitted_jobs = false ; // submit and launch are both called from main thread, so no need for protection

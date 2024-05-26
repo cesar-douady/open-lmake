@@ -40,7 +40,6 @@ struct Elf {
 	using Phdr  = ElfW(Phdr)    ;
 	using Shdr  = ElfW(Shdr)    ;
 	using Dyn   = ElfW(Dyn )    ;
-	using Solve = Record::Solve ;
 
 	static constexpr bool Is32Bits = sizeof(void*)==4 ;
 	static constexpr bool Is64Bits = sizeof(void*)==8 ;
@@ -86,8 +85,8 @@ struct Elf {
 		simple_llp = true ;
 	}
 	// services
-	Record::Read search_elf( ::string const& file , ::string const& runpath , ::string&& comment ) ;
-	void         elf_deps  ( Solve    const&      , bool top                , ::string&& comment ) ;
+	Record::ReadCS search_elf( ::string        const& file , ::string const& runpath , ::string&& comment ) ;
+	void           elf_deps  ( Record::SolveCS const&      , bool top                , ::string&& comment ) ;
 	// data
 	Record*                   r               = nullptr/*garbage*/ ;
 	::string                  ld_library_path ;
@@ -205,12 +204,12 @@ static ::string _mk_origin(::string const& exe) {
 	return res ;
 }
 
-Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , ::string&& comment ) {
-	if (!file) return {} ;
+Record::ReadCS Elf::search_elf( ::string const& file , ::string const& runpath , ::string&& comment ) {
+	if (!file               ) return {} ;
 	if (file.find('/')!=Npos) {
 		if (!seen.try_emplace(file,Maybe).second) return {} ;
-		::string     dc  = comment+".dep"                                                           ;
-		Record::Read res = { *r , file , false/*no_follow*/ , true/*keep_real*/ , ::move(comment) } ;
+		::string       dc  = comment+".dep"                                                           ;
+		Record::ReadCS res = { *r , file , false/*no_follow*/ , true/*keep_real*/ , ::move(comment) } ;
 		elf_deps( res , false/*top*/ , ::move(dc) ) ;
 		return res ;
 	}
@@ -226,7 +225,7 @@ Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , :
 		::string        full_file  = path.substr(pos,end-pos) ;
 		if (+full_file) full_file += '/'                      ;
 		/**/            full_file += file                     ;
-		Record::Read rr { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , ::copy(comment) } ;
+		Record::ReadCS rr { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , ::copy(comment) } ;
 		auto [it,inserted] = seen.try_emplace(rr.real,Maybe) ;
 		if ( it->second==Maybe           )   it->second = No | is_target(Record::s_root_fd(),rr.real,false/*no_follow*/) ; // real may be a sym link in the system directories
 		if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , comment+".dep" ) ; return rr ; }
@@ -237,7 +236,7 @@ Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , :
 	return {} ;
 }
 
-void Elf::elf_deps( Solve const& file , bool top , ::string&& comment ) {
+void Elf::elf_deps( Record::SolveCS const& file , bool top , ::string&& comment ) {
 	if ( simple_llp && file.file_loc==FileLoc::Ext ) return ;
 	try {
 		FileMap   file_map { Record::s_root_fd() , file.real } ; if (!file_map) return ;                                                               // real may be a sym link in system dirs
@@ -253,14 +252,14 @@ const char* get_ld_library_path() {
 	return llp.c_str() ;
 }
 
-Record::Read search_elf( Record& r , const char* file , ::string&& comment ) {
+Record::ReadCS search_elf( Record& r , const char* file , ::string&& comment ) {
 	if (!file) return {} ;
 	static Elf::DynDigest s_digest { New } ;
 	try                       { return Elf(r,{},get_ld_library_path(),s_digest.rpath).search_elf( file , Elf::s_expand(s_digest.runpath) , ::move(comment) ) ; }
 	catch (::string const& e) { r.report_panic("while searching elf executable ",file," : ",e) ; return {} ;                                                   } // if we cannot report the dep, panic
 }
 
-void elf_deps( Record& r , Record::Solve const& file , const char* ld_library_path , ::string&& comment ) {
+void elf_deps( Record& r , Record::SolveCS const& file , const char* ld_library_path , ::string&& comment ) {
 	try                       { Elf(r,file.real,ld_library_path).elf_deps( file , true/*top*/ , ::move(comment) ) ; }
 	catch (::string const& e) { r.report_panic("while analyzing elf executable ",mk_file(file.real)," : ",e) ;      } // if we cannot report the dep, panic
 }

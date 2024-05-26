@@ -288,7 +288,7 @@ namespace Engine {
 	}
 
 	// answer to job execution requests
-	// XXX : use same analysis as for end/make, possibly sharing code
+	// XXX : use same analysis as for end/make, possibly sharing code, including management of the hot case
 	JobMngtRpcReply JobExec::job_analysis( JobMngtProc proc , ::vector<Dep> const& deps ) const {
 		::vector<Req> reqs = (*this)->running_reqs(false/*with_zombies*/) ;
 		Trace trace("job_analysis",proc,deps.size()) ;

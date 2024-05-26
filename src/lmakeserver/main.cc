@@ -462,7 +462,8 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	unlnk_inside(PrivateAdminDir+"/tmp"s) ;                                             // cleanup
+	try                       { unlnk_inside(PrivateAdminDir+"/tmp"s) ; }               // cleanup
+	catch (::string const& e) { exit(Rc::System,e) ;                    }
 	//
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;

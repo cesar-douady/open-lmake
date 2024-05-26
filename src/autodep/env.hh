@@ -27,9 +27,9 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,views                           ) ;
 	}
 	// data
-	bool                        auto_mkdir  = false ; // if true <=> auto mkdir in case of chdir
-	bool                        disabled    = false ; // if true <=> no automatic report
-	bool                        ignore_stat = false ; // if true <=> stat-like syscalls do not trigger dependencies
-	::string                    service     ;
-	::vmap_s<::vmap_s<FileLoc>> views       ;
+	bool                 auto_mkdir  = false ; // if true <=> auto mkdir in case of chdir
+	bool                 disabled    = false ; // if true <=> no automatic report
+	bool                 ignore_stat = false ; // if true <=> stat-like syscalls do not trigger dependencies
+	::string             service     ;
+	::vmap_s<::vector_s> views       ;
 } ;

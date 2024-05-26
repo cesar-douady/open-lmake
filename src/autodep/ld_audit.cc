@@ -41,8 +41,8 @@ void* get_orig(const char* syscall) {
 void load_exec(::string const& /*file*/) {} // the auditing mechanism tells us about indirectly loaded libraries
 
 // elf dependencies are captured by auditing code, no need to interpret elf content
-void         elf_deps  ( Record& , Record::Solve const& , const char* /*ld_library_path*/ , ::string&& /*comment*/="elf_dep"  ) {             }
-Record::Read search_elf( Record& , const char* /*file*/ ,                                   ::string&& /*comment*/="elf_srch" ) { return {} ; }
+void         elf_deps  ( Record& , Record::SolveCS const& , const char* /*ld_library_path*/ , ::string&& /*comment*/="elf_dep"  ) {             }
+Record::Read search_elf( Record& , const char* /*file*/   ,                                   ::string&& /*comment*/="elf_srch" ) { return {} ; }
 
 static bool started() { return true ; }
 
@@ -99,26 +99,27 @@ extern "C" {
 	}
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		if ( !map->l_name || !*map->l_name ) {
+		const char* nm = map->l_name ;
+		if ( !nm || !*nm ) {
 			*cookie = true/*not_std*/ ;
 			return LA_FLG_BINDFROM ;
 		}
-		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                                        // linux-vdso.so is listed, but is not a real file
-			Read(static_cast<const char*>(map->l_name),false/*no_follow*/,false/*keep_real*/,"la_objopen") ;
-		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(map->l_name) ;
+		if (!::string_view(nm).starts_with("linux-vdso.so"))                                // linux-vdso.so is listed, but is not a real file
+			ReadCS(nm,false/*no_follow*/,false/*keep_real*/,"la_objopen") ;
+		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(nm) ;
 		*cookie = !known.first ;
 		if (known.second) {
-			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ;                  // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
-			g_libc_name = map->l_name ;
+			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ; // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
+			g_libc_name = nm ;
 		}
 		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;
 	}
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , unsigned int flag ) {
 		switch (flag) {
-			case LA_SER_ORIG    : if (strrchr(name,'/')) Read(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
+			case LA_SER_ORIG    : if (strrchr(name,'/')) ReadCS(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
 			case LA_SER_LIBPATH :
-			case LA_SER_RUNPATH :                        Read(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
+			case LA_SER_RUNPATH :                        ReadCS(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
 			default : ;
 		}
 		return const_cast<char*>(name) ;

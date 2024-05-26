@@ -559,6 +559,20 @@ namespace Engine::Persistent {
 		::set<Node            > old_src_dirs ;                                                                                                 // .
 		::set<Node            > new_src_dirs ;                                                                                                 // .
 		Trace trace("new_srcs") ;
+		//
+		size_t    root_dir_depth      = 0       ; for( char c : *g_root_dir ) if (c=='/') root_dir_depth++ ;
+		size_t    src_dirs_uphill_lvl = 0       ;
+		::string* highest             = nullptr ;
+		for( ::string& d_s : src_dir_names_s ) if (!is_abs_s(d_s))
+			if ( size_t ul=uphill_lvl_s(d_s) ; ul>src_dirs_uphill_lvl ) {
+				src_dirs_uphill_lvl = ul   ;
+				highest             = &d_s ;
+			}
+		if (root_dir_depth<=src_dirs_uphill_lvl) {
+			SWEAR(highest) ;
+			highest->pop_back() ;
+			throw "cannot access relative source dir "+*highest+" from repository "+*g_root_dir ;
+		}
 		// format inputs
 		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;               // dont care whether we delete a regular file or a link
 		//

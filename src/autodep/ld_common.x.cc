@@ -98,9 +98,11 @@ using Lnk      = AuditAction<Record::Lnk     ,2    > ;
 using Mount    = AuditAction<Record::Mount   ,2    > ;
 using Open     = AuditAction<Record::Open          > ;
 using Read     = AuditAction<Record::Read          > ;
+using ReadCS   = AuditAction<Record::ReadCS        > ;
 using Readlink = AuditAction<Record::Readlink      > ;
 using Rename   = AuditAction<Record::Rename  ,2    > ;
 using Solve    = AuditAction<Record::Solve         > ;
+using SolveCS  = AuditAction<Record::SolveCS       > ;
 using Stat     = AuditAction<Record::Stat          > ;
 using Symlink  = AuditAction<Record::Symlink       > ;
 using Unlnk    = AuditAction<Record::Unlnk         > ;
@@ -112,8 +114,8 @@ using WSolve   = AuditAction<Record::WSolve        > ;
 	// Dlopen
 	//
 
-	struct _Dlopen : Record::Read {
-		using Base = Record::Read ;
+	struct _Dlopen : Record::ReadCS {
+		using Base = Record::ReadCS ;
 		// cxtors & casts
 		_Dlopen() = default ;
 		_Dlopen( Record& r , const char* file , ::string&& comment ) : Base{search_elf(r,file,::move(comment))} {}
@@ -132,8 +134,9 @@ struct _Exec : Record::Exec {
 	//
 	_Exec() = default ;
 	_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , ::string&& comment ) : Base{r,::move(path),no_follow,::copy(comment)} {
-		static constexpr char Llpe[] = "LD_LIBRARY_PATH=" ;
-		static constexpr size_t LlpeSz = sizeof(Llpe)-1 ;                              // -1 to account of terminating null
+		static constexpr char   Llpe[] = "LD_LIBRARY_PATH=" ;
+		static constexpr size_t LlpeSz = sizeof(Llpe)-1     ;                          // -1 to account of terminating null
+		//
 		const char* const* llp = nullptr/*garbage*/ ;
 		for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
 		if (*llp) elf_deps( r , *this , *llp+LlpeSz , comment+".dep" ) ;               // pass value after the LD_LIBRARY_PATH= prefix

@@ -220,6 +220,7 @@ namespace Backends::Slurm {
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
 			if ( !se.verbose && s>Status::Async ) return {{},true/*retry*/} ;                           // common case, must be fast, if job was ended asynchronously, better to ask slurm controler why
+			Lock lock{id_mutex} ;                                                                       // ensure se.id has been updated
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
 				Delay d { 0.01 }                                               ;
@@ -574,7 +575,7 @@ namespace Backends::Slurm {
 		Trace trace(BeChnl,"Slurm::read_stderr",job) ;
 		::string err_file = _get_stderr_path(job) ;
 		try {
-			::string res = read_content(err_file) ;
+			::string res = read_content(err_file,true/*no_block*/) ;         // XXX : why reading this file may block ?
 			if (!res) return {}                                            ;
 			else      return to_string("stderr from : ",err_file,'\n',res) ;
 		} catch (::string const&) {

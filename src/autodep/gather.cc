@@ -66,17 +66,9 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di , NodeId
 	return           os << ')'                      ;
 }
 
-void Gather::_new_access( Fd fd , PD pd , ::string&& file , bool map_file , AccessDigest ad , DI const& di , bool parallel , ::string const& comment ) {
+void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , bool parallel , ::string const& comment ) {
 	SWEAR( +file , comment        ) ;
 	SWEAR( +pd   , comment , file ) ;
-	if (map_file) {                                                                                                                                          // XXX : move views to record
-		for( auto const& [view,phy] : views )
-			if ( view.back()=='/' ? file.starts_with(view) : file==view ) {
-				if (!phy) return ;
-				file = phy + file.substr(view.size()) ;
-				break ;
-			}
-	}
 	AccessInfo* info        = nullptr/*garbage*/                       ;
 	auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
 	if (is_new) {
@@ -101,7 +93,7 @@ void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdi
 			if (!dd.accesses) dd.sig(FileInfo(f)) ; // record now if not previously accessed
 			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(f) , false/*map_file*/ , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , parallel , is_stdin?"stdin"s:"s_deps"s ) ;
+		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , parallel , is_stdin?"stdin"s:"s_deps"s ) ;
 		parallel = true ;
 	}
 }
@@ -111,7 +103,7 @@ void Gather::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
 	bool                  parallel = false                            ;
 	for( auto&& [f,a] : rp.exec(sr) ) {
-		_new_access( pd , ::move(f) , false/*map_file*/ , {.accesses=a} , FileInfo(f) , parallel , c ) ;
+		_new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , parallel , c ) ;
 		parallel = true ;
 	}
 }
@@ -119,17 +111,17 @@ void Gather::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 	Trace trace("_send_to_server",fd,jerr) ;
 	//
-	Proc   proc = jerr.proc         ;                                                      // capture essential info before moving to server_cb
-	size_t sz   = jerr.files.size() ;                                                      // .
+	Proc   proc = jerr.proc         ;                                    // capture essential info before moving to server_cb
+	size_t sz   = jerr.files.size() ;                                    // .
 	switch (proc) {
-		case Proc::ChkDeps    : reorder(false/*at_end*/)                         ; break ; // ensure server sees a coherent view
-		case Proc::DepVerbose : _new_accesses(fd,true/*map_files*/,::copy(jerr)) ; break ;
+		case Proc::ChkDeps    : reorder(false/*at_end*/)       ; break ; // ensure server sees a coherent view
+		case Proc::DepVerbose : _new_accesses(fd,::copy(jerr)) ; break ;
 		//
 		case Proc::Decode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_decode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		default : ;
 	}
-	if (!jerr.sync) fd = {} ;                                                              // dont reply if not sync
+	if (!jerr.sync) fd = {} ;                                            // dont reply if not sync
 	try {
 		JobMngtRpcReq jmrr ;
 		switch (jerr.proc) {
@@ -250,8 +242,6 @@ Status Gather::exec_child() {
 		_kill_step++ ;
 		trace("kill_done",_end_kill) ;
 	} ;
-	//
-	for( auto& [view,phy] : views ) if (!is_lcl(phy)) phy.clear() ; // XXX : move views to record, support mapping to src dirs that typically lie outside the repo
 	//
 	if (+server_master_fd) {
 		epoll.add_read(server_master_fd,Kind::ServerMaster) ;
@@ -390,7 +380,7 @@ Status Gather::exec_child() {
 							case JobMngtProc::Encode : {
 								SWEAR(+jmrr.fd) ;
 								auto it = _codec_files.find(jmrr.fd) ;
-								_new_access( rfd , PD(New) , ::move(it->second) , false/*map_file*/ , {.accesses=Access::Reg} , jmrr.crc , false/*parallel*/ , ::string(snake(jmrr.proc)) ) ;
+								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , false/*parallel*/ , ::string(snake(jmrr.proc)) ) ;
 								_codec_files.erase(it) ;
 							} break ;
 						DF}
@@ -422,19 +412,19 @@ Status Gather::exec_child() {
 					if (proc!=Proc::Access) trace(kind,fd,proc) ;                                                          // there may be too many Access'es, only trace within _new_accesses
 					switch (proc) {
 						case Proc::Confirm :
-							for( Jerr& j : slave_entry.second ) { j.digest.write = jerr.digest.write ; _new_accesses(fd,true/*map_files*/,::move(j)) ; }
+							for( Jerr& j : slave_entry.second ) { j.digest.write = jerr.digest.write ; _new_accesses(fd,::move(j)) ; }
 							slave_entry.second.clear() ;
 						break ;
 						case Proc::None :
 							epoll.close(fd) ;
 							trace("close",kind,fd,"wait",_wait,epoll.cnt) ;
-							for( Jerr& j : slave_entry.second ) _new_accesses(fd,true/*map_files*/,::move(j)) ;            // process deferred entries although with uncertain outcome
+							for( Jerr& j : slave_entry.second ) _new_accesses(fd,::move(j)) ;                              // process deferred entries although with uncertain outcome
 							slaves.erase(it) ;
 						break ;
 						case Proc::Access   :
 							// for read accesses, trying is enough to trigger a dep, so confirm is useless
-							if ( jerr.digest.write==Maybe ) slave_entry.second.push_back(::move(jerr))       ;             // defer until confirm resolution
-							else                            _new_accesses(fd,true/*map_files*/,::move(jerr)) ;
+							if ( jerr.digest.write==Maybe ) slave_entry.second.push_back(::move(jerr)) ;                   // defer until confirm resolution
+							else                            _new_accesses(fd,::move(jerr))             ;
 						break ;
 						case Proc::Tmp        : seen_tmp = true ;                                        break           ;
 						case Proc::Guard      : _new_guards(fd,::move(jerr)) ;                           break           ;

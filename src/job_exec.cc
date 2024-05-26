@@ -87,17 +87,12 @@ SeqId             g_trace_id      = 0/*garbage*/ ;
 	Trace trace("prepare_env",g_start_info.autodep_env.tmp_dir,g_phy_tmp_dir,res) ;
 	//
 	try {
-		if (+g_phy_tmp_dir) unlnk_inside(g_phy_tmp_dir) ;                  // ensure tmp dir is clean
+		if (+g_phy_tmp_dir) unlnk_inside(g_phy_tmp_dir,true/*force*/) ;    // ensure tmp dir is clean (force because g_phy_tmp_dir is absolute)
 	} catch (::string const&) {
 		try                       { mk_dir(g_phy_tmp_dir) ;              } // ensure tmp dir exists
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
 	}
 	return res ;
-}
-
-void prepare_namespace() {
-	Trace trace("prepare_namespace",g_start_info.job_space) ;
-	g_start_info.job_space.enter( g_phy_root_dir , g_phy_tmp_dir , g_start_info.tmp_sz_mb , to_string(PrivateAdminDir,"/chroot/",g_start_info.small_id) ) ;
 }
 
 struct Digest {
@@ -308,7 +303,6 @@ int main( int argc , char* argv[] ) {
 		goto End ;
 	}
 	Trace::s_sz = 10<<20 ;                                                                            // this is more than enough
-	unlnk(*g_trace_file) ;                                                                            // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 	block_sigs({SIGCHLD}) ;                                                                           // necessary to capture it using signalfd
 	app_init(No/*chk_version*/) ;
 	//
@@ -373,7 +367,8 @@ int main( int argc , char* argv[] ) {
 		::map_ss cmd_env ;
 		try {
 			cmd_env = prepare_env(end_report) ;
-			bool entered = g_start_info.job_space.enter( g_phy_root_dir , g_phy_tmp_dir , g_start_info.tmp_sz_mb , to_string(PrivateAdminDir,"/chroot/",g_start_info.small_id) ) ;
+			::string chroot_dir = to_string(PrivateAdminDir,"/chroot/",g_start_info.small_id)                                                                                ;
+			bool     entered    = g_start_info.job_space.enter( g_phy_root_dir , g_phy_tmp_dir , g_start_info.tmp_sz_mb , chroot_dir , g_start_info.autodep_env.src_dirs_s ) ;
 			if (entered) {
 				// find a good starting pid
 				// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
@@ -394,30 +389,22 @@ int main( int argc , char* argv[] ) {
 		}
 		trace("prepared",g_start_info.autodep_env,g_phy_tmp_dir) ;
 		//
-		g_gather.addr             =        g_start_info.addr           ;
-		g_gather.as_session       =        true                        ;
-		g_gather.autodep_env      =        g_start_info.autodep_env    ;
-		g_gather.cur_deps_cb      =        cur_deps_cb                 ;
-		g_gather.cwd              = ::move(g_start_info.cwd_s        ) ; if (+g_gather.cwd) g_gather.cwd.pop_back() ;
-		g_gather.env              =        &cmd_env                    ;
-		g_gather.job              =        g_job                       ;
-		g_gather.kill_sigs        =        g_start_info.kill_sigs      ;
-		g_gather.live_out         =        g_start_info.live_out       ;
-		g_gather.method           =        g_start_info.method         ;
-		g_gather.network_delay    =        g_start_info.network_delay  ;
-		g_gather.seq_id           =        g_seq_id                    ;
-		g_gather.server_master_fd = ::move(server_fd                 ) ;
-		g_gather.service_mngt     =        g_service_mngt              ;
-		g_gather.timeout          =        g_start_info.timeout        ;
-		//
-		for( auto& [view,phys] : g_start_info.job_space.views ) {
-			::vmap_s<FileLoc> phys_loc ;
-			for( ::string& phy : phys ) {
-				if (is_lcl(phy)) phys_loc.emplace_back(::move(phy),FileLoc::Repo) ;                            // XXX : make a finer analyze, in particular recognize src dirs
-				else             phys_loc.emplace_back(::move(phy),FileLoc::Ext ) ;                            // .
-			}
-			g_gather.autodep_env.views.emplace_back(::move(view),::move(phys_loc)) ;
-		}
+		g_gather.addr              =        g_start_info.addr             ;
+		g_gather.as_session        =        true                          ;
+		g_gather.autodep_env       = ::move(g_start_info.autodep_env    ) ;
+		g_gather.autodep_env.views = ::move(g_start_info.job_space.views) ;
+		g_gather.cur_deps_cb       =        cur_deps_cb                   ;
+		g_gather.cwd               = ::move(g_start_info.cwd_s          ) ; if (+g_gather.cwd) g_gather.cwd.pop_back() ;
+		g_gather.env               =        &cmd_env                      ;
+		g_gather.job               =        g_job                         ;
+		g_gather.kill_sigs         = ::move(g_start_info.kill_sigs      ) ;
+		g_gather.live_out          =        g_start_info.live_out         ;
+		g_gather.method            =        g_start_info.method           ;
+		g_gather.network_delay     =        g_start_info.network_delay    ;
+		g_gather.seq_id            =        g_seq_id                      ;
+		g_gather.server_master_fd  = ::move(server_fd                   ) ;
+		g_gather.service_mngt      =        g_service_mngt                ;
+		g_gather.timeout           =        g_start_info.timeout          ;
 		//
 		if (!g_start_info.method)                                                                              // if no autodep, consider all static deps are fully accessed
 			for( auto& [d,digest] : g_start_info.deps ) if (digest.dflags[Dflag::Static]) {
@@ -458,7 +445,7 @@ int main( int argc , char* argv[] ) {
 		}
 		//
 		if ( g_gather.seen_tmp && !g_start_info.keep_tmp_dir )
-			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                // cleaning is done at job start any way, so no harm
+			try { unlnk_inside(g_gather.autodep_env.tmp_dir,true/*force*/) ; } catch (::string const&) {}      // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
 		//
 		if ( status==Status::Ok && +digest.msg ) status = Status::Err ;
 		/**/                        end_report.msg += g_gather.msg ;

@@ -526,7 +526,7 @@ struct JobSpace {
 	bool operator+() const { return +chroot_dir || +root_view || +tmp_view || +views ; }
 	bool operator!() const { return !+*this                                          ; }
 	// services
-	bool/*entered*/ enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir ) const ;
+	bool/*entered*/ enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s={} ) const ;
 	void chk() const ;
 	// data
 	// START_OF_VERSIONING

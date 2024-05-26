@@ -158,7 +158,8 @@ Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::st
 	if ( +fi && exe!=(fi.tag()==FileTag::Exe) ) r._report_update( file_loc , ::move(real) , ::move(real0) , fi , accesses|Access::Reg , ::move(c) ) ; // only consider as a target if exe bit changes
 }
 
-Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
+Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string&& c ) : SolveCS{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
+	if (!real) return ;
 	SolveReport sr {.real=real,.file_loc=file_loc} ;
 	try {
 		for( auto&& [file,a] : r._real_path.exec(sr) ) r._report_dep( FileLoc::Dep , ::move(file) , a , ::copy(c) ) ;
@@ -219,11 +220,6 @@ Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) : Solve
 	confirm = do_write ;
 	if      ( do_write           ) r._report_update( file_loc , ::move(real) , ::move(real0) , accesses , ::move(c) ) ;
 	else if ( do_read || do_stat ) r._report_dep   ( file_loc , ::move(real) ,                 accesses , ::move(c) ) ;
-}
-
-Record::Read::Read( Record& r , Path&& path , bool no_follow , bool keep_real , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
-	if (keep_real) r._report_dep( file_loc , ::copy(real) , accesses|Access::Reg , ::move(c) ) ;
-	else           r._report_dep( file_loc , ::move(real) , accesses|Access::Reg , ::move(c) ) ;
 }
 
 Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,true/*read*/,false/*create*/,c} , buf{buf_} , sz{sz_} {

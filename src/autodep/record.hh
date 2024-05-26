@@ -26,7 +26,7 @@ struct Record {
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
 		if (!_s_root_fd) {
-			_s_root_fd = Disk::open_read(_s_autodep_env->root_dir) ; _s_root_fd.no_std() ;                                  // avoid poluting standard descriptors
+			_s_root_fd = Disk::open_read(_s_autodep_env->root_dir) ; _s_root_fd.no_std() ; // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 		}
 		return _s_root_fd ;
@@ -51,13 +51,13 @@ struct Record {
 	}
 	// static data
 public :
-	static bool                                                   s_static_report  ;                                        // if true <=> report deps to s_deps instead of through report_fd() socket
+	static bool                                                   s_static_report  ;       // if true <=> report deps to s_deps instead of through report_fd() socket
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
-	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;                                        // map file to read accesses
+	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;       // map file to read accesses
 private :
 	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                                                                     // a file descriptor to repo root dir
+	static Fd          _s_root_fd     ;                                                    // a file descriptor to repo root dir
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -73,7 +73,7 @@ public :
 			::string const& service = _s_autodep_env->service ;
 			if (service.back()==':') _report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
 			else                     _report_fd = ClientSockFd(service)                                                   ;
-			_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
+			_report_fd.no_std() ;                                                                                                                       // avoid poluting standard descriptors
 			swear_prod(+_report_fd,"cannot connect to job_exec through ",service) ;
 		}
 		return _report_fd ;
@@ -111,7 +111,7 @@ private :
 	//
 	void _report_dep   ( FileLoc fl , ::string&& f , Accesses a , ::string&& c={} ) const { if (+a) _report_dep( fl , ::move(f) , FileInfo(s_root_fd(),f) , a , ::move(c) ) ; }
 	//
-	void _report_update( FileLoc fl , ::string&& f , ::string&& f0 , FileInfo fi , Accesses a , ::string&& c={} ) const {   // f0 is the file to which we write if non-empty
+	void _report_update( FileLoc fl , ::string&& f , ::string&& f0 , FileInfo fi , Accesses a , ::string&& c={} ) const {                               // f0 is the file to which we write if non-empty
 		if (!f0) { //!                                                                write
 			if      ( fl<=FileLoc::Repo       ) report_access( ::move(f ) , fi , a  , true  , ::move(c) ) ;
 			else if ( fl<=FileLoc::Dep  && +a ) report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
@@ -199,45 +199,45 @@ public :
 		FileLoc file_loc  = FileLoc::Unknown ;                   // updated when analysis is done
 		Fd      at        = Fd::Cwd          ;                   // at & file may be modified, but together, they always refer to the same file ...
 		Char*   file      = nullptr          ;                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
-	} ;
-	using Path  = _Path<false/*Writable*/> ;
-	using WPath = _Path<true /*Writable*/> ;
-	template<bool Writable=false> struct _Solve : _Path<Writable> {
+	} ; //!            Writable
+	using Path  = _Path<false > ;
+	using WPath = _Path<true  > ;
+	template<bool Writable=false,bool ChkSimple=false> struct _Solve : _Path<Writable> {
 		using Base = _Path<Writable> ;
 		using Base::file_loc ;
 		using Base::at       ;
 		using Base::file     ;
-		// search (executable if asked so) file in path_var
 		_Solve()= default ;
 		_Solve( Record& r , Base&& path , bool no_follow , bool read , bool create , ::string const& c={} ) : Base{::move(path)} {
-			if ( !file || !file[0] ) return ;
+			if (ChkSimple) { if ( s_is_simple(file) ) return ; }
+			else           { if ( !file || !file[0] ) return ; }
 			//
 			SolveReport sr = r._real_path.solve(at,file,no_follow) ;
+			//
 			auto report_dep = [&]( FileLoc file_loc , ::string&& file , Accesses a , bool store , const char* key )->void {
 				::string ck = c+'.'+key ;
 				for( auto const& [view,phys] : s_autodep_env().views ) {
 					if (!( file.starts_with(view) && (view.back()=='/'||file.size()==view.size()) )) continue ;
 					for( size_t i=0 ; i<phys.size() ; i++ ) {
-						bool            last  = i==phys.size()-1                       ;
-						::string const& phy   = phys[i].first                          ;
-						FileLoc         fl    = phys[i].second                         ;
-						::string        f     = phy + file.substr(view.size())         ;
-						FileInfo        fi    = !last || +a ? FileInfo(f) : FileInfo() ;
-						bool            found = fi.tag()!=FileTag::None                ;
+						bool     last  = i==phys.size()-1                     ;
+						::string f     = phys[i] + file.substr(view.size())   ;
+						FileInfo fi    = !last||+a ? FileInfo(f) : FileInfo() ;
+						bool     found = fi.tag()!=FileTag::None              ;
 						if (store) {
 							if      (last ) real  = f ;
 							else if (found) real  = f ;
-							else if (i==0 ) real0 = f ;                                                                                          // real0 is only significative when not equal to real
+							else if (i==0 ) real0 = f ;                                                                                    // real0 is only significative when not equal to real
 						}
-						if      (last ) { if (+a) r._report_dep( fl , ::move(f) , fi , a              , to_string(ck,i) ) ; return ; }
-						else if (found) {         r._report_dep( fl , ::move(f) , fi , a|Access::Stat , to_string(ck,i) ) ; return ; }
-						else                      r._report_dep( fl , ::move(f) , fi ,   Access::Stat , to_string(ck,i) ) ;
+						if      (last ) { if (+a) r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a              , to_string(ck,i) ) ; return ; }
+						else if (found) {         r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a|Access::Stat , to_string(ck,i) ) ; return ; }
+						else                      r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi ,   Access::Stat , to_string(ck,i) ) ;
 					}
 					return ;
 				}
-				if (store) real = file ;                                                                                                         // when no views match, process as if last
-				if (+a   ) r._report_dep( file_loc , ::move(file) , FileInfo(file) , a , ::move(ck) ) ;                                          // .
+				if (store) real = file ;                                                                                                   // when no views match, process as if last
+				if (+a   ) r._report_dep( file_loc , ::move(file) , FileInfo(file) , a , ::move(ck) ) ;                                    // .
 			} ;
+			//
 			if (sr.file_accessed==Yes) accesses = Access::Lnk ;
 			/**/                       file_loc = sr.file_loc ;
 			//                                                                                            accesses      store
@@ -256,9 +256,11 @@ public :
 		::string real     ;
 		::string real0    ;                                                // real in case reading and writing is to different files because of overlays
 		Accesses accesses ;                                                // Access::Lnk if real was accessed as a sym link
-	} ;
-	using Solve  = _Solve<false/*Writable*/> ;
-	using WSolve = _Solve<true /*Writable*/> ;
+	} ; //!              Writable,ChkSimple
+	using Solve    = _Solve<false  ,false   > ;
+	using WSolve   = _Solve<true   ,false   > ;
+	using SolveCS  = _Solve<false  ,true    > ;
+	using WSolveCS = _Solve<true   ,true    > ;
 	struct Chdir : Solve {
 		// cxtors & casts
 		Chdir() = default ;
@@ -285,7 +287,7 @@ public :
 		#endif
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 	} ;
-	struct Exec : Solve {
+	struct Exec : SolveCS {
 		// cxtors & casts
 		Exec() = default ;
 		Exec( Record& , Path&& , bool no_follow , ::string&& comment ) ;
@@ -321,10 +323,19 @@ public :
 		// data
 		bool confirm = false ;
 	} ;
-	struct Read : Solve {
-		Read() = default ;
-		Read( Record& , Path&& , bool no_follow , bool keep_real , ::string&& comment ) ;
-	} ;
+	template<bool ChkSimple=false> struct _Read : _Solve<false/*Writable*/,ChkSimple> {
+		using Base = _Solve<false/*Writable*/,ChkSimple> ;
+		using Base::real     ;
+		using Base::file_loc ;
+		using Base::accesses ;
+		_Read() = default ;
+		_Read( Record& r , Path&& path , bool no_follow , bool keep_real , ::string&& c ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
+			if ( ChkSimple && !real ) return ;
+			r._report_dep( file_loc , keep_real?(::copy(real)):(::move(real)) , accesses|Access::Reg , ::move(c) ) ;
+		}
+	} ; //!             ChkSimple
+	using Read   = _Read<false  > ;
+	using ReadCS = _Read<true   > ;
 	struct Readlink : Solve {
 		// cxtors & casts
 		Readlink() = default ;

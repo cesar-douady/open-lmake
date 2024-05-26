@@ -66,8 +66,7 @@ int main( int argc , char* argv[] ) {
 		if (+job_space.root_view                  ) gather.autodep_env.root_dir    = ::move(job_space.root_view                                                ) ;
 		else                                        gather.autodep_env.root_dir    =        *g_root_dir                                                          ;
 		/**/                                        gather.autodep_env.tmp_dir     =        get_env("TMPDIR",P_tmpdir)                                           ;
-		//
-		for( auto const& [view,phys] : job_space.views ) { SWEAR(phys.size()==1) ; gather.views.emplace_back(view,phys.front()) ; }                                     // XXX : move views to record
+		/**/                                        gather.autodep_env.views       =        job_space.views                                                      ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Status status ;
