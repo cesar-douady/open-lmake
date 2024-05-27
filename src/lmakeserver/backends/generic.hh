@@ -375,7 +375,7 @@ namespace Backends {
 							if      (!re.waiting_jobs.contains(j)) SWEAR(r!=+req,r) ;
 							else if (r!=+req                     ) rs.push_back(r)  ;
 						auto [sjit,inserted] = spawned_jobs.emplace( j , SpawnedEntry(rsrcs,verbose) ) ;
-						SWEAR(inserted) ;
+						SWEAR(inserted,j,sjit->second.zombie) ;
 						launch_descrs.emplace_back( j , LaunchDescr{ rs , rsrcs , acquire_cmd_line(T,j,rs,export_(*rsrcs),wit->second.submit_attrs) , prio , verbose , &sjit->second.id } ) ;
 						waiting_jobs.erase(wit) ;
 						//
@@ -385,22 +385,24 @@ namespace Backends {
 							if (r!=+req) {
 								auto                  wit2 = re.waiting_queues.find(candidate->first) ;
 								::set<PressureEntry>& pes  = wit2->second                             ;
-								PressureEntry         pe   { wit1->second , j }                       ;                // /!\ pressure is job pressure for r, not for req
+								PressureEntry         pe   { wit1->second , j }                       ;                    // /!\ pressure is job pressure for r, not for req
 								SWEAR(pes.contains(pe)) ;
-								if (pes.size()==1) re.waiting_queues.erase(wit2) ;                                     // last entry for this rsrcs, erase the entire queue
+								if (pes.size()==1) re.waiting_queues.erase(wit2) ;                                         // last entry for this rsrcs, erase the entire queue
 								else               pes              .erase(pe  ) ;
 							}
 							re.waiting_jobs.erase (wit1) ;
 							re.queued_jobs .insert(j   ) ;
 						}
-						if (pressure_set.size()==1) queues      .erase(candidate     ) ;                               // last entry for this rsrcs, erase the entire queue
+						if (pressure_set.size()==1) queues      .erase(candidate     ) ;                                   // last entry for this rsrcs, erase the entire queue
 						else                        pressure_set.erase(pressure_first) ;
 					}
 				}
 				{	Lock lock { id_mutex } ;
 					for( auto& [ji,ld] : launch_descrs ) {
 						try {
-							*ld.id = launch_job( st , ji , ld.reqs , ld.prio , ld.cmd_line , ld.rsrcs , ld.verbose ) ; // XXX : manage errors, for now rely on heartbeat
+							SpawnId id = launch_job( st , ji , ld.reqs , ld.prio , ld.cmd_line , ld.rsrcs , ld.verbose ) ; // XXX : manage errors, for now rely on heartbeat
+							SWEAR(id,ji) ;                                                                                 // null id is used to mark absence of id
+							*ld.id = id ;
 							trace("child",ji,ld.prio,ld.id,ld.cmd_line) ;
 						} catch (::string const& e) {
 							trace("fail",ji,ld.prio,e) ;
@@ -410,14 +412,14 @@ namespace Backends {
 				{	Lock lock { _s_mutex } ;
 					for( auto const& [ji,ld] : launch_descrs ) {
 						auto it=spawned_jobs.find(ji) ;
-						if (it==spawned_jobs.end()) continue ;                                                         // job has gone (killed or ended) since it was launched, rsrcs are already freed
+						if (it==spawned_jobs.end()) continue ; // job has gone (killed or ended) since it was launched, rsrcs are already freed
 						if (!it->second.id) {
-							kill_queued_job(it->second) ;                                                              // job could not be launched, inform sub-backend rsrcs are released
+							kill_queued_job(it->second) ;      // job could not be launched, inform sub-backend rsrcs are released
 							it->second.rsrcs = {} ;
 						}
-						spawned_jobs.flush(it) ;                                                                       // collect unused entries
+						spawned_jobs.flush(it) ;               // collect unused entries
 					}
-					launch_descrs.clear() ;                                                                            // destroy entries while holding the lock
+					launch_descrs.clear() ;                    // destroy entries while holding the lock
 				}
 				trace("done") ;
 			}

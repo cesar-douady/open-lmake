@@ -28,12 +28,11 @@ using namespace Time ;
 	if ( ai.digest.write!=No                      ) os << "W:"<<ai.write<<(ai.digest.write==Maybe?"?":"") <<',' ;
 	if (+ai.dep_info                              ) os << ai.dep_info                                     <<',' ;
 	/**/                                            os << ai.digest                                             ;
-	if (+ai.digest.accesses                       ) os <<",//"<< ai.parallel_id                                 ;
 	if ( ai.seen!=Pdate::Future                   ) os <<",seen"                                                ;
 	return                                          os <<')'                                                    ;
 }
 
-void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di , NodeIdx parallel_id_ ) {
+void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	digest.tflags       |= ad.tflags       ;
 	digest.extra_tflags |= ad.extra_tflags ;
 	digest.dflags       |= ad.dflags       ;
@@ -44,8 +43,7 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di , NodeId
 	//
 	if (!dfi) {
 		for( Access a : All<Access> ) if (read[+a]<=pd) goto NotFirst ;
-		dep_info    = di           ;
-		parallel_id = parallel_id_ ;
+		dep_info = di ;
 	NotFirst : ;
 	}
 	//
@@ -66,7 +64,7 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di , NodeId
 	return           os << ')'                      ;
 }
 
-void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , bool parallel , ::string const& comment ) {
+void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , ::string const& comment ) {
 	SWEAR( +file , comment        ) ;
 	SWEAR( +pd   , comment , file ) ;
 	AccessInfo* info        = nullptr/*garbage*/                       ;
@@ -77,34 +75,29 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI
 	} else {
 		info = &accesses[it->second].second ;
 	}
-	if (!parallel) _parallel_id++ ;
 	AccessInfo old_info = *info ;                                                                                                                            // for tracing only
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	info->update( pd , ad , di , _parallel_id ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvv
+	info->update( pd , ad , di ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
 }
 
 void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdin ) {
-	bool parallel = false ;
 	for( auto& [f,dd] : deps ) {
 		bool is_stdin = f==stdin ;
 		if (is_stdin) {                             // stdin is read
 			if (!dd.accesses) dd.sig(FileInfo(f)) ; // record now if not previously accessed
 			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , parallel , is_stdin?"stdin"s:"s_deps"s ) ;
-		parallel = true ;
+		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , is_stdin?"stdin"s:"s_deps"s ) ;
 	}
 }
 
 void Gather::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 	RealPath              rp       { autodep_env }                    ;
 	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
-	bool                  parallel = false                            ;
 	for( auto&& [f,a] : rp.exec(sr) ) {
-		_new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , parallel , c ) ;
-		parallel = true ;
+		_new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 	}
 }
 
@@ -380,7 +373,7 @@ Status Gather::exec_child() {
 							case JobMngtProc::Encode : {
 								SWEAR(+jmrr.fd) ;
 								auto it = _codec_files.find(jmrr.fd) ;
-								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , false/*parallel*/ , ::string(snake(jmrr.proc)) ) ;
+								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , ::string(snake(jmrr.proc)) ) ;
 								_codec_files.erase(it) ;
 							} break ;
 						DF}
@@ -459,7 +452,7 @@ void Gather::reorder(bool at_end) {
 	::stable_sort(                                                                                          // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
-			return ::pair(a.second.first_read().first,a.second.parallel_id) < ::pair(b.second.first_read().first,b.second.parallel_id) ;
+			return a.second.first_read().first < b.second.first_read().first ;
 		}
 	) ;
 	// first pass (backward) : note dirs of immediately following files

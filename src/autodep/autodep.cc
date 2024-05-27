@@ -5,11 +5,13 @@
 
 #include "app.hh"
 #include "disk.hh"
+#include "time.hh"
 
 #include "gather.hh"
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Time ;
 
 ENUM( CmdKey , None )
 ENUM( CmdFlag
@@ -92,9 +94,9 @@ int main( int argc , char* argv[] ) {
 	deps_stream << "deps :\n" ;
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
-	NodeIdx  prev_parallel_id = 0     ;
-	auto send = [&]( ::string const& dep={} , NodeIdx parallel_id=0 ) {                               // process deps with a delay of 1 because we need next entry for ascii art
-		bool parallel = parallel_id && parallel_id==prev_parallel_id ;
+	Pdate    prev_first_read  ;
+	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                  // process deps with a delay of 1 because we need next entry for ascii art
+		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;
 			else if ( !prev_parallel &&  parallel ) deps_stream << "/ "  ;
@@ -102,11 +104,11 @@ int main( int argc , char* argv[] ) {
 			else                                    deps_stream << "\\ " ;
 			deps_stream << prev_dep << '\n' ;
 		}
-		prev_parallel_id = parallel_id ;
-		prev_parallel    = parallel    ;
-		prev_dep         = dep         ;
+		prev_first_read = first_read ;
+		prev_parallel   = parallel   ;
+		prev_dep        = dep        ;
 	} ;
-	for( auto const& [dep,ai] : gather.accesses ) if (ai.digest.write==No) send(dep,ai.parallel_id) ;
-	/**/                                                                   send(                  ) ; // send last
+	for( auto const& [dep,ai] : gather.accesses ) if (ai.digest.write==No) send(dep,ai.first_read().first) ;
+	/**/                                                                   send(                         ) ; // send last
 	return status!=Status::Ok ;
 }

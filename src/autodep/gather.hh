@@ -64,7 +64,7 @@ struct Gather {
 			return res ;
 		}
 		// services
-		void update( PD , AccessDigest , DI const& , NodeIdx parallel_id_ ) ;
+		void update( PD , AccessDigest , DI const& ) ;
 		//
 		void chk() const ;
 		// data
@@ -75,7 +75,6 @@ struct Gather {
 		PD           target          = PD::Future                             ;                                 // first date at which file was known to be a target
 		PD           seen            = PD::Future                             ;                                 // first date at which file has been seen existing
 		DI           dep_info        ;                                                                          // state when first read
-		NodeIdx      parallel_id     = 0                                      ;
 		AccessDigest digest          ;
 	} ;
 	// statics
@@ -84,12 +83,11 @@ private :
 	// services
 	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only
-	void _new_access( Fd , PD    , ::string&& file , AccessDigest    , DI const&    , bool parallel , ::string const& comment ) ;
-	void _new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di , bool p        , ::string const& c       ) { _new_access({},pd,::move(f),ad,di,p,c) ; }
+	void _new_access( Fd , PD    , ::string&& file , AccessDigest    , DI const&    , ::string const& comment ) ;
+	void _new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di , ::string const& c       ) { _new_access({},pd,::move(f),ad,di,c) ; }
 	//
 	void _new_accesses( Fd fd , Jerr&& jerr ) {
-		bool parallel = false ;
-		for( auto& [f,dd] : jerr.files ) { _new_access( fd , jerr.date , ::move(f) , jerr.digest , dd , parallel , jerr.txt ) ; parallel = true ; }
+		for( auto& [f,dd] : jerr.files ) _new_access( fd , jerr.date , ::move(f) , jerr.digest , dd , jerr.txt ) ;
 	}
 	void _new_guards( Fd fd , Jerr&& jerr ) {                                                                   // fd for trace purpose only
 		Trace trace("_new_guards",fd,jerr.txt) ;
@@ -97,10 +95,10 @@ private :
 	}
 	void _kill          ( bool force          ) ;
 	void _send_to_server( Fd fd , Jerr&& jerr ) ;
-public : //!                                                                                                           crc_file_info parallel
-	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,false  ,c) ; }
-	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,false  ,c) ; } // new_unlnk is used for internal wash
-	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                              }
+public : //!                                                                                                           crc_file_info
+	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,c) ; }
+	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,c) ; } // new_unlnk is used for internal wash
+	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                      }
 	//
 	void new_deps( PD , ::vmap_s<DepDigest>&& deps , ::string const& stdin={}       ) ;
 	void new_exec( PD , ::string const& exe        , ::string const&      ="s_exec" ) ;

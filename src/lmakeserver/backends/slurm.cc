@@ -220,7 +220,8 @@ namespace Backends::Slurm {
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
 			if ( !se.verbose && s>Status::Async ) return {{},true/*retry*/} ;                           // common case, must be fast, if job was ended asynchronously, better to ask slurm controler why
-			Lock lock{id_mutex} ;                                                                       // ensure se.id has been updated
+			if (!se.id) { Lock lock{id_mutex} ; }                                                       // ensure se.id has been updated
+			SWEAR(se.id) ;
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
 				Delay d { 0.01 }                                               ;
