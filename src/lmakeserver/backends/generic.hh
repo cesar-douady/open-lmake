@@ -128,7 +128,8 @@ namespace Backends {
 				else               { it->second.zombie = true ; it->second.rsrcs = {} ; }
 			} ;
 			void flush(iterator it) {
-				if (it->second.zombie) Base::erase(it) ;
+				SWEAR(it->second.zombie) ;
+				Base::erase(it) ;
 			}
 		} ;
 
@@ -292,7 +293,7 @@ namespace Backends {
 			//
 			if (digest.second!=HeartbeatState::Alive) {
 				Trace trace(BeChnl,"heartbeat",j,se.id) ;
-				se.id = 0 ;
+				se.zombie = true ;
 				kill_queued_job(se) ;                                                                            // inform sub-backend rsrcs are released
 				spawned_jobs.erase(it) ;
 				for( auto& [r,re] : reqs ) re.queued_jobs.erase(j ) ;
@@ -375,7 +376,7 @@ namespace Backends {
 							if      (!re.waiting_jobs.contains(j)) SWEAR(r!=+req,r) ;
 							else if (r!=+req                     ) rs.push_back(r)  ;
 						auto [sjit,inserted] = spawned_jobs.emplace( j , SpawnedEntry(rsrcs,verbose) ) ;
-						SWEAR(inserted,j,sjit->second.zombie) ;
+						SWEAR(inserted,j,sjit->second.id,sjit->second.zombie) ;
 						launch_descrs.emplace_back( j , LaunchDescr{ rs , rsrcs , acquire_cmd_line(T,j,rs,export_(*rsrcs),wit->second.submit_attrs) , prio , verbose , &sjit->second.id } ) ;
 						waiting_jobs.erase(wit) ;
 						//
@@ -412,14 +413,12 @@ namespace Backends {
 				{	Lock lock { _s_mutex } ;
 					for( auto const& [ji,ld] : launch_descrs ) {
 						auto it=spawned_jobs.find(ji) ;
-						if (it==spawned_jobs.end()) continue ; // job has gone (killed or ended) since it was launched, rsrcs are already freed
-						if (!it->second.id) {
-							kill_queued_job(it->second) ;      // job could not be launched, inform sub-backend rsrcs are released
-							it->second.rsrcs = {} ;
-						}
-						spawned_jobs.flush(it) ;               // collect unused entries
+						if (it==spawned_jobs.end()) continue ;                        // job has gone (killed or ended) since it was launched, rsrcs are already freed
+						SpawnedEntry& se = it->second ;
+						if      (se.zombie)   spawned_jobs.flush(it) ;                // collect unused entry now that we hold _s_mutex
+						else if (!se.id   ) { kill_queued_job(se) ; se.rsrcs = {} ; } // job could not be launched, inform sub-backend rsrcs are released
 					}
-					launch_descrs.clear() ;                    // destroy entries while holding the lock
+					launch_descrs.clear() ;                                           // destroy entries while holding the lock
 				}
 				trace("done") ;
 			}

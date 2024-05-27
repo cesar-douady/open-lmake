@@ -255,8 +255,8 @@ namespace Backends::Slurm {
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (se.id    ) _s_slurm_cancel_thread.push(se.id) ;                  // asynchronous (as faster and no return value) cancel
-			if (+se.rsrcs) spawned_rsrcs.dec(se.rsrcs)        ;
+			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;                  // asynchronous (as faster and no return value) cancel
+			if (+se.rsrcs ) spawned_rsrcs.dec(se.rsrcs)        ;
 		}
 		virtual SlurmId launch_job( ::stop_token st , JobIdx j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
