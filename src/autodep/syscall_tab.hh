@@ -25,126 +25,126 @@ struct SyscallDescr {
 } ;
 
 #ifdef LD_PRELOAD
-	#define ENUMERATE_LD_PRELOAD_SYSCALLS \
-		,	SYSCALL_ENTRY(dlmopen ) \
-		,	SYSCALL_ENTRY(dlopen  ) \
-		,	SYSCALL_ENTRY(putenv  ) \
-		,	SYSCALL_ENTRY(setenv  ) \
-		,	SYSCALL_ENTRY(unsetenv)
+	#define ENUMERATE_LD_PRELOAD_LIBCALLS \
+		,	LIBCALL_ENTRY(dlmopen ) \
+		,	LIBCALL_ENTRY(dlopen  ) \
+		,	LIBCALL_ENTRY(putenv  ) \
+		,	LIBCALL_ENTRY(setenv  ) \
+		,	LIBCALL_ENTRY(unsetenv)
 #else
 	// handled by la_objopen (calling Audited::dlmopen does not work for a mysterious reason)
-	#define ENUMERATE_LD_PRELOAD_SYSCALLS
+	#define ENUMERATE_LD_PRELOAD_LIBCALLS
 #endif
 
 #if NEED_STAT_WRAPPERS
-	#define ENUMERATE_DIRECT_STAT_SYSCALLS
+	#define ENUMERATE_DIRECT_STAT_LIBCALLS
 #else
-	#define ENUMERATE_DIRECT_STAT_SYSCALLS \
-	,	SYSCALL_ENTRY(fstatat  ) \
-	,	SYSCALL_ENTRY(fstatat64) \
-	,	SYSCALL_ENTRY(lstat    ) \
-	,	SYSCALL_ENTRY(lstat64  ) \
-	,	SYSCALL_ENTRY(stat     ) \
-	,	SYSCALL_ENTRY(stat64   )
+	#define ENUMERATE_DIRECT_STAT_LIBCALLS \
+	,	LIBCALL_ENTRY(fstatat  ) \
+	,	LIBCALL_ENTRY(fstatat64) \
+	,	LIBCALL_ENTRY(lstat    ) \
+	,	LIBCALL_ENTRY(lstat64  ) \
+	,	LIBCALL_ENTRY(stat     ) \
+	,	LIBCALL_ENTRY(stat64   )
 #endif
 
 //
 // mere path accesses, no actual accesses to file data */
 //
-#define ENUMERATE_PATH_SYSCALLS \
-,	SYSCALL_ENTRY(access                ) \
-,	SYSCALL_ENTRY(canonicalize_file_name) \
-,	SYSCALL_ENTRY(faccessat             ) \
-,	SYSCALL_ENTRY(__fxstatat            ) \
-,	SYSCALL_ENTRY(__fxstatat64          ) \
-,	SYSCALL_ENTRY(__lxstat              ) \
-,	SYSCALL_ENTRY(__lxstat64            ) \
-,	SYSCALL_ENTRY(mkdirat               ) \
-,	SYSCALL_ENTRY(opendir               ) \
-,	SYSCALL_ENTRY(realpath              ) \
-,	SYSCALL_ENTRY(__realpath_chk        ) \
-,	SYSCALL_ENTRY(scandir               ) \
-,	SYSCALL_ENTRY(scandir64             ) \
-,	SYSCALL_ENTRY(scandirat             ) \
-,	SYSCALL_ENTRY(scandirat64           ) \
-,	SYSCALL_ENTRY(statx                 ) \
-,	SYSCALL_ENTRY(__xstat               ) \
-,	SYSCALL_ENTRY(__xstat64             )
+#define ENUMERATE_PATH_LIBCALLS \
+,	LIBCALL_ENTRY(access                ) \
+,	LIBCALL_ENTRY(canonicalize_file_name) \
+,	LIBCALL_ENTRY(faccessat             ) \
+,	LIBCALL_ENTRY(__fxstatat            ) \
+,	LIBCALL_ENTRY(__fxstatat64          ) \
+,	LIBCALL_ENTRY(__lxstat              ) \
+,	LIBCALL_ENTRY(__lxstat64            ) \
+,	LIBCALL_ENTRY(mkdirat               ) \
+,	LIBCALL_ENTRY(opendir               ) \
+,	LIBCALL_ENTRY(realpath              ) \
+,	LIBCALL_ENTRY(__realpath_chk        ) \
+,	LIBCALL_ENTRY(scandir               ) \
+,	LIBCALL_ENTRY(scandir64             ) \
+,	LIBCALL_ENTRY(scandirat             ) \
+,	LIBCALL_ENTRY(scandirat64           ) \
+,	LIBCALL_ENTRY(statx                 ) \
+,	LIBCALL_ENTRY(__xstat               ) \
+,	LIBCALL_ENTRY(__xstat64             )
 
-#define ENUMERATE_SYSCALLS \
-	SYSCALL_ENTRY(chdir            ) \
-,	SYSCALL_ENTRY(chmod            ) \
-,	SYSCALL_ENTRY(clone            ) \
-,	SYSCALL_ENTRY(close            ) \
-,	SYSCALL_ENTRY(__close          ) \
-,	SYSCALL_ENTRY(creat            ) \
-,	SYSCALL_ENTRY(creat64          ) \
-,	SYSCALL_ENTRY(dup2             ) \
-,	SYSCALL_ENTRY(dup3             ) \
-,	SYSCALL_ENTRY(execl            ) \
-,	SYSCALL_ENTRY(execle           ) \
-,	SYSCALL_ENTRY(execlp           ) \
-,	SYSCALL_ENTRY(execv            ) \
-,	SYSCALL_ENTRY(execve           ) \
-,	SYSCALL_ENTRY(execveat         ) \
-,	SYSCALL_ENTRY(execvp           ) \
-,	SYSCALL_ENTRY(execvpe          ) \
-,	SYSCALL_ENTRY(fchdir           ) \
-,	SYSCALL_ENTRY(fchmodat         ) \
-,	SYSCALL_ENTRY(fopen            ) \
-,	SYSCALL_ENTRY(fopen64          ) \
-,	SYSCALL_ENTRY(fork             ) \
-,	SYSCALL_ENTRY(__fork           ) \
-,	SYSCALL_ENTRY(freopen          ) \
-,	SYSCALL_ENTRY(freopen64        ) \
-,	SYSCALL_ENTRY(futimesat        ) \
-,	SYSCALL_ENTRY(__libc_fork      ) \
-,	SYSCALL_ENTRY(link             ) \
-,	SYSCALL_ENTRY(linkat           ) \
-,	SYSCALL_ENTRY(lutimes          ) \
-,	SYSCALL_ENTRY(mkdir            ) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
-,	SYSCALL_ENTRY(mkostemp         ) \
-,	SYSCALL_ENTRY(mkostemp64       ) \
-,	SYSCALL_ENTRY(mkostemps        ) \
-,	SYSCALL_ENTRY(mkostemps64      ) \
-,	SYSCALL_ENTRY(mkstemp          ) \
-,	SYSCALL_ENTRY(mkstemp64        ) \
-,	SYSCALL_ENTRY(mkstemps         ) \
-,	SYSCALL_ENTRY(mkstemps64       ) \
-,	SYSCALL_ENTRY(mount            ) \
-,	SYSCALL_ENTRY(open             ) \
-,	SYSCALL_ENTRY(__open           ) \
-,	SYSCALL_ENTRY(__open_nocancel  ) \
-,	SYSCALL_ENTRY(__open_2         ) \
-,	SYSCALL_ENTRY(open64           ) \
-,	SYSCALL_ENTRY(__open64         ) \
-,	SYSCALL_ENTRY(__open64_nocancel) \
-,	SYSCALL_ENTRY(__open64_2       ) \
-,	SYSCALL_ENTRY(openat           ) \
-,	SYSCALL_ENTRY(__openat_2       ) \
-,	SYSCALL_ENTRY(openat64         ) \
-,	SYSCALL_ENTRY(__openat64_2     ) \
-,	SYSCALL_ENTRY(readlink         ) \
-,	SYSCALL_ENTRY(readlinkat       ) \
-,	SYSCALL_ENTRY(__readlinkat_chk ) \
-,	SYSCALL_ENTRY(__readlink_chk   ) \
-,	SYSCALL_ENTRY(rename           ) \
-,	SYSCALL_ENTRY(renameat         ) \
-,	SYSCALL_ENTRY(renameat2        ) \
-,	SYSCALL_ENTRY(rmdir            ) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
-,	SYSCALL_ENTRY(symlink          ) \
-,	SYSCALL_ENTRY(symlinkat        ) \
-,	SYSCALL_ENTRY(syscall          ) \
-,	SYSCALL_ENTRY(system           ) \
-,	SYSCALL_ENTRY(truncate         ) \
-,	SYSCALL_ENTRY(truncate64       ) \
-,	SYSCALL_ENTRY(unlink           ) \
-,	SYSCALL_ENTRY(unlinkat         ) \
-,	SYSCALL_ENTRY(utime            ) \
-,	SYSCALL_ENTRY(utimensat        ) \
-,	SYSCALL_ENTRY(utimes           ) \
-,	SYSCALL_ENTRY(vfork            ) /* because vfork semantic does not allow instrumentation of following exec */ \
-,	SYSCALL_ENTRY(__vfork          ) /* . */ \
-	ENUMERATE_LD_PRELOAD_SYSCALLS      \
-	ENUMERATE_PATH_SYSCALLS            \
-	ENUMERATE_DIRECT_STAT_SYSCALLS
+#define ENUMERATE_LIBCALLS \
+	LIBCALL_ENTRY(chdir            ) \
+,	LIBCALL_ENTRY(chmod            ) \
+,	LIBCALL_ENTRY(clone            ) \
+,	LIBCALL_ENTRY(close            ) \
+,	LIBCALL_ENTRY(__close          ) \
+,	LIBCALL_ENTRY(creat            ) \
+,	LIBCALL_ENTRY(creat64          ) \
+,	LIBCALL_ENTRY(dup2             ) \
+,	LIBCALL_ENTRY(dup3             ) \
+,	LIBCALL_ENTRY(execl            ) \
+,	LIBCALL_ENTRY(execle           ) \
+,	LIBCALL_ENTRY(execlp           ) \
+,	LIBCALL_ENTRY(execv            ) \
+,	LIBCALL_ENTRY(execve           ) \
+,	LIBCALL_ENTRY(execveat         ) \
+,	LIBCALL_ENTRY(execvp           ) \
+,	LIBCALL_ENTRY(execvpe          ) \
+,	LIBCALL_ENTRY(fchdir           ) \
+,	LIBCALL_ENTRY(fchmodat         ) \
+,	LIBCALL_ENTRY(fopen            ) \
+,	LIBCALL_ENTRY(fopen64          ) \
+,	LIBCALL_ENTRY(fork             ) \
+,	LIBCALL_ENTRY(__fork           ) \
+,	LIBCALL_ENTRY(freopen          ) \
+,	LIBCALL_ENTRY(freopen64        ) \
+,	LIBCALL_ENTRY(futimesat        ) \
+,	LIBCALL_ENTRY(__libc_fork      ) \
+,	LIBCALL_ENTRY(link             ) \
+,	LIBCALL_ENTRY(linkat           ) \
+,	LIBCALL_ENTRY(lutimes          ) \
+,	LIBCALL_ENTRY(mkdir            ) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
+,	LIBCALL_ENTRY(mkostemp         ) \
+,	LIBCALL_ENTRY(mkostemp64       ) \
+,	LIBCALL_ENTRY(mkostemps        ) \
+,	LIBCALL_ENTRY(mkostemps64      ) \
+,	LIBCALL_ENTRY(mkstemp          ) \
+,	LIBCALL_ENTRY(mkstemp64        ) \
+,	LIBCALL_ENTRY(mkstemps         ) \
+,	LIBCALL_ENTRY(mkstemps64       ) \
+,	LIBCALL_ENTRY(mount            ) \
+,	LIBCALL_ENTRY(open             ) \
+,	LIBCALL_ENTRY(__open           ) \
+,	LIBCALL_ENTRY(__open_nocancel  ) \
+,	LIBCALL_ENTRY(__open_2         ) \
+,	LIBCALL_ENTRY(open64           ) \
+,	LIBCALL_ENTRY(__open64         ) \
+,	LIBCALL_ENTRY(__open64_nocancel) \
+,	LIBCALL_ENTRY(__open64_2       ) \
+,	LIBCALL_ENTRY(openat           ) \
+,	LIBCALL_ENTRY(__openat_2       ) \
+,	LIBCALL_ENTRY(openat64         ) \
+,	LIBCALL_ENTRY(__openat64_2     ) \
+,	LIBCALL_ENTRY(readlink         ) \
+,	LIBCALL_ENTRY(readlinkat       ) \
+,	LIBCALL_ENTRY(__readlinkat_chk ) \
+,	LIBCALL_ENTRY(__readlink_chk   ) \
+,	LIBCALL_ENTRY(rename           ) \
+,	LIBCALL_ENTRY(renameat         ) \
+,	LIBCALL_ENTRY(renameat2        ) \
+,	LIBCALL_ENTRY(rmdir            ) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
+,	LIBCALL_ENTRY(symlink          ) \
+,	LIBCALL_ENTRY(symlinkat        ) \
+,	LIBCALL_ENTRY(syscall          ) \
+,	LIBCALL_ENTRY(system           ) \
+,	LIBCALL_ENTRY(truncate         ) \
+,	LIBCALL_ENTRY(truncate64       ) \
+,	LIBCALL_ENTRY(unlink           ) \
+,	LIBCALL_ENTRY(unlinkat         ) \
+,	LIBCALL_ENTRY(utime            ) \
+,	LIBCALL_ENTRY(utimensat        ) \
+,	LIBCALL_ENTRY(utimes           ) \
+,	LIBCALL_ENTRY(vfork            ) /* because vfork semantic does not allow instrumentation of following exec */ \
+,	LIBCALL_ENTRY(__vfork          ) /* . */ \
+	ENUMERATE_LD_PRELOAD_LIBCALLS      \
+	ENUMERATE_PATH_LIBCALLS            \
+	ENUMERATE_DIRECT_STAT_LIBCALLS

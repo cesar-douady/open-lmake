@@ -23,18 +23,18 @@ struct Ctx {
 	void restore_errno() {} // .
 } ;
 
-struct SymEntry {
-	SymEntry( void* f , LnkSupport ls=LnkSupport::None ) : func{f} , lnk_support{ls} {}
+struct SymbolEntry {
+	SymbolEntry( void* f , LnkSupport ls=LnkSupport::None ) : func{f} , lnk_support{ls} {}
 	void*         func        = nullptr          ;
-	LnkSupport    lnk_support = LnkSupport::None ; // above this level of link support, we need to catch this syscall
+	LnkSupport    lnk_support = LnkSupport::None ;         // above this level of link support, we need to catch this libcall
 	mutable void* orig        = nullptr          ;
 } ;
-extern ::umap_s<SymEntry> const* const g_syscall_tab ;
+static ::umap_s<SymbolEntry> const* _g_libcall_tab = nullptr ;
 
-void* get_orig(const char* syscall) {
+void* get_orig(const char* libcall) {
 	if (!g_libc_name) exit(Rc::Usage,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
-	SymEntry const& entry = g_syscall_tab->at(syscall) ;
-	if (!entry.orig) entry.orig = ::dlsym( RTLD_NEXT , syscall ) ; // may be not initialized if syscall was routed to another syscall
+	SymbolEntry const& entry = _g_libcall_tab->at(libcall) ;
+	if (!entry.orig) entry.orig = ::dlsym( RTLD_NEXT , libcall ) ; // may be not initialized if a libcall is routed to another libcall
 	return entry.orig ;
 }
 
@@ -49,9 +49,6 @@ static bool started() { return true ; }
 #include "ld_common.x.cc"
 
 #include "syscall_tab.hh"
-
-#define SYSCALL_ENTRY(syscall) { #syscall , { reinterpret_cast<void*>(Audited::syscall) } }
-::umap_s<SymEntry> const* const g_syscall_tab = new ::umap_s<SymEntry>{ ENUMERATE_SYSCALLS } ;
 
 static ::pair<bool/*is_std*/,bool/*is_libc*/> _catch_std_lib(const char* c_name) {
 	// search for string (.*/)?libc.so(.<number>)*
@@ -75,11 +72,11 @@ template<class Sym> uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uin
 	if (g_force_orig) goto Ignore ;                                               // avoid recursion loop
 	if (*def_cook   ) goto Ignore ;                                               // cookie is used to identify libc (when cookie==0)
 	//
-	{	auto it = g_syscall_tab->find(sym_name) ;
-		if (it==g_syscall_tab->end()) goto Ignore ;
+	{	auto it = _g_libcall_tab->find(sym_name) ;
+		if (it==_g_libcall_tab->end()) goto Ignore ;
 		//
 		auditer() ;                                                               // force Audit static init
-		SymEntry const& entry = it->second ;
+		SymbolEntry const& entry = it->second ;
 		if ( Record::s_autodep_env().lnk_support>=entry.lnk_support) goto Catch ;
 		if (!Record::s_autodep_env().ignore_stat                   ) goto Catch ; // we need to generate deps for stat-like accesses
 		goto Ignore ;
@@ -95,6 +92,9 @@ Ignore :
 extern "C" {
 
 	unsigned int la_version(unsigned int /*version*/) {
+		#define LIBCALL_ENTRY(libcall) { #libcall , { reinterpret_cast<void*>(Audited::libcall) } }
+		_g_libcall_tab = new ::umap_s<SymbolEntry>{ ENUMERATE_LIBCALLS } ;
+		#undef LIBCALL_ENTRY
 		return LAV_CURRENT ;
 	}
 

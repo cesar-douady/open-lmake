@@ -22,16 +22,21 @@ static bool started() { return AutodepLock::t_active ; } // no auto-start for se
 // - then if the child calls dlsym before exec, it will dead-lock
 // - this happens if get_orig needs to call dlsym
 // note that when not in server, _g_mutex protects us (but it is not used in server when not spying accesses)
-// note also that we cannot put s_syscall_tab in a static outside get_orig as get_orig may be called from global init, before this static initialization
-void* get_orig(const char* syscall) {
-	#define SYSCALL_ENTRY(syscall) { #syscall , ::dlsym(RTLD_NEXT,#syscall) }
-	static ::umap_s<void*> const* const s_syscall_tab = new ::umap_s<void*>{ ENUMERATE_SYSCALLS } ;
-	if (!syscall) return nullptr ;                                                                  // used to initialize s_syscall_tab
-	void* res = s_syscall_tab->at(syscall) ;
-	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
+// note also that we cannot put s_libcall_tab in a static outside get_orig as get_orig may be called from global init, before this static initialization
+void* get_orig(const char* libcall) {
+	static ::umap_s<void*>* s_libcall_tab = nullptr ;
+	#define LIBCALL_ENTRY(libcall) { #libcall , ::dlsym(RTLD_NEXT,#libcall) }
+	// /!\ we must manage the guard explicitly as compiler generated guard makes syscalls, which can induce loops
+	if (!s_libcall_tab) s_libcall_tab = new ::umap_s<void*>{ ENUMERATE_LIBCALLS } ; // use a pointer to avoid uncontrolled destruction at end of execution
+	#undef LIBCALL_ENTRY
+	if (!libcall) return nullptr ;                                                  // used to initialize s_libcall_tab
+	void* res = s_libcall_tab->at(libcall) ;
+	swear_prod(res,"cannot find symbol ",libcall," in libc") ;
 	return res ;
 }
-static void* init_get_orig = get_orig(nullptr) ;                                                    // initialize s_syscall_tab as early as possible, hoping that there is no fork before
+// initialize s_libcall_tab as early as possible, before any fork
+// unfortunately some libs do accesses before entering main, so we cannot be sure this init is before all libcalls
+static void* init_get_orig = get_orig(nullptr) ;
 
 #include "ld.x.cc"
 #include "ld_common.x.cc"

@@ -38,7 +38,6 @@ using namespace Hash ;
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                                                                                                   // file does not exist, nothing to do
 				bool done = true/*garbage*/ ;
-trace(sig,a.sig,a.crc) ;
 				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ;
 				if (quarantine) {
 					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
@@ -117,21 +116,23 @@ static void _mount( ::string const& dst , size_t sz_mb ) {                      
 }
 static void _mount( ::string const& dst , ::vector_s const& srcs , ::string const& work ) { // overlay mount
 	SWEAR(+srcs) ;
-	if (srcs.size()==1) { _mount(dst,srcs[0]) ; return ; }                                  // an overlay with a single source is actually a bind mount
+	SWEAR(srcs.size()>1,dst,srcs,work) ;                                                    // use bind mount in that case
 	//
 	Trace trace("_mount","overlay",dst,srcs,work) ;
 	for( size_t i=1 ; i<srcs.size() ; i++ )
 		if (srcs[i].find(':')!=Npos)
-			throw to_string("cannot overlay mount ",srcs,"with embedded columns (:)") ;
+			throw to_string("cannot overlay mount ",dst," to ",srcs,"with embedded columns (:)") ;
 	mk_dir(work) ;
 	//
-	::string                                data  = "userxattr"          ;
+	::string                                data  = "userxattr"                                     ;
 	/**/                                    data += ",upperdir="+srcs[0].substr(0,srcs[0].size()-1) ;
 	/**/                                    data += ",lowerdir="+srcs[1].substr(0,srcs[1].size()-1) ;
 	for( size_t i=2 ; i<srcs.size() ; i++ ) data += ':'         +srcs[i].substr(0,srcs[i].size()-1) ;
-	/**/                                    data += ",workdir=" +work    ;
-	if (::mount( nullptr ,  dst.c_str() , "overlay" , 0 , data.c_str() )!=0)
-		throw to_string("cannot overlay mount ",data," : ",strerror(errno)) ;
+	/**/                                    data += ",workdir=" +work                               ;
+	SWEAR(dst.back()=='/') ;
+	::string dst_no_s = dst ; dst_no_s.pop_back() ;
+	if (::mount( nullptr ,  dst_no_s.c_str() , "overlay" , 0 , data.c_str() )!=0)
+		throw to_string("cannot overlay mount ",dst_no_s," to ",data," : ",strerror(errno)) ;
 }
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
@@ -142,6 +143,14 @@ static void _atomic_write( ::string const& file , ::string const& data ) {
 	if (cnt<0                  ) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : ",strerror(errno)          ) ;
 	if (size_t(cnt)<data.size()) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : only ",cnt," bytes written") ;
 }
+
+static bool _is_lcl_tmp( ::string const& f , ::string const& tmp_view ) {
+	if (is_lcl(f)               ) return true  ;
+	if (!tmp_view               ) return false ;
+	if (!f.starts_with(tmp_view)) return false ;
+	if (tmp_view.back()=='/'    ) return true  ;
+	/**/                          return f[tmp_view.size()]=='/' || f.size()==tmp_view.size() ;
+} ;
 
 bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s ) const {
 	static constexpr size_t AdminDirSz = sizeof(AdminDir)-1 ;                                        // -1 to account for terminating null
@@ -238,11 +247,12 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 	_atomic_write( "/proc/self/gid_map"   , to_string(gid,' ',gid,' ',1,'\n') ) ;
 	//
 	::string root_dir ;
-	if      (!root_view  )   root_dir = phy_root_dir    ;
-	else                   { root_dir = *chrd+root_view ; _mount( *chrd+super_root_view , phy_super_root_dir ) ; }
-	if      (!tmp_view   ) {}
-	else if (+phy_tmp_dir)                                _mount( *chrd+tmp_view        , phy_tmp_dir        ) ;
-	else if (tmp_sz_mb   )                                _mount( *chrd+tmp_view        , tmp_sz_mb          ) ;
+	if (!root_view)   root_dir = phy_root_dir    ;
+	else            { root_dir = *chrd+root_view ; _mount( *chrd+super_root_view , phy_super_root_dir ) ; }
+	if (+tmp_view) {
+		if      (+phy_tmp_dir) _mount( *chrd+tmp_view , phy_tmp_dir ) ;
+		else if (tmp_sz_mb   ) _mount( *chrd+tmp_view , tmp_sz_mb   ) ;
+	}
 	//
 	if      ( +*chrd && *chrd!="/" ) { _chroot(*chrd) ; _chdir(root_dir) ; }
 	else if ( +root_view           )                    _chdir(root_dir) ;
@@ -250,10 +260,19 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 		::string root_dir_s = root_dir+'/' ;
 		size_t   i          = 0            ;
 		for( auto const& [view,phys] : views ) {
+			::string   abs_view = mk_abs(view,root_dir_s) ;
 			::vector_s abs_phys ; for( ::string const& phy : phys ) abs_phys.push_back(mk_abs(phy,root_dir_s)) ;
-			::string   work     = to_string(work_dir,"/view_work/",i++) ;
-			mk_dir(work) ;
-			_mount( mk_abs(view,root_dir_s) , abs_phys , mk_abs(work,root_dir_s) ) ;
+			//
+			/**/                              if ( view.back()=='/' && _is_lcl_tmp(view,tmp_view) ) mk_dir(view) ;
+			for( ::string const& phy : phys ) if ( phy .back()=='/' && _is_lcl_tmp(phy ,tmp_view) ) mk_dir(phy ) ;
+			//
+			if (phys.size()==1) {
+				_mount( abs_view , abs_phys[0] ) ;
+			} else {
+				::string work = is_lcl(phys[0]) ? to_string(work_dir,"/view_work/",i++) : phys[0].substr(0,phys[0].size()-1)+".work" ; // if not in the repo, it must be in tmp
+				mk_dir(work) ;
+				_mount( abs_view , abs_phys , mk_abs(work,root_dir_s) ) ;
+			}
 		}
 	}
 	return true/*entered*/ ;
@@ -264,18 +283,19 @@ void JobSpace::chk() const {
 	if ( +root_view  && !(is_abs(root_view )&&is_canon(root_view )) ) throw "root_view must be a canonic absolute path : " +root_view  ;
 	if ( +tmp_view   && !(is_abs(tmp_view  )&&is_canon(tmp_view  )) ) throw "tmp_view must be a canonic absolute path : "  +tmp_view   ;
 	for( auto const& [view,phys] : views ) {
-		bool lcl_view = Disk::is_lcl(view) ;
-		bool dir_view = view.back()=='/'   ;
+		bool lcl_view = _is_lcl_tmp(view,tmp_view) ;
+		bool dir_view = view.back()=='/'           ;
 		/**/                             if ( !view                                                                    ) throw "cannot map empty view"s                          ;
 		/**/                             if ( !is_canon(view)                                                          ) throw "cannot map non-canonic view "+view               ;
-		/**/                             if ( !dir_view && phys.size()!=1                                              ) throw "cannot map file "            +view+" to overlay" ;
+		/**/                             if ( !dir_view && phys.size()!=1                                              ) throw "cannot overlay map non-dir " +view               ;
 		for( auto const& [v,_] : views ) if ( &v!=&view && view.starts_with(v) && (v.back()=='/'||view[v.size()]=='/') ) throw "cannot map "                 +view+" within "+v  ;
 		for( ::string const& phy : phys ) {
-			if ( !phy                           ) throw "cannot map "              +view+" to empty location"        ;
-			if ( !is_canon(phy)                 ) throw "cannot map "              +view+" to non-canonic view "+phy ;
-			if ( !lcl_view && Disk::is_lcl(phy) ) throw "cannot map external view "+view+" to local "           +phy ;
-			if (  dir_view && phy.back()!='/'   ) throw "cannot map dir "          +view+" to file "            +phy ;
-			if ( !dir_view && phy.back()=='/'   ) throw "cannot map file "         +view+" to dir "             +phy ;
+			bool lcl_phy = _is_lcl_tmp(phy,tmp_view) ;
+			if ( !phy                         ) throw "cannot map "              +view+" to empty location"        ;
+			if ( !is_canon(phy)               ) throw "cannot map "              +view+" to non-canonic view "+phy ;
+			if ( !lcl_view && lcl_phy         ) throw "cannot map external view "+view+" to local or tmp "    +phy ;
+			if (  dir_view && phy.back()!='/' ) throw "cannot map dir "          +view+" to file "            +phy ;
+			if ( !dir_view && phy.back()=='/' ) throw "cannot map file "         +view+" to dir "             +phy ;
 			for( auto const& [v,_] : views ) {
 				if ( phy.starts_with(v  ) && (v  .back()=='/'||phy[v  .size()]=='/') ) throw "cannot map "+view+" to "+phy+" within "   +v ;
 				if ( v  .starts_with(phy) && (phy.back()=='/'||v  [phy.size()]=='/') ) throw "cannot map "+view+" to "+phy+" englobing "+v ;

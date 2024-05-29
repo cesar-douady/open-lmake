@@ -8,7 +8,10 @@ if __name__!='__main__' :
 	from lmake.rules import Rule
 	from lmake       import multi_strip
 
-	lmake.manifest = ('Lmakefile.py',)
+	lmake.manifest = (
+		'Lmakefile.py'
+	,	'tmp_map_ref'
+	)
 
 	for tmp_view in (None,'/tmp','/new_tmp') :
 		for root_view in (None,'/repo') :
@@ -26,8 +29,30 @@ if __name__!='__main__' :
 				if tmp_view  : cmd += f'[ $TMPDIR = {tmp_view } ] || exit 1\n'
 				if root_view : cmd += f'[ $(pwd)  = {root_view} ] || exit 1\n'
 
+	class TmpMap(Rule) :
+		target   = 'tmp_map_dut'
+		tmp_view = '/tmp'
+		views    = { '/tmp/merged/' : ('/tmp/upper/','/tmp/lower/') }
+		cmd = '''
+			echo lower > /tmp/lower/x
+			echo upper > /tmp/merged/x
+			cat /tmp/lower/x
+			cat /tmp/upper/x
+		'''
+
+	class TmpMapTest(Rule) :
+		target = 'tmp_map_test'
+		deps   = {
+			'DUT' : 'tmp_map_dut'
+		,	'REF' : 'tmp_map_ref'
+		}
+		cmd = 'diff {REF} {DUT}'
+
 else :
 
 	import ut
 
-	ut.lmake( *(f'dut.{t}{r}' for t in (None,'/tmp','/new_tmp') for r in (None,'/repo') ) , done=6 )
+	print('lower\nupper',file=open('tmp_map_ref','w'))
+
+	ut.lmake( *(f'dut.{t}{r}' for t in (None,'/tmp','/new_tmp') for r in (None,'/repo') ) ,         done=6 )
+	ut.lmake( 'tmp_map_test'                                                              , new=1 , done=2 )

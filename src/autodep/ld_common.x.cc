@@ -50,7 +50,7 @@ extern "C" {
 	extern int __lxstat64  ( int v ,           const char* pth , struct stat64* buf            ) noexcept ;
 	extern int __fxstatat  ( int v , int dfd , const char* pth , struct stat  * buf , int flgs ) noexcept ;
 	extern int __fxstatat64( int v , int dfd , const char* pth , struct stat64* buf , int flgs ) noexcept ;
-	// following syscalls may not be defined on all systems (but it does not hurt to redeclare them if they are already declared)
+	// following libcalls may not be defined on all systems (but it does not hurt to redeclare them if they are already declared)
 	int         __clone2   ( int (*fn)(void *) , void *stack_base , size_t stack_size , int flags , void *arg , ... )          ;
 	extern int  close_range( uint fd1 , uint fd2 , int flgs                                                         ) noexcept ;
 	extern void closefrom  ( int  fd1                                                                               ) noexcept ;
@@ -253,33 +253,34 @@ struct Mkstemp : WSolve {
 	#define ASLNF(flags) bool((flags)&AT_SYMLINK_NOFOLLOW)
 	#define EXE(  mode ) bool((mode )&S_IXUSR            )
 
-	// cwd is implicitly accessed by mostly all syscalls, so we have to ensure mutual exclusion as cwd could change between actual access and path resolution in audit
+	// cwd is implicitly accessed by mostly all libcalls, so we have to ensure mutual exclusion as cwd could change between actual access and path resolution in audit
 	// hence we should use a shared lock when reading and an exclusive lock when chdir
 	// however, we have to ensure exclusivity for lnk cache, so we end up to exclusive access anyway, so simpler to lock exclusively here
 	// no malloc must be performed before cond is checked to allow jemalloc accesses to be filtered, hence auditer() (which allocates a Record) is done after
 	// use short macros as lines are very long in defining audited calls to libc
 	// protect against recusive calls
 	// args must be in () e.g. HEADER1(unlink,path,(path))
-	#define ORIG(syscall) \
-		static auto orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall)) ;
-	#define HEADER(syscall,cond,args) \
-		ORIG(syscall) ;                                 \
+	#define ORIG(libcall) \
+		static decltype(::libcall)* orig = nullptr ; \
+		if (!orig) { orig = reinterpret_cast<decltype(::libcall)*>(get_orig(#libcall)) ; }
+	#define HEADER(libcall,cond,args) \
+		ORIG(libcall) ;                                 \
 		if ( _t_loop || !started() ) return orig args ; \
 		Save sav{_t_loop,true} ;                        \
 		if (cond) return orig args ;                    \
 		Lock lock{_g_mutex}
 	// do a first check to see if it is obvious that nothing needs to be done
-	#define HEADER0(syscall,            args) HEADER( syscall , false                                                    , args )
-	#define HEADER1(syscall,path,       args) HEADER( syscall , Record::s_is_simple(path )                               , args )
-	#define HEADER2(syscall,path1,path2,args) HEADER( syscall , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
-	// macro for syscall that are forbidden in server
+	#define HEADER0(libcall,            args) HEADER( libcall , false                                                    , args )
+	#define HEADER1(libcall,path,       args) HEADER( libcall , Record::s_is_simple(path )                               , args )
+	#define HEADER2(libcall,path1,path2,args) HEADER( libcall , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
+	// macro for libcall that are forbidden in server
 	#ifdef IN_SERVER
-	#define NO_SERVER(syscall) \
-		*Record::s_deps_err += #syscall " is forbidden in server\n" ; \
-		errno = ENOSYS ;                                              \
-		return -1
+		#define NO_SERVER(libcall) \
+			*Record::s_deps_err += #libcall " is forbidden in server\n" ; \
+			errno = ENOSYS ;                                              \
+			return -1
 	#else
-		#define NO_SERVER(syscall)
+		#define NO_SERVER(libcall)
 	#endif
 
 	#define CC const char
@@ -342,7 +343,7 @@ struct Mkstemp : WSolve {
 		// close
 		// close must be tracked as we must call hide
 		// in case close is called with one our our fd's, we must hide somewhere else (unless in server)
-		// note that although hide calls no syscall, auditer() can and we must manage errno
+		// note that although hide calls no libcall, auditer() can and we must manage errno
 		int  close  (int fd ) { HEADER0(close  ,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
 		int  __close(int fd ) { HEADER0(__close,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
 		#if HAS_CLOSE_RANGE
@@ -427,7 +428,7 @@ struct Mkstemp : WSolve {
 	pid_t vfork      () NE {                                                    return fork  () ; }
 	pid_t __vfork    () NE {                                                    return __fork() ; }
 	//
-	int system(CC* cmd) { HEADER0(system,(cmd)) ; return orig(cmd) ; } // cf fork for explanation as this syscall does fork
+	int system(CC* cmd) { HEADER0(system,(cmd)) ; return orig(cmd) ; } // cf fork for explanation as this libcall does fork
 
 	// link
 	int link  (       CC* op,       CC* np      ) NE { HEADER2(link  ,op,np,(   op,   np  )) ; Lnk r{    op ,    np ,false/*no_follow*/,"link"  } ; return r(orig(   op,   np  )) ; }

@@ -167,7 +167,7 @@ namespace Disk {
 	} ;
 
 	::vector_s read_lines   ( ::string const& file                       ) ;
-	::string   read_content ( ::string const& file , bool no_block=false ) ;
+	::string   read_content ( ::string const& file                       ) ;
 	void       write_lines  ( ::string const& file , ::vector_s const&   ) ;
 	void       write_content( ::string const& file , ::string   const&   ) ;
 

@@ -146,17 +146,14 @@ namespace Disk {
 		return res ;
 	}
 
-	::string read_content( ::string const& file , bool no_block ) {
-		AutoCloseFd fd = ::open( file.c_str() , O_RDONLY | (no_block?O_NONBLOCK:0) ) ;
+	::string read_content(::string const& file) {
+		AutoCloseFd fd = ::open( file.c_str() , O_RDONLY ) ;
 		if (!fd) throw "file not found : "+file ;
 		::string res ;
 		ssize_t  cnt ;
 		::string buf ( 4096 , 0 ) ;
 		while ((cnt=::read(fd,buf.data(),buf.size()))>0) res += buf.substr(0,cnt) ;
-		if (cnt<0) {
-			if ( no_block && (errno==EAGAIN||errno==EWOULDBLOCK) ) return res + "..." ;
-			throw "error while reading "+file ;
-		}
+		if (cnt<0) throw "error while reading "+file ;
 		return res ;
 	}
 

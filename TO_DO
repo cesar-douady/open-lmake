@@ -12,11 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* provide a protection mechanism to ensure jobs are not cached if they used absolute paths
-	- record usage of getcwd() and accesses to /proc/xxx/cwd
-	- emit a "dont cache" message
-	- unless root_view is used
-	- provide a warning to user if the case arises
 * fix compilation with LMAKE_FLAGS=ST
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions
@@ -37,6 +32,11 @@ items :
 	- all vscode specific codes must be moved to the python world
 	- and put in rule attributes
 	- then provide base classes for usual cases
+* provide a protection mechanism to ensure jobs are not cached if they used absolute paths
+	- record usage of getcwd() and accesses to /proc/xxx/cwd
+	- emit a "dont cache" message
+	- unless root_view is used
+	- provide a warning to user if the case arises
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
 	- put adequate $PLATFORM in LD_PRELOAD

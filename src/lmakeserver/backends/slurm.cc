@@ -237,9 +237,9 @@ namespace Backends::Slurm {
 			}
 			info.first = "job is still alive" ;
 		JobDead :
-			if (se.verbose) {
+			if ( se.verbose && +info.first ) {                          // XXX : only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
-				if (+stderr) append_line_to_string(info.first,stderr) ;          // full report
+				if (+stderr) append_line_to_string(info.first,stderr) ; // full report
 			}
 			return { info.first , info.second!=No } ;
 		}
@@ -247,7 +247,7 @@ namespace Backends::Slurm {
 			::pair_s<Bool3/*job_ok*/> info = slurm_job_state(se.id) ;
 			if (info.second==Maybe) return {{}/*msg*/,HeartbeatState::Alive} ;
 			//
-			if (se.verbose) {
+			if ( se.verbose && +info.first ) {                          // XXX : only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
 				if (+stderr) { set_nl(info.first) ; info.first += stderr ; }
 			}
@@ -255,7 +255,7 @@ namespace Backends::Slurm {
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;                  // asynchronous (as faster and no return value) cancel
+			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;        // asynchronous (as faster and no return value) cancel
 			if (+se.rsrcs ) spawned_rsrcs.dec(se.rsrcs)        ;
 		}
 		virtual SlurmId launch_job( ::stop_token st , JobIdx j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
@@ -576,7 +576,7 @@ namespace Backends::Slurm {
 		Trace trace(BeChnl,"Slurm::read_stderr",job) ;
 		::string err_file = _get_stderr_path(job) ;
 		try {
-			::string res = read_content(err_file,true/*no_block*/) ;         // XXX : why reading this file may block ?
+			::string res = read_content(err_file) ;
 			if (!res) return {}                                            ;
 			else      return to_string("stderr from : ",err_file,'\n',res) ;
 		} catch (::string const&) {

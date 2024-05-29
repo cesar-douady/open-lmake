@@ -11,9 +11,9 @@
 
 static bool started() { return true ; }
 
-void* get_orig(const char* syscall) {
-	void* res = ::dlsym(RTLD_NEXT,syscall) ;
-	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
+void* get_orig(const char* libcall) {
+	void* res = ::dlsym(RTLD_NEXT,libcall) ;
+	swear_prod(res,"cannot find symbol ",libcall," in libc") ;
 	return res ;
 }
 
