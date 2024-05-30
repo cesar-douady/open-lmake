@@ -179,6 +179,8 @@ items :
 	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs
 	- share views in submit_attrs as there is very few variability
+* evaluate dynamic deps only if static deps match
+	- at least for those deps placed before
 * when rounding resources using config.backends.precisions
 	- round to prioritize jobs
 	- do not round for actual allocation
@@ -207,6 +209,11 @@ items :
 	- does not work straight forward
 	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
 	- need to do some trials
+? put all python expressions for a single phase in the same expression
+	- DepsAttrs + CreateNoneAtts
+	- SubmitRsrcsAttrs + SubmitNoneAttrs
+	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
+	- EndCmdAttrs + EndNoneAttrs
 ? regexprs
 	- consider handling prefix/suffix apart
 		- most importantly sufixes
