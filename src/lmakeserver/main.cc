@@ -188,7 +188,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					Fd ofd = kind==EventKind::Std ? out_fd : fd ;
 					trace("req",rrr) ;
 					switch (rrr.proc) {
-						case ReqProc::Make   : {
+						case ReqProc::Make : {
 							Req r{New} ;
 							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
@@ -281,7 +281,7 @@ bool/*interrupted*/ engine_loop() {
 				Req               req           = ecr.req                   ;
 				::string const&   startup_dir_s = ecr.options.startup_dir_s ;
 				switch (ecr.proc) {
-					case ReqProc::Debug  :                // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+					case ReqProc::Debug  :                              // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 					case ReqProc::Forget :
 					case ReqProc::Mark   :
 					case ReqProc::Show   : {
@@ -301,28 +301,30 @@ bool/*interrupted*/ engine_loop() {
 					// read  side is closed upon Kill  (cannot be upon Close as epoll.del must be called before close)
 					// write side is closed upon Close (cannot be upon Kill  as this may trigger lmake command termination, which, in turn, will trigger eof on the read side
 					case ReqProc::Make :
-						if (req.zombie())                 // if already zombie, dont make req
+						if (req.zombie()) {                             // if already zombie, dont make req
 							trace("already_killed",req) ;
-						else
-							try {
-								::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
-								if (+msg) audit( ecr.out_fd , ecr.options , Color::Note , msg ) ;
-								trace("new_req",req) ;
-								//vvvvvvvvvvv
-								req.make(ecr) ;
-								//^^^^^^^^^^^
-								if (!ecr.as_job()) record_targets(req->job) ;
-								fd_tab[req] = { .in=ecr.in_fd , .out=ecr.out_fd } ;
-								break ;
-							} catch(::string const& e) {
-								audit       ( ecr.out_fd , ecr.options , Color::Err , e ) ;
-								audit_status( ecr.out_fd , ecr.options , false/*ok*/    ) ;
-								trace("no_make",req) ;
-							}
-						// cannot make, process as if followed by Close
-						req.close() ;
-						/**/                       ecr.in_fd .close() ;
-						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;
+							goto NoMake ;
+						}
+						try {
+							::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
+							if (+msg) audit( ecr.out_fd , ecr.options , Color::Note , msg ) ;
+						} catch(::string const& e) {
+							audit       ( ecr.out_fd , ecr.options , Color::Err , e ) ;
+							audit_status( ecr.out_fd , ecr.options , false/*ok*/    ) ;
+							trace("cannot_refresh",req) ;
+							goto NoMake ;
+						}
+						trace("new_req",req) ;
+						req.alloc() ;
+						//vvvvvvvvvvv
+						req.make(ecr) ;
+						//^^^^^^^^^^^
+						if (!ecr.as_job()) record_targets(req->job) ;
+						fd_tab[req] = { .in=ecr.in_fd , .out=ecr.out_fd } ;
+					break ;
+					NoMake :
+						/**/                       ecr.in_fd .close() ; // nothing to receive
+						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ; // nor to send
 					break ;
 					case ReqProc::Close : {
 						auto it = fd_tab.find(req) ;
