@@ -213,9 +213,11 @@ namespace Backends::Slurm {
 			spawned_rsrcs.inc(rsa) ;
 			return rsa ;
 		}
+		virtual void end_rsrcs(Rsrcs const& rs) const {
+			spawned_rsrcs.dec(rs) ;
+		}
 		virtual ::string start_job( JobIdx , SpawnedEntry const& se ) const {
 			SWEAR(+se.rsrcs) ;
-			spawned_rsrcs.dec(se.rsrcs) ;
 			return to_string("slurm_id:",se.id) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
@@ -256,7 +258,6 @@ namespace Backends::Slurm {
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;        // asynchronous (as faster and no return value) cancel
-			if (+se.rsrcs ) spawned_rsrcs.dec(se.rsrcs)        ;
 		}
 		virtual SlurmId launch_job( ::stop_token st , JobIdx j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;

@@ -127,8 +127,8 @@ namespace Backends::Local {
 					rsrc_keys.push_back(k) ;
 				}
 			}
-			capacity_ = RsrcsData( dct , rsrc_idxs ) ;
-			occupied  = RsrcsData(rsrc_keys.size() ) ;
+			capacity_ = RsrcsData( dct , rsrc_idxs  ) ;
+			occupied  = RsrcsData( rsrc_keys.size() ) ;
 			//
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
@@ -166,13 +166,15 @@ namespace Backends::Local {
 			Trace trace(BeChnl,"occupied_rsrcs",rsd,'+',occupied) ;
 			return {New,rsd} ;
 		}
+		virtual void end_rsrcs(Rsrcs const& rs) const {
+			occupied -= *rs ;
+			Trace trace(BeChnl,"occupiedcs",rs,'-',occupied) ;
+		}
 		//
 		virtual ::string start_job( JobIdx , SpawnedEntry const& e ) const {
 			return to_string("pid:",e.id) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx , SpawnedEntry const& se , Status ) const {
-			occupied -= *se.rsrcs ;
-			Trace trace(BeChnl,"end","occupied_rsrcs",*se.rsrcs,'-',occupied) ;
 			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
 			return {{},true/*retry*/} ;                                                                             // retry if garbage
 		}
@@ -182,11 +184,9 @@ namespace Backends::Local {
 			/**/                       return {{}/*msg*/,HeartbeatState::Lost } ;
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.zombie) {
-				kill_process(se.id,SIGHUP) ;                                                                        // jobs killed here have not started yet, so we just want to kill job_exec
-				_wait_queue.push(se.id) ;                                                                           // defer wait in case job_exec process does some time consuming book-keeping
-			}
-			if (+se.rsrcs) occupied -= *se.rsrcs ;
+			if (se.zombie) return ;
+			kill_process(se.id,SIGHUP) ;                                                                            // jobs killed here have not started yet, so we just want to kill job_exec
+			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
 		}
 		virtual pid_t launch_job( ::stop_token , JobIdx , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& , bool /*verbose*/ ) const {
 			Child child { .as_session=true , .cmd_line=cmd_line , .stdin_fd=Child::None , .stdout_fd=Child::None } ;
