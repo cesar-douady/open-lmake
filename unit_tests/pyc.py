@@ -3,6 +3,8 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import sys
+
 if __name__!='__main__' :
 
 	import lmake
@@ -15,7 +17,7 @@ if __name__!='__main__' :
 
 	class Dut(Rule) :
 		target ='dut'
-		python = ('/usr/bin/python','-B')
+		python = (sys.executable,'-B')
 		def cmd():
 			import mod
 
@@ -23,7 +25,6 @@ else :
 
 	import os
 	import ut
-	import sys
 
 	os.environ['LMAKE_ARGS'] = 'dut'
 
