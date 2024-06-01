@@ -80,7 +80,8 @@ namespace Engine {
 		void kill   (                       ) ;
 		void close  (                       ) ;
 		void chk_end(                       ) ;
-		void dealloc(                       ) { s_small_ids.release(+*this) ; }
+		void alloc  (                       ) ;
+		void dealloc(                       ) ;
 		//
 		void inc_rule_exec_time( Rule ,                                            Delay delta     , Tokens1 ) ;
 		void new_exec_time     ( JobData const& , bool remove_old , bool add_new , Delay old_exec_time       ) ;
@@ -299,11 +300,22 @@ namespace Engine {
 
 	inline ReqData const& Req::operator*() const { return s_store[+*this] ; }
 	inline ReqData      & Req::operator*()       { return s_store[+*this] ; }
+
 	inline ::vmap<Req,Pdate> Req::s_etas() {
 		Lock              lock { s_reqs_mutex } ;
 		::vmap<Req,Pdate> res  ;
 		for ( Req r : _s_reqs_by_eta ) res.emplace_back(r,r->eta) ;
 		return res ;
+	}
+
+	inline void Req::alloc() {
+		Lock lock{s_reqs_mutex} ;
+		grow(s_store,+*this) ;
+	}
+
+	inline void Req::dealloc() {
+		s_small_ids.release(+*this) ;
+		(*this)->clear() ;
 	}
 
 	//

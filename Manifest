@@ -226,6 +226,7 @@ unit_tests/path_max.py
 unit_tests/perf.py
 unit_tests/phony.py
 unit_tests/py_rule.py
+unit_tests/pyc.py
 unit_tests/python2.py
 unit_tests/re.py
 unit_tests/rename.py

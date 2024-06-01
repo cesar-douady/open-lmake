@@ -28,7 +28,7 @@ namespace Engine {
 	}
 
 	void Req::make(EngineClosureReq const& ecr) {
-		{ Lock lock{s_reqs_mutex} ; grow(s_store,+*this) ; }
+		SWEAR(s_store.size()>+*this) ;                                                           // ensure data exist
 		ReqData& data = **this ;
 		//
 		for( int i=0 ;; i++ ) {                                                                  // try increasing resolution in file name until no conflict
@@ -92,8 +92,8 @@ namespace Engine {
 
 	void Req::close() {
 		Trace trace("close",*this) ;
-		SWEAR( (*this)->is_open  ()) ;
-		SWEAR(!(*this)->n_running()) ;
+		SWEAR(  (*this)->is_open  ()                        ) ;
+		SWEAR( !(*this)->n_running() , (*this)->n_running() ) ;
 		if ((*this)->has_backend) Backend::s_close_req(+*this) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
 		Idx n_reqs = s_n_reqs() ;
@@ -109,7 +109,6 @@ namespace Engine {
 			}
 			_s_reqs_by_eta.pop_back() ;
 		}
-		(*this)->clear() ;
 	}
 
 	void Req::inc_rule_exec_time( Rule rule , Delay delta , Tokens1 tokens1 ) {

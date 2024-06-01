@@ -916,20 +916,20 @@ namespace Engine {
 								trace("missing",STR(is_static),dep) ;
 								break ;
 							}
+							dep_missing_dsk |= cdri->manual>=Manual::Changed ;                           // ensure dangling are correctly handled
 						[[fallthrough]] ;
 						case Yes :
-							if ( dep_modif && make_action==MakeAction::End && dep_goal<NodeGoal::Dsk && dep_missing_dsk ) { // dep out of date but we do not wait for it being rebuilt
-								dep_goal = NodeGoal::Dsk ;                                                                  // we must ensure disk integrity for detailed analysis
-								trace("restart_dep",dep) ;
-								goto RestartDep ;                                                                           // BACKWARD, if necessary, reanalyze dep
-							}
-							if (dep_goal==NodeGoal::Dsk) {                                                                  // if asking for disk, we must check disk integrity
+							if (dep_goal==NodeGoal::Dsk) {                                               // if asking for disk, we must check disk integrity
 								switch(cdri->manual) {
 									case Manual::Empty   :
-									case Manual::Modif   : state.reason |= {JobReasonTag::DepDangling,+dep} ; dep_err = RunStatus::DepErr ; trace("unstable",dep,cdri->manual) ; break ;
-									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               trace("unstable",dep,cdri->manual) ; break ;
+									case Manual::Modif   : state.reason |= {JobReasonTag::DepUnstable,+dep} ; dep_err = RunStatus::DepErr ; trace("dangling",dep,cdri->manual) ; break ;
+									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               trace("unlinked",dep             ) ; break ;
 									default              : ;
 								}
+							} else if ( dep_modif && make_action==MakeAction::End && dep_missing_dsk ) { // dep out of date but we do not wait for it being rebuilt
+								dep_goal = NodeGoal::Dsk ;                                               // we must ensure disk integrity for detailed analysis
+								trace("restart_dep",dep) ;
+								goto RestartDep ;                                                        // BACKWARD
 							}
 						break ;
 					DF}
