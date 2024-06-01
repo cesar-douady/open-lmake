@@ -849,13 +849,13 @@ namespace Engine {
 						req->no_triggers.emplace(dep,req->no_triggers.size()) ;  // record to repeat in summary, value is just to order summary in discovery order
 						dep_modif = false ;
 					}
-					if ( +state.stamped_err  ) goto Continue ;                                                              // we are already in error, no need to analyze errors any further
-					if ( !is_static && modif ) goto Continue ;                                                              // if not static, errors may be washed by previous modifs, dont record them
+					if ( +state.stamped_err  ) goto Continue ;                                           // we are already in error, no need to analyze errors any further
+					if ( !is_static && modif ) goto Continue ;                                           // if not static, errors may be washed by previous modifs, dont record them
 					if ( dep_modif           ) state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
 					//
 					switch (dnd.ok(*cdri,dep.accesses)) {
-						case Maybe :                                                                                        // dep is not buidlable, check if required
-							if (dnd.status()==NodeStatus::Transcient) {                                                     // dep uphill is a symlink, it will disappear at next run
+						case Maybe :                                                                     // dep is not buidlable, check if required
+							if (dnd.status()==NodeStatus::Transcient) {                                  // dep uphill is a symlink, it will disappear at next run
 								trace("transcient",dep) ;
 								state.reason |= {JobReasonTag::DepTranscient,+dep} ;
 								break ;
@@ -866,21 +866,20 @@ namespace Engine {
 								trace("missing",STR(is_static),dep) ;
 								break ;
 							}
+							dep_missing_dsk |= cdri->manual>=Manual::Changed ;                           // ensure dangling are correctly handled
 						[[fallthrough]] ;
 						case Yes :
-							if ( dep_modif && make_action==MakeAction::End && dep_goal<NodeGoal::Dsk && dep_missing_dsk ) { // dep out of date but we do not wait for it being rebuilt
-								dep_goal = NodeGoal::Dsk ;                                                                  // we must ensure disk integrity for detailed analysis
-								trace("restart_dep",dep) ;
-								goto RestartDep ;                                                                           // BACKWARD, if necessary, reanalyze dep
-							}
-							if (dep_goal==NodeGoal::Dsk) {                                                                  // if asking for disk, we must check disk integrity
-								trace("unstable",dep,cdri->manual) ;
+							if (dep_goal==NodeGoal::Dsk) {                                               // if asking for disk, we must check disk integrity
 								switch(cdri->manual) {
 									case Manual::Empty   :
-									case Manual::Modif   :                state.reason |= {JobReasonTag::DepDangling,+dep} ; dep_err = RunStatus::DepErr ; break ;
-									case Manual::Unlnked :                state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               break ;
-									default              : if (dep_modif) state.reason |= {JobReasonTag::DepUnstable,+dep} ;
+									case Manual::Modif   : state.reason |= {JobReasonTag::DepUnstable,+dep} ; dep_err = RunStatus::DepErr ; trace("dangling",dep,cdri->manual) ; break ;
+									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               trace("unlinked",dep             ) ; break ;
+									default              : ;
 								}
+							} else if ( dep_modif && make_action==MakeAction::End && dep_missing_dsk ) { // dep out of date but we do not wait for it being rebuilt
+								dep_goal = NodeGoal::Dsk ;                                               // we must ensure disk integrity for detailed analysis
+								trace("restart_dep",dep) ;
+								goto RestartDep ;                                                        // BACKWARD
 							}
 						break ;
 						case No :
