@@ -47,7 +47,8 @@ namespace Engine {
 				case FileActionTag::Src      : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ;                              break ; // nothing to do, not even integrity check
 				case FileActionTag::Uniquify : if ( +t->dir()                      ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
 				case FileActionTag::None     : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ; // integrity check
-				case FileActionTag::Unlnk    :                                                                      actions.emplace_back(t,fa) ; break ;
+				case FileActionTag::Unlnk    :
+					actions.emplace_back(t,fa) ;
 					if ( !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ) warnings.push_back(t) ;
 					if ( Node td=t->dir() ; +td ) {
 						//
