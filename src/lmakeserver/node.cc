@@ -65,47 +65,53 @@ namespace Engine {
 		return                  os <<')' ;
 	}
 
-	Manual NodeData::manual_wash( ReqInfo& ri , bool dangling ) {
-		if (ri.manual==Manual::Unknown) {
-			Req  req      = ri.req               ;
-			dangling |= buildable<=Buildable::No ;
-			ri.manual = manual_refresh(req) ;
-			switch (ri.manual) {
-				case Manual::Ok      :
-				case Manual::Unlnked : break ;
-				case Manual::Empty :
-					if (!dangling) {
-						Trace trace("manual_wash","unlnk",idx()) ;
-						::string n = name() ;
-						SWEAR(is_lcl(n),n) ;
-						unlnk(n) ;
-						req->audit_node( Color::Note , "unlinked (empty)" , idx() ) ;
-						ri.manual = Manual::Unlnked ;
-						break ;
-					}
-				[[fallthrough]] ;
-				case Manual::Modif : {
-					Trace trace("manual_wash","modif",STR(dangling),idx()) ;
-					if (dangling) {
-						/**/                  req->audit_node( Color::Err  , "dangling"           , idx()                                        ) ;
-						if (has_actual_job()) req->audit_info( Color::Note , "generated as a side effect of "+mk_file(actual_job()->name())  , 1 ) ;
-						else                  req->audit_node( Color::Note , "consider : git add" , idx()                                    , 1 ) ;
+	Manual NodeData::manual_wash( ReqInfo& ri , bool query , bool dangling ) {
+		if (ri.manual!=Manual::Unknown) return ri.manual ;
+		Req    req      = ri.req              ;
+		Manual res      = manual_refresh(req) ;
+		bool   stamp    = true                ;
+		dangling |= buildable<=Buildable::No ;
+		switch (res) {
+			case Manual::Ok      :
+			case Manual::Unlnked : break ;
+			case Manual::Empty :
+				if      (dangling) {}
+				else if (query   ) stamp = false ; // the final state will be to wash the file, in the mean time, dont stamp result
+				else {
+					Trace trace("manual_wash","unlnk",idx()) ;
+					::string n = name() ;
+					SWEAR(is_lcl(n),n) ;
+					unlnk(n) ;
+					req->audit_node( Color::Note , "unlinked (empty)" , idx() ) ;
+					res = Manual::Unlnked ;
+					break ;
+				}
+			[[fallthrough]] ;
+			case Manual::Modif : {
+				Trace trace("manual_wash","modif",STR(dangling),idx()) ;
+				if (dangling) {
+					/**/                  req->audit_node( Color::Err  , "dangling"           , idx()                                        ) ;
+					if (has_actual_job()) req->audit_info( Color::Note , "generated as a side effect of "+mk_file(actual_job()->name())  , 1 ) ;
+					else                  req->audit_node( Color::Note , "consider : git add" , idx()                                    , 1 ) ;
+				} else if (query) {
+					stamp = false ;                // the final state will be to wash the file, in the mean time, dont stamp result
+				} else {
+					::string n = name() ;
+					if (::rename( n.c_str() , dir_guard(QuarantineDirS+n).c_str() )==0) {
+						req->audit_node( Color::Warning , "quarantined" , idx() ) ;
+						res = Manual::Unlnked ;
 					} else {
-						::string n = name() ;
-						if (::rename( n.c_str() , dir_guard(QuarantineDirS+n).c_str() )==0) {
-							req->audit_node( Color::Warning , "quarantined" , idx() ) ;
-							ri.manual = Manual::Unlnked ;
-						} else {
-							req->audit_node( Color::Err , "failed to quarantine" , idx() ) ;
-						}
+						req->audit_node( Color::Err , "failed to quarantine" , idx() ) ;
 					}
-				} break ;
-			DF}
-		}
-		return ri.manual ;
+				}
+			} break ;
+		DF}
+		if (!query) SWEAR(stamp) ;                 // so ri.manual is guaranteed up to date after manual_wash with !query
+		if (stamp) ri.manual = res ;
+		return res ;
 	}
 
-	void NodeData::_set_pressure_raw( ReqInfo& ri ) const {
+	void NodeData::_do_set_pressure( ReqInfo& ri ) const {
 		for( Job j : conform_job_tgts(ri) ) j->set_pressure(j->req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
 	}
 
@@ -271,7 +277,7 @@ namespace Engine {
 		return buildable ;
 	}
 
-	void NodeData::_set_buildable_raw( Req req , DepDepth lvl ) {
+	void NodeData::_do_set_buildable( Req req , DepDepth lvl ) {
 		Trace trace("set_buildable",idx(),lvl) ;
 		switch (buildable) {                                                                             // ensure we do no update sources
 			case Buildable::Src    :
@@ -338,7 +344,7 @@ namespace Engine {
 		return ;
 	}
 
-	bool/*done*/ NodeData::_make_pre(ReqInfo& ri) {
+	bool/*solved*/ NodeData::_make_pre( ReqInfo& ri , bool query ) {
 		Trace trace("Nmake_pre",idx(),ri) ;
 		Req      req   = ri.req ;
 		::string name_ ;                                                                                // lazy evaluated
@@ -379,9 +385,9 @@ namespace Engine {
 			if (!dri.waiting()) {
 				ReqInfo::WaitInc sav_n_wait{ri} ;                                                       // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 				dir()->asking = idx() ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				dir()->make( dri , MakeAction::Status , ri.speculate ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				dir()->make( dri , query?MakeAction::Query:MakeAction::Status , ri.speculate ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			trace("dir",dir(),STR(dir()->done(dri,NodeGoal::Status)),ri) ;
 			//
@@ -390,6 +396,7 @@ namespace Engine {
 				status(NodeStatus::Uphill) ;                                                            // temporarily, until dir() is built and we know the definitive answer
 				goto NotDone ;                                                                          // return value is meaningless when waiting
 			}
+			if ( query && !dir()->done(dri) ) { trace("query","dir") ; return false ; }
 			SWEAR(dir()->done(dri)) ;                                                                   // after having called make, dep must be either waiting or done
 		}
 		// step 3 : handle what needs dir status
@@ -447,10 +454,11 @@ namespace Engine {
 			}
 			trace("no_src",crc) ;
 			if (ri.goal>=NodeGoal::Dsk) {
-				manual_wash(ri) ;                                                                       // always check manual if asking for disk
-				if (crc==Crc::None       ) goto Done ;                                                  // node is not polluted
-				if (ri.manual==Manual::Ok) {                                                            // if already unlinked, no need to unlink it again
+				Manual manual = manual_wash(ri,query) ;                                                 // always check manual if asking for disk
+				if (crc==Crc::None    ) goto Done ;                                                     // node is not polluted
+				if (manual==Manual::Ok) {                                                               // if already unlinked, no need to unlink it again
 					SWEAR(is_lcl(lazy_name()),lazy_name()) ;
+					if (query) { trace("query","unlnk") ; return false ; }
 					unlnk(lazy_name(),true/*dir_ok*/) ;                                                 // wash pollution if not manual
 					req->audit_job( Color::Warning , "unlink" , "no_rule" , lazy_name() ) ;
 				}
@@ -474,7 +482,7 @@ namespace Engine {
 		polluted = false ;
 	NotDone :
 		trace("done",idx(),status(),crc,ri) ;
-		return ri.done() ;
+		return true ;
 	}
 
 	static bool _may_need_regenerate( NodeData const& nd , NodeReqInfo& ri , NodeMakeAction make_action ) {
@@ -489,12 +497,13 @@ namespace Engine {
 		ri.single   = true             ;                                                                               // .
 		return true ;
 	}
-	void NodeData::_make_raw( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
+	void NodeData::_do_make( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
 		RuleIdx prod_idx       = NoIdx                              ;
 		Req     req            = ri.req                             ;
 		Bool3   clean          = Maybe                              ;                                    // lazy evaluate manual()==No
 		bool    multi          = false                              ;
 		bool    stop_speculate = speculate<ri.speculate && +ri.goal ;
+		bool    query          = make_action==MakeAction::Query     ;
 		Trace trace("Nmake",idx(),ri,make_action) ;
 		ri.speculate &= speculate ;
 		//                                vvvvvvvvvvvvvvvvvv
@@ -510,11 +519,12 @@ namespace Engine {
 		//
 		if (ri.prio_idx==NoIdx) {
 			if (ri.done()) goto Wakeup ;
-			//vvvvvvvvvvv
-			_make_pre(ri) ;
-			//^^^^^^^^^^^
-			if (ri.waiting()) goto Wait   ;
-			if (ri.done()   ) goto Wakeup ;
+			//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			bool solved = _make_pre( ri, make_action==MakeAction::Query ) ;
+			//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (!solved     ) { SWEAR(query) ; goto Wait   ; }
+			if (ri.waiting())                  goto Wait   ;
+			if (ri.done()   )                  goto Wakeup ;
 			ri.prio_idx = 0 ;
 		} else {
 			// check if we need to regenerate node
@@ -568,16 +578,18 @@ namespace Engine {
 					JobMakeAction ma     = JobMakeAction::Status ;
 					JobReason     reason ;
 					JobReqInfo&   jri    = jt->req_info(req)     ;
-					switch (ri.goal) {
+					if (query)
+						ma = JobMakeAction::Query ;
+					else switch (ri.goal) {
 						case NodeGoal::Makable : if (jt.sure()) ma = JobMakeAction::Makable ; break ;                    // if star, job must be run to know if we are generated
 						case NodeGoal::Status  :
 						case NodeGoal::Dsk     :
 							if      (polluted && crc==Crc::None       ) reason = {JobReasonTag::NoTarget      ,+idx()} ;
 							else if (polluted && crc!=Crc::None       ) reason = {JobReasonTag::PollutedTarget,+idx()} ;
 							else if (ri.goal==NodeGoal::Status        ) {}                                               // dont check disk if asked for Status
-							else if (jt->running(true/*with_zombies*/)) reason =  JobReasonTag::Garbage                ; // be pessimistic and dont check target as it is not manual ...
-							else                                                                                         // ... and checking may modify it
-								switch (manual_wash(ri)) {
+							else if (jt->running(true/*with_zombies*/)) reason =  JobReasonTag::Garbage                ; // be pessimistic and dont check target as it ...
+							else                                                                                         // ... is not manual and checking may modify it
+								switch (manual_wash(ri,false/*query*/)) {
 									case Manual::Ok      :                                                  break ;
 									case Manual::Unlnked : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
 									case Manual::Empty   :
@@ -591,17 +603,18 @@ namespace Engine {
 					jt->make( jri , ma , reason , ri.speculate ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("job",ri,clean,ma,jt,STR(jri.waiting()),STR(jt.produces(idx())),STR(polluted)) ;
-					if      (jri.waiting()     ) jt->add_watcher(jri,idx(),ri,ri.pressure) ;
+					if      (jri.waiting()     )   jt->add_watcher(jri,idx(),ri,ri.pressure) ;
+					else if (!jri.done()       ) { SWEAR(query) ; goto Wait ;                                   }
 					else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }        // jobs in error are deemed to produce all their potential targets
 				}
 			}
-			if (ri.waiting()   ) goto Wait ;
-			if (prod_idx!=NoIdx) break     ;
+			if ( ri.waiting()                     ) goto Wait ;
+			if ( prod_idx!=NoIdx                  ) break     ;
 			ri.prio_idx = it.idx ;
 		}
 	DoWakeup :
 		if (prod_idx==NoIdx) {
-			if (ri.goal==NodeGoal::Dsk) manual_wash(ri,true/*dangling*/) ;
+			if ( ri.goal==NodeGoal::Dsk && !query ) manual_wash(ri,false/*query*/,true/*dangling*/) ;                    // no producing job, check for dangling if ask to do so
 			status(NodeStatus::None) ;
 		} else if (!multi) {
 			conform_idx(prod_idx) ;

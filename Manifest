@@ -165,6 +165,7 @@ unit_tests/cache.py
 unit_tests/cargo.py
 unit_tests/chain.py
 unit_tests/chdir.py
+unit_tests/check_deps.py
 unit_tests/clone.cc
 unit_tests/clone.py
 unit_tests/cmd.py

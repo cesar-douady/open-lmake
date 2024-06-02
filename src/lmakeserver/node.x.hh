@@ -48,6 +48,7 @@ ENUM( NodeMakeAction
 ,	Makable
 ,	Status
 ,	Dsk
+,	Query            // query only, no job is executed, besides that, looks like Dsk
 )
 
 ENUM_1( NodeStatus
@@ -88,12 +89,13 @@ inline NodeGoal mk_goal(NodeMakeAction ma) {
 	,	NodeGoal::Makable               // Makable
 	,	NodeGoal::Status                // Status
 	,	NodeGoal::Dsk                   // Dsk
+	,	NodeGoal::Dsk                   // Dep
 	} ;
 	static_assert(sizeof(s_tab)==N<NodeMakeAction>*sizeof(NodeGoal)) ;
 	return s_tab[+ma] ;
 }
 
-inline NodeMakeAction mk_action(NodeGoal g) {
+inline NodeMakeAction mk_action( NodeGoal g , bool query ) {
 	static constexpr NodeMakeAction s_tab[] {
 		{}
 	,	NodeMakeAction::Makable // Makable
@@ -102,7 +104,7 @@ inline NodeMakeAction mk_action(NodeGoal g) {
 	} ;
 	static_assert(sizeof(s_tab)==N<NodeGoal>*sizeof(NodeMakeAction)) ;
 	SWEAR(g!=NodeGoal::None) ;
-	return s_tab[+g] ;
+	return query ? NodeMakeAction::Query : s_tab[+g] ;
 }
 
 namespace Engine {
@@ -271,7 +273,7 @@ namespace Engine {
 		RuleIdx  prio_idx    = NoIdx           ;                                //    16 bits, index to the first job of the current prio being or having been analyzed
 		bool     single      = false           ;                                // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
 		Accesses overwritten ;                                                  // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
-		Manual   manual      = Manual::Unknown ;                                // 3<= 8 bits
+		Manual   manual      = Manual::Unknown ;                                // 3<= 8 bits, info is available as soon as done_=Dsk
 		Bool3    speculate   = Yes             ;                                // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
 		NodeGoal goal        = NodeGoal::None  ;                                // 2<= 8 bits, asked level
 		NodeGoal done_       = NodeGoal::None  ;                                // 2<= 8 bits, done level
@@ -427,7 +429,7 @@ namespace Engine {
 			return crc.match( dd.crc() , full?~Accesses():dd.accesses ) ;
 		}
 		//
-		Manual manual_wash( ReqInfo& ri , bool dangling=false ) ;
+		Manual manual_wash( ReqInfo& ri , bool query , bool dangling=false ) ;
 		//
 		void mk_old   (                        ) ;
 		void mk_src   (Buildable=Buildable::Src) ;
@@ -461,11 +463,11 @@ namespace Engine {
 		bool/*modified*/ refresh( Crc , SigDate const& ={} ) ;
 		void             refresh(                          ) ;
 	private :
-		void         _set_buildable_raw( Req      , DepDepth                         ) ;       // req is for error reporting only
-		bool/*done*/ _make_pre         ( ReqInfo&                                    ) ;
-		void         _make_raw         ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
-		void         _set_pressure_raw ( ReqInfo&                                    ) const ;
-		void         _propag_speculate ( ReqInfo const&                              ) const ;
+		void           _do_set_buildable( Req      , DepDepth                         ) ;      // req is for error reporting only
+		bool/*solved*/ _make_pre        ( ReqInfo& , bool query                       ) ;
+		void           _do_make         ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
+		void           _do_set_pressure ( ReqInfo&                                    ) const ;
+		void           _propag_speculate( ReqInfo const&                              ) const ;
 		//
 		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
 		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
@@ -590,19 +592,19 @@ namespace Engine {
 	}
 
 	inline void NodeData::set_buildable( Req req , DepDepth lvl ) { // req is for error reporting only
-		if (!match_ok()) _set_buildable_raw(req,lvl) ;              // if not already set
+		if (!match_ok()) _do_set_buildable(req,lvl) ;               // if not already set
 		SWEAR(buildable!=Buildable::Unknown) ;
 	}
 
 	inline void NodeData::set_pressure( ReqInfo& ri , CoarseDelay pressure ) const {
 		if (!ri.set_pressure(pressure)) return ;                                     // pressure is not significantly higher than already existing, nothing to propagate
 		if (!ri.waiting()             ) return ;
-		_set_pressure_raw(ri) ;
+		_do_set_pressure(ri) ;
 	}
 
 	inline void NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
 		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) ) return ; // fast path
-		_make_raw(ri,ma,s) ;
+		_do_make(ri,ma,s) ;
 	}
 
 	inline void NodeData::refresh() {
