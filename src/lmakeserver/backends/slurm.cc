@@ -207,14 +207,18 @@ namespace Backends::Slurm {
 		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req ) const { return blend( {::move(rsa),daemon} ,req_forces[req] ) ; }
 		//
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
-			return spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
+			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
+Trace trace("fit_now",spawned_rsrcs,rsa,STR(res)) ;
+			return res ;
 		}
 		virtual Rsrcs acquire_rsrcs(RsrcsAsk const& rsa) const {
+Trace trace("acquire_rsrcs",spawned_rsrcs,rsa) ;
 			spawned_rsrcs.inc(rsa) ;
 			return rsa ;
 		}
-		virtual void end_rsrcs(Rsrcs const& rs) const {
+		virtual void start_rsrcs(Rsrcs const& rs) const {
 			spawned_rsrcs.dec(rs) ;
+Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 		}
 		virtual ::string start_job( JobIdx , SpawnedEntry const& se ) const {
 			SWEAR(+se.rsrcs) ;

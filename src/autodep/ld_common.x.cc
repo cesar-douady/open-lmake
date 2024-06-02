@@ -248,6 +248,8 @@ struct Mkstemp : WSolve {
 	namespace Audited
 #endif
 {
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wignored-attributes"
 
 	#define NE           noexcept
 	#define ASLNF(flags) bool((flags)&AT_SYMLINK_NOFOLLOW)
@@ -261,14 +263,19 @@ struct Mkstemp : WSolve {
 	// protect against recusive calls
 	// args must be in () e.g. HEADER1(unlink,path,(path))
 	#define ORIG(libcall) \
-		static decltype(::libcall)* orig = nullptr ; \
-		if (!orig) { orig = reinterpret_cast<decltype(::libcall)*>(get_orig(#libcall)) ; }
+		using Libcall = decltype(::libcall)* ;                                                            \
+		static ::atomic<Libcall> atomic_orig = nullptr ;                                                  \
+		if (!atomic_orig) {                                                                               \
+			Libcall prev = nullptr ;                                                                      \
+			atomic_orig.compare_exchange_strong( prev , reinterpret_cast<Libcall>(get_orig(#libcall)) ) ; \
+		}
 	#define HEADER(libcall,cond,args) \
-		ORIG(libcall) ;                                 \
-		if ( _t_loop || !started() ) return orig args ; \
-		Save sav{_t_loop,true} ;                        \
-		if (cond) return orig args ;                    \
-		Lock lock{_g_mutex}
+		ORIG(libcall) ;                                           \
+		if ( _t_loop || !started() ) return (*atomic_orig) args ; \
+		Save sav{_t_loop,true} ;                                  \
+		if (cond) return (*atomic_orig) args ;                    \
+		Lock    lock { _g_mutex } ;                               \
+		Libcall orig = atomic_orig
 	// do a first check to see if it is obvious that nothing needs to be done
 	#define HEADER0(libcall,            args) HEADER( libcall , false                                                    , args )
 	#define HEADER1(libcall,path,       args) HEADER( libcall , Record::s_is_simple(path )                               , args )
@@ -315,12 +322,12 @@ struct Mkstemp : WSolve {
 		va_end(args) ;
 		//
 		ORIG(clone) ;
-		if ( _t_loop || !started() || flags&CLONE_VM ) return orig(fn,stack,flags,arg,parent_tid,tls,child_tid) ; // if flags contains CLONE_VM, lock is not duplicated and there is nothing to do
+		if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,flags,arg,parent_tid,tls,child_tid) ; // if flags contains CLONE_VM, lock is not duplicated and there is nothing to do
 		Lock lock{_g_mutex} ;                                                                                     // no need to set _t_loop as clone calls no other piggy-backed function
 		//
 		NO_SERVER(clone) ;
 		_clone_fn = fn ;                                                                                          // _g_mutex is held, so there is no risk of clash
-		return orig(_call_clone_fn,stack,flags,arg,parent_tid,tls,child_tid) ;
+		return (*atomic_orig)(_call_clone_fn,stack,flags,arg,parent_tid,tls,child_tid) ;
 	}
 	int __clone2( int (*fn)(void*) , void *stack , size_t stack_size , int flags , void *arg , ... ) {
 		va_list args ;
@@ -331,12 +338,12 @@ struct Mkstemp : WSolve {
 		va_end(args) ;
 		//
 		ORIG(__clone2) ;
-		if ( _t_loop || !started() || flags&CLONE_VM ) return orig(fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ; // cf clone
+		if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ; // cf clone
 		Lock lock{_g_mutex} ;                                                                                                // cf clone
 		//
 		NO_SERVER(__clone2) ;
 		_clone_fn = fn ;                                                                                                     // cf clone
-		return orig(_call_clone_fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ;
+		return (*atomic_orig)(_call_clone_fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ;
 	}
 
 	#ifndef IN_SERVER
@@ -370,9 +377,9 @@ struct Mkstemp : WSolve {
 		// env
 		// only there to capture LD_LIBRARY_PATH before it is modified as man dlopen says it must be captured at program start, but we have no entry at program start
 		// ld_audit does not need it and anyway captures LD_LIBRARY_PATH at startup
-		int setenv  (const char *name , const char *value , int overwrite) { ORIG(setenv  ) ; get_ld_library_path() ; return orig(name,value,overwrite) ; }
-		int unsetenv(const char *name                                    ) { ORIG(unsetenv) ; get_ld_library_path() ; return orig(name                ) ; }
-		int putenv  (char *string                                        ) { ORIG(putenv  ) ; get_ld_library_path() ; return orig(string              ) ; }
+		int setenv  (const char *name , const char *value , int overwrite) { ORIG(setenv  ) ; get_ld_library_path() ; return (*atomic_orig)(name,value,overwrite) ; }
+		int unsetenv(const char *name                                    ) { ORIG(unsetenv) ; get_ld_library_path() ; return (*atomic_orig)(name                ) ; }
+		int putenv  (char *string                                        ) { ORIG(putenv  ) ; get_ld_library_path() ; return (*atomic_orig)(string              ) ; }
 	#endif
 
 	// execv
@@ -633,6 +640,7 @@ struct Mkstemp : WSolve {
 	#undef ASLNF
 	#undef NE
 
+	#pragma GCC diagnostic pop
 }
 #ifdef LD_PRELOAD
 	#pragma GCC visibility pop

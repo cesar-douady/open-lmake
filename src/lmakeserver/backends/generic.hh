@@ -380,6 +380,9 @@ namespace Backends {
 					if (rit==reqs.end()) continue ;
 					JobIdx                               n_jobs = rit->second.n_jobs         ;
 					::umap<RsrcsAsk,set<PressureEntry>>& queues = rit->second.waiting_queues ;
+trace("spawned_jobs1",spawned_jobs.size(),spawned_jobs.Base::size(),n_jobs) ;
+::umap<RsrcsAsk,size_t> q_szs ; for( auto const& [rsa,ps] : queues ) q_szs[rsa] = ps.size() ;
+trace("queue_sizes",q_szs) ;
 					for(;;) {
 						if ( n_jobs && spawned_jobs.size()>=n_jobs ) break ;                                        // cannot have more than n_jobs running jobs because of this req, process next req
 						auto candidate = queues.end() ;
@@ -443,6 +446,7 @@ namespace Backends {
 					}
 					launch_descrs.clear() ;                                                                            // destroy entries while holding the lock
 				}
+trace("spawned_jobs2",spawned_jobs.size(),spawned_jobs.Base::size()) ;
 				trace("done") ;
 			}
 		}

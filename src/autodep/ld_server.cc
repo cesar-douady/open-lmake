@@ -24,13 +24,16 @@ static bool started() { return AutodepLock::t_active ; } // no auto-start for se
 // note that when not in server, _g_mutex protects us (but it is not used in server when not spying accesses)
 // note also that we cannot put s_libcall_tab in a static outside get_orig as get_orig may be called from global init, before this static initialization
 void* get_orig(const char* libcall) {
-	static ::umap_s<void*>* s_libcall_tab = nullptr ;
-	#define LIBCALL_ENTRY(libcall) { #libcall , ::dlsym(RTLD_NEXT,#libcall) }
+	static ::atomic<::umap_s<void*>*> s_libcall_tab = nullptr ;               // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
 	// /!\ we must manage the guard explicitly as compiler generated guard makes syscalls, which can induce loops
-	if (!s_libcall_tab) s_libcall_tab = new ::umap_s<void*>{ ENUMERATE_LIBCALLS } ; // use a pointer to avoid uncontrolled destruction at end of execution
-	#undef LIBCALL_ENTRY
-	if (!libcall) return nullptr ;                                                  // used to initialize s_libcall_tab
-	void* res = s_libcall_tab->at(libcall) ;
+	if (!s_libcall_tab) {
+		::umap_s<void*>* prev = nullptr ;
+		#define LIBCALL_ENTRY(libcall) { #libcall , ::dlsym(RTLD_NEXT,#libcall) }
+		s_libcall_tab.compare_exchange_strong( prev , new ::umap_s<void*>{ ENUMERATE_LIBCALLS } ) ;
+		#undef LIBCALL_ENTRY
+	}
+	if (!libcall) return nullptr ;                                            // used to initialize s_libcall_tab
+	void* res = s_libcall_tab.load()->at(libcall) ;
 	swear_prod(res,"cannot find symbol ",libcall," in libc") ;
 	return res ;
 }

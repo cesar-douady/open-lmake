@@ -168,7 +168,7 @@ namespace Backends::Local {
 		}
 		virtual void end_rsrcs(Rsrcs const& rs) const {
 			occupied -= *rs ;
-			Trace trace(BeChnl,"occupiedcs",rs,'-',occupied) ;
+			Trace trace(BeChnl,"occupied_rsrcs",rs,'-',occupied) ;
 		}
 		//
 		virtual ::string start_job( JobIdx , SpawnedEntry const& e ) const {
