@@ -428,7 +428,7 @@ namespace Engine {
 			return crc.match( dd.crc() , full?~Accesses():dd.accesses ) ;
 		}
 		//
-		Manual manual_wash( ReqInfo& ri , bool lazy=false ) ;
+		Manual manual_wash( ReqInfo& ri , bool dangling=false ) ;
 		//
 		void mk_old   (                        ) ;
 		void mk_src   (Buildable=Buildable::Src) ;

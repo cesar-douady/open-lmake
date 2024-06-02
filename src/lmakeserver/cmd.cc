@@ -266,6 +266,7 @@ R"({
 			,	"request"   : "attach"
 			,	"name"      : "Attach C/C++"
 			,	"program"   : $interpreter
+			,	"python"    : $interpreter
 			,	"cwd"       : $g_root_dir
 			,	"processId" : 0
 			}

@@ -65,10 +65,10 @@ namespace Engine {
 		return                  os <<')' ;
 	}
 
-	Manual NodeData::manual_wash( ReqInfo& ri , bool lazy ) {
-		if ( !lazy || ri.manual==Manual::Unknown ) {
-			Req  req      = ri.req                   ;
-			bool dangling = buildable<=Buildable::No ;
+	Manual NodeData::manual_wash( ReqInfo& ri , bool dangling ) {
+		if (ri.manual==Manual::Unknown) {
+			Req  req      = ri.req               ;
+			dangling |= buildable<=Buildable::No ;
 			ri.manual = manual_refresh(req) ;
 			switch (ri.manual) {
 				case Manual::Ok      :
@@ -444,7 +444,7 @@ namespace Engine {
 			}
 			trace("no_src",crc) ;
 			if (ri.goal>=NodeGoal::Dsk) {
-				manual_wash(ri,true/*lazy*/) ;                                                          // always check manual if asking for disk
+				manual_wash(ri) ;                                                                       // always check manual if asking for disk
 				if (crc==Crc::None       ) goto Done ;                                                  // node is not polluted
 				if (ri.manual==Manual::Ok) {                                                            // if already unlinked, no need to unlink it again
 					SWEAR(is_lcl(lazy_name()),lazy_name()) ;
@@ -573,7 +573,7 @@ namespace Engine {
 							else if (ri.goal==NodeGoal::Status        ) {}                                               // dont check disk if asked for Status
 							else if (jt->running(true/*with_zombies*/)) reason =  JobReasonTag::Garbage                ; // be pessimistic and dont check target as it is not manual ...
 							else                                                                                         // ... and checking may modify it
-								switch (manual_wash(ri,true/*lazy*/)) {
+								switch (manual_wash(ri)) {
 									case Manual::Ok      :                                                  break ;
 									case Manual::Unlnked : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
 									case Manual::Empty   :
@@ -597,9 +597,12 @@ namespace Engine {
 			ri.prio_idx = it.idx ;
 		}
 	DoWakeup :
-		if      (prod_idx==NoIdx) status     (NodeStatus::None) ;
-		else if (!multi         ) conform_idx(prod_idx        ) ;
-		else {
+		if (prod_idx==NoIdx) {
+			if (ri.goal==NodeGoal::Dsk) manual_wash(ri,true/*dangling*/) ;
+			status(NodeStatus::None) ;
+		} else if (!multi) {
+			conform_idx(prod_idx) ;
+		} else {
 			status(NodeStatus::Multi) ;
 			::vector<JobTgt> jts ;
 			for( JobTgt jt : conform_job_tgts(ri) ) if (jt.produces(idx())) jts.push_back(jt) ;

@@ -165,6 +165,7 @@ unit_tests/critical.py
 unit_tests/critical2.py
 unit_tests/cwd.py
 unit_tests/cycle.py
+unit_tests/dangling.py
 unit_tests/depend.py
 unit_tests/depend2.py
 unit_tests/depend_verbose.py
@@ -203,6 +204,7 @@ unit_tests/misc6.py
 unit_tests/misc7.py
 unit_tests/misc8.py
 unit_tests/misc9.py
+unit_tests/mkdir.py
 unit_tests/modules.py
 unit_tests/name.py
 unit_tests/numba.py
