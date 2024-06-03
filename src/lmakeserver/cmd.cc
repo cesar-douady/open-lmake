@@ -250,8 +250,10 @@ R"({
 ,	"launch" : {
 		"configurations" : [
 			{	"name"       : $name
-			,	"type"       : "python"
+			,	"type"       : "debugpy"
 			,	"request"    : "launch"
+			,	"python"     : $interpreter
+			,	"pythonArgs" : $interp_args
 			,	"program"    : $program
 			,	"console"    : "integratedTerminal"
 			,	"cwd"        : $g_root_dir
@@ -266,7 +268,6 @@ R"({
 			,	"request"   : "attach"
 			,	"name"      : "Attach C/C++"
 			,	"program"   : $interpreter
-			,	"python"    : $interpreter
 			,	"cwd"       : $g_root_dir
 			,	"processId" : 0
 			}
@@ -291,6 +292,17 @@ R"({
 		res = ::regex_replace( res , ::regex("\\$g_root_dir" ) , mk_json_str(          *g_root_dir                    ) ) ;
 		res = ::regex_replace( res , ::regex("\\$program"    ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
 		res = ::regex_replace( res , ::regex("\\$interpreter") , mk_json_str(to_string(start.interpreter[0]          )) ) ;
+
+		::string  args_str ;
+		append_to_string(args_str,"[") ;
+		first = true ;
+		for( auto& args : start.interpreter | std::views::drop(1) ) {
+			if(first) { append_to_string(args_str,       mk_json_str(args) ) ; first = false ; }
+			else        append_to_string(args_str, "," + mk_json_str(args) ) ;
+		}
+		append_to_string(args_str,"]") ;
+		res = ::regex_replace( res , ::regex("\\$interp_args") , args_str ) ;
+
 		//
 		::vmap_ss env     = _mk_env(start.env,report_end.end.dynamic_env) ;
 		size_t    kw      = 13/*SEQUENCE_ID*/ ; for( auto&& [k,v] : env ) if (k!="TMPDIR") kw = ::max(kw,mk_json_str(k).size()) ;
