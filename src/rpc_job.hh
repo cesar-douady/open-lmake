@@ -478,19 +478,19 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		else              sig(dd.sig()) ;
 	}
 	// services
-	constexpr DepDigestBase& operator|=(DepDigestBase const& other) {            // assumes other has been accessed after us
-		if constexpr (HasBase) SWEAR(Base::operator==(other),other) ;
-		if (+accesses) {
-			SWEAR(is_crc==other.is_crc,is_crc) ;                                 // else, cannot make fusion
-			if (is_crc) { if (crc()!=other.crc()) crc({}) ; }                    // destroy info if digests disagree
-			else        { if (sig()!=other.sig()) crc({}) ; }                    // .
-			// parallel is kept untouched as we are the first access
-		} else {
-			crc_sig(other) ;
-			parallel = other.parallel ;
+	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {              // assumes ddb has been accessed after us
+		if constexpr (HasBase) SWEAR(Base::operator==(ddb),*this,ddb) ;
+		if (!accesses) {
+			crc_sig(ddb) ;
+			parallel = ddb.parallel ;
+		} else if (+ddb.accesses) {
+			if      (is_crc!=ddb.is_crc)                         crc({}) ;       // destroy info if digests disagree
+			else if (is_crc            ) { if (crc()!=ddb.crc()) crc({}) ; }     // .
+			else                         { if (sig()!=ddb.sig()) crc({}) ; }     // .
+			// parallel is kept untouched as ddb follows us
 		}
-		dflags   |= other.dflags   ;
-		accesses |= other.accesses ;
+		dflags   |= ddb.dflags   ;
+		accesses |= ddb.accesses ;
 		return *this ;
 	}
 	constexpr void tag(Tag tag) {
