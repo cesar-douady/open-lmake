@@ -112,13 +112,19 @@ namespace Backends {
 		} ;
 
 		struct SpawnedEntry {
-			SpawnedEntry(Rsrcs rsrcs_          ) : rsrcs{rsrcs_  }                                                                                           {}
-			SpawnedEntry(SpawnedEntry const& se) : rsrcs{se.rsrcs} , id{se.id.load()} , started{se.started} , verbose{se.verbose} , zombie{se.zombie.load()} {}
+			void create(Rsrcs const& rs) {
+				SWEAR(zombie) ;
+				rsrcs   = rs    ;
+				id      = 0     ;
+				started = false ;
+				verbose = false ;
+				zombie  = false ;
+			}
 			Rsrcs             rsrcs   ;
 			::atomic<SpawnId> id      = 0     ;
 			bool              started = false ;                               // if true <=> start() has been called for this job, for assert only
 			bool              verbose = false ;
-			::atomic<bool>    zombie  = false ;                               // entry waiting for suppression
+			::atomic<bool   > zombie  = true  ;                               // entry waiting for suppression
 		} ;
 		struct SpawnedTab : ::umap<JobIdx,SpawnedEntry> {
 			using Base = ::umap<JobIdx,SpawnedEntry> ;
@@ -131,9 +137,10 @@ namespace Backends {
 			size_t         size() const { return _sz ; }                      // dont trust Base::size() as zombies would be counted
 			//
 			iterator create( GenericBackend const& be , JobIdx j , RsrcsAsk const& rsrcs_ask ) {
-				Rsrcs rsrcs = be.acquire_rsrcs(rsrcs_ask) ;
-				auto [res,inserted] = Base::emplace( j , SpawnedEntry(rsrcs) ) ;
-				SWEAR(inserted,j,res->second.id,res->second.zombie) ;
+				Rsrcs    rsrcs = be.acquire_rsrcs(rsrcs_ask) ;
+				iterator res   = Base::try_emplace(j).first  ;
+				SWEAR(res->second.zombie) ;
+				res->second.create(rsrcs) ;
 				_sz++ ;
 				return res ;
 			}
@@ -195,8 +202,8 @@ namespace Backends {
 		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const&          ) const { return true ; } // true if job with such resources can be spawned eventually
 		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const&          ) const = 0 ;             // true if job with such resources can be spawned now
 		virtual Rsrcs        acquire_rsrcs ( RsrcsAsk     const&          ) const = 0 ;             // acquire maximum possible asked resources
-		virtual void         start_rsrcs   ( Rsrcs        const&          ) const {}  ;             // handle resources at start of job
-		virtual void         end_rsrcs     ( Rsrcs        const&          ) const {}  ;             // handle resources at end   of job
+		virtual void         start_rsrcs   ( Rsrcs        const&          ) const {}                // handle resources at start of job
+		virtual void         end_rsrcs     ( Rsrcs        const&          ) const {}                // handle resources at end   of job
 		virtual ::vmap_ss    export_       ( RsrcsData    const&          ) const = 0 ;             // export resources in   a publicly manageable form
 		virtual RsrcsDataAsk import_       ( ::vmap_ss        && , ReqIdx ) const = 0 ;             // import resources from a publicly manageable form
 		//
@@ -205,7 +212,7 @@ namespace Backends {
 		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx , SpawnedEntry const&          ) const { return {{},HeartbeatState::Alive} ; } // only called before start
 		virtual void                     kill_queued_job     (          SpawnedEntry const&          ) const = 0 ;                                   // .
 		//
-		virtual SpawnId launch_job( ::stop_token , JobIdx , ::vector<ReqIdx> const& , Pdate prio , ::vector_s const& cmd_line   , Rsrcs const& , bool verbose ) const = 0 ;
+		virtual SpawnId launch_job( ::stop_token , JobIdx , ::vector<ReqIdx> const& , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& , bool verbose ) const = 0 ;
 
 		// services
 		virtual void config( vmap_ss const& dct , bool dynamic ) {
@@ -230,8 +237,8 @@ namespace Backends {
 			SWEAR(!re.queued_jobs ) ;
 			reqs.erase(it) ;
 			if (!reqs) {
-				SWEAR(!waiting_jobs) ;
-				SWEAR(!spawned_jobs) ;
+				SWEAR(!waiting_jobs       ) ;
+				SWEAR(!spawned_jobs.size()) ;                                                                                // there may be zombie entries waiting for destruction
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
