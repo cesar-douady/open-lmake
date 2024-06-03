@@ -226,7 +226,7 @@ namespace Engine {
 		return res ;
 	}
 
-	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , JobInfoEnd const& report_end , ::string const& dbg_dir , ::vector_s const& vs_ext ) {
+	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , JobInfoEnd const& report_end , ::string const& dbg_dir , ::vector_s const& vs_exts ) {
 		JobRpcReply const& start = report_start.start ;
 		::string res =
 R"({
@@ -253,56 +253,52 @@ R"({
 			,	"type"       : "debugpy"
 			,	"request"    : "launch"
 			,	"python"     : $interpreter
-			,	"pythonArgs" : $interp_args
+			,	"pythonArgs" : $args
 			,	"program"    : $program
 			,	"console"    : "integratedTerminal"
-			,	"cwd"        : $g_root_dir
+			,	"cwd"        : $root_dir
 			,	"subProcess" : true
 			,	"env" : {
 					$env
 				}
-
 			}
 		,	{
 				"type"      : "by-gdb"
 			,	"request"   : "attach"
 			,	"name"      : "Attach C/C++"
 			,	"program"   : $interpreter
-			,	"cwd"       : $g_root_dir
+			,	"cwd"       : $root_dir
 			,	"processId" : 0
 			}
 		]
 	}
 ,	"extensions" : {
 		"recommendations" : [
-			$extensions
+			$exts
 		]
 	}
 }
 )" ;
-		::string extensions ;
+		::string exts_str ;
 		bool     first      = true ;
-		for ( auto& ext : vs_ext ) {
-			if (!first) append_to_string( extensions , "\n\t\t,\t" ) ;
-			/**/        append_to_string( extensions , '"',ext,'"' ) ;
-			first = false ;
+		for ( ::string const& ext : vs_exts ) {
+			if (first) { append_to_string( exts_str ,              mk_json_str(ext) ) ; first = false ; }
+			else         append_to_string( exts_str , "\n\t\t,\t", mk_json_str(ext) ) ;
 		}
-		res = ::regex_replace( res , ::regex("\\$extensions" ) , extensions                                             ) ;
+		::string args_str = "[" ;
+		first = true ;
+		for( auto& args : start.interpreter | ::views::drop(1) ) {
+			if (first) { append_to_string( args_str ,     mk_json_str(args) ) ; first = false ; }
+			else         append_to_string( args_str , ',',mk_json_str(args) ) ;
+		}
+		args_str += ']' ;
+		//
+		res = ::regex_replace( res , ::regex("\\$exts"       ) , exts_str                                               ) ;
 		res = ::regex_replace( res , ::regex("\\$name"       ) , mk_json_str(          j->name()                      ) ) ;
-		res = ::regex_replace( res , ::regex("\\$g_root_dir" ) , mk_json_str(          *g_root_dir                    ) ) ;
+		res = ::regex_replace( res , ::regex("\\$root_dir"   ) , mk_json_str(          *g_root_dir                    ) ) ;
 		res = ::regex_replace( res , ::regex("\\$program"    ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
 		res = ::regex_replace( res , ::regex("\\$interpreter") , mk_json_str(to_string(start.interpreter[0]          )) ) ;
-
-		::string  args_str ;
-		append_to_string(args_str,"[") ;
-		first = true ;
-		for( auto& args : start.interpreter | std::views::drop(1) ) {
-			if(first) { append_to_string(args_str,       mk_json_str(args) ) ; first = false ; }
-			else        append_to_string(args_str, "," + mk_json_str(args) ) ;
-		}
-		append_to_string(args_str,"]") ;
-		res = ::regex_replace( res , ::regex("\\$interp_args") , args_str ) ;
-
+		res = ::regex_replace( res , ::regex("\\$args"       ) , args_str                                               ) ;
 		//
 		::vmap_ss env     = _mk_env(start.env,report_end.end.dynamic_env) ;
 		size_t    kw      = 13/*SEQUENCE_ID*/ ; for( auto&& [k,v] : env ) if (k!="TMPDIR") kw = ::max(kw,mk_json_str(k).size()) ;
@@ -317,7 +313,7 @@ R"({
 		return res ;
 	}
 
-	static ::string _mk_script( Job j , ReqFlags flags , JobInfoStart const& report_start , JobInfoEnd const& report_end ,::string const& dbg_dir , bool with_cmd , ::vector_s const& vs_ext={} ) {
+	static ::string _mk_script( Job j , ReqFlags flags , JobInfoStart const& report_start , JobInfoEnd const& report_end ,::string const& dbg_dir , bool with_cmd , ::vector_s const& vs_exts={} ) {
 		JobRpcReply const& start   = report_start.start ;
 		AutodepEnv  const& ade     = start.autodep_env  ;
 		::string           abs_cwd = *g_root_dir        ;
@@ -378,7 +374,7 @@ R"({
 		append_to_string( script , "rm -rf   \"$TMPDIR\""                         , '\n' ) ;
 		append_to_string( script , "mkdir -p \"$TMPDIR\""                         , '\n' ) ;
 		if (flags[ReqFlag::Vscode]) {
-			for (auto const& extension : vs_ext )
+			for (auto const& extension : vs_exts )
 				append_to_string( script , "code --list-extensions | grep -q '^",extension,"$' || code --install-extension ",extension,'\n' ) ;
 			append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir),'\n'                                          ) ;
 			append_to_string( script , "args=()\n"                                                                                      ) ;
@@ -467,15 +463,15 @@ R"({
 		::string           cmd_file    = dbg_dir+"/cmd"                          ;
 		::string           vscode_file = dbg_dir+"/vscode/ldebug.code-workspace" ;
 		//
-		::vector_s vs_ext {
+		::vector_s vs_exts {
 			"ms-python.python"
 		,	"ms-vscode.cpptools"
 		,	"coolchyni.beyond-debug"
 		} ;
 		//
-		::string script = _mk_script( job , ro.flags , job_info.start , job_info.end , dbg_dir , true/*with_cmd*/ , vs_ext ) ;
-		::string cmd    = _mk_cmd   ( job , ro.flags , start        ,                  dbg_dir , redirected                ) ;
-		::string vscode = _mk_vscode( job ,            job_info.start , job_info.end , dbg_dir ,                    vs_ext ) ;
+		::string script = _mk_script( job , ro.flags , job_info.start , job_info.end , dbg_dir , true/*with_cmd*/ , vs_exts ) ;
+		::string cmd    = _mk_cmd   ( job , ro.flags , start        ,                  dbg_dir , redirected                 ) ;
+		::string vscode = _mk_vscode( job ,            job_info.start , job_info.end , dbg_dir ,                    vs_exts ) ;
 		//
 		OFStream(dir_guard(script_file)) << script ; ::chmod(script_file.c_str(),0755) ; // make executable
 		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .

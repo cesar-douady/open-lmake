@@ -72,8 +72,8 @@ void AutodepPtrace::s_prepare_child() {
 		static SyscallDescr::Tab const& tab = SyscallDescr::s_tab(true/*for_ptrace*/) ;
 		for( long syscall=0 ; syscall<SyscallDescr::NSyscalls ; syscall++ ) {
 			SyscallDescr const& entry = tab[syscall] ;
-			if ( !entry                            ) continue ;                   // entry is not allocated
-			if ( !entry.data_access && ignore_stat ) continue ;                   // non stat-like access are always needed
+			if ( !entry                       ) continue ;                        // entry is not allocated
+			if ( entry.is_stat && ignore_stat ) continue ;                        // non stat-like access are always needed
 			//
 			seccomp_syscall_priority( scmp ,                                 syscall , entry.prio ) ;
 			seccomp_rule_add        ( scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0          ) ;
@@ -116,7 +116,7 @@ void AutodepPtrace::s_prepare_child() {
 					#endif
 					int syscall = entry_info.nr ;
 				#else
-					int syscall = np_ptrace_get_nr(pid) ;                           // use non-portable calls if portable accesses are not implemented
+					int syscall = np_ptrace_get_nr(pid) ;                                // use non-portable calls if portable accesses are not implemented
 				#endif
 				SWEAR( syscall>=0 && syscall<SyscallDescr::NSyscalls ) ;
 				SyscallDescr const& descr = tab[syscall] ;

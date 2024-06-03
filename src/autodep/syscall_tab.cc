@@ -322,129 +322,127 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // this m
 	//	/!\ prio must be non-zero as zero means entry is not allocated
 	//	entries marked NFS_GUARD are deemed data access as they touch their enclosing dir and hence must be guarded against strange NFS notion of coherence
 	//	entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
-	#define NFS_GUARD true
-	//	                                                                                { entry          <At   ,flag      > , exit           filter,prio,data access comment             }
+	//	                                                                                { entry          <At   ,flag      > , exit           filter,prio,is_stat  access comment             }
 	#ifdef SYS_access
-		static_assert(SYS_access           <NSyscalls) ; s_tab[SYS_access           ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 1  , false    , "Access"            } ;
+		static_assert(SYS_access           <NSyscalls) ; s_tab[SYS_access           ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 1  , true  , "Access"            } ;
 	#endif
 	#ifdef SYS_faccessat
-		static_assert(SYS_faccessat        <NSyscalls) ; s_tab[SYS_faccessat        ] = { _entry_stat    <true ,3         > , nullptr        ,2    , 2  , false    , "Faccessat"         } ;
+		static_assert(SYS_faccessat        <NSyscalls) ; s_tab[SYS_faccessat        ] = { _entry_stat    <true ,3         > , nullptr        ,2    , 2  , true  , "Faccessat"         } ;
 	#endif
 	#ifdef SYS_faccessat2
-		static_assert(SYS_faccessat2       <NSyscalls) ; s_tab[SYS_faccessat2       ] = { _entry_stat    <true ,3         > , nullptr        ,2    , 2  , false    , "Faccessat2"        } ;
+		static_assert(SYS_faccessat2       <NSyscalls) ; s_tab[SYS_faccessat2       ] = { _entry_stat    <true ,3         > , nullptr        ,2    , 2  , true  , "Faccessat2"        } ;
 	#endif
 	#ifdef SYS_chdir
-		static_assert(SYS_chdir            <NSyscalls) ; s_tab[SYS_chdir            ] = { _entry_chdir   <false           > , _exit_chdir    ,0    , 1  , true     , "Chdir"             } ;
+		static_assert(SYS_chdir            <NSyscalls) ; s_tab[SYS_chdir            ] = { _entry_chdir   <false           > , _exit_chdir    ,0    , 1  , false , "Chdir"             } ;
 	#endif
 	#ifdef SYS_fchdir
-		static_assert(SYS_fchdir           <NSyscalls) ; s_tab[SYS_fchdir           ] = { _entry_chdir   <true            > , _exit_chdir    ,0    , 1  , true     , "Fchdir"            } ;
+		static_assert(SYS_fchdir           <NSyscalls) ; s_tab[SYS_fchdir           ] = { _entry_chdir   <true            > , _exit_chdir    ,0    , 1  , false , "Fchdir"            } ;
 	#endif
 	#ifdef SYS_chmod
-		static_assert(SYS_chmod            <NSyscalls) ; s_tab[SYS_chmod            ] = { _entry_chmod   <false,FlagNever > , _exit_chmod    ,1    , 1  , true     , "Chmod"             } ;
+		static_assert(SYS_chmod            <NSyscalls) ; s_tab[SYS_chmod            ] = { _entry_chmod   <false,FlagNever > , _exit_chmod    ,1    , 1  , false , "Chmod"             } ;
 	#endif
 	#ifdef SYS_fchmodat
-		static_assert(SYS_fchmodat         <NSyscalls) ; s_tab[SYS_fchmodat         ] = { _entry_chmod   <true ,3         > , _exit_chmod    ,2    , 1  , true     , "Fchmodat"          } ;
+		static_assert(SYS_fchmodat         <NSyscalls) ; s_tab[SYS_fchmodat         ] = { _entry_chmod   <true ,3         > , _exit_chmod    ,2    , 1  , false , "Fchmodat"          } ;
 	#endif
 	#ifdef SYS_creat
-		static_assert(SYS_creat            <NSyscalls) ; s_tab[SYS_creat            ] = { _entry_creat                      , _exit_open     ,1    , 2  , true     , "Creat"             } ;
+		static_assert(SYS_creat            <NSyscalls) ; s_tab[SYS_creat            ] = { _entry_creat                      , _exit_open     ,1    , 2  , false , "Creat"             } ;
 	#endif
 	#ifdef SYS_execve
-		static_assert(SYS_execve           <NSyscalls) ; s_tab[SYS_execve           ] = { _entry_execve  <false,FlagNever > , nullptr        ,0    , 1  , true     , "Execve"            } ;
+		static_assert(SYS_execve           <NSyscalls) ; s_tab[SYS_execve           ] = { _entry_execve  <false,FlagNever > , nullptr        ,0    , 1  , false , "Execve"            } ;
 	#endif
 	#ifdef SYS_execveat
-		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { _entry_execve  <true ,4         > , nullptr        ,0    , 1  , true     , "Execveat"          } ;
+		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { _entry_execve  <true ,4         > , nullptr        ,0    , 1  , false , "Execveat"          } ;
 	#endif
 	#if defined(SYS_getcwd)
 		// tmp mapping is not supported with ptrace
 		if (!for_ptrace) {
-		static_assert(SYS_getcwd           <NSyscalls) ; s_tab[SYS_getcwd           ] = { _entry_getcwd                     , _exit_getcwd   ,0    , 1  , true     , "Getcwd"            } ;
+		static_assert(SYS_getcwd           <NSyscalls) ; s_tab[SYS_getcwd           ] = { _entry_getcwd                     , _exit_getcwd   ,0    , 1  , false , "Getcwd"            } ;
         }
 	#endif
 	#ifdef SYS_link
-		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { _entry_lnk     <false,FlagNever > , _exit_lnk      ,2    , 1  , true     , "Link"              } ;
+		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { _entry_lnk     <false,FlagNever > , _exit_lnk      ,2    , 1  , false , "Link"              } ;
 	#endif
 	#ifdef SYS_linkat
-		static_assert(SYS_linkat           <NSyscalls) ; s_tab[SYS_linkat           ] = { _entry_lnk     <true ,4         > , _exit_lnk      ,4    , 1  , true     , "Linkat"            } ;
+		static_assert(SYS_linkat           <NSyscalls) ; s_tab[SYS_linkat           ] = { _entry_lnk     <true ,4         > , _exit_lnk      ,4    , 1  , false , "Linkat"            } ;
 	#endif
 	#ifdef SYS_mkdir
-		static_assert(SYS_mkdir            <NSyscalls) ; s_tab[SYS_mkdir            ] = { _entry_mkdir   <false           > , nullptr        ,1    , 1  , NFS_GUARD, "Mkdir"             } ;
+		static_assert(SYS_mkdir            <NSyscalls) ; s_tab[SYS_mkdir            ] = { _entry_mkdir   <false           > , nullptr        ,1    , 1  , false , "Mkdir"             } ;
 	#endif
 	#ifdef SYS_mkdirat
-		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { _entry_mkdir   <true            > , nullptr        ,2    , 1  , NFS_GUARD, "Mkdirat"           } ;
+		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { _entry_mkdir   <true            > , nullptr        ,2    , 1  , false , "Mkdirat"           } ;
 	#endif
 	#ifdef SYS_name_to_handle_at
-		static_assert(SYS_name_to_handle_at<NSyscalls) ; s_tab[SYS_name_to_handle_at] = { _entry_open    <true            > , _exit_open     ,2    , 1  , true     , "Name_to_handle_at" } ;
+		static_assert(SYS_name_to_handle_at<NSyscalls) ; s_tab[SYS_name_to_handle_at] = { _entry_open    <true            > , _exit_open     ,2    , 1  , false , "Name_to_handle_at" } ;
 	#endif
 	#ifdef SYS_open
-		static_assert(SYS_open             <NSyscalls) ; s_tab[SYS_open             ] = { _entry_open    <false           > , _exit_open     ,1    , 2  , true     , "Open"              } ;
+		static_assert(SYS_open             <NSyscalls) ; s_tab[SYS_open             ] = { _entry_open    <false           > , _exit_open     ,1    , 2  , false , "Open"              } ;
 	#endif
 	#ifdef SYS_openat
-		static_assert(SYS_openat           <NSyscalls) ; s_tab[SYS_openat           ] = { _entry_open    <true            > , _exit_open     ,2    , 2  , true     , "Openat"            } ;
+		static_assert(SYS_openat           <NSyscalls) ; s_tab[SYS_openat           ] = { _entry_open    <true            > , _exit_open     ,2    , 2  , false , "Openat"            } ;
 	#endif
 	#ifdef SYS_openat2
-		static_assert(SYS_openat2          <NSyscalls) ; s_tab[SYS_openat2          ] = { _entry_open    <true            > , _exit_open     ,2    , 2  , true     , "Openat2"           } ;
+		static_assert(SYS_openat2          <NSyscalls) ; s_tab[SYS_openat2          ] = { _entry_open    <true            > , _exit_open     ,2    , 2  , false , "Openat2"           } ;
 	#endif
 	#ifdef SYS_open_tree
-		static_assert(SYS_open_tree        <NSyscalls) ; s_tab[SYS_open_tree        ] = { _entry_stat    <true ,2         > , nullptr        ,2    , 1  , false    , "Open_tree"         } ;
+		static_assert(SYS_open_tree        <NSyscalls) ; s_tab[SYS_open_tree        ] = { _entry_stat    <true ,2         > , nullptr        ,2    , 1  , true  , "Open_tree"         } ;
 	#endif
 	#ifdef SYS_readlink
-		static_assert(SYS_readlink         <NSyscalls) ; s_tab[SYS_readlink         ] = { _entry_read_lnk<false           > , _exit_read_lnk ,1    , 2  , true     , "Readlink"          } ;
+		static_assert(SYS_readlink         <NSyscalls) ; s_tab[SYS_readlink         ] = { _entry_read_lnk<false           > , _exit_read_lnk ,1    , 2  , false , "Readlink"          } ;
 	#endif
 	#ifdef SYS_readlinkat
-		static_assert(SYS_readlinkat       <NSyscalls) ; s_tab[SYS_readlinkat       ] = { _entry_read_lnk<true            > , _exit_read_lnk ,2    , 2  , true     , "Readlinkat"        } ;
+		static_assert(SYS_readlinkat       <NSyscalls) ; s_tab[SYS_readlinkat       ] = { _entry_read_lnk<true            > , _exit_read_lnk ,2    , 2  , false , "Readlinkat"        } ;
 	#endif
 	#if SYS_rename
-		static_assert(SYS_rename           <NSyscalls) ; s_tab[SYS_rename           ] = { _entry_rename  <false,FlagNever > , _exit_rename   ,2    , 1  , true     , "Rename"            } ;
+		static_assert(SYS_rename           <NSyscalls) ; s_tab[SYS_rename           ] = { _entry_rename  <false,FlagNever > , _exit_rename   ,2    , 1  , false , "Rename"            } ;
 	#endif
 	#ifdef SYS_renameat
-		static_assert(SYS_renameat         <NSyscalls) ; s_tab[SYS_renameat         ] = { _entry_rename  <true ,FlagNever > , _exit_rename   ,4    , 1  , true     , "Renameat"          } ;
+		static_assert(SYS_renameat         <NSyscalls) ; s_tab[SYS_renameat         ] = { _entry_rename  <true ,FlagNever > , _exit_rename   ,4    , 1  , false , "Renameat"          } ;
 	#endif
 	#ifdef SYS_renameat2
-		static_assert(SYS_renameat2        <NSyscalls) ; s_tab[SYS_renameat2        ] = { _entry_rename  <true ,4         > , _exit_rename   ,4    , 1  , true     , "Renameat2"         } ;
+		static_assert(SYS_renameat2        <NSyscalls) ; s_tab[SYS_renameat2        ] = { _entry_rename  <true ,4         > , _exit_rename   ,4    , 1  , false , "Renameat2"         } ;
 	#endif
 	#ifdef SYS_rmdir
-		static_assert(SYS_rmdir            <NSyscalls) ; s_tab[SYS_rmdir            ] = { _entry_unlnk   <false,FlagAlways> , nullptr        ,1    , 1  , NFS_GUARD, "Rmdir"             } ;
+		static_assert(SYS_rmdir            <NSyscalls) ; s_tab[SYS_rmdir            ] = { _entry_unlnk   <false,FlagAlways> , nullptr        ,1    , 1  , false , "Rmdir"             } ;
 	#endif
 	#ifdef SYS_stat
-		static_assert(SYS_stat             <NSyscalls) ; s_tab[SYS_stat             ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 2  , false    , "Stat"              } ;
+		static_assert(SYS_stat             <NSyscalls) ; s_tab[SYS_stat             ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 2  , true  , "Stat"              } ;
 	#endif
 	#ifdef SYS_stat64
-		static_assert(SYS_stat64           <NSyscalls) ; s_tab[SYS_stat64           ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 1  , false    , "Stat64"            } ;
+		static_assert(SYS_stat64           <NSyscalls) ; s_tab[SYS_stat64           ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 1  , true  , "Stat64"            } ;
 	#endif
 	#ifdef SYS_fstatat64
-		static_assert(SYS_fstatat64        <NSyscalls) ; s_tab[SYS_fstatat64        ] = { _entry_stat    <true ,3         > , nullptr        ,2    , 1  , false    , "Fstatat64"         } ;
+		static_assert(SYS_fstatat64        <NSyscalls) ; s_tab[SYS_fstatat64        ] = { _entry_stat    <true ,3         > , nullptr        ,2    , 1  , true  , "Fstatat64"         } ;
 	#endif
 	#ifdef SYS_lstat
-		static_assert(SYS_lstat            <NSyscalls) ; s_tab[SYS_lstat            ] = { _entry_stat    <false,FlagAlways> , nullptr        ,1    , 2  , false    , "Lstat"             } ;
+		static_assert(SYS_lstat            <NSyscalls) ; s_tab[SYS_lstat            ] = { _entry_stat    <false,FlagAlways> , nullptr        ,1    , 2  , true  , "Lstat"             } ;
 	#endif
 	#ifdef SYS_lstat64
-		static_assert(SYS_lstat64          <NSyscalls) ; s_tab[SYS_lstat64          ] = { _entry_stat    <false,FlagAlways> , nullptr        ,1    , 1  , false    , "Lstat64"           } ;
+		static_assert(SYS_lstat64          <NSyscalls) ; s_tab[SYS_lstat64          ] = { _entry_stat    <false,FlagAlways> , nullptr        ,1    , 1  , true  , "Lstat64"           } ;
 	#endif
 	#ifdef SYS_statx
-		static_assert(SYS_statx            <NSyscalls) ; s_tab[SYS_statx            ] = { _entry_stat    <true ,2         > , nullptr        ,2    , 1  , false    , "Statx"             } ;
+		static_assert(SYS_statx            <NSyscalls) ; s_tab[SYS_statx            ] = { _entry_stat    <true ,2         > , nullptr        ,2    , 1  , true  , "Statx"             } ;
 	#endif
 	#if SYS_newfstatat
-		static_assert(SYS_newfstatat       <NSyscalls) ; s_tab[SYS_newfstatat       ] = { _entry_stat    <true ,3         > , nullptr        ,2    , 2  , false    , "Newfstatat"        } ;
+		static_assert(SYS_newfstatat       <NSyscalls) ; s_tab[SYS_newfstatat       ] = { _entry_stat    <true ,3         > , nullptr        ,2    , 2  , true  , "Newfstatat"        } ;
 	#endif
 	#ifdef SYS_oldstat
-		static_assert(SYS_oldstat          <NSyscalls) ; s_tab[SYS_oldstat          ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 1  , false    , "Oldstat"           } ;
+		static_assert(SYS_oldstat          <NSyscalls) ; s_tab[SYS_oldstat          ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 1  , true  , "Oldstat"           } ;
 	#endif
 	#ifdef SYS_oldlstat
-		static_assert(SYS_oldlstat         <NSyscalls) ; s_tab[SYS_oldlstat         ] = { _entry_stat    <false,FlagAlways> , nullptr        ,1    , 1  , false    , "Oldlstat"          } ;
+		static_assert(SYS_oldlstat         <NSyscalls) ; s_tab[SYS_oldlstat         ] = { _entry_stat    <false,FlagAlways> , nullptr        ,1    , 1  , true  , "Oldlstat"          } ;
 	#endif
 	#ifdef SYS_symlink
-		static_assert(SYS_symlink          <NSyscalls) ; s_tab[SYS_symlink          ] = { _entry_sym_lnk <false           > , _exit_sym_lnk  ,2    , 1  , true     , "Symlink"           } ;
+		static_assert(SYS_symlink          <NSyscalls) ; s_tab[SYS_symlink          ] = { _entry_sym_lnk <false           > , _exit_sym_lnk  ,2    , 1  , false , "Symlink"           } ;
 	#endif
 	#ifdef SYS_symlinkat
-		static_assert(SYS_symlinkat        <NSyscalls) ; s_tab[SYS_symlinkat        ] = { _entry_sym_lnk <true            > , _exit_sym_lnk  ,3    , 1  , true     , "Symlinkat"         } ;
+		static_assert(SYS_symlinkat        <NSyscalls) ; s_tab[SYS_symlinkat        ] = { _entry_sym_lnk <true            > , _exit_sym_lnk  ,3    , 1  , false , "Symlinkat"         } ;
 	#endif
 	#ifdef SYS_unlink
-		static_assert(SYS_unlink           <NSyscalls) ; s_tab[SYS_unlink           ] = { _entry_unlnk   <false,FlagNever > , _exit_unlnk    ,1    , 1  , true     , "Unlink"            } ;
+		static_assert(SYS_unlink           <NSyscalls) ; s_tab[SYS_unlink           ] = { _entry_unlnk   <false,FlagNever > , _exit_unlnk    ,1    , 1  , false , "Unlink"            } ;
 	#endif
 	#ifdef SYS_unlinkat
-		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlnk   <true ,2         > , _exit_unlnk    ,2    , 1  , true     , "Unlinkat"          } ;
+		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlnk   <true ,2         > , _exit_unlnk    ,2    , 1  , false , "Unlinkat"          } ;
 	#endif
-	#undef NFS_GUARD
 	fence() ;                                                          // ensure serializatino
 	s_inited = true ;
 	return s_tab ;

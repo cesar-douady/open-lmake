@@ -22,10 +22,10 @@ struct Ctx {
 } ;
 
 struct SymEntry {
-	SymEntry( void* f , LnkSupport ls=LnkSupport::None ) : func{f} , lnk_support{ls} {}
-	void*         func        = nullptr          ;
-	LnkSupport    lnk_support = LnkSupport::None ; // above this level of link support, we need to catch this syscall
-	mutable void* orig        = nullptr          ;
+	SymEntry( void* f , bool is=false ) : func{f} , is_stat{is} {}
+	void*         func    = nullptr ;
+	bool          is_stat = false   ; // above this level of link support, we need to catch this syscall
+	mutable void* orig    = nullptr ;
 } ;
 extern ::umap_s<SymEntry> const* const g_syscall_tab ;
 
@@ -127,33 +127,33 @@ static bool started() { return true ; }
 //
 // mere path accesses, no actual accesses to file data
 //
-,	{ "access"    , { reinterpret_cast<void*>(Audited::access   ) , LnkSupport::File } }
-,	{ "faccessat" , { reinterpret_cast<void*>(Audited::faccessat) , LnkSupport::File } }
-,	{ "opendir"   , { reinterpret_cast<void*>(Audited::opendir  ) , LnkSupport::File } }
-,	{ "mkdirat"   , { reinterpret_cast<void*>(Audited::mkdirat  ) , LnkSupport::File } }
-,	{ "statx"     , { reinterpret_cast<void*>(Audited::statx    ) , LnkSupport::File } }
+,	{ "access"    , { reinterpret_cast<void*>(Audited::access   ) , true } }
+,	{ "faccessat" , { reinterpret_cast<void*>(Audited::faccessat) , true } }
+,	{ "opendir"   , { reinterpret_cast<void*>(Audited::opendir  ) , true } }
+,	{ "mkdirat"   , { reinterpret_cast<void*>(Audited::mkdirat  ) , true } }
+,	{ "statx"     , { reinterpret_cast<void*>(Audited::statx    ) , true } }
 //
-,	{ "__xstat"      , { reinterpret_cast<void*>(Audited::__xstat     ) , LnkSupport::File } }
-,	{ "__xstat64"    , { reinterpret_cast<void*>(Audited::__xstat64   ) , LnkSupport::File } }
-,	{ "__lxstat"     , { reinterpret_cast<void*>(Audited::__lxstat    ) , LnkSupport::Full } }
-,	{ "__lxstat64"   , { reinterpret_cast<void*>(Audited::__lxstat64  ) , LnkSupport::Full } }
-,	{ "__fxstatat"   , { reinterpret_cast<void*>(Audited::__fxstatat  ) , LnkSupport::File } }
-,	{ "__fxstatat64" , { reinterpret_cast<void*>(Audited::__fxstatat64) , LnkSupport::File } }
+,	{ "__xstat"      , { reinterpret_cast<void*>(Audited::__xstat     ) , true } }
+,	{ "__xstat64"    , { reinterpret_cast<void*>(Audited::__xstat64   ) , true } }
+,	{ "__lxstat"     , { reinterpret_cast<void*>(Audited::__lxstat    ) , true } }
+,	{ "__lxstat64"   , { reinterpret_cast<void*>(Audited::__lxstat64  ) , true } }
+,	{ "__fxstatat"   , { reinterpret_cast<void*>(Audited::__fxstatat  ) , true } }
+,	{ "__fxstatat64" , { reinterpret_cast<void*>(Audited::__fxstatat64) , true } }
 #if !NEED_STAT_WRAPPERS
-	,	{ "stat"      , { reinterpret_cast<void*>(Audited::stat     ) , LnkSupport::File } }
-	,	{ "stat64"    , { reinterpret_cast<void*>(Audited::stat64   ) , LnkSupport::File } }
-	,	{ "lstat"     , { reinterpret_cast<void*>(Audited::lstat    ) , LnkSupport::Full } }
-	,	{ "lstat64"   , { reinterpret_cast<void*>(Audited::lstat64  ) , LnkSupport::Full } }
-	,	{ "fstatat"   , { reinterpret_cast<void*>(Audited::fstatat  ) , LnkSupport::File } }
-	,	{ "fstatat64" , { reinterpret_cast<void*>(Audited::fstatat64) , LnkSupport::File } }
+	,	{ "stat"      , { reinterpret_cast<void*>(Audited::stat     ) , true } }
+	,	{ "stat64"    , { reinterpret_cast<void*>(Audited::stat64   ) , true } }
+	,	{ "lstat"     , { reinterpret_cast<void*>(Audited::lstat    ) , true } }
+	,	{ "lstat64"   , { reinterpret_cast<void*>(Audited::lstat64  ) , true } }
+	,	{ "fstatat"   , { reinterpret_cast<void*>(Audited::fstatat  ) , true } }
+	,	{ "fstatat64" , { reinterpret_cast<void*>(Audited::fstatat64) , true } }
 #endif
-,	{ "realpath"               , { reinterpret_cast<void*>(Audited::realpath              ) , LnkSupport::File } }
-,	{ "__realpath_chk"         , { reinterpret_cast<void*>(Audited::__realpath_chk        ) , LnkSupport::File } }
-,	{ "canonicalize_file_name" , { reinterpret_cast<void*>(Audited::canonicalize_file_name) , LnkSupport::File } }
-,	{ "scandir"                , { reinterpret_cast<void*>(Audited::scandir               ) , LnkSupport::File } }
-,	{ "scandir64"              , { reinterpret_cast<void*>(Audited::scandir64             ) , LnkSupport::File } }
-,	{ "scandirat"              , { reinterpret_cast<void*>(Audited::scandirat             ) , LnkSupport::File } }
-,	{ "scandirat64"            , { reinterpret_cast<void*>(Audited::scandirat64           ) , LnkSupport::File } }
+,	{ "realpath"               , { reinterpret_cast<void*>(Audited::realpath              ) , true } }
+,	{ "__realpath_chk"         , { reinterpret_cast<void*>(Audited::__realpath_chk        ) , true } }
+,	{ "canonicalize_file_name" , { reinterpret_cast<void*>(Audited::canonicalize_file_name) , true } }
+,	{ "scandir"                , { reinterpret_cast<void*>(Audited::scandir               ) , true } }
+,	{ "scandir64"              , { reinterpret_cast<void*>(Audited::scandir64             ) , true } }
+,	{ "scandirat"              , { reinterpret_cast<void*>(Audited::scandirat             ) , true } }
+,	{ "scandirat64"            , { reinterpret_cast<void*>(Audited::scandirat64           ) , true } }
 } ;
 
 static ::pair<bool/*is_std*/,bool/*is_libc*/> _catch_std_lib(const char* c_name) {
@@ -175,18 +175,12 @@ Qualify :
 
 template<class Sym> uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
 	//
-	auditer() ;                                                                   // force Audit static init
-	if (g_force_orig) goto Ignore ;                                               // avoid recursion loop
-	if (*def_cook   ) goto Ignore ;                                               // cookie is used to identify libc (when cookie==0)
+	auditor() ;                     // force Audit static init
+	if (g_force_orig) goto Ignore ; // avoid recursion loop
+	if (*def_cook   ) goto Ignore ; // cookie is used to identify libc (when cookie==0)
 	//
-	{	auto it = g_syscall_tab->find(sym_name) ;
-		if (it==g_syscall_tab->end()) goto Ignore ;
-		//
-		SymEntry const& entry = it->second ;
-		if ( Record::s_autodep_env().lnk_support>=entry.lnk_support) goto Catch ;
-		if (!Record::s_autodep_env().ignore_stat                   ) goto Catch ; // we need to generate deps for stat-like accesses
-		goto Ignore ;
-	Catch :
+	{	auto            it    = g_syscall_tab->find(sym_name) ; if ( it==g_syscall_tab->end()                             ) goto Ignore ;
+		SymEntry const& entry = it->second                    ; if ( Record::s_autodep_env().ignore_stat && entry.is_stat ) goto Ignore ;
 		entry.orig = reinterpret_cast<void*>(sym->st_value) ;
 		return reinterpret_cast<uintptr_t>(entry.func) ;
 	}
@@ -202,7 +196,7 @@ extern "C" {
 	}
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		auditer() ;                                                                                                                 // force Audit static init
+		auditor() ;                                                                                                                 // force Audit static init
 		if ( !map->l_name || !*map->l_name ) {
 			*cookie = true/*not_std*/ ;
 			return LA_FLG_BINDFROM ;

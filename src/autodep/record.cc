@@ -178,15 +178,18 @@ Record::Mkdir::Mkdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(
 // - if it is an official target, it is not a dep, whether you declare reading it or not
 // - else, we do not compute a CRC on it and its actual content is not guaranteed. What is important in this case is that the execution of the job does not see the content.
 //
+static bool _ignore   (int flags) { return (flags&O_PATH) && Record::s_autodep_env().ignore_stat              ; }
 static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
-static bool _do_stat  (int flags) { return   flags&O_PATH     || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
+static bool _do_stat  (int flags) { return  flags&O_PATH      || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
 static bool _do_read  (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC) ; }
 static bool _do_write (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY                     ; }
 //
-Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) : Solve{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , true/*allow_tmp_map*/ , to_string(c,::hex,'.',flags) } {
-	if ( flags&(O_DIRECTORY|O_TMPFILE)                 ) return ; // we already solved, this is enough
-	if ( (flags&O_PATH) && s_autodep_env().ignore_stat ) return ;
-	if ( file_loc>FileLoc::Dep                         ) return ;
+Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
+	Solve{ r , !_ignore(flags)?::move(path):Path() , _no_follow(flags) , _do_read(flags) , true/*allow_tmp_map*/ , to_string(c,::hex,'.',flags) }
+{
+	if ( !file || !file[0]             ) return ; // includes ignore_stat cases
+	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ; // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep         ) return ;
 	//
 	bool do_stat  = _do_stat (flags)                            ;
 	bool do_read  = _do_read (flags)                            ;
@@ -300,7 +303,9 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	if ( dst.file_loc==FileLoc::Repo               ) r._report_guard  ( ::move   (dst.real) ,                        c+".dst"   ) ; // ... perf is low prio as not that frequent
 }
 
-Record::Stat::Stat( Record& r , Path&& path , bool no_follow , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,true/*allow_tmp_map*/,c} {
+Record::Stat::Stat( Record& r , Path&& path , bool no_follow , ::string&& c ) :
+	Solve{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , true/*allow_tmp_map*/ , c }
+{
 	if ( !s_autodep_env().ignore_stat && file_loc<=FileLoc::Dep ) r._report_dep( ::move(real) , accesses|UserStatAccesses , ::move(c) ) ;
 }
 

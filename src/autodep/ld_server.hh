@@ -7,7 +7,7 @@
 
 #pragma once
 
-Record& auditer() ;
+Record& auditor() ;
 
 struct AutodepLock {
 	// static data

@@ -20,6 +20,6 @@ struct SyscallDescr {
 	int64_t/*res*/ (*exit )( void*  , Record& , pid_t , int64_t res                            ) = nullptr ;
 	int            filter                                                                        = 0       ; // argument to filter on when known to require no processing
 	uint8_t        prio                                                                          = 0       ; // prio for libseccomp (0 means entry is not allocated)
-	bool           data_access                                                                   = false   ;
+	bool           is_stat                                                                       = false   ;
 	const char*    comment                                                                       = nullptr ;
 } ;
