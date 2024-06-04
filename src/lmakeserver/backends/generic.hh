@@ -281,7 +281,7 @@ namespace Backends {
 			::vector<JobIdx> res ;
 			Trace trace(BeChnl,"kill_req",T,req,reqs.size()) ;
 			if ( !req || reqs.size()<=1 ) {
-				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first ) ;                                   // ensure the last req is the right one
+				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;               // ensure the last req is the right one
 				// kill waiting jobs
 				for( auto const& [j,_] : waiting_jobs ) res.push_back(j) ;
 				waiting_jobs.clear() ;
