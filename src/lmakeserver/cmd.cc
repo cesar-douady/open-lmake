@@ -307,7 +307,8 @@ R"({
 		}
 		::string args_str = "[" ;
 		first = true ;
-		for( auto& args : start.interpreter | ::views::drop(1) ) {
+		SWEAR(+start.interpreter) ;
+		for( auto& args : ::vector_view(&start.interpreter[1],start.interpreter.size()-1) ) {
 			if (first) { append_to_string( args_str ,     mk_json_str(args) ) ; first = false ; }
 			else         append_to_string( args_str , ',',mk_json_str(args) ) ;
 		}
