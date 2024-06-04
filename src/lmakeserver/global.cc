@@ -389,10 +389,10 @@ namespace Engine {
 			case ReqProc::Debug  : // PER_CMD : format for tracing
 			case ReqProc::Forget :
 			case ReqProc::Mark   :
-			case ReqProc::Make   :
-			case ReqProc::Show   : os << ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
-			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
-			case ReqProc::Close  : os << ecr.req                                                             ; break ;
+			case ReqProc::Show   : os <<                 ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
+			case ReqProc::Make   : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
+			case ReqProc::Kill   : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
+			case ReqProc::Close  : os << ecr.req                                                                             ; break ;
 		DF}
 		return                     os <<')' ;
 	}

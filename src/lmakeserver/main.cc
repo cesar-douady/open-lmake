@@ -240,9 +240,8 @@ Done :
 
 bool/*interrupted*/ engine_loop() {
 	struct FdEntry {
-		Fd   in     ;
-		Fd   out    ;
-		bool killed = false ;
+		Fd in  ;
+		Fd out ;
 	} ;
 	Trace trace("engine_loop") ;
 	::umap<Req,FdEntry> fd_tab          ;
@@ -280,7 +279,7 @@ bool/*interrupted*/ engine_loop() {
 				Req               req           = ecr.req                   ;
 				::string const&   startup_dir_s = ecr.options.startup_dir_s ;
 				switch (ecr.proc) {
-					case ReqProc::Debug  :                              // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+					case ReqProc::Debug  : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 					case ReqProc::Forget :
 					case ReqProc::Mark   :
 					case ReqProc::Show   : {
@@ -300,7 +299,7 @@ bool/*interrupted*/ engine_loop() {
 					// read  side is closed upon Kill  (cannot be upon Close as epoll.del must be called before close)
 					// write side is closed upon Close (cannot be upon Kill  as this may trigger lmake command termination, which, in turn, will trigger eof on the read side
 					case ReqProc::Make :
-						if (req.zombie()) {                             // if already zombie, dont make req
+						if (req.zombie()) {                                             // if already zombie, dont make req
 							trace("already_killed",req) ;
 							goto NoMake ;
 						}
@@ -319,38 +318,37 @@ bool/*interrupted*/ engine_loop() {
 						req.make(ecr) ;
 						//^^^^^^^^^^^
 						if (!ecr.as_job()) record_targets(req->job) ;
+						SWEAR( +ecr.in_fd && +ecr.out_fd , ecr.in_fd , ecr.out_fd ) ;   // in_fd and out_fd are used as marker for killed and closed respectively
 						fd_tab[req] = { .in=ecr.in_fd , .out=ecr.out_fd } ;
 					break ;
 					NoMake :
-						/**/                       ecr.in_fd .close() ; // nothing to receive
-						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ; // nor to send
+						/**/                       ecr.in_fd .close() ;                 // nothing to receive
+						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                 // nor to send
 					break ;
 					case ReqProc::Close : {
-						auto it = fd_tab.find(req) ;
-						trace("close_req",ecr,it->second.in,it->second.out,STR(it->second.killed)) ;
+						auto     it  = fd_tab.find(req) ; SWEAR(it!=fd_tab.end()) ;
+						FdEntry& fde = it->second       ;
+						trace("close_req",ecr,fde.in,fde.out) ;
 						//vvvvvvvvv
 						req.close() ;
 						//^^^^^^^^^
-						if      (it->second.killed            ) req.dealloc() ;                      // dealloc when req can be reused
-						if      (it->second.in!=it->second.out) ::close   (it->second.out        ) ;
-						else if (it->second.killed            ) ::close   (it->second.out        ) ; // we are after  Kill, finalize close of file descriptor
-						else                                    ::shutdown(it->second.out,SHUT_WR) ; // we are before Kill, shutdown until final close upon Close
-						fd_tab.erase(it) ;
+						if (fde.in!=fde.out)   ::close   (fde.out        ) ;            // either finalize close after Kill or in and out are different from the beginning
+						else                   ::shutdown(fde.out,SHUT_WR) ;            // close only output side
+						if (+fde.in        )   fde.out = Fd() ;                         // mark req is closed
+						else                 { fd_tab.erase(it) ; req.dealloc() ; }     // dealloc when req can be reused, i.e. after Kill and Close
 					} break ;
 					case ReqProc::Kill : {
-						auto it         = fd_tab.find(req)                               ;
-						bool req_active = it!=fd_tab.end() && it->second.out==ecr.out_fd ; // out_fd is held until now, and if it does not coincide with it->second, req id was reused for a new Req
-						//
-						if (it==fd_tab.end()) trace("kill_req",ecr                                                    ) ;
-						else                  trace("kill_req",ecr,it->second.in,it->second.out,STR(it->second.killed)) ;
-						//                                 vvvvvvvvvv
-						if ( +req && +*req && req_active ) req.kill() ;
-						//                                 ^^^^^^^^^^
-						if      (req_active           ) it->second.killed = true ;
-						else                            req.dealloc() ;                    // dealloc when req can be reused
-						if      (ecr.in_fd!=ecr.out_fd) ::close   (ecr.in_fd        ) ;
-						else if (!req_active          ) ::close   (ecr.in_fd        ) ;    // we are after  Close, finalize close of file descriptor
-						else                            ::shutdown(ecr.in_fd,SHUT_RD) ;    // we are before Close, shutdown until final close upon Close
+						trace("kill_req",ecr) ;
+						auto     it  = fd_tab.find(req) ; if (it==fd_tab.end()) break ; // Kill before Make
+						FdEntry& fde = it->second       ;
+						trace("kill_req",fde.in,fde.out) ;
+						//                                              vvvvvvvvvv
+						if (+fde.out       ) { SWEAR( +req && +*req ) ; req.kill() ; }  // kill req if not already closed
+						//                                              ^^^^^^^^^^
+						if (fde.in!=fde.out)   ::close   (fde.in        ) ;             // either finalize close after Close or in and out are different from the beginning
+						else                   ::shutdown(fde.in,SHUT_RD) ;             // close only input side
+						if (+fde.out       )   fde.in = Fd() ;                          // mark req is killed
+						else                 { fd_tab.erase(it) ; req.dealloc() ; }     // dealloc when req can be reused, i.e. after Kill and Close
 					} break ;
 				DF}
 			} break ;
@@ -380,7 +378,7 @@ bool/*interrupted*/ engine_loop() {
 						::vector<Dep> deps ; deps.reserve(ecjm.deps.size()) ;
 						for( auto const& [dn,dd] : ecjm.deps ) deps.emplace_back(Node(dn),dd) ;
 						JobMngtRpcReply jmrr = je.job_analysis(ecjm.proc,deps) ;
-						jmrr.fd = ecjm.fd ;                                                // seq_id will be filled in by send_reply
+						jmrr.fd = ecjm.fd ;                                             // seq_id will be filled in by send_reply
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						Backends::send_reply( +je , ::move(jmrr) ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
