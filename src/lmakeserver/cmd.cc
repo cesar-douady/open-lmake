@@ -251,7 +251,7 @@ namespace Engine {
 		::string res =
 R"({
 	"folders": [
-		{ "path" : $g_root_dir }
+		{ "path" : $root_dir }
 	]
 ,	"settings": {
 		"files.associations" : {
