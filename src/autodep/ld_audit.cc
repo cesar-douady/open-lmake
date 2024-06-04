@@ -24,7 +24,7 @@ struct Ctx {
 struct SymEntry {
 	SymEntry( void* f , bool is=false ) : func{f} , is_stat{is} {}
 	void*         func    = nullptr ;
-	bool          is_stat = false   ; // above this level of link support, we need to catch this syscall
+	bool          is_stat = false   ;
 	mutable void* orig    = nullptr ;
 } ;
 extern ::umap_s<SymEntry> const* const g_syscall_tab ;

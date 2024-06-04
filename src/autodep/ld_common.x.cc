@@ -513,7 +513,7 @@ struct Mkstemp : WSolve {
 	int truncate  (CC* p,off_t l) NE { HEADER1(truncate  ,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate"  } ; return r(orig(F(r),l)) ; }
 	int truncate64(CC* p,off_t l) NE { HEADER1(truncate64,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(F(r),l)) ; }
 
-	// unlink                                             is_stat
+	// unlink                                            is_stat
 	int unlink  (      CC* p      ) NE { HEADER1(unlink  ,false,p,(  p  )) ; Unlnk r{   p ,false/*rmdir*/      ,"unlink"  } ; return r(orig(F(r)  )) ; }
 	int unlinkat(int d,CC* p,int f) NE { HEADER1(unlinkat,false,p,(d,p,f)) ; Unlnk r{{d,p},bool(f&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),f)) ; }
 
