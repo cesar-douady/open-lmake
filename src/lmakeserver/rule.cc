@@ -499,7 +499,7 @@ namespace Engine {
 		::string interpreter0 = res.interpreter[0] ;
 		m.rule->add_cwd(interpreter0) ;
 		AutodepLock lock{deps} ;
-		Record::Read( auditer() , interpreter0.c_str() , false/*no_follow*/ , false/*keep_real*/ , "dyn_attr_eval" ) ;
+		Record::Read( auditor() , interpreter0.c_str() , false/*no_follow*/ , false/*keep_real*/ , "dyn_attr_eval" ) ;
 		return res ;
 	}
 

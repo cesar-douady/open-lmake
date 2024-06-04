@@ -270,47 +270,55 @@ R"({
 ,	"launch" : {
 		"configurations" : [
 			{	"name"       : $name
-			,	"type"       : "python"
+			,	"type"       : "debugpy"
 			,	"request"    : "launch"
+			,	"python"     : $interpreter
+			,	"pythonArgs" : $args
 			,	"program"    : $program
 			,	"console"    : "integratedTerminal"
-			,	"cwd"        : $g_root_dir
+			,	"cwd"        : $root_dir
 			,	"subProcess" : true
 			,	"env" : {
 					$env
 				}
-
 			}
 		,	{
 				"type"      : "by-gdb"
 			,	"request"   : "attach"
 			,	"name"      : "Attach C/C++"
 			,	"program"   : $interpreter
-			,	"python"    : $interpreter
-			,	"cwd"       : $g_root_dir
+			,	"cwd"       : $root_dir
 			,	"processId" : 0
 			}
 		]
 	}
 ,	"extensions" : {
 		"recommendations" : [
-			$extensions
+			$exts
 		]
 	}
 }
 )" ;
-		::string extensions ;
+		::string exts_str ;
 		bool     first      = true ;
-		for ( auto& ext : vs_exts ) {
-			if (!first) append_to_string( extensions , "\n\t\t,\t" ) ;
-			/**/        append_to_string( extensions , '"',ext,'"' ) ;
-			first = false ;
+		for ( ::string const& ext : vs_exts ) {
+			if (first) { append_to_string( exts_str ,              mk_json_str(ext) ) ; first = false ; }
+			else         append_to_string( exts_str , "\n\t\t,\t", mk_json_str(ext) ) ;
 		}
-		res = ::regex_replace( res , ::regex("\\$extensions" ) , extensions                                             ) ;
+		::string args_str = "[" ;
+		first = true ;
+		for( auto& args : start.interpreter | ::views::drop(1) ) {
+			if (first) { append_to_string( args_str ,     mk_json_str(args) ) ; first = false ; }
+			else         append_to_string( args_str , ',',mk_json_str(args) ) ;
+		}
+		args_str += ']' ;
+		//
+		res = ::regex_replace( res , ::regex("\\$exts"       ) , exts_str                                               ) ;
 		res = ::regex_replace( res , ::regex("\\$name"       ) , mk_json_str(          j->name()                      ) ) ;
-		res = ::regex_replace( res , ::regex("\\$g_root_dir" ) , mk_json_str(          *g_root_dir                    ) ) ;
+		res = ::regex_replace( res , ::regex("\\$root_dir"   ) , mk_json_str(          *g_root_dir                    ) ) ;
 		res = ::regex_replace( res , ::regex("\\$program"    ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
 		res = ::regex_replace( res , ::regex("\\$interpreter") , mk_json_str(to_string(start.interpreter[0]          )) ) ;
+		res = ::regex_replace( res , ::regex("\\$args"       ) , args_str                                               ) ;
 		//
 		::vmap_ss env     = _mk_env(start.env,job_info.end.end.dynamic_env) ;
 		size_t    kw      = 13/*SEQUENCE_ID*/ ; for( auto&& [k,v] : env ) if (k!="TMPDIR") kw = ::max(kw,mk_json_str(k).size()) ;

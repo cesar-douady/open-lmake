@@ -24,10 +24,10 @@ struct Ctx {
 } ;
 
 struct SymbolEntry {
-	SymbolEntry( void* f , LnkSupport ls=LnkSupport::None ) : func{f} , lnk_support{ls} {}
-	void*         func        = nullptr          ;
-	LnkSupport    lnk_support = LnkSupport::None ;         // above this level of link support, we need to catch this libcall
-	mutable void* orig        = nullptr          ;
+	SymbolEntry( void* f , bool is=false ) : func{f} , is_stat{is} {}
+	void*         func    = nullptr ;
+	bool          is_stat = false   ;
+	mutable void* orig    = nullptr ;
 } ;
 static ::umap_s<SymbolEntry> const* _g_libcall_tab = nullptr ;
 
@@ -69,18 +69,12 @@ Qualify :
 
 template<class Sym> uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
 	//
-	if (g_force_orig) goto Ignore ;                                               // avoid recursion loop
-	if (*def_cook   ) goto Ignore ;                                               // cookie is used to identify libc (when cookie==0)
+	auditor() ;                     // force Audit static init
+	if (g_force_orig) goto Ignore ; // avoid recursion loop
+	if (*def_cook   ) goto Ignore ; // cookie is used to identify libc (when cookie==0)
 	//
-	{	auto it = _g_libcall_tab->find(sym_name) ;
-		if (it==_g_libcall_tab->end()) goto Ignore ;
-		//
-		auditer() ;                                                               // force Audit static init
-		SymbolEntry const& entry = it->second ;
-		if ( Record::s_autodep_env().lnk_support>=entry.lnk_support) goto Catch ;
-		if (!Record::s_autodep_env().ignore_stat                   ) goto Catch ; // we need to generate deps for stat-like accesses
-		goto Ignore ;
-	Catch :
+	{	auto               it    = _g_libcall_tab->find(sym_name) ; if ( it==_g_libcall_tab->end()                            ) goto Ignore ;
+		SymbolEntry const& entry = it->second                     ; if ( Record::s_autodep_env().ignore_stat && entry.is_stat ) goto Ignore ;
 		entry.orig = reinterpret_cast<void*>(sym->st_value) ;
 		return reinterpret_cast<uintptr_t>(entry.func) ;
 	}
@@ -92,7 +86,7 @@ Ignore :
 extern "C" {
 
 	unsigned int la_version(unsigned int /*version*/) {
-		#define LIBCALL_ENTRY(libcall) { #libcall , { reinterpret_cast<void*>(Audited::libcall) } }
+		#define LIBCALL_ENTRY(libcall,is_stat) { #libcall , { reinterpret_cast<void*>(Audited::libcall) } }
 		_g_libcall_tab = new ::umap_s<SymbolEntry>{ ENUMERATE_LIBCALLS } ;
 		#undef LIBCALL_ENTRY
 		return LAV_CURRENT ;

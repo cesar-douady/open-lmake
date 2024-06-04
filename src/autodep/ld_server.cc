@@ -28,7 +28,7 @@ void* get_orig(const char* libcall) {
 	// /!\ we must manage the guard explicitly as compiler generated guard makes syscalls, which can induce loops
 	if (!s_libcall_tab) {
 		::umap_s<void*>* prev = nullptr ;
-		#define LIBCALL_ENTRY(libcall) { #libcall , ::dlsym(RTLD_NEXT,#libcall) }
+		#define LIBCALL_ENTRY(libcall,is_stat) { #libcall , ::dlsym(RTLD_NEXT,#libcall) }
 		s_libcall_tab.compare_exchange_strong( prev , new ::umap_s<void*>{ ENUMERATE_LIBCALLS } ) ;
 		#undef LIBCALL_ENTRY
 	}
@@ -58,5 +58,5 @@ AutodepLock::~AutodepLock() {
 	Record::s_deps_err = nullptr ;
 	t_active           = false   ;
 	Record::s_access_cache->clear() ;
-	if (auditer().seen_chdir) swear_prod(::fchdir(Record::s_root_fd())==0) ; // restore cwd in case it has been modified during user Python code execution
+	if (auditor().seen_chdir) swear_prod(::fchdir(Record::s_root_fd())==0) ; // restore cwd in case it has been modified during user Python code execution
 }

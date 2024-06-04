@@ -28,6 +28,7 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* transport pdict as pdict, not dict
 * make ldebug -c fully parametrizable
 	- all vscode specific codes must be moved to the python world
 	- and put in rule attributes

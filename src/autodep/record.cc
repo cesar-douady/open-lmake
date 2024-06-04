@@ -141,8 +141,8 @@ JobExecRpcReply Record::report_sync_access( JobExecRpcReq&& jerr , bool force ) 
 }
 
 Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	SWEAR(!accesses) ;                                                             // no access to last component when no_follow
-	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir(at,file) ; // in case of overlay, create dir in the view
+	SWEAR(!accesses) ;                                                                                                                     // no access to last component when no_follow
+	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir(at,file) ;                                                         // in case of overlay, create dir in the view
 	r._report_guard( file_loc , ::move(real_write()) , ::move(c) ) ;
 }
 int Record::Chdir::operator()( Record& r , int rc , pid_t pid ) {
@@ -197,16 +197,19 @@ Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , ::string&& c ) :
 // - if it is an official target, it is not a dep, whether you declare reading it or not
 // - else, we do not compute a CRC on it and its actual content is not guaranteed. What is important in this case is that the execution of the job does not see the content.
 //
-static bool _no_follow(int flags) { return  (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )       ; }
-static bool _do_stat  (int flags) { return   flags&O_PATH      || ( (flags&O_CREAT) && (flags&O_EXCL) )       ; }
+static bool _ignore   (int flags) { return (flags&O_PATH) && Record::s_autodep_env().ignore_stat              ; }
+static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
+static bool _do_stat  (int flags) { return  flags&O_PATH      || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
 static bool _do_read  (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC) ; }
 static bool _do_write (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY                     ; }
 static bool _do_create(int flags) { return   flags&O_CREAT                                                    ; }
 //
-Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) : Solve{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , _do_create(flags) , to_string(c,::hex,'.',flags) } {
-	if ( flags&(O_DIRECTORY|O_TMPFILE)                 ) return ; // we already solved, this is enough
-	if ( (flags&O_PATH) && s_autodep_env().ignore_stat ) return ;
-	if ( file_loc>FileLoc::Dep                         ) return ; // fast path
+Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
+	Solve{ r , !_ignore(flags)?::move(path):Path() , _no_follow(flags) , _do_read(flags) , _do_create(flags) , to_string(c,::hex,'.',flags) }
+{
+	if ( !file || !file[0]             ) return ; // includes ignore_stat cases
+	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ; // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep         ) return ; // fast path
 	//
 	bool do_stat  = _do_stat (flags) ;
 	bool do_read  = _do_read (flags) ;
@@ -284,7 +287,9 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange_ ,
 	/**/            r._report_guard  ( dst.file_loc  , ::move   (dst.real) ,                        c+".dst"   ) ;
 }
 
-Record::Stat::Stat( Record& r , Path&& path , bool no_follow , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
+Record::Stat::Stat( Record& r , Path&& path , bool no_follow , ::string&& c ) :
+	Solve{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , false/*create*/ , c }
+{
 	if (!s_autodep_env().ignore_stat) r._report_dep( file_loc , ::move(real) , accesses|UserStatAccesses , ::move(c) ) ;
 }
 

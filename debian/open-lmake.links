@@ -1,6 +1,6 @@
 /usr/lib/open-lmake/bin/autodep     /usr/bin/autodep
-/usr/lib/open-lmake/bin/lforget     /usr/bin/ldebug
-/usr/lib/open-lmake/bin/ldebug      /usr/bin/lforget
+/usr/lib/open-lmake/bin/ldebug      /usr/bin/ldebug
+/usr/lib/open-lmake/bin/lforget     /usr/bin/lforget
 /usr/lib/open-lmake/bin/lmake       /usr/bin/lmake
 /usr/lib/open-lmake/bin/lmark       /usr/bin/lmark
 /usr/lib/open-lmake/bin/lshow       /usr/bin/lshow

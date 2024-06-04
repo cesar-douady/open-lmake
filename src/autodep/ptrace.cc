@@ -70,8 +70,8 @@ int/*rc*/ AutodepPtrace::s_prepare_child(void*) {
 		static SyscallDescr::Tab const& tab = SyscallDescr::s_tab() ;
 		for( long syscall=0 ; syscall<SyscallDescr::NSyscalls ; syscall++ ) {
 			SyscallDescr const& descr = tab[syscall] ;
-			if ( !descr || !descr.entry            ) continue ;                                // descr is not allocated
-			if ( !descr.data_access && ignore_stat ) continue ;                                // non stat-like access are always needed
+			if ( !descr || !descr.entry       ) continue ;                                     // descr is not allocated
+			if ( descr.is_stat && ignore_stat ) continue ;                                     // non stat-like access are always needed
 			//
 			seccomp_syscall_priority( scmp ,                                 syscall , descr.prio ) ;
 			seccomp_rule_add        ( scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0          ) ;
