@@ -11,7 +11,7 @@ namespace Caches {
 
 	struct DirCache : Cache {     // PER_CACHE : inherit from Cache and provide implementation
 		using Sz = Disk::DiskSz ;
-		static constexpr char Head[] = ADMIN_DIR ;
+		static constexpr char Head[] = "LMAKE" ; // XXX : replace with ADMIN_DIR_S
 		// services
 		virtual void config(Config::Cache const&) ;
 		//

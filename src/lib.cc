@@ -19,7 +19,7 @@ extern "C" {
 
 ::pair_ss search_root_dir(::string const& cwd_) {
 	::string root_s_dir = cwd_ ;
-	if (!root_s_dir     ) root_s_dir =           cwd()           ;
+	if (!root_s_dir            ) root_s_dir =           cwd()           ;
 	if (root_s_dir.front()!='/') root_s_dir = to_string(cwd(),'/',cwd_) ;
 	::vector_s candidates ;
 	for(; +root_s_dir ; root_s_dir = dir_name(root_s_dir) ) if (is_target(root_s_dir+"/Lmakefile.py")) candidates.push_back(root_s_dir) ;
@@ -28,17 +28,17 @@ extern "C" {
 		case 1 : root_s_dir = candidates[0] ; break ;
 		default : {
 			::vector_s candidates2 ;
-			for( ::string const& c : candidates ) if (is_dir(to_string(c,'/',AdminDir))) candidates2.push_back(c) ;
+			for( ::string const& c : candidates ) { ::string d = to_string(c,'/',AdminDirS) ; d.pop_back() ; if (is_dir(d)) candidates2.push_back(c) ; }
 			switch (candidates2.size()) {
 				case 0 : {
 					::string msg = "ambiguous root dir, disambiguate by executing one of :\n" ;
-					for( ::string const& c : candidates ) msg += to_string("\tmkdir ",c,'/',AdminDir,'\n') ;
+					for( ::string const& c : candidates ) { msg << "\tmkdir " << c << '/' << AdminDirS ; msg.pop_back() ; msg << '\n' ; }
 					throw msg ;
 				}
 				case 1 : root_s_dir = candidates2[0] ; break ;
 				default : {
 					::string msg = to_string("ambiguous root dir, disambiguate by executing ",candidates2.size()-1," of :\n") ;
-					for( ::string const& c : candidates2 ) msg += to_string("\trm -r ",c,'/',AdminDir,'\n') ;
+					for( ::string const& c : candidates2 ) { msg << "\trm -r " << c << '/' << AdminDirS ; msg.pop_back() ; msg << '\n' ; }
 					throw msg ;
 				}
 			}

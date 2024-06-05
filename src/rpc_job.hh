@@ -230,7 +230,7 @@ inline Status mk_err(Status s) {
 static const ::string EnvPassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
 static const ::string EnvDynMrkr  = {'\0','d'} ; // special illegal value to mark dynamically computed env variables
 
-static constexpr char QuarantineDirS[] = ADMIN_DIR "/quarantine/" ;
+static constexpr char QuarantineDirS[] = ADMIN_DIR_S "quarantine/" ;
 
 struct FileAction {
 	friend ::ostream& operator<<( ::ostream& , FileAction const& ) ;
@@ -843,7 +843,7 @@ struct JobInfo {
 
 namespace Codec {
 
-	static constexpr char CodecPfx[] = ADMIN_DIR "/codec/" ;
+	static constexpr char CodecPfx[] = ADMIN_DIR_S "codec/" ;
 
 	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) ;
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val  ) ;

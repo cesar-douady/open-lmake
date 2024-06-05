@@ -153,7 +153,6 @@ static bool _is_lcl_tmp( ::string const& f , ::string const& tmp_view ) {
 } ;
 
 bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s ) const {
-	static constexpr size_t AdminDirSz = sizeof(AdminDir)-1 ;                                        // -1 to account for terminating null
 	Trace trace("enter",*this,phy_root_dir,phy_tmp_dir,tmp_sz_mb,work_dir) ;
 	//
 	if (!*this) return false/*entered*/ ;
@@ -174,10 +173,9 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 	}
 	//
 	for( auto const& [view,_] : views ) {
-		if ( +tmp_view && view.starts_with(tmp_view)                                        ) continue     ;
-		if ( !is_lcl(view)                                                                  ) goto BadView ;
-		if ( !view.starts_with(AdminDir)                                                    ) continue     ;
-		if ( view.starts_with(AdminDir) && (view[AdminDirSz]=='/'||view.size()==AdminDirSz) ) goto BadView ;
+		if ( +tmp_view && view.starts_with(tmp_view) ) continue     ;
+		if ( !is_lcl(view)                           ) goto BadView ;
+		if ( (view+'/').starts_with(AdminDirS)       ) goto BadView ;
 		continue ;
 	BadView :
 		throw "cannot map "+view+" that must either be local in the repository or lie in tmp_view" ; // else we must guarantee canon after mapping, extend src_dirs to include their views, etc.

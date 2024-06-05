@@ -355,7 +355,7 @@ namespace Engine {
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
 		SWEAR(+key) ;                                                   // ensure no init problem
-		::string std_file = to_string(PrivateAdminDir,"/local_admin") ;
+		::string std_file = to_string(PrivateAdminDirS,"local_admin") ;
 		if (!user_local_admin_dir) {
 			local_admin_dir = ::move(std_file) ;
 		} else {

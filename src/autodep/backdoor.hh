@@ -13,11 +13,11 @@ using namespace Disk ;
 
 namespace Backdoor {
 
-	static constexpr char   Pfx[]  = PRIVATE_ADMIN_DIR "/backdoor/" ;
+	static constexpr char   Pfx[]  = PRIVATE_ADMIN_DIR_S "backdoor/" ;
 
-	static constexpr Fd     MagicFd     { +Fd::Cwd - 100 }               ; // any improbable negative value (to avoid conflict with real fd) will do
-	static constexpr char   MagicPfx[]  = PRIVATE_ADMIN_DIR "/backdoor/" ; // any improbable prefix will do
-	static constexpr size_t MagicPfxLen = sizeof(MagicPfx)-1             ; // -1 to account for terminating null
+	static constexpr Fd     MagicFd     { +Fd::Cwd - 100 }                ; // any improbable negative value (to avoid conflict with real fd) will do
+	static constexpr char   MagicPfx[]  = PRIVATE_ADMIN_DIR_S "backdoor/" ; // any improbable prefix will do
+	static constexpr size_t MagicPfxLen = sizeof(MagicPfx)-1              ; // -1 to account for terminating null
 
 	using Func = ::function<ssize_t/*len*/(Record&,::string const& args,char* buf,size_t sz)> ;
 

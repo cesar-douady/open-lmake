@@ -84,9 +84,9 @@ namespace Engine::Makefiles {
 	static ::string _chk_deps( ::string const& action , ::string const& startup_dir_s , NfsGuard& nfs_guard ) {        // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
-		::string   deps_file   = to_string(AdminDir,'/',action,"_deps") ;
-		Ddate      deps_date   = file_date(deps_file)                   ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
-		::ifstream deps_stream { deps_file }                            ;
+		::string   deps_file   = to_string(AdminDirS,action,"_deps") ;
+		Ddate      deps_date   = file_date(deps_file)                ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
+		::ifstream deps_stream { deps_file }                         ;
 		::string   reason      ;
 		for( ::string line ; ::getline(deps_stream,line) ;) {
 			bool exists = false/*garbage*/ ;
@@ -106,8 +106,8 @@ namespace Engine::Makefiles {
 	}
 
 	static ::string _deps_file( ::string const& action , bool new_ ) {
-		if (new_) return to_string(PrivateAdminDir,'/',action,"_new_deps") ;
-		else      return to_string(AdminDir       ,'/',action,"_deps"    ) ;
+		if (new_) return to_string(PrivateAdminDirS,action,"_new_deps") ;
+		else      return to_string(AdminDirS       ,action,"_deps"    ) ;
 	}
 
 	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {  // startup_dir_s for diagnostic purpose only
@@ -162,7 +162,7 @@ namespace Engine::Makefiles {
 		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
 		//
 		Gather   gather ;
-		::string data   = to_string(PrivateAdminDir,'/',action,"_data.py") ;
+		::string data   = to_string(PrivateAdminDirS,action,"_data.py") ;
 		gather.autodep_env.src_dirs_s = {"/"}                                                                        ;
 		gather.autodep_env.root_dir   = *g_root_dir                                                                  ;
 		gather.cmd_line               = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;

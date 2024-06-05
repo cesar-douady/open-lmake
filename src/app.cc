@@ -42,7 +42,7 @@ void app_init( Bool3 chk_version_ , bool cd_root ) {
 	//
 	::string exe = read_lnk("/proc/self/exe") ;
 	g_exe_name = new ::string{base_name(exe)} ;
-	if (!g_trace_file) g_trace_file = new ::string{to_string(PrivateAdminDir,"/trace/",*g_exe_name)} ;
+	if (!g_trace_file) g_trace_file = new ::string{to_string(PrivateAdminDirS,"trace/",*g_exe_name)} ;
 	/**/               g_lmake_dir  = new ::string{dir_name(dir_name(exe))                         } ;
 	//
 	if (chk_version_!=No)
@@ -53,9 +53,9 @@ void app_init( Bool3 chk_version_ , bool cd_root ) {
 	Trace trace("app_init",chk_version_,STR(cd_root),g_startup_dir_s?*g_startup_dir_s:""s) ;
 }
 
-void chk_version( bool may_init , ::string const& admin_dir ) {
-	::string   version_file = to_string(admin_dir,"/version") ;
-	::vector_s stored       = read_lines(version_file)        ;
+void chk_version( bool may_init , ::string const& admin_dir_s ) {
+	::string   version_file = to_string(admin_dir_s,"version") ;
+	::vector_s stored       = read_lines(version_file)         ;
 	if (+stored) {
 		if (stored.size()!=1u     ) throw to_string("bad version file ",version_file) ;
 		if (stored[0]!=VersionMrkr) {

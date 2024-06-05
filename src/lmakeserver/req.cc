@@ -33,10 +33,10 @@ namespace Engine {
 		//
 		for( int i=0 ;; i++ ) {                                                                  // try increasing resolution in file name until no conflict
 			::string lcl_log_file = "outputs/"+Pdate(New).str(i)         ;
-			::string log_file     = to_string(AdminDir,'/',lcl_log_file) ;
+			::string log_file     = to_string(AdminDirS,lcl_log_file) ;
 			if (FileInfo(log_file).tag()>=FileTag::Reg) { SWEAR(i<=9,i) ; continue ; }           // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
 			//
-			::string last = AdminDir+"/last_output"s ;
+			::string last = AdminDirS+"last_output"s ;
 			//
 			data.log_stream.open(log_file) ;
 			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                               }

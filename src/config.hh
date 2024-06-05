@@ -73,11 +73,11 @@ static constexpr uint8_t MaxCodecBits = 32 ; // if more than 32 bits, then we ne
 // Directories
 //
 
-#define ADMIN_DIR            "LMAKE"
-#define PRIVATE_ADMIN_SUBDIR "lmake"
-#define PRIVATE_ADMIN_DIR    ADMIN_DIR "/" PRIVATE_ADMIN_SUBDIR
-static constexpr char AdminDir       [] = ADMIN_DIR         ;
-static constexpr char PrivateAdminDir[] = PRIVATE_ADMIN_DIR ;
+#define ADMIN_DIR_S            "LMAKE/"
+#define PRIVATE_ADMIN_SUBDIR_S "lmake/"
+#define PRIVATE_ADMIN_DIR_S    ADMIN_DIR_S PRIVATE_ADMIN_SUBDIR_S
+static constexpr char AdminDirS       [] = ADMIN_DIR_S         ;
+static constexpr char PrivateAdminDirS[] = PRIVATE_ADMIN_DIR_S ;
 
 // END_OF_VERSIONING
 

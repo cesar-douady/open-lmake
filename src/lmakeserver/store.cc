@@ -100,7 +100,7 @@ namespace Engine::Persistent {
 	}
 
 	static void _init_config() {
-		try         { g_config = new Config{deserialize<Config>(IFStream(PrivateAdminDir+"/config_store"s))} ; }
+		try         { g_config = new Config{deserialize<Config>(IFStream(PrivateAdminDirS+"config_store"s))} ; }
 		catch (...) { g_config = new Config                                                                  ; }
 	}
 
@@ -174,8 +174,8 @@ namespace Engine::Persistent {
 	}
 
 	static void _save_config() {
-		serialize( OFStream(PrivateAdminDir+"/config_store"s) , *g_config ) ;
-		OFStream(AdminDir+"/config"s) << g_config->pretty_str() ;
+		serialize( OFStream(PrivateAdminDirS+"config_store"s) , *g_config ) ;
+		OFStream(AdminDirS+"config"s) << g_config->pretty_str() ;
 	}
 
 	static void _diff_config( Config const& old_config , bool dynamic ) {
@@ -192,7 +192,7 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate(New),STR(dynamic),STR(rescue)) ;
-		if ( !dynamic                                               ) mk_dir( AdminDir+"/outputs"s , true/*unlnk_ok*/ ) ;
+		if ( !dynamic                                               ) mk_dir( AdminDirS+"outputs"s , true/*unlnk_ok*/ ) ;
 		if ( !dynamic                                               ) _init_config() ;
 		else                                                          SWEAR(g_config->booted,*g_config) ; // we must update something
 		if (                                       g_config->booted ) config.key = g_config->key ;
@@ -534,7 +534,7 @@ namespace Engine::Persistent {
 			}
 		}
 		// user report
-		{	OFStream rules_stream{AdminDir+"/rules"s} ;
+		{	OFStream rules_stream{AdminDirS+"rules"s} ;
 			::vector<Rule> rules = rule_lst() ;
 			::sort( rules , [](Rule a,Rule b){
 				if (a->prio!=b->prio) return a->prio > b->prio ;
@@ -631,7 +631,7 @@ namespace Engine::Persistent {
 		}
 		_compile_srcs() ;
 		// user report
-		{	OFStream srcs_stream{AdminDir+"/manifest"s} ;
+		{	OFStream srcs_stream{AdminDirS+"manifest"s} ;
 			for( auto [n,t] : srcs ) srcs_stream << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
 		}
 		trace("done",srcs.size(),"srcs") ;

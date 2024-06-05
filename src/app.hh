@@ -18,7 +18,7 @@ extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, 
 /**/   void app_init( Bool3 chk_version_=Yes , bool cd_root=true ) ;                           // if chk_version_==Maybe, it is ok to initialize stored version
 inline void app_init(                          bool cd_root      ) { app_init(Yes,cd_root) ; }
 
-void chk_version( bool may_init=false , ::string const& admin_dir=AdminDir ) ;
+void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS ) ;
 inline ::string git_clean_msg() {
 	::string d ;
 	if (g_startup_dir_s) d = ' '+Disk::dir_name(Disk::mk_rel(".",*g_startup_dir_s)) ;

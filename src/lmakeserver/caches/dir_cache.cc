@@ -65,12 +65,12 @@ namespace Caches {
 		if (dct.contains("dir" )) dir =            dct.at("dir" )  ; else throw "dir not found"s  ;
 		repo   = "repo-"+::string(repo_hash.digest()) ;
 		//
-		try                     { chk_version(true/*may_init*/,to_string(dir,'/',AdminDir)) ;       }
+		try                     { chk_version(true/*may_init*/,to_string(dir,'/',AdminDirS)) ;      }
 		catch (::string const&) { throw to_string("cache version mismatch, running without ",dir) ; }
 		//
 		dir_fd = open_read(dir)                               ; dir_fd.no_std() ;       // avoid poluting standard descriptors
 		if (!dir_fd) throw to_string("cannot configure cache ",dir," : no directory") ;
-		sz = from_string_with_units<size_t>(strip(read_content(to_string(dir,'/',AdminDir,"/size")))) ;
+		sz = from_string_with_units<size_t>(strip(read_content(to_string(dir,'/',AdminDirS,"size")))) ;
 	}
 
 	// START_OF_VERSIONING

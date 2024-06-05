@@ -78,9 +78,9 @@ SeqId             g_trace_id      = 0/*garbage*/ ;
 			res[k] = ::move(v) ;
 		}
 	}
-	if      ( g_start_info.keep_tmp_dir                                                    ) g_phy_tmp_dir = to_string(g_phy_root_dir,'/',AdminDir       ,"/tmp/",g_job                ) ;
+	if      ( g_start_info.keep_tmp_dir                                                    ) g_phy_tmp_dir = to_string(g_phy_root_dir,'/',AdminDirS       ,"tmp/",g_job                ) ;
 	else if ( auto it=res.find("TMPDIR") ; it!=res.end()                                   ) g_phy_tmp_dir = to_string(it->second,'/',g_start_info.key,'/'       ,g_start_info.small_id) ;
-	else if ( g_start_info.tmp_sz_mb==Npos                                                 ) g_phy_tmp_dir = to_string(g_phy_root_dir,'/',PrivateAdminDir,"/tmp/",g_start_info.small_id) ;
+	else if ( g_start_info.tmp_sz_mb==Npos                                                 ) g_phy_tmp_dir = to_string(g_phy_root_dir,'/',PrivateAdminDirS,"tmp/",g_start_info.small_id) ;
 	if      ( +g_start_info.job_space.tmp_view && (+g_phy_tmp_dir||g_start_info.tmp_sz_mb) ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_start_info.job_space.tmp_view ;
 	else if ( +g_phy_tmp_dir                                                               ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_phy_tmp_dir                   ;
 	//
@@ -239,7 +239,7 @@ Digest analyze(Status status=Status::New) {                                     
 ::vector_s cmd_line() {
 	::vector_s cmd_line = ::move(g_start_info.interpreter) ;                                                     // avoid copying as interpreter is used only here
 	if ( g_start_info.use_script || (g_start_info.cmd.first.size()+g_start_info.cmd.second.size())>ARG_MAX/2 ) { // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		::string cmd_file = to_string(PrivateAdminDir,"/cmds/",g_start_info.small_id) ;
+		::string cmd_file = to_string(PrivateAdminDirS,"cmds/",g_start_info.small_id) ;
 		OFStream(dir_guard(cmd_file)) << g_start_info.cmd.first << g_start_info.cmd.second ;
 		cmd_line.reserve(cmd_line.size()+1) ;
 		cmd_line.push_back(::move(cmd_file)) ;
@@ -298,7 +298,7 @@ int main( int argc , char* argv[] ) {
 	g_phy_root_dir  =                     argv[6]  ; // passed early so we can chdir and trace early
 	g_trace_id      = from_string<SeqId >(argv[7]) ;
 	//
-	g_trace_file = new ::string{to_string(g_phy_root_dir,'/',PrivateAdminDir,"/trace/job_exec/",g_trace_id)} ;
+	g_trace_file = new ::string{to_string(g_phy_root_dir,'/',PrivateAdminDirS,"trace/job_exec/",g_trace_id)} ;
 	//
 	JobRpcReq end_report { JobRpcProc::End , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error, so we can goto End anytime
 	//
@@ -371,7 +371,7 @@ int main( int argc , char* argv[] ) {
 		::map_ss cmd_env ;
 		try {
 			cmd_env = prepare_env(end_report) ;
-			::string chroot_dir = to_string(PrivateAdminDir,"/chroot/",g_start_info.small_id)                                                                                ;
+			::string chroot_dir = to_string(PrivateAdminDirS,"chroot/",g_start_info.small_id)                                                                                ;
 			bool     entered    = g_start_info.job_space.enter( g_phy_root_dir , g_phy_tmp_dir , g_start_info.tmp_sz_mb , chroot_dir , g_start_info.autodep_env.src_dirs_s ) ;
 			if (entered) {
 				// find a good starting pid

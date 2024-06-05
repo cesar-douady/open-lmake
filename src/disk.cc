@@ -383,15 +383,13 @@ namespace Disk {
 
 	// /!\ : this code must be in sync with RealPath::solve
 	FileLoc RealPathEnv::file_loc(::string const& real) const {
-		static constexpr size_t AdminDirSz =sizeof(AdminDir)-1 ; // -1 to account for terminating null
 		::string root_dir_s = root_dir+'/'            ;
 		::string abs_real   = mk_abs(real,root_dir_s) ;
 		if ( abs_real.starts_with(tmp_dir) && abs_real[tmp_dir.size()]=='/' ) return FileLoc::Tmp  ;
 		if ( abs_real.starts_with("/proc/")                                 ) return FileLoc::Proc ;
 		if ( abs_real.starts_with(root_dir_s)                               ) {
-			::string lcl_real = mk_lcl(abs_real,root_dir_s) ;
-			if ( lcl_real.starts_with(AdminDir) && (lcl_real.size()==AdminDirSz||lcl_real[AdminDirSz]=='/') ) return FileLoc::Admin ;
-			else                                                                                              return FileLoc::Repo  ;
+			if ((mk_lcl(abs_real,root_dir_s)+'/').starts_with(AdminDirS)) return FileLoc::Admin ;
+			else                                                          return FileLoc::Repo  ;
 		} else {
 			::string lcl_real = mk_lcl(real,root_dir_s) ;
 			for( ::string const& sd_s : src_dirs_s )
@@ -404,11 +402,11 @@ namespace Disk {
 		SWEAR( is_abs(rpe.root_dir) , rpe.root_dir ) ;
 		SWEAR( is_abs(rpe.tmp_dir ) , rpe.tmp_dir  ) ;
 		//
-		pid           = p                                    ;
-		_env          = &rpe                                 ;
-		_admin_dir    = to_string(rpe.root_dir,'/',AdminDir) ;
-		cwd_          = ::move(cwd)                          ;
-		_root_dir_sz1 = _env->root_dir.size()+1              ;
+		pid           = p                                     ;
+		_env          = &rpe                                  ;
+		_admin_dir    = to_string(rpe.root_dir,'/',AdminDirS) ; _admin_dir.pop_back() ;
+		cwd_          = ::move(cwd)                           ;
+		_root_dir_sz1 = _env->root_dir.size()+1               ;
 		//
 		for ( ::string const& sd_s : rpe.src_dirs_s ) _abs_src_dirs_s.push_back(mk_glb(sd_s,rpe.root_dir)) ;
 	}

@@ -102,7 +102,7 @@ static pid_t _connect_to_server( bool refresh , bool sync ) {                   
 	exit(Rc::Format
 	,	"cannot connect to server, consider :\n"
 	,	kill_server_msg
-	,	to_string("\trm ",AdminDir,"/server\n")
+	,	to_string("\trm ",AdminDirS,"server\n")
 	) ;
 }
 

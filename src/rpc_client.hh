@@ -103,7 +103,7 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 
 using ReqCmdLine = CmdLine<ReqKey,ReqFlag> ;
 
-static constexpr char ServerMrkr[] = ADMIN_DIR "/server" ;
+static constexpr char ServerMrkr[] = ADMIN_DIR_S "server" ;
 
 struct ReqOptions {
 	friend ::ostream& operator<<( ::ostream& , ReqOptions const& ) ;

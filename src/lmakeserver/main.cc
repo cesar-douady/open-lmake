@@ -106,7 +106,7 @@ bool/*crashed*/ start_server(bool start) {
 }
 
 void record_targets(Job job) {
-	::string   targets_file  = AdminDir+"/targets"s ;
+	::string   targets_file  = AdminDirS+"targets"s ;
 	::vector_s known_targets ;
 	{	::ifstream targets_stream { targets_file } ;
 		::string   target         ;
@@ -433,8 +433,7 @@ int main( int argc , char** argv ) {
 	//          ^^^^^^^^^^^^^^^
 	Trace trace("main",getpid(),*g_lmake_dir,*g_root_dir) ;
 	for( int i=0 ; i<argc ; i++ ) trace("arg",i,argv[i]) ;
-	mk_dir(AdminDir       ) ;
-	mk_dir(PrivateAdminDir) ;
+	{ ::string pad = PrivateAdminDirS ; pad.pop_back() ; mk_dir(pad) ; }
 	//             vvvvvvvvvvvvvvvvvvvvvvvvvvv
 	bool crashed = start_server(true/*start*/) ;
 	//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -449,7 +448,7 @@ int main( int argc , char** argv ) {
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                                 // once we have reported we have started, lmake will send us a message to kill us
 	//
 	for( AncillaryTag tag : All<AncillaryTag> ) dir_guard(Job().ancillary_file(tag)) ;
-	mk_dir(PrivateAdminDir+"/tmp"s,true/*unlnk_ok*/) ;
+	mk_dir(PrivateAdminDirS+"tmp"s,true/*unlnk_ok*/) ;
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
@@ -462,7 +461,7 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	try                       { unlnk_inside(PrivateAdminDir+"/tmp"s) ; }               // cleanup
+	try                       { unlnk_inside(PrivateAdminDirS+"tmp"s) ; }               // cleanup
 	catch (::string const& e) { exit(Rc::System,e) ;                    }
 	//
 	trace("done",STR(interrupted),New) ;
