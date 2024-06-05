@@ -65,7 +65,7 @@ static thread_local bool                      _t_loop  = false ; // prevent recu
 // To face this order problem, we declare our Audit as a static within a funciton which will be constructed upon first call.
 // As all statics with cxtor/dxtor, we define it through new so as to avoid destruction during finalization.
 #ifndef IN_SERVER
-	static // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
+	static        // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
 #endif
 Record& auditor() {
 	static Record* s_res = new Record{New} ;
@@ -574,7 +574,8 @@ struct Mkstemp : WSolve {
 	// - so filter on s_tab must be done before locking (in HEADER)
 	// - this requires that s_tab does no memory allocation as memory allocation may call brk
 	// - hence it is a ::array, not a ::umap (which would be simpler)
-	long syscall( long n , ... ) {                                               // XXX : support, or at least detect tmp mapping
+	long syscall( long n , ... ) {                                                  // XXX : support, or at least detect tmp mapping
+		static constexpr SyscallDescr NoSyscallDescr ;
 		uint64_t args[6] ;
 		{	va_list lst ; va_start(lst,n) ;
 			args[0] = va_arg(lst,uint64_t) ;
@@ -586,7 +587,7 @@ struct Mkstemp : WSolve {
 			va_end(lst) ;
 		}
 		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab(false/*for_ptrace*/) ;
-		SyscallDescr      const& descr = tab[n]                                   ;
+		SyscallDescr      const& descr = n>=0||n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
 		HEADER(
 			syscall
 		,	false/*is_stat*/
@@ -594,9 +595,9 @@ struct Mkstemp : WSolve {
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
 		void* descr_ctx = nullptr ;
-		Ctx audit_ctx ;                                                          // save user errno when required
+		Ctx   audit_ctx ;                                                           // save user errno when required
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ; // may modify args if tmp is mapped
+		descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ;    // may modify args if tmp is mapped
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		audit_ctx.restore_errno() ;
 		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

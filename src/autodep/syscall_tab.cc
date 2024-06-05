@@ -312,7 +312,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & 
 }
 
 // XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)
-SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
+SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // /!\ this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
 	static Tab                         s_tab    = {}    ;
 	static ::atomic<bool>              s_inited = false ;              // set to true once s_tab is initialized
 	if (s_inited) return s_tab ;                                       // fast test not even taking the lock
@@ -322,7 +322,7 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) {        // this m
 	//	/!\ prio must be non-zero as zero means entry is not allocated
 	//	entries marked NFS_GUARD are deemed data access as they touch their enclosing dir and hence must be guarded against strange NFS notion of coherence
 	//	entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
-	//	                                                                                { entry          <At   ,flag      > , exit           filter,prio,is_stat  access comment             }
+	//	                                                                                { entry          <At   ,flag      > , exit           filter,prio,is_stat  access comment      }
 	#ifdef SYS_access
 		static_assert(SYS_access           <NSyscalls) ; s_tab[SYS_access           ] = { _entry_stat    <false,FlagNever > , nullptr        ,1    , 1  , true  , "Access"            } ;
 	#endif
