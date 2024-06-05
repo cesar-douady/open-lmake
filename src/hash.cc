@@ -20,46 +20,49 @@ namespace Hash {
 	}
 
 	Crc::Crc( ::string const& filename , Algo algo ) {
-		// use low level operations to ensure no time-of-check-to time-of-use hasards
+		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 		*this = None ;
 		if ( AutoCloseFd fd = ::open(filename.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
-			switch (algo) {
-				case Algo::Md5 : {
-					Md5  ctx       { FileTag::Reg } ;
-					bool has_data  = false          ;
-					char buf[4096] ;
-					for(;;) {
-						ssize_t cnt = ::read( fd , buf , sizeof(buf) ) ;
-						if      (cnt> 0) { has_data = true ; ctx.update(buf,cnt) ; }
-						else if (cnt==0) break ;
-						else switch (errno) {
-							case EAGAIN :
-							case EINTR  : continue ;
-							case EISDIR : return   ;
-							default     : throw to_string("I/O error while reading file ",filename) ;
-						}
-					}
-					if (has_data) *this = ::move(ctx).digest() ;
-					else          *this = Empty                ;
-				} break ;
-				case Algo::Xxh : {
-					Xxh  ctx       { FileTag::Reg } ;
-					bool has_data  = false          ;
-					char buf[4096] ;
-					for(;;) {
-						ssize_t cnt = ::read( fd , buf , sizeof(buf) ) ;
-						if      (cnt> 0) { has_data = true ; ctx.update(buf,cnt) ; }
-						else if (cnt==0) break ;
-						else switch (errno) {
-							case EAGAIN :
-							case EINTR  : continue ;
-							default     : throw to_string("I/O error while reading file ",filename) ;
-						}
-					}
-					if (has_data) *this = ctx.digest() ;
-					else          *this = Empty        ;
-				} break ;
-			DF}
+			FileTag tag       = FileInfo(fd).tag() ;
+			char    buf[4096] ;
+			switch (tag) {
+				case FileTag::Empty : *this = Empty ; break ;
+				case FileTag::Reg :
+				case FileTag::Exe :
+					switch (algo) {
+						case Algo::Md5 : {
+							Md5 ctx { tag } ;
+							for(;;) {
+								ssize_t cnt = ::read( fd , buf , sizeof(buf) ) ;
+								if      (cnt> 0) ctx.update(buf,cnt) ;
+								else if (cnt==0) break ;
+								else switch (errno) {
+									case EAGAIN :
+									case EINTR  : continue ;
+									case EISDIR : return   ;
+									default     : throw to_string("I/O error while reading file ",filename) ;
+								}
+							}
+							*this = ::move(ctx).digest() ;
+						} break ;
+						case Algo::Xxh : {
+							Xxh ctx { tag } ;
+							for(;;) {
+								ssize_t cnt = ::read( fd , buf , sizeof(buf) ) ;
+								if      (cnt> 0) ctx.update(buf,cnt) ;
+								else if (cnt==0) break ;
+								else switch (errno) {
+									case EAGAIN :
+									case EINTR  : continue ;
+									default     : throw to_string("I/O error while reading file ",filename) ;
+								}
+							}
+							*this = ctx.digest() ;
+						} break ;
+					DF}
+				break ;
+				default : ;
+			}
 		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
 			switch (algo) { //!                            vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
 				case Algo::Md5 : { Md5 ctx{FileTag::Lnk} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ;
@@ -69,6 +72,7 @@ namespace Hash {
 	}
 
 	Crc::operator ::string() const {
+		if ( CrcSpecial special=CrcSpecial(*this) ; special<CrcSpecial::Plain ) return ::string(snake(special)) ;
 		::string res ; res.reserve(sizeof(_val)*2) ;
 		for( size_t i=0 ; i<sizeof(_val) ; i++ ) {
 			uint8_t b = _val>>(i*8) ;

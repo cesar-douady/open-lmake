@@ -855,7 +855,7 @@ However this theoretical computation assumes that XXH is nearly perfect, which s
 a particular data set that may be far from random and from the actual data set used to evaluate XXH.
 In the very improbable case where your data set would be particularly unfriendly with XXH, @lmake will crash with an error rather than silently forgetting to rerun a job.
 
-@code{xxhsum} allow you to generate the checksum of a file.
+@code{xxhsum} allow you to generate the checksum of a file, as distingued by @lmake.
 
 Because @lmake handles symbolic links as themselves and not as the file they point to (i.e. @lmake works in the physical world), @code{xxhsum} does not follow symbolic links.
 The checksum generated for a symbolic link is computed after the link (not the content of the file it refers to)
@@ -863,6 +863,14 @@ and such checksums do not clash with regular files with the same content (a diff
 
 Also, the execute permission bit is also used to compute the checksum of regular files.
 @lmake does not handle security bits (read and write permissions), but the execute bit is a semantic bit (possibly in addition to security) and thus is managed by @lmake.
+
+Directories and other awkward files (i.e. neither a regular file or a symbolic link) are handled as if they did not exist.
+
+The following special cases produce dedicated outputs :
+@itemize
+@item file does not exist : output is @code{'none'}
+@item file is empty       : output is @code{'empty'}
+@end itemize
 
 @section @code{lrepair}
 

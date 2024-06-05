@@ -429,7 +429,7 @@ namespace Engine {
 			return crc.match( dd.crc() , full?~Accesses():dd.accesses ) ;
 		}
 		//
-		Manual manual_wash( ReqInfo& ri , bool query , bool dangling=false ) ;
+		Manual manual_wash( ReqInfo& ri , bool query , bool dangling ) ;
 		//
 		void mk_old   (                        ) ;
 		void mk_src   (Buildable=Buildable::Src) ;
@@ -507,7 +507,7 @@ namespace Engine {
 	public :
 		MatchGen  match_gen:NMatchGenBits = 0                  ; //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4             = Buildable::Unknown ; //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		bool      polluted :1             = false              ; //          1 bit ,          if true <=  node was polluted produced by a non-official job or badly produced by official job
+		bool      polluted :1             = false              ; //          1 bit ,          if true <= node was produced by a non-official job or badly produced by official job
 	private :
 		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		Tflags  _actual_tflags ;                                 //          8 bits,          tflags associated with actual_job

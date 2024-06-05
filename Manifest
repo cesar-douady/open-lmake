@@ -180,6 +180,7 @@ unit_tests/dangling.py
 unit_tests/depend.py
 unit_tests/depend2.py
 unit_tests/depend_verbose.py
+unit_tests/depend_verbose2.py
 unit_tests/dup.py
 unit_tests/dyn_accesses.py
 unit_tests/dynamic.py
