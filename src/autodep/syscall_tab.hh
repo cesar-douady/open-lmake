@@ -16,6 +16,7 @@ struct SyscallDescr {
 	constexpr bool operator+() const { return prio    ; } // prio=0 means entry is not allocated
 	constexpr bool operator!() const { return !+*this ; }
 	// data
+	// /!\ there must be no memory allocation nor cxtor/dxtor as this must be statically allocated when malloc is not available
 	void           (*entry)( void*& , Record& , pid_t , uint64_t args[6] , const char* comment ) = nullptr ;
 	int64_t/*res*/ (*exit )( void*  , Record& , pid_t , int64_t res                            ) = nullptr ;
 	int            filter                                                                        = 0       ; // argument to filter on when known to require no processing

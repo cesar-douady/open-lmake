@@ -248,7 +248,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & 
 }
 
 // XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)
-SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
+SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // /!\ this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
 	static Tab                         s_tab    = {}    ;
 	static ::atomic<bool>              s_inited = false ;              // set to true once s_tab is initialized
 	if (s_inited) return s_tab ;                                       // fast test not even taking the lock

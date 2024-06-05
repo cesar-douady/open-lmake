@@ -601,6 +601,7 @@ struct Mkstemp : WSolve {
 	// - this requires that s_tab does no memory allocation as memory allocation may call brk
 	// - hence it is a ::array, not a ::umap (which would be simpler)
 	long syscall( long n , ... ) {
+		static constexpr SyscallDescr NoSyscallDescr ;
 		uint64_t args[6] ;
 		{	va_list lst ; va_start(lst,n) ;
 			args[0] = va_arg(lst,uint64_t) ;
@@ -612,7 +613,7 @@ struct Mkstemp : WSolve {
 			va_end(lst) ;
 		}
 		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab() ;
-		SyscallDescr      const& descr = tab[n]                ;
+		SyscallDescr      const& descr = n>=0||n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
 		HEADER(
 			syscall
 		,	false/*is_stat*/
