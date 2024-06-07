@@ -128,10 +128,10 @@ else :
 		print('dut_exe_content',file=f)
 
 	print("autodep='ld_preload'",file=open('step.py','w'))
-	res = ut.lmake( 'lnk_dut.ok' , 'cp_dut.ok' , 'touch_dut.ok' , 'exec_dut.ok' , new=4 , may_rerun=... , rerun=... , done=... , steady=... )
-	assert 1<=res['may_rerun']+res['rerun'] and res['may_rerun']+res['rerun']<=4
-	assert res['done']+res['steady']==9
+	cnts = ut.lmake( 'lnk_dut.ok' , 'cp_dut.ok' , 'touch_dut.ok' , 'exec_dut.ok' , new=4 , may_rerun=... , rerun=... , done=... , steady=... )
+	assert 1<=cnts.may_rerun+cnts.rerun and cnts.may_rerun+cnts.rerun<=4
+	assert cnts.done+cnts.steady==9
 
 	if lmake.has_ld_audit :
 		print("autodep='ld_audit'",file=open('step.py','w'))
-		res = ut.lmake( 'lnk_dut.ok' , 'cp_dut.ok' , 'touch_dut.ok' , 'exec_dut.ok' , new=0 , steady=4 )
+		ut.lmake( 'lnk_dut.ok' , 'cp_dut.ok' , 'touch_dut.ok' , 'exec_dut.ok' , new=0 , steady=4 )

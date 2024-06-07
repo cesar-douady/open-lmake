@@ -61,9 +61,9 @@ namespace Caches {
 		::map_ss dct = mk_map(config.dct) ;
 		//
 		Hash::Xxh repo_hash ;
-		if (dct.contains("repo")) repo_hash.update(dct.at("repo")) ; else throw "repo not found"s ;
-		if (dct.contains("dir" )) dir =            dct.at("dir" )  ; else throw "dir not found"s  ;
-		repo   = "repo-"+::string(repo_hash.digest()) ;
+		if (dct.contains("repo")) repo_hash.update(dct.at("repo"))            ; else throw "repo not found"s ;
+		if (dct.contains("dir" )) dir  =           dct.at("dir" )             ; else throw "dir not found"s  ;
+		/**/                      repo = "repo-"+::string(repo_hash.digest()) ;
 		//
 		try                     { chk_version(true/*may_init*/,to_string(dir,'/',AdminDirS)) ;      }
 		catch (::string const&) { throw to_string("cache version mismatch, running without ",dir) ; }

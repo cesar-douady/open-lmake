@@ -360,7 +360,7 @@ namespace Engine {
 			local_admin_dir = ::move(std_file) ;
 		} else {
 			local_admin_dir = to_string(user_local_admin_dir,'/',key+"-la") ;
-			::string lnk_target   = mk_rel( local_admin_dir , dir_name(std_file)+'/' ) ;
+			::string lnk_target   = mk_rel( local_admin_dir , dir_name_s(std_file) ) ;
 			if (read_lnk(std_file)!=lnk_target) {
 				unlnk( std_file , true/*dir_ok*/ ) ;
 				lnk  ( std_file , lnk_target     ) ;

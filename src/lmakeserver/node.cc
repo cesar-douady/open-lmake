@@ -410,8 +410,8 @@ namespace Engine {
 			case Buildable::SubSrc    :
 			case Buildable::SubSrcDir :
 				switch (dir()->status()) {
-					case NodeStatus::Transcient :                              goto Transcient ;        // forward
-					case NodeStatus::Uphill     : status(NodeStatus::Uphill) ; goto NoSrc      ;        // .
+					case NodeStatus::Transient :                              goto Transient ;          // forward
+					case NodeStatus::Uphill    : status(NodeStatus::Uphill) ; goto NoSrc     ;          // .
 					default : ;
 				}
 			break ;
@@ -429,7 +429,7 @@ namespace Engine {
 			case Buildable::DynSrc :
 			case Buildable::Src    :
 			DirSrc :
-				if (dir()->crc.is_lnk()) goto Transcient ;                                              // our dir is a link, we are transcient
+				if (dir()->crc.is_lnk()) goto Transient ;                                               // our dir is a link, we are transient
 				status(NodeStatus::Uphill) ;                                                            // a non-existent source stays a source, hence its sub-files are uphill
 				goto NoSrc ;
 		DF}
@@ -450,9 +450,9 @@ namespace Engine {
 			/**/                                 goto DoneDsk ;                                         // sources are always done on disk, as it is by probing it that we are done
 		}
 		FAIL() ;
-	Transcient :
-		{	refresh(Crc::Unknown) ;                                                                     // if depending on a transcient node, a job must be rerun in all cases
-			status(NodeStatus::Transcient) ;
+	Transient :
+		{	refresh(Crc::Unknown) ;                                                                     // if depending on a transient node, a job must be rerun in all cases
+			status(NodeStatus::Transient) ;
 			actual_job() = {} ;
 			goto DoneDsk ;
 		}
@@ -650,13 +650,13 @@ namespace Engine {
 
 	void NodeData::_propag_speculate(ReqInfo const& cri) const {
 		switch (status()) {
-			case NodeStatus::Uphill     :
-			case NodeStatus::Transcient : { Node n = dir()             ;         n->propag_speculate( cri.req , cri.speculate ) ; } break ;
-			case NodeStatus::Plain      : { Job  j = conform_job_tgt() ;         j->propag_speculate( cri.req , cri.speculate ) ; } break ;
-			case NodeStatus::Multi      : { for( Job j : conform_job_tgts(cri) ) j->propag_speculate( cri.req , cri.speculate ) ; } break ;
-			case NodeStatus::Unknown    :                                                                                           break ; // node is not built, nowhere to propagate
+			case NodeStatus::Uphill    :
+			case NodeStatus::Transient : { Node n = dir()             ;         n->propag_speculate( cri.req , cri.speculate ) ; } break ;
+			case NodeStatus::Plain     : { Job  j = conform_job_tgt() ;         j->propag_speculate( cri.req , cri.speculate ) ; } break ;
+			case NodeStatus::Multi     : { for( Job j : conform_job_tgts(cri) ) j->propag_speculate( cri.req , cri.speculate ) ; } break ;
+			case NodeStatus::Unknown   :                                                                                           break ; // node is not built, nowhere to propagate
 			default :
-				SWEAR(status()<NodeStatus::Uphill,status()) ;                                                                               // ensure we have not forgotten a case
+				SWEAR(status()<NodeStatus::Uphill,status()) ;                                                                              // ensure we have not forgotten a case
 		}
 	}
 

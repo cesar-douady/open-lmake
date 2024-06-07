@@ -30,13 +30,13 @@ using namespace Hash ;
 	bool     ok        = true ;
 	//
 	Trace trace("do_file_actions",pre_actions) ;
-	for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
-		SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
+	for( auto const& [f,a] : pre_actions ) {          // pre_actions are adequately sorted
+		SWEAR(+f) ;                                   // acting on root dir is non-sense
 		switch (a.tag) {
 			case FileActionTag::None  :
 			case FileActionTag::Unlnk : {
 				FileSig sig { nfs_guard.access(f) } ;
-				if (!sig) break ;                                                                                                   // file does not exist, nothing to do
+				if (!sig) break ;                     // file does not exist, nothing to do
 				bool done = true/*garbage*/ ;
 				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ;
 				if (quarantine) {
@@ -56,8 +56,13 @@ using namespace Hash ;
 			case FileActionTag::Mkdir    : mk_dir(f,nfs_guard) ;                                                                    break ;
 			case FileActionTag::Rmdir    :
 				if (!keep_dirs.contains(f))
-					try                     { rmdir(nfs_guard.change(f)) ;                                                        }
-					catch (::string const&) { for( ::string d=f ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ; } // if a dir cannot rmdir'ed, no need to try those uphill
+					try {
+						rmdir(nfs_guard.change(f)) ;
+					} catch (::string const&) {       // if a dir cannot rmdir'ed, no need to try those uphill
+						keep_dirs.insert(f) ;
+						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )
+							if (!keep_dirs.insert(no_slash(d_s)).second) break ;
+					}
 			break ;
 		DF}
 	}

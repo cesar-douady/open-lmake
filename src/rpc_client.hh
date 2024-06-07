@@ -59,7 +59,7 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	Deps            // if proc==         Forget                      , forget deps
 ,	Enter           // if proc== Debug                               , generate script to enter into job view w/o executing it
 ,	Force           // if proc==                         Mark        , act if doable, even if awkward
-,	ForgetOldErrors // if proc==                  Make               , assume old errors are transcient
+,	ForgetOldErrors // if proc==                  Make               , assume old errors are transient
 ,	Freeze          // if proc==                         Mark        , prevent job rebuild
 ,	Graphic         // if proc== Debug                          Show , use GUI to show debug script
 ,	Vscode          // if proc== Debug                          Show , use Vscode GUI to show debug script

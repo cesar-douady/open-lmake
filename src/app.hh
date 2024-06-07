@@ -21,7 +21,7 @@ inline void app_init(                          bool cd_root      ) { app_init(Ye
 void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS ) ;
 inline ::string git_clean_msg() {
 	::string d ;
-	if (g_startup_dir_s) d = ' '+Disk::dir_name(Disk::mk_rel(".",*g_startup_dir_s)) ;
+	if (+*g_startup_dir_s) d = ' '+Disk::dir_name(Disk::mk_rel(".",*g_startup_dir_s)) ;
 	return "consider : git clean -ffdx"+d ;
 }
 

@@ -96,7 +96,7 @@ ENUM_3( JobReasonTag                                // see explanations in table
 ,	PrevTarget
 ,	ClashTarget
 ,	DepOutOfDate
-,	DepTranscient
+,	DepTransient
 ,	DepUnlnked
 ,	DepUnstable
 //	with error
@@ -127,7 +127,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"target previously existed"                     // PrevTarget
 ,	"multiple simultaneous writes"                  // ClashTarget
 ,	"dep out of date"                               // DepOutOfDate
-,	"dep dir is a symbolic link"                    // DepTranscient
+,	"dep dir is a symbolic link"                    // DepTransient
 ,	"dep not on disk"                               // DepUnlnked
 ,	"dep changed during job execution"              // DepUnstable
 //	with error
@@ -159,7 +159,7 @@ static constexpr uint8_t JobReasonTagPrios[] = {
 ,	21                                              // PrevTarget
 ,	22                                              // ClashTarget
 ,	40                                              // DepOutOfDate
-,	41                                              // DepTranscient
+,	41                                              // DepTransient
 ,	41                                              // DepUnlnked
 ,	41                                              // DepUnstable
 //	with error, must be higher than ok reasons

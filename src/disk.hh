@@ -35,11 +35,11 @@ ENUM_1(FileLoc
 ,	Dep = SrcDir // <=Dep means that file must be reported as a dep
 ,	Repo
 ,	SrcDir       // file has been found in source dirs
-,	Root          // file is the root dir
+,	Root         // file is the root dir
 ,	Tmp
-,	Proc          // file is in /proc
+,	Proc         // file is in /proc
 ,	Admin
-,	Ext           // all other cases
+,	Ext          // all other cases
 ,	Unknown
 )
 
@@ -47,9 +47,58 @@ namespace Disk {
 	using Ddate  = Time::Ddate ;
 	using DiskSz = uint64_t    ;
 
-	bool     is_canon (::string const&) ;
-	::string dir_name (::string const&) ;
-	::string base_name(::string const&) ;
+	//
+	// path name library
+	//
+	// file  : a name not      ending with /
+	// dir_s : a name          ending with /
+	// path  : a name possibly ending with /
+
+	bool is_canon(::string const&) ;
+	//
+	inline bool     has_dir   (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos                                             ; }
+	inline ::string dir_name  (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(0    ,sep  ) : throw "no dir" ; }
+	inline ::string dir_name_s(::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(0    ,sep+1) : ::string()     ; }
+	inline ::string base_name (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(sep+1      ) : path           ; }
+
+	inline ::string no_slash(::string     && dir_s) { dir_s.pop_back() ; return ::move(dir_s) ; }
+	inline ::string no_slash(::string const& dir_s) { return no_slash(::copy(dir_s)) ;          }
+
+	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
+	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
+	//
+	inline bool   is_lcl_s    (::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ;                          }
+	inline bool   is_lcl      (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ;                          }
+	inline size_t uphill_lvl_s(::string const& name_s) { SWEAR(!is_abs_s(name_s)) ; size_t l ; for( l=0 ; name_s.substr(3*l,3)=="../" ; l++ ) {} return l ; }
+	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                   }
+
+	/**/   ::string mk_lcl( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
+	/**/   ::string mk_glb( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
+	inline ::string mk_abs( ::string const& file , ::string const& dir_s ) { // return file (passed as from dir_s       ) as absolute
+		SWEAR( is_abs_s(dir_s) , dir_s ) ;
+		return mk_glb(file,dir_s) ;
+	}
+	inline ::string mk_rel( ::string const& file , ::string const& dir_s ) {
+		if (is_abs(file)==is_abs_s(dir_s)) return mk_lcl(file,dir_s) ;
+		else                               return file               ;
+	}
+
+	// manage strings containing file markers so as to be localized when displayed to user
+	// file format is : FileMrkr + file length + file
+	static constexpr char FileMrkr = 0 ;
+	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) ;  // not meant to be used directly
+	inline ::string localize( ::string const& txt , ::string const& dir_s={} ) {
+		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return           txt            ; // fast path : avoid calling localize
+		else                                               return _localize(txt,dir_s,pos) ;
+	}
+	inline ::string localize( ::string&& txt , ::string const& dir_s={} ) {
+		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return ::move   (txt          ) ; // fast path : avoid copy
+		else                                               return _localize(txt,dir_s,pos) ;
+	}
+
+	//
+	// disk access library
+	//
 
 	struct FileSig ;
 
@@ -103,7 +152,7 @@ namespace Disk {
 		FileTag tag      () const { return FileTag(_val&lsb_msk(NBits<FileTag>)) ; }
 		// data
 	private :
-		uint64_t _val = 0 ; // by default, no file
+		uint64_t _val = 0 ;                            // by default, no file
 	} ;
 
 	inline FileSig FileInfo::sig() const { return FileSig(*this) ; }
@@ -134,15 +183,15 @@ namespace Disk {
 		}
 		// cxtors & casts
 	public :
-		NfsGuard(bool rd=false) : reliable_dirs{rd} {}                   // if dirs are not reliable, i.e. close to open coherence does not encompass uphill dirs ...
-		~NfsGuard() { close() ; }                                        // ... uphill dirs must must be open/close to force reliable access to files and their inodes
+		NfsGuard(bool rd=false) : reliable_dirs{rd} {}                                    // if dirs are not reliable, i.e. close to open coherence does not encompass uphill dirs ...
+		~NfsGuard() { close() ; }                                                         // ... uphill dirs must must be open/close to force reliable access to files and their inodes
 		//service
-		::string const& access(::string const& file) {                   // return file, must be called before any access to file or its inode if not sure it was produced locally
-			if ( !reliable_dirs && +file ) _access_dir(dir_name(file)) ;
+		::string const& access(::string const& file) {                                    // return file, must be called before any access to file or its inode if not sure it was produced locally
+			if ( !reliable_dirs && +file && has_dir(file) ) _access_dir(dir_name(file)) ;
 			return file ;
 		}
-		::string const& change(::string const& file) {                   // must be called before any modif to file or its inode if not sure it was produced locally
-			if ( !reliable_dirs && +file ) {
+		::string const& change(::string const& file) {                                    // must be called before any modif to file or its inode if not sure it was produced locally
+			if ( !reliable_dirs && +file && has_dir(file) ) {
 				::string dir = dir_name(file) ;
 				_access_dir(dir) ;
 				to_stamp_dirs.insert(::move(dir)) ;
@@ -150,14 +199,14 @@ namespace Disk {
 			return file ;
 		}
 		void close() {
-			SWEAR( !to_stamp_dirs || !reliable_dirs ) ;                  // cannot record dirs to stamp if reliable_dirs
-			for( ::string const& d : to_stamp_dirs ) _s_protect(d) ;     // close to force NFS close to open cohenrence, open is useless
+			SWEAR( !to_stamp_dirs || !reliable_dirs ) ;                                   // cannot record dirs to stamp if reliable_dirs
+			for( ::string const& d : to_stamp_dirs ) _s_protect(d) ;                      // close to force NFS close to open cohenrence, open is useless
 			to_stamp_dirs.clear() ;
 		}
 	private :
 		void _access_dir(::string const& dir) {
-			access(dir) ;                                                // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
-			if (fetched_dirs.insert(dir).second) _s_protect(dir) ;       // open to force NFS close to open coherence, close is useless
+			access(dir) ;                                                                 // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
+			if (fetched_dirs.insert(dir).second) _s_protect(dir) ;                        // open to force NFS close to open coherence, close is useless
 		}
 		// data
 	public :
@@ -241,37 +290,6 @@ namespace Disk {
 		else               return res ;
 	}
 
-	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
-	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
-	//
-	inline bool   is_lcl_s    (::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ;                          }
-	inline bool   is_lcl      (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ;                          }
-	inline size_t uphill_lvl_s(::string const& name_s) { SWEAR(!is_abs_s(name_s)) ; size_t l ; for( l=0 ; name_s.substr(3*l,3)=="../" ; l++ ) {} return l ; }
-	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                   }
-	//
-	/**/   ::string mk_lcl( ::string const& file , ::string const& dir_s ) ;          // return file (passed as from dir_s origin) as seen from dir_s
-	/**/   ::string mk_glb( ::string const& file , ::string const& dir_s ) ;          // return file (passed as from dir_s       ) as seen from dir_s origin
-	inline ::string mk_abs( ::string const& file , ::string const& dir_s ) {          // return file (passed as from dir_s       ) as absolute
-		SWEAR( is_abs_s(dir_s) , dir_s ) ;
-		return mk_glb(file,dir_s) ;
-	}
-	inline ::string mk_rel( ::string const& file , ::string const& dir_s ) {
-		if (is_abs(file)==is_abs_s(dir_s)) return mk_lcl(file,dir_s) ;
-		else                               return file               ;
-	}
-
-	// manage strings containing file markers so as to be localized when displayed to user
-	// file format is : FileMrkr + file length + file
-	static constexpr char FileMrkr = 0 ;
-	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) ;  // not meant to be used directly
-	inline ::string localize( ::string const& txt , ::string const& dir_s={} ) {
-		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return           txt            ; // fast path : avoid calling localize
-		else                                               return _localize(txt,dir_s,pos) ;
-	}
-	inline ::string localize( ::string&& txt , ::string const& dir_s={} ) {
-		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return ::move   (txt          ) ; // fast path : avoid copy
-		else                                               return _localize(txt,dir_s,pos) ;
-	}
 	inline ::string mk_file( ::string const& f , Bool3 exists=Maybe ) {
 		::string pfx(1+sizeof(FileNameIdx),FileMrkr) ;
 		encode_int<FileNameIdx>(&pfx[1],f.size()) ;
@@ -306,8 +324,8 @@ namespace Disk {
 		// services
 		FileLoc file_loc(::string const& file) const ;
 		// data
-		LnkSupport lnk_support   = LnkSupport::Full ;                     // by default, be pessimistic
-		bool       reliable_dirs = false            ;                     // if true => dirs coherence is enforced when files are updated (unlike NFS)
+		LnkSupport lnk_support   = LnkSupport::Full ; // by default, be pessimistic
+		bool       reliable_dirs = false            ; // if true => dirs coherence is enforced when files are updated (unlike NFS)
 		::string   root_dir      = {}               ;
 		::string   tmp_dir       = {}               ;
 		::vector_s src_dirs_s    = {}               ;

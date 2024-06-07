@@ -47,15 +47,15 @@ else :
 	print('',file=open('codec_file','w'))
 
 	ut.lmake( 'codec_sh.ok' , 'codec_py.ok' , refresh=1   , new=1 , done=4 )
-#	ut.lmake( 'codec_sh'    , 'codec_py.ok' , refresh=... , changed=...    ) # check nothing is remade, refresh & changed may be 0 or 1
-#
-#	os.unlink('codec_sh')
-#	os.unlink('codec_py')
-#
-#	ut.lmake( 'codec_sh' , 'codec_py' , changed=... , steady=2 )
-#
-#	print(file=open('codec_file','a'))
-#	ut.lmake( 'codec_sh' , 'codec_py' , refresh=1 , changed=1 )
-#
-#	print(r' ctx py codec_py\n',file=open('codec_file','a'))
-#	ut.lmake( 'codec_sh' , 'codec_py' , refresh=1 , changed=... , done=1 ) # changed may be 1 or 2, its ok
+	ut.lmake( 'codec_sh'    , 'codec_py.ok' , refresh=... , changed=...    ) # check nothing is remade, refresh & changed may be 0 or 1
+
+	os.unlink('codec_sh')
+	os.unlink('codec_py')
+
+	ut.lmake( 'codec_sh' , 'codec_py' , changed=... , steady=2 )
+
+	print(file=open('codec_file','a'))
+	ut.lmake( 'codec_sh' , 'codec_py' , refresh=1 , changed=1 )
+
+	print(r' ctx py codec_py\n',file=open('codec_file','a'))
+	ut.lmake( 'codec_sh' , 'codec_py' , refresh=1 , changed=... , done=1 ) # changed may be 1 or 2, its ok

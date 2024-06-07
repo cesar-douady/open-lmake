@@ -21,6 +21,10 @@ ENUM( CanonState
 
 namespace Disk {
 
+	//
+	// path name library
+	//
+
 	bool is_canon(::string const& name) {
 		bool       accept_dot_dot = true              ;
 		CanonState state          = CanonState::First ;
@@ -58,6 +62,56 @@ namespace Disk {
 		DF}
 		return true ;
 	}
+
+	::string mk_lcl( ::string const& file , ::string const& dir_s ) {
+		SWEAR( is_abs(file) == is_abs_s(dir_s) , file , dir_s ) ;
+		SWEAR( !dir_s || dir_s.back()=='/'     ,        dir_s ) ;
+		size_t last_slash1 = 0 ;
+		for( size_t i=0 ; i<file.size() ; i++ ) {
+			if (file[i]!=dir_s[i]) break ;
+			if (file[i]=='/'     ) last_slash1 = i+1 ;
+		}
+		::string res ;
+		for( char c : ::string_view(dir_s).substr(last_slash1) ) if (c=='/') res += "../" ;
+		res += ::string_view(file).substr(last_slash1) ;
+		return res ;
+	}
+
+	::string mk_glb( ::string const& file , ::string const& dir_s ) {
+		if (is_abs(file)) return file ;
+		::string_view d_sv = dir_s ;
+		::string_view f_v  = file  ;
+		for(; f_v.starts_with("../") ; f_v = f_v.substr(3) ) {
+			SWEAR(+d_sv) ;
+			d_sv = d_sv.substr(0,d_sv.size()-1) ;                                         // suppress ending /
+			size_t last_slash = d_sv.rfind('/') ;
+			if (last_slash==Npos) { SWEAR(+d_sv) ; d_sv = d_sv.substr(0,0           ) ; }
+			else                  {                d_sv = d_sv.substr(0,last_slash+1) ; } // keep new ending /
+		}
+		return to_string(d_sv,f_v) ;
+	}
+
+	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) {
+		size_t   pos = first_file        ;
+		::string res = txt.substr(0,pos) ;
+		while (pos!=Npos) {
+			pos++ ;                                                  // clobber marker
+			SWEAR(txt.size()>=pos+sizeof(FileNameIdx)) ;             // ensure we have enough room to find file length
+			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ;
+			pos += sizeof(FileNameIdx) ;                             // clobber file length
+			SWEAR(txt.size()>=pos+len) ;                             // ensure we have enough room to read file
+			res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ;
+			pos += len ;
+			size_t new_pos = txt.find(FileMrkr,pos) ;
+			res += txt.substr(pos,new_pos-pos) ;
+			pos  = new_pos ;
+		}
+		return res ;
+	}
+
+	//
+	// disk access library
+	//
 
 	vector_s lst_dir( Fd at , ::string const& dir , ::string const& prefix ) {
 		Fd dir_fd = at ;
@@ -106,25 +160,26 @@ namespace Disk {
 		const char*   msg = nullptr      ;
 		struct ::stat st  ;
 		{
-			int     src     = ::fstatat(at,f,&st,AT_SYMLINK_NOFOLLOW)                ; if (src<0         )                                     return false/*done*/ ;
-			/**/                                                                       if (st.st_nlink<=1)                                     return false/*done*/ ;
-			int     rfd     = ::openat(at,f,O_RDONLY|O_NOFOLLOW)                     ; if (rfd<0         ) { msg = "cannot open for reading" ; goto Bad             ; }
-			void*   content = ::mmap(nullptr,st.st_size,PROT_READ,MAP_PRIVATE,rfd,0) ; if (!content      ) { msg = "cannot map"              ; goto Bad             ; }
-			int     urc     = ::unlinkat(at,f,0)                                     ; if (urc<0         ) { msg = "cannot unlink"           ; goto Bad             ; }
-			int     wfd     = ::openat(at,f,O_WRONLY|O_CREAT,st.st_mode&07777)       ; if (wfd<0         ) { msg = "cannot open for writing" ; goto Bad             ; }
-			ssize_t cnt     = 0/*garbage*/                                           ;
+			int         src = ::fstatat(at,f,&st,AT_SYMLINK_NOFOLLOW)            ; if (src!=0        )                                     return false/*done*/ ;
+			/**/                                                                   if (st.st_nlink<=1)                                     return false/*done*/ ;
+			AutoCloseFd rfd = ::openat  (at,f,O_RDONLY|O_NOFOLLOW)               ; if (!rfd          ) { msg = "cannot open for reading" ; goto Bad             ; }
+			int         urc = ::unlinkat(at,f,0)                                 ; if (urc!=0        ) { msg = "cannot unlink"           ; goto Bad             ; }
+			AutoCloseFd wfd = ::openat  (at,f,O_WRONLY|O_CREAT,st.st_mode&07777) ; if (!wfd          ) { msg = "cannot open for writing" ; goto Bad             ; }
 			//
-			for( off_t pos=0 ; pos<st.st_size ; pos+=cnt ) {
-				cnt = ::write( wfd , reinterpret_cast<char const*>(content)+cnt , st.st_size-pos)  ;
-				if (cnt<=0) throw to_string("cannot write to ",file) ;
+			for(;;) {
+				char    buf[4096] ;
+				ssize_t read_cnt  = ::read( rfd , buf , sizeof(buf) ) ;
+				if (read_cnt==0) break ;
+				if (read_cnt<0 ) throw "cannot read "+file ;
+				ssize_t write_cnt = 0/*garage*/ ;
+				for( ssize_t pos=0 ; pos<read_cnt ; pos+=write_cnt ) {
+					write_cnt = ::write( wfd , buf+pos , read_cnt-pos ) ;
+					if (write_cnt<=0) throw "cannot write to "+file ;
+				}
 			}
-			//
 			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , st.st_mtim } ;
 			::futimens(wfd,times) ;                                                         // maintain original date
 			//
-			::close(wfd) ;
-			::munmap(content,st.st_size) ;
-			::close(rfd) ;
 			return true/*done*/ ;
 		}
 	Bad :
@@ -190,24 +245,24 @@ namespace Disk {
 	static size_t/*pos*/ _mk_dir( Fd at , ::string const& dir , NfsGuard* nfs_guard , bool unlnk_ok ) {
 		::vector_s  to_mk { dir }              ;
 		const char* msg   = nullptr            ;
-		size_t      res   = dir[0]=='/'?0:Npos ;                                                        // return the pos of the / between existing and new components
+		size_t      res   = dir[0]=='/'?0:Npos ;                                             // return the pos of the / between existing and new components
 		while (+to_mk) {
-			::string const& d = to_mk.back() ;                                                          // parents are after children in to_mk
+			::string const& d = to_mk.back() ;                                               // parents are after children in to_mk
 			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d) ; }
 			if (::mkdirat(at,d.c_str(),0777)==0) {
 				res++ ;
 				to_mk.pop_back() ;
 				continue ;
-			}                                                                                           // done
+			}                                                                                // done
 			switch (errno) {
 				case EEXIST :
-					if ( unlnk_ok && !is_dir(at,d) )   unlnk(at,d)      ;                               // retry
-					else                             { to_mk.pop_back() ; res = d.size() ; }            // done
+					if ( unlnk_ok && !is_dir(at,d) )   unlnk(at,d)      ;                    // retry
+					else                             { to_mk.pop_back() ; res = d.size() ; } // done
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
-					if ( ::string dd=dir_name(d) ; +dd )   to_mk.push_back(::move(dd)) ;                // retry after parent is created
-					else                                 { msg = "cannot create top dir" ; goto Bad ; } // if ENOTDIR, a parent is not a dir, it will not be fixed up
+					if (has_dir(d))   to_mk.push_back(dir_name(d)) ;                         // retry after parent is created
+					else            { msg = "cannot create top dir" ; goto Bad ; }           // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break  ;
 				default :
 					msg = "cannot create dir" ;
@@ -221,67 +276,8 @@ namespace Disk {
 	size_t/*pos*/ mk_dir( Fd at , ::string const& dir ,                       bool unlnk_ok ) { return _mk_dir(at,dir,nullptr   ,unlnk_ok) ; }
 	size_t/*pos*/ mk_dir( Fd at , ::string const& dir , NfsGuard& nfs_guard , bool unlnk_ok ) { return _mk_dir(at,dir,&nfs_guard,unlnk_ok) ; }
 
-	::string dir_name(::string const& file) {
-		size_t sep = file.rfind('/') ;
-		if (sep==Npos) return {}                 ;
-		else           return file.substr(0,sep) ;
-	}
-
-	::string base_name(::string const& file) {
-		size_t sep = file.rfind('/') ;
-		if (sep!=Npos) return file.substr(sep+1) ;
-		else           return file               ;
-	}
-
 	void dir_guard( Fd at , ::string const& file ) {
-		::string dir = dir_name(file) ;
-		if (+dir) mk_dir(at,dir) ;
-	}
-
-	::string mk_lcl( ::string const& file , ::string const& dir_s ) {
-		SWEAR( is_abs(file) == is_abs_s(dir_s) , file , dir_s ) ;
-		SWEAR( !dir_s || dir_s.back()=='/'     ,        dir_s ) ;
-		size_t last_slash1 = 0 ;
-		for( size_t i=0 ; i<file.size() ; i++ ) {
-			if (file[i]!=dir_s[i]) break ;
-			if (file[i]=='/'     ) last_slash1 = i+1 ;
-		}
-		::string res ;
-		for( char c : ::string_view(dir_s).substr(last_slash1) ) if (c=='/') res += "../" ;
-		res += ::string_view(file).substr(last_slash1) ;
-		return res ;
-	}
-
-	::string mk_glb( ::string const& file , ::string const& dir_s ) {
-		if (is_abs(file)) return file ;
-		::string_view d_sv = dir_s ;
-		::string_view f_v  = file  ;
-		for(; f_v.starts_with("../") ; f_v = f_v.substr(3) ) {
-			SWEAR(+d_sv) ;
-			d_sv = d_sv.substr(0,d_sv.size()-1) ;                                         // suppress ending /
-			size_t last_slash = d_sv.rfind('/') ;
-			if (last_slash==Npos) { SWEAR(+d_sv) ; d_sv = d_sv.substr(0,0           ) ; }
-			else                  {                d_sv = d_sv.substr(0,last_slash+1) ; } // keep new ending /
-		}
-		return to_string(d_sv,f_v) ;
-	}
-
-	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) {
-		size_t   pos = first_file        ;
-		::string res = txt.substr(0,pos) ;
-		while (pos!=Npos) {
-			pos++ ;                                                  // clobber marker
-			SWEAR(txt.size()>=pos+sizeof(FileNameIdx)) ;             // ensure we have enough room to find file length
-			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ;
-			pos += sizeof(FileNameIdx) ;                             // clobber file length
-			SWEAR(txt.size()>=pos+len) ;                             // ensure we have enough room to read file
-			res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ;
-			pos += len ;
-			size_t new_pos = txt.find(FileMrkr,pos) ;
-			res += txt.substr(pos,new_pos-pos) ;
-			pos  = new_pos ;
-		}
-		return res ;
+		if (has_dir(file)) mk_dir(at,dir_name(file)) ;
 	}
 
 	//

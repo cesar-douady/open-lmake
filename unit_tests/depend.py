@@ -83,10 +83,10 @@ else :
 		for p in range(3) :
 			print(f'p={p!r}\nlink_support={ls!r}',file=open('step.py','w'))
 			# rerun versus may_rerun is timing dependent, but the sum is predictible
-			cnt = ut.lmake(
+			cnts = ut.lmake(
 				*( f'hello.{interp}.{cmd}.{ad}.{ls}.cpy' for interp in ('sh','py') for cmd in ('acc','dep') for ad in autodeps )
 			,	may_rerun=... , rerun=... , done=(p==0)+(p!=1)+(p!=1)*2*n_ads , steady=(p!=1)*2*n_ads
 			)
 			expected = (p==0)*4*n_ads
-			actual   = cnt['may_rerun']+cnt['rerun']
+			actual   = cnts.may_rerun+cnts.rerun
 			if actual!=expected : raise RuntimeError(f"*** bad rerun count {actual}!={expected}")

@@ -183,7 +183,7 @@ ext/%.dir.stamp : ext/%.zip
 # Manifest
 #
 Manifest : .git/index
-	@git ls-files | uniq >$@.new                                        # git ls-files sometimes generates several copies for a single file
+	@git ls-files --deduplicate >$@.new
 	@if cmp -s $@.new $@ ; then rm $@.new    ; echo steady Manifest ; \
 	else                        mv $@.new $@ ; echo new    Manifest ; \
 	fi

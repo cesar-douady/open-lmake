@@ -213,11 +213,11 @@ namespace Engine {
 		NodeReqInfo const& cri = dep->c_req_info(*this) ;
 		const char*        err = nullptr                ;
 		switch (dep->status()) {
-			case NodeStatus::Multi      :                                  err = "multi"                                            ; break ;
-			case NodeStatus::Transcient :                                  err = "missing transcient sub-file"                      ; break ;
-			case NodeStatus::Uphill     : if (dep.dflags[Dflag::Required]) err = "missing required sub-file"                        ; break ;
-			case NodeStatus::Src        : if (dep->crc==Crc::None        ) err = dep.frozen() ? "missing frozen" : "missing source" ; break ;
-			case NodeStatus::SrcDir     : if (dep.dflags[Dflag::Required]) err = "missing required"                                 ; break ;
+			case NodeStatus::Multi     :                                  err = "multi"                                            ; break ;
+			case NodeStatus::Transient :                                  err = "missing transient sub-file"                       ; break ;
+			case NodeStatus::Uphill    : if (dep.dflags[Dflag::Required]) err = "missing required sub-file"                        ; break ;
+			case NodeStatus::Src       : if (dep->crc==Crc::None        ) err = dep.frozen() ? "missing frozen" : "missing source" ; break ;
+			case NodeStatus::SrcDir    : if (dep.dflags[Dflag::Required]) err = "missing required"                                 ; break ;
 			case NodeStatus::Plain :
 				if      (+cri.overwritten           ) err = "overwritten" ;
 				else if (!dep->conform_job_tgts(cri)) err = "not built"   ; // if no better explanation found
@@ -508,8 +508,8 @@ namespace Engine {
 			return ;
 		}
 		//
-		if ( node->status()==NodeStatus::Uphill || node->status()==NodeStatus::Transcient ) {
-			Node dir ; for( dir=node->dir() ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transcient) ; dir=dir->dir() ) ;
+		if ( node->status()==NodeStatus::Uphill || node->status()==NodeStatus::Transient ) {
+			Node dir ; for( dir=node->dir() ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transient) ; dir=dir->dir() ) ;
 			swear_prod(+dir                              ,"dir is buildable for ",name," but cannot find buildable dir"                  ) ;
 			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for ",name," but cannot find buildable dir until",dir->name()) ;
 			/**/                                audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;

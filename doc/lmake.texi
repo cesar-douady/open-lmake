@@ -704,7 +704,7 @@ or      @code{lmark [-l|--list] | [-c|--clear] [-f|--freeze] [-m|--manual-ok] [-
 Instead its targets (as built during the last run for star targets) behave as sources.
 If no job generated a file provided in arguments, this file behave as a source.
 @item manual ok  : This mark allow @lmake to overwrite a modification made outside its control (i.e. a modification made by a manual action, so called manual modification).
-These marks are transcient : they are suppressed as soon as files are rebuilt.
+These marks are transient : they are suppressed as soon as files are rebuilt.
 @item no trigger : This mark prevents @lmake to trigger builds of dependent jobs after modifications of provided files.
 However, this applies only if job was last run with success.
 @end itemize
@@ -755,7 +755,7 @@ As a consequence, these targets will appear out of date.
 This is exceptionally useful in situations where @lmake's hypotheses are broken :
 @itemize @minus
 @item A file outside the repository is modified. Because @lmake does not track modifications outside the repository, it canot rerun jobs that must be rerun, this must be done manually.
-@item An error is transcient. Another option is to launch @code{lmake -e} which asks to consider jobs in error as out-of-date.
+@item An error is transient. Another option is to launch @code{lmake -e} which asks to consider jobs in error as out-of-date.
 @end itemize
 
 Options are :
@@ -767,11 +767,11 @@ Caveat : upon next run, these targets will not be unlinked, with a possible reru
 
 In its second form, subsequent @lmake commands will :
 @itemize @minus
-@item @code{-e}|@code{--error} : consider errors seen so far as transcient errors and will rerun corresponding jobs.
+@item @code{-e}|@code{--error} : consider errors seen so far as transient errors and will rerun corresponding jobs.
 @item @code{-r}|@code{--resources} : not trust builds with old resources and rerun targets that have been successfully built with old resources.
 @end itemize
 
-The @code{-e} option is useful when you have actully seen transcient errors.
+The @code{-e} option is useful when you have actully seen transient errors.
 Just rerunning jobs in error will wash these.
 If you need finer control, then you must use the first form of @code{lforget} to control what must be forgotten on a job by job basis.
 

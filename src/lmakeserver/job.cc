@@ -788,8 +788,8 @@ namespace Engine {
 				JobReasonTag jrt = {} ;
 				if      ( rule->force                                           ) jrt = JobReasonTag::Force  ;
 				else if ( !cmd_ok()                                             ) jrt = JobReasonTag::Cmd    ;
-				else if ( req->options.flags[ReqFlag::ForgetOldErrors] && err() ) jrt = JobReasonTag::OldErr ;      // probably a transcient error
-				else if ( !rsrcs_ok()                                           ) jrt = JobReasonTag::Rsrcs  ;      // probably a resource   error
+				else if ( req->options.flags[ReqFlag::ForgetOldErrors] && err() ) jrt = JobReasonTag::OldErr ;      // probably a transient error
+				else if ( !rsrcs_ok()                                           ) jrt = JobReasonTag::Rsrcs  ;      // probably a resource  error
 				if (+jrt) {
 					ri.reason              = jrt  ;
 					ri.force               = true ;
@@ -914,9 +914,9 @@ namespace Engine {
 							else if (sense_err                        ) { state.reason |= {JobReasonTag::DepErr        ,+dep} ; dep_err = RunStatus::DepErr ; }
 						break ;
 						case Maybe :                                                                     // dep is not buidlable, check if required
-							if (dnd.status()==NodeStatus::Transcient) {                                  // dep uphill is a symlink, it will disappear at next run
-								trace("transcient",dep) ;
-								state.reason |= {JobReasonTag::DepTranscient,+dep} ;
+							if (dnd.status()==NodeStatus::Transient) {                                   // dep uphill is a symlink, it will disappear at next run
+								trace("transient",dep) ;
+								state.reason |= {JobReasonTag::DepTransient,+dep} ;
 								break ;
 							}
 							if (required) {

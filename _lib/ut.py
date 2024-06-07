@@ -8,6 +8,8 @@ import os.path    as osp
 import subprocess as sp
 import time
 
+from lmake import pdict
+
 def lmake(*args,rc=0,summary=None,**kwds) :
 	if not summary : summary = {}
 	else           : summary = dict(summary)
@@ -47,7 +49,7 @@ def lmake(*args,rc=0,summary=None,**kwds) :
 				cnt[k] += 1
 
 		# wrap up
-		res = {}
+		res = pdict()
 		for k,v in list(kwds.items()) :
 			if v==... :
 				res[k] = cnt[k]

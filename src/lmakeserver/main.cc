@@ -322,8 +322,8 @@ bool/*interrupted*/ engine_loop() {
 						fd_tab[req] = { .in=ecr.in_fd , .out=ecr.out_fd } ;
 					break ;
 					NoMake :
-						/**/                       ecr.in_fd .close() ;                 // nothing to receive
-						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                 // nor to send
+						if (ecr.in_fd!=ecr.out_fd) ::close   (ecr.out_fd        ) ;     // do as if immediate Close
+						else                       ::shutdown(ecr.out_fd,SHUT_WR) ;     // .
 					break ;
 					case ReqProc::Close : {
 						auto     it  = fd_tab.find(req) ; SWEAR(it!=fd_tab.end()) ;

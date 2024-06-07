@@ -35,7 +35,8 @@ else :
 	import ut
 	open('dep0','w').close()
 	print('step=0',file=open('step.py','w'))
-	ut.lmake( 'dut0' , 'dut1' , new=1 , done=3 , may_rerun=2 )
+	cnts = ut.lmake( 'dut0' , 'dut1' , new=1 , done=3 , rerun=... , may_rerun=... )
+	assert cnts.rerun+cnts.may_rerun==2
 
 	import os
 	print('step=1',file=open('step.py','w'))

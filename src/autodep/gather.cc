@@ -208,15 +208,15 @@ Status Gather::exec_child() {
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	AutoCloseFd                           child_fd           ;
-	::jthread                             wait_jt            ;                              // thread dedicated to wating child
+	::jthread                             wait_jt            ;                             // thread dedicated to wating child
 	Epoll                                 epoll              { New }       ;
 	Status                                status             = Status::New ;
-	::umap<Fd,Jerr>                       delayed_check_deps ;                              // check_deps events are delayed to ensure all previous deps are received
+	::umap<Fd,Jerr>                       delayed_check_deps ;                             // check_deps events are delayed to ensure all previous deps are received
 	size_t                                live_out_pos       = 0           ;
-	::umap<Fd,pair<IMsgBuf,vector<Jerr>>> slaves             ;                              // Jerr's are waiting for confirmation
+	::umap<Fd,pair<IMsgBuf,vector<Jerr>>> slaves             ;                             // Jerr's are waiting for confirmation
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
-		if ( status==Status::New || status==Status::Ok ) status = status_ ;                 // else there is already another reason
+		if ( status==Status::New || status==Status::Ok ) status = status_ ;                // else there is already another reason
 		if ( +msg_                                     ) append_line_to_string(msg,msg_) ;
 	} ;
 	auto kill = [&](bool next_step=false)->void {
@@ -399,10 +399,10 @@ Status Gather::exec_child() {
 					auto it           = slaves.find(fd) ;
 					auto& slave_entry = it->second      ;
 					try         { if (!slave_entry.first.receive_step(fd,jerr)) continue ; }
-					catch (...) { trace("no_jerr",kind,fd,jerr) ; jerr.proc = Proc::None ; }                               // fd was closed, ensure no partially received jerr
-					Proc proc  = jerr.proc ;                                                                               // capture essential info so as to be able to move jerr
-					bool sync_ = jerr.sync ;                                                                               // .
-					if (proc!=Proc::Access) trace(kind,fd,proc) ;                                                          // there may be too many Access'es, only trace within _new_accesses
+					catch (...) { trace("no_jerr",kind,fd,jerr) ; jerr.proc = Proc::None ; }                  // fd was closed, ensure no partially received jerr
+					Proc proc  = jerr.proc ;                                                                  // capture essential info so as to be able to move jerr
+					bool sync_ = jerr.sync ;                                                                  // .
+					if (proc!=Proc::Access) trace(kind,fd,proc) ;                                             // there may be too many Access'es, only trace within _new_accesses
 					switch (proc) {
 						case Proc::Confirm :
 							for( Jerr& j : slave_entry.second ) { j.digest.write = jerr.digest.write ; _new_accesses(fd,::move(j)) ; }
@@ -411,12 +411,12 @@ Status Gather::exec_child() {
 						case Proc::None :
 							epoll.close(fd) ;
 							trace("close",kind,fd,"wait",_wait,epoll.cnt) ;
-							for( Jerr& j : slave_entry.second ) _new_accesses(fd,::move(j)) ;                              // process deferred entries although with uncertain outcome
+							for( Jerr& j : slave_entry.second ) _new_accesses(fd,::move(j)) ;                 // process deferred entries although with uncertain outcome
 							slaves.erase(it) ;
 						break ;
 						case Proc::Access   :
 							// for read accesses, trying is enough to trigger a dep, so confirm is useless
-							if ( jerr.digest.write==Maybe ) slave_entry.second.push_back(::move(jerr)) ;                   // defer until confirm resolution
+							if ( jerr.digest.write==Maybe ) slave_entry.second.push_back(::move(jerr)) ;      // defer until confirm resolution
 							else                            _new_accesses(fd,::move(jerr))             ;
 						break ;
 						case Proc::Tmp        : seen_tmp = true ;                           break           ;
@@ -438,7 +438,7 @@ Return :
 	_child.waited() ;
 	trace("done",status) ;
 	SWEAR(status!=Status::New) ;
-	reorder(true/*at_end*/) ;                                                                                              // ensure server sees a coherent view
+	reorder(true/*at_end*/) ;                                                                                 // ensure server sees a coherent view
 	return status ;
 }
 
@@ -449,7 +449,7 @@ Return :
 void Gather::reorder(bool at_end) {
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	Trace trace("reorder") ;
-	::stable_sort(                                                                                          // reorder by date, keeping parallel entries together (which must have the same date)
+	::stable_sort(                                                   // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
 			return a.second.first_read().first < b.second.first_read().first ;
@@ -457,14 +457,14 @@ void Gather::reorder(bool at_end) {
 	) ;
 	// first pass (backward) : note dirs of immediately following files
 	::string const* last = nullptr ;
-	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {                                         // XXX : manage parallel deps
+	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {  // XXX : manage parallel deps
 		::string const& file   = it->first         ;
 		::AccessDigest& digest = it->second.digest ;
 		if (
 			last
 		&&	( digest.write==No        && !digest.dflags            )
 		&&	( last->starts_with(file) && (*last)[file.size()]=='/' )
-		)    digest.accesses = {}    ;                                                                      // keep original last which is better
+		)    digest.accesses = {}    ;                               // keep original last which is better
 		else last            = &file ;
 	}
 	// second pass : suppress dirs of seen files and previously noted dirs
@@ -478,10 +478,10 @@ void Gather::reorder(bool at_end) {
 			if (!digest.accesses   ) { trace("skip_from_next",file) ; { if (!at_end) access_map.erase(file) ; } cpy = true ; continue ; }
 			if (dirs.contains(file)) { trace("skip_from_prev",file) ; { if (!at_end) access_map.erase(file) ; } cpy = true ; continue ; }
 		}
-		for( ::string dir=dir_name(file) ; +dir ; dir=dir_name(dir) ) if (!dirs.insert(dir).second) break ; // all uphill dirs are already inserted if a dir has been inserted
+		for( ::string dir_s=dir_name_s(file) ; +dir_s ; dir_s=dir_name_s(dir_s) ) if (!dirs.insert(no_slash(dir_s)).second) break ; // all uphill dirs are already inserted if a dir has been inserted
 		if (cpy) accesses[i_dst] = ::move(access) ;
 		i_dst++ ;
 	}
 	accesses.resize(i_dst) ;
-	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map.at(accesses[i].first) = i ;                     // always recompute access_map as accesses has been sorted
+	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map.at(accesses[i].first) = i ;                                             // always recompute access_map as accesses has been sorted
 }

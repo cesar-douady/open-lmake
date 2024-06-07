@@ -59,7 +59,7 @@ ENUM_1( NodeStatus
 ,	SrcDir         // node is a src dir or a dir  within a src dir
 ,	None           // no job
 ,	Uphill         // >=Uphill means node has a buildable uphill dir, node has a regular file as uphill dir
-,	Transcient     //                                                 node has a link         as uphill dir (and such a dep will certainly disappear when job is remade unless it is a static dep)
+,	Transient      //                                                 node has a link         as uphill dir (and such a dep will certainly disappear when job is remade unless it is a static dep)
 ,	Unknown
 )
 

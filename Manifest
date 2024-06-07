@@ -266,7 +266,7 @@ unit_tests/test19.script
 unit_tests/timeout.py
 unit_tests/tmp.py
 unit_tests/tmp2.py
-unit_tests/trancient.py
+unit_tests/transient.py
 unit_tests/unstable.script
 unit_tests/uphill.py
 unit_tests/use_script.py

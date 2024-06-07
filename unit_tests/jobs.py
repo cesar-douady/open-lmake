@@ -39,7 +39,5 @@ else :
 	import ut
 
 	n = n_jobs*2+10
-	print(1,file=open('trig','w'))
-	ut.lmake( '-j' , str(n_jobs) , f'out_{n}' , new=1 , may_rerun=1 , done=n , steady=1 )
-	print(2,file=open('trig','w'))
-	ut.lmake(                      f'out_{n}' , new=1 , failed=... , steady=... , changed=1 , rc=1 ) # python reads Lmakefile.py to display backtrace
+	print(1,file=open('trig','w')) ; ut.lmake( '-j' , str(n_jobs) , f'out_{n}' , new=1 , may_rerun=1 , done=n , steady=1            )
+	print(2,file=open('trig','w')) ; ut.lmake(                      f'out_{n}' , new=1 , failed=... , steady=... , changed=1 , rc=1 ) # python reads Lmakefile.py to display backtrace

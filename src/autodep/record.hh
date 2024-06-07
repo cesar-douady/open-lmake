@@ -160,7 +160,7 @@ public :
 	template<class... A> [[noreturn]] void report_panic(A const&... args) const { report_direct({Proc::Panic,to_string(args...)}) ; exit(Rc::Usage) ; } // continuing is meaningless
 	template<class... A>              void report_trace(A const&... args) const { report_direct({Proc::Trace,to_string(args...)}) ;                   }
 	//
-	template<bool Writable=false> struct _Path {                 // if !Writable <=> file is is read-only
+	template<bool Writable=false> struct _Path {                                                        // if !Writable <=> file is is read-only
 		using Char = ::conditional_t<Writable,char,const char> ;
 		// cxtors & casts
 		_Path(                          )                           {                       }
@@ -177,8 +177,8 @@ public :
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
-			p.file      = nullptr     ;                          // safer to avoid dangling pointers
-			p.allocated = false       ;                          // we have clobbered allocation, so it is no more p's responsibility
+			p.file      = nullptr     ;                                                                 // safer to avoid dangling pointers
+			p.allocated = false       ;                                                                 // we have clobbered allocation, so it is no more p's responsibility
 			return *this ;
 		}
 		//
@@ -188,17 +188,17 @@ public :
 		void _deallocate() { if (allocated) delete[] file ; }
 		//
 		void _allocate(size_t sz) {
-			char* buf = new char[sz+1] ;                         // +1 to account for terminating null
+			char* buf = new char[sz+1] ;                                                                // +1 to account for terminating null
 			::memcpy(buf,file,sz+1) ;
 			file      = buf  ;
 			allocated = true ;
 		}
 		// data
 	public :
-		bool    allocated = false            ;                   // if true <=> file has been allocated and must be freed upon destruction
-		FileLoc file_loc  = FileLoc::Unknown ;                   // updated when analysis is done
-		Fd      at        = Fd::Cwd          ;                   // at & file may be modified, but together, they always refer to the same file ...
-		Char*   file      = nullptr          ;                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
+		bool    allocated = false            ;                                                          // if true <=> file has been allocated and must be freed upon destruction
+		FileLoc file_loc  = FileLoc::Unknown ;                                                          // updated when analysis is done
+		Fd      at        = Fd::Cwd          ;                                                          // at & file may be modified, but together, they always refer to the same file ...
+		Char*   file      = nullptr          ;                                                          // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ; //!            Writable
 	using Path  = _Path<false > ;
 	using WPath = _Path<true  > ;
@@ -226,7 +226,7 @@ public :
 						if (store) {
 							if      (last ) real  = f ;
 							else if (found) real  = f ;
-							else if (i==0 ) real0 = f ;                                                                                    // real0 is only significative when not equal to real
+							else if (i==0 ) real0 = f ;                                                 // real0 is only significative when not equal to real
 						}
 						if      (last ) { if (+a) r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a              , to_string(ck,i) ) ; return ; }
 						else if (found) {         r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a|Access::Stat , to_string(ck,i) ) ; return ; }
@@ -234,16 +234,16 @@ public :
 					}
 					return ;
 				}
-				if (store) real = file ;                                                                                                   // when no views match, process as if last
-				if (+a   ) r._report_dep( file_loc , ::move(file) , FileInfo(file) , a , ::move(ck) ) ;                                    // .
+				if (store) real = file ;                                                                // when no views match, process as if last
+				if (+a   ) r._report_dep( file_loc , ::move(file) , FileInfo(file) , a , ::move(ck) ) ; // .
 			} ;
 			//
 			if (sr.file_accessed==Yes) accesses = Access::Lnk ;
 			/**/                       file_loc = sr.file_loc ;
-			//                                                                                            accesses      store
-			for( ::string& lnk : sr.lnks )           report_dep( FileLoc::Dep , ::move(lnk)             , Access::Lnk , false , "lnk"  ) ;
-			if ( !read  && sr.file_accessed==Maybe ) report_dep( file_loc     , Disk::dir_name(sr.real) , Access::Lnk , false , "last" ) ; // real dir is not protected by real
-			/**/                                     report_dep( file_loc     , ::move(sr.real)         , {}          , true  , "file" ) ;
+			//                                                                                                                      accesses      store
+			for( ::string& lnk : sr.lnks                                     ) report_dep( FileLoc::Dep , ::move(lnk)             , Access::Lnk , false , "lnk"  ) ;
+			if ( !read  && sr.file_accessed==Maybe && Disk::has_dir(sr.real) ) report_dep( file_loc     , Disk::dir_name(sr.real) , Access::Lnk , false , "last" ) ; // real dir is not protected ...
+			/**/                                                               report_dep( file_loc     , ::move(sr.real)         , {}          , true  , "file" ) ; // ... by real
 			//
 			if ( create && sr.file_loc==FileLoc::Tmp ) r._report_tmp() ;
 		}
