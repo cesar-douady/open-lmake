@@ -114,29 +114,41 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		default : ;
 	}
-	if (!jerr.sync) fd = {} ;                                            // dont reply if not sync
-	try {
-		JobMngtRpcReq jmrr ;
-		switch (jerr.proc) {
-			case JobExecProc::ChkDeps : jmrr = { JobMngtProc::ChkDeps , seq_id , job , fd , cur_deps_cb()                                                                    } ; break ;
-			case JobExecProc::Decode  : jmrr = { JobMngtProc::Decode  , seq_id , job , fd , ::move(jerr.txt) , ::move(jerr.files[0].first) , ::move(jerr.ctx)                } ; break ;
-			case JobExecProc::Encode  : jmrr = { JobMngtProc::Encode  , seq_id , job , fd , ::move(jerr.txt) , ::move(jerr.files[0].first) , ::move(jerr.ctx) , jerr.min_len } ; break ;
-			case JobExecProc::DepVerbose : {
-				JobMngtRpcReq::MDD deps ; deps.reserve(jerr.files.size()) ;
-				for( auto&& [dep,date] : jerr.files ) deps.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,date,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
-				jmrr = { JobMngtProc::DepVerbose , seq_id , job , fd , ::move(deps) } ;
-			} break ;
-		DF}
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		OMsgBuf().send( ClientSockFd(service_mngt) , jmrr ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	} catch (...) {
-		trace("no_server") ;
-		JobExecRpcReply sync_reply ;
-		sync_reply.proc      = proc                                         ;
-		sync_reply.ok        = Yes                                          ; // try to mimic server as much as possible when none is available
-		sync_reply.dep_infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,{}}) ; // .
-		sync(fd,::move(sync_reply)) ;
+	if (!jerr.sync) fd = {} ;                                                                                                                             // dont reply if not sync
+	JobMngtRpcReq jmrr ;
+	switch (jerr.proc) {
+		case JobExecProc::ChkDeps : jmrr = { JobMngtProc::ChkDeps , seq_id , job , fd , cur_deps_cb()                                                                    } ; break ;
+		case JobExecProc::Decode  : jmrr = { JobMngtProc::Decode  , seq_id , job , fd , ::move(jerr.txt) , ::move(jerr.files[0].first) , ::move(jerr.ctx)                } ; break ;
+		case JobExecProc::Encode  : jmrr = { JobMngtProc::Encode  , seq_id , job , fd , ::move(jerr.txt) , ::move(jerr.files[0].first) , ::move(jerr.ctx) , jerr.min_len } ; break ;
+		case JobExecProc::DepVerbose : {
+			JobMngtRpcReq::MDD deps ; deps.reserve(jerr.files.size()) ;
+			for( auto&& [dep,date] : jerr.files ) deps.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,date,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
+			jmrr = { JobMngtProc::DepVerbose , seq_id , job , fd , ::move(deps) } ;
+		} break ;
+	DF}
+	for( int i=3 ; i>=1 ; i-- ) {                                                     // retry if server exists and cannot be reached
+		bool sent = false ;
+		try {
+			ClientSockFd csfd { service_mngt } ;                                      // ensure csfd is closed only after sent = true
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send( csfd , jmrr ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			sent = true ;
+		} catch (::string const& e) {
+			if (i>1) continue ;                                                       // retry
+			if (sent) {
+				trace("server_not_available",i,e) ;
+				throw ;                                                               // server exists but could not be reached (error when closing socket)
+			} else {
+				trace("no_server") ;
+				JobExecRpcReply sync_reply ;
+				sync_reply.proc      = proc                                         ;
+				sync_reply.ok        = Yes                                          ; // try to mimic server as much as possible when none is available
+				sync_reply.dep_infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,{}}) ; // .
+				sync(fd,::move(sync_reply)) ;
+			}
+		}
+		break ;
 	}
 }
 
@@ -323,7 +335,7 @@ Status Gather::exec_child() {
 							}
 						}
 					} else {
-						epoll.close(fd) ;
+						epoll.del(fd) ;
 						_wait &= ~kind ;
 						trace("close",kind,fd,"wait",_wait,epoll.cnt) ;
 					}
@@ -338,7 +350,7 @@ Status Gather::exec_child() {
 						if      (WIFEXITED  (wstatus)) set_status(             WEXITSTATUS(wstatus)!=0 ? Status::Err : Status::Ok       ) ;
 						else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG   (wstatus))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
 						else                           fail("unexpected wstatus : ",wstatus) ;
-						epoll.close(fd) ;
+						epoll.del(fd) ;
 						_wait &= ~Kind::ChildEnd ;
 						/**/                   epoll.cnt-- ;                                    // dont wait for new connections from job (but process those that come)
 						if (+server_master_fd) epoll.cnt-- ;                                    // idem for connections from server
@@ -352,7 +364,7 @@ Status Gather::exec_child() {
 					Fd slave = (kind==Kind::JobMaster?job_master_fd:server_master_fd).accept() ;
 					epoll.add_read(slave,is_job?Kind::JobSlave:Kind::ServerSlave) ;
 					trace("read_slave",STR(is_job),slave,"wait",_wait,epoll.cnt) ;
-					slaves[slave] ;                                                             // allocate entry
+					slaves[slave] ;                                                                                                          // allocate entry
 				} break ;
 				case Kind::ServerSlave : {
 					JobMngtRpcReply jmrr ;

@@ -307,7 +307,7 @@ namespace Backends {
 				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;   // update existing dep
 				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      } // create new dep
 		}
-		bool deps_done = false ;                                                                           // true if all deps are done for at least a non-zombie req
+		bool deps_done = false ;                             // true if all deps are done for at least a non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {
 			for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )
 				if (!Node(dn)->done(r,NodeGoal::Status)) goto NextReq ;
@@ -316,14 +316,14 @@ namespace Backends {
 		NextReq : ;
 		}
 		//
-		{	Lock lock { _s_mutex } ;                                                                      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	Lock lock { _s_mutex } ;                         // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
 			StartEntry& entry = it->second                         ;
 			trace("entry2",entry) ;
 			for( Req r : entry.reqs ) if (!r.zombie()) goto Useful ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send(fd,JobRpcReply(Proc::None)) ;                                                  // silently tell job_exec to give up
+			OMsgBuf().send(fd,JobRpcReply(Proc::None)) ;     // silently tell job_exec to give up
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return false/*keep_fd*/ ;
 		Useful :
@@ -332,7 +332,7 @@ namespace Backends {
 			//                               ^^^^^^^^^^^^^^^^^^^^^^^
 			if ( step<4 || !deps_done ) {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				OMsgBuf().send(fd,JobRpcReply(Proc::None)) ;                                              // silently tell job_exec to give up
+				OMsgBuf().send(fd,JobRpcReply(Proc::None)) ; // silently tell job_exec to give up
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				Status status = Status::EarlyErr ;
 				if (!deps_done) {
@@ -340,7 +340,7 @@ namespace Backends {
 					start_msg_err = {}                   ;
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				s_end( entry.tag , +job , status ) ;                                                      // dont care about backend, job is dead for other reasons
+				s_end( entry.tag , +job , status ) ;         // dont care about backend, job is dead for other reasons
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("early",start_msg_err) ;
 				job_exec = { job , reply.addr , New } ;                                                                                                                          // job starts and ends
@@ -582,11 +582,11 @@ namespace Backends {
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
 		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
-		_s_job_start_thread      .open( 'S' , _s_handle_job_start      ,4096/*backlog*/ ) ;                           // 4096 : max usual value as set in /proc/sys/net/core/somaxconn
-		_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt       ,4096/*backlog*/ ) ;                           // .
-		_s_job_end_thread        .open( 'E' , _s_handle_job_end        ,4096/*backlog*/ ) ;                           // .
-		_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                 ) ;
-		_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                 ) ;
+		_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
+		_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ;
+		_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ;
+		_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ;
+		_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ;
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
 		if (!dynamic) s_executable = *g_lmake_dir+"/_bin/job_exec" ;
 		//

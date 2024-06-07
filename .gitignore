@@ -15,6 +15,7 @@ __pycache__
 #auto-configuration
 /trial/
 /sys_config.*
+/sys_config_env
 /version.hh
 
 # compiled files

@@ -252,6 +252,7 @@ unit_tests/sym_lnk.py
 unit_tests/tar.py
 unit_tests/target.py
 unit_tests/target2.py
+unit_tests/test01.script
 unit_tests/test05.py
 unit_tests/test06.py
 unit_tests/test07.script
@@ -273,3 +274,4 @@ unit_tests/use_script.py
 unit_tests/views.py
 unit_tests/wide.py
 unit_tests/wine.py
+unit_tests/wrong_target.py

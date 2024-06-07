@@ -56,16 +56,6 @@ static_assert(NMatchGen>=1) ;
 static constexpr size_t NExecGen = 255 ;
 static_assert(NExecGen>=3) ;
 
-// weight associated to rule when a job completes
-// the average value kept in rule is the weighted average between old average value and job value with weiths RuleWeight and 1
-static constexpr NodeIdx RuleWeight = 100 ;
-
-// number of job traces to keep (indexed by unique id)
-static constexpr SeqId JobHistorySz = 1000 ;
-
-// backlog of incoming connections from remote jobs (i.e. number of pending connect calls before connections are refused)
-static constexpr int JobExecBacklog = 1000 ;
-
 // max number of bits a code may have for lencode/ldecode
 static constexpr uint8_t MaxCodecBits = 32 ; // if more than 32 bits, then we need a stronger Crc as we are subject to the anniversary paradox here
 
@@ -80,6 +70,16 @@ static constexpr char AdminDirS       [] = ADMIN_DIR_S         ;
 static constexpr char PrivateAdminDirS[] = PRIVATE_ADMIN_DIR_S ;
 
 // END_OF_VERSIONING
+
+// weight associated to rule when a job completes
+// the average value kept in rule is the weighted average between old average value and job value with weiths RuleWeight and 1
+static constexpr NodeIdx RuleWeight = 100 ;
+
+// number of job traces to keep (indexed by unique id)
+static constexpr SeqId JobHistorySz = 1000 ;
+
+// backlog of incoming connections from remote jobs (i.e. number of pending connect calls before connections are refused)
+static constexpr int JobExecBacklog = 4096 ; // max usual value as set in /proc/sys/net/core/somaxconn
 
 //
 // miscellaneous

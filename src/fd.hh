@@ -44,14 +44,18 @@ struct Fd {
 			cnt += c ;
 		}
 	}
-	Fd             dup   () const { return ::dup(fd) ;                  }
-	constexpr void close ()       { if (fd!=-1) ::close(fd) ; fd = -1 ; }
-	constexpr void detach()       {                           fd = -1 ; }
+	Fd             dup   () const { return ::dup(fd) ; }
+	constexpr void detach()       { fd = -1 ;          }
+	constexpr void close () {
+		if (fd==-1        ) return ;
+		if (::close(fd)!=0) throw to_string("cannot close file descriptor ",fd," : ",strerror(errno)) ;
+		fd = -1 ;
+	}
 	void no_std() {
 		if ( !*this || fd>Std.fd ) return ;
 		int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , Std.fd+1 ) ;
 		swear_prod(new_fd>Std.fd,"cannot duplicate ",fd) ;
-		::close(fd) ;
+		close() ;
 		fd = new_fd ;
 	}
 	void cloexec(bool set=true) {
@@ -249,7 +253,7 @@ struct Epoll {
 	}
 	::vector<Event> wait(Time::Delay timeout=Time::Delay::Forever) const ;
 	void close() {
-		fd .close() ;
+		fd.close() ;
 	}
 	/**/              void add      ( bool write , Fd fd_ ,          bool wait=true ) {               add(write,fd_,0   ,wait) ;               }
 	template<class T> void add_read (              Fd fd_ , T data , bool wait=true ) {               add(false,fd_,data,wait) ;               }

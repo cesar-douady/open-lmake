@@ -298,7 +298,8 @@ bool/*interrupted*/ engine_loop() {
 					// there is one exception : if already killed when Make is seen, the Req is not made and Make executes as if immediately followed by Close
 					// read  side is closed upon Kill  (cannot be upon Close as epoll.del must be called before close)
 					// write side is closed upon Close (cannot be upon Kill  as this may trigger lmake command termination, which, in turn, will trigger eof on the read side
-					case ReqProc::Make :
+					case ReqProc::Make : {
+						bool allocated = false ;
 						if (req.zombie()) {                                             // if already zombie, dont make req
 							trace("already_killed",req) ;
 							goto NoMake ;
@@ -306,21 +307,22 @@ bool/*interrupted*/ engine_loop() {
 						try {
 							::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
 							if (+msg) audit( ecr.out_fd , ecr.options , Color::Note , msg ) ;
+							trace("new_req",req) ;
+							req.alloc() ; allocated = true ;
+							//vvvvvvvvvvv
+							req.make(ecr) ;
+							//^^^^^^^^^^^
 						} catch(::string const& e) {
+							if (allocated) req.dealloc() ;
 							audit       ( ecr.out_fd , ecr.options , Color::Err , e ) ;
 							audit_status( ecr.out_fd , ecr.options , false/*ok*/    ) ;
 							trace("cannot_refresh",req) ;
 							goto NoMake ;
 						}
-						trace("new_req",req) ;
-						req.alloc() ;
-						//vvvvvvvvvvv
-						req.make(ecr) ;
-						//^^^^^^^^^^^
 						if (!ecr.as_job()) record_targets(req->job) ;
 						SWEAR( +ecr.in_fd && +ecr.out_fd , ecr.in_fd , ecr.out_fd ) ;   // in_fd and out_fd are used as marker for killed and closed respectively
 						fd_tab[req] = { .in=ecr.in_fd , .out=ecr.out_fd } ;
-					break ;
+					} break ;
 					NoMake :
 						if (ecr.in_fd!=ecr.out_fd) ::close   (ecr.out_fd        ) ;     // do as if immediate Close
 						else                       ::shutdown(ecr.out_fd,SHUT_WR) ;     // .
