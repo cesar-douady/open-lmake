@@ -183,7 +183,7 @@ ext/%.dir.stamp : ext/%.zip
 # Manifest
 #
 Manifest : .git/index
-	@git ls-files --deduplicate >$@.new
+	@git ls-files | uniq >$@.new
 	@if cmp -s $@.new $@ ; then rm $@.new    ; echo steady Manifest ; \
 	else                        mv $@.new $@ ; echo new    Manifest ; \
 	fi
