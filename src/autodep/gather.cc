@@ -193,34 +193,46 @@ void Gather::_solve( Fd fd , JobExecRpcReq& jerr ) {
 		jerr.solve = false         ;                                                  // files are now real and dated
 }
 
-void Gather::_send_to_server ( Fd fd , Jerr&& jerr ) {
+void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 	Trace trace("_send_to_server",fd,jerr) ;
 	//
-	Proc   proc = jerr.proc         ;                                         // capture essential info before moving to server_cb
-	size_t sz   = jerr.files.size() ;                                         // .
+	Proc   proc = jerr.proc         ;                                                 // capture essential info before moving to server_cb
+	size_t sz   = jerr.files.size() ;                                                 // .
 	switch (proc) {
-		case Proc::ChkDeps    : reorder(false/*at_end*/) ;       break ;      // ensure server sees a coherent view
+		case Proc::ChkDeps    : reorder(false/*at_end*/) ;       break ;              // ensure server sees a coherent view
 		case Proc::DepVerbose : _new_accesses(fd,::copy(jerr)) ; break ;
 		//
 		case Proc::Decode : SWEAR( jerr.sync && jerr.files.size()==1 ) ; _codec_files[fd] = Codec::mk_decode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		default : ;
 	}
-	if (!jerr.sync) fd = {} ;                                                 // dont reply if not sync
-	try {
-		JobMngtRpcReq jmrr ;
-		if (jerr.proc==JobExecProc::ChkDeps) jmrr = { JobMngtProc::ChkDeps , seq_id , job , fd , cur_deps_cb() } ;
-		else                                 jmrr = {                        seq_id , job , fd , ::move(jerr)  } ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		OMsgBuf().send( ClientSockFd(service_mngt) , jmrr ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	} catch (...) {
-		trace("no_server") ;
-		JobExecRpcReply sync_reply ;
-		sync_reply.proc      = proc                                         ;
-		sync_reply.ok        = Yes                                          ; // try to mimic server as much as possible when none is available
-		sync_reply.dep_infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,{}}) ; // .
-		sync(fd,::move(sync_reply)) ;
+	if (!jerr.sync) fd = {} ;                                                         // dont reply if not sync
+	for( int i=3 ; i>=1 ; i-- ) {                                                     // retry if server exists and cannot be reached
+		bool sent = false ;
+		try {
+			JobMngtRpcReq jmrr ;
+			if (jerr.proc==JobExecProc::ChkDeps) jmrr = { JobMngtProc::ChkDeps , seq_id , job , fd , cur_deps_cb() } ;
+			else                                 jmrr = {                        seq_id , job , fd , ::move(jerr)  } ;
+			ClientSockFd csfd { service_mngt } ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send( csfd , jmrr ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			sent = true ;
+		} catch (::string const& e) {
+			if (sent) {
+				trace("server_not_available",i,e) ;
+				if (i>1) continue ;                                                   // retry
+				else     throw    ;                                                   // server exists but could not be reached
+			} else {
+				trace("no_server") ;
+				JobExecRpcReply sync_reply ;
+				sync_reply.proc      = proc                                         ;
+				sync_reply.ok        = Yes                                          ; // try to mimic server as much as possible when none is available
+				sync_reply.dep_infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,{}}) ; // .
+				sync(fd,::move(sync_reply)) ;
+			}
+		}
+		break ;
 	}
 }
 
@@ -411,7 +423,7 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 							}
 						}
 					} else {
-						epoll.close(fd) ;
+						epoll.del(fd) ;                                                                                            // fd is closed upon destruction
 						trace("close",kind,fd) ;
 						done(kind) ;
 					}
@@ -422,7 +434,7 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 					if      (WIFEXITED  (wstatus)) set_status( WEXITSTATUS(wstatus)!=0        ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG(wstatus)) ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",wstatus) ;
-					epoll.close(fd) ;
+					epoll.del(fd) ;                                                                                                // fd is closed upon destruction
 					done(kind)      ;
 					trace("close",kind,status,::hex,wstatus,::dec) ;
 				} break ;
