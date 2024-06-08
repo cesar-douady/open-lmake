@@ -44,7 +44,7 @@ ENUM( KillStep
 )
 
 struct Gather {
-	friend ::ostream& operator<<( ::ostream& os , Gather const& ad ) ;
+	friend ::ostream& operator<<( ::ostream& , Gather const& ) ;
 	using Kind = GatherKind    ;
 	using Proc = JobExecProc   ;
 	using Jerr = JobExecRpcReq ;

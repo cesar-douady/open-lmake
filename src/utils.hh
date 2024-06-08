@@ -325,7 +325,10 @@ template<char Delimiter=0> ::string mk_printable(::string     && txt) {
 	for( char c : txt ) if ( !is_printable(c) || (Delimiter&&c==Delimiter) ) return mk_printable(txt) ;
 	return ::move(txt) ;                                                                                // fast path : avoid analysis & copy
 }
-template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , size_t pos=0 ) ;
+template<char Delimiter=0> ::string parse_printable( ::string const& , size_t& pos ) ;
+
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&               ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos ) ;
 
 inline void     set_nl      (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
 inline void     set_no_nl   (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
@@ -1122,18 +1125,17 @@ template<char Delimiter> ::string mk_printable(::string const& s) { // encode s 
 	return res ;
 }
 // stop at Delimiter or any non printable char
-template<char Delimiter> ::pair_s<size_t/*end_pos*/> parse_printable( ::string const& s , size_t pos ) {
+template<char Delimiter> ::string parse_printable( ::string const& s , size_t& pos ) {
 	static_assert(_can_be_delimiter(Delimiter)) ;
 	SWEAR(pos<=s.size(),s,pos) ;
 	::string res ;
-	const char* start = s.c_str() ;
-	const char* p     = nullptr/*garbage*/ ;
-	for( p=start+pos ; *p ; p++ )
-		if      (*p==Delimiter    ) break/*for*/ ;
-		else if (!is_printable(*p)) break/*for*/ ;
-		else if (*p!='\\'         ) res += *p ;
+	const char* s_c = s.c_str() ;
+	for( char c ; (c=s_c[pos]) ; pos++ )
+		if      (c==Delimiter    ) break/*for*/ ;
+		else if (!is_printable(c)) break/*for*/ ;
+		else if (c!='\\'         ) res += c ;
 		else
-			switch (*++p) {
+			switch (s_c[++pos]) {
 				case 'a'  : res += '\a' ; break/*switch*/ ;
 				case 'b'  : res += '\b' ; break/*switch*/ ;
 				case 'e'  : res += 0x1b ; break/*switch*/ ;
@@ -1144,11 +1146,14 @@ template<char Delimiter> ::pair_s<size_t/*end_pos*/> parse_printable( ::string c
 				case 'v'  : res += '\v' ; break/*switch*/ ;
 				case '\\' : res += '\\' ; break/*switch*/ ;
 				//
-				case 'x'  : res += char(from_string<uint8_t>(::string_view(p+1,2),false/*empty_ok*/,true/*hex*/)) ; p += 2 ; break/*switch*/ ;
+				case 'x' :
+					res += char(from_string<uint8_t>(::string_view(s_c+pos+1,2),false/*empty_ok*/,true/*hex*/)) ;
+					pos += 2                                                                                    ;
+				break/*switch*/ ;
 				//
-				default : throw "illegal \\ code"s ;
+				default : throw to_string("illegal code \\",s_c[pos]) ;
 			}
-	return {res,p-start} ;
+	return res ;
 }
 
 constexpr inline int _unit_val(char u) {

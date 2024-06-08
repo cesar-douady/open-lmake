@@ -168,14 +168,10 @@ namespace Disk {
 			//
 			for(;;) {
 				char    buf[4096] ;
-				ssize_t read_cnt  = ::read( rfd , buf , sizeof(buf) ) ;
-				if (read_cnt==0) break ;
-				if (read_cnt<0 ) throw "cannot read "+file ;
-				ssize_t write_cnt = 0/*garage*/ ;
-				for( ssize_t pos=0 ; pos<read_cnt ; pos+=write_cnt ) {
-					write_cnt = ::write( wfd , buf+pos , read_cnt-pos ) ;
-					if (write_cnt<=0) throw "cannot write to "+file ;
-				}
+				ssize_t cnt       = ::read( rfd , buf , sizeof(buf) ) ;
+				if (cnt==0) break ;
+				if (cnt<0 ) throw "cannot read "+file ;
+				wfd.write({buf,sizeof(buf)}) ;
 			}
 			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , st.st_mtim } ;
 			::futimens(wfd,times) ;                                                         // maintain original date

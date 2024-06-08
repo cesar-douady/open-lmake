@@ -474,7 +474,7 @@ namespace Codec {
 	}
 
 	::string mk_file(::string const& node) {
-		return parse_printable<'.'>(node).first.substr(sizeof(CodecPfx)-1) ; // account for terminating nul which is included in CodecPfx
+		return parse_printable<'.'>(node,::ref(size_t(0))).substr(sizeof(CodecPfx)-1) ; // account for terminating null in CodecPfx
 	}
 
 }

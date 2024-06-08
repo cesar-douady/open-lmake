@@ -41,50 +41,12 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			default  : goto Fail ;
 		}
 	// other dirs
-	{ if (env[pos++]!=':') goto Fail ; if (env[pos++]!='"') goto Fail ; tie(tmp_dir ,pos) = parse_printable<'"'>(env,pos) ; if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; if (env[pos++]!='"') goto Fail ; tie(root_dir,pos) = parse_printable<'"'>(env,pos) ; if (env[pos++]!='"') goto Fail ; }
-	//source dirs
-	if (env[pos++]!=':') goto Fail ;
-	if (env[pos++]!='(') goto Fail ;
-	for ( bool first=true ; env[pos]!=')' ; first=false ) {
-		if (!first && env[pos++]!=',') goto Fail ;
-		::string src_dir_s ;
-		if (env[pos++]!='"') goto Fail ;
-		tie(src_dir_s,pos) = parse_printable<'"'>(env,pos) ;
-		if (env[pos++]!='"') goto Fail ;
-		if (src_dir_s.back()!='/') goto Fail ;
-		src_dirs_s.push_back(::move(src_dir_s)) ;
-	}
-	if (env[pos++]!=')') goto Fail ;
-	// views
-	if (env[pos++]!=':') goto Fail ;
-	if (env[pos++]!='{') goto Fail ;
-	for ( bool first1=true ; env[pos]!='}' ; first1=false ) {
-		if (!first1 && env[pos++]!=',') goto Fail ;
-		//
-		::string view ;
-		if (env[pos++]!='"') goto Fail ;
-		tie(view,pos) = parse_printable<'"'>(env,pos) ;
-		if (env[pos++]!='"') goto Fail ;
-		//
-		if (env[pos++]!=':') goto Fail ;
-		//
-		::vector_s phys ;
-		if (env[pos++]!='(') goto Fail ;
-		for ( bool first2=true ; env[pos]!=')' ; first2=false ) {
-			if (!first2 && env[pos++]!=',') goto Fail ;
-			::string phy ;
-			if (env[pos++]!='"') goto Fail ;
-			tie(phy,pos) = parse_printable<'"'>(env,pos) ;
-			if (env[pos++]!='"') goto Fail ;
-			phys.push_back(::move(phy)) ;
-		}
-		if (env[pos++]!=')') goto Fail ;
-		views.emplace_back(view,phys) ;
-	}
-	if (env[pos++]!='}') goto Fail ;
-	//
-	if (env[pos]!=0) goto Fail ;
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } tmp_dir    = parse_printable<'"'>                 (env,pos) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } root_dir   = parse_printable<'"'>                 (env,pos) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; }                                      src_dirs_s = parse_printable<::vector_s>          (env,pos) ;
+	{ if (env[pos++]!=':') goto Fail ; }                                      views      = parse_printable<::vmap_s<::vector_s>>(env,pos) ;
+	{ if (env[pos  ]!=0  ) goto Fail ; }
+	for( ::string const& src_dir_s : src_dirs_s ) if (src_dir_s.back()!='/') goto Fail ;
 	return ;
 Fail :
 	fail_prod("bad autodep env format at pos",pos,":",env) ;
@@ -104,36 +66,9 @@ AutodepEnv::operator ::string() const {
 		case LnkSupport::File : res << 'f' ; break ;
 		case LnkSupport::Full : res << 'a' ; break ;
 	DF}
-	// dirs
-	res <<':'<< '"'<<mk_printable<'"'>(tmp_dir )<<'"' ;
-	res <<':'<< '"'<<mk_printable<'"'>(root_dir)<<'"' ;
-	// source dirs
-	res << ':' ;
-	bool first = true ;
-	res << '(' ;
-	for( ::string const& sd_s : src_dirs_s ) {
-		SWEAR( sd_s.back()=='/' , sd_s ) ;
-		if (!first) res <<',' ; else first = false ;
-		res << '"'<<mk_printable<'"'>(sd_s)<<'"' ;
-	}
-	res << ')' ;
-	// views
-	res << ':' ;
-	bool first1 = true ;
-	res << '{' ;
-	for( auto const& [view,phys] : views ) {
-		if (!first1) res << ',' ; else first1 = false ;
-		res << '"'<<mk_printable<'"'>(view)<<'"' ;
-		res << ':'                               ;
-		bool first2 = true ;
-		res << '(' ;
-		for( ::string const& phy : phys ) {
-			if (!first2) res <<',' ; else first2 = false ;
-			append_to_string( res , '"',mk_printable<'"'>(phy),'"' ) ;
-		}
-		res << ')' ;
-	}
-	res << '}' ;
-	//
+	res <<':'<< '"'<<mk_printable<'"'>(tmp_dir   )<<'"' ;
+	res <<':'<< '"'<<mk_printable<'"'>(root_dir  )<<'"' ;
+	res <<':'<<      mk_printable     (src_dirs_s)      ;
+	res <<':'<<      mk_printable     (views     )      ;
 	return res ;
 }

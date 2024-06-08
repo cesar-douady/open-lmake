@@ -22,7 +22,7 @@ namespace Backends {
 		try {
 			jmrr.seq_id = e.conn.seq_id ;
 			ClientSockFd fd( e.conn.host , e.conn.port , 3/*n_trials*/ ) ;
-			OMsgBuf().send( fd , jmrr ) ;                                  // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
+			OMsgBuf().send( fd , jmrr ) ;
 		} catch (...) {                                                    // if we cannot connect to job, assume it is dead while we processed the request
 			Backend::_s_deferred_wakeup_thread.emplace_after(
 				g_config->network_delay
@@ -168,7 +168,7 @@ namespace Backends {
 		SWEAR(conn.seq_id,job,conn) ;
 		try {
 			ClientSockFd fd(conn.host,conn.port) ;
-			OMsgBuf().send( fd , JobMngtRpcReply(proc,conn.seq_id) ) ; // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
+			OMsgBuf().send( fd , JobMngtRpcReply(proc,conn.seq_id) ) ;
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
 			// if job cannot be connected to, assume it is dead and pretend it died if it still exists after network delay

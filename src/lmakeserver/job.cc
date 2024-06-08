@@ -289,7 +289,6 @@ namespace Engine {
 	}
 
 	// answer to job execution requests
-	// XXX : use same analysis as for end/make, possibly sharing code, including management of the hot case
 	JobMngtRpcReply JobExec::job_analysis( JobMngtProc proc , ::vector<Dep> const& deps ) const {
 		::vector<Req> reqs = (*this)->running_reqs(false/*with_zombies*/) ;
 		Trace trace("job_analysis",proc,deps.size()) ;
@@ -1127,7 +1126,7 @@ namespace Engine {
 		using Step = JobStep ;
 		Req               req   = ri.req  ;
 		Rule::SimpleMatch match { idx() } ;
-		Trace trace("submit_plain",idx(),ri,reason,pressure) ;
+		Trace trace("_submit_plain",idx(),ri,reason,pressure) ;
 		SWEAR(!ri.waiting(),ri) ;
 		SWEAR(!ri.running(),ri) ;
 		for( Req r : running_reqs(false/*with_zombies*/) ) if (r!=req) {

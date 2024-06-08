@@ -72,7 +72,7 @@ using namespace Time ;
 		catch (::string const& e ) { FAIL("cannot create trace dir",trace_dir,':',e) ; }
 		//
 		_s_cur_sz = 4096                                                                                  ;
-		_s_fd     = ::open( tmp_trace_file.c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0666 ) ; _s_fd.no_std() ;
+		_s_fd     = { ::open( tmp_trace_file.c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0666 ) , true/*no_std*/ } ;
 		//
 		if ( !_s_fd                                                        ) FAIL("cannot create temporary trace file",tmp_trace_file,':',strerror(errno)            ) ;
 		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) FAIL("cannot create trace file"          ,*g_trace_file ,':',strerror(errno)            ) ;

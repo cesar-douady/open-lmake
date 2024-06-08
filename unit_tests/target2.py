@@ -21,15 +21,13 @@ if __name__!='__main__' :
 		if step==1 :
 			def cmd() :
 				print('a_source_with_typo')
-		elif step==2 :
+		else :
 			def cmd() :
 				print('a_source')
 
-	class Toto(PyRule):
-		target = 'tgt'
-		deps = {
-			'SRC_NAME' : 'src_name'
-		}
+	class Dut(PyRule):
+		target = 'dut'
+		deps   = { 'SRC_NAME':'src_name' }
 		def cmd() :
 			src = open(SRC_NAME).read().strip()
 			lmake.target( src , source_ok=True )
@@ -42,8 +40,8 @@ else :
 	print('hello',file=open('a_source','w'))
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'tgt' , done=1 , failed=1 , rc=1 )
+	ut.lmake( 'dut' , done=1 , failed=1 , rc=1 )
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'tgt' , done=1 , steady=1 )
+	ut.lmake( 'dut' , done=1 , steady=1 )
 

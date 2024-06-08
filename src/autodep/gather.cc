@@ -360,9 +360,9 @@ Status Gather::exec_child() {
 				case Kind::JobMaster    :
 				case Kind::ServerMaster : {
 					bool is_job = kind==Kind::JobMaster ;
-					SWEAR( fd==(is_job?job_master_fd:server_master_fd) , fd , is_job , job_master_fd , server_master_fd ) ;
-					Fd slave = (kind==Kind::JobMaster?job_master_fd:server_master_fd).accept() ;
-					epoll.add_read(slave,is_job?Kind::JobSlave:Kind::ServerSlave) ;
+					Fd   slave  ;
+					if (is_job) { SWEAR( fd==job_master_fd    , fd , job_master_fd    ) ; slave = job_master_fd   .accept().detach() ; epoll.add_read(slave,Kind::JobSlave   ) ; }
+					else        { SWEAR( fd==server_master_fd , fd , server_master_fd ) ; slave = server_master_fd.accept().detach() ; epoll.add_read(slave,Kind::ServerSlave) ; }
 					trace("read_slave",STR(is_job),slave,"wait",_wait,epoll.cnt) ;
 					slaves[slave] ;                                                                                                          // allocate entry
 				} break ;

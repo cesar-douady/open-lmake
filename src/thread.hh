@@ -245,10 +245,10 @@ private :
 					case EventKind::Master : {
 						SWEAR(efd==self->fd) ;
 						try {
-							SlaveSockFd slave_fd { self->fd.accept() } ;
+							Fd slave_fd = self->fd.accept().detach() ;
 							trace("new_req",slave_fd) ;
 							epoll.add_read(slave_fd,EventKind::Slave) ;
-							slaves.try_emplace(::move(slave_fd)) ;
+							slaves.try_emplace(slave_fd) ;
 						} catch (::string const& e) { trace("cannot_accept",e) ; }         // ignore error as this may be fd starvation and client will retry
 					} break ;
 					case EventKind::Stop : {

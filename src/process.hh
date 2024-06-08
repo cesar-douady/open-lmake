@@ -15,14 +15,14 @@
 
 struct Pipe {
 	// cxtors & casts
-	Pipe(       ) = default ;
-	Pipe(NewType) { open() ; }
+	Pipe(                          ) = default ;
+	Pipe(NewType,bool no_std_=false) { open(no_std_) ; }
 	// services
-	void open() {
+	void open(bool no_std_=false) {
 		int fds[2] ;
 		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
-		read  = fds[0] ;
-		write = fds[1] ;
+		read  = {fds[0],no_std_} ;
+		write = {fds[1],no_std_} ;
 	}
 	void close() {
 		read .close() ;

@@ -24,28 +24,23 @@ namespace Caches {
 
 	struct Cache {
 		using Id = ::string ;
-
 		struct Match {
-			bool           completed = true  ;             //                            if false <=> answer is delayed and an action will be post to the main loop when ready
-			Bool3          hit       = No    ;             // if completed
-			::vector<Node> new_deps  = {}    ;             // if completed&&hit==Maybe : deps that were not done and need to be done before answering hit/miss
-			Id             id        = {}    ;             // if completed&&hit==Yes   : an id to easily retrieve matched results when calling download
+			bool           completed = true ; //                            if false <=> answer is delayed and an action will be post to the main loop when ready
+			Bool3          hit       = No   ; // if completed
+			::vector<Node> new_deps  = {}   ; // if completed&&hit==Maybe : deps that were not done and need to be done before answering hit/miss
+			Id             id        = {}   ; // if completed&&hit==Yes   : an id to easily retrieve matched results when calling download
 		} ;
-
 		// statics
 		static void s_config(::map_s<Config::Cache> const&) ;
-		//
 		// static data
 		static ::map_s<Cache*> s_tab ;
-
 		// services
-		// default implementation : no caching, but enforce protocal
+		// default implementation : no caching, but enforce protocol
 		virtual void config(Config::Cache const&) {}
 		//
 		virtual Match      match   ( Job , Req                                                   ) { return { .completed=true , .hit=No } ; }
 		virtual JobInfo    download( Job , Id        const& , JobReason const& , Disk::NfsGuard& ) { FAIL() ;                               } // no download possible since we never match
 		virtual bool/*ok*/ upload  ( Job , JobDigest const& ,                    Disk::NfsGuard& ) { return false ;                         }
-
 	} ;
 
 }

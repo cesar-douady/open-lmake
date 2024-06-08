@@ -78,6 +78,120 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 	return res ;
 }
 
+template<> ::string mk_printable(::vector_s const& v) {
+	::string res   ;
+	bool     first = true ;
+	res << '(' ;
+	for( ::string const& s : v ) {
+		if (!first) res <<',' ; else first = false ;
+		res << '"'<<mk_printable<'"'>(s)<<'"' ;
+	}
+	res << ')' ;
+	return res ;
+}
+
+template<> ::vector_s parse_printable( ::string const& txt , size_t& pos ) {
+	::vector_s res ;
+	if (txt[pos++]!='(') goto Fail ;
+	for ( bool first=true ; txt[pos]!=')' ; first=false ) {
+		if (!first && txt[pos++]!=',') goto Fail ;
+		if (txt[pos++]!='"') goto Fail ;
+		::string v = parse_printable<'"'>(txt,pos) ;
+		if (txt[pos++]!='"') goto Fail ;
+		res.push_back(::move(v)) ;
+	}
+	if (txt[pos++]!=')') goto Fail ;
+	return res ;
+Fail :
+	throw "bad format"s ;
+}
+
+template<> ::string mk_printable(::vmap_ss const& m) {
+	::string res   ;
+	bool     first = true ;
+	res << '{' ;
+	for( auto const& [k,v] : m ) {
+		if (!first) res << ',' ; else first = false ;
+		res << '"'<<mk_printable<'"'>(k)<<'"' << ':' << '"'<<mk_printable<'"'>(v)<<'"' ;
+	}
+	res << '}' ;
+	return res ;
+}
+
+template<> ::vmap_ss parse_printable( ::string const& txt , size_t& pos ) {
+	::vmap_ss res ;
+	if (txt[pos++]!='{') goto Fail ;
+	for ( bool first=true ; txt[pos]!='}' ; first=false ) {
+		if (!first && txt[pos++]!=',') goto Fail ;
+		//
+		if (txt[pos++]!='"') goto Fail ;
+		::string k = parse_printable<'"'>(txt,pos) ;
+		if (txt[pos++]!='"') goto Fail ;
+		//
+		if (txt[pos++]!=':') goto Fail ;
+		//
+		if (txt[pos++]!='"') goto Fail ;
+		::string v = parse_printable<'"'>(txt,pos) ;
+		if (txt[pos++]!='"') goto Fail ;
+		//
+		res.emplace_back(k,v) ;
+	}
+	if (txt[pos++]!='}') goto Fail ;
+	return res ;
+Fail :
+	throw "bad format"s ;
+}
+
+template<> ::string mk_printable(::vmap_s<::vector_s> const& m) {
+	::string res    ;
+	bool     first1 = true ;
+	res << '{' ;
+	for( auto const& [k,v] : m ) {
+		if (!first1) res << ',' ; else first1 = false ;
+		res << '"'<<mk_printable<'"'>(k)<<'"' ;
+		res << ':' ;
+		bool first2 = true ;
+		res << '(' ;
+		for( ::string const& x : v ) {
+			if (!first2) res <<',' ; else first2 = false ;
+			res << '"'<<mk_printable<'"'>(x)<<'"' ;
+		}
+		res << ')' ;
+	}
+	res << '}' ;
+	return res ;
+}
+
+template<> ::vmap_s<::vector_s> parse_printable( ::string const& txt , size_t& pos ) {
+	::vmap_s<::vector_s> res ;
+	if (txt[pos++]!='{') goto Fail ;
+	for ( bool first1=true ; txt[pos]!='}' ; first1=false ) {
+		if (!first1 && txt[pos++]!=',') goto Fail ;
+		//
+		if (txt[pos++]!='"') goto Fail ;
+		::string k = parse_printable<'"'>(txt,pos) ;
+		if (txt[pos++]!='"') goto Fail ;
+		//
+		if (txt[pos++]!=':') goto Fail ;
+		//
+		::vector_s v ;
+		if (txt[pos++]!='(') goto Fail ;
+		for ( bool first2=true ; txt[pos]!=')' ; first2=false ) {
+			if (!first2 && txt[pos++]!=',') goto Fail ;
+			if (txt[pos++]!='"') goto Fail ;
+			::string x = parse_printable<'"'>(txt,pos) ;
+			if (txt[pos++]!='"') goto Fail ;
+			v.push_back(::move(x)) ;
+		}
+		if (txt[pos++]!=')') goto Fail ;
+		res.emplace_back(k,v) ;
+	}
+	if (txt[pos++]!='}') goto Fail ;
+	return res ;
+Fail :
+	throw "bad format"s ;
+}
+
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) {
 	SWEAR(+sub) ;
 	size_t      pos   = txt.find(sub)     ; if (pos==Npos) return ::move(txt) ;

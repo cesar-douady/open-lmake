@@ -11,7 +11,7 @@ namespace Caches {
 
 	struct DirCache : Cache {     // PER_CACHE : inherit from Cache and provide implementation
 		using Sz = Disk::DiskSz ;
-		static constexpr char Head[] = "LMAKE" ; // XXX : replace with ADMIN_DIR_S
+		static constexpr char HeadS[] = ADMIN_DIR_S ;
 		// services
 		virtual void config(Config::Cache const&) ;
 		//
@@ -21,13 +21,13 @@ namespace Caches {
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :
-		::string _lru_file  ( ::string const& entry             ) const { return to_string(dir,'/',entry,"/lru") ; }
-		Sz       _lru_remove( ::string const& entry             ) ;
-		void     _lru_first ( ::string const& entry , Sz sz     ) ;
-		void     _mk_room   ( Sz old_sz             , Sz new_sz ) ;
+		::string _lru_file  ( ::string const& entry_s             ) const { return dir_s+entry_s+"lru" ; }
+		Sz       _lru_remove( ::string const& entry_s             ) ;
+		void     _lru_first ( ::string const& entry_s , Sz sz     ) ;
+		void     _mk_room   ( Sz old_sz               , Sz new_sz ) ;
 		// data
-		::string repo   ;
-		::string dir    ;
+		::string repo_s ;
+		::string dir_s  ;
 		Fd       dir_fd ;
 		Sz       sz     = 0 ;
 	} ;

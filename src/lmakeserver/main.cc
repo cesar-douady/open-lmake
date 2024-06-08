@@ -226,7 +226,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 		if ( !_g_is_daemon && !in_tab ) break ;                                             // check end of loop after processing slave events and before master events
 		//
 		if (new_fd) {
-			Fd slave_fd = Fd(_g_server_fd.accept()) ;
+			Fd slave_fd = _g_server_fd.accept().detach() ;
 			in_tab[slave_fd] ;                                                              // allocate entry
 			epoll.add_read(slave_fd,EventKind::Slave) ; trace("new_req",slave_fd) ;
 			report_server(slave_fd,true/*running*/) ;

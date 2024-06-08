@@ -26,7 +26,7 @@ struct Record {
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
 		if (!_s_root_fd) {
-			_s_root_fd = Disk::open_read(_s_autodep_env->root_dir) ; _s_root_fd.no_std() ; // avoid poluting standard descriptors
+			_s_root_fd = { Disk::open_read(_s_autodep_env->root_dir) , true/*no_std*/ } ; // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 		}
 		return _s_root_fd ;
@@ -51,13 +51,13 @@ struct Record {
 	}
 	// static data
 public :
-	static bool                                                   s_static_report  ;       // if true <=> report deps to s_deps instead of through report_fd() socket
+	static bool                                                   s_static_report  ;  // if true <=> report deps to s_deps instead of through report_fd() socket
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
-	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;       // map file to read accesses
+	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;  // map file to read accesses
 private :
 	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                                    // a file descriptor to repo root dir
+	static Fd          _s_root_fd     ;                                               // a file descriptor to repo root dir
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -73,7 +73,7 @@ public :
 			::string const& service = _s_autodep_env->service ;
 			if (service.back()==':') _report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
 			else                     _report_fd = ClientSockFd(service)                                                   ;
-			_report_fd.no_std() ;                                                                                                                       // avoid poluting standard descriptors
+			_report_fd.no_std() ; // avoid poluting standard descriptors
 			swear_prod(+_report_fd,"cannot connect to job_exec through ",service) ;
 		}
 		return _report_fd ;

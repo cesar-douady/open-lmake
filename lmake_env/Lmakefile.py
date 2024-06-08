@@ -163,6 +163,7 @@ class VersionH(BaseRule) :
 opt_tab = {}
 class GenOpts(BaseRule) :
 	targets = { 'OPTS' : '{File}.opts' }
+	backend = 'local'
 	def cmd() :
 		try : open("pyvenv.cfg")
 		except : pass
@@ -178,8 +179,9 @@ class GenOpts(BaseRule) :
 
 # a rule to ensure dir exists
 class Marker(BaseRule) :
-	prio = 1                            # avoid untar when in a tar dir
+	prio    = 1                         # avoid untar when in a tar dir
 	targets = { 'MRKR' : '{DirS}mrkr' }
+	backend = 'local'
 	def cmd() :
 		open(MRKR,'w')
 

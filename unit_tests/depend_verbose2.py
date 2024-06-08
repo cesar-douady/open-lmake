@@ -36,7 +36,7 @@ else :
 	open('dep0','w').close()
 	print('step=0',file=open('step.py','w'))
 	cnts = ut.lmake( 'dut0' , 'dut1' , new=1 , done=3 , rerun=... , may_rerun=... )
-	assert cnts.rerun+cnts.may_rerun==2
+	assert cnts.rerun+cnts.may_rerun<=2                                             # second dut may be launched when dep is already built
 
 	import os
 	print('step=1',file=open('step.py','w'))

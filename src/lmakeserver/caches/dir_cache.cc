@@ -30,29 +30,28 @@ namespace Caches {
 	// START_OF_VERSIONING
 
 	struct Lru {
-		::string     prev = DirCache::Head ;
-		::string     next = DirCache::Head ;
-		DirCache::Sz sz   = 0              ; // size of entry, or overall size for head
+		::string     prev_s = DirCache::HeadS ;
+		::string     next_s = DirCache::HeadS ;
+		DirCache::Sz sz     = 0               ; // size of entry, or overall size for head
 	} ;
 
 	void DirCache::chk(ssize_t delta_sz) const {
-		::ifstream head_stream   { _lru_file(Head) } ;
-		Lru        head          ;                     if (head_stream) deserialize(head_stream,head) ;
-		::uset_s   seen          ;
-		::string   expected_prev = Head              ;
-		size_t     total_sz      = 0                 ;
-		for( ::string entry=head.next ; entry!=Head ;) {
-			auto here = deserialize<Lru>(IFStream(_lru_file(entry))) ;
+		::ifstream head_stream     { _lru_file(HeadS) } ;
+		Lru        head            ;                      if (head_stream) deserialize(head_stream,head) ;
+		::uset_s   seen            ;
+		::string   expected_prev_s = HeadS              ;
+		size_t     total_sz        = 0                  ;
+		for( ::string entry_s=head.next_s ; entry_s!=HeadS ;) {
+			auto here = deserialize<Lru>(IFStream(_lru_file(entry_s))) ;
 			//
-			SWEAR(seen.insert(entry).second,entry) ;
-			SWEAR(here.prev==expected_prev ,entry) ;
-			total_sz      += here.sz ;
-			expected_prev  = entry   ;
-			//
-			entry          = here.next ;
+			SWEAR(seen.insert(entry_s).second ,entry_s) ;
+			SWEAR(here.prev_s==expected_prev_s,entry_s) ;
+			total_sz        += here.sz     ;
+			expected_prev_s  = entry_s     ;
+			entry_s          = here.next_s ;
 		}
-		SWEAR(head.prev==expected_prev    ,Head                     ) ;
-		SWEAR(head.sz  ==total_sz+delta_sz,head.sz,total_sz,delta_sz) ;
+		SWEAR(head.prev_s==expected_prev_s  ,HeadS                    ) ;
+		SWEAR(head.sz    ==total_sz+delta_sz,head.sz,total_sz,delta_sz) ;
 	}
 
 	// END_OF_VERSIONING
@@ -61,21 +60,20 @@ namespace Caches {
 		::map_ss dct = mk_map(config.dct) ;
 		//
 		Hash::Xxh repo_hash ;
-		if (dct.contains("repo")) repo_hash.update(dct.at("repo"))            ; else throw "repo not found"s ;
-		if (dct.contains("dir" )) dir  =           dct.at("dir" )             ; else throw "dir not found"s  ;
-		/**/                      repo = "repo-"+::string(repo_hash.digest()) ;
+		if (dct.contains("repo")) repo_hash.update(dct.at("repo"))                  ; else throw "repo not found"s ;
+		if (dct.contains("dir" )) dir_s  =           dct.at("dir" )+'/'             ; else throw "dir not found"s  ;
+		/**/                      repo_s = "repo-"+::string(repo_hash.digest())+'/' ;
 		//
-		try                     { chk_version(true/*may_init*/,to_string(dir,'/',AdminDirS)) ;      }
-		catch (::string const&) { throw to_string("cache version mismatch, running without ",dir) ; }
+		try                     { chk_version(true/*may_init*/,dir_s+AdminDirS) ;                    }
+		catch (::string const&) { throw "cache version mismatch, running without "+no_slash(dir_s) ; }
 		//
-		dir_fd = open_read(dir)                               ; dir_fd.no_std() ;       // avoid poluting standard descriptors
-		if (!dir_fd) throw to_string("cannot configure cache ",dir," : no directory") ;
-		sz = from_string_with_units<size_t>(strip(read_content(to_string(dir,'/',AdminDirS,"size")))) ;
+		dir_fd = open_read(no_slash(dir_s)) ; dir_fd.no_std() ;                          // avoid poluting standard descriptors
+		if (!dir_fd) throw "cannot configure cache "+no_slash(dir_s)+" : no directory" ;
+		sz = from_string_with_units<size_t>(strip(read_content(dir_s+AdminDirS+"size"))) ;
 	}
 
 	// START_OF_VERSIONING
-
-	static ::string _unique_name(Job job) {
+	static ::string _unique_name_s(Job job) {
 		Rule     rule      = job->rule                              ;
 		::string full_name = job->full_name()                       ; SWEAR( Rule(full_name)==rule , full_name , rule->name ) ;     // only name suffix is considered to make Rule
 		size_t   user_sz   = full_name.size() - rule->job_sfx_len() ;
@@ -90,44 +88,43 @@ namespace Caches {
 			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			append_to_string( res , pos , '-' , sz , '+' ) ;
 		}
-		append_to_string(res,"rule-",::string(rule->cmd_crc)) ;
+		res << "rule-" << ::string(rule->cmd_crc) << '/' ;
 		return res ;
 	}
-	static ::string _unique_name( Job job , ::string const& repo ) { return to_string(_unique_name(job),'/',repo) ; }
 	// END_OF_VERSIONING
 
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz ) {
 		if (new_sz>sz) throw to_string("cannot store entry of size ",new_sz," in cache of size ",sz) ;
 		//
-		::string   head_file     = _lru_file(Head) ;
-		::ifstream head_stream   { head_file }     ;
-		Lru        head          ;                   if (head_stream) deserialize(head_stream,head) ;
-		bool       some_removed  = false           ;
-		::string   expected_next = Head            ;                        // for assertion only
+		::string   head_file       = _lru_file(HeadS) ;
+		::ifstream head_stream     { head_file }      ;
+		Lru        head            ;                    if (head_stream) deserialize(head_stream,head) ;
+		bool       some_removed    = false            ;
+		::string   expected_next_s = HeadS            ;                             // for assertion only
 		//
-		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                       // total size contains old_sz
+		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                               // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>sz) {
-			SWEAR(head.prev!=Head) ;                                        // else this would mean an empty cache and we know an empty cache can accept new_sz
-			auto here = deserialize<Lru>(IFStream(_lru_file(head.prev))) ;
-			SWEAR( here.next==expected_next , here.next , expected_next ) ;
-			SWEAR( head.sz  >=here.sz       , head.sz   , here.sz       ) ; // total size contains this entry
-			unlnk(dir_fd,head.prev,true/*dir_ok*/) ;
-			expected_next  = head.prev         ;
-			head.sz       -= here.sz           ;
-			head.prev      = ::move(here.prev) ;
-			some_removed   = true              ;
+			SWEAR(head.prev_s!=HeadS) ;                                             // else this would mean an empty cache and we know an empty cache can accept new_sz
+			auto here = deserialize<Lru>(IFStream(_lru_file(head.prev_s))) ;
+			SWEAR( here.next_s==expected_next_s , here.next_s , expected_next_s ) ;
+			SWEAR( head.sz    >=here.sz         , head.sz     , here.sz         ) ; // total size contains this entry
+			unlnk(dir_fd,no_slash(head.prev_s),true/*dir_ok*/) ;
+			expected_next_s  = head.prev_s         ;
+			head.sz         -= here.sz             ;
+			head.prev_s      = ::move(here.prev_s) ;
+			some_removed     = true                ;
 		}
 		head.sz += new_sz ;
 		SWEAR( head.sz<=sz , head.sz , sz ) ;
 		//
 		if (some_removed) {
-			if (head.prev==Head) {
-				head.next = Head ;
+			if (head.prev_s==HeadS) {
+				head.next_s = HeadS ;
 			} else {
-				::string last_file = _lru_file(head.prev)                  ;
+				::string last_file = _lru_file(head.prev_s)                ;
 				auto     last      = deserialize<Lru>(IFStream(last_file)) ;
-				last.next = Head ;
+				last.next_s = HeadS ;
 				serialize(OFStream(last_file),last) ;
 			}
 		}
@@ -135,6 +132,7 @@ namespace Caches {
 	}
 
 	static void _copy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , bool unlnk_dst , bool mk_read_only ) {
+		Trace trace("DirCache::_copy",src_at,src_file,dst_at,dst_file,STR(unlnk_dst),STR(mk_read_only)) ;
 		FileTag tag = FileInfo(src_at,src_file).tag() ;
 		if (unlnk_dst) unlnk(dst_at,dst_file)                                         ;
 		else           SWEAR( !is_target(dst_at,dst_file) , '@',dst_at,':',dst_file ) ;
@@ -142,13 +140,9 @@ namespace Caches {
 			case FileTag::None : break ;
 			case FileTag::Reg  :
 			case FileTag::Exe  : {
-				FileMap     fm  { src_at , src_file } ;
+				FileMap     fm  { src_at , src_file }                                                                  ;
 				AutoCloseFd wfd = open_write( dst_at , dst_file , false/*append*/ , tag==FileTag::Exe , mk_read_only ) ;
-				for( size_t pos=0 ; pos<fm.sz ;) {
-					ssize_t cnt = ::write( wfd , fm.data+pos , fm.sz-pos ) ;
-					if (cnt<=0) throw ""s ;
-					pos += cnt ;
-				}
+				wfd.write({reinterpret_cast<const char*>(fm.data),fm.sz}) ;
 			}
 			break ;
 			case FileTag::Lnk : {
@@ -162,27 +156,27 @@ namespace Caches {
 	static void _copy(             ::string const& src_file , Fd dst_at , ::string const& dst_file , bool ud , bool ro ) { _copy( Fd::Cwd , src_file , dst_at  , dst_file , ud , ro ) ; }
 	static void _copy( Fd src_at , ::string const& src_file ,             ::string const& dst_file , bool ud , bool ro ) { _copy( src_at  , src_file , Fd::Cwd , dst_file , ud , ro ) ; }
 
-	DirCache::Sz DirCache::_lru_remove(::string const& entry) {
-		SWEAR(entry!=Head) ;
+	DirCache::Sz DirCache::_lru_remove(::string const& entry_s) {
+		SWEAR(entry_s!=HeadS) ;
 		//
-		::ifstream here_stream { _lru_file(entry) }            ; if (!here_stream) return 0 ; // nothing to remove
+		::ifstream here_stream { _lru_file(entry_s) }          ; if (!here_stream) return 0 ; // nothing to remove
 		auto       here        = deserialize<Lru>(here_stream) ;
-		if (here.prev==here.next) {
-			::string pn_file = _lru_file(here.prev)                ;
+		if (here.prev_s==here.next_s) {
+			::string pn_file = _lru_file(here.prev_s)              ;
 			auto     pn      = deserialize<Lru>(IFStream(pn_file)) ;
 			//
-			pn.next = here.next ;
-			pn.prev = here.prev ;
+			pn.next_s = here.next_s ;
+			pn.prev_s = here.prev_s ;
 			//
 			serialize(OFStream(pn_file),pn) ;
 		} else {
-			::string   prev_file   = _lru_file(here.prev)                  ;
-			::string   next_file   = _lru_file(here.next)                  ;
+			::string   prev_file   = _lru_file(here.prev_s)                ;
+			::string   next_file   = _lru_file(here.next_s)                ;
 			auto       prev        = deserialize<Lru>(IFStream(prev_file)) ;
 			auto       next        = deserialize<Lru>(IFStream(next_file)) ;
 			//
-			prev.next = here.next ;
-			next.prev = here.prev ;
+			prev.next_s = here.next_s ;
+			next.prev_s = here.prev_s ;
 			//
 			serialize(OFStream(prev_file),prev) ;
 			serialize(OFStream(next_file),next) ;
@@ -190,40 +184,40 @@ namespace Caches {
 		return here.sz ;
 	}
 
-	void DirCache::_lru_first( ::string const& entry , Sz sz_ ) {
-		SWEAR(entry!=Head) ;
+	void DirCache::_lru_first( ::string const& entry_s , Sz sz_ ) {
+		SWEAR(entry_s!=HeadS) ;
 		//
-		::string head_file  = _lru_file(Head)                        ;
+		::string head_file  = _lru_file(HeadS)                       ;
 		auto     head       = deserialize<Lru>(IFStream(head_file))  ;
-		::string here_file  = _lru_file(entry)                       ;
-		Lru      here       { .next=head.next , .sz=sz_ }            ;
-		if (head.next==Head) {
-			head.next = entry ;
-			head.prev = entry ;
+		::string here_file  = _lru_file(entry_s)                     ;
+		Lru      here       { .next_s=head.next_s , .sz=sz_ }        ;
+		if (head.next_s==HeadS) {
+			head.next_s = entry_s ;
+			head.prev_s = entry_s ;
 		} else {
-			::string first_file = _lru_file(head.next)                   ;
+			::string first_file = _lru_file(head.next_s)                 ;
 			auto     first      = deserialize<Lru>(IFStream(first_file)) ;
-			head .next = entry ;
-			first.prev = entry ;
+			head .next_s = entry_s ;
+			first.prev_s = entry_s ;
 			serialize(OFStream(first_file),first) ;
 		}
-		serialize(OFStream(head_file),head ) ;
-		serialize(OFStream(here_file),here ) ;
+		serialize(OFStream(head_file),head) ;
+		serialize(OFStream(here_file),here) ;
 	}
 
 	Cache::Match DirCache::match( Job job , Req req ) {
 		Trace trace("DirCache::match",job,req) ;
-		::string     jn       = _unique_name(job)             ;
+		::string     jn_s     = _unique_name_s(job)               ;
 		::uset<Node> new_deps ;
-		AutoCloseFd  dfd      =  open_read(dir_fd,jn)         ;
-		LockedFd     lock     { dfd    , false/*exclusive*/ } ;
-		bool         found    = false                         ;
+		AutoCloseFd  dfd      =  open_read(dir_fd,no_slash(jn_s)) ;
+		LockedFd     lock     { dfd    , false/*exclusive*/ }     ;
+		bool         found    = false                             ;
 		//
 		try {
 			for( ::string const& r : lst_dir(dfd) ) {
 				::uset<Node> nds      ;
-				auto         deps     = deserialize<::vmap_s<DepDigest>>(IFStream(to_string(dir,'/',jn,'/',r,"/deps"))) ;
-				bool         critical = false ;
+				auto         deps     = deserialize<::vmap_s<DepDigest>>(IFStream(dir_s+jn_s+r+"/deps")) ;
+				bool         critical = false                                                            ;
 				//
 				for( auto const& [dn,dd] : deps ) {
 					if ( critical && !dd.parallel ) break ;           // if a critical dep needs reconstruction, do not proceed past parallel deps
@@ -251,7 +245,9 @@ namespace Caches {
 				}
 			Miss : ;                                                  // missed for this entry, try next one
 			}
-		} catch (::string const&) {}                                  // if directory does not exist, it is as it was empty
+		} catch (::string const&) {                                   // if directory does not exist, it is as it was empty
+			trace("dir_not_found") ;
+		}
 		if (!found) {
 			trace("miss") ;
 			return { .completed=true , .hit=No } ;
@@ -267,14 +263,15 @@ namespace Caches {
 	}
 
 	JobInfo DirCache::download( Job job , Id const& id , JobReason const& reason , NfsGuard& nfs_guard ) {
-		::string    jn     = _unique_name(job,id) ;
-		AutoCloseFd dfd    = open_read(dir_fd,jn) ;
+		::string    jn     = _unique_name_s(job)+id ;
+		::string    jn_s   = jn+'/'                 ;
+		AutoCloseFd dfd    = open_read(dir_fd,jn)   ;
 		::vector_s  copied ;
 		Trace trace("DirCache::download",job,id,jn) ;
 		try {
 			JobInfo job_info ;
 			{	LockedFd lock { dfd , false/*exclusive*/ } ;                                        // because we read the data , shared is ok
-				job_info = { to_string(dir,'/',jn,"/data") } ;
+				job_info = { dir_s+jn_s+"data" } ;
 				// update some info
 				job_info.start.pre_start.job       = +job   ;                                       // id is not stored in cache
 				job_info.start.submit_attrs.reason = reason ;
@@ -292,8 +289,8 @@ namespace Caches {
 			// ensure we take a single lock at a time to avoid deadlocks
 			// upload is the only one to take several locks
 			{	LockedFd lock2 { dir_fd , true /*exclusive*/ } ;                                    // because we manipulate LRU, need exclusive
-				Sz sz_ = _lru_remove(jn) ;
-				_lru_first(jn,sz_) ;
+				Sz sz_ = _lru_remove(jn_s) ;
+				_lru_first(jn_s,sz_) ;
 				trace("done",sz_) ;
 			}
 			return job_info ;
@@ -304,24 +301,24 @@ namespace Caches {
 		}
 	}
 
-	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) { // XXX : defer upload in a dedicated thread
-		::string jn = _unique_name(job,repo) ;
-		Trace trace("DirCache::upload",job,jn) ;
+	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) {             // XXX : defer upload in a dedicated thread
+		::string jn_s = _unique_name_s(job)+repo_s ;
+		Trace trace("DirCache::upload",job,jn_s) ;
 		//
 		JobInfo job_info = job.job_info() ;
-		if (!job_info.end.end.proc) {                                     // we need a full report to cache job
+		if (!job_info.end.end.proc) {                                                                    // we need a full report to cache job
 			trace("no_ancillary_file") ;
 			return false/*ok*/ ;
 		}
 		// remove useless info
-		job_info.start.pre_start.seq_id    = 0  ;                         // no seq_id   since no execution
-		job_info.start.start    .small_id  = 0  ;                         // no small_id since no execution
-		job_info.start.pre_start.job       = 0  ;                         // job_id may not be the same in the destination repo
-		job_info.start.eta                 = {} ;                         // dont care about timing info in cache
-		job_info.start.submit_attrs.reason = {} ;                         // cache does not care about original reason
-		job_info.start.rsrcs.clear() ;                                    // caching resources is meaningless as they have no impact on content
+		job_info.start.pre_start.seq_id    = 0  ;                                                        // no seq_id   since no execution
+		job_info.start.start    .small_id  = 0  ;                                                        // no small_id since no execution
+		job_info.start.pre_start.job       = 0  ;                                                        // job_id may not be the same in the destination repo
+		job_info.start.eta                 = {} ;                                                        // dont care about timing info in cache
+		job_info.start.submit_attrs.reason = {} ;                                                        // cache does not care about original reason
+		job_info.start.rsrcs.clear() ;                                                                   // caching resources is meaningless as they have no impact on content
 		for( auto& [tn,td] : job_info.end.end.digest.targets ) {
-			SWEAR(!td.pre_exist) ;                                        // cannot be a candidate for upload as this must have failed
+			SWEAR(!td.pre_exist) ;                                                                       // cannot be a candidate for upload as this must have failed
 			td.sig          = {} ;
 			td.extra_tflags = {} ;
 		}
@@ -329,26 +326,27 @@ namespace Caches {
 		// check deps
 		for( auto const& [dn,dd] : job_info.end.end.digest.deps ) if (!dd.is_crc) return false/*ok*/ ;
 		//
+		::string jn = no_slash(jn_s) ;
 		mk_dir(dir_fd,jn) ;
 		AutoCloseFd dfd = open_read(dir_fd,jn) ;
 		//
 		// upload is the only one to take several locks and it starts with the global lock
 		// this way, we are sure to avoid deadlocks
-		LockedFd lock2{ dir_fd , true/*exclusive*/ } ;                    // because we manipulate LRU and because we take several locks, need exclusive
-		LockedFd lock { dfd    , true/*exclusive*/ } ;                    // because we write the data , need exclusive
+		LockedFd lock2{ dir_fd , true/*exclusive*/ } ;                                                   // because we manipulate LRU and because we take several locks, need exclusive
+		LockedFd lock { dfd    , true/*exclusive*/ } ;                                                   // because we write the data , need exclusive
 		//
-		Sz old_sz = _lru_remove(jn) ;
-		Sz new_sz = 0               ;
+		Sz old_sz = _lru_remove(jn_s) ;
+		Sz new_sz = 0                 ;
 		unlnk_inside(dfd) ;
 		//
 		bool made_room = false ;
 		try {
 			// store meta-data
-			::string data_file = to_string(dir,'/',jn,"/data") ;
-			::string deps_file = to_string(dir,'/',jn,"/deps") ;
+			::string data_file = dir_s+jn_s+"data" ;
+			::string deps_file = dir_s+jn_s+"deps" ;
 			//
 			job_info.write(data_file) ;
-			serialize(OFStream(deps_file),job_info.end.end.digest.deps) ; // store deps in a compact format so that matching is fast
+			serialize(OFStream(deps_file),job_info.end.end.digest.deps) ;                                // store deps in a compact format so that matching is fast
 			//
 			/**/                                       new_sz += FileInfo(data_file           ).sz ;
 			/**/                                       new_sz += FileInfo(deps_file           ).sz ;
@@ -356,16 +354,17 @@ namespace Caches {
 			_mk_room(old_sz,new_sz) ;
 			made_room = true ;
 			for( NodeIdx ti=0 ; ti<digest.targets.size() ; ti++ ) {
-				_copy( digest.targets[ti].first , dfd , to_string(ti) , false/*unlnk_dst*/ , true/*mk_read_only*/ ) ;
-				// XXX : ensure file is still valid after copy
+				auto const& entry = digest.targets[ti] ;
+				_copy( entry.first , dfd , to_string(ti) , false/*unlnk_dst*/ , true/*mk_read_only*/ ) ;
+				if (FileSig(entry.first)!=entry.second.sig) throw "unstable "+entry.first ;              // ensure cache entry is reliable by checking file *after* copy
 			}
 		} catch (::string const& e) {
 			trace("failed",e) ;
-			unlnk_inside(dfd) ;                                           // clean up in case of partial execution
-			_mk_room( made_room?new_sz:old_sz , 0 ) ;                     // finally, we did not populate the entry
+			unlnk_inside(dfd) ;                                                                          // clean up in case of partial execution
+			_mk_room( made_room?new_sz:old_sz , 0 ) ;                                                    // finally, we did not populate the entry
 			return false/*ok*/ ;
 		}
-		_lru_first(jn,new_sz) ;
+		_lru_first(jn_s,new_sz) ;
 		trace("done",new_sz) ;
 		return true/*ok*/ ;
 	}

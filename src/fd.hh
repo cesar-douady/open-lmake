@@ -20,20 +20,17 @@ struct Fd {
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
 	static const Fd Stderr ;
-	static const Fd Std    ;                                                           // the highest standard fd
+	static const Fd Std    ; // the highest standard fd
 	// cxtors & casts
-	constexpr Fd(                              ) = default ;
-	constexpr Fd( Fd const& fd_                )           { *this =        fd_  ;   } // XXX : use copy&swap idiom
-	constexpr Fd( Fd     && fd_                )           { *this = ::move(fd_) ;   }
-	constexpr Fd( int       fd_                ) : fd{fd_} {                         }
-	/**/      Fd( int       fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
-	//
-	constexpr Fd& operator=(Fd const& fd_) { fd = fd_.fd ;                return *this ; }
-	constexpr Fd& operator=(Fd     && fd_) { fd = fd_.fd ; fd_.detach() ; return *this ; }
+	constexpr Fd(                        ) = default ;
+	constexpr Fd( int fd_                ) : fd{fd_} {                         }
+	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
 	constexpr operator int  () const { return fd      ; }
 	constexpr bool operator+() const { return fd>=0   ; }
 	constexpr bool operator!() const { return !+*this ; }
+	//
+	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// services
 	bool              operator== (Fd const&) const = default ;
 	::strong_ordering operator<=>(Fd const&) const = default ;
@@ -44,12 +41,12 @@ struct Fd {
 			cnt += c ;
 		}
 	}
-	Fd             dup   () const { return ::dup(fd) ; }
-	constexpr void detach()       { fd = -1 ;          }
+	Fd             dup   () const { return ::dup(fd) ;                      }
+	constexpr Fd   detach()       { Fd res = *this ; fd = -1 ; return res ; }
 	constexpr void close () {
-		if (fd==-1        ) return ;
+		if (!*this        ) return ;
 		if (::close(fd)!=0) throw to_string("cannot close file descriptor ",fd," : ",strerror(errno)) ;
-		fd = -1 ;
+		*this = {} ;
 	}
 	void no_std() {
 		if ( !*this || fd>Std.fd ) return ;
@@ -76,17 +73,16 @@ constexpr Fd Fd::Std   {2            } ;
 struct AutoCloseFd : Fd {
 	friend ::ostream& operator<<( ::ostream& , AutoCloseFd const& ) ;
 	// cxtors & casts
-	using Fd::Fd ;
-	AutoCloseFd(Fd          const& fd_ ) : Fd{       fd_  } {                }
-	AutoCloseFd(AutoCloseFd     && acfd) : Fd{::move(acfd)} { SWEAR(!acfd) ; } // ensure acfd has been detached XXX : use copy&swap idiom
-	AutoCloseFd(AutoCloseFd const& acfd) = delete ;
+	AutoCloseFd(                              ) = default ;
+	AutoCloseFd( Fd fd_                       ) : Fd{fd_        } {              }
+	AutoCloseFd( AutoCloseFd&& acfd           )                   { swap(acfd) ; }
+	AutoCloseFd( int fd_ , bool no_std_=false ) : Fd{fd_,no_std_} {              }
 	//
 	~AutoCloseFd() { close() ; }
 	//
-	AutoCloseFd& operator=(int                fd_ ) { if (fd!=fd_) close() ; fd = fd_ ; return *this ; }
-	AutoCloseFd& operator=(Fd          const& fd_ ) { *this = fd_ .fd ;                 return *this ; }
-	AutoCloseFd& operator=(AutoCloseFd     && acfd) { *this = acfd.fd ; acfd.detach() ; return *this ; }
-	AutoCloseFd& operator=(AutoCloseFd const& acfd) = delete ;
+	AutoCloseFd& operator=(int           fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return *this ; }
+	AutoCloseFd& operator=(Fd const&     fd_ ) { *this = fd_ .fd ;                     return *this ; }
+	AutoCloseFd& operator=(AutoCloseFd&& acfd) { swap(acfd) ;                          return *this ; }
 } ;
 
 struct LockedFd : Fd {
@@ -233,11 +229,9 @@ struct Epoll {
 	// cxtors & casts
 	Epoll (       ) = default ;
 	Epoll (NewType) { init () ; }
-	~Epoll(       ) { close() ; }
 	// services
 	void init() {
-		fd = ::epoll_create1(EPOLL_CLOEXEC) ;
-		fd.no_std() ;
+		fd = AutoCloseFd( ::epoll_create1(EPOLL_CLOEXEC) , true/*no_std*/ ) ;
 	}
 	template<class T> void add( bool write , Fd fd_ , T data , bool wait=true ) {
 		static_assert(sizeof(T)<=4) ;
@@ -252,9 +246,6 @@ struct Epoll {
 		cnt -= wait ;
 	}
 	::vector<Event> wait(Time::Delay timeout=Time::Delay::Forever) const ;
-	void close() {
-		fd.close() ;
-	}
 	/**/              void add      ( bool write , Fd fd_ ,          bool wait=true ) {               add(write,fd_,0   ,wait) ;               }
 	template<class T> void add_read (              Fd fd_ , T data , bool wait=true ) {               add(false,fd_,data,wait) ;               }
 	template<class T> void add_write(              Fd fd_ , T data , bool wait=true ) {               add(true ,fd_,data,wait) ;               }
@@ -262,7 +253,7 @@ struct Epoll {
 	/**/              void add_write(              Fd fd_ ,          bool wait=true ) {               add(true ,fd_,     wait) ;               }
 	/**/              void close    (              Fd fd_ ,          bool wait=true ) { SWEAR(+fd_) ; del(      fd_,     wait) ; fd_.close() ; } // wait must be coherent with corresponding add
 	// data
-	Fd  fd  ;
-	int cnt = 0 ;
+	AutoCloseFd fd  ;
+	int         cnt = 0 ;
 } ;
 ::ostream& operator<<( ::ostream& , Epoll::Event const& ) ;

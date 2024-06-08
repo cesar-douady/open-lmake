@@ -18,6 +18,9 @@ namespace Backdoor {
 	//
 	// Enable
 	//
+	::ostream& operator<<( ::ostream& os , Enable const& e ) {
+		return os<<"Enable("<<e.enable<<')' ;
+	}
 	size_t Enable::reply_len() const { return 1 ; } // just a bool
 	Enable::Reply Enable::process(Record& r) const {
 		bool res = !r.disabled ;
@@ -28,6 +31,18 @@ namespace Backdoor {
 	//
 	// Solve
 	//
+	::ostream& operator<<( ::ostream& os , Solve const& s ) {
+		/**/              os << "Solve(" << s.file ;
+		if ( s.no_follow) os << ",no_follow"       ;
+		if ( s.read     ) os << ",read"            ;
+		if ( s.write    ) os << ",write"           ;
+		if ( s.create   ) os << ",create"          ;
+		if (+s.comment  ) os << ','<<s.comment     ;
+		return            os << ')'                ;
+	}
+	::ostream& operator<<( ::ostream& os , Solve::Reply const& r ) {
+		return os<<"Reply("<<r.real<<','<<r.file_info<<','<<r.file_loc<<','<<r.accesses<<')' ;
+	}
 	size_t Solve::reply_len() const { return PATH_MAX+100 ; } // 100 is plenty for overhead
 	Solve::Reply Solve::process(Record& r) const {
 		Reply res ;

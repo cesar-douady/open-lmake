@@ -65,8 +65,8 @@ static pid_t _connect_to_server( bool refresh , bool sync ) {                   
 		,	"-d"/*no_daemon*/
 		,	"-c"+*g_startup_dir_s
 		} ;
-		Pipe client_to_server{New} ; client_to_server.no_std() ; client_to_server.read .cloexec(false) ; client_to_server.write.cloexec(true) ;
-		Pipe server_to_client{New} ; server_to_client.no_std() ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
+		Pipe client_to_server{New,true/*no_std*/} ; client_to_server.read .cloexec(false) ; client_to_server.write.cloexec(true) ;
+		Pipe server_to_client{New,true/*no_std*/} ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
 		/**/          cmd_line.push_back(to_string("-i",int(client_to_server.read ))) ;
 		/**/          cmd_line.push_back(to_string("-o",int(server_to_client.write))) ;
 		if (!refresh) cmd_line.push_back(          "-r"                             ) ; // -r means no refresh

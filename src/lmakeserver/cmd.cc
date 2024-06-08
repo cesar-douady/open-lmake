@@ -344,7 +344,7 @@ R"({
 		}
 		Rule::SimpleMatch match = j->simple_match() ;
 		//
-		for( Node t  : j->targets ) t->set_buildable() ;                                                                                           // necessary for pre_actions()
+		for( Node t  : j->targets ) t->set_buildable() ;                                                                                             // necessary for pre_actions()
 		//
 		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match) ;
 		::string                                           script      = "#!/bin/bash\n"       ;
@@ -411,36 +411,27 @@ R"({
 			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                  ," \\\n") ;
 			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                   ," \\\n") ;
 			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)                 ," \\\n") ;
-			if ( dbg || ade.auto_mkdir || +start.job_space ) {                                                                                     // in addition to debug, autodep may be needed ...
-				/**/                                    append_to_string( script , *g_lmake_dir,"/bin/autodep"                      ,' ') ;        // ... for functional reasons
-				if      ( dbg                         ) append_to_string( script , "-s " , snake(ade.lnk_support)                   ,' ') ;
-				else                                    append_to_string( script , "-s " , "none"                                   ,' ') ;        // dont care about deps
-				/**/                                    append_to_string( script , "-m " , snake(start.method   )                   ,' ') ;
-				if      ( !dbg                        ) append_to_string( script , "-o " , "/dev/null"                              ,' ') ;
-				else if ( +dbg_dir                    ) append_to_string( script , "-o " , dbg_dir+"/accesses"                      ,' ') ;
-				if      ( ade.auto_mkdir              ) append_to_string( script , "-d"                                             ,' ') ;
-				if      ( dbg && ade.ignore_stat      ) append_to_string( script , "-i"                                             ,' ') ;
-				if      ( +start.job_space.chroot_dir ) append_to_string( script , "-c"  , mk_shell_str(start.job_space.chroot_dir) ,' ') ;
-				if      ( +start.job_space.root_view  ) append_to_string( script , "-r"  , mk_shell_str(start.job_space.root_view ) ,' ') ;
-				if      ( +start.job_space.tmp_view   ) append_to_string( script , "-t"  , mk_shell_str(start.job_space.tmp_view  ) ,' ') ;
-				if      ( +dbg_dir                    ) append_to_string( script , "-w " ,dbg_dir+"/work"                           ,' ') ;
-				if      ( +start.job_space.views      ) {
-					::string vs    ;
-					bool     first = true ;
-					for( auto const& [view,phys] : start.job_space.views ) {
-						SWEAR(phys.size()==1) ;                                                                                                    // XXX : implement overlays
-						append_to_string( vs , first?"":" " , mk_printable<' '>(view) ,' ', mk_printable<' '>(phys.front()) ) ;
-						first = false ;
-					}
-					append_to_string( script , "-v" ,' ', mk_shell_str(vs) ) ;
-				}
+			if ( dbg || ade.auto_mkdir || +start.job_space ) {                                                                                       // in addition to debug, autodep may be needed ...
+				/**/                                    append_to_string( script , *g_lmake_dir,"/bin/autodep"                               ,' ') ; // ... for functional reasons
+				if      ( dbg                         ) append_to_string( script , "-s " , snake(ade.lnk_support)                            ,' ') ;
+				else                                    append_to_string( script , "-s " , "none"                                            ,' ') ; // dont care about deps
+				/**/                                    append_to_string( script , "-m " , snake(start.method   )                            ,' ') ;
+				if      ( !dbg                        ) append_to_string( script , "-o " , "/dev/null"                                       ,' ') ;
+				else if ( +dbg_dir                    ) append_to_string( script , "-o " , dbg_dir+"/accesses"                               ,' ') ;
+				if      ( ade.auto_mkdir              ) append_to_string( script , "-d"                                                      ,' ') ;
+				if      ( dbg && ade.ignore_stat      ) append_to_string( script , "-i"                                                      ,' ') ;
+				if      ( +start.job_space.chroot_dir ) append_to_string( script , "-c"  , mk_shell_str(start.job_space.chroot_dir)          ,' ') ;
+				if      ( +start.job_space.root_view  ) append_to_string( script , "-r"  , mk_shell_str(start.job_space.root_view )          ,' ') ;
+				if      ( +start.job_space.tmp_view   ) append_to_string( script , "-t"  , mk_shell_str(start.job_space.tmp_view  )          ,' ') ;
+				if      ( +dbg_dir                    ) append_to_string( script , "-w " , dbg_dir+"/work"                                   ,' ') ;
+				if      ( +start.job_space.views      ) append_to_string( script , "-v " , mk_shell_str(mk_printable(start.job_space.views)) ,' ') ;
 			}
 			for( ::string const& c : start.interpreter )   append_to_string( script , mk_shell_str(c) , ' '                                    ) ;
 			if      ( dbg && !is_python )                  append_to_string( script , "-x "                                                    ) ;
 			if      ( with_cmd          )                  append_to_string( script , dbg_dir+"/cmd"                                           ) ;
 			else                                           append_to_string( script , "-c \\\n" , mk_shell_str(_mk_cmd(j,flags,start,dbg_dir)) ) ;
-			if      ( +start.stdin  && dbg && !is_python ) append_to_string( script , " 3<&0"                                                  ) ; // must be before job redirections
-			if      ( +start.stdout && dbg && !is_python ) append_to_string( script , " 4>&1"                                                  ) ; // must be before job redirections
+			if      ( +start.stdin  && dbg && !is_python ) append_to_string( script , " 3<&0"                                                  ) ;   // must be before job redirections
+			if      ( +start.stdout && dbg && !is_python ) append_to_string( script , " 4>&1"                                                  ) ;   // must be before job redirections
 			if      ( +start.stdin      )                  append_to_string( script , " <" , mk_shell_str(start.stdin )                        ) ;
 			else if ( !dbg              )                  append_to_string( script , " </dev/null"                                            ) ;
 			if      ( +start.stdout     )                  append_to_string( script , " >" , mk_shell_str(start.stdout)                        ) ;

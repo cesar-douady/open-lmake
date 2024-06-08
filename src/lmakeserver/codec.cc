@@ -95,14 +95,14 @@ namespace Codec {
 		Trace trace("_s_canonicalize",file,lines.size()) ;
 		//
 		for( ::string const& line : lines ) {
+			size_t   pos  = 0 ;
 			::string ctx  ;
 			::string code ;
 			::string val  ;
-			size_t   pos  = 0 ;
-			/**/                                               if (line[pos]!=' ') goto BadFormat ; // bad format
-			tie(ctx ,pos) = parse_printable<' '>(line,pos+1) ; if (line[pos]!=' ') goto BadFormat ; // .
-			tie(code,pos) = parse_printable<' '>(line,pos+1) ; if (line[pos]!=' ') goto BadFormat ; // .
-			tie(val ,pos) = parse_printable     (line,pos+1) ; if (line[pos]!=0  ) goto BadFormat ; // .
+			/**/                                    if (line[pos++]!=' ') goto BadFormat ;
+			ctx  = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') goto BadFormat ;
+			code = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') goto BadFormat ;
+			val  = parse_printable     (line,pos) ; if (line[pos  ]!=0  ) goto BadFormat ;
 			//
 			is_canonic &= first || ::pair(prev_ctx,prev_code)<::pair(ctx,code) ;                    // use same order as in decode_tab below when rewriting file
 			is_canonic &= line==_codec_line(ctx,code,val,false/*with_nl*/)     ;                    // in case user encoded line in a non-canonical way, such as using \x0a for \n
