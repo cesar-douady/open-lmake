@@ -480,9 +480,9 @@ namespace Backends {
 			/**/                                               jrr.digest.status  = _s_release_start_entry(it,jrr.digest.status) ;
 		}
 		trace("info") ;
-		{	Lock lock { NodeData::s_crc_date_mutex } ; // crc and dates could be moving while we acquire crc
+		{	Lock lock { NodeData::s_crc_date_mutex } ;                   // crc and dates could be moving while we acquire crc
 			for( auto& [dn,dd] : jrr.digest.deps ) {
-				if (dd.is_crc) continue ;                                    // fast path
+				if (dd.is_crc) continue ;                                // fast path
 				Dep dep { Node(dn) , dd } ;
 				dep.acquire_crc() ;
 				dd.crc_sig(dep) ;
@@ -562,6 +562,7 @@ namespace Backends {
 		SubmitAttrs              submit_attrs ;
 		SigDate                  start_date   ;
 		for( JobIdx job=0 ;; job++ ) {
+			if (stop.stop_requested()) break ;                                                               // exit even if sleep_until does not wait
 			{	Lock lock { _s_mutex }                    ;                                                  // lock _s_start_tab for minimal time
 				auto it   = _s_start_tab.lower_bound(job) ;
 				if (it==_s_start_tab.end()) goto WrapAround ;
@@ -654,7 +655,7 @@ namespace Backends {
 				be->addr = ServerSockFd::s_addr(ifce) ;
 			}
 			try                       { be->config(cfg.dct,dynamic) ; be->config_err.clear() ; trace("ready",t  ) ; }
-			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e     ; trace("err"  ,t,e) ; }                                       // empty config_err means ready
+			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e     ; trace("err"  ,t,e) ; } // empty config_err means ready
 		}
 		job_start_thread.wait_started() ;
 		job_mngt_thread .wait_started() ;

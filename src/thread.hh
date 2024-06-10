@@ -44,7 +44,7 @@ public :
 	}
 	::pair<bool/*popped*/,T> pop(::stop_token tkn) {
 		Lock<ThreadMutex> lock { _mutex } ;
-		if (!_cond.wait( lock , tkn , [&](){ return !Base::empty() ; } )) return {false/*popped*/,T()} ;
+		if ( Base::empty() && !_cond.wait( lock , tkn , [&](){ return !Base::empty() ; } ) ) return {false/*popped*/,T()} ;
 		return {true/*popped*/,_pop()} ;
 	}
 private :

@@ -242,7 +242,8 @@ namespace Backends::Slurm {
 			if (info.second==Yes) return { info.first , HeartbeatState::Lost } ;
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
-		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
+		virtual void kill_queued_job( JobIdx ji , SpawnedEntry const& se ) const {
+			Trace trace("kill_queued_job",ji,se.id) ;
 			_s_slurm_cancel_thread->push(se.id) ;                               // asynchronous (as faster and no return value) cancel
 			spawned_rsrcs.dec(se.rsrcs) ;
 		}

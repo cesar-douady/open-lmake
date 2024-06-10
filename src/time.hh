@@ -283,7 +283,7 @@ namespace Time {
 		return Date(New,_val+d._val) ;
 	}
 	inline bool/*slept*/ Delay::_s_sleep( ::stop_token tkn , Delay sleep , Pdate until ) {
-		if (sleep<=Delay()) return !tkn.stop_requested() ;
+		if (sleep<=Delay()) return true ;
 		Mutex<MutexLvl::Time>       m   ;
 		Lock<Mutex<MutexLvl::Time>> lck { m } ;
 		::condition_variable_any cv  ;
