@@ -19,7 +19,7 @@ if __name__!='__main__' :
 		target = 'bad'
 		cmd    = 'exit 1'
 
-	class Dut(Rule) :
+	class Dut(PyRule) :
 		target = 'dut'
 		def cmd() :
 			if step==1 :

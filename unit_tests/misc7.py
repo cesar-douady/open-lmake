@@ -7,7 +7,7 @@ if __name__!='__main__' :
 
 	import lmake
 
-	from lmake.rules import HomelessRule
+	from lmake.rules import HomelessRule,PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -16,7 +16,7 @@ if __name__!='__main__' :
 
 	from step import step
 
-	class Test(HomelessRule) :
+	class Test(HomelessRule,PyRule) :
 		targets = { 'OUT' : 'out' }
 		def cmd() :
 			import lmake

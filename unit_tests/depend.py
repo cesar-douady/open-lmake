@@ -14,7 +14,7 @@ if __name__!='__main__' :
 
 	import sys
 
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	import step
 
@@ -48,13 +48,13 @@ if __name__!='__main__' :
 			autodep = ad
 			target  = f'{{File}}.sh.dep.{ad}.{step.link_support}.cpy'
 			cmd     = 'ldepend {File} ; echo yes'
-		class CpyPyAcc(Base) :
+		class CpyPyAcc(Base,PyRule) :
 			name    = f'cpy-py-acc-{ad}'
 			autodep = ad
 			target  = f'{{File}}.py.acc.{ad}.{step.link_support}.cpy'
 			def cmd() :
 				sys.stdout.write(open(File).read())
-		class CpyPyDep(Base) :
+		class CpyPyDep(Base,PyRule) :
 			name    = f'cpy-py-dep-{ad}'
 			autodep = ad
 			target  = f'{{File}}.py.dep.{ad}.{step.link_support}.cpy'

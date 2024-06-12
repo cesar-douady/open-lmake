@@ -68,10 +68,11 @@ static thread_local bool                      _t_loop  = false ; // prevent recu
 // To face this order problem, we declare our Audit as a static within a funciton which will be constructed upon first call.
 // As all statics with cxtor/dxtor, we define it through new so as to avoid destruction during finalization.
 #ifndef IN_SERVER
-	static        // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
+	static                                // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
 #endif
 Record& auditor() {
-	static Record* s_res = new Record{New} ;
+	static Record* s_res = nullptr ;
+	if (!s_res) s_res = new Record{New} ; // dont initialize directly as C++ guard for static variables may do some syscalls
 	return *s_res ;
 }
 
@@ -324,11 +325,11 @@ struct Mkstemp : WSolve {
 		va_end(args) ;
 		//
 		ORIG(clone) ;
-		if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,flags,arg,parent_tid,tls,child_tid) ; // if flags contains CLONE_VM, lock is not duplicated and there is nothing to do
-		Lock lock{_g_mutex} ;                                                                                     // no need to set _t_loop as clone calls no other piggy-backed function
+		if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,flags,arg,parent_tid,tls,child_tid) ; // if flags contains CLONE_VM, lock is not duplicated : nothing to do
+		Lock lock{_g_mutex} ;                                                                                               // no need to set _t_loop as clone calls no other piggy-backed function
 		//
 		NO_SERVER(clone) ;
-		_clone_fn = fn ;                                                                                          // _g_mutex is held, so there is no risk of clash
+		_clone_fn = fn ;                                                                                                    // _g_mutex is held, so there is no risk of clash
 		return (*atomic_orig)(_call_clone_fn,stack,flags,arg,parent_tid,tls,child_tid) ;
 	}
 	int __clone2( int (*fn)(void*) , void *stack , size_t stack_size , int flags , void *arg , ... ) {
@@ -341,10 +342,10 @@ struct Mkstemp : WSolve {
 		//
 		ORIG(__clone2) ;
 		if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ; // cf clone
-		Lock lock{_g_mutex} ;                                                                                                // cf clone
+		Lock lock{_g_mutex} ;                                                                                                          // cf clone
 		//
 		NO_SERVER(__clone2) ;
-		_clone_fn = fn ;                                                                                                     // cf clone
+		_clone_fn = fn ;                                                                                                               // cf clone
 		return (*atomic_orig)(_call_clone_fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ;
 	}
 
@@ -612,8 +613,8 @@ struct Mkstemp : WSolve {
 			args[5] = va_arg(lst,uint64_t) ;
 			va_end(lst) ;
 		}
-		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab() ;
-		SyscallDescr      const& descr = n>=0||n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
+		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab()                                     ;
+		SyscallDescr      const& descr = n>=0&&n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
 		HEADER(
 			syscall
 		,	false/*is_stat*/
@@ -621,7 +622,7 @@ struct Mkstemp : WSolve {
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
 		void* descr_ctx = nullptr ;
-		Ctx audit_ctx ;             // save user errno when required
+		Ctx audit_ctx ;                                                                              // save user errno when required
 		//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if (descr.entry) descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ;
 		//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

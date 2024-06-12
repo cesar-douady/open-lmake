@@ -17,7 +17,7 @@ gxx_is_clang = 'clang' in check_output( (gxx,"--version") , universal_newlines=T
 
 import lmake
 from lmake       import config,pdict
-from lmake.rules import Rule,AntiRule
+from lmake.rules import Rule,PyRule,AntiRule
 
 if 'slurm' in lmake.backends :
 	backend = 'slurm'
@@ -96,7 +96,7 @@ class AntiPackPack(BaseRule,AntiRule) :
 	,	'ZIP' : '{Dir}..dir/{File}.zip'
 	}
 
-class Untar(Unpack) :
+class Untar(Unpack,PyRule) :
 	deps         = { 'TAR' : 'ext/{Dir}.tar.gz' }
 	allow_stderr = True
 	def cmd() :
@@ -115,7 +115,7 @@ class Untar(Unpack) :
 					n_files += 1
 		print(f'untar {n_files} files',file=sys.stderr)
 
-class Unzip(Unpack) :
+class Unzip(Unpack,PyRule) :
 	deps         = { 'ZIP' : 'ext/{Dir}.zip' }
 	allow_stderr = True
 	def cmd() :
@@ -161,7 +161,7 @@ class VersionH(BaseRule) :
 	cmd  = "./{EXE} $(grep '\.cc$' Manifest) $(grep '\.hh$' Manifest)"
 
 opt_tab = {}
-class GenOpts(BaseRule) :
+class GenOpts(BaseRule,PyRule) :
 	targets = { 'OPTS' : '{File}.opts' }
 	backend = 'local'
 	def cmd() :
@@ -178,7 +178,7 @@ class GenOpts(BaseRule) :
 		print(tuple(res),file=open(OPTS,'w'))
 
 # a rule to ensure dir exists
-class Marker(BaseRule) :
+class Marker(BaseRule,PyRule) :
 	prio    = 1                         # avoid untar when in a tar dir
 	targets = { 'MRKR' : '{DirS}mrkr' }
 	backend = 'local'
@@ -197,7 +197,7 @@ def run_gxx(target,*args) :
 		print(' '.join(cmd_line))
 		run( cmd_line , check=True )
 for ext,basic_opts in basic_opts_tab.items() :
-	class Compile(PathRule) :                                            # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
+	class Compile(PathRule,PyRule) :                                     # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
 		name    = f'compile {ext}'
 		targets = { 'OBJ' : '{File}.o' }
 		deps    = {
@@ -231,7 +231,7 @@ for ext,basic_opts in basic_opts_tab.items() :
 		if True             : resources.mem = '1G'
 		if backend=='local' : resources.cc  = 1
 
-class LinkRule(PathRule) :
+class LinkRule(PathRule,PyRule) :
 	combine       = ('pre_opts','rev_post_opts')
 	pre_opts      = []                           # options before inputs & outputs
 	rev_post_opts = []                           # options after  inputs & outputs, combine appends at each level, but here we want to prepend
@@ -301,7 +301,7 @@ class CpyPy(BaseRule) :
 	dep    = '_lib/{File}.py'
 	cmd    = 'cat'
 
-class CpyLmakePy(BaseRule) :
+class CpyLmakePy(BaseRule,PyRule) :
 	target = 'lib/{File}.py'
 	dep    = '_lib/{File}.src.py'
 	def cmd() :

@@ -17,13 +17,13 @@ namespace Backends {
 	void send_reply( JobIdx job , JobMngtRpcReply&& jmrr ) {
 		Lock lock { Backend::_s_mutex }             ;
 		auto it   = Backend::_s_start_tab.find(job) ;
-		if (it==Backend::_s_start_tab.end()) return ;                      // job is dead without waiting for reply, curious but possible
+		if (it==Backend::_s_start_tab.end()) return ;         // job is dead without waiting for reply, curious but possible
 		Backend::StartEntry const& e = it->second ;
 		try {
 			jmrr.seq_id = e.conn.seq_id ;
 			ClientSockFd fd( e.conn.host , e.conn.port , 3/*n_trials*/ ) ;
 			OMsgBuf().send( fd , jmrr ) ;
-		} catch (...) {                                                    // if we cannot connect to job, assume it is dead while we processed the request
+		} catch (...) {                                       // if we cannot connect to job, assume it is dead while we processed the request
 			Backend::_s_deferred_wakeup_thread.emplace_after(
 				g_config->network_delay
 			,	Backend::DeferredEntry { e.conn.seq_id , JobExec(Job(job),e.conn.host,e.start_date) }
@@ -231,7 +231,7 @@ namespace Backends {
 			start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
 			start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
 			//
-			pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
+			pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 5 ;
 		} catch (::pair_ss const& msg_err) {
 			append_line_to_string(start_msg_err.first  , msg_err.first  ) ;
 			append_line_to_string(start_msg_err.second , msg_err.second ) ;
@@ -244,8 +244,9 @@ namespace Backends {
 		}
 		trace("deps",step,deps) ;
 		// record as much info as possible in reply
+		::uset_s env_keys ;
 		switch (step) {
-			case 4 :
+			case 5 :
 				// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 				try {
 					start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&deps) ;
@@ -262,15 +263,22 @@ namespace Backends {
 				reply.method  = start_rsrcs_attrs.method  ;
 				reply.timeout = start_rsrcs_attrs.timeout ;
 				//
-				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
+				for( ::pair_ss& kv : start_rsrcs_attrs.env ) { env_keys.insert(kv.first) ; reply.env.push_back(::move(kv)) ; }
 			[[fallthrough]] ;
 			case 2 :
-				/**/                                       reply.interpreter             = start_cmd_attrs.interpreter       ;
-				/**/                                       reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir        ;
-				/**/                                       reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat       ;
-				/**/                                       reply.job_space               = ::move(start_cmd_attrs.job_space) ;
-				/**/                                       reply.use_script              = start_cmd_attrs.use_script        ;
-				for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
+				reply.interpreter             = ::move(start_cmd_attrs.interpreter) ;
+				reply.autodep_env.auto_mkdir  =        start_cmd_attrs.auto_mkdir   ;
+				reply.autodep_env.ignore_stat =        start_cmd_attrs.ignore_stat  ;
+				reply.job_space               = ::move(start_cmd_attrs.job_space  ) ;
+				reply.use_script              =        start_cmd_attrs.use_script   ;
+				//
+				for( ::pair_ss& kv : start_cmd_attrs.env )
+					if (env_keys.insert(kv.first).second) {
+						reply.env.push_back(::move(kv)) ;
+					} else if (step==5) {
+						step = 4 ;
+						append_line_to_string( start_msg_err.first , "env variable "+kv.first+" is defined both in environ_cmd and environ_resources" ) ;
+					}
 			[[fallthrough]] ;
 			case 1 :
 				reply.cmd = ::move(cmd) ;
@@ -295,7 +303,8 @@ namespace Backends {
 				/**/                               reply.live_out                  = submit_attrs.live_out                             ;
 				/**/                               reply.network_delay             = g_config->network_delay                           ;
 				//
-				for( ::pair_ss& kv : start_none_attrs.env )      reply.env.push_back(::move(kv)) ;
+				for( ::pair_ss& kv : start_none_attrs.env ) if (env_keys.insert(kv.first).second) reply.env.push_back(::move(kv)) ; // in case of key conflict, ignore environ_ancillary
+				//
 				for( auto const& [k,v] : rsrcs ) if (k=="tmp") { reply.tmp_sz_mb = from_string_with_units<'M'>(v) ; break ; }
 			} break ;
 		DF}
@@ -330,7 +339,7 @@ namespace Backends {
 			//                               vvvvvvvvvvvvvvvvvvvvvvv
 			append_line_to_string( jrr.msg , s_start(entry.tag,+job) ) ;
 			//                               ^^^^^^^^^^^^^^^^^^^^^^^
-			if ( step<4 || !deps_done ) {
+			if ( step<5 || !deps_done ) {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				OMsgBuf().send(fd,JobRpcReply(Proc::None)) ; // silently tell job_exec to give up
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -527,19 +536,20 @@ namespace Backends {
 		SubmitAttrs              submit_attrs ;
 		Pdate                    start_date   ;
 		for( JobIdx job=0 ;; job++ ) {
-			{	Lock lock { _s_mutex }                    ;                                                  // lock _s_start_tab for minimal time
+			if (stop.stop_requested()) break ;                                                                        // exit even if sleep_until does not wait
+			{	Lock lock { _s_mutex }                    ;                                                           // lock _s_start_tab for minimal time
 				auto it   = _s_start_tab.lower_bound(job) ;
 				if (it==_s_start_tab.end()) goto WrapAround ;
 				StartEntry& entry = it->second ;
-				job = it->first ;                                                                            // job is now the next valid entry
+				job = it->first ;                                                                                     // job is now the next valid entry
 				//
-				if (!entry    )                      continue ;                                              // not a real entry                        ==> no check, no wait
-				if (!entry.old) { entry.old = true ; continue ; }                                            // entry is too new, wait until next round ==> no check, no wait
+				if (!entry    )                      continue ;                                                       // not a real entry                        ==> no check, no wait
+				if (!entry.old) { entry.old = true ; continue ; }                                                     // entry is too new, wait until next round ==> no check, no wait
 				start_date = entry.start_date ;
 				conn       = entry.conn       ;
 				if (+start_date) goto Wakeup ;
 				lost_report = s_heartbeat(entry.tag,job) ;
-				if (lost_report.second==HeartbeatState::Alive) goto Next ;                                   // job is still alive
+				if (lost_report.second==HeartbeatState::Alive) goto Next ;                                            // job is still alive
 				if (!lost_report.first                       ) lost_report.first = "vanished before start" ;
 				//
 				Status hbs = lost_report.second==HeartbeatState::Err ? Status::EarlyLostErr : Status::LateLost ;
@@ -550,7 +560,7 @@ namespace Backends {
 				status       = _s_start_tab.release(it,hbs) ;
 				trace("handle_job",job,entry,status) ;
 			}
-			{	JobExec      je  { job , New } ;                                                             // job starts and ends, no host
+			{	JobExec      je  { job , New } ;                                                                      // job starts and ends, no host
 				JobInfoStart jis {
 					.eta          = eta
 				,	.submit_attrs = submit_attrs
@@ -569,13 +579,13 @@ namespace Backends {
 		Wakeup :
 			_s_wakeup_remote(job,conn,start_date,JobMngtProc::Heartbeat) ;
 		Next :
-			if (!g_config->heartbeat_tick.sleep_for(stop)) break ;                                           // limit job checks
+			if (!g_config->heartbeat_tick.sleep_for(stop)) break ;                                                    // limit job checks
 			continue ;
 		WrapAround :
 			job = 0 ;
-			Delay d = g_config->heartbeat + g_config->network_delay ;                                        // ensure jobs have had a minimal time to start and signal it
-			if ((last_wrap_around+d).sleep_until(stop)) { last_wrap_around = Pdate(New) ; continue ; }       // limit job checks
-			else                                        {                                 break    ; }
+			Delay d = g_config->heartbeat + g_config->network_delay ;                                                 // ensure jobs have had a minimal time to start and signal it
+			if ((last_wrap_around+d).sleep_until(stop,false/*flush*/)) { last_wrap_around = Pdate(New) ; continue ; } // limit job checks
+			else                                                       {                                 break    ; }
 		}
 		trace("done") ;
 	}

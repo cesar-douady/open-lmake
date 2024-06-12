@@ -8,7 +8,7 @@ if __name__!='__main__' :
 	import sys
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -32,7 +32,7 @@ if __name__!='__main__' :
 			ltarget -s side.sh ; echo side > side.sh
 		'''
 
-	class PyCpy(Base) :
+	class PyCpy(Base,PyRule) :
 		targets = { 'DST' : '{File}.py.{YesNo}.cpy' }
 		def cmd() :
 			if YesNo=='y' :

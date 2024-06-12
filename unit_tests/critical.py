@@ -9,7 +9,7 @@ n_bads  = 10
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	from step import step
 
@@ -20,7 +20,7 @@ if __name__!='__main__' :
 	,	'src2'
 	)
 
-	class Good(Rule) :
+	class Good(PyRule) :
 		target = 'good{Digit:\d+}'
 		def cmd() :
 			if int(Digit)==0 : print(step)
@@ -29,7 +29,7 @@ if __name__!='__main__' :
 		target = 'bad{:\d+}'
 		cmd    = 'exit {step}'
 
-	class Critical(Rule) :
+	class Critical(PyRule) :
 		target = 'tgt'
 		def cmd() :
 			lmake.depend('src1','src2',critical=True)

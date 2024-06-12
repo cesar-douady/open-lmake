@@ -6,7 +6,7 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	from step import n_srcs
 
@@ -22,17 +22,17 @@ if __name__!='__main__' :
 		target = r'no_dep/{:\d+}'
 		cmd = ''
 
-	class WithDeps(Base) :
+	class WithDeps(Base,PyRule) :
 		target = r'with_deps_{N:\d+}/{:\d+}'
 		def cmd() :
 			lmake.depend(*(f'no_dep/{i}' for i in range(int(N))))
 
-	class TestNoDep(Base) :
+	class TestNoDep(Base,PyRule) :
 		target = r'test1_{N:\d+}'
 		def cmd() :
 			lmake.depend(*(f'no_dep/{i}' for i in range(int(N))))
 
-	class TestWithDeps(Base) :
+	class TestWithDeps(Base,PyRule) :
 		target = r'test2_{P:\d+}_{N:\d+}'
 		def cmd() :
 			lmake.depend(*(f'with_deps_{P}/{i}' for i in range(int(N))))

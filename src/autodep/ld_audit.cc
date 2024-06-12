@@ -12,12 +12,6 @@
 bool        g_force_orig = false   ;
 const char* g_libc_name  = nullptr ;
 
-void* get_libc_handle() {
-	static void* s_libc_handle = ::dlmopen( LM_ID_BASE , g_libc_name , RTLD_NOW|RTLD_NOLOAD ) ;
-	swear_prod(s_libc_handle,"cannot find libc") ;
-	return s_libc_handle ;
-}
-
 struct Ctx {
 	void save_errno   () {} // our errno is not the same as user errno, so nothing to do
 	void restore_errno() {} // .

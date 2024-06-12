@@ -6,7 +6,7 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -15,12 +15,12 @@ if __name__!='__main__' :
 
 	from step import step
 
-	class Test1(Rule):
+	class Test1(PyRule):
 		targets = { 'GOOD' : ('good','Phony') }
 		def cmd():
 			if step==1 : lmake.depend('bad')
 
-	class Test2(Rule):
+	class Test2(PyRule):
 		target = 'tgt'
 		def cmd():
 			lmake.depend('good')

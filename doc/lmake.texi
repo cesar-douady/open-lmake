@@ -2105,13 +2105,14 @@ This is typically used to access some environment variables set by @code{slurm}.
 
 By default the following environment variables are defined :
 @table @code
-@item HOME
+@item HOME in Rule
 The root directory of the repository, so as to prevent tools from accessing startup files that may vary from user to user.
 Necessary startup files can be put inside the repository, administered with your prefered versioning tool as any other source.
-@item PATH
+In @code{HomelessRule}, it is defined as the temporary directory.
+@item PATH in Rule
 The standard path with @lmake bin directory in front.
 The standard path is the one you get with the standard shell in absence of any startup file.
-@item PYTHONPATH
+@item PYTHONPATH in PyRule
 The @lmake lib directory.
 @end table
 
