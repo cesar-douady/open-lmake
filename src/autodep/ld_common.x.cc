@@ -586,8 +586,8 @@ struct Mkstemp : WSolve {
 			args[5] = va_arg(lst,uint64_t) ;
 			va_end(lst) ;
 		}
-		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab(false/*for_ptrace*/) ;
-		SyscallDescr      const& descr = n>=0||n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
+		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab(false/*for_ptrace*/)                  ;
+		SyscallDescr      const& descr = n>=0&&n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
 		HEADER(
 			syscall
 		,	false/*is_stat*/
