@@ -146,12 +146,6 @@ namespace Backends {
 		else                        it->second.submit_attrs |= sa ;      // and update submit_attrs in case job was not actually started
 	}
 
-	void Backend::s_launch() {
-		Lock lock{_s_mutex} ;
-		Trace trace(BeChnl,"s_launch") ;
-		for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->launch() ;
-	}
-
 	void Backend::_s_handle_deferred_wakeup(DeferredEntry&& de) {
 		Trace trace(BeChnl,"_s_handle_deferred_wakeup",de) ;
 		{	Lock lock { _s_mutex } ;                                                      // lock _s_start_tab for minimal time to avoid dead-locks

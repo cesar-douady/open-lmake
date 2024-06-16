@@ -248,6 +248,7 @@ unit_tests/sources2.py
 unit_tests/src.py
 unit_tests/star.py
 unit_tests/static_deps.py
+unit_tests/stress_depend.py
 unit_tests/subprocess.py
 unit_tests/suspend.py
 unit_tests/sym_lnk.py

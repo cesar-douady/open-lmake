@@ -509,10 +509,14 @@ class Handle :
 			)
 			if multi :
 				cmd += 'def cmd() : \n'
-				x = avoid_ctx('x',serialize_ctx) # find a non-conflicting name
+				x = avoid_ctx('x',serialize_ctx)                                                                                  # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
-					b = c.__code__.co_argcount!=0
-					a = '' if not b else 'None' if i==0 else x
+					if c.__defaults__ : n_dflts = len(c.__defaults__)
+					else              : n_dflts = 0                                                                               # stupid c.__defaults__ is None when no defaults, not ()
+					if   c.__code__.co_argcount> n_dflts+1 : raise "cmd cannot have more than a single arg without default value"
+					if   c.__code__.co_argcount<=n_dflts   : a = ''
+					elif i==0                              : a = 'None'
+					else                                   : a = x
 					if i==len(self.attrs.cmd)-1 :
 						cmd += f'\treturn {c.__name__}({a})\n'
 					else :

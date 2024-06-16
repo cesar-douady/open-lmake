@@ -215,6 +215,7 @@ namespace Backends {
 	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { LOCK ; Trace trace(BeChnl,"s_open_req"   ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->open_req   (r,nj) ; }
 	inline void Backend::s_close_req  (ReqIdx r          ) { LOCK ; Trace trace(BeChnl,"s_close_req"  ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->close_req  (r   ) ; }
 	inline void Backend::s_new_req_eta(ReqIdx r          ) { LOCK ; Trace trace(BeChnl,"s_new_req_eta",r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->new_req_eta(r   ) ; }
+	inline void Backend::s_launch     (                  ) { LOCK ; Trace trace(BeChnl,"s_launch"       ) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->launch     (    ) ; }
 	#undef LOCK
 	//
 	inline ::string/*msg*/          Backend::s_start    ( Tag t , JobIdx j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
