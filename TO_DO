@@ -72,16 +72,22 @@ items :
 	- dont know how to do that
 
 ****************************************************************************************************
-* ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
+* TECHNICAL DEBTH (coded poorly and needing to be reworked)
 ****************************************************************************************************
 
 * rework dep analysis in JobData::make
 	- to ensure SWEAR(!ri.state.missing_dsk) does not fire
+* fix store to be compliant with strict aliasing rules
+* make all dirs end with /
+
+****************************************************************************************************
+* ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
+****************************************************************************************************
+
 * support 64-bits id
 	- configure with NBits rather than types
 	- in store/file.hh, reserve address space after NBits instead of type
 	- first candidate would be deps, by far the most demanding
-* fix store to be compliant with strict aliasing rules
 * add a warning when ids reach 15/16 of their limits
 * get rid of double crc (md5+xxh)
 	- keep only xxh
@@ -96,12 +102,6 @@ items :
 		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
 	- check marker file existence in job_exec
 		- and retry job in that case rather than generating job in error
-? implement class path_?? (x, n or s) in path.hh
-	- semantic : path w/ & w/o / at beginning and end
-	- implement mk_lcl, mk_glb, mk_rel, mk_abs, ...
-	- inherit from ::string
-	- s means w/ /, n means w/o /, x means w/ or w/o /
-	- no actual disk access
 
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)

@@ -104,52 +104,11 @@ done
 STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' compiler_info)) )" # echo is used to replace \n by space
 
 #
-# HAS_SECCOMP
-# test whether we have seccomp : warning, include <seccomp.h> is not enough to test, check its content too
+# ADDR2LINE
 #
-cat <<"EOF" > seccomp.c
-	#include <seccomp.h>
-	struct scmp_version v ;
-EOF
-# usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccomp.h) but some systems have seccomp.h directly installed in /usr/include/linux
-if $CXX -c -idirafter /usr/include/linux -o ptrace.o -xc seccomp.c
-then HAS_SECCOMP=1
-else HAS_SECCOMP=0
-fi
-
-#
-# MUST_UNDEF_PTRACE_MACROS
-#
-cat <<"EOF" > undef_ptrace_macros.c
-	#include<sys/ptrace.h>
-	#include<linux/ptrace.h>
-	#undef PTRACE_TRACEME
-	void foo() {
-		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
-	}
-EOF
-if $CXX -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c
-then MUST_UNDEF_PTRACE_MACROS=1
-else MUST_UNDEF_PTRACE_MACROS=0
-fi
-
-#
-# HAS_PTRACE_GET_SYSCALL_INFO
-#
-cat <<"EOF" > get_syscall_info.c
-	#include<sys/ptrace.h>
-	#include<linux/ptrace.h>
-	#if MUST_UNDEF_PTRACE_MACROS
-		#undef PTRACE_GET_SYSCALL_INFO
-	#endif
-	void foo() {
-		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
-	}
-EOF
-if $CXX -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS  -o get_syscall_info.o -xc get_syscall_info.c
-then HAS_PTRACE_GET_SYSCALL_INFO=1
-else HAS_PTRACE_GET_SYSCALL_INFO=0
-fi
+[ ""              ] || ADDR2LINE=$(find $(dirname $(realpath $CXX)) -name llvm-addr2line)
+[ -x "$ADDR2LINE" ] || ADDR2LINE=$(find $(dirname $(realpath $CXX)) -name addr2line     )
+[ -x "$ADDR2LINE" ] || ADDR2LINE=$(type -p addr2line)
 
 #
 # HAS_CLOSE_RANGE
@@ -158,6 +117,14 @@ fi
 if $CXX -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null
 then HAS_CLOSE_RANGE=1
 else HAS_CLOSE_RANGE=0
+fi
+
+#
+# HAS_FUSE
+#
+if pkg-config fuse3 --cflags --libs
+then HAS_FUSE=1
+else HAS_FUSE=0
 fi
 
 #
@@ -193,18 +160,18 @@ if [ -z "$HAS_LD_AUDIT" ] ; then
 fi
 
 #
-# NEED_STAT_WRAPPERS
-# test whether stat syscalls are transformed into __xstat
+# HAS_MEMFD
 #
-cat <<"EOF" > stat.c
-	#include <sys/stat.h>
-	struct stat buf ;
-	int main() { stat("",&buf) ; }
+cat <<"EOF" > memfd.c
+	#ifndef _GNU_SOURCE
+		#define _GNU_SOURCE
+	#endif
+	#include<sys/mman.h>
+	int main() { memfd_create("trial",0) ; }
 EOF
-$CXX -o stat_trial -xc stat.c
-if nm -D stat_trial | grep -wq stat
-then NEED_STAT_WRAPPERS=0
-else NEED_STAT_WRAPPERS=1
+if $CXX -Werror -o memfd -xc memfd.c
+then HAS_MEMFD=1
+else HAS_MEMFD=0
 fi
 
 #
@@ -221,6 +188,53 @@ else HAS_OSTRINGSTREAM_VIEW=0
 fi
 
 #
+# HAS_PCRE
+#
+cat <<"EOF" > pcre.cc
+	#define PCRE2_CODE_UNIT_WIDTH 8
+	#include <pcre2.h>
+	void foo() {
+		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
+	}
+EOF
+if $CXX -c -std=c++20 -o pcre.o pcre.cc
+then HAS_PCRE=1
+else HAS_PCRE=0
+fi
+
+#
+# HAS_PTRACE_GET_SYSCALL_INFO
+#
+cat <<"EOF" > get_syscall_info.c
+	#include<sys/ptrace.h>
+	#include<linux/ptrace.h>
+	#if MUST_UNDEF_PTRACE_MACROS
+		#undef PTRACE_GET_SYSCALL_INFO
+	#endif
+	void foo() {
+		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
+	}
+EOF
+if $CXX -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS  -o get_syscall_info.o -xc get_syscall_info.c
+then HAS_PTRACE_GET_SYSCALL_INFO=1
+else HAS_PTRACE_GET_SYSCALL_INFO=0
+fi
+
+#
+# HAS_SECCOMP
+# test whether we have seccomp : warning, include <seccomp.h> is not enough to test, check its content too
+#
+cat <<"EOF" > seccomp.c
+	#include <seccomp.h>
+	struct scmp_version v ;
+EOF
+# usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccomp.h) but some systems have seccomp.h directly installed in /usr/include/linux
+if $CXX -c -idirafter /usr/include/linux -o ptrace.o -xc seccomp.c
+then HAS_SECCOMP=1
+else HAS_SECCOMP=0
+fi
+
+#
 # HAS_SLURM
 #
 if $CXX -E --include slurm/slurm.h -xc - </dev/null >/dev/null
@@ -229,14 +243,7 @@ else HAS_SLURM=0
 fi
 
 #
-# addr2line
-#
-[ ""              ] || ADDR2LINE=$(find $(dirname $(realpath $CXX)) -name llvm-addr2line)
-[ -x "$ADDR2LINE" ] || ADDR2LINE=$(find $(dirname $(realpath $CXX)) -name addr2line     )
-[ -x "$ADDR2LINE" ] || ADDR2LINE=$(type -p addr2line)
-
-#
-# stacktrace
+# HAS_STACKTRACE
 #
 cat <<"EOF" > stacktrace.cc
 	#include <stacktrace>
@@ -248,18 +255,39 @@ else HAS_STACKTRACE=0
 fi
 
 #
-# HAS_MEMFD
+# MAX_PID
 #
-cat <<"EOF" > memfd.c
-	#ifndef _GNU_SOURCE
-		#define _GNU_SOURCE
-	#endif
-	#include<sys/mman.h>
-	int main() { memfd_create("trial",0) ; }
+MAX_PID=$(cat /proc/sys/kernel/pid_max)
+
+#
+# MUST_UNDEF_PTRACE_MACROS
+#
+cat <<"EOF" > undef_ptrace_macros.c
+	#include<sys/ptrace.h>
+	#include<linux/ptrace.h>
+	#undef PTRACE_TRACEME
+	void foo() {
+		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
+	}
 EOF
-if $CXX -Werror -o memfd -xc memfd.c
-then HAS_MEMFD=1
-else HAS_MEMFD=0
+if $CXX -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c
+then MUST_UNDEF_PTRACE_MACROS=1
+else MUST_UNDEF_PTRACE_MACROS=0
+fi
+
+#
+# NEED_STAT_WRAPPERS
+# test whether stat syscalls are transformed into __xstat
+#
+cat <<"EOF" > stat.c
+	#include <sys/stat.h>
+	struct stat buf ;
+	int main() { stat("",&buf) ; }
+EOF
+$CXX -o stat_trial -xc stat.c
+if nm -D stat_trial | grep -wq stat
+then NEED_STAT_WRAPPERS=0
+else NEED_STAT_WRAPPERS=1
 fi
 
 #
@@ -275,26 +303,6 @@ cat <<"EOF" > start_main.c
 EOF
 $CXX -o start_main -xc start_main.c
 USE_LIBC_START_MAIN=$(./start_main)
-
-#
-# PCRE
-#
-cat <<"EOF" > pcre.cc
-	#define PCRE2_CODE_UNIT_WIDTH 8
-	#include <pcre2.h>
-	void foo() {
-		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
-	}
-EOF
-if $CXX -c -std=c++20 -o pcre.o pcre.cc
-then HAS_PCRE=1
-else HAS_PCRE=0
-fi
-
-#
-# MAX_PID
-#
-MAX_PID=$(cat /proc/sys/kernel/pid_max)
 
 cd $START_DIR
 
@@ -318,6 +326,7 @@ CXX_FLAVOR     := $CXX_FLAVOR
 LINK_LIB_PATH  := $LINK_LIB_PATH
 STD_INC_DIRS   := $STD_INC_DIRS
 #
+HAS_FUSE       := ${HAS_FUSE#0}
 HAS_PCRE       := ${HAS_PCRE#0}
 HAS_SECCOMP    := ${HAS_SECCOMP#0}
 HAS_SLURM      := ${HAS_SLURM#0}
@@ -329,6 +338,7 @@ cat >$H_FILE <<EOF
 	#pragma once
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
+	#define HAS_FUSE                    $HAS_FUSE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD
 	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW

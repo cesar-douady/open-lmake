@@ -6,6 +6,7 @@
 #include <sys/mount.h>
 
 #include "disk.hh"
+#include "fuse.hh"
 #include "hash.hh"
 #include "trace.hh"
 
@@ -108,22 +109,26 @@ using namespace Hash ;
 static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; if (::chroot(dir.c_str())!=0) throw to_string("cannot chroot to ",dir," : ",strerror(errno)) ; }
 static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; if (::chdir (dir.c_str())!=0) throw to_string("cannot chdir to " ,dir," : ",strerror(errno)) ; }
 
-static void _mount( ::string const& dst , ::string const& src ) {                           // bind mount
-	Trace trace("_mount","bind",dst,src) ;
+static void _mount_bind( ::string const& dst , ::string const& src ) {
+	Trace trace("_mount_bind",dst,src) ;
 	if (::mount( src.c_str() ,  dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
 		throw to_string("cannot bind mount ",src," onto ",dst," : ",strerror(errno)) ;
 }
-static void _mount( ::string const& dst , size_t sz_mb ) {                                  // tmpfs mount
+static void _mount_fuse( ::string const& dst , ::string const& src ) {
+	Trace trace("_mount_fuse",dst,src) ;
+	static Fuse::Mount fuse_mount{ dst , src } ;
+}
+static void _mount_tmp( ::string const& dst , size_t sz_mb ) {
 	SWEAR(sz_mb) ;
-	Trace trace("_mount","tmp",dst,sz_mb) ;
+	Trace trace("_mount_tmp",dst,sz_mb) ;
 	if (::mount( "" ,  dst.c_str() , "tmpfs" , 0/*flags*/ , to_string(sz_mb,"m").c_str() )!=0)
 		throw to_string("cannot mount tmpfs of size",sz_mb," MB onto ",dst," : ",strerror(errno)) ;
 }
-static void _mount( ::string const& dst , ::vector_s const& srcs , ::string const& work ) { // overlay mount
+static void _mount_overlay( ::string const& dst , ::vector_s const& srcs , ::string const& work ) {
 	SWEAR(+srcs) ;
-	SWEAR(srcs.size()>1,dst,srcs,work) ;                                                    // use bind mount in that case
+	SWEAR(srcs.size()>1,dst,srcs,work) ; // use bind mount in that case
 	//
-	Trace trace("_mount","overlay",dst,srcs,work) ;
+	Trace trace("_mount_overlay",dst,srcs,work) ;
 	for( size_t i=1 ; i<srcs.size() ; i++ )
 		if (srcs[i].find(':')!=Npos)
 			throw to_string("cannot overlay mount ",dst," to ",srcs,"with embedded columns (:)") ;
@@ -157,10 +162,11 @@ static bool _is_lcl_tmp( ::string const& f , ::string const& tmp_view ) {
 	/**/                          return f[tmp_view.size()]=='/' || f.size()==tmp_view.size() ;
 } ;
 
-bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s ) const {
-	Trace trace("enter",*this,phy_root_dir,phy_tmp_dir,tmp_sz_mb,work_dir) ;
+bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s , bool use_fuse ) const {
+	Trace trace("enter",*this,phy_root_dir,phy_tmp_dir,tmp_sz_mb,work_dir,src_dirs_s,STR(use_fuse)) ;
 	//
-	if (!*this) return false/*entered*/ ;
+	if ( use_fuse && !root_view ) throw "cannot use fuse for autodep without root_view"s ;
+	if ( !*this                 ) return false/*entered*/                                ;
 	//
 	int uid = ::getuid() ;                                                                           // must be done before unshare that invents a new user
 	int gid = ::getgid() ;                                                                           // .
@@ -181,7 +187,7 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 		if ( +tmp_view && view.starts_with(tmp_view) ) continue     ;
 		if ( !is_lcl(view)                           ) goto BadView ;
 		if ( (view+'/').starts_with(AdminDirS)       ) goto BadView ;
-		continue ;
+		/**/                                           continue     ;
 	BadView :
 		throw "cannot map "+view+" that must either be local in the repository or lie in tmp_view" ; // else we must guarantee canon after mapping, extend src_dirs to include their views, etc.
 	}
@@ -234,9 +240,9 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 			switch (FileInfo(src_f).tag()) {
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : OFStream{private_f                } ; _mount(private_f,src_f) ; break ;       // create file
-				case FileTag::Dir   : mk_dir  (private_f                ) ; _mount(private_f,src_f) ; break ;       // create dir
-				case FileTag::Lnk   : lnk     (private_f,read_lnk(src_f)) ;                           break ;       // copy symlink
+				case FileTag::Exe   : OFStream{private_f                } ; _mount_bind(private_f,src_f) ; break ;  // create file
+				case FileTag::Dir   : mk_dir  (private_f                ) ; _mount_bind(private_f,src_f) ; break ;  // create dir
+				case FileTag::Lnk   : lnk     (private_f,read_lnk(src_f)) ;                                break ;  // copy symlink
 				default             : ;                                                                             // exclude weird files
 			}
 		}
@@ -250,11 +256,17 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 	_atomic_write( "/proc/self/gid_map"   , to_string(gid,' ',gid,' ',1,'\n') ) ;
 	//
 	::string root_dir ;
-	if (!root_view)   root_dir = phy_root_dir    ;
-	else            { root_dir = *chrd+root_view ; _mount( *chrd+super_root_view , phy_super_root_dir ) ; }
+	if (!root_view) {
+		SWEAR(!use_fuse) ;                                                                                          // need a view to mount repo with fuse
+		root_dir = phy_root_dir ;
+	} else {
+		root_dir = *chrd+root_view ;
+		if (use_fuse) _mount_fuse( *chrd+super_root_view , phy_super_root_dir ) ;
+		else          _mount_bind( *chrd+super_root_view , phy_super_root_dir ) ;
+	}
 	if (+tmp_view) {
-		if      (+phy_tmp_dir) _mount( *chrd+tmp_view , phy_tmp_dir ) ;
-		else if (tmp_sz_mb   ) _mount( *chrd+tmp_view , tmp_sz_mb   ) ;
+		if      (+phy_tmp_dir) _mount_bind( *chrd+tmp_view , phy_tmp_dir ) ;
+		else if (tmp_sz_mb   ) _mount_tmp ( *chrd+tmp_view , tmp_sz_mb   ) ;
 	}
 	//
 	if      ( +*chrd && *chrd!="/" ) { _chroot(*chrd) ; _chdir(root_dir) ; }
@@ -270,11 +282,11 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 			for( ::string const& phy : phys ) if ( phy .back()=='/' && _is_lcl_tmp(phy ,tmp_view) ) mk_dir(phy ) ;
 			//
 			if (phys.size()==1) {
-				_mount( abs_view , abs_phys[0] ) ;
+				_mount_bind( abs_view , abs_phys[0] ) ;
 			} else {
 				::string work = is_lcl(phys[0]) ? to_string(work_dir,"/view_work/",i++) : phys[0].substr(0,phys[0].size()-1)+".work" ; // if not in the repo, it must be in tmp
 				mk_dir(work) ;
-				_mount( abs_view , abs_phys , mk_abs(work,root_dir_s) ) ;
+				_mount_overlay( abs_view , abs_phys , mk_abs(work,root_dir_s) ) ;
 			}
 		}
 	}

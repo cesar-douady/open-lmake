@@ -147,10 +147,11 @@ class Serialize :
 			val_id = id(val)
 			if val_id in avoid : raise RuntimeError()
 			avoid.add(val_id)
-			if cls in (tuple,list,set) : return all( Serialize.has_repr(v,avoid)                                 for v   in val         )
-			if cls is  dict            : return all( Serialize.has_repr(k,avoid) and Serialize.has_repr(v,avoid) for k,v in val.items() )
+			if   cls in (tuple,list,set) : res = all( Serialize.has_repr(v,avoid)                                 for v   in val         )
+			elif cls is  dict            : res = all( Serialize.has_repr(k,avoid) and Serialize.has_repr(v,avoid) for k,v in val.items() )
+			else                         : res = False
 			avoid.discard(val_id)
-			return False
+			return res
 		except RuntimeError :
 			if not avoid : return False
 			else         : raise

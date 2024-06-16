@@ -287,7 +287,8 @@ namespace Engine {
 			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
 			::sort(env) ;                                                                    // stabilize rsrcs crc
 			// check
-			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw to_string(method," is not supported on this system") ;
+			if ( method==AutodepMethod::Fuse    && !HAS_FUSE     ) throw to_string(method," is not supported on this system") ; // PER_AUTODEP_METHOD
+			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw to_string(method," is not supported on this system") ; // .
 		}
 		// data
 		// START_OF_VERSIONING

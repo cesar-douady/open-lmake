@@ -371,8 +371,16 @@ int main( int argc , char* argv[] ) {
 		::map_ss cmd_env ;
 		try {
 			cmd_env = prepare_env(end_report) ;
-			::string chroot_dir = to_string(PrivateAdminDirS,"chroot/",g_start_info.small_id)                                                                                ;
-			bool     entered    = g_start_info.job_space.enter( g_phy_root_dir , g_phy_tmp_dir , g_start_info.tmp_sz_mb , chroot_dir , g_start_info.autodep_env.src_dirs_s ) ;
+			::string chroot_dir = to_string(PrivateAdminDirS,"chroot/",g_start_info.small_id) ;
+			//
+			bool entered = g_start_info.job_space.enter(
+				g_phy_root_dir
+			,	g_phy_tmp_dir
+			,	g_start_info.tmp_sz_mb
+			,	chroot_dir
+			,	g_start_info.autodep_env.src_dirs_s
+			,	g_start_info.method==AutodepMethod::Fuse
+			) ;
 			if (entered) {
 				// find a good starting pid
 				// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common

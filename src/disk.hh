@@ -56,13 +56,25 @@ namespace Disk {
 
 	bool is_canon(::string const&) ;
 	//
+	inline bool     is_dir_s  (::string const& path) {                                              return !path || path.back()=='/'                             ; }
 	inline bool     has_dir   (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos                                             ; }
 	inline ::string dir_name  (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(0    ,sep  ) : throw "no dir" ; }
 	inline ::string dir_name_s(::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(0    ,sep+1) : ::string()     ; }
 	inline ::string base_name (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(sep+1      ) : path           ; }
 
-	inline ::string no_slash(::string     && dir_s) { dir_s.pop_back() ; return ::move(dir_s) ; }
-	inline ::string no_slash(::string const& dir_s) { return no_slash(::copy(dir_s)) ;          }
+	inline ::string add_slash(::string&& file) {
+		SWEAR(!is_dir_s(file)) ;
+		if (file==".") return {}               ;
+		else           return ::move(file)+'/' ;
+	}
+	inline ::string no_slash(::string&& dir_s) {
+		SWEAR(is_dir_s(dir_s)) ;
+		if (!dir_s) return "." ;
+		dir_s.pop_back() ;
+		return ::move(dir_s) ;
+	}
+	inline ::string add_slash(::string const& file ) { return add_slash(::copy(file )) ; }
+	inline ::string no_slash (::string const& dir_s) { return no_slash (::copy(dir_s)) ; }
 
 	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
 	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute

@@ -21,6 +21,7 @@ ENUM_2( AutodepMethod                     // PER_AUTODEP_METHOD : add entry here
 ,	Ld   = LdAudit                        // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 ,	Dflt = HAS_LD_AUDIT?LdAudit:LdPreload // by default, use  a compromize between speed an reliability
 ,	None
+,	Fuse
 ,	Ptrace
 ,	LdAudit
 ,	LdPreload
@@ -526,7 +527,7 @@ struct JobSpace {
 	bool operator+() const { return +chroot_dir || +root_view || +tmp_view || +views ; }
 	bool operator!() const { return !+*this                                          ; }
 	// services
-	bool/*entered*/ enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s={} ) const ;
+	bool/*entered*/ enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s={} , bool use_fuse=false ) const ;
 	void chk() const ;
 	// data
 	// START_OF_VERSIONING

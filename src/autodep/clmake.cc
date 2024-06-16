@@ -283,10 +283,11 @@ PyMODINIT_FUNC
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	mod->set_attr( "root_dir"                , *Ptr<Str>(Record::s_autodep_env().root_dir.c_str()) ) ;
 	mod->set_attr( "backends"                , *py_bes                                             ) ;
-	mod->set_attr( "has_ld_audit"            , *Ptr<Bool>(bool(HAS_LD_AUDIT))                      ) ;
-	mod->set_attr( "has_ld_preload"          ,                True                                 ) ;
-	mod->set_attr( "has_ld_preload_jemalloc" ,                True                                 ) ;
-	mod->set_attr( "has_ptrace"              ,                True                                 ) ;
+	mod->set_attr( "has_fuse"                , *Ptr<Bool>(bool(HAS_FUSE    ))                      ) ; // PER_AUTODEP_METHOD
+	mod->set_attr( "has_ld_audit"            , *Ptr<Bool>(bool(HAS_LD_AUDIT))                      ) ; // .
+	mod->set_attr( "has_ld_preload"          ,                True                                 ) ; // .
+	mod->set_attr( "has_ld_preload_jemalloc" ,                True                                 ) ; // .
+	mod->set_attr( "has_ptrace"              ,                True                                 ) ; // .
 	mod->set_attr( "no_crc"                  , *Ptr<Int>(+Crc::Unknown)                            ) ;
 	mod->set_attr( "crc_a_link"              , *Ptr<Int>(+Crc::Lnk    )                            ) ;
 	mod->set_attr( "crc_a_reg"               , *Ptr<Int>(+Crc::Reg    )                            ) ;

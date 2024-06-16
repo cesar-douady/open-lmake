@@ -94,6 +94,49 @@ namespace Backends {
 	// GenericBackend
 	//
 
+	template<class RsrcsAsk> struct _WaitingEntry {
+		_WaitingEntry() = default ;
+		_WaitingEntry( RsrcsAsk const& rsa , SubmitAttrs const& sa , bool v ) : rsrcs_ask{rsa} , n_reqs{1} , submit_attrs{sa} , verbose{v} {}
+		// data
+		RsrcsAsk    rsrcs_ask    ;
+		ReqIdx      n_reqs       = 0     ; // number of reqs waiting for this job
+		SubmitAttrs submit_attrs ;
+		bool        verbose      = false ;
+	} ;
+	template<class RsrcsAsk > ::ostream& operator<<( ::ostream& os , _WaitingEntry<RsrcsAsk> const& we ) {
+		/**/            os << "WaitingEntry(" << we.rsrcs_ask <<','<< we.n_reqs <<','<< we.submit_attrs ;
+		if (we.verbose) os << ",verbose"                                                                ;
+		return          os << ')'                                                                       ;
+	}
+
+	template< class SpawnId , class Rsrcs > struct _SpawnedEntry {
+		// ctors & casts
+		void create(Rsrcs const& rs) {
+			SWEAR(zombie) ;
+			rsrcs   = rs    ;
+			id      = 0     ;
+			started = false ;
+			verbose = false ;
+			zombie  = false ;
+		}
+		// data
+		Rsrcs             rsrcs   ;
+		::atomic<SpawnId> id      = 0     ;
+		bool              started = false ; // if true <=> start() has been called for this job, for assert only
+		bool              verbose = false ;
+		::atomic<bool   > zombie  = true  ; // entry waiting for suppression
+	} ;
+	template< class SpawnId , class Rsrcs > ::ostream& operator<<( ::ostream& os , _SpawnedEntry<SpawnId,Rsrcs> const& se ) {
+		os << "SpawnedEntry(" ;
+		if (!se.zombie) {
+			/**/            os <<      se.rsrcs ;
+			if (se.id     ) os <<','<< se.id    ;
+			if (se.started) os <<",started"     ;
+			if (se.verbose) os <<",verbose"     ;
+		}
+		return os <<')' ;
+	}
+
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_eta to reorder them upon need
 	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all
 	template< Tag T , class SpawnId , class RsrcsData , class RsrcsDataAsk , bool IsLocal > struct GenericBackend : Backend {
@@ -101,31 +144,9 @@ namespace Backends {
 		using Rsrcs    = Shared<RsrcsData   ,JobIdx> ;
 		using RsrcsAsk = Shared<RsrcsDataAsk,JobIdx> ;
 
-		struct WaitingEntry {
-			WaitingEntry() = default ;
-			WaitingEntry( RsrcsAsk const& rsa , SubmitAttrs const& sa , bool v ) : rsrcs_ask{rsa} , n_reqs{1} , submit_attrs{sa} , verbose{v} {}
-			// data
-			RsrcsAsk    rsrcs_ask    ;
-			ReqIdx      n_reqs       = 0     ; // number of reqs waiting for this job
-			SubmitAttrs submit_attrs ;
-			bool        verbose      = false ;
-		} ;
+		using WaitingEntry = _WaitingEntry<RsrcsAsk>      ;
+		using SpawnedEntry = _SpawnedEntry<SpawnId,Rsrcs> ;
 
-		struct SpawnedEntry {
-			void create(Rsrcs const& rs) {
-				SWEAR(zombie) ;
-				rsrcs   = rs    ;
-				id      = 0     ;
-				started = false ;
-				verbose = false ;
-				zombie  = false ;
-			}
-			Rsrcs             rsrcs   ;
-			::atomic<SpawnId> id      = 0     ;
-			bool              started = false ;                               // if true <=> start() has been called for this job, for assert only
-			bool              verbose = false ;
-			::atomic<bool   > zombie  = true  ;                               // entry waiting for suppression
-		} ;
 		struct SpawnedTab : ::umap<JobIdx,SpawnedEntry> {
 			using Base = ::umap<JobIdx,SpawnedEntry> ;
 			using typename Base::iterator       ;
@@ -134,7 +155,9 @@ namespace Backends {
 			const_iterator find(JobIdx j) const { const_iterator res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
 			iterator       find(JobIdx j)       { iterator       res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
 			//
-			size_t         size() const { return _sz ; }                      // dont trust Base::size() as zombies would be counted
+			bool   operator+() const { return _sz     ; }                     // cannot inherit from Base as zombies would be counted
+			bool   operator!() const { return !+*this ; }                     // .
+			size_t size     () const { return _sz     ; }                     // .
 			//
 			iterator create( GenericBackend const& be , JobIdx j , RsrcsAsk const& rsrcs_ask ) {
 				Rsrcs    rsrcs = be.acquire_rsrcs(rsrcs_ask) ;
@@ -183,12 +206,10 @@ namespace Backends {
 			void clear() {
 				waiting_queues.clear() ;
 				waiting_jobs  .clear() ;
-				queued_jobs   .clear() ;
 			}
 			// data
 			::umap<RsrcsAsk,set<PressureEntry>> waiting_queues ;
 			::umap<JobIdx,CoarseDelay         > waiting_jobs   ;
-			::uset<JobIdx                     > queued_jobs    ;         // spawned jobs until start
 			JobIdx                              n_jobs         = 0     ; // manage -j option (if >0 no more than n_jobs can be launched on behalf of this req)
 			bool                                verbose        = false ;
 		} ;
@@ -226,6 +247,7 @@ namespace Backends {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;
 			Lock lock     { Req::s_reqs_mutex }                                                              ;               // taking Req::s_reqs_mutex is compulsery to derefence req
 			bool inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
+			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                                   // check no overflow
 			SWEAR(inserted) ;
 		}
 		virtual void close_req(ReqIdx req) {
@@ -233,12 +255,12 @@ namespace Backends {
 			Trace trace(BeChnl,"close_req",req,STR(it==reqs.end())) ;
 			if (it==reqs.end()) return ;                                                                                     // req has been killed
 			ReqEntry const& re = it->second ;
-			SWEAR(!re.waiting_jobs) ;
-			SWEAR(!re.queued_jobs ) ;
+			SWEAR(!re.waiting_jobs,re.waiting_jobs) ;
+			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                                // check no underflow
 			reqs.erase(it) ;
 			if (!reqs) {
-				SWEAR(!waiting_jobs       ) ;
-				SWEAR(!spawned_jobs.size()) ;                                                                                // there may be zombie entries waiting for destruction
+				SWEAR(!waiting_jobs,waiting_jobs) ;
+				SWEAR(!spawned_jobs,spawned_jobs) ;                                                                          // there may be zombie entries waiting for destruction
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
@@ -303,9 +325,8 @@ namespace Backends {
 			SpawnedEntry& se = it->second             ;
 			//
 			spawned_jobs.start(*this,it) ;
-			for( auto& [r,re] : reqs ) re.queued_jobs.erase(job) ;
 			::string msg = start_job(job,se) ;
-			if (call_launch_after_start()) _launch_queue.wakeup() ;                                                          // not compulsery but improves reactivity
+			if (call_launch_after_start()) _launch_queue.wakeup() ;
 			return msg ;
 		}
 		virtual ::pair_s<bool/*retry*/> end( JobIdx j , Status s ) {
@@ -313,7 +334,7 @@ namespace Backends {
 			SpawnedEntry&           se     = it->second           ; SWEAR(se.started) ;
 			::pair_s<bool/*retry*/> digest = end_job(j,se,s)      ;
 			spawned_jobs.erase(*this,it) ;                                                                                   // erase before calling launch so job is freed w.r.t. n_jobs
-			if (call_launch_after_end()) _launch_queue.wakeup() ;                                                            // not compulsery but improves reactivity
+			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                              // if we have a Req limited by n_jobs, we may have to launch a job
 			return digest ;
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat(JobIdx j) {                                                      // called on jobs that did not start after at least newwork_delay time
@@ -328,7 +349,6 @@ namespace Backends {
 				if (digest.second!=HeartbeatState::Alive) {
 					Trace trace(BeChnl,"heartbeat",j,se.id,digest.second) ;
 					spawned_jobs.erase(*this,it) ;
-					for( auto& [r,re] : reqs ) re.queued_jobs.erase(j ) ;
 				}
 				return digest ;
 			}
@@ -340,7 +360,7 @@ namespace Backends {
 			::vector<JobIdx> res ;
 			Trace trace(BeChnl,"kill_req",T,req,reqs.size()) ;
 			if ( !req || reqs.size()<=1 ) {
-				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;               // ensure the last req is the right one
+				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;                  // ensure the last req is the right one
 				// kill waiting jobs
 				for( auto const& [j,_] : waiting_jobs ) res.push_back(j) ;
 				waiting_jobs.clear() ;
@@ -426,7 +446,6 @@ trace("queue_sizes",q_szs) ;
 								else               pes              .erase(pe  ) ;
 							}
 							re.waiting_jobs.erase (wit1) ;
-							re.queued_jobs .insert(j   ) ;
 						}
 						if (pressure_set.size()==1) queues      .erase(candidate) ;                                    // last entry for this rsrcs, erase the entire queue
 						else                        pressure_set.erase(pressure1) ;
@@ -443,15 +462,16 @@ trace("queue_sizes",q_szs) ;
 						trace("child",ji,ld.prio,id,ld.cmd_line) ;
 					} catch (::string const& e) {
 						trace("fail",ji,ld.prio,e) ;
+						_launch_queue.wakeup() ;                                               // we may have new jobs to launch as we did not launch all jobs we were supposed to
 					}
 				}
 				{	Lock lock { _s_mutex } ;
 					for( auto const& [ji,_] : launch_descrs ) {
 						auto it=spawned_jobs.find(ji) ; if (it==spawned_jobs.end()) continue ;
-						if (!it->second.id) spawned_jobs.erase(*this,it) ;                                             // job could not be launched, release resources
-						/**/                spawned_jobs.flush(      it) ;                                             // collect unused entry now that we hold _s_mutex
+						if (!it->second.id) spawned_jobs.erase(*this,it) ;                     // job could not be launched, release resources
+						/**/                spawned_jobs.flush(      it) ;                     // collect unused entry now that we hold _s_mutex
 					}
-					launch_descrs.clear() ;                                                                            // destroy entries while holding the lock
+					launch_descrs.clear() ;                                                    // destroy entries while holding the lock
 				}
 trace("spawned_jobs2",spawned_jobs.size(),spawned_jobs.Base::size()) ;
 				trace("done") ;
@@ -460,6 +480,7 @@ trace("spawned_jobs2",spawned_jobs.size(),spawned_jobs.Base::size()) ;
 
 		// data
 		::umap<ReqIdx,ReqEntry    > reqs         ;                         // all open Req's
+		ReqIdx                      n_n_jobs     ;                         // number of Req's that has a non-null n_jobs
 		::umap<JobIdx,WaitingEntry> waiting_jobs ;                         // jobs retained here
 		SpawnedTab                  spawned_jobs ;                         // jobs spawned until end
 	protected :

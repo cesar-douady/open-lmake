@@ -85,6 +85,9 @@ endif
 PY_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR) $(PY_INCLUDEPY))        # for some reasons, compilation does not work if standard inc dirs are given with -isystem
 PY_CC_OPTS   := $(patsubst %,-isystem %,$(PY_INC_DIRS)) -Wno-register
 PY_LINK_OPTS := $(patsubst %,-L%,$(PY_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY_LIB_DIR))  -l:$(PY_LIB_BASE)
+ifneq ($(HAS_FUSE),)
+    FUSE_CC_OPTS := $(shell pkg-config fuse3 --cflags --libs)
+endif
 
 # Engine
 SRC_ENGINE  := $(SRC)/lmakeserver
@@ -268,7 +271,7 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 ALL_H := version.hh sys_config.h ext/xxhash.h
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . -idirafter /usr/include/linux
+CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . $(FUSE_CC_OPTS) -idirafter /usr/include/linux
 
 %_py2.san.o : %.cc $(ALL_H) ; @echo $(CXX) -c $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
 %_py2.i     : %.cc $(ALL_H) ; @echo $(CXX) -E $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
@@ -308,6 +311,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/rpc_client$(SAN).o                                    \
 	$(SRC)/rpc_job$(SAN).o                                       \
 	$(SRC)/rpc_job_exec$(SAN).o                                  \
+	$(SRC)/fuse$(SAN).o                                          \
 	$(SRC)/trace$(SAN).o                                         \
 	$(SRC)/store/file$(SAN).o                                    \
 	$(SRC)/autodep/backdoor$(SAN).o                              \
@@ -334,7 +338,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/lmakeserver/main$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(BIN)/lrepair : \
 	$(LMAKE_BASIC_SAN_OBJS)                                      \
@@ -343,6 +347,7 @@ $(BIN)/lrepair : \
 	$(SRC)/rpc_client$(SAN).o                                    \
 	$(SRC)/rpc_job$(SAN).o                                       \
 	$(SRC)/rpc_job_exec$(SAN).o                                  \
+	$(SRC)/fuse$(SAN).o                                          \
 	$(SRC)/trace$(SAN).o                                         \
 	$(SRC)/autodep/backdoor$(SAN).o                              \
 	$(SRC)/autodep/env$(SAN).o                                   \
@@ -368,7 +373,7 @@ $(BIN)/lrepair : \
 	$(SRC)/lrepair$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/ldump : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \
@@ -376,6 +381,7 @@ $(SBIN)/ldump : \
 	$(SRC)/py$(SAN).o                           \
 	$(SRC)/rpc_client$(SAN).o                   \
 	$(SRC)/rpc_job$(SAN).o                      \
+	$(SRC)/fuse$(SAN).o                         \
 	$(SRC)/trace$(SAN).o                        \
 	$(SRC)/autodep/env$(SAN).o                  \
 	$(SRC)/autodep/ld_server$(SAN).o            \
@@ -396,18 +402,19 @@ $(SBIN)/ldump : \
 	$(SRC)/ldump$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
 	$(LMAKE_BASIC_SAN_OBJS)    \
 	$(SRC)/app$(SAN).o         \
 	$(SRC)/rpc_job$(SAN).o     \
+	$(SRC)/fuse$(SAN).o        \
 	$(SRC)/trace$(SAN).o       \
 	$(SRC)/autodep/env$(SAN).o \
 	$(SRC)/ldump_job$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LINK_LIB)
 
 # XXX : why job_exec does not support sanitize thread ?
 $(SBIN)/job_exec : \
@@ -416,6 +423,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/py.o                  \
 	$(SRC)/rpc_job.o             \
 	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/fuse$(SAN).o          \
 	$(SRC)/trace.o               \
 	$(SRC)/autodep/backdoor.o    \
 	$(SRC)/autodep/env.o         \
@@ -426,7 +434,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/job_exec.o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@@$(LINK_BIN) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@@$(LINK_BIN) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/align_comments : \
 	$(LMAKE_BASIC_SAN_OBJS) \
@@ -505,6 +513,7 @@ $(BIN)/autodep : \
 	$(SRC)/app.o                 \
 	$(SRC)/rpc_job.o             \
 	$(SRC)/rpc_job_exec.o        \
+	$(SRC)/fuse$(SAN).o          \
 	$(SRC)/trace.o               \
 	$(SRC)/autodep/backdoor.o    \
 	$(SRC)/autodep/env.o         \
@@ -515,7 +524,7 @@ $(BIN)/autodep : \
 	$(SRC)/autodep/autodep.o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK_BIN) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK_BIN) -o $@ $^ $(FUSE_CC_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 #
 # remote

@@ -76,6 +76,8 @@ src/disk.cc
 src/disk.hh
 src/fd.cc
 src/fd.hh
+src/fuse.cc
+src/fuse.hh
 src/hash.cc
 src/hash.hh
 src/job_exec.cc

@@ -198,10 +198,10 @@ void Gather::_spawn_child() {
 		}
 		new_exec( New , cmd_line[0] ) ;
 		start_date      = New       ;                                                                                                                      // record job start time as late as possible
-		_child.cmd_line  = cmd_line  ;
-		_child.env       = env       ;
-		_child.add_env   = &_add_env ;
-		_child.cwd_      = cwd       ;
+		_child.cmd_line = cmd_line  ;
+		_child.env      = env       ;
+		_child.add_env  = &_add_env ;
+		_child.cwd_     = cwd       ;
 		//vvvvvvvvvvvv
 		_child.spawn() ;
 		//^^^^^^^^^^^^

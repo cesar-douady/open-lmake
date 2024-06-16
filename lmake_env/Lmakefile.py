@@ -319,6 +319,8 @@ opt_tab.update({
 ,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     , )
 	# On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 ,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'           )
+,	r'src/fuse'           : ( '-idirafter' , f'/usr/include/fuse3'           )
+,	r'src/rpc_job'        : ( '-idirafter' , f'/usr/include/fuse3'           )
 })
 
 class Link(BaseRule) :
@@ -363,11 +365,13 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'SYSCALL'      : 'src/autodep/syscall_tab.o'
 	,	'RPC_JOB'      : 'src/rpc_job.o'
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
+	,	'FUSE'         : 'src/fuse.o'
 	,	'RPC_CLIENT'   : None
 	}
 	# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
+	rev_post_opts = ('-lfuse3',)
 	if run((gxx,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0 :
-		rev_post_opts = ('-l:libseccomp.so.2',)
+		rev_post_opts += ('-l:libseccomp.so.2',)
 
 class LinkPythonAppExe(LinkAppExe) :
 	deps = {
@@ -395,6 +399,7 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
+	,	'FUSE'       : 'src/fuse.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
@@ -413,6 +418,7 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
+	rev_post_opts = ('-lfuse3',)
 
 class LinkLrepairExe(LinkLmakeserverExe) :
 	targets = { 'TARGET' : 'bin/lrepair' }
@@ -425,6 +431,7 @@ class LinkLdumpExe(LinkPythonAppExe,LinkAutodep) :
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
+	,	'FUSE'       : 'src/fuse.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
@@ -439,13 +446,16 @@ class LinkLdumpExe(LinkPythonAppExe,LinkAutodep) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/ldump.o'
 	}
+	rev_post_opts = ('-lfuse3',)
 
 class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
 	deps = {
 		'RPC_JOB' : 'src/rpc_job.o'
+	,	'FUSE'    : 'src/fuse.o'
 	,	'MAIN'    : 'src/ldump_job.o'
 	}
+	rev_post_opts = ('-lfuse3',)
 
 for client in ('ldebug','lforget','lmake','lmark','lshow') :
 	class LinkLmake(LinkClientAppExe) :

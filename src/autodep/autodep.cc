@@ -22,6 +22,7 @@ ENUM( CmdFlag
 ,	LinkSupport
 ,	Out
 ,	RootView
+,	SourceDirs
 ,	TmpView
 ,   Views
 ,	WorkDir
@@ -31,21 +32,25 @@ int main( int argc , char* argv[] ) {
 	app_init(false/*cd_root*/) ;
 	//
 	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax{{
-		{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)" } } // PER_AUTODEP_METHOD : doc
-	,	{ CmdFlag::AutoMkdir     , { .short_name='d' , .has_arg=false , .doc="automatically create dir upon chdir"                                                  } }
-	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                              } }
-	,	{ CmdFlag::IgnoreStat    , { .short_name='i' , .has_arg=false , .doc="stat-like syscalls do not trigger dependencies"                                       } }
-	,	{ CmdFlag::LinkSupport   , { .short_name='s' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                      } }
-	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output file"                                                                          } }
-	,	{ CmdFlag::RootView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                          } }
-	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                     } }
-	,	{ CmdFlag::Views         , { .short_name='v' , .has_arg=true  , .doc="view mapping as {\"view1\":(\"phy1\"),\"view2\":(\"upper2\",\"lower\2\")}"            } }
-	,	{ CmdFlag::WorkDir       , { .short_name='w' , .has_arg=true  , .doc="work dir in which to prepare a chroot env if necessary"                               } }
+		{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, fuse, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)" } } // PER_AUTODEP_METHOD
+	,	{ CmdFlag::AutoMkdir     , { .short_name='d' , .has_arg=false , .doc="automatically create dir upon chdir"                                                        } }
+	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                    } }
+	,	{ CmdFlag::IgnoreStat    , { .short_name='i' , .has_arg=false , .doc="stat-like syscalls do not trigger dependencies"                                             } }
+	,	{ CmdFlag::LinkSupport   , { .short_name='s' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                            } }
+	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output file"                                                                                } }
+	,	{ CmdFlag::RootView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                } }
+	,	{ CmdFlag::SourceDirs    , { .short_name='r' , .has_arg=true  , .doc="source dirs as (\"/abs/source_dir/\",\"../rel/source_dir/\")"                               } }
+	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                           } }
+	,	{ CmdFlag::Views         , { .short_name='v' , .has_arg=true  , .doc="view mapping as {\"view1\":(\"phy1\"),\"view2\":(\"upper2\",\"lower\2\")}"                  } }
+	,	{ CmdFlag::WorkDir       , { .short_name='w' , .has_arg=true  , .doc="work dir in which to prepare a chroot env if necessary"                                     } }
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
 	Gather                  gather   ;
 	//
 	try {
+		::vector_s    src_dirs_s ;
+		AutodepMethod method     = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
+		//
 		JobSpace job_space {
 			.chroot_dir = cmd_line.flag_args[+CmdFlag::ChrootDir]
 		,	.root_view  = cmd_line.flag_args[+CmdFlag::RootView ]
@@ -53,25 +58,33 @@ int main( int argc , char* argv[] ) {
 		} ;
 		if (cmd_line.flags[CmdFlag::Views])
 			try {
-				::string const& vs              = cmd_line.flag_args[+CmdFlag::Views]                                                             ;
 				size_t          pos             ;
+				::string const& vs              = cmd_line.flag_args[+CmdFlag::Views]             ;
 				::string        p               = parse_printable                      (vs,pos=0) ; if (pos!=vs.size()) throw "bad views format"s ;
 				/**/            job_space.views = parse_printable<::vmap_s<::vector_s>>(p ,pos=0) ; if (pos!=p .size()) throw "bad views format"s ;
 			} catch (::string const&) { throw "bad views format"s ; }
+		if (cmd_line.flags[CmdFlag::SourceDirs])
+			try {
+				size_t          pos             ;
+				::string const& sds             = cmd_line.flag_args[+CmdFlag::SourceDirs] ;
+				::string        p               = parse_printable            (sds,pos=0)   ; if (pos!=sds.size()) throw "bad source_dirs format"s ;
+				/**/            src_dirs_s      = parse_printable<::vector_s>(p  ,pos=0)   ; if (pos!=p  .size()) throw "bad source_dirs format"s ;
+				for( ::string& sd : src_dirs_s ) if (!is_dir_s(sd)) sd = add_slash(::move(sd)) ;
+			} catch (::string const&) { throw "bad source_dirs format"s ; }
 		//
-		job_space.enter( *g_root_dir , get_env("TMPDIR",P_tmpdir) , 0 , cmd_line.flag_args[+CmdFlag::WorkDir] ) ;
+		job_space.enter( *g_root_dir , get_env("TMPDIR",P_tmpdir) , 0 , cmd_line.flag_args[+CmdFlag::WorkDir] , src_dirs_s , method==AutodepMethod::Fuse ) ;
 		//
 		if (+job_space.root_view) set_env("ROOT_DIR",job_space.root_view) ;
 		if (+job_space.tmp_view ) set_env("TMPDIR"  ,job_space.tmp_view ) ;
 		//
-		if (cmd_line.flags[CmdFlag::AutodepMethod]) gather.method                  =        mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod])  ;
-		/**/                                        gather.autodep_env.auto_mkdir  =        cmd_line.flags[CmdFlag::AutoMkdir ]                                  ;
-		/**/                                        gather.autodep_env.ignore_stat =        cmd_line.flags[CmdFlag::IgnoreStat]                                  ;
-		if (cmd_line.flags[CmdFlag::LinkSupport  ]) gather.autodep_env.lnk_support =        mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])       ;
-		if (+job_space.root_view                  ) gather.autodep_env.root_dir    = ::move(job_space.root_view                                                ) ;
-		else                                        gather.autodep_env.root_dir    =        *g_root_dir                                                          ;
-		/**/                                        gather.autodep_env.tmp_dir     =        get_env("TMPDIR",P_tmpdir)                                           ;
-		/**/                                        gather.autodep_env.views       = ::move(job_space.views                                                    ) ;
+		if (cmd_line.flags[CmdFlag::AutodepMethod]) gather.method                  =        method                                                          ;
+		/**/                                        gather.autodep_env.auto_mkdir  =        cmd_line.flags[CmdFlag::AutoMkdir ]                             ;
+		/**/                                        gather.autodep_env.ignore_stat =        cmd_line.flags[CmdFlag::IgnoreStat]                             ;
+		if (cmd_line.flags[CmdFlag::LinkSupport  ]) gather.autodep_env.lnk_support =        mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])  ;
+		if (+job_space.root_view                  ) gather.autodep_env.root_dir    = ::move(job_space.root_view                                           ) ;
+		else                                        gather.autodep_env.root_dir    =        *g_root_dir                                                     ;
+		/**/                                        gather.autodep_env.tmp_dir     =        get_env("TMPDIR",P_tmpdir)                                      ;
+		/**/                                        gather.autodep_env.views       = ::move(job_space.views                                               ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Status status ;
