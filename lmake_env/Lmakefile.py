@@ -15,6 +15,11 @@ from subprocess import run,check_output,DEVNULL,STDOUT
 gxx          = os.environ.get('CXX','g++')
 gxx_is_clang = 'clang' in check_output( (gxx,"--version") , universal_newlines=True )
 
+try    : has_fuse     = run(('pkg-config','fuse3'                                                 ),stderr=DEVNULL).returncode==0
+except : has_fuse     = False
+try    : has_seccomp  = run((gxx,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0
+except : has_seccomp  = False
+
 import lmake
 from lmake       import config,pdict
 from lmake.rules import Rule,PyRule,AntiRule
@@ -317,11 +322,13 @@ opt_tab.update({
 	r'.*'                 : ( '-I'         , sysconfig.get_path("include")   )
 ,	r'src/.*'             : ( '-iquote'    , 'ext_lnk'                       )
 ,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     , )
-	# On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'           )
-,	r'src/fuse'           : ( '-idirafter' , f'/usr/include/fuse3'           )
-,	r'src/rpc_job'        : ( '-idirafter' , f'/usr/include/fuse3'           )
-})
+,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'           ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
+})                                                                             # ... but beware that otherwise, /usr/include must be prefered, hence -idirafter
+if has_fuse :
+	opt_tab.update({
+		r'src/fuse'    : ( '-idirafter' , f'/usr/include/fuse3' )
+	,	r'src/rpc_job' : ( '-idirafter' , f'/usr/include/fuse3' )
+	})
 
 class Link(BaseRule) :
 	deps = {
@@ -369,9 +376,9 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'RPC_CLIENT'   : None
 	}
 	# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
-	rev_post_opts = ('-lfuse3',)
-	if run((gxx,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0 :
-		rev_post_opts += ('-l:libseccomp.so.2',)
+	rev_post_opts = ()
+	if has_fuse    : rev_post_opts += ('-lfuse3'           ,)
+	if has_seccomp : rev_post_opts += ('-l:libseccomp.so.2',)
 
 class LinkPythonAppExe(LinkAppExe) :
 	deps = {
@@ -418,7 +425,7 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
-	rev_post_opts = ('-lfuse3',)
+	if has_fuse : rev_post_opts = ('-lfuse3',)
 
 class LinkLrepairExe(LinkLmakeserverExe) :
 	targets = { 'TARGET' : 'bin/lrepair' }
@@ -446,7 +453,7 @@ class LinkLdumpExe(LinkPythonAppExe,LinkAutodep) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/ldump.o'
 	}
-	rev_post_opts = ('-lfuse3',)
+	if has_fuse : rev_post_opts = ('-lfuse3',)
 
 class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
@@ -455,7 +462,7 @@ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	,	'FUSE'    : 'src/fuse.o'
 	,	'MAIN'    : 'src/ldump_job.o'
 	}
-	rev_post_opts = ('-lfuse3',)
+	if has_fuse : rev_post_opts = ('-lfuse3',)
 
 for client in ('ldebug','lforget','lmake','lmark','lshow') :
 	class LinkLmake(LinkClientAppExe) :

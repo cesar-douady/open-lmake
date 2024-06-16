@@ -23,7 +23,7 @@ namespace Fuse {
 		struct Mount {
 			// statics
 			Mount() = default ;
-			Mount( ::string const& dst_ , ::string const& src_ ) { FAIL() ; }
+			Mount( ::string const& /*dst*/ , ::string const& /*src*/ ) { FAIL() ; }
 			// services
 			void open() { FAIL() ; }
 			// data
