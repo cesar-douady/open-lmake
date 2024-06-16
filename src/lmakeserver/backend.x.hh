@@ -173,7 +173,7 @@ namespace Backends {
 		virtual void add_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}      // add a new req for an already submitted job
 		virtual void set_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}      // set a new pressure for an existing req of a job
 		//
-		virtual void                     launch   (             ) = 0 ;                                   // called to trigger launch of waiting jobs
+		virtual void                     do_launch(             ) = 0 ;                                   // called to trigger launch of waiting jobs
 		virtual ::string/*msg*/          start    (JobIdx       ) = 0 ;                                   // tell sub-backend job started, return an informative message
 		virtual ::pair_s<bool/*retry*/>  end      (JobIdx,Status) { return {}                         ; } // tell sub-backend job ended, return a message and whether to retry jobs with garbage status
 		virtual ::pair_s<HeartbeatState> heartbeat(JobIdx       ) { return {{},HeartbeatState::Alive} ; } // regularly called between launch and start, initially with enough delay for job to connect
@@ -184,6 +184,7 @@ namespace Backends {
 	protected :
 		::vector_s acquire_cmd_line( Tag , JobIdx , ::vector<ReqIdx> const& , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ; // must be called once before job is launched, SubmitAttrs must be the ...
 		/**/                                                                                                             // ... operator| of the submit/add_pressure corresponding values for the job
+		void launch() ;                                                                                                  // call do_launch and report errors
 		// data
 		in_addr_t addr       = NoSockAddr ;
 		::string  config_err ;
@@ -206,6 +207,7 @@ namespace Backends {
 	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { LOCK ; Trace trace(BeChnl,"s_open_req"   ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->open_req   (r,nj) ; }
 	inline void Backend::s_close_req  (ReqIdx r          ) { LOCK ; Trace trace(BeChnl,"s_close_req"  ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->close_req  (r   ) ; }
 	inline void Backend::s_new_req_eta(ReqIdx r          ) { LOCK ; Trace trace(BeChnl,"s_new_req_eta",r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->new_req_eta(r   ) ; }
+	inline void Backend::s_launch     (                  ) { LOCK ; Trace trace(BeChnl,"s_launch"       ) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->launch     (    ) ; }
 	#undef LOCK
 	//
 	inline ::string/*msg*/          Backend::s_start    ( Tag t , JobIdx j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }

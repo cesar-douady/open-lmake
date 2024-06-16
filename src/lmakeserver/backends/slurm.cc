@@ -136,8 +136,7 @@ namespace Backends::Slurm {
 
 		// accesses
 
-		virtual Bool3 call_launch_after_start() const { return Maybe ; } // if Maybe, only launch jobs w/ same resources
-		virtual Bool3 call_launch_after_end  () const { return No    ; } // .
+		virtual bool call_launch_after_start() const { return true ; }
 
 		// services
 

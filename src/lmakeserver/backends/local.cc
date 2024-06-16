@@ -105,8 +105,7 @@ namespace Backends::Local {
 
 		// accesses
 
-		virtual Bool3 call_launch_after_start() const { return No  ; }         // if Maybe, only launch jobs w/ same resources
-		virtual Bool3 call_launch_after_end  () const { return Yes ; }         // .
+		virtual bool call_launch_after_end() const { return true ; }
 
 		// services
 

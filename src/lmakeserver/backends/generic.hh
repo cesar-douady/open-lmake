@@ -137,19 +137,17 @@ namespace Backends {
 			void clear() {
 				waiting_queues.clear() ;
 				waiting_jobs  .clear() ;
-				queued_jobs   .clear() ;
 			}
 			// data
 			::umap<RsrcsAsk,set<PressureEntry>> waiting_queues ;
 			::umap<JobIdx,CoarseDelay         > waiting_jobs   ;
-			::uset<JobIdx                     > queued_jobs    ;         // spawned jobs until start
 			JobIdx                              n_jobs         = 0     ; // manage -j option (if >0 no more than n_jobs can be launched on behalf of this req)
 			bool                                verbose        = false ;
 		} ;
 
 		// specialization
-		virtual Bool3 call_launch_after_start() const { return No ; }                               // if Maybe, only launch jobs w/ same resources
-		virtual Bool3 call_launch_after_end  () const { return No ; }                               // .
+		virtual bool call_launch_after_start() const { return false ; }
+		virtual bool call_launch_after_end  () const { return false ; }
 		//
 		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const&          ) const { return true ; } // true if job with such resources can be spawned eventually
 		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const&          ) const { return true ; } // true if job with such resources can be spawned now
@@ -180,7 +178,6 @@ namespace Backends {
 			if (it==reqs.end()) return ;                                                                         // req has been killed
 			ReqEntry const& re = it->second ;
 			SWEAR(!re.waiting_jobs) ;
-			SWEAR(!re.queued_jobs ) ;
 			reqs.erase(it) ;
 			if (!reqs) {
 				SWEAR(!waiting_jobs) ;
@@ -249,9 +246,8 @@ namespace Backends {
 			SpawnedEntry& se = it->second ;
 			//
 			se.started = true ;
-			for( auto& [r,re] : reqs ) re.queued_jobs.erase(job) ;
 			::string msg = start_job(job,se) ;
-			launch( call_launch_after_start() , se.rsrcs ) ;                                                     // not compulsery but improves reactivity
+			if (call_launch_after_start()) launch() ;                                                            // not compulsery but improves reactivity
 			return msg ;
 		}
 		virtual ::pair_s<bool/*retry*/> end( JobIdx j , Status s ) {
@@ -261,7 +257,7 @@ namespace Backends {
 			::pair_s<bool/*retry*/> digest = end_job(j,se,s) ;
 			Rsrcs                   rsrcs  = se.rsrcs        ;                                                   // copy resources before erasing job from spawned_jobs
 			spawned_jobs.erase(it) ;                                                                             // erase before calling launch so job is freed w.r.t. n_jobs
-			launch( call_launch_after_end() , rsrcs ) ;                                                          // not compulsery but improves reactivity
+			if (call_launch_after_end()) launch() ;                                                              // not compulsery but improves reactivity
 			return digest ;
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat(JobIdx j) {                                                   // called on jobs that did not start after at least newwork_delay time
@@ -271,8 +267,7 @@ namespace Backends {
 			//
 			if (digest.second!=HeartbeatState::Alive) {
 				Trace trace(BeChnl,"heartbeat",j,se.id) ;
-				/**/                       spawned_jobs  .erase(it) ;
-				for( auto& [r,re] : reqs ) re.queued_jobs.erase(j ) ;
+				spawned_jobs.erase(it) ;
 			}
 			return digest ;
 		}
@@ -308,18 +303,8 @@ namespace Backends {
 			kill_queued_job(j,it->second) ;
 			spawned_jobs.erase(it) ;
 		}
-		virtual void launch(                        ) { launch(Yes,{}) ; }                                       // using default arguments is not recognized to override virtual methods
-		virtual void launch( Bool3 go , Rsrcs rsrcs ) {
-			Trace trace(BeChnl,"launch",T,go,rsrcs) ;
-			RsrcsAsk rsrcs_ask ;
-			switch (go) {
-				case No    : return ;
-				case Yes   : break ;
-				case Maybe :
-					if constexpr (::is_same_v<RsrcsData,RsrcsDataAsk>) rsrcs_ask = rsrcs ;                       // only process jobs with same resources if possible
-					else                                               FAIL("cannot convert resources") ;        // if possible
-				break ;
-			DF}
+		virtual void do_launch() {
+			Trace trace(BeChnl,"do_launch",T) ;
 			//
 			::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>> err_jobs ;
 			for( auto [req,eta] : Req::s_etas() ) {                                                              // /!\ it is forbidden to dereference req without taking Req::s_reqs_mutex first
@@ -330,13 +315,9 @@ namespace Backends {
 				for(;;) {
 					if ( n_jobs && spawned_jobs.size()>=n_jobs ) break ;                                         // cannot have more than n_jobs running jobs because of this req, process next req
 					auto candidate = queues.end() ;
-					if (+rsrcs_ask) {
-						if (fit_now(rsrcs_ask)) candidate = queues.find(rsrcs_ask) ;                             // if we have resources, only consider jobs with same resources
-					} else {
-						for( auto it=queues.begin() ; it!=queues.end() ; it++ ) {
-							if ( candidate!=queues.end() && it->second.begin()->pressure<=candidate->second.begin()->pressure ) continue ;
-							if ( fit_now(it->first)                                                                           ) candidate = it ;       // continue to find a better candidate
-						}
+					for( auto it=queues.begin() ; it!=queues.end() ; it++ ) {
+						if ( candidate!=queues.end() && it->second.begin()->pressure<=candidate->second.begin()->pressure ) continue ;
+						if ( fit_now(it->first)                                                                           ) candidate = it ;       // continue to find a better candidate
 					}
 					if (candidate==queues.end()) break ;                                                                                               // nothing for this req, process next req
 					//
@@ -348,7 +329,6 @@ namespace Backends {
 					RsrcsAsk const&       rsrcs_ask      = candidate->first             ;
 					Rsrcs                 rsrcs          { New , adapt(*rsrcs_ask) }    ;
 					::vmap_ss             rsrcs_map      = export_(*rsrcs)              ;
-					bool                  ok             = true                         ;
 					//
 					::vector<ReqIdx> rs { +req } ;
 					for( auto const& [r,re] : reqs )
@@ -361,7 +341,6 @@ namespace Backends {
 						trace(BeChnl,"child",req,j,prio,id,cmd_line) ;
 					} catch (::string const& e) {
 						err_jobs.push_back({j,{e,rsrcs_map}}) ;
-						ok = false ;
 					}
 					waiting_jobs.erase(wit) ;
 					//
@@ -376,8 +355,7 @@ namespace Backends {
 							if (pes.size()==1) re.waiting_queues.erase(wit2) ;               // last entry for this rsrcs, erase the entire queue
 							else               pes              .erase(pe  ) ;
 						}
-						/**/    re.waiting_jobs.erase (wit1) ;
-						if (ok) re.queued_jobs .insert(j   ) ;
+						re.waiting_jobs.erase (wit1) ;
 					}
 					if (pressure_set.size()==1) queues      .erase(candidate     ) ;         // last entry for this rsrcs, erase the entire queue
 					else                        pressure_set.erase(pressure_first) ;

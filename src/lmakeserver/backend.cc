@@ -130,24 +130,22 @@ namespace Backends {
 		else                        it->second.submit_attrs |= sa ;      // and update submit_attrs in case job was not actually started
 	}
 
-	void Backend::s_launch() {
-		Lock lock{_s_mutex} ;
-		Trace trace(BeChnl,"s_launch") ;
-		for( Tag t : All<Tag> ) if (s_ready(t)) {
-			try {
-				s_tab[+t]->launch() ;
-			} catch (::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>>& err_list) {
-				for( auto&& [ji,re] : err_list ) {
-					JobExec           je     { ji , New , New }           ;
-					Rule::SimpleMatch match  = je->simple_match()         ;
-					JobDigest         digest { .status=Status::EarlyErr } ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( JobProc::Start , ::copy(je) , false/*report*/                                       ) ;
-					g_engine_queue.emplace( JobProc::End   , ::move(je) , ::move(re.second) , ::move(digest) , ::move(re.first) ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("cannot_launch",ji) ;
-					_s_start_tab.erase(ji) ;
-				}
+	void Backend::launch() {
+		try {
+			//vvvvvvvvv
+			do_launch() ;
+			//^^^^^^^^^
+		} catch (::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>>& err_list) {
+			for( auto&& [ji,re] : err_list ) {
+				JobExec           je     { ji , New , New }           ;
+				Rule::SimpleMatch match  = je->simple_match()         ;
+				JobDigest         digest { .status=Status::EarlyErr } ;
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( JobProc::Start , ::copy(je) , false/*report*/                                       ) ;
+				g_engine_queue.emplace( JobProc::End   , ::move(je) , ::move(re.second) , ::move(digest) , ::move(re.first) ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				Trace trace(BeChnl,"cannot_launch",ji) ;
+				_s_start_tab.erase(ji) ;
 			}
 		}
 	}
