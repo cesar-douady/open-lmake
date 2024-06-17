@@ -453,9 +453,9 @@ namespace Engine {
 
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
 		SWEAR(!as_job()) ;
-		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .root_dir=*g_root_dir } ;
-		RealPath       real_path { rpe }                                                        ;
-		::vector<Node> targets   ; targets.reserve(files.size())                                ;                                    // typically, there is no bads
+		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .root_dir=no_slash(*g_root_dir_s) } ;
+		RealPath       real_path { rpe                                                                    } ;
+		::vector<Node> targets   ; targets.reserve(files.size()) ;                                                                   // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
 			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                                   // we may refer to a symbolic link

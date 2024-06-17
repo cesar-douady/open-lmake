@@ -64,9 +64,9 @@ SeqId             g_trace_id      = 0/*garbage*/ ;
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
 	::map_ss        res      ;
-	::string        abs_cwd  = *g_root_dir ; if (+g_start_info.cwd_s) { append_to_string(abs_cwd,'/',g_start_info.cwd_s) ; abs_cwd.pop_back() ; }
+	::string        abs_cwd  = no_slash(*g_root_dir_s) ; if (+g_start_info.cwd_s) { append_to_string(abs_cwd,'/',g_start_info.cwd_s) ; abs_cwd.pop_back() ; }
 	/**/                                res["PWD"        ] = abs_cwd                          ;
-	g_start_info.autodep_env.root_dir = res["ROOT_DIR"   ] = *g_root_dir                      ;
+	g_start_info.autodep_env.root_dir = res["ROOT_DIR"   ] = no_slash(*g_root_dir_s)          ;
 	/**/                                res["SEQUENCE_ID"] = to_string(g_seq_id             ) ;
 	/**/                                res["SMALL_ID"   ] = to_string(g_start_info.small_id) ;
 	for( auto& [k,v] : g_start_info.env ) {
@@ -335,7 +335,7 @@ int main( int argc , char* argv[] ) {
 		try                       { g_start_info.job_space.chk() ;   }
 		catch (::string const& e) { end_report.msg += e ; goto End ; }
 		//
-		g_root_dir = +g_start_info.job_space.root_view ? &g_start_info.job_space.root_view : &g_phy_root_dir ;
+		g_root_dir_s = new ::string{ ( +g_start_info.job_space.root_view ? g_start_info.job_space.root_view : g_phy_root_dir ) + '/' } ;
 		//
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//

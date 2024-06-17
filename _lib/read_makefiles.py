@@ -508,7 +508,7 @@ class Handle :
 			,	root_dir   = root_dir
 			)
 			if multi :
-				cmd += 'def cmd() : \n'
+				cmd += 'def cmd() :\n'
 				x = avoid_ctx('x',serialize_ctx)                                                                                  # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					if c.__defaults__ : n_dflts = len(c.__defaults__)

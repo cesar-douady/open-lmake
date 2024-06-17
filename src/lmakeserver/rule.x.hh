@@ -382,8 +382,8 @@ namespace Engine {
 		::string append_dbg_info(::string const& code) const {
 			::string res = code ;
 			if (+dbg_info) {
-				append_line_to_string( res , lmake_dir_var_name," = ",mk_py_str(*g_lmake_dir),'\n' ) ;
-				append_line_to_string( res , dbg_info                                              ) ;
+				append_line_to_string( res , lmake_dir_var_name," = ",mk_py_str(Disk::no_slash(*g_lmake_dir_s)),'\n' ) ;
+				append_line_to_string( res , dbg_info                                                                ) ;
 			}
 			return res ;
 		}

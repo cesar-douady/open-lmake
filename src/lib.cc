@@ -17,35 +17,34 @@ extern "C" {
 }
 #pragma GCC visibility pop
 
-::pair_ss search_root_dir(::string const& cwd_) {
-	::string root_s_dir = cwd_ ;
-	if (!root_s_dir            ) root_s_dir =           cwd()           ;
-	if (root_s_dir.front()!='/') root_s_dir = to_string(cwd(),'/',cwd_) ;
+::pair_ss search_root_dir_s(::string const& cwd_s_) {
+	::string from_dir_s = cwd_s_.front()=='/' ? cwd_s_ : cwd_s()+cwd_s_ ;
+	::string root_dir_s = from_dir_s                                    ;
 	::vector_s candidates ;
-	for(; +root_s_dir ; root_s_dir = dir_name(root_s_dir) ) if (is_target(root_s_dir+"/Lmakefile.py")) candidates.push_back(root_s_dir) ;
+	for(;; root_dir_s = dir_name_s(root_dir_s) ) {
+		if (is_target(root_dir_s+"Lmakefile.py")) candidates.push_back(root_dir_s) ;
+		if (root_dir_s.size()==1                ) break ;
+	}
 	switch (candidates.size()) {
 		case 0 : throw "cannot find root dir"s ;
-		case 1 : root_s_dir = candidates[0] ; break ;
+		case 1 : root_dir_s = candidates[0] ; break ;
 		default : {
 			::vector_s candidates2 ;
-			for( ::string const& c : candidates ) { ::string d = to_string(c,'/',AdminDirS) ; d.pop_back() ; if (is_dir(d)) candidates2.push_back(c) ; }
+			for( ::string const& c : candidates ) if (is_dir(no_slash(c+AdminDirS))) candidates2.push_back(c) ;
 			switch (candidates2.size()) {
 				case 0 : {
-					::string msg = "ambiguous root dir, disambiguate by executing one of :\n" ;
-					for( ::string const& c : candidates ) { msg << "\tmkdir " << c << '/' << AdminDirS ; msg.pop_back() ; msg << '\n' ; }
+					::string msg = "ambiguous root dir, to disambiguate, consider one of :\n" ;
+					for( ::string const& c : candidates ) msg << "\tmkdir " << no_slash(c+AdminDirS) <<'\n' ;
 					throw msg ;
 				}
-				case 1 : root_s_dir = candidates2[0] ; break ;
+				case 1 : root_dir_s = ::move(candidates2[0]) ; break ;
 				default : {
-					::string msg = to_string("ambiguous root dir, disambiguate by executing ",candidates2.size()-1," of :\n") ;
-					for( ::string const& c : candidates2 ) { msg << "\trm -r " << c << '/' << AdminDirS ; msg.pop_back() ; msg << '\n' ; }
+					::string msg = to_string("ambiguous root dir, to disambiguate, consider ",candidates2.size()-1," of :\n") ;
+					for( ::string const& c : candidates2 ) msg << "\trm -r " << no_slash(c+AdminDirS) <<'\n' ;
 					throw msg ;
 				}
 			}
 		}
 	}
-	::string startup_dir_s ;
-	if (root_s_dir.size()<cwd_.size()) startup_dir_s = cwd_.substr(root_s_dir.size()+1)+'/' ;
-	return {root_s_dir,startup_dir_s} ;
+	return { root_dir_s , from_dir_s.substr(root_dir_s.size())/*startup_dir_s*/ } ;
 }
-::pair_ss search_root_dir() { return search_root_dir(cwd()) ; }

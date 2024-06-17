@@ -229,9 +229,9 @@ namespace Engine {
 			size_t   close_pos = start.cmd.second.rfind(')')         ;
 			::string run_call  = start.cmd.second.substr(0,open_pos) ; if (close_pos>open_pos+1) run_call = ','+start.cmd.second.substr(open_pos+1,close_pos) ;
 			//
-			append_line_to_string( res , "lmake_dbg = {}\n"                                                               ) ;
-			append_line_to_string( res , "exec(open(",mk_py_str(*g_lmake_dir+"/lib/lmake_dbg.py"),").read(),lmake_dbg)\n" ) ;
-			append_line_to_string( res , "lmake_dbg['deps'] = (\n"                                                        ) ; // generate deps that debugger can use to pre-populate browser
+			append_line_to_string( res , "lmake_dbg = {}\n"                                                                ) ;
+			append_line_to_string( res , "exec(open(",mk_py_str(*g_lmake_dir_s+"lib/lmake_dbg.py"),").read(),lmake_dbg)\n" ) ;
+			append_line_to_string( res , "lmake_dbg['deps'] = (\n"                                                         ) ; // generate deps that debugger can use to pre-populate browser
 			bool first = true ;
 			for( Dep const& d : j->deps ) {
 				if (d->crc==Crc::None) continue ; // we are only interested in existing deps as other ones are of marginal interest
@@ -300,7 +300,8 @@ R"({
 }
 )" ;
 		::string exts_str ;
-		bool     first      = true ;
+		bool     first    = true                    ;
+		::string root_dir = no_slash(*g_root_dir_s) ;
 		for ( ::string const& ext : vs_exts ) {
 			if (first) { append_to_string( exts_str ,              mk_json_str(ext) ) ; first = false ; }
 			else         append_to_string( exts_str , "\n\t\t,\t", mk_json_str(ext) ) ;
@@ -314,20 +315,20 @@ R"({
 		}
 		args_str += ']' ;
 		//
-		res = ::regex_replace( res , ::regex("\\$exts"       ) , exts_str                                               ) ;
-		res = ::regex_replace( res , ::regex("\\$name"       ) , mk_json_str(          j->name()                      ) ) ;
-		res = ::regex_replace( res , ::regex("\\$root_dir"   ) , mk_json_str(          *g_root_dir                    ) ) ;
-		res = ::regex_replace( res , ::regex("\\$program"    ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
-		res = ::regex_replace( res , ::regex("\\$interpreter") , mk_json_str(to_string(start.interpreter[0]          )) ) ;
-		res = ::regex_replace( res , ::regex("\\$args"       ) , args_str                                               ) ;
+		res = ::regex_replace( res , ::regex("\\$exts"       ) , exts_str                                             ) ;
+		res = ::regex_replace( res , ::regex("\\$name"       ) , mk_json_str(j->name()                              ) ) ;
+		res = ::regex_replace( res , ::regex("\\$root_dir"   ) , mk_json_str(no_slash(*g_root_dir_s)                ) ) ;
+		res = ::regex_replace( res , ::regex("\\$program"    ) , mk_json_str(to_string(*g_root_dir_s,dbg_dir,"/cmd")) ) ;
+		res = ::regex_replace( res , ::regex("\\$interpreter") , mk_json_str(to_string(start.interpreter[0]        )) ) ;
+		res = ::regex_replace( res , ::regex("\\$args"       ) , args_str                                             ) ;
 		//
 		::vmap_ss env     = _mk_env(start.env,job_info.end.end.dynamic_env) ;
 		size_t    kw      = 13/*SEQUENCE_ID*/ ; for( auto&& [k,v] : env ) if (k!="TMPDIR") kw = ::max(kw,mk_json_str(k).size()) ;
 		::string  env_str ;
-		append_to_string( env_str ,                 to_string(::setw(kw),mk_json_str("ROOT_DIR"   ))," : ",mk_json_str(*g_root_dir                               ) ) ;
+		append_to_string( env_str ,                 to_string(::setw(kw),mk_json_str("ROOT_DIR"   ))," : ",mk_json_str(no_slash(*g_root_dir_s)                   ) ) ;
 		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("SEQUENCE_ID"))," : ",mk_json_str(to_string(job_info.start.pre_start.seq_id)) ) ;
 		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("SMALL_ID"   ))," : ",mk_json_str(to_string(start.small_id                 )) ) ;
-		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("TMPDIR"     ))," : ",mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/tmp" )) ) ;
+		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("TMPDIR"     ))," : ",mk_json_str(to_string(*g_root_dir_s,dbg_dir,"/tmp"   )) ) ;
 		for( auto&& [k,v] : env )
 			if (k!="TMPDIR") append_to_string ( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str(k))," : ",mk_json_str(v) ) ;
 		res = ::regex_replace( res , ::regex("\\$env") , env_str );
@@ -335,13 +336,8 @@ R"({
 	}
 
 	static ::string _mk_script( Job j , ReqFlags flags , JobInfo const& job_info , ::string const& dbg_dir , bool with_cmd , ::vector_s const& vs_exts={} ) {
-		JobRpcReply const& start   = job_info.start.start ;
-		AutodepEnv  const& ade     = start.autodep_env    ;
-		::string           abs_cwd = *g_root_dir          ;
-		if (+start.cwd_s) {
-			append_to_string(abs_cwd,'/',start.cwd_s) ;
-			abs_cwd.pop_back() ;
-		}
+		JobRpcReply const& start = job_info.start.start ;
+		AutodepEnv  const& ade   = start.autodep_env    ;
 		Rule::SimpleMatch match = j->simple_match() ;
 		//
 		for( Node t  : j->targets ) t->set_buildable() ;                                                                                             // necessary for pre_actions()
@@ -354,7 +350,7 @@ R"({
 		::uset<Node> warn      ; for( auto n     : pre_actions.second )                                  warn     .insert(n) ;
 		::uset<Node> to_mkdirs ; for( auto [d,a] : pre_actions.first  ) if (a.tag==FileActionTag::Mkdir) to_mkdirs.insert(d) ;
 		//
-		append_to_string( script , "cd ",mk_shell_str(*g_root_dir),'\n') ;
+		append_to_string( script , "cd ",mk_shell_str(no_slash(*g_root_dir_s)),'\n') ;
 		//
 		for( auto [_,a] : pre_actions.first )
 			if (a.tag==FileActionTag::Uniquify) {
@@ -381,9 +377,9 @@ R"({
 		//
 		::string tmp_dir ;
 		if (+dbg_dir) {
-			tmp_dir = to_string(*g_root_dir,'/',dbg_dir,"/tmp") ;
+			tmp_dir = to_string(*g_root_dir_s,dbg_dir,"/tmp") ;
 		} else {
-			tmp_dir = mk_abs(ade.tmp_dir,*g_root_dir+'/') ;
+			tmp_dir = mk_abs(ade.tmp_dir,*g_root_dir_s) ;
 			if (!start.autodep_env.tmp_dir)
 				for( auto&& [k,v] : start.env )
 					if ( k=="TMPDIR" && v!=EnvPassMrkr )
@@ -396,7 +392,7 @@ R"({
 		if (flags[ReqFlag::Vscode]) {
 			vector_s static_deps ; for( Dep const& d : j->deps ) if (d.dflags[Dflag::Static]) static_deps.push_back(d->name()      ) ;
 			for( ::string const& e : vs_exts     ) append_to_string( script , "code --list-extensions | grep -Fxq ",mk_shell_str(e)," || code --install-extension ",mk_shell_str(e),'\n') ;
-			/**/                                   append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir)                                                   ,'\n') ;
+			/**/                                   append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir_s+dbg_dir)                                                     ,'\n') ;
 			/**/                                   append_to_string( script , "args=()"                                                                                            ,'\n') ;
 			/**/                                   append_to_string( script , "type -p code | grep -q .vscode-server || args+=( --user-data-dir \"$DEBUG_DIR/vscode/user\" )"      ,'\n') ;
 			for( ::string const& d : static_deps ) append_to_string( script , "args+=( ",mk_shell_str(d)," )"                                                                      ,'\n') ;
@@ -405,14 +401,14 @@ R"({
 			/**/                                   append_to_string( script , "code -n -w --password-store=basic ${args[@]} &"                                                     ,'\n') ;
 		} else {
 			::vmap_ss env = _mk_env(start.env,job_info.end.end.dynamic_env) ;
-			/**/                                      append_to_string( script , "exec env -i"    ,                                  " \\\n") ;
-			/**/                                      append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir)       ," \\\n") ;
-			/**/                                      append_to_string( script , "\tSEQUENCE_ID=" , job_info.start.pre_start.seq_id ," \\\n") ;
-			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                  ," \\\n") ;
-			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                   ," \\\n") ;
-			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)                 ," \\\n") ;
+			/**/                                      append_to_string( script , "exec env -i"    ,                                        " \\\n") ;
+			/**/                                      append_to_string( script , "\tROOT_DIR="    , mk_shell_str(no_slash(*g_root_dir_s)) ," \\\n") ;
+			/**/                                      append_to_string( script , "\tSEQUENCE_ID=" , job_info.start.pre_start.seq_id       ," \\\n") ;
+			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                        ," \\\n") ;
+			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                         ," \\\n") ;
+			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)                       ," \\\n") ;
 			if ( dbg || ade.auto_mkdir || +start.job_space ) {                                                                                       // in addition to debug, autodep may be needed ...
-				/**/                                    append_to_string( script , *g_lmake_dir,"/bin/autodep"                               ,' ') ; // ... for functional reasons
+				/**/                                    append_to_string( script , *g_lmake_dir_s,"bin/autodep"                              ,' ') ; // ... for functional reasons
 				if      ( dbg                         ) append_to_string( script , "-s " , snake(ade.lnk_support)                            ,' ') ;
 				else                                    append_to_string( script , "-s " , "none"                                            ,' ') ; // dont care about deps
 				/**/                                    append_to_string( script , "-m " , snake(start.method   )                            ,' ') ;

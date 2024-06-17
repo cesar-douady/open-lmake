@@ -114,7 +114,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		default : ;
 	}
-	if (!jerr.sync) fd = {} ;                                                                                                                             // dont reply if not sync
+	if (!jerr.sync) fd = {} ;                                            // dont reply if not sync
 	JobMngtRpcReq jmrr ;
 	switch (jerr.proc) {
 		case JobExecProc::ChkDeps : jmrr = { JobMngtProc::ChkDeps , seq_id , job , fd , cur_deps_cb()                                                                    } ; break ;
@@ -186,18 +186,18 @@ void Gather::_spawn_child() {
 		_child.spawn() ;
 		start_date = New ;                                      // record job start time as late as possible
 	} else {
-		if (method>=AutodepMethod::Ld) {                                                                                                                   // PER_AUTODEP_METHOD : handle case
+		if (method>=AutodepMethod::Ld) {                                                                                                                    // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
-			switch (method) {                                                                                                                              // PER_AUTODEP_METHOD : handle case
-				case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_dir+"/_lib/ld_audit.so"            ; break ;
-				case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir+"/_lib/ld_preload.so"          ; break ;
-				case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir+"/_lib/ld_preload_jemalloc.so" ; break ;
+			switch (method) {                                                                                                                               // PER_AUTODEP_METHOD : handle case
+				case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_dir_s+"_lib/ld_audit.so"            ; break ;
+				case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_lib/ld_preload.so"          ; break ;
+				case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_lib/ld_preload_jemalloc.so" ; break ;
 			DF}
 			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) _add_env[env_var] += ':' + get_env(env_var) ; }
 		}
 		new_exec( New , cmd_line[0] ) ;
-		start_date      = New       ;                                                                                                                      // record job start time as late as possible
+		start_date      = New       ;                                                                                                                       // record job start time as late as possible
 		_child.cmd_line = cmd_line  ;
 		_child.env      = env       ;
 		_child.add_env  = &_add_env ;
@@ -364,7 +364,7 @@ Status Gather::exec_child() {
 					if (is_job) { SWEAR( fd==job_master_fd    , fd , job_master_fd    ) ; slave = job_master_fd   .accept().detach() ; epoll.add_read(slave,Kind::JobSlave   ) ; }
 					else        { SWEAR( fd==server_master_fd , fd , server_master_fd ) ; slave = server_master_fd.accept().detach() ; epoll.add_read(slave,Kind::ServerSlave) ; }
 					trace("read_slave",STR(is_job),slave,"wait",_wait,epoll.cnt) ;
-					slaves[slave] ;                                                                                                          // allocate entry
+					slaves[slave] ;                                                             // allocate entry
 				} break ;
 				case Kind::ServerSlave : {
 					JobMngtRpcReply jmrr ;

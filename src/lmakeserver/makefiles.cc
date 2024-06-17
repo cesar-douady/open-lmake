@@ -26,8 +26,8 @@ ENUM( Reason // reason to re-read makefiles
 namespace Engine::Makefiles {
 
 	static ::pair<vmap_s<FileTag>/*srcs*/,vector_s/*src_dirs_s*/> _gather_srcs( Sequence const& py_srcs , LnkSupport lnk_support , NfsGuard& nfs_guard ) {
-		RealPathEnv       rpe        { .lnk_support=lnk_support , .root_dir=*g_root_dir } ;
-		RealPath          real_path  { rpe }                                              ;
+		RealPathEnv       rpe        { .lnk_support=lnk_support , .root_dir=no_slash(*g_root_dir_s) } ;
+		RealPath          real_path  { rpe                                                          } ;
 		::vmap_s<FileTag> srcs       ;
 		::vector_s        src_dirs_s ;
 		for( Object const& py_src : py_srcs ) {
@@ -129,12 +129,11 @@ namespace Engine::Makefiles {
 	}
 
 	static void _gen_deps( ::string const& action , ::vector_s const& deps , ::string const& startup_dir_s ) {
-		::string              root_dir_s    = *g_root_dir+'/'                 ;
 		::string              new_deps_file = _deps_file(action,true /*new*/) ;
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s )
-			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_root_dir),is_abs_s(sd_s)) ;
+			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_root_dir_s),is_abs_s(sd_s)) ;
 		//
 		{	OFStream os { new_deps_file } ;               // ensure os is closed, or at least it must be flushed before calling _chk_dangling
 			for( ::string d : deps ) {
@@ -143,7 +142,7 @@ namespace Engine::Makefiles {
 				if (is_abs(d)) {
 					for( auto const& [sd_s,a] : glb_sds_s ) {
 						if (!(d+'/').starts_with(sd_s)) continue ;
-						if (!a                        ) d = mk_rel(d,root_dir_s) ;
+						if (!a                        ) d = mk_rel(d,*g_root_dir_s) ;
 						break ;
 					}
 				}
@@ -163,10 +162,10 @@ namespace Engine::Makefiles {
 		//
 		Gather   gather ;
 		::string data   = to_string(PrivateAdminDirS,action,"_data.py") ;
-		gather.autodep_env.src_dirs_s = {"/"}                                                                        ;
-		gather.autodep_env.root_dir   = *g_root_dir                                                                  ;
-		gather.cmd_line               = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
-		gather.child_stdin            = Child::None                                                                  ;
+		gather.autodep_env.src_dirs_s = {"/"}                                                                         ;
+		gather.autodep_env.root_dir   = no_slash(*g_root_dir_s)                                                       ;
+		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , action , module } ;
+		gather.child_stdin            = Child::None                                                                   ;
 		Trace trace("_read_makefiles",action,module,Pdate(New)) ;
 		//
 		::string sav_ld_library_path ;

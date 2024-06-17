@@ -21,7 +21,7 @@ int main( int argc , char* /*argv*/[] ) {
 	g_trace_file = new ::string() ;                      // no trace as we are repairing admin_dir in which traces are made
 	block_sigs({SIGCHLD}) ;
 	app_init(No/*chk_version*/) ;                        // lrepair must always be launched at root
-	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
+	Py::init( *g_lmake_dir_s , true/*multi-thread*/ ) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
 		FAIL("lrepair must be started from repo root, not from ",*g_startup_dir_s) ;

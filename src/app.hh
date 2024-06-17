@@ -10,10 +10,10 @@
 #include "time.hh"
 #include "trace.hh"
 
-extern ::string* g_startup_dir_s ; // pointer to avoid init/fini order hazards, relative to g_root_dir, includes final /,  dir from which command was launched
-extern ::string* g_lmake_dir     ; // pointer to avoid init/fini order hazards, absolute              , installation dir of lmake
-extern ::string* g_root_dir      ; // pointer to avoid init/fini order hazards, absolute              , root of repository
-extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, absolute              , executable name for user messages
+extern ::string* g_startup_dir_s ; // pointer to avoid init/fini order hazards, relative to g_root_dir_s, includes final /,  dir from which command was launched
+extern ::string* g_root_dir_s    ; // pointer to avoid init/fini order hazards, absolute                , root of repository
+extern ::string* g_lmake_dir_s   ; // pointer to avoid init/fini order hazards, absolute                , installation dir of lmake
+extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, absolute                , executable name for user messages
 
 /**/   void app_init( Bool3 chk_version_=Yes , bool cd_root=true ) ;                           // if chk_version_==Maybe, it is ok to initialize stored version
 inline void app_init(                          bool cd_root      ) { app_init(Yes,cd_root) ; }

@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <sys/mount.h>
+
 #include "utils.hh" // defines HAS_FUSE
 
 #if HAS_FUSE
@@ -36,19 +38,25 @@ namespace Fuse {
 		struct Mount {
 			// statics
 		private :
-			static void _s_loop( ::stop_token stop , Mount* self ) { self->_loop(stop) ; }
+			static void _s_loop( ::stop_token stop , Mount* self ) {
+				t_thread_key = 'L' ;
+				self->_loop(stop) ;
+			}
 			// cxtors & casts
 		public :
 			Mount() = default ;
 			//
 			Mount( ::string const& dst_ , ::string const& src_ ) : dst{dst_} , src{src_} {
+				::cerr<<t_thread_key<<" "<<"Mount::Mount1 :"<<dst<<":"<<endl;
 				open() ;
+				::cerr<<t_thread_key<<" "<<"Mount::Mount2 :"<<src<<":"<<endl;
 				_thread = ::jthread( _s_loop , this ) ;
 			}
+			~Mount() { ::cerr<<"~Mount "<<::umount(dst.c_str())<<endl ; }
 			// services
 			void open() ;
 		private :
-			void _loop(::stop_token stop) ;
+			void _loop(::stop_token) ;
 			// data
 		public :
 			::string dst ;

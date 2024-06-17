@@ -31,7 +31,7 @@ namespace Py {
 		PyObject* tb  = nullptr ;
 	} ;
 
-	void init( ::string const& lmake_dir , bool ) {
+	void init( ::string const& lmake_dir_s , bool ) {
 		static bool once=false ; if (once) return ; else once = true ;
 		//
 		Py_IgnoreEnvironmentFlag = true ;                         // favor repeatability
@@ -42,8 +42,8 @@ namespace Py {
 		py_get_sys("implementation").set_attr("cache_tag",None) ; // avoid pyc management
 		//
 		List& py_path = py_get_sys<List>("path") ;
-		py_path.prepend( *Ptr<Str>(lmake_dir+"/lib") ) ;
-		py_path.append ( *Ptr<Str>("."             ) ) ;
+		py_path.prepend( *Ptr<Str>(lmake_dir_s+"lib") ) ;
+		py_path.append ( *Ptr<Str>("."              ) ) ;
 	}
 
 	// divert stderr to a memfd (if available, else to an internal pipe), call PyErr_Print and restore stderr

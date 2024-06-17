@@ -394,11 +394,11 @@ namespace Disk {
 		SWEAR( is_abs(rpe.root_dir) , rpe.root_dir ) ;
 		SWEAR( is_abs(rpe.tmp_dir ) , rpe.tmp_dir  ) ;
 		//
-		pid           = p                                     ;
-		_env          = &rpe                                  ;
-		_admin_dir    = to_string(rpe.root_dir,'/',AdminDirS) ; _admin_dir.pop_back() ;
-		cwd_          = ::move(cwd)                           ;
-		_root_dir_sz1 = _env->root_dir.size()+1               ;
+		pid           = p                                    ;
+		_env          = &rpe                                 ;
+		_admin_dir    = no_slash(rpe.root_dir+'/'+AdminDirS) ;
+		cwd_          = ::move(cwd)                          ;
+		_root_dir_sz1 = _env->root_dir.size()+1              ;
 		//
 		for ( ::string const& sd_s : rpe.src_dirs_s ) _abs_src_dirs_s.push_back(mk_glb(sd_s,rpe.root_dir)) ;
 	}
@@ -421,8 +421,8 @@ namespace Disk {
 	// XXX : optimize by looking in /proc (after having opened the file) if file is a real path and provide direct answer in this case
 	//       apply, as soon as we prepare to make a readlink (before that, we may lose time instead of saving), which arrives pretty soon when link support is full
 	RealPath::SolveReport RealPath::solve( Fd at , ::string const& file , bool no_follow ) {
-		static ::string const* const proc         = new ::string("/proc") ;
-		static int             const s_n_max_lnks = _get_symloop_max()    ;
+		static ::string const& s_proc       = *new ::string("/proc") ;
+		static int      const  s_n_max_lnks = _get_symloop_max()     ;
 		//
 		::vector_s lnks ;
 		//
@@ -433,8 +433,8 @@ namespace Disk {
 		::string        real          ; real.reserve(file.size()) ;                        // canonical (link free, absolute, no ., .. nor empty component). Empty instead of '/'. Anticipate no link
 		if (!pos) {                                                                        // file is relative, meaning relative to at
 			if      (at==Fd::Cwd) real = cwd_                                            ;
-			else if (pid        ) real = read_lnk(to_string(*proc,'/',pid,"/fd/",at.fd)) ;
-			else                  real = read_lnk(to_string(*proc,"/self/fd/"   ,at.fd)) ;
+			else if (pid        ) real = read_lnk(to_string(s_proc,'/',pid,"/fd/",at.fd)) ;
+			else                  real = read_lnk(to_string(s_proc,"/self/fd/"   ,at.fd)) ;
 			//
 			if (!is_abs(real) ) return {} ;                                                // user code might use the strangest at, it will be an error but we must support it
 			if (real.size()==1) real.clear() ;
@@ -442,7 +442,7 @@ namespace Disk {
 		_Dvg in_repo   { _env->root_dir , real } ;                                         // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
 		_Dvg in_tmp    { _env->tmp_dir  , real } ;                                         // keep track of where we are w.r.t. tmp        , always track symlinks
 		_Dvg in_admin  { _admin_dir     , real } ;                                         // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
-		_Dvg in_proc   { *proc          , real } ;                                         // keep track of where we are w.r.t. /proc      , always track symlinks
+		_Dvg in_proc   { s_proc         , real } ;                                         // keep track of where we are w.r.t. /proc      , always track symlinks
 		bool is_in_tmp = +_env->tmp_dir && +in_tmp ;
 		// loop INVARIANT : accessed file is real+'/'+cur->substr(pos)
 		// when pos>cur->size(), we are done and result is real
@@ -454,7 +454,7 @@ namespace Disk {
 		;		pos = end+1
 			,	in_repo.update(_env->root_dir,real)                                        // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
 			,	in_tmp .update(_env->tmp_dir ,real)                                        // .
-			,	in_proc.update(*proc         ,real)                                        // .
+			,	in_proc.update(s_proc        ,real)                                        // .
 			,	is_in_tmp = +_env->tmp_dir && +in_tmp
 		) {
 			end = cur->find( '/', pos ) ;
@@ -526,7 +526,7 @@ namespace Disk {
 		if (+in_proc)
 			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Proc   } ;
 		if (+in_repo) {
-			if (real.size()<_root_dir_sz1                                                               ) return { ::move(real) , ::move(lnks) , No        , FileLoc::Root   } ;
+			if (real.size()<_root_dir_sz1                                                               ) return { ::move(real) , ::move(lnks) , No        , FileLoc::Ext    } ;
 			real = real.substr(_root_dir_sz1) ;
 			if ( +in_admin                                                                              ) return { ::move(real) , ::move(lnks) , No        , FileLoc::Admin  } ;
 			if ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) return { ::move(real) , ::move(lnks) , Yes       , FileLoc::Repo   } ;

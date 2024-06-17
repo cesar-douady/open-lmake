@@ -148,7 +148,7 @@ Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(
 int Record::Chdir::operator()( Record& r , int rc , pid_t pid ) {
 	if (rc!=0) return rc ;
 	if (pid  ) r.chdir(Disk::read_lnk("/proc/"+::to_string(pid)+"/cwd").c_str()) ;
-	else       r.chdir(Disk::cwd()                                     .c_str()) ;
+	else       r.chdir(no_slash(Disk::cwd_s())                         .c_str()) ;
 	return rc ;
 }
 

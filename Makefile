@@ -86,7 +86,8 @@ PY_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR) $(PY_INCLUDEPY))  
 PY_CC_OPTS   := $(patsubst %,-isystem %,$(PY_INC_DIRS)) -Wno-register
 PY_LINK_OPTS := $(patsubst %,-L%,$(PY_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY_LIB_DIR))  -l:$(PY_LIB_BASE)
 ifneq ($(HAS_FUSE),)
-    FUSE_CC_OPTS := $(shell pkg-config fuse3 --cflags --libs)
+    FUSE_CC_OPTS   := -I /home/cdy/fuse/include -I /home/cdy/fuse/build # $(shell pkg-config fuse3 --cflags)
+    FUSE_LINK_OPTS := /home/cdy/fuse/build/lib/libfuse3.so              # $(shell pkg-config fuse3 --libs  )
 endif
 
 # Engine
@@ -338,7 +339,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/lmakeserver/main$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(BIN)/lrepair : \
 	$(LMAKE_BASIC_SAN_OBJS)                                      \
@@ -373,7 +374,7 @@ $(BIN)/lrepair : \
 	$(SRC)/lrepair$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/ldump : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \
@@ -402,7 +403,7 @@ $(SBIN)/ldump : \
 	$(SRC)/ldump$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LINK_LIB)
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
 	$(LMAKE_BASIC_SAN_OBJS)    \
@@ -414,7 +415,7 @@ $(SBIN)/ldump_job : \
 	$(SRC)/ldump_job$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LINK_LIB)
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LINK_LIB)
 
 # XXX : why job_exec does not support sanitize thread ?
 $(SBIN)/job_exec : \
@@ -434,7 +435,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/job_exec.o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@@$(LINK_BIN) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_CC_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@@$(LINK_BIN) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/align_comments : \
 	$(LMAKE_BASIC_SAN_OBJS) \
@@ -507,6 +508,14 @@ $(BIN)/xxhsum : \
 	@echo link to $@
 	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
+$(BIN)/fuse_test : \
+	$(LMAKE_BASIC_OBJS) \
+	$(SRC)/fuse.o       \
+	$(SRC)/fuse_test.o
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) -o $@ $^ $(FUSE_LINK_OPTS) $(LINK_LIB)
+
 # XXX : why autodep does not support sanitize thread ?
 $(BIN)/autodep : \
 	$(LMAKE_BASIC_OBJS)          \
@@ -524,7 +533,7 @@ $(BIN)/autodep : \
 	$(SRC)/autodep/autodep.o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK_BIN) -o $@ $^ $(FUSE_CC_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK_BIN) -o $@ $^ $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 #
 # remote

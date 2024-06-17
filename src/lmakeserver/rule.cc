@@ -390,8 +390,8 @@ namespace Engine {
 		//
 		if (is_lcl(dep)) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
-		::string rel_dir_s = mk_rel(dir_s,*g_root_dir+'/') ; if (is_lcl_s(rel_dir_s)) bad_canon(rel_dir_s) ;
-		::string abs_dir_s = mk_abs(dir_s,*g_root_dir+'/') ;
+		::string rel_dir_s = mk_rel(dir_s,*g_root_dir_s) ; if (is_lcl_s(rel_dir_s)) bad_canon(rel_dir_s) ;
+		::string abs_dir_s = mk_abs(dir_s,*g_root_dir_s) ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s ) {
 			if (is_lcl_s(sd_s)) continue ;                                                                              // nothing to recognize inside repo
@@ -664,7 +664,7 @@ namespace Engine {
 		return true ;
 	}
 	void RuleData::_acquire_py(Py::Dict const& dct) {
-		static ::string root_dir_s = *g_root_dir+'/' ;
+		static ::string root_dir_s = *g_root_dir_s ;
 		::string field ;
 		Gil::s_swear_locked() ;
 		try {
@@ -685,8 +685,8 @@ namespace Engine {
 			if (+cwd_s) {
 				if (cwd_s.back ()!='/') cwd_s += '/' ;
 				if (cwd_s.front()=='/') {
-					if (cwd_s.starts_with(*g_root_dir+'/')) cwd_s.erase(0,g_root_dir->size()+1) ;
-					else                                    throw "cwd must be relative to root dir"s ;
+					if (cwd_s.starts_with(*g_root_dir_s)) cwd_s.erase(0,g_root_dir_s->size()) ;
+					else                                  throw "cwd must be relative to root dir"s ;
 				}
 			}
 			//

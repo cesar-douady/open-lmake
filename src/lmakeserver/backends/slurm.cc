@@ -153,7 +153,7 @@ namespace Backends::Slurm {
 			if (!dynamic) slurm_init() ;
 			_s_slurm_cancel_thread.open('C',slurm_cancel) ;
 			//
-			repo_key = base_name(*g_root_dir)+':' ; // cannot put this code directly as init value as g_root_dir is not available early enough
+			repo_key = base_name(no_slash(*g_root_dir_s))+':' ; // cannot put this code directly as init value as g_root_dir_s is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
@@ -603,7 +603,7 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 		SWEAR(rsrcs.size()> 0) ;
 		SWEAR(nice        >=0) ;
 		//
-		::string                 wd        = *g_root_dir              ;
+		::string                 wd        = no_slash(*g_root_dir_s)  ;
 		auto                     job_name  = key + Job(job)->name()   ;
 		::string                 script    = _cmd_to_string(cmd_line) ;
 		::string                 s_errPath ;

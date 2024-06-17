@@ -65,7 +65,7 @@ namespace Py {
 		return *from_py<T>(v) ;
 	}
 
-	void init( ::string const& lmake_dir , bool multi_thread=false ) ; // if multi_thread, GIL must be acquired before each any call to Python API
+	void init( ::string const& lmake_dir_s , bool multi_thread=false ) ; // if multi_thread, GIL must be acquired before each any call to Python API
 
 	::string py_err_str_clear() ;        // like PyErr_Print, but return text instead of printing it (Python API provides no means to do this !)
 	//

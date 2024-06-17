@@ -19,8 +19,9 @@ using namespace Disk ;
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
-		try                     { root_dir = search_root_dir().first ; }
-		catch (::string const&) { root_dir = cwd()                   ; }
+		try                     { root_dir = search_root_dir_s().first ; }
+		catch (::string const&) { root_dir = cwd_s()                   ; }
+		root_dir.pop_back() ;
 		return ;
 	}
 	size_t pos = env.find(':'           ) ; if (pos==Npos) goto Fail ;

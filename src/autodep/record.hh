@@ -51,13 +51,13 @@ struct Record {
 	}
 	// static data
 public :
-	static bool                                                   s_static_report  ;  // if true <=> report deps to s_deps instead of through report_fd() socket
+	static bool                                                   s_static_report  ;      // if true <=> report deps to s_deps instead of through report_fd() socket
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
-	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;  // map file to read accesses
+	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;      // map file to read accesses
 private :
 	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                               // a file descriptor to repo root dir
+	static Fd          _s_root_fd     ;                                                   // a file descriptor to repo root dir
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -73,7 +73,7 @@ public :
 			::string const& service = _s_autodep_env->service ;
 			if (service.back()==':') _report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
 			else                     _report_fd = ClientSockFd(service)                                                   ;
-			_report_fd.no_std() ; // avoid poluting standard descriptors
+			_report_fd.no_std() ;                                                                                                                       // avoid poluting standard descriptors
 			swear_prod(+_report_fd,"cannot connect to job_exec through ",service) ;
 		}
 		return _report_fd ;
@@ -160,7 +160,7 @@ public :
 	template<class... A> [[noreturn]] void report_panic(A const&... args) const { report_direct({Proc::Panic,to_string(args...)}) ; exit(Rc::Usage) ; } // continuing is meaningless
 	template<class... A>              void report_trace(A const&... args) const { report_direct({Proc::Trace,to_string(args...)}) ;                   }
 	//
-	template<bool Writable=false> struct _Path {                                                        // if !Writable <=> file is is read-only
+	template<bool Writable=false> struct _Path {                 // if !Writable <=> file is is read-only
 		using Char = ::conditional_t<Writable,char,const char> ;
 		// cxtors & casts
 		_Path(                          )                           {                       }
@@ -177,8 +177,8 @@ public :
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
-			p.file      = nullptr     ;                                                                 // safer to avoid dangling pointers
-			p.allocated = false       ;                                                                 // we have clobbered allocation, so it is no more p's responsibility
+			p.file      = nullptr     ;                          // safer to avoid dangling pointers
+			p.allocated = false       ;                          // we have clobbered allocation, so it is no more p's responsibility
 			return *this ;
 		}
 		//
@@ -188,17 +188,17 @@ public :
 		void _deallocate() { if (allocated) delete[] file ; }
 		//
 		void _allocate(size_t sz) {
-			char* buf = new char[sz+1] ;                                                                // +1 to account for terminating null
+			char* buf = new char[sz+1] ;                         // +1 to account for terminating null
 			::memcpy(buf,file,sz+1) ;
 			file      = buf  ;
 			allocated = true ;
 		}
 		// data
 	public :
-		bool    allocated = false            ;                                                          // if true <=> file has been allocated and must be freed upon destruction
-		FileLoc file_loc  = FileLoc::Unknown ;                                                          // updated when analysis is done
-		Fd      at        = Fd::Cwd          ;                                                          // at & file may be modified, but together, they always refer to the same file ...
-		Char*   file      = nullptr          ;                                                          // ... except in the case of mkstemp (& al.) that modifies its arg in place
+		bool    allocated = false            ;                   // if true <=> file has been allocated and must be freed upon destruction
+		FileLoc file_loc  = FileLoc::Unknown ;                   // updated when analysis is done
+		Fd      at        = Fd::Cwd          ;                   // at & file may be modified, but together, they always refer to the same file ...
+		Char*   file      = nullptr          ;                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ; //!            Writable
 	using Path  = _Path<false > ;
 	using WPath = _Path<true  > ;
@@ -219,14 +219,14 @@ public :
 				for( auto const& [view,phys] : s_autodep_env().views ) {
 					if (!( file.starts_with(view) && (view.back()=='/'||file.size()==view.size()) )) continue ;
 					for( size_t i=0 ; i<phys.size() ; i++ ) {
-						bool     last  = i==phys.size()-1                     ;
-						::string f     = phys[i] + file.substr(view.size())   ;
-						FileInfo fi    = !last||+a ? FileInfo(f) : FileInfo() ;
-						bool     found = fi.tag()!=FileTag::None              ;
+						bool     last  = i==phys.size()-1                                 ;
+						::string f     = phys[i] + file.substr(view.size())               ;
+						FileInfo fi    = !last||+a ? FileInfo(s_root_fd(),f) : FileInfo() ;
+						bool     found = fi.tag()!=FileTag::None                          ;
 						if (store) {
 							if      (last ) real  = f ;
 							else if (found) real  = f ;
-							else if (i==0 ) real0 = f ;                                                 // real0 is only significative when not equal to real
+							else if (i==0 ) real0 = f ;                                                                  // real0 is only significative when not equal to real
 						}
 						if      (last ) { if (+a) r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a              , to_string(ck,i) ) ; return ; }
 						else if (found) {         r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a|Access::Stat , to_string(ck,i) ) ; return ; }
@@ -234,8 +234,9 @@ public :
 					}
 					return ;
 				}
-				if (store) real = file ;                                                                // when no views match, process as if last
-				if (+a   ) r._report_dep( file_loc , ::move(file) , FileInfo(file) , a , ::move(ck) ) ; // .
+				// when no views match, process as if last
+				if (+a) { if (store) real = ::move(file) ;                                                             }
+				else    { if (store) real =        file  ; r._report_dep( file_loc , ::move(file) , a , ::move(ck) ) ; }
 			} ;
 			//
 			if (sr.file_accessed==Yes) accesses = Access::Lnk ;

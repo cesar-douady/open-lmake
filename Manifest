@@ -78,6 +78,7 @@ src/fd.cc
 src/fd.hh
 src/fuse.cc
 src/fuse.hh
+src/fuse_test.cc
 src/hash.cc
 src/hash.hh
 src/job_exec.cc

@@ -35,7 +35,6 @@ ENUM_1(FileLoc
 ,	Dep = SrcDir // <=Dep means that file must be reported as a dep
 ,	Repo
 ,	SrcDir       // file has been found in source dirs
-,	Root         // file is the root dir
 ,	Tmp
 ,	Proc         // file is in /proc
 ,	Admin
@@ -292,14 +291,14 @@ namespace Disk {
 	inline bool            is_exe      ( ::string const& file , bool no_follow=true                                       ) { return is_exe      (Fd::Cwd,file,no_follow           ) ; }
 	inline Ddate           file_date   ( ::string const& file , bool no_follow=true                                       ) { return file_date   (Fd::Cwd,file,no_follow           ) ; }
 
-	inline ::string cwd() {
-		char buf[PATH_MAX] ;                 // use posix, not linux extension that allows to pass nullptr as argument and malloc's the returned string
-		char* cwd = ::getcwd(buf,PATH_MAX) ;
+	inline ::string cwd_s() {
+		char buf[PATH_MAX] ;                          // use posix, not linux extension that allows to pass nullptr as argument and malloc's the returned string
+		char* cwd          = ::getcwd(buf,PATH_MAX) ;
 		if (!cwd) throw "cannot get cwd"s ;
 		::string res{cwd} ;
 		SWEAR( res[0]=='/' , res[0] ) ;
-		if (res.size()==1) return {}  ;      // cwd contains components prefixed by /, if at root, it is logical for it to be empty
-		else               return res ;
+		if (res.size()==1) return res     ;           // special case / as ::getcwd returns /, not empty
+		else               return res+'/' ;
 	}
 
 	inline ::string mk_file( ::string const& f , Bool3 exists=Maybe ) {
@@ -361,7 +360,7 @@ namespace Disk {
 			bool operator !() const { return !+*this ; }
 			// udpate after domain & chk have been lengthened or shortened, but not modified internally
 			void update( ::string const& domain , ::string const& chk ) {
-				size_t start = dvg ;;
+				size_t start = dvg ;
 				ok  = domain.size() <= chk.size()     ;
 				dvg = ok ? domain.size() : chk.size() ;
 				for( size_t i=start ; i<dvg ; i++ ) {
@@ -391,9 +390,9 @@ namespace Disk {
 		RealPath() = default ;
 		// src_dirs_s may be either absolute or relative, but must be canonic
 		// tmp_dir must be absolute and canonic
-		RealPath ( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe ,                                                  p ) ; }
-		RealPath ( RealPathEnv const& rpe , ::string&& cwd , pid_t p=0 ) { init( rpe , ::move(cwd)                                    , p ) ; }
-		void init( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe , p?read_lnk(to_string("/proc/",p,"/cwd")):cwd() , p ) ; }
+		RealPath ( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe ,                                                              p ) ; }
+		RealPath ( RealPathEnv const& rpe , ::string&& cwd , pid_t p=0 ) { init( rpe , ::move(cwd)                                                , p ) ; }
+		void init( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe , p?read_lnk(to_string("/proc/",p,"/cwd")):no_slash(cwd_s()) , p ) ; }
 		void init( RealPathEnv const&     , ::string&& cwd , pid_t  =0 ) ;
 		// services
 		FileLoc file_loc( ::string const& real ) const { return _env->file_loc(real) ; }

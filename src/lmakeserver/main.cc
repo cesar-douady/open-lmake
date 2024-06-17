@@ -395,10 +395,10 @@ bool/*interrupted*/ engine_loop() {
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
-	app_init(Maybe/*chk_version*/) ;                  // server is always launched at root
-	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
+	app_init(Maybe/*chk_version*/) ;                    // server is always launched at root
+	Py::init( *g_lmake_dir_s , true/*multi-thread*/ ) ;
 	AutodepEnv ade ;
-	ade.root_dir = *g_root_dir ;
+	ade.root_dir = no_slash(*g_root_dir_s) ;
 	Record::s_static_report = true ;
 	Record::s_autodep_env(ade) ;
 	if (+*g_startup_dir_s) {
@@ -427,13 +427,13 @@ int main( int argc , char** argv ) {
 	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;     // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
-	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;       // must be done before app_init so that all threads block the signal
+	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;       // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
+	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;         // must be done before app_init so that all threads block the signal
 	//          vvvvvvvvvvvvvvv
 	Persistent::writable = true ;
 	Codec     ::writable = true ;
 	//          ^^^^^^^^^^^^^^^
-	Trace trace("main",getpid(),*g_lmake_dir,*g_root_dir) ;
+	Trace trace("main",getpid(),*g_lmake_dir_s,*g_root_dir_s) ;
 	for( int i=0 ; i<argc ; i++ ) trace("arg",i,argv[i]) ;
 	{ ::string pad = PrivateAdminDirS ; pad.pop_back() ; mk_dir(pad) ; }
 	//             vvvvvvvvvvvvvvvvvvvvvvvvvvv

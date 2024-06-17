@@ -204,7 +204,7 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	::vector_s views = _get_files(py_args) ;
-	if (views.size()==0) views.push_back(cwd()) ;
+	if (views.size()==0) views.push_back(no_slash(cwd_s())) ;
 	SWEAR( views.size()==1 , views.size() ) ;
 	::string const& view = views[0] ;
 	if (!view) return Ptr<Str>(""s)->to_py_boost() ;
@@ -212,19 +212,20 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	RealPath::SolveReport solve_report = RealPath(Record::s_autodep_env()).solve(view,no_follow) ;
 	//
 	switch (solve_report.file_loc) {
-		case FileLoc::Root :
-			return Ptr<Str>(""s)->to_py_boost() ;
+		case FileLoc::Ext :
+			if (solve_report.real==Record::s_autodep_env().root_dir) return Ptr<Str>(""s)->to_py_boost() ;
+			break ;
 		case FileLoc::Repo :
 			try {
-				::string abs_path         = mk_abs(solve_report.real,Record::s_autodep_env().root_dir+'/') ;
-				::string abs_sub_root_dir = search_root_dir(abs_path).first                                ; abs_sub_root_dir += '/' ;
-				return Ptr<Str>(abs_sub_root_dir.c_str()+Record::s_autodep_env().root_dir.size()+1)->to_py_boost() ;
+				::string abs_path           = mk_abs(solve_report.real,Record::s_autodep_env().root_dir+'/') ;
+				::string abs_sub_root_dir_s = search_root_dir_s(abs_path).first                              ;
+				return Ptr<Str>(abs_sub_root_dir_s.c_str()+Record::s_autodep_env().root_dir.size()+1)->to_py_boost() ;
 			} catch (::string const&e) {
 				return py_err_set(Exception::ValueErr,e) ;
 			}
-		default :
-			return py_err_set(Exception::ValueErr,"cannot find sub root dir in repository") ;
+		default : ;
 	}
+	return py_err_set(Exception::ValueErr,"cannot find sub root dir in repository") ;
 }
 
 static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {

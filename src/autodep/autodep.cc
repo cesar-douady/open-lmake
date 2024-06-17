@@ -72,7 +72,7 @@ int main( int argc , char* argv[] ) {
 				for( ::string& sd : src_dirs_s ) if (!is_dir_s(sd)) sd = add_slash(::move(sd)) ;
 			} catch (::string const&) { throw "bad source_dirs format"s ; }
 		//
-		job_space.enter( *g_root_dir , get_env("TMPDIR",P_tmpdir) , 0 , cmd_line.flag_args[+CmdFlag::WorkDir] , src_dirs_s , method==AutodepMethod::Fuse ) ;
+		job_space.enter( no_slash(*g_root_dir_s) , get_env("TMPDIR",P_tmpdir) , 0 , cmd_line.flag_args[+CmdFlag::WorkDir] , src_dirs_s , method==AutodepMethod::Fuse ) ;
 		//
 		if (+job_space.root_view) set_env("ROOT_DIR",job_space.root_view) ;
 		if (+job_space.tmp_view ) set_env("TMPDIR"  ,job_space.tmp_view ) ;
@@ -82,7 +82,7 @@ int main( int argc , char* argv[] ) {
 		/**/                                        gather.autodep_env.ignore_stat =        cmd_line.flags[CmdFlag::IgnoreStat]                             ;
 		if (cmd_line.flags[CmdFlag::LinkSupport  ]) gather.autodep_env.lnk_support =        mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])  ;
 		if (+job_space.root_view                  ) gather.autodep_env.root_dir    = ::move(job_space.root_view                                           ) ;
-		else                                        gather.autodep_env.root_dir    =        *g_root_dir                                                     ;
+		else                                        gather.autodep_env.root_dir    =        no_slash(*g_root_dir_s)                                         ;
 		/**/                                        gather.autodep_env.tmp_dir     =        get_env("TMPDIR",P_tmpdir)                                      ;
 		/**/                                        gather.autodep_env.views       = ::move(job_space.views                                               ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }

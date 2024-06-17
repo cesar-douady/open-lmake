@@ -15,9 +15,9 @@
 using namespace Disk ;
 using namespace Time ;
 
-::string* g_lmake_dir     = nullptr ;
-::string* g_startup_dir_s = nullptr ; // includes final /, relative to g_root_dir , dir from which command was launched
-::string* g_root_dir      = nullptr ;
+::string* g_lmake_dir_s   = nullptr ;
+::string* g_root_dir_s    = nullptr ;
+::string* g_startup_dir_s = nullptr ; // relative to g_root_dir_s , dir from which command was launched
 ::string* g_exe_name      = nullptr ;
 
 void crash_handler(int sig) {
@@ -32,18 +32,18 @@ void app_init( Bool3 chk_version_ , bool cd_root ) {
 	for( int sig=1 ; sig<NSIG ; sig++ ) if (is_sig_sync(sig)) set_sig_handler(sig,crash_handler) ; // catch all synchronous signals so as to generate a backtrace
 	//
 	if (!g_startup_dir_s) g_startup_dir_s = new ::string ;
-	if (!g_root_dir     ) {
+	if (!g_root_dir_s   ) {
 		try {
-			g_root_dir                        = new ::string{cwd()}          ;
-			tie(*g_root_dir,*g_startup_dir_s) = search_root_dir(*g_root_dir) ;
+			g_root_dir_s                        = new ::string{cwd_s()}            ;
+			tie(*g_root_dir_s,*g_startup_dir_s) = search_root_dir_s(*g_root_dir_s) ;
 		} catch (::string const& e) { exit(Rc::Usage,e) ; }
-		if ( cd_root && +*g_startup_dir_s && ::chdir(g_root_dir->c_str())!=0 ) exit(Rc::System,"cannot chdir to ",*g_root_dir) ;
+		if ( cd_root && +*g_startup_dir_s && ::chdir(no_slash(*g_root_dir_s).c_str())!=0 ) exit(Rc::System,"cannot chdir to ",no_slash(*g_root_dir_s)) ;
 	}
 	//
 	::string exe = read_lnk("/proc/self/exe") ;
 	g_exe_name = new ::string{base_name(exe)} ;
-	if (!g_trace_file) g_trace_file = new ::string{to_string(PrivateAdminDirS,"trace/",*g_exe_name)} ;
-	/**/               g_lmake_dir  = new ::string{dir_name(dir_name(exe))                         } ;
+	if (!g_trace_file) g_trace_file  = new ::string{to_string(PrivateAdminDirS,"trace/",*g_exe_name)} ;
+	/**/               g_lmake_dir_s = new ::string{dir_name_s(dir_name_s(exe))                     } ;
 	//
 	if (chk_version_!=No)
 		try                       { chk_version(chk_version_==Maybe) ; }

@@ -592,7 +592,7 @@ namespace Backends {
 		_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ;
 		_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ;
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
-		if (!dynamic) s_executable = *g_lmake_dir+"/_bin/job_exec" ;
+		if (!dynamic) s_executable = *g_lmake_dir_s+"_bin/job_exec" ;
 		//
 		Lock lock{_s_mutex} ;
 		for( Tag t : All<Tag> ) if (+t) {
@@ -645,7 +645,7 @@ namespace Backends {
 		,	_s_job_end_thread  .fd.service(s_tab[+tag]->addr  )
 		,	to_string(entry.conn.seq_id                       )
 		,	to_string(job                                     )
-		,	*g_root_dir
+		,	no_slash(*g_root_dir_s)
 		,	to_string(entry.conn.seq_id%g_config->trace.n_jobs)
 		} ;
 		trace("cmd_line",cmd_line) ;
