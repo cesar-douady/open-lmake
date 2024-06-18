@@ -324,7 +324,7 @@ R"({
 		}
 		Rule::SimpleMatch match = j->simple_match() ;
 		//
-		for( Node t  : j->targets ) t->set_buildable() ;                                                                       // necessary for pre_actions()
+		for( Node t  : j->targets ) t->set_buildable() ;                                                                   // necessary for pre_actions()
 		//
 		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match)         ;
 		::string                                           script      = "#!/bin/bash\n"               ;
@@ -371,32 +371,38 @@ R"({
 			tmp_dir = to_string(*g_root_dir,'/',dbg_dir,"/tmp") ;
 		}
 		//
+		::vmap_ss env       = _mk_env(start.env,report_end.end.dynamic_env) ;
+		::string  env_setup = "exec env -i \\\n"                            ;
+		/**/                                      append_to_string( env_setup , "\tROOT_DIR="       , mk_shell_str(*g_root_dir)             , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tSEQUENCE_ID="    , report_start.pre_start.seq_id         , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tSMALL_ID="       , start.small_id                        , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tTMPDIR="         , "\"$TMPDIR\""                         , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tDISPLAY="        ,"\"$DISPLAY\""                         , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tXDG_RUNTIME_DIR=","\"$XDG_RUNTIME_DIR\""                 , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tXAUTHORITY="     ,"${XAUTHORITY:-\"$HOME\"/.Xauthority}" , " \\\n" ) ;
+		for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( env_setup , '\t',k,'='          , mk_shell_str(v)                       , " \\\n" ) ;
+		//
 		append_to_string( script , "export      TMPDIR="  , mk_shell_str(tmp_dir) , '\n' ) ;
 		append_to_string( script , "rm -rf   \"$TMPDIR\""                         , '\n' ) ;
 		append_to_string( script , "mkdir -p \"$TMPDIR\""                         , '\n' ) ;
 		if (flags[ReqFlag::Vscode]) {
 			for (auto const& extension : vs_exts )
 				append_to_string( script , "code --list-extensions | grep -q '^",extension,"$' || code --install-extension ",extension,'\n' ) ;
-			append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir),'\n'                                          ) ;
-			append_to_string( script , "args=()\n"                                                                                      ) ;
-			append_to_string( script , "type code | grep -q .vscode-server || args+=( \"--user-data-dir ${DEBUG_DIR}/vscode/user\" )\n" ) ;
+			append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir),'\n'                                              ) ;
+			append_to_string( script , "args=()\n"                                                                                          ) ;
+			append_to_string( script , "type code | grep -q .vscode-server || args+=( \"--user-data-dir ${DEBUG_DIR}/vscode/user\" )\n"     ) ;
 			for( Dep const& dep : j->deps )
-				if (dep.dflags[Dflag::Static]) append_to_string( script , "args+=( ",mk_shell_str(dep->name()),")\n" ) ; // list dependences file to open in vscode
+				if (dep.dflags[Dflag::Static]) append_to_string( script , "args+=( ",mk_shell_str(dep->name()),")\n" ) ;   // list dependences file to open in vscode
 			append_to_string( script , "args+=(\"${DEBUG_DIR}/cmd\")\n"                          ) ;
 			append_to_string( script , "args+=(\"${DEBUG_DIR}/vscode/ldebug.code-workspace\")\n" ) ;
+			append_to_string( script , env_setup                                                 ) ;
 			append_to_string( script , "code -n -w --password-store=basic ${args[@]} &"          ) ;
 		} else {
-			::vmap_ss env = _mk_env(start.env,report_end.end.dynamic_env) ;
-			/**/                                      append_to_string( script , "exec env -i"    ,                                 " \\\n" ) ;
-			/**/                                      append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir)     , " \\\n" ) ;
-			/**/                                      append_to_string( script , "\tSEQUENCE_ID=" , report_start.pre_start.seq_id , " \\\n" ) ;
-			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                , " \\\n" ) ;
-			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                 , " \\\n" ) ;
-			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)               , " \\\n" ) ;
-			if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                    // in addition of dbg, autodep may be needed for functional reasons
+			if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                // in addition of dbg, autodep may be needed for functional reasons
+				/**/                               append_to_string( script , env_setup                                ) ;
 				/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
 				if      ( dbg )                    append_to_string( script , "-s " , snake(ade.lnk_support)     , ' ' ) ;
-				else                               append_to_string( script , "-s " , "none"                     , ' ' ) ;     // dont care about deps
+				else                               append_to_string( script , "-s " , "none"                     , ' ' ) ; // dont care about deps
 				/**/                               append_to_string( script , "-m " , snake(start.method   )     , ' ' ) ;
 				if      ( !dbg                   ) append_to_string( script , "-o " , "/dev/null"                , ' ' ) ;
 				else if ( +dbg_dir               ) append_to_string( script , "-o " , dbg_dir,"/accesses"        , ' ' ) ;
