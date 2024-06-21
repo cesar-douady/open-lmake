@@ -27,6 +27,7 @@ include sys_config.mk
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA := ,
 
+HIDDEN_FLAGS = -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden 
 # syntax for LMAKE_FLAGS : O[0123]G?D?T?S[AT]C?
 # - O[0123] : compiler optimization level, defaults to 3
 # - G       : -g
@@ -47,26 +48,29 @@ SAN_FLAGS    += $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsaniti
 SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
 COVERAGE     += $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
 #
-WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits
+WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
 LANG := c++20
 #
-SAN       := $(if $(strip $(SAN_FLAGS)),.san,)
-LINK_OPTS := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
-LINK_O    := $(CXX) $(COVERAGE) -r
-LINK_SO   := $(CXX) $(COVERAGE) $(LINK_OPTS) -shared                     # some usage may have specific libs, avoid dependencies
-LINK_BIN  := $(CXX) $(COVERAGE) $(LINK_OPTS)
-LINK_LIB  := -ldl
+SAN                 := $(if $(strip $(SAN_FLAGS)),.san,)
+LINK_OPTS           := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
+LINK_O              := $(CXX) $(COVERAGE) -r
+LINK_SO             := $(CXX) $(COVERAGE) $(LINK_OPTS) -shared                     # some usage may have specific libs, avoid dependencies
+LINK_BIN            := $(CXX) $(COVERAGE) $(LINK_OPTS)
+LINK_LIB            := -ldl
+CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 ifneq ($(HAS_PCRE),)
     LINK_LIB += -lpcre2-8
 endif
 #
 ifeq ($(CXX_FLAVOR),clang)
-    WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
+    WARNING_FLAGS += $(CLANG_WARNING_FLAGS)
 endif
 #
 USER_FLAGS := $(OPT_FLAGS) $(EXTRA_FLAGS) -std=$(LANG)
-COMPILE    := $(CXX) -ftabstop=4 $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fvisibility=hidden -ftemplate-backtrace-limit=0 -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
+COMPILE    := $(CXX) $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
+LINT       := clang-tidy
+LINT_OPTS  := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
 ROOT_DIR   := $(abspath .)
 LIB        := lib
 SLIB       := _lib
@@ -159,6 +163,8 @@ LMAKE_ALL_FILES := \
 	$(LMAKE_FILES)        \
 	$(DOC)/lmake_doc.pptx \
 	$(DOC)/lmake.html
+
+LINT : $(patsubst %.cc,%.chk, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) )
 
 DFLT : LMAKE UNIT_TESTS LMAKE_TEST lmake.tar.gz
 
@@ -283,9 +289,10 @@ CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . $(FUSE_CC
 %.i         : %.cc $(ALL_H) ; @echo $(CXX) -E $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
 %.s         : %.cc $(ALL_H) ; @echo $(CXX) -S $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
 %.o         : %.cc $(ALL_H) ; @echo $(CXX) -c $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.chk       : %.cc $(ALL_H) ; @echo $(LINT)   $(USER_FLAGS)              to $@ ; $(LINT)    $< -- $(LINT_OPTS)           $(PY_CC_OPTS)  $(CPP_OPTS) >$@ ; [ ! -s $@ ]
 
-%_py2.d : %.cc $(ALL_H) ; @$(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY2_CC_OPTS) $(CPP_OPTS) $< 2>/dev/null || :
-%.d     : %.cc $(ALL_H) ; @$(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY_CC_OPTS)  $(CPP_OPTS) $< 2>/dev/null || :
+%_py2.d : %.cc $(ALL_H) ; @$(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $(@:%.d=%.chk) $@ ' -MF $@ $(PY2_CC_OPTS) $(CPP_OPTS) $< 2>/dev/null || :
+%.d     : %.cc $(ALL_H) ; @$(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $(@:%.d=%.chk) $@ ' -MF $@ $(PY_CC_OPTS)  $(CPP_OPTS) $< 2>/dev/null || :
 
 include $(patsubst %.cc,%.d, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) )
 include src/py_py2.d src/autodep/clmake_py2.d

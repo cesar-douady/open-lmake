@@ -129,15 +129,14 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 in_addr_t SockFd::s_addr(::string const& server) {
 	if (!server) return LoopBackAddr ;
 	// by standard dot notation
-	{	in_addr_t addr  = 0     ;                                                                       // address being decoded
-		int       byte  = 0     ;                                                                       // ensure component is less than 256
-		int       n     = 0     ;                                                                       // ensure there are 4 components
-		bool      first = true  ;                                                                       // prevent empty components
-		bool      last  = false ;                                                                       // prevent leading 0's (unless component is 0)
+	{	in_addr_t addr   = 0     ;                                                                      // address being decoded
+		int       byte   = 0     ;                                                                      // ensure component is less than 256
+		int       n      = 0     ;                                                                      // ensure there are 4 components
+		bool      first  = true  ;                                                                      // prevent empty components
+		bool      first0 = false ;                                                                      // prevent leading 0's (unless component is 0)
 		for( char c : server ) {
 			if (c=='.') {
-				if (n>=4 ) goto Next ;
-				if (first) goto Next ;
+				if (first) goto Method2 ;
 				addr  = (addr<<8) | byte ;                                                              // network order is big endian
 				byte  = 0                ;
 				first = true             ;
@@ -145,21 +144,19 @@ in_addr_t SockFd::s_addr(::string const& server) {
 				continue ;
 			}
 			if ( c>='0' && c<='9' ) {
-				if (last) goto Next ;
-				if ( first && c=='0' ) last = true ;
-				last  = false             ;
-				first = false             ;
-				byte  = byte*10 + (c-'0') ;
-				if (byte>=256) goto Next ;
+				byte = byte*10 + (c-'0') ;
+				if      (first    ) { first0 = first && c=='0' ; first  = false ; }
+				else if (first0   )   goto Method2 ;
+				if      (byte>=256)   goto Method2 ;
 				continue ;
 			}
-			goto Next ;
+			goto Method2 ;
 		}
-		if (first) goto Next ;
-		if (n!=4 ) goto Next ;
+		if (first) goto Method2 ;
+		if (n!=4 ) goto Method2 ;
 		return addr ;
-	Next : ;
 	}
+Method2 : ;
 	{	struct ifaddrs* ifa ;
 		if (::getifaddrs(&ifa)==0) {
 			for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next )

@@ -41,8 +41,8 @@ namespace Store {
 			// linear area
 			if (bucket<(1<<Mantissa)) return bucket+1 ;
 			// logarithmic range
-			constexpr uint8_t Mantissa1 = Mantissa ? Mantissa-1 : 0 ;                             // actually Mantissa-1, with a protection to avoid compilation error when Mantissa==0
-			uint8_t exp      = ((bucket+1)>>Mantissa1) - 1                                      ;
+			constexpr uint8_t Mantissa1 = Mantissa ? Mantissa-1 : 0 ; // actually Mantissa-1, with a protection to avoid compilation error when Mantissa==0
+			uint8_t exp      = ((bucket+1)>>Mantissa1) - 1                                      ; SWEAR(exp<NBits<size_t>) ;
 			size_t  mantissa = (size_t(1)<<Mantissa1) + bucket - (size_t(exp+1)<<Mantissa1) + 1 ;
 			return mantissa<<exp ;
 		}
@@ -74,11 +74,11 @@ namespace Store {
 			NoVoid<H> hdr ;
 		} ;
 		template<class I,class D> struct Data {
-			static_assert( sizeof(NoVoid<D,I>)>=sizeof(I) ) ;                           // else waste memory
+			static_assert( sizeof(NoVoid<D,I>)>=sizeof(I) ) ;                          // else waste memory
 			template<class... A> Data(A&&... args) : data{::forward<A>(args)...} {}
 			union {
-				NoVoid<D> data ;                                                        // when data is used
-				I         nxt  ;                                                        // when data is in free list
+				NoVoid<D> data ;                                                       // when data is used
+				I         nxt  ;                                                       // when data is in free list
 			} ;
 			~Data() { data.~NoVoid<D>() ; }
 		} ;
@@ -234,7 +234,7 @@ namespace Store {
 			old_sz = _s_sz(old_bucket) ;
 			while (old_sz>new_sz) {                                                                                            // deallocate as much as possible in a single bucket and iterate
 				Sz extra_sz        = old_sz-new_sz       ;
-				Sz extra_bucket    = _s_bucket(extra_sz) ;                                                                // the bucket that can contain extra_sz
+				Sz extra_bucket    = _s_bucket(extra_sz) ;                                                                     // the bucket that can contain extra_sz
 				Sz extra_bucket_sz = _s_sz(extra_bucket) ;                                  SWEAR(extra_bucket_sz>=extra_sz) ; // _s_sz returns the largest size that fits in extra_bucket
 				{ if (extra_bucket_sz>extra_sz) extra_bucket_sz = _s_sz(--extra_bucket) ; } SWEAR(extra_bucket_sz<=extra_sz) ; // but we want the largest bucket that fits in extra_sz
 				//

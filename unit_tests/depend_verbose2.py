@@ -35,10 +35,11 @@ else :
 	import ut
 	open('dep0','w').close()
 	print('step=0',file=open('step.py','w'))
-	cnts = ut.lmake( 'dut0' , 'dut1' , new=1 , done=3 , rerun=... , may_rerun=... )
-	assert cnts.rerun+cnts.may_rerun<=2                                             # second dut may be launched when dep is already built
+	cnts = ut.lmake( 'dut0' , 'dut1' , new=1 , done=... , was_done=... , steady=... , rerun=... , may_rerun=... )
+	assert cnts.rerun+cnts.may_rerun<=2                                                                           # second dut may be launched when dep is already built
+	assert cnts.done+cnts.was_done+cnts.steady==3                                                                 # .
 
 	import os
 	print('step=1',file=open('step.py','w'))
 	ut.lmake( 'dut0' , unlinked=1 , done=1 )
-	ut.lmake( 'dut1' ,                       rc=1 ) # dut1 cannot be built with a non-buildable required dep
+	ut.lmake( 'dut1' , rc=1                ) # dut1 cannot be built with a non-buildable required dep

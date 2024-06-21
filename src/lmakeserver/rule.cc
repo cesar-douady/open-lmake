@@ -652,8 +652,8 @@ namespace Engine {
 			if ( sz == (sz_a>sz_b?b.size():a.size()) ) {     // if shortest is a prefix of longest, analyse remaining of longest to see if we are certain it is non-empty
 				::string const& l = sz_a>sz_b ? a : b ;      // longest
 				for( FileNameIdx i=sz ; i<l.size() ; i++ ) {
-					FileNameIdx j       = i ; if (!is_prefix) j  = l.size()-1-j                      ; // current index
-					FileNameIdx je      = j ; if ( is_prefix) j += sizeof(VarIdx)                    ; // last char of stem if it is one (cannot subtract sizeof(VarIdx) as FileNameIdx is unsigned)
+					FileNameIdx j       = i ; if (!is_prefix) j   = l.size()-1-j                     ; // current index
+					FileNameIdx je      = j ; if ( is_prefix) je += sizeof(VarIdx)                   ; // last char of stem if it is one (cannot subtract sizeof(VarIdx) as FileNameIdx is unsigned)
 					bool        is_stem = je>=sizeof(VarIdx) && l[je-sizeof(VarIdx)]==Rule::StemMrkr ;
 					if (is_stem) i += sizeof(VarIdx) ;                                                 // stem value can be empty, may still conflict, continue
 					else         return false ;                                                        // one is a strict suffix of the other, no conflict possible

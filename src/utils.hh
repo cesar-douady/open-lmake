@@ -55,8 +55,8 @@ template<class T,class... Ts> using Largest = typename LargestHelper<T,Ts...>::t
 template<bool C,class T> using Const = ::conditional_t<C,const T,T> ;
 // place holder when you need a type which is semantically void but syntactically needed
 struct Void {} ;
-template<class T,class D=Void> using NoVoid = ::conditional_t<is_void_v<T>,D,T> ;
-template<class T,T... X> requires(false) struct Err {} ;                          // for debug purpose, to be used as a tracing point through the diagnostic message
+template<class T,class D=Void> using NoVoid = ::conditional_t<::is_void_v<T>,D,T> ;
+template<class T,T... X> requires(false) struct Err {} ;                            // for debug purpose, to be used as a tracing point through the diagnostic message
 
 template<size_t NB> using Uint = ::conditional_t< NB<=8 , uint8_t , ::conditional_t< NB<=16 , uint16_t , ::conditional_t< NB<=32 , uint32_t , ::conditional_t< NB<=64 , uint64_t , void > > > > ;
 
@@ -74,6 +74,8 @@ template<class T        > concept IsNotVoid = !::is_void_v<T>                   
 template<class T> constexpr T        copy    (T const& x) { return x ; }
 template<class T> constexpr T      & ref     (T     && x) { return x ; }
 template<class T> constexpr T const& constify(T const& x) { return x ; }
+
+template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
 
 //
 // std lib name simplification
@@ -605,7 +607,7 @@ template<        class V> using vmap_view_c_s  = vmap_view_c  <::string,V > ;
 // math
 //
 
-constexpr inline uint8_t n_bits(size_t n) { return sizeof(size_t)*8-::countl_zero(n-1) ; } // number of bits to store n states
+constexpr inline uint8_t n_bits(size_t n) { return NBits<size_t>-::countl_zero(n-1) ; } // number of bits to store n states
 
 #define SCI static constexpr inline
 template<::integral T=size_t> SCI T    bit_msk ( bool x ,             uint8_t b            ) {                           return T(x)<<b                                     ; }
@@ -717,7 +719,6 @@ template<StdEnum E> static constexpr ::array<char,sizeof(_EnumCamelsComma<E>)*2>
 template<StdEnum E> static constexpr ::array<::string_view,N<E>                > EnumCamels   = _enum_mk_tab<N<E>,sizeof(_EnumCamels0    <E>)>(_EnumCamels0    <E>) ;
 template<StdEnum E> static constexpr ::array<::string_view,N<E>                > EnumSnakes   = _enum_mk_tab<N<E>,sizeof(_EnumSnakes0    <E>)>(_EnumSnakes0    <E>) ;
 
-template<class   T> static constexpr size_t NBits    = sizeof(T)*8  ;
 template<StdEnum E> static constexpr size_t NBits<E> = n_bits(N<E>) ;
 
 template<StdEnum E> ::ostream& operator<<( ::ostream& os , E e ) {
@@ -1178,7 +1179,7 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 	using I64 = ::conditional_t<is_signed_v<I>,int64_t,uint64_t> ;
 	I64                 val     = 0 /*garbage*/                   ;
 	const char*         s_start = s.c_str()                       ;
-	const char*         s_end   = s.c_str()+s.size()              ;
+	const char*         s_end   = s_start+s.size()                ;
 	::from_chars_result fcr     = ::from_chars(s_start,s_end,val) ;
 	//
 	if (fcr.ec!=::errc()) throw to_string("unrecognized value "        ,s) ;
@@ -1187,15 +1188,25 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 	static constexpr int B = _unit_val(U       ) ;
 	/**/             int b = _unit_val(*fcr.ptr) ;
 	//
-	if (B>=b) {
-		val >>= B-b ;
-		if ( val > ::numeric_limits<I>::max() ) throw "overflow"s  ;
-		if ( val < ::numeric_limits<I>::min() ) throw "underflow"s ;
-		return I(val) ;
+	if (b<=B) {
+		if (B-b>=int(NBits<I>)) {
+			return 0 ;
+		} else {
+			val >>= B-b ;
+			if ( val > ::numeric_limits<I>::max() ) throw "overflow"s  ;
+			if ( val < ::numeric_limits<I>::min() ) throw "underflow"s ;
+			return I(val) ;
+		}
 	} else {
-		if ( val > ::numeric_limits<I>::max()>>(b-B) ) throw "overflow"s  ;
-		if ( val < ::numeric_limits<I>::min()>>(b-B) ) throw "underflow"s ;
-		return I(val<<(b-B)) ;
+		if (b-B>=int(NBits<I>)) {
+			if ( val > 0 ) throw "overflow"s  ;
+			if ( val < 0 ) throw "underflow"s ;
+			return 0 ;
+		} else {
+			if ( val > ::numeric_limits<I>::max()>>(b-B) ) throw "overflow"s  ;
+			if ( val < ::numeric_limits<I>::min()>>(b-B) ) throw "underflow"s ;
+			return I(val<<(b-B)) ;
+		}
 	}
 }
 

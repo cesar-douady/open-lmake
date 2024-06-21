@@ -8,11 +8,11 @@
 ::ostream& operator<<( ::ostream& os , ReqOptions const& ro ) {
 	const char* sep = "" ;
 	/**/                          os << "ReqOptions("         ;
-	if (+ro.startup_dir_s     ) { os <<sep<< ro.startup_dir_s ; sep = "," ; }
+	if (+ro.startup_dir_s     ) { os <<      ro.startup_dir_s ; sep = "," ; }
 	if ( ro.reverse_video==Yes) { os <<sep<< "reverse_video"  ; sep = "," ; }
 	if ( ro.reverse_video==No ) { os <<sep<< "normal_video"   ; sep = "," ; }
 	if (+ro.key               ) { os <<sep<< ro.key           ; sep = "," ; }
-	if (+ro.flags             ) { os <<sep<< ro.flags         ; sep = "," ; }
+	if (+ro.flags             )   os <<sep<< ro.flags         ;
 	return                        os <<')'                    ;
 }
 

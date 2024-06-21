@@ -157,20 +157,21 @@ namespace Py {
 	template<class T> requires(!::is_same_v<Object,T>) struct PtrBase : Ptr<typename T::Base> {
 		using TBase = typename T::Base ;
 		using Base = Ptr<TBase> ;
+		using Base::ptr ;
 		// cxtors & casts
 		PtrBase() = default ;
 		//
-		PtrBase(PyObject*   p) : Base{       p } { _chk(&**this) ; }
-		PtrBase(Object*     o) : Base{       o } { _chk(&**this) ; }
-		PtrBase(Base const& o) : Base{       o } { _chk(&**this) ; }
-		PtrBase(Base     && o) : Base{::move(o)} { _chk(&**this) ; }
-		PtrBase(T*          o) : Base{       o } {                 }
+		PtrBase(PyObject*   p) : Base{       p } { _chk(ptr) ; }
+		PtrBase(Object*     o) : Base{       o } { _chk(ptr) ; }
+		PtrBase(Base const& o) : Base{       o } { _chk(ptr) ; }
+		PtrBase(Base     && o) : Base{::move(o)} { _chk(ptr) ; }
+		PtrBase(T*          o) : Base{       o } {             }
 		//
 		// accesses
-		T      & operator* ()       { return *static_cast<T      *>(this->ptr) ; }
-		T const& operator* () const { return *static_cast<T const*>(this->ptr) ; }
-		T      * operator->()       { return &**this                           ; }
-		T const* operator->() const { return &**this                           ; }
+		T      & operator* ()       { SWEAR(ptr) ; return *static_cast<T      *>(ptr) ; }
+		T const& operator* () const { SWEAR(ptr) ; return *static_cast<T const*>(ptr) ; }
+		T      * operator->()       {              return &**this                     ; }
+		T const* operator->() const {              return &**this                     ; }
 		//
 		operator Object      *()                                            { return &**this ; }
 		operator Object const*() const                                      { return &**this ; }
@@ -385,10 +386,10 @@ namespace Py {
 	template<> struct Ptr<Tuple> : PtrBase<Tuple> {
 		using Base = PtrBase<Tuple> ;
 		using Base::Base ;
-		Ptr( NewType                 ) : Base{PyTuple_New(0 )} {}
-		Ptr( size_t sz               ) : Base{PyTuple_New(sz)} {}
-		Ptr( Object& i0              ) : Base{PyTuple_New(1 )} { PyTuple_SET_ITEM(ptr,0,i0.to_py_boost()) ;                                            }
-		Ptr( Object& i0 , Object& i1 ) : Base{PyTuple_New(2 )} { PyTuple_SET_ITEM(ptr,0,i0.to_py_boost()) ; PyTuple_SET_ITEM(ptr,1,i1.to_py_boost()) ; }
+		Ptr( NewType                 ) : Base{PyTuple_New(0 )} { SWEAR(ptr) ;                                                                                       }
+		Ptr( size_t sz               ) : Base{PyTuple_New(sz)} { SWEAR(ptr) ;                                                                                       }
+		Ptr( Object& i0              ) : Base{PyTuple_New(1 )} { SWEAR(ptr) ; PyTuple_SET_ITEM(ptr,0,i0.to_py_boost()) ;                                            }
+		Ptr( Object& i0 , Object& i1 ) : Base{PyTuple_New(2 )} { SWEAR(ptr) ; PyTuple_SET_ITEM(ptr,0,i0.to_py_boost()) ; PyTuple_SET_ITEM(ptr,1,i1.to_py_boost()) ; }
 	} ;
 
 	//

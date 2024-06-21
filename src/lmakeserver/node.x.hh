@@ -210,6 +210,7 @@ namespace Engine {
 			// Node's in chunk are semanticly located before header so :
 			// - if i_chunk< hdr->sz : refer to dep with no crc, flags nor parallel
 			// - if i_chunk==hdr->sz : refer to header
+			SWEAR(hdr) ;
 			if (i_chunk==hdr->hdr.sz) return hdr->hdr ;
 			static_cast<Node&>(tmpl) = hdr[1].chunk[i_chunk]   ;
 			tmpl.accesses            = hdr->hdr.chunk_accesses ;

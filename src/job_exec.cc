@@ -363,12 +363,13 @@ int main( int argc , char* argv[] ) {
 			g_created_views.emplace(f,FileSig(f)) ;
 			trace("created",f) ;
 		} ;
-		for( auto const& [view,phys] : g_start_info.job_space.views ) {
-			handle_entry(view        ,true /*is_view*/) ;
-			for( ::string const& phy : phys ) handle_entry(phy,false/*is_view*/) ;
-		}
 		//
-		::map_ss cmd_env ;
+		::map_ss             cmd_env    ;
+		::vmap_s<::vector_s> flat_views = g_start_info.job_space.flat_views() ;
+		for( auto const& [view,phys] : flat_views ) {
+			/**/                              handle_entry(view,true /*is_view*/) ;
+			for( ::string const& phy : phys ) handle_entry(phy ,false/*is_view*/) ;
+		}
 		try {
 			cmd_env = prepare_env(end_report) ;
 			::string chroot_dir = to_string(PrivateAdminDirS,"chroot/",g_start_info.small_id) ;
@@ -404,9 +405,9 @@ int main( int argc , char* argv[] ) {
 		g_gather.addr              =        g_start_info.addr             ;
 		g_gather.as_session        =        true                          ;
 		g_gather.autodep_env       = ::move(g_start_info.autodep_env    ) ;
-		g_gather.autodep_env.views = ::move(g_start_info.job_space.views) ;
+		g_gather.autodep_env.views = ::move(flat_views                  ) ;
 		g_gather.cur_deps_cb       =        cur_deps_cb                   ;
-		g_gather.cwd               = ::move(g_start_info.cwd_s          ) ; if (+g_gather.cwd) g_gather.cwd.pop_back() ;
+		g_gather.cwd               =        no_slash(g_start_info.cwd_s)  ;
 		g_gather.env               =        &cmd_env                      ;
 		g_gather.job               =        g_job                         ;
 		g_gather.kill_sigs         = ::move(g_start_info.kill_sigs      ) ;

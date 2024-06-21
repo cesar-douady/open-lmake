@@ -528,13 +528,16 @@ struct JobSpace {
 	bool operator!() const { return !+*this                                          ; }
 	// services
 	bool/*entered*/ enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s={} , bool use_fuse=false ) const ;
+	//
+	::vmap_s<::vector_s> flat_views() const ; // views after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	//
 	void chk() const ;
 	// data
 	// START_OF_VERSIONING
-	::string             chroot_dir = {} ; // dir which job chroot's to before execution
-	::string             root_view  = {} ; // name under which job sees repo root dir
-	::string             tmp_view   = {} ; // name under which job sees tmp dir
-	::vmap_s<::vector_s> views      = {} ; // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
+	::string             chroot_dir = {} ;    // dir which job chroot's to before execution
+	::string             root_view  = {} ;    // name under which job sees repo root dir
+	::string             tmp_view   = {} ;    // name under which job sees tmp dir
+	::vmap_s<::vector_s> views      = {} ;    // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
 } ;
 

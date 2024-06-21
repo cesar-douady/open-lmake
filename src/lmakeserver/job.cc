@@ -128,9 +128,9 @@ namespace Engine {
 	::ostream& operator<<( ::ostream& os , JobReqInfo::State const& ris ) {
 		const char* sep = "" ;
 		/**/                                            os <<'('                                                  ;
-		if (+ris.reason                             ) { os <<sep<<       ris.reason                               ; sep = "," ; }
+		if (+ris.reason                             ) { os <<            ris.reason                               ; sep = "," ; }
 		if ( +ris.stamped_err   || +ris.proto_err   ) { os <<sep<<"E:"<< ris.proto_err  <<"->"<<ris.stamped_err   ; sep = "," ; }
-		if ( +ris.stamped_modif || +ris.proto_modif ) { os <<sep<<"M:"<< ris.proto_modif<<"->"<<ris.stamped_modif ; sep = "," ; }
+		if ( +ris.stamped_modif || +ris.proto_modif )   os <<sep<<"M:"<< ris.proto_modif<<"->"<<ris.stamped_modif ;
 		return                                          os <<')'                                                  ;
 	}
 
@@ -886,21 +886,19 @@ namespace Engine {
 					bool dep_missing_dsk = ri.full && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
 					state.missing_dsk |= dep_missing_dsk ;                                                         // job needs this dep if it must run
 					if (dep_goal==NodeGoal::Makable) {
-						if ( is_static && required && dnd.ok(*cdri,dep.accesses)==Maybe ) {
+						if ( is_static && required && dnd.ok(*cdri,dep.accesses)==Maybe )
 							state.reason |= {JobReasonTag::DepMissingStatic,+dep} ;
-							dep_err       = RunStatus::MissingStatic              ;
-						}
-						continue ;                                               // dont check modifs and errors
+						continue ;                                                  // dont check modifs and errors
 					}
 					if (!care) goto Continue ;
-					dep_modif = !dep.up_to_date( is_static && modif ) ;          // after a modified dep, consider static deps as being fully accessed to avoid reruns due to previous errors
-					if ( dep_modif && status==Status::Ok && dep.no_trigger() ) { // no_trigger only applies to successful jobs
+					dep_modif = !dep.up_to_date( is_static && modif ) ;             // after a modified dep, consider static deps as being fully accessed to avoid reruns due to previous errors
+					if ( dep_modif && status==Status::Ok && dep.no_trigger() ) {    // no_trigger only applies to successful jobs
 						trace("no_trigger",dep) ;
-						req->no_triggers.emplace(dep,req->no_triggers.size()) ;  // record to repeat in summary, value is just to order summary in discovery order
+						req->no_triggers.emplace(dep,req->no_triggers.size()) ;     // record to repeat in summary, value is just to order summary in discovery order
 						dep_modif = false ;
 					}
-					if ( +state.stamped_err  ) goto Continue ;                   // we are already in error, no need to analyze errors any further
-					if ( !is_static && modif ) goto Continue ;                   // if not static, errors may be washed by previous modifs, dont record them
+					if ( +state.stamped_err  ) goto Continue ;                      // we are already in error, no need to analyze errors any further
+					if ( !is_static && modif ) goto Continue ;                      // if not static, errors may be washed by previous modifs, dont record them
 					if ( dep_modif           ) {
 						if ( dep.is_crc && dep.never_match() ) { state.reason |= {JobReasonTag::DepUnstable ,+dep} ; trace("unstable_modif",dep) ; }
 						else                                     state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;

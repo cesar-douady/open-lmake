@@ -293,6 +293,58 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 	return true/*entered*/ ;
 }
 
+::vmap_s<::vector_s> JobSpace::flat_views() const {
+	// ves maps each view to { [upper,lower,...] , exceptions }
+	// exceptions are immediate subfiles that are mapped elsewhere through another entry
+	// if phys is empty, entry is just exists to record exceptions, but no mapping is associated to view
+	::umap_s<::pair<::vector_s,::uset_s>> ves ;
+	// invariant : ves is always complete and accurate, but may contains recursive entries
+	// at the end, no more recursive entries are left
+	//
+	// first intialize ves
+	for( auto const& [view,phys] : views ) {
+		bool inserted = ves.try_emplace( view , phys , ::uset_s() ).second ; SWEAR(inserted) ;
+		for( ::string f=view ; +f&&f!="/" ;) {
+			::string b = base_name (f) ;
+			f = dir_name_s(f) ;
+			ves[f].second.insert(::move(b)) ;                                                     // record existence of a sub-mapping in each uphill dir
+		}
+	}
+	// then iterate while recursive entries are found, until none is left
+	for( bool changed=true ; changed ;) {
+		changed = false ;
+		for( auto& [view,phys_excs] : ves ) {
+			::vector_s& phys     = phys_excs.first  ;
+			::uset_s  & excs     = phys_excs.second ;
+			::vector_s  new_phys ;
+			for( ::string& phy : phys ) {
+				if ( auto it = ves.find(phy) ; it!=ves.end() )                                    // found a recursive entry, replace by associated phys
+					for( ::string const& e : it->second.second )
+						if (excs.insert(e).second) {
+							auto [it,inserted] = ves.try_emplace(view+e) ;
+							if (inserted) {
+								changed = true ;                                                  // a new entry has been created
+								for( ::string const& p : phys ) it->second.first.push_back(p+e) ;
+							}
+						}
+				for( ::string f=dir_name_s(phy) ; +f&&f!="/" ; f=dir_name_s(f) )
+					if ( auto it = ves.find(f) ; it!=ves.end() ) {
+						changed = true ;                                                          // the new inserted phys may be recursive
+						::string b = phy.substr(f.size()) ;
+						for( ::string const& p : it->second.first ) new_phys.push_back(p+b) ;
+						goto NextPhy ;
+					}
+				new_phys.push_back(::move(phy)) ;                                                 // match found, copy old phy
+			NextPhy : ;
+			}
+			phys_excs.first = new_phys ;
+		}
+	}
+	// now, there are no more recursive entries
+	::vmap_s<::vector_s> res ; for( auto& [view,phys_excs] : ves ) if (+phys_excs.first) res.emplace_back(view,phys_excs.first) ;
+	return res ;
+}
+
 void JobSpace::chk() const {
 	if ( +chroot_dir && !(is_abs(chroot_dir)&&is_canon(chroot_dir)) ) throw "chroot_dir must be a canonic absolute path : "+chroot_dir ;
 	if ( +root_view  && !(is_abs(root_view )&&is_canon(root_view )) ) throw "root_view must be a canonic absolute path : " +root_view  ;
@@ -326,11 +378,11 @@ void JobSpace::chk() const {
 ::ostream& operator<<( ::ostream& os , TargetDigest const& td ) {
 	const char* sep = "" ;
 	/**/                    os << "TargetDigest("      ;
-	if ( td.pre_exist   ) { os <<sep<< "pre_exist"     ; sep = "," ; }
+	if ( td.pre_exist   ) { os <<      "pre_exist"     ; sep = "," ; }
 	if (+td.tflags      ) { os <<sep<< td.tflags       ; sep = "," ; }
 	if (+td.extra_tflags) { os <<sep<< td.extra_tflags ; sep = "," ; }
 	if (+td.crc         ) { os <<sep<< td.crc          ; sep = "," ; }
-	if (+td.sig         ) { os <<sep<< td.sig          ; sep = "," ; }
+	if (+td.sig         )   os <<sep<< td.sig          ;
 	return                  os <<')'                   ;
 }
 

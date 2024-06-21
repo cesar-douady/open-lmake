@@ -53,10 +53,9 @@ size_t   g_max_line_sz  = 0/*garbage*/ ;
 		if (kind==LineKind::Blank) {
 			res.emplace_back() ;
 		} else {
-			size_t code_len    = 0        ;
-			size_t comment_pos = l.size() ;
 			if (l.substr(start).starts_with(g_comment_sign)) kind = LineKind::Comment ;
-			comment_pos = l.find(' '+g_comment_sign,start) ;
+			size_t code_len    = 0/*garbage*/                     ;
+			size_t comment_pos = l.find(' '+g_comment_sign,start) ;
 			if (comment_pos==Npos) {
 				comment_pos = l.size() ;
 			} else {

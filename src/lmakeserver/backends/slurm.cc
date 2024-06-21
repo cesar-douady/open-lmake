@@ -653,10 +653,9 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 					SlurmApi::list_destroy(l) ;
 				}
 			}
-			int     sav_errno = errno                 ;                                        // save value before calling any slurm or libc function
-			SlurmId res       = msg ? msg->job_id : 0 ;
+			int sav_errno = errno ;                                                            // save value before calling any slurm or libc function
 			if (msg) {
-				res = msg->job_id ;
+				SlurmId res = msg->job_id ;
 				SWEAR(res!=0) ;                                                                // null id is used to signal absence of id
 				SlurmApi::free_submit_response_response_msg(msg) ;
 				if (!sav_errno) { SWEAR(!err) ; return res ; }
