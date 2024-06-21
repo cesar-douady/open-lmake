@@ -9,11 +9,11 @@
 
 #ifdef STRUCT_DECL
 
-ENUM_1( JobReport
-,	Useful = Failed // <=Useful means job was usefully run
+ENUM( JobReport
+,	Speculative
 ,	Steady
-,	Done
 ,	Failed
+,	Done      // <=Done means job was run and reported a status
 ,	Completed
 ,	Killed
 ,	Lost
@@ -44,8 +44,8 @@ namespace Engine {
 		// init
 		static void s_init() {}
 		// statics
-		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> s_reqs(T const& jn) {                   // sorted by start
-			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;                                                        // pessimistic
+		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> s_reqs(T const& jn) { // sorted by start
+			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;                                      // pessimistic
 			for( Req r : s_reqs_by_start ) if (jn.has_req(r)) res.push_back(r) ;
 			return res ;
 		}
@@ -55,13 +55,13 @@ namespace Engine {
 		static ::vmap<Req,Pdate> s_etas       () ;
 		// static data
 		static SmallIds<ReqIdx,true/*ThreadSafe*/> s_small_ids     ;
-		static ::vector<Req>                       s_reqs_by_start ;                                                         // INVARIANT : ordered by item->start
+		static ::vector<Req>                       s_reqs_by_start ;                                       // INVARIANT : ordered by item->start
 		//
-		static Mutex<MutexLvl::Req>                s_reqs_mutex ;                                                            // protects s_store, _s_reqs_by_eta as a whole
+		static Mutex<MutexLvl::Req>                s_reqs_mutex ;                                          // protects s_store, _s_reqs_by_eta as a whole
 		static ::vector<ReqData>                   s_store      ;
 	private :
-		static ::vector<Req> _s_reqs_by_eta ;                                                                                // INVARIANT : ordered by item->stats.eta
-		static_assert(sizeof(ReqIdx)==1) ;                                                                                   // else an array to hold zombie state is not ideal
+		static ::vector<Req> _s_reqs_by_eta ;                                                              // INVARIANT : ordered by item->stats.eta
+		static_assert(sizeof(ReqIdx)==1) ;                                                                 // else an array to hold zombie state is not ideal
 		static ::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> _s_zombie_tab ;
 		// cxtors & casts
 	public :
@@ -73,8 +73,8 @@ namespace Engine {
 		ReqData const* operator->() const { return &**this ; }
 		ReqData      * operator->()       { return &**this ; }
 		//
-		bool zombie(      ) const { return _s_zombie_tab[+*this] ;              } // req has been killed, waiting to be closed when all jobs are done
-		void zombie(bool z)       { SWEAR(+*this) ; _s_zombie_tab[+*this] = z ; } // ensure Req 0 is always zombie
+		bool zombie(      ) const { return _s_zombie_tab[+*this] ;              }                          // req has been killed, waiting to be closed when all jobs are done
+		void zombie(bool z)       { SWEAR(+*this) ; _s_zombie_tab[+*this] = z ; }                          // ensure Req 0 is always zombie
 		// services
 		void make   (EngineClosureReq const&) ;
 		void kill   (                       ) ;
@@ -103,18 +103,23 @@ namespace Engine {
 		static size_t s_mk_idx   (JobStep i) { SWEAR(s_valid_cur(i)) ; return +i-+JobStep::MinCurStats                            ; }
 		//services
 	public :
-		JobIdx const& cur  (JobStep   i) const { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
-		JobIdx      & cur  (JobStep   i)       { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
-		JobIdx const& ended(JobReport i) const {                           return _ended[+i         ] ; }
-		JobIdx      & ended(JobReport i)       {                           return _ended[+i         ] ; }
+		JobIdx const& cur(JobStep i) const { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
+		JobIdx      & cur(JobStep i)       { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
 		//
-		JobIdx cur   () const { JobIdx res = 0 ; for( JobStep   i : All<JobStep  > ) if (s_valid_cur(i)      ) res+=cur  (i) ; return res ; }
-		JobIdx useful() const { JobIdx res = 0 ; for( JobReport i : All<JobReport> ) if (i<=JobReport::Useful) res+=ended(i) ; return res ; }
+		JobIdx cur () const { JobIdx res = 0 ; for( JobStep   i  : All<JobStep  > ) if (s_valid_cur(i)     ) res+=cur  (i)   ; return res ; }
+		JobIdx done() const { JobIdx res = 0 ; for( JobReport jr : All<JobReport> ) if (jr<=JobReport::Done) res+=ended[+jr] ; return res ; }
+		//
+		void add( JobReport jr , Delay exec_time={} ) {                       ended[+jr] += 1 ; jobs_time[+jr] += exec_time ; }
+		void sub( JobReport jr , Delay exec_time={} ) { SWEAR(ended[+jr]>0) ; ended[+jr] -= 1 ; jobs_time[+jr] -= exec_time ; }
+		void move( JobReport from , JobReport to , Delay exec_time={} ) {
+			sub(from,exec_time) ;
+			add(to  ,exec_time) ;
+		}
 		// data
-		Time::Delay jobs_time[2/*useful*/] ;
+		Time::Delay jobs_time[N<JobReport>] ;
+		JobIdx      ended    [N<JobReport>] = {} ;
 	private :
-		JobIdx _cur  [+JobStep::MaxCurStats1-+JobStep::MinCurStats] = {} ;
-		JobIdx _ended[N<JobReport>                                ] = {} ;
+		JobIdx _cur[+JobStep::MaxCurStats1-+JobStep::MinCurStats] = {} ;
 	} ;
 
 	struct JobAudit {

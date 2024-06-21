@@ -86,9 +86,10 @@ namespace Time {
 		friend Ddate ;
 		friend Pdate ;
 		friend CoarseDelay ;
-		static const Delay Lowest  ;
-		static const Delay Highest ;
-		static const Delay Forever ;
+		static constexpr size_t ShortStrSz = 6 ;
+		static const     Delay  Lowest     ;
+		static const     Delay  Highest    ;
+		static const     Delay  Forever    ;
 		// statics
 	private :
 		static bool/*slept*/ _s_sleep( ::stop_token tkn , Delay sleep , Pdate until , bool flush=true ) ; // if flush, consider we slept if asked to stop but we do not have to wait

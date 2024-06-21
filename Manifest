@@ -246,6 +246,7 @@ unit_tests/scratchpad.py
 unit_tests/slurm.py
 unit_tests/sources.py
 unit_tests/sources2.py
+unit_tests/speculate.py
 unit_tests/src.py
 unit_tests/star.py
 unit_tests/static_deps.py

@@ -25,10 +25,10 @@ namespace Disk {
 	// path name library
 	//
 
-	bool is_canon(::string const& name) {
+	bool is_canon(::string const& path) {
 		bool       accept_dot_dot = true              ;
 		CanonState state          = CanonState::First ;
-		for( char c : name ) {
+		for( char c : path ) {
 			switch (c) {
 				case '/' :
 					switch (state) {
@@ -54,13 +54,53 @@ namespace Disk {
 			}
 		}
 		switch (state) {
-			case CanonState::First  :                                                         // an empty name
+			case CanonState::First  :                                                         // an empty path
 			case CanonState::Empty  : return true  ;                                          // a directory ending with /
 			case CanonState::Dot    : return false ;
 			case CanonState::DotDot : return false ;
 			case CanonState::Plain  : return true  ;
 		DF}
 		return true ;
+	}
+
+	::string mk_canon(::string const& path) {
+		::string   res   ;
+		CanonState state = CanonState::First ;
+		for( char c : path ) {
+			switch (c) {
+				case '/' :
+					switch (state) {
+						case CanonState::Empty  :                  continue ;  // suppress empty components
+						case CanonState::Dot    : res.pop_back() ; continue ;  // suppress . components
+						case CanonState::DotDot : {
+							if (res.size()==2)              break    ;         // keep initial .. , keep it
+							if (res.size()==3) { res = {} ; continue ; }       // keep initial /.., suppress it
+							size_t slash = res.rfind('/',res.size()-4) ;
+							size_t slash1 = slash==Npos ? 0 : slash+1  ;
+							if (res.substr(slash1,res.size()-3)=="..") break ; // keep .. after ..
+							res = res.substr(0,slash1) ;                       // suppress prev component
+							continue ;
+						}
+						case CanonState::First  :
+						case CanonState::Plain  : break ;
+					DF}
+					state = CanonState::Empty ;
+				break ;
+				case '.' :
+					switch (state) {
+						case CanonState::First  :
+						case CanonState::Empty  : state = CanonState::Dot    ; break ;
+						case CanonState::Dot    : state = CanonState::DotDot ; break ;
+						case CanonState::DotDot : state = CanonState::Plain  ; break ;
+						case CanonState::Plain  :                              break ;
+					DF}
+				break ;
+				default :
+					state = CanonState::Plain ;
+			}
+			res.push_back(c) ;
+		}
+		return res ;
 	}
 
 	::string mk_lcl( ::string const& file , ::string const& dir_s ) {

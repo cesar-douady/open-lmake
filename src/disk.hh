@@ -53,7 +53,8 @@ namespace Disk {
 	// dir_s : a name          ending with /
 	// path  : a name possibly ending with /
 
-	bool is_canon(::string const&) ;
+	bool     is_canon(::string const&) ;
+	::string mk_canon(::string const&) ;
 	//
 	inline bool     is_dir_s  (::string const& path) {                                              return !path || path.back()=='/'                             ; }
 	inline bool     has_dir   (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos                                             ; }

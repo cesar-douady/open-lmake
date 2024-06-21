@@ -53,9 +53,6 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* in summary split done time & jobs along :
-	- done/steady
-	- finally useful/only speculative
 * generate a 'consider tmp=...' if tmp is accessed with no tmp available
 * generate an error when calling depend on a target
 	- either known at that time

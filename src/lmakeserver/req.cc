@@ -369,8 +369,14 @@ namespace Engine {
 			"| SUMMARY |\n"
 			"+---------+\n"
 		) ;
+		size_t wk = ::max("elapsed"s.size(),"startup"s.size()) ;
+		size_t wn = 0                                          ;
+		for( JobReport jr : All<JobReport> ) if ( stats.ended[+jr] || jr==JobReport::Done ) {
+			wk = ::max( wk , snake(jr)                  .size() ) ;
+			wn = ::max( wn , to_string(stats.ended[+jr]).size() ) ;
+		}
 		for( JobReport jr : All<JobReport> )
-			if ( stats.ended(jr) || jr==JobReport::Done ) {
+			if ( stats.ended[+jr] || jr==JobReport::Done ) {
 				Color c = Color::Note ;
 				switch (jr) {
 					case JobReport::Failed  :
@@ -380,12 +386,11 @@ namespace Engine {
 					case JobReport::Done    : c = Color::Ok      ; break ;
 					default : ;
 				}
-				audit_info( c , to_string(::setw(9),snake(jr)," jobs : ",stats.ended(jr)) ) ;                                                        // 9 is for "completed"
+				::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ""s ;
+				audit_info( c , to_string(::setw(wk),snake(jr)," time : ",::setw(Delay::ShortStrSz),t," (",::right,::setw(wn),stats.ended[+jr]," jobs)") ) ;
 			}
-		/**/                                   audit_info( Color::Note , to_string( "useful    time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
-		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun     time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "elapsed   time : " , (Pdate(New)-start_pdate)        .short_str()                  ) ) ;
-		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string( "startup   dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
+		/**/                                   audit_info( Color::Note , to_string(::setw(wk),"elapsed"," time : " , (Pdate(New)-start_pdate)        .short_str()                  ) ) ;
+		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string(::setw(wk),"startup"," dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (+up_to_dates) {
 			static ::string src_msg   = "file is a source"       ;
@@ -476,13 +481,13 @@ namespace Engine {
 				ReqRpcReplyProc::Txt
 			,	title(
 					options
-				,	stats.ended(JobReport::Failed)==0                 ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
-				,	                                                                     "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
-				,	!g_config->caches || !stats.ended(JobReport::Hit) ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
-				,	stats.ended(JobReport::Rerun )==0                 ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
-				,	                                                                    " running:" , stats.cur  (JobStep  ::Exec  )
-				,	stats.cur  (JobStep  ::Queued)==0                 ? ""s : to_string(" queued:"  , stats.cur  (JobStep  ::Queued))
-				,	stats.cur  (JobStep  ::Dep   )==0                 ? ""s : to_string(" waiting:" , stats.cur  (JobStep  ::Dep   ))
+				,	stats.ended[+JobReport::Failed]                   ? to_string(    "failed:"  , stats.ended[+JobReport::Failed]             ,' ') : ""s
+				,	                                                    to_string(    "done:"    , stats.done()-stats.ended[+JobReport::Failed]    )
+				,	+g_config->caches && stats.ended[+JobReport::Hit] ? to_string(' ',"hit:"     , stats.ended[+JobReport::Hit   ]                 ) : ""s
+				,	stats.ended[+JobReport::Rerun ]                   ? to_string(' ',"rerun:"   , stats.ended[+JobReport::Rerun ]                 ) : ""s
+				,	                                                    to_string(' ',"running:" , stats.cur(JobStep::Exec  )                      )
+				,	stats.cur(JobStep::Queued)                        ? to_string(' ',"queued:"  , stats.cur(JobStep::Queued)                      ) : ""s
+				,	stats.cur(JobStep::Dep   )                        ? to_string(' ',"waiting:" , stats.cur(JobStep::Dep   )                      ) : ""s
 				)
 			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;

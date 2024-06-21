@@ -632,13 +632,14 @@ namespace Engine {
 	JobReport JobExec::audit_end( ::string const& pfx , ReqInfo& ri , ::string const& msg , ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time ) const {
 		using JR = JobReport ;
 		//
-		Req            req         = ri.req        ;
-		JobData const& jd          = **this        ;
-		Color          color       = {}/*garbage*/ ;
-		JR             res         = {}/*garbage*/ ; // report if not Rerun
-		JR             jr          = {}/*garbage*/ ; // report to do now
-		const char*    step        = nullptr       ;
-		bool           with_stderr = true          ;
+		Req            req         = ri.req           ;
+		JobData const& jd          = **this           ;
+		Color          color       = {}/*garbage*/    ;
+		JR             res         = {}/*garbage*/    ; // report if not Rerun
+		JR             jr          = {}/*garbage*/    ; // report to do now
+		const char*    step        = nullptr          ;
+		bool           with_stderr = true             ;
+		bool           speculate   = ri.speculate!=No ;
 		//
 		if      (jd.run_status!=RunStatus::Ok   ) { res = JR::Failed    ; color = Color::Err     ;                       step = snake_cstr(jd.run_status) ; }
 		else if (jd.status==Status::Killed      ) { res = JR::Killed    ; color = Color::Note    ; with_stderr = false ;                                    }
@@ -653,7 +654,7 @@ namespace Engine {
 		else if (jd.status==Status::EarlyChkDeps) { jr = JR::Resubmit ; color = Color::Note ; with_stderr = false ; step = nullptr ; }
 		else                                      { jr = JR::Rerun    ; color = Color::Note ;                       step = nullptr ; }
 		//
-		if (color==Color::Err) { if ( ri.speculate!=No         ) color = Color::SpeculateErr ; }
+		if (color==Color::Err) { if ( speculate                ) color = Color::SpeculateErr ; }
 		else                   { if ( + with_stderr && +stderr ) color = Color::Warning      ; }
 		if (!step) step = snake_cstr(jr) ;
 		Trace trace("audit_end",color,pfx,step,*this,ri,STR(modified),jr,STR(+msg),STR(+stderr)) ;
@@ -661,10 +662,12 @@ namespace Engine {
 		req->audit_job(color,pfx+step,*this,true/*at_end*/,exec_time) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		ri.reported = true ;
-		req->stats.ended(jr)++ ;
-		req->stats.jobs_time[jr<=JR::Useful] += exec_time ;
 		if (with_stderr) req->audit_stderr(msg,stderr,max_stderr_len,1) ;
 		else             req->audit_stderr(msg,{}    ,max_stderr_len,1) ;
+		//
+		if ( speculate && jr<=JobReport::Done ) jr = JobReport::Speculative ;
+		req->stats.add(jr,exec_time) ;
+		//
 		return res ;
 	}
 
@@ -728,7 +731,6 @@ namespace Engine {
 		bool        query          = make_action==MakeAction::Query                                ;
 		Step        prev_step      = make_action==MakeAction::End?Step::Exec:ri.step()             ;                // capture previous level before any update (compensate preparation in end)
 		Req         req            = ri.req                                                        ;
-		bool        stop_speculate = speculate<ri.speculate                                        ;
 		Special     special        = rule->special                                                 ;
 		bool        dep_live_out   = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
 		bool        submit_loop    = false                                                         ;
@@ -744,7 +746,7 @@ namespace Engine {
 			SWEAR( pre_reason.tag<JobReasonTag::Err && ri.reason.tag<JobReasonTag::Err , pre_reason , ri.reason ) ;
 			return ( +pre_reason || +s.reason || +ri.reason ) && s.reason.tag<JobReasonTag::Err ;                   // equivalent to +reason() && reason().tag<Err
 		} ;
-		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(stop_speculate),old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers),prev_step) ;
+		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers),prev_step) ;
 	RestartFullAnalysis :
 		switch (make_action) {
 			case MakeAction::End :
@@ -996,13 +998,7 @@ namespace Engine {
 			trace("report_missing",ja) ;
 			::string const& stderr = idx().job_info(false/*need_start*/,true/*need_end*/).end.end.digest.stderr ;
 			//
-			if (ja.report!=JobReport::Hit) {                                                     // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
-				SWEAR(req->stats.ended(JobReport::Rerun)>0) ;
-				req->stats.ended(JobReport::Rerun)-- ;                                           // we tranform a rerun into a completed job, subtract what was accumulated as rerun
-				req->stats.ended(ja.report       )++ ;                                           // we tranform a rerun into a completed job, subtract what was accumulated as rerun
-				req->stats.jobs_time[false/*useful*/] -= exec_time ;                             // exec time is not added to useful as it is not provided to audit_end
-				req->stats.jobs_time[true /*useful*/] += exec_time ;                             // .
-			}
+			if (ja.report!=JobReport::Hit) req->stats.move(JobReport::Rerun,ja.report,exec_time) ; // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
 			//
 			size_t max_stderr_len ;
 			// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
@@ -1176,7 +1172,7 @@ namespace Engine {
 						ri.step(Step::Hit) ;
 						trace("hit_result") ;
 						bool modified = je.end( ::move(job_info.end.end) , false/*sav_jrr*/ ) ;               // no resources nor backend for cached jobs
-						req->stats.ended(JobReport::Hit)++ ;
+						req->stats.add(JobReport::Hit) ;
 						req->missing_audits[idx()] = { JobReport::Hit , modified , {} } ;
 						return true/*maybe_new_deps*/ ;
 					} catch (::string const&) {}                                                              // if we cant download result, it is like a miss

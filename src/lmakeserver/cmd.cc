@@ -386,6 +386,17 @@ R"({
 						tmp_dir = v ;
 		}
 		//
+		::vmap_ss env       = _mk_env(start.env,job_info.end.end.dynamic_env) ;
+		::string  env_setup = "exec env -i \\\n"                            ;
+		/**/                                      append_to_string( env_setup , "\tROOT_DIR="       , mk_shell_str(no_slash(*g_root_dir_s)) , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tSEQUENCE_ID="    , job_info.start.pre_start.seq_id       , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tSMALL_ID="       , start.small_id                        , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tTMPDIR="         , "\"$TMPDIR\""                         , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tDISPLAY="        ,"\"$DISPLAY\""                         , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tXDG_RUNTIME_DIR=","\"$XDG_RUNTIME_DIR\""                 , " \\\n" ) ;
+		/**/                                      append_to_string( env_setup , "\tXAUTHORITY="     ,"${XAUTHORITY:-\"$HOME\"/.Xauthority}" , " \\\n" ) ;
+		for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( env_setup , '\t',k,'='          , mk_shell_str(v)                       , " \\\n" ) ;
+		//
 		append_to_string( script , "export      TMPDIR="  , mk_shell_str(tmp_dir) , '\n' ) ;
 		append_to_string( script , "rm -rf   \"$TMPDIR\""                         , '\n' ) ;
 		append_to_string( script , "mkdir -p \"$TMPDIR\""                         , '\n' ) ;
@@ -398,15 +409,10 @@ R"({
 			for( ::string const& d : static_deps ) append_to_string( script , "args+=( ",mk_shell_str(d)," )"                                                                      ,'\n') ;
 			/**/                                   append_to_string( script , "args+=( \"$DEBUG_DIR/cmd\" )"                                                                       ,'\n') ;
 			/**/                                   append_to_string( script , "args+=( \"$DEBUG_DIR/vscode/ldebug.code-workspace\" )"                                              ,'\n') ;
+			/**/                                   append_to_string( script , env_setup                                                                                                 ) ;
 			/**/                                   append_to_string( script , "code -n -w --password-store=basic ${args[@]} &"                                                     ,'\n') ;
 		} else {
-			::vmap_ss env = _mk_env(start.env,job_info.end.end.dynamic_env) ;
-			/**/                                      append_to_string( script , "exec env -i"    ,                                        " \\\n") ;
-			/**/                                      append_to_string( script , "\tROOT_DIR="    , mk_shell_str(no_slash(*g_root_dir_s)) ," \\\n") ;
-			/**/                                      append_to_string( script , "\tSEQUENCE_ID=" , job_info.start.pre_start.seq_id       ," \\\n") ;
-			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                        ," \\\n") ;
-			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                         ," \\\n") ;
-			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)                       ," \\\n") ;
+			append_to_string( script , env_setup ) ;
 			if ( dbg || ade.auto_mkdir || +start.job_space ) {                                                                                       // in addition to debug, autodep may be needed ...
 				/**/                                    append_to_string( script , *g_lmake_dir_s,"bin/autodep"                              ,' ') ; // ... for functional reasons
 				if      ( dbg                         ) append_to_string( script , "-s " , snake(ade.lnk_support)                            ,' ') ;
