@@ -48,6 +48,7 @@ namespace Disk {
 	using DiskSz = uint64_t    ;
 
 	bool     is_canon (::string const&) ;
+	::string mk_canon (::string const&) ;
 	::string dir_name (::string const&) ;
 	::string base_name(::string const&) ;
 

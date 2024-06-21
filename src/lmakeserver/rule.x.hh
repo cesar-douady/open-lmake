@@ -577,8 +577,9 @@ namespace Engine {
 			;
 		}
 		// services
-		void add_cwd( ::string& file , bool top=false ) const {
-			if (!( top || !cwd_s || !file || file[0]=='/' )) file.insert(0,cwd_s) ;
+		::string add_cwd( ::string&& file , bool top=false ) const {
+			if ( !top && +cwd_s ) return Disk::mk_glb(file,cwd_s) ;
+			else                  return ::move(file)             ;
 		}
 	private :
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx     ) const ;

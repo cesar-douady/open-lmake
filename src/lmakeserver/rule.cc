@@ -374,35 +374,40 @@ namespace Engine {
 	// DepsAttrs
 	//
 
-	static bool/*keep*/ _qualify_dep( ::string const& key , ::string const& dep , DepKind kind , ::string const& dep_for_msg={} ) {
-		::string dir_s          = dep.substr(0,dep.find(Rule::StemMrkr))          ;
-		size_t   dir_pos        = dir_s.rfind('/')                                ;
-		/**/     dir_s          = dir_pos==Npos ? ""s : dir_s.substr(0,dir_pos+1) ;
+	static bool/*keep*/ _qualify_dep( ::string const& key , DepKind kind , ::string const& dep , ::string const& full_dep , ::string const& dep_for_msg ) {
+		::string        dir_s   = dep.substr(0,dep.find(Rule::StemMrkr))          ;
+		size_t          dir_pos = dir_s.rfind('/')                                ;
+		/**/            dir_s   = dir_pos==Npos ? ""s : dir_s.substr(0,dir_pos+1) ;
+		::string        base    = full_dep.substr(dir_s.size())                   ;
 		//
 		auto bad = [&] [[noreturn]] (::string const& msg) {
-			::string const& d = +dep_for_msg ? dep_for_msg : dep ;
-			if (kind==DepKind::Dep) throw to_string("dep ",key ," (",d,") ",msg) ;
-			else                    throw to_string(snake(kind)," (",d,") ",msg) ;
-		} ;
-		auto bad_canon = [&] [[noreturn]] (::string const& dir_s) {
-			bad("must be canonical : "+dir_s+dep.substr(dir_pos+1)) ;
+			if (kind==DepKind::Dep) throw to_string("dep ",key ," (",dep_for_msg,") ",msg) ;
+			else                    throw to_string(snake(kind)," (",dep_for_msg,") ",msg) ;
 		} ;
 		//
-		if (is_lcl(dep)) return true/*keep*/ ;
+		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(dir_s+base)) ;
+		if (is_lcl(dep)     ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
-		::string rel_dir_s = mk_rel(dir_s,*g_root_dir+'/') ; if (is_lcl_s(rel_dir_s)) bad_canon(rel_dir_s) ;
+		::string rel_dir_s = mk_rel(dir_s,*g_root_dir+'/') ;
 		::string abs_dir_s = mk_abs(dir_s,*g_root_dir+'/') ;
+		if (is_lcl_s(rel_dir_s)) bad("must be provided as local file : "+rel_dir_s+base) ;
 		//
 		for( ::string const& sd_s : g_src_dirs_s ) {
-			if (is_lcl_s(sd_s)) continue ;                                                                              // nothing to recognize inside repo
-			if (abs_dir_s.starts_with(sd_s)) { { if (abs_dir_s==dir_s) return true/*keep*/ ; } bad_canon(abs_dir_s) ; }
-			if (rel_dir_s.starts_with(sd_s)) { { if (rel_dir_s==dir_s) return true/*keep*/ ; } bad_canon(rel_dir_s) ; }
+			if ( is_lcl_s(sd_s)                                                ) continue ;                        // nothing to recognize inside repo
+			::string const& d_s = is_abs_s(sd_s) ? abs_dir_s : rel_dir_s ;
+			if (!( d_s.starts_with(sd_s) && is_lcl_s(d_s.substr(sd_s.size())) )) continue ;                        // not in this source dir
+			if ( is_abs_s(dir_s)==is_abs_s(sd_s)                               ) return true/*keep*/ ;
+			bad(to_string("must be ",is_abs_s(sd_s)?"absolute":"relative"," inside source dir ",sd_s)) ;
 		}
-		if (kind!=DepKind::Dep) return false/*keep*/ ;                                                                  // normal case : interpreter is outside repo typically system python or bash
-		bad("outside repository and all source dirs must be suppressed") ;
+		if (kind!=DepKind::Dep) return false/*keep*/ ;                                                             // normal case : interpreter is outside repo typically system python or bash
+		bad("is outside repository and all source dirs, consider : lmake.manifest.append("+mk_py_str(dir_s)+")") ;
+	}
+	static bool/*keep*/ _qualify_dep( ::string const& key , DepKind kind , ::string const& dep ) {
+		if ( is_canon(dep) && is_lcl(dep) ) return true/*keep*/                       ;                            // fast path when evaluating job deps
+		else                                return _qualify_dep(key,kind,dep,dep,dep) ;
 	}
 	void DepsAttrs::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		full_dynamic = false ;                                                                                                       // if full dynamic, we are not initialized
+		full_dynamic = false ;                                                                                                                               // if full dynamic, we are not initialized
 		//
 		for( auto const& [py_key,py_val] : py_src->as_a<Dict>() ) {
 			::string key = py_key.template as_a<Str>() ;
@@ -410,14 +415,14 @@ namespace Engine {
 				deps.emplace_back(key,DepSpec()) ;
 				continue ;
 			}
-			VarIdx      n_unnamed  = 0                                                            ;
-			Dflags      df         { Dflag::Essential , Dflag::Static }                           ;
+			VarIdx      n_unnamed  = 0                                                                                    ;
+			Dflags      df         { Dflag::Essential , Dflag::Static }                                                   ;
 			ExtraDflags edf        ;
-			::string    dep        = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
-			::string    parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )              ;
+			::string    dep        = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf )                         ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
+			::string    parsed_dep = rd.add_cwd( Attrs::subst_fstr( dep , var_idxs , n_unnamed ) , edf[ExtraDflag::Top] ) ;
+			::string    full_dep   = rd.add_cwd( ::copy(dep)                                     , edf[ExtraDflag::Top] ) ;
 			//
-			rd.add_cwd( parsed_dep , edf[ExtraDflag::Top] ) ;
-			_qualify_dep( key , parsed_dep , DepKind::Dep , dep ) ;
+			_qualify_dep( key , DepKind::Dep , parsed_dep , full_dep , dep ) ;
 			//
 			if (n_unnamed) {
 				for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
@@ -425,15 +430,16 @@ namespace Engine {
 			}
 			deps.emplace_back( key , DepSpec{ ::move(parsed_dep) , df , edf } ) ;
 		}
-		if (deps.size()>=Rule::NoVar-1) throw to_string("too many static deps : ",deps.size()) ;                                     // -1 to leave some room to the interpreter, if any
+		if (deps.size()>=Rule::NoVar-1) throw to_string("too many static deps : ",deps.size()) ; // -1 to leave some room to the interpreter, if any
 	}
 
 	void DepsAttrs::add_interpreter(RuleData const& rd) {
-		::vector_s const& interpreter = rd.start_cmd_attrs.spec.interpreter ;
-		if ( +interpreter && _qualify_dep( {} , interpreter[0] , rd.is_python?DepKind::Python:DepKind::Shell ) ) {
-			::string interpreter0 = interpreter[0] ;
-			rd.add_cwd(interpreter0) ;
-			deps.emplace_back( "<interpreter>" , DepSpec{::move(interpreter0),Dflags(Dflag::Static,Dflag::Required),{}} ) ;
+		::vector_s const& interpreter  = rd.start_cmd_attrs.spec.interpreter ;
+		if (+interpreter) {
+			::string interpreter0 = rd.add_cwd(::copy(interpreter[0])) ;
+			if ( _qualify_dep( {} , rd.is_python?DepKind::Python:DepKind::Shell , interpreter0 , interpreter0 , interpreter[0] ) ) {
+				deps.emplace_back( "<interpreter>" , DepSpec{::move(interpreter0),Dflags(Dflag::Static,Dflag::Required),{}} ) ;
+			}
 		}
 	}
 
@@ -452,13 +458,12 @@ namespace Engine {
 					if (py_val==None) continue ;
 					::string key = py_key.as_a<Str>() ;
 					Dflags      df  { Dflag::Essential , Dflag::Static }                           ;
-					ExtraDflags edf ;
-					::string    dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps
-					match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
-					_qualify_dep( key , dep , DepKind::Dep ) ;
+					ExtraDflags edf ; SWEAR(!(edf&~ExtraDflag::Top)) ;                                                                             // or we must review side_deps
+					::string    dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
+					_qualify_dep( key , DepKind::Dep , dep ) ;
 					DepSpec ds { dep , df , edf } ;
-					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          }               // dep cannot be both static and dynamic
-					else                                                          res[dep_idxs.at(key)].second = ds ;                 // if not full_dynamic, all deps must be listed in spec
+					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          } // dep cannot be both static and dynamic
+					else                                                          res[dep_idxs.at(key)].second = ds ;   // if not full_dynamic, all deps must be listed in spec
 				}
 			} catch (::string const& e) { throw ::pair_ss(e/*msg*/,{}/*err*/) ; }
 		}
@@ -493,8 +498,7 @@ namespace Engine {
 
 	StartCmdAttrs DynamicStartCmdAttrs::eval( Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		StartCmdAttrs res = Base::eval(m,rsrcs,deps) ;
-		::string interpreter0 = res.interpreter[0] ;
-		m.rule->add_cwd(interpreter0) ;
+		::string interpreter0 = m.rule->add_cwd(::copy(res.interpreter[0])) ;
 		AutodepLock lock{deps} ;
 		Record::Read( auditor() , interpreter0.c_str() , false/*no_follow*/ , false/*keep_real*/ , true/*allow_tmp_map*/ , "dyn_attr_eval" ) ;
 		return res ;
@@ -648,8 +652,8 @@ namespace Engine {
 			if ( sz == (sz_a>sz_b?b.size():a.size()) ) {     // if shortest is a prefix of longest, analyse remaining of longest to see if we are certain it is non-empty
 				::string const& l = sz_a>sz_b ? a : b ;      // longest
 				for( FileNameIdx i=sz ; i<l.size() ; i++ ) {
-					FileNameIdx j       = i ; if (!is_prefix) j  = l.size()-1-j                      ; // current index
-					FileNameIdx je      = j ; if ( is_prefix) j += sizeof(VarIdx)                    ; // last char of stem if it is one (cannot subtract sizeof(VarIdx) as FileNameIdx is unsigned)
+					FileNameIdx j       = i ; if (!is_prefix) j   = l.size()-1-j                     ; // current index
+					FileNameIdx je      = j ; if ( is_prefix) je += sizeof(VarIdx)                   ; // last char of stem if it is one (cannot subtract sizeof(VarIdx) as FileNameIdx is unsigned)
 					bool        is_stem = je>=sizeof(VarIdx) && l[je-sizeof(VarIdx)]==Rule::StemMrkr ;
 					if (is_stem) i += sizeof(VarIdx) ;                                                 // stem value can be empty, may still conflict, continue
 					else         return false ;                                                        // one is a strict suffix of the other, no conflict possible
@@ -814,12 +818,12 @@ namespace Engine {
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;
 					// record
-					/**/                     add_cwd( target   , is_top ) ;
-					if (field==job_name_key) add_cwd( job_name , is_top ) ;
+					/**/                     target   = add_cwd( ::move(target  ) , is_top ) ;
+					if (field==job_name_key) job_name = add_cwd( ::move(job_name) , is_top ) ;
 					(is_star?star_matches:static_matches[+kind]).emplace_back( field , MatchEntry{::move(target),flags} ) ;
 				}
 				SWEAR(+seen_target) ;                                                                                    // we should not have come up to here without a target
-				if (!job_name_key) add_cwd( job_name , seen_top ) ;
+				if (!job_name_key) job_name = add_cwd( ::move(job_name) , seen_top ) ;
 				n_static_targets = static_matches[+MatchKind::Target].size() ; static_assert(+MatchKind::Target==0) ;    // ensure offical static targets are first in matches
 				for( MatchKind k : All<MatchKind> ) for( auto& st : static_matches[+k] ) matches.push_back(::move(st)) ; // put static first
 				n_statics  = matches.size() ;
