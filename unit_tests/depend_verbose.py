@@ -76,10 +76,9 @@ else :
 			except FileNotFoundError : pass
 		for p in range(3) :
 			print(f'p={p!r}\nlink_support={ls!r}',file=open('step.py','w'))
-			cnt = ut.lmake(
+			cnts = ut.lmake(
 				*( f'hello.{interp}.{ad}.{ls}.cpy' for interp in ('sh','py') for ad in autodeps )
-			,	may_rerun=... , rerun=... , done=(p==0)+(p!=1)+(p!=1)*2*n_ads
+			,	new=... , may_rerun=... , rerun=... , done=(p==0)+(p!=1)+(p!=1)*2*n_ads
 			)
-			expected = (p==0)*2*n_ads
-			actual   = cnt['may_rerun']+cnt['rerun']
-			if actual!=expected : raise RuntimeError(f"*** bad rerun count {actual}!={expected}")
+			assert cnts['may_rerun']+cnts['rerun']==(p==0)*2*n_ads
+			assert cnts['new']<=1

@@ -314,7 +314,7 @@ R"({
 		return res ;
 	}
 
-	static ::string _mk_script( Job j , ReqFlags flags , JobInfoStart const& report_start , JobInfoEnd const& report_end ,::string const& dbg_dir , bool with_cmd , ::vector_s const& vs_exts={} ) {
+	static ::string _mk_script( Job j , ReqFlags flags , JobInfoStart const& report_start , JobInfoEnd const& report_end ,::string const& dbg_dir , bool with_cmd ) {
 		JobRpcReply const& start   = report_start.start ;
 		AutodepEnv  const& ade     = start.autodep_env  ;
 		::string           abs_cwd = *g_root_dir        ;
@@ -386,10 +386,24 @@ R"({
 		append_to_string( script , "rm -rf   \"$TMPDIR\""                         , '\n' ) ;
 		append_to_string( script , "mkdir -p \"$TMPDIR\""                         , '\n' ) ;
 		if (flags[ReqFlag::Vscode]) {
+			::vector_s vs_exts {
+				"ms-python.python"
+			,	"ms-vscode.cpptools"
+			,	"coolchyni.beyond-debug"
+			} ;
+			::string vscode_file   = dbg_dir+"/vscode/ldebug.code-workspace"   ;
+			::string settings_file = dbg_dir+"/vscode/user/User/settings.json" ;
+			OFStream(dir_guard(vscode_file  )) << _mk_vscode( j , report_start , report_end , dbg_dir , vs_exts ) ;
+			OFStream(dir_guard(settings_file)) <<
+R"({
+	"workbench.startupEditor"          : "none"
+,	"security.workspace.trust.enabled" : false
+}
+)" ;
 			for (auto const& extension : vs_exts )
 				append_to_string( script , "code --list-extensions | grep -q '^",extension,"$' || code --install-extension ",extension,'\n' ) ;
 			append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir),'\n'                                              ) ;
-			append_to_string( script , "args=()\n"                                                                                          ) ;
+			append_to_string( script , "args=(\"--extensions-dir $HOME/.vscode/extensions\")\n"                                                                                          ) ;
 			append_to_string( script , "type code | grep -q .vscode-server || args+=( \"--user-data-dir ${DEBUG_DIR}/vscode/user\" )\n"     ) ;
 			for( Dep const& dep : j->deps )
 				if (dep.dflags[Dflag::Static]) append_to_string( script , "args+=( ",mk_shell_str(dep->name()),")\n" ) ;   // list dependences file to open in vscode
@@ -398,8 +412,8 @@ R"({
 			append_to_string( script , env_setup                                                 ) ;
 			append_to_string( script , "code -n -w --password-store=basic ${args[@]} &"          ) ;
 		} else {
+			append_to_string( script , env_setup ) ;
 			if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                // in addition of dbg, autodep may be needed for functional reasons
-				/**/                               append_to_string( script , env_setup                                ) ;
 				/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
 				if      ( dbg )                    append_to_string( script , "-s " , snake(ade.lnk_support)     , ' ' ) ;
 				else                               append_to_string( script , "-s " , "none"                     , ' ' ) ; // dont care about deps
@@ -463,26 +477,17 @@ R"({
 			return false ;
 		}
 		//
-		JobRpcReply const& start       = job_info.start.start                    ;
-		bool               redirected  = +start.stdin || +start.stdout           ;
-		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg)  ;
-		::string           script_file = dbg_dir+"/script"                       ;
-		::string           cmd_file    = dbg_dir+"/cmd"                          ;
-		::string           vscode_file = dbg_dir+"/vscode/ldebug.code-workspace" ;
+		JobRpcReply const& start       = job_info.start.start                   ;
+		bool               redirected  = +start.stdin || +start.stdout          ;
+		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg) ;
+		::string           script_file = dbg_dir+"/script"                      ;
+		::string           cmd_file    = dbg_dir+"/cmd"                         ;
 		//
-		::vector_s vs_exts {
-			"ms-python.python"
-		,	"ms-vscode.cpptools"
-		,	"coolchyni.beyond-debug"
-		} ;
-		//
-		::string script = _mk_script( job , ro.flags , job_info.start , job_info.end , dbg_dir , true/*with_cmd*/ , vs_exts ) ;
-		::string cmd    = _mk_cmd   ( job , ro.flags , start        ,                  dbg_dir , redirected                 ) ;
-		::string vscode = _mk_vscode( job ,            job_info.start , job_info.end , dbg_dir ,                    vs_exts ) ;
+		::string script = _mk_script( job , ro.flags , job_info.start , job_info.end , dbg_dir , true/*with_cmd*/ ) ;
+		::string cmd    = _mk_cmd   ( job , ro.flags , start          ,                dbg_dir , redirected       ) ;
 		//
 		OFStream(dir_guard(script_file)) << script ; ::chmod(script_file.c_str(),0755) ; // make executable
 		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
-		OFStream(dir_guard(vscode_file)) << vscode ;
 		//
 		audit_file( fd , ::move(script_file) ) ;
 		return true ;
