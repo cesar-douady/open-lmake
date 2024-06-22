@@ -5,9 +5,9 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-TARGET=src1.w4.wait
+TARGET=src1.w6.wait
 lmake $TARGET &
-sleep 1
+sleep 2
 kill -2 %1
 echo 'Wait.stems["Wait"] = "("+Wait.stems["Wait"]+")"' >> Lmakefile.py
 wait %1 || :

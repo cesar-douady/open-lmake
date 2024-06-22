@@ -335,7 +335,7 @@ R"({
 		return res ;
 	}
 
-	static ::string _mk_script( Job j , ReqFlags flags , JobInfo const& job_info , ::string const& dbg_dir , bool with_cmd , ::vector_s const& vs_exts={} ) {
+	static ::string _mk_script( Job j , ReqFlags flags , JobInfo const& job_info , ::string const& dbg_dir , bool with_cmd ) {
 		JobRpcReply const& start = job_info.start.start ;
 		AutodepEnv  const& ade   = start.autodep_env    ;
 		Rule::SimpleMatch match = j->simple_match() ;
@@ -401,10 +401,24 @@ R"({
 		append_to_string( script , "rm -rf   \"$TMPDIR\""                         , '\n' ) ;
 		append_to_string( script , "mkdir -p \"$TMPDIR\""                         , '\n' ) ;
 		if (flags[ReqFlag::Vscode]) {
+			::vector_s vs_exts {
+				"ms-python.python"
+			,	"ms-vscode.cpptools"
+			,	"coolchyni.beyond-debug"
+			} ;
+			::string vscode_file   = dbg_dir+"/vscode/ldebug.code-workspace"   ;
+			::string settings_file = dbg_dir+"/vscode/user/User/settings.json" ;
+			OFStream(dir_guard(vscode_file  )) << _mk_vscode( j , job_info , dbg_dir , vs_exts ) ;
+			OFStream(dir_guard(settings_file)) <<
+R"({
+	"workbench.startupEditor"          : "none"
+,	"security.workspace.trust.enabled" : false
+}
+)" ;
 			vector_s static_deps ; for( Dep const& d : j->deps ) if (d.dflags[Dflag::Static]) static_deps.push_back(d->name()      ) ;
 			for( ::string const& e : vs_exts     ) append_to_string( script , "code --list-extensions | grep -Fxq ",mk_shell_str(e)," || code --install-extension ",mk_shell_str(e),'\n') ;
 			/**/                                   append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir_s+dbg_dir)                                                     ,'\n') ;
-			/**/                                   append_to_string( script , "args=()"                                                                                            ,'\n') ;
+			/**/                                   append_to_string( script , "args=(\"--extensions-dir $HOME/.vscode/extensions\")"                                               ,'\n') ;
 			/**/                                   append_to_string( script , "type -p code | grep -q .vscode-server || args+=( --user-data-dir \"$DEBUG_DIR/vscode/user\" )"      ,'\n') ;
 			for( ::string const& d : static_deps ) append_to_string( script , "args+=( ",mk_shell_str(d)," )"                                                                      ,'\n') ;
 			/**/                                   append_to_string( script , "args+=( \"$DEBUG_DIR/cmd\" )"                                                                       ,'\n') ;
@@ -482,22 +496,13 @@ R"({
 			return false ;
 		}
 		//
-		JobRpcReply const& start       = job_info.start.start                    ;
-		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg)  ;
-		::string           script_file = dbg_dir+"/script"                       ;
-		::string           cmd_file    = dbg_dir+"/cmd"                          ;
-		::string           vscode_file = dbg_dir+"/vscode/ldebug.code-workspace" ;
+		::string dbg_dir     = job->ancillary_file(AncillaryTag::Dbg) ;
+		::string script_file = dbg_dir+"/script"                      ;
+		::string cmd_file    = dbg_dir+"/cmd"                         ;
 		mk_dir(dbg_dir) ;
 		//
-		::vector_s vs_exts {   // XXX : move to rule
-			"ms-python.python"
-		,	"ms-vscode.cpptools"
-		,	"coolchyni.beyond-debug"
-		} ;
-		//
-		/**/                              OFStream(script_file) << _mk_script(job,ro.flags,job_info,dbg_dir,true/*with_cmd*/,vs_exts) ; ::chmod(script_file.c_str(),0755) ;
-		if (!ro.flags[ReqFlag::Enter] ) { OFStream(cmd_file   ) << _mk_cmd   (job,ro.flags,start   ,dbg_dir                         ) ; ::chmod(cmd_file   .c_str(),0755) ; }
-		if ( ro.flags[ReqFlag::Vscode])   OFStream(vscode_file) << _mk_vscode(job,         job_info,dbg_dir,                 vs_exts) ;
+		/**/                              OFStream(script_file) << _mk_script(job,ro.flags,job_info            ,dbg_dir,true/*with_cmd*/) ; ::chmod(script_file.c_str(),0755) ;
+		if (!ro.flags[ReqFlag::Enter] ) { OFStream(cmd_file   ) << _mk_cmd   (job,ro.flags,job_info.start.start,dbg_dir                 ) ; ::chmod(cmd_file   .c_str(),0755) ; }
 		//
 		audit_file( fd , ::move(script_file) ) ;
 		return true ;

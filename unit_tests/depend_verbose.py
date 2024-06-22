@@ -35,7 +35,7 @@ if __name__!='__main__' :
 
 	class Src(Base) :
 		target = 'hello'
-		dep    = 'dly'                                                         # ensure hello construction does not start too early, so that we are sure that we have may_rerun messages, not rerun
+		dep    = 'dly'                                         # ensure hello construction does not start too early, so that we are sure that we have may_rerun messages, not rerun
 		cmd    = f'echo hello.{step.p>=2}.{step.link_support}'
 
 	for ad in autodeps :
@@ -81,4 +81,4 @@ else :
 			,	new=... , may_rerun=... , rerun=... , done=(p==0)+(p!=1)+(p!=1)*2*n_ads
 			)
 			assert cnts.may_rerun+cnts.rerun==(p==0)*2*n_ads
-			assert cnts.new<=1
+			assert cnts.new<=1                               # python may access Lmakefile.py if it generates a backtrace, which may happen
