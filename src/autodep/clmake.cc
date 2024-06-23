@@ -25,14 +25,14 @@ using Proc = JobExecProc ;
 static Record _g_record ;
 
 static ::string _mk_str( Object const* o , ::string const& arg_name={} ) {
-	if (!o) throw to_string("missing argument",+arg_name?" ":"",arg_name) ;
+	if (!o) throw "missing argument"s+(+arg_name?" ":"")+arg_name ;
 	return *o->str() ;
 }
 
 static uint8_t _mk_uint8( Object const* o , uint8_t dflt , ::string const& arg_name={} ) {
 	if (!o) return dflt ;
-	try                       { return o->as_a<Int>() ;                                                    }
-	catch (::string const& e) { throw to_string("bad type/value for argument",+arg_name?" ":"",arg_name) ; }
+	try                       { return o->as_a<Int>() ;                                            }
+	catch (::string const& e) { throw "bad type/value for argument"s+(+arg_name?" ":"")+arg_name ; }
 }
 
 static ::vector_s _get_files(Tuple const& py_args) {
@@ -49,7 +49,7 @@ static ::vector_s _get_files(Tuple const& py_args) {
 	} else {
 		/**/                                                                                 res.reserve(py_args.size()) ; for( Object const& py : py_args ) push(py     ) ;
 	}
-	for( size_t i=0 ; i<res.size() ; i++ ) if(!res[i]) throw to_string("argument ",i+1," is empty") ;
+	for( size_t i=0 ; i<res.size() ; i++ ) if(!res[i]) throw "argument "s+(i+1)+" is empty" ;
 	return res ;
 }
 
@@ -168,8 +168,8 @@ static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		::string val     = _mk_str  ( _gather_arg( py_args , 2 , py_kwds , "val"     , n_kwds ) ,     "val"     ) ;
 		uint8_t  min_len = _mk_uint8( _gather_arg( py_args , 3 , py_kwds , "min_len" , n_kwds ) , 1 , "min_len" ) ;
 		//
-		if (n_kwds                ) throw "unexpected keyword arg"s                                                                      ;
-		if (min_len>MaxCodecBits/4) throw to_string("min_len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits/4,')') ; // codes are output in hex, 4 bits/digit
+		if (n_kwds                ) throw "unexpected keyword arg"s                                                              ;
+		if (min_len>MaxCodecBits/4) throw "min_len ("s+min_len+") cannot be larger max allowed code bits ("+(MaxCodecBits/4)+')' ; // codes are output in hex, 4 bits/digit
 		//
 		::pair_s<bool/*ok*/> reply = JobSupport::encode( _g_record , ::move(file) , ::move(val) , ::move(ctx) , min_len ) ;
 		if (!reply.second) throw reply.first ;

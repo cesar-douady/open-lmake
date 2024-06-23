@@ -41,8 +41,8 @@ namespace Codec {
 		static DequeThread<Closure> s_queue{'D',Codec::codec_thread_func} ;
 		g_codec_queue = &s_queue ;
 		//
-		Persistent::val_file .init(to_string(CodecPfx,"/vals" ),writable) ; // writing CodecPfx+"/vals"s triggers a warning with -O3, probably a gcc bug
-		Persistent::code_file.init(to_string(CodecPfx,"/codes"),writable) ; // .
+		Persistent::val_file .init(CodecPfx+"/vals"s ,writable) ; // writing CodecPfx+"/vals"s triggers a warning with -O3, probably a gcc bug
+		Persistent::code_file.init(CodecPfx+"/codes"s,writable) ; // .
 	}
 
 	void _create_node( ::string const& file , Node node , Buildable buildable , ::string const& txt ) {
@@ -63,8 +63,7 @@ namespace Codec {
 	}
 
 	static ::string _codec_line( ::string const& ctx , ::string const& code , ::string const& val , bool with_nl ) {
-		::string res ;
-		append_to_string(res,' ',mk_printable<' '>(ctx),' ',mk_printable<' '>(code),' ',mk_printable(val)) ; // format : " <ctx> <code> <val>" exactly
+		::string res = ' '+mk_printable<' '>(ctx)+' '+mk_printable<' '>(code)+' '+mk_printable(val) ;                // format : " <ctx> <code> <val>" exactly
 		if (with_nl) res += '\n' ;
 		return res ;
 	}
@@ -104,17 +103,17 @@ namespace Codec {
 			code = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') goto BadFormat ;
 			val  = parse_printable     (line,pos) ; if (line[pos  ]!=0  ) goto BadFormat ;
 			//
-			is_canonic &= first || ::pair(prev_ctx,prev_code)<::pair(ctx,code) ;                    // use same order as in decode_tab below when rewriting file
-			is_canonic &= line==_codec_line(ctx,code,val,false/*with_nl*/)     ;                    // in case user encoded line in a non-canonical way, such as using \x0a for \n
+			is_canonic &= first || ::pair(prev_ctx,prev_code)<::pair(ctx,code) ;          // use same order as in decode_tab below when rewriting file
+			is_canonic &= line==_codec_line(ctx,code,val,false/*with_nl*/)     ;          // in case user encoded line in a non-canonical way, such as using \x0a for \n
 			//
 			{	auto [it,inserted] = encode_tab[ctx].try_emplace(val,code) ;
-				if (inserted        )                             goto Continue ;                   // new entry
+				if (inserted        )                             goto Continue ;         // new entry
 				else                    is_canonic = false ;
 				if (it->second==code) { trace("duplicate",line) ; goto Continue ; }
-				::string const& prev_code = it->second          ;                                   // 2 codes for the same val, keep best one (preference to user codes, then shorter)
+				::string const& prev_code = it->second          ;                         // 2 codes for the same val, keep best one (preference to user codes, then shorter)
 				::string        crc       = ::string(Xxh(val).digest()) ;
 				trace("val_conflict",prev_code,code) ;
-				if (                                                                                // keep best : user is better than auto then shorter is better than longer
+				if (                                                                      // keep best : user is better than auto then shorter is better than longer
 					pair( code     ==crc.substr(0,code     .size()) , code     .size() )
 				<	pair( prev_code==crc.substr(0,prev_code.size()) , prev_code.size() )
 				) it->second = code ;
@@ -131,7 +130,7 @@ namespace Codec {
 		}
 		trace(STR(is_canonic)) ;
 		//
-		if (!is_canonic) {                                                                          // if already canonic, nothing to do
+		if (!is_canonic) {                                                                // if already canonic, nothing to do
 			// disambiguate in case the same code is used for the several values
 			OFStream                          os         { file } ;
 			::map_s<map_ss>/*ctx->code->val*/ decode_tab ;
@@ -140,7 +139,7 @@ namespace Codec {
 				::uset_s codes   = mk_key_uset(e_entry) ;
 				::map_ss d_entry = decode_tab[ctx]      ;
 				for( auto const& [val,code] : e_entry ) {
-					if (d_entry.try_emplace(code,val).second) continue ;                            // 2 vals for the same code, need to disambiguate
+					if (d_entry.try_emplace(code,val).second) continue ;                  // 2 vals for the same code, need to disambiguate
 					::string crc      = ::string(Xxh(val).digest()) ;
 					::string new_code ;
 					if (code==crc.substr(0,code.size())) {
@@ -152,7 +151,7 @@ namespace Codec {
 					} else {
 						uint8_t d ; for ( d=code.size() ; d>=1 && '0'<=code[d-1] && code[d-1]<='9' ; d-- ) ;
 						for( size_t inc=1 ; inc<codes.size() ; inc++ ) {
-							new_code = to_string( code.substr(0,d) , from_string<size_t>(code.substr(d),true/*empty_ok*/)+inc ) ;
+							new_code = code.substr(0,d) + (from_string<size_t>(code.substr(d),true/*empty_ok*/)+inc) ;
 							if (!codes.contains(new_code)) goto NewCode ;
 						}
 						FAIL("cannot find new code from",code) ;
@@ -168,7 +167,7 @@ namespace Codec {
 				}
 			}
 			for( ReqIdx r : reqs ) Req(r)->audit_node(Color::Note,"refresh",Node(file)) ;
-		} else {                                                                                    // file needs no update, but we must record file content into nodes
+		} else {                                                                          // file needs no update, but we must record file content into nodes
 			for( auto const& [ctx,e_entry] : encode_tab )
 				for( auto const& [val,code] : e_entry ) process_node(ctx,code,val) ;
 		}

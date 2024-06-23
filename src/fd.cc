@@ -121,9 +121,9 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 	}
 	int en = errno ;                                                                           // catch errno before any other syscall
 	close() ;
-	if      (too_late  ) throw to_string(strerror(en)," after ",timeout.short_str()) ;
-	else if (n_trials>1) throw to_string(strerror(en)," after ",n_trials," trials" ) ;
-	else                 throw to_string(strerror(en)                              ) ;
+	if      (too_late  ) throw ""s+strerror(en)+" after "+timeout.short_str() ;
+	else if (n_trials>1) throw ""s+strerror(en)+" after "+n_trials+" trials"  ;
+	else                 throw ""s+strerror(en)                               ;
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {
@@ -174,7 +174,7 @@ Method2 : ;
 		hint.ai_socktype = SOCK_STREAM ;
 		struct addrinfo* ai ;
 		int              rc  = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai ) ;
-		if (rc!=0) throw to_string("cannot get addr of ",server," (",rc,')') ;
+		if (rc!=0) throw "cannot get addr of "+server+" ("+rc+')' ;
 		static_assert(sizeof(in_addr_t)==4) ;                                                           // else use adequate ntohl/ntohs
 		in_addr_t addr = ::ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ;
 		freeaddrinfo(ai) ;

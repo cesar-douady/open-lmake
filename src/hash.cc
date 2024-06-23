@@ -40,7 +40,7 @@ namespace Hash {
 									case EAGAIN :
 									case EINTR  : continue ;
 									case EISDIR : return   ;
-									default     : throw to_string("I/O error while reading file ",filename) ;
+									default     : throw "I/O error while reading file "+filename ;
 								}
 							}
 							*this = ::move(ctx).digest() ;
@@ -54,7 +54,7 @@ namespace Hash {
 								else switch (errno) {
 									case EAGAIN :
 									case EINTR  : continue ;
-									default     : throw to_string("I/O error while reading file ",filename) ;
+									default     : throw "I/O error while reading file "+filename ;
 								}
 							}
 							*this = ctx.digest() ;

@@ -266,7 +266,7 @@ namespace Backends {
 		// do not launch immediately to have a better view of which job should be launched first
 		virtual void submit( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
 			RsrcsAsk rsa { New , import_(::move(rsrcs),req) } ;                                                              // compile rsrcs
-			if (!fit_eventually(*rsa)) throw to_string("not enough resources to launch job ",Job(job)->name()) ;
+			if (!fit_eventually(*rsa)) throw "not enough resources to launch job "+Job(job)->name() ;
 			ReqEntry& re = reqs.at(req) ;
 			SWEAR(!waiting_jobs   .contains(job)) ;                                                                          // job must be a new one
 			SWEAR(!re.waiting_jobs.contains(job)) ;                                                                          // in particular for this req

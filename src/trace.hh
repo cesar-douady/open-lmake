@@ -52,10 +52,10 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static void _t_commit() ;
 		//
 	public :
-		template<class T> static ::string s_str( T const& v , ::string const& s ) { return s+"="+to_string(v) ; }
-		/**/              static ::string s_str( bool     v , ::string const& s ) { return v ? s : '!'+s      ; }
-		/**/              static ::string s_str( uint8_t  v , ::string const& s ) { return s_str(int(v),s)    ; } // avoid confusion with char
-		/**/              static ::string s_str( int8_t   v , ::string const& s ) { return s_str(int(v),s)    ; } // avoid confusion with char
+		template<class T> static ::string s_str( T const& v , ::string const& s ) { return s+"="+fmt_string(v) ; }
+		/**/              static ::string s_str( bool     v , ::string const& s ) { return v ? s : '!'+s       ; }
+		/**/              static ::string s_str( uint8_t  v , ::string const& s ) { return s_str(int(v),s)     ; } // avoid confusion with char
+		/**/              static ::string s_str( int8_t   v , ::string const& s ) { return s_str(int(v),s)     ; } // avoid confusion with char
 		// static data
 		static ::atomic<bool    > s_backup_trace ;
 		static ::atomic<size_t  > s_sz           ;                                                                // max overall size of trace, beyond, trace wraps

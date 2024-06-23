@@ -32,8 +32,8 @@ namespace Engine {
 		ReqData& data = **this ;
 		//
 		for( int i=0 ;; i++ ) {                                                                  // try increasing resolution in file name until no conflict
-			::string lcl_log_file = "outputs/"+Pdate(New).str(i)         ;
-			::string log_file     = to_string(AdminDirS,lcl_log_file) ;
+			::string lcl_log_file = "outputs/"+Pdate(New).str(i) ;
+			::string log_file     = AdminDirS+lcl_log_file       ;
 			if (FileInfo(log_file).tag()>=FileTag::Reg) { SWEAR(i<=9,i) ; continue ; }           // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
 			//
 			::string last = AdminDirS+"last_output"s ;
@@ -200,9 +200,9 @@ namespace Engine {
 		}
 		if ( +to_forget || +to_raise ) {
 			(*this)->audit_info( Color::Note , "consider :\n" ) ;
-			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget - d"           , n , 1 ) ;
-			if (+to_raise)            (*this)->audit_info( Color::Note , "add to Lmakefile.py :" ,     1 ) ;
-			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , to_string(r->name,".prio = ",r->prio,"+1") , 2 ) ;
+			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget - d" , n                            , 1 ) ;
+			if (+to_raise)            (*this)->audit_info( Color::Note , "add to Lmakefile.py :"                      , 1 ) ;
+			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , r->name+".prio = "+::to_string(r->prio)+"+1" , 2 ) ;
 		}
 	}
 
@@ -372,8 +372,8 @@ namespace Engine {
 		size_t wk = ::max("elapsed"s.size(),"startup"s.size()) ;
 		size_t wn = 0                                          ;
 		for( JobReport jr : All<JobReport> ) if ( stats.ended[+jr] || jr==JobReport::Done ) {
-			wk = ::max( wk , snake(jr)                  .size() ) ;
-			wn = ::max( wn , to_string(stats.ended[+jr]).size() ) ;
+			wk = ::max( wk , snake(jr)                    .size() ) ;
+			wn = ::max( wn , ::to_string(stats.ended[+jr]).size() ) ;
 		}
 		for( JobReport jr : All<JobReport> )
 			if ( stats.ended[+jr] || jr==JobReport::Done ) {
@@ -387,10 +387,10 @@ namespace Engine {
 					default : ;
 				}
 				::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ""s ;
-				audit_info( c , to_string(::setw(wk),snake(jr)," time : ",::setw(Delay::ShortStrSz),t," (",::right,::setw(wn),stats.ended[+jr]," jobs)") ) ;
+				audit_info( c , fmt_string(::setw(wk),snake(jr)," time : ",::setw(Delay::ShortStrSz),t," (",::right,::setw(wn),stats.ended[+jr]," jobs)") ) ;
 			}
-		/**/                                   audit_info( Color::Note , to_string(::setw(wk),"elapsed"," time : " , (Pdate(New)-start_pdate)        .short_str()                  ) ) ;
-		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string(::setw(wk),"startup"," dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
+		/**/                                   audit_info( Color::Note , fmt_string(::setw(wk),"elapsed"," time : " , (Pdate(New)-start_pdate)        .short_str()                  ) ) ;
+		if (+options.startup_dir_s           ) audit_info( Color::Note , fmt_string(::setw(wk),"startup"," dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (+up_to_dates) {
 			static ::string src_msg   = "file is a source"       ;
@@ -401,8 +401,8 @@ namespace Engine {
 				if      (n->is_src_anti()                ) w = ::max(w,(is_target(n->name())?src_msg:anti_msg).size()) ;
 				else if (n->status()<=NodeStatus::Makable) w = ::max(w,plain_msg                              .size()) ;
 			for( Node n : up_to_dates )
-				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , to_string(::setw(w),is_target(n->name())?src_msg:anti_msg," :") , n ) ;
-				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , to_string(::setw(w),plain_msg                            ," :") , n ) ;
+				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , fmt_string(::setw(w),is_target(n->name())?src_msg:anti_msg," :") , n ) ;
+				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , fmt_string(::setw(w),plain_msg                            ," :") , n ) ;
 		}
 		if (+long_names) {
 			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
@@ -412,14 +412,14 @@ namespace Engine {
 			for( auto [n,_] : ::c_vector_view(long_names_,0,g_config->n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
 			if ( g_config->errs_overflow(long_names_.size())                                      ) audit_info( Color::Warning , "..."               ) ;
 			SWEAR(pm>g_config->path_max) ;
-			audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",pm) ) ;
+			audit_info( Color::Note , "consider adding in Lmakefile.py : lmake.config.path_max = "s+pm ) ;
 		}
 		if (+frozen_jobs) {
 			::vmap<Job,JobIdx> frozen_jobs_ = mk_vmap(frozen_jobs) ;
 			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ;                       // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
-			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
+			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , fmt_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
 		}
 		if (+frozen_nodes) {
 			::vmap<Node,NodeIdx> frozen_nodes_ = mk_vmap(frozen_nodes) ;
@@ -437,11 +437,11 @@ namespace Engine {
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
 			if (job->rule->special!=Special::Req) {
-				audit_info( Color::Warning , to_string("consider : lmake -R ",mk_shell_str(job->rule->name)," -J ",mk_shell_str(job->name())) ) ;
+				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(job->rule->name)+" -J "+mk_shell_str(job->name()) ) ;
 			} else {
 				::string dl ;
-				for( Dep const& d : job->deps ) append_to_string(dl,' ',mk_shell_str(d->name())) ;
-				audit_info( Color::Warning , to_string("consider : lmake",dl) ) ;
+				for( Dep const& d : job->deps ) dl<<' '<<mk_shell_str(d->name()) ;
+				audit_info( Color::Warning , "consider : lmake"+dl ) ;
 			}
 		}
 	}
@@ -453,7 +453,7 @@ namespace Engine {
 		/**/                                          msg <<      ::setw(StepSz                   )<<step                                  ;
 		/**/                                          msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule_name                             ;
 		if (g_config->console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"") ;
-		audit( audit_fd , log_stream , options , c , to_string(msg.str(),' ',mk_file(job_name)) ) ;
+		audit( audit_fd , log_stream , options , c , msg.str()+' '+mk_file(job_name) ) ;
 		last_info = {} ;
 	}
 
@@ -479,15 +479,14 @@ namespace Engine {
 		try {
 			ReqRpcReply rrr{
 				ReqRpcReplyProc::Txt
-			,	title(
-					options
-				,	stats.ended[+JobReport::Failed]                   ? to_string(    "failed:"  , stats.ended[+JobReport::Failed]             ,' ') : ""s
-				,	                                                    to_string(    "done:"    , stats.done()-stats.ended[+JobReport::Failed]    )
-				,	+g_config->caches && stats.ended[+JobReport::Hit] ? to_string(' ',"hit:"     , stats.ended[+JobReport::Hit   ]                 ) : ""s
-				,	stats.ended[+JobReport::Rerun ]                   ? to_string(' ',"rerun:"   , stats.ended[+JobReport::Rerun ]                 ) : ""s
-				,	                                                    to_string(' ',"running:" , stats.cur(JobStep::Exec  )                      )
-				,	stats.cur(JobStep::Queued)                        ? to_string(' ',"queued:"  , stats.cur(JobStep::Queued)                      ) : ""s
-				,	stats.cur(JobStep::Dep   )                        ? to_string(' ',"waiting:" , stats.cur(JobStep::Dep   )                      ) : ""s
+			,	title(options,
+					( stats.ended[+JobReport::Failed]                   ? "failed:"s   +  stats.ended[+JobReport::Failed]              +' ' : ""s )
+				+	                                                      "done:"s     + (stats.done()-stats.ended[+JobReport::Failed])
+				+	( +g_config->caches && stats.ended[+JobReport::Hit] ? " hit:"s     +  stats.ended[+JobReport::Hit   ]                   : ""s )
+				+	( stats.ended[+JobReport::Rerun ]                   ? " rerun:"s   +  stats.ended[+JobReport::Rerun ]                   : ""s )
+				+	                                                      " running:"s +  stats.cur(JobStep::Exec  )
+				+	( stats.cur(JobStep::Queued)                        ? " queued:"s  +  stats.cur(JobStep::Queued)                        : ""s )
+				+	( stats.cur(JobStep::Dep   )                        ? " waiting:"s +  stats.cur(JobStep::Dep   )                        : ""s )
 				)
 			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;
@@ -497,8 +496,8 @@ namespace Engine {
 	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , ::string const& target , size_t& n_err , DepDepth lvl ) {
 		if (!n_err) return true/*overflow*/ ;
 		n_err-- ;
-		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , to_string(::setw(::max(size_t(8)/*dangling*/,RuleData::s_name_sz)),pfx) , target , lvl ) ;
-		else       audit_info( Color::Warning                            , "..."                                                                                  ) ;
+		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , fmt_string(::setw(::max(size_t(8)/*dangling*/,RuleData::s_name_sz)),pfx) , target , lvl ) ;
+		else       audit_info( Color::Warning                            , "..."                                                                                   ) ;
 		return !n_err/*overflow*/ ;
 	}
 
@@ -545,9 +544,9 @@ namespace Engine {
 			::string          reason      ;
 			Node              missing_dep ;
 			::vmap_s<DepSpec> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::MissingStatic ) { reason      = "does not produce it"                                                 ; goto Report ; }
-			try                                                    { static_deps = rt->deps_attrs.eval(m)                                                ;               }
-			catch (::pair_ss const& msg_err)                       { reason      = to_string("cannot compute its deps :\n",msg_err.first,msg_err.second) ; goto Report ; }
+			if ( +jt && jt->run_status!=RunStatus::MissingStatic ) { reason      = "does not produce it"                                      ; goto Report ; }
+			try                                                    { static_deps = rt->deps_attrs.eval(m)                                     ;               }
+			catch (::pair_ss const& msg_err)                       { reason      = "cannot compute its deps :\n"+msg_err.first+msg_err.second ; goto Report ; }
 			{	::string missing_key ;
 				for( bool search_non_buildable : {true,false} )                                         // first search a non-buildable, if not found, search for non makable as deps have been made
 					for( auto const& [k,dn] : static_deps ) {
@@ -561,16 +560,16 @@ namespace Engine {
 				SWEAR(+missing_dep) ;                                                                   // else why wouldn't it apply ?!?
 				::string mdn = missing_dep->name()                   ;
 				FileTag tag  = FileInfo(nfs_guard.access(mdn)).tag() ;
-				reason = to_string( "misses static dep ", missing_key , (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ) ;
+				reason = "misses static dep " + missing_key + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
 			}
 		Report :
-			if (+missing_dep) audit_node( Color::Note , to_string("rule ",rt->name,' ',reason," :") , missing_dep , lvl+1 ) ;
-			else              audit_info( Color::Note , to_string("rule ",rt->name,' ',reason     ) ,               lvl+1 ) ;
+			if (+missing_dep) audit_node( Color::Note , "rule "+rt->name+' '+reason+" :" , missing_dep , lvl+1 ) ;
+			else              audit_info( Color::Note , "rule "+rt->name+' '+reason      ,               lvl+1 ) ;
 			//
 			if ( +missing_dep && n_missing==1 && (!g_config->max_err_lines||lvl<g_config->max_err_lines) ) _report_no_rule( missing_dep , nfs_guard , lvl+2 ) ;
 		}
 		//
-		if (+art) audit_info( Color::Note , to_string("anti-rule ",art->name," matches") , lvl+1 ) ;
+		if (+art) audit_info( Color::Note , "anti-rule "+art->name+" matches" , lvl+1 ) ;
 	}
 
 	//

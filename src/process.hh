@@ -76,9 +76,9 @@ inline bool is_sig_sync(int sig) {
 }
 
 inline ::string wstatus_str(int wstatus) {
-	if (WIFEXITED  (wstatus)) return WEXITSTATUS(wstatus) ? to_string("exit ",WEXITSTATUS(wstatus))  : "ok"s   ;
-	if (WIFSIGNALED(wstatus)) return to_string("signal ",WTERMSIG(wstatus),'-',::strsignal(WTERMSIG(wstatus))) ;
-	else                      return "??"                                                                      ;
+	if (WIFEXITED  (wstatus)) return WEXITSTATUS(wstatus) ? "exit "s+WEXITSTATUS(wstatus)  : "ok"s   ;
+	if (WIFSIGNALED(wstatus)) return "signal "s+WTERMSIG(wstatus)+'-'+::strsignal(WTERMSIG(wstatus)) ;
+	else                      return "??"                                                            ;
 }
 
 struct Child {

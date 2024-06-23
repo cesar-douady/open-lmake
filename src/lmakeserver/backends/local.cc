@@ -172,7 +172,7 @@ namespace Backends::Local {
 		}
 		//
 		virtual ::string start_job( JobIdx , SpawnedEntry const& e ) const {
-			return to_string("pid:",e.id) ;
+			return "pid:"s+e.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx , SpawnedEntry const& se , Status ) const {
 			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
@@ -217,10 +217,10 @@ namespace Backends::Local {
 		resize(idxs.size()) ;
 		for( auto const& [k,v] : m ) {
 			auto it = idxs.find(k) ;
-			if (it==idxs.end()) throw to_string("no resource ",k," for backend ",snake(MyTag)) ;
+			if (it==idxs.end()) throw "no resource "+k+" for backend "+snake(MyTag) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
-			try        { (*this)[it->second] = from_string_rsrc<Rsrc>(k,v) ;                                     }
-			catch(...) { throw to_string("cannot convert resource ",k," from ",v," to a ",typeid(Rsrc).name()) ; }
+			try        { (*this)[it->second] = from_string_rsrc<Rsrc>(k,v) ;                          }
+			catch(...) { throw "cannot convert resource "+k+" from "+v+" to a "+typeid(Rsrc).name() ; }
 		}
 	}
 
@@ -228,7 +228,7 @@ namespace Backends::Local {
 		resize(idxs.size()) ;
 		for( auto&& [k,v] : ::move(m) ) {
 			auto it = idxs.find(k) ;
-			if (it==idxs.end()) throw to_string("no resource ",k," for backend ",snake(MyTag)) ;
+			if (it==idxs.end()) throw "no resource "+k+" for backend "+snake(MyTag) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
 			RsrcAsk& entry = (*this)[it->second] ;
 			try {
@@ -236,7 +236,7 @@ namespace Backends::Local {
 				if (pos==Npos) { entry.min = from_string_rsrc<Rsrc>(k,::move(v)      ) ; entry.max = entry.min                                 ; }
 				else           { entry.min = from_string_rsrc<Rsrc>(k,v.substr(0,pos)) ; entry.max = from_string_rsrc<Rsrc>(k,v.substr(pos+1)) ; }
 			} catch(...) {
-				throw to_string("cannot convert ",v," to a ",typeid(Rsrc).name()," nor a min/max pair separated by <") ;
+				throw "cannot convert "+v+" to a "+typeid(Rsrc).name()+" nor a min/max pair separated by <" ;
 			}
 		}
 	}
@@ -246,8 +246,8 @@ namespace Backends::Local {
 		for( size_t i=0 ; i<keys.size() ; i++ ) {
 			if (!(*this)[i]) continue ;
 			::string const& key = keys[i] ;
-			if ( key=="mem" || key=="tmp" ) res.emplace_back( key , to_string((*this)[i],'M') ) ;
-			else                            res.emplace_back( key , to_string((*this)[i]    ) ) ;
+			if ( key=="mem" || key=="tmp" ) res.emplace_back( key , ::to_string((*this)[i])+'M' ) ;
+			else                            res.emplace_back( key , ::to_string((*this)[i])     ) ;
 		}
 		return res ;
 	}

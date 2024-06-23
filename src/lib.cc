@@ -39,7 +39,7 @@ extern "C" {
 				}
 				case 1 : root_dir_s = ::move(candidates2[0]) ; break ;
 				default : {
-					::string msg = to_string("ambiguous root dir, to disambiguate, consider ",candidates2.size()-1," of :\n") ;
+					::string msg = "ambiguous root dir, to disambiguate, consider "s+(candidates2.size()-1)+" of :\n" ;
 					for( ::string const& c : candidates2 ) msg << "\trm -r " << no_slash(c+AdminDirS) <<'\n' ;
 					throw msg ;
 				}

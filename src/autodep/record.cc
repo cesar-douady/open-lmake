@@ -74,8 +74,8 @@ bool Record::s_is_simple(const char* file) {
 void Record::_static_report(JobExecRpcReq&& jerr) const {
 	switch (jerr.proc) {
 		case Proc::Access  :
-			if      (jerr.digest.write!=No) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected write/unlink to " ,f,'\n') ; // can have only deps from within server
-			else if (!s_deps              ) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected access of "       ,f,'\n') ; // can have no deps when no way to record them
+			if      (jerr.digest.write!=No) for( auto& [f,dd] : jerr.files ) *s_deps_err<<"unexpected write/unlink to "<<f<<'\n' ; // can have only deps from within server
+			else if (!s_deps              ) for( auto& [f,dd] : jerr.files ) *s_deps_err<<"unexpected access of "      <<f<<'\n' ; // can have no deps when no way to record them
 			else {
 				for( auto& [f,dd] : jerr.files ) s_deps->emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,dd,jerr.digest.dflags,true/*parallel*/) ) ;
 				if (+jerr.files) s_deps->back().second.parallel = false ; // parallel bit is marked false on last of a series of parallel accesses
@@ -85,7 +85,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 		case Proc::Guard   :
 		case Proc::Tmp     :
 		case Proc::Trace   : break ;
-		default            : append_to_string(*s_deps_err,"unexpected proc ",jerr.proc,'\n') ;
+		default            : *s_deps_err<<"unexpected proc "<<snake(jerr.proc)<<'\n' ;
 	}
 }
 
@@ -147,8 +147,8 @@ Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(
 }
 int Record::Chdir::operator()( Record& r , int rc , pid_t pid ) {
 	if (rc!=0) return rc ;
-	if (pid  ) r.chdir(Disk::read_lnk("/proc/"+::to_string(pid)+"/cwd").c_str()) ;
-	else       r.chdir(no_slash(Disk::cwd_s())                         .c_str()) ;
+	if (pid  ) r.chdir(Disk::read_lnk("/proc/"s+pid+"/cwd").c_str()) ;
+	else       r.chdir(no_slash(Disk::cwd_s())             .c_str()) ;
 	return rc ;
 }
 
@@ -163,7 +163,7 @@ Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string&& c ) : 
 	SolveReport sr {.real=real,.file_loc=file_loc} ;
 	try {
 		for( auto&& [file,a] : r._real_path.exec(sr) ) r._report_dep( FileLoc::Dep , ::move(file) , a , ::copy(c) ) ;
-	} catch (::string const& e) { r.report_panic(e) ; }
+	} catch (::string& e) { r.report_panic(::move(e)) ; }
 }
 
 Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , ::string&& c ) :
@@ -188,8 +188,8 @@ Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , ::string&& c ) :
 	src { r , ::move(src_) , true  , false , false , c+".src" }
 ,	dst { r , ::move(dst_) , true  , false , false , c+".dst" }
 {
-	if (src.file_loc<=FileLoc::Dep) r.report_panic("mount from ",src.real) ;
-	if (dst.file_loc<=FileLoc::Dep) r.report_panic("mount to "  ,dst.real) ;
+	if (src.file_loc<=FileLoc::Dep) r.report_panic("mount from "+src.real) ;
+	if (dst.file_loc<=FileLoc::Dep) r.report_panic("mount to "  +dst.real) ;
 }
 
 // note : in case the file is open WR_ONLY w/o O_TRUNC, it is true that the final content depends on the initial content.
@@ -205,7 +205,7 @@ static bool _do_write (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!
 static bool _do_create(int flags) { return   flags&O_CREAT                                                    ; }
 //
 Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
-	Solve{ r , !_ignore(flags)?::move(path):Path() , _no_follow(flags) , _do_read(flags) , _do_create(flags) , to_string(c,::hex,'.',flags) }
+	Solve{ r , !_ignore(flags)?::move(path):Path() , _no_follow(flags) , _do_read(flags) , _do_create(flags) , fmt_string(c,::hex,'.',flags) }
 {
 	if ( !file || !file[0]             ) return ; // includes ignore_stat cases
 	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ; // we already solved, this is enough

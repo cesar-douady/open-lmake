@@ -66,10 +66,10 @@ namespace Engine::Makefiles {
 			RuleData rd  = py_rule.as_a<Dict>() ;
 			Crc      crc = rd.match_crc ;
 			if (names.contains(rd.name)) {
-				if ( rules.contains(crc) && rules.at(crc).name==rd.name ) throw to_string("rule " , rd.name , " appears twice"      ) ;
-				else                                                      throw to_string("two rules have the same name " , rd.name ) ;
+				if ( rules.contains(crc) && rules.at(crc).name==rd.name ) throw "rule " + rd.name + " appears twice"      ;
+				else                                                      throw "two rules have the same name " + rd.name ;
 			}
-			if (rules.contains(crc)) throw to_string( "rule " , rd.name , " and rule " , rules.at(crc).name , " match identically and are redundant" ) ;
+			if (rules.contains(crc)) throw "rule " + rd.name + " and rule " + rules.at(crc).name + " match identically and are redundant" ;
 			names.insert(rd.name) ;
 			rules[crc] = ::move(rd) ;
 		}
@@ -82,12 +82,12 @@ namespace Engine::Makefiles {
 	// dep check is satisfied if each dep :
 	// - has a date before dep_file's date (if first char is +)
 	// - does not exist                    (if first char is !)
-	static ::string _chk_deps( ::string const& action , ::string const& startup_dir_s , NfsGuard& nfs_guard ) {        // startup_dir_s for diagnostic purpose only
+	static ::string _chk_deps( ::string const& action , ::string const& startup_dir_s , NfsGuard& nfs_guard ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
-		::string   deps_file   = to_string(AdminDirS,action,"_deps") ;
-		Ddate      deps_date   = file_date(deps_file)                ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
-		::ifstream deps_stream { deps_file }                         ;
+		::string   deps_file   = AdminDirS+action+"_deps" ;
+		Ddate      deps_date   = file_date(deps_file)     ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
+		::ifstream deps_stream { deps_file }              ;
 		::string   reason      ;
 		for( ::string line ; ::getline(deps_stream,line) ;) {
 			bool exists = false/*garbage*/ ;
@@ -97,21 +97,21 @@ namespace Engine::Makefiles {
 			DF}
 			::string dep_name = line.substr(1)                 ;
 			FileInfo fi       { (nfs_guard.access(dep_name)) } ;
-			if      (  exists && !fi               ) reason = "removed"                                              ;
-			else if (  exists && fi.date>deps_date ) reason = "modified"                                             ; // in case of equality, be optimistic as deps may be modified during the ...
-			else if ( !exists && +fi               ) reason = "created"                                              ; // ... read process (typically .pyc files) and file resolution is such ...
-			if      ( +reason                      ) return to_string(mk_rel(dep_name,startup_dir_s)," was ",reason) ; // ...  that such deps may very well end up with same date as deps_file
+			if      (  exists && !fi               ) reason = "removed"                                   ;
+			else if (  exists && fi.date>deps_date ) reason = "modified"                                  ;     // in case of equality, be optimistic as deps may be modified during the ...
+			else if ( !exists && +fi               ) reason = "created"                                   ;     // ... read process (typically .pyc files) and file resolution is such ...
+			if      ( +reason                      ) return mk_rel(dep_name,startup_dir_s)+" was "+reason ;     // ...  that such deps may very well end up with same date as deps_file
 		}
 		trace("ok") ;
 		return {} ;
 	}
 
 	static ::string _deps_file( ::string const& action , bool new_ ) {
-		if (new_) return to_string(PrivateAdminDirS,action,"_new_deps") ;
-		else      return to_string(AdminDirS       ,action,"_deps"    ) ;
+		if (new_) return PrivateAdminDirS+action+"_new_deps" ;
+		else      return AdminDirS       +action+"_deps"     ;
 	}
 
-	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {  // startup_dir_s for diagnostic purpose only
+	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
 		::ifstream deps_stream { _deps_file(action,new_) } ;
@@ -121,10 +121,10 @@ namespace Engine::Makefiles {
 				case '!' : continue ;
 			DF}
 			::string d = line.substr(1) ;
-			if (is_abs(d)) continue ;                                                                  // d is outside repo and cannot be dangling, whether it is in a src_dir or not
+			if (is_abs(d)) continue ;                                                                 // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n{d} ;
-			n->set_buildable() ;                                                                       // this is mandatory before is_src_anti() can be called
-			if ( !n->is_src_anti() ) throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
+			n->set_buildable() ;                                                                      // this is mandatory before is_src_anti() can be called
+			if ( !n->is_src_anti() ) throw "dangling makefile : "+mk_rel(d,startup_dir_s) ;
 		}
 		trace("ok") ;
 	}
@@ -162,7 +162,7 @@ namespace Engine::Makefiles {
 		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
 		//
 		Gather   gather ;
-		::string data   = to_string(PrivateAdminDirS,action,"_data.py") ;
+		::string data   = PrivateAdminDirS+action+"_data.py" ;
 		gather.autodep_env.src_dirs_s = {"/"}                                                                         ;
 		gather.autodep_env.root_dir   = no_slash(*g_root_dir_s)                                                       ;
 		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , action , module } ;
@@ -172,15 +172,15 @@ namespace Engine::Makefiles {
 		::string sav_ld_library_path ;
 		if (PY_LD_LIBRARY_PATH[0]!=0) {
 			sav_ld_library_path = get_env("LD_LIBRARY_PATH") ;
-			if (+sav_ld_library_path) set_env( "LD_LIBRARY_PATH" , to_string(sav_ld_library_path,':',PY_LD_LIBRARY_PATH) ) ;
-			else                      set_env( "LD_LIBRARY_PATH" ,                                   PY_LD_LIBRARY_PATH  ) ;
+			if (+sav_ld_library_path) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path+':'+PY_LD_LIBRARY_PATH ) ;
+			else                      set_env( "LD_LIBRARY_PATH" ,                         PY_LD_LIBRARY_PATH ) ;
 		}
 		//              vvvvvvvvvvvvvvvvvvv
 		Status status = gather.exec_child() ;
 		//              ^^^^^^^^^^^^^^^^^^^
 		if (PY_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
 		//
-		if (status!=Status::Ok) throw to_string( "cannot read " , action , +gather.msg?" : ":"" , localize(gather.msg) ) ;
+		if (status!=Status::Ok) throw "cannot read " + action + (+gather.msg?" : ":"") + localize(gather.msg) ;
 		//
 		::string   content = read_content(data) ;
 		::vector_s deps    ; deps.reserve(gather.accesses.size()) ;
@@ -206,8 +206,8 @@ namespace Engine::Makefiles {
 		//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		tie(py_info,deps) = _read_makefiles( "config" , "Lmakefile" ) ;
 		//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		try                      { config = (*py_info)["config"].as_a<Dict>() ;               }
-		catch(::string const& e) { throw to_string("while processing config :\n",indent(e)) ; }
+		try                      { config = (*py_info)["config"].as_a<Dict>() ;    }
+		catch(::string const& e) { throw "while processing config :\n"+indent(e) ; }
 		//
 		return { reason , true/*done*/ } ;
 	}
@@ -228,7 +228,7 @@ namespace Engine::Makefiles {
 		::string  reason      ;
 		Ptr<Dict> py_new_info ;
 		if (+g_config->srcs_module) {
-			if (+new_  ) reason = to_string("config.sources_module was "s,new_)      ;
+			if (+new_  ) reason = "config.sources_module was "s+snake(new_)          ;
 			else         reason = _chk_deps( "sources" , startup_dir_s , nfs_guard ) ;
 			if (!reason) return {{},false/*done*/} ;
 			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -237,7 +237,7 @@ namespace Engine::Makefiles {
 			py_info = py_new_info ;
 		}
 		try                      { tie(srcs,src_dirs_s) = _gather_srcs( (*py_info)["manifest"s].as_a<Sequence>() , g_config->lnk_support , nfs_guard ) ; }
-		catch(::string const& e) { throw to_string("while processing sources :\n",indent(e)) ;                                                           }
+		catch(::string const& e) { throw "while processing sources :\n"+indent(e) ;                                                                      }
 		return {reason,true/*done*/} ;
 	}
 
@@ -255,7 +255,7 @@ namespace Engine::Makefiles {
 		Ptr<Dict> py_new_info ;
 		// rules depend on source dirs as deps are adapted if they lie outside repo
 		if (+g_config->rules_module) {
-			if (+new_  ) reason = to_string("config.rules_module was "s,new_)      ;
+			if (+new_  ) reason = "config.rules_module was "s+snake(new_)          ;
 			else         reason = _chk_deps( "rules" , startup_dir_s , nfs_guard ) ;
 			if (!reason) return {{},false/*done*/} ;
 			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -264,7 +264,7 @@ namespace Engine::Makefiles {
 			py_info = py_new_info ;
 		}
 		try                      { rules = _gather_rules((*py_info)["rules"s].as_a<Sequence>()) ; }
-		catch(::string const& e) { throw to_string("while processing rules :\n",indent(e)) ;      }
+		catch(::string const& e) { throw "while processing rules :\n"+indent(e) ;                 }
 		return {reason,true/*done*/} ;
 	}
 
@@ -301,7 +301,7 @@ namespace Engine::Makefiles {
 			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
-			throw to_string("cannot dynamically read config (because ",config_digest.first,") : ",e) ;
+			throw "cannot dynamically read config (because "+config_digest.first+") : "+e ;
 		}
 		nfs_guard.reliable_dirs = g_config->reliable_dirs ;                                        // now that config is loaded, we can optimize protection against NFS
 		//
@@ -332,7 +332,7 @@ namespace Engine::Makefiles {
 				invalidate_rule &= Persistent::new_rules( ::move(rules) , dynamic ) ;
 			} catch (::string const& e) { //!  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// if rules_digest is empty, rules were in config
-				throw to_string( "cannot dynamically read rules (because " , +rules_digest.first?rules_digest.first:config_digest.first ,") : " , e ) ;
+				throw "cannot dynamically read rules (because " + (+rules_digest.first?rules_digest.first:config_digest.first) + ") : " + e ;
 			}
 		}
 		if ( invalidate_src || invalidate_rule ) Persistent::invalidate_match() ;
@@ -344,9 +344,9 @@ namespace Engine::Makefiles {
 		else if (srcs_digest  .second) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ; // .
 		//
 		::string msg ;
-		if (+config_digest.first) append_to_string(msg,"read config because " ,config_digest.first,'\n') ;
-		if (+srcs_digest  .first) append_to_string(msg,"read sources because ",srcs_digest  .first,'\n') ;
-		if (+rules_digest .first) append_to_string(msg,"read rules because "  ,rules_digest .first,'\n') ;
+		if (+config_digest.first) msg<<"read config because " <<config_digest.first<<'\n' ;
+		if (+srcs_digest  .first) msg<<"read sources because "<<srcs_digest  .first<<'\n' ;
+		if (+rules_digest .first) msg<<"read rules because "  <<rules_digest .first<<'\n' ;
 		//
 		if (config_digest.second) _stamp_deps("config" ) ;                                         // stamp deps once all error cases have been cleared
 		if (srcs_digest  .second) _stamp_deps("sources") ;                                         // .

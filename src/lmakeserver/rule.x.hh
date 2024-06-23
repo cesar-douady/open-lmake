@@ -116,7 +116,7 @@ namespace Engine {
 				else if constexpr (IsOneOf<T,::vector_s,::vmap_ss>) {                       if (py_dct.contains(key)) return acquire<::string,Env>( dst , &py_dct[key] ) ; else return false ; }
 				else                                                { static_assert(!Env) ; if (py_dct.contains(key)) return acquire              ( dst , &py_dct[key] ) ; else return false ; }
 			} catch (::string const& e) {
-				throw to_string("while processing ",key," : ",e) ;
+				throw "while processing "+key+" : "+e ;
 			}
 		}
 		template<class T> bool/*update*/ acquire_from_dct( T& dst , Py::Dict const& py_dct , ::string const& key , T min ) {
@@ -211,7 +211,7 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( key , py_dct , "key" ) ;
-			if ( +key && !Cache::s_tab.contains(key) ) throw to_string("unexpected cache key ",key," not found in config") ;
+			if ( +key && !Cache::s_tab.contains(key) ) throw "unexpected cache key "+key+" not found in config" ;
 		}
 		// data
 		// START_OF_VERSIONING
@@ -287,8 +287,8 @@ namespace Engine {
 			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
 			::sort(env) ;                                                                    // stabilize rsrcs crc
 			// check
-			if ( method==AutodepMethod::Fuse    && !HAS_FUSE     ) throw to_string(method," is not supported on this system") ; // PER_AUTODEP_METHOD
-			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw to_string(method," is not supported on this system") ; // .
+			if ( method==AutodepMethod::Fuse    && !HAS_FUSE     ) throw snake(method)+" is not supported on this system"s ; // PER_AUTODEP_METHOD
+			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw snake(method)+" is not supported on this system"s ; // .
 		}
 		// data
 		// START_OF_VERSIONING
@@ -382,8 +382,11 @@ namespace Engine {
 		::string append_dbg_info(::string const& code) const {
 			::string res = code ;
 			if (+dbg_info) {
-				append_line_to_string( res , lmake_dir_var_name," = ",mk_py_str(Disk::no_slash(*g_lmake_dir_s)),'\n' ) ;
-				append_line_to_string( res , dbg_info                                                                ) ;
+				res
+				<<	set_nl
+				<<	lmake_dir_var_name<<" = "<<mk_py_str(Disk::no_slash(*g_lmake_dir_s))<<'\n'
+				<<	dbg_info
+				;
 			}
 			return res ;
 		}
@@ -403,7 +406,7 @@ namespace Engine {
 
 	template<class T> struct DynamicDsk : DynamicDskBase {
 		// statics
-		static ::string s_exc_msg (bool using_static) { return to_string( "cannot compute dynamic " , T::Msg , using_static?", using static info":"" ) ; }
+		static ::string s_exc_msg (bool using_static) { return "cannot compute dynamic "s + T::Msg + (using_static?", using static info":"") ; }
 		// cxtors & casts
 		DynamicDsk() = default ;
 		template<class... A> DynamicDsk( Py::Tuple const& , ::umap_s<CmdIdx> const& var_idxs , A&&... ) ;
@@ -775,7 +778,7 @@ namespace Engine {
 					if constexpr (Env) updated |= acquire<Env>(grow(dst,i++),&py_item) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
 					else               updated |= acquire     (grow(dst,i++),&py_item) ; // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
-					throw to_string("for item ",i," : ",e) ;
+					throw "for item "s+i+" : "+e ;
 				}
 			} ;
 			if (py_src->is_a<Py::Sequence>()) for( Py::Object const& py_item : py_src->as_a<Py::Sequence>() ) handle_entry(py_item) ;
@@ -808,7 +811,7 @@ namespace Engine {
 					if constexpr (Env) updated |= acquire<Env>(it->second,&py_val) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
 					else               updated |= acquire     (it->second,&py_val) ; // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
-					throw to_string("for item ",key," : ",e) ;
+					throw "for item "+key+" : "+e ;
 				}
 			}
 			dst = mk_vmap(map) ;
@@ -828,8 +831,8 @@ namespace Engine {
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
 		Py::Gil::s_swear_locked() ;
-		try { code = code_str                              ; code->boost() ; } catch (::string const& e) { throw to_string("cannot compile code :\n"   ,indent(e,1)) ; }
-		try { glbs = Py::py_run(append_dbg_info(glbs_str)) ; glbs->boost() ; } catch (::string const& e) { throw to_string("cannot compile context :\n",indent(e,1)) ; }
+		try { code = code_str                              ; code->boost() ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e,1) ; }
+		try { glbs = Py::py_run(append_dbg_info(glbs_str)) ; glbs->boost() ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
 	}
 
 	template<class T> void Dynamic<T>::eval_ctx( Job job , Rule::SimpleMatch& match_ , ::vmap_ss const& rsrcs_ , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
@@ -853,8 +856,8 @@ namespace Engine {
 		}
 		fi = 0 ;
 		::string res = ::move(fixed[fi++]) ;
-		auto cb_str = [&]( VarCmd , VarIdx , string const& /*key*/ , string  const&   val   )->void { append_to_string(res,val,fixed[fi++]) ; } ;
-		auto cb_dct = [&]( VarCmd , VarIdx , string const& /*key*/ , vmap_ss const& /*val*/ )->void { FAIL()                                ; } ;
+		auto cb_str = [&]( VarCmd , VarIdx , string const& /*key*/ , string  const&   val   )->void { res<<val<<fixed[fi++] ; } ;
+		auto cb_dct = [&]( VarCmd , VarIdx , string const& /*key*/ , vmap_ss const& /*val*/ )->void { FAIL()                ; } ;
 		_s_eval(job,match,rsrcs,ctx_,cb_str,cb_dct) ;
 		return res ;
 	}
@@ -894,7 +897,7 @@ namespace Engine {
 			Py::Gil             gil    ;
 			Py::Ptr<Py::Object> py_obj = _eval_code( job , match , rsrcs , deps ) ;
 			if (*py_obj!=Py::None) {
-				if (!py_obj->is_a<Py::Dict>()) throw to_string("type error : ",py_obj->ob_type->tp_name," is not a dict") ;
+				if (!py_obj->is_a<Py::Dict>()) throw "type error : "s+py_obj->ob_type->tp_name+" is not a dict" ;
 				try                       { res.update(py_obj->template as_a<Py::Dict>()) ; }
 				catch (::string const& e) { throw ::pair_ss({}/*msg*/,e/*err*/) ;           }
 			}

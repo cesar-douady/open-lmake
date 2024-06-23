@@ -222,10 +222,10 @@ namespace Engine {
 
 	::string Job::ancillary_file(AncillaryTag tag) const {
 		switch (tag) {
-			case AncillaryTag::Backend : return to_string(PrivateAdminDirS         ,"backend/"  ,+*this) ;
-			case AncillaryTag::Data    : return to_string(g_config->local_admin_dir,"/job_data/",+*this) ;
-			case AncillaryTag::Dbg     : return to_string(AdminDirS                ,"debug/"    ,+*this) ;
-			case AncillaryTag::KeepTmp : return to_string(AdminDirS                ,"tmp/"      ,+*this) ;
+			case AncillaryTag::Backend : return PrivateAdminDirS         +"backend/"s +(+*this) ;
+			case AncillaryTag::Data    : return g_config->local_admin_dir+"/job_data/"+(+*this) ;
+			case AncillaryTag::Dbg     : return AdminDirS                +"debug/"s   +(+*this) ;
+			case AncillaryTag::KeepTmp : return AdminDirS                +"tmp/"s     +(+*this) ;
 		DF}
 	}
 
@@ -410,12 +410,12 @@ namespace Engine {
 			for( Req req : running_reqs_ ) {
 				req->audit_job(Color::Note,"dynamic",*this,true/*at_end*/) ;
 				::string req_msg = rule->cache_none_attrs.s_exc_msg(true/*using_static*/) ;
-				append_line_to_string(req_msg,msg_err.first) ;
+				req_msg <<set_nl<< msg_err.first ;
 				req->audit_stderr( req_msg , msg_err.second , -1 , 1 ) ;
 			}
 		}
-		try                                  { end_cmd_attrs = rule->end_cmd_attrs.eval(*this,match) ;                        }
-		catch (::pair_ss const& /*msg,err*/) { append_to_string( severe_msg , "cannot compute " , EndCmdAttrs::Msg , '\n' ) ; }
+		try                                  { end_cmd_attrs = rule->end_cmd_attrs.eval(*this,match) ;       }
+		catch (::pair_ss const& /*msg,err*/) { severe_msg << "cannot compute " << EndCmdAttrs::Msg << '\n' ; }
 		//
 		(*this)->status = Status::New ;        // ensure we cannot appear up to date while working on data
 		fence() ;
@@ -475,8 +475,8 @@ namespace Engine {
 						/**/                           if (td.extra_tflags[ExtraTflag::SourceOk]) goto SourceOk ;
 						for( Req req : running_reqs_ ) if (req->options.flags[ReqFlag::SourceOk]) goto SourceOk ;
 						//
-						if (crc==Crc::None) append_to_string( severe_msg , "unexpected unlink of source " , mk_file(tn,No /*exists*/) ,'\n') ;
-						else                append_to_string( severe_msg , "unexpected write to source "  , mk_file(tn,Yes/*exists*/) ,'\n') ;
+						if (crc==Crc::None) severe_msg << "unexpected unlink of source " << mk_file(tn,No /*exists*/) <<'\n' ;
+						else                severe_msg << "unexpected write to source "  << mk_file(tn,Yes/*exists*/) <<'\n' ;
 						if (ok==Yes       ) status = Status::Err ;
 					SourceOk : ;
 					}
@@ -544,7 +544,7 @@ namespace Engine {
 		//
 		// wrap up
 		//
-		if ( ok==Yes && +digest.stderr && !end_cmd_attrs.allow_stderr ) { append_to_string(local_msg,"non-empty stderr\n") ; status = Status::Err ; }
+		if ( ok==Yes && +digest.stderr && !end_cmd_attrs.allow_stderr ) { local_msg+="non-empty stderr\n" ; status = Status::Err ; }
 		EndNoneAttrs end_none_attrs ;
 		::string     stderr         ;
 		try {
@@ -552,9 +552,9 @@ namespace Engine {
 			stderr = digest.stderr ;
 		} catch (::pair_ss const& msg_err) {
 			end_none_attrs = rule->end_none_attrs.spec ;
-			append_to_string( severe_msg , rule->end_none_attrs.s_exc_msg(true/*using_static*/) , '\n' , msg_err.first ) ;
+			severe_msg << rule->end_none_attrs.s_exc_msg(true/*using_static*/) << '\n' << msg_err.first ;
 			stderr  = ensure_nl(msg_err.second) + digest.stderr ;
-			append_line_to_string(stderr,digest.stderr) ;
+			stderr <<set_nl<< digest.stderr ;
 		}
 		//
 		(*this)->exec_ok(true) ;                                                           // effect of old cmd has gone away with job execution
@@ -571,7 +571,7 @@ namespace Engine {
 		trace("wrap_up",STR(sav_jrr),ok,cache_none_attrs.key,(*this)->run_status,STR(upload)) ;
 		if (sav_jrr) {
 			msg = jrr.msg ;
-			append_line_to_string( jrr.msg , local_msg , severe_msg ) ;
+			jrr.msg <<set_nl<< local_msg << severe_msg ;
 			if (upload) _s_record_thread.emplace(*this,JobInfoEnd{::copy(jrr)}) ;          // leave jrr intact so upload can be done later on
 			else        _s_record_thread.emplace(*this,JobInfoEnd{::move(jrr)}) ;
 		} else {
@@ -600,10 +600,10 @@ namespace Engine {
 			bool     job_err     = job_err_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
-				job_msg = msg ;
-				if (!job_err) append_line_to_string( job_msg , local_msg                       ) ; // report local_msg if no better message
-				else          append_line_to_string( job_msg , reason_str(job_err_reason),'\n' ) ;
-				/**/          append_line_to_string( job_msg , severe_msg                      ) ;
+				/**/          job_msg =  msg       << set_nl              ;
+				if (!job_err) job_msg << local_msg << set_nl              ;                        // report local_msg if no better message
+				else          job_msg << reason_str(job_err_reason)<<'\n' ;
+				/**/          job_msg << severe_msg                       ;
 			}
 			//
 			Delay    exec_time = digest.stats.total ;
@@ -965,9 +965,9 @@ namespace Engine {
 		}
 	Run :
 		trace("run",pre_reason,ri,run_status) ;
-		if ( query && !is_special() )                goto Return          ;                      // ensure we have a reason to report that we would have run if not queried
+		if ( query && !is_special() )                goto Return          ;                        // ensure we have a reason to report that we would have run if not queried
 		if ( ri.state.missing_dsk   ) { ri.reset() ; goto RestartAnalysis ; }
-		SWEAR(!ri.state.missing_dsk) ;                                                           // cant run if we are missing some deps on disk
+		SWEAR(!ri.state.missing_dsk) ;                                                             // cant run if we are missing some deps on disk
 		if (rule->n_submits) {
 			if (ri.n_submits>=rule->n_submits) {
 				trace("submit_loop") ;
@@ -978,17 +978,17 @@ namespace Engine {
 			ri.n_submits++ ;
 		}
 		//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (is_special()) {      _submit_special( ri                           ) ; goto Done ; } // special never report new deps
-		else              { if (!_submit_plain  ( ri , reason() , dep_pressure ))  goto Done ; } // if no new deps, we cannot be waiting and we are done
+		if (is_special()) {      _submit_special( ri                           ) ; goto Done ; }   // special never report new deps
+		else              { if (!_submit_plain  ( ri , reason() , dep_pressure ))  goto Done ; }   // if no new deps, we cannot be waiting and we are done
 		//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (ri.waiting()) goto Wait ;
 		SWEAR(!ri.running()) ;
-		make_action = MakeAction::End  ;                                                         // restart analysis as if called by end() as in case of flash execution, submit has called end()
-		ri.inc_wait() ;                                                                          // .
-		asked_reason = {} ;                                                                      // .
-		ri.reason    = {} ;                                                                      // .
+		make_action = MakeAction::End  ;                                                           // restart analysis as if called by end() as in case of flash execution, submit has called end()
+		ri.inc_wait() ;                                                                            // .
+		asked_reason = {} ;                                                                        // .
+		ri.reason    = {} ;                                                                        // .
 		trace("restart_analysis",ri) ;
-		goto RestartFullAnalysis ;                                                               // BACKWARD
+		goto RestartFullAnalysis ;                                                                 // BACKWARD
 	Done :
 		SWEAR( !ri.running() && !ri.waiting() , idx() , ri ) ;
 		ri.step(Step::Done) ;
@@ -1059,15 +1059,15 @@ namespace Engine {
 		switch (rule->special) {
 			case Special::Plain :
 				SWEAR(idx().frozen()) ;
-				if (+node) return to_string("frozen file does not exist while not phony : ",node->name(),'\n') ;
-				else       return           "frozen file does not exist while not phony\n"                     ;
+				if (+node) return "frozen file does not exist while not phony : "+node->name()+'\n' ;
+				else       return "frozen file does not exist while not phony\n"                    ;
 			case Special::Infinite : {
 				::string res ;
-				for( Dep const& d : deps ) append_to_string( res , d->name() , '\n' ) ;
+				for( Dep const& d : deps ) res << d->name() << '\n' ;
 				return res ;
 			}
 			default :
-				return to_string(rule->special," error\n") ;
+				return snake(rule->special)+" error\n"s ;
 		}
 	}
 

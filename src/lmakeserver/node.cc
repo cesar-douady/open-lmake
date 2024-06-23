@@ -358,7 +358,7 @@ namespace Engine {
 				if (req->long_names.try_emplace(idx(),req->long_names.size()).second) {                 // if inserted
 					size_t sz = lazy_name().size() ;
 					SWEAR( sz>g_config->path_max , sz , g_config->path_max ) ;
-					req->audit_node( Color::Warning , to_string("name is too long (",sz,'>',g_config->path_max,") for") , idx() ) ;
+					req->audit_node( Color::Warning , "name is too long ("s+sz+'>'+g_config->path_max+") for" , idx() ) ;
 				}
 				[[fallthrough]] ;
 			case Buildable::DynAnti   :

@@ -243,10 +243,10 @@ namespace Engine {
 		void audit_summary(bool err) const ;
 		//
 		#define SC ::string const
-		//                                                                                                                                                                     as_is
-		void audit_info      ( Color c , SC& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , to_string(t,' ',Disk::mk_file(lt)) , false , l ) ; }
-		void audit_info      ( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c ,           t                        , false , l ) ; }
-		void audit_info_as_is( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c ,           t                        , true  , l ) ; }
+		//                                                                                                                                                          as_is
+		void audit_info      ( Color c , SC& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t+' '+Disk::mk_file(lt) , false , l ) ; }
+		void audit_info      ( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t                       , false , l ) ; }
+		void audit_info_as_is( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t                       , true  , l ) ; }
 		void audit_node      ( Color c , SC& p , Node n             , DepDepth l=0 ) const ;
 		//
 		void audit_job( Color , Pdate , SC& step , SC& rule_name , SC& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;

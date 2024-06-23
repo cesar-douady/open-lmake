@@ -24,7 +24,7 @@ namespace Backdoor {
 	::umap_s<Func> const& get_func_tab() ;
 
 	template<class T> typename T::Reply call(T&& args) {
-		::string file = to_string(MagicPfx,T::Cmd,'/',mk_printable(serialize(args)))     ;
+		::string file = ""s+MagicPfx+T::Cmd+'/'+mk_printable(serialize(args))            ;
 		::string buf  ( args.reply_len()+1 , 0 )                                         ; // +1 to distinguish truncation
 		ssize_t  cnt  = ::readlinkat( MagicFd , file.c_str() , buf.data() , buf.size() ) ; // try to go through autodep to process args
 		if (cnt<0) return args.process(::ref(Record(New,Yes/*enabled*/))) ;                // no autodep available, directly process args
@@ -37,8 +37,8 @@ namespace Backdoor {
 	template<class T> ssize_t/*len*/ func( Record& r , ::string const& args_str , char* buf , size_t sz ) {
 		size_t   pos       = 0 ;
 		::string reply_str ;
-		try                    { reply_str = serialize(deserialize<T>(parse_printable(args_str,pos)).process(r)) ; if (pos!=args_str.size()) throw ""s ; }
-		catch(::string const&) { errno = EIO ; return -1 ;                                                                                               }
+		try                     { reply_str = serialize(deserialize<T>(parse_printable(args_str,pos)).process(r)) ; if (pos!=args_str.size()) throw ""s ; }
+		catch (::string const&) { errno = EIO ; return -1 ;                                                                                               }
 		sz = ::min(reply_str.size(),sz) ;
 		::memcpy( buf , reply_str.data() , sz ) ;
 		return sz ;

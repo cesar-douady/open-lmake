@@ -67,10 +67,10 @@ static pid_t _connect_to_server( bool refresh , bool sync ) {                   
 		} ;
 		Pipe client_to_server{New,true/*no_std*/} ; client_to_server.read .cloexec(false) ; client_to_server.write.cloexec(true) ;
 		Pipe server_to_client{New,true/*no_std*/} ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
-		/**/          cmd_line.push_back(to_string("-i",int(client_to_server.read ))) ;
-		/**/          cmd_line.push_back(to_string("-o",int(server_to_client.write))) ;
-		if (!refresh) cmd_line.push_back(          "-r"                             ) ; // -r means no refresh
-		/**/          cmd_line.push_back(          "--"                             ) ; // ensure no further option processing in case a file starts with a -
+		/**/          cmd_line.push_back("-i"s+client_to_server.read .fd) ;
+		/**/          cmd_line.push_back("-o"s+server_to_client.write.fd) ;
+		if (!refresh) cmd_line.push_back("-r"                           ) ; // -r means no refresh
+		/**/          cmd_line.push_back("--"                           ) ; // ensure no further option processing in case a file starts with a -
 		trace("try_new",i,cmd_line) ;
 		try {
 			Child server { .as_session=true , .cmd_line=cmd_line } ;
@@ -86,7 +86,7 @@ static pid_t _connect_to_server( bool refresh , bool sync ) {                   
 			}
 			client_to_server.write.close() ;
 			server_to_client.read .close() ;
-			server.wait() ;                                                             // dont care about return code, we are going to relauch/reconnect anyway
+			server.wait() ;                                                               // dont care about return code, we are going to relauch/reconnect anyway
 		} catch (::string const& e) {
 			exit(Rc::System,e) ;
 		}
@@ -95,14 +95,14 @@ static pid_t _connect_to_server( bool refresh , bool sync ) {                   
 		now.sleep_until() ;
 	}
 	::string kill_server_msg ;
-	if ( +server_service && !server_is_local ) kill_server_msg  = to_string("ssh ",SockFd::s_host(server_service),' ') ;
-	if ( server_pid                          ) kill_server_msg += to_string("kill ",server_pid       )                 ;
-	if ( +kill_server_msg                    ) kill_server_msg  = to_string('\t',kill_server_msg,'\n')                 ;
+	if ( +server_service && !server_is_local ) kill_server_msg << "ssh "<<SockFd::s_host(server_service)+' ' ;
+	if ( server_pid                          ) kill_server_msg << "kill "<<server_pid                        ;
+	if ( +kill_server_msg                    ) kill_server_msg << '\t'<<kill_server_msg<<'\n'                ;
 	trace("cannot_connect",server_service,kill_server_msg) ;
 	exit(Rc::Format
 	,	"cannot connect to server, consider :\n"
 	,	kill_server_msg
-	,	to_string("\trm ",AdminDirS,"server\n")
+	,	"\trm "s+AdminDirS+"server\n"
 	) ;
 }
 

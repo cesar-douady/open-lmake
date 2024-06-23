@@ -229,7 +229,7 @@ Status Gather::exec_child() {
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
 		if ( status==Status::New || status==Status::Ok ) status = status_ ;                // else there is already another reason
-		if ( +msg_                                     ) append_line_to_string(msg,msg_) ;
+		if ( +msg_                                     ) msg << set_nl << msg_ ;
 	} ;
 	auto kill = [&](bool next_step=false)->void {
 		trace("kill",STR(next_step),_kill_step,STR(as_session),_child.pid,_wait) ;
@@ -258,10 +258,10 @@ Status Gather::exec_child() {
 	while ( epoll.cnt || +_wait ) {
 		Pdate now = New ;
 		if (now>_end_child) {
-			if      ( !_wait[Kind::ChildEnd]                     ) set_status(Status::Err,to_string("still active after having been dead for ",network_delay.short_str()                   )) ;
-			else if ( _kill_step && _kill_step< kill_sigs.size() ) set_status(Status::Err,to_string("still alive after having been killed ",_kill_step      ," times"                      )) ;
-			else if (               _kill_step==kill_sigs.size() ) set_status(Status::Err,to_string("still alive after having been killed ",kill_sigs.size()," times followed by a SIGKILL")) ;
-			else if ( _timeout_fired                             ) set_status(Status::Err,to_string("still alive after having timed out and been killed with SIGKILL"                      )) ;
+			if      ( !_wait[Kind::ChildEnd]                     ) set_status(Status::Err,"still active after having been dead for "+network_delay.short_str()                    ) ;
+			else if ( _kill_step && _kill_step< kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+_kill_step      +" times"                      ) ;
+			else if (               _kill_step==kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+kill_sigs.size()+" times followed by a SIGKILL") ;
+			else if ( _timeout_fired                             ) set_status(Status::Err,"still alive after having timed out and been killed with SIGKILL"                       ) ;
 			else                                                   FAIL("dont know why still active") ;
 			break ;
 		}
@@ -269,7 +269,7 @@ Status Gather::exec_child() {
 			kill() ;
 		}
 		if ( now>_end_timeout && !_timeout_fired ) {
-			set_status(Status::Err,to_string("timeout after ",timeout.short_str())) ;
+			set_status(Status::Err,"timeout after "+timeout.short_str()) ;
 			kill() ;
 			_timeout_fired = true          ;
 			_end_timeout   = Pdate::Future ;

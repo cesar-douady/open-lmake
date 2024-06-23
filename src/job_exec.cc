@@ -63,12 +63,12 @@ SeqId             g_trace_id      = 0/*garbage*/ ;
 ::umap_s<FileSig> g_created_views ;
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
-	::map_ss        res      ;
-	::string        abs_cwd  = no_slash(*g_root_dir_s) ; if (+g_start_info.cwd_s) { append_to_string(abs_cwd,'/',g_start_info.cwd_s) ; abs_cwd.pop_back() ; }
-	/**/                                res["PWD"        ] = abs_cwd                          ;
-	g_start_info.autodep_env.root_dir = res["ROOT_DIR"   ] = no_slash(*g_root_dir_s)          ;
-	/**/                                res["SEQUENCE_ID"] = to_string(g_seq_id             ) ;
-	/**/                                res["SMALL_ID"   ] = to_string(g_start_info.small_id) ;
+	::map_ss res     ;
+	::string abs_cwd = no_slash(*g_root_dir_s+g_start_info.cwd_s) ;
+	/**/                                res["PWD"        ] = abs_cwd                            ;
+	g_start_info.autodep_env.root_dir = res["ROOT_DIR"   ] = no_slash(*g_root_dir_s)            ;
+	/**/                                res["SEQUENCE_ID"] = ::to_string(g_seq_id             ) ;
+	/**/                                res["SMALL_ID"   ] = ::to_string(g_start_info.small_id) ;
 	for( auto& [k,v] : g_start_info.env ) {
 		if (v!=EnvPassMrkr) {
 			res[k] = ::move(v) ;
@@ -78,9 +78,10 @@ SeqId             g_trace_id      = 0/*garbage*/ ;
 			res[k] = ::move(v) ;
 		}
 	}
-	if      ( g_start_info.keep_tmp_dir                                                    ) g_phy_tmp_dir = to_string(g_phy_root_dir,'/',AdminDirS       ,"tmp/",g_job                ) ;
-	else if ( auto it=res.find("TMPDIR") ; it!=res.end()                                   ) g_phy_tmp_dir = to_string(it->second,'/',g_start_info.key,'/'       ,g_start_info.small_id) ;
-	else if ( g_start_info.tmp_sz_mb==Npos                                                 ) g_phy_tmp_dir = to_string(g_phy_root_dir,'/',PrivateAdminDirS,"tmp/",g_start_info.small_id) ;
+	if      ( g_start_info.keep_tmp_dir                  ) g_phy_tmp_dir = g_phy_root_dir+'/'+AdminDirS       +"tmp/"+g_job                 ;
+	else if ( auto it=res.find("TMPDIR") ; it!=res.end() ) g_phy_tmp_dir = it->second+'/'+g_start_info.key+'/'       +g_start_info.small_id ;
+	else if ( g_start_info.tmp_sz_mb==Npos               ) g_phy_tmp_dir = g_phy_root_dir+'/'+PrivateAdminDirS+"tmp/"+g_start_info.small_id ;
+	//
 	if      ( +g_start_info.job_space.tmp_view && (+g_phy_tmp_dir||g_start_info.tmp_sz_mb) ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_start_info.job_space.tmp_view ;
 	else if ( +g_phy_tmp_dir                                                               ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_phy_tmp_dir                   ;
 	//
@@ -183,11 +184,11 @@ Digest analyze(Status status=Status::New) {                                     
 					if (!written                          ) break ;                               // it is ok to attempt writing as long as attempt does not succeed
 					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                               // it is ok if explicitly allowed by user
 					trace("bad access",ad,flags) ;
-					if (ad.write==Maybe    ) append_to_string( res.msg , "maybe "                      ) ;
-					/**/                     append_to_string( res.msg , "unexpected "                 ) ;
-					                         append_to_string( res.msg , unlnk?"unlink ":"write to "   ) ;
-					if (flags.is_target==No) append_to_string( res.msg , "dep "                        ) ;
-					/**/                     append_to_string( res.msg , mk_file(file,No|!unlnk) , '\n') ;
+					if (ad.write==Maybe    ) res.msg << "maybe "                        ;
+					/**/                     res.msg << "unexpected "                   ;
+					                         res.msg << (unlnk?"unlink ":"write to ")   ;
+					if (flags.is_target==No) res.msg << "dep "                          ;
+					/**/                     res.msg << mk_file(file,No|!unlnk) << '\n' ;
 					reported = true ;
 				break ;
 			}
@@ -200,7 +201,7 @@ Digest analyze(Status status=Status::New) {                                     
 						case Access::Stat : read = "stat"     ; break ;
 						default           : read = "read"     ;
 					}
-					append_to_string( res.msg , read," as dep before being known as a target : ",mk_file(file),'\n' ) ;
+					res.msg << read<<" as dep before being known as a target : "<<mk_file(file)<<'\n' ;
 				}
 				ad.tflags |= Tflag::Incremental ;                                                 // file will have a predictible content, no reason to wash it
 			}
@@ -213,7 +214,7 @@ Digest analyze(Status status=Status::New) {                                     
 			}
 			if ( td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] ) {
 				if ( td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ) {
-					if ( unlnk && status==Status::Ok ) append_to_string( res.msg , "missing static target " , mk_file(file,No/*exists*/) , '\n' ) ; // if job not is ok, this is quite normal, else warn
+					if ( unlnk && status==Status::Ok ) res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ; // if job not is ok, this is quite normal, else warn
 				} else {
 					if ( unlnk                       ) td.tflags &= ~Tflag::Target ; // unless static and non-optional or phony, a target loses its official status if not actually produced
 				}
@@ -239,7 +240,7 @@ Digest analyze(Status status=Status::New) {                                     
 ::vector_s cmd_line() {
 	::vector_s cmd_line = ::move(g_start_info.interpreter) ;                                                     // avoid copying as interpreter is used only here
 	if ( g_start_info.use_script || (g_start_info.cmd.first.size()+g_start_info.cmd.second.size())>ARG_MAX/2 ) { // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		::string cmd_file = to_string(PrivateAdminDirS,"cmds/",g_start_info.small_id) ;
+		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
 		OFStream(dir_guard(cmd_file)) << g_start_info.cmd.first << g_start_info.cmd.second ;
 		cmd_line.reserve(cmd_line.size()+1) ;
 		cmd_line.push_back(::move(cmd_file)) ;
@@ -263,7 +264,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.sig,e.first) ;
 		if (!e.second.crc.valid()) {
 			Lock lock{*msg_mutex} ;
-			append_to_string(*msg,"cannot compute crc for ",e.first) ;
+			*msg<<"cannot compute crc for "<<e.first ;
 		}
 	}
 	trace("done",cnt) ;
@@ -298,12 +299,12 @@ int main( int argc , char* argv[] ) {
 	g_phy_root_dir  =                     argv[6]  ; // passed early so we can chdir and trace early
 	g_trace_id      = from_string<SeqId >(argv[7]) ;
 	//
-	g_trace_file = new ::string{to_string(g_phy_root_dir,'/',PrivateAdminDirS,"trace/job_exec/",g_trace_id)} ;
+	g_trace_file = new ::string{g_phy_root_dir+'/'+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
 	//
 	JobRpcReq end_report { JobRpcProc::End , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error, so we can goto End anytime
 	//
 	if (::chdir(g_phy_root_dir.c_str())!=0) {
-		append_to_string(end_report.msg,"cannot chdir to root : ",g_phy_root_dir,'\n') ;
+		end_report.msg << "cannot chdir to root : "<<g_phy_root_dir<<'\n' ;
 		goto End ;
 	}
 	Trace::s_sz = 10<<20 ;                                                                            // this is more than enough
@@ -372,7 +373,7 @@ int main( int argc , char* argv[] ) {
 		}
 		try {
 			cmd_env = prepare_env(end_report) ;
-			::string chroot_dir = to_string(PrivateAdminDirS,"chroot/",g_start_info.small_id) ;
+			::string chroot_dir = PrivateAdminDirS+"chroot/"s+g_start_info.small_id ;
 			//
 			bool entered = g_start_info.job_space.enter(
 				g_phy_root_dir

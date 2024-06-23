@@ -42,8 +42,8 @@ void app_init( Bool3 chk_version_ , bool cd_root ) {
 	//
 	::string exe = read_lnk("/proc/self/exe") ;
 	g_exe_name = new ::string{base_name(exe)} ;
-	if (!g_trace_file) g_trace_file  = new ::string{to_string(PrivateAdminDirS,"trace/",*g_exe_name)} ;
-	/**/               g_lmake_dir_s = new ::string{dir_name_s(dir_name_s(exe))                     } ;
+	if (!g_trace_file) g_trace_file  = new ::string{PrivateAdminDirS+"trace/"s+*g_exe_name} ;
+	/**/               g_lmake_dir_s = new ::string{dir_name_s(dir_name_s(exe))           } ;
 	//
 	if (chk_version_!=No)
 		try                       { chk_version(chk_version_==Maybe) ; }
@@ -54,13 +54,11 @@ void app_init( Bool3 chk_version_ , bool cd_root ) {
 }
 
 void chk_version( bool may_init , ::string const& admin_dir_s ) {
-	::string   version_file = to_string(admin_dir_s,"version") ;
-	::vector_s stored       = read_lines(version_file)         ;
+	::string   version_file = admin_dir_s+"version"    ;
+	::vector_s stored       = read_lines(version_file) ;
 	if (+stored) {
-		if (stored.size()!=1u     ) throw to_string("bad version file ",version_file) ;
-		if (stored[0]!=VersionMrkr) {
-			throw "version mismatch, "+git_clean_msg() ;
-		}
+		if (stored.size()!=1u     ) throw "bad version file "+version_file     ;
+		if (stored[0]!=VersionMrkr) throw "version mismatch, "+git_clean_msg() ;
 	} else {
 		if (!may_init) throw "repo not initialized, consider : lmake"s ;
 		write_lines( dir_guard(version_file) , {VersionMrkr} ) ;

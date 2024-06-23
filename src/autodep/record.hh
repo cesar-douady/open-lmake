@@ -157,8 +157,8 @@ public :
 	bool            report_access     ( JobExecRpcReq&& , bool force=false ) const ;
 	JobExecRpcReply report_sync_access( JobExecRpcReq&& , bool force=false ) const ;
 	//
-	template<class... A> [[noreturn]] void report_panic(A const&... args) const { report_direct({Proc::Panic,to_string(args...)}) ; exit(Rc::Usage) ; } // continuing is meaningless
-	template<class... A>              void report_trace(A const&... args) const { report_direct({Proc::Trace,to_string(args...)}) ;                   }
+	[[noreturn]] void report_panic(::string&& s) const { report_direct({Proc::Panic,::move(s)}) ; exit(Rc::Usage) ; } // continuing is meaningless
+	/**/         void report_trace(::string&& s) const { report_direct({Proc::Trace,::move(s)}) ;                   }
 	//
 	template<bool Writable=false> struct _Path {                 // if !Writable <=> file is is read-only
 		using Char = ::conditional_t<Writable,char,const char> ;
@@ -228,9 +228,9 @@ public :
 							else if (found) real  = f ;
 							else if (i==0 ) real0 = f ;                                                                  // real0 is only significative when not equal to real
 						}
-						if      (last ) { if (+a) r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a              , to_string(ck,i) ) ; return ; }
-						else if (found) {         r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a|Access::Stat , to_string(ck,i) ) ; return ; }
-						else                      r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi ,   Access::Stat , to_string(ck,i) ) ;
+						if      (last ) { if (+a) r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a              , ck+i ) ; return ; }
+						else if (found) {         r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a|Access::Stat , ck+i ) ; return ; }
+						else                      r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi ,   Access::Stat , ck+i ) ;
 					}
 					return ;
 				}

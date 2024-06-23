@@ -110,8 +110,8 @@ namespace Backends {
 		Trace trace(BeChnl,"s_submit",tag,ji,ri,submit_attrs,rsrcs) ;
 		//
 		if ( tag!=Tag::Local && _localize(tag,ri) ) {
-			SWEAR(+tag<N<Tag>) ;                                                             // prevent compiler array bound warning in next statement
-			if (!s_tab[+tag]) throw to_string("backend ",snake(tag)," is not implemented") ;
+			SWEAR(+tag<N<Tag>) ;                                                   // prevent compiler array bound warning in next statement
+			if (!s_tab[+tag]) throw "backend "s+snake(tag)+" is not implemented" ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
 			tag   = Tag::Local                                                            ;
 			trace("local",rsrcs) ;
@@ -227,13 +227,13 @@ namespace Backends {
 			//
 			pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 5 ;
 		} catch (::pair_ss const& msg_err) {
-			append_line_to_string(start_msg_err.first  , msg_err.first  ) ;
-			append_line_to_string(start_msg_err.second , msg_err.second ) ;
+			start_msg_err.first  <<set_nl<< msg_err.first  ;
+			start_msg_err.second <<set_nl<< msg_err.second ;
 			switch (step) {
-				case 0 : append_line_to_string( start_msg_err.first , rule->cmd              .s_exc_msg(false/*using_static*/) ) ; break ;
-				case 1 : append_line_to_string( start_msg_err.first , rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ) ; break ;
-				case 2 : append_line_to_string( start_msg_err.first , rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ) ; break ;
-				case 3 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
+				case 0 : start_msg_err.first <<set_nl<< rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
+				case 1 : start_msg_err.first <<set_nl<< rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
+				case 2 : start_msg_err.first <<set_nl<< rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
+				case 3 : start_msg_err.first <<set_nl<< "cannot wash targets"                                    ; break ;
 			DF}
 		}
 		trace("deps",step,deps) ;
@@ -247,7 +247,7 @@ namespace Backends {
 				} catch (::pair_ss const& msg_err) {
 					start_none_attrs  = rule->start_none_attrs.spec ;
 					start_msg_err     = msg_err                     ;
-					append_line_to_string( jrr.msg , rule->start_none_attrs.s_exc_msg(true/*using_static*/) ) ;
+					jrr.msg <<set_nl<< rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
 				}
 				keep_tmp_dir |= start_none_attrs.keep_tmp_dir ;
 				//
@@ -271,7 +271,7 @@ namespace Backends {
 						reply.env.push_back(::move(kv)) ;
 					} else if (step==5) {
 						step = 4 ;
-						append_line_to_string( start_msg_err.first , "env variable "+kv.first+" is defined both in environ_cmd and environ_resources" ) ;
+						start_msg_err.first <<set_nl<< "env variable "<<kv.first<<" is defined both in environ_cmd and environ_resources" ;
 					}
 			[[fallthrough]] ;
 			case 1 :
@@ -330,9 +330,9 @@ namespace Backends {
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return false/*keep_fd*/ ;
 		Useful :
-			//                               vvvvvvvvvvvvvvvvvvvvvvv
-			append_line_to_string( jrr.msg , s_start(entry.tag,+job) ) ;
-			//                               ^^^^^^^^^^^^^^^^^^^^^^^
+			//                 vvvvvvvvvvvvvvvvvvvvvvv
+			jrr.msg <<set_nl<< s_start(entry.tag,+job) ;
+			//                 ^^^^^^^^^^^^^^^^^^^^^^^
 			if ( step<5 || !deps_done ) {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				OMsgBuf().send(fd,JobRpcReply(Proc::None)) ; // silently tell job_exec to give up
@@ -608,7 +608,7 @@ namespace Backends {
 						Ptr<Dict> glbs = py_run(cfg.ifce) ;
 						ifce = (*glbs)["interface"].as_a<Str>() ;
 					} catch (::string const& e) {
-						throw to_string("bad interface for ",snake(t),'\n',indent(e,1)) ;
+						throw "bad interface for "s+snake(t)+'\n'+indent(e,1) ;
 					}
 				} else {
 					ifce = host() ;
@@ -640,13 +640,13 @@ namespace Backends {
 		trace("create_start_tab",job,entry) ;
 		::vector_s cmd_line {
 			s_executable
-		,	_s_job_start_thread.fd.service(s_tab[+tag]->addr  )
-		,	_s_job_mngt_thread .fd.service(s_tab[+tag]->addr  )
-		,	_s_job_end_thread  .fd.service(s_tab[+tag]->addr  )
-		,	to_string(entry.conn.seq_id                       )
-		,	to_string(job                                     )
+		,	_s_job_start_thread.fd.service(s_tab[+tag]->addr)
+		,	_s_job_mngt_thread .fd.service(s_tab[+tag]->addr)
+		,	_s_job_end_thread  .fd.service(s_tab[+tag]->addr)
+		,	::to_string(entry.conn.seq_id                       )
+		,	::to_string(job                                     )
 		,	no_slash(*g_root_dir_s)
-		,	to_string(entry.conn.seq_id%g_config->trace.n_jobs)
+		,	::to_string(entry.conn.seq_id%g_config->trace.n_jobs)
 		} ;
 		trace("cmd_line",cmd_line) ;
 		return cmd_line ;

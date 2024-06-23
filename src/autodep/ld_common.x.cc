@@ -168,9 +168,9 @@ struct _Execp : _Exec {
 		}
 		//
 		for( size_t pos=0 ;;) {
-			size_t   end       = p.find(':',pos)                                                   ;
-			size_t   len       = (end==Npos?p.size():end)-pos                                      ;
-			::string full_file = len ? to_string(::string_view(p).substr(pos,len),'/',file) : file ;
+			size_t   end       = p.find(':',pos)                         ;
+			size_t   len       = (end==Npos?p.size():end)-pos            ;
+			::string full_file = len ? p.substr(pos,len)+'/'+file : file ;
 			Record::Read(r,full_file,false/*no_follow*/,true/*keep_real*/,::copy(comment)) ;
 			if (is_exe(full_file,false/*no_follow*/)) {
 				static_cast<Base&>(*this) = Base(r,full_file,false/*no_follow*/,envp,::move(comment)) ;
@@ -208,7 +208,7 @@ struct Fopen : AuditAction<Record::Open> {
 		if (c       ) return O_PATH ;                                                         // gnu extension, no access
 		/**/          return ( p ? O_RDWR : r ? O_RDONLY : O_WRONLY ) | ( w ? O_TRUNC : 0 ) ; // normal posix
 	}
-	Fopen( Record::Path&& pth , const char* mode , ::string const& comment ) : Base{ ::move(pth) , mk_flags(mode) , to_string(comment,'.',mode) } {}
+	Fopen( Record::Path&& pth , const char* mode , ::string const& comment ) : Base{ ::move(pth) , mk_flags(mode) , comment+'.'+mode } {}
 	FILE* operator()(FILE* fp) {
 		Base::operator()(fp?::fileno(fp):-1) ;
 		return fp ;

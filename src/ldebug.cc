@@ -23,9 +23,9 @@ int main( int argc , char* argv[] ) {
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
 	int n_flags = cmd_line.flags[ReqFlag::Enter] + cmd_line.flags[ReqFlag::Graphic] + cmd_line.flags[ReqFlag::Vscode] ;
-	if ( cmd_line.args.size()<1 ) syntax.usage(          "need a target to debug"                                ) ;
-	if ( cmd_line.args.size()>1 ) syntax.usage(to_string("cannot debug ",cmd_line.args.size()," targets at once")) ;
-	if ( n_flags             >1 ) syntax.usage(          "cannot debug with several methods simultaneously"      ) ;
+	if ( cmd_line.args.size()<1 ) syntax.usage("need a target to debug"                                ) ;
+	if ( cmd_line.args.size()>1 ) syntax.usage("cannot debug "s+cmd_line.args.size()+" targets at once") ;
+	if ( n_flags             >1 ) syntax.usage("cannot debug with several methods simultaneously"      ) ;
 	cmd_line.flags |= ReqFlag::Debug ;
 	//
 	::vector_s script_files ;

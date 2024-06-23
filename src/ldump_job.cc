@@ -17,8 +17,8 @@ template<class V> void _print_map(::vmap_s<V> const& m) {
 
 template<class A> void _print_attrs(::vmap_s<A> const& m) {
 	size_t w = 0 ;
-	for( auto const& [k,v] : m ) w = ::max(w,to_string(v).size()) ;
-	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<to_string(v) <<" : "<< k <<'\n' ;
+	for( auto const& [k,_] : m ) w = ::max(w,k.size()) ;
+	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<k <<" : "<< v <<'\n' ;
 }
 
 void print_submit_attrs(SubmitAttrs const& sa) {

@@ -83,7 +83,7 @@ bool/*crashed*/ start_server(bool start) {
 	}
 	if (start) {
 		_g_server_fd.listen() ;
-		::string tmp = ::to_string(ServerMrkr,'.',_g_host,'.',pid) ;
+		::string tmp = ""s+ServerMrkr+'.'+_g_host+'.'+pid ;
 		OFStream(tmp)
 			<< _g_server_fd.service() << '\n'
 			<< getpid()               << '\n'

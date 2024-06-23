@@ -131,7 +131,7 @@ namespace Py {
 		PyObject* s = PyObject_Str(to_py()) ;
 		if (s) try { return s ; } catch (...) {}
 		else   py_err_clear() ;
-		return to_string('<',type_name()," object at 0x",static_cast<void const*>(this),'>') ; // catch any error so calling str is reliable
+		return '<'+type_name()+" object at 0x"+fmt_string(static_cast<void const*>(this))+'>' ; // catch any error so calling str is reliable
 	}
 
 	//

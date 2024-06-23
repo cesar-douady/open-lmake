@@ -46,7 +46,7 @@ struct IMsgBuf : MsgBuf {
 	}
 	template<class T> bool/*complete*/ receive_step( Fd fd , T& res ) {
 		ssize_t cnt = ::read( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) throw to_string("cannot receive over fd ",fd) ;
+		if (cnt<=0) throw "cannot receive over fd "+fmt_string(fd) ;
 		_len += cnt ;
 		if (_len<_buf.size()) return false/*complete*/ ;                          // _buf is still partial
 		if (_data_pass) {
@@ -89,7 +89,7 @@ struct OMsgBuf : MsgBuf {
 	bool/*complete*/ send_step(Fd fd) {
 		SWEAR(_data_pass) ;
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) throw to_string("cannot send over ",fd) ;
+		if (cnt<=0) throw "cannot send over "+fmt_string(fd) ;
 		_len += cnt ;
 		if (_len<_buf.size()) {              return false/*complete*/ ; }               // _buf is still partial
 		else                  { *this = {} ; return true /*complete*/ ; }

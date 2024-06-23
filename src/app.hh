@@ -136,8 +136,8 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (can_mk_enum<Key>(option)) {
 					Key k = mk_enum<Key>(option) ;
 					if (syntax.keys[+k].short_name) {
-						if (has_key) throw to_string("cannot specify both --",option," and --",snake(key)) ;
-						if (*p     ) throw to_string("unexpected value for option --",option             ) ;
+						if (has_key) throw "cannot specify both --"s+option+" and --"+::string(snake(key)) ; // XXX : cast from string_view to string can be suppressed in c++26
+						if (*p     ) throw "unexpected value for option --"s+option                        ;
 						key     = k    ;
 						has_key = true ;
 						continue ;
@@ -146,21 +146,21 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (can_mk_enum<Flag>(option)) {
 					Flag f = mk_enum<Flag>(option) ;
 					if (syntax.flags[+f].short_name) {
-						if (syntax.flags[+f].has_arg) { if (*p!='=') throw to_string("no value for option --"        ,option) ; flag_args[+f] = p+1 ; } // skip = sign
-						else                          { if (*p     ) throw to_string("unexpected value for option --",option) ;                       }
+						if (syntax.flags[+f].has_arg) { if (*p!='=') throw "no value for option --"        +option ; flag_args[+f] = p+1 ; } // skip = sign
+						else                          { if (*p     ) throw "unexpected value for option --"+option ;                       }
 						flags |= f ;
 						continue ;
 					}
 				}
-				if (option=="help") throw ""s                                      ;
-				else                throw to_string("unexpected option --",option) ;
+				if (option=="help") throw ""s                           ;
+				else                throw "unexpected option --"+option ;
 			} else {
 				// short options
 				const char* p ;
 				for( p=arg+1 ; *p ; p++ ) {
 					if (key_map.contains(*p)) {
 						Key k = key_map.at(*p) ;
-						if (has_key) throw to_string("cannot specify both --",snake(k)," and --",snake(key)) ;
+						if (has_key) throw "cannot specify both --"+snake(k)+" and --"+snake(key) ;
 						key     = k    ;
 						has_key = true ;
 					} else if (flag_map.contains(*p)) {
@@ -172,12 +172,12 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 						p++ ;
 						if      (*p      ) flag_args[+f] = p         ;
 						else if (a+1<argc) flag_args[+f] = argv[++a] ;
-						else               throw to_string("no value for option -",*p) ;
+						else               throw "no value for option -"s+*p ;
 						break ;
 					} else if (*p=='h') {
 						throw ""s ;
 					} else {
-						throw to_string("unexpected option -",*p) ;
+						throw "unexpected option -"s+*p ;
 					}
 				}
 			}

@@ -63,11 +63,11 @@ using namespace Time ;
 		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
-			for( char c : "54321"s ) { ::string old = to_string(*g_trace_file,'.',c) ; if (+prev_old) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
-			/**/                                                                       if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
+			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
+			/**/                                                            if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
 		}
-		::string trace_dir      = dir_name(*g_trace_file)                                      ;
-		::string tmp_trace_file = to_string(trace_dir,'/',Pdate(New).nsec_in_s(),'-',getpid()) ;
+		::string trace_dir      = dir_name(*g_trace_file)                                        ;
+		::string tmp_trace_file = trace_dir+'/'+::to_string(Pdate(New).nsec_in_s())+'-'+getpid() ;
 		try                        { mk_dir(trace_dir) ;                               }
 		catch (::string const& e ) { FAIL("cannot create trace dir",trace_dir,':',e) ; }
 		//

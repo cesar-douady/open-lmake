@@ -254,23 +254,33 @@ struct IStringStream : ::istringstream {
 // string
 //
 
+static constexpr size_t Npos = ::string::npos ;
+
 inline bool operator+(::string      const& s) { return !s.empty() ; }
 inline bool operator!(::string      const& s) { return !+s        ; }
 inline bool operator+(::string_view const& s) { return !s.empty() ; }
 inline bool operator!(::string_view const& s) { return !+s        ; }
 
-static constexpr size_t Npos = ::string::npos ;
+namespace std {
+	inline                                                ::string operator+( ::string          && a , ::string_view const& b ) { return ::move     (a)+::string   (b) ; } // XXX : suppress with c++26
+	inline                                                ::string operator+( ::string      const& a , ::string_view const& b ) { return             a +::string   (b) ; } // XXX : suppress with c++26
+	inline                                                ::string operator+( ::string_view const& a , ::string      const& b ) { return ::string   (a)+            b  ; } // .
+	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( ::string          && a , I                    b ) { return ::move     (a)+::to_string(b) ; }
+	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( ::string      const& a , I                    b ) { return             a +::to_string(b) ; }
+	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( I                    a , ::string const&      b ) { return ::to_string(a)+            b  ; }
+	//
+	inline                                                ::string& operator+=( ::string& a , ::string_view const& b ) { a += ::string   (b) ; return a ; } // XXX : suppress with c++26
+	template<::integral I> requires(!::is_same_v<I,char>) ::string& operator+=( ::string& a , I                    b ) { a += ::to_string(b) ; return a ; }
+	// work around stupid += righ associativity
+	template<class T> requires requires { ::ref(::string())+=::decay_t<T>() ; } ::string& operator<<( ::string& s , T&&                         v ) { s += ::forward<T>(v) ; return s ; }
+	inline                                                                      ::string& operator<<( ::string& s , ::function<void(::string&)> f ) { f(s) ;                 return s ; }
+}
 
-template<class... A> ::string to_string(A const&... args) {
+template<class... A> ::string fmt_string(A const&... args) {
 	OStringStream res ;
 	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
 	return res.str() ;
 }
-//
-inline ::string to_string(::string const& s) { return  s  ; } // fast path
-inline ::string to_string(const char*     s) { return  s  ; } // .
-inline ::string to_string(char            c) { return {c} ; } // .
-inline ::string to_string(                 ) { return {}  ; } // .
 
 template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const& txt , bool empty_ok=false , bool hex=false ) {
 	static constexpr bool IsBool = is_same_v<I,bool> ;
@@ -338,18 +348,6 @@ inline ::string ensure_nl   (::string     && txt) { set_nl   (txt) ; return txt 
 inline ::string ensure_no_nl(::string     && txt) { set_no_nl(txt) ; return txt ;                    }
 inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::copy(txt)) ;               }
 inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::copy(txt)) ;               }
-
-template<class T> void _append_to_string( ::string& dst , T&&             x ) { dst += to_string(::forward<T>(x)) ; }
-inline            void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path
-inline            void _append_to_string( ::string& dst , const char*     s ) { dst +=                        s   ; } // .
-inline            void _append_to_string( ::string& dst , char            c ) { dst +=                        c   ; } // .
-template<class... A> void append_to_string( ::string& dst , A&&... args ) {
-	[[maybe_unused]] bool _[] = { false , (_append_to_string(dst,::forward<A>(args)),false)... } ;
-}
-template<class... A> void append_line_to_string( ::string& dst , A&&... args ) {
-	set_nl(dst) ;
-	append_to_string(dst,::forward<A>(args)...) ;
-}
 
 template<char C='\t',size_t N=1> ::string indent( ::string const& s , size_t i=1 ) {
 	::string res ; res.reserve(s.size()+N*(s.size()>>4)) ;                           // anticipate lines of size 16, this is a reasonable pessimistic guess (as overflow is expensive)
@@ -481,8 +479,8 @@ template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] )
 	#endif
 }
 
-template<class... A> constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw to_string(args...) ; }
-template<class... A> constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw to_string(args...) ; }
+template<class... A> constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw fmt_string(args...) ; }
+template<class... A> constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw fmt_string(args...) ; }
 
 template<class... A> constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
@@ -754,7 +752,7 @@ template<StdEnum E> bool can_mk_enum(::string const& x) {
 
 template<StdEnum E> E mk_enum(::string const& x) {
 	::pair<E,bool/*ok*/> res = _mk_enum<E>(x) ;
-	if (!res.second) throw to_string("cannot make enum ",EnumName<E>," from ",x) ;
+	if (!res.second) throw "cannot make enum "s+EnumName<E>+" from "+x ;
 	return res.first ;
 }
 
@@ -1083,7 +1081,7 @@ ENUM( Rc
 )
 
 template<class... A> [[noreturn]] void exit( Rc rc , A const&... args ) {
-	::cerr << ensure_nl(to_string(args...)) ;
+	::cerr << ensure_nl(fmt_string(args...)) ;
 	::std::exit(+rc) ;
 }
 
@@ -1094,8 +1092,6 @@ template<class... A> [[noreturn]] void exit( Rc rc , A const&... args ) {
 //
 // string
 //
-
-template<class T> ::string& operator<<( ::string& s , T&& v ) { s += ::forward<T>(v) ; return s ; } // work aroung stupid right to left associativity of +=
 
 inline constexpr bool _can_be_delimiter(char c) {                   // ensure delimiter does not clash with encoding
 	if ( c=='\\'          ) return false ;
@@ -1119,8 +1115,8 @@ template<char Delimiter> ::string mk_printable(::string const& s) { // encode s 
 			case '\v' : res += "\\v"  ; break ;
 			case '\\' : res += "\\\\" ; break ;
 			default   :
-				if ( is_printable(c) && c!=Delimiter ) res +=                                                                    c   ;
-				else                                   res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(uint8_t(c))) ;
+				if ( is_printable(c) && c!=Delimiter ) res +=                                                                     c    ;
+				else                                   res += fmt_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(uint8_t(c))) ;
 		}
 	}
 	return res ;
@@ -1137,22 +1133,22 @@ template<char Delimiter> ::string parse_printable( ::string const& s , size_t& p
 		else if (c!='\\'         ) res += c ;
 		else
 			switch (s_c[++pos]) {
-				case 'a'  : res += '\a' ; break/*switch*/ ;
-				case 'b'  : res += '\b' ; break/*switch*/ ;
-				case 'e'  : res += 0x1b ; break/*switch*/ ;
-				case 'f'  : res += '\f' ; break/*switch*/ ;
-				case 'n'  : res += '\n' ; break/*switch*/ ;
-				case 'r'  : res += '\r' ; break/*switch*/ ;
-				case 't'  : res += '\t' ; break/*switch*/ ;
-				case 'v'  : res += '\v' ; break/*switch*/ ;
-				case '\\' : res += '\\' ; break/*switch*/ ;
+				case 'a'  : res += '\a'       ; break/*switch*/ ;
+				case 'b'  : res += '\b'       ; break/*switch*/ ;
+				case 'e'  : res += char(0x1b) ; break/*switch*/ ;
+				case 'f'  : res += '\f'       ; break/*switch*/ ;
+				case 'n'  : res += '\n'       ; break/*switch*/ ;
+				case 'r'  : res += '\r'       ; break/*switch*/ ;
+				case 't'  : res += '\t'       ; break/*switch*/ ;
+				case 'v'  : res += '\v'       ; break/*switch*/ ;
+				case '\\' : res += '\\'       ; break/*switch*/ ;
 				//
 				case 'x' :
 					res += char(from_string<uint8_t>(::string_view(s_c+pos+1,2),false/*empty_ok*/,true/*hex*/)) ;
 					pos += 2                                                                                    ;
 				break/*switch*/ ;
 				//
-				default : throw to_string("illegal code \\",s_c[pos]) ;
+				default : throw "illegal code \\"s+s_c[pos] ;
 			}
 	return res ;
 }
@@ -1172,7 +1168,7 @@ constexpr inline int _unit_val(char u) {
 		case 'p' : return -40 ; break ;
 		case 'f' : return -50 ; break ;
 		case 'a' : return -60 ; break ;
-		default  : throw to_string("unrecognized suffix ",u) ;
+		default  : throw "unrecognized suffix "s+u ;
 	}
 }
 template<char U,::integral I> I from_string_with_units(::string const& s) {
@@ -1182,8 +1178,8 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 	const char*         s_end   = s_start+s.size()                ;
 	::from_chars_result fcr     = ::from_chars(s_start,s_end,val) ;
 	//
-	if (fcr.ec!=::errc()) throw to_string("unrecognized value "        ,s) ;
-	if (fcr.ptr<s_end-1 ) throw to_string("partially recognized value ",s) ;
+	if (fcr.ec!=::errc()) throw "unrecognized value "        +s ;
+	if (fcr.ptr<s_end-1 ) throw "partially recognized value "+s ;
 	//
 	static constexpr int B = _unit_val(U       ) ;
 	/**/             int b = _unit_val(*fcr.ptr) ;
@@ -1212,23 +1208,23 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 
 template<char U,::integral I> ::string to_string_with_units(I x) {
 	if (!x) {
-		if (U) return to_string(0,U) ;
-		else   return to_string(0  ) ;
+		if (U) return "0"s+U ;
+		else   return "0"    ;
 	}
 	//
 	switch (U) {
-		case 'a' : if (x&0x3ff) return to_string(x,'a') ; x >>= 10 ; [[fallthrough]] ;
-		case 'f' : if (x&0x3ff) return to_string(x,'f') ; x >>= 10 ; [[fallthrough]] ;
-		case 'p' : if (x&0x3ff) return to_string(x,'p') ; x >>= 10 ; [[fallthrough]] ;
-		case 'n' : if (x&0x3ff) return to_string(x,'n') ; x >>= 10 ; [[fallthrough]] ;
-		case 'u' : if (x&0x3ff) return to_string(x,'u') ; x >>= 10 ; [[fallthrough]] ;
-		case 'm' : if (x&0x3ff) return to_string(x,'m') ; x >>= 10 ; [[fallthrough]] ;
-		case 0   : if (x&0x3ff) return to_string(x    ) ; x >>= 10 ; [[fallthrough]] ;
-		case 'k' : if (x&0x3ff) return to_string(x,'k') ; x >>= 10 ; [[fallthrough]] ;
-		case 'M' : if (x&0x3ff) return to_string(x,'M') ; x >>= 10 ; [[fallthrough]] ;
-		case 'G' : if (x&0x3ff) return to_string(x,'G') ; x >>= 10 ; [[fallthrough]] ;
-		case 'T' : if (x&0x3ff) return to_string(x,'T') ; x >>= 10 ; [[fallthrough]] ;
-		case 'P' : if (x&0x3ff) return to_string(x,'P') ; x >>= 10 ; [[fallthrough]] ;
-		case 'E' :              return to_string(x,'E') ;
+		case 'a' : if (x&0x3ff) return ::to_string(x)+'a' ; x >>= 10 ; [[fallthrough]] ;
+		case 'f' : if (x&0x3ff) return ::to_string(x)+'f' ; x >>= 10 ; [[fallthrough]] ;
+		case 'p' : if (x&0x3ff) return ::to_string(x)+'p' ; x >>= 10 ; [[fallthrough]] ;
+		case 'n' : if (x&0x3ff) return ::to_string(x)+'n' ; x >>= 10 ; [[fallthrough]] ;
+		case 'u' : if (x&0x3ff) return ::to_string(x)+'u' ; x >>= 10 ; [[fallthrough]] ;
+		case 'm' : if (x&0x3ff) return ::to_string(x)+'m' ; x >>= 10 ; [[fallthrough]] ;
+		case 0   : if (x&0x3ff) return ::to_string(x)     ; x >>= 10 ; [[fallthrough]] ;
+		case 'k' : if (x&0x3ff) return ::to_string(x)+'k' ; x >>= 10 ; [[fallthrough]] ;
+		case 'M' : if (x&0x3ff) return ::to_string(x)+'M' ; x >>= 10 ; [[fallthrough]] ;
+		case 'G' : if (x&0x3ff) return ::to_string(x)+'G' ; x >>= 10 ; [[fallthrough]] ;
+		case 'T' : if (x&0x3ff) return ::to_string(x)+'T' ; x >>= 10 ; [[fallthrough]] ;
+		case 'P' : if (x&0x3ff) return ::to_string(x)+'P' ; x >>= 10 ; [[fallthrough]] ;
+		case 'E' :              return ::to_string(x)+'E' ;
 	DF}
 }

@@ -39,8 +39,8 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 			case '\\' : res += "\\\\" ; break ;                   // .
 			case '\'' : res += "\\'"  ; break ;                   // .
 			default :
-				if (is_printable(c)) res +=                                                            c   ;
-				else                 res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
+				if (is_printable(c)) res +=                                                             c   ;
+				else                 res += fmt_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
 		}
 	}
 	res += '\'' ;
@@ -59,8 +59,8 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 			case '\\' : res += "\\\\" ; break ;                  // .
 			case '"'  : res += "\\\"" ; break ;                  // .
 			default :
-				if (is_printable(c)) res +=                                                            c   ;
-				else                 res += to_string("\\u",::right,::setfill('0'),::hex,::setw(4),int(c)) ;
+				if (is_printable(c)) res +=                                                             c   ;
+				else                 res += fmt_string("\\u",::right,::setfill('0'),::hex,::setw(4),int(c)) ;
 		}
 	}
 	res += '"' ;

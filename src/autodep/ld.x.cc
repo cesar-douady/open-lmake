@@ -90,9 +90,9 @@ struct Elf {
 	// data
 	Record*                   r               = nullptr/*garbage*/ ;
 	::string                  ld_library_path ;
-	::string                  rpath           ;                                                        // DT_RPATH or DT_RUNPATH entry
+	::string                  rpath           ;                                                                    // DT_RPATH or DT_RUNPATH entry
 	::umap_s<Bool3/*exists*/> seen            = {}                 ;
-	bool                      simple_llp      = false              ;                                   // if true => ld_library_path contains no dir to the repo
+	bool                      simple_llp      = false              ;                                               // if true => ld_library_path contains no dir to the repo
 } ;
 
 Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
@@ -215,10 +215,10 @@ Record::ReadCS Elf::search_elf( ::string const& file , ::string const& runpath ,
 	}
 	//
 	::string path ;
-	if (+rpath          ) append_to_string( path , rpath           , ':' ) ;
-	if (+ld_library_path) append_to_string( path , ld_library_path , ':' ) ;
-	if (+runpath        ) append_to_string( path , runpath         , ':' ) ;
-	path += "/lib:/usr/lib:/lib64:/usr/lib64" ;                                                                            // XXX : find a reliable way to get default directories
+	if (+rpath          ) path << rpath           << ':'            ;
+	if (+ld_library_path) path << ld_library_path << ':'            ;
+	if (+runpath        ) path << runpath         << ':'            ;
+	/**/                  path << "/lib:/usr/lib:/lib64:/usr/lib64" ;                                                      // XXX : find a reliable way to get default directories
 	//
 	for( size_t pos=0 ;;) {
 		size_t end = path.find(':',pos) ;
@@ -256,10 +256,10 @@ Record::ReadCS search_elf( Record& r , const char* file , ::string&& comment ) {
 	if (!file) return {} ;
 	static Elf::DynDigest s_digest { New } ;
 	try                       { return Elf(r,{},get_ld_library_path(),s_digest.rpath).search_elf( file , Elf::s_expand(s_digest.runpath) , ::move(comment) ) ; }
-	catch (::string const& e) { r.report_panic("while searching elf executable ",file," : ",e) ; return {} ;                                                   } // if we cannot report the dep, panic
+	catch (::string const& e) { r.report_panic("while searching elf executable "s+file+" : "+e) ; return {} ;                                                  } // if we cannot report the dep, panic
 }
 
 void elf_deps( Record& r , Record::SolveCS const& file , const char* ld_library_path , ::string&& comment ) {
 	try                       { Elf(r,file.real,ld_library_path).elf_deps( file , true/*top*/ , ::move(comment) ) ; }
-	catch (::string const& e) { r.report_panic("while analyzing elf executable ",mk_file(file.real)," : ",e) ;      } // if we cannot report the dep, panic
+	catch (::string const& e) { r.report_panic("while analyzing elf executable "+mk_file(file.real)+" : "+e) ;      } // if we cannot report the dep, panic
 }

@@ -587,7 +587,7 @@ namespace Engine::Persistent {
 			::string nn   = n->name() ;
 			::string nn_s = nn+'/'    ;
 			for( auto const& [sn,_] : src_names )
-				if ( sn.starts_with(nn_s) ) throw to_string("source ",(t==FileTag::Dir?"dir ":""),nn," is a dir of ",sn) ;
+				if ( sn.starts_with(nn_s) ) throw "source "s+(t==FileTag::Dir?"dir ":"")+nn+" is a dir of "+sn ;
 			FAIL(nn,"is a source dir of no source") ;
 		}
 		// compute diff

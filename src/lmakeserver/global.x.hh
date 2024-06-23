@@ -235,9 +235,9 @@ namespace Engine {
 	inline void audit_ctrl_c ( Fd out , ::ostream& log , ReqOptions const& ro ) { _audit_ctrl_c(out,&log   ,ro) ; }
 	inline void audit_ctrl_c ( Fd out ,                  ReqOptions const& ro ) { _audit_ctrl_c(out,nullptr,ro) ; }
 
-	template<class... A> ::string title    ( ReqOptions const& , A&&... ) ;
-	inline               ::string color_pfx( ReqOptions const& , Color  ) ;
-	inline               ::string color_sfx( ReqOptions const& , Color  ) ;
+	inline ::string title    ( ReqOptions const& , ::string const& ) ;
+	inline ::string color_pfx( ReqOptions const& , Color           ) ;
+	inline ::string color_sfx( ReqOptions const& , Color           ) ;
 
 }
 
@@ -421,19 +421,19 @@ namespace Engine {
 
 	inline ::string reason_str(JobReason const& reason) {
 		::string res = reason.msg() ;
-		if (reason.node) append_to_string( res ," : ", Disk::mk_file(Node(reason.node)->name()) ) ;
+		if (reason.node) res <<" : "<< Disk::mk_file(Node(reason.node)->name()) ;
 		return res ;
 	}
 
-	template<class... A> ::string title( ReqOptions const& ro , A&&... args ) {
+	inline ::string title( ReqOptions const& ro , ::string const& s ) {
 		if (ro.reverse_video==Maybe) return {} ;
-		return to_string( "\x1b]0;" , ::forward<A>(args)... , '\a' ) ;
+		return "\x1b]0;" + s + '\a' ;
 	}
 
 	inline ::string color_pfx( ReqOptions const& ro , Color color ) {
 		if ( color==Color::None || ro.reverse_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
 		::array<uint8_t,3/*RGB*/> const& colors = g_config->colors[+color][ro.reverse_video==Yes] ;
-		return to_string( "\x1b[38;2;" , int(colors[0/*R*/]) ,';', int(colors[1/*G*/]) ,';', int(colors[2/*B*/]) , 'm' ) ;
+		return "\x1b[38;2;"s + int(colors[0/*R*/]) +';'+ int(colors[1/*G*/]) +';'+ int(colors[2/*B*/]) + 'm' ;
 	}
 
 	inline ::string color_sfx(ReqOptions const& ro , Color color ) {

@@ -162,8 +162,8 @@ namespace Backends::Slurm {
 						case 'u' : if(k=="use_nice"         ) { use_nice          = from_string<bool    >(v) ; continue ; } break ;
 						default : ;
 					}
-				} catch (::string const& e) { trace("bad_val",k,v) ; throw to_string("wrong value for entry "   ,k,": ",v) ; }
-				/**/                        { trace("bad_key",k  ) ; throw to_string("unexpected config entry: ",k       ) ; }
+				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
+				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
 			if (!dynamic) daemon = slurm_sense_daemon() ;
 			trace("done") ;
@@ -171,7 +171,7 @@ namespace Backends::Slurm {
 
 		virtual ::vmap_ss descr() const {
 			::vmap_ss res ;
-			for( auto const& [k,v] : daemon.licenses ) res.emplace_back(k,to_string(v)) ;
+			for( auto const& [k,v] : daemon.licenses ) res.emplace_back(k,::to_string(v)) ;
 			return res ;
 		}
 
@@ -208,21 +208,18 @@ namespace Backends::Slurm {
 		//
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
-Trace trace("fit_now",spawned_rsrcs,rsa,STR(res)) ;
 			return res ;
 		}
 		virtual Rsrcs acquire_rsrcs(RsrcsAsk const& rsa) const {
-Trace trace("acquire_rsrcs",spawned_rsrcs,rsa) ;
 			spawned_rsrcs.inc(rsa) ;
 			return rsa ;
 		}
 		virtual void start_rsrcs(Rsrcs const& rs) const {
 			spawned_rsrcs.dec(rs) ;
-Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 		}
 		virtual ::string start_job( JobIdx , SpawnedEntry const& se ) const {
 			SWEAR(+se.rsrcs) ;
-			return to_string("slurm_id:",se.id) ;
+			return "slurm_id:"s+se.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
 			if ( !se.verbose && s>Status::Async ) return {{},true/*retry*/} ;                           // common case, must be fast, if job was ended asynchronously, better to ask slurm controler why
@@ -243,9 +240,9 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 			}
 			info.first = "job is still alive" ;
 		JobDead :
-			if ( se.verbose && +info.first ) {                          // XXX : only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
+			if ( se.verbose && +info.first ) {                       // XXX : only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
-				if (+stderr) append_line_to_string(info.first,stderr) ; // full report
+				if (+stderr) info.first <<set_nl<< stderr ;          // full report
 			}
 			return { info.first , info.second!=No } ;
 		}
@@ -253,7 +250,7 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 			::pair_s<Bool3/*job_ok*/> info = slurm_job_state(se.id) ;
 			if (info.second==Maybe) return {{}/*msg*/,HeartbeatState::Alive} ;
 			//
-			if ( se.verbose && +info.first ) {                          // XXX : only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
+			if ( se.verbose && +info.first ) {                       // XXX : only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
 				if (+stderr) { set_nl(info.first) ; info.first += stderr ; }
 			}
@@ -261,7 +258,7 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;        // asynchronous (as faster and no return value) cancel
+			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;     // asynchronous (as faster and no return value) cancel
 		}
 		virtual SlurmId launch_job( ::stop_token st , JobIdx j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
@@ -321,7 +318,7 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 		SWEAR(v.size()>1) ;
 		sort(v) ;
 		s = v[0] ;
-		for( size_t i=1 ; i<v.size() ; i++ ) append_to_string(s,',',v[i]) ;
+		for( size_t i=1 ; i<v.size() ; i++ ) s<<','<<v[i] ;
 	}
 	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
 		sort(m) ;
@@ -332,7 +329,7 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 			RsrcsDataSingle& rsds = grow(*this,n)                                          ;
 			//
 			auto chk_first = [&]()->void {
-				if (n) throw to_string(k," is only for 1st component of job, not component ",n) ;
+				if (n) throw k+" is only for 1st component of job, not component "+n ;
 			} ;
 			switch (k[0]) {
 				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
@@ -351,11 +348,11 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 			if ( auto it = d.licenses.find(k) ; it!=d.licenses.end() ) {
 				chk_first() ;
 				if (+rsds.licenses) rsds.licenses += ',' ;
-				rsds.licenses += to_string(k,':',v) ;
+				rsds.licenses += k+':'+v ;
 				continue ;
 			}
 			//
-			throw to_string("no resource ",k," for backend ",snake(MyTag)) ;
+			throw "no resource "+k+" for backend "+snake(MyTag) ;
 
 		}
 		if (!(*this)[0].mem) throw "reserving memory is compulsery"s ;
@@ -411,12 +408,12 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 	static constexpr char LibSlurm[] = "libslurm.so" ;
 	template<class T> void _load_func( void* handler , T*& dst , const char* name ) {
 		dst = reinterpret_cast<T*>(::dlsym(handler,name)) ;
-		if (!dst) throw to_string("cannot find ",name," in ",LibSlurm) ;
+		if (!dst) throw "cannot find "s+name+" in "+LibSlurm ;
 	}
 	void slurm_init() {
 		Trace trace(BeChnl,"slurm_init") ;
 		void* handler = ::dlopen(LibSlurm,RTLD_NOW|RTLD_GLOBAL) ;
-		if (!handler) throw to_string("cannot find ",LibSlurm) ;
+		if (!handler) throw "cannot find "s+LibSlurm ;
 		//
 		_load_func( handler , SlurmApi::free_ctl_conf                     , "slurm_free_ctl_conf"                     ) ;
 		_load_func( handler , SlurmApi::free_job_info_msg                 , "slurm_free_job_info_msg"                 ) ;
@@ -494,7 +491,7 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 				//
 				if (result.count("help")) seen_help = true ;
 			} catch (const cxxopts::exceptions::exception& e) {
-				throw to_string("Error while parsing slurm options: ",e.what()) ;
+				throw "Error while parsing slurm options: "s+e.what() ;
 			}
 			res.push_back(res1) ;
 			argc = 1 ;
@@ -524,7 +521,7 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",slurm_err()) ;
 	}
 
-	::pair_s<Bool3/*job_ok*/> slurm_job_state(SlurmId slurm_id) {                                                                    // Maybe means job has not completed
+	::pair_s<Bool3/*job_ok*/> slurm_job_state(SlurmId slurm_id) {                                                                     // Maybe means job has not completed
 		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
 		SWEAR(slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
@@ -533,17 +530,17 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 				switch (errno) {
 					case EAGAIN                              :
 					case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                             job_ok
-					case ESLURM_NODES_BUSY                   : return { "slurm daemon busy : "   +slurm_err() , Maybe } ;            // no info : heartbeat will retry, end will eventually cancel
+					case ESLURM_NODES_BUSY                   : return { "slurm daemon busy : "   +slurm_err() , Maybe } ;             // no info : heartbeat will retry, end will eventually cancel
 					default                                  : return { "cannot load job info : "+slurm_err() , Yes   } ;
 				}
 		}
-		bool completed = true ;                                                                                                      // job is completed if all tasks are
+		bool completed = true ;                                                                                                       // job is completed if all tasks are
 		for ( uint32_t i=0 ; i<resp->record_count ; i++ ) {
 			slurm_job_info_t const& ji = resp->job_array[i]                          ;
 			job_states              js = job_states( ji.job_state & JOB_STATE_BASE ) ;
 			//
 			completed &= js>=JOB_COMPLETE ;
-			if (js<=JOB_COMPLETE) continue ;                                                                                         // we only search errors
+			if (js<=JOB_COMPLETE) continue ;                                                                                          // we only search errors
 			const char* on_nodes  = !ji.nodes||::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
 			int         exit_code = ji.exit_code                                                            ;
 			// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
@@ -553,19 +550,19 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 			switch(js) {
 				// if slurm sees job failure, somthing weird occurred (if actual job fails, job_exec reports an error and completes successfully) -> retry
 				// possible job_states values (from slurm.h) :
-				//   JOB_PENDING                                                                                                     // queued waiting for initiation
-				//   JOB_RUNNING                                                                                                     // allocated resources and executing
-				//   JOB_SUSPENDED                                                                                                   // allocated resources, execution suspended
-				//   JOB_COMPLETE                                                                                                    // completed execution successfully
-				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ; // cancelled by user
-				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ; // completed execution unsuccessfully
-				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // terminated on reaching time limit
-				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on node failure
-				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to preemption
-				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to node boot failure
-				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on deadline
-				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // experienced out of memory error
-				//   JOB_END                                                                                                         // not a real state, last entry in table
+				//   JOB_PENDING                                                                                                      // queued waiting for initiation
+				//   JOB_RUNNING                                                                                                      // allocated resources and executing
+				//   JOB_SUSPENDED                                                                                                    // allocated resources, execution suspended
+				//   JOB_COMPLETE                                                                                                     // completed execution successfully
+				case JOB_CANCELLED : return { "cancelled by user"s                                                , Yes/*job_ok*/ } ; // cancelled by user
+				case JOB_FAILED    : return { "failed ("+wstatus_str(exit_code)+')'+on_nodes+fmt_string(ji.nodes) , No /*job_ok*/ } ; // completed execution unsuccessfully
+				case JOB_TIMEOUT   : return { "timeout"s                           +on_nodes+fmt_string(ji.nodes) , No /*job_ok*/ } ; // terminated on reaching time limit
+				case JOB_NODE_FAIL : return { "node failure"s                      +on_nodes+fmt_string(ji.nodes) , Yes/*job_ok*/ } ; // terminated on node failure
+				case JOB_PREEMPTED : return { "preempted"s                         +on_nodes+fmt_string(ji.nodes) , Yes/*job_ok*/ } ; // terminated due to preemption
+				case JOB_BOOT_FAIL : return { "boot failure"s                      +on_nodes+fmt_string(ji.nodes) , Yes/*job_ok*/ } ; // terminated due to node boot failure
+				case JOB_DEADLINE  : return { "deadline reached"s                  +on_nodes+fmt_string(ji.nodes) , Yes/*job_ok*/ } ; // terminated on deadline
+				case JOB_OOM       : return { "out of memory"s                     +on_nodes+fmt_string(ji.nodes) , No /*job_ok*/ } ; // experienced out of memory error
+				//   JOB_END                                                                                                          // not a real state, last entry in table
 				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
 			}
 		}
@@ -582,17 +579,17 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 		::string err_file = _get_stderr_path(job) ;
 		try {
 			::string res = read_content(err_file) ;
-			if (!res) return {}                                            ;
-			else      return to_string("stderr from : ",err_file,'\n',res) ;
+			if (!res) return {}                                 ;
+			else      return "stderr from : "+err_file+'\n'+res ;
 		} catch (::string const&) {
-			return to_string("stderr not found : ",err_file) ;
+			return "stderr not found : "+err_file ;
 		}
 	}
 
 	static ::string _cmd_to_string(::vector_s const& cmd_line) {
 		::string res = "#!/bin/sh" ;
 		char sep = '\n' ;
-		for ( ::string const& s : cmd_line ) { append_to_string(res,sep,s) ; sep = ' ' ; }
+		for ( ::string const& s : cmd_line ) { res<<sep<<s ; sep = ' ' ; }
 		res += '\n' ;
 		return res ;
 	}
@@ -689,8 +686,8 @@ Trace trace("start_rsrcs",spawned_rsrcs,rs) ;
 		slurm_conf_t* conf = nullptr ;
 		// XXX : remember last conf read so as to pass a real update_time param & optimize call
 		{	Lock lock { _slurm_mutex } ;
-			if (!is_target("/etc/slurm/slurm.conf")                           ) throw "no slurm config file /etc/slur/slurm.conf"s          ;
-			if (SlurmApi::load_ctl_conf(0/*update_time*/,&conf)!=SLURM_SUCCESS) throw to_string("cannot reach slurm daemon : ",slurm_err()) ;
+			if (!is_target("/etc/slurm/slurm.conf")                           ) throw "no slurm config file /etc/slur/slurm.conf"s ;
+			if (SlurmApi::load_ctl_conf(0/*update_time*/,&conf)!=SLURM_SUCCESS) throw "cannot reach slurm daemon : "+slurm_err()   ;
 		}
 		SWEAR(conf) ;
 		Daemon res ;

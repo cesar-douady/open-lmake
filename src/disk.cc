@@ -128,7 +128,7 @@ namespace Disk {
 			if (last_slash==Npos) { SWEAR(+d_sv) ; d_sv = d_sv.substr(0,0           ) ; }
 			else                  {                d_sv = d_sv.substr(0,last_slash+1) ; } // keep new ending /
 		}
-		return to_string(d_sv,f_v) ;
+		return ""s+d_sv+f_v ;
 	}
 
 	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) {
@@ -157,10 +157,10 @@ namespace Disk {
 		Fd dir_fd = at ;
 		if      (+dir       ) dir_fd = ::openat( at , dir.c_str() , O_RDONLY|O_DIRECTORY ) ;
 		else if (at==Fd::Cwd) dir_fd = ::openat( at , "."         , O_RDONLY|O_DIRECTORY ) ;
-		if (!dir_fd) throw to_string("cannot open dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir," : ",strerror(errno)) ;
+		if (!dir_fd) throw "cannot open dir "+(at==Fd::Cwd?""s:"@"s+at.fd+':')+dir+" : "+strerror(errno) ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
-		if (!dir_fp) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir," : ",strerror(errno)) ;
+		if (!dir_fp) throw "cannot list dir "+(at==Fd::Cwd?""s:"@"s+at.fd+':')+dir+" : "+strerror(errno) ;
 		//
 		::vector_s res ;
 		while ( struct dirent* entry = ::readdir(dir_fp) ) {
@@ -187,10 +187,10 @@ namespace Disk {
 		else        SWEAR( at!=Fd::Cwd || +file , force ) ;
 		if (::unlinkat(at,file.c_str(),0)==0           ) return true /*done*/ ;
 		if (errno==ENOENT                              ) return false/*done*/ ;
-		if (!dir_ok                                    ) throw to_string("cannot unlink "     ,file) ;
-		if (errno!=EISDIR                              ) throw to_string("cannot unlink file ",file) ;
+		if (!dir_ok                                    ) throw "cannot unlink "     +file ;
+		if (errno!=EISDIR                              ) throw "cannot unlink file "+file ;
 		unlnk_inside(at,file,force) ;
-		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw to_string("cannot unlink dir " ,file) ;
+		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw "cannot unlink dir " +file ;
 		return true/*done*/ ;
 	}
 
@@ -219,12 +219,12 @@ namespace Disk {
 			return true/*done*/ ;
 		}
 	Bad :
-		if (at==Fd::Cwd) throw to_string(msg,' ',         file) ;
-		else             throw to_string(msg," @",+at,':',file) ;
+		if (at==Fd::Cwd) throw ::string(msg)+' '           +file ;
+		else             throw ::string(msg)+" @"+at.fd+':'+file ;
 	}
 
 	void rmdir( Fd at , ::string const& dir ) {
-		if (::unlinkat(at,dir.c_str(),AT_REMOVEDIR)!=0) throw to_string("cannot rmdir ",dir) ;
+		if (::unlinkat(at,dir.c_str(),AT_REMOVEDIR)!=0) throw "cannot rmdir "+dir ;
 	}
 
 	::vector_s read_lines(::string const& filename) {
@@ -303,8 +303,8 @@ namespace Disk {
 				default :
 					msg = "cannot create dir" ;
 				Bad :
-					if (at==Fd::Cwd) throw to_string(msg,' ' ,       d) ;
-					else             throw to_string(msg," @",at,':',d) ;
+					if (at==Fd::Cwd) throw ""s+msg+' '           +d ;
+					else             throw ""s+msg+" @"+at.fd+':'+d ;
 			}
 		}
 		return res ;
@@ -452,7 +452,7 @@ namespace Disk {
 	// - avoid ::string copying as much as possible
 	// - do not support links outside repo & tmp, except from /proc (which is meaningful)
 	// - note that besides syscalls, this algo is very fast and caching intermediate results could degrade performances (checking the cache could take as long as doing the job)
-	static int _get_symloop_max() {                                 // max number of links to follow before decreting it is a loop
+	static int _get_symloop_max() {                                              // max number of links to follow before decreting it is a loop
 		int res = ::sysconf(_SC_SYMLOOP_MAX) ;
 		if (res>=0) return res                ;
 		else        return _POSIX_SYMLOOP_MAX ;
@@ -466,23 +466,23 @@ namespace Disk {
 		//
 		::vector_s lnks ;
 		//
-		::string        local_file[2] ;                             // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
-		bool            exists        = true                      ; // if false, we have seen a non-existent component and there cannot be symlinks within it
-		::string const* cur           = &file                     ; // points to the current file : input file or local copy local_file
+		::string        local_file[2] ;                                          // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
+		bool            exists        = true                      ;              // if false, we have seen a non-existent component and there cannot be symlinks within it
+		::string const* cur           = &file                     ;              // points to the current file : input file or local copy local_file
 		size_t          pos           = file[0]=='/'              ;
-		::string        real          ; real.reserve(file.size()) ;                        // canonical (link free, absolute, no ., .. nor empty component). Empty instead of '/'. Anticipate no link
-		if (!pos) {                                                                        // file is relative, meaning relative to at
-			if      (at==Fd::Cwd) real = cwd_                                            ;
-			else if (pid        ) real = read_lnk(to_string(s_proc,'/',pid,"/fd/",at.fd)) ;
-			else                  real = read_lnk(to_string(s_proc,"/self/fd/"   ,at.fd)) ;
+		::string        real          ; real.reserve(file.size()) ;              // canonical (link free, absolute, no ., .. nor empty component). Empty instead of '/'. Anticipate no link
+		if (!pos) {                                                              // file is relative, meaning relative to at
+			if      (at==Fd::Cwd) real = cwd_                                  ;
+			else if (pid        ) real = read_lnk(s_proc+'/'+pid+"/fd/"+at.fd) ;
+			else                  real = read_lnk(s_proc+"/self/fd/"   +at.fd) ;
 			//
-			if (!is_abs(real) ) return {} ;                                                // user code might use the strangest at, it will be an error but we must support it
+			if (!is_abs(real) ) return {} ;                                      // user code might use the strangest at, it will be an error but we must support it
 			if (real.size()==1) real.clear() ;
 		}
-		_Dvg in_repo   { _env->root_dir , real } ;                                         // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
-		_Dvg in_tmp    { _env->tmp_dir  , real } ;                                         // keep track of where we are w.r.t. tmp        , always track symlinks
-		_Dvg in_admin  { _admin_dir     , real } ;                                         // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
-		_Dvg in_proc   { s_proc         , real } ;                                         // keep track of where we are w.r.t. /proc      , always track symlinks
+		_Dvg in_repo   { _env->root_dir , real } ;                               // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
+		_Dvg in_tmp    { _env->tmp_dir  , real } ;                               // keep track of where we are w.r.t. tmp        , always track symlinks
+		_Dvg in_admin  { _admin_dir     , real } ;                               // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
+		_Dvg in_proc   { s_proc         , real } ;                               // keep track of where we are w.r.t. /proc      , always track symlinks
 		bool is_in_tmp = +_env->tmp_dir && +in_tmp ;
 		// loop INVARIANT : accessed file is real+'/'+cur->substr(pos)
 		// when pos>cur->size(), we are done and result is real
@@ -492,30 +492,30 @@ namespace Disk {
 		for (
 		;	pos <= cur->size()
 		;		pos = end+1
-			,	in_repo.update(_env->root_dir,real)                                        // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
-			,	in_tmp .update(_env->tmp_dir ,real)                                        // .
-			,	in_proc.update(s_proc        ,real)                                        // .
+			,	in_repo.update(_env->root_dir,real)                              // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
+			,	in_tmp .update(_env->tmp_dir ,real)                              // .
+			,	in_proc.update(s_proc        ,real)                              // .
 			,	is_in_tmp = +_env->tmp_dir && +in_tmp
 		) {
 			end = cur->find( '/', pos ) ;
 			bool last = end==Npos ;
 			if (last    ) end = cur->size() ;
-			if (end==pos) continue ;                                                       // empty component, ignore
+			if (end==pos) continue ;                                             // empty component, ignore
 			if ((*cur)[pos]=='.') {
-				if ( end==pos+1                       ) continue ;                         // component is .
-				if ( end==pos+2 && (*cur)[pos+1]=='.' ) {                                  // component is ..
+				if ( end==pos+1                       ) continue ;               // component is .
+				if ( end==pos+2 && (*cur)[pos+1]=='.' ) {                        // component is ..
 					if (+real) real.resize(real.rfind('/')) ;
 					continue ;
 				}
 			}
 			size_t    prev_real_size = real.size()                     ;
-			::string& nxt            = local_file[cur!=&local_file[1]] ;                   // bounce, initially, when cur is neither local_file's, any buffer is ok
+			::string& nxt            = local_file[cur!=&local_file[1]] ;         // bounce, initially, when cur is neither local_file's, any buffer is ok
 			real.push_back('/') ;
 			real.append(*cur,pos,end-pos) ;
-			in_admin.update(_admin_dir,real) ;                                             // for the admin domain, it starts at itself, i.e. the admin dir is part of the domain
-			if ( !exists           ) continue       ;                                      // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
-			if ( no_follow && last ) continue       ;                                      // dont care about last component if no_follow
-			if ( is_in_tmp         ) goto HandleLnk ;                                      // note that tmp can lie within repo or admin
+			in_admin.update(_admin_dir,real) ;                                   // for the admin domain, it starts at itself, i.e. the admin dir is part of the domain
+			if ( !exists           ) continue       ;                            // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
+			if ( no_follow && last ) continue       ;                            // dont care about last component if no_follow
+			if ( is_in_tmp         ) goto HandleLnk ;                            // note that tmp can lie within repo or admin
 			if ( +in_admin         ) continue       ;
 			if ( +in_proc          ) goto HandleLnk ;
 			if ( !in_repo          ) continue       ;

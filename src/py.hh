@@ -52,16 +52,16 @@ namespace Py {
 	// functions
 	//
 
-	template<class T       > T const* _chk   (T const * o) { if ( o && !o->qualify() ) throw to_string("not a ",o->type_name()) ; return o   ; }
-	template<class T       > T      * _chk   (T       * o) { if ( o && !o->qualify() ) throw to_string("not a ",o->type_name()) ; return o   ; }
-	template<class T=Object> T      * from_py(PyObject* o) { T* res = static_cast<T*>(o) ; _chk(res) ;                            return res ; }
+	template<class T       > T const* _chk   (T const * o) { if ( o && !o->qualify() ) throw "not a "s+o->type_name() ; return o   ; }
+	template<class T       > T      * _chk   (T       * o) { if ( o && !o->qualify() ) throw "not a "s+o->type_name() ; return o   ; }
+	template<class T=Object> T      * from_py(PyObject* o) { T* res = static_cast<T*>(o) ; _chk(res) ;                  return res ; }
 
 	inline void py_err_clear   () {        PyErr_Clear   () ; }
 	inline bool py_err_occurred() { return PyErr_Occurred() ; }
 	//
 	template<class T=Object> T& py_get_sys(::string const& name) {
 		PyObject* v = PySys_GetObject(const_cast<char*>(name.c_str())) ;
-		if (!v) throw to_string("cannot find sys.",name) ;
+		if (!v) throw "cannot find sys."+name ;
 		return *from_py<T>(v) ;
 	}
 
@@ -477,11 +477,11 @@ namespace Py {
 		}
 		void set_item( ::string const& key , Object& val ) {
 			int rc = PyDict_SetItemString( to_py() , key.c_str() , val.to_py() ) ;
-			if (rc!=0) throw to_string("cannot set ",key) ;
+			if (rc!=0) throw "cannot set "+key ;
 		}
 		void del_item(::string const& key) {
 			int rc = PyDict_DelItemString( to_py() , key.c_str() ) ;
-			if (rc!=0) throw to_string("key ",key," not found") ;
+			if (rc!=0) throw "key "+key+" not found" ;
 		}
 		void erase_item(::string const& key) {
 			PyDict_DelItemString( to_py() , key.c_str() ) ;
@@ -491,7 +491,7 @@ namespace Py {
 	private :
 		Object& _get_item(::string const& key) const {
 			Object* res = from_py(PyDict_GetItemString( to_py() , key.c_str() )) ;
-			if (!res) throw to_string("key ",key," not found") ;
+			if (!res) throw "key "+key+" not found" ;
 			return *res ;
 		}
 		//

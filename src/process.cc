@@ -43,7 +43,7 @@
 	} else if (add_env) {
 		for( auto const& [k,v] : *add_env ) set_env(k,v) ;
 	}
-	if (+cwd_   ) { if (::chdir(cwd_.c_str())!=0) exit(Rc::System,to_string("cannot chdir to : " ,cwd_)) ; }
+	if (+cwd_   ) { if (::chdir(cwd_.c_str())!=0) exit(Rc::System,"cannot chdir to : "+cwd_) ; }
 	if (pre_exec)   pre_exec_rc = pre_exec(pre_exec_arg) ;
 	//
 	if (!cmd_line  ) exit(pre_exec_rc?Rc::Fail:Rc::Ok) ;           // no cmd_line  , pre_exec is the entire function executed in child
@@ -66,7 +66,7 @@ static constexpr size_t StackSz = 16<<10 ; // we just need s small stack before 
 	SWEAR(first_pid>1,first_pid) ;
 	if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) exit(Rc::System,"cannot mount /proc") ;
 	{	AutoCloseFd              fd  = ::open("/proc/sys/kernel/ns_last_pid",O_WRONLY|O_TRUNC) ;
-		::string                 val = to_string(first_pid-1)                                  ;
+		::string                 val = ::to_string(first_pid-1)                                ;
 		[[maybe_unused]] ssize_t wrc = ::write(fd,val.c_str(),val.size())                      ;      // dont care about errors, this is best effort
 	}
 	::vector<uint64_t> stack     ( StackSz/sizeof(uint64_t) )                       ;
@@ -101,7 +101,7 @@ void Child::spawn() {
 	//
 	if (pid==-1) {
 		pid = 0 ;                                                                      // ensure we can be destructed
-		throw to_string("cannot spawn process ",cmd_line," : ",strerror(errno)) ;
+		throw "cannot spawn process "+fmt_string(cmd_line)+" : "+strerror(errno) ;
 	}
 	//
 	if (stdin_fd ==Pipe) { stdin  = _p2c .write ; _p2c .read .close() ; }

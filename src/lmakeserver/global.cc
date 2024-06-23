@@ -115,7 +115,7 @@ namespace Engine {
 				else                    dct.emplace_back(field,v) ;
 			}
 		} catch(::string const& e) {
-			throw to_string("while processing ",field,e) ;
+			throw "while processing "+field+e ;
 		}
 	}
 
@@ -124,7 +124,7 @@ namespace Engine {
 		// generate a random key
 		char     buf_char[8] ; IFStream("/dev/urandom").read(buf_char,sizeof(buf_char)) ;
 		uint64_t buf_int     ; ::memcpy( &buf_int , buf_char , sizeof(buf_int) )        ;
-		key = to_string( ::hex , ::setfill('0') , ::setw(sizeof(buf_int)*2) , buf_int ) ;
+		key = fmt_string( ::hex , ::setfill('0') , ::setw(sizeof(buf_int)*2) , buf_int ) ;
 		//
 		::vector_s fields = {{}} ;
 		try {
@@ -182,8 +182,8 @@ namespace Engine {
 					if (!py_precs.contains(fields[2])) continue ;
 					unsigned long prec = py_precs[fields[2]].as_a<Int>() ;
 					if (prec==0                ) continue ;
-					if (!::has_single_bit(prec)) throw to_string(prec," is not a power of 2") ;
-					if (prec==1                ) throw "must be 0 or at least 2"s             ;
+					if (!::has_single_bit(prec)) throw ""s+prec+" is not a power of 2" ;
+					if (prec==1                ) throw "must be 0 or at least 2"s      ;
 					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                                                     // number of kept digits
 				}
 				fields.pop_back() ;
@@ -216,17 +216,17 @@ namespace Engine {
 				fields[1] = snake(c) ;
 				if (!py_colors.contains(fields[1])) throw "not found"s ;
 				Sequence const& py_c1 = py_colors[fields[1]].as_a<Sequence>() ;
-				if (py_c1.size()!=2) throw to_string("size is ",py_c1.size(),"!=2") ;
+				if (py_c1.size()!=2) throw "size is "s+py_c1.size()+"!=2" ;
 				fields.emplace_back() ;
 				for( bool r : {false,true} ) {
 					fields[2] = r?"reverse":"normal" ;
 					Sequence const& py_c2 = py_c1[r].as_a<Sequence>() ;
-					if (py_c2.size()!=3) throw to_string("size is ",py_c2.size(),"!=3") ;
+					if (py_c2.size()!=3) throw "size is "s+py_c2.size()+"!=3" ;
 					fields.emplace_back() ;
 					for( size_t rgb=0 ; rgb<3 ; rgb++ ) {
 						fields[3] = ::string( &"rgb"[rgb] , 1 ) ;
 						size_t cc = py_c2[rgb].as_a<Int>() ;
-						if (cc>=256) throw to_string("color is ",cc,">=256") ;
+						if (cc>=256) throw "color is "s+cc+">=256" ;
 						colors[+c][r][rgb] = py_c2[rgb].as_a<Int>() ;
 					}
 					fields.pop_back() ;
@@ -257,8 +257,8 @@ namespace Engine {
 			console.host_len = 0    ;                                                                                           // host has no interest if all jobs are local
 		SeenRemote : ;
 		} catch(::string& e) {
-			::string field = "config" ; for( ::string const& f : fields ) append_to_string(field,'.',f) ;
-			e = to_string("while processing ",field," :\n",indent(e)) ;
+			::string field = "config" ; for( ::string const& f : fields ) field<<'.'<<f ;
+			e = "while processing "+field+" :\n"+indent(e) ;
 			throw ;
 		}
 	}
@@ -313,7 +313,7 @@ namespace Engine {
 		bool has_digits = false ; for( StdRsrc r : All<StdRsrc> ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
 		if (has_digits) {
 			res << "\tresource precisions :\n" ;
-			for( StdRsrc r : All<StdRsrc> ) if (rsrc_digits[+r]) res << to_string("\t\t",snake(r)," : ",1<<rsrc_digits[+r],'\n') ;
+			for( StdRsrc r : All<StdRsrc> ) if (rsrc_digits[+r]) res << "\t\t"<<snake(r)<<" : "<<(1<<rsrc_digits[+r])<<'\n' ;
 		}
 		//
 		res << "\tbackends :\n" ;
@@ -355,11 +355,11 @@ namespace Engine {
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
 		SWEAR(+key) ;                                                   // ensure no init problem
-		::string std_file = to_string(PrivateAdminDirS,"local_admin") ;
+		::string std_file = PrivateAdminDirS+"local_admin"s ;
 		if (!user_local_admin_dir) {
 			local_admin_dir = ::move(std_file) ;
 		} else {
-			local_admin_dir = to_string(user_local_admin_dir,'/',key+"-la") ;
+			local_admin_dir = user_local_admin_dir+'/'+key+"-la" ;
 			::string lnk_target   = mk_rel( local_admin_dir , dir_name_s(std_file) ) ;
 			if (read_lnk(std_file)!=lnk_target) {
 				unlnk( std_file , true/*dir_ok*/ ) ;
@@ -455,15 +455,15 @@ namespace Engine {
 		SWEAR(!as_job()) ;
 		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .root_dir=no_slash(*g_root_dir_s) } ;
 		RealPath       real_path { rpe                                                                    } ;
-		::vector<Node> targets   ; targets.reserve(files.size()) ;                                                                   // typically, there is no bads
+		::vector<Node> targets   ; targets.reserve(files.size()) ;                                            // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
-			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                                   // we may refer to a symbolic link
-			if (rp.file_loc==FileLoc::Repo) { targets.emplace_back(rp.real) ;                                                      }
-			else                            { append_to_string( err_str , _audit_indent(mk_rel(target,startup_dir_s),1) , '\n' ) ; }
+			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                            // we may refer to a symbolic link
+			if (rp.file_loc==FileLoc::Repo) targets.emplace_back(rp.real) ;
+			else                            err_str << _audit_indent(mk_rel(target,startup_dir_s),1) << '\n' ;
 		}
 		//
-		if (+err_str) throw to_string("files are outside repo :\n",err_str) ;
+		if (+err_str) throw "files are outside repo :\n"+err_str ;
 		return targets ;
 	}
 
@@ -474,9 +474,9 @@ namespace Engine {
 			::string const& rule_name = options.flag_args[+ReqFlag::Rule] ;
 			auto it = Rule::s_by_name.find(rule_name) ;
 			if (it!=Rule::s_by_name.end()) r = it->second ;
-			else                           throw to_string("cannot find rule ",rule_name) ;
+			else                           throw "cannot find rule "+rule_name ;
 			Job j{r,files[0]} ;
-			if (!j) throw to_string("cannot find job ",mk_rel(files[0],startup_dir_s)," using rule ",rule_name) ;
+			if (!j) throw "cannot find job "+mk_rel(files[0],startup_dir_s)+" using rule "+rule_name ;
 			return j ;
 		}
 		::vector<Job> candidates ;
@@ -484,10 +484,10 @@ namespace Engine {
 			if ( Job j{r,files[0]} ; +j ) candidates.push_back(j) ;
 		}
 		if (candidates.size()==1) return candidates[0] ;
-		if (!candidates         ) throw to_string("cannot find job ",mk_rel(files[0],startup_dir_s)) ;
+		if (!candidates         ) throw "cannot find job "+mk_rel(files[0],startup_dir_s) ;
 		//
 		::string err_str = "several rules match, consider :\n" ;
-		for( Job j : candidates ) append_to_string( err_str , _audit_indent(to_string( "lmake -R " , mk_shell_str(j->rule->name) , " -J " , files[0] ),1) , '\n' ) ;
+		for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule->name)+" -J "+files[0] ,1) << '\n' ;
 		throw err_str ;
 	}
 

@@ -18,9 +18,9 @@ namespace Time {
 	::ostream& operator<<( ::ostream& os , Delay const d ) {
 		int64_t  s  =       d.sec      ()  ;
 		uint32_t ns = ::abs(d.nsec_in_s()) ;
-		/**/                  os << "D:"                                                 ;
-		if ( !s && d._val<0 ) os << '-'                                                  ;
-		return                os << to_string(s,'.',::setfill('0'),::setw(9),::right,ns) ;
+		/**/                  os << "D:"                                                  ;
+		if ( !s && d._val<0 ) os << '-'                                                   ;
+		return                os << fmt_string(s,'.',::setfill('0'),::setw(9),::right,ns) ;
 	}
 
 	::string Delay::str(uint8_t prec) const {
@@ -41,13 +41,13 @@ namespace Time {
 		bool     is_neg = v<0    ;
 		::string res    ;
 		if (is_neg) v = -v ;
-		/**/      if (v< 10*1000) { res = to_string(::right,::setw(1),v/1000,'.',::setfill('0'),::setw(3),v%1000,'s') ; goto Return ; }
-		v /= 10 ; if (v< 60* 100) { res = to_string(::right,::setw(2),v/ 100,'.',::setfill('0'),::setw(2),v% 100,'s') ; goto Return ; }
-		v /=100 ; if (v< 60*  60) { res = to_string(::right,::setw(2),v/  60,'m',::setfill('0'),::setw(2),v%  60,'s') ; goto Return ; }
-		v /= 60 ; if (v< 24*  60) { res = to_string(::right,::setw(2),v/  60,'h',::setfill('0'),::setw(2),v%  60,'m') ; goto Return ; }
-		v /= 60 ; if (v<100*  24) { res = to_string(::right,::setw(2),v/  60,'j',::setfill('0'),::setw(2),v%  60,'h') ; goto Return ; }
-		v /= 24 ; if (v<100'000l) { res = to_string(::right,::setw(5),v,'j'                                         ) ; goto Return ; }
-		/**/                      { res = "forevr"                                                                    ; goto Return ; }
+		/**/      if (v< 10*1000) { res = fmt_string(::right,::setw(1),v/1000,'.',::setfill('0'),::setw(3),v%1000,'s') ; goto Return ; }
+		v /= 10 ; if (v< 60* 100) { res = fmt_string(::right,::setw(2),v/ 100,'.',::setfill('0'),::setw(2),v% 100,'s') ; goto Return ; }
+		v /=100 ; if (v< 60*  60) { res = fmt_string(::right,::setw(2),v/  60,'m',::setfill('0'),::setw(2),v%  60,'s') ; goto Return ; }
+		v /= 60 ; if (v< 24*  60) { res = fmt_string(::right,::setw(2),v/  60,'h',::setfill('0'),::setw(2),v%  60,'m') ; goto Return ; }
+		v /= 60 ; if (v<100*  24) { res = fmt_string(::right,::setw(2),v/  60,'j',::setfill('0'),::setw(2),v%  60,'h') ; goto Return ; }
+		v /= 24 ; if (v<100'000l) { res = fmt_string(::right,::setw(5),v,'j'                                         ) ; goto Return ; }
+		/**/                      { res = "forevr"                                                                     ; goto Return ; }
 	Return :
 		if (is_neg) return '-'+res ;
 		else        return     res ;
@@ -82,9 +82,9 @@ namespace Time {
 	}
 
 	Date::Date(::string_view const& s) {
-		{	struct tm   t    = {}                                                                                                      ; // zero out all fields
-			const char* end  = ::strptime(s.data(),"%F %T",&t) ; if (!end            ) throw to_string("cannot read date & time : ",s) ;
-			time_t      secs = ::mktime(&t)                    ; if (secs==time_t(-1)) throw to_string("cannot read date & time : ",s) ;
+		{	struct tm   t    = {}                                                                                            ; // zero out all fields
+			const char* end  = ::strptime(s.data(),"%F %T",&t) ; if (!end            ) throw "cannot read date & time : "s+s ;
+			time_t      secs = ::mktime(&t)                    ; if (secs==time_t(-1)) throw "cannot read date & time : "s+s ;
 			*this = Date(secs) ;
 			if (*end=='.') {
 				end++ ;

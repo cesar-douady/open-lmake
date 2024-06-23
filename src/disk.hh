@@ -247,8 +247,8 @@ namespace Disk {
 	//
 	inline void lnk( Fd at , ::string const& file , ::string const& target ) {
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
-			::string at_str = at==Fd::Cwd ? ""s : to_string('<',int(at),">/") ;
-			throw to_string("cannot create symlink from ",at_str,file," to ",target) ;
+			::string at_str = at==Fd::Cwd ? ""s : "<"s+at.fd+">/" ;
+			throw "cannot create symlink from "+at_str+file+" to "+target ;
 		}
 	}
 
@@ -306,8 +306,8 @@ namespace Disk {
 		::string pfx(1+sizeof(FileNameIdx),FileMrkr) ;
 		encode_int<FileNameIdx>(&pfx[1],f.size()) ;
 		switch (exists) {
-			case Yes : { if (!is_target(f)) return to_string("(not existing) ",pfx,f) ; } break ;
-			case No  : { if ( is_target(f)) return to_string("(existing) "    ,pfx,f) ; } break ;
+			case Yes : { if (!is_target(f)) return "(not existing) "+pfx+f ; } break ;
+			case No  : { if ( is_target(f)) return "(existing) "    +pfx+f ; } break ;
 			default  : ;
 		}
 		return pfx+f ;
@@ -321,8 +321,10 @@ namespace Disk {
 		bool operator+() const { return _ok     ; }
 		bool operator!() const { return !+*this ; }
 		// accesses
-		template<class T> T const& get(size_t ofs=0) const { if (ofs+sizeof(T)>sz) throw to_string("object @",ofs,"out of file of size ",sz) ; return *reinterpret_cast<T const*>(data+ofs) ; }
-		template<class T> T      & get(size_t ofs=0)       { if (ofs+sizeof(T)>sz) throw to_string("object @",ofs,"out of file of size ",sz) ; return *reinterpret_cast<T      *>(data+ofs) ; }
+		#define C const
+		template<class T> T C& get(size_t ofs=0) C { if (ofs+sizeof(T)>sz) throw "object @"s+ofs+"out of file of size "+sz ; return *reinterpret_cast<T C*>(data+ofs) ; }
+		template<class T> T  & get(size_t ofs=0)   { if (ofs+sizeof(T)>sz) throw "object @"s+ofs+"out of file of size "+sz ; return *reinterpret_cast<T  *>(data+ofs) ; }
+		#undef C
 		// data
 		const uint8_t* data = nullptr ;
 		size_t         sz   = 0       ;
@@ -391,9 +393,9 @@ namespace Disk {
 		RealPath() = default ;
 		// src_dirs_s may be either absolute or relative, but must be canonic
 		// tmp_dir must be absolute and canonic
-		RealPath ( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe ,                                                              p ) ; }
-		RealPath ( RealPathEnv const& rpe , ::string&& cwd , pid_t p=0 ) { init( rpe , ::move(cwd)                                                , p ) ; }
-		void init( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe , p?read_lnk(to_string("/proc/",p,"/cwd")):no_slash(cwd_s()) , p ) ; }
+		RealPath ( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe ,                                                    p ) ; }
+		RealPath ( RealPathEnv const& rpe , ::string&& cwd , pid_t p=0 ) { init( rpe , ::move(cwd)                                      , p ) ; }
+		void init( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe , p?read_lnk("/proc/"s+p+"/cwd"):no_slash(cwd_s()) , p ) ; }
 		void init( RealPathEnv const&     , ::string&& cwd , pid_t  =0 ) ;
 		// services
 		FileLoc file_loc( ::string const& real ) const { return _env->file_loc(real) ; }

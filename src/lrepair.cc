@@ -53,12 +53,12 @@ int main( int argc , char* /*argv*/[] ) {
 		if (+msg) ::cerr << ensure_nl(msg) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	//
-	Trace::s_new_trace_file(to_string( g_config->local_admin_dir , "/trace/" , base_name(read_lnk("/proc/self/exe")) )) ;
+	Trace::s_new_trace_file( g_config->local_admin_dir + "/trace/" + base_name(read_lnk("/proc/self/exe")) ) ;
 	for( AncillaryTag tag : All<AncillaryTag> ) dir_guard(Job().ancillary_file(tag)) ;
 	//
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Persistent::repair(to_string(backup_admin_dir,'/',PRIVATE_ADMIN_SUBDIR_S,"local_admin/job_data")) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Persistent::repair(backup_admin_dir+'/'+PRIVATE_ADMIN_SUBDIR_S+"local_admin/job_data") ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	unlnk(repair_mrkr) ;
 	::cout << "repo has been satisfactorily repaired" << endl ;
 	::cout << "to clean up after having ensured everything runs smoothly, consider : rm -r "<<backup_admin_dir                                      << endl ;

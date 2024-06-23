@@ -42,19 +42,19 @@ using namespace Hash ;
 				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ;
 				if (quarantine) {
 					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
-					if (done) append_to_string(msg,"quarantined "         ,mk_file(f),'\n') ;
-					else      append_to_string(msg,"failed to quarantine ",mk_file(f),'\n') ;
+					if (done) msg<<"quarantined "         <<mk_file(f)<<'\n' ;
+					else      msg<<"failed to quarantine "<<mk_file(f)<<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
 					done = unlnk(nfs_guard.change(f)) ;
-					if (!done) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
+					if (!done) msg<<"failed to unlink "<<mk_file(f)<<'\n' ;
 				}
 				trace(STR(quarantine),STR(done),f) ;
 				if ( done && unlnks ) unlnks->push_back(f) ;
 				ok &= done ;
 			} break ;
-			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f),'\n') ; break ;
-			case FileActionTag::Mkdir    : mk_dir(f,nfs_guard) ;                                                                    break ;
+			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) msg<<"uniquified "<<mk_file(f)<<'\n' ; break ;
+			case FileActionTag::Mkdir    : mk_dir(f,nfs_guard) ;                                                     break ;
 			case FileActionTag::Rmdir    :
 				if (!keep_dirs.contains(f))
 					try {
@@ -106,13 +106,13 @@ using namespace Hash ;
 	return                os <<')'                       ;
 }
 
-static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; if (::chroot(dir.c_str())!=0) throw to_string("cannot chroot to ",dir," : ",strerror(errno)) ; }
-static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; if (::chdir (dir.c_str())!=0) throw to_string("cannot chdir to " ,dir," : ",strerror(errno)) ; }
+static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; if (::chroot(dir.c_str())!=0) throw "cannot chroot to "+dir+" : "+strerror(errno) ; }
+static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; if (::chdir (dir.c_str())!=0) throw "cannot chdir to " +dir+" : "+strerror(errno) ; }
 
 static void _mount_bind( ::string const& dst , ::string const& src ) {
 	Trace trace("_mount_bind",dst,src) ;
 	if (::mount( src.c_str() ,  dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
-		throw to_string("cannot bind mount ",src," onto ",dst," : ",strerror(errno)) ;
+		throw "cannot bind mount "+src+" onto "+dst+" : "+strerror(errno) ;
 }
 static void _mount_fuse( ::string const& dst , ::string const& src ) {
 	Trace trace("_mount_fuse",dst,src) ;
@@ -121,8 +121,8 @@ static void _mount_fuse( ::string const& dst , ::string const& src ) {
 static void _mount_tmp( ::string const& dst , size_t sz_mb ) {
 	SWEAR(sz_mb) ;
 	Trace trace("_mount_tmp",dst,sz_mb) ;
-	if (::mount( "" ,  dst.c_str() , "tmpfs" , 0/*flags*/ , to_string(sz_mb,"m").c_str() )!=0)
-		throw to_string("cannot mount tmpfs of size",sz_mb," MB onto ",dst," : ",strerror(errno)) ;
+	if (::mount( "" ,  dst.c_str() , "tmpfs" , 0/*flags*/ , (::to_string(sz_mb)+"m").c_str() )!=0)
+		throw "cannot mount tmpfs of size"s+sz_mb+" MB onto "+dst+" : "+strerror(errno) ;
 }
 static void _mount_overlay( ::string const& dst , ::vector_s const& srcs , ::string const& work ) {
 	SWEAR(+srcs) ;
@@ -131,7 +131,7 @@ static void _mount_overlay( ::string const& dst , ::vector_s const& srcs , ::str
 	Trace trace("_mount_overlay",dst,srcs,work) ;
 	for( size_t i=1 ; i<srcs.size() ; i++ )
 		if (srcs[i].find(':')!=Npos)
-			throw to_string("cannot overlay mount ",dst," to ",srcs,"with embedded columns (:)") ;
+			throw "cannot overlay mount "+dst+" to "+fmt_string(srcs)+"with embedded columns (:)" ;
 	mk_dir(work) ;
 	//
 	::string                                data  = "userxattr"                                     ;
@@ -142,16 +142,16 @@ static void _mount_overlay( ::string const& dst , ::vector_s const& srcs , ::str
 	SWEAR(dst.back()=='/') ;
 	::string dst_no_s = dst ; dst_no_s.pop_back() ;
 	if (::mount( nullptr ,  dst_no_s.c_str() , "overlay" , 0 , data.c_str() )!=0)
-		throw to_string("cannot overlay mount ",dst_no_s," to ",data," : ",strerror(errno)) ;
+		throw "cannot overlay mount "+dst_no_s+" to "+data+" : "+strerror(errno) ;
 }
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
 	AutoCloseFd fd = ::open(file.c_str(),O_WRONLY|O_TRUNC) ;
-	if (!fd) throw to_string("cannot open ",file," for writing") ;
+	if (!fd) throw "cannot open "+file+" for writing" ;
 	ssize_t cnt = ::write( fd , data.c_str() , data.size() ) ;
-	if (cnt<0                  ) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : ",strerror(errno)          ) ;
-	if (size_t(cnt)<data.size()) throw to_string("cannot write atomically ",data.size(), " bytes to ",file," : only ",cnt," bytes written") ;
+	if (cnt<0                  ) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : "+strerror(errno)           ;
+	if (size_t(cnt)<data.size()) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : only "+cnt+" bytes written" ;
 }
 
 static bool _is_lcl_tmp( ::string const& f , ::string const& tmp_view ) {
@@ -171,7 +171,7 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 	int uid = ::getuid() ;                                                                           // must be done before unshare that invents a new user
 	int gid = ::getgid() ;                                                                           // .
 	//
-	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw to_string("cannot create namespace : ",strerror(errno)) ;
+	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw "cannot create namespace : "s+strerror(errno) ;
 	//
 	size_t   src_dirs_uphill_lvl = 0 ;
 	::string highest             ;
@@ -200,35 +200,35 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 		SWEAR(+phy_super_root_dir,phy_root_dir,src_dirs_uphill_lvl) ;                                                                           // this should have been checked earlier
 		if (!super_root_view) {
 			highest.pop_back() ;
-			throw to_string(
-				"cannot map repository dir to ",root_view," with relative source dir ",highest
-			,	", "
-			,	"consider setting <rule>.root_view=",mk_py_str("/repo"+phy_root_dir.substr(phy_super_root_dir.size()))
-			) ;
+			throw
+				"cannot map repository dir to "+root_view+" with relative source dir "+highest
+			+	", "
+			+	"consider setting <rule>.root_view="+mk_py_str("/repo"+phy_root_dir.substr(phy_super_root_dir.size()))
+			;
 		}
 		if (root_view.substr(super_root_view.size())!=phy_root_dir.substr(phy_super_root_dir.size()))
-			throw to_string(
-				"last ",src_dirs_uphill_lvl," components do not match between physical root dir and root view"
-			,	", "
-			,	"consider setting <rule>.root_view=",mk_py_str("/repo"+phy_root_dir.substr(phy_super_root_dir.size()))
-			) ;
+			throw
+				"last "s+src_dirs_uphill_lvl+" components do not match between physical root dir and root view"
+			+	", "
+			+	"consider setting <rule>.root_view="+mk_py_str("/repo"+phy_root_dir.substr(phy_super_root_dir.size()))
+			;
 	}
-	if ( +super_root_view && super_root_view.rfind('/')!=0 ) throw "non top-level root_view not yet implemented"s ; // XXX : handle cases where dir is not top level
-	if ( +tmp_view        && tmp_view       .rfind('/')!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
+	if ( +super_root_view && super_root_view.rfind('/')!=0 ) throw "non top-level root_view not yet implemented"s ;           // XXX : handle cases where dir is not top level
+	if ( +tmp_view        && tmp_view       .rfind('/')!=0 ) throw "non top-level tmp_view not yet implemented"s  ;           // .
 	//
-	::string        work_root_dir    ;                                                                              // must be outside the if as we may keep the address of it in chrd
+	::string        work_root_dir    ;                                                                                        // must be outside the if as we may keep the address of it in chrd
 	::string const* chrd             = &chroot_dir                                             ;
 	bool            must_create_root = +super_root_view && !is_dir(chroot_dir+super_root_view) ;
 	bool            must_create_tmp  = +tmp_view        && !is_dir(chroot_dir+tmp_view )       ;
 	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
-	if ( must_create_root || must_create_tmp ) {                                                                    // we may not mount directly in chroot_dir
+	if ( must_create_root || must_create_tmp ) {                                                                              // we may not mount directly in chroot_dir
 		if (!work_dir)
-			throw to_string(
-				"need a work dir to create"
-			,	must_create_root                    ? " root view" : ""
-			,	must_create_root && must_create_tmp ? " and"       : ""
-			,	                    must_create_tmp ? " tmp view"  : ""
-			) ;
+			throw
+				"need a work dir to create"s
+			+	( must_create_root                    ? " root view" : "" )
+			+	( must_create_root && must_create_tmp ? " and"       : "" )
+			+	(                     must_create_tmp ? " tmp view"  : "" )
+			;
 		::vector_s top_lvls = lst_dir(+chroot_dir?chroot_dir:"/","/") ;
 		work_root_dir = work_dir+"/root" ;
 		mk_dir      (work_root_dir) ;
@@ -240,10 +240,10 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 			switch (FileInfo(src_f).tag()) {
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : OFStream{private_f                } ; _mount_bind(private_f,src_f) ; break ;  // create file
-				case FileTag::Dir   : mk_dir  (private_f                ) ; _mount_bind(private_f,src_f) ; break ;  // create dir
-				case FileTag::Lnk   : lnk     (private_f,read_lnk(src_f)) ;                                break ;  // copy symlink
-				default             : ;                                                                             // exclude weird files
+				case FileTag::Exe   : OFStream{private_f                } ; _mount_bind(private_f,src_f) ; break ;            // create file
+				case FileTag::Dir   : mk_dir  (private_f                ) ; _mount_bind(private_f,src_f) ; break ;            // create dir
+				case FileTag::Lnk   : lnk     (private_f,read_lnk(src_f)) ;                                break ;            // copy symlink
+				default             : ;                                                                                       // exclude weird files
 			}
 		}
 		if (must_create_root) mk_dir(work_root_dir+super_root_view) ;
@@ -251,13 +251,13 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 		chrd = &work_root_dir ;
 	}
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                            ) ;                                   // necessary to be allowed to write the gid_map (if desirable)
-	_atomic_write( "/proc/self/uid_map"   , to_string(uid,' ',uid,' ',1,'\n') ) ;
-	_atomic_write( "/proc/self/gid_map"   , to_string(gid,' ',gid,' ',1,'\n') ) ;
+	_atomic_write( "/proc/self/setgroups" , "deny"                 ) ;                                                        // necessary to be allowed to write the gid_map (if desirable)
+	_atomic_write( "/proc/self/uid_map"   , ""s+uid+' '+uid+" 1\n" ) ;
+	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
 	//
 	::string root_dir ;
 	if (!root_view) {
-		SWEAR(!use_fuse) ;                                                                                          // need a view to mount repo with fuse
+		SWEAR(!use_fuse) ;                                                                                                    // need a view to mount repo with fuse
 		root_dir = phy_root_dir ;
 	} else {
 		root_dir = *chrd+root_view ;
@@ -284,7 +284,7 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 			if (phys.size()==1) {
 				_mount_bind( abs_view , abs_phys[0] ) ;
 			} else {
-				::string work = is_lcl(phys[0]) ? to_string(work_dir,"/view_work/",i++) : phys[0].substr(0,phys[0].size()-1)+".work" ; // if not in the repo, it must be in tmp
+				::string work = is_lcl(phys[0]) ? work_dir+"/view_work/"+(i++) : phys[0].substr(0,phys[0].size()-1)+".work" ; // if not in the repo, it must be in tmp
 				mk_dir(work) ;
 				_mount_overlay( abs_view , abs_phys , mk_abs(work,root_dir_s) ) ;
 			}
@@ -418,29 +418,29 @@ void JobSpace::chk() const {
 	/**/                                   os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
 		case JobRpcProc::Start :
-			/**/                           os <<',' << hex<<jrr.addr<<dec               ;
-			/**/                           os <<',' << jrr.autodep_env                  ;
-			if      (+jrr.job_space      ) os <<',' << jrr.job_space                    ;
-			if      ( jrr.keep_tmp_dir   ) os <<',' << "keep"                           ;
-			else if ( jrr.tmp_sz_mb==Npos) os <<',' << "..."                            ;
-			else                           os <<',' << jrr.tmp_sz_mb                    ;
-			if (+jrr.cwd_s               ) os <<',' << jrr.cwd_s                        ;
-			if (+jrr.date_prec           ) os <<',' << jrr.date_prec                    ;
-			/**/                           os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
-			/**/                           os <<',' << jrr.interpreter                  ;
-			/**/                           os <<',' << jrr.kill_sigs                    ;
-			if (jrr.live_out             ) os <<',' << "live_out"                       ;
-			/**/                           os <<',' << jrr.method                       ;
-			if (+jrr.network_delay       ) os <<',' << jrr.network_delay                ;
-			if (+jrr.pre_actions         ) os <<',' << jrr.pre_actions                  ;
-			/**/                           os <<',' << jrr.small_id                     ;
-			if (+jrr.star_matches        ) os <<',' << jrr.star_matches                 ;
-			if (+jrr.deps                ) os <<'<' << jrr.deps                         ;
-			if (+jrr.static_matches      ) os <<'>' << jrr.static_matches               ;
-			if (+jrr.stdin               ) os <<'<' << jrr.stdin                        ;
-			if (+jrr.stdout              ) os <<'>' << jrr.stdout                       ;
-			if (+jrr.timeout             ) os <<',' << jrr.timeout                      ;
-			/**/                           os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
+			/**/                           os <<',' << hex<<jrr.addr<<dec                ;
+			/**/                           os <<',' << jrr.autodep_env                   ;
+			if      (+jrr.job_space      ) os <<',' << jrr.job_space                     ;
+			if      ( jrr.keep_tmp_dir   ) os <<',' << "keep"                            ;
+			else if ( jrr.tmp_sz_mb==Npos) os <<',' << "..."                             ;
+			else                           os <<',' << jrr.tmp_sz_mb                     ;
+			if (+jrr.cwd_s               ) os <<',' << jrr.cwd_s                         ;
+			if (+jrr.date_prec           ) os <<',' << jrr.date_prec                     ;
+			/**/                           os <<',' << mk_printable(fmt_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+			/**/                           os <<',' << jrr.interpreter                   ;
+			/**/                           os <<',' << jrr.kill_sigs                     ;
+			if (jrr.live_out             ) os <<',' << "live_out"                        ;
+			/**/                           os <<',' << jrr.method                        ;
+			if (+jrr.network_delay       ) os <<',' << jrr.network_delay                 ;
+			if (+jrr.pre_actions         ) os <<',' << jrr.pre_actions                   ;
+			/**/                           os <<',' << jrr.small_id                      ;
+			if (+jrr.star_matches        ) os <<',' << jrr.star_matches                  ;
+			if (+jrr.deps                ) os <<'<' << jrr.deps                          ;
+			if (+jrr.static_matches      ) os <<'>' << jrr.static_matches                ;
+			if (+jrr.stdin               ) os <<'<' << jrr.stdin                         ;
+			if (+jrr.stdout              ) os <<'>' << jrr.stdout                        ;
+			if (+jrr.timeout             ) os <<',' << jrr.timeout                       ;
+			/**/                           os <<',' << jrr.cmd                           ; // last as it is most probably multi-line
 			;
 		break ;
 		default : ;
@@ -530,11 +530,11 @@ void JobInfo::write(::string const& filename) const {
 namespace Codec {
 
 	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) {
-		return to_string(CodecPfx,mk_printable<'.'>(file),".cdir/",mk_printable<'.'>(ctx),".ddir/",mk_printable(code)) ;
+		return CodecPfx+mk_printable<'.'>(file)+".cdir/"+mk_printable<'.'>(ctx)+".ddir/"+mk_printable(code) ;
 	}
 
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
-		return to_string(CodecPfx,mk_printable<'.'>(file),".cdir/",mk_printable<'.'>(ctx),".edir/",::string(Xxh(val).digest())) ;
+		return CodecPfx+mk_printable<'.'>(file)+".cdir/"+mk_printable<'.'>(ctx)+".edir/"+::string(Xxh(val).digest()) ;
 	}
 
 	::string mk_file(::string const& node) {

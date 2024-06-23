@@ -37,7 +37,7 @@ struct Fd {
 	void write(::string_view const& data) {
 		for( size_t cnt=0 ; cnt<data.size() ;) {
 			ssize_t c = ::write(fd,data.data(),data.size()) ;
-			if (c<=0) throw to_string("cannot write to ",fd) ;
+			if (c<=0) throw "cannot write to "+fmt_string(fd) ;
 			cnt += c ;
 		}
 	}
@@ -45,7 +45,7 @@ struct Fd {
 	constexpr Fd   detach()       { Fd res = *this ; fd = -1 ; return res ; }
 	constexpr void close () {
 		if (!*this        ) return ;
-		if (::close(fd)!=0) throw to_string("cannot close file descriptor ",fd," : ",strerror(errno)) ;
+		if (::close(fd)!=0) throw "cannot close file descriptor "+fmt_string(fd)+" : "+strerror(errno) ;
 		*this = {} ;
 	}
 	void no_std() {
@@ -106,11 +106,11 @@ struct SockFd : AutoCloseFd {
 	static constexpr in_addr_t LoopBackAddr = NoSockAddr ;
 	// statics
 	static ::string s_addr_str(in_addr_t addr) {
-		::string res ; res.reserve(15) ;                 // 3 digits per level + 5 digits for the port
-		/**/         res += to_string((addr>>24)&0xff) ;
-		res += '.' ; res += to_string((addr>>16)&0xff) ;
-		res += '.' ; res += to_string((addr>> 8)&0xff) ;
-		res += '.' ; res += to_string((addr>> 0)&0xff) ;
+		::string res ; res.reserve(15) ;         // 3 digits per level + 5 digits for the port
+		/**/         res << ((addr>>24)&0xff) ;
+		res << '.' ; res << ((addr>>16)&0xff) ;
+		res << '.' ; res << ((addr>> 8)&0xff) ;
+		res << '.' ; res << ((addr>> 0)&0xff) ;
 		return res ;
 	}
 	static struct sockaddr_in  s_sockaddr( in_addr_t a , in_port_t p ) {
@@ -128,7 +128,7 @@ struct SockFd : AutoCloseFd {
 	static ::pair_s<in_port_t> s_host_port(::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_string<in_port_t>(service.c_str()+col+1) } ; }
 	static in_addr_t           s_addr     (::string const& server ) ;
 	//
-	static ::string s_service( ::string const& host , in_port_t port ) { return to_string(host,':',port)         ; }
+	static ::string s_service( ::string const& host , in_port_t port ) { return host+':'+port                    ; }
 	static ::string s_service( in_addr_t       addr , in_port_t port ) { return s_service(s_addr_str(addr),port) ; }
 	static ::string s_service(                        in_port_t port ) { return s_service(host()          ,port) ; }
 private :
@@ -148,7 +148,7 @@ public :
 	}
 	// services
 	in_addr_t peer_addr() const {
-		static_assert(sizeof(in_addr_t)==4) ;            // else use adequate ntohs/ntohl according to the size
+		static_assert(sizeof(in_addr_t)==4) ;    // else use adequate ntohs/ntohl according to the size
 		struct sockaddr_in peer_addr ;
 		socklen_t          len       = sizeof(peer_addr)                                                           ;
 		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;

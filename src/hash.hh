@@ -139,7 +139,7 @@ namespace Hash {
 		// cxtors & cast
 	protected :
 		_Md5(           ) ;
-		_Md5(FileTag tag) : is_lnk{tag==FileTag::Lnk} { if (tag!=FileTag::Reg) _salt = to_string(tag) ; }
+		_Md5(FileTag tag) : is_lnk{tag==FileTag::Lnk} { if (tag!=FileTag::Reg) _salt = snake(tag) ; }
 		// services
 		void _update( const void* p , size_t sz ) ;
 		Crc  digest (                           ) && ; // context is no more usable once digest has been asked
