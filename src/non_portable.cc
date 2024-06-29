@@ -16,118 +16,93 @@ int np_get_fd(::filebuf& fb) {
 	return static_cast<FileBuf&>(fb).fd() ;
 }
 
-::array<uint64_t,6> np_ptrace_get_args(int pid) {
-	struct ::user_regs_struct regs ;
-	::array<uint64_t,6>       res  ;
-	errno = 0 ;
+using UserRegsStruct = struct ::user_regs_struct ;
+using Iovec          = struct ::iovec            ;
+#ifdef __x86_64__
+	using Word = decltype(UserRegsStruct().rdi    ) ;
+#elif __arm__
+	using Word = decltype(UserRegsStruct().r0     ) ;
+#elif __aarch64__
+	using Word = decltype(UserRegsStruct().regs[0]) ;
+#else
+	#error "reg accesses not implemented for this architecture" // if situation arises, please provide the adequate code using x86_64 case as a template
+#endif
+
+static void _get_set( pid_t pid , int n_words , UserRegsStruct& regs , bool set ) {
 	#ifdef __x86_64__
-		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		res[0] = regs.rdi ;                                                 // from man 2 syscall
+		(void)n_words ;
+		long rc = ptrace( set?PTRACE_SETREGS:PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
+		SWEAR(rc==0,errno) ;
+	#elif __aarch64__ || __arm__
+		Iovec iov { .iov_base=&regs , .iov_len=n_words*sizeof(Word) }                                 ; // read/write n_words registers
+		long  rc  = ptrace( set?PTRACE_SETREGSET:PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
+		SWEAR(rc==0                            ,errno      ) ;
+		SWEAR(iov.iov_len==n_words*sizeof(Word),iov.iov_len) ;                                          // check all asked regs have been read/written
+	#endif
+}
+
+static UserRegsStruct _get( pid_t pid , int n_words                        ) { UserRegsStruct regs={/*zero*/} ; _get_set(pid,n_words,regs,false/*set*/) ; return regs ; }
+static void           _set( pid_t pid , int n_words , UserRegsStruct& regs ) {                                  _get_set(pid,n_words,regs,true /*set*/) ;               }
+
+::array<uint64_t,6> np_ptrace_get_args(pid_t pid) {                                            // info come from man 2 syscall
+	UserRegsStruct      regs = _get(pid,6/*n_words*/) ;
+	::array<uint64_t,6> res  ;
+	#ifdef __x86_64__
+		res[0] = regs.rdi ;
 		res[1] = regs.rsi ;
 		res[2] = regs.rdx ;
 		res[3] = regs.r10 ;
 		res[4] = regs.r8  ;
 		res[5] = regs.r9  ;
-	#elif __aarch64__ || __arm__
-		struct iovec iov ;
-		iov.iov_base = &regs                      ;
-		iov.iov_len  = sizeof(unsigned long long) ;                         // read only the 1st register
-		long rc = ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &iov) ;
-		SWEAR(rc!=-1) ;
-		#if __arm__
-			res[0] = regs.r0 ;                                              // from man 2 syscall
-			res[1] = regs.r1 ;
-			res[2] = regs.r2 ;
-			res[3] = regs.r3 ;
-			res[4] = regs.r4 ;
-			res[5] = regs.r5 ;
-		#elif __aarch64__
-			res[0] = regs.regs[0] ;                                         // XXX : find a source of info
-			res[1] = regs.regs[1] ;
-			res[2] = regs.regs[2] ;
-			res[3] = regs.regs[3] ;
-			res[4] = regs.regs[4] ;
-			res[5] = regs.regs[5] ;
-		#endif
-	#else
-		#error "np_get_errno not implemented for this architecture"         // if situation arises, please provide the adequate code using x86_64 case as a template
+	#elif __arm__
+		res[0] = regs.r0      ; static_assert(offsetof(UserRegsStruct,r0  )<=5*sizeof(Word)) ; // else adjust n_words
+		res[1] = regs.r1      ; static_assert(offsetof(UserRegsStruct,r1  )<=5*sizeof(Word)) ; // .
+		res[2] = regs.r2      ; static_assert(offsetof(UserRegsStruct,r2  )<=5*sizeof(Word)) ; // .
+		res[3] = regs.r3      ; static_assert(offsetof(UserRegsStruct,r3  )<=5*sizeof(Word)) ; // .
+		res[4] = regs.r4      ; static_assert(offsetof(UserRegsStruct,r4  )<=5*sizeof(Word)) ; // .
+		res[5] = regs.r5      ; static_assert(offsetof(UserRegsStruct,r5  )<=5*sizeof(Word)) ; // .
+	#elif __aarch64__
+		res[0] = regs.regs[0] ; static_assert(offsetof(UserRegsStruct,regs)==0             ) ; // .
+		res[1] = regs.regs[1] ;
+		res[2] = regs.regs[2] ;
+		res[3] = regs.regs[3] ;
+		res[4] = regs.regs[4] ;
+		res[5] = regs.regs[5] ;
 	#endif
-	SWEAR( !errno , errno ) ;
 	return res ;
 }
 
 // Check : https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md
-int64_t np_ptrace_get_res(int pid) {
-	struct ::user_regs_struct regs ;
-	int64_t                   res  ;
-	errno = 0 ;
+int64_t np_ptrace_get_res(pid_t pid) {
+	UserRegsStruct regs = _get(pid,1/*n_words*/) ;
 	#ifdef __x86_64__
-		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		res = regs.rax ;
-	#elif __aarch64__ || __arm__
-		struct iovec iov ;
-		iov.iov_base = &regs                      ;
-		iov.iov_len  = sizeof(unsigned long long) ;                         // read only the 1st register
-		long rc = ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &iov) ;
-		SWEAR(rc!=-1) ;
-		#if __arm__
-			res = regs.r0      ;
-		#elif __aarch64__
-			res = regs.regs[0] ;
-		#endif
-	#else
-		#error "np_get_errno not implemented for this architecture"         // if situation arises, please provide the adequate code using x86_64 case as a template
+		return regs.rax     ;
+	#elif __arm__
+		return regs.r0      ; static_assert(offsetof(UserRegsStruct,r0     )==0) ; // else adjust n_words
+	#elif __aarch64__
+		return regs.regs[0] ; static_assert(offsetof(UserRegsStruct,regs[0])==0) ; // .
 	#endif
-	SWEAR( !errno , errno ) ;
-	return res ;
 }
 
-long np_ptrace_get_nr(int pid) {
-	errno = 0 ;
-	struct ::user_regs_struct regs ;
+long np_ptrace_get_nr(pid_t pid) {
+	UserRegsStruct regs = _get(pid,9/*n_words*/) ;
 	#ifdef __x86_64__
-		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		if (errno) throw 0 ;
 		return regs.orig_rax ;
-	#elif __aarch64__ || __arm__
-		struct iovec  iov ;
-		iov.iov_base = &regs ;
-		iov.iov_len  = 9 * sizeof(unsigned long long) ;                      // read/write only 9 registers
-		ptrace( PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
-		if (errno) throw 0 ;
-		#if __arm__
-			return regs.r7 ;
-		#elif __aarch64__
-			return regs.regs[8] ;
-		#endif
-	#else
-		#error "np_ptrace_get_syscall not implemented for this architecture" // if situation arises, please provide the adequate code using x86_64 case as a template
+	#elif __arm__
+		return regs.r7       ; static_assert(offsetof(UserRegsStruct,r7     )<=8*sizeof(Word)) ; // else adjust n_words
+	#elif __aarch64__
+		return regs.regs[8]  ; static_assert(offsetof(UserRegsStruct,regs[8])<=8*sizeof(Word)) ; // .
 	#endif
 }
 
-void np_ptrace_set_res( int pid , long val ) {
-	errno = 0 ;
-	struct ::user_regs_struct regs ;
+void np_ptrace_set_res( pid_t pid , int64_t val ) {
+	UserRegsStruct regs = _get(pid,1/*n_words*/)  ;
 	#ifdef __x86_64__
-		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		if (errno) throw 0 ;
-		regs.rax = val ;
-		ptrace( PTRACE_SETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		if (errno) throw 0 ;
-	#elif __aarch64__ || __arm__
-		struct iovec  iov ;
-		iov.iov_base = &regs ;
-		iov.iov_len  = 9 * sizeof(unsigned long long) ;                      // read/write only 9 registers
-		ptrace( PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
-		if (errno) throw 0 ;
-		#if __arm__
-			regs.r0 = val ;
-		#elif __aarch64__
-			regs.regs[0] = val ;
-		#endif
-		ptrace( PTRACE_SETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
-		if (errno) throw 0 ;
-	#else
-		#error "np_ptrace_get_syscall not implemented for this architecture" // if situation arises, please provide the adequate code using x86_64 case as a template
+		regs.rax     = val ;
+	#elif __arm__
+		regs.r0      = val ; static_assert(offsetof(UserRegsStruct,r0     )==0) ; // else adjust n_words
+	#elif __aarch64__
+		regs.regs[0] = val ; static_assert(offsetof(UserRegsStruct,regs[0])==0) ; // .
 	#endif
+	_set(pid,1,regs) ;
 }

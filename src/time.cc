@@ -37,20 +37,16 @@ namespace Time {
 	}
 
 	::string Delay::short_str() const {
-		Tick     v      = msec() ;
-		bool     is_neg = v<0    ;
-		::string res    ;
-		if (is_neg) v = -v ;
-		/**/      if (v< 10*1000) { res = fmt_string(::right,::setw(1),v/1000,'.',::setfill('0'),::setw(3),v%1000,'s') ; goto Return ; }
-		v /= 10 ; if (v< 60* 100) { res = fmt_string(::right,::setw(2),v/ 100,'.',::setfill('0'),::setw(2),v% 100,'s') ; goto Return ; }
-		v /=100 ; if (v< 60*  60) { res = fmt_string(::right,::setw(2),v/  60,'m',::setfill('0'),::setw(2),v%  60,'s') ; goto Return ; }
-		v /= 60 ; if (v< 24*  60) { res = fmt_string(::right,::setw(2),v/  60,'h',::setfill('0'),::setw(2),v%  60,'m') ; goto Return ; }
-		v /= 60 ; if (v<100*  24) { res = fmt_string(::right,::setw(2),v/  60,'j',::setfill('0'),::setw(2),v%  60,'h') ; goto Return ; }
-		v /= 24 ; if (v<100'000l) { res = fmt_string(::right,::setw(5),v,'j'                                         ) ; goto Return ; }
-		/**/                      { res = "forevr"                                                                     ; goto Return ; }
-	Return :
-		if (is_neg) return '-'+res ;
-		else        return     res ;
+		Tick        v    = msec()     ;
+		const char* sign = v<0?"-":"" ;
+		if (v<0) v = -v ;
+		/**/      if (v< 10*1000) return fmt_string(sign,::right,::setw(1),v/1000,'.',::setfill('0'),::setw(3),v%1000,'s') ;
+		v /= 10 ; if (v< 60* 100) return fmt_string(sign,::right,::setw(2),v/ 100,'.',::setfill('0'),::setw(2),v% 100,'s') ;
+		v /=100 ; if (v< 60*  60) return fmt_string(sign,::right,::setw(2),v/  60,'m',::setfill('0'),::setw(2),v%  60,'s') ;
+		v /= 60 ; if (v<100*  60) return fmt_string(sign,::right,::setw(2),v/  60,'h',::setfill('0'),::setw(2),v%  60,'m') ;
+		v /= 60 ; if (v<100'000 ) return fmt_string(sign,::right,::setw(5),v     ,'h'                                    ) ;
+		v /= 24 ; if (v<100'000 ) return fmt_string(sign,::right,::setw(5),v     ,'j'                                    ) ;
+		/**/                      return "forevr"                                                                          ;
 	}
 
 	//

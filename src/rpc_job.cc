@@ -34,11 +34,11 @@ using namespace Hash ;
 	for( auto const& [f,a] : pre_actions ) {          // pre_actions are adequately sorted
 		SWEAR(+f) ;                                   // acting on root dir is non-sense
 		switch (a.tag) {
-			case FileActionTag::None  :
-			case FileActionTag::Unlnk : {
+			case FileActionTag::Unlink        :
+			case FileActionTag::UnlinkWarning : {
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                     // file does not exist, nothing to do
-				bool done = true/*garbage*/ ;
+				bool done       = true/*garbage*/                                                           ;
 				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ;
 				if (quarantine) {
 					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
@@ -47,15 +47,17 @@ using namespace Hash ;
 				} else {
 					SWEAR(is_lcl(f)) ;
 					done = unlnk(nfs_guard.change(f)) ;
-					if (!done) msg<<"failed to unlink "<<mk_file(f)<<'\n' ;
+					if      (!done                              ) msg<<"failed to unlink "<<mk_file(f)<<'\n' ;
+					else if (a.tag==FileActionTag::UnlinkWarning) msg<<"unlinked "        <<mk_file(f)<<'\n' ;
 				}
 				trace(STR(quarantine),STR(done),f) ;
 				if ( done && unlnks ) unlnks->push_back(f) ;
 				ok &= done ;
 			} break ;
-			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) msg<<"uniquified "<<mk_file(f)<<'\n' ; break ;
-			case FileActionTag::Mkdir    : mk_dir(f,nfs_guard) ;                                                     break ;
-			case FileActionTag::Rmdir    :
+			case FileActionTag::NoUniquify : if (can_uniquify(nfs_guard.change(f))) msg<<"did not uniquify "<<mk_file(f)<<'\n' ; break ;
+			case FileActionTag::Uniquify   : if (uniquify    (nfs_guard.change(f))) msg<<"uniquified "      <<mk_file(f)<<'\n' ; break ;
+			case FileActionTag::Mkdir      : mk_dir(f,nfs_guard) ;                                                               break ;
+			case FileActionTag::Rmdir      :
 				if (!keep_dirs.contains(f))
 					try {
 						rmdir(nfs_guard.change(f)) ;
@@ -418,29 +420,29 @@ void JobSpace::chk() const {
 	/**/                                   os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
 		case JobRpcProc::Start :
-			/**/                           os <<',' << hex<<jrr.addr<<dec                ;
-			/**/                           os <<',' << jrr.autodep_env                   ;
-			if      (+jrr.job_space      ) os <<',' << jrr.job_space                     ;
-			if      ( jrr.keep_tmp_dir   ) os <<',' << "keep"                            ;
-			else if ( jrr.tmp_sz_mb==Npos) os <<',' << "..."                             ;
-			else                           os <<',' << jrr.tmp_sz_mb                     ;
-			if (+jrr.cwd_s               ) os <<',' << jrr.cwd_s                         ;
-			if (+jrr.date_prec           ) os <<',' << jrr.date_prec                     ;
-			/**/                           os <<',' << mk_printable(fmt_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
-			/**/                           os <<',' << jrr.interpreter                   ;
-			/**/                           os <<',' << jrr.kill_sigs                     ;
-			if (jrr.live_out             ) os <<',' << "live_out"                        ;
-			/**/                           os <<',' << jrr.method                        ;
-			if (+jrr.network_delay       ) os <<',' << jrr.network_delay                 ;
-			if (+jrr.pre_actions         ) os <<',' << jrr.pre_actions                   ;
-			/**/                           os <<',' << jrr.small_id                      ;
-			if (+jrr.star_matches        ) os <<',' << jrr.star_matches                  ;
-			if (+jrr.deps                ) os <<'<' << jrr.deps                          ;
-			if (+jrr.static_matches      ) os <<'>' << jrr.static_matches                ;
-			if (+jrr.stdin               ) os <<'<' << jrr.stdin                         ;
-			if (+jrr.stdout              ) os <<'>' << jrr.stdout                        ;
-			if (+jrr.timeout             ) os <<',' << jrr.timeout                       ;
-			/**/                           os <<',' << jrr.cmd                           ; // last as it is most probably multi-line
+			/**/                           os <<','<< hex<<jrr.addr<<dec                ;
+			/**/                           os <<','<< jrr.autodep_env                   ;
+			if      (+jrr.job_space      ) os <<','<< jrr.job_space                     ;
+			if      ( jrr.keep_tmp_dir   ) os <<','<< "keep"                            ;
+			else if ( jrr.tmp_sz_mb==Npos) os <<','<< "..."                             ;
+			else                           os <<','<< jrr.tmp_sz_mb                     ;
+			if      (+jrr.cwd_s          ) os <<','<< jrr.cwd_s                         ;
+			if      (+jrr.date_prec      ) os <<','<< jrr.date_prec                     ;
+			/**/                           os <<','<< mk_printable(fmt_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+			/**/                           os <<','<< jrr.interpreter                   ;
+			/**/                           os <<','<< jrr.kill_sigs                     ;
+			if      (jrr.live_out        ) os <<','<< "live_out"                        ;
+			/**/                           os <<','<< jrr.method                        ;
+			if      (+jrr.network_delay  ) os <<','<< jrr.network_delay                 ;
+			if      (+jrr.pre_actions    ) os <<','<< jrr.pre_actions                   ;
+			/**/                           os <<','<< jrr.small_id                      ;
+			if      (+jrr.star_matches   ) os <<','<< jrr.star_matches                  ;
+			if      (+jrr.deps           ) os <<'<'<< jrr.deps                          ;
+			if      (+jrr.static_matches ) os <<'>'<< jrr.static_matches                ;
+			if      (+jrr.stdin          ) os <<'<'<< jrr.stdin                         ;
+			if      (+jrr.stdout         ) os <<'>'<< jrr.stdout                        ;
+			if      (+jrr.timeout        ) os <<','<< jrr.timeout                       ;
+			/**/                           os <<','<< jrr.cmd                           ; // last as it is most probably multi-line
 			;
 		break ;
 		default : ;

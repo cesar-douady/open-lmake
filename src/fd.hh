@@ -107,10 +107,10 @@ struct SockFd : AutoCloseFd {
 	// statics
 	static ::string s_addr_str(in_addr_t addr) {
 		::string res ; res.reserve(15) ;         // 3 digits per level + 5 digits for the port
-		/**/         res << ((addr>>24)&0xff) ;
-		res << '.' ; res << ((addr>>16)&0xff) ;
-		res << '.' ; res << ((addr>> 8)&0xff) ;
-		res << '.' ; res << ((addr>> 0)&0xff) ;
+		res <<      ((addr>>24)&0xff) ;
+		res <<'.'<< ((addr>>16)&0xff) ;
+		res <<'.'<< ((addr>> 8)&0xff) ;
+		res <<'.'<< ((addr>> 0)&0xff) ;
 		return res ;
 	}
 	static struct sockaddr_in  s_sockaddr( in_addr_t a , in_port_t p ) {

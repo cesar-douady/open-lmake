@@ -306,9 +306,10 @@ template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S 
 }
 template<::floating_point F> F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt,strlen(txt)) , empty_ok ) ; }
 
-::string mk_py_str   (::string const&) ;
-::string mk_json_str (::string const&) ;
-::string mk_shell_str(::string const&) ;
+/**/   ::string mk_json_str (::string_view  ) ;
+/**/   ::string mk_shell_str(::string_view  ) ;
+/**/   ::string mk_py_str   (::string_view  ) ;
+inline ::string mk_py_str   (bool          b) { return b ?"True":"False" ; }
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
 inline constexpr bool is_space(char c) {
@@ -1084,6 +1085,27 @@ template<class... A> [[noreturn]] void exit( Rc rc , A const&... args ) {
 	::cerr << ensure_nl(fmt_string(args...)) ;
 	::std::exit(+rc) ;
 }
+
+struct First {
+	bool operator()() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }
+	//
+	template<class T> T operator()( T&& first , T&& other=T() ) { return (*this)() ? ::forward<T>(first) : ::forward<T>(other) ; }
+	//
+	template<class T> T operator()( T&& first , T&& second , T&& other ) {
+		uint8_t v = _val ;
+		(*this)() ;
+		switch (v) {
+			case 0 : return ::forward<T>(first ) ;
+			case 1 : return ::forward<T>(second) ;
+			case 2 : return ::forward<T>(other ) ;
+		DF}
+	}
+	//
+	const char* operator()( const char* first ,                      const char* other="" ) { return operator()<const char*&>(first,       other) ; }
+	const char* operator()( const char* first , const char* second , const char* other    ) { return operator()<const char*&>(first,second,other) ; }
+private :
+	uint8_t _val=0 ;
+} ;
 
 //
 // Implementation

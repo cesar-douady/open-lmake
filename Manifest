@@ -14,7 +14,16 @@ _lib/lmake/import_machinery.py
 _lib/lmake/rules.src.py
 _lib/lmake/sources.src.py
 _lib/lmake/utils.py
-_lib/lmake_dbg.py
+_lib/lmake_debug/default.py
+_lib/lmake_debug/enter.py
+_lib/lmake_debug/none.py
+_lib/lmake_debug/pudb.py
+_lib/lmake_debug/runtime/pdb.py
+_lib/lmake_debug/runtime/pudb.py
+_lib/lmake_debug/runtime/utils.py
+_lib/lmake_debug/runtime/vscode.py
+_lib/lmake_debug/utils.py
+_lib/lmake_debug/vscode.py
 _lib/lmake_runtime.py
 _lib/read_makefiles.py
 _lib/serialize.py
@@ -272,6 +281,7 @@ unit_tests/test19.script
 unit_tests/timeout.py
 unit_tests/tmp.py
 unit_tests/tmp2.py
+unit_tests/trace_exec.py
 unit_tests/transient.py
 unit_tests/unstable.script
 unit_tests/uphill.py

@@ -17,7 +17,6 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                   } }
 	,	{ ReqKey::Deps       , { .short_name='d' , .doc="show existing deps"                         } }
 	,	{ ReqKey::Env        , { .short_name='E' , .doc="show envionment variables to execute job"   } }
-	,	{ ReqKey::ExecScript , { .short_name='s' , .doc="show a sh-executable script"                } }
 	,	{ ReqKey::Info       , { .short_name='i' , .doc="show info about jobs leading to files"      } }
 	,	{ ReqKey::InvDeps    , { .short_name='D' , .doc="show dependents"                            } }
 	,	{ ReqKey::InvTargets , { .short_name='T' , .doc="show producing jobs"                        } }
@@ -26,10 +25,8 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::Stdout     , { .short_name='o' , .doc="show stdout"                                } }
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"      } }
 	},{
-		{ ReqFlag::Debug      , { .short_name='u' , .has_arg=true  , .doc="generate debug executable script with arg as debug directory" } }
-	,	{ ReqFlag::Graphic    , { .short_name='g' , .has_arg=false , .doc="use GUI"                                                      } }
-	,	{ ReqFlag::Porcelaine , { .short_name='p' , .has_arg=false , .doc="generate output as an easy to parse python dict"              } }
-	,	{ ReqFlag::Verbose    , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts"                   } }
+		{ ReqFlag::Porcelaine , { .short_name='p' , .has_arg=false , .doc="generate output as an easy to parse python dict" } }
+	,	{ ReqFlag::Verbose    , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts"      } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
@@ -43,9 +40,7 @@ int main( int argc , char* argv[] ) {
 		default : ;
 	}
 	//
-	if ( cmd_line.key==ReqKey::ExecScript && cmd_line.args.size()!=1             ) syntax.usage("must have a single argument to generate an executable script") ;
 	if ( cmd_line.flags[ReqFlag::Verbose   ] && !may_verbose                     ) syntax.usage("verbose is only for showing deps, targets or stderr"         ) ;
-	if ( cmd_line.flags[ReqFlag::Debug     ] && cmd_line.key!=ReqKey::ExecScript ) syntax.usage("debug is only for showing executable script"                 ) ;
 	if ( cmd_line.flags[ReqFlag::Job       ] && cmd_line.key==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"                         ) ;
 	if ( cmd_line.flags[ReqFlag::Job       ] && cmd_line.key==ReqKey::InvTargets ) syntax.usage("producing jobs cannot be shown for jobs"                     ) ;
 	if ( cmd_line.flags[ReqFlag::Porcelaine] && cmd_line.key!=ReqKey::Info       ) syntax.usage("porcelaine output is only valid with --info"                 ) ;

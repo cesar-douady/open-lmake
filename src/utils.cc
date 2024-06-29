@@ -25,7 +25,7 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 // string
 //
 
-::string mk_py_str(::string const& s) {
+::string mk_py_str(::string_view s) {
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + initial and final quotes
 	for( char c : s ) {
 		switch (c) {
@@ -47,7 +47,7 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 	return res ;
 }
 
-::string mk_json_str(::string const& s) {
+::string mk_json_str(::string_view s) {
 	::string res {'"'} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + initial and final quotes
 	for( char c : s ) {
 		switch (c) {
@@ -67,7 +67,7 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 	return res ;
 }
 
-::string mk_shell_str(::string const& s) {
+::string mk_shell_str(::string_view s) {
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + quotes
 	for( char c : s )
 		switch (c) {
@@ -80,12 +80,9 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 
 template<> ::string mk_printable(::vector_s const& v) {
 	::string res   ;
-	bool     first = true ;
+	First    first ;
 	res << '(' ;
-	for( ::string const& s : v ) {
-		if (!first) res <<',' ; else first = false ;
-		res << '"'<<mk_printable<'"'>(s)<<'"' ;
-	}
+	for( ::string const& s : v ) res << first("",",")<< '"'<<mk_printable<'"'>(s)<<'"' ;
 	res << ')' ;
 	return res ;
 }
@@ -93,8 +90,8 @@ template<> ::string mk_printable(::vector_s const& v) {
 template<> ::vector_s parse_printable( ::string const& txt , size_t& pos ) {
 	::vector_s res ;
 	if (txt[pos++]!='(') goto Fail ;
-	for ( bool first=true ; txt[pos]!=')' ; first=false ) {
-		if (!first && txt[pos++]!=',') goto Fail ;
+	for ( First first ; txt[pos]!=')' ;) {
+		if (!first() && txt[pos++]!=',') goto Fail ;
 		if (txt[pos++]!='"') goto Fail ;
 		::string v = parse_printable<'"'>(txt,pos) ;
 		if (txt[pos++]!='"') goto Fail ;
@@ -108,11 +105,10 @@ Fail :
 
 template<> ::string mk_printable(::vmap_ss const& m) {
 	::string res   ;
-	bool     first = true ;
+	First    first ;
 	res << '{' ;
 	for( auto const& [k,v] : m ) {
-		if (!first) res << ',' ; else first = false ;
-		res << '"'<<mk_printable<'"'>(k)<<'"' << ':' << '"'<<mk_printable<'"'>(v)<<'"' ;
+		res << first("",",") << '"'<<mk_printable<'"'>(k)<<'"' <<':'<< '"'<<mk_printable<'"'>(v)<<'"' ;
 	}
 	res << '}' ;
 	return res ;
@@ -121,8 +117,8 @@ template<> ::string mk_printable(::vmap_ss const& m) {
 template<> ::vmap_ss parse_printable( ::string const& txt , size_t& pos ) {
 	::vmap_ss res ;
 	if (txt[pos++]!='{') goto Fail ;
-	for ( bool first=true ; txt[pos]!='}' ; first=false ) {
-		if (!first && txt[pos++]!=',') goto Fail ;
+	for ( First first ; txt[pos]!='}' ;) {
+		if (!first() && txt[pos++]!=',') goto Fail ;
 		//
 		if (txt[pos++]!='"') goto Fail ;
 		::string k = parse_printable<'"'>(txt,pos) ;

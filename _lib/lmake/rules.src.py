@@ -136,6 +136,14 @@ class HomelessRule(Rule) :
 		os.environ['HOME'] = os.environ['TMPDIR']
 	cmd.shell = 'export HOME=$TMPDIR'             # defining a function with a shell attribute is the way to have both python & shell pre-commands
 
+class TraceRule(Rule) :
+	'base rule to trace shell commands to stdout'
+	cmd = '''
+		exec 3>&1
+		export BASH_XTRACEFD=3
+		set -x
+	'''
+
 class DirtyRule(Rule) :
 	side_targets = { '__NO_MATCH__' : ('{*:.*}','Incremental','NoWarning') }
 

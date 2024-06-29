@@ -32,7 +32,6 @@ ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other comma
 ,	Deps       // if proc==Show
 ,	Env        // if proc==Show
 ,	Error      // if proc==Forget, forget previous error, i.e. rerun targets in error that appear up-to-date
-,	ExecScript // if proc==Show
 ,	Info       // if proc==Show
 ,	InvDeps    // if proc==Show
 ,	InvTargets // if proc==Show
@@ -55,19 +54,17 @@ inline bool is_mark_glb(ReqKey key) {
 ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
 ,	Archive         // if proc==                  Make               , all intermediate files are generated
 ,	Backend         // if proc==                  Make               , send argument to backends
-,	Debug           // if proc==                                Show , generate debug executable script
 ,	Deps            // if proc==         Forget                      , forget deps
-,	Enter           // if proc== Debug                               , generate script to enter into job view w/o executing it
 ,	Force           // if proc==                         Mark        , act if doable, even if awkward
 ,	ForgetOldErrors // if proc==                  Make               , assume old errors are transient
 ,	Freeze          // if proc==                         Mark        , prevent job rebuild
-,	Graphic         // if proc== Debug                          Show , use GUI to show debug script
-,	Vscode          // if proc== Debug                          Show , use Vscode GUI to show debug script
 ,	Job             //                                                 interpret (unique) arg as job name
 ,	Jobs            // if proc==                  Make               , max number of jobs
 ,	KeepTmp         // if proc==                  Make               , keep tmp dir after job execution
+,	Key             // if proc== Debug                               , key used to look up into config.debug to find helper module used to debug
 ,	LiveOut         // if proc==                  Make               , generate live output for last job
 ,	Local           // if proc==                  Make               , lauch all jobs locally
+,	NoExec          // if proc== Debug                               , dont execute, just generate files
 ,	NoTrigger       // if proc==                         Mark        , prevent lmake from rebuilding dependent jobs
 ,	Porcelaine      //                                                 generate easy to parse output
 ,	Quiet           //                                                 do not generate user oriented messages

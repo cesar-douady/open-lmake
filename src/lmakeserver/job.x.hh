@@ -311,7 +311,7 @@ namespace Engine {
 		}
 		bool missing() const { return run_status==RunStatus::MissingStatic ; }
 		// services
-		::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlnk*/> pre_actions( Rule::SimpleMatch const& , bool mark_target_dirs=false ) const ; // thread-safe
+		vmap<Node,FileAction> pre_actions( Rule::SimpleMatch const& , bool mark_target_dirs=false ) const ; // thread-safe
 		//
 		Tflags tflags(Node target) const ;
 		//

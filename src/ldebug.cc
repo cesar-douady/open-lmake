@@ -16,17 +16,13 @@ int main( int argc , char* argv[] ) {
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{},{
-		{ ReqFlag::Enter   , { .short_name='e' , .doc="enter into job view"                   } }
-	,	{ ReqFlag::Graphic , { .short_name='g' , .doc="launch execution under pudb control"   } }
-	,	{ ReqFlag::Vscode  , { .short_name='c' , .doc="launch execution under vscode control" } }
+		{ ReqFlag::Key    , { .short_name='k' , .has_arg=true  , .doc="entry into config.debug to specify debug method" } }
+	,	{ ReqFlag::NoExec , { .short_name='n' , .has_arg=false , .doc="dont execute, just generate files"               } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	int n_flags = cmd_line.flags[ReqFlag::Enter] + cmd_line.flags[ReqFlag::Graphic] + cmd_line.flags[ReqFlag::Vscode] ;
 	if ( cmd_line.args.size()<1 ) syntax.usage("need a target to debug"                                ) ;
 	if ( cmd_line.args.size()>1 ) syntax.usage("cannot debug "s+cmd_line.args.size()+" targets at once") ;
-	if ( n_flags             >1 ) syntax.usage("cannot debug with several methods simultaneously"      ) ;
-	cmd_line.flags |= ReqFlag::Debug ;
 	//
 	::vector_s script_files ;
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -38,10 +34,14 @@ int main( int argc , char* argv[] ) {
 	//
 	char* exec_args[] = { script_file.data() , nullptr } ;
 	//
-	::cerr << "executing : " << script_file << endl ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	::execv(script_file.c_str(),exec_args) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	//
-	exit(Rc::System,"could not run ",script_file) ;
+	if (cmd_line.flags[ReqFlag::NoExec]) {
+		::cout << "script file : " << script_file << endl ;
+	} else {
+		::cerr << "executing : " << script_file << endl ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		::execv(script_file.c_str(),exec_args) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//
+		exit(Rc::System,"could not run ",script_file) ;
+	}
 }

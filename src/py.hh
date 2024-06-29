@@ -471,29 +471,15 @@ namespace Py {
 		bool   qualify() const { return PyDict_Check(to_py()) ; }
 		size_t size   () const { return PyDict_Size (to_py()) ; }
 		//
-		bool contains(::string const& key) const {
-			PyObject* rc = PyDict_GetItemString( to_py() , key.c_str() ) ;
-			return bool(rc) ;
-		}
-		void set_item( ::string const& key , Object& val ) {
-			int rc = PyDict_SetItemString( to_py() , key.c_str() , val.to_py() ) ;
-			if (rc!=0) throw "cannot set "+key ;
-		}
-		void del_item(::string const& key) {
-			int rc = PyDict_DelItemString( to_py() , key.c_str() ) ;
-			if (rc!=0) throw "key "+key+" not found" ;
-		}
-		void erase_item(::string const& key) {
-			PyDict_DelItemString( to_py() , key.c_str() ) ;
-		}
-		Object      & operator[](::string const& key)       { return _get_item(key) ; }
-		Object const& operator[](::string const& key) const { return _get_item(key) ; }
-	private :
-		Object& _get_item(::string const& key) const {
-			Object* res = from_py(PyDict_GetItemString( to_py() , key.c_str() )) ;
-			if (!res) throw "key "+key+" not found" ;
-			return *res ;
-		}
+		bool          contains  ( ::string const& k             ) const { bool    r =bool(   PyDict_GetItemString(to_py(),k.c_str()          )) ;                                       return r  ; }
+		void          set_item  ( ::string const& k , Object& v )       { int     rc=        PyDict_SetItemString(to_py(),k.c_str(),v.to_py())  ; if (rc) throw "cannot set "+k       ;             }
+		void          del_item  ( ::string const& k             )       { int     rc=        PyDict_DelItemString(to_py(),k.c_str()          )  ; if (rc) throw "key "+k+" not found" ;             }
+		void          erase_item( ::string const& k             )       {                    PyDict_DelItemString(to_py(),k.c_str()          )  ;                                                   }
+		Object const& get_item  ( ::string const& k             ) const { Object* r =from_py(PyDict_GetItemString(to_py(),k.c_str()          )) ; if (!r) throw "key "+k+" not found" ; return *r ; }
+		Object      & get_item  ( ::string const& k             )       { Object* r =from_py(PyDict_GetItemString(to_py(),k.c_str()          )) ; if (!r) throw "key "+k+" not found" ; return *r ; }
+		//
+		Object      & operator[](::string const& key)       { return get_item(key) ; }
+		Object const& operator[](::string const& key) const { return get_item(key) ; }
 		//
 	public :
 		DictIter<false> begin ()       { return *this ; }

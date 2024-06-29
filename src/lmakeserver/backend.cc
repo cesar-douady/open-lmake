@@ -182,23 +182,24 @@ namespace Backends {
 			case Proc::None  : return false ;                    // if connection is lost, ignore it
 			case Proc::Start : SWEAR(+fd,jrr.proc) ; break ;     // fd is needed to reply
 		DF}
-		Job                                        job               { jrr.job }           ;
-		JobExec                                    job_exec          ;
-		Rule                                       rule              = job->rule           ;
-		Rule::SimpleMatch                          match             = job->simple_match() ;
-		JobRpcReply                                reply             { Proc::Start }       ;
-		::pair<vmap<Node,FileAction>,vector<Node>> pre_actions       ;
-		StartCmdAttrs                              start_cmd_attrs   ;
-		::pair_ss/*script,call*/                   cmd               ;
-		::vmap_s<DepSpec>                          deps_attrs        ;
-		StartRsrcsAttrs                            start_rsrcs_attrs ;
-		StartNoneAttrs                             start_none_attrs  ;
-		::pair_ss                                  start_msg_err     ;
-		SubmitAttrs                                submit_attrs      ;
-		::vmap_ss                                  rsrcs             ;
-		Pdate                                      eta               ;
-		bool                                       keep_tmp_dir      = false/*garbage*/    ;
-		::vector<ReqIdx>                           reqs              ;
+		Job                      job                 { jrr.job }           ;
+		JobExec                  job_exec            ;
+		Rule                     rule                = job->rule           ;
+		Rule::SimpleMatch        match               = job->simple_match() ;
+		JobRpcReply              reply               { Proc::Start }       ;
+		vmap<Node,FileAction>    pre_actions         ;
+		vector<Node>             pre_action_warnings ;
+		StartCmdAttrs            start_cmd_attrs     ;
+		::pair_ss/*script,call*/ cmd                 ;
+		::vmap_s<DepSpec>        deps_attrs          ;
+		StartRsrcsAttrs          start_rsrcs_attrs   ;
+		StartNoneAttrs           start_none_attrs    ;
+		::pair_ss                start_msg_err       ;
+		SubmitAttrs              submit_attrs        ;
+		::vmap_ss                rsrcs               ;
+		Pdate                    eta                 ;
+		bool                     keep_tmp_dir        = false/*garbage*/    ;
+		::vector<ReqIdx>         reqs                ;
 		Trace trace(BeChnl,"_s_handle_job_start",jrr) ;
 		_s_starting_job = jrr.job ;
 		Lock lock { _s_starting_job_mutex } ;
@@ -226,6 +227,7 @@ namespace Backends {
 			start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
 			//
 			pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 5 ;
+			for( auto const& [t,a] : pre_actions ) if (a.tag==FileActionTag::UnlinkWarning) pre_action_warnings.push_back(t) ;
 		} catch (::pair_ss const& msg_err) {
 			start_msg_err.first  <<set_nl<< msg_err.first  ;
 			start_msg_err.second <<set_nl<< msg_err.second ;
@@ -251,7 +253,7 @@ namespace Backends {
 				}
 				keep_tmp_dir |= start_none_attrs.keep_tmp_dir ;
 				//
-				for( auto [t,a] : pre_actions.first ) reply.pre_actions.emplace_back(t->name(),a) ;
+				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
 			[[fallthrough]] ;
 			case 3 :
 				reply.method  = start_rsrcs_attrs.method  ;
@@ -357,10 +359,10 @@ namespace Backends {
 				,	.start        = ::move(reply               )
 				,	.stderr       = ::move(start_msg_err.second)
 				} ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , ::move(jis    ) , false/*report_now*/ , ::move(pre_actions.second) , ""s , ::move(jrr.msg ) ) ;
-				g_engine_queue.emplace( Proc::End   , ::move(job_exec) , ::move(end_jrr) , ::move(rsrcs)                                                             ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , ::move(jis    ) , false/*report_now*/ , ::move(pre_action_warnings) , ""s , ::move(jrr.msg ) ) ;
+				g_engine_queue.emplace( Proc::End   , ::move(job_exec) , ::move(end_jrr) , ::move(rsrcs)                                                              ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("release_start_tab",entry,step) ;
 				_s_start_tab.release(it) ;
 				return false/*keep_fd*/ ;
@@ -389,10 +391,10 @@ namespace Backends {
 		,	.stderr       =        start_msg_err.second
 		} ;
 		trace("started",job_exec,reply) ;
-		bool report_now = +pre_actions.second || +start_msg_err.second || Delay(job->exec_time)>=start_none_attrs.start_delay ; // dont defer long jobs or if a message is to be delivered to user
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , ::move(jis) , report_now , ::move(pre_actions.second) , ::move(start_msg_err.second) , jrr.msg+start_msg_err.first ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		bool report_now = +pre_action_warnings || +start_msg_err.second || Delay(job->exec_time)>=start_none_attrs.start_delay ; // dont defer long jobs or if a message is to be delivered to user
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , ::move(jis) , report_now , ::move(pre_action_warnings) , ::move(start_msg_err.second) , jrr.msg+start_msg_err.first ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (!report_now) {
 			Pdate start_report = job_exec.start_date+start_none_attrs.start_delay ;                                             // record before moving job_exec
 			_s_deferred_report_thread.emplace_at( start_report , jrr.seq_id , ::move(job_exec) ) ;

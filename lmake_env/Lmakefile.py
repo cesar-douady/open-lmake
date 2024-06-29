@@ -22,7 +22,7 @@ except : has_seccomp  = False
 
 import lmake
 from lmake       import config,pdict
-from lmake.rules import Rule,PyRule,AntiRule
+from lmake.rules import Rule,PyRule,AntiRule,TraceRule
 
 if 'slurm' in lmake.backends :
 	backend = 'slurm'
@@ -78,7 +78,7 @@ class PathRule(BaseRule) :                       # compiler must be accessed usi
 	environ_cmd = { 'PATH' : os.getenv('PATH') }
 	cache       = 'dir'
 
-class Html(BaseRule) :
+class Html(BaseRule,TraceRule) :
 	targets = { 'HTML' : '{File}.html' }
 	deps    = { 'TEXI' : '{File}.texi' }
 	environ_cmd = {
@@ -145,7 +145,7 @@ class ConfigH(BaseRule) :
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 
-class SysConfig(PathRule) : # XXX : handle PCRE
+class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
 	targets = {
 		'H'     : 'sys_config.h'
 	,	'TRIAL' : 'trial/{*:.*}'
@@ -277,13 +277,22 @@ class TarLmake(BaseRule) :
 	,	'LDUMP'               : '_bin/ldump'
 	,	'LDUMP_JOB'           : '_bin/ldump_job'
 	,	'LMAKESERVER'         : '_bin/lmakeserver'
-	,	'LIB1'                : 'lib/lmake/__init__.py'
-	,	'LIB2'                : 'lib/lmake/auto_sources.py'
-	,	'LIB3'                : 'lib/lmake/import_machinery.py'
-	,	'LIB4'                : 'lib/lmake/rules.py'
-	,	'LIB5'                : 'lib/lmake/sources.py'
-	,	'LIB6'                : 'lib/lmake/utils.py'
-	,	'LIB7'                : 'lib/lmake_runtime.py'
+	,	'LIB_UTILS'           : 'lib/lmake/utils.py'
+	,	'LIB_INIT'            : 'lib/lmake/__init__.py'
+	,	'LIB1'                : 'lib/lmake/auto_sources.py'
+	,	'LIB2'                : 'lib/lmake/import_machinery.py'
+	,	'LIB3'                : 'lib/lmake/rules.py'
+	,	'LIB4'                : 'lib/lmake/sources.py'
+	,	'LIB_RT'              : 'lib/lmake_runtime.py'
+	,	'LIB_DBG_UTILS'       : 'lib/lmake_debug/utils.py'
+	,	'LIB_DBG1'            : 'lib/lmake_debug/default.py'
+	,	'LIB_DBG2'            : 'lib/lmake_debug/enter.py'
+	,	'LIB_DBG3'            : 'lib/lmake_debug/none.py'
+	,	'LIB_DBG4'            : 'lib/lmake_debug/pudb.py'
+	,	'LIB_DBG_RT_UTILS'    : 'lib/lmake_debug/runtime/utils.py'
+	,	'LIB_DBG_RT1'         : 'lib/lmake_debug/runtime/pdb.py'
+	,	'LIB_DBG_RT2'         : 'lib/lmake_debug/runtime/pudb.py'
+	,	'LIB_DBG_RT3'         : 'lib/lmake_debug/runtime/vscode.py'
 	,	'CLMAKE'              : 'lib/clmake.so'
 	,	'ALIGN_COMMENTS'      : 'bin/align_comments'
 	,	'LCHECK_DEPS'         : 'bin/lcheck_deps'
@@ -364,6 +373,12 @@ class LinkAutodepEnv(Link) :
 		'ENV' : 'src/autodep/env.o'
 	}
 
+class LinkPython(Link) :
+	deps = {
+		'PY' : 'src/py.o'
+	}
+	rev_post_opts = ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
+
 class LinkAutodep(LinkAutodepEnv) :
 	deps = {
 		'BACKDOOR'     : 'src/autodep/backdoor.o'
@@ -381,12 +396,6 @@ class LinkAutodep(LinkAutodepEnv) :
 	if has_fuse    : rev_post_opts += ('-lfuse3'           ,)
 	if has_seccomp : rev_post_opts += ('-l:libseccomp.so.2',)
 
-class LinkPythonAppExe(LinkAppExe) :
-	deps = {
-		'PY' : 'src/py.o'
-	}
-	rev_post_opts = ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
-
 class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_lib/ld_{Method:audit|preload|preload_jemalloc}.so' }
 	deps = {
@@ -394,15 +403,15 @@ class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
 	,	'LD'  : 'src/autodep/ld_{Method}.o'
 	}
 
-class LinkAutodepExe(LinkAutodep,LinkAppExe) :
+class LinkAutodepExe(LinkPython,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/autodep'          }
 	deps    = { 'MAIN'   : 'src/autodep/autodep.o' }
 
-class LinkJobExecExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
+class LinkJobExecExe(LinkPython,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/job_exec'  }
 	deps    = { 'MAIN'   : 'src/job_exec.o' }
 
-class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
+class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/lmakeserver' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
@@ -434,7 +443,7 @@ class LinkLrepairExe(LinkLmakeserverExe) :
 		'MAIN' : 'src/lrepair.o' # lrepair is a server with another main
 	}
 
-class LinkLdumpExe(LinkPythonAppExe,LinkAutodep) :
+class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/ldump' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'

@@ -194,17 +194,24 @@ namespace Disk {
 		return true/*done*/ ;
 	}
 
+	bool can_uniquify( Fd at , ::string const& file ) { // return true is file is a candidate to be uniquified, i.e. if it has several links to it
+		SWEAR(+file) ;                                  // cannot unlink at without file
+		struct ::stat st ;
+		int           rc = ::fstatat(at,file.c_str(),&st,AT_SYMLINK_NOFOLLOW) ;
+		return rc==0 && st.st_nlink>1 ;
+	}
+
 	bool/*done*/ uniquify( Fd at , ::string const& file ) {                                 // uniquify file so as to ensure modifications do not alter other hard links
 		SWEAR(+file) ;                                                                      // cannot unlink at without file
 		const char*   f   = file.c_str() ;
 		const char*   msg = nullptr      ;
-		struct ::stat st  ;
 		{
-			int         src = ::fstatat(at,f,&st,AT_SYMLINK_NOFOLLOW)            ; if (src!=0        )                                     return false/*done*/ ;
-			/**/                                                                   if (st.st_nlink<=1)                                     return false/*done*/ ;
-			AutoCloseFd rfd = ::openat  (at,f,O_RDONLY|O_NOFOLLOW)               ; if (!rfd          ) { msg = "cannot open for reading" ; goto Bad             ; }
-			int         urc = ::unlinkat(at,f,0)                                 ; if (urc!=0        ) { msg = "cannot unlink"           ; goto Bad             ; }
-			AutoCloseFd wfd = ::openat  (at,f,O_WRONLY|O_CREAT,st.st_mode&07777) ; if (!wfd          ) { msg = "cannot open for writing" ; goto Bad             ; }
+			struct ::stat st  ;
+			int           src = ::fstatat(at,f,&st,AT_SYMLINK_NOFOLLOW)            ; if (src!=0        )                                     return false/*done*/ ;
+			/**/                                                                     if (st.st_nlink<=1)                                     return false/*done*/ ;
+			AutoCloseFd   rfd = ::openat  (at,f,O_RDONLY|O_NOFOLLOW)               ; if (!rfd          ) { msg = "cannot open for reading" ; goto Bad             ; }
+			int           urc = ::unlinkat(at,f,0)                                 ; if (urc!=0        ) { msg = "cannot unlink"           ; goto Bad             ; }
+			AutoCloseFd   wfd = ::openat  (at,f,O_WRONLY|O_CREAT,st.st_mode&07777) ; if (!wfd          ) { msg = "cannot open for writing" ; goto Bad             ; }
 			//
 			for(;;) {
 				char    buf[4096] ;

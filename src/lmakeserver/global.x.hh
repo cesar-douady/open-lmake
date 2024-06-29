@@ -185,12 +185,13 @@ namespace Engine {
 		bool   errs_overflow(size_t n) const { return n>max_err_lines ;                                       }
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
-		size_t                                                                  max_err_lines       = 0     ; // unlimited
-		bool                                                                    reliable_dirs       = false ; // if true => dirs coherence is enforced when files are modified
-		Console                                                                 console             ;
-		::array<uint8_t,N<StdRsrc>>                                             rsrc_digits         = {}    ; // precision of standard resources
-		::array<Backend,N<BackendTag>>                                          backends            ;         // backend may refuse dynamic modification
-		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors              = {}    ;
+		size_t                                                                  max_err_lines = 0     ; // unlimited
+		bool                                                                    reliable_dirs = false ; // if true => dirs coherence is enforced when files are modified
+		Console                                                                 console       ;
+		::array<uint8_t,N<StdRsrc>>                                             rsrc_digits   = {}    ; // precision of standard resources
+		::array<Backend,N<BackendTag>>                                          backends      ;         // backend may refuse dynamic modification
+		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors        = {}    ;
+		::umap_ss                                                               dbg_tab       = {}    ; // maps debug keys to modules to import
 	} ;
 
 	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {

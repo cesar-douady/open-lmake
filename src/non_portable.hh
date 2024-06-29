@@ -18,7 +18,7 @@ static constexpr bool StackGrowsDownward  = true               ;               /
 
 int np_get_fd(std::filebuf& fb) ;
 
-::array<uint64_t,6> np_ptrace_get_args( int pid            ) ;
-int64_t             np_ptrace_get_res ( int pid            ) ;
-long                np_ptrace_get_nr  ( int pid            ) ;
-void                np_ptrace_set_res ( int pid , long val ) ;
+::array<uint64_t,6> np_ptrace_get_args( pid_t pid               ) ;
+int64_t             np_ptrace_get_res ( pid_t pid               ) ;
+long                np_ptrace_get_nr  ( pid_t pid               ) ;
+void                np_ptrace_set_res ( pid_t pid , int64_t val ) ;

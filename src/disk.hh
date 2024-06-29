@@ -242,6 +242,7 @@ namespace Disk {
 	void          dir_guard   ( Fd at , ::string const& file                                        ) ;
 	void          unlnk_inside( Fd at , ::string const& dir                      , bool force=false ) ;
 	bool/*done*/  unlnk       ( Fd at , ::string const& file , bool dir_ok=false , bool force=false ) ; // if dir_ok <=> unlink whole dir if it is one
+	bool          can_uniquify( Fd at , ::string const& file                                        ) ;
 	bool/*done*/  uniquify    ( Fd at , ::string const& file                                        ) ;
 	void          rmdir       ( Fd at , ::string const& dir                                         ) ;
 	//
@@ -281,6 +282,7 @@ namespace Disk {
 	inline void            unlnk_inside( Fd at                                                                            ) {        unlnk_inside(at     ,{}         ,true/*force*/) ; }
 	inline void            unlnk_inside( ::string const& dir                      , bool force=false                      ) {        unlnk_inside(Fd::Cwd,dir        ,force        ) ; }
 	inline bool/*done*/    unlnk       ( ::string const& file , bool dir_ok=false , bool force=false                      ) { return unlnk       (Fd::Cwd,file,dir_ok,force        ) ; }
+	inline bool            can_uniquify( ::string const& file                                                             ) { return can_uniquify(Fd::Cwd,file                     ) ; }
 	inline bool/*done*/    uniquify    ( ::string const& file                                                             ) { return uniquify    (Fd::Cwd,file                     ) ; }
 	inline void            rmdir       ( ::string const& file                                                             ) {        rmdir       (Fd::Cwd,file                     ) ; }
 	inline void            lnk         ( ::string const& file , ::string const& target                                    ) {        lnk         (Fd::Cwd,file,target              ) ; }

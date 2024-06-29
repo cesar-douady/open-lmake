@@ -639,9 +639,6 @@ If porcelaine mode (using the @code{--porcelaine} or @code{-p} option), the same
 @item @code{-r}|@code{--running}  : Show the list of jobs currently running to build the arguments.
 If verbose (option @code{-v} or @code{--verbose}), some waiting jobs are shown in gray, enough to justify why all running jobs are running.
 Queued jobs are shown in blue, actively running jobs are uncolored.
-@item @code{-s}|@code{--script}   : Show the scripts used to execute the job.
-If debug is required through the @code{-d} or @code{--debug} option, a dir must be passed and generated script will write info to it using the autodep mechanism.
-Note that if job requires tmp mapping or auto mkdir, autodep is used in all cases (as it is functionally required) although minimally configured if debug is not asked.
 @item @code{-e}|@code{--stderr}   : Show the stderr of the jobs.
 @item @code{-o}|@code{--stdout}   : Show the stdout of the jobs.
 @item @code{-t}|@code{--targets}  : Show the targets of the jobs.
@@ -667,35 +664,57 @@ If a target does not exist, it is deemed secondary information and is shown in g
 
 @section @code{ldebug}
 
-Usage : @code{ldebug [-e|--enter] [-g|--graphic] [-c|--vscode] target}
+Usage : @code{ldebug [-k|--key <key>] [-n] target}
 
 @code{ldebug} runs a job in a debug environment.
 
-The job must have been run with @lmake before (but may not have finished, it just need to be started).
-For now, this command is rudimentary :
+The job must have been run with @lmake before (but may not have finished, it just need to have started).
+The precise way the job is launched is controled by the @code{lmake.config.debug[<key>]} which provides the name of a module to import.
+This module must contain a @code{gen_script} function taking a description of the job provided as keyword arguments and returning the script to execute.
+
+When @code{ldebug} is run, the debug script is generated in a file withing the @file{LMAKE} directory and, unless the @code{-n} or @code{--no-exec} option is given, it is executed.
+
+To write a module for use with @code{ldebug}, the best way is to start from the closest standard module in @file{lib/lmake_debug} and modify it to fit your specific needs.
+
+Unless overridden, the following standard debug methods are provided :
+@multitable @columnfractions 0.05 0.15 0.4 0.4
+@headitem Key @tab Module @tab Python job @tab Shell job
+@item
+@tab @file{lmake_debug.default}
+@tab Job is run under pdb control.
+@tab Job is run with the @code{-x} flag (so that commands are traced) and an interactive shell (as provided by the @code{$SHELL} environment variable) is open in the job environment.
+@item g
+@tab @file{lmake_debug.pudb}
+@tab Job is run under pudb control.
+@tab Not supported
+@item e
+@tab @file{lmake_debug.enter}
+@tab Job is not run, just an interactive shell (as provided by the @code{$SHELL} environment variable) is open in the job environment.
+@tab Job is not run, just an interactive shell (as provided by the @code{$SHELL} environment variable) is open in the job environment.
+@item n
+@tab @file{lmake_debug.none}
+@tab Job is run normally with no debug support.
+@tab Job is run normally with no debug support.
+@end multitable
+
+In addition to running the job, these standard modules provide the following environment variables to the job :
 @itemize @minus
-@item It runs the script under @code{pdb} or (@code{pudb} with the graphic option) for python rules.
-@item It runs the script with @code{-x} flag set for shell rules, after which an interactive shell session is started.
-@item It runs the script under vscode to allow debugging python and C++ code by attaching it to the python process.
-@item If given the @code{-e} flag, the job is not run, a user interactive shell est launched instead, in the environment of the job
-(i.e. sets @code{chroot_dir}, @code{root_view}, @code{tmp_view}, @code{views} and the environment variables).
+@item @code{LMAKE_DEBUG_KEY}    : the key provided by the @code{-k} or @code{--key} option.
+@item @code{LMAKE_DEBUG_STDIN}  : the file connected as stdin to @code{ldebug} when it was launched (usually a tty)
+if the job has its stdin redirected (in case the @code{dep} rule attribute is defined).
+@item @code{LMAKE_DEBUG_STDOUT} : the file connected as stdout to @code{ldebug} when it was launched (usually a tty)
+if the job has its stdout redirected (in case the @code{target} rule attribute is defined).
 @end itemize
 
-Special care has been taken so that :
-@itemize
-@item Debug session do not interfere with I/O redirection (when the @code{target} and @code{dep} @code{Rule} attributes are used instead of @code{targets} and @code{deps}).
-@item The module list contains all read modules and no more.
-@item When an interactive shell is launched, the @code{$HOME} environment variable is set back to its original value and @code{$SHLVL} is incremented so as to allow the user to provide
-a differentiated prompte (if set in @file{~/.bashrc}).
-@end itemize
+When an interactive session is started, the @code{HOME} and @code{SHLVL} are preserved to provide a smooth user environment.
+In particular @code{$SHLVL} can be used to provide a differentiated prompt if adequately defined in the start up file (usually @file{~/.bashrc}).
 
-These items necessitated to patch pudb (but the patch is dynamically applied, standard pudb can be used).
-Further details can be seen by looking at file @file{lib/lmake_runtime.py} about what is patched, how it is done, and why (i.e. the consequence of not patching).
+Providing a working @code{pudb} with redirected stdin/stdout necessitated to patch it. This patch is dynamically applied as part of the job start up procedure.
 
 @section @code{lmark}
 
-Usage : @code{lmark [ [-a|--add] | [-d|--delete] ] [-f|--freeze] [-m|--manual-ok] [-t|--no-trigger] [-F|--force] targets...}
-or      @code{lmark [-l|--list] | [-c|--clear] [-f|--freeze] [-m|--manual-ok] [-t|--no-trigger]}
+Usage : @code{lmark [ [-a|--add] | [-d|--delete] ] [-f|--freeze] [-t|--no-trigger] [-F|--force] targets...}
+or      @code{lmark [-l|--list] | [-c|--clear] [-f|--freeze] [-t|--no-trigger]}
 
 @code{lmark} is used to mark jobs and files with specific attributes.
 
@@ -703,8 +722,6 @@ or      @code{lmark [-l|--list] | [-c|--clear] [-f|--freeze] [-m|--manual-ok] [-
 @item freeze : This mark prevents jobs from being run.
 Instead its targets (as built during the last run for star targets) behave as sources.
 If no job generated a file provided in arguments, this file behave as a source.
-@item manual ok  : This mark allow @lmake to overwrite a modification made outside its control (i.e. a modification made by a manual action, so called manual modification).
-These marks are transient : they are suppressed as soon as files are rebuilt.
 @item no trigger : This mark prevents @lmake to trigger builds of dependent jobs after modifications of provided files.
 However, this applies only if job was last run with success.
 @end itemize
@@ -713,10 +730,6 @@ Jobs and files marked with freeze or no-trigger and that have been used are repe
 This precaution is taken because such presence goes against repeatability and should be suppressed before commiting the repository.
 
 Frozen jobs are useful to run a flow from A to B. To do that you type @code{lmark -f -a A} followed by @code{lmake B}.
-
-Manual ok files are useful when doing debug to allow @lmake to wash out files genereated during such sessions.
-@code{ldebug} automatically sets this mark on its targets.
-A user probably do not need to set them by hand.
 
 No trigger files are useful when working on a foundation file (called @file{utils.h} hereinafter).
 It is common to work on @file{utils.h} to add new features.
@@ -787,18 +800,19 @@ The @code{-r} option is useful in the following scenario :
 
 @section @code{autodep}
 
-Usage : @code{autodep [[-o|--out] file] [[-m|--autodep-method] method] [[-s|--link-support] level] [[-d|--auto-mkdir]] [[-i|--ignore-stat]] [[-c|--chroot-dir] chroot_dir] [[-r|--root-view] root_view_dir] [[-t|--tmp-view] tmp_view_dir] [[-v|--views] mapping] executable args...}
+Usage : @code{autodep [ -short_option|--long_option option_arg ]* executable args...}
 
 @code{autodep} is a small tool that may be useful when designing a flow.
+It is also used by @code{ldebug} to launch jobs in an adequate environment.
 It allows to see what information (dependencies and targets) are recorded by code instrumentation @lmake injects in jobs to track activity without actually run a job under its control.
 
 The trace generated by @code{autodep} is halfly digested in the sens that :
 @itemize @minus
 @item Only a summary of pertinent accesses are provided, unlike @code{strace} can generate a line for each access.
 There is a line for each accessed file, which may be a read or nothing, possibly followed by a write or an unlink.
-@item Accesses outside the repository are not tracked.
+@item Accesses are tracked as for @lmake, i.e. files outside the repository are not tracked, except read accesses in a source directory.
 @item When symbolic links are supported, they are resolved according to the required support level and additional dependencies may be generated when needed for @lmake to work properly.
-@item It is not fully digested as target flags that are provided in rules are not taken into account.
+@item It is not fully digested as dep/target flags that are provided in rules are not taken into account.
 A full digestion to mimic @lmake would require a whole lot of information that would make the user interface significantly heavier, defeating the usefulness of this tool.
 @end itemize
 
@@ -808,38 +822,70 @@ Accesses are split into 2 categories :
 @item Deps : a kind of ascii art render parallel accesses.
 @end itemize
 
+For option descriptions, refer to the corresponding rule attribute.
+
 Options :
-@itemize @bullet
-@item @code{-o}|@code{--out} @file{file} :  generate output to @file{file}, by default output is generated to @code{stderr}.
-@item @code{-m}|@code{--autodep-method} @code{method} : use @code{method} to instrument job. Can be one of :
-@itemize @minus
-@item @code{none} : command is not instrumented (except that the environment variable @code{LMAKE_AUTODEP_ENV} is set). The only way to report activity is through the use of @code{ldepend} and co.
-@item @code{ld_preload} : command is run with a library loaded using the @code{LD_PRELOAD} environment variable that catches some calls @file{libc.so} (such as @code{open}) to track activity.
-This requires @file{libc.so} to be dynamically linked.
-@item @code{ld_audit} : this is similar to @code{ld_preload} except that @code{LD_AUDIT} mechanism is used instead of @code{LD_PRELOAD},
-which is less invasive (cases where it is not transparent are very awkward).
-This also requires @file{libc.so} to be dynamically linked.
-@item @code{ptrace} : command is run @code{ptrace}'ed. The seccomp mechanism is used to reduce the performance hit to the minimum possible but still, it is often unacceptable.
-There is no requirement that @file{libc.so} be dynamically linked.
-@end itemize
-Not all methods are supported on all systems.
-@item @code{-s}|@code{--link-support} @code{level} : level of support for symbolic links (cf @pxref{link-support}).
-@item @code{-d}|@code{--auto-mkdir} : Directories are automatically created behind the scene upon calling the @code{chdir} system call.
-This may be necessary if your command does an equivalent of @code{cd a ; cat b} to read @file{a/b} where the existence of @file{a} is not guaranteed by some other means.
-In that case, without this option, if directory @file{a} does not exist, the @code{cd} is not done and @lmake generates a dependency to @file{b} instead of @file{a/b}.
-@item @code{-i}|@code{--ignore-stat} : Stat-like accesses (i.e. access that just access the inode) are ignored.
-This may be a performance boost as it is not uncommon that such accesses represent the vast majority of tracked system calls, at the expense of reliability.
-@item @code{-c}|@code{--chroot-dir} : chroot to @code{chroot_dir} before executing the job.
-This mimics the behavior of the @code{chroot_dir} rule attribute.
-@item @code{-r}|@code{--root-view} : map the root directory of the repository to @code{root_view_dir}.
-This mimics the behavior of the @code{root_view} rule attribute.
-@item @code{-t}|@code{--tmp-view} : map accesses to @file{tmp_view_dir} to directory mentioned in the @code{TMPDIR} environment variable, which is redefined as @file{tmp_view_dir}.
-This mimics the behavior of the @code{tmp_view} rule attribute.
-@item @code{-v}|@code{--views} : @code{mapping} is a (single) space separated list of alternating views and physical locations.
-Accesses to views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a @code{/} or not.
-Files must be mapped to files and directories to directories.
-This mimics the behavior of the @code{views} rule attribute.
-@end itemize
+@multitable @columnfractions 0.05 0.1 0.15 0.7
+@headitem short option @tab long options @tab rule attribute @tab Description
+@item @code{-m}
+@tab  @code{--autodep-method}
+@tab  @code{autodep}
+@tab
+@item @code{-a}
+@tab  @code{--auto-mkdir}
+@tab  @code{auto_mkdir}
+@tab No argument, the presence of this option is equivalent of a @code{True} value for the rule attribute.
+@item @code{-c}
+@tab  @code{--chroot-dir}
+@tab  @code{chroot_dir}
+@tab
+@item @code{-d}
+@tab  @code{--cwd}
+@tab  @code{cwd}
+@tab
+@item @code{-e}
+@tab  @code{--env}
+@tab  @code{environ_*}
+@tab The mapping must be provided as a python @code{dict}  mapping variable names to their corresponding value (beware of quoting with regard to shell).
+@item @code{-i}
+@tab  @code{--ignore-stat}
+@tab  @code{ignore_stat}
+@tab No argument, the presence of this option is equivalent of a @code{True} value for the rule attribute.
+@item @code{-k}
+@tab  @code{--keep-env}
+@tab  @code{environ_*}
+@tab The mapping must be provided as a python @code{tuple} or @code{list} listing the variables to keep in the environment (beware of quoting with regard to shell).
+@item @code{-l}
+@tab  @code{--link-support}
+@tab  @code{link_support}
+@tab This attribute is in @code{lmake.config}, not on the rule.
+@item @code{-o}
+@tab  @code{--out}
+@tab
+@tab The file in which to write access info (deps and targets).
+@item @code{-r}
+@tab  @code{--root-view}
+@tab  @code{root_view}
+@tab
+@item @code{-s}
+@tab  @code{--source-vdirs}
+@tab  @code{source_dirs}
+@tab The list must be provided as a python @code{tuple} or @code{list} (beware of quoting with regard to shell).
+@item @code{-t}
+@tab  @code{--tmp-view}
+@tab  @code{tmp_view}
+@tab
+@item @code{-v}
+@tab  @code{--views}
+@tab  @code{views}
+@tab The mapping must be provided as a python @code{dict}  mapping views to their corresponding list of origin (beware of quoting with regard to shell).
+@item @code{-w}
+@tab  @code{--work-dir}
+@tab
+@tab The name of a directory.
+Its content is unpredictable after execution.
+This is necessary as soon as one of the views has more than one origin (in that case, overlayfs is used, which requires aorking directory).
+@end multitable
 
 @section @code{xxhsum}
 
@@ -1216,9 +1262,13 @@ Rust uses a special link mechanism which defeats the default @code{ld_audit} aut
 This base @code{class} merely sets the autodep method to @code{ld_preload} which works around this problem.
 
 @subsection @code{class HomelessRule}
-This @code{class} copies the @code{TMPDIR} environment variable the @code{HOME} one.
+This @code{class} copies the @code{TMPDIR} environment variable to the @code{HOME} one.
 This is a way to ensure that various tools behave the same way as if they were run for the first time.
 By default  the @code{HOME} environment variable points to the root of the repository, which permits to put various init code there.
+
+@subsection @code{class TraceRule}
+This @code{class} defines a preamble for use by shell rules that set the @code{-x} flag (which traces commands) so that traces are sent to stdout.
+This is useful as such traces are activity logging, not errors, which are normally reported to stdout in jobs.
 
 @subsection @code{class DirtyRule}
 This @code{class} may be used to ignore all writes that are not an official target.

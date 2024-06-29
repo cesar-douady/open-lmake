@@ -526,13 +526,16 @@ namespace Engine {
 	pair_ss/*script,call*/ DynamicCmd::eval( Rule::SimpleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		Rule r = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		if (!r->is_python) {
-			if (!is_dynamic) return {parse_fstr(spec.cmd,match,rsrcs),{}} ;
-			Gil         gil    ;
-			Ptr<Object> py_obj = _eval_code( match , rsrcs , deps ) ;
-			if (!py_obj->is_a<Py::Str>()) throw "type error : "s+py_obj->ob_type->tp_name+" is not a str" ;
-			::string    cmd    ;
-			Attrs::acquire( cmd , &py_obj->as_a<Str>() ) ;
-			return {cmd,{}} ;
+			::string cmd ;
+			if (!is_dynamic) {
+				cmd = parse_fstr(spec.cmd,match,rsrcs) ;
+			} else {
+				Gil         gil    ;
+				Ptr<Object> py_obj = _eval_code( match , rsrcs , deps ) ;
+				if (!py_obj->is_a<Py::Str>()) throw "type error : "+py_obj->type_name()+" is not a str" ;
+				Attrs::acquire( cmd , &py_obj->as_a<Str>() ) ;
+			}
+			return {{}/*preamble*/,::move(cmd)} ;
 		}
 		::string res ;
 		eval_ctx( match , rsrcs
@@ -573,7 +576,7 @@ namespace Engine {
 			}
 		) ;
 		res <<set_nl<< spec.cmd ;
-		return {append_dbg_info(res),"cmd()\n"} ;
+		return {append_dbg_info(res)/*preamble*/,"cmd()"} ;
 	}
 
 	::ostream& operator<<( ::ostream& os , DbgEntry const& de ) {
@@ -1431,8 +1434,8 @@ namespace Engine {
 				rule->matches[t].second.pattern
 			,	[&](VarIdx s)->::string {
 					if (s<rule->n_static_stems) return _re_escape(stems[s]) ;
-					if (seen.insert(s).second ) return '('    +rule->stems[s].second      +')' ;
-					else                        return "(?:\\"+rule->patterns[t].groups[s]+')' ; // we must protect against following text potentially containing numbers
+					if (seen.insert(s).second ) return '('     +rule->stems[s].second      +')' ;
+					else                        return "(?:\\"s+rule->patterns[t].groups[s]+')' ; // we must protect against following text potentially containing numbers
 				}
 			,	Escape::Re
 			)) ;

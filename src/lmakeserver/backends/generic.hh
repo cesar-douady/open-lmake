@@ -338,12 +338,19 @@ namespace Backends {
 			return digest ;
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat(JobIdx j) {                                                      // called on jobs that did not start after at least newwork_delay time
-			{	auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) goto NotLaunched ;
-				SpawnedEntry& se = it->second           ;
+			{	auto it = spawned_jobs.find(j) ;
+				if (it==spawned_jobs.end()) {
+					Trace trace(BeChnl,"heartbeat","not_found",j) ;
+					goto NotLaunched ;
+				}
+				SpawnedEntry& se = it->second ;
 				SWEAR(!se.started,j) ;                                                                              // we should not be called on started jobs
 				if (!se.id) {
 					Lock lock { id_mutex } ;
-					if (!se.id) goto NotLaunched ;                                                                  // repeat test so test and decision are atomic
+					if (!se.id) {
+						Trace trace(BeChnl,"heartbeat","no_id",j) ;
+						goto NotLaunched ;
+					}                                                                                               // repeat test so test and decision are atomic
 				}
 				::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
 				if (digest.second!=HeartbeatState::Alive) {

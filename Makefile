@@ -100,16 +100,25 @@ SRC_BACKEND := $(SRC_ENGINE)/backends
 
 # LMAKE
 LMAKE_SERVER_PY_FILES := \
-	$(SLIB)/read_makefiles.py        \
-	$(SLIB)/serialize.py             \
-	$(LIB)/lmake/__init__.py         \
-	$(LIB)/lmake/auto_sources.py     \
-	$(LIB)/lmake/import_machinery.py \
-	$(LIB)/lmake/custom_importer.py  \
-	$(LIB)/lmake/rules.py            \
-	$(LIB)/lmake/sources.py          \
-	$(LIB)/lmake/utils.py            \
-	$(LIB)/lmake_dbg.py              \
+	$(SLIB)/read_makefiles.py            \
+	$(SLIB)/serialize.py                 \
+	$(LIB)/lmake/__init__.py             \
+	$(LIB)/lmake/auto_sources.py         \
+	$(LIB)/lmake/import_machinery.py     \
+	$(LIB)/lmake/custom_importer.py      \
+	$(LIB)/lmake/rules.py                \
+	$(LIB)/lmake/sources.py              \
+	$(LIB)/lmake/utils.py                \
+	$(LIB)/lmake_debug/default.py        \
+	$(LIB)/lmake_debug/enter.py          \
+	$(LIB)/lmake_debug/none.py           \
+	$(LIB)/lmake_debug/pudb.py           \
+	$(LIB)/lmake_debug/vscode.py         \
+	$(LIB)/lmake_debug/utils.py          \
+	$(LIB)/lmake_debug/runtime/pdb.py    \
+	$(LIB)/lmake_debug/runtime/pudb.py   \
+	$(LIB)/lmake_debug/runtime/vscode.py \
+	$(LIB)/lmake_debug/runtime/utils.py  \
 	$(LIB)/lmake_runtime.py
 
 LMAKE_SERVER_BIN_FILES := \
@@ -426,23 +435,23 @@ $(SBIN)/ldump_job : \
 
 # XXX : why job_exec does not support sanitize thread ?
 $(SBIN)/job_exec : \
-	$(LMAKE_BASIC_OBJS)          \
-	$(SRC)/app.o                 \
-	$(SRC)/py.o                  \
-	$(SRC)/rpc_job.o             \
-	$(SRC)/rpc_job_exec.o        \
-	$(SRC)/fuse$(SAN).o          \
-	$(SRC)/trace.o               \
-	$(SRC)/autodep/backdoor.o    \
-	$(SRC)/autodep/env.o         \
-	$(SRC)/autodep/gather.o      \
-	$(SRC)/autodep/ptrace.o      \
-	$(SRC)/autodep/record.o      \
-	$(SRC)/autodep/syscall_tab.o \
-	$(SRC)/job_exec.o
+	$(LMAKE_BASIC_SAN_OBJS)            \
+	$(SRC)/app$(SAN).o                 \
+	$(SRC)/py$(SAN).o                  \
+	$(SRC)/rpc_job$(SAN).o             \
+	$(SRC)/rpc_job_exec$(SAN).o        \
+	$(SRC)/fuse$(SAN).o                \
+	$(SRC)/trace$(SAN).o               \
+	$(SRC)/autodep/backdoor$(SAN).o    \
+	$(SRC)/autodep/env$(SAN).o         \
+	$(SRC)/autodep/gather$(SAN).o      \
+	$(SRC)/autodep/ptrace$(SAN).o      \
+	$(SRC)/autodep/record$(SAN).o      \
+	$(SRC)/autodep/syscall_tab$(SAN).o \
+	$(SRC)/job_exec$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@@$(LINK_BIN) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/align_comments : \
 	$(LMAKE_BASIC_SAN_OBJS) \
@@ -527,9 +536,10 @@ $(BIN)/fuse_test : \
 $(BIN)/autodep : \
 	$(LMAKE_BASIC_OBJS)          \
 	$(SRC)/app.o                 \
+	$(SRC)/py.o                  \
 	$(SRC)/rpc_job.o             \
 	$(SRC)/rpc_job_exec.o        \
-	$(SRC)/fuse$(SAN).o          \
+	$(SRC)/fuse.o                \
 	$(SRC)/trace.o               \
 	$(SRC)/autodep/backdoor.o    \
 	$(SRC)/autodep/env.o         \
@@ -540,7 +550,7 @@ $(BIN)/autodep : \
 	$(SRC)/autodep/autodep.o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK_BIN) -o $@ $^ $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK_BIN) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 #
 # remote

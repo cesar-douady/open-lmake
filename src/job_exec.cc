@@ -344,7 +344,6 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add( false/*star*/ , dt , mf            ) ;
 		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
 		//
-		trace("wash",g_start_info.pre_actions) ;
 		{	::pair_s<bool/*ok*/> wash_report = do_file_actions( g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
 			end_report.msg += ensure_nl(::move(wash_report.first)) ;
 			if (!wash_report.second) {

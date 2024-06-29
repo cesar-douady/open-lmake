@@ -169,6 +169,16 @@ namespace Engine {
 				fields.pop_back() ;
 			}
 			//
+			fields[0] = "debug" ;
+			if (py_map.contains(fields[0])) {
+				fields.emplace_back() ;
+				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
+					fields[1] = py_key.as_a<Str>() ;
+					dbg_tab[fields[1]] = py_val.as_a<Str>() ;
+				}
+				fields.pop_back() ;
+			}
+			//
 			fields[0] = "backends" ;
 			if (!py_map.contains(fields[0])) throw "not found"s ;
 			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;

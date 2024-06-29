@@ -30,6 +30,7 @@ namespace Backends::Slurm {
 		Pdate           time_origin { "2023-01-01 00:00:00" } ; // this leaves room til 2091
 		float           nice_factor { 1                     } ; // conversion factor in the form of number of nice points per second
 		::map_s<size_t> licenses    ;                           // licenses sampled from daemon
+		bool            manage_mem  = false/*garbage*/        ;
 	} ;
 
 	//
@@ -172,6 +173,7 @@ namespace Backends::Slurm {
 		virtual ::vmap_ss descr() const {
 			::vmap_ss res ;
 			for( auto const& [k,v] : daemon.licenses ) res.emplace_back(k,::to_string(v)) ;
+			res.emplace_back("manage memory",daemon.manage_mem?"true":"false") ;
 			return res ;
 		}
 
@@ -298,18 +300,18 @@ namespace Backends::Slurm {
 	//
 
 	::ostream& operator<<( ::ostream& os , RsrcsDataSingle const& rsds ) {
-		/**/                os <<'('<< rsds.cpu        ;
-		/**/                os <<','<< rsds.mem <<"MB" ;
-		if ( rsds.tmp     ) os <<','<< rsds.tmp <<"MB" ;
-		if (+rsds.part    ) os <<','<< rsds.part       ;
-		if (+rsds.gres    ) os <<','<< rsds.gres       ;
-		if (+rsds.licenses) os <<','<< rsds.licenses   ;
-		if (+rsds.feature ) os <<','<< rsds.feature    ;
-		if (+rsds.qos     ) os <<','<< rsds.qos        ;
-		if (+rsds.reserv  ) os <<','<< rsds.reserv     ;
-		if (+rsds.excludes) os <<','<< rsds.excludes   ;
-		if (+rsds.nodes   ) os <<','<< rsds.nodes      ;
-		return              os <<')'                   ;
+		/**/                os <<'('<< rsds.cpu       ;
+		if ( rsds.mem     ) os <<','<< rsds.mem<<"MB" ;
+		if ( rsds.tmp     ) os <<','<< rsds.tmp<<"MB" ;
+		if (+rsds.part    ) os <<','<< rsds.part      ;
+		if (+rsds.gres    ) os <<','<< rsds.gres      ;
+		if (+rsds.licenses) os <<','<< rsds.licenses  ;
+		if (+rsds.feature ) os <<','<< rsds.feature   ;
+		if (+rsds.qos     ) os <<','<< rsds.qos       ;
+		if (+rsds.reserv  ) os <<','<< rsds.reserv    ;
+		if (+rsds.excludes) os <<','<< rsds.excludes  ;
+		if (+rsds.nodes   ) os <<','<< rsds.nodes     ;
+		return              os <<')'                  ;
 	}
 
 	static void _sort_entry(::string& s) {
@@ -324,7 +326,7 @@ namespace Backends::Slurm {
 		sort(m) ;
 		for( auto&& [kn,v] : ::move(m) ) {
 			size_t           p    = kn.find(':')                                           ;
-			::string         k    = p==Npos ? kn :                       kn.substr(0  ,p)  ;
+			::string         k    = p==Npos ? ::move(kn) :               kn.substr(0  ,p)  ;
 			uint32_t         n    = p==Npos ? 0  : from_string<uint32_t>(kn.substr(p+1  )) ;
 			RsrcsDataSingle& rsds = grow(*this,n)                                          ;
 			//
@@ -333,7 +335,7 @@ namespace Backends::Slurm {
 			} ;
 			switch (k[0]) {
 				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
-				case 'm' : if (k=="mem"     ) {                                rsds.mem      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 'm' : if (k=="mem"     ) { if (d.manage_mem)              rsds.mem      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ; // dont ask mem if not managed
 				case 't' : if (k=="tmp"     ) {                                rsds.tmp      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
 				case 'e' : if (k=="excludes") {                                rsds.excludes = ::move                              (v) ; continue ; } break ;
 				case 'f' : if (k=="feature" ) {                                rsds.feature  = ::move                              (v) ; continue ; } break ;
@@ -355,7 +357,7 @@ namespace Backends::Slurm {
 			throw "no resource "+k+" for backend "+snake(MyTag) ;
 
 		}
-		if (!(*this)[0].mem) throw "reserving memory is compulsery"s ;
+		if ( d.manage_mem && !(*this)[0].mem ) throw "must reserve memory when managed by slurm daemon"s ;
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
 		::vmap_ss res ;
@@ -382,7 +384,7 @@ namespace Backends::Slurm {
 				if (+force1.qos     ) rsrcs[i].qos      = force1.qos      ;
 				if (+force1.reserv  ) rsrcs[i].reserv   = force1.reserv   ;
 			}
-		return rsrcs ;
+		return ::move(rsrcs) ;
 	}
 
 	//
@@ -691,7 +693,8 @@ namespace Backends::Slurm {
 		}
 		SWEAR(conf) ;
 		Daemon res ;
-		trace("conf",STR(conf)) ;
+		trace("conf",STR(conf),conf->select_type_param) ;
+		res.manage_mem = conf->select_type_param&CR_MEMORY ;
 		if (conf->priority_params) {
 			static ::string const to_mrkr  = "time_origin=" ;
 			static ::string const npd_mrkr = "nice_factor=" ;

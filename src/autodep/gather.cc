@@ -170,6 +170,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 
 void Gather::_spawn_child() {
 	Trace trace("_spawn_child",cmd_line,child_stdin,child_stdout,child_stderr) ;
+	SWEAR(+cmd_line) ;
 	//
 	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ; // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;

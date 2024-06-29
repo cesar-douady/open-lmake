@@ -9,6 +9,7 @@
 #include <regex>
 
 using namespace Disk ;
+using namespace Py   ;
 
 namespace Engine {
 
@@ -173,291 +174,96 @@ namespace Engine {
 		}
 	}
 
-	static ::vmap_ss _mk_env( ::vmap_ss const& env , ::vmap_ss const& dynamic_env ) {
-		::umap_ss de  = mk_umap(dynamic_env) ;
+	static ::vmap_ss _mk_env( JobInfo const& job_info ) {
+		::umap_ss de  = mk_umap(job_info.end.end.dynamic_env) ;
 		::vmap_ss res ;
-		for( auto const& [k,v] : env )
+		for( auto const& [k,v] : job_info.start.start.env )
 			if      (v!=EnvPassMrkr) res.emplace_back(k,v       ) ;
 			else if (de.contains(k)) res.emplace_back(k,de.at(k)) ;
 		return res ;
 	}
 
-	static ::string _user_env() {
-			return
-				"HOME="   + get_env("HOME")
-			+	" SHLVL=" + (from_string<size_t>(get_env("SHLVL","1"))+1)
-			;
-	}
-
-	static ::string _mk_cmd( Job j , ReqFlags flags , JobRpcReply const& start , ::string const& dbg_dir ) {
-		// add debug prelude if asked to do so
-		// try to use stdin/stdout to debug with pdb as much as possible as readline does not work on alternate streams
+	static ::string _mk_script( Job j , ReqOptions const& ro , JobInfo const& job_info , ::string const& dbg_dir ) {
+		::string const& key    = ro.flag_args[+ReqFlag::Key] ;
+		auto            it     = g_config->dbg_tab.find(key) ; if (it==g_config->dbg_tab.end()) throw "unknown debug method "+ro.flag_args[+ReqFlag::Key] ;
+		::string const& runner = it->second.c_str()          ;
 		//
-		// header is not strictly necessary, but at least, it allows editors (e.g. vi) to do syntax coloring
-		::string res         = "#!" ;
-		bool     first       = true ;
-		::string interpreter ;
-		for( ::string const& c : start.interpreter ) {
-			if (first) first        = false ;
-			else       interpreter += ' '   ;
-			interpreter += c ;
+		JobRpcReq   const& pre_start = job_info.start.pre_start ;
+		JobRpcReply const& start     = job_info.start.start     ;
+		AutodepEnv  const& ade       = start.autodep_env        ;
+		Rule::SimpleMatch  match     = j->simple_match()        ;
+		//
+		for( Node t  : j->targets ) t->set_buildable() ; // necessary for pre_actions()
+		::string get_script ;
+		get_script << "from "<<runner<<" import gen_script\n" ;
+		get_script << "script = gen_script(\n" ;
+		get_script <<  "\tauto_mkdir     = " << mk_py_str(ade.auto_mkdir            ) << '\n' ;
+		get_script << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat           ) << '\n' ;
+		get_script << ",\tis_python      = " << mk_py_str(j->rule->is_python        ) << '\n' ;
+		get_script << ",\tsequence_id    = " <<           pre_start.seq_id            << '\n' ;
+		get_script << ",\tsmall_id       = " <<           start.small_id              << '\n' ;
+		get_script << ",\tkeep_env       = " <<           "()"                        << '\n' ;
+		get_script << ",\tkey            = " << mk_py_str(key                       ) << '\n' ;
+		get_script << ",\tautodep_method = " << mk_py_str(snake(start.method)       ) << '\n' ;
+		get_script << ",\tchroot_dir     = " << mk_py_str(start.job_space.chroot_dir) << '\n' ;
+		get_script << ",\tdebug_dir      = " << mk_py_str(dbg_dir                   ) << '\n' ;
+		get_script << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)     ) << '\n' ;
+		get_script << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)    ) << '\n' ;
+		get_script << ",\tname           = " << mk_py_str(j->name()                 ) << '\n' ;
+		get_script << ",\troot_view      = " << mk_py_str(start.job_space.root_view ) << '\n' ;
+		get_script << ",\tstdin          = " << mk_py_str(start.stdin               ) << '\n' ;
+		get_script << ",\tstdout         = " << mk_py_str(start.stdout              ) << '\n' ;
+		get_script << ",\ttmp_view       = " << mk_py_str(start.job_space.tmp_view  ) << '\n' ;
+		//
+		get_script << ",\tpreamble =\n" << mk_py_str(start.cmd.first ) << '\n' ;
+		get_script << ",\tcmd =\n"      << mk_py_str(start.cmd.second) << '\n' ;
+		//
+		{	get_script << ",\tenv = {" ;
+			First first ;
+			for( auto const& [k,v] : _mk_env(job_info) ) get_script << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
+			get_script << "}\n" ;
 		}
-		res += interpreter ;
-		res += '\n'        ;
-		if ( start.interpreter.size()>2 || res.size()>BINPRM_BUF_SIZE )                                  // inform user we do not use the sheebang line if it actually does not work ...
-			res += "# the sheebang line above is informative only, interpreter is called explicitly\n" ; // ... just so that it gets no headache wondering why it works with a apparently buggy line
-		//
-		res += start.cmd.first ;
-		//
-		if (!flags[ReqFlag::Debug]) {
-			res += start.cmd.second ;
-		} else if (!j->rule->is_python) {
-			res
-			<<	start.cmd.second
-			<<	set_nl
-			<<	_user_env()
-			<<	" exec "  << interpreter<<" -i"
-			<<	( +start.stdin  ? " <&3" : "" )
-			<<	( +start.stdout ? " >&4" : "" )
-			<<	'\n'
-			;
-		} else {
-			::string runner = flags[ReqFlag::Vscode] ? "run_vscode" : flags[ReqFlag::Graphic] ? "run_pudb" : "run_pdb" ;
-			//
-			size_t   open_pos  = start.cmd.second.find ('(')         ;
-			size_t   close_pos = start.cmd.second.rfind(')')         ;
-			::string run_call  = start.cmd.second.substr(0,open_pos) ; if (close_pos>open_pos+1) run_call = ','+start.cmd.second.substr(open_pos+1,close_pos) ;
-			//
-			res
-			<<	set_nl
-			<<	"lmake_dbg = {}\n"
-			<<	"exec(open("<<mk_py_str(*g_lmake_dir_s+"lib/lmake_dbg.py")<<").read(),lmake_dbg)\n"
-			<<	"lmake_dbg['deps'] = (\n"                                                                // generate deps that debugger can use to pre-populate browser
-			;
-			bool first = true ;
-			for( Dep const& d : j->deps ) {
-				if (d->crc==Crc::None) continue ;                                                        // we are only interested in existing deps as other ones are of marginal interest
-				if (first) first  = false ;
-				else       res   += ','   ;
-				res << '\t'<<mk_py_str(d->name())<<'\n' ;
+		{	get_script << ",\tinterpreter = (" ;
+			First first ;
+			for( ::string const& c : start.interpreter ) get_script << first("",",") << mk_py_str(c) ;
+			get_script << first("",",","") << ")\n" ;
+		}
+		{	get_script << ",\tpre_actions = {" ;
+			First first ;
+			for( auto const& [t,a] : j->pre_actions(match) ) get_script << first("\n\t\t",",\t") << mk_py_str(t->name()) <<" : "<< mk_py_str(snake(a.tag)) <<"\n\t" ;
+			get_script << "}\n" ;
+		}
+		{	get_script << ",\tsource_dirs = (" ;
+			First first ;
+			for( ::string const& sd_s : *g_src_dirs_s )
+				get_script << first("\n\t\t",",\t") << mk_py_str(no_slash(sd_s)) << "\n\t" ;
+			get_script << first("",",","") << ")\n" ;
+		}
+		{	get_script << ",\tstatic_deps = (" ;
+			First first ;
+			for( Dep const& d : j->deps )
+				if (d.dflags[Dflag::Static]) get_script << first("\n\t\t",",\t") << mk_py_str(d->name()) << "\n\t" ;
+			get_script << first("",",","") << ")\n" ;
+		}
+		{	get_script << ",\tstatic_targets = (" ;
+			First first ;
+			for( Target const& t : j->targets )
+				if (t.tflags[Tflag::Static]) get_script << first("\n\t\t",",\t") << mk_py_str(t->name()) << "\n\t" ;
+			get_script << first("",",","") << ")\n" ;
+		}
+		{	get_script << ",\tviews = {" ;
+			First first1 ;
+			for( auto const& [view,phys] : start.job_space.views ) {
+				get_script << first1("\n\t\t",",\t") << mk_py_str(view) << " : (" ;
+				First first2 ;
+				for( ::string const& p : phys ) get_script << first2("",",") <<' '<< mk_py_str(p) <<' ' ;
+				get_script << first2("",",","") << ")\n\t" ;
 			}
-			res
-			<<	")\n"
-			<<	"lmake_dbg["<<mk_py_str(runner)<<"]("<<mk_py_str(dbg_dir)<<",("<<(+start.stdin?"True":"False")<<','<<(+start.stdout?"True":"False")<<"),"<<run_call<<")\n"
-			;
+			get_script << "}\n" ;
 		}
-		return res ;
-	}
-
-	static ::string _mk_vscode( Job j , JobInfo const& job_info , ::string const& dbg_dir , ::vector_s const& vs_exts ) {
-		JobRpcReply const& start = job_info.start.start ;
-		::string res =
-R"({
-	"folders": [
-		{ "path" : $root_dir }
-	]
-,	"settings": {
-		"files.associations" : {
-			"**/script" : "python"
-		,	"cmd"       : "python"
-		,	"script"    : "python"
-		,	"**.py*"    : "python"
-		}
-	,	"files.exclude" : {
-			".vscode/**" : true
-		,	".git*/**"   : true
-		}
-	,	"telemetry.enableTelemetry" : false
-	,	"telemetry.telemetryLevel"  : "off"
-	}
-,	"launch" : {
-		"configurations" : [
-			{	"name"       : $name
-			,	"type"       : "debugpy"
-			,	"request"    : "launch"
-			,	"python"     : $interpreter
-			,	"pythonArgs" : $args
-			,	"program"    : $program
-			,	"console"    : "integratedTerminal"
-			,	"cwd"        : $root_dir
-			,	"subProcess" : true
-			,	"env" : {
-					$env
-				}
-			}
-		,	{
-				"type"      : "by-gdb"
-			,	"request"   : "attach"
-			,	"name"      : "Attach C/C++"
-			,	"program"   : $interpreter
-			,	"cwd"       : $root_dir
-			,	"processId" : 0
-			}
-		]
-	}
-,	"extensions" : {
-		"recommendations" : [
-			$exts
-		]
-	}
-}
-)" ;
-		::string exts_str ;
-		bool     first    = true                    ;
-		::string root_dir = no_slash(*g_root_dir_s) ;
-		for ( ::string const& ext : vs_exts ) {
-			if (first) { exts_str <<               mk_json_str(ext) ; first = false ; }
-			else         exts_str << "\n\t\t,\t"<< mk_json_str(ext) ;
-		}
-		::string args_str = "[" ;
-		first = true ;
-		SWEAR(+start.interpreter) ;
-		for( auto& args : ::vector_view(&start.interpreter[1],start.interpreter.size()-1) ) {
-			if (first) { args_str <<      mk_json_str(args) ; first = false ; }
-			else         args_str << ','<<mk_json_str(args) ;
-		}
-		args_str += ']' ;
-		//
-		res = ::regex_replace( res , ::regex("\\$exts"       ) , exts_str                                  ) ;
-		res = ::regex_replace( res , ::regex("\\$name"       ) , mk_json_str(j->name()                   ) ) ;
-		res = ::regex_replace( res , ::regex("\\$root_dir"   ) , mk_json_str(no_slash(*g_root_dir_s)     ) ) ;
-		res = ::regex_replace( res , ::regex("\\$program"    ) , mk_json_str(*g_root_dir_s+dbg_dir+"/cmd") ) ;
-		res = ::regex_replace( res , ::regex("\\$interpreter") , mk_json_str(start.interpreter[0]        ) ) ;
-		res = ::regex_replace( res , ::regex("\\$args"       ) , args_str                                  ) ;
-		//
-		::vmap_ss env     = _mk_env(start.env,job_info.end.end.dynamic_env) ;
-		size_t    kw      = 13/*SEQUENCE_ID*/ ; for( auto&& [k,v] : env ) if (k!="TMPDIR") kw = ::max(kw,mk_json_str(k).size()) ;
-		::string  env_str ;
-		/**/                                       env_str <<                  fmt_string(::setw(kw),mk_json_str("ROOT_DIR"   ))<<" : "<<mk_json_str(no_slash(*g_root_dir_s)                     ) ;
-		/**/                                       env_str << "\n\t\t\t\t,\t"<<fmt_string(::setw(kw),mk_json_str("SEQUENCE_ID"))<<" : "<<mk_json_str(::to_string(job_info.start.pre_start.seq_id)) ;
-		/**/                                       env_str << "\n\t\t\t\t,\t"<<fmt_string(::setw(kw),mk_json_str("SMALL_ID"   ))<<" : "<<mk_json_str(::to_string(start.small_id                 )) ;
-		/**/                                       env_str << "\n\t\t\t\t,\t"<<fmt_string(::setw(kw),mk_json_str("TMPDIR"     ))<<" : "<<mk_json_str(*g_root_dir_s+dbg_dir+"/tmp"                ) ;
-		for( auto&& [k,v] : env ) if (k!="TMPDIR") env_str << "\n\t\t\t\t,\t"<<fmt_string(::setw(kw),mk_json_str(k            ))<<" : "<<mk_json_str(v                                           ) ;
-		res = ::regex_replace( res , ::regex("\\$env") , env_str );
-		return res ;
-	}
-
-	static ::string _mk_script( Job j , ReqFlags flags , JobInfo const& job_info , ::string const& dbg_dir , bool with_cmd ) {
-		JobRpcReply const& start = job_info.start.start ;
-		AutodepEnv  const& ade   = start.autodep_env    ;
-		Rule::SimpleMatch match = j->simple_match() ;
-		//
-		for( Node t  : j->targets ) t->set_buildable() ;                                                                             // necessary for pre_actions()
-		//
-		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match) ;
-		::string                                           script      = "#!/bin/bash\n"       ;
-		bool                                               is_python   = j->rule->is_python    ;
-		bool                                               dbg         = flags[ReqFlag::Debug] ;
-		//
-		::uset<Node> warn      ; for( auto n     : pre_actions.second )                                  warn     .insert(n) ;
-		::uset<Node> to_mkdirs ; for( auto [d,a] : pre_actions.first  ) if (a.tag==FileActionTag::Mkdir) to_mkdirs.insert(d) ;
-		//
-		script << "cd "<<mk_shell_str(no_slash(*g_root_dir_s))<<'\n' ;
-		//
-		for( auto [_,a] : pre_actions.first )
-			if (a.tag==FileActionTag::Uniquify) {
-				script +=
-R"(uniquify() {
-	if [ -f "$1" -a $(stat -c%h "$1" 2>/dev/null||echo 0) -gt 1 ] ; then
-		echo warning : uniquify "$1"
-		mv "$1" "$1.$$" ; cp -p "$1.$$" "$1" ; rm -f "$1.$$"
-	fi
-}
-)" ;
-				break ;
-			}
-		for( auto [t,a] : pre_actions.first ) {
-			::string tn = mk_shell_str(t->name()) ;
-			switch (a.tag) {
-				case FileActionTag::None     :                                                                                                                   break ;
-				case FileActionTag::Mkdir    :   script<<"mkdir -p "<<tn<<                '\n' ;                                                                 break ;
-				case FileActionTag::Rmdir    :   script<<"rmdir "   <<tn<<" 2>/dev/null"<<'\n' ;                                                                 break ;
-				case FileActionTag::Unlnk    : { ::string c = "rm -f "   +tn ; if (warn.contains(t)) script<<"echo warning : "<<c<<">&2 ;" ; script<<c<<'\n' ; } break ;
-				case FileActionTag::Uniquify : { ::string c = "uniquify "+tn ;                                                               script<<c<<'\n' ; } break ;
-			DF}
-		}
-		//
-		::string tmp_dir ;
-		if (+dbg_dir) {
-			tmp_dir = *g_root_dir_s+dbg_dir+"/tmp" ;
-		} else {
-			tmp_dir = mk_abs(ade.tmp_dir,*g_root_dir_s) ;
-			if (!start.autodep_env.tmp_dir)
-				for( auto&& [k,v] : start.env )
-					if ( k=="TMPDIR" && v!=EnvPassMrkr )
-						tmp_dir = v ;
-		}
-		//
-		::vmap_ss env       = _mk_env(start.env,job_info.end.end.dynamic_env) ;
-		::string  env_setup =
-			"exec env -i"s                                                + " \\\n"
-		+	"\tROOT_DIR="        + mk_shell_str(no_slash(*g_root_dir_s))  + " \\\n"
-		+	"\tSEQUENCE_ID="     + job_info.start.pre_start.seq_id        + " \\\n"
-		+	"\tSMALL_ID="        + start.small_id                         + " \\\n"
-		+	"\tTMPDIR="          + "\"$TMPDIR\""                          + " \\\n"
-		+	"\tDISPLAY="         + "\"$DISPLAY\""                         + " \\\n"
-		+	"\tXDG_RUNTIME_DIR=" + "\"$XDG_RUNTIME_DIR\""                 + " \\\n"
-		+	"\tXAUTHORITY="      + "\"${XAUTHORITY:-$HOME/.Xauthority}\"" + " \\\n"
-		;
-		for( auto& [k,v] : env ) if (k!="TMPDIR") env_setup << '\t'<<k<<'=' << mk_shell_str(v) << " \\\n" ;
-		//
-		script << "export      TMPDIR="  << mk_shell_str(tmp_dir) << '\n' ;
-		script << "rm -rf   \"$TMPDIR\""                          << '\n' ;
-		script << "mkdir -p \"$TMPDIR\""                          << '\n' ;
-		if (flags[ReqFlag::Vscode]) {
-			::vector_s vs_exts {
-				"ms-python.python"
-			,	"ms-vscode.cpptools"
-			,	"coolchyni.beyond-debug"
-			} ;
-			::string vscode_file   = dbg_dir+"/vscode/ldebug.code-workspace"   ;
-			::string settings_file = dbg_dir+"/vscode/user/User/settings.json" ;
-			OFStream(dir_guard(vscode_file  )) << _mk_vscode( j , job_info , dbg_dir , vs_exts ) ;
-			OFStream(dir_guard(settings_file)) <<
-R"({
-	"workbench.startupEditor"          : "none"
-,	"security.workspace.trust.enabled" : false
-}
-)" ;
-			vector_s static_deps ; for( Dep const& d : j->deps ) if (d.dflags[Dflag::Static]) static_deps.push_back(d->name()      ) ;
-			for( ::string const& e : vs_exts     ) script << "code --list-extensions | grep -Fxq "<<mk_shell_str(e)<<" || code --install-extension "<<mk_shell_str(e)<<'\n' ;
-			/**/                                   script << "debug_dir="<<mk_shell_str(*g_root_dir_s+dbg_dir)                                                       <<'\n' ;
-			/**/                                   script << "args=( --extensions-dir \"$HOME/.vscode/extensions\" )"                                                <<'\n' ;
-			/**/                                   script << "type -p code | grep -q .vscode-server || args+=( --user-data-dir $debug_dir/vscode/user )"             <<'\n' ;
-			for( ::string const& d : static_deps ) script << "args+=( "<<mk_shell_str(d)<<" )"                                                                       <<'\n' ;
-			/**/                                   script << "args+=( $debug_dir/cmd )"                                                                              <<'\n' ;
-			/**/                                   script << "args+=( $debug_dir/vscode/ldebug.code-workspace )"                                                     <<'\n' ;
-			/**/                                   script << env_setup                                                                                                      ;
-			/**/                                   script << "code -n -w --password-store=basic \"${args[@]}\" &"                                                    <<'\n' ;
-		} else {
-			script << env_setup ;
-			if ( dbg || ade.auto_mkdir || +start.job_space ) {                                                                       // in addition to debug, autodep may be needed ...
-				/**/                                    script << *g_lmake_dir_s<<"bin/autodep"                              <<' ' ; // ... for functional reasons
-				if      ( dbg                         ) script << "-s " << snake(ade.lnk_support)                            <<' ' ;
-				else                                    script << "-s " << "none"                                            <<' ' ; // dont care about deps
-				/**/                                    script << "-m " << snake(start.method   )                            <<' ' ;
-				if      ( !dbg                        ) script << "-o " << "/dev/null"                                       <<' ' ;
-				else if ( +dbg_dir                    ) script << "-o " << dbg_dir<<"/accesses"                              <<' ' ;
-				if      ( ade.auto_mkdir              ) script << "-d"                                                       <<' ' ;
-				if      ( dbg && ade.ignore_stat      ) script << "-i"                                                       <<' ' ;
-				if      ( +start.job_space.chroot_dir ) script << "-c"  << mk_shell_str(start.job_space.chroot_dir)          <<' ' ;
-				if      ( +start.job_space.root_view  ) script << "-r"  << mk_shell_str(start.job_space.root_view )          <<' ' ;
-				if      ( +start.job_space.tmp_view   ) script << "-t"  << mk_shell_str(start.job_space.tmp_view  )          <<' ' ;
-				if      ( +dbg_dir                    ) script << "-w " << dbg_dir<<"/work"                                  <<' ' ;
-				if      ( +start.job_space.views      ) script << "-v " << mk_shell_str(mk_printable(start.job_space.views)) <<' ' ;
-			}
-			for( ::string const& c : start.interpreter )   script << mk_shell_str(c) << ' '                                    ;
-			if      ( dbg && !is_python )                  script << "-x "                                                     ;
-			if      ( with_cmd          )                  script << dbg_dir<<"/cmd"                                           ;
-			else                                           script << "-c \\\n" << mk_shell_str(_mk_cmd(j,flags,start,dbg_dir)) ;
-			if      ( +start.stdin  && dbg && !is_python ) script << " 3<&0"                                                   ;     // must be before job redirections
-			if      ( +start.stdout && dbg && !is_python ) script << " 4>&1"                                                   ;     // must be before job redirections
-			if      ( +start.stdin      )                  script << " <" << mk_shell_str(start.stdin )                        ;
-			else if ( !dbg              )                  script << " </dev/null"                                             ;
-			if      ( +start.stdout     )                  script << " >" << mk_shell_str(start.stdout)                        ;
-			script += '\n' ;
-		}
-		return script ;
+		get_script << ")\n" ;
+		Gil gil ;
+		return (*py_run(get_script))["script"].as_a<Str>() ;
 	}
 
 	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
@@ -481,7 +287,6 @@ R"({
 		Trace trace("debug") ;
 		Fd                fd = ecr.out_fd  ;
 		ReqOptions const& ro = ecr.options ;
-		SWEAR(ro.flags[ReqFlag::Debug],ro) ;
 		//
 		Job job ;
 		if (ecr.as_job()) {
@@ -502,11 +307,10 @@ R"({
 		//
 		::string dbg_dir     = job->ancillary_file(AncillaryTag::Dbg) ;
 		::string script_file = dbg_dir+"/script"                      ;
-		::string cmd_file    = dbg_dir+"/cmd"                         ;
 		mk_dir(dbg_dir) ;
 		//
-		/**/                              OFStream(script_file) << _mk_script(job,ro.flags,job_info            ,dbg_dir,true/*with_cmd*/) ; ::chmod(script_file.c_str(),0755) ;
-		if (!ro.flags[ReqFlag::Enter] ) { OFStream(cmd_file   ) << _mk_cmd   (job,ro.flags,job_info.start.start,dbg_dir                 ) ; ::chmod(cmd_file   .c_str(),0755) ; }
+		::string script = _mk_script(job,ro,job_info,dbg_dir) ;               // only open script_file for writing if _mk_script ends without error
+		OFStream(script_file) << script ; ::chmod(script_file.c_str(),0755) ; // .
 		//
 		audit_file( fd , ::move(script_file) ) ;
 		return true ;
@@ -646,12 +450,11 @@ R"({
 		bool             verbose      = ro.flags[ReqFlag::Verbose] ;
 		JobDigest const& digest       = job_info.end.end.digest    ;
 		switch (ro.key) {
-			case ReqKey::Cmd        :
-			case ReqKey::Env        :
-			case ReqKey::ExecScript :
-			case ReqKey::Info       :
-			case ReqKey::Stderr     :
-			case ReqKey::Stdout     : {
+			case ReqKey::Cmd    :
+			case ReqKey::Env    :
+			case ReqKey::Info   :
+			case ReqKey::Stderr :
+			case ReqKey::Stdout : {
 				if (rule->is_special()) {
 					switch (ro.key) {
 						case ReqKey::Info   :
@@ -659,10 +462,9 @@ R"({
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job  , lvl   ) ;
 							audit    ( fd , ro , job->special_stderr() , false/*as_is*/ , lvl+1 ) ;
 						} break ;
-						case ReqKey::Cmd        :
-						case ReqKey::Env        :
-						case ReqKey::ExecScript :
-						case ReqKey::Stdout     :
+						case ReqKey::Cmd    :
+						case ReqKey::Env    :
+						case ReqKey::Stdout :
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job                          , lvl   ) ;
 							audit    ( fd , ro , Color::Err , "no "s+snake(ro.key)+" available" , true/*as_is*/ , lvl+1 ) ;
 						break ;
@@ -677,18 +479,14 @@ R"({
 					switch (ro.key) {
 						case ReqKey::Env : {
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							::vmap_ss env = _mk_env(start.env,end.dynamic_env) ;
-							size_t    w   = 0                                   ;
+							::vmap_ss env = _mk_env(job_info) ;
+							size_t    w   = 0                 ;
 							for( auto const& [k,v] : env ) w = ::max(w,k.size()) ;
 							for( auto const& [k,v] : env ) audit( fd , ro , fmt_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
 						} break ;
-						case ReqKey::ExecScript : //!                                                                                                        as_is
-							if (!has_start) audit( fd , ro , Color::Err , "no info available"                                                               , true , lvl ) ;
-							else            audit( fd , ro ,              _mk_script(job,ro.flags,job_info,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , true , lvl ) ;
-						break ;
-						case ReqKey::Cmd : //!                                                            as_is
-							if (!has_start) audit( fd , ro , Color::Err , "no info available"            , true , lvl ) ;
-							else            audit( fd , ro ,              _mk_cmd(job,ro.flags,start,{}) , true , lvl ) ;
+						case ReqKey::Cmd : //!                                                              as_is
+							if (!has_start) audit( fd , ro , Color::Err , "no info available"              , true , lvl ) ;
+							else            audit( fd , ro ,              start.cmd.first+start.cmd.second , true , lvl ) ;
 						break ;
 						case ReqKey::Stdout :
 							if (!has_end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
@@ -720,14 +518,14 @@ R"({
 							//
 							::string ids ;
 							if (porcelaine) {
-								ids = "{ 'job':"+(+job) ;
+								ids = "{ 'job':"s+(+job) ;
 								if (has_start) {
 									if (start    .small_id) ids<<" , 'small':"<<start    .small_id ;
 									if (pre_start.seq_id  ) ids<<" , 'seq':"  <<pre_start.seq_id   ;
 								}
 								ids += " }" ;
 							} else {
-								ids = "job="+(+job) ;
+								ids = "job="s+(+job) ;
 								if (has_start) {
 									if (start    .small_id) ids<<" , small="<<start    .small_id ;
 									if (pre_start.seq_id  ) ids<<" , seq="  <<pre_start.seq_id   ;
@@ -918,12 +716,11 @@ R"({
 				if ( !job && ro.key!=ReqKey::Info ) { ok = false ; continue ; }
 			}
 			switch (ro.key) {
-				case ReqKey::Cmd        :
-				case ReqKey::Env        :
-				case ReqKey::ExecScript :
-				case ReqKey::Stderr     :
-				case ReqKey::Stdout     :
-				case ReqKey::Targets    :
+				case ReqKey::Cmd     :
+				case ReqKey::Env     :
+				case ReqKey::Stderr  :
+				case ReqKey::Stdout  :
+				case ReqKey::Targets :
 					_show_job(fd,ro,job,lvl) ;
 				break ;
 				case ReqKey::Info :

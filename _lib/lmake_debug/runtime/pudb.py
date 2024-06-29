@@ -6,108 +6,15 @@
 # /!\ must be Python2/Python3 compatible
 # /!\ this file must be able to accept that its own path is not in sys.path, it is read with exec, not with import
 
-deps = () # this is overwritten by calling script when debugging before calling hack_* functions
+from .utils import Code,load_modules
 
-Code = (lambda:None).__code__.__class__
-
-def load_modules(func) :
-	import sys
-	import keyword
-	import os.path as osp
-	from importlib import import_module
-	#if sys.version_info<(3,6) : return                                            # importing user code implies importing lmake.rules code, which is written for Python3.6+
-	if sys.version_info.major<3 :
-		import re
-		is_id_re = re.compile(r'[a-zA-Z_]\w*\Z')
-		def is_id(x) :
-			return is_id_re.match(x) and not keyword.iskeyword(x)
-		def source_from_cache(pyc) :
-			assert pyc[-1]=='c'
-			return pyc[:-1]
-	elif sys.version_info<(3,4) :
-		def is_id(x) :
-			return x.isidentifier() and not keyword.iskeyword(x)
-		def source_from_cache(pyc) :
-			dir,base = ('/'+pyc).rsplit('/__pycache__/',1)                         # __pycache__ can be at the top level
-			if dir : dir = dir[1:]+'/'                                             # remove initial /, add a final /, if empty, these 2 operations cancel each other
-			base = base.split('.',1)[0]
-			return dir+base+'.py'
-	else :
-		def is_id(x) :
-			return x.isidentifier() and not keyword.iskeyword(x)
-		from importlib.util import source_from_cache
-	#
-	# load modules containing serialized functions and substitute corresponding code
-	# if we do not do that, breakpoints may be put at the wrong place
-	func_lst = []
-	try :
-		for k,f in func.__globals__.items() :
-			try                   : f.__qualname__ ; m = f.__module__
-			except AttributeError : continue
-			func_lst.append((f,import_module(m)))
-	except :
-		return                                                                     # do not pretend we are in original source code if we have trouble importing any required module
-	for f,m in func_lst :
-		mf = m                                                                     # find function by doing a lookup with the qualified name, it is done for that
-		for c in f.__qualname__.split('.') : mf = getattr(mf,c)
-		try                   : mf.im_func.__code__ = f.__code__                   # substitute code to ensure breakpoints are put at the right place
-		except AttributeError : mf.        __code__ = f.__code__                   # .
-	#
-	# load all deps that look like imported modules so as to populate module list and ease setting breakpoints ahead of execution
-	# pre-condition path for speed as there may be 1000's of deps
-	path = sorted( (osp.abspath(p)+'/' for p in sys.path) , key=lambda x:-len(x) ) # longest first to have the best possible match when trying with startswith
-	for d in deps :
-		d = osp.abspath(d)
-		if     d.endswith('.pyc') : d = source_from_cache(d)
-		if not d.endswith('.py' ) : continue                                       # not an importable module
-		for p in path :
-			if not d.startswith(p) : continue
-			m = d[len(p):].split('/')
-			if not all( is_id(c) for c in m ) : break                              # no hope to find an alternative as we try longest first
-			try    : import_module('.'.join(m))
-			except : pass                                                          # this is a cosmetic improvement, no harm if we fail
-			break                                                                  # found, go to next dep
-
-def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
-	import pdb
-	import sys
-	import traceback
-	load_modules(func)
-	stdin    = open('/dev/tty','r') if redirected[0] else None
-	stdout   = open('/dev/tty','w') if redirected[1] else None
-	debugger = pdb.Pdb(stdin=stdin,stdout=stdout)
-	try :
-		debugger.runcall(func,*args,**kwds)
-	except BaseException as e :
-		traceback.print_exc()
-		debugger.interaction(None,sys.exc_info()[2])
-
-def run_vscode(dbg_dir,redirected,func,*args,**kwds) :
-	import json
-	import os
-	try :
-		# Write python process information to vscode debug workspace to allow gdb to attache to it
-		workspace = dbg_dir + '/vscode/ldebug.code-workspace'
-		if os.path.exists(workspace) :
-			data = json.load(open(workspace))
-			for elmt in data['launch']['configurations'] :
-				if elmt.get('type')=='by-gdb' and 'processId' in elmt : elmt['processId'] = os.getpid()
-			with open(workspace,'w') as out :
-				json.dump(data,out,indent='\t')
-				out.write('\n')
-		# call cmd
-		func(*args,**kwds)
-	except BaseException as e :
-		import traceback
-		traceback.print_exception(e)
-
-def run_pudb(dbg_dir,redirected,func,*args,**kwds) :
+def run_py(dbg_dir,deps,func,*args,**kwds) :
 	import os
 	import pudb.debugger
 	#
 	if True    : os.environ['PUDB_TTY'       ] = '/dev/tty'
 	if dbg_dir : os.environ['XDG_CONFIG_HOME'] = dbg_dir+'/config'
-	load_modules(func)
+	load_modules(func,deps)
 	if pudb.NUM_VERSION==(2023,1) :
 		def replace_consts(code,consts) :
 			try :

@@ -15,41 +15,40 @@ namespace Engine {
 	// jobs thread
 	//
 
-	::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlnk*/> JobData::pre_actions( Rule::SimpleMatch const& match , bool mark_target_dirs ) const { // thread-safe
+	vmap<Node,FileAction> JobData::pre_actions( Rule::SimpleMatch const& match , bool mark_target_dirs ) const { // thread-safe
 		Trace trace("pre_actions",idx(),STR(mark_target_dirs)) ;
 		::uset<Node>                    to_mkdirs        = match.target_dirs() ;
 		::uset<Node>                    to_mkdir_uphills ;
 		::uset<Node>                    locked_dirs      ;
 		::umap  <Node,NodeIdx/*depth*/> to_rmdirs        ;
 		::vmap<Node,FileAction>         actions          ;
-		::vector<Node>                  warnings         ;
 		for( Node d : to_mkdirs )
 			for( Node hd=d->dir() ; +hd ; hd = hd->dir() )
 				if (!to_mkdir_uphills.insert(hd).second) break ;
-		for( auto const& [_,d] : match.deps() )                      // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
+		for( auto const& [_,d] : match.deps() )                                       // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
 			for( Node hd=Node(d.txt)->dir() ; +hd ; hd = hd->dir() )
-				if (!locked_dirs.insert(hd).second) break ;          // if dir contains a dep, it cannot be rmdir'ed
+				if (!locked_dirs.insert(hd).second) break ;                           // if dir contains a dep, it cannot be rmdir'ed
 		//
 		// remove old targets
 		for( Target t : targets ) {
 			FileActionTag fat = {}/*garbage*/ ;
 			//
-			if      (t->crc==Crc::None            ) fat = FileActionTag::None     ;                                                                      // nothing to wash
-			else if (t->polluted                  ) fat = FileActionTag::Unlnk    ;                                                                      // wash pollution
-			else if (t->is_src_anti()             ) fat = FileActionTag::Src      ;                                                                      // dont touch sources, not even integrity check
-			else if (!t.tflags[Tflag::Incremental]) fat = FileActionTag::Unlnk    ;
-			else if ( t.tflags[Tflag::NoUniquify ]) fat = FileActionTag::None     ;
-			else                                    fat = FileActionTag::Uniquify ;
+			if      (t->crc==Crc::None            ) fat = FileActionTag::Unlink     ; // nothing to wash
+			else if (t->polluted                  ) fat = FileActionTag::Unlink     ; // wash pollution
+			else if (t->is_src_anti()             ) fat = FileActionTag::Src        ; // dont touch sources, not even integrity check
+			else if (!t.tflags[Tflag::Incremental]) fat = FileActionTag::Unlink     ;
+			else if ( t.tflags[Tflag::NoUniquify ]) fat = FileActionTag::NoUniquify ;
+			else                                    fat = FileActionTag::Uniquify   ;
 			FileAction fa { fat , t->crc , t->date().sig } ;
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
-				case FileActionTag::Src      : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ;                              break ; // nothing to do, not even integrity check
-				case FileActionTag::Uniquify : if ( +t->dir()                      ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
-				case FileActionTag::None     : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ; // integrity check
-				case FileActionTag::Unlnk    :
+				case FileActionTag::Src        : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ;                              break ; // nothing to do, not even integrity check
+				case FileActionTag::Uniquify   : if ( +t->dir()                      ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
+				case FileActionTag::NoUniquify : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
+				case FileActionTag::Unlink     :
+					if ( !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ) fa.tag = FileActionTag::UnlinkWarning ;
 					actions.emplace_back(t,fa) ;
-					if ( !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ) warnings.push_back(t) ;
 					if ( Node td=t->dir() ; +td ) {
 						//
 						NodeIdx depth = 0 ;
@@ -87,7 +86,7 @@ namespace Engine {
 			for( Node d : to_mkdirs        ) { trace("protect_dir"     ,d) ; _s_target_dirs     [d]++ ; }
 			for( Node d : to_mkdir_uphills ) { trace("protect_hier_dir",d) ; _s_hier_target_dirs[d]++ ; }
 		}
-		return {actions,warnings} ;
+		return actions ;
 	}
 
 	void JobData::end_exec() const {
@@ -1153,7 +1152,7 @@ namespace Engine {
 					try {
 						NfsGuard nfs_guard { g_config->reliable_dirs } ;
 						//
-						vmap<Node,FileAction> fas     = pre_actions(match).first ;
+						vmap<Node,FileAction> fas     = pre_actions(match) ;
 						::vmap_s<FileAction>  actions ; for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
 						::pair_s<bool/*ok*/>  dfa_msg = do_file_actions( ::move(actions) , nfs_guard , g_config->hash_algo ) ;
 						//
