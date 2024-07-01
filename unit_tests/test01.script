@@ -6,9 +6,9 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 
-ut_launch -done 2 -new 1 lmake src1.4r.wait &
+ut_launch -done 2 -new 1 lmake src1.6r.wait &
 
-sleep 2
+sleep 3
 
 echo new_src > new_src  # create new source
 echo new_src >>Manifest # and tell lmake

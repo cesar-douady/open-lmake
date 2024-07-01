@@ -154,9 +154,9 @@ namespace Backends::Local {
 			return ::move(rsrcs) ;
 		}
 		//
-		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const& rsa          ) const { return rsa. fit_in(         capacity_)     ; }
-		virtual ::vmap_ss    export_       ( RsrcsData    const& rs           ) const { return rs.mk_vmap(rsrc_keys)               ; }
-		virtual RsrcsDataAsk import_       ( ::vmap_ss        && rsa , ReqIdx ) const { return RsrcsDataAsk(::move(rsa),rsrc_idxs) ; }
+		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const& rsa                   ) const { return rsa. fit_in(         capacity_)     ; }
+		virtual ::vmap_ss    export_       ( RsrcsData    const& rs                    ) const { return rs.mk_vmap(rsrc_keys)               ; }
+		virtual RsrcsDataAsk import_       ( ::vmap_ss        && rsa , ReqIdx , JobIdx ) const { return RsrcsDataAsk(::move(rsa),rsrc_idxs) ; }
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			return rsa->fit_in(occupied,capacity_) ;
 		}

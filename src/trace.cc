@@ -58,8 +58,8 @@ using namespace Time ;
 	}
 
 	void Trace::_s_open() {
-		if (!s_sz             ) return ;  // no room to trace
-		if (!s_channels.load()) return ;  // nothing to trace
+		if (s_sz<4096         ) return ; // not enough room to trace
+		if (!s_channels.load()) return ; // nothing to trace
 		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
@@ -82,15 +82,22 @@ using namespace Time ;
 		_s_data = static_cast<uint8_t*>(::mmap( nullptr , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0 )) ;
 		SWEAR(_s_data!=MAP_FAILED,*g_trace_file) ;
 		fence() ;
-		_s_has_trace = +_s_fd ;    // ensure _s_has_trace is updated once everything is ok as tracing may be called from other threads while being initialized
+		_s_has_trace = +_s_fd ;          // ensure _s_has_trace is updated once everything is ok as tracing may be called from other threads while being initialized
 	}
 
 	void Trace::_t_commit() {
 		//
+		static constexpr char Giant[] = "<giant record>\n" ;
 		#if HAS_OSTRINGSTREAM_VIEW
 			::string_view buf_view = _t_buf->view() ;
+			if (buf_view.size()>(s_sz>>4)) {                                                      // avoid trace pollution with giant records (above 1/16th of the overall trace size)
+				buf_view = { Giant , sizeof(Giant)-1 } ;                            // -1 to account for terminating null
+			}
 		#else
-			::string      buf_view = _t_buf->str () ;
+			::string buf_view = _t_buf->str() ;
+			if (buf_view.size()>(s_sz>>4)) {                                                      // avoid trace pollution with giant records (above 1/16th of the overall trace size)
+				buf_view = Giant ;
+			}
 		#endif
 		//
 		{	Lock   lock    { _s_mutex }             ;

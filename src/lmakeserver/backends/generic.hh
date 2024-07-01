@@ -220,13 +220,13 @@ namespace Backends {
 		virtual bool call_launch_after_start() const { return false ; }
 		virtual bool call_launch_after_end  () const { return false ; }
 		//
-		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const&          ) const { return true ; } // true if job with such resources can be spawned eventually
-		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const&          ) const = 0 ;             // true if job with such resources can be spawned now
-		virtual Rsrcs        acquire_rsrcs ( RsrcsAsk     const&          ) const = 0 ;             // acquire maximum possible asked resources
-		virtual void         start_rsrcs   ( Rsrcs        const&          ) const {}                // handle resources at start of job
-		virtual void         end_rsrcs     ( Rsrcs        const&          ) const {}                // handle resources at end   of job
-		virtual ::vmap_ss    export_       ( RsrcsData    const&          ) const = 0 ;             // export resources in   a publicly manageable form
-		virtual RsrcsDataAsk import_       ( ::vmap_ss        && , ReqIdx ) const = 0 ;             // import resources from a publicly manageable form
+		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const&                   ) const { return true ; } // true if job with such resources can be spawned eventually
+		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const&                   ) const = 0 ;             // true if job with such resources can be spawned now
+		virtual Rsrcs        acquire_rsrcs ( RsrcsAsk     const&                   ) const = 0 ;             // acquire maximum possible asked resources
+		virtual void         start_rsrcs   ( Rsrcs        const&                   ) const {}                // handle resources at start of job
+		virtual void         end_rsrcs     ( Rsrcs        const&                   ) const {}                // handle resources at end   of job
+		virtual ::vmap_ss    export_       ( RsrcsData    const&                   ) const = 0 ;             // export resources in   a publicly manageable form
+		virtual RsrcsDataAsk import_       ( ::vmap_ss        && , ReqIdx , JobIdx ) const = 0 ;             // import resources from a publicly manageable form
 		//
 		virtual ::string                 start_job           ( JobIdx , SpawnedEntry const&          ) const { return  {}                        ; }
 		virtual ::pair_s<bool/*retry*/>  end_job             ( JobIdx , SpawnedEntry const& , Status ) const { return {{},false/*retry*/       } ; }
@@ -265,7 +265,7 @@ namespace Backends {
 		}
 		// do not launch immediately to have a better view of which job should be launched first
 		virtual void submit( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
-			RsrcsAsk rsa { New , import_(::move(rsrcs),req) } ;                                                              // compile rsrcs
+			RsrcsAsk rsa { New , import_(::move(rsrcs),req,job) } ;                                                          // compile rsrcs
 			if (!fit_eventually(*rsa)) throw "not enough resources to launch job "+Job(job)->name() ;
 			ReqEntry& re = reqs.at(req) ;
 			SWEAR(!waiting_jobs   .contains(job)) ;                                                                          // job must be a new one

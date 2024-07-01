@@ -58,8 +58,8 @@ namespace Backends::Slurm {
 	struct RsrcsData : ::vector<RsrcsDataSingle> {
 		using Base = ::vector<RsrcsDataSingle> ;
 		// cxtors & casts
-		RsrcsData(                      ) = default ;
-		RsrcsData( ::vmap_ss&& , Daemon ) ;
+		RsrcsData(                               ) = default ;
+		RsrcsData( ::vmap_ss&& , Daemon , JobIdx ) ;
 		// services
 		::vmap_ss mk_vmap(void) const ;
 	} ;
@@ -205,8 +205,8 @@ namespace Backends::Slurm {
 			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
 		}
 
-		virtual ::vmap_ss export_( RsrcsData const& rs               ) const { return rs.mk_vmap()                                   ; }
-		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req ) const { return blend( {::move(rsa),daemon} ,req_forces[req] ) ; }
+		virtual ::vmap_ss export_( RsrcsData const& rs                           ) const { return rs.mk_vmap()                                      ; }
+		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req , JobIdx ji ) const { return blend( {::move(rsa),daemon,ji} ,req_forces[req] ) ; }
 		//
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
@@ -322,7 +322,7 @@ namespace Backends::Slurm {
 		s = v[0] ;
 		for( size_t i=1 ; i<v.size() ; i++ ) s<<','<<v[i] ;
 	}
-	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
+	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d , JobIdx ji ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
 		sort(m) ;
 		for( auto&& [kn,v] : ::move(m) ) {
 			size_t           p    = kn.find(':')                                           ;
@@ -357,7 +357,7 @@ namespace Backends::Slurm {
 			throw "no resource "+k+" for backend "+snake(MyTag) ;
 
 		}
-		if ( d.manage_mem && !(*this)[0].mem ) throw "must reserve memory when managed by slurm daemon"s ;
+		if ( d.manage_mem && !(*this)[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule->name+".resources={'mem':'1M'}" ;
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
 		::vmap_ss res ;
