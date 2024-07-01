@@ -8,103 +8,131 @@
 
 #include "process.hh"
 
-[[noreturn]] void Child::_do_child() {
-	if ( !first_pid && as_session ) ::setsid() ;                          // if first_pid, we have an init process above us and this is the one which calls setsid()
-	sigset_t full_mask ; ::sigfillset(&full_mask) ;
-	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                       // restore default behavior
-	//
-	if (stdin_fd ==Pipe) { _p2c .write.close() ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
-	if (stdout_fd==Pipe) { _c2po.read .close() ; _c2po.write.no_std() ; } // .
-	if (stderr_fd==Pipe) { _c2pe.read .close() ; _c2pe.write.no_std() ; } // .
-	// set up std fd
-	if (stdin_fd ==None) ::close(Fd::Stdin ) ; else if (_p2c .read !=Fd::Stdin ) ::dup2(_p2c .read ,Fd::Stdin ) ;
-	if (stdout_fd==None) ::close(Fd::Stdout) ; else if (_c2po.write!=Fd::Stdout) ::dup2(_c2po.write,Fd::Stdout) ; // save stdout in case it is modified and we want to redirect stderr to it
-	if (stderr_fd==None) ::close(Fd::Stderr) ; else if (_c2pe.write!=Fd::Stderr) ::dup2(_c2pe.write,Fd::Stderr) ;
-	//
-	if (_p2c .read >Fd::Std) _p2c .read .close() ;                 // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-	if (_c2po.write>Fd::Std) _c2po.write.close() ;                 // .
-	if (_c2pe.write>Fd::Std) _c2pe.write.close() ;                 // .
-	//
-	const char** child_env   = const_cast<const char**>(environ) ;
-	::vector_s   env_vector  ;                                     // ensure actual env strings lifetime last until execve call
-	int          pre_exec_rc = 0/*garbage*/                      ;
-	if (env) {
-		SWEAR(+cmd_line) ;                                         // cannot fork with env
-		size_t n_env = env->size() + (add_env?add_env->size():0) ;
-		env_vector.reserve(n_env) ;
-		for( auto const* e : {env,add_env} )
-			if (e)
-				for( auto const& [k,v] : *e )
-					env_vector.push_back(k+'='+v) ;
-		child_env = new const char*[n_env+1] ;
-		// /!\ : c_str() seems to be invalidated by vector reallocation although this does not appear in doc : https://en.cppreference.com/w/cpp/string/basic_string/c_str
-		for( size_t i=0 ; i<n_env ; i++ ) child_env[i] = env_vector[i].c_str() ;
-		child_env[n_env] = nullptr ;
-	} else if (add_env) {
-		for( auto const& [k,v] : *add_env ) set_env(k,v) ;
+[[noreturn]] static void _exit( Rc rc , const char* msg=nullptr ) {     // signal-safe
+	if (msg) {
+		ssize_t cnt ;
+		cnt = ::write(2,msg,strlen(msg)) ; if (cnt<0) rc = Rc::System ; // /!\ cannot use high level I/O because we are only allowed signal-safe functions. Msg contains terminating null
+		cnt = ::write(2,"\n",1         ) ; if (cnt<0) rc = Rc::System ; // .
 	}
-	if (+cwd_   ) { if (::chdir(cwd_.c_str())!=0) exit(Rc::System,"cannot chdir to : "+cwd_) ; }
-	if (pre_exec)   pre_exec_rc = pre_exec(pre_exec_arg) ;
-	//
-	if (!cmd_line  ) exit(pre_exec_rc?Rc::Fail:Rc::Ok) ;           // no cmd_line  , pre_exec is the entire function executed in child
-	if (pre_exec_rc) exit(            Rc::Fail       ) ;           // with cmd_line, check no prelude error
-	#if HAS_CLOSE_RANGE
-		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;               // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
-	#endif
-	const char** child_args = new const char*[cmd_line.size()+1] ;
-	for( size_t i=0 ; i<cmd_line.size() ; i++ ) child_args[i] = cmd_line[i].c_str() ;
-	child_args[cmd_line.size()] = nullptr ;
-	if (env) ::execve( child_args[0] , const_cast<char**>(child_args) , const_cast<char**>(child_env) ) ;
-	else     ::execv ( child_args[0] , const_cast<char**>(child_args)                                 ) ;
-	exit(Rc::System,"cannot exec (",strerror(errno),") : ",cmd_line) ;                                    // in case exec fails
+	_exit(+rc) ;                                                        // /!\ cannot use exit as we are only allowed signal-safe functions
 }
 
-static constexpr size_t StackSz = 16<<10 ; // we just need s small stack before exec, experiment shows 8k is enough, take 16k
+// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
+[[noreturn]] void Child::_do_child() {
+	::execve( _child_args[0] , const_cast<char**>(_child_args) , const_cast<char**>(_child_env) ) ;
+	_exit(Rc::System,"cannot exec") ;                                                               // in case exec fails
+}
 
-[[noreturn]] void Child::_do_child_new_pid_namespace() {
-	if (as_session) ::setsid() ;                         // if we are here, we are the init process and we must be in the new session to receive the kill signal
-	SWEAR(first_pid>1,first_pid) ;
-	if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) exit(Rc::System,"cannot mount /proc") ;
-	{	AutoCloseFd              fd  = ::open("/proc/sys/kernel/ns_last_pid",O_WRONLY|O_TRUNC) ;
-		::string                 val = ::to_string(first_pid-1)                                ;
-		[[maybe_unused]] ssize_t wrc = ::write(fd,val.c_str(),val.size())                      ;      // dont care about errors, this is best effort
-	}
-	::vector<uint64_t> stack     ( StackSz/sizeof(uint64_t) )                       ;
-	void*              stack_ptr = stack.data()+(StackGrowsDownward?stack.size():0) ;
-	pid_t pid = ::clone( _s_do_child , stack_ptr , SIGCHLD , this ) ;
+// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
+[[noreturn]] void Child::_do_child_trampoline() {
+	if (as_session) ::setsid() ;                  // if we are here, we are the init process and we must be in the new session to receive the kill signal
 	//
-	if (pid==-1) exit(Rc::System,"cannot spawn sub-process ",cmd_line) ;
-	for(;;) {
-		int   wstatus   ;
-		pid_t child_pid = ::wait(&wstatus) ;
-		if (child_pid==pid) {
-			if (WIFEXITED  (wstatus))   ::exit (WEXITSTATUS(wstatus)) ;                               // exit as transparently as possible
-			if (WIFSIGNALED(wstatus)) { ::raise(WTERMSIG   (wstatus)) ; raise(SIGABRT) ; }            // .
-			SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) ) ;                                   // ensure we have not forgotten a case
+	sigset_t full_mask ; ::sigfillset(&full_mask) ;
+	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                         // restore default behavior
+	//
+	if (stdin_fd ==PipeFd) { _p2c .write.close() ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
+	if (stdout_fd==PipeFd) { _c2po.read .close() ; _c2po.write.no_std() ; } // .
+	if (stderr_fd==PipeFd) { _c2pe.read .close() ; _c2pe.write.no_std() ; } // .
+	// set up std fd
+	if (stdin_fd ==NoneFd) ::close(Fd::Stdin ) ; else if (_p2c .read !=Fd::Stdin ) ::dup2(_p2c .read ,Fd::Stdin ) ;
+	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if (_c2po.write!=Fd::Stdout) ::dup2(_c2po.write,Fd::Stdout) ; // save stdout in case it is modified and we want to redirect stderr to it
+	if (stderr_fd==NoneFd) ::close(Fd::Stderr) ; else if (_c2pe.write!=Fd::Stderr) ::dup2(_c2pe.write,Fd::Stderr) ;
+	//
+	if (_p2c .read >Fd::Std) _p2c .read .close() ;                                                  // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
+	if (_c2po.write>Fd::Std) _c2po.write.close() ;                                                  // .
+	if (_c2pe.write>Fd::Std) _c2pe.write.close() ;                                                  // .
+	//
+	if (+cwd_   ) { if (::chdir(cwd_.c_str()) !=0) _exit(Rc::System,"cannot chdir") ; }             // /!\ dont use exit which is not signal-safe
+	//
+	if (pre_exec) { if (pre_exec(pre_exec_arg)!=0) _exit(Rc::Fail                 ) ; }             // /!\ dont use exit which is not signal-safe
+	//
+	#if HAS_CLOSE_RANGE
+		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                                                // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
+	#endif
+	//
+	if (first_pid) {
+		SWEAR(first_pid>1,first_pid) ;
+		// mount is not signal-safe and we should only allowed signal-safe functions here, but this is a syscall, should be ok
+		if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) _exit(Rc::System,"cannot mount /proc") ;                 // /!\ dont use exit which is not signal-safe
+		{	char                     first_pid_buf[30] ;                                                           // /!\ cannot use ::string as we are only allowed signal-safe functions
+			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1)                 ; // /!\ .
+			AutoCloseFd              fd                = ::open("/proc/sys/kernel/ns_last_pid",O_WRONLY|O_TRUNC) ;
+			[[maybe_unused]] ssize_t wrc               = ::write(fd,first_pid_buf,first_pid_sz)                  ; // dont care about errors, this is best effort
 		}
+		pid_t pid = ::clone( _s_do_child , _child_stack_ptr , SIGCHLD , this ) ;
+		//
+		if (pid==-1) _exit(Rc::System,"cannot spawn sub-process\n") ;                                              // /!\ dont use exit which is not signal-safe
+		for(;;) {
+			int   wstatus   ;
+			pid_t child_pid = ::wait(&wstatus) ;
+			if (child_pid==pid) {
+				if (WIFEXITED  (wstatus))   ::_exit(WEXITSTATUS(wstatus)) ;                                        // exit as transparently as possible
+				if (WIFSIGNALED(wstatus)) { ::raise(WTERMSIG   (wstatus)) ; raise(SIGABRT) ; }                     // .
+				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) ) ;                                            // ensure we have not forgotten a case
+			}
+		}
+	} else {
+		_do_child() ;
 	}
 }
 
 void Child::spawn() {
-	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ;    // ensure reasonably simple situations
-	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ;    // .
-	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ;    // .
-	SWEAR(!( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                   ) ;    // .
-	if (stdin_fd ==Pipe) _p2c .open() ; else if (+stdin_fd ) _p2c .read  = stdin_fd  ;
-	if (stdout_fd==Pipe) _c2po.open() ; else if (+stdout_fd) _c2po.write = stdout_fd ;
-	if (stderr_fd==Pipe) _c2pe.open() ; else if (+stderr_fd) _c2pe.write = stderr_fd ;
+	SWEAR( +cmd_line                                                            ) ;
+	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ;      // ensure reasonably simple situations
+	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ;      // .
+	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ;      // .
+	SWEAR( !( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                  ) ;      // .
+	if (stdin_fd ==PipeFd) _p2c .open() ; else if (+stdin_fd ) _p2c .read  = stdin_fd  ;
+	if (stdout_fd==PipeFd) _c2po.open() ; else if (+stdout_fd) _c2po.write = stdout_fd ;
+	if (stderr_fd==PipeFd) _c2pe.open() ; else if (+stderr_fd) _c2pe.write = stderr_fd ;
 	//
-	::vector<uint64_t> stack     ( StackSz/sizeof(uint64_t) )                       ;
-	void*              stack_ptr = stack.data()+(StackGrowsDownward?stack.size():0) ;
-	if (first_pid) pid = ::clone( _s_do_child_new_pid_namespace , stack_ptr , SIGCHLD|CLONE_NEWPID , this ) ;
-	else           pid = ::clone( _s_do_child                   , stack_ptr , SIGCHLD              , this ) ;
+	// /!\ memory for environment must be allocated before calling clone
+	::vector_s env_vector ;                                                              // ensure actual env strings (of the form name=val) lifetime
+	if (env) {
+		size_t n_env = env->size() + (add_env?add_env->size():0) ;
+		env_vector.reserve(n_env) ;
+		_child_env = new const char*[n_env+1] ;
+		size_t i = 0 ;
+		/**/         for( auto const& [k,v] : *env     ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
+		if (add_env) for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
+		/**/                                                                               _child_env[i  ] = nullptr                   ;
+	} else if (add_env) {
+		size_t n_env = add_env->size() ; for( char** e=environ ; *e ; e++ ) n_env++ ;
+		env_vector.reserve(add_env->size()) ;
+		_child_env = new const char*[n_env+1] ;
+		size_t i = 0 ;
+		for( char** e=environ ; *e ; e++  )                                   _child_env[i++] = *e                        ;
+		for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
+		/**/                                                                  _child_env[i  ] = nullptr                   ;
+	} else {
+		_child_env = const_cast<const char**>(environ) ;
+	}
+	//
+	// /!\ memory for args must be allocated before calling clone
+	_child_args = new const char*[cmd_line.size()+1] ;
+	{	size_t i = 0 ;
+		for( ::string const& a : cmd_line ) _child_args[i++] = a.c_str() ;
+		/**/                                _child_args[i  ] = nullptr   ;
+	}
+	//
+	// /!\ memory for child stack must be allocated before calling clone
+	::vector<uint64_t> child_stack ( StackSz/sizeof(uint64_t) ) ;
+	_child_stack_ptr = child_stack.data()+(StackGrowsDownward?child_stack.size():0) ;
+	//
+	if (first_pid) {
+		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                             ; // we need a trampoline stack if we launch a grand-child
+		void*              trampoline_stack_ptr = trampoline_stack.data()+(StackGrowsDownward?trampoline_stack.size():0) ; // .
+		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID , this ) ;
+	} else {
+		pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD              , this ) ;
+	}
 	//
 	if (pid==-1) {
-		pid = 0 ;                                                                      // ensure we can be destructed
+		waited() ;                                                                       // ensure we can be destructed
 		throw "cannot spawn process "+fmt_string(cmd_line)+" : "+strerror(errno) ;
 	}
 	//
-	if (stdin_fd ==Pipe) { stdin  = _p2c .write ; _p2c .read .close() ; }
-	if (stdout_fd==Pipe) { stdout = _c2po.read  ; _c2po.write.close() ; }
-	if (stderr_fd==Pipe) { stderr = _c2pe.read  ; _c2pe.write.close() ; }
+	if (stdin_fd ==PipeFd) { stdin  = _p2c .write ; _p2c .read .close() ; }
+	if (stdout_fd==PipeFd) { stdout = _c2po.read  ; _c2po.write.close() ; }
+	if (stderr_fd==PipeFd) { stderr = _c2pe.read  ; _c2pe.write.close() ; }
 }

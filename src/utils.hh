@@ -269,7 +269,7 @@ namespace std {
 	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( ::string      const& a , I                    b ) { return             a +::to_string(b) ; }
 	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( I                    a , ::string const&      b ) { return ::to_string(a)+            b  ; }
 	//
-	inline                                                ::string& operator+=( ::string& a , ::string_view const& b ) { a += ::string   (b) ; return a ; } // XXX : suppress with c++26
+	inline                                                ::string& operator+=( ::string& a , ::string_view const& b ) { a += ::string   (b) ; return a ; }                // XXX : suppress with c++26
 	template<::integral I> requires(!::is_same_v<I,char>) ::string& operator+=( ::string& a , I                    b ) { a += ::to_string(b) ; return a ; }
 	// work around stupid += righ associativity
 	template<class T> requires requires { ::ref(::string())+=::decay_t<T>() ; } ::string& operator<<( ::string& s , T&&                         v ) { s += ::forward<T>(v) ; return s ; }
@@ -435,9 +435,9 @@ template<       ::integral I=size_t> ::string to_string_with_units  (I          
 
 extern thread_local char t_thread_key ;
 
-bool/*done*/ kill_self      ( int sig                        ) ;
-void         set_sig_handler( int sig , void (*handler)(int) ) ;
-void         write_backtrace( ::ostream& os , int hide_cnt   ) ;
+void kill_self      ( int sig                        ) ;
+void set_sig_handler( int sig , void (*handler)(int) ) ;
+void write_backtrace( ::ostream& os , int hide_cnt   ) ;
 
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
 	static bool busy = false ;
@@ -518,8 +518,9 @@ inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
 	return proc_killed || group_killed ;
 }
 
-inline bool/*done*/ kill_self(int sig) {  // raise kills the thread, not the process
-	return kill_process(::getpid(),sig) ;
+inline void kill_self(int sig) {      // raise kills the thread, not the process
+	int rc = ::kill(::getpid(),sig) ; // dont use kill_process as we call kill ourselves even if we are process 1 (in a namespace)
+	SWEAR(rc==0) ;                    // killing outselves should always be ok
 }
 
 //

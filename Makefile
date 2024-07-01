@@ -317,9 +317,6 @@ $(SRC)/autodep/ld_preload.o          : $(SRC)/autodep/ld_common.x.cc $(SRC)/auto
 $(SRC)/autodep/ld_preload_jemalloc.o : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
 $(SRC)/autodep/ld_server$(SAN).o     : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
 $(SRC)/autodep/ld_audit.o            : $(SRC)/autodep/ld_common.x.cc
-$(SRC)/ldump$(SAN).o                 : $(ALL_ENGINE_H)
-$(SRC)/ldump_job$(SAN).o             : $(ALL_ENGINE_H)
-$(SRC)/lrepair$(SAN).o               : $(ALL_ENGINE_H)
 
 $(SBIN)/lmakeserver : \
 	$(LMAKE_BASIC_SAN_OBJS)                                      \
@@ -398,6 +395,7 @@ $(SBIN)/ldump : \
 	$(SRC)/py$(SAN).o                           \
 	$(SRC)/rpc_client$(SAN).o                   \
 	$(SRC)/rpc_job$(SAN).o                      \
+	$(SRC)/rpc_job_exec$(SAN).o                 \
 	$(SRC)/fuse$(SAN).o                         \
 	$(SRC)/trace$(SAN).o                        \
 	$(SRC)/autodep/env$(SAN).o                  \

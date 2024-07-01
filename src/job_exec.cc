@@ -433,8 +433,8 @@ int main( int argc , char* argv[] ) {
 		if (+g_start_info.stdin) g_gather.child_stdin = open_read(g_start_info.stdin) ;
 		else                     g_gather.child_stdin = open_read("/dev/null"       ) ;
 		g_gather.child_stdin.no_std() ;
-		g_gather.child_stdout = Child::Pipe ;
-		g_gather.child_stderr = Child::Pipe ;
+		g_gather.child_stdout = Child::PipeFd ;
+		g_gather.child_stderr = Child::PipeFd ;
 		if (+g_start_info.stdout) {
 			g_gather.child_stdout = open_write(g_start_info.stdout) ;
 			g_gather.new_target( start_overhead , g_start_info.stdout , "<stdout>" ) ;

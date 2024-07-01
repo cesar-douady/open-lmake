@@ -30,6 +30,7 @@ bool                                                   Record::s_static_report =
 ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache  = nullptr ; // map file to read accesses
 AutodepEnv*                                            Record::_s_autodep_env  = nullptr ; // declare as pointer to avoid late initialization
 Fd                                                     Record::_s_root_fd      ;
+Fd                                                     Record::_s_report_fd    ;
 
 bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                     // no file is simple (not documented, but used in practice)

@@ -26,10 +26,24 @@ struct Record {
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
 		if (!_s_root_fd) {
-			_s_root_fd = { Disk::open_read(_s_autodep_env->root_dir) , true/*no_std*/ } ; // avoid poluting standard descriptors
+			_s_root_fd = { Disk::open_read(_s_autodep_env->root_dir) , true/*no_std*/ } ;                                     // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 		}
 		return _s_root_fd ;
+	}
+	static Fd s_report_fd() {
+		if ( !_s_report_fd && +_s_autodep_env->service ) {
+			// establish connection with server
+			::string const& service = _s_autodep_env->service ;
+			if (service.back()==':') _s_report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
+			else                     _s_report_fd = ClientSockFd(service).detach()                                          ;
+			_s_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
+			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",service) ;
+		}
+		return _s_report_fd ;
+	}
+	static void s_close_report() {
+		_s_report_fd.close() ;
 	}
 	static AutodepEnv const& s_autodep_env() {
 		SWEAR( _s_autodep_env && s_access_cache ) ;
@@ -49,15 +63,24 @@ struct Record {
 		}
 		return *_s_autodep_env ;
 	}
+	static void s_hide(int fd) {
+		if (_s_root_fd  .fd==fd) _s_root_fd  .detach() ;
+		if (_s_report_fd.fd==fd) _s_report_fd.detach() ;
+	}
+	static void s_hide( uint min , uint max ) {
+		if ( _s_root_fd  .fd>=0 &&  uint(_s_root_fd  .fd)>=min && uint(_s_root_fd  .fd)<=max ) _s_root_fd  .detach() ;
+		if ( _s_report_fd.fd>=0 &&  uint(_s_report_fd.fd)>=min && uint(_s_report_fd.fd)<=max ) _s_report_fd.detach() ;
+	}
 	// static data
 public :
-	static bool                                                   s_static_report  ;      // if true <=> report deps to s_deps instead of through report_fd() socket
+	static bool                                                   s_static_report  ;                                      // if true <=> report deps to s_deps instead of through s_report_fd() socket
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
-	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;      // map file to read accesses
+	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;                                      // map file to read accesses
 private :
 	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                                   // a file descriptor to repo root dir
+	static Fd          _s_root_fd     ;                                                                                   // a file descriptor to repo root dir
+	static Fd          _s_report_fd   ;
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -67,30 +90,11 @@ public :
 		else               disabled = enable==No               ;
 	}
 	// services
-	Fd report_fd() const {
-		if ( !_report_fd && +_s_autodep_env->service ) {
-			// establish connection with server
-			::string const& service = _s_autodep_env->service ;
-			if (service.back()==':') _report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
-			else                     _report_fd = ClientSockFd(service)                                                   ;
-			_report_fd.no_std() ;                                                                                                                       // avoid poluting standard descriptors
-			swear_prod(+_report_fd,"cannot connect to job_exec through ",service) ;
-		}
-		return _report_fd ;
-	}
-	void hide(int fd) const {
-		if (_s_root_fd.fd==fd) _s_root_fd.detach() ;
-		if (_report_fd.fd==fd) _report_fd.detach() ;
-	}
-	void hide( uint min , uint max ) const {
-		if ( _s_root_fd.fd>=0 &&  uint(_s_root_fd.fd)>=min && uint(_s_root_fd.fd)<=max ) _s_root_fd.detach() ;
-		if ( _report_fd.fd>=0 &&  uint(_report_fd.fd)>=min && uint(_report_fd.fd)<=max ) _report_fd.detach() ;
-	}
 private :
 	void _static_report(JobExecRpcReq&& jerr) const ;
 	JobExecRpcReply _get_reply() const {
-		if (s_static_report) return {}                                              ;
-		else                 return IMsgBuf().receive<JobExecRpcReply>(report_fd()) ;
+		if (s_static_report) return {}                                                ;
+		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd()) ;
 	}
 	//
 	void report_access( ::string&& f , FileInfo fi , Accesses a , bool write , ::string&& c={} , bool force=false ) const {
@@ -111,7 +115,7 @@ private :
 	//
 	void _report_dep   ( FileLoc fl , ::string&& f , Accesses a , ::string&& c={} ) const { if (+a) _report_dep( fl , ::move(f) , FileInfo(s_root_fd(),f) , a , ::move(c) ) ; }
 	//
-	void _report_update( FileLoc fl , ::string&& f , ::string&& f0 , FileInfo fi , Accesses a , ::string&& c={} ) const {                               // f0 is the file to which we write if non-empty
+	void _report_update( FileLoc fl , ::string&& f , ::string&& f0 , FileInfo fi , Accesses a , ::string&& c={} ) const { // f0 is the file to which we write if non-empty
 		if (!f0) { //!                                                                write
 			if      ( fl<=FileLoc::Repo       ) report_access( ::move(f ) , fi , a  , true  , ::move(c) ) ;
 			else if ( fl<=FileLoc::Dep  && +a ) report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
@@ -147,11 +151,11 @@ private :
 	}
 public :
 	bool/*sent*/ report_direct( JobExecRpcReq&& jerr , bool force=false ) const {
-		//                                                                     sent
-		if ( !force && disabled      )                                  return false ;
-		if ( s_static_report         ) { _static_report(::move(jerr)) ; return true  ; }
-		if ( Fd fd=report_fd() ; +fd ) { OMsgBuf().send(fd,jerr)      ; return true  ; }
-		/**/                                                            return false ;
+		//                                                                       sent
+		if ( !force && disabled        )                                  return false ;
+		if ( s_static_report           ) { _static_report(::move(jerr)) ; return true  ; }
+		if ( Fd fd=s_report_fd() ; +fd ) { OMsgBuf().send(fd,jerr)      ; return true  ; }
+		/**/                                                              return false ;
 	}
 	JobExecRpcReply report_sync_direct( JobExecRpcReq&& , bool force=false ) const ;
 	bool            report_access     ( JobExecRpcReq&& , bool force=false ) const ;
@@ -160,7 +164,7 @@ public :
 	[[noreturn]] void report_panic(::string&& s) const { report_direct({Proc::Panic,::move(s)}) ; exit(Rc::Usage) ; } // continuing is meaningless
 	/**/         void report_trace(::string&& s) const { report_direct({Proc::Trace,::move(s)}) ;                   }
 	//
-	template<bool Writable=false> struct _Path {                 // if !Writable <=> file is is read-only
+	template<bool Writable=false> struct _Path {                                                                      // if !Writable <=> file is is read-only
 		using Char = ::conditional_t<Writable,char,const char> ;
 		// cxtors & casts
 		_Path(                          )                           {                       }
@@ -177,8 +181,8 @@ public :
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
-			p.file      = nullptr     ;                          // safer to avoid dangling pointers
-			p.allocated = false       ;                          // we have clobbered allocation, so it is no more p's responsibility
+			p.file      = nullptr     ;                                                                               // safer to avoid dangling pointers
+			p.allocated = false       ;                                                                               // we have clobbered allocation, so it is no more p's responsibility
 			return *this ;
 		}
 		//
@@ -188,17 +192,17 @@ public :
 		void _deallocate() { if (allocated) delete[] file ; }
 		//
 		void _allocate(size_t sz) {
-			char* buf = new char[sz+1] ;                         // +1 to account for terminating null
+			char* buf = new char[sz+1] ;                                                                              // +1 to account for terminating null
 			::memcpy(buf,file,sz+1) ;
 			file      = buf  ;
 			allocated = true ;
 		}
 		// data
 	public :
-		bool    allocated = false            ;                   // if true <=> file has been allocated and must be freed upon destruction
-		FileLoc file_loc  = FileLoc::Unknown ;                   // updated when analysis is done
-		Fd      at        = Fd::Cwd          ;                   // at & file may be modified, but together, they always refer to the same file ...
-		Char*   file      = nullptr          ;                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
+		bool    allocated = false            ;                                                                        // if true <=> file has been allocated and must be freed upon destruction
+		FileLoc file_loc  = FileLoc::Unknown ;                                                                        // updated when analysis is done
+		Fd      at        = Fd::Cwd          ;                                                                        // at & file may be modified, but together, they always refer to the same file ...
+		Char*   file      = nullptr          ;                                                                        // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ; //!            Writable
 	using Path  = _Path<false > ;
 	using WPath = _Path<true  > ;
@@ -226,7 +230,7 @@ public :
 						if (store) {
 							if      (last ) real  = f ;
 							else if (found) real  = f ;
-							else if (i==0 ) real0 = f ;                                                                  // real0 is only significative when not equal to real
+							else if (i==0 ) real0 = f ;                                                               // real0 is only significative when not equal to real
 						}
 						if      (last ) { if (+a) r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a              , ck+i ) ; return ; }
 						else if (found) {         r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a|Access::Stat , ck+i ) ; return ; }
@@ -277,13 +281,13 @@ public :
 		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
 	} ;
 	struct Hide {
-		Hide( Record&            ) {              }                        // in case nothing to hide, just to ensure invariants
-		Hide( Record& r , int fd ) { r.hide(fd) ; }
+		Hide( Record&          ) {              }                        // in case nothing to hide, just to ensure invariants
+		Hide( Record& , int fd ) { s_hide(fd) ; }
 		#if HAS_CLOSE_RANGE
 			#ifdef CLOSE_RANGE_CLOEXEC
-				Hide( Record& r , uint fd1 , uint fd2 , int flgs ) { if (!(flgs&CLOSE_RANGE_CLOEXEC)) r.hide(int(fd1),int(fd2)) ; }
+				Hide( Record& , uint fd1 , uint fd2 , int flgs ) { if (!(flgs&CLOSE_RANGE_CLOEXEC)) s_hide(int(fd1),int(fd2)) ; }
 			#else
-				Hide( Record& r , uint fd1 , uint fd2 , int      ) {                                  r.hide(int(fd1),int(fd2)) ; }
+				Hide( Record& , uint fd1 , uint fd2 , int      ) {                                  s_hide(int(fd1),int(fd2)) ; }
 			#endif
 		#endif
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
@@ -397,9 +401,8 @@ public :
 	bool seen_chdir = false ;
 	bool disabled   = false ;
 private :
-	Disk::RealPath      _real_path ;
-	mutable AutoCloseFd _report_fd ;
-	mutable bool        _tmp_cache = false ;                               // record that tmp usage has been reported, no need to report any further
+	Disk::RealPath _real_path ;
+	mutable bool   _tmp_cache = false ;                                    // record that tmp usage has been reported, no need to report any further
 } ;
 
 template<bool Writable=false> ::ostream& operator<<( ::ostream& os , Record::_Path<Writable> const& p ) {

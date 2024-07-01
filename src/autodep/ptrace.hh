@@ -26,25 +26,16 @@ struct AutodepPtrace {
 	// statics
 	static int/*rc*/ s_prepare_child(void*) ; // must be called from child
 	// static data
-	static AutodepEnv* s_autodep_env ;   // declare as pointer to avoid static late initialization
+	static AutodepEnv const* s_autodep_env ;   // declare as pointer to avoid static late initialization
 	// cxtors & casts
 	AutodepPtrace(        ) = default ;
-	AutodepPtrace(pid_t cp) { _init(cp) ; }
-private :
-	void _init(pid_t child_pid) ;
+	AutodepPtrace(pid_t cp) { init(cp) ; }
+	void init(pid_t child_pid) ;
 	// services
-	::pair<bool/*done*/,int/*wstatus*/> _changed( int pid , int wstatus ) ;
+private :
+	bool/*done*/ _changed( int pid , int wstatus ) ;
 public :
-	int/*wstatus*/ process() {
-		int  wstatus ;
-		int  pid     ;
-		bool done    ;
-		while( (pid=wait(&wstatus))>=0 ) {
-			::tie(done,wstatus) = _changed(pid,wstatus) ;
-			if (done) return wstatus ;
-		}
-		fail("process ",child_pid," did not exit nor was signaled") ;
-	}
+	int/*wstatus*/ process() ;
 	// data
-	int child_pid ;
+	pid_t child_pid = 0 ;
 } ;

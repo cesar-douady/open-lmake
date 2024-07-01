@@ -38,6 +38,7 @@ RUN yum install -y 'perl(ExtUtils::MakeMaker)'
 RUN yum install -y pam-devel
 
 RUN     useradd --uid 1001 --home-dir /home/cdy cdy
+RUN     echo 'cdy ALL = NOPASSWD: ALL' >> /etc/sudoers
 USER    1001:1001
 WORKDIR /home/cdy
 ENV     USER=cdy

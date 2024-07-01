@@ -89,7 +89,7 @@ struct OMsgBuf : MsgBuf {
 	bool/*complete*/ send_step(Fd fd) {
 		SWEAR(_data_pass) ;
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) throw "cannot send over "+fmt_string(fd) ;
+		if (cnt<=0) { int en=errno ; throw "cannot send over "+fmt_string(fd)+" : "+strerror(en) ; }
 		_len += cnt ;
 		if (_len<_buf.size()) {              return false/*complete*/ ; }               // _buf is still partial
 		else                  { *this = {} ; return true /*complete*/ ; }

@@ -166,7 +166,7 @@ namespace Engine::Makefiles {
 		gather.autodep_env.src_dirs_s = {"/"}                                                                         ;
 		gather.autodep_env.root_dir   = no_slash(*g_root_dir_s)                                                       ;
 		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , action , module } ;
-		gather.child_stdin            = Child::None                                                                   ;
+		gather.child_stdin            = Child::NoneFd                                                                 ;
 		Trace trace("_read_makefiles",action,module,Pdate(New)) ;
 		//
 		::string sav_ld_library_path ;

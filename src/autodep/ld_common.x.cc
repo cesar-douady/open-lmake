@@ -282,7 +282,7 @@ struct Mkstemp : WSolve {
 	#define HEADER0(libcall,is_stat,            args) HEADER( libcall , is_stat , false                                                    , args )
 	#define HEADER1(libcall,is_stat,path,       args) HEADER( libcall , is_stat , Record::s_is_simple(path )                               , args )
 	#define HEADER2(libcall,is_stat,path1,path2,args) HEADER( libcall , is_stat , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
-	// macro for libcall that are forbidden in server
+	// macro for libcall that are forbidden in server when recording deps
 	#ifdef IN_SERVER
 		#define NO_SERVER(libcall) \
 			*Record::s_deps_err += #libcall " is forbidden in server\n" ; \
@@ -326,9 +326,8 @@ struct Mkstemp : WSolve {
 		//
 		ORIG(clone) ;
 		if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,flags,arg,parent_tid,tls,child_tid) ; // if flags contains CLONE_VM, lock is not duplicated : nothing to do
-		Lock lock{_g_mutex} ;                                                                                               // no need to set _t_loop as clone calls no other piggy-backed function
-		//
 		NO_SERVER(clone) ;
+		Lock lock{_g_mutex} ;                                                                                               // no need to set _t_loop as clone calls no other piggy-backed function
 		_clone_fn = fn ;                                                                                                    // _g_mutex is held, so there is no risk of clash
 		return (*atomic_orig)(_call_clone_fn,stack,flags,arg,parent_tid,tls,child_tid) ;
 	}

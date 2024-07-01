@@ -82,11 +82,12 @@ inline ::string wstatus_str(int wstatus) {
 }
 
 struct Child {
-	static constexpr Fd None{-1} ;
-	static constexpr Fd Pipe{-2} ;
+	static constexpr size_t StackSz = 16<<10 ;        // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k
+	static constexpr Fd     NoneFd  { -1 }   ;
+	static constexpr Fd     PipeFd  { -2 }   ;
 	// statics
-	[[noreturn]] static int _s_do_child                  (void* self) { reinterpret_cast<Child*>(self)->_do_child                  () ; }
-	[[noreturn]] static int _s_do_child_new_pid_namespace(void* self) { reinterpret_cast<Child*>(self)->_do_child_new_pid_namespace() ; }
+	[[noreturn]] static int _s_do_child           (void* self) { reinterpret_cast<Child*>(self)->_do_child           () ; }
+	[[noreturn]] static int _s_do_child_trampoline(void* self) { reinterpret_cast<Child*>(self)->_do_child_trampoline() ; }
 	// cxtors & casts
 	~Child() {
 		swear_prod(pid==0,"bad pid ",pid) ;
@@ -120,8 +121,8 @@ struct Child {
 	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
 	bool         is_alive(       ) const { return kill_process(pid,0                         ) ; }
 private :
-	[[noreturn]] void _do_child                  () ;
-	[[noreturn]] void _do_child_new_pid_namespace() ;
+	[[noreturn]] void _do_child           () ;
+	[[noreturn]] void _do_child_trampoline() ;        // used when creating a new pid namespace : we need an intermediate process as the init process
 	//data
 public :
 	// spawn parameters
@@ -142,7 +143,10 @@ public :
 	AutoCloseFd stdout = {} ;
 	AutoCloseFd stderr = {} ;
 	// private (cannot really declare private or it would not be an aggregate any more)
-	::Pipe _p2c  = {} ;
-	::Pipe _c2po = {} ;
-	::Pipe _c2pe = {} ;
+	Pipe         _p2c             = {}      ;
+	Pipe         _c2po            = {}      ;
+	Pipe         _c2pe            = {}      ;
+	void*        _child_stack_ptr = nullptr ;         // all memory must be allocated before clone is called
+	const char** _child_env       = nullptr ;         // .
+	const char** _child_args      = nullptr ;         // .
 } ;

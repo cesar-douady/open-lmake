@@ -7,6 +7,9 @@
 
 #include <sys/wait.h>
 
+#include <latch>
+#include <thread>
+
 #include "disk.hh"
 #include "hash.hh"
 #include "msg.hh"
@@ -79,7 +82,7 @@ struct Gather {
 	} ;
 	// statics
 private :
-	[[noreturn]] static int _s_do_child(void* self) { reinterpret_cast<Gather*>(self)->_do_child() ; }
+	static void _s_do_child( void* self , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self)->_do_child(report_fd,ready) ; }
 	// services
 	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only
@@ -111,8 +114,8 @@ public : //!                                                                    
 	//
 	void reorder(bool at_end) ;                                                // reorder accesses by first read access and suppress superfluous accesses
 private :
-	void              _spawn_child() ;
-	[[noreturn]] void _do_child   () ;
+	Fd   _spawn_child(                               ) ;
+	void _do_child   ( Fd report_fd , ::latch* ready ) ;
 	// data
 public :
 	::vector_s                        cmd_line         ;
@@ -149,6 +152,7 @@ public :
 private :
 	::map_ss            _add_env       ;
 	Child               _child         ;
+	::jthread           _ptrace_thread ;
 	::umap<Fd,::string> _codec_files   ;
 	PD                  _end_timeout   = PD::Future ;
 	PD                  _end_child     = PD::Future ;
