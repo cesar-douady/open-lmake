@@ -371,7 +371,7 @@ public :
 	struct Stat : Solve {
 		// cxtors & casts
 		Stat() = default ;
-		Stat( Record& , Path&& , bool no_follow , ::string&& comment ) ;
+		Stat( Record& , Path&& , bool no_follow , Accesses , ::string&& comment ) ;
 		// services
 		/**/              void operator()( Record&           ) {                            }
 		template<class T> T    operator()( Record& , T&& res ) { return ::forward<T>(res) ; }

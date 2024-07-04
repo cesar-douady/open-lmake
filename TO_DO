@@ -29,21 +29,17 @@ items :
 ****************************************************************************************************
 
 * transport pdict as pdict, not dict
-* make ldebug -c fully parametrizable
-	- all vscode specific codes must be moved to the python world
-	- and put in rule attributes
-	- then provide base classes for usual cases
-* provide a protection mechanism to ensure jobs are not cached if they used absolute paths
-	- record usage of getcwd() and accesses to /proc/xxx/cwd
-	- emit a "dont cache" message
-	- unless root_view is used
-	- provide a warning to user if the case arises
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
 	- put adequate $PLATFORM in LD_PRELOAD
 * generate meaningful message in case of I/O error such as disk full
 ! before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
+? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
+	- record usage of getcwd() and accesses to /proc/xxx/cwd
+	- emit a "dont cache" message
+	- unless root_view is used
+	- provide a warning to user if the case arises
 ? improve hard link management
 	- when ln a b
 	- followed by write to b
@@ -64,6 +60,9 @@ items :
 	- dates, justifications go to log while essential info is shown on screen
 	- e.g. 'dep changed' on screen and actual dates (before, after) in log
 	- same for manual, etc.
+* rework LMAKE/rules
+	- provide all static field flat
+	- then add dynamic code at the end
 ? consider a package for option passing
 	? gnu argp
 	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf
@@ -173,6 +172,13 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* improve Req eta
+	- compute cost for each job :
+		- elapsed time / parallelism
+		- parallelism is evaluated by computing an overall cost at all time
+		- then the overall cost while job was running can be obtained by subtracting overall cost at start from overall cost at end
+		- overall cost / elapsed time is the parallelism
+	- eta can be obtained by adding cost of all waiting jobs
 * when links are accessed, it is instantaneous
 	- then record fileinfo or filesig
 	- and only consider file incoherent if it has been accessed with potentially different content
@@ -204,7 +210,7 @@ items :
 	- allow several backends of same type to distribute load
 ! trap close in autodep
 	- so as to know when a dep was last accessed
-	- and avoid too may overwrites
+	- and avoid too many overwrites
 	- must be very careful, e.g. mmap can access file after close, dup'ed file descriptors can be created, etc.
 ! manage HUGE pages in store
 	- does not work straight forward

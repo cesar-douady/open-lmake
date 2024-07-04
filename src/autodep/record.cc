@@ -21,9 +21,6 @@ using namespace Time ;
 // Record
 //
 
-// if strict, user might look at the st_size field which gives access to regular and link content
-static constexpr Accesses UserStatAccesses = StrictUserAccesses ? ~Accesses() : Accesses(Access::Stat) ;
-
 bool                                                   Record::s_static_report = false   ;
 ::vmap_s<DepDigest>                                  * Record::s_deps          = nullptr ;
 ::string                                             * Record::s_deps_err      = nullptr ;
@@ -217,8 +214,8 @@ Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
 	bool do_write = _do_write(flags) ;
 	//
 	c += '.' ;
-	if (do_stat ) { c += 'S' ; accesses |= UserStatAccesses             ; }
-	if (do_read ) { c += 'R' ; accesses |= UserStatAccesses|Access::Reg ; }
+	if (do_stat ) { c += 'S' ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, user can access all info with a further fstat, which is not piggy-backed
+	if (do_read ) { c += 'R' ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
 	if (do_write)   c += 'W' ;
 	//
 	confirm = do_write ;
@@ -288,10 +285,10 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange_ ,
 	/**/            r._report_guard  ( dst.file_loc  , ::move   (dst.real) ,                        c+".dst"   ) ;
 }
 
-Record::Stat::Stat( Record& r , Path&& path , bool no_follow , ::string&& c ) :
+Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , ::string&& c ) :
 	Solve{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , false/*create*/ , c }
 {
-	if (!s_autodep_env().ignore_stat) r._report_dep( file_loc , ::move(real) , accesses|UserStatAccesses , ::move(c) ) ;
+	if (!s_autodep_env().ignore_stat) r._report_dep( file_loc , ::move(real) , accesses|a , ::move(c) ) ;
 }
 
 Record::Symlink::Symlink( Record& r , Path&& p , ::string&& c ) : Solve{r,::move(p),true/*no_follow*/,false/*read*/,true/*create*/,c} {

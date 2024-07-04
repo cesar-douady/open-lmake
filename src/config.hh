@@ -82,12 +82,6 @@ static constexpr SeqId JobHistorySz = 1000 ;
 static constexpr int JobExecBacklog = 4096 ; // max usual value as set in /proc/sys/net/core/somaxconn
 
 //
-// miscellaneous
-//
-
-static constexpr bool StrictUserAccesses = true ; // if true <=> user may be sensitive to errno when doing an access and to size when doing stat, obliging to a strict file comparison
-
-//
 // derived info
 //
 

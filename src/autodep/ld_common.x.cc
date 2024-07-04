@@ -554,30 +554,40 @@ struct Mkstemp : WSolve {
 	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HEADER1(utimensat,false,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,false,"utimensat"} ; return r(orig(d,p,t,f)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
-	//                                                            is_stat                           no_follow
-	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,true ,p,(  p,m  )) ; Stat r{   p ,false   ,"access"   } ; return r(orig(  p,m  )) ; }
-	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,true ,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),"faccessat"} ; return r(orig(d,p,m,f)) ; }
-	//                                                                                  is_stat                             no_follow
-	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,true ,p,(v,  p,b  )) ; Stat r{   p ,false   ,"__xstat"     } ; return r(orig(v,  p,b  )) ; }
-	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,true ,p,(v,  p,b  )) ; Stat r{   p ,false   ,"__xstat64"   } ; return r(orig(v,  p,b  )) ; }
-	int __lxstat    (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__lxstat    ,true ,p,(v,  p,b  )) ; Stat r{   p ,true    ,"__lxstat"    } ; return r(orig(v,  p,b  )) ; }
-	int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__lxstat64  ,true ,p,(v,  p,b  )) ; Stat r{   p ,true    ,"__lxstat64"  } ; return r(orig(v,  p,b  )) ; }
-	int __fxstatat  (int v,int d,CC* p,struct stat  * b,int f) NE { HEADER1(__fxstatat  ,true ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),"__fxstatat"  } ; return r(orig(v,d,p,b,f)) ; }
-	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HEADER1(__fxstatat64,true ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),"__fxstatat64"} ; return r(orig(v,d,p,b,f)) ; }
-	#if !NEED_STAT_WRAPPERS //!                                                 is_stat                           no_follow
-		int stat     (      CC* p,struct stat  * b      ) NE { HEADER1(stat     ,true ,p,(  p,b  )) ; Stat r{   p ,false   ,"stat"     } ; return r(orig(  p,b  )) ; }
-		int stat64   (      CC* p,struct stat64* b      ) NE { HEADER1(stat64   ,true ,p,(  p,b  )) ; Stat r{   p ,false   ,"stat64"   } ; return r(orig(  p,b  )) ; }
-		int lstat    (      CC* p,struct stat  * b      ) NE { HEADER1(lstat    ,true ,p,(  p,b  )) ; Stat r{   p ,true    ,"lstat"    } ; return r(orig(  p,b  )) ; }
-		int lstat64  (      CC* p,struct stat64* b      ) NE { HEADER1(lstat64  ,true ,p,(  p,b  )) ; Stat r{   p ,true    ,"lstat64"  } ; return r(orig(  p,b  )) ; }
-		int fstatat  (int d,CC* p,struct stat  * b,int f) NE { HEADER1(fstatat  ,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),"fstatat"  } ; return r(orig(d,p,b,f)) ; }
-		int fstatat64(int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),"fstatat64"} ; return r(orig(d,p,b,f)) ; }
+	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses() )
+	//                                                            is_stat                           no_follow accesses
+	int access   (      CC* p,int m      ) NE { HEADER1(access   ,true ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),"access"   } ; return r(orig(  p,m  )) ; }
+	int faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,true ,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),"faccessat"} ; return r(orig(d,p,m,f)) ; }
+	#undef ACCESSES
+	// stat* accesses provide the size field, which make the user sensitive to file content
+	//                                                                                  is_stat                             no_follow accesses
+	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,true ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),"__xstat"     } ; return r(orig(v,  p,b  )) ; }
+	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,true ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),"__xstat64"   } ; return r(orig(v,  p,b  )) ; }
+	int __lxstat    (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__lxstat    ,true ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),"__lxstat"    } ; return r(orig(v,  p,b  )) ; }
+	int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__lxstat64  ,true ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),"__lxstat64"  } ; return r(orig(v,  p,b  )) ; }
+	int __fxstatat  (int v,int d,CC* p,struct stat  * b,int f) NE { HEADER1(__fxstatat  ,true ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"__fxstatat"  } ; return r(orig(v,d,p,b,f)) ; }
+	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HEADER1(__fxstatat64,true ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"__fxstatat64"} ; return r(orig(v,d,p,b,f)) ; }
+	#if !NEED_STAT_WRAPPERS //!                                                 is_stat                           no_follow accesses
+		int stat     (      CC* p,struct stat  * b      ) NE { HEADER1(stat     ,true ,p,(  p,b  )) ; Stat r{   p ,false   ,~Accesses(),"stat"     } ; return r(orig(  p,b  )) ; }
+		int stat64   (      CC* p,struct stat64* b      ) NE { HEADER1(stat64   ,true ,p,(  p,b  )) ; Stat r{   p ,false   ,~Accesses(),"stat64"   } ; return r(orig(  p,b  )) ; }
+		int lstat    (      CC* p,struct stat  * b      ) NE { HEADER1(lstat    ,true ,p,(  p,b  )) ; Stat r{   p ,true    ,~Accesses(),"lstat"    } ; return r(orig(  p,b  )) ; }
+		int lstat64  (      CC* p,struct stat64* b      ) NE { HEADER1(lstat64  ,true ,p,(  p,b  )) ; Stat r{   p ,true    ,~Accesses(),"lstat64"  } ; return r(orig(  p,b  )) ; }
+		int fstatat  (int d,CC* p,struct stat  * b,int f) NE { HEADER1(fstatat  ,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat"  } ; return r(orig(d,p,b,f)) ; }
+		int fstatat64(int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat64"} ; return r(orig(d,p,b,f)) ; }
 	#endif
-	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE { HEADER1(statx,true/*is_stat*/,p,(d,p,f,msk,b)) ; Stat r{{d,p},true/*no_follow*/,"statx"} ; return r(orig(d,p,f,msk,b)) ; }
+	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE {
+		HEADER1(statx,true/*is_stat*/,p,(d,p,f,msk,b)) ;
+		Accesses a ;
+		if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a  = ~Accesses() ; // user can distinguish all content
+		else if (msk& STATX_MODE                         ) a |= Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
+		Stat r{{d,p},true/*no_follow*/,a,"statx"} ;
+		return r(orig(d,p,f,msk,b)) ;
+	}
 
-	// realpath                                                                               is_stat                       no_follow
-	char* realpath              (CC* p,char* rp          ) NE { HEADER1(realpath              ,false,p,(p,rp   )) ; Stat r{p,false  ,"realpath"              } ; return r(orig(p,rp   )) ; }
-	char* __realpath_chk        (CC* p,char* rp,size_t rl) NE { HEADER1(__realpath_chk        ,false,p,(p,rp,rl)) ; Stat r{p,false  ,"__realpath_chk"        } ; return r(orig(p,rp,rl)) ; }
-	char* canonicalize_file_name(CC* p                   ) NE { HEADER1(canonicalize_file_name,false,p,(p      )) ; Stat r{p,false  ,"canonicalize_file_name"} ; return r(orig(p      )) ; }
+	// realpath                                                                               is_stat                       no_follow accesses
+	char* realpath              (CC* p,char* rp          ) NE { HEADER1(realpath              ,false,p,(p,rp   )) ; Stat r{p,false   ,Accesses(),"realpath"              } ; return r(orig(p,rp   )) ; }
+	char* __realpath_chk        (CC* p,char* rp,size_t rl) NE { HEADER1(__realpath_chk        ,false,p,(p,rp,rl)) ; Stat r{p,false   ,Accesses(),"__realpath_chk"        } ; return r(orig(p,rp,rl)) ; }
+	char* canonicalize_file_name(CC* p                   ) NE { HEADER1(canonicalize_file_name,false,p,(p      )) ; Stat r{p,false   ,Accesses(),"canonicalize_file_name"} ; return r(orig(p      )) ; }
 
 	// scandir
 	using NmLst   = struct dirent  ***                                       ;
