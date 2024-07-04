@@ -47,50 +47,57 @@ struct PatternDict {
 	::vmap<RegExpr,MatchFlags> patterns = {} ;
 } ;
 
-Gather            g_gather        ;
-JobIdx            g_job           = 0/*garbage*/ ;
-PatternDict       g_match_dct     ;
-NfsGuard          g_nfs_guard     ;
-SeqId             g_seq_id        = 0/*garbage*/ ;
-::string          g_phy_root_dir  ;
-::string          g_phy_tmp_dir   ;
-::string          g_service_start ;
-::string          g_service_mngt  ;
-::string          g_service_end   ;
-JobRpcReply       g_start_info    ;
-SeqId             g_trace_id      = 0/*garbage*/ ;
-::vector_s        g_washed        ;
-::umap_s<FileSig> g_created_views ;
+Gather            g_gather         ;
+JobIdx            g_job            = 0/*garbage*/ ;
+PatternDict       g_match_dct      ;
+NfsGuard          g_nfs_guard      ;
+SeqId             g_seq_id         = 0/*garbage*/ ;
+::string          g_phy_root_dir_s ;
+::string          g_phy_tmp_dir_s  ;
+::string          g_service_start  ;
+::string          g_service_mngt   ;
+::string          g_service_end    ;
+JobRpcReply       g_start_info     ;
+SeqId             g_trace_id       = 0/*garbage*/ ;
+::vector_s        g_washed         ;
+::umap_s<FileSig> g_created_views  ;
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
 	::map_ss res     ;
 	::string abs_cwd = no_slash(*g_root_dir_s+g_start_info.cwd_s) ;
-	/**/                                res["PWD"        ] = abs_cwd                            ;
-	g_start_info.autodep_env.root_dir = res["ROOT_DIR"   ] = no_slash(*g_root_dir_s)            ;
-	/**/                                res["SEQUENCE_ID"] = ::to_string(g_seq_id             ) ;
-	/**/                                res["SMALL_ID"   ] = ::to_string(g_start_info.small_id) ;
+	g_start_info.autodep_env.root_dir_s = *g_root_dir_s ;
+	res["PWD"        ] = abs_cwd                            ;
+	res["ROOT_DIR"   ] = no_slash(*g_root_dir_s)            ;
+	res["SEQUENCE_ID"] = ::to_string(g_seq_id             ) ;
+	res["SMALL_ID"   ] = ::to_string(g_start_info.small_id) ;
 	for( auto& [k,v] : g_start_info.env ) {
 		if (v!=EnvPassMrkr) {
 			res[k] = ::move(v) ;
-		} else if (has_env(k)) {                                           // if value is special illegal value, use value from environement (typically from slurm)
+		} else if (has_env(k)) {                                              // if value is special illegal value, use value from environement (typically from slurm)
 			::string v = get_env(k) ;
 			end_report.dynamic_env.emplace_back(k,v) ;
 			res[k] = ::move(v) ;
 		}
 	}
-	if      ( g_start_info.keep_tmp_dir                  ) g_phy_tmp_dir = g_phy_root_dir+'/'+AdminDirS       +"tmp/"+g_job                 ;
-	else if ( auto it=res.find("TMPDIR") ; it!=res.end() ) g_phy_tmp_dir = it->second+'/'+g_start_info.key+'/'       +g_start_info.small_id ;
-	else if ( g_start_info.tmp_sz_mb==Npos               ) g_phy_tmp_dir = g_phy_root_dir+'/'+PrivateAdminDirS+"tmp/"+g_start_info.small_id ;
+	if      ( g_start_info.keep_tmp_dir                  ) g_phy_tmp_dir_s = g_phy_root_dir_s+AdminDirS       +"tmp/"+g_job                +'/' ;
+	else if ( auto it=res.find("TMPDIR") ; it!=res.end() ) g_phy_tmp_dir_s = it->second+'/'+g_start_info.key+'/'     +g_start_info.small_id+'/' ;
+	else if ( g_start_info.tmp_sz_mb==Npos               ) g_phy_tmp_dir_s = g_phy_root_dir_s+PrivateAdminDirS+"tmp/"+g_start_info.small_id+'/' ;
 	//
-	if      ( +g_start_info.job_space.tmp_view_s && (+g_phy_tmp_dir||g_start_info.tmp_sz_mb) ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = no_slash(g_start_info.job_space.tmp_view_s) ;
-	else if ( +g_phy_tmp_dir                                                                 ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_phy_tmp_dir                               ;
+	{	::string tmp_dir_s ;
+		if      ( +g_start_info.job_space.tmp_view_s && (+g_phy_tmp_dir_s||g_start_info.tmp_sz_mb) ) tmp_dir_s = g_start_info.job_space.tmp_view_s ;
+		else if ( +g_phy_tmp_dir_s                                                                 ) tmp_dir_s = g_phy_tmp_dir_s                   ;
+		if (+tmp_dir_s) {
+			res["TMPDIR"]                      = no_slash(tmp_dir_s) ;
+			g_start_info.autodep_env.tmp_dir_s = ::move  (tmp_dir_s) ;
+		}
+	}
 	//
-	Trace trace("prepare_env",g_start_info.autodep_env.tmp_dir,g_phy_tmp_dir,res) ;
+	Trace trace("prepare_env",g_start_info.autodep_env.tmp_dir_s,g_phy_tmp_dir_s,res) ;
 	//
 	try {
-		if (+g_phy_tmp_dir) unlnk_inside(g_phy_tmp_dir,true/*force*/) ;    // ensure tmp dir is clean (force because g_phy_tmp_dir is absolute)
+		if (+g_phy_tmp_dir_s) unlnk_inside_s(g_phy_tmp_dir_s,true/*force*/) ; // ensure tmp dir is clean (force because g_phy_tmp_dir_s is absolute)
 	} catch (::string const&) {
-		try                       { mk_dir(g_phy_tmp_dir) ;              } // ensure tmp dir exists
+		try                       { mk_dir_s(g_phy_tmp_dir_s) ;          }    // ensure tmp dir exists
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
 	}
 	return res ;
@@ -288,28 +295,28 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 
 int main( int argc , char* argv[] ) {
 	Pdate        start_overhead = Pdate(New) ;
-	ServerSockFd server_fd      { New }      ;       // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
+	ServerSockFd server_fd      { New }      ;        // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
-	swear_prod(argc==8,argc) ;                       // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
-	g_service_start =                     argv[1]  ;
-	g_service_mngt  =                     argv[2]  ;
-	g_service_end   =                     argv[3]  ;
-	g_seq_id        = from_string<SeqId >(argv[4]) ;
-	g_job           = from_string<JobIdx>(argv[5]) ;
-	g_phy_root_dir  =                     argv[6]  ; // passed early so we can chdir and trace early
-	g_trace_id      = from_string<SeqId >(argv[7]) ;
+	swear_prod(argc==8,argc) ;                        // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
+	g_service_start  =                     argv[1]  ;
+	g_service_mngt   =                     argv[2]  ;
+	g_service_end    =                     argv[3]  ;
+	g_seq_id         = from_string<SeqId >(argv[4]) ;
+	g_job            = from_string<JobIdx>(argv[5]) ;
+	g_phy_root_dir_s = with_slash         (argv[6]) ; // passed early so we can chdir and trace early
+	g_trace_id       = from_string<SeqId >(argv[7]) ;
 	//
-	g_trace_file = new ::string{g_phy_root_dir+'/'+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
+	g_trace_file = new ::string{g_phy_root_dir_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
 	//
 	JobRpcReq end_report { JobRpcProc::End , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error, so we can goto End anytime
 	//
-	if (::chdir(g_phy_root_dir.c_str())!=0) {
-		end_report.msg << "cannot chdir to root : "<<g_phy_root_dir<<'\n' ;
+	if (::chdir(no_slash(g_phy_root_dir_s).c_str())!=0) {
+		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_root_dir_s)<<'\n' ;
 		goto End ;
 	}
 	Trace::s_sz = 10<<20 ;                                                                            // this is more than enough
 	block_sigs({SIGCHLD}) ;                                                                           // necessary to capture it using signalfd
-	app_init(No/*chk_version*/) ;
+	app_init(false/*read_only_ok*/,No/*chk_version*/) ;
 	//
 	{	Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
@@ -336,7 +343,7 @@ int main( int argc , char* argv[] ) {
 		try                       { g_start_info.job_space.chk() ;   }
 		catch (::string const& e) { end_report.msg += e ; goto End ; }
 		//
-		g_root_dir_s = new ::string{ +g_start_info.job_space.root_view_s ? g_start_info.job_space.root_view_s : g_phy_root_dir+'/' } ;
+		g_root_dir_s = new ::string{ +g_start_info.job_space.root_view_s ? g_start_info.job_space.root_view_s : g_phy_root_dir_s } ;
 		//
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
@@ -353,8 +360,8 @@ int main( int argc , char* argv[] ) {
 		}
 		auto handle_entry = [&]( ::string const& f , bool is_view )->void {
 			SWEAR(+f) ;
-			if (!is_lcl(f)   )               return ;
-			if (f.back()=='/') { mk_dir(f) ; return ; }
+			if (!is_lcl(f)   )                 return ;
+			if (is_dirname(f)) { mk_dir_s(f) ; return ; }
 			FileInfo fi{f} ;
 			g_start_info.deps.emplace_back(f,DepDigest(Access::Stat,fi)) ;
 			if (+fi.tag()) return ;
@@ -374,10 +381,10 @@ int main( int argc , char* argv[] ) {
 			cmd_env = prepare_env(end_report) ;
 			//
 			bool entered = g_start_info.job_space.enter(
-				g_phy_root_dir
-			,	g_phy_tmp_dir
+				g_phy_root_dir_s
+			,	g_phy_tmp_dir_s
 			,	g_start_info.tmp_sz_mb
-			,	PrivateAdminDirS+"chroot/"s+g_start_info.small_id
+			,	PrivateAdminDirS+"chroot/"s+g_start_info.small_id+'/'
 			,	g_start_info.autodep_env.src_dirs_s
 			,	g_start_info.method==AutodepMethod::Fuse
 			) ;
@@ -399,7 +406,7 @@ int main( int argc , char* argv[] ) {
 		} catch (::string const& e) {
 			end_report.msg += e ; goto End ;
 		}
-		trace("prepared",g_start_info.autodep_env,g_phy_tmp_dir) ;
+		trace("prepared",g_start_info.autodep_env) ;
 		//
 		g_gather.addr              =        g_start_info.addr             ;
 		g_gather.as_session        =        true                          ;
@@ -457,7 +464,8 @@ int main( int argc , char* argv[] ) {
 		}
 		//
 		if ( g_gather.seen_tmp && !g_start_info.keep_tmp_dir )
-			try { unlnk_inside(g_gather.autodep_env.tmp_dir,true/*force*/) ; } catch (::string const&) {}      // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
+			try                     { unlnk_inside_s(g_gather.autodep_env.tmp_dir_s,true/*force*/) ; }         // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
+			catch (::string const&) {                                                                }
 		//
 		if ( status==Status::Ok && +digest.msg ) status = Status::Err ;
 		/**/                        end_report.msg += g_gather.msg ;

@@ -320,7 +320,7 @@ namespace Engine::Persistent {
 	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                             , bool dynamic ) ;
 	void               invalidate_match(                                                                   ) ;
 	void               invalidate_exec ( bool cmd_ok                                                       ) ;
-	void               repair          ( ::string const& from_dir                                          ) ;
+	void               repair          ( ::string const& from_dir_s                                        ) ;
 	//
 	NodeFile::Lst  node_lst() ;
 	JobFile ::Lst  job_lst () ;

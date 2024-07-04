@@ -140,7 +140,7 @@ JobExecRpcReply Record::report_sync_access( JobExecRpcReq&& jerr , bool force ) 
 
 Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
 	SWEAR(!accesses) ;                                                                                                                     // no access to last component when no_follow
-	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir(at,file) ;                                                         // in case of overlay, create dir in the view
+	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                           // in case of overlay, create dir in the view
 	r._report_guard( file_loc , ::move(real_write()) , ::move(c) ) ;
 }
 int Record::Chdir::operator()( Record& r , int rc , pid_t pid ) {
@@ -205,9 +205,9 @@ static bool _do_create(int flags) { return   flags&O_CREAT                      
 Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
 	Solve{ r , !_ignore(flags)?::move(path):Path() , _no_follow(flags) , _do_read(flags) , _do_create(flags) , fmt_string(c,::hex,'.',flags) }
 {
-	if ( !file || !file[0]             ) return ; // includes ignore_stat cases
-	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ; // we already solved, this is enough
-	if ( file_loc>FileLoc::Dep         ) return ; // fast path
+	if ( !file || !file[0]             ) return ;                                                        // includes ignore_stat cases
+	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                        // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep         ) return ;                                                        // fast path
 	//
 	bool do_stat  = _do_stat (flags) ;
 	bool do_read  = _do_read (flags) ;

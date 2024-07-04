@@ -3,13 +3,13 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <dlfcn.h>  // dlopen, dlinfo
-#include <stdarg.h>
-
+#include <dlfcn.h>     // dlopen, dlinfo
 #include <errno.h>
 #include <sched.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <syscall.h>   // for SYS_* macros
 #include <sys/mount.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -575,11 +575,16 @@ struct Mkstemp : WSolve {
 		int fstatat  (int d,CC* p,struct stat  * b,int f) NE { HEADER1(fstatat  ,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat"  } ; return r(orig(d,p,b,f)) ; }
 		int fstatat64(int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat64"} ; return r(orig(d,p,b,f)) ; }
 	#endif
-	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE {
+	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE { // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
 		HEADER1(statx,true/*is_stat*/,p,(d,p,f,msk,b)) ;
-		Accesses a ;
-		if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a  = ~Accesses() ; // user can distinguish all content
-		else if (msk& STATX_MODE                         ) a |= Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
+		#ifdef SYS_statx
+			// STATX_* macros are not defined when statx is not supported, leading to compile errors
+			Accesses a ;
+			if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a = ~Accesses() ; // user can distinguish all content
+			else if (msk& STATX_MODE                         ) a = Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
+		#else
+			Accesses a = ~Accesses() ;
+		#endif
 		Stat r{{d,p},true/*no_follow*/,a,"statx"} ;
 		return r(orig(d,p,f,msk,b)) ;
 	}

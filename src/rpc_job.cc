@@ -56,11 +56,11 @@ using namespace Hash ;
 			} break ;
 			case FileActionTag::NoUniquify : if (can_uniquify(nfs_guard.change(f))) msg<<"did not uniquify "<<mk_file(f)<<'\n' ; break ;
 			case FileActionTag::Uniquify   : if (uniquify    (nfs_guard.change(f))) msg<<"uniquified "      <<mk_file(f)<<'\n' ; break ;
-			case FileActionTag::Mkdir      : mk_dir(f,nfs_guard) ;                                                               break ;
+			case FileActionTag::Mkdir      : mk_dir_s(with_slash(f),nfs_guard) ;                                                 break ;
 			case FileActionTag::Rmdir      :
 				if (!keep_dirs.contains(f))
 					try {
-						rmdir(nfs_guard.change(f)) ;
+						rmdir_s(with_slash(nfs_guard.change(f))) ;
 					} catch (::string const&) {                                                               // if a dir cannot rmdir'ed, no need to try those uphill
 						keep_dirs.insert(f) ;
 						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )
@@ -108,43 +108,41 @@ using namespace Hash ;
 	return                  os <<')'                         ;
 }
 
-static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; if (::chroot(dir.c_str())!=0) throw "cannot chroot to "+dir+" : "+strerror(errno) ; }
-static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; if (::chdir (dir.c_str())!=0) throw "cannot chdir to " +dir+" : "+strerror(errno) ; }
+static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(no_slash(dir_s).c_str())!=0) throw "cannot chroot to "+no_slash(dir_s)+" : "+strerror(errno) ; }
+static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (no_slash(dir_s).c_str())!=0) throw "cannot chdir to " +no_slash(dir_s)+" : "+strerror(errno) ; }
 
-static void _mount_bind( ::string const& dst , ::string const& src ) {
+static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
 	Trace trace("_mount_bind",dst,src) ;
-	if (::mount( src.c_str() ,  dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
+	if (::mount( no_slash(src).c_str() , no_slash( dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
 		throw "cannot bind mount "+src+" onto "+dst+" : "+strerror(errno) ;
 }
-static void _mount_fuse( ::string const& dst , ::string const& src ) {
-	Trace trace("_mount_fuse",dst,src) ;
-	static Fuse::Mount fuse_mount{ dst , src } ;
+static void _mount_fuse( ::string const& dst_s , ::string const& src_s ) {
+	Trace trace("_mount_fuse",dst_s,src_s) ;
+	static Fuse::Mount fuse_mount{ dst_s , src_s } ;
 }
-static void _mount_tmp( ::string const& dst , size_t sz_mb ) {
+static void _mount_tmp( ::string const& dst_s , size_t sz_mb ) {
 	SWEAR(sz_mb) ;
-	Trace trace("_mount_tmp",dst,sz_mb) ;
-	if (::mount( "" ,  dst.c_str() , "tmpfs" , 0/*flags*/ , (::to_string(sz_mb)+"m").c_str() )!=0)
-		throw "cannot mount tmpfs of size"s+sz_mb+" MB onto "+dst+" : "+strerror(errno) ;
+	Trace trace("_mount_tmp",dst_s,sz_mb) ;
+	if (::mount( "" ,  no_slash(dst_s).c_str() , "tmpfs" , 0/*flags*/ , (::to_string(sz_mb)+"m").c_str() )!=0)
+		throw "cannot mount tmpfs of size"s+sz_mb+" MB onto "+dst_s+" : "+strerror(errno) ;
 }
-static void _mount_overlay( ::string const& dst , ::vector_s const& srcs , ::string const& work ) {
-	SWEAR(+srcs) ;
-	SWEAR(srcs.size()>1,dst,srcs,work) ; // use bind mount in that case
+static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
+	SWEAR(+srcs_s) ;
+	SWEAR(srcs_s.size()>1,dst_s,srcs_s,work_s) ;                       // use bind mount in that case
 	//
-	Trace trace("_mount_overlay",dst,srcs,work) ;
-	for( size_t i=1 ; i<srcs.size() ; i++ )
-		if (srcs[i].find(':')!=Npos)
-			throw "cannot overlay mount "+dst+" to "+fmt_string(srcs)+"with embedded columns (:)" ;
-	mk_dir(work) ;
+	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
+	for( size_t i=1 ; i<srcs_s.size() ; i++ )
+		if (srcs_s[i].find(':')!=Npos)
+			throw "cannot overlay mount "+dst_s+" to "+fmt_string(srcs_s)+"with embedded columns (:)" ;
+	mk_dir_s(work_s) ;
 	//
-	::string                                data  = "userxattr"                                     ;
-	/**/                                    data += ",upperdir="+srcs[0].substr(0,srcs[0].size()-1) ;
-	/**/                                    data += ",lowerdir="+srcs[1].substr(0,srcs[1].size()-1) ;
-	for( size_t i=2 ; i<srcs.size() ; i++ ) data += ':'         +srcs[i].substr(0,srcs[i].size()-1) ;
-	/**/                                    data += ",workdir=" +work                               ;
-	SWEAR(dst.back()=='/') ;
-	::string dst_no_s = dst ; dst_no_s.pop_back() ;
-	if (::mount( nullptr ,  dst_no_s.c_str() , "overlay" , 0 , data.c_str() )!=0)
-		throw "cannot overlay mount "+dst_no_s+" to "+data+" : "+strerror(errno) ;
+	::string                                  data  = "userxattr"                      ;
+	/**/                                      data += ",upperdir="+no_slash(srcs_s[0]) ;
+	/**/                                      data += ",lowerdir="+no_slash(srcs_s[1]) ;
+	for( size_t i=2 ; i<srcs_s.size() ; i++ ) data += ':'         +no_slash(srcs_s[i]) ;
+	/**/                                      data += ",workdir=" +no_slash(work_s   ) ;
+	if (::mount( nullptr ,  no_slash(dst_s).c_str() , "overlay" , 0 , data.c_str() )!=0)
+		throw "cannot overlay mount "+dst_s+" to "+data+" : "+strerror(errno) ;
 }
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
@@ -162,8 +160,15 @@ static bool _is_lcl_tmp( ::string const& f , ::string const& tmp_view_s ) {
 	/**/             return f.starts_with(tmp_view_s) ;
 } ;
 
-bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s , bool use_fuse ) const {
-	Trace trace("enter",*this,phy_root_dir,phy_tmp_dir,tmp_sz_mb,work_dir,src_dirs_s,STR(use_fuse)) ;
+bool/*entered*/ JobSpace::enter(
+	::string const&   phy_root_dir_s
+,	::string const&   phy_tmp_dir_s
+,	size_t            tmp_sz_mb
+,	::string const&   work_dir_s
+,	::vector_s const& src_dirs_s
+,	bool              use_fuse
+) const {
+	Trace trace("enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s,STR(use_fuse)) ;
 	//
 	if ( use_fuse && !root_view_s ) throw "cannot use fuse for autodep without root_view"s ;
 	if ( !*this                   ) return false/*entered*/                                ;
@@ -184,113 +189,109 @@ bool/*entered*/ JobSpace::enter( ::string const& phy_root_dir , ::string const& 
 	}
 	//
 	for( auto const& [view,_] : views ) {
-		if ( +tmp_view_s && view.starts_with(tmp_view_s)           ) continue     ;
-		if ( !is_lcl(view)                                         ) goto BadView ;
-		if ( view.back()=='/' &&  view     .starts_with(AdminDirS) ) goto BadView ;
-		if ( view.back()!='/' && (view+'/').starts_with(AdminDirS) ) goto BadView ;
-		/**/                                                         continue     ;
+		if ( +tmp_view_s && view.starts_with(tmp_view_s) ) continue     ;
+		if ( !is_lcl(view)                               ) goto BadView ;
+		if ( is_in_dir(view,AdminDirS)                   ) goto BadView ;
+		/**/                                               continue     ;
 	BadView :
 		throw "cannot map "+view+" that must either be local in the repository or lie in tmp_view" ; // else we must guarantee canon after mapping, extend src_dirs to include their views, etc.
 	}
 	//
-	::string phy_super_root_dir ;                                                                    // dir englobing all relative source dirs
-	::string super_root_view_s  ;                                                                    // .
+	::string phy_super_root_dir_s ;                                                                  // dir englobing all relative source dirs
+	::string super_root_view_s    ;                                                                  // .
 	if (+root_view_s) {
-		phy_super_root_dir = phy_root_dir ; for( size_t i=0 ; i<src_dirs_uphill_lvl ; i++ ) phy_super_root_dir = dir_name  (phy_super_root_dir) ;
-		super_root_view_s  = root_view_s  ; for( size_t i=0 ; i<src_dirs_uphill_lvl ; i++ ) super_root_view_s  = dir_name_s(super_root_view_s ) ;
-		SWEAR(+phy_super_root_dir,phy_root_dir,src_dirs_uphill_lvl) ;                                                                              // this should have been checked earlier
+		phy_super_root_dir_s = phy_root_dir_s ; for( size_t i=0 ; i<src_dirs_uphill_lvl ; i++ ) phy_super_root_dir_s = dir_name_s(phy_super_root_dir_s) ;
+		super_root_view_s    = root_view_s    ; for( size_t i=0 ; i<src_dirs_uphill_lvl ; i++ ) super_root_view_s    = dir_name_s(super_root_view_s   ) ;
+		SWEAR(phy_super_root_dir_s!="/",phy_root_dir_s,src_dirs_uphill_lvl) ;                                                                             // this should have been checked earlier
 		if (!super_root_view_s) {
 			highest.pop_back() ;
 			throw
 				"cannot map repository dir to "+no_slash(root_view_s)+" with relative source dir "+highest
 			+	", "
-			+	"consider setting <rule>.root_view="+mk_py_str("/repo"+phy_root_dir.substr(phy_super_root_dir.size()))
+			+	"consider setting <rule>.root_view="+mk_py_str("/repo"+phy_root_dir_s.substr(phy_super_root_dir_s.size()-1))
 			;
 		}
-		if (root_view_s.substr(super_root_view_s.size())!=phy_root_dir.substr(phy_super_root_dir.size()))
+		if (root_view_s.substr(super_root_view_s.size())!=phy_root_dir_s.substr(phy_super_root_dir_s.size()))
 			throw
 				"last "s+src_dirs_uphill_lvl+" components do not match between physical root dir and root view"
 			+	", "
-			+	"consider setting <rule>.root_view="+mk_py_str("/repo"+phy_root_dir.substr(phy_super_root_dir.size()))
+			+	"consider setting <rule>.root_view="+mk_py_str("/repo/"+phy_root_dir_s.substr(phy_super_root_dir_s.size()))
 			;
 	}
 	if ( +super_root_view_s && super_root_view_s.rfind('/',super_root_view_s.size()-2)!=0 ) throw "non top-level root_view not yet implemented"s ; // XXX : handle cases where dir is not top level
 	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
 	//
-	::string chrd             ;
 	::string chroot_dir       ; if (+chroot_dir_s) chroot_dir = no_slash(chroot_dir_s) ;
 	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
 	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
 	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
-	if ( must_create_root || must_create_tmp ) {                                                                              // we may not mount directly in chroot_dir
-		if (!work_dir)
+	if ( must_create_root || must_create_tmp ) {                                                                                      // we may not mount directly in chroot_dir
+		if (!work_dir_s)
 			throw
 				"need a work dir to create"s
 			+	( must_create_root                    ? " root view" : "" )
 			+	( must_create_root && must_create_tmp ? " and"       : "" )
 			+	(                     must_create_tmp ? " tmp view"  : "" )
 			;
-		::vector_s top_lvls        = lst_dir(+chroot_dir_s?chroot_dir:"/","/") ;
-		::string   work_root_dir   = work_dir+"/root"                          ;
+		::vector_s top_lvls        = lst_dir_s(+chroot_dir_s?chroot_dir_s:"/") ;
+		::string   work_root_dir   = work_dir_s+"root"                         ;
 		::string   work_root_dir_s = work_root_dir+'/'                         ;
-		mk_dir      (work_root_dir) ;
-		unlnk_inside(work_root_dir) ;
+		mk_dir_s      (work_root_dir_s) ;
+		unlnk_inside_s(work_root_dir_s) ;
 		trace("top_lvls",work_root_dir_s,top_lvls) ;
 		for( ::string const& f : top_lvls ) {
-			::string src_f     = chroot_dir    + f ;
-			::string private_f = work_root_dir + f ;
+			::string src_f     = (+chroot_dir_s?chroot_dir_s:"/"s) + f ;
+			::string private_f = work_root_dir_s                   + f ;
 			switch (FileInfo(src_f).tag()) {
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : OFStream{private_f                } ; _mount_bind(private_f,src_f) ; break ;            // create file
-				case FileTag::Dir   : mk_dir  (private_f                ) ; _mount_bind(private_f,src_f) ; break ;            // create dir
-				case FileTag::Lnk   : lnk     (private_f,read_lnk(src_f)) ;                                break ;            // copy symlink
-				default             : ;                                                                                       // exclude weird files
+				case FileTag::Exe   : OFStream{           private_f                 } ; _mount_bind(private_f,src_f) ; break ;        // create file
+				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                ) ; _mount_bind(private_f,src_f) ; break ;        // create dir
+				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)) ;                                break ;        // copy symlink
+				default             : ;                                                                                               // exclude weird files
 			}
 		}
-		if (must_create_root) mk_dir(work_root_dir+no_slash(super_root_view_s)) ;
-		if (must_create_tmp ) mk_dir(work_root_dir+no_slash(tmp_view_s       )) ;
-		chrd = ::move(work_root_dir) ;
-	} else {
-		chrd = chroot_dir ;
+		if (must_create_root) mk_dir_s(work_root_dir+super_root_view_s) ;
+		if (must_create_tmp ) mk_dir_s(work_root_dir+tmp_view_s       ) ;
+		chroot_dir = ::move(work_root_dir) ;
 	}
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                 ) ;                                                        // necessary to be allowed to write the gid_map (if desirable)
+	_atomic_write( "/proc/self/setgroups" , "deny"                 ) ;                                                                // necessary to be allowed to write the gid_map (if desirable)
 	_atomic_write( "/proc/self/uid_map"   , ""s+uid+' '+uid+" 1\n" ) ;
 	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
 	//
 	::string root_dir_s ;
 	if (!root_view_s) {
-		SWEAR(!use_fuse) ;                                                                                                    // need a view to mount repo with fuse
-		root_dir_s = phy_root_dir+'/' ;
+		SWEAR(!use_fuse) ;                                                                                                            // need a view to mount repo with fuse
+		root_dir_s = phy_root_dir_s ;
 	} else {
-		root_dir_s = chrd+root_view_s ;
-		if (use_fuse) _mount_fuse( chrd+no_slash(super_root_view_s) , phy_super_root_dir ) ;
-		else          _mount_bind( chrd+no_slash(super_root_view_s) , phy_super_root_dir ) ;
+		root_dir_s = chroot_dir+root_view_s ;
+		if (use_fuse) _mount_fuse( chroot_dir+super_root_view_s , phy_super_root_dir_s ) ;
+		else          _mount_bind( chroot_dir+super_root_view_s , phy_super_root_dir_s ) ;
 	}
 	if (+tmp_view_s) {
-		if      (+phy_tmp_dir) _mount_bind( chrd+no_slash(tmp_view_s) , phy_tmp_dir ) ;
-		else if (tmp_sz_mb   ) _mount_tmp ( chrd+no_slash(tmp_view_s) , tmp_sz_mb   ) ;
+		if      (+phy_tmp_dir_s) _mount_bind( chroot_dir+tmp_view_s , phy_tmp_dir_s ) ;
+		else if (tmp_sz_mb     ) _mount_tmp ( chroot_dir+tmp_view_s , tmp_sz_mb     ) ;
 	}
 	//
-	if      (+chrd       ) _chroot(chrd)        ;
-	if      (+root_view_s) _chdir(root_view_s ) ;
-	else if (+chrd       ) _chdir(phy_root_dir) ;
+	if      (+chroot_dir ) _chroot(chroot_dir)    ;
+	if      (+root_view_s) _chdir(root_view_s   ) ;
+	else if (+chroot_dir ) _chdir(phy_root_dir_s) ;
 	if (+views) {
 		size_t i = 0 ;
 		for( auto const& [view,phys] : views ) {
 			::string   abs_view = mk_abs(view,root_dir_s) ;
 			::vector_s abs_phys ; for( ::string const& phy : phys ) abs_phys.push_back(mk_abs(phy,root_dir_s)) ;
 			//
-			/**/                              if ( view.back()=='/' && _is_lcl_tmp(view,tmp_view_s) ) mk_dir(no_slash(view)) ;
-			for( ::string const& phy : phys ) if ( phy .back()=='/' && _is_lcl_tmp(phy ,tmp_view_s) ) mk_dir(no_slash(phy )) ;
+			/**/                              if ( is_dirname(view) && _is_lcl_tmp(view,tmp_view_s) ) mk_dir_s(view) ;
+			for( ::string const& phy : phys ) if ( is_dirname(phy ) && _is_lcl_tmp(phy ,tmp_view_s) ) mk_dir_s(phy ) ;
 			//
 			if (phys.size()==1) {
 				_mount_bind( abs_view , abs_phys[0] ) ;
 			} else {
-				::string work = is_lcl(phys[0]) ? work_dir+"/view_work/"+(i++) : phys[0].substr(0,phys[0].size()-1)+".work" ; // if not in the repo, it must be in tmp
-				mk_dir(work) ;
-				_mount_overlay( abs_view , abs_phys , mk_abs(work,root_dir_s) ) ;
+				::string work_s = is_lcl(phys[0]) ? work_dir_s+"view_work/"+(i++)+'/' : phys[0].substr(0,phys[0].size()-1)+".work/" ; // if not in the repo, it must be in tmp
+				mk_dir_s(work_s) ;
+				_mount_overlay( abs_view , abs_phys , mk_abs(work_s,root_dir_s) ) ;
 			}
 		}
 	}
@@ -356,22 +357,18 @@ void JobSpace::chk() const {
 	if ( +tmp_view_s   && !(is_abs(tmp_view_s  )&&is_canon(tmp_view_s  )) ) throw "tmp_view must be a canonic absolute path : "  +no_slash(tmp_view_s  ) ;
 	for( auto const& [view,phys] : views ) {
 		bool lcl_view    = _is_lcl_tmp(view,tmp_view_s) ;
-		bool is_dir_view = view.back()=='/'             ;
+		bool is_dir_view = is_dirname(view)             ;
 		/**/                             if ( !view                                                                    ) throw "cannot map empty view"s                          ;
 		/**/                             if ( !is_canon(view)                                                          ) throw "cannot map non-canonic view "+view               ;
 		/**/                             if ( !is_dir_view && phys.size()!=1                                           ) throw "cannot overlay map non-dir " +view               ;
 		for( auto const& [v,_] : views ) if ( &v!=&view && view.starts_with(v) && (v.back()=='/'||view[v.size()]=='/') ) throw "cannot map "                 +view+" within "+v  ;
 		for( ::string const& phy : phys ) {
 			bool lcl_phy = _is_lcl_tmp(phy,tmp_view_s) ;
-			if ( !phy                            ) throw "cannot map "              +view+" to empty location"        ;
-			if ( !is_canon(phy)                  ) throw "cannot map "              +view+" to non-canonic view "+phy ;
-			if ( !lcl_view && lcl_phy            ) throw "cannot map external view "+view+" to local or tmp "    +phy ;
-			if (  is_dir_view && phy.back()!='/' ) throw "cannot map dir "          +view+" to file "            +phy ;
-			if ( !is_dir_view && phy.back()=='/' ) throw "cannot map file "         +view+" to dir "             +phy ;
-			for( auto const& [v,_] : views ) {
-				if ( phy.starts_with(v  ) && (v  .back()=='/'||phy[v  .size()]=='/') ) throw "cannot map "+view+" to "+phy+" within "   +v ;
-				if ( v  .starts_with(phy) && (phy.back()=='/'||v  [phy.size()]=='/') ) throw "cannot map "+view+" to "+phy+" englobing "+v ;
-			}
+			if ( !phy                             ) throw "cannot map "              +view+" to empty location"        ;
+			if ( !is_canon(phy)                   ) throw "cannot map "              +view+" to non-canonic view "+phy ;
+			if ( !lcl_view && lcl_phy             ) throw "cannot map external view "+view+" to local or tmp "    +phy ;
+			if (  is_dir_view && !is_dirname(phy) ) throw "cannot map dir "          +view+" to file "            +phy ;
+			if ( !is_dir_view &&  is_dirname(phy) ) throw "cannot map file "         +view+" to dir "             +phy ;
 		}
 	}
 }

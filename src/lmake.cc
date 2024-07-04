@@ -66,7 +66,7 @@ static void _handle_int(bool start) {
 
 int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
-	app_init(Maybe/*chk_version*/) ;
+	app_init(false/*read_only_ok*/,Maybe/*chk_version*/) ;
 	//
 	ReqSyntax syntax{{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated" } }
@@ -94,8 +94,8 @@ int main( int argc , char* argv[] ) {
 	try                       { from_string<JobIdx>(n_jobs,true/*empty_ok*/) ;                           }
 	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+n_jobs) ; }
 	// start interrupt handling thread once server is started
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ReqProc::Make , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ReqProc::Make , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	exit(mk_rc(ok)) ;
 }

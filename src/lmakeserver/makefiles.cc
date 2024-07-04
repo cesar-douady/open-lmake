@@ -26,14 +26,14 @@ ENUM( Reason // reason to re-read makefiles
 namespace Engine::Makefiles {
 
 	static ::pair<vmap_s<FileTag>/*srcs*/,vector_s/*src_dirs_s*/> _gather_srcs( Sequence const& py_srcs , LnkSupport lnk_support , NfsGuard& nfs_guard ) {
-		RealPathEnv       rpe        { .lnk_support=lnk_support , .root_dir=no_slash(*g_root_dir_s) } ;
-		RealPath          real_path  { rpe                                                          } ;
+		RealPathEnv       rpe        { .lnk_support=lnk_support , .root_dir_s=*g_root_dir_s } ;
+		RealPath          real_path  { rpe                                                  } ;
 		::vmap_s<FileTag> srcs       ;
 		::vector_s        src_dirs_s ;
 		for( Object const& py_src : py_srcs ) {
 			::string src = py_src.as_a<Str>() ;
 			if (!src) throw "found an empty source"s ;
-			bool        is_dir_ = src.back()=='/'                     ;
+			bool        is_dir_ = is_dirname(src)                     ;
 			const char* src_msg = is_dir_ ? "source dir " : "source " ;
 			if (!is_canon(src)) throw src_msg+src+" canonical form is "+mk_canon(src) ;
 			//
@@ -164,7 +164,7 @@ namespace Engine::Makefiles {
 		Gather   gather ;
 		::string data   = PrivateAdminDirS+action+"_data.py" ;
 		gather.autodep_env.src_dirs_s = {"/"}                                                                         ;
-		gather.autodep_env.root_dir   = no_slash(*g_root_dir_s)                                                       ;
+		gather.autodep_env.root_dir_s = *g_root_dir_s                                                                 ;
 		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , action , module } ;
 		gather.child_stdin            = Child::NoneFd                                                                 ;
 		Trace trace("_read_makefiles",action,module,Pdate(New)) ;

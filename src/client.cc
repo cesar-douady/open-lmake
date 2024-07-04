@@ -27,7 +27,7 @@ static bool _server_ok( Fd fd , ::string const& tag ) {
 	return ok ;
 }
 
-static pid_t _connect_to_server( bool refresh , bool sync ) {                                                                          // if sync, ensure we launch our own server
+static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { // if sync, ensure we launch our own server
 	Trace trace("_connect_to_server",STR(refresh)) ;
 	::string server_service  ;
 	bool     server_is_local = false ;
@@ -35,8 +35,9 @@ static pid_t _connect_to_server( bool refresh , bool sync ) {                   
 	Pdate    now             = New   ;
 	for ( int i=0 ; i<3 ; i++ ) {
 		trace("try_old",i) ;
-		// try to connect to an existing server
-		{	::ifstream server_mrkr_stream { ServerMrkr } ;
+		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
+			// try to connect to an existing server
+			::ifstream server_mrkr_stream { ServerMrkr } ;
 			::string   pid_str            ;
 			if (!server_mrkr_stream                          ) { trace("no_marker"  ) ; goto LaunchServer ; }
 			if (!::getline(server_mrkr_stream,server_service)) { trace("bad_marker1") ; goto LaunchServer ; }
@@ -67,10 +68,11 @@ static pid_t _connect_to_server( bool refresh , bool sync ) {                   
 		} ;
 		Pipe client_to_server{New,true/*no_std*/} ; client_to_server.read .cloexec(false) ; client_to_server.write.cloexec(true) ;
 		Pipe server_to_client{New,true/*no_std*/} ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
-		/**/          cmd_line.push_back("-i"s+client_to_server.read .fd) ;
-		/**/          cmd_line.push_back("-o"s+server_to_client.write.fd) ;
-		if (!refresh) cmd_line.push_back("-r"                           ) ; // -r means no refresh
-		/**/          cmd_line.push_back("--"                           ) ; // ensure no further option processing in case a file starts with a -
+		/**/           cmd_line.push_back("-i"s+client_to_server.read .fd) ;
+		/**/           cmd_line.push_back("-o"s+server_to_client.write.fd) ;
+		if (!refresh ) cmd_line.push_back("-r"                           ) ; // -r means no refresh
+		if (read_only) cmd_line.push_back("-R"                           ) ; // -R means read-only
+		/**/           cmd_line.push_back("--"                           ) ; // ensure no further option processing in case a file starts with a -
 		trace("try_new",i,cmd_line) ;
 		try {
 			Child server { .as_session=true , .cmd_line=cmd_line } ;
@@ -86,7 +88,7 @@ static pid_t _connect_to_server( bool refresh , bool sync ) {                   
 			}
 			client_to_server.write.close() ;
 			server_to_client.read .close() ;
-			server.wait() ;                                                               // dont care about return code, we are going to relauch/reconnect anyway
+			server.wait() ;                                                 // dont care about return code, we are going to relauch/reconnect anyway
 		} catch (::string const& e) {
 			exit(Rc::System,e) ;
 		}
@@ -175,7 +177,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	return res ;
 }
 
-Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb=[](bool)->void{} ) {
+Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb=[](bool)->void{} ) {
 	Trace trace("out_proc") ;
 	//
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
@@ -200,7 +202,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool refresh , ReqSynt
 	//
 	ReqRpcReq rrr        { proc , cmd_line.files() , { rv , cmd_line } } ;
 	Bool3     rc         = Maybe                                         ;
-	pid_t     server_pid = _connect_to_server(refresh,sync)              ;
+	pid_t     server_pid = _connect_to_server(read_only,refresh,sync)    ;
 	cb(true/*start*/) ;
 	OMsgBuf().send(g_server_fds.out,rrr) ;
 	try {

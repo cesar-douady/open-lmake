@@ -102,11 +102,11 @@ namespace Engine {
 		// services
 		bool operator==(ConfigClean const&) const = default ;
 		// data
-		Version    db_version           ;                    // must always stay first so it is always understood, by default, db version does not match
-		Algo       hash_algo            = {}               ;
-		LnkSupport lnk_support          = LnkSupport::Full ;
-		::string   user_local_admin_dir ;
-		::string   key                  ;                    // random key to differentiate repo from other repos
+		Version    db_version             ;                    // must always stay first so it is always understood, by default, db version does not match
+		Algo       hash_algo              = {}               ;
+		LnkSupport lnk_support            = LnkSupport::Full ;
+		::string   user_local_admin_dir_s ;
+		::string   key                    ;                    // random key to differentiate repo from other repos
 	} ;
 
 	// changing these can only be done when lmake is not running
@@ -215,8 +215,8 @@ namespace Engine {
 			else                                     return ConfigDiff::None    ;
 		}
 		// data (derived info not saved on disk)
-		bool     booted          = false ;                  // a marker to distinguish clean repository
-		::string local_admin_dir ;
+		bool     booted            = false ;                 // a marker to distinguish clean repository
+		::string local_admin_dir_s ;
 	} ;
 
 	// sep is put before the last indent level, useful for porcelaine output

@@ -183,7 +183,7 @@ namespace Engine {
 		return res ;
 	}
 
-	static ::string _mk_script( Job j , ReqOptions const& ro , JobInfo const& job_info , ::string const& dbg_dir ) {
+	static ::string _mk_script( Job j , ReqOptions const& ro , JobInfo const& job_info , ::string const& dbg_dir_s ) {
 		::string const& key    = ro.flag_args[+ReqFlag::Key] ;
 		auto            it     = g_config->dbg_tab.find(key) ; if (it==g_config->dbg_tab.end()) throw "unknown debug method "+ro.flag_args[+ReqFlag::Key] ;
 		::string const& runner = it->second.c_str()          ;
@@ -206,7 +206,7 @@ namespace Engine {
 		get_script << ",\tkey            = " << mk_py_str(key                                                                    ) << '\n' ;
 		get_script << ",\tautodep_method = " << mk_py_str(snake(start.method)                                                    ) << '\n' ;
 		get_script << ",\tchroot_dir     = " << mk_py_str(+start.job_space.chroot_dir_s?no_slash(start.job_space.chroot_dir_s):"") << '\n' ;
-		get_script << ",\tdebug_dir      = " << mk_py_str(dbg_dir                                                                ) << '\n' ;
+		get_script << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                                                    ) << '\n' ;
 		get_script << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)                                                  ) << '\n' ;
 		get_script << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                                                 ) << '\n' ;
 		get_script << ",\tname           = " << mk_py_str(j->name()                                                              ) << '\n' ;
@@ -305,11 +305,11 @@ namespace Engine {
 			return false ;
 		}
 		//
-		::string dbg_dir     = job->ancillary_file(AncillaryTag::Dbg) ;
-		::string script_file = dbg_dir+"/script"                      ;
-		mk_dir(dbg_dir) ;
+		::string dbg_dir_s   = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
+		::string script_file = dbg_dir_s+"script"                         ;
+		mk_dir_s(dbg_dir_s) ;
 		//
-		::string script = _mk_script(job,ro,job_info,dbg_dir) ;               // only open script_file for writing if _mk_script ends without error
+		::string script = _mk_script(job,ro,job_info,dbg_dir_s) ;             // only open script_file for writing if _mk_script ends without error
 		OFStream(script_file) << script ; ::chmod(script_file.c_str(),0755) ; // .
 		//
 		audit_file( fd , ::move(script_file) ) ;
@@ -542,7 +542,7 @@ namespace Engine {
 								JobInfoStart const& rs          = job_info.start                             ;
 								SubmitAttrs  const& sa          = rs.submit_attrs                            ;
 								::string            cwd         = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
-								::string            phy_tmp_dir = start.autodep_env.tmp_dir                  ;
+								::string            phy_tmp_dir = no_slash(start.autodep_env.tmp_dir_s)      ;
 								::string            pressure    = sa.pressure.short_str()                    ;
 								//
 								if (!phy_tmp_dir)

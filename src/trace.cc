@@ -42,6 +42,7 @@ using namespace Time ;
 	}
 
 	void Trace::s_new_trace_file(::string const& trace_file) {
+		if (!_s_has_trace            ) return ;                // change trace file, but dont start tracing
 		if (trace_file==*g_trace_file) return ;
 		//
 		Lock lock{_s_mutex} ;
@@ -66,17 +67,16 @@ using namespace Time ;
 			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
 			/**/                                                            if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
 		}
-		::string trace_dir      = dir_name(*g_trace_file)                                        ;
-		::string tmp_trace_file = trace_dir+'/'+::to_string(Pdate(New).nsec_in_s())+'-'+getpid() ;
-		try                        { mk_dir(trace_dir) ;                               }
-		catch (::string const& e ) { FAIL("cannot create trace dir",trace_dir,':',e) ; }
+		::string trace_dir_s    = dir_name_s(*g_trace_file)                                    ;
+		::string tmp_trace_file = trace_dir_s+::to_string(Pdate(New).nsec_in_s())+'-'+getpid() ;
+		mk_dir_s(trace_dir_s) ;
 		//
 		_s_cur_sz = 4096                                                                                  ;
 		_s_fd     = { ::open( tmp_trace_file.c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0666 ) , true/*no_std*/ } ;
 		//
-		if ( !_s_fd                                                        ) FAIL("cannot create temporary trace file",tmp_trace_file,':',strerror(errno)            ) ;
-		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) FAIL("cannot create trace file"          ,*g_trace_file ,':',strerror(errno)            ) ;
-		if ( ::ftruncate(_s_fd,_s_cur_sz)!=0                               ) FAIL("cannot truncate trace file"        ,*g_trace_file ,"to its initial size",_s_cur_sz) ;
+		if ( !_s_fd                                                        ) throw "cannot create temporary trace file "+tmp_trace_file+" : "+strerror(errno)             ;
+		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw "cannot create trace file "          +*g_trace_file +" : "+strerror(errno)             ;
+		if ( ::ftruncate(_s_fd,_s_cur_sz)!=0                               ) throw "cannot truncate trace file "        +*g_trace_file +" to its initial size "+_s_cur_sz ;
 		//
 		_s_pos  = 0                                                                                                    ;
 		_s_data = static_cast<uint8_t*>(::mmap( nullptr , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0 )) ;
@@ -91,7 +91,7 @@ using namespace Time ;
 		#if HAS_OSTRINGSTREAM_VIEW
 			::string_view buf_view = _t_buf->view() ;
 			if (buf_view.size()>(s_sz>>4)) {                                                      // avoid trace pollution with giant records (above 1/16th of the overall trace size)
-				buf_view = { Giant , sizeof(Giant)-1 } ;                            // -1 to account for terminating null
+				buf_view = { Giant , sizeof(Giant)-1 } ;                                          // -1 to account for terminating null
 			}
 		#else
 			::string buf_view = _t_buf->str() ;

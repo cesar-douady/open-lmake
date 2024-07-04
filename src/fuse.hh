@@ -25,7 +25,7 @@ namespace Fuse {
 		struct Mount {
 			// statics
 			Mount() = default ;
-			Mount( ::string const& /*dst*/ , ::string const& /*src*/ ) { FAIL() ; }
+			Mount( ::string const& /*dst_s*/ , ::string const& /*src_s*/ ) { FAIL() ; }
 			// services
 			void open() { FAIL() ; }
 			// data
@@ -46,21 +46,21 @@ namespace Fuse {
 		public :
 			Mount() = default ;
 			//
-			Mount( ::string const& dst_ , ::string const& src_ ) : dst{dst_} , src{src_} {
-				::cerr<<t_thread_key<<" "<<"Mount::Mount1 :"<<dst<<":"<<endl;
+			Mount( ::string const& dst_s_ , ::string const& src_s_ ) : dst_s{dst_s_} , src_s{src_s_} {
+::cerr<<t_thread_key<<" "<<"Mount::Mount1 :"<<dst_s<<":"<<endl;
 				open() ;
-				::cerr<<t_thread_key<<" "<<"Mount::Mount2 :"<<src<<":"<<endl;
+::cerr<<t_thread_key<<" "<<"Mount::Mount2 :"<<src_s<<":"<<endl;
 				_thread = ::jthread( _s_loop , this ) ;
 			}
-			~Mount() { ::cerr<<"~Mount "<<::umount(dst.c_str())<<endl ; }
+			~Mount() { ::cerr<<"~Mount "<<::umount(no_slash(dst_s).c_str())<<endl ; }
 			// services
 			void open() ;
 		private :
 			void _loop(::stop_token) ;
 			// data
 		public :
-			::string dst ;
-			::string src ;
+			::string dst_s ;
+			::string src_s ;
 		private :
 			::jthread    _thread ;
 			struct fuse* _fuse   = nullptr ;

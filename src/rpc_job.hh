@@ -535,17 +535,24 @@ struct JobSpace {
 	bool operator+() const { return +chroot_dir_s || +root_view_s || +tmp_view_s || +views ; }
 	bool operator!() const { return !+*this                                                ; }
 	// services
-	bool/*entered*/ enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s={} , bool use_fuse=false ) const ;
+	bool/*entered*/ enter(
+		::string const&   phy_root_dir_s
+	,	::string const&   phy_tmp_dir_s
+	,	size_t            tmp_sz_mb
+	,	::string const&   work_dir_s
+	,	::vector_s const& src_dirs_s = {}
+	,	bool              use_fuse   = false
+	) const ;
 	//
 	::vmap_s<::vector_s> flat_views() const ; // views after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
 	void chk() const ;
 	// data
 	// START_OF_VERSIONING
-	::string             chroot_dir_s = {} ;    // absolute dir which job chroot's to before execution (empty if unused)
-	::string             root_view_s  = {} ;    // absolute dir under which job sees repo root dir     (empty if unused)
-	::string             tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir           (empty if unused)
-	::vmap_s<::vector_s> views        = {} ;    // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
+	::string             chroot_dir_s = {} ;  // absolute dir which job chroot's to before execution (empty if unused)
+	::string             root_view_s  = {} ;  // absolute dir under which job sees repo root dir     (empty if unused)
+	::string             tmp_view_s   = {} ;  // absolute dir under which job sees tmp dir           (empty if unused)
+	::vmap_s<::vector_s> views        = {} ;  // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
 } ;
 

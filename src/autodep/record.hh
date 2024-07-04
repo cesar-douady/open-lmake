@@ -26,7 +26,7 @@ struct Record {
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
 		if (!_s_root_fd) {
-			_s_root_fd = { Disk::open_read(_s_autodep_env->root_dir) , true/*no_std*/ } ;                                     // avoid poluting standard descriptors
+			_s_root_fd = { Disk::open_read(Disk::no_slash(_s_autodep_env->root_dir_s)) , true/*no_std*/ } ;                   // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 		}
 		return _s_root_fd ;
@@ -213,6 +213,7 @@ public :
 		using Base::file     ;
 		_Solve()= default ;
 		_Solve( Record& r , Base&& path , bool no_follow , bool read , bool create , ::string const& c={} ) : Base{::move(path)} {
+			using namespace Disk ;
 			if (ChkSimple) { if ( s_is_simple(file) ) return ; }
 			else           { if ( !file || !file[0] ) return ; }
 			//
@@ -221,7 +222,7 @@ public :
 			auto report_dep = [&]( FileLoc file_loc , ::string&& file , Accesses a , bool store , const char* key )->void {
 				::string ck = c+'.'+key ;
 				for( auto const& [view,phys] : s_autodep_env().views ) {
-					if (!( file.starts_with(view) && (view.back()=='/'||file.size()==view.size()) )) continue ;
+					if (!( file.starts_with(view) && (is_dirname(view)||file.size()==view.size()) )) continue ;
 					for( size_t i=0 ; i<phys.size() ; i++ ) {
 						bool     last  = i==phys.size()-1                                 ;
 						::string f     = phys[i] + file.substr(view.size())               ;
@@ -246,9 +247,9 @@ public :
 			if (sr.file_accessed==Yes) accesses = Access::Lnk ;
 			/**/                       file_loc = sr.file_loc ;
 			//                                                                                                                      accesses      store
-			for( ::string& lnk : sr.lnks                                     ) report_dep( FileLoc::Dep , ::move(lnk)             , Access::Lnk , false , "lnk"  ) ;
-			if ( !read  && sr.file_accessed==Maybe && Disk::has_dir(sr.real) ) report_dep( file_loc     , Disk::dir_name(sr.real) , Access::Lnk , false , "last" ) ; // real dir is not protected ...
-			/**/                                                               report_dep( file_loc     , ::move(sr.real)         , {}          , true  , "file" ) ; // ... by real
+			for( ::string& lnk : sr.lnks                               ) report_dep( FileLoc::Dep , ::move(lnk)                   , Access::Lnk , false , "lnk"  ) ;
+			if ( !read  && sr.file_accessed==Maybe && has_dir(sr.real) ) report_dep( file_loc     , no_slash(dir_name_s(sr.real)) , Access::Lnk , false , "last" ) ; // real dir is not protected ...
+			/**/                                                         report_dep( file_loc     , ::move(sr.real)               , {}          , true  , "file" ) ; // ... by real
 			//
 			if ( create && sr.file_loc==FileLoc::Tmp ) r._report_tmp() ;
 		}
@@ -281,7 +282,7 @@ public :
 		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
 	} ;
 	struct Hide {
-		Hide( Record&          ) {              }                        // in case nothing to hide, just to ensure invariants
+		Hide( Record&          ) {              }                          // in case nothing to hide, just to ensure invariants
 		Hide( Record& , int fd ) { s_hide(fd) ; }
 		#if HAS_CLOSE_RANGE
 			#ifdef CLOSE_RANGE_CLOEXEC

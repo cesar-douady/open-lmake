@@ -34,7 +34,9 @@ inline Rc mk_rc(Bool3 ok) {
 
 using OutProcCb = ::function<void(bool start)> ;
 
-Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc , bool refresh , ReqSyntax const& , ReqCmdLine const& , OutProcCb const& ) ;
+Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc , bool read_only , bool refresh , ReqSyntax const& , ReqCmdLine const& , OutProcCb const& ) ;
 //
-inline Bool3/*ok*/ out_proc( ::vector_s& fs , ReqProc p , bool r , ReqSyntax const& s , ReqCmdLine const& cl , OutProcCb const& cb=[](bool)->void{} ) { return _out_proc(&fs    ,p,r,s,cl,cb) ; }
-inline Bool3/*ok*/ out_proc(                  ReqProc p , bool r , ReqSyntax const& s , ReqCmdLine const& cl , OutProcCb const& cb=[](bool)->void{} ) { return _out_proc(nullptr,p,r,s,cl,cb) ; }
+#define C const
+inline Bool3/*ok*/ out_proc( ::vector_s& fs , ReqProc p , bool ro , bool r , ReqSyntax C& s , ReqCmdLine C& cl , OutProcCb C& cb=[](bool)->void{} ) { return _out_proc(&fs    ,p,ro,r,s,cl,cb) ; }
+inline Bool3/*ok*/ out_proc(                  ReqProc p , bool ro , bool r , ReqSyntax C& s , ReqCmdLine C& cl , OutProcCb C& cb=[](bool)->void{} ) { return _out_proc(nullptr,p,ro,r,s,cl,cb) ; }
+#undef C

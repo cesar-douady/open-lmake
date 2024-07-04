@@ -1077,6 +1077,7 @@ private :
 ENUM( Rc
 ,	Ok
 ,	Fail
+,	Perm
 ,	Usage
 ,	Format
 ,	System

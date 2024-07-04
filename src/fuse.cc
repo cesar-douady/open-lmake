@@ -116,7 +116,7 @@ namespace Fuse {
 			} ;
 			//
 			/**/ _fuse = fuse_new( &fuse_args , &FuseOps , sizeof(FuseOps) , nullptr/*user_data*/ ) ; SWEAR(_fuse) ;
-			int  rc    = fuse_mount( _fuse , mk_abs(dst,cwd_s()).c_str() )                          ; SWEAR(rc==0) ;
+			int  rc    = fuse_mount( _fuse , mk_abs(no_slash(dst),cwd_s()).c_str() )                ; SWEAR(rc==0) ;
 		}
 
 		int fuse_session_loop(struct fuse_session*) ;

@@ -599,7 +599,7 @@ namespace Engine {
 
 	RuleData::RuleData( Special s , ::string const& src_dir_s ) {
 		if (s<=Special::Shared) SWEAR( !src_dir_s                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
-		else                    SWEAR( +src_dir_s && src_dir_s.back()=='/' , s , src_dir_s ) ; // ensure source dir ends with a /
+		else                    SWEAR( +src_dir_s && is_dirname(src_dir_s) , s , src_dir_s ) ; // ensure source dir ends with a /
 		special = s        ;
 		name    = snake(s) ;
 		switch (s) {
@@ -690,7 +690,7 @@ namespace Engine {
 			field = "prio" ; if (dct.contains(field)) prio  = dct[field].as_a<Float>() ;
 			field = "cwd"  ; if (dct.contains(field)) cwd_s = dct[field].as_a<Str  >() ;
 			if (+cwd_s) {
-				if (cwd_s.back ()!='/') cwd_s += '/' ;
+				cwd_s = with_slash(cwd_s) ;
 				if (cwd_s.front()=='/') {
 					if (cwd_s.starts_with(*g_root_dir_s)) cwd_s.erase(0,g_root_dir_s->size()) ;
 					else                                  throw "cwd must be relative to root dir"s ;

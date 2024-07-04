@@ -221,10 +221,10 @@ namespace Engine {
 
 	::string Job::ancillary_file(AncillaryTag tag) const {
 		switch (tag) {
-			case AncillaryTag::Backend : return PrivateAdminDirS         +"backend/"s +(+*this) ;
-			case AncillaryTag::Data    : return g_config->local_admin_dir+"/job_data/"+(+*this) ;
-			case AncillaryTag::Dbg     : return AdminDirS                +"debug/"s   +(+*this) ;
-			case AncillaryTag::KeepTmp : return AdminDirS                +"tmp/"s     +(+*this) ;
+			case AncillaryTag::Backend : return PrivateAdminDirS           +"backend/"s+(+*this) ;
+			case AncillaryTag::Data    : return g_config->local_admin_dir_s+"job_data/"+(+*this) ;
+			case AncillaryTag::Dbg     : return AdminDirS                  +"debug/"s  +(+*this) ;
+			case AncillaryTag::KeepTmp : return AdminDirS                  +"tmp/"s    +(+*this) ;
 		DF}
 	}
 

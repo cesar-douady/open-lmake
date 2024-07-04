@@ -44,22 +44,22 @@ void print_start(JobRpcReply const& jrr) {
 	SWEAR( jrr.proc==JobRpcProc::Start , jrr.proc ) ;
 	::cout << "--start--\n" ;
 	//
-	::cout << "addr         : "  << hex<<jrr.addr<<dec          <<'\n' ;
-	::cout << "auto_mkdir   : "  << jrr.autodep_env.auto_mkdir  <<'\n' ;
-	::cout << "job_space    : "  << jrr.job_space               <<'\n' ;
-	::cout << "cwd_s        : "  << jrr.cwd_s                   <<'\n' ;
-	::cout << "hash_algo    : "  << jrr.hash_algo               <<'\n' ;
-	::cout << "ignore_stat  : "  << jrr.autodep_env.ignore_stat <<'\n' ;
-	::cout << "interpreter  : "  << jrr.interpreter             <<'\n' ;
-	::cout << "kill_sigs    : "  << jrr.kill_sigs               <<'\n' ;
-	::cout << "live_out     : "  << jrr.live_out                <<'\n' ;
-	::cout << "method       : "  << jrr.method                  <<'\n' ;
-	::cout << "small_id     : "  << jrr.small_id                <<'\n' ;
-	::cout << "stdin        : "  << jrr.stdin                   <<'\n' ;
-	::cout << "stdout       : "  << jrr.stdout                  <<'\n' ;
-	::cout << "timeout      : "  << jrr.timeout                 <<'\n' ;
-	::cout << "physical tmp : "  << jrr.autodep_env.tmp_dir     <<'\n' ; // tmp directory on disk
-	::cout << "use_script   : "  << jrr.use_script              <<'\n' ;
+	::cout << "addr         : "  << hex<<jrr.addr<<dec                  <<'\n' ;
+	::cout << "auto_mkdir   : "  << jrr.autodep_env.auto_mkdir          <<'\n' ;
+	::cout << "job_space    : "  << jrr.job_space                       <<'\n' ;
+	::cout << "cwd_s        : "  << jrr.cwd_s                           <<'\n' ;
+	::cout << "hash_algo    : "  << jrr.hash_algo                       <<'\n' ;
+	::cout << "ignore_stat  : "  << jrr.autodep_env.ignore_stat         <<'\n' ;
+	::cout << "interpreter  : "  << jrr.interpreter                     <<'\n' ;
+	::cout << "kill_sigs    : "  << jrr.kill_sigs                       <<'\n' ;
+	::cout << "live_out     : "  << jrr.live_out                        <<'\n' ;
+	::cout << "method       : "  << jrr.method                          <<'\n' ;
+	::cout << "small_id     : "  << jrr.small_id                        <<'\n' ;
+	::cout << "stdin        : "  << jrr.stdin                           <<'\n' ;
+	::cout << "stdout       : "  << jrr.stdout                          <<'\n' ;
+	::cout << "timeout      : "  << jrr.timeout                         <<'\n' ;
+	::cout << "physical tmp : "  << no_slash(jrr.autodep_env.tmp_dir_s) <<'\n' ; // tmp directory on disk
+	::cout << "use_script   : "  << jrr.use_script                      <<'\n' ;
 	//
 	::cout << "deps :\n"           ; _print_map(jrr.deps          )                            ;
 	::cout << "static matches :\n" ; _print_map(jrr.static_matches)                            ;
@@ -93,7 +93,7 @@ void print_end(JobRpcReq const& jrr) {
 
 int main( int argc , char* argv[] ) {
 	if (argc!=2) exit(Rc::Usage,"usage : ldump_job file") ;
-	app_init() ;
+	app_init(true/*read_only_ok*/) ;
 	//
 	JobInfo job_info { argv[1] } ;
 	if (+job_info.start) {

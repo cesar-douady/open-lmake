@@ -64,21 +64,36 @@ namespace Disk {
 	bool     is_canon(::string const&) ;
 	::string mk_canon(::string const&) ;
 	//
-	inline bool     is_dir_s  (::string const& path) {                                              return !path || path.back()=='/'                             ; }
-	inline bool     has_dir   (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos                                             ; }
-	inline ::string dir_name  (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(0    ,sep  ) : throw "no dir" ; }
-	inline ::string dir_name_s(::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(0    ,sep+1) : ::string()     ; }
-	inline ::string base_name (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(sep+1      ) : path           ; }
+	inline bool has_dir(::string const& path) {
+		if (path.size()<3) return false ;       // we must have at least 2 components and a / to have a dir component
+		return path.find('/',1)<path.size()-2 ; // search a / at neither ends of path
+	}
+	inline ::string dir_name_s(::string const& path) {
+		size_t sep = path.rfind('/',path.size()-2) ;
+		if (sep!=Npos) return path.substr(0,sep+1)    ;
+		if (!path    ) throw "no dir for empty path"s ;
+		if (path=="/") throw "no dir for /"s          ;
+		/**/           return {}                      ;
+	}
+	inline ::string base_name(::string const& path) {
+		size_t sep = path.rfind('/',path.size()-2) ;
+		if (sep!=Npos) return path.substr(sep+1)       ;
+		if (!path    ) throw "no base for empty path"s ;
+		if (path=="/") throw "no base for /"s          ;
+		/**/           return path                     ;
+	}
+	inline bool is_dirname( ::string const& path                         ) { return !path || path.back()=='/'                                                         ; }
+	inline bool is_in_dir ( ::string const& path , ::string const& dir_s ) { return path.starts_with(dir_s) || (path.size()+1==dir_s.size()&&dir_s.starts_with(path)) ; }
 
 	inline ::string with_slash(::string&& path) {
-		if (!is_dir_s(path)) {
+		if (!is_dirname(path)) {
 			if (path==".") return {} ;
 			path += '/' ;
 		}
 		return ::move(path) ;
 	}
 	inline ::string no_slash(::string&& path) {
-		if (is_dir_s(path)) {
+		if (is_dirname(path)) {
 			if (!path) return "." ;
 			path.pop_back() ;
 		}
@@ -206,40 +221,40 @@ namespace Disk {
 	struct NfsGuard {
 		// statics
 	private :
-		void _s_protect(::string const& dir) {
-			::close(::open(+dir?dir.c_str():".",O_DIRECTORY|O_NOATIME)) ;
+		void _s_protect(::string const& dir_s) {
+			::close(::open(no_slash(dir_s).c_str(),O_DIRECTORY|O_NOATIME)) ;
 		}
 		// cxtors & casts
 	public :
-		NfsGuard(bool rd=false) : reliable_dirs{rd} {}                                    // if dirs are not reliable, i.e. close to open coherence does not encompass uphill dirs ...
-		~NfsGuard() { close() ; }                                                         // ... uphill dirs must must be open/close to force reliable access to files and their inodes
+		NfsGuard(bool rd=false) : reliable_dirs{rd} {}                                      // if dirs are not reliable, i.e. close to open coherence does not encompass uphill dirs ...
+		~NfsGuard() { close() ; }                                                           // ... uphill dirs must must be open/close to force reliable access to files and their inodes
 		//service
-		::string const& access(::string const& file) {                                    // return file, must be called before any access to file or its inode if not sure it was produced locally
-			if ( !reliable_dirs && +file && has_dir(file) ) _access_dir(dir_name(file)) ;
+		::string const& access(::string const& file) {                                      // return file, must be called before any access to file or its inode if not sure it was produced locally
+			if ( !reliable_dirs && +file && has_dir(file) ) _access_dir(dir_name_s(file)) ;
 			return file ;
 		}
-		::string const& change(::string const& file) {                                    // must be called before any modif to file or its inode if not sure it was produced locally
-			if ( !reliable_dirs && +file && has_dir(file) ) {
-				::string dir = dir_name(file) ;
-				_access_dir(dir) ;
-				to_stamp_dirs.insert(::move(dir)) ;
+		::string const& change(::string const& path) {                                      // must be called before any modif to file or its inode if not sure it was produced locally
+			if ( !reliable_dirs && has_dir(path) ) {
+				::string dir_s = dir_name_s(path) ;
+				_access_dir(dir_s) ;
+				to_stamp_dirs_s.insert(::move(dir_s)) ;
 			}
-			return file ;
+			return path ;
 		}
 		void close() {
-			SWEAR( !to_stamp_dirs || !reliable_dirs ) ;                                   // cannot record dirs to stamp if reliable_dirs
-			for( ::string const& d : to_stamp_dirs ) _s_protect(d) ;                      // close to force NFS close to open cohenrence, open is useless
-			to_stamp_dirs.clear() ;
+			SWEAR( !to_stamp_dirs_s || !reliable_dirs ) ;                                   // cannot record dirs to stamp if reliable_dirs
+			for( ::string const& d_s : to_stamp_dirs_s ) _s_protect(d_s) ;                  // close to force NFS close to open cohenrence, open is useless
+			to_stamp_dirs_s.clear() ;
 		}
 	private :
-		void _access_dir(::string const& dir) {
-			access(dir) ;                                                                 // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
-			if (fetched_dirs.insert(dir).second) _s_protect(dir) ;                        // open to force NFS close to open coherence, close is useless
+		void _access_dir(::string const& dir_s) {
+			access(no_slash(dir_s)) ;                                                       // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
+			if (fetched_dirs_s.insert(dir_s).second) _s_protect(dir_s) ;                    // open to force NFS close to open coherence, close is useless
 		}
 		// data
 	public :
-		::uset_s fetched_dirs  ;
-		::uset_s to_stamp_dirs ;
+		::uset_s fetched_dirs_s  ;
+		::uset_s to_stamp_dirs_s ;
 		bool     reliable_dirs = false/*garbage*/ ;
 	} ;
 
@@ -249,18 +264,18 @@ namespace Disk {
 	void       write_content( ::string const& file , ::string   const&   ) ;
 
 	// list files within dir with prefix in front of each entry
-	::vector_s lst_dir( Fd at , ::string const& dir={} , ::string const& prefix={} ) ;
+	::vector_s lst_dir_s( Fd at , ::string const& dir_s={} , ::string const& prefix={} ) ;
 	// deep list files within dir with prefix in front of each entry, return a single entry {prefix} if file is not a dir (including if file does not exist)
 	::vector_s walk( Fd at , ::string const& file , ::string const& prefix={} ) ;
 	//
-	size_t/*pos*/ mk_dir      ( Fd at , ::string const& dir  ,             bool unlnk_ok=false      ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
-	size_t/*pos*/ mk_dir      ( Fd at , ::string const& dir  , NfsGuard& , bool unlnk_ok=false      ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
-	void          dir_guard   ( Fd at , ::string const& file                                        ) ;
-	void          unlnk_inside( Fd at , ::string const& dir                      , bool force=false ) ;
-	bool/*done*/  unlnk       ( Fd at , ::string const& file , bool dir_ok=false , bool force=false ) ; // if dir_ok <=> unlink whole dir if it is one
-	bool          can_uniquify( Fd at , ::string const& file                                        ) ;
-	bool/*done*/  uniquify    ( Fd at , ::string const& file                                        ) ;
-	void          rmdir       ( Fd at , ::string const& dir                                         ) ;
+	size_t/*pos*/ mk_dir_s      ( Fd at , ::string const& dir_s ,             bool unlnk_ok=false      ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+	size_t/*pos*/ mk_dir_s      ( Fd at , ::string const& dir_s , NfsGuard& , bool unlnk_ok=false      ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+	void          dir_guard     ( Fd at , ::string const& file                                         ) ;
+	void          unlnk_inside_s( Fd at , ::string const& dir_s                     , bool force=false ) ;
+	bool/*done*/  unlnk         ( Fd at , ::string const& file  , bool dir_ok=false , bool force=false ) ; // if dir_ok <=> unlink whole dir if it is one
+	bool          can_uniquify  ( Fd at , ::string const& file                                         ) ;
+	bool/*done*/  uniquify      ( Fd at , ::string const& file                                         ) ;
+	void          rmdir_s       ( Fd at , ::string const& dir_s                                        ) ;
 	//
 	inline void lnk( Fd at , ::string const& file , ::string const& target ) {
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
@@ -290,25 +305,25 @@ namespace Disk {
 	inline bool  is_exe   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag()==FileTag::Exe ; }
 	inline Ddate file_date( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).date                ; }
 
-	inline ::vector_s      lst_dir     ( ::string const& dir  , ::string const& prefix={}                                 ) { return lst_dir     (Fd::Cwd,dir ,prefix              ) ; }
-	inline ::vector_s      walk        ( ::string const& file , ::string const& prefix={}                                 ) { return walk        (Fd::Cwd,file,prefix              ) ; }
-	inline size_t/*pos*/   mk_dir      ( ::string const& dir  ,                bool unlnk_ok=false                        ) { return mk_dir      (Fd::Cwd,dir ,   unlnk_ok         ) ; }
-	inline size_t/*pos*/   mk_dir      ( ::string const& dir  , NfsGuard& ng , bool unlnk_ok=false                        ) { return mk_dir      (Fd::Cwd,dir ,ng,unlnk_ok         ) ; }
-	inline ::string const& dir_guard   ( ::string const& file                                                             ) {        dir_guard   (Fd::Cwd,file) ; return file ;        }
-	inline void            unlnk_inside( Fd at                                                                            ) {        unlnk_inside(at     ,{}         ,true/*force*/) ; }
-	inline void            unlnk_inside( ::string const& dir                      , bool force=false                      ) {        unlnk_inside(Fd::Cwd,dir        ,force        ) ; }
-	inline bool/*done*/    unlnk       ( ::string const& file , bool dir_ok=false , bool force=false                      ) { return unlnk       (Fd::Cwd,file,dir_ok,force        ) ; }
-	inline bool            can_uniquify( ::string const& file                                                             ) { return can_uniquify(Fd::Cwd,file                     ) ; }
-	inline bool/*done*/    uniquify    ( ::string const& file                                                             ) { return uniquify    (Fd::Cwd,file                     ) ; }
-	inline void            rmdir       ( ::string const& file                                                             ) {        rmdir       (Fd::Cwd,file                     ) ; }
-	inline void            lnk         ( ::string const& file , ::string const& target                                    ) {        lnk         (Fd::Cwd,file,target              ) ; }
-	inline Fd              open_read   ( ::string const& file                                                             ) { return open_read   (Fd::Cwd,file                     ) ; }
-	inline Fd              open_write  ( ::string const& file , bool append=false , bool exe=false , bool read_only=false ) { return open_write  (Fd::Cwd,file,append,exe,read_only) ; }
-	inline ::string        read_lnk    ( ::string const& file                                                             ) { return read_lnk    (Fd::Cwd,file                     ) ; }
-	inline bool            is_dir      ( ::string const& file , bool no_follow=true                                       ) { return is_dir      (Fd::Cwd,file,no_follow           ) ; }
-	inline bool            is_target   ( ::string const& file , bool no_follow=true                                       ) { return is_target   (Fd::Cwd,file,no_follow           ) ; }
-	inline bool            is_exe      ( ::string const& file , bool no_follow=true                                       ) { return is_exe      (Fd::Cwd,file,no_follow           ) ; }
-	inline Ddate           file_date   ( ::string const& file , bool no_follow=true                                       ) { return file_date   (Fd::Cwd,file,no_follow           ) ; }
+	inline ::vector_s      lst_dir_s     ( ::string const& dir_s , ::string const& prefix={}                                 ) { return lst_dir_s     (Fd::Cwd,dir_s,prefix              ) ; }
+	inline ::vector_s      walk          ( ::string const& path  , ::string const& prefix={}                                 ) { return walk          (Fd::Cwd,path ,prefix              ) ; }
+	inline size_t/*pos*/   mk_dir_s      ( ::string const& dir_s ,                bool unlnk_ok=false                        ) { return mk_dir_s      (Fd::Cwd,dir_s,   unlnk_ok         ) ; }
+	inline size_t/*pos*/   mk_dir_s      ( ::string const& dir_s , NfsGuard& ng , bool unlnk_ok=false                        ) { return mk_dir_s      (Fd::Cwd,dir_s,ng,unlnk_ok         ) ; }
+	inline ::string const& dir_guard     ( ::string const& path                                                              ) {        dir_guard     (Fd::Cwd,path) ; return path ;         }
+	inline void            unlnk_inside_s( Fd at                                                                             ) {        unlnk_inside_s(at     ,{}          ,true/*force*/) ; }
+	inline void            unlnk_inside_s( ::string const& dir_s                     , bool force=false                      ) {        unlnk_inside_s(Fd::Cwd,dir_s       ,force        ) ; }
+	inline bool/*done*/    unlnk         ( ::string const& path  , bool dir_ok=false , bool force=false                      ) { return unlnk         (Fd::Cwd,path ,dir_ok,force        ) ; }
+	inline bool            can_uniquify  ( ::string const& file                                                              ) { return can_uniquify  (Fd::Cwd,file                      ) ; }
+	inline bool/*done*/    uniquify      ( ::string const& file                                                              ) { return uniquify      (Fd::Cwd,file                      ) ; }
+	inline void            rmdir_s       ( ::string const& dir_s                                                             ) {        rmdir_s       (Fd::Cwd,dir_s                     ) ; }
+	inline void            lnk           ( ::string const& file  , ::string const& target                                    ) {        lnk           (Fd::Cwd,file ,target              ) ; }
+	inline Fd              open_read     ( ::string const& file                                                              ) { return open_read     (Fd::Cwd,file                      ) ; }
+	inline Fd              open_write    ( ::string const& file  , bool append=false , bool exe=false , bool read_only=false ) { return open_write    (Fd::Cwd,file ,append,exe,read_only) ; }
+	inline ::string        read_lnk      ( ::string const& file                                                              ) { return read_lnk      (Fd::Cwd,file                      ) ; }
+	inline bool            is_dir        ( ::string const& file  , bool no_follow=true                                       ) { return is_dir        (Fd::Cwd,file ,no_follow           ) ; }
+	inline bool            is_target     ( ::string const& file  , bool no_follow=true                                       ) { return is_target     (Fd::Cwd,file ,no_follow           ) ; }
+	inline bool            is_exe        ( ::string const& file  , bool no_follow=true                                       ) { return is_exe        (Fd::Cwd,file ,no_follow           ) ; }
+	inline Ddate           file_date     ( ::string const& file  , bool no_follow=true                                       ) { return file_date     (Fd::Cwd,file ,no_follow           ) ; }
 
 	inline ::string cwd_s() {
 		char buf[PATH_MAX] ;                          // use posix, not linux extension that allows to pass nullptr as argument and malloc's the returned string
@@ -347,8 +362,8 @@ namespace Disk {
 		// data
 		LnkSupport lnk_support   = LnkSupport::Full ; // by default, be pessimistic
 		bool       reliable_dirs = false            ; // if true => dirs coherence is enforced when files are updated (unlike NFS)
-		::string   root_dir      = {}               ;
-		::string   tmp_dir       = {}               ;
+		::string   root_dir_s    = {}               ;
+		::string   tmp_dir_s     = {}               ;
 		::vector_s src_dirs_s    = {}               ;
 	} ;
 
@@ -399,7 +414,7 @@ namespace Disk {
 	public :
 		RealPath() = default ;
 		// src_dirs_s may be either absolute or relative, but must be canonic
-		// tmp_dir must be absolute and canonic
+		// tmp_dir_s must be absolute and canonic
 		RealPath ( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe ,                                                    p ) ; }
 		RealPath ( RealPathEnv const& rpe , ::string&& cwd , pid_t p=0 ) { init( rpe , ::move(cwd)                                      , p ) ; }
 		void init( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe , p?read_lnk("/proc/"s+p+"/cwd"):no_slash(cwd_s()) , p ) ; }
@@ -427,7 +442,7 @@ namespace Disk {
 		RealPathEnv const* _env            ;
 		::string           _admin_dir      ;
 		::vector_s         _abs_src_dirs_s ;                                                                                          // this is an absolute version of src_dirs
-		size_t             _root_dir_sz1   ;
+		size_t             _root_dir_sz    ;
 	} ;
 	::ostream& operator<<( ::ostream& , RealPath::SolveReport const& ) ;
 

@@ -256,13 +256,16 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_open_tree( voi
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	_do_stat<At,FlagArg>(r,pid,args,~Accesses(),comment) ;
 }
-[[maybe_unused]] static void _entry_statx( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	uint     msk = args[3] ;
-	Accesses a   ;
-	if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a  = ~Accesses() ; // user can distinguish all content
-	else if (msk& STATX_MODE                         ) a |= Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
-	_do_stat<true,2>(r,pid,args,a,comment) ;
-}
+#ifdef SYS_statx
+	// protect statx as STATX_* macros are not defined when statx is not implemented, leading to compile errors
+	[[maybe_unused]] static void _entry_statx( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+		uint     msk = args[3] ;
+		Accesses a   ;
+		if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a  = ~Accesses() ; // user can distinguish all content
+		else if (msk& STATX_MODE                         ) a |= Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
+		_do_stat<true,2>(r,pid,args,a,comment) ;
+	}
+#endif
 
 // XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)
 SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // /!\ this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap

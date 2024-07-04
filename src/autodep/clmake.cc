@@ -213,13 +213,13 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	//
 	switch (solve_report.file_loc) {
 		case FileLoc::Ext :
-			if (solve_report.real==Record::s_autodep_env().root_dir) return Ptr<Str>(""s)->to_py_boost() ;
+			if (solve_report.real==no_slash(Record::s_autodep_env().root_dir_s)) return Ptr<Str>(""s)->to_py_boost() ;
 			break ;
 		case FileLoc::Repo :
 			try {
-				::string abs_path           = mk_abs(solve_report.real,Record::s_autodep_env().root_dir+'/') ;
+				::string abs_path           = mk_abs(solve_report.real,Record::s_autodep_env().root_dir_s) ;
 				::string abs_sub_root_dir_s = search_root_dir_s(abs_path).first                              ;
-				return Ptr<Str>(abs_sub_root_dir_s.c_str()+Record::s_autodep_env().root_dir.size()+1)->to_py_boost() ;
+				return Ptr<Str>(abs_sub_root_dir_s.c_str()+Record::s_autodep_env().root_dir_s.size())->to_py_boost() ;
 			} catch (::string const&e) {
 				return py_err_set(Exception::ValueErr,e) ;
 			}
@@ -281,19 +281,19 @@ PyMODINIT_FUNC
 	Ptr<Tuple> py_bes{ 1+HAS_SLURM } ;                      // PER_BACKEND : add an entry here
 	/**/           py_bes->set_item(0,*Ptr<Str>("local")) ;
 	if (HAS_SLURM) py_bes->set_item(1,*Ptr<Str>("slurm")) ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "root_dir"                , *Ptr<Str>(Record::s_autodep_env().root_dir.c_str()) ) ;
-	mod->set_attr( "backends"                , *py_bes                                             ) ;
-	mod->set_attr( "has_fuse"                , *Ptr<Bool>(bool(HAS_FUSE    ))                      ) ; // PER_AUTODEP_METHOD
-	mod->set_attr( "has_ld_audit"            , *Ptr<Bool>(bool(HAS_LD_AUDIT))                      ) ; // .
-	mod->set_attr( "has_ld_preload"          ,                True                                 ) ; // .
-	mod->set_attr( "has_ld_preload_jemalloc" ,                True                                 ) ; // .
-	mod->set_attr( "has_ptrace"              ,                True                                 ) ; // .
-	mod->set_attr( "no_crc"                  , *Ptr<Int>(+Crc::Unknown)                            ) ;
-	mod->set_attr( "crc_a_link"              , *Ptr<Int>(+Crc::Lnk    )                            ) ;
-	mod->set_attr( "crc_a_reg"               , *Ptr<Int>(+Crc::Reg    )                            ) ;
-	mod->set_attr( "crc_no_file"             , *Ptr<Int>(+Crc::None   )                            ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "root_dir"                , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
+	mod->set_attr( "backends"                , *py_bes                                                         ) ;
+	mod->set_attr( "has_fuse"                , *Ptr<Bool>(bool(HAS_FUSE    ))                                  ) ; // PER_AUTODEP_METHOD
+	mod->set_attr( "has_ld_audit"            , *Ptr<Bool>(bool(HAS_LD_AUDIT))                                  ) ; // .
+	mod->set_attr( "has_ld_preload"          ,                True                                             ) ; // .
+	mod->set_attr( "has_ld_preload_jemalloc" ,                True                                             ) ; // .
+	mod->set_attr( "has_ptrace"              ,                True                                             ) ; // .
+	mod->set_attr( "no_crc"                  , *Ptr<Int>(+Crc::Unknown)                                        ) ;
+	mod->set_attr( "crc_a_link"              , *Ptr<Int>(+Crc::Lnk    )                                        ) ;
+	mod->set_attr( "crc_a_reg"               , *Ptr<Int>(+Crc::Reg    )                                        ) ;
+	mod->set_attr( "crc_no_file"             , *Ptr<Int>(+Crc::None   )                                        ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;

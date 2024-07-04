@@ -214,7 +214,7 @@ namespace Caches {
 		bool         found    = false                             ;
 		//
 		try {
-			for( ::string const& r : lst_dir(dfd) ) {
+			for( ::string const& r : lst_dir_s(dfd) ) {
 				::uset<Node> nds      ;
 				auto         deps     = deserialize<::vmap_s<DepDigest>>(IFStream(dir_s+jn_s+r+"/deps")) ;
 				bool         critical = false                                                            ;
@@ -326,9 +326,8 @@ namespace Caches {
 		// check deps
 		for( auto const& [dn,dd] : job_info.end.end.digest.deps ) if (!dd.is_crc) return false/*ok*/ ;
 		//
-		::string jn = no_slash(jn_s) ;
-		mk_dir(dir_fd,jn) ;
-		AutoCloseFd dfd = open_read(dir_fd,jn) ;
+		mk_dir_s(dir_fd,jn_s) ;
+		AutoCloseFd dfd = open_read(dir_fd,no_slash(jn_s)) ;
 		//
 		// upload is the only one to take several locks and it starts with the global lock
 		// this way, we are sure to avoid deadlocks
@@ -337,7 +336,7 @@ namespace Caches {
 		//
 		Sz old_sz = _lru_remove(jn_s) ;
 		Sz new_sz = 0                 ;
-		unlnk_inside(dfd) ;
+		unlnk_inside_s(dfd) ;
 		//
 		bool made_room = false ;
 		try {
@@ -360,7 +359,7 @@ namespace Caches {
 			}
 		} catch (::string const& e) {
 			trace("failed",e) ;
-			unlnk_inside(dfd) ;                                                                            // clean up in case of partial execution
+			unlnk_inside_s(dfd) ;                                                                          // clean up in case of partial execution
 			_mk_room( made_room?new_sz:old_sz , 0 ) ;                                                      // finally, we did not populate the entry
 			return false/*ok*/ ;
 		}

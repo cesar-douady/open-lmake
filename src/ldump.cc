@@ -15,7 +15,7 @@ static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
 int main( int argc , char* /*argv*/[] ) {
 	//
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
-	app_init() ;
+	app_init(true/*read_only_ok*/) ;
 	Py::init(*g_lmake_dir_s) ;
 	//
 	try                       { Persistent::new_config({}/*config*/,false/*dynamic*/) ; }

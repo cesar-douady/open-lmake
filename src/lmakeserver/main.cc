@@ -34,6 +34,7 @@ static bool           _g_is_daemon      = true   ;
 static ::atomic<bool> _g_done           = false  ;
 static bool           _g_server_running = false  ;
 static ::string       _g_host           = host() ;
+static bool           _g_read_only      = true   ;
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	::ifstream server_mrkr_stream { ServerMrkr } ;
@@ -46,27 +47,27 @@ static ::pair_s<int> _get_mrkr_host_pid() {
 	catch (::string const&)                        { return { {}                      , 0                              } ; }
 }
 
-void server_cleanup() {
-	Trace trace("server_cleanup",STR(_g_server_running)) ;
-	if (!_g_server_running) return ;                       // not running, nothing to clean
+static void _server_cleanup() {
+	Trace trace("_server_cleanup",STR(_g_server_running)) ;
+	if (!_g_server_running) return ;                        // not running, nothing to clean
 	pid_t           pid  = getpid()             ;
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	trace("pid",mrkr,pid) ;
-	if (mrkr!=::pair(_g_host,pid)) return ;                // not our file, dont touch it
+	if (mrkr!=::pair(_g_host,pid)) return ;                 // not our file, dont touch it
 	unlnk(ServerMrkr) ;
 	trace("cleaned") ;
 }
 
-void report_server( Fd fd , bool running ) {
-	Trace trace("report_server",STR(running)) ;
+static void _report_server( Fd fd , bool running ) {
+	Trace trace("_report_server",STR(running)) ;
 	int cnt = ::write( fd , &running , sizeof(bool) ) ;
 	if (cnt!=sizeof(bool)) trace("no_report") ;         // client is dead
 }
 
-bool/*crashed*/ start_server(bool start) {
+static bool/*crashed*/ _start_server() {
 	bool  crashed = false    ;
 	pid_t pid     = getpid() ;
-	Trace trace("start_server",_g_host,pid,STR(start)) ;
+	Trace trace("_start_server",_g_host,pid) ;
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	if ( +mrkr.first && mrkr.first!=_g_host ) {
 		trace("already_existing_elsewhere",mrkr) ;
@@ -81,7 +82,9 @@ bool/*crashed*/ start_server(bool start) {
 		crashed = true ;
 		trace("vanished",mrkr) ;
 	}
-	if (start) {
+	if (_g_read_only) {
+		_g_server_running = true ;
+	} else {
 		_g_server_fd.listen() ;
 		::string tmp = ""s+ServerMrkr+'.'+_g_host+'.'+pid ;
 		OFStream(tmp)
@@ -89,7 +92,7 @@ bool/*crashed*/ start_server(bool start) {
 			<< getpid()               << '\n'
 		;
 		//vvvvvvvvvvvvvvvvvvvvvv
-		::atexit(server_cleanup) ;
+		::atexit(_server_cleanup) ;
 		//^^^^^^^^^^^^^^^^^^^^^^
 		_g_server_running = true ;                 // while we link, pretend we run so cleanup can be done if necessary
 		fence() ;
@@ -99,8 +102,6 @@ bool/*crashed*/ start_server(bool start) {
 		_g_watch_fd = ::inotify_init1(O_CLOEXEC) ; // start watching file as soon as possible (ideally would be before)
 		unlnk(tmp) ;
 		trace("started",STR(crashed),STR(_g_is_daemon),STR(_g_server_running)) ;
-	} else {
-		_g_server_running = true ;
 	}
 	return crashed ;
 }
@@ -126,12 +127,12 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	t_thread_key = 'Q' ;
 	Trace trace("reqs_thread_func",STR(_g_is_daemon)) ;
 	//
-	::stop_callback              stop_cb  { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;                         // transform request_stop into an event we wait for
-	::umap<Fd,pair<IMsgBuf,Req>> in_tab   ;
-	Epoll                        epoll    { New }                                                 ;
+	::stop_callback              stop_cb { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;                          // transform request_stop into an event we wait for
+	::umap<Fd,pair<IMsgBuf,Req>> in_tab  ;
+	Epoll                        epoll   { New }                                                 ;
 	//
-	epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ;
-	epoll.add_read( _g_int_fd    , EventKind::Int    ) ; trace("read_int"   ,_g_int_fd   ) ;
+	if (!_g_read_only) { epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ; }         // if read-only, we do not expect additional connections
+	/**/               { epoll.add_read( _g_int_fd    , EventKind::Int    ) ; trace("read_int"   ,_g_int_fd   ) ; }
 	//
 	if ( +_g_watch_fd && ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 ) {
 		epoll.add_read( _g_watch_fd , EventKind::Watch ) ; trace("read_watch",_g_watch_fd) ;                                // if server marker is touched by user, we do as we received a ^C
@@ -229,7 +230,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 			Fd slave_fd = _g_server_fd.accept().detach() ;
 			in_tab[slave_fd] ;                                                              // allocate entry
 			epoll.add_read(slave_fd,EventKind::Slave) ; trace("new_req",slave_fd) ;
-			report_server(slave_fd,true/*running*/) ;
+			_report_server(slave_fd,true/*running*/) ;
 		}
 	}
 Done :
@@ -395,10 +396,10 @@ bool/*interrupted*/ engine_loop() {
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
-	app_init(Maybe/*chk_version*/) ;                    // server is always launched at root
-	Py::init( *g_lmake_dir_s , true/*multi-thread*/ ) ;
+	_g_read_only = app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ; // server is always launched at root
+	Py::init( *g_lmake_dir_s , true/*multi-thread*/ )   ;
 	AutodepEnv ade ;
-	ade.root_dir = no_slash(*g_root_dir_s) ;
+	ade.root_dir_s = *g_root_dir_s ;
 	Record::s_static_report = true ;
 	Record::s_autodep_env(ade) ;
 	if (+*g_startup_dir_s) {
@@ -406,7 +407,7 @@ int main( int argc , char** argv ) {
 		FAIL("lmakeserver must be started from repo root, not from ",*g_startup_dir_s) ;
 	}
 	//
-	bool refresh_ = true       ;
+	bool refresh_  = true      ;
 	Fd   in_fd    = Fd::Stdin  ;
 	Fd   out_fd   = Fd::Stdout ;
 	for( int i=1 ; i<argc ; i++ ) {
@@ -417,6 +418,7 @@ int main( int argc , char** argv ) {
 			case 'i' : in_fd           = from_string<int>(argv[i]+2) ;                               break ;
 			case 'o' : out_fd          = from_string<int>(argv[i]+2) ;                               break ;
 			case 'r' : refresh_        = false                       ; if (argv[i][2]!=0) goto Bad ; break ;
+			case 'R' : _g_read_only    = true                        ; if (argv[i][2]!=0) goto Bad ; break ;
 			case '-' :                                                 if (argv[i][2]!=0) goto Bad ; break ;
 			default : exit(Rc::Usage,"unrecognized option : ",argv[i]) ;
 		}
@@ -424,22 +426,22 @@ int main( int argc , char** argv ) {
 	Bad :
 		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax : lmakeserver [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
-	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
+	if (g_startup_dir_s) SWEAR( is_dirname(*g_startup_dir_s) , *g_startup_dir_s ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;       // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
-	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;         // must be done before app_init so that all threads block the signal
-	//          vvvvvvvvvvvvvvv
-	Persistent::writable = true ;
-	Codec     ::writable = true ;
-	//          ^^^^^^^^^^^^^^^
+	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;         // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
+	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;           // must be done before app_init so that all threads block the signal
+	//          vvvvvvvvvvvvvvvvvvvvvvvv
+	Persistent::writable = !_g_read_only ;
+	Codec     ::writable = !_g_read_only ;
+	//          ^^^^^^^^^^^^^^^^^^^^^^^^
 	Trace trace("main",getpid(),*g_lmake_dir_s,*g_root_dir_s) ;
 	for( int i=0 ; i<argc ; i++ ) trace("arg",i,argv[i]) ;
-	{ ::string pad = PrivateAdminDirS ; pad.pop_back() ; mk_dir(pad) ; }
-	//             vvvvvvvvvvvvvvvvvvvvvvvvvvv
-	bool crashed = start_server(true/*start*/) ;
-	//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if (!_g_is_daemon     ) report_server(out_fd,_g_server_running/*server_running*/) ; // inform lmake we did not start
+	mk_dir_s(PrivateAdminDirS) ;
+	//             vvvvvvvvvvvvvvv
+	bool crashed = _start_server() ;
+	//             ^^^^^^^^^^^^^^^
+	if (!_g_is_daemon     ) _report_server(out_fd,_g_server_running/*server_running*/) ; // inform lmake we did not start
 	if (!_g_server_running) return 0 ;
 	try {
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvv
@@ -447,14 +449,14 @@ int main( int argc , char** argv ) {
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (+msg  ) ::cerr << ensure_nl(msg) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
-	if (!_g_is_daemon) ::setpgid(0,0) ;                                                 // once we have reported we have started, lmake will send us a message to kill us
+	if (!_g_is_daemon) ::setpgid(0,0) ;                                                  // once we have reported we have started, lmake will send us a message to kill us
 	//
 	for( AncillaryTag tag : All<AncillaryTag> ) dir_guard(Job().ancillary_file(tag)) ;
-	mk_dir(PrivateAdminDirS+"tmp"s,true/*unlnk_ok*/) ;
+	mk_dir_s(PrivateAdminDirS+"tmp/"s,true/*unlnk_ok*/) ;
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
-	Trace::s_new_trace_file( g_config->local_admin_dir+"/trace/"+base_name(read_lnk("/proc/self/exe")) ) ;
+	if (!_g_read_only) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+base_name(read_lnk("/proc/self/exe")) ) ;
 	Codec::Closure::s_init() ;
 	Job           ::s_init() ;
 	//
@@ -463,8 +465,8 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	try                       { unlnk_inside(PrivateAdminDirS+"tmp"s) ; }               // cleanup
-	catch (::string const& e) { exit(Rc::System,e) ;                    }
+	try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s) ; }             // cleanup
+	catch (::string const& e) { exit(Rc::System,e) ;                       }
 	//
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;

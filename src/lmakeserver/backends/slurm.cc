@@ -572,19 +572,19 @@ namespace Backends::Slurm {
 		return { {} , Maybe|completed } ;
 	}
 
-	static ::string _get_log_dir    (JobIdx job) { return Job(job).ancillary_file(AncillaryTag::Backend) ; }
-	static ::string _get_stderr_path(JobIdx job) { return _get_log_dir(job) + "/stderr"                  ; }
-	static ::string _get_stdout_path(JobIdx job) { return _get_log_dir(job) + "/stdout"                  ; }
+	static ::string _get_log_dir_s  (JobIdx job) { return Job(job).ancillary_file(AncillaryTag::Backend)+'/' ; }
+	static ::string _get_stderr_file(JobIdx job) { return _get_log_dir_s(job) + "stderr"                     ; }
+	static ::string _get_stdout_file(JobIdx job) { return _get_log_dir_s(job) + "stdout"                     ; }
 
 	::string read_stderr(JobIdx job) {
 		Trace trace(BeChnl,"Slurm::read_stderr",job) ;
-		::string err_file = _get_stderr_path(job) ;
+		::string stderr_file = _get_stderr_file(job) ;
 		try {
-			::string res = read_content(err_file) ;
+			::string res = read_content(stderr_file) ;
 			if (!res) return {}                                 ;
-			else      return "stderr from : "+err_file+'\n'+res ;
+			else      return "stderr from : "+stderr_file+'\n'+res ;
 		} catch (::string const&) {
-			return "stderr not found : "+err_file ;
+			return "stderr not found : "+stderr_file ;
 		}
 	}
 
@@ -602,30 +602,30 @@ namespace Backends::Slurm {
 		SWEAR(rsrcs.size()> 0) ;
 		SWEAR(nice        >=0) ;
 		//
-		::string                 wd        = no_slash(*g_root_dir_s)  ;
-		auto                     job_name  = key + Job(job)->name()   ;
-		::string                 script    = _cmd_to_string(cmd_line) ;
-		::string                 s_errPath ;
-		::string                 s_outPath ;
-		::vector<job_desc_msg_t> job_descr { rsrcs.size() }           ;
+		::string                 wd          = no_slash(*g_root_dir_s)  ;
+		auto                     job_name    = key + Job(job)->name()   ;
+		::string                 script      = _cmd_to_string(cmd_line) ;
+		::string                 stderr_file ;
+		::string                 stdout_file ;
+		::vector<job_desc_msg_t> job_descr   { rsrcs.size() }           ;
 		if(verbose) {
-			s_errPath = _get_stderr_path(job) ;
-			s_outPath = _get_stdout_path(job) ;
-			mk_dir(_get_log_dir(job)) ;
+			stderr_file = _get_stderr_file(job) ;
+			stdout_file = _get_stdout_file(job) ;
+			mk_dir_s(_get_log_dir_s(job)) ;
 		}
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			job_desc_msg_t* j = &job_descr[i] ;
 			SlurmApi::init_job_desc_msg(j) ;
 			//
-			j->env_size        = 1                                                           ;
-			j->environment     = env                                                         ;
-			j->cpus_per_task   = r.cpu                                                       ;
-			j->pn_min_memory   = r.mem                                                       ; //in MB
-			j->pn_min_tmp_disk = r.tmp                                                       ; //in MB
-			j->std_err         = verbose ? s_errPath.data() : const_cast<char*>("/dev/null") ;
-			j->std_out         = verbose ? s_outPath.data() : const_cast<char*>("/dev/null") ;
-			j->work_dir        = wd.data()                                                   ;
-			j->name            = const_cast<char*>(job_name.c_str())                         ;
+			j->env_size        = 1                                                             ;
+			j->environment     = env                                                           ;
+			j->cpus_per_task   = r.cpu                                                         ;
+			j->pn_min_memory   = r.mem                                                         ; //in MB
+			j->pn_min_tmp_disk = r.tmp                                                         ; //in MB
+			j->std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;
+			j->std_out         = verbose ? stdout_file.data() : const_cast<char*>("/dev/null") ;
+			j->work_dir        = wd.data()                                                     ;
+			j->name            = const_cast<char*>(job_name.c_str())                           ;
 			//
 			if(+r.excludes) j->exc_nodes     = const_cast<char*>(r.excludes      .data()) ;
 			if(+r.feature ) j->features      = const_cast<char*>(r.feature       .data()) ;

@@ -12,8 +12,9 @@ struct AutodepEnv : Disk::RealPathEnv {
 	friend ::ostream& operator<<( ::ostream& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
-	// env format : server:port:options:source_dirs:tmp_dir:root_dir
-	//if port is empty, server is considered a file to log deps to (which defaults to stderr if empty)
+	// env format : server:port:options:source_dirs:tmp_dir_s:root_dir_s
+	// if port is empty, server is considered a file to log deps to (which defaults to stderr if empty)
+	// if tmp_dir_s is empty, there is no tmp dir
 	AutodepEnv(::string const& env) ;
 	AutodepEnv(NewType            ) : AutodepEnv{get_env("LMAKE_AUTODEP_ENV")} {}
 	operator ::string() const ;

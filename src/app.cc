@@ -25,7 +25,7 @@ void crash_handler(int sig) {
 	else              crash(2,sig,"caught ",strsignal(sig)) ;
 }
 
-void app_init( Bool3 chk_version_ , bool cd_root ) {
+bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_root ) {
 	sanitize(::cout) ;
 	sanitize(::cerr) ;
 	//
@@ -45,12 +45,18 @@ void app_init( Bool3 chk_version_ , bool cd_root ) {
 	if (!g_trace_file) g_trace_file  = new ::string{PrivateAdminDirS+"trace/"s+*g_exe_name} ;
 	/**/               g_lmake_dir_s = new ::string{dir_name_s(dir_name_s(exe))           } ;
 	//
-	if (chk_version_!=No)
-		try                       { chk_version(chk_version_==Maybe) ; }
-		catch (::string const& e) { exit(Rc::Format,e) ;               }
+	bool read_only = ::access(no_slash(*g_root_dir_s).c_str(),W_OK) ;
+	if (read_only>read_only_ok) exit(Rc::Perm,"cannot run in read-only repository") ;
 	//
-	Trace::s_start() ;
+	if (chk_version_!=No)
+		try                       { chk_version( !read_only && chk_version_==Maybe ) ; }
+		catch (::string const& e) { exit(Rc::Format,e) ;                               }
+	//
+	if (!read_only)
+		try                       { Trace::s_start() ; }
+		catch (::string const& e) { exit(Rc::Perm,e) ; }
 	Trace trace("app_init",chk_version_,STR(cd_root),g_startup_dir_s?*g_startup_dir_s:""s) ;
+	return read_only ;
 }
 
 void chk_version( bool may_init , ::string const& admin_dir_s ) {

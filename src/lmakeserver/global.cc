@@ -128,18 +128,18 @@ namespace Engine {
 		//
 		::vector_s fields = {{}} ;
 		try {
-			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) date_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "hash_algo"           ; if (py_map.contains(fields[0])) hash_algo             = mk_enum<Algo>             (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir  =                           (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat             = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick        = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth         = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines         = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay         = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "path_max"            ; if (py_map.contains(fields[0])) path_max              = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs         =                           +py_map[fields[0]]                          ;
-			fields[0] = "rules_module"        ; if (py_map.contains(fields[0])) rules_module          =                            py_map[fields[0]].as_a<Str  >()            ;
-			fields[0] = "sources_module"      ; if (py_map.contains(fields[0])) srcs_module           =                            py_map[fields[0]].as_a<Str  >()            ;
+			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) date_prec              = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
+			fields[0] = "hash_algo"           ; if (py_map.contains(fields[0])) hash_algo              = mk_enum<Algo>             (py_map[fields[0]].as_a<Str  >())           ;
+			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())           ;
+			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
+			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
+			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
+			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
+			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
+			fields[0] = "path_max"            ; if (py_map.contains(fields[0])) path_max               = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
+			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs          =                           +py_map[fields[0]]                          ;
+			fields[0] = "rules_module"        ; if (py_map.contains(fields[0])) rules_module           =                            py_map[fields[0]].as_a<Str  >()            ;
+			fields[0] = "sources_module"      ; if (py_map.contains(fields[0])) srcs_module            =                            py_map[fields[0]].as_a<Str  >()            ;
 			//
 			fields[0] = "link_support" ;
 			if (py_map.contains(fields[0])) {
@@ -279,11 +279,11 @@ namespace Engine {
 		// clean
 		//
 		res << "clean :\n" ;
-		/**/                       res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		if (+hash_algo           ) res << "\thash_algo       : " << snake(hash_algo  )                      <<'\n' ;
-		/**/                       res << "\tlink_support    : " << snake(lnk_support)                      <<'\n' ;
-		/**/                       res << "\tkey             : " << key                                     <<'\n' ;
-		if (+user_local_admin_dir) res << "\tlocal_admin_dir : " << user_local_admin_dir                    <<'\n' ;
+		/**/                         res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
+		if (+hash_algo             ) res << "\thash_algo       : " << snake(hash_algo  )                      <<'\n' ;
+		/**/                         res << "\tlink_support    : " << snake(lnk_support)                      <<'\n' ;
+		/**/                         res << "\tkey             : " << key                                     <<'\n' ;
+		if (+user_local_admin_dir_s) res << "\tlocal_admin_dir : " << no_slash(user_local_admin_dir_s)        <<'\n' ;
 		//
 		// static
 		//
@@ -365,18 +365,18 @@ namespace Engine {
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
 		SWEAR(+key) ;                                                   // ensure no init problem
-		::string std_file = PrivateAdminDirS+"local_admin"s ;
-		if (!user_local_admin_dir) {
-			local_admin_dir = ::move(std_file) ;
+		::string std_dir_s = PrivateAdminDirS+"local_admin/"s ;
+		if (!user_local_admin_dir_s) {
+			local_admin_dir_s = ::move(std_dir_s) ;
 		} else {
-			local_admin_dir = user_local_admin_dir+'/'+key+"-la" ;
-			::string lnk_target   = mk_rel( local_admin_dir , dir_name_s(std_file) ) ;
-			if (read_lnk(std_file)!=lnk_target) {
-				unlnk( std_file , true/*dir_ok*/ ) ;
-				lnk  ( std_file , lnk_target     ) ;
+			local_admin_dir_s = user_local_admin_dir_s+key+"-la/" ;
+			::string lnk_target_s = mk_rel( local_admin_dir_s , dir_name_s(std_dir_s) ) ;
+			if (read_lnk(no_slash(std_dir_s))!=no_slash(lnk_target_s)) {
+				unlnk( no_slash(std_dir_s) , true/*dir_ok*/         ) ;
+				lnk  ( no_slash(std_dir_s) , no_slash(lnk_target_s) ) ;
 			}
 		}
-		mk_dir(local_admin_dir,true/*unlnk_ok*/) ;
+		mk_dir_s(local_admin_dir_s,true/*unlnk_ok*/) ;
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
 		//
@@ -463,9 +463,9 @@ namespace Engine {
 
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
 		SWEAR(!as_job()) ;
-		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .root_dir=no_slash(*g_root_dir_s) } ;
-		RealPath       real_path { rpe                                                                    } ;
-		::vector<Node> targets   ; targets.reserve(files.size()) ;                                            // typically, there is no bads
+		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .root_dir_s=*g_root_dir_s } ;
+		RealPath       real_path { rpe                                                            } ;
+		::vector<Node> targets   ; targets.reserve(files.size()) ;                                    // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
 			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                            // we may refer to a symbolic link

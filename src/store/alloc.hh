@@ -106,6 +106,7 @@ namespace Store {
 		//
 		template<class... A> Idx emplace_back( Idx n , A&&... args ) = delete ;
 		using Base::clear    ;
+		using Base::name     ;
 		using Base::size     ;
 		using Base::writable ;
 		using Base::_mutex   ;
@@ -208,10 +209,10 @@ namespace Store {
 		Sz   _n_items( Idx idx         ) requires(HasDataSz) { if (!idx) return 0 ; return at(idx).n_items() ;  }
 		void _chk_sz ( Idx idx , Sz sz ) requires(HasDataSz) { SWEAR(sz==Idx(_n_items(idx)),sz,_n_items(idx)) ; }
 		template<class... A> Idx _emplace( Sz sz , A&&... args ) requires(HasData) {
-			ULock lock{_mutex} ;
-			SWEAR(writable) ;
-			Sz   bucket = _s_bucket(sz    ) ;
-			Idx& free   = _free    (bucket) ;
+			if (!writable) throw "cannot allocate item in read-only file "+name ;
+			ULock lock   { _mutex }          ;
+			Sz    bucket = _s_bucket(sz    ) ;
+			Idx&  free   = _free    (bucket) ;
 			//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			if (!free) return Base::emplace_back( _s_sz(bucket) , ::forward<A>(args)... ) ;
 			//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -224,15 +225,17 @@ namespace Store {
 			return res ;
 		}
 		void _shorten( Idx idx , Sz old_sz , Sz new_sz ) requires(Multi) {
-			if (!new_sz) { _pop(idx,old_sz) ; return ; }
-			SWEAR( writable && new_sz<=old_sz , new_sz , old_sz ) ;
+			if (!new_sz       ) { _pop(idx,old_sz) ; return ; }
+			if (new_sz==old_sz)                      return ;
+			if (!writable     ) throw "cannot shorten item in read-only file "+name ;
+			SWEAR( new_sz<=old_sz , new_sz , old_sz ) ;
 			ULock lock{_mutex} ;
 			Sz old_bucket = _s_bucket(old_sz) ;
 			Sz new_bucket = _s_bucket(new_sz) ;
 			// deallocate extra room
 			new_sz = _s_sz(new_bucket) ;
 			old_sz = _s_sz(old_bucket) ;
-			while (old_sz>new_sz) {                                                                                            // deallocate as much as possible in a single bucket and iterate
+			while (new_sz<old_sz) {                                                                                            // deallocate as much as possible in a single bucket and iterate
 				Sz extra_sz        = old_sz-new_sz       ;
 				Sz extra_bucket    = _s_bucket(extra_sz) ;                                                                     // the bucket that can contain extra_sz
 				Sz extra_bucket_sz = _s_sz(extra_bucket) ;                                  SWEAR(extra_bucket_sz>=extra_sz) ; // _s_sz returns the largest size that fits in extra_bucket
@@ -245,8 +248,8 @@ namespace Store {
 		}
 		void _pop( Idx idx , Sz sz ) requires( HasData) {
 			if (!idx) return ;
+			if (!writable) throw "cannot pop item in read-only file "+name ;
 			ULock lock{_mutex} ;
-			SWEAR(writable) ;
 			Base::pop(idx) ;
 			_dealloc(idx,_s_bucket(sz)) ;
 		}

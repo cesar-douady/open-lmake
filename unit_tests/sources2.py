@@ -67,7 +67,7 @@ else :
 	ut.lmake( 'local.lcl' , 'ext_rel.rel' , 'ext_abs.abs' , new=3 , done=3 )
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'local.lcl' , 'ext_rel.rel' , 'ext_abs.abs' , rc=3 )                                                   # cannot accept modification of src_dirs
+	ut.lmake( 'local.lcl' , 'ext_rel.rel' , 'ext_abs.abs' , rc=4 )                                                   # cannot accept modification of src_dirs, 4==Rc::Format
 	os.rename('LMAKE','LMAKE2')
 	os.makedirs('LMAKE')
 	ut.lmake( 'local.lcl' , 'ext_rel.rel' , 'ext_abs.abs' , quarantined=3 , dangling=1 , dep_err=1 , done=2 , rc=1 ) # local.lcl is dangling

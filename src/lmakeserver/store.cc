@@ -108,24 +108,24 @@ namespace Engine::Persistent {
 
 	static void _init_srcs_rules(bool rescue) {
 		Trace trace("_init_srcs_rules",Pdate(New)) ;
-		::string dir = g_config->local_admin_dir+"/store" ;
+		::string dir_s = g_config->local_admin_dir_s+"store/" ;
 		//
-		mk_dir(dir) ;
+		mk_dir_s(dir_s) ;
 		// jobs
-		_job_file      .init( dir+"/job"       , writable ) ;
-		_deps_file     .init( dir+"/deps"      , writable ) ;
-		_targets_file  .init( dir+"/_targets"  , writable ) ;
+		_job_file      .init( dir_s+"job"       , writable ) ;
+		_deps_file     .init( dir_s+"deps"      , writable ) ;
+		_targets_file  .init( dir_s+"_targets"  , writable ) ;
 		// nodes
-		_node_file     .init( dir+"/node"      , writable ) ;
-		_job_tgts_file .init( dir+"/job_tgts"  , writable ) ;
+		_node_file     .init( dir_s+"node"      , writable ) ;
+		_job_tgts_file .init( dir_s+"job_tgts"  , writable ) ;
 		// rules
-		_rule_str_file .init( dir+"/rule_str"  , writable ) ;
-		_rule_file     .init( dir+"/rule"      , writable ) ; if ( writable && !_rule_file.c_hdr() ) _rule_file.hdr() = 1 ; // 0 is reserved to mean no match
-		_rule_tgts_file.init( dir+"/rule_tgts" , writable ) ;
-		_sfxs_file     .init( dir+"/sfxs"      , writable ) ;
-		_pfxs_file     .init( dir+"/pfxs"      , writable ) ;
+		_rule_str_file .init( dir_s+"rule_str"  , writable ) ;
+		_rule_file     .init( dir_s+"rule"      , writable ) ; if ( writable && !_rule_file.c_hdr() ) _rule_file.hdr() = 1 ; // 0 is reserved to mean no match
+		_rule_tgts_file.init( dir_s+"rule_tgts" , writable ) ;
+		_sfxs_file     .init( dir_s+"sfxs"      , writable ) ;
+		_pfxs_file     .init( dir_s+"pfxs"      , writable ) ;
 		// commons
-		_name_file     .init( dir+"/name"      , writable ) ;
+		_name_file     .init( dir_s+"name"      , writable ) ;
 		// misc
 		if (writable) {
 			g_seq_id = &_job_file.hdr().seq_id ;
@@ -192,7 +192,7 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate(New),STR(dynamic),STR(rescue)) ;
-		if ( !dynamic                                               ) mk_dir( AdminDirS+"outputs"s , true/*unlnk_ok*/ ) ;
+		if ( !dynamic                                               ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
 		if ( !dynamic                                               ) _init_config() ;
 		else                                                          SWEAR(g_config->booted,*g_config) ; // we must update something
 		if (                                       g_config->booted ) config.key = g_config->key ;
@@ -215,11 +215,11 @@ namespace Engine::Persistent {
 		trace("done",Pdate(New)) ;
 	}
 
-	void repair(::string const& from_dir) {
-		Trace trace("repair",from_dir) ;
+	void repair(::string const& from_dir_s) {
+		Trace trace("repair",from_dir_s) ;
 		::vector<Rule>   rules    = rule_lst() ;
 		::umap<Crc,Rule> rule_tab ; for( Rule r : Rule::s_lst() ) rule_tab[r->cmd_crc] = r ; SWEAR(rule_tab.size()==rules.size()) ;
-		for( ::string const& jd : walk(from_dir,from_dir) ) {
+		for( ::string const& jd : walk(no_slash(from_dir_s),no_slash(from_dir_s)) ) {
 			{	JobInfo job_info { jd } ;
 				// qualify report
 				if (job_info.start.pre_start.proc!=JobRpcProc::Start) { trace("no_pre_start",jd) ; goto NextJob ; }

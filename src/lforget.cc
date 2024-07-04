@@ -8,7 +8,7 @@
 #include "rpc_client.hh"
 
 int main( int argc , char* argv[] ) {
-	app_init() ;
+	app_init(false/*read_only_ok*/) ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{
@@ -26,8 +26,8 @@ int main( int argc , char* argv[] ) {
 		case ReqKey::Resources : if (+cmd_line.args) syntax.usage("must not have targets when forgetting errors"   ) ; break ;
 		default : ;
 	}
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ReqProc::Forget , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ReqProc::Forget , false/*read_only*/ , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
+	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	exit(mk_rc(ok)) ;
 }

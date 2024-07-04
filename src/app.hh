@@ -15,13 +15,12 @@ extern ::string* g_root_dir_s    ; // pointer to avoid init/fini order hazards, 
 extern ::string* g_lmake_dir_s   ; // pointer to avoid init/fini order hazards, absolute                , installation dir of lmake
 extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, absolute                , executable name for user messages
 
-/**/   void app_init( Bool3 chk_version_=Yes , bool cd_root=true ) ;                           // if chk_version_==Maybe, it is ok to initialize stored version
-inline void app_init(                          bool cd_root      ) { app_init(Yes,cd_root) ; }
+/**/   bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_=Yes , bool cd_root=true ) ; // if chk_version_==Maybe, it is ok to initialize stored version
+inline bool/*read_only*/ app_init( bool read_only_ok ,                          bool cd_root      ) { return app_init(read_only_ok,Yes,cd_root) ; }
 
 void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS ) ;
 inline ::string git_clean_msg() {
-	::string d ;
-	if (+*g_startup_dir_s) d = ' '+Disk::dir_name(Disk::mk_rel(".",*g_startup_dir_s)) ;
+	::string d ; if (+*g_startup_dir_s) d = ' '+Disk::no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;
 	return "consider : git clean -ffdx"+d ;
 }
 
@@ -129,10 +128,10 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 			if (!arg[1]) throw "unexpected lonely -"s ;
 			if (arg[1]=='-') {
 				// long option
-				if (arg[2]==0) { force_args = true ; continue ; }                             // a lonely --, options are no more recognized
+				if (arg[2]==0) { force_args = true ; continue ; }                                            // a lonely --, options are no more recognized
 				::string    option ;
 				const char* p      ;
-				for( p=arg+2 ; *p && *p!='=' ; p++ ) option.push_back( *p=='-' ? '_' : *p ) ; // make snake case to use mk_enum while usual convention for options is to use '-'
+				for( p=arg+2 ; *p && *p!='=' ; p++ ) option.push_back( *p=='-' ? '_' : *p ) ;                // make snake case to use mk_enum while usual convention for options is to use '-'
 				if (can_mk_enum<Key>(option)) {
 					Key k = mk_enum<Key>(option) ;
 					if (syntax.keys[+k].short_name) {

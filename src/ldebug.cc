@@ -12,7 +12,7 @@
 using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
-	app_init() ;
+	app_init(false/*read_only_ok*/) ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{},{
@@ -25,9 +25,9 @@ int main( int argc , char* argv[] ) {
 	if ( cmd_line.args.size()>1 ) syntax.usage("cannot debug "s+cmd_line.args.size()+" targets at once") ;
 	//
 	::vector_s script_files ;
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( script_files , ReqProc::Debug , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( script_files , ReqProc::Debug , false/*read_only*/ , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
+	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( Rc rc=mk_rc(ok) ; +rc ) exit(rc) ;
 	SWEAR(script_files.size()==1,script_files) ;
 	::string& script_file = script_files[0] ;

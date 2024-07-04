@@ -11,7 +11,7 @@ using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
 	//
-	app_init() ;
+	app_init(false/*read_only_ok*/) ;
 	//
 	ReqSyntax syntax{{
 		{ ReqKey::Add    , { .short_name='a' , .doc="mark args"              } }
@@ -30,8 +30,8 @@ int main( int argc , char* argv[] ) {
 	if ( cmd_line.flags[ReqFlag::Freeze] + cmd_line.flags[ReqFlag::NoTrigger] !=1 )
 		syntax.usage("can only process a single attribute : freeze or no-trigger") ;
 	//
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ReqProc::Mark , true/*refresh_makefiles*/ , syntax , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ReqProc::Mark , false/*read_only*/ , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
+	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	exit(mk_rc(ok)) ;
 }

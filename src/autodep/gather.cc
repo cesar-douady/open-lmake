@@ -489,11 +489,12 @@ void Gather::reorder(bool at_end) {
 			last!=accesses.rend()
 		&&	( digest.write==No && !digest.dflags                             )
 		&&	( last->first.starts_with(file) && last->first[file.size()]=='/' )
-		) {                                                                                                                 // keep original last which is better
+		) {
 			if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; digest.accesses  = {}           ; }
 			else                                     { trace("no_lnk_from_next",file) ; digest.accesses &= ~Access::Lnk ; }
+			continue ;                                                                                                      // keep original last which is better
 		}
-		else last = it ;
+		last = it ;
 	}
 	// 2nd pass (forward) : suppress dirs of seen files and previously noted dirs
 	::umap_s<bool/*sub-file exists*/> dirs  ;
