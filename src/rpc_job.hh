@@ -412,6 +412,13 @@ struct DepInfo {
 			case Kind::Info : return !Crc::None.match( Crc(_info.tag()) , a ) ;
 		DF}
 	}
+	Bool3 exists() const {
+		switch (kind) {
+			case Kind::Crc  : return +_crc ? No|(_crc==Crc::None) : Maybe ;
+			case Kind::Sig  : return         No| +_sig                    ;
+			case Kind::Info : return         No| +_info                   ;
+		DF}
+	}
 	// data
 	// START_OF_VERSIONING
 	DepInfoKind kind = Kind::Crc ;
