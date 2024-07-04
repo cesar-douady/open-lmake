@@ -251,7 +251,7 @@ namespace Engine {
 			EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,job_info.start.rsrcs) ;
 			//
 			if (!job_info.end.end.proc) (*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-			else                        seen_stderr = (*this)->audit_stderr( job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
+			else                        seen_stderr = (*this)->audit_stderr( job , job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
 		}
 		if (intermediate)
 			for( Dep const& d : job->deps )
@@ -460,14 +460,14 @@ namespace Engine {
 	static void          _audit_status( Fd out_fd, ::ostream& log , ReqOptions const& ro , bool ok )       { audit_status (out_fd  ,log       ,ro     ,ok) ; } // allow access to global function ...
 	/**/   void ReqData::audit_status (                                                    bool ok ) const { _audit_status(audit_fd,log_stream,options,ok) ; } // ... w/o naming namespace
 
-	bool/*seen*/ ReqData::audit_stderr( ::string const& msg , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {
-		if (+msg                        ) audit_info( Color::Note , msg , lvl ) ;
-		if (!stderr                     ) return +msg ;
-		if (max_stderr_lines!=size_t(-1)) {
-			::string_view shorten = first_lines(stderr,max_stderr_lines) ;
+	bool/*seen*/ ReqData::audit_stderr( Job j , ::string const& msg , ::string const& stderr , size_t max_stderr_len , DepDepth lvl ) const {
+		if (+msg                      ) audit_info( Color::Note , msg , lvl ) ;
+		if (!stderr                   ) return +msg ;
+		if (max_stderr_len!=size_t(-1)) {
+			::string_view shorten = first_lines(stderr,max_stderr_len) ;
 			if (shorten.size()<stderr.size()) {
 				audit_info_as_is( Color::None , ::string(shorten) , lvl ) ;
-				audit_info_as_is( Color::Note , "..."             , lvl ) ;
+				audit_info_as_is( Color::Note , "... (for full content : lshow -e -J "+mk_file(j->name(),FileDisplay::Shell)+" -R "+mk_shell_str(j->rule->name)+" )" , lvl ) ;
 				return true ;
 			}
 		}

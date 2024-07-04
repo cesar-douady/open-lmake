@@ -42,6 +42,14 @@ ENUM_1(FileLoc
 ,	Unknown
 )
 
+ENUM(FileDisplay
+,	None
+,	Printable
+,	Shell
+,	Py
+,	Json
+)
+
 namespace Disk {
 	using Ddate  = Time::Ddate ;
 	using DiskSz = uint64_t    ;
@@ -62,19 +70,22 @@ namespace Disk {
 	inline ::string dir_name_s(::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(0    ,sep+1) : ::string()     ; }
 	inline ::string base_name (::string const& path) { size_t sep = path.rfind('/',path.size()-2) ; return sep!=Npos ? path.substr(sep+1      ) : path           ; }
 
-	inline ::string add_slash(::string&& file) {
-		SWEAR(!is_dir_s(file)) ;
-		if (file==".") return {}               ;
-		else           return ::move(file)+'/' ;
+	inline ::string with_slash(::string&& path) {
+		if (!is_dir_s(path)) {
+			if (path==".") return {} ;
+			path += '/' ;
+		}
+		return ::move(path) ;
 	}
-	inline ::string no_slash(::string&& dir_s) {
-		SWEAR(is_dir_s(dir_s)) ;
-		if (!dir_s) return "." ;
-		dir_s.pop_back() ;
-		return ::move(dir_s) ;
+	inline ::string no_slash(::string&& path) {
+		if (is_dir_s(path)) {
+			if (!path) return "." ;
+			path.pop_back() ;
+		}
+		return ::move(path) ;
 	}
-	inline ::string add_slash(::string const& file ) { return add_slash(::copy(file )) ; }
-	inline ::string no_slash (::string const& dir_s) { return no_slash (::copy(dir_s)) ; }
+	inline ::string with_slash(::string const& file) { return with_slash(::copy(file)) ; }
+	inline ::string no_slash  (::string const& file) { return no_slash  (::copy(file)) ; }
 
 	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
 	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
@@ -95,16 +106,21 @@ namespace Disk {
 		else                               return file               ;
 	}
 
-	// manage strings containing file markers so as to be localized when displayed to user
-	// file format is : FileMrkr + file length + file
+	// manage localization to user startup dir
+	// the principle is to add a marker when file is generated, then this marker is recognized and file is localized when display
+	// file format is : FileMrkr + FileDisplay + file length + file
 	static constexpr char FileMrkr = 0 ;
+
+	/**/   ::string mk_file( ::string const& f , FileDisplay fd=FileDisplay::Printable , Bool3 exists=Maybe ) ;
+	inline ::string mk_file( ::string const& f ,                                         Bool3 exists       ) { return mk_file(f,FileDisplay::None,exists) ; }
+
 	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) ;  // not meant to be used directly
 	inline ::string localize( ::string const& txt , ::string const& dir_s={} ) {
-		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return           txt            ; // fast path : avoid calling localize
+		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return           txt            ; // fast path : avoid calling _localize
 		else                                               return _localize(txt,dir_s,pos) ;
 	}
 	inline ::string localize( ::string&& txt , ::string const& dir_s={} ) {
-		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return ::move   (txt          ) ; // fast path : avoid copy
+		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return ::move   (txt          ) ; // fast path : avoid copy and calling _localize
 		else                                               return _localize(txt,dir_s,pos) ;
 	}
 
@@ -302,17 +318,6 @@ namespace Disk {
 		SWEAR( res[0]=='/' , res[0] ) ;
 		if (res.size()==1) return res     ;           // special case / as ::getcwd returns /, not empty
 		else               return res+'/' ;
-	}
-
-	inline ::string mk_file( ::string const& f , Bool3 exists=Maybe ) {
-		::string pfx(1+sizeof(FileNameIdx),FileMrkr) ;
-		encode_int<FileNameIdx>(&pfx[1],f.size()) ;
-		switch (exists) {
-			case Yes : { if (!is_target(f)) return "(not existing) "+pfx+f ; } break ;
-			case No  : { if ( is_target(f)) return "(existing) "    +pfx+f ; } break ;
-			default  : ;
-		}
-		return pfx+f ;
 	}
 
 	struct FileMap {

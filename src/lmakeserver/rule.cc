@@ -1198,20 +1198,20 @@ namespace Engine {
 		int           pass   ;
 		//
 		auto do_field = [&](::string const& key , ::string const& val )->void {
-			if (pass==1) key_sz = ::max(key_sz,key.size()) ;                                                   // during 1st pass, compute max key size ;
+			if (pass==1) key_sz = ::max(key_sz,key.size()) ;                                                      // during 1st pass, compute max key size ;
 			else         res << indent( fmt_string(::setw(key_sz),key," : ",val,'\n') , i ) ;
 		} ;
 		::string interpreter ;
 		bool     first       = true ;
 		for( ::string const& c : sca.interpreter ) { interpreter << (first?"":" ") << c ; first = false ; }
-		for( pass=1 ; pass<=2 ; pass++ ) {                                                                     // on 1st pass we compute key size, on 2nd pass we do the job
-			if (+interpreter              ) do_field( "interpreter" , interpreter                          ) ;
-			if ( sca.use_script           ) do_field( "use_script"  , fmt_string(sca.use_script          ) ) ;
-			if ( sca.auto_mkdir           ) do_field( "auto_mkdir"  , fmt_string(sca.auto_mkdir          ) ) ;
-			if ( sca.ignore_stat          ) do_field( "ignore_stat" , fmt_string(sca.ignore_stat         ) ) ;
-			if (+sca.job_space.chroot_dir ) do_field( "chroot_dir"  ,            sca.job_space.chroot_dir  ) ;
-			if (+sca.job_space.root_view  ) do_field( "root_view"   ,            sca.job_space.root_view   ) ;
-			if (+sca.job_space.tmp_view   ) do_field( "tmp_view"    ,            sca.job_space.tmp_view    ) ;
+		for( pass=1 ; pass<=2 ; pass++ ) {                                                                        // on 1st pass we compute key size, on 2nd pass we do the job
+			if (+interpreter               ) do_field( "interpreter" , interpreter                            ) ;
+			if ( sca.use_script            ) do_field( "use_script"  , fmt_string(sca.use_script            ) ) ;
+			if ( sca.auto_mkdir            ) do_field( "auto_mkdir"  , fmt_string(sca.auto_mkdir            ) ) ;
+			if ( sca.ignore_stat           ) do_field( "ignore_stat" , fmt_string(sca.ignore_stat           ) ) ;
+			if (+sca.job_space.chroot_dir_s) do_field( "chroot_dir"  , no_slash  (sca.job_space.chroot_dir_s) ) ;
+			if (+sca.job_space.root_view_s ) do_field( "root_view"   , no_slash  (sca.job_space.root_view_s ) ) ;
+			if (+sca.job_space.tmp_view_s  ) do_field( "tmp_view"    , no_slash  (sca.job_space.tmp_view_s  ) ) ;
 		}
 		if (+sca.job_space.views) res << indent("views :\n"  ,i) << _pretty_vmap( i+1 , sca.job_space.views ) ;
 		if (+sca.env            ) res << indent("environ :\n",i) << _pretty_env ( i+1 , sca.env             ) ;

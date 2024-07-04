@@ -47,10 +47,8 @@ static ::vmap_s<::vector_s> _mk_views(::string const& views) {
 static ::vector_s _mk_src_dirs_s(::string const& src_dirs) {
 	::vector_s res ;
 	if (+src_dirs)
-		for( Object const&  py_src_dir : py_eval(src_dirs)->as_a<Sequence>() ) {
-			::string sd_s = py_src_dir.as_a<Str>() ; if (!is_dir_s(sd_s)) sd_s = add_slash(::move(sd_s)) ;
-			res.push_back(::move(sd_s)) ;
-		}
+		for( Object const&  py_src_dir : py_eval(src_dirs)->as_a<Sequence>() )
+			res.push_back(with_slash(py_src_dir.as_a<Str>())) ;
 	return res ;
 }
 
@@ -91,16 +89,16 @@ int main( int argc , char* argv[] ) {
 		::string      tmp_dir    = get_env("TMPDIR",P_tmpdir)                                          ;
 		::string      root_dir   = no_slash(*g_root_dir_s)                                             ;
 		//
-		if (!cmd_line.args                                  ) throw "no exe to launch"s                                                      ;
-		if (!is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir])) throw "chroot dir must be absolute : "+cmd_line.flag_args[+CmdFlag::ChrootDir] ;
-		if (!is_abs(cmd_line.flag_args[+CmdFlag::RootView ])) throw "root view must be absolute : " +cmd_line.flag_args[+CmdFlag::RootView ] ;
-		if (!is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ])) throw "tmp view must be absolute : "  +cmd_line.flag_args[+CmdFlag::TmpView  ] ;
-		if (!is_abs(tmp_dir                                )) throw "$TMPDIR must be absolute : "   +tmp_dir                                 ;
+		if (!cmd_line.args                                                                          ) throw "no exe to launch"s                                                      ;
+		if ( cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) ) throw "chroot dir must be absolute : "+cmd_line.flag_args[+CmdFlag::ChrootDir] ;
+		if ( cmd_line.flags[CmdFlag::RootView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RootView ]) ) throw "root view must be absolute : " +cmd_line.flag_args[+CmdFlag::RootView ] ;
+		if ( cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) ) throw "tmp view must be absolute : "  +cmd_line.flag_args[+CmdFlag::TmpView  ] ;
+		if ( +tmp_dir                           && !is_abs(tmp_dir                                ) ) throw "$TMPDIR must be absolute : "   +tmp_dir                                 ;
 		//
 		JobSpace job_space {
-			.chroot_dir = cmd_line.flag_args[+CmdFlag::ChrootDir]
-		,	.root_view  = cmd_line.flag_args[+CmdFlag::RootView ]
-		,	.tmp_view   = cmd_line.flag_args[+CmdFlag::TmpView  ]
+			.chroot_dir_s = cmd_line.flags[CmdFlag::ChrootDir] ? with_slash(cmd_line.flag_args[+CmdFlag::ChrootDir]) : ""
+		,	.root_view_s  = cmd_line.flags[CmdFlag::RootView ] ? with_slash(cmd_line.flag_args[+CmdFlag::RootView ]) : ""
+		,	.tmp_view_s   = cmd_line.flags[CmdFlag::TmpView  ] ? with_slash(cmd_line.flag_args[+CmdFlag::TmpView  ]) : ""
 		} ;
 		try { job_space.views = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]                                  ) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
 		try { src_dirs_s      = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]                                  ) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
@@ -108,8 +106,8 @@ int main( int argc , char* argv[] ) {
 		//
 		job_space.enter( no_slash(*g_root_dir_s) , tmp_dir , 0 , cmd_line.flag_args[+CmdFlag::WorkDir] , src_dirs_s , method==AutodepMethod::Fuse ) ;
 		//
-		if (+job_space.root_view) root_dir = ::move(job_space.root_view) ;
-		if (+job_space.tmp_view ) tmp_dir  = ::move(job_space.tmp_view ) ;
+		if (+job_space.root_view_s) root_dir = no_slash(job_space.root_view_s) ;
+		if (+job_space.tmp_view_s ) tmp_dir  = no_slash(job_space.tmp_view_s ) ;
 		env["ROOT_DIR"] =        root_dir ;
 		env["TMPDIR"  ] = ::move(tmp_dir );
 		//

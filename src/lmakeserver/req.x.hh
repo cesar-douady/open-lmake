@@ -258,9 +258,9 @@ namespace Engine {
 		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je     ,et) ; }
 		#undef SC
 		//
-		void         audit_status( bool ok                                                                                    ) const ;
-		void         audit_stats (                                                                                            ) const ;
-		bool/*seen*/ audit_stderr( ::string const& msg , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const ;
+		void         audit_status( bool ok                                                                                        ) const ;
+		void         audit_stats (                                                                                                ) const ;
+		bool/*seen*/ audit_stderr( Job , ::string const& msg , ::string const& stderr , size_t max_stderr_len=-1 , DepDepth lvl=0 ) const ;
 	private :
 		bool/*overflow*/ _send_err      ( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl=0 ) ;
 		void             _report_no_rule( Node , Disk::NfsGuard&                                                         , DepDepth lvl=0 ) ;

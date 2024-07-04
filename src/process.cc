@@ -25,7 +25,7 @@
 
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 [[noreturn]] void Child::_do_child_trampoline() {
-	if (as_session) ::setsid() ;                  // if we are here, we are the init process and we must be in the new session to receive the kill signal
+	if (as_session) ::setsid() ;                                            // if we are here, we are the init process and we must be in the new session to receive the kill signal
 	//
 	sigset_t full_mask ; ::sigfillset(&full_mask) ;
 	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                         // restore default behavior
@@ -38,22 +38,25 @@
 	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if (_c2po.write!=Fd::Stdout) ::dup2(_c2po.write,Fd::Stdout) ; // save stdout in case it is modified and we want to redirect stderr to it
 	if (stderr_fd==NoneFd) ::close(Fd::Stderr) ; else if (_c2pe.write!=Fd::Stderr) ::dup2(_c2pe.write,Fd::Stderr) ;
 	//
-	if (_p2c .read >Fd::Std) _p2c .read .close() ;                                                  // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-	if (_c2po.write>Fd::Std) _c2po.write.close() ;                                                  // .
-	if (_c2pe.write>Fd::Std) _c2pe.write.close() ;                                                  // .
+	if (_p2c .read >Fd::Std) _p2c .read .close() ;                                      // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
+	if (_c2po.write>Fd::Std) _c2po.write.close() ;                                      // .
+	if (_c2pe.write>Fd::Std) _c2pe.write.close() ;                                      // .
 	//
-	if (+cwd_   ) { if (::chdir(cwd_.c_str()) !=0) _exit(Rc::System,"cannot chdir") ; }             // /!\ dont use exit which is not signal-safe
+	if (+cwd_   ) { if (::chdir(cwd_.c_str()) !=0) _exit(Rc::System,"cannot chdir") ; } // /!\ dont use exit which is not signal-safe
 	//
-	if (pre_exec) { if (pre_exec(pre_exec_arg)!=0) _exit(Rc::Fail                 ) ; }             // /!\ dont use exit which is not signal-safe
+	if (pre_exec) { if (pre_exec(pre_exec_arg)!=0) _exit(Rc::Fail                 ) ; } // /!\ dont use exit which is not signal-safe
 	//
 	#if HAS_CLOSE_RANGE
-		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                                                // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
+		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                                    // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
 	#endif
 	//
 	if (first_pid) {
 		SWEAR(first_pid>1,first_pid) ;
 		// mount is not signal-safe and we should only allowed signal-safe functions here, but this is a syscall, should be ok
-		if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) _exit(Rc::System,"cannot mount /proc") ;                 // /!\ dont use exit which is not signal-safe
+		if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) {
+			perror("cannot mount /proc ") ;
+			_exit(Rc::System) ;                                                                                    // /!\ dont use exit which is not signal-safe
+		}
 		{	char                     first_pid_buf[30] ;                                                           // /!\ cannot use ::string as we are only allowed signal-safe functions
 			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1)                 ; // /!\ .
 			AutoCloseFd              fd                = ::open("/proc/sys/kernel/ns_last_pid",O_WRONLY|O_TRUNC) ;
@@ -78,16 +81,16 @@
 
 void Child::spawn() {
 	SWEAR( +cmd_line                                                            ) ;
-	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ;      // ensure reasonably simple situations
-	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ;      // .
-	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ;      // .
-	SWEAR( !( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                  ) ;      // .
+	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ;                                        // ensure reasonably simple situations
+	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ;                                        // .
+	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ;                                        // .
+	SWEAR( !( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                  ) ;                                        // .
 	if (stdin_fd ==PipeFd) _p2c .open() ; else if (+stdin_fd ) _p2c .read  = stdin_fd  ;
 	if (stdout_fd==PipeFd) _c2po.open() ; else if (+stdout_fd) _c2po.write = stdout_fd ;
 	if (stderr_fd==PipeFd) _c2pe.open() ; else if (+stderr_fd) _c2pe.write = stderr_fd ;
 	//
 	// /!\ memory for environment must be allocated before calling clone
-	::vector_s env_vector ;                                                              // ensure actual env strings (of the form name=val) lifetime
+	::vector_s env_vector ;                                                                                                // ensure actual env strings (of the form name=val) lifetime
 	if (env) {
 		size_t n_env = env->size() + (add_env?add_env->size():0) ;
 		env_vector.reserve(n_env) ;
@@ -128,7 +131,7 @@ void Child::spawn() {
 	}
 	//
 	if (pid==-1) {
-		waited() ;                                                                       // ensure we can be destructed
+		waited() ;                                                                                                         // ensure we can be destructed
 		throw "cannot spawn process "+fmt_string(cmd_line)+" : "+strerror(errno) ;
 	}
 	//

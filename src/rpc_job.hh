@@ -525,8 +525,8 @@ private :
 struct JobSpace {
 	friend ::ostream& operator<<( ::ostream& , JobSpace const& ) ;
 	// accesses
-	bool operator+() const { return +chroot_dir || +root_view || +tmp_view || +views ; }
-	bool operator!() const { return !+*this                                          ; }
+	bool operator+() const { return +chroot_dir_s || +root_view_s || +tmp_view_s || +views ; }
+	bool operator!() const { return !+*this                                                ; }
 	// services
 	bool/*entered*/ enter( ::string const& phy_root_dir , ::string const& phy_tmp_dir , size_t tmp_sz_mb , ::string const& work_dir , ::vector_s const& src_dirs_s={} , bool use_fuse=false ) const ;
 	//
@@ -535,10 +535,10 @@ struct JobSpace {
 	void chk() const ;
 	// data
 	// START_OF_VERSIONING
-	::string             chroot_dir = {} ;    // dir which job chroot's to before execution
-	::string             root_view  = {} ;    // name under which job sees repo root dir
-	::string             tmp_view   = {} ;    // name under which job sees tmp dir
-	::vmap_s<::vector_s> views      = {} ;    // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
+	::string             chroot_dir_s = {} ;    // absolute dir which job chroot's to before execution (empty if unused)
+	::string             root_view_s  = {} ;    // absolute dir under which job sees repo root dir     (empty if unused)
+	::string             tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir           (empty if unused)
+	::vmap_s<::vector_s> views        = {} ;    // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
 } ;
 

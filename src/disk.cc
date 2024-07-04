@@ -131,16 +131,34 @@ namespace Disk {
 		return ""s+d_sv+f_v ;
 	}
 
+	::string mk_file( ::string const& f , FileDisplay fd , Bool3 exists ) {
+		::string pfx(2+sizeof(FileNameIdx),FileMrkr) ;
+		pfx[1] = char(fd) ;
+		encode_int<FileNameIdx>(&pfx[2],f.size()) ;
+		switch (exists) {
+			case Yes : { if (!is_target(f)) return "(not existing) "+pfx+f ; } break ;
+			case No  : { if ( is_target(f)) return "(existing) "    +pfx+f ; } break ;
+			default  : ;
+		}
+		return pfx+f ;
+	}
+
 	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) {
 		size_t   pos = first_file        ;
 		::string res = txt.substr(0,pos) ;
 		while (pos!=Npos) {
-			pos++ ;                                                  // clobber marker
-			SWEAR(txt.size()>=pos+sizeof(FileNameIdx)) ;             // ensure we have enough room to find file length
-			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ;
-			pos += sizeof(FileNameIdx) ;                             // clobber file length
-			SWEAR(txt.size()>=pos+len) ;                             // ensure we have enough room to read file
-			res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ;
+			/**/                 pos++    ;                                                     // clobber marker
+			FileDisplay fd = FileDisplay(txt[pos++]) ;
+			SWEAR(txt.size()>=pos+sizeof(FileNameIdx)) ;                                        // ensure we have enough room to find file length
+			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ; pos += sizeof(FileNameIdx) ;
+			SWEAR(txt.size()>=pos+len) ;                                                        // ensure we have enough room to read file
+			switch (fd) {
+				case FileDisplay::None      : res +=              mk_rel(txt.substr(pos,len),dir_s)  ; break ;
+				case FileDisplay::Printable : res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ; break ;
+				case FileDisplay::Shell     : res += mk_shell_str(mk_rel(txt.substr(pos,len),dir_s)) ; break ;
+				case FileDisplay::Py        : res += mk_py_str   (mk_rel(txt.substr(pos,len),dir_s)) ; break ;
+				case FileDisplay::Json      : res += mk_json_str (mk_rel(txt.substr(pos,len),dir_s)) ; break ;
+			}
 			pos += len ;
 			size_t new_pos = txt.find(FileMrkr,pos) ;
 			res += txt.substr(pos,new_pos-pos) ;

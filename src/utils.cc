@@ -68,6 +68,38 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 }
 
 ::string mk_shell_str(::string_view s) {
+	for( char c : s ) switch (c) {
+		case '+' : continue ;
+		case ',' : continue ;
+		case '-' : continue ;
+		case '.' : continue ;
+		case '/' : continue ;
+		case ':' : continue ;
+		case '=' : continue ;
+		case '@' : continue ;
+		case '^' : continue ;
+		case '_' : continue ;
+		default :
+			if ( c>='0' && c<='9' ) continue         ;
+			if ( c>='a' && c<='z' ) continue         ;
+			if ( c>='A' && c<='Z' ) continue         ;
+			/**/                    goto SingleQuote ;
+	}
+	return ::string(s) ;                                                    // simplest case : no quotes necessary
+SingleQuote :
+	if (s.find('\'')!=Npos) goto DoubleQuote ;
+	return "'"s+s+'\'' ;                                          // next case : single quotes around text
+ DoubleQuote :
+	for( char c : s ) switch (c) {
+		case '!'  : goto Complex ;
+		case '"'  : goto Complex ;
+		case '$'  : goto Complex ;
+		case '\\' : goto Complex ;
+		case '`'  : goto Complex ;
+		default : ;
+	}
+	return "\""s+s+'"' ;                                          // next case : double quotes around text
+Complex :
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + quotes
 	for( char c : s )
 		switch (c) {
@@ -75,7 +107,7 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 			default   : res += c          ;
 		}
 	res += '\'' ;
-	return res ;
+	return res ;                                                  // complex case : single quotes with internal protections
 }
 
 template<> ::string mk_printable(::vector_s const& v) {

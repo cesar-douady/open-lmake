@@ -82,8 +82,8 @@ SeqId             g_trace_id      = 0/*garbage*/ ;
 	else if ( auto it=res.find("TMPDIR") ; it!=res.end() ) g_phy_tmp_dir = it->second+'/'+g_start_info.key+'/'       +g_start_info.small_id ;
 	else if ( g_start_info.tmp_sz_mb==Npos               ) g_phy_tmp_dir = g_phy_root_dir+'/'+PrivateAdminDirS+"tmp/"+g_start_info.small_id ;
 	//
-	if      ( +g_start_info.job_space.tmp_view && (+g_phy_tmp_dir||g_start_info.tmp_sz_mb) ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_start_info.job_space.tmp_view ;
-	else if ( +g_phy_tmp_dir                                                               ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_phy_tmp_dir                   ;
+	if      ( +g_start_info.job_space.tmp_view_s && (+g_phy_tmp_dir||g_start_info.tmp_sz_mb) ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = no_slash(g_start_info.job_space.tmp_view_s) ;
+	else if ( +g_phy_tmp_dir                                                                 ) g_start_info.autodep_env.tmp_dir = res["TMPDIR"] = g_phy_tmp_dir                               ;
 	//
 	Trace trace("prepare_env",g_start_info.autodep_env.tmp_dir,g_phy_tmp_dir,res) ;
 	//
@@ -336,7 +336,7 @@ int main( int argc , char* argv[] ) {
 		try                       { g_start_info.job_space.chk() ;   }
 		catch (::string const& e) { end_report.msg += e ; goto End ; }
 		//
-		g_root_dir_s = new ::string{ ( +g_start_info.job_space.root_view ? g_start_info.job_space.root_view : g_phy_root_dir ) + '/' } ;
+		g_root_dir_s = new ::string{ +g_start_info.job_space.root_view_s ? g_start_info.job_space.root_view_s : g_phy_root_dir+'/' } ;
 		//
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
@@ -372,13 +372,12 @@ int main( int argc , char* argv[] ) {
 		}
 		try {
 			cmd_env = prepare_env(end_report) ;
-			::string chroot_dir = PrivateAdminDirS+"chroot/"s+g_start_info.small_id ;
 			//
 			bool entered = g_start_info.job_space.enter(
 				g_phy_root_dir
 			,	g_phy_tmp_dir
 			,	g_start_info.tmp_sz_mb
-			,	chroot_dir
+			,	PrivateAdminDirS+"chroot/"s+g_start_info.small_id
 			,	g_start_info.autodep_env.src_dirs_s
 			,	g_start_info.method==AutodepMethod::Fuse
 			) ;
