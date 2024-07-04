@@ -347,7 +347,7 @@ struct DepInfo {
 	}
 	Bool3 exists() const {
 		switch (kind) {
-			case Kind::Crc  : return +_crc ? No|(_crc==Crc::None) : Maybe ;
+			case Kind::Crc  : return +_crc ? No|(_crc!=Crc::None) : Maybe ;
 			case Kind::Sig  : return         No| +_sig                    ;
 			case Kind::Info : return         No| +_info                   ;
 		DF}

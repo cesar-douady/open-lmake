@@ -487,7 +487,7 @@ void Gather::reorder(bool at_end) {
 		::AccessDigest& digest = it->second.digest ;
 		if (
 			last!=accesses.rend()
-		&&	( digest.write==No && !digest.dflags                              )
+		&&	( digest.write==No && !digest.dflags                             )
 		&&	( last->first.starts_with(file) && last->first[file.size()]=='/' )
 		) {                                                                                                                 // keep original last which is better
 			if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; digest.accesses  = {}           ; }

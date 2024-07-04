@@ -346,9 +346,9 @@ namespace Disk {
 	//
 
 	::ostream& operator<<( ::ostream& os , FileInfo const& fi ) {
-		/**/     os<< "FileInfo("          ;
-		if (+fi) os<<fi.sz <<','<< fi.date ;
-		return   os<<')'                   ;
+		/**/     os << "FileInfo("           ;
+		if (+fi) os << fi.sz <<','<< fi.date ;
+		return   os << ')'                   ;
 	}
 
 	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {
