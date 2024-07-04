@@ -466,45 +466,65 @@ Return :
 }
 
 // reorder accesses in chronological order and suppress implied dependencies :
-// - when a file is depended upon, its uphill directories are implicitely depended upon, no need to keep them and this significantly decreases the number of deps
-// - suppress dir when one of its sub-files appear before
-// - suppress dir when one of its sub-files appear immediately after
+// - when a file is depended upon, its uphill directories are implicitely depended upon under the following conditions, no need to keep them and this significantly decreases the number of deps
+//   - either file exists
+//   - or dir is only accessed as link
+// - suppress dir when one of its sub-files appears before            (and condition above is satisfied)
+// - suppress dir when one of its sub-files appears immediately after (and condition above is satisfied)
 void Gather::reorder(bool at_end) {
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	Trace trace("reorder") ;
-	::stable_sort(                                                   // reorder by date, keeping parallel entries together (which must have the same date)
+	::stable_sort(           // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
 			return a.second.first_read().first < b.second.first_read().first ;
 		}
 	) ;
-	// first pass (backward) : note dirs of immediately following files
-	::string const* last = nullptr ;
-	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {  // XXX : manage parallel deps
+	// 1st pass (backward) : note dirs of immediately following files
+	::vmap_s<AccessInfo>::reverse_iterator last = accesses.rend() ;
+	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {                                                         // XXX : manage parallel deps
 		::string const& file   = it->first         ;
 		::AccessDigest& digest = it->second.digest ;
 		if (
-			last
-		&&	( digest.write==No        && !digest.dflags            )
-		&&	( last->starts_with(file) && (*last)[file.size()]=='/' )
-		)    digest.accesses = {}    ;                               // keep original last which is better
-		else last            = &file ;
+			last!=accesses.rend()
+		&&	( digest.write==No && !digest.dflags                              )
+		&&	( last->first.starts_with(file) && last->first[file.size()]=='/' )
+		) {                                                                                                                 // keep original last which is better
+			if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; digest.accesses  = {}           ; }
+			else                                     { trace("no_lnk_from_next",file) ; digest.accesses &= ~Access::Lnk ; }
+		}
+		else last = it ;
 	}
-	// second pass : suppress dirs of seen files and previously noted dirs
-	::uset_s dirs  ;
-	size_t   i_dst = 0     ;
-	bool     cpy   = false ;
+	// 2nd pass (forward) : suppress dirs of seen files and previously noted dirs
+	::umap_s<bool/*sub-file exists*/> dirs  ;
+	size_t                            i_dst = 0     ;
+	bool                              cpy   = false ;
 	for( auto& access : accesses ) {
 		::string const& file   = access.first         ;
 		::AccessDigest& digest = access.second.digest ;
 		if ( digest.write==No && !digest.dflags && !digest.tflags ) {
-			if (!digest.accesses   ) { trace("skip_from_next",file) ; { if (!at_end) access_map.erase(file) ; } cpy = true ; continue ; }
-			if (dirs.contains(file)) { trace("skip_from_prev",file) ; { if (!at_end) access_map.erase(file) ; } cpy = true ; continue ; }
+			auto it = dirs.find(file) ;
+			if (it!=dirs.end()) {
+				if (it->second) { trace("skip_from_prev"  ,file) ; digest.accesses  = {}           ; }
+				else            { trace("no_lnk_from_prev",file) ; digest.accesses &= ~Access::Lnk ; }
+			}
+			if (!digest.accesses) {
+				if (!at_end) access_map.erase(file) ;
+				cpy = true ;
+				continue ;
+			}
 		}
-		for( ::string dir_s=dir_name_s(file) ; +dir_s ; dir_s=dir_name_s(dir_s) ) if (!dirs.insert(no_slash(dir_s)).second) break ; // all uphill dirs are already inserted if a dir has been inserted
+		bool exists = access.second.dep_info.exists()==Yes ;
+		for( ::string dir_s=dir_name_s(file) ; +dir_s ; dir_s=dir_name_s(dir_s) ) {
+			auto [it,inserted] = dirs.try_emplace(no_slash(dir_s),exists) ;
+			if (!inserted) {
+				if (it->second>=exists) break ;                                                                             // all uphill dirs are already inserted if a dir has been inserted
+				it->second = exists ;                                                                                       // record existence of a sub-file as soon as one if found
+			}
+		}
 		if (cpy) accesses[i_dst] = ::move(access) ;
 		i_dst++ ;
 	}
 	accesses.resize(i_dst) ;
-	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map.at(accesses[i].first) = i ;                                             // always recompute access_map as accesses has been sorted
+	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map.at(accesses[i].first) = i ;                                     // always recompute access_map as accesses has been sorted
 }
