@@ -153,6 +153,8 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 }
 
 void Gather::_do_child( Fd report_fd , ::latch* ready ) {
+	AutodepPtrace::s_init(autodep_env) ;
+	_child.pre_exec = AutodepPtrace::s_prepare_child  ;
 	//vvvvvvvvvvvv
 	_child.spawn() ;                                                                             // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
 	//^^^^^^^^^^^^
@@ -183,9 +185,6 @@ Fd Gather::_spawn_child() {
 		// we split the responsability into 2 processes :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
-		AutodepPtrace::s_autodep_env = new AutodepEnv{autodep_env} ;
-		_child.pre_exec = AutodepPtrace::s_prepare_child  ;
-		//
 		Pipe pipe{New,true/*no_std*/} ;
 		child_fd  = pipe.read  ;
 		report_fd = pipe.write ;

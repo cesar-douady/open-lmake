@@ -22,11 +22,19 @@
 #include "gather.hh"
 #include "record.hh"
 
+#if HAS_SECCOMP          // must be after utils.hh include
+	#include <seccomp.h>
+#endif
+
 struct AutodepPtrace {
+	// init
+	static void s_init(AutodepEnv const&) ;
 	// statics
 	static int/*rc*/ s_prepare_child(void*) ; // must be called from child
 	// static data
-	static AutodepEnv const* s_autodep_env ;   // declare as pointer to avoid static late initialization
+	#if HAS_SECCOMP
+		static ::scmp_filter_ctx s_scmp ;
+	#endif
 	// cxtors & casts
 	AutodepPtrace(        ) = default ;
 	AutodepPtrace(pid_t cp) { init(cp) ; }

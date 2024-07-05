@@ -13,11 +13,9 @@
 
 #include "ptrace.hh"
 
-#if HAS_SECCOMP          // must be after utils.hh include
-	#include <seccomp.h>
+#if HAS_SECCOMP
+	::scmp_filter_ctx AutodepPtrace::s_scmp = ::seccomp_init(SCMP_ACT_ALLOW) ;
 #endif
-
-AutodepEnv const* AutodepPtrace::s_autodep_env = nullptr  ;
 
 using namespace Disk ;
 
@@ -44,8 +42,24 @@ struct PidInfo {
 } ;
 ::umap<pid_t,PidInfo > PidInfo::s_tab ;
 
+void AutodepPtrace::s_init(AutodepEnv const& ade) {
+	Record::s_autodep_env(ade) ;
+	#if HAS_SECCOMP
+		static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
+		// prepare seccomp filter outside s_prepare_child as this might very well call malloc
+		bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ; // if full link support, we need to analyze uphill dirs
+		for( long syscall=0 ; syscall<SyscallDescr::NSyscalls ; syscall++ ) {
+			SyscallDescr const& descr = s_tab[syscall] ;
+			if ( !descr || !descr.entry       ) continue ;                        // descr is not allocated
+			if ( descr.is_stat && ignore_stat ) continue ;                        // non stat-like access are always needed
+			//
+			::seccomp_syscall_priority( s_scmp ,                                 syscall , descr.prio ) ;
+			::seccomp_rule_add        ( s_scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0          ) ;
+		}
+	#endif
+}
+
 void AutodepPtrace::init(pid_t cp) {
-	Record::s_autodep_env(*s_autodep_env) ;
 	child_pid = cp ;
 	//
 	int   wstatus ;
@@ -62,28 +76,14 @@ void AutodepPtrace::init(pid_t cp) {
 	rc = ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , 0/*data*/ ) ; SWEAR(rc==0,rc,int(errno)) ;
 }
 
+// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 int/*rc*/ AutodepPtrace::s_prepare_child(void*) {
 	#if HAS_SECCOMP
-		// prepare seccomp filter
-		AutodepEnv const& ade         = Record::s_autodep_env(*s_autodep_env)                ;
-		bool              ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ; // if full link support, we need to analyze uphill dirs
-		::scmp_filter_ctx scmp        = ::seccomp_init(SCMP_ACT_ALLOW)                       ;
-		SWEAR(scmp) ;
-		static SyscallDescr::Tab const& tab = SyscallDescr::s_tab() ;
-		for( long syscall=0 ; syscall<SyscallDescr::NSyscalls ; syscall++ ) {
-			SyscallDescr const& descr = tab[syscall] ;
-			if ( !descr || !descr.entry       ) continue ;                                     // descr is not allocated
-			if ( descr.is_stat && ignore_stat ) continue ;                                     // non stat-like access are always needed
-			//
-			::seccomp_syscall_priority( scmp ,                                 syscall , descr.prio ) ;
-			::seccomp_rule_add        ( scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0          ) ;
-		}
-		// Load in the kernel & trace
-		int rc = ::seccomp_load(scmp) ;
-		SWEAR_PROD( rc==0 , rc ) ;
+		int rc = ::seccomp_load(s_scmp) ;
+		if (rc!=0) _exit(+Rc::System) ;
 	#endif
 	::ptrace( PTRACE_TRACEME , 0/*pid*/ , 0/*addr*/ , 0/*data*/ ) ;
-	kill_self(FirstSignal) ;                  // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
+	kill_self(FirstSignal) ;                                        // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
 	return 0 ;
 }
 

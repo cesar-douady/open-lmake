@@ -28,8 +28,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* lshow must work with a read-only repo
-	- typically owned by another user
 * transport pdict as pdict, not dict
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
