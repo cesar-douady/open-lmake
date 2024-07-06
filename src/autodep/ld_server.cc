@@ -24,18 +24,26 @@ static bool started() { return AutodepLock::t_active ; } // no auto-start for se
 // note that when not in server, _g_mutex protects us (but it is not used in server when not spying accesses)
 // note also that we cannot put s_libcall_tab in a static outside get_orig as get_orig may be called from global init, before this static initialization
 void* get_orig(const char* libcall) {
-	static ::atomic<::umap_s<void*>*> s_libcall_tab = nullptr ;               // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
+	static constexpr size_t NChar = 20 ;                   // 12 is enough to distinguish /!\ this function must be signal-safe, hence must not call malloc : use char[] as key instead of ::string
+	using LibCallTab = ::map<::array<char,NChar>,void*> ;
+	static ::atomic<LibCallTab*> s_libcall_tab = nullptr ; // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
 	// /!\ we must manage the guard explicitly as compiler generated guard makes syscalls, which can induce loops
 	if (!s_libcall_tab) {
-		::umap_s<void*>* prev = nullptr ;
-		#define LIBCALL_ENTRY(libcall,is_stat) { #libcall , ::dlsym(RTLD_NEXT,#libcall) }
-		s_libcall_tab.compare_exchange_strong( prev , new ::umap_s<void*>{ ENUMERATE_LIBCALLS } ) ;
+		#define LIBCALL_ENTRY(libcall,is_stat) #libcall
+		LibCallTab* new_libcall_tab  = new LibCallTab ;
+		for( const char* lc1 : { ENUMERATE_LIBCALLS } ) {
+			::array<char,NChar> lc2 = {} ; strncpy(lc2.data(),lc1,NChar-1) ;
+			bool inserted = new_libcall_tab->try_emplace(lc2,::dlsym(RTLD_NEXT,lc1)).second ;
+			SWEAR(inserted,lc1,lc2) ;                                                         // ensure troncation does not produce ambguities
+		}
 		#undef LIBCALL_ENTRY
+		LibCallTab* prev_libcall_tab = nullptr                              ;
+		if (!s_libcall_tab.compare_exchange_strong( prev_libcall_tab , new_libcall_tab )) delete new_libcall_tab ;
 	}
-	if (!libcall) return nullptr ;                                            // used to initialize s_libcall_tab
-	void* res = s_libcall_tab.load()->at(libcall) ;
-	swear_prod(res,"cannot find symbol ",libcall," in libc") ;
-	return res ;
+	if (!libcall) return nullptr ;                                                            // used to initialize s_libcall_tab
+	::array<char,NChar> lc = {} ; strncpy(lc.data(),libcall,NChar-1) ;
+	try         { return s_libcall_tab.load()->at(lc) ;                 }
+	catch (...) { fail_prod("cannot find symbol ",libcall," in libc") ; }
 }
 // initialize s_libcall_tab as early as possible, before any fork
 // unfortunately some libs do accesses before entering main, so we cannot be sure this init is before all libcalls
