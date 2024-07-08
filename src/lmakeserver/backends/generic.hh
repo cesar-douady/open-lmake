@@ -388,9 +388,8 @@ namespace Backends {
 		}
 		virtual void kill_job(JobIdx j) {
 			Trace trace(BeChnl,"kill_job",j) ;
-			auto          it = spawned_jobs.find(j) ;
-			SpawnedEntry& se = it->second           ;
-			SWEAR(!se.started) ;                                                                                    // if job is started, it is not our responsibility any more
+			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return ;                          // job was not actually spawned
+			SpawnedEntry& se = it->second           ; SWEAR(!se.started) ;                                          // if job is started, it is not our responsibility any more
 			if (se.id) {                                     kill_queued_job(se) ; spawned_jobs.erase(*this,it) ; }
 			else       { Lock lock { id_mutex } ; if (se.id) kill_queued_job(se) ; spawned_jobs.erase(*this,it) ; } // lock to ensure se.id is up to date and do same actions (erase while holding lock)
 		}

@@ -46,14 +46,17 @@ static ::vmap_s<::vector_s> _mk_views(::string const& views) {
 
 static ::vector_s _mk_src_dirs_s(::string const& src_dirs) {
 	::vector_s res ;
-	if (+src_dirs)
-		for( Object const&  py_src_dir : py_eval(src_dirs)->as_a<Sequence>() )
+	if (+src_dirs) {
+		Ptr<Object> py_src_dirs = py_eval(src_dirs) ;                    // keep Python object alive during iteration
+		for( Object const&  py_src_dir : py_src_dirs->as_a<Sequence>() )
 			res.push_back(with_slash(py_src_dir.as_a<Str>())) ;
+	}
 	return res ;
 }
 
 static ::map_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 	::map_ss res ;
+	// use an intermediate variable (py_keep_env and py_env) to keep Python object alive during iteration
 	if (+keep_env) { Ptr<Object> py_keep_env = py_eval(keep_env) ; for( Object const&  py_k       : py_keep_env->as_a<Sequence>() ) { ::string k = py_k.as_a<Str>() ; res[k] = get_env(k)       ; } }
 	if (+env)      { Ptr<Object> py_env      = py_eval(env     ) ; for( auto   const& [py_k,py_v] : py_env     ->as_a<Dict    >() ) { ::string k = py_k.as_a<Str>() ; res[k] = py_v.as_a<Str>() ; } }
 	return res ;
@@ -118,7 +121,7 @@ int main( int argc , char* argv[] ) {
 		/**/                                        gather.autodep_env.ignore_stat = cmd_line.flags[CmdFlag::IgnoreStat]                             ;
 		if (cmd_line.flags[CmdFlag::LinkSupport  ]) gather.autodep_env.lnk_support = mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])  ;
 		/**/                                        gather.autodep_env.root_dir_s  = root_dir_s                                                      ;
-		/**/                                        gather.autodep_env.tmp_dir_s   = with_slash(get_env("TMPDIR",P_tmpdir))                          ;
+		/**/                                        gather.autodep_env.tmp_dir_s   = tmp_dir_s                                                       ;
 		/**/                                        gather.autodep_env.views       = ::move(job_space.views)                                         ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
@@ -146,7 +149,7 @@ int main( int argc , char* argv[] ) {
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	Pdate    prev_first_read  ;
-	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                  // process deps with a delay of 1 because we need next entry for ascii art
+	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                        // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;

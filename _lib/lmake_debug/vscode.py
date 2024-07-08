@@ -105,7 +105,7 @@ class Job (utils.Job) :
 		#
 		# generate vscode call line
 		#
-		if True                          : call_line  = ['code','-n','-w','--password-store=basic']
+		if True                          : call_line  = ['"$(type -p code)"','-n','-w','--password-store=basic']
 #		if 'vscode-server' in vscode_exe : call_line += ( '--user-data-dir' , user_data_dir )
 		for d in self.static_deps        : call_line.append(d              )
 		if True                          : call_line.append(self.cmd_file())

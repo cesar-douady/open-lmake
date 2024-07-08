@@ -69,7 +69,10 @@ class BaseRule(Rule) :
 	,	'Ext'  : r'([^/]+)'
 	}
 	backend     = backend
-	resources   = { 'mem' : '100M' }
+	resources   = {
+		'mem' : '100M'
+	,	'tmp' : '1G'
+	}
 	n_retries   = 1
 	start_delay = 2
 	n_tokens    = config.backends.local.cpu

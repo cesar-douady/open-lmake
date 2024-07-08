@@ -81,12 +81,15 @@ SeqId             g_trace_id       = 0/*garbage*/ ;
 	}
 	if      ( g_start_info.keep_tmp_dir                  ) g_phy_tmp_dir_s = g_phy_root_dir_s+AdminDirS       +"tmp/"+g_job                +'/' ;
 	else if ( auto it=res.find("TMPDIR") ; it!=res.end() ) g_phy_tmp_dir_s = it->second+'/'+g_start_info.key+'/'     +g_start_info.small_id+'/' ;
-	else if ( g_start_info.tmp_sz_mb==Npos               ) g_phy_tmp_dir_s = g_phy_root_dir_s+PrivateAdminDirS+"tmp/"+g_start_info.small_id+'/' ;
+	else if ( +g_start_info.tmp_sz_mb                    ) g_phy_tmp_dir_s = g_phy_root_dir_s+PrivateAdminDirS+"tmp/"+g_start_info.small_id+'/' ;
 	//
 	{	::string tmp_dir_s ;
 		if      ( +g_start_info.job_space.tmp_view_s && (+g_phy_tmp_dir_s||g_start_info.tmp_sz_mb) ) tmp_dir_s = g_start_info.job_space.tmp_view_s ;
 		else if ( +g_phy_tmp_dir_s                                                                 ) tmp_dir_s = g_phy_tmp_dir_s                   ;
-		if (+tmp_dir_s) {
+		if (!tmp_dir_s) {
+			SWEAR(!res.contains("TMPDIR")) ;                                  // else we should use P_tmpdir
+			g_start_info.autodep_env.tmp_dir_s = with_slash(P_tmpdir) ;
+		} else {
 			res["TMPDIR"]                      = no_slash(tmp_dir_s) ;
 			g_start_info.autodep_env.tmp_dir_s = ::move  (tmp_dir_s) ;
 		}
@@ -463,9 +466,13 @@ int main( int argc , char* argv[] ) {
 			g_nfs_guard.close() ;
 		}
 		//
-		if ( g_gather.seen_tmp && !g_start_info.keep_tmp_dir )
-			try                     { unlnk_inside_s(g_gather.autodep_env.tmp_dir_s,true/*force*/) ; }         // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
-			catch (::string const&) {                                                                }
+		if (g_gather.seen_tmp) {
+			if (!cmd_env.contains("TMPDIR"))
+				digest.msg << "accessed "<<no_slash(g_gather.autodep_env.tmp_dir_s)<<" without dedicated tmp dir\n" ;
+			else if (!g_start_info.keep_tmp_dir)
+				try                     { unlnk_inside_s(g_gather.autodep_env.tmp_dir_s,true/*force*/) ; }     // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
+				catch (::string const&) {                                                                }
+		}
 		//
 		if ( status==Status::Ok && +digest.msg ) status = Status::Err ;
 		/**/                        end_report.msg += g_gather.msg ;

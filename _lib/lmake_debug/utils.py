@@ -108,20 +108,20 @@ class Job :
 		preamble += 'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
 		#
 		res = mk_shell_str(autodep)
-		if True             : res += f' -m{self.autodep_method                     }'
+		if True             : res += f' -m{self.autodep_method                          }'
 		if self.auto_mkdir  : res +=  ' -a'
-		if self.chroot_dir  : res += f' -c{mk_shell_str(self.chroot_dir           )}'
-		if self.cwd         : res += f' -d{mk_shell_str(self.cwd                  )}'
-		if self.env         : res += f' -e{mk_shell_str(repr(env)                 )}'
+		if self.chroot_dir  : res += f' -c{mk_shell_str(self.chroot_dir                )}'
+		if self.cwd         : res += f' -d{mk_shell_str(self.cwd                       )}'
+		if self.env         : res += f' -e{mk_shell_str(repr(env)                      )}'
 		if self.ignore_stat : res +=  ' -i'
-		if True             : res += f' -k{mk_shell_str(repr(keep_env)            )}'
-		if True             : res += f' -l{self.link_support                       }'
-		if True             : res += f" -o{mk_shell_str(self.debug_dir+'/accesses')}"
-		if self.root_view   : res += f' -r{mk_shell_str(self.root_view            )}'
-		if self.source_dirs : res += f' -s{mk_shell_str(self.source_dirs          )}'
-		if self.tmp_view    : res += f' -t{mk_shell_str(self.tmp_view             )}'
-		if self.views       : res += f' -v{mk_shell_str(repr(self.views)          )}'
-		if self.views       : res += f" -w{mk_shell_str(debug_dir+'/work'         )}" # necessary in case a view is an overlay
+		if True             : res += f' -k{mk_shell_str(repr(keep_env)                 )}'
+		if True             : res += f' -l{self.link_support                            }'
+		if True             : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses')}"
+		if self.root_view   : res += f' -r{mk_shell_str(     self.root_view            )}'
+		if self.source_dirs : res += f' -s{mk_shell_str(repr(self.source_dirs)         )}'
+		if self.tmp_view    : res += f' -t{mk_shell_str(     self.tmp_view             )}'
+		if self.views       : res += f' -v{mk_shell_str(repr(self.views)               )}'
+		if self.views       : res += f" -w{mk_shell_str(     debug_dir+'/work'         )}" # necessary in case a view is an overlay
 		if args             : res += ''.join(' '+x for x in args)                     # must be before redirections to files if args contains redirections
 		if self.stdin       : res += f' <{mk_shell_str(self.stdin )}'
 		if self.stdout      : res += f' >{mk_shell_str(self.stdout)}'

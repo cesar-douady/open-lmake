@@ -671,13 +671,13 @@ namespace Backends::Slurm {
 						trace("interrupted",i,STR(zombie)) ;
 						throw "interrupted while connecting to slurm daemon"s ;
 					}
-					continue ;
+				} break ;
+				default : {
+					::string err_str = SlurmApi::strerror(sav_errno) ;
+					trace("spawn_error",sav_errno,err_str) ;
+					throw "slurm spawn job error : " + err_str ;
 				}
-				default : ;
 			}
-			::string err_str = SlurmApi::strerror(sav_errno) ;
-			trace("spawn_error",sav_errno,err_str) ;
-			throw "slurm spawn job error : " + err_str ;
 		}
 		trace("cannot_spawn") ;
 		throw "cannot connect to slurm daemon"s ;

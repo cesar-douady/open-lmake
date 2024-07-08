@@ -49,7 +49,10 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* generate a 'consider tmp=...' if tmp is accessed with no tmp available
+* when slurm cannot submit job because resources do not exist :
+	- e.g. no TmpDisk mentioned in config and job need it
+	- an error message is generated on stderr by slurm_submit_batch_job
+	- error code give no info
 * generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
@@ -83,6 +86,9 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* isolate signal-safe functions in dedicated .o
+	- and check such .o do not call malloc with nm
+	- or write such functions in C, so that malloc are necessary visible
 * support 64-bits id
 	- configure with NBits rather than types
 	- in store/file.hh, reserve address space after NBits instead of type

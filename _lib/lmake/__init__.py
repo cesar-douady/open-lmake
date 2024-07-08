@@ -35,6 +35,7 @@ _rules   = []
 #
 
 _mem = _os.sysconf('SC_PHYS_PAGES') * _os.sysconf('SC_PAGE_SIZE')
+_tmp = _os.statvfs('.').f_bfree*_os.statvfs('.').f_bsize
 if _sys.version_info.major<3 :
 	import multiprocessing as _mp
 	try                        : _cpu = _mp.cpu_count()
@@ -69,9 +70,9 @@ config = pdict(
 ,	n_tokens_tab = pdict()              # table of number of tokens referenced by rules. This indirection allows dynamic update of this value while rules cannot be dynamically updated
 ,	backends = pdict(                   # PER_BACKEND : provide a default configuration for each backend
 		precisions = pdict(             # precision of resources allocated for jobs, one entry for each standard resource (for all backends).
-			cpu = 4                     # encodes the highest number with full granularity, 4 is a reasonable value
-		,	mem = 4                     # 4 means possible values are 1 2, 3, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40...
-		,	tmp = 4                     # 8 would mean possible values are 1 2, 3, 4, 5, 6, 7, 8, 10, ...
+			cpu = 8                     # encodes the highest number with full granularity, 8 is a reasonable value
+		,	mem = 8                     # 8 means possible values are 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, ...
+		,	tmp = 8                     # 4 would mean possible values are 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, ...
 		)
 	,	local = pdict(                  # entries mention the total availability of resources
 		#	interface = _interface      # address at which lmake can be contacted from jobs launched by this backend, can be :
@@ -80,9 +81,9 @@ config = pdict(
 		#	                            # - network interface name : the address of the host on this interface (as shown by ifconfig)
 		#	                            # - a host name            : the address of the host as found in networkd database (as shown by ping)
 		#	                            # - default is loopback for local backend and hostname for the others
-			cpu = _cpu                  # total number of cpus available for the process, and hence for all jobs launched locally
-		,	mem = str(_mem>>20)+'M'     # total available memory in MBytes
-		,	tmp = 0                     # total available temporary disk space in MBytes
+			cpu =     _cpu              # total number of cpus available for the process, and hence for all jobs launched locally
+		,	mem = str(_mem>>20)+'M'     # total available memory in MBytes, defaults to all available memory
+		,	tmp = str(_tmp>>20)+'M'     # total available temporary disk space in MBytes, defaults to free space in current filesystem
 		)
 	)
 ,	debug = pdict({
