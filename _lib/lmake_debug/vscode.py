@@ -106,15 +106,16 @@ class Job (utils.Job) :
 		# generate vscode call line
 		#
 		if True                          : call_line  = ['"$(type -p code)"','-n','-w','--password-store=basic']
-#		if 'vscode-server' in vscode_exe : call_line += ( '--user-data-dir' , user_data_dir )
-		for d in self.static_deps        : call_line.append(d              )
-		if True                          : call_line.append(self.cmd_file())
-		if True                          : call_line.append(workspace      )
+#		if 'vscode-server' in vscode_exe : call_line += ( '--user-data-dir' , mk_shell_str(user_data_dir) )
+		for d in self.static_deps        : call_line.append(mk_shell_str(d              ))
+		if True                          : call_line.append(mk_shell_str(self.cmd_file()))
+		if True                          : call_line.append(mk_shell_str(workspace      ))
 		#
 		# generate script
 		#
-		self.cwd = ''                                                       # cwd is handled in vscode config
-		preamble,line = self.starter(*(mk_shell_str(c) for c in call_line))
+		self.cwd            = ''                      # cwd is handled in vscode config
+		self.autodep_method = 'none'                  # XXX : fix incompatibilities between autodep and vscode
+		preamble,line       = self.starter(call_line)
 		return self.gen_preamble() + preamble + line + '&\n'
 
 def gen_script(**kwds) :

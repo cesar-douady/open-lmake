@@ -88,9 +88,9 @@ int main( int argc , char* argv[] ) {
 	//
 	try {
 		::vector_s    src_dirs_s ;
-		AutodepMethod method     = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
-		::string      tmp_dir_s  = with_slash(get_env("TMPDIR",P_tmpdir))                              ;
-		::string      root_dir_s = *g_root_dir_s                                                       ;
+		AutodepMethod method     = AutodepMethod::Dflt                    ; if (cmd_line.flags[CmdFlag::AutodepMethod]) method = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
+		::string      tmp_dir_s  = with_slash(get_env("TMPDIR",P_tmpdir)) ;
+		::string      root_dir_s = *g_root_dir_s                          ;
 		//
 		if (!cmd_line.args                                                                          ) throw "no exe to launch"s                                                      ;
 		if ( cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) ) throw "chroot dir must be absolute : "+cmd_line.flag_args[+CmdFlag::ChrootDir] ;

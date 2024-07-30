@@ -467,7 +467,7 @@ namespace Engine {
 			::string_view shorten = first_lines(stderr,max_stderr_len) ;
 			if (shorten.size()<stderr.size()) {
 				audit_info_as_is( Color::None , ::string(shorten) , lvl ) ;
-				audit_info_as_is( Color::Note , "... (for full content : lshow -e -J "+mk_file(j->name(),FileDisplay::Shell)+" -R "+mk_shell_str(j->rule->name)+" )" , lvl ) ;
+				audit_info      ( Color::Note , "... (for full content : lshow -e -J "+mk_file(j->name(),FileDisplay::Shell)+" -R "+mk_shell_str(j->rule->name)+" )" , lvl ) ;
 				return true ;
 			}
 		}

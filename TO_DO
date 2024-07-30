@@ -111,7 +111,8 @@ items :
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
-
+* support SGE
+	- https://wiki.archlinux.org/title/Son_of_Grid_Engine
 * implement fuse as an autodep method
 	- use namespaces
 	- interestingly enough : it is a wait to accept bind mount from repo
