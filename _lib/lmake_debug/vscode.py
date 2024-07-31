@@ -11,8 +11,9 @@ import subprocess as sp
 import lmake
 from lmake.utils import multi_strip
 
-from .      import utils
-from .utils import mk_shell_str
+from .       import utils
+from .utils  import mk_shell_str
+from pathlib import Path
 
 def run(*args) :
 	return sp.check_output(args,universal_newlines=True)
@@ -100,22 +101,24 @@ class Job (utils.Job) :
 		self.write_cmd(runner='lmake_debug.runtime.vscode')
 		workspace     = self.debug_dir+'/vscode/ldebug.code-workspace'
 		user_data_dir = self.debug_dir+'/vscode/user'
+		ext_dir       = str(Path.home()/'.vscode/extensions')
 		os.makedirs(osp.dirname(workspace),exist_ok=True)
 		open(workspace,'w').write(self.gen_workspace())
 		#
 		# generate vscode call line
 		#
-		if True                          : call_line  = ['"$(type -p code)"','-n','-w','--password-store=basic']
-#		if 'vscode-server' in vscode_exe : call_line += ( '--user-data-dir' , mk_shell_str(user_data_dir) )
-		for d in self.static_deps        : call_line.append(mk_shell_str(d              ))
-		if True                          : call_line.append(mk_shell_str(self.cmd_file()))
-		if True                          : call_line.append(mk_shell_str(workspace      ))
+		call_line  = ['"$(type -p code)"','-n','-w','--password-store=basic']
+		call_line += ( '--user-data-dir'  , mk_shell_str(user_data_dir  )                           )
+		call_line += ( '--extensions-dir' , mk_shell_str(ext_dir        )                           )
+		call_line += (                      mk_shell_str(d              ) for d in self.static_deps )
+		call_line += (                      mk_shell_str(self.cmd_file())                          ,)
+		call_line += (                      mk_shell_str(workspace      )                          ,)
 		#
 		# generate script
 		#
 		self.cwd            = ''                      # cwd is handled in vscode config
 		self.autodep_method = 'none'                  # XXX : fix incompatibilities between autodep and vscode
-		preamble,line       = self.starter(call_line)
+		preamble,line       = self.starter(*call_line)
 		return self.gen_preamble() + preamble + line + '&\n'
 
 def gen_script(**kwds) :

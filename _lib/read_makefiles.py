@@ -20,7 +20,9 @@ sys.path                     = [lmake_dir+'/lib',lmake_dir+'/_lib','.',*sys.path
 
 import lmake     # import before user code to be sure user did not play with sys.path
 import serialize
-pdict = lmake.pdict
+
+lmake.user_environ = eval(open('LMAKE/user_environ').read()) # make original user env available while reading config
+pdict              = lmake.pdict
 
 sys.path = [sys.path[0],*sys.path[2:]] # suppress access to _lib
 

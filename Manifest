@@ -16,6 +16,7 @@ _lib/lmake/sources.src.py
 _lib/lmake/utils.py
 _lib/lmake_debug/default.py
 _lib/lmake_debug/enter.py
+_lib/lmake_debug/gdb.py
 _lib/lmake_debug/none.py
 _lib/lmake_debug/pudb.py
 _lib/lmake_debug/runtime/pdb.py

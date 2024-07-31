@@ -84,7 +84,7 @@ By scalable, we mean that @lmake can manage millions of files and tens of thousa
 so there is never any reason to have any kind of recursive invocation, @lmake can handle the whole project all at once.
 
 By robust, we mean that @lmake guarantees that if a job is not rerun, then rerunning it would lead to the same content (or a content that is equally legal).
-This includes automatic capture of so called hidden dependencies (i.e. dependencies that are not explicitely stated in the rules, e.g. include files).
+This includes automatic capture of so called hidden dependencies (i.e. dependencies that are not explicitly stated in the rules, e.g. include files).
 
 We also mean that @lmake, as any software, it may have bug.
 Such bugs can lead to crashes and to pessimistic behavior (a job is rerun while it was not necessary).
@@ -683,7 +683,11 @@ Unless overridden, the following standard debug methods are provided :
 @tab @file{lmake_debug.default}
 @tab Job is run under pdb control.
 @tab Job is run with the @code{-x} flag (so that commands are traced) and an interactive shell (as provided by the @code{$SHELL} environment variable) is open in the job environment.
-@item pg
+@item g
+@tab @file{lmake_debug.gdb}
+@tab Job interpreter is run under gdb control.
+@tab Job interpreter is run under gdb control.
+@item u
 @tab @file{lmake_debug.pudb}
 @tab Job is run under pudb control.
 @tab Not supported
@@ -1136,6 +1140,9 @@ The list of implemented backends. @code{local} is always present.
 The 64-bit @code{int} checksum when it has not been computed (yet).
 @item crc_no_file
 The 64-bit @code{int} checksum produced when computed on a non-existent file.
+@item user_environ
+A dict, much like os.environ, that provides the environment in which @lmake was run when it read its configuration.
+This allows the user to have access to these environment variables when explicitly required.
 @end table
 
 @section Job execution support
@@ -1313,7 +1320,18 @@ It is of paramount importance to leave this directory intact as this is where @l
 
 @chapter Config
 
-@lmake can be configured to tailor its parameters to the user needs.
+@lmake can be configured to tailor its parameters to the user needs. When reading its configuration, the environment is reset to a standard environment :
+@itemize @minus
+@item HOME is set to the repository root dir.
+@item PATH is set to the default path.
+@item UID is set to the user id.
+@item USER is set to the user name.
+@end itemize
+However, the existing environment in which @lmake is launched can be accessed as @code{lmake.user_environ}.
+This allows explicit access to this environment while avoiding spurious, unwanted, unreliable and uncontrolled accesses.
+
+Note that @code{lmake.user_environ} is not defined when the @code{lmake} module is imported when not reading the configuration.
+During job execution, environment must be passed using the @code{environ_cmd}, @code{environ_resources} and @code{environ_ancillary} rule attributes.
 
 Configuration is done by setting attributes (or items) of the @code{pdict} @code{lmake.config}.
 
@@ -2148,7 +2166,7 @@ This attribute defines environment variables set during job execution.
 
 The content of this attribute is managed as part of the job command, meaning that jobs are rerun upon modification.
 
-The environment in which the @lmake command is run is ignored so as to favor reproducibility, unless explicitely transported by using value from @code{os.environ}.
+The environment in which the @lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from @code{os.environ}.
 
 If resulting value is @code{...} (the Python ellipsis), the value from the execution environment is used.
 This is typically used to access some environment variables set by @code{slurm}.
@@ -3090,7 +3108,7 @@ The only intrusion is the presence of the environment variable @code{LMAKE_AUTOD
 The only way to report activity is through the use of @code{ldepend} / @code{ltarget} or similar functions available in the @code{lmake} module.
 
 The main advantage is that this method is not invasive (or marginally).
-The main inconvenient is that no automatic hidden dependencies are recorded, one has to explicitely call @code{ldepend} and experience shows it is very difficult not to forget some.
+The main inconvenient is that no automatic hidden dependencies are recorded, one has to explicitly call @code{ldepend} and experience shows it is very difficult not to forget some.
 
 This method is @strong{not} recommanded.
 
@@ -3232,7 +3250,7 @@ During dependency analysis, when a dep (call it @file{dep1}) has been used and t
 @item
 One possibility is to anticipate that the modification of @file{dep1} has no impact on the list of following deps.
 With such an anticipation, @lmake will keep the following deps, i.e. when ensuring that deps are up-to-date before launching a job, @lmake will launch all necessary jobs to rebuild
-all dependencies in parallel, even if the deps have been explicitely declared parallel.
+all dependencies in parallel, even if the deps have been explicitly declared parallel.
 @item
 Another possivility is to anticipate that such a modification of @file{dep1} will drastically change the list of following deps.
 With such an anticipation, as soone as @lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of @file{dep1} is meaningless.

@@ -372,5 +372,6 @@ cat >$H_FILE <<EOF
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
 	#define SGE_BIN_DIR                 "$SGE_BIN_DIR"
+	#define STD_PATH                    "$STD_PATH"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

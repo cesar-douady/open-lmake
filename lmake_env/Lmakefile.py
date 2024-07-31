@@ -12,7 +12,9 @@ import tarfile
 import zipfile
 from subprocess import run,check_output,DEVNULL,STDOUT
 
-gxx          = os.environ.get('CXX','g++')
+import lmake
+
+gxx          = lmake.user_environ.get('CXX','g++')
 gxx_is_clang = 'clang' in check_output( (gxx,"--version") , universal_newlines=True )
 
 try    : has_fuse     = run(('pkg-config','fuse3'                                                 ),stderr=DEVNULL).returncode==0
@@ -20,7 +22,6 @@ except : has_fuse     = False
 try    : has_seccomp  = run((gxx,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0
 except : has_seccomp  = False
 
-import lmake
 from lmake       import config,pdict
 from lmake.rules import Rule,PyRule,AntiRule,TraceRule
 
@@ -290,8 +291,10 @@ class TarLmake(BaseRule) :
 	,	'LIB_DBG_UTILS'       : 'lib/lmake_debug/utils.py'
 	,	'LIB_DBG1'            : 'lib/lmake_debug/default.py'
 	,	'LIB_DBG2'            : 'lib/lmake_debug/enter.py'
-	,	'LIB_DBG3'            : 'lib/lmake_debug/none.py'
-	,	'LIB_DBG4'            : 'lib/lmake_debug/pudb.py'
+	,	'LIB_DBG3'            : 'lib/lmake_debug/gdb.py'
+	,	'LIB_DBG4'            : 'lib/lmake_debug/none.py'
+	,	'LIB_DBG5'            : 'lib/lmake_debug/pudb.py'
+	,	'LIB_DBG6'            : 'lib/lmake_debug/vscode.py'
 	,	'LIB_DBG_RT_UTILS'    : 'lib/lmake_debug/runtime/utils.py'
 	,	'LIB_DBG_RT1'         : 'lib/lmake_debug/runtime/pdb.py'
 	,	'LIB_DBG_RT2'         : 'lib/lmake_debug/runtime/pudb.py'

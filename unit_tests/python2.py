@@ -6,15 +6,6 @@
 import os
 import os.path as osp
 
-if osp.exists('../../lib/clmake2.so') :
-	for d in os.environ['PATH'].split(':') :
-		python2 = osp.join(d,'python2')
-		if osp.exists(python2) : break
-	else :
-		python2 = None
-else :
-	python2 = None
-
 if __name__!='__main__' :
 
 	import sys
@@ -44,16 +35,21 @@ if __name__!='__main__' :
 			sys.stdout.write(open(FIRST ).read())
 			sys.stdout.write(open(SECOND).read())
 
-elif python2 :
+else :
+	if osp.exists('../../lib/clmake2.so') :
+		for d in os.environ['PATH'].split(':') :
+			if osp.exists(osp.join(d,'python2')) :
 
-	import ut
+				import ut
 
-	open('hello','w').write('hello\n')
-	open('world','w').write('world\n')
-	open('a_dep','w').write('1\n'    )
+				open('hello','w').write('hello\n')
+				open('world','w').write('world\n')
+				open('a_dep','w').write('1\n'    )
 
-	ut.lmake( 'hello+world' , done=1   , new    =3 ) # check targets are out of date
-	open('a_dep','w').write('2\n')
-	ut.lmake( 'hello+world' , steady=1 , changed=1 ) # check target is sensitive to a_dep
-	ut.lmake( 'hello+world'                        ) # check targets are up to date
-	ut.lmake( 'world+world' , done=1               ) # check reconvergence
+				ut.lmake( 'hello+world' , done=1   , new    =3 ) # check targets are out of date
+				open('a_dep','w').write('2\n')
+				ut.lmake( 'hello+world' , steady=1 , changed=1 ) # check target is sensitive to a_dep
+				ut.lmake( 'hello+world'                        ) # check targets are up to date
+				ut.lmake( 'world+world' , done=1               ) # check reconvergence
+
+				break

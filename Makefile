@@ -27,7 +27,7 @@ include sys_config.mk
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA := ,
 
-HIDDEN_FLAGS = -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden 
+HIDDEN_FLAGS = -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
 # syntax for LMAKE_FLAGS : O[0123]G?D?T?S[AT]C?
 # - O[0123] : compiler optimization level, defaults to 3
 # - G       : -g
@@ -50,13 +50,14 @@ COVERAGE     += $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
-LANG := c++20
+CXX_EXE := $(shell bash -c 'type -p $(CXX)')
+LANG    := c++20
 #
 SAN                 := $(if $(strip $(SAN_FLAGS)),.san,)
 LINK_OPTS           := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
-LINK_O              := $(CXX) $(COVERAGE) -r
-LINK_SO             := $(CXX) $(COVERAGE) $(LINK_OPTS) -shared                     # some usage may have specific libs, avoid dependencies
-LINK_BIN            := $(CXX) $(COVERAGE) $(LINK_OPTS)
+LINK_O              := $(CXX_EXE) $(COVERAGE) -r
+LINK_SO             := $(CXX_EXE) $(COVERAGE) $(LINK_OPTS) -shared                 # some usage may have specific libs, avoid dependencies
+LINK_BIN            := $(CXX_EXE) $(COVERAGE) $(LINK_OPTS)
 LINK_LIB            := -ldl
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 ifneq ($(HAS_PCRE),)
@@ -68,7 +69,7 @@ ifeq ($(CXX_FLAVOR),clang)
 endif
 #
 USER_FLAGS := $(OPT_FLAGS) $(EXTRA_FLAGS) -std=$(LANG)
-COMPILE    := $(CXX) $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
+COMPILE    := $(CXX_EXE) $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
 LINT       := clang-tidy
 LINT_OPTS  := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
 ROOT_DIR   := $(abspath .)
@@ -90,8 +91,8 @@ PY_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR) $(PY_INCLUDEPY))  
 PY_CC_OPTS   := $(patsubst %,-isystem %,$(PY_INC_DIRS)) -Wno-register
 PY_LINK_OPTS := $(patsubst %,-L%,$(PY_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY_LIB_DIR))  -l:$(PY_LIB_BASE)
 ifneq ($(HAS_FUSE),)
-    FUSE_CC_OPTS   := -I /home/cdy/fuse/include -I /home/cdy/fuse/build # $(shell pkg-config fuse3 --cflags)
-    FUSE_LINK_OPTS := /home/cdy/fuse/build/lib/libfuse3.so              # $(shell pkg-config fuse3 --libs  )
+    FUSE_CC_OPTS   := -I /home/cdy/fuse/include -I /home/cdy/fuse/build               # $(shell pkg-config fuse3 --cflags)
+    FUSE_LINK_OPTS := /home/cdy/fuse/build/lib/libfuse3.so                            # $(shell pkg-config fuse3 --libs  )
 endif
 
 # Engine
@@ -110,6 +111,7 @@ LMAKE_SERVER_PY_FILES := \
 	$(LIB)/lmake/utils.py                \
 	$(LIB)/lmake_debug/default.py        \
 	$(LIB)/lmake_debug/enter.py          \
+	$(LIB)/lmake_debug/gdb.py            \
 	$(LIB)/lmake_debug/none.py           \
 	$(LIB)/lmake_debug/pudb.py           \
 	$(LIB)/lmake_debug/vscode.py         \
@@ -205,7 +207,7 @@ Manifest : .git/index
 	@if cmp -s $@.new $@ ; then rm $@.new    ; echo steady Manifest ; \
 	else                        mv $@.new $@ ; echo new    Manifest ; \
 	fi
-include Manifest.inc_stamp                                              # Manifest is used in this makefile
+include Manifest.inc_stamp # Manifest is used in this makefile
 
 #
 # versioning
@@ -713,8 +715,8 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	@( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ) ; : # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	@for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH CXX=$(CXX) $(ROOT_DIR)/$< ) </dev/null >$@.out 2>$@.err \
-	&&	mv $@.out $@                                                                                                      \
+	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH CXX=$(CXX_EXE) $(ROOT_DIR)/$< ) </dev/null >$@.out 2>$@.err \
+	&&	mv $@.out $@                                                                                                          \
 	||	( cat $@.out $@.err ; exit 1 )
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
@@ -722,8 +724,8 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	@mkdir -p $(@D)
 	@( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ) ; : # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	@cp $< $(@D)/Lmakefile.py
-	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= CXX=$(CXX) $(PYTHON) Lmakefile.py ) </dev/null >$@.out 2>$@.err \
-	&&	mv $@.out $@                                                                                                                                                                \
+	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib CXX=$(CXX_EXE) $(PYTHON) Lmakefile.py ) </dev/null >$@.out 2>$@.err \
+	&&	mv $@.out $@                                                                                                                                                              \
 	||	( cat $@.out $@.err ; exit 1 )
 
 #
@@ -755,7 +757,7 @@ $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMA
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
 	@set -e ;                                                               \
 	cd $(LMAKE_ENV) ;                                                       \
-	export CXX=$(CXX) ;                                                     \
+	export CXX=$(CXX_EXE) ;                                                 \
 	rc=0 ;                                                                  \
 	$(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ;                      \
 	$(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) || { rm -f $(@F) ; rc=1 ; } ; \

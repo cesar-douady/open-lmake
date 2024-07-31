@@ -15,7 +15,7 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,PyRule
 
-	gxx = os.environ.get('CXX','g++')
+	gxx = lmake.user_environ.get('CXX','g++')
 
 	lmake.manifest = (
 		'Lmakefile.py'

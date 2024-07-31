@@ -59,7 +59,7 @@ class _RuleBase :
 #	target            # syntactic sugar for targets = {'<stdout>':<value>} (except that it is allowed)
 	side_targets = {} # patterns used to add flags based on pattern matching refering to stems above through {} notation, e.g. {'CACHE':'{File}.cache','incremental'}
 	side_deps    = {} # .
-	order        = [] # explicite matching order of keys in targets, side_targets and side_deps. If partial, other keys are put after specified ones
+	order        = [] # explicit matching order of keys in targets, side_targets and side_deps. If partial, other keys are put after specified ones
 
 class Rule(_RuleBase) :
 	__special__      = None                            # plain Rule

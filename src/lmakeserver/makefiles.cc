@@ -5,6 +5,8 @@
 
 #include "core.hh"
 
+#include <pwd.h>
+
 #include "re.hh"
 
 #include "autodep/gather.hh"
@@ -24,6 +26,8 @@ ENUM( Reason // reason to re-read makefiles
 )
 
 namespace Engine::Makefiles {
+
+	static ::map_ss _g_env ;
 
 	static ::pair<vmap_s<FileTag>/*srcs*/,vector_s/*src_dirs_s*/> _gather_srcs( Sequence const& py_srcs , LnkSupport lnk_support , NfsGuard& nfs_guard ) {
 		RealPathEnv       rpe        { .lnk_support=lnk_support , .root_dir_s=*g_root_dir_s } ;
@@ -161,13 +165,15 @@ namespace Engine::Makefiles {
 		//
 		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
 		//
-		Gather   gather ;
+		Trace trace("_read_makefiles",action,module,Pdate(New)) ;
+		//
 		::string data   = PrivateAdminDirS+action+"_data.py" ;
+		Gather   gather ;
 		gather.autodep_env.src_dirs_s = {"/"}                                                                         ;
 		gather.autodep_env.root_dir_s = *g_root_dir_s                                                                 ;
 		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , action , module } ;
 		gather.child_stdin            = Child::NoneFd                                                                 ;
-		Trace trace("_read_makefiles",action,module,Pdate(New)) ;
+		gather.env                    = &_g_env                                                                       ;
 		//
 		::string sav_ld_library_path ;
 		if (PY_LD_LIBRARY_PATH[0]!=0) {
@@ -284,6 +290,23 @@ namespace Engine::Makefiles {
 		::vector_s srcs_deps   ;
 		Config     config      ;
 		Ptr<Dict>  py_info     ;
+		//
+		if (!dynamic) {
+			{	OFStream env_stream { ADMIN_DIR_S "user_environ" } ;
+				First    first      ;
+				size_t   w          = 0 ;
+				for( char** e=environ ; *e ; e++ ) if ( const char* eq = strchr(*e,'=') ) w = ::max(w,size_t(eq-*e)) ;
+				env_stream << '{' ;
+				for( char** e=environ ; *e ; e++ )
+					if ( const char* eq = strchr(*e,'=') )
+						env_stream << first("",",")<<'\t'<< ::setw(w)<<mk_py_str(::string_view(*e,eq-*e)) <<" : "<< mk_py_str(::string(eq+1)) << '\n' ;
+				env_stream << "}\n" ;
+			}
+			_g_env["HOME"] = no_slash(*g_root_dir_s)       ;
+			_g_env["PATH"] = STD_PATH                      ;
+			_g_env["UID" ] = to_string(getuid())           ;
+			_g_env["USER"] = ::getpwuid(getuid())->pw_name ;
+		}
 		//
 		::pair_s<bool/*done*/> config_digest = _refresh_config( config , py_info , config_deps , startup_dir_s , nfs_guard ) ;
 		//

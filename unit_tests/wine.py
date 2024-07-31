@@ -30,10 +30,10 @@ if __name__!='__main__' :
 		stems = { 'Method' : r'\w+' }
 
 	class WineRule(Rule) :
-		chroot_dir        = '/'                                         # ensure pid namespace is used to ensure reliale job termination
-		side_targets      = { 'WINE' : ('.wine/{*:.*}','incremental') }
-		environ_resources = { 'DISPLAY' : os.environ['DISPLAY'] }
-		timeout           = 30                                          # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
+		chroot_dir        = '/'                                            # ensure pid namespace is used to ensure reliale job termination
+		side_targets      = { 'WINE'    : ('.wine/{*:.*}','incremental') }
+		environ_resources = { 'DISPLAY' : lmake.user_environ['DISPLAY']  }
+		timeout           = 30                                             # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
 		allow_stderr      = True
 
 	class WineInit(WineRule) :
