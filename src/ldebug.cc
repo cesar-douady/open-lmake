@@ -6,19 +6,36 @@
 #include "app.hh"
 #include "disk.hh"
 #include "client.hh"
+#include "py.hh"
 #include "rpc_client.hh"
 #include "trace.hh"
 
 using namespace Disk ;
+using namespace Py   ;
+
+::string keys() {
+	try {
+		Ptr<Object> py_cfg_data = py_eval(read_content(ADMIN_DIR_S "lmake/config_data.py")) ;
+		Object&     py_cfg      = py_cfg_data->as_a<Dict>().get_item("config")              ;
+		Object&     py_dbgs     = py_cfg     . as_a<Dict>().get_item("debug" )              ;
+		::string res   = "(" ;
+		First    first ;
+		for( auto const& [py_k,py_v] : py_dbgs.as_a<Dict>() ) res <<first("",",")<< ::string(py_k.as_a<Str>()) ;
+		res += ')' ;
+		return res ;
+	} catch (::string const&) { return {} ; } // dont list keys if we cannot gather them
+}
 
 int main( int argc , char* argv[] ) {
 	app_init(false/*read_only_ok*/) ;
+	Py::init(*g_lmake_dir_s       )   ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{},{
 		{ ReqFlag::Key    , { .short_name='k' , .has_arg=true  , .doc="entry into config.debug to specify debug method" } }
 	,	{ ReqFlag::NoExec , { .short_name='n' , .has_arg=false , .doc="dont execute, just generate files"               } }
 	}} ;
+	syntax.flags[+ReqFlag::Key].doc <<' '<< keys() ; // add available keys to usage
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
 	if ( cmd_line.args.size()<1 ) syntax.usage("need a target to debug"                                ) ;

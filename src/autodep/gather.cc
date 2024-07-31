@@ -116,7 +116,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 	}
 	if (!jerr.sync) fd = {} ;                                            // dont reply if not sync
 	JobMngtRpcReq jmrr ;
-	switch (jerr.proc) {
+	switch (proc) {
 		case JobExecProc::ChkDeps : jmrr = { JobMngtProc::ChkDeps , seq_id , job , fd , cur_deps_cb()                                                                    } ; break ;
 		case JobExecProc::Decode  : jmrr = { JobMngtProc::Decode  , seq_id , job , fd , ::move(jerr.txt) , ::move(jerr.files[0].first) , ::move(jerr.ctx)                } ; break ;
 		case JobExecProc::Encode  : jmrr = { JobMngtProc::Encode  , seq_id , job , fd , ::move(jerr.txt) , ::move(jerr.files[0].first) , ::move(jerr.ctx) , jerr.min_len } ; break ;

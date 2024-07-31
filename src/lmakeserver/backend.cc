@@ -81,7 +81,7 @@ namespace Backends {
 	//
 
 	::string                  Backend::s_executable              ;
-	Backend*                  Backend::s_tab[N<Tag>]             ;
+	Backend*                  Backend::s_tab[N<Tag>]             = {} ;
 	Mutex<MutexLvl::Backend > Backend::_s_mutex                  ;
 	Mutex<MutexLvl::StartJob> Backend::_s_starting_job_mutex     ;
 	::atomic<JobIdx>          Backend::_s_starting_job           ;

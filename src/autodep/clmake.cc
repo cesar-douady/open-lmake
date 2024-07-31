@@ -275,12 +275,14 @@ PyMODINIT_FUNC
 	PyInit_clmake()
 #endif
 {
-	Ptr<Module> mod { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
-	//
 	_g_record = {New,Yes/*enabled*/} ;
-	Ptr<Tuple> py_bes{ 1+HAS_SLURM } ;                      // PER_BACKEND : add an entry here
-	/**/           py_bes->set_item(0,*Ptr<Str>("local")) ;
-	if (HAS_SLURM) py_bes->set_item(1,*Ptr<Str>("slurm")) ;
+	//
+	Ptr<Module> mod   { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
+	Ptr<Tuple>  py_bes{ 1+HAS_SGE+HAS_SLURM }                           ;                                          // PER_BACKEND : add an entry here
+	size_t      i                                                       = 0 ;
+	/**/           py_bes->set_item(i++,*Ptr<Str>("local")) ;
+	if (HAS_SGE  ) py_bes->set_item(i++,*Ptr<Str>("sge"  )) ;
+	if (HAS_SLURM) py_bes->set_item(i++,*Ptr<Str>("slurm")) ;
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	mod->set_attr( "root_dir"                , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
 	mod->set_attr( "backends"                , *py_bes                                                         ) ;

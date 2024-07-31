@@ -70,8 +70,8 @@ namespace Engine {
 	::ostream& operator<<( ::ostream& os , Config::Backend const& be ) {
 		os << "Backend(" ;
 		if (be.configured) {
-			if (+be.ifce) os << ::hex<<be.ifce<<::dec <<',' ;
-			/**/          os << be.dct                      ;
+			if (+be.ifce) os << be.ifce <<',' ;
+			/**/          os << be.dct        ;
 		}
 		return os <<')' ;
 	}
@@ -338,22 +338,22 @@ namespace Engine {
 			}
 			res <<"\t\t"<< snake(t) <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
 			::vmap_ss descr = bbe->descr() ;
-			size_t w = 9 ;                                                   // room for interface
+			size_t w = 0 ;
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
 			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()) ;
 			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k <<" : "<< v <<'\n' ;
 			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< ::setw(w)<<k <<" : "<< v <<'\n' ;
-			if (+be.ifce)                     res <<"\t\t\t"<< indent<'\t'>(be.ifce,3)  <<'\n' ;
+			if (+be.ifce)                     res <<indent<'\t'>(be.ifce,3)             <<'\n' ;
 		}
 		//
 		if (trace!=TraceConfig()) {
 			res << "\ttrace :\n" ;
-			if (trace.sz      !=TraceConfig().sz      )   res << "\t\tsize     : " << trace.sz     << '\n' ;
-			if (trace.n_jobs  !=TraceConfig().n_jobs  )   res << "\t\tn_jobs   : " << trace.n_jobs << '\n' ;
+			if (trace.sz      !=TraceConfig().sz      ) res << "\t\tsize     : " << trace.sz     << '\n' ;
+			if (trace.n_jobs  !=TraceConfig().n_jobs  ) res << "\t\tn_jobs   : " << trace.n_jobs << '\n' ;
 			if (trace.channels!=TraceConfig().channels) {
-				/**/                                                   res << "\t\tchannels :" ;
-				for( Channel c : All<Channel> ) if (trace.channels[c]) res <<' '<< snake(c)    ;
-				/**/                                                   res << '\n'             ;
+				/**/                                                   res <<"\t\t"<< "channels :" ;
+				for( Channel c : All<Channel> ) if (trace.channels[c]) res <<' '   << snake(c)     ;
+				/**/                                                   res <<'\n'                  ;
 			}
 		}
 		//

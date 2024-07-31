@@ -304,6 +304,23 @@ EOF
 $CXX -o start_main -xc start_main.c
 USE_LIBC_START_MAIN=$(./start_main)
 
+#
+# SGE_BIN_DIR
+#
+if type -p qsub >/dev/null ; then
+	SGE_BIN_DIR=$(dirname $(type -p qsub))
+	HAS_SGE=1
+	SGE_BIN_DIR= # SGE not operational yet
+	HAS_SGE=0    # .
+else
+	HAS_SGE=0
+fi
+
+#
+# STD_PATH
+#
+STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
+
 cd $START_DIR
 
 cat >$MK_FILE <<EOF
@@ -331,7 +348,8 @@ HAS_PCRE       := ${HAS_PCRE#0}
 HAS_SECCOMP    := ${HAS_SECCOMP#0}
 HAS_SLURM      := ${HAS_SLURM#0}
 #
-STD_PATH       := $(env -i /bin/bash -c 'echo $PATH')
+SGE_BIN_DIR    := $SGE_BIN_DIR
+STD_PATH       := $STD_PATH
 EOF
 
 cat >$H_FILE <<EOF
@@ -345,6 +363,7 @@ cat >$H_FILE <<EOF
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
+	#define HAS_SGE                     $HAS_SGE
 	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE
 	#define MAX_PID                     $MAX_PID
@@ -352,5 +371,6 @@ cat >$H_FILE <<EOF
 	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
+	#define SGE_BIN_DIR                 "$SGE_BIN_DIR"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

@@ -87,11 +87,11 @@ config = pdict(
 		)
 	)
 ,	debug = pdict({
-		''  : 'lmake_debug.default'     # use pdb  as the default debugger
-	,	'g' : 'lmake_debug.pudb'        # use pudb as the default graphic debugger
-	,	'n' : 'lmake_debug.none'        # record n as a key to indicate no debug
-	,	'e' : 'lmake_debug.enter'       # record e as a key to indicate we just want to enter into job view without executing any code
-	,	'c' : 'lmake_debug.vscode'
+		''   : 'lmake_debug.default'    # use pdb  as the default debugger
+	,	'pg' : 'lmake_debug.pudb'       # use pudb as the default graphic debugger
+	,	'n'  : 'lmake_debug.none'       # record n as a key to indicate no debug
+	,	'e'  : 'lmake_debug.enter'      # record e as a key to indicate we just want to enter into job view without executing any code
+	,	'c'  : 'lmake_debug.vscode'
 	})
 ,	caches = pdict(                     # PER_CACHE : provide an explanation for each cache method
 	#	dir = pdict(                    # when rule specifies cache = 'dir' , this cache is selected

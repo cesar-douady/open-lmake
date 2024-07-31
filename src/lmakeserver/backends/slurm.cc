@@ -136,8 +136,7 @@ namespace Backends::Slurm {
 		// init
 		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
-			SlurmBackend& self = *new SlurmBackend ;
-			s_register(MyTag,self) ;
+			s_register(MyTag,*new SlurmBackend) ;
 		}
 
 		// static data

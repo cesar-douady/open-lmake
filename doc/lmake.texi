@@ -683,7 +683,7 @@ Unless overridden, the following standard debug methods are provided :
 @tab @file{lmake_debug.default}
 @tab Job is run under pdb control.
 @tab Job is run with the @code{-x} flag (so that commands are traced) and an interactive shell (as provided by the @code{$SHELL} environment variable) is open in the job environment.
-@item g
+@item pg
 @tab @file{lmake_debug.pudb}
 @tab Job is run under pudb control.
 @tab Not supported

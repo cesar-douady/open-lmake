@@ -477,11 +477,16 @@ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	}
 	if has_fuse : rev_post_opts = ('-lfuse3',)
 
-for client in ('ldebug','lforget','lmake','lmark','lshow') :
+for client in ('lforget','lmake','lmark','lshow') :
 	class LinkLmake(LinkClientAppExe) :
 		name    = f'link {client}'
 		targets = { 'TARGET' : f'bin/{client}'   }
 		deps    = { 'MAIN'   : f'src/{client}.o' }
+		if client=='ldebug' : deps['PY'] = 'src/py.o'
+
+class LinkLdebug(LinkClientAppExe,LinkPython) :
+	targets = { 'TARGET' : f'bin/ldebug'   }
+	deps    = { 'MAIN'   : f'src/ldebug.o' }
 
 for app in ('xxhsum','align_comments') :
 	class LinkXxhsum(LinkAppExe) :

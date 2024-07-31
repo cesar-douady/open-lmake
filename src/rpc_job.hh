@@ -34,6 +34,7 @@ ENUM_1( BackendTag // PER_BACKEND : add a tag for each backend
 ,	Dflt = Local
 ,	Unknown        // must be first
 ,	Local
+,	Sge
 ,	Slurm
 )
 // END_OF_VERSIONING
