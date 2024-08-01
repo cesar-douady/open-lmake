@@ -577,13 +577,12 @@ struct Mkstemp : WSolve {
 	#endif
 	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE { // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
 		HEADER1(statx,true/*is_stat*/,p,(d,p,f,msk,b)) ;
-		#ifdef SYS_statx
-			// STATX_* macros are not defined when statx is not supported, leading to compile errors
+		#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
 			Accesses a ;
 			if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a = ~Accesses() ; // user can distinguish all content
 			else if (msk& STATX_MODE                         ) a = Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
 		#else
-			Accesses a = ~Accesses() ;
+			Accesses a = ~Accesses() ; // if access macros are not defined, be pessimistic
 		#endif
 		Stat r{{d,p},true/*no_follow*/,a,"statx"} ;
 		return r(orig(d,p,f,msk,b)) ;
