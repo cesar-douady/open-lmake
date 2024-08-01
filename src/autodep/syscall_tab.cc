@@ -261,8 +261,12 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & 
 	[[maybe_unused]] static void _entry_statx( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 		uint     msk = args[3] ;
 		Accesses a   ;
-		if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a  = ~Accesses() ; // user can distinguish all content
-		else if (msk& STATX_MODE                         ) a |= Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
+		#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
+			if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a  = ~Accesses() ;                      // user can distinguish all content
+			else if (msk& STATX_MODE                         ) a |= Access::Reg ;                      // user can distinguish executable files, which is part of crc for regular files
+		#else
+			a = ~Accesses() ;                                                                          // if access macros are not defined, be pessimistic
+		#endif
 		_do_stat<true,2>(r,pid,args,a,comment) ;
 	}
 #endif
