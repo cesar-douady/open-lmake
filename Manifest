@@ -237,6 +237,7 @@ unit_tests/modules.py
 unit_tests/name.py
 unit_tests/namespaces.py
 unit_tests/numba.py
+unit_tests/numba2.py
 unit_tests/numpy.py
 unit_tests/overlay.py
 unit_tests/path.py
