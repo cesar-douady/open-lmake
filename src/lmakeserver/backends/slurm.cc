@@ -90,7 +90,7 @@ namespace Backends::Slurm {
 
 	using p_cxxopts = ::unique_ptr<cxxopts::Options> ;
 
-	void slurm_init() ;
+	void slurm_init(const char* config_file) ;
 
 	p_cxxopts                 create_parser     (                        ) ;
 	RsrcsData                 parse_args        (::string const& args    ) ;
@@ -142,13 +142,13 @@ namespace Backends::Slurm {
 
 		virtual void config( vmap_ss const& dct , bool dynamic ) {
 			Trace trace(BeChnl,"Slurm::config",STR(dynamic),dct) ;
-			if (!dynamic) slurm_init() ;
-			static QueueThread<uint32_t> slurm_cancel_thread{'C',slurm_cancel} ; _s_slurm_cancel_thread = &slurm_cancel_thread ;
 			//
+			const char* config_file = nullptr ;
 			repo_key = base_name(*g_root_dir)+':' ; // cannot put this code directly as init value as g_root_dir is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
+						case 'c' : if(k=="config"           ) { config_file       = v.c_str()                ; continue ; } break ;
 						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
 						case 'r' : if(k=="repo_key"         ) { repo_key          =                       v  ; continue ; } break ;
 						case 'u' : if(k=="use_nice"         ) { use_nice          = from_string<bool    >(v) ; continue ; } break ;
@@ -157,7 +157,11 @@ namespace Backends::Slurm {
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw to_string("wrong value for entry "   ,k,": ",v) ; }
 				/**/                        { trace("bad_key",k  ) ; throw to_string("unexpected config entry: ",k       ) ; }
 			}
-			if (!dynamic) daemon = slurm_sense_daemon() ;
+			if (!dynamic) {
+				slurm_init(config_file) ;
+				daemon = slurm_sense_daemon() ;
+			}
+			static QueueThread<uint32_t> slurm_cancel_thread{'C',slurm_cancel} ; _s_slurm_cancel_thread = &slurm_cancel_thread ;
 			trace("done") ;
 		}
 
@@ -380,6 +384,7 @@ namespace Backends::Slurm {
 		decltype(::slurm_free_ctl_conf                    )* free_ctl_conf                     = nullptr/*garbage*/ ;
 		decltype(::slurm_free_job_info_msg                )* free_job_info_msg                 = nullptr/*garbage*/ ;
 		decltype(::slurm_free_submit_response_response_msg)* free_submit_response_response_msg = nullptr/*garbage*/ ;
+		decltype(::slurm_init                             )* init                              = nullptr/*garbage*/ ;
 		decltype(::slurm_init_job_desc_msg                )* init_job_desc_msg                 = nullptr/*garbage*/ ;
 		decltype(::slurm_kill_job                         )* kill_job                          = nullptr/*garbage*/ ;
 		decltype(::slurm_load_ctl_conf                    )* load_ctl_conf                     = nullptr/*garbage*/ ;
@@ -397,7 +402,7 @@ namespace Backends::Slurm {
 		dst = reinterpret_cast<T*>(::dlsym(handler,name)) ;
 		if (!dst) throw to_string("cannot find ",name," in ",LibSlurm) ;
 	}
-	void slurm_init() {
+	void slurm_init(const char* config_file) {
 		Trace trace(BeChnl,"slurm_init") ;
 		void* handler = ::dlopen(LibSlurm,RTLD_NOW|RTLD_GLOBAL) ;
 		if (!handler) throw to_string("cannot find ",LibSlurm) ;
@@ -405,6 +410,7 @@ namespace Backends::Slurm {
 		_load_func( handler , SlurmApi::free_ctl_conf                     , "slurm_free_ctl_conf"                     ) ;
 		_load_func( handler , SlurmApi::free_job_info_msg                 , "slurm_free_job_info_msg"                 ) ;
 		_load_func( handler , SlurmApi::free_submit_response_response_msg , "slurm_free_submit_response_response_msg" ) ;
+		_load_func( handler , SlurmApi::init                              , "slurm_init"                              ) ;
 		_load_func( handler , SlurmApi::init_job_desc_msg                 , "slurm_init_job_desc_msg"                 ) ;
 		_load_func( handler , SlurmApi::kill_job                          , "slurm_kill_job"                          ) ;
 		_load_func( handler , SlurmApi::load_ctl_conf                     , "slurm_load_ctl_conf"                     ) ;
@@ -415,6 +421,9 @@ namespace Backends::Slurm {
 		_load_func( handler , SlurmApi::strerror                          , "slurm_strerror"                          ) ;
 		_load_func( handler , SlurmApi::submit_batch_het_job              , "slurm_submit_batch_het_job"              ) ;
 		_load_func( handler , SlurmApi::submit_batch_job                  , "slurm_submit_batch_job"                  ) ;
+		//
+		SlurmApi::init(config_file) ;
+		//
 		trace("done") ;
 	}
 
