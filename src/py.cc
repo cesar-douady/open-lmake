@@ -33,13 +33,18 @@ namespace Py {
 
 	void init( ::string const& lmake_dir_s , bool ) {
 		static bool once=false ; if (once) return ; else once = true ;
+		#if PY_VERSION_HEX >= 0x03080000
+			PyConfig config ; PyConfig_InitIsolatedConfig(&config) ; // ignore env variables and no user site dir
+			config.write_bytecode = false ;                          // be as non-intrusive as possible
+			Py_InitializeFromConfig(&config) ;
+		#else
+			Py_IgnoreEnvironmentFlag = true ;                        // favor repeatability
+			Py_NoUserSiteDirectory   = true ;                        // .
+			Py_DontWriteBytecodeFlag = true ;                        // be as non-intrusive as possible
+			Py_InitializeEx(0) ;                                     // skip initialization of signal handlers
+		#endif
 		//
-		Py_IgnoreEnvironmentFlag = true ;                         // favor repeatability
-		Py_NoUserSiteDirectory   = true ;                         // .
-		Py_DontWriteBytecodeFlag = true ;                         // be as non-intrusive as possible
-		Py_InitializeEx(0) ;                                      // skip initialization of signal handlers
-		//
-		py_get_sys("implementation").set_attr("cache_tag",None) ; // avoid pyc management
+		py_get_sys("implementation").set_attr("cache_tag",None) ;    // avoid pyc management
 		//
 		List& py_path = py_get_sys<List>("path") ;
 		py_path.prepend( *Ptr<Str>(lmake_dir_s+"lib") ) ;
