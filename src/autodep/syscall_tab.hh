@@ -49,6 +49,14 @@ struct SyscallDescr {
 	,	LIBCALL_ENTRY(stat64   ,true/*is_stat*/)
 #endif
 
+#if MAP_VFORK
+	#define ENUMERATE_VFORK_LIBCALLS \
+	,	LIBCALL_ENTRY(vfork  ,false/*is_stat*/) \
+	,	LIBCALL_ENTRY(__vfork,false/*is_stat*/)
+#else
+	#define ENUMERATE_VFORK_LIBCALLS
+#endif
+
 //
 // mere path accesses, no actual accesses to file data */
 //
@@ -76,6 +84,7 @@ struct SyscallDescr {
 	LIBCALL_ENTRY(chdir            ,false/*is_stat*/) \
 ,	LIBCALL_ENTRY(chmod            ,false/*is_stat*/) \
 ,	LIBCALL_ENTRY(clone            ,false/*is_stat*/) \
+,	LIBCALL_ENTRY(__clone2         ,false/*is_stat*/) \
 ,	LIBCALL_ENTRY(close            ,false/*is_stat*/) \
 ,	LIBCALL_ENTRY(__close          ,false/*is_stat*/) \
 ,	LIBCALL_ENTRY(creat            ,false/*is_stat*/) \
@@ -144,8 +153,7 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(utime            ,false/*is_stat*/) \
 ,	LIBCALL_ENTRY(utimensat        ,false/*is_stat*/) \
 ,	LIBCALL_ENTRY(utimes           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(vfork            ,false/*is_stat*/) /* because vfork semantic does not allow instrumentation of following exec */ \
-,	LIBCALL_ENTRY(__vfork          ,false/*is_stat*/) /* . */ \
 	ENUMERATE_LD_PRELOAD_LIBCALLS                     \
 	ENUMERATE_PATH_LIBCALLS                           \
-	ENUMERATE_DIRECT_STAT_LIBCALLS
+	ENUMERATE_DIRECT_STAT_LIBCALLS                    \
+	ENUMERATE_VFORK_LIBCALLS

@@ -31,7 +31,6 @@ extern "C" {
 	extern int     __dup2           ( int oldfd , int newfd                                         ) noexcept ;
 	extern pid_t   __fork           (                                                               ) noexcept ;
 	extern pid_t   __libc_fork      (                                                               ) noexcept ;
-	extern pid_t   __vfork          (                                                               ) noexcept ;
 	extern int     __open           (             const char* pth , int flgs , ...                  )          ;
 	extern int     __open_nocancel  (             const char* pth , int flgs , ...                  )          ;
 	extern int     __open_2         (             const char* pth , int flgs                        )          ;
@@ -58,6 +57,9 @@ extern "C" {
 	extern int  faccessat2 ( int dirfd , const char* pth , int mod , int flgs                                       ) noexcept ;
 	extern int  renameat2  ( int odfd  , const char* op  , int ndfd , const char* np , uint flgs                    ) noexcept ;
 	extern int  statx      ( int dirfd , const char* pth , int flgs , uint msk , struct statx* buf                  ) noexcept ;
+	#if MAP_VFORK
+		extern pid_t __vfork() noexcept ;
+	#endif
 }
 
 static              Mutex<MutexLvl::Autodep2> _g_mutex ;         // ensure exclusivity between threads
@@ -90,7 +92,7 @@ template<class Action,int NP=1> struct AuditAction : Ctx,Action {
 	// services
 	template<class T> T operator()(T res) { save_errno() ; return Action::operator()(auditor(),res) ; }
 } ;
-//                                         n paths
+//                                           n paths
 using Chdir    = AuditAction<Record::Chdir         > ;
 using Chmod    = AuditAction<Record::Chmod         > ;
 using Hide     = AuditAction<Record::Hide    ,0    > ;
@@ -150,7 +152,7 @@ struct _Execp : _Exec {
 	using Base = _Exec ;
 	// search executable file in PATH
 	_Execp() = default ;
-	_Execp( Record& r , const char* file , const char* const envp[] , ::string&& comment ) {
+	_Execp( Record& r , const char* file , bool /*no_follow*/ , const char* const envp[] , ::string&& comment ) {
 		if (!file) return ;
 		//
 		if (::strchr(file,'/')) {                                                              // if file contains a /, no search is performed
@@ -388,19 +390,27 @@ struct Mkstemp : WSolve {
 	#endif
 
 	// execv
+	// /!\ : exec* can be called from within a vfork
+	// So we must ensure that the child fully clean locks and other protections before actually calling exec as we cannot clean up after the call (it usually does not return)
+	// and its memory is shared with parent in that case.
+	// In counterpart, exec* calls do not themselves call other libc functions, so we need no protection while they run.
 	// execv*p cannot be simple as we do not know which file will be accessed
-	//                                                                           is_stat                                               no_follow
-	int execv  (CC* p,char* const argv[]                   ) NE { HEADER0(execv  ,false,(p,argv     )) ; NO_SERVER(execv  ) ; Exec  r{p,false  ,environ,"execv"  } ; return r(orig(p,argv     )) ; }
-	int execve (CC* p,char* const argv[],char* const envp[]) NE { HEADER0(execve ,false,(p,argv,envp)) ; NO_SERVER(execve ) ; Exec  r{p,false  ,envp   ,"execve" } ; return r(orig(p,argv,envp)) ; }
-	int execvp (CC* p,char* const argv[]                   ) NE { HEADER0(execvp ,false,(p,argv     )) ; NO_SERVER(execvp ) ; Execp r{p,        environ,"execvp" } ; return r(orig(p,argv     )) ; }
-	int execvpe(CC* p,char* const argv[],char* const envp[]) NE { HEADER0(execvpe,false,(p,argv,envp)) ; NO_SERVER(execvpe) ; Execp r{p,        envp   ,"execvpe"} ; return r(orig(p,argv,envp)) ; }
-	//
-	int execveat( int dfd , CC* pth , char* const argv[] , char *const envp[] , int flgs ) NE {
-		HEADER1(execveat,false/*is_stat*/,pth,(dfd,pth,argv,envp,flgs)) ;
-		NO_SERVER(execveat) ;
-		Exec r { {dfd,pth} , ASLNF(flgs) , envp , "execveat" } ;
-		return r(orig(dfd,pth,argv,envp,flgs)) ;
-	}
+	#define HEADER_EXEC(Exec,libcall,no_follow,path,envp) \
+		ORIG(libcall) ;                                  \
+		Libcall orig = atomic_orig ;                     \
+		SWEAR(!_t_loop) ;                                \
+		if (started()) {                                 \
+			NO_SERVER(libcall) ;                         \
+			Save sav  { _t_loop , true } ;               \
+			Lock lock { _g_mutex       } ;               \
+			Exec( path , no_follow , envp , #libcall ) ; \
+		}
+	//                                                                                                                 no_follow
+	int execv   (         CC* p , char* const argv[]                                 ) NE { HEADER_EXEC(Exec ,execv   ,false      ,               p ,environ) ; return orig(  p,argv          ) ; }
+	int execve  (         CC* p , char* const argv[] , char* const envp[]            ) NE { HEADER_EXEC(Exec ,execve  ,false      ,               p ,envp   ) ; return orig(  p,argv,envp     ) ; }
+	int execvp  (         CC* p , char* const argv[]                                 ) NE { HEADER_EXEC(Execp,execvp  ,false      ,               p ,environ) ; return orig(  p,argv          ) ; }
+	int execvpe (         CC* p , char* const argv[] , char* const envp[]            ) NE { HEADER_EXEC(Execp,execvpe ,false      ,               p ,envp   ) ; return orig(  p,argv,envp     ) ; }
+	int execveat( int d , CC* p , char* const argv[] , char *const envp[] , int flgs ) NE { HEADER_EXEC(Exec ,execveat,ASLNF(flgs),Record::Path(d,p),envp   ) ; return orig(d,p,argv,envp,flgs) ; }
 	// execl
 	#define MK_ARGS(end_action,value) \
 		char*   cur         = const_cast<char*>(arg)            ;            \
@@ -433,14 +443,16 @@ struct Mkstemp : WSolve {
 	// /!\ lock is not strictly necessary, but we must beware of interaction between lock & fork : locks are duplicated
 	//     if another thread has the lock while we fork => child will dead lock as it has the lock but not the thread
 	//     a simple way to stay coherent is to take the lock before fork and to release it after both in parent & child
-	// vfork is mapped to fork as vfork prevents most actions before following exec and we need a clean semantic to instrument exec
+	// vfork does not duplicate its memory and need no special treatment (as with clone with the CLONE_VM flag)
 	//                                                 is_stat
 	pid_t fork       (       ) NE { HEADER0(fork       ,false,(   )) ; NO_SERVER(fork       ) ; return orig  (   ) ; }
 	pid_t __fork     (       ) NE { HEADER0(__fork     ,false,(   )) ; NO_SERVER(__fork     ) ; return orig  (   ) ; }
 	pid_t __libc_fork(       ) NE { HEADER0(__libc_fork,false,(   )) ; NO_SERVER(__libc_fork) ; return orig  (   ) ; }
-	pid_t vfork      (       ) NE {                                                             return fork  (   ) ; }
-	pid_t __vfork    (       ) NE {                                                             return __fork(   ) ; }
-	int  system      (CC* cmd)    { HEADER0(system     ,false,(cmd)) ; NO_SERVER(system     ) ; return orig  (cmd) ; } // cf fork for explanation as this syscall does fork
+	int   system     (CC* cmd)    { HEADER0(system     ,false,(cmd)) ; NO_SERVER(system     ) ; return orig  (cmd) ; } // actually does a fork
+	#if MAP_VFORK
+		pid_t vfork  () NE { return fork  () ; } // for posix systems, instrumenting exec* after vfork is forbidden, in exchange vfork is a subset of fork ...
+		pid_t __vfork() NE { return __fork() ; } // ... for linux, instrumenting exec* after vfork is ok but vfork is more precisely specified and cannot be mapped to fork
+	#endif
 
 	// link                                                          is_stat                                              no_follow
 	int link  (       CC* op,       CC* np      ) NE { HEADER2(link  ,false,op,np,(   op,   np  )) ; Lnk r{    op ,    np ,false   ,"link"  } ; return r(orig(   op,   np  )) ; }
@@ -575,14 +587,14 @@ struct Mkstemp : WSolve {
 		int fstatat  (int d,CC* p,struct stat  * b,int f) NE { HEADER1(fstatat  ,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat"  } ; return r(orig(d,p,b,f)) ; }
 		int fstatat64(int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat64"} ; return r(orig(d,p,b,f)) ; }
 	#endif
-	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE { // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
+	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE {                   // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
 		HEADER1(statx,true/*is_stat*/,p,(d,p,f,msk,b)) ;
 		#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
 			Accesses a ;
 			if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a = ~Accesses() ; // user can distinguish all content
 			else if (msk& STATX_MODE                         ) a = Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
 		#else
-			Accesses a = ~Accesses() ; // if access macros are not defined, be pessimistic
+			Accesses a = ~Accesses() ;                                           // if access macros are not defined, be pessimistic
 		#endif
 		Stat r{{d,p},true/*no_follow*/,a,"statx"} ;
 		return r(orig(d,p,f,msk,b)) ;
@@ -631,7 +643,7 @@ struct Mkstemp : WSolve {
 		HEADER(
 			syscall
 		,	false/*is_stat*/
-		,	( !descr || (descr.filter&&Record::s_is_simple(reinterpret_cast<const char*>(args[descr.filter-1]))) )
+		,	!descr || (descr.filter&&Record::s_is_simple(reinterpret_cast<const char*>(args[descr.filter-1])))
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
 		void* descr_ctx = nullptr ;

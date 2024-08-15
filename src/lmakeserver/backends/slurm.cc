@@ -417,7 +417,7 @@ namespace Backends::Slurm {
 		if (!dst) throw "cannot find "s+name+" in "+LibSlurm ;
 	}
 	void slurm_init(const char* config_file) {
-		Trace trace(BeChnl,"slurm_init") ;
+		Trace trace(BeChnl,"slurm_init",LibSlurm) ;
 		void* handler = ::dlopen(LibSlurm,RTLD_NOW|RTLD_GLOBAL) ;
 		if (!handler) throw "cannot find "s+LibSlurm ;
 		//

@@ -325,9 +325,6 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // /!\ th
 	#ifdef SYS_fork
 		static_assert(SYS_fork             <NSyscalls) ; s_tab[SYS_fork             ] = { nullptr                            , nullptr        ,0    , 2  , false , "Fork"              } ;
 	#endif
-	#ifdef SYS_vfork
-		static_assert(SYS_vfork            <NSyscalls) ; s_tab[SYS_vfork            ] = { nullptr                            , nullptr        ,0    , 2  , false , "Vfork"             } ;
-	#endif
 	#ifdef SYS_link
 		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { _entry_lnk      <false,FlagNever > , _exit_lnk      ,2    , 1  , false , "Link"              } ;
 	#endif
@@ -414,6 +411,9 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // /!\ th
 	#endif
 	#ifdef SYS_unlinkat
 		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlink   <true ,2         > , _exit_unlnk    ,2    , 1  , false , "Unlinkat"          } ;
+	#endif
+	#if MAP_VFORK && defined(SYS_vfork)
+		static_assert(SYS_vfork            <NSyscalls) ; s_tab[SYS_vfork            ] = { nullptr                            , nullptr        ,0    , 2  , false , "Vfork"             } ;
 	#endif
 	fence() ;                                                          // ensure serializatino
 	s_inited = true ;

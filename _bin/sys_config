@@ -321,6 +321,14 @@ fi
 #
 STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
 
+#
+# MAP_VFORK
+#
+# Linux specifies vfork more precisely than Posix
+# with Linux, we must not map vfork to fork as vfork is *not* a subset of fork, in exchange we can instrument exec in child
+# with posix, we must map vfork to fork as vfork is a subset of fork and instrumenting exec in child is forbidden with vfork
+MAP_VFORK=0
+
 cd $START_DIR
 
 cat >$MK_FILE <<EOF
@@ -368,6 +376,7 @@ cat >$H_FILE <<EOF
 	#define HAS_STACKTRACE              $HAS_STACKTRACE
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
+	#define MAP_VFORK                   $MAP_VFORK
 	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"

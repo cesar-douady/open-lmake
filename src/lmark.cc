@@ -25,10 +25,8 @@ int main( int argc , char* argv[] ) {
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	if ( is_mark_glb(cmd_line.key) && +cmd_line.args )
-		syntax.usage("cannot have files when listing or deleting all") ;
-	if ( cmd_line.flags[ReqFlag::Freeze] + cmd_line.flags[ReqFlag::NoTrigger] !=1 )
-		syntax.usage("can only process a single attribute : freeze or no-trigger") ;
+	if ( is_mark_glb(cmd_line.key) && +cmd_line.args                              ) syntax.usage("cannot have files when listing or deleting all") ;
+	if ( cmd_line.flags[ReqFlag::Freeze] + cmd_line.flags[ReqFlag::NoTrigger] !=1 ) syntax.usage("need exactly one mark : freeze or no-trigger"  ) ;
 	//
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Mark , false/*read_only*/ , false/*refresh_makefiles*/ , syntax , cmd_line ) ;

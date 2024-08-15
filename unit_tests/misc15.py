@@ -6,29 +6,22 @@
 if __name__!='__main__' :
 
 	import lmake
+
 	from lmake.rules import PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	class TestNumba(PyRule) :
-		targets = { 'TGT' : 'test.so'}
+	class Dut(PyRule) :
+		targets = { 'DUT' : 'dut/{*:.*}' }
 		def cmd() :
-			from numba.pycc import CC
-			import numpy as np
-			cc = CC('test')
-			@cc.export('test_nb','uint16[:]()')
-			def test_nb():
-				res = np.empty((1,),dtype=np.uint16)
-				return res
-			cc.target_cpu  = None
-			cc.output_file = TGT
-			cc.compile()
+			import os
+			import subprocess as sp
+			open(DUT('before'),'w')
+			sp.run(('hostname',))
+			open(DUT('after'),'w') # ensure access recording still works after having called sp.run
 
 else :
 
 	import ut
 
-	try :
-		import numba
-		ut.lmake('test.so',done=1)
-	except : pass
+	ut.lmake('dut/before','dut/after',done=1)
