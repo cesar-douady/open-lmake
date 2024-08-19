@@ -93,10 +93,9 @@ In case of any adverse event (lmake crashes or spurious system reboot),
 @lmake automatically recovers potentially corrupted states in a safe way to avoid having to remake the whole project because a few files are corrupted.
 
 Note that @lmake does not only recorver from its own flees, but also a lot of experience is embedded into it to work around system bugs.
-This includes for example violations by NFS of its close-to-open synchronization guarantee (which happens, under heavy system load, maybe once in 10.000 accesses)
-or SGE/SLURM spuriously disappearing.
+This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the directory containing the file) or SGE/slurm jobs spuriously disappearing.
 
-By efficient, we mean that jobs are run in parallel, optionally using a batcher such as Slurm, managing limited resources as declared in @Lmakefile.
+By efficient, we mean that jobs are run in parallel, optionally using a batcher such as SGE or slurm, managing limited resources as declared in @Lmakefile.
 We also mean that @lmake makes a lot of effort to determine if it is necessary to run a job (while always staying pessismistic).
 Such effort includes checksum based modification detection rather than date based, so that if a job is rerun and produces an identical content, subsequent jobs are not rerun.
 Also, @lmake embed a build cache whereby jobs can record their results in a cache so that if the same run needs to be carried out by another user,
@@ -2667,7 +2666,7 @@ The process group of the job, as well as the process group of any process connec
 The streams we are waiting for are @code{stderr}, and @code{stdout} unless the @code{target} attribute is used (as opposed to the @code{targets} attribute)
 in which case @code{stdout} is redirected to the the target and is not waited for.
 
-Note: some backends, such as Slurm, may have other means to manage timeouts. Both mechanisms will be usable.
+Note: some backends, such as slurm, may have other means to manage timeouts. Both mechanisms will be usable.
 
 @section @code{n_retries}
 
@@ -3022,12 +3021,48 @@ By default, the configuration contains the 2 generic resources : @code{cpu} and 
 @end itemize
 Each rule has a default @code{resources} attribute requiring one CPU.
 
-@anchor{slurm-backend}
-@section Slurm backend
+@section SGE backend
+
+The SGE backend connects to a SGE daemon to schedule jobs, which allows :
+@itemize @minus
+@item a global scheduling policy (while the local backend only sees jobs in its own repository).
+@item the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).
+@end itemize
+
+The configuration is composed of :
+@itemize @bullet
+@item @code{bin_dir} : The directory in which to find SGE executables such as @code{qsub}. This entry must be specified.
+@item @code{cell} : The cell used by the SGE daemon. This is translated into the @code{SGE_CELL} environment variable when SGE commands are called.
+By default, this is automatically determined by the SGE daemon.
+@item @code{cluster} : The cluster used by the SGE daemon. This is translated into the @code{SGE_CLUSTER} environment variable when SGE commands are called.
+By default, this is automatically determined by the SGE daemon.
+@item @code{n_max_queued_jobs} : @lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
+This is done to decrease the load of the SGE daemon as @lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
+(helped in this by the limited precision on CPU, memory and temporary disk space requirements).
+for each given set of resources, only the jobs with highest priorities are submitted to slurm, the other ones are retained by @lmake so as to limit the number of waiting jobs in slurm queues
+(the number of running job is not limited, though).
+This attribute specifies the number of waiting jobs for each set of resources that @lmake may submit to slurm.
+If too low, the schedule rate may decrease because by the time taken, when a job finishes, for @lmake to submit a new job, slurm might have exhausted its waiting queue.
+If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
+A reasonable value probably lies in the 20-100 range.
+@item @code{repo_key} : This is a string which is add in front of @lmake job names to make SGE job names.
+This key is meant to be a short identifier of the repository.
+By default it is the base name of the repository followed by @code{:}.
+Note that SGE precludes some characters and these are replaced by close looking characters (e.g. @code{;} instead of @code{:}).
+@item @code{root_dir} : The root directory of the SGE daemon. This is translated into the @code{SGE_ROOT} environment variable when SGE commands are called. This entry must be specified.
+@item @code{cpu_resource} : This is the name of a resource used to require cpu's.
+For example if specified as @code{cpu_r} and the rule of a job contains @code{resources=@{'cpu':2@}}, this is translated into @code{-l cpu_r=2} on the @code{qsub} command line.
+@item @code{mem_resource} : This is the name of a resource used to require memory in MB.
+For example if specified as @code{mem_r} and the rule of a job contains @code{resources=@{'mem':'10M'@}}, this is translated into @code{-l mem_r=10} on the @code{qsub} command line.
+@item @code{tmp_resource} : This is the name of a resource used to require memory temporary disk space in MB.
+For example if specified as @code{tmp_r} and the rule of a job contains @code{resources=@{'tmp':'100M'@}}, this is translated into @code{-l tmp_r=10}0 on the @code{qsub} command line.
+@end itemize
+
+@section slurm backend
 
 The slurm backend connects to a slurm daemon to schedule jobs, which allows :
 @itemize @minus
-@item a global schuduling policy (while the local backend only sees jobs in its own repository).
+@item a global scheduling policy (while the local backend only sees jobs in its own repository).
 @item the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).
 @end itemize
 
@@ -3376,7 +3411,7 @@ In that case, lmake output is colored and the (configurable) color set is chosen
 It may be wise to quantify resources with relatively large steps for resources @code{mem} and @code{tmp}, especially if these may be computed with a formula.
 
 The reason is linked to the way the backends select jobs.
-When a backend (actually both the local backend and the slurm essentially work the same way) search for the next job to launch, it walk through the available jobs to
+When a backend (actually the local, SGE and slurm backends essentially work the same way) search for the next job to launch, it walk through the available jobs to
 find the eligible one with the highest priority.
 When doing that, only jobs with different resources need to be compared as for a given set of resources, they can be pre-ordered by priority.
 As a consequence, the running time is proportional to the number of different resources.

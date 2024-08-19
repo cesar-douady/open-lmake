@@ -80,7 +80,6 @@ items :
 * rework dep analysis in JobData::make
 	- to ensure SWEAR(!ri.state.missing_dsk) does not fire
 * fix store to be compliant with strict aliasing rules
-* make all dirs end with /
 
 ****************************************************************************************************
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)

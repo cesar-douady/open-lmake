@@ -930,6 +930,7 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 // inner (locks that take no other locks)
 ,	File
 ,	Hash
+,	Sge
 ,	Slurm
 ,	SmallId
 ,	Thread
@@ -1177,7 +1178,7 @@ template<char Delimiter> ::string parse_printable( ::string const& s , size_t& p
 	return res ;
 }
 
-constexpr inline int _unit_val(char u) {
+constexpr inline int8_t _unit_val(char u) {
 	switch (u) {
 		case 'E' : return  60 ; break ;
 		case 'P' : return  50 ; break ;
@@ -1205,29 +1206,28 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 	if (fcr.ec!=::errc()) throw "unrecognized value "        +s ;
 	if (fcr.ptr<s_end-1 ) throw "partially recognized value "+s ;
 	//
-	static constexpr int B = _unit_val(U       ) ;
-	/**/             int b = _unit_val(*fcr.ptr) ;
+	static constexpr int8_t B = _unit_val(U       ) ;
+	/**/             int8_t b = _unit_val(*fcr.ptr) ;
 	//
 	if (b<=B) {
-		if (B-b>=int(NBits<I>)) {
-			return 0 ;
+		if (uint8_t(B-b)>=NBits<I>) {
+			val = 0 ;
 		} else {
-			val >>= B-b ;
+			val >>= uint8_t(B-b) ;
 			if ( val > ::numeric_limits<I>::max() ) throw "overflow"s  ;
 			if ( val < ::numeric_limits<I>::min() ) throw "underflow"s ;
-			return I(val) ;
 		}
 	} else {
-		if (b-B>=int(NBits<I>)) {
+		if (uint8_t(b-B)>=NBits<I>) {
 			if ( val > 0 ) throw "overflow"s  ;
 			if ( val < 0 ) throw "underflow"s ;
-			return 0 ;
 		} else {
-			if ( val > ::numeric_limits<I>::max()>>(b-B) ) throw "overflow"s  ;
-			if ( val < ::numeric_limits<I>::min()>>(b-B) ) throw "underflow"s ;
-			return I(val<<(b-B)) ;
+			if ( val > I(::numeric_limits<I>::max()>>uint8_t(b-B)) ) throw "overflow"s  ;
+			if ( val < I(::numeric_limits<I>::min()>>uint8_t(b-B)) ) throw "underflow"s ;
+			val <<= uint8_t(b-B) ;
 		}
 	}
+	return I(val) ;
 }
 
 template<char U,::integral I> ::string to_string_with_units(I x) {

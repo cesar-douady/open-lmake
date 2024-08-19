@@ -415,7 +415,7 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // /!\ th
 	#if MAP_VFORK && defined(SYS_vfork)
 		static_assert(SYS_vfork            <NSyscalls) ; s_tab[SYS_vfork            ] = { nullptr                            , nullptr        ,0    , 2  , false , "Vfork"             } ;
 	#endif
-	fence() ;                                                          // ensure serializatino
+	fence() ;                                                          // ensure serialization
 	s_inited = true ;
 	return s_tab ;
 }

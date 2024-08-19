@@ -256,6 +256,7 @@ unit_tests/resources.py
 unit_tests/rules.py
 unit_tests/rust.py
 unit_tests/scratchpad.py
+unit_tests/sge.py
 unit_tests/slurm.py
 unit_tests/sources.py
 unit_tests/sources2.py

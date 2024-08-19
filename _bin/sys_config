@@ -217,6 +217,16 @@ else HAS_SECCOMP=0
 fi
 
 #
+# HAS_SGE
+#
+if type -p qsub >/dev/null ; then
+	HAS_SGE=1
+	SGE_BIN_DIR=$(dirname $(type -p qsub))
+else
+	HAS_SGE=0
+fi
+
+#
 # HAS_SLURM
 #
 if $CXX -E --include slurm/slurm.h -xc - </dev/null >/dev/null
@@ -305,18 +315,6 @@ $CXX -o start_main -xc start_main.c
 USE_LIBC_START_MAIN=$(./start_main)
 
 #
-# SGE_BIN_DIR
-#
-if type -p qsub >/dev/null ; then
-	SGE_BIN_DIR=$(dirname $(type -p qsub))
-	HAS_SGE=1
-	SGE_BIN_DIR= # SGE not operational yet
-	HAS_SGE=0    # .
-else
-	HAS_SGE=0
-fi
-
-#
 # STD_PATH
 #
 STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
@@ -354,6 +352,7 @@ STD_INC_DIRS   := $STD_INC_DIRS
 HAS_FUSE       := ${HAS_FUSE#0}
 HAS_PCRE       := ${HAS_PCRE#0}
 HAS_SECCOMP    := ${HAS_SECCOMP#0}
+HAS_SGE        := ${HAS_SGE#0}
 HAS_SLURM      := ${HAS_SLURM#0}
 #
 SGE_BIN_DIR    := $SGE_BIN_DIR

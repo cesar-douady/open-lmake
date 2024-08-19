@@ -140,7 +140,7 @@ namespace Backends::Slurm {
 		}
 
 		// static data
-		static TimedDequeThread<SlurmId> _s_slurm_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
+		static DequeThread<SlurmId> _s_slurm_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
 
 		// accesses
 
@@ -168,15 +168,16 @@ namespace Backends::Slurm {
 			if (!dynamic) {
 				slurm_init(config_file) ;
 				daemon = slurm_sense_daemon() ;
+				_s_slurm_cancel_thread.open('C',slurm_cancel) ;
 			}
-			_s_slurm_cancel_thread.open('C',slurm_cancel) ;
 			trace("done") ;
 		}
 
 		virtual ::vmap_ss descr() const {
-			::vmap_ss res ;
+			::vmap_ss res {
+				{ "manage memory" , daemon.manage_mem?"true":"false" }
+			} ;
 			for( auto const& [k,v] : daemon.licenses ) res.emplace_back(k,::to_string(v)) ;
-			res.emplace_back("manage memory",daemon.manage_mem?"true":"false") ;
 			return res ;
 		}
 
@@ -228,8 +229,6 @@ namespace Backends::Slurm {
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
 			if ( !se.verbose && s>Status::Async ) return {{},true/*retry*/} ;                           // common case, must be fast, if job was ended asynchronously, better to ask slurm controler why
-			if (!se.id) { Lock lock{id_mutex} ; }                                                       // ensure se.id has been updated
-			SWEAR(se.id) ;
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
 				Delay d { 0.01 }                                               ;
@@ -282,7 +281,7 @@ namespace Backends::Slurm {
 		Daemon              daemon            ;         // info sensed from slurm daemon
 	} ;
 
-	TimedDequeThread<SlurmId> SlurmBackend::_s_slurm_cancel_thread ;
+	DequeThread<SlurmId> SlurmBackend::_s_slurm_cancel_thread ;
 
 	//
 	// init
@@ -589,7 +588,7 @@ namespace Backends::Slurm {
 		::string stderr_file = _get_stderr_file(job) ;
 		try {
 			::string res = read_content(stderr_file) ;
-			if (!res) return {}                                 ;
+			if (!res) return {}                                    ;
 			else      return "stderr from : "+stderr_file+'\n'+res ;
 		} catch (::string const&) {
 			return "stderr not found : "+stderr_file ;
@@ -611,7 +610,7 @@ namespace Backends::Slurm {
 		SWEAR(nice        >=0) ;
 		//
 		::string                 wd          = no_slash(*g_root_dir_s)  ;
-		auto                     job_name    = key + Job(job)->name()   ;
+		::string                 job_name    = key + Job(job)->name()   ;
 		::string                 script      = _cmd_to_string(cmd_line) ;
 		::string                 stderr_file ;
 		::string                 stdout_file ;

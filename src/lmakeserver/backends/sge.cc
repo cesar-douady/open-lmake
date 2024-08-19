@@ -3,9 +3,12 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
->>> file under construction <<<
+#include "disk.hh"
+#include "process.hh"
 
 #include "generic.hh"
+
+using namespace Disk ;
 
 namespace Backends::Sge {
 
@@ -16,46 +19,41 @@ namespace Backends::Sge {
 	struct Daemon {
 		friend ::ostream& operator<<( ::ostream& , Daemon const& ) ;
 		// data
-		::map_s<size_t> licenses ;                           // licenses sampled from daemon
+		::map_s<size_t> licenses ; // licenses sampled from daemon
 	} ;
 
 	//
 	// resources
 	//
 
-	struct RsrcsDataSingle {
-		friend ::ostream& operator<<( ::ostream& , RsrcsDataSingle const& ) ;
-		// accesses
-		bool operator==(RsrcsDataSingle const&) const = default ;
-		// data
-		uint16_t cpu      = 0 ; // number of logical cpu (qsub    --cpus-per-task option)
-		uint32_t mem      = 0 ; // memory   in MB        (qsub    --mem           option) default : illegal (memory reservation is compulsery)
-		uint32_t tmp      = 0 ; // tmp disk in MB        (qsub    --tmp           option)
-		::string licenses ;     // licenses              (qsub -L,--licenses      option)
-	} ;
-
-	struct RsrcsData : ::vector<RsrcsDataSingle> {
-		using Base = ::vector<RsrcsDataSingle> ;
+	struct RsrcsData {
+		friend ::ostream& operator<<( ::ostream& , RsrcsData const& ) ;
 		// cxtors & casts
 		RsrcsData(                               ) = default ;
 		RsrcsData( ::vmap_ss&& , Daemon , JobIdx ) ;
+		// accesses
+		bool operator==(RsrcsData const&) const = default ;
+		// data
+		uint16_t           cpu    = 0 ; // number of logical cpu (qsub -l mem_free=xxx)
+		uint32_t           mem    = 0 ; // memory   in MB        (qsub -l mem_free=xxx)
+		uint32_t           tmp    = 0 ; // tmp disk // XXX : find a generic way to handle space on tmp disk
+		::vmap_s<uint64_t> tokens ;     // generic resources     (qsub -l<key>=<val> for each entry)
 		// services
 		::vmap_ss mk_vmap(void) const ;
 	} ;
-
-	RsrcsData blend( RsrcsData&& rsrcs , RsrcsData const& force ) ;
 
 }
 
 namespace std {
 	template<> struct hash<Backends::Sge::RsrcsData> {
-		size_t operator()(Backends::Sge::RsrcsData const& rs) const {
-			Hash::Xxh h{rs.size()} ;
-			for( auto r : rs ) {
-				h.update(r.cpu     ) ;
-				h.update(r.mem     ) ;
-				h.update(r.tmp     ) ;
-				h.update(r.licenses) ;
+		size_t operator()(Backends::Sge::RsrcsData const& rd) const {
+			Hash::Xxh h ;
+			h.update(rd.cpu) ;
+			h.update(rd.mem) ;
+			h.update(rd.tmp) ;
+			for( auto const& [k,v] : rd.tokens ) {
+				h.update(k) ;
+				h.update(v) ;
 			}
 			return +h.digest() ;
 		}
@@ -68,18 +66,17 @@ namespace std {
 
 namespace Backends::Sge {
 
+	struct SgeBackend ;
+
 	using SgeId = uint32_t ;
 
 	Mutex<MutexLvl::Sge> _sge_mutex ; // ensure no more than a single outstanding request to daemon
 
-	void sge_init() ;
-
-	void                      sge_cancel      (SgeId  sge_id) ;
-	::pair_s<Bool3/*job_ok*/> sge_job_state   (SgeId  sge_id) ;
-	::string                  read_stderr     (JobIdx       ) ;
-	Daemon                    sge_sense_daemon(             ) ;
+	void     sge_cancel      (::pair<SgeBackend const*,SgeId> const&) ;
+	Daemon   sge_sense_daemon(SgeBackend const&                     ) ;
+	::string sge_mk_name     (::string&&                            ) ;
 	//
-	SgeId sge_spawn_job( ::stop_token , ::string const& key , JobIdx , ::vector<ReqIdx> const& , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
+	SgeId sge_spawn_job( ::stop_token , ::string const& key , JobIdx , ::vector<ReqIdx> const& , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
 
 	constexpr Tag MyTag = Tag::Sge ;
 
@@ -111,7 +108,7 @@ namespace Backends::Sge {
 		}
 
 		// static data
-		static TimedDequeThread<SgeId> _s_sge_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
+		static DequeThread<::pair<SgeBackend const*,SgeId>> _s_sge_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
 
 		// accesses
 
@@ -121,22 +118,31 @@ namespace Backends::Sge {
 
 		virtual void sub_config( vmap_ss const& dct , bool dynamic ) {
 			Trace trace(BeChnl,"Sge::config",STR(dynamic),dct) ;
-			if (!dynamic) sge_init() ;
-			_s_sge_cancel_thread.open('C',sge_cancel) ;
 			//
 			repo_key = base_name(no_slash(*g_root_dir_s))+':' ; // cannot put this code directly as init value as g_root_dir_s is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
-						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
-						case 'r' : if(k=="repo_key"         ) { repo_key          =                       v  ; continue ; } break ;
-						case 'u' : if(k=="use_nice"         ) { use_nice          = from_string<bool    >(v) ; continue ; } break ;
+						case 'b' : if (k=="bin_dir"          ) { sge_bin_dir_s     = with_slash           (v) ; continue ; } break ;
+						case 'c' : if (k=="cell"             ) { sge_cell          =                       v  ; continue ; }
+						/**/       if (k=="cluster"          ) { sge_cluster       =                       v  ; continue ; }
+						/**/       if (k=="cpu_resource"     ) { cpu_rsrc          =                       v  ; continue ; } break ;
+						case 'm' : if (k=="mem_resource"     ) { mem_rsrc          =                       v  ; continue ; } break ;
+						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
+						case 'r' : if (k=="repo_key"         ) { repo_key          =                       v  ; continue ; }
+						/**/       if (k=="root_dir"         ) { sge_root_dir_s    = with_slash           (v) ; continue ; } break ;
+						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                       v  ; continue ; } break ;
 						default : ;
 					}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
-			if (!dynamic) daemon = sge_sense_daemon() ;
+			if (!sge_bin_dir_s ) throw "must specify bin_dir to configure SGE"s  ;
+			if (!sge_root_dir_s) throw "must specify root_dir to configure SGE"s ;
+			if (!dynamic) {
+				daemon = sge_sense_daemon(*this) ;
+				_s_sge_cancel_thread.open('C',sge_cancel) ;
+			}
 			trace("done") ;
 		}
 
@@ -166,8 +172,8 @@ namespace Backends::Sge {
 			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
 		}
 
-		virtual ::vmap_ss export_( RsrcsData const& rs                           ) const { return rs.mk_vmap()            ; }
-		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req , JobIdx ji ) const { return {::move(rsa),daemon,ji} ; }
+		virtual ::vmap_ss export_( RsrcsData const& rs                       ) const { return rs.mk_vmap()            ; }
+		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx , JobIdx ji ) const { return {::move(rsa),daemon,ji} ; }
 		//
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
@@ -184,30 +190,77 @@ namespace Backends::Sge {
 			SWEAR(+se.rsrcs) ;
 			return "sge_id:"s+se.id.load() ;
 		}
-		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
-			...
-		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
-			...
+		// XXX : implement end_job to give explanations if verbose (mimic slurm)
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx , SpawnedEntry const& se ) const {
+			if (sge_exec_client({"qstat","-j",::to_string(se.id)}).second) return { {}/*msg*/                      , HeartbeatState::Alive } ;
+			else                                                           return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.zombie) _s_sge_cancel_thread.push(se.id) ;                                           // asynchronous (as faster and no return value) cancel
+			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;       // asynchronous (as faster and no return value) cancel
 		}
-		virtual SgeId launch_job( ::stop_token st , JobIdx j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
-			SgeId id = sge_spawn_job( st , repo_key , j , reqs , nice , cmd_line , *rs , verbose ) ;
-			Trace trace(BeChnl,"Sge::launch_job",repo_key,j,id,cmd_line,rs,STR(verbose)) ;
-			return id ;
+		virtual SgeId launch_job( ::stop_token , JobIdx j , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
+			::vector_s sge_cmd_line = {
+				"qsub"
+			,	"-b"     , "y"
+			,	"-o"     , "/dev/null" // XXX : if verbose, collect stdout
+			,	"-e"     , "/dev/null" // XXX : if verbose, collect stderr
+			,	"-shell" , "n"
+			,	"-terse"
+			,	"-N"     , sge_mk_name(repo_key+Job(j)->name())
+			} ;
+			if ( +cpu_rsrc && rs->cpu )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu)) ; }
+			if ( +mem_rsrc && rs->mem )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem)) ; }
+			if ( +tmp_rsrc && rs->tmp )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp)) ; }
+			for( auto const& [k,v] : rs ->tokens) { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(k       +'='+::to_string(v      )) ; }
+			//
+			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
+			//
+			::pair_s<bool/*ok*/> digest = sge_exec_client( ::move(sge_cmd_line) , true/*gather_stdout*/ ) ;
+			Trace trace(BeChnl,"Sge::launch_job",repo_key,j,digest,sge_cmd_line,rs,STR(verbose)) ;
+			if (!digest.second) throw "cannot submit SGE job "+Job(j)->name() ;
+			return from_string<SgeId>(digest.first) ;
+		}
+
+		::pair_s<bool/*ok*/> sge_exec_client( ::vector_s&& cmd_line , bool gather_stdout=false ) const {
+			::map_ss add_env = { { "SGE_ROOT" , no_slash(sge_root_dir_s) } } ;
+			if (+sge_cell   ) add_env["SGE_CELL"        ] = sge_cell    ;
+			if (+sge_cluster) add_env["SGE_CLUSTER_NAME"] = sge_cluster ;
+			cmd_line[0] = sge_bin_dir_s+cmd_line[0] ;
+			Child child {
+				.cmd_line  = cmd_line
+			,	.stdin_fd  = Child::NoneFd
+			,	.stdout_fd = gather_stdout ? Child::NoneFd : Child::NoneFd
+			,	.stderr_fd = Child::NoneFd
+			,	.add_env   = &add_env
+			} ;
+			child.spawn() ;
+			bool ok = child.wait_ok() ;
+			if (!gather_stdout) return {{},ok} ;
+			::string msg ;
+			for(;;) {
+				char buf[128] ;
+				ssize_t cnt = ::read(child.stdout,buf,sizeof(buf)) ;
+				if (cnt< 0) throw "cannot read stdout of child "+cmd_line[0] ;
+				if (cnt==0) return {msg,ok} ;
+				msg.append(buf,cnt) ;
+			}
 		}
 
 		// data
-		SpawnedMap mutable  spawned_rsrcs     ;         // number of spawned jobs queued in sge queue
-		::vector<RsrcsData> req_forces        ;         // indexed by req, resources forced by req
-		uint32_t            n_max_queued_jobs = -1    ; // no limit by default
-		bool                use_nice          = false ;
-		::string            repo_key          ;         // a short identifier of the repository
+		SpawnedMap mutable  spawned_rsrcs     ;      // number of spawned jobs queued in sge queue
+		uint32_t            n_max_queued_jobs = -1 ; // no limit by default
+		::string            repo_key          ;      // a short identifier of the repository
+		::string            cpu_rsrc          ;      // key to use to ask for cpu
+		::string            mem_rsrc          ;      // key to use to ask for memory (in MB)
+		::string            tmp_rsrc          ;      // key to use to ask for tmp    (in MB)
+		::string            sge_bin_dir_s     ;
+		::string            sge_cell          ;
+		::string            sge_cluster       ;
+		::string            sge_root_dir_s    ;
+		Daemon              daemon            ;      // info sensed from sge daemon
 	} ;
 
-	TimedDequeThread<SgeId> SgeBackend::_s_sge_cancel_thread ;
+	DequeThread<::pair<SgeBackend const*,SgeId>> SgeBackend::_s_sge_cancel_thread ;
 
 	//
 	// init
@@ -216,74 +269,72 @@ namespace Backends::Sge {
 	bool _inited = (SgeBackend::s_init(),true) ;
 
 	//
+	// Daemon
+	//
+
+	::ostream& operator<<( ::ostream& os , Daemon const& d ) {
+		return os << "Daemon(" << d.licenses <<')' ;
+	}
+
+	//
 	// RsrcsData
 	//
 
-	::ostream& operator<<( ::ostream& os , RsrcsDataSingle const& rsds ) {
-		/**/                os <<'('<< rsds.cpu       ;
-		if ( rsds.mem     ) os <<','<< rsds.mem<<"MB" ;
-		if ( rsds.tmp     ) os <<','<< rsds.tmp<<"MB" ;
-		if (+rsds.licenses) os <<','<< rsds.licenses  ;
-		return              os <<')'                  ;
+	::ostream& operator<<( ::ostream& os , RsrcsData const& rsd ) {
+		/**/                                  os <<"(cpu:"<<       rsd.cpu       ;
+		if (rsd.mem)                          os <<",mem:"<<       rsd.mem<<"MB" ;
+		if (rsd.tmp)                          os <<",tmp:"<<       rsd.tmp<<"MB" ;
+		for( auto const& [k,v] : rsd.tokens ) os <<','<< k <<':'<< v             ;
+		return                                os <<')'                           ;
 	}
 
-	static void _sort_entry(::string& s) {
-		if (s.find(',')==Npos) return ;
-		::vector_s v = split(s,',') ;
-		SWEAR(v.size()>1) ;
-		sort(v) ;
-		s = v[0] ;
-		for( size_t i=1 ; i<v.size() ; i++ ) s<<','<<v[i] ;
-	}
-	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d , JobIdx ji ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
+	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon , JobIdx ) {
 		sort(m) ;
-		for( auto&& [kn,v] : ::move(m) ) {
-			size_t           p    = kn.find(':')                                           ;
-			::string         k    = p==Npos ? ::move(kn) :               kn.substr(0  ,p)  ;
-			uint32_t         n    = p==Npos ? 0  : from_string<uint32_t>(kn.substr(p+1  )) ;
-			RsrcsDataSingle& rsds = grow(*this,n)                                          ;
-			//
-			auto chk_first = [&]()->void {
-				if (n) throw k+" is only for 1st component of job, not component "+n ;
-			} ;
+		for( auto&& [k,v] : ::move(m) ) {
 			switch (k[0]) {
-				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
-				case 'm' : if (k=="mem"     ) {                                rsds.mem      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ; // dont ask mem if not managed
-				case 't' : if (k=="tmp"     ) {                                rsds.tmp      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
-				case 'l' : if (k=="licenses") { chk_first() ; _sort_entry(v) ; rsds.licenses = ::move                              (v) ; continue ; } break ; // normalize to favor resources sharing
+				case 'c' : if (k=="cpu") { cpu = from_string_with_units<    uint16_t>(v) ; continue ; } break ;
+				case 'm' : if (k=="mem") { mem = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 't' : if (k=="tmp") { tmp = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
 				default : ;
 			}
-			if ( auto it = d.licenses.find(k) ; it!=d.licenses.end() ) {
-				chk_first() ;
-				if (+rsds.licenses) rsds.licenses += ',' ;
-				rsds.licenses += k+':'+v ;
-				continue ;
-			}
-			//
-			throw "no resource "+k+" for backend "+snake(MyTag) ;
-
+			tokens.emplace_back( k , from_string_with_units<uint64_t>(v) ) ;
 		}
-		if ( !(*this)[0].mem ) throw "must reserve memory when managed by sge daemon, consider "s+Job(ji)->rule->name+".resources={'mem':'1M'}" ;
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
 		::vmap_ss res ;
 		// It may be interesting to know the number of cpu reserved to know how many thread to launch in some situation
-		res.emplace_back( "cpu" , to_string_with_units     ((*this)[0].cpu) ) ;
-		res.emplace_back( "mem" , to_string_with_units<'M'>((*this)[0].mem) ) ;
-		res.emplace_back( "tmp" , to_string_with_units<'M'>((*this)[0].tmp) ) ;
+		/**/                              res.emplace_back( "cpu" , to_string_with_units     (cpu) ) ;
+		/**/                              res.emplace_back( "mem" , to_string_with_units<'M'>(mem) ) ;
+		/**/                              res.emplace_back( "tmp" , to_string_with_units<'M'>(tmp) ) ;
+		for( auto const& [k,v] : tokens ) res.emplace_back( k     , to_string_with_units     (v  ) ) ;
 		return res ;
 	}
 
-	RsrcsData blend( RsrcsData&& rsrcs , RsrcsData const& force ) {
-		if (+force)
-			for( size_t i=0 ; i<::min(rsrcs.size(),force.size()) ; i++ ) {
-				RsrcsDataSingle const& force1 = force[i] ;
-				if ( force1.cpu     ) rsrcs[i].cpu      = force1.cpu      ;
-				if ( force1.mem     ) rsrcs[i].mem      = force1.mem      ;
-				if ( force1.tmp     ) rsrcs[i].tmp      = force1.tmp      ;
-				if (+force1.licenses) rsrcs[i].licenses = force1.licenses ;
-			}
-		return ::move(rsrcs) ;
+	//
+	// sge API
+	//
+
+	Daemon sge_sense_daemon(SgeBackend const& be) {
+		if ( !be.sge_exec_client( { "qsub" , "-b" , "y" , "-o" , "/dev/null" , "-e" , "/dev/null" , "/dev/null" } ).second ) throw "no SGE daemon"s ;
+		return {} ;
 	}
 
+
+	void sge_cancel(::pair<SgeBackend const*,SgeId> const& info) {
+		info.first->sge_exec_client({"qdel",to_string(info.second)}) ; // if error, job is most certainly already dead, nothing to do
+	}
+
+	::string sge_mk_name(::string&& s) {
+		for( size_t i=0 ; i<s.size() ; i++ )
+			switch (s[i]) {
+				case '/'  : s[i] = '|' ; break ; // this char is forbidden in SGE names (cf man 5 sge_types), replace with best approximation (for cosmetic only, ambiguities are acceptable)
+				case ':'  : s[i] = ';' ; break ;
+				case '@'  : s[i] = 'a' ; break ;
+				case '\\' : s[i] = '|' ; break ;
+				case '*'  : s[i] = '#' ; break ;
+				case '?'  : s[i] = '!' ; break ;
+				default : ;
+			}
+		return ::move(s) ;
+	}
 }

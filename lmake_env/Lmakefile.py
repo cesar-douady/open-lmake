@@ -237,8 +237,8 @@ for ext,basic_opts in basic_opts_tab.items() :
 			)
 		n_tokens  = config.backends.local.cc
 		resources = {
-			'mem':'1G'
-		,	'cc' : 1
+			'mem' : '2G'
+		,	'cc'  : 1
 		}
 
 class LinkRule(PathRule,PyRule) :
