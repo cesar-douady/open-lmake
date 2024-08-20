@@ -219,11 +219,9 @@ fi
 #
 # HAS_SGE
 #
-if type -p qsub >/dev/null ; then
-	HAS_SGE=1
-	SGE_BIN_DIR=$(dirname $(type -p qsub))
-else
-	HAS_SGE=0
+if type -p qsub >/dev/null
+then HAS_SGE=1
+else HAS_SGE=0
 fi
 
 #
@@ -355,7 +353,6 @@ HAS_SECCOMP    := ${HAS_SECCOMP#0}
 HAS_SGE        := ${HAS_SGE#0}
 HAS_SLURM      := ${HAS_SLURM#0}
 #
-SGE_BIN_DIR    := $SGE_BIN_DIR
 STD_PATH       := $STD_PATH
 EOF
 
@@ -379,7 +376,6 @@ cat >$H_FILE <<EOF
 	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
-	#define SGE_BIN_DIR                 "$SGE_BIN_DIR"
 	#define STD_PATH                    "$STD_PATH"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

@@ -228,7 +228,7 @@ namespace Backends::Slurm {
 			return "slurm_id:"s+se.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
-			if ( !se.verbose && s>Status::Async ) return {{},true/*retry*/} ;                           // common case, must be fast, if job was ended asynchronously, better to ask slurm controler why
+			if ( !se.verbose && s==Status::Ok ) return {{},true/*retry*/} ;                             // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
 				Delay d { 0.01 }                                               ;
@@ -530,7 +530,7 @@ namespace Backends::Slurm {
 		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",slurm_err()) ;
 	}
 
-	::pair_s<Bool3/*job_ok*/> slurm_job_state(SlurmId slurm_id) {                                                                     // Maybe means job has not completed
+	::pair_s<Bool3/*job_ok*/> slurm_job_state(SlurmId slurm_id) {                                                         // Maybe means job has not completed
 		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
 		SWEAR(slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
@@ -539,44 +539,51 @@ namespace Backends::Slurm {
 				switch (errno) {
 					case EAGAIN                              :
 					case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                             job_ok
-					case ESLURM_NODES_BUSY                   : return { "slurm daemon busy : "   +slurm_err() , Maybe } ;             // no info : heartbeat will retry, end will eventually cancel
+					case ESLURM_NODES_BUSY                   : return { "slurm daemon busy : "   +slurm_err() , Maybe } ; // no info : heartbeat will retry, end will eventually cancel
 					default                                  : return { "cannot load job info : "+slurm_err() , Yes   } ;
 				}
 		}
-		bool completed = true ;                                                                                                       // job is completed if all tasks are
+		::string                msg ;
+		Bool3                   ok  = Yes     ;
+		slurm_job_info_t const* ji  = nullptr ;
 		for ( uint32_t i=0 ; i<resp->record_count ; i++ ) {
-			slurm_job_info_t const& ji = resp->job_array[i]                          ;
-			job_states              js = job_states( ji.job_state & JOB_STATE_BASE ) ;
-			//
-			completed &= js>=JOB_COMPLETE ;
-			if (js<=JOB_COMPLETE) continue ;                                                                                          // we only search errors
-			const char* on_nodes  = !ji.nodes||::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
-			int         exit_code = ji.exit_code                                                            ;
-			// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
-			// however, the user is interested in the received signal, not mapped bash exit code, so undo mapping
-			// signaled wstatus are barely the signal number
-			if ( WIFEXITED(ji.exit_code) && WEXITSTATUS(ji.exit_code)>0x80 ) exit_code = WEXITSTATUS(ji.exit_code)-0x80 ;
-			switch(js) {
-				// if slurm sees job failure, somthing weird occurred (if actual job fails, job_exec reports an error and completes successfully) -> retry
+			ji = &resp->job_array[i] ;
+			job_states js = job_states( ji->job_state & JOB_STATE_BASE ) ;
+			switch (js) {
+				// if slurm sees job failure, somthing weird occurred (if actual job fails, job_exec reports an error and completes successfully)
 				// possible job_states values (from slurm.h) :
-				//   JOB_PENDING                                                                                                      // queued waiting for initiation
-				//   JOB_RUNNING                                                                                                      // allocated resources and executing
-				//   JOB_SUSPENDED                                                                                                    // allocated resources, execution suspended
-				//   JOB_COMPLETE                                                                                                     // completed execution successfully
-				case JOB_CANCELLED : return { "cancelled by user"s                                                , Yes/*job_ok*/ } ; // cancelled by user
-				case JOB_FAILED    : return { "failed ("+wstatus_str(exit_code)+')'+on_nodes+fmt_string(ji.nodes) , No /*job_ok*/ } ; // completed execution unsuccessfully
-				case JOB_TIMEOUT   : return { "timeout"s                           +on_nodes+fmt_string(ji.nodes) , No /*job_ok*/ } ; // terminated on reaching time limit
-				case JOB_NODE_FAIL : return { "node failure"s                      +on_nodes+fmt_string(ji.nodes) , Yes/*job_ok*/ } ; // terminated on node failure
-				case JOB_PREEMPTED : return { "preempted"s                         +on_nodes+fmt_string(ji.nodes) , Yes/*job_ok*/ } ; // terminated due to preemption
-				case JOB_BOOT_FAIL : return { "boot failure"s                      +on_nodes+fmt_string(ji.nodes) , Yes/*job_ok*/ } ; // terminated due to node boot failure
-				case JOB_DEADLINE  : return { "deadline reached"s                  +on_nodes+fmt_string(ji.nodes) , Yes/*job_ok*/ } ; // terminated on deadline
-				case JOB_OOM       : return { "out of memory"s                     +on_nodes+fmt_string(ji.nodes) , No /*job_ok*/ } ; // experienced out of memory error
-				//   JOB_END                                                                                                          // not a real state, last entry in table
-				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
+				case JOB_PENDING   :                              ok = Maybe ; continue  ;                                // queued waiting for initiation
+				case JOB_RUNNING   :                              ok = Maybe ; continue  ;                                // allocated resources and executing
+				case JOB_SUSPENDED :                              ok = Maybe ; continue  ;                                // allocated resources, execution suspended
+				case JOB_COMPLETE  :                                           continue  ;                                // completed execution successfully
+				case JOB_CANCELLED : msg = "cancelled by user"s ; ok = Yes   ; goto Done ;                                // cancelled by user
+				case JOB_TIMEOUT   : msg = "timeout"s           ; ok = No    ; goto Done ;                                // terminated on reaching time limit
+				case JOB_NODE_FAIL : msg = "node failure"s      ; ok = Yes   ; goto Done ;                                // terminated on node failure
+				case JOB_PREEMPTED : msg = "preempted"s         ; ok = Yes   ; goto Done ;                                // terminated due to preemption
+				case JOB_BOOT_FAIL : msg = "boot failure"s      ; ok = Yes   ; goto Done ;                                // terminated due to node boot failure
+				case JOB_DEADLINE  : msg = "deadline reached"s  ; ok = Yes   ; goto Done ;                                // terminated on deadline
+				case JOB_OOM       : msg = "out of memory"s     ; ok = No    ; goto Done ;                                // experienced out of memory error
+				//   JOB_END                                                                                              // not a real state, last entry in table
+				case JOB_FAILED :                                                                                         // completed execution unsuccessfully
+					// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
+					// however, the user is interested in the received signal, not mapped bash exit code, so undo mapping
+					// signaled wstatus are barely the signal number
+					/**/                                      msg = "failed ("                                                                                           ;
+					if      (WIFSIGNALED(ji->exit_code)     ) msg << "signal " << WTERMSIG(ji->exit_code)           <<'-'<< ::strsignal(WTERMSIG(ji->exit_code)        ) ;
+					else if (!WIFEXITED(ji->exit_code)      ) msg << "??"                                                                                                ; // weird, could be a FAIL
+					else if (WEXITSTATUS(ji->exit_code)>0x80) msg << "signal " << (WEXITSTATUS(ji->exit_code)-0x80) <<'-'<< ::strsignal(WEXITSTATUS(ji->exit_code)-0x80) ; // cf comment above
+					else if (WEXITSTATUS(ji->exit_code)!=0  ) msg << "exit "   << WEXITSTATUS(ji->exit_code)                                                             ;
+					else                                      msg << "ok"                                                                                                ;
+					/**/                                      msg << ')'                                                                                                 ;
+					ok = No ;
+					goto Done ;
+				default : FAIL("Slurm : wrong job state return for job (",slurm_id,") : ",js) ;
 			}
 		}
+	Done :
+		if ( +msg && ji->nodes ) msg << (::strchr(ji->nodes,' ')==nullptr?" on node : ":" on nodes : ") << ji->nodes ;
 		SlurmApi::free_job_info_msg(resp) ;
-		return { {} , Maybe|completed } ;
+		return { msg , ok } ;
 	}
 
 	static ::string _get_log_dir_s  (JobIdx job) { return Job(job).ancillary_file(AncillaryTag::Backend)+'/' ; }
@@ -649,7 +656,7 @@ namespace Backends::Slurm {
 		for( int i=0 ; i<SlurmSpawnTrials ; i++ ) {
 			submit_response_msg_t* msg = nullptr/*garbage*/ ;
 			bool                   err = false  /*garbage*/ ;
-			errno = 0 ;                                                                        // normally useless
+			errno = 0 ;                                                                          // normally useless
 			{	Lock lock { _slurm_mutex } ;
 				if (job_descr.size()==1) {
 					err = SlurmApi::submit_batch_job(&job_descr[0],&msg)!=SLURM_SUCCESS ;
@@ -659,14 +666,14 @@ namespace Backends::Slurm {
 					SlurmApi::list_destroy(l) ;
 				}
 			}
-			int sav_errno = errno ;                                                            // save value before calling any slurm or libc function
+			int sav_errno = errno ;                                                              // save value before calling any slurm or libc function
 			if (msg) {
 				SlurmId res = msg->job_id ;
-				SWEAR(res!=0) ;                                                                // null id is used to signal absence of id
+				SWEAR(res!=0) ;                                                                  // null id is used to signal absence of id
 				SlurmApi::free_submit_response_response_msg(msg) ;
 				if (!sav_errno) { SWEAR(!err) ; return res ; }
 			}
-			SWEAR(sav_errno!=0) ;                                                              // if err, we should have a errno, else if no errno, we should have had a msg containing an id
+			SWEAR(sav_errno!=0) ;                                                                // if err, we should have a errno, else if no errno, we should have had a msg containing an id
 			switch (sav_errno) {
 				case EAGAIN                              :
 				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY :

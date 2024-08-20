@@ -20,7 +20,7 @@ sys_config.log : _bin/sys_config sys_config.env
 sys_config.mk : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 
-# defines HAS_SECCOMP, HAS_SLURM and SGE_BIN_DIR
+# defines HAS_SECCOMP, HAS_SGE and HAS_SLURM
 include sys_config.mk
 
 # this is the recommanded way to insert a , when calling functions
@@ -320,73 +320,73 @@ $(SRC)/autodep/ld_server$(SAN).o     : $(SRC)/autodep/ld_common.x.cc $(SRC)/auto
 $(SRC)/autodep/ld_audit.o            : $(SRC)/autodep/ld_common.x.cc
 
 $(SBIN)/lmakeserver : \
-	$(LMAKE_BASIC_SAN_OBJS)                                   \
-	$(SRC)/app$(SAN).o                                        \
-	$(SRC)/py$(SAN).o                                         \
-	$(SRC)/rpc_client$(SAN).o                                 \
-	$(SRC)/rpc_job$(SAN).o                                    \
-	$(SRC)/rpc_job_exec$(SAN).o                               \
-	$(SRC)/fuse$(SAN).o                                       \
-	$(SRC)/trace$(SAN).o                                      \
-	$(SRC)/store/file$(SAN).o                                 \
-	$(SRC)/autodep/backdoor$(SAN).o                           \
-	$(SRC)/autodep/env$(SAN).o                                \
-	$(SRC)/autodep/gather$(SAN).o                             \
-	$(SRC)/autodep/ld_server$(SAN).o                          \
-	$(SRC)/autodep/ptrace$(SAN).o                             \
-	$(SRC)/autodep/record$(SAN).o                             \
-	$(SRC)/autodep/syscall_tab$(SAN).o                        \
-	$(SRC_ENGINE)/backend$(SAN).o                             \
-	                    $(SRC_ENGINE)/backends/local$(SAN).o  \
-	$(if $(HAS_SLURM)  ,$(SRC_ENGINE)/backends/slurm$(SAN).o) \
-	$(if $(SGE_BIN_DIR),$(SRC_ENGINE)/backends/sge$(SAN).o  ) \
-	$(SRC_ENGINE)/cache$(SAN).o                               \
-	$(SRC_ENGINE)/caches/dir_cache$(SAN).o                    \
-	$(SRC_ENGINE)/cmd$(SAN).o                                 \
-	$(SRC_ENGINE)/codec$(SAN).o                               \
-	$(SRC_ENGINE)/global$(SAN).o                              \
-	$(SRC_ENGINE)/job$(SAN).o                                 \
-	$(SRC_ENGINE)/makefiles$(SAN).o                           \
-	$(SRC_ENGINE)/node$(SAN).o                                \
-	$(SRC_ENGINE)/req$(SAN).o                                 \
-	$(SRC_ENGINE)/rule$(SAN).o                                \
-	$(SRC_ENGINE)/store$(SAN).o                               \
+	$(LMAKE_BASIC_SAN_OBJS)                                 \
+	$(SRC)/app$(SAN).o                                      \
+	$(SRC)/py$(SAN).o                                       \
+	$(SRC)/rpc_client$(SAN).o                               \
+	$(SRC)/rpc_job$(SAN).o                                  \
+	$(SRC)/rpc_job_exec$(SAN).o                             \
+	$(SRC)/fuse$(SAN).o                                     \
+	$(SRC)/trace$(SAN).o                                    \
+	$(SRC)/store/file$(SAN).o                               \
+	$(SRC)/autodep/backdoor$(SAN).o                         \
+	$(SRC)/autodep/env$(SAN).o                              \
+	$(SRC)/autodep/gather$(SAN).o                           \
+	$(SRC)/autodep/ld_server$(SAN).o                        \
+	$(SRC)/autodep/ptrace$(SAN).o                           \
+	$(SRC)/autodep/record$(SAN).o                           \
+	$(SRC)/autodep/syscall_tab$(SAN).o                      \
+	$(SRC_ENGINE)/backend$(SAN).o                           \
+	                  $(SRC_ENGINE)/backends/local$(SAN).o  \
+	$(if $(HAS_SLURM),$(SRC_ENGINE)/backends/slurm$(SAN).o) \
+	$(if $(HAS_SGE)  ,$(SRC_ENGINE)/backends/sge$(SAN).o  ) \
+	$(SRC_ENGINE)/cache$(SAN).o                             \
+	$(SRC_ENGINE)/caches/dir_cache$(SAN).o                  \
+	$(SRC_ENGINE)/cmd$(SAN).o                               \
+	$(SRC_ENGINE)/codec$(SAN).o                             \
+	$(SRC_ENGINE)/global$(SAN).o                            \
+	$(SRC_ENGINE)/job$(SAN).o                               \
+	$(SRC_ENGINE)/makefiles$(SAN).o                         \
+	$(SRC_ENGINE)/node$(SAN).o                              \
+	$(SRC_ENGINE)/req$(SAN).o                               \
+	$(SRC_ENGINE)/rule$(SAN).o                              \
+	$(SRC_ENGINE)/store$(SAN).o                             \
 	$(SRC_ENGINE)/main$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(BIN)/lrepair : \
-	$(LMAKE_BASIC_SAN_OBJS)                                   \
-	$(SRC)/app$(SAN).o                                        \
-	$(SRC)/py$(SAN).o                                         \
-	$(SRC)/rpc_client$(SAN).o                                 \
-	$(SRC)/rpc_job$(SAN).o                                    \
-	$(SRC)/rpc_job_exec$(SAN).o                               \
-	$(SRC)/fuse$(SAN).o                                       \
-	$(SRC)/trace$(SAN).o                                      \
-	$(SRC)/autodep/backdoor$(SAN).o                           \
-	$(SRC)/autodep/env$(SAN).o                                \
-	$(SRC)/autodep/gather$(SAN).o                             \
-	$(SRC)/autodep/ld_server$(SAN).o                          \
-	$(SRC)/autodep/ptrace$(SAN).o                             \
-	$(SRC)/autodep/record$(SAN).o                             \
-	$(SRC)/autodep/syscall_tab$(SAN).o                        \
-	$(SRC)/store/file$(SAN).o                                 \
-	$(SRC_ENGINE)/backend$(SAN).o                             \
-	                    $(SRC_ENGINE)/backends/local$(SAN).o  \
-	$(if $(HAS_SLURM)  ,$(SRC_ENGINE)/backends/slurm$(SAN).o) \
-	$(if $(SGE_BIN_DIR),$(SRC_ENGINE)/backends/sge$(SAN).o  ) \
-	$(SRC_ENGINE)/cache$(SAN).o                               \
-	$(SRC_ENGINE)/caches/dir_cache$(SAN).o                    \
-	$(SRC_ENGINE)/codec$(SAN).o                               \
-	$(SRC_ENGINE)/global$(SAN).o                              \
-	$(SRC_ENGINE)/job$(SAN).o                                 \
-	$(SRC_ENGINE)/makefiles$(SAN).o                           \
-	$(SRC_ENGINE)/node$(SAN).o                                \
-	$(SRC_ENGINE)/req$(SAN).o                                 \
-	$(SRC_ENGINE)/rule$(SAN).o                                \
-	$(SRC_ENGINE)/store$(SAN).o                               \
+	$(LMAKE_BASIC_SAN_OBJS)                                 \
+	$(SRC)/app$(SAN).o                                      \
+	$(SRC)/py$(SAN).o                                       \
+	$(SRC)/rpc_client$(SAN).o                               \
+	$(SRC)/rpc_job$(SAN).o                                  \
+	$(SRC)/rpc_job_exec$(SAN).o                             \
+	$(SRC)/fuse$(SAN).o                                     \
+	$(SRC)/trace$(SAN).o                                    \
+	$(SRC)/autodep/backdoor$(SAN).o                         \
+	$(SRC)/autodep/env$(SAN).o                              \
+	$(SRC)/autodep/gather$(SAN).o                           \
+	$(SRC)/autodep/ld_server$(SAN).o                        \
+	$(SRC)/autodep/ptrace$(SAN).o                           \
+	$(SRC)/autodep/record$(SAN).o                           \
+	$(SRC)/autodep/syscall_tab$(SAN).o                      \
+	$(SRC)/store/file$(SAN).o                               \
+	$(SRC_ENGINE)/backend$(SAN).o                           \
+	                  $(SRC_ENGINE)/backends/local$(SAN).o  \
+	$(if $(HAS_SLURM),$(SRC_ENGINE)/backends/slurm$(SAN).o) \
+	$(if $(HAS_SGE)  ,$(SRC_ENGINE)/backends/sge$(SAN).o  ) \
+	$(SRC_ENGINE)/cache$(SAN).o                             \
+	$(SRC_ENGINE)/caches/dir_cache$(SAN).o                  \
+	$(SRC_ENGINE)/codec$(SAN).o                             \
+	$(SRC_ENGINE)/global$(SAN).o                            \
+	$(SRC_ENGINE)/job$(SAN).o                               \
+	$(SRC_ENGINE)/makefiles$(SAN).o                         \
+	$(SRC_ENGINE)/node$(SAN).o                              \
+	$(SRC_ENGINE)/req$(SAN).o                               \
+	$(SRC_ENGINE)/rule$(SAN).o                              \
+	$(SRC_ENGINE)/store$(SAN).o                             \
 	$(SRC)/lrepair$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
