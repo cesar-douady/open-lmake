@@ -272,11 +272,11 @@ namespace Engine {
 
 	struct EngineClosureJobStart {
 		friend ::ostream& operator<<( ::ostream& , EngineClosureJobStart const& ) ;
-		JobInfoStart   start         = {}    ;
-		bool           report        = false ;
-		::vector<Node> report_unlnks = {}    ;
-		::string       txt           = {}    ;
-		::string       msg           = {}    ;
+		JobInfoStart               start         = {}    ;
+		bool                       report        = false ;
+		::vmap<Node,FileActionTag> report_unlnks = {}    ;
+		::string                   txt           = {}    ;
+		::string                   msg           = {}    ;
 	} ;
 
 	struct EngineClosureJobEtc {
@@ -365,7 +365,7 @@ namespace Engine {
 		EngineClosure(RP p,R r,Fd ifd,Fd ofd                          ) : kind{K::Req},ecr{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill                ) ; }
 		EngineClosure(RP p,R r                                        ) : kind{K::Req},ecr{.proc=p,.req=r                                             } { SWEAR(p==RP::Close               ) ; }
 		// Job
-		EngineClosure( JRP p , JE&& je , JobInfoStart&& jis , bool r , ::vector<Node>&& rus={} , ::string&& t={} , ::string&& m={} ) :
+		EngineClosure( JRP p , JE&& je , JobInfoStart&& jis , bool r , ::vmap<Node,FileActionTag>&& rus={} , ::string&& t={} , ::string&& m={} ) :
 			kind { K::Job                                                                                                       }
 		,	ecj  { p , ::move(je) , EngineClosureJobStart{.start=jis,.report=r,.report_unlnks=::move(rus),.txt=::move(t),.msg=::move(m)} }
 		{ SWEAR(p==JRP::Start) ; }

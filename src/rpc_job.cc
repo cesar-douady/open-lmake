@@ -34,8 +34,10 @@ using namespace Hash ;
 	for( auto const& [f,a] : pre_actions ) {                                                                  // pre_actions are adequately sorted
 		SWEAR(+f) ;                                                                                           // acting on root dir is non-sense
 		switch (a.tag) {
-			case FileActionTag::Unlink        :
-			case FileActionTag::UnlinkWarning : {
+			case FileActionTag::Unlnk         :
+			case FileActionTag::UnlnkWarning  :
+			case FileActionTag::UnlnkPolluted :
+			case FileActionTag::None          : {
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                                                                             // file does not exist, nothing to do
 				bool done       = true/*garbage*/                                                           ;
@@ -46,9 +48,15 @@ using namespace Hash ;
 					else      msg<<"failed to quarantine "<<mk_file(f)<<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
-					done = unlnk(nfs_guard.change(f)) ;
-					if      (!done                              ) msg<<"failed to unlink "<<mk_file(f)<<'\n' ;
-					else if (a.tag==FileActionTag::UnlinkWarning) msg<<"unlinked "        <<mk_file(f)<<'\n' ;
+					try {
+						done = unlnk(nfs_guard.change(f)) ;
+						if (a.tag==FileActionTag::None) { if ( done) msg << "unlinked "           << mk_file(f) << '\n' ; }
+						else                            { if (!done) msg << "file disappeared : " << mk_file(f) << '\n' ; }
+						done = true ;
+					} catch (::string const& e) {
+						msg <<  e << '\n' ;
+						done = false ;
+					}
 				}
 				trace(STR(quarantine),STR(done),f) ;
 				if ( done && unlnks ) unlnks->push_back(f) ;

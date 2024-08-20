@@ -16,6 +16,7 @@
 
 #endif
 
+#include "disk.hh"
 #include "thread.hh"
 
 namespace Fuse {
@@ -27,7 +28,8 @@ namespace Fuse {
 			Mount() = default ;
 			Mount( ::string const& /*dst_s*/ , ::string const& /*src_s*/ ) { FAIL() ; }
 			// services
-			void open() { FAIL() ; }
+			void open () { FAIL() ; }
+			void close() { FAIL() ; }
 			// data
 			::string dst ;
 			::string src ;
@@ -46,15 +48,14 @@ namespace Fuse {
 		public :
 			Mount() = default ;
 			//
-			Mount( ::string const& dst_s_ , ::string const& src_s_ ) : dst_s{dst_s_} , src_s{src_s_} {
-::cerr<<t_thread_key<<" "<<"Mount::Mount1 :"<<dst_s<<":"<<endl;
+			Mount( ::string const& dst_s_ , ::string const& src_s_ ) : dst_s{Disk::mk_abs(dst_s_,Disk::cwd_s())} , src_s{src_s_} {
 				open() ;
-::cerr<<t_thread_key<<" "<<"Mount::Mount2 :"<<src_s<<":"<<endl;
 				_thread = ::jthread( _s_loop , this ) ;
 			}
-			~Mount() { ::cerr<<"~Mount "<<::umount(no_slash(dst_s).c_str())<<endl ; }
+			~Mount() { close() ; }
 			// services
-			void open() ;
+			void open () ;
+			void close() ;
 		private :
 			void _loop(::stop_token) ;
 			// data

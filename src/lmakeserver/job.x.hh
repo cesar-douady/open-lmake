@@ -145,10 +145,10 @@ namespace Engine {
 		// services
 		// called in main thread after start
 		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start and started
-		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlnks , ::string const& stderr={} , ::string const& backend_msg={}                  ) const ;
-		bool/*reported*/ report_start( ReqInfo&                                                                                                                        ) const ;
-		void             report_start(                                                                                                                                 ) const ;
-		void             started     ( JobInfoStart&& , bool report , ::vector<Node> const& report_unlnks , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
+		bool/*reported*/ report_start( ReqInfo& , ::vmap<Node,FileActionTag> const& report_unlnks , ::string const& stderr={} , ::string const& backend_msg={}                     ) const ;
+		bool/*reported*/ report_start( ReqInfo&                                                                                                                                    ) const ;
+		void             report_start(                                                                                                                                             ) const ;
+		void             started     ( JobInfoStart&& , bool report , ::vmap<Node,FileActionTag> const& report_unlnks , ::string const& stderr={} , ::string const& backend_msg={} ) ;
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;

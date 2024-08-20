@@ -188,7 +188,7 @@ namespace Backends {
 		Rule::SimpleMatch        match               = job->simple_match() ;
 		JobRpcReply              reply               { Proc::Start }       ;
 		vmap<Node,FileAction>    pre_actions         ;
-		vector<Node>             pre_action_warnings ;
+		vmap<Node,FileActionTag> pre_action_warnings ;
 		StartCmdAttrs            start_cmd_attrs     ;
 		::pair_ss/*script,call*/ cmd                 ;
 		::vmap_s<DepSpec>        deps_attrs          ;
@@ -227,7 +227,12 @@ namespace Backends {
 			start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
 			//
 			pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 5 ;
-			for( auto const& [t,a] : pre_actions ) if (a.tag==FileActionTag::UnlinkWarning) pre_action_warnings.push_back(t) ;
+			for( auto const& [t,a] : pre_actions )
+				switch (a.tag) {
+					case FileActionTag::UnlnkWarning  :
+					case FileActionTag::UnlnkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
+					default : ;
+				}
 		} catch (::pair_ss const& msg_err) {
 			start_msg_err.first  <<set_nl<< msg_err.first  ;
 			start_msg_err.second <<set_nl<< msg_err.second ;

@@ -15,11 +15,17 @@ int main( int /*argc*/ , char* /*argv*/[] ) {
 
 	Fuse::Mount fm { "a" , "b" } ;
 
-	sleep(1) ;
-	::cerr<<t_thread_key<<" "<<"before1 "<<cwd_s()<<endl ;
+	::sleep(1) ;
+	::cerr<<t_thread_key<<" "<<"main1 "<<cwd_s()<<endl ;
+	struct stat stbuf ;
+	int rc = ::lstat("a/x",&stbuf) ;
+	::cerr<<t_thread_key<<" "<<"main2"<<" "<<rc<<endl ;
+	try         { OFStream("a/x") << "toto" << endl ;              }
+	catch (...) { ::cerr<<t_thread_key<<" "<<"write error"<<endl ; }
+	::cerr<<t_thread_key<<" "<<"main3\n";
 	try                       { ::cout<<read_content("a/x") ;                    }
 	catch (::string const& e) { ::cerr<<t_thread_key<<" "<<"error : "<<e<<endl ; }
-	::cerr<<t_thread_key<<" "<<"after1\n";
+	::cerr<<t_thread_key<<" "<<"main4\n";
 
 	return 0 ;
 }

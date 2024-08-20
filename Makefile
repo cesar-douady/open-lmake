@@ -91,8 +91,10 @@ PY_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR) $(PY_INCLUDEPY))  
 PY_CC_OPTS   := $(patsubst %,-isystem %,$(PY_INC_DIRS)) -Wno-register
 PY_LINK_OPTS := $(patsubst %,-L%,$(PY_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY_LIB_DIR))  -l:$(PY_LIB_BASE)
 ifneq ($(HAS_FUSE),)
-    FUSE_CC_OPTS   := -I /home/cdy/fuse/include -I /home/cdy/fuse/build               # $(shell pkg-config fuse3 --cflags)
-    FUSE_LINK_OPTS := /home/cdy/fuse/build/lib/libfuse3.so                            # $(shell pkg-config fuse3 --libs  )
+    FUSE_CC_OPTS   := $(shell pkg-config fuse3 --cflags)
+    FUSE_LINK_OPTS := $(shell pkg-config fuse3 --libs  )
+    #FUSE_CC_OPTS   := -I /home/cdy/fuse/include -I /home/cdy/fuse/build
+    #FUSE_LINK_OPTS := /home/cdy/fuse/build/lib/libfuse3.so
 endif
 
 # Engine
