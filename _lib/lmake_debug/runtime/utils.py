@@ -4,7 +4,6 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 # /!\ must be Python2/Python3 compatible
-# /!\ this file must be able to accept that its own path is not in sys.path, it is read with exec, not with import
 
 Code = (lambda:None).__code__.__class__
 

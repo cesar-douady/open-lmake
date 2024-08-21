@@ -123,7 +123,7 @@ class Job :
 		if self.tmp_view    : res += f' -t{mk_shell_str(     self.tmp_view             )}'
 		if self.views       : res += f' -v{mk_shell_str(repr(self.views)               )}'
 		if self.views       : res += f" -w{mk_shell_str(     debug_dir+'/work'         )}" # necessary in case a view is an overlay
-		if args             : res += ''.join(' '+x for x in args)                     # must be before redirections to files if args contains redirections
+		if args             : res += ''.join(' '+x for x in args)                          # must be before redirections to files if args contains redirections
 		if self.stdin       : res += f' <{mk_shell_str(self.stdin )}'
 		if self.stdout      : res += f' >{mk_shell_str(self.stdout)}'
 		#
@@ -159,17 +159,17 @@ class Job :
 		if not runner :
 			cmd = cmd+'\n'
 		else :
-			assert cmd[-1]==')'                                                   # cmd must be of the form func(args,...) with 0 or more args
+			assert cmd[-1]==')'                                                     # cmd must be of the form func(args,...) with 0 or more args
 			func,args = cmd.split('(',1)
 			args = args[:-1]
 			func_args = func
-			if args : func_args = f'{func},{args}'                                # generate func,args,...
-			else    : func_args = func                                            # handle no args case
+			if args : func_args = f'{func},{args}'                                  # generate func,args,...
+			else    : func_args = func                                              # handle no args case
 			cmd = multi_strip(f'''
 				import sys as lmake_sys
-				lmake_sys.path.append({lmake.root_dir+'/lib'!r})                  # ensure lmake lib is accessible
+				lmake_sys.path.append({osp.dirname(osp.dirname(lmake.__file__))!r}) # ensure lmake lib is accessible
 				from {runner} import run_py as lmake_runner
-				lmake_sys.path.pop()                                              # restore
+				lmake_sys.path.pop()                                                # restore
 				lmake_runner({self.debug_dir!r},{self.static_deps!r},{func_args})
 			''')
 		return (

@@ -8,4 +8,4 @@ from .utils import Job
 def gen_script(**kwds) :
 	job = Job(kwds)
 	assert job.is_python,f'cannot debug shell job with pudb'
-	return job.gen_script(runner='lmake_debug.runtime.pudb')
+	return job.gen_script(runner='lmake_debug.runtime.pudb_')

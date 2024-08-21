@@ -12,6 +12,8 @@ using namespace Disk ;
 
 namespace Backends::Sge {
 
+	struct SgeBackend ;
+
 	//
 	// daemon info
 	//
@@ -29,14 +31,16 @@ namespace Backends::Sge {
 	struct RsrcsData {
 		friend ::ostream& operator<<( ::ostream& , RsrcsData const& ) ;
 		// cxtors & casts
-		RsrcsData(                               ) = default ;
-		RsrcsData( ::vmap_ss&& , Daemon , JobIdx ) ;
+		RsrcsData(           ) = default ;
+		RsrcsData(::vmap_ss&&) ;
 		// accesses
 		bool operator==(RsrcsData const&) const = default ;
 		// data
-		uint16_t           cpu    = 0 ; // number of logical cpu (qsub -l mem_free=xxx)
-		uint32_t           mem    = 0 ; // memory   in MB        (qsub -l mem_free=xxx)
-		uint32_t           tmp    = 0 ; // tmp disk // XXX : find a generic way to handle space on tmp disk
+		int16_t            prio   = 0 ; // priority specified with the -p option (required with lmake -b)
+		uint16_t           cpu    = 0 ; // number of logical cpu (uses cpu_rsrc as resource with the -l option)
+		uint32_t           mem    = 0 ; // memory   in MB        (uses mem_rsrc as resource with the -l option)
+		uint32_t           tmp    = 0 ; // tmp disk              (uses tmp_rsrc as resource with the -l option)
+		::string           queue  ;     // queue specified with the -q option
 		::vmap_s<uint64_t> tokens ;     // generic resources     (qsub -l<key>=<val> for each entry)
 		// services
 		::vmap_ss mk_vmap(void) const ;
@@ -48,9 +52,11 @@ namespace std {
 	template<> struct hash<Backends::Sge::RsrcsData> {
 		size_t operator()(Backends::Sge::RsrcsData const& rd) const {
 			Hash::Xxh h ;
-			h.update(rd.cpu) ;
-			h.update(rd.mem) ;
-			h.update(rd.tmp) ;
+			h.update(rd.prio ) ;
+			h.update(rd.cpu  ) ;
+			h.update(rd.mem  ) ;
+			h.update(rd.tmp  ) ;
+			h.update(rd.queue) ;
 			for( auto const& [k,v] : rd.tokens ) {
 				h.update(k) ;
 				h.update(v) ;
@@ -65,8 +71,6 @@ namespace std {
 //
 
 namespace Backends::Sge {
-
-	struct SgeBackend ;
 
 	using SgeId = uint32_t ;
 
@@ -127,6 +131,7 @@ namespace Backends::Sge {
 						case 'c' : if (k=="cell"             ) { sge_cell          =                       v  ; continue ; }
 						/**/       if (k=="cluster"          ) { sge_cluster       =                       v  ; continue ; }
 						/**/       if (k=="cpu_resource"     ) { cpu_rsrc          =                       v  ; continue ; } break ;
+						case 'd' : if (k=="default_prio"     ) { dflt_prio         = from_string<int16_t >(v) ; continue ; } break ;
 						case 'm' : if (k=="mem_resource"     ) { mem_rsrc          =                       v  ; continue ; } break ;
 						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
 						case 'r' : if (k=="repo_key"         ) { repo_key          =                       v  ; continue ; }
@@ -167,13 +172,19 @@ namespace Backends::Sge {
 			return res ;
 		}
 
+		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
+			Base::open_req(req,n_jobs) ;
+			::string const& prio = Req(req)->options.flag_args[+ReqFlag::Backend] ;
+			grow(req_prios,req) = +prio ? from_string<int16_t>(prio) : dflt_prio ;
+		}
+
 		virtual void close_req(ReqIdx req) {
 			Base::close_req(req) ;
 			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
 		}
 
-		virtual ::vmap_ss export_( RsrcsData const& rs                       ) const { return rs.mk_vmap()            ; }
-		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx , JobIdx ji ) const { return {::move(rsa),daemon,ji} ; }
+		virtual ::vmap_ss export_( RsrcsData const& rs                    ) const { return rs.mk_vmap()  ; }
+		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx , JobIdx ) const { return {::move(rsa)} ; }
 		//
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
@@ -196,22 +207,27 @@ namespace Backends::Sge {
 			else                                                           return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;       // asynchronous (as faster and no return value) cancel
+			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                             // asynchronous (as faster and no return value) cancel
 		}
-		virtual SgeId launch_job( ::stop_token , JobIdx j , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
+		virtual SgeId launch_job( ::stop_token , JobIdx j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			::vector_s sge_cmd_line = {
 				"qsub"
 			,	"-b"     , "y"
-			,	"-o"     , "/dev/null" // XXX : if verbose, collect stdout
-			,	"-e"     , "/dev/null" // XXX : if verbose, collect stderr
+			,	"-o"     , "/dev/null"                                                                                                         // XXX : if verbose, collect stdout
+			,	"-e"     , "/dev/null"                                                                                                         // XXX : if verbose, collect stderr
 			,	"-shell" , "n"
 			,	"-terse"
 			,	"-N"     , sge_mk_name(repo_key+Job(j)->name())
 			} ;
-			if ( +cpu_rsrc && rs->cpu )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu)) ; }
-			if ( +mem_rsrc && rs->mem )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem)) ; }
-			if ( +tmp_rsrc && rs->tmp )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp)) ; }
-			for( auto const& [k,v] : rs ->tokens) { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(k       +'='+::to_string(v      )) ; }
+			SWEAR(+reqs) ;                                                                                                                     // why launch a job if for no req ?
+			int16_t prio = ::numeric_limits<int16_t>::min() ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
+			//
+			if ( +rs->queue           )           { sge_cmd_line.push_back("-q") ; sge_cmd_line.push_back(                         rs->queue ) ; }
+			if ( prio                 )           { sge_cmd_line.push_back("-p") ; sge_cmd_line.push_back(               to_string(prio     )) ; }
+			if ( +cpu_rsrc && rs->cpu )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
+			if ( +mem_rsrc && rs->mem )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
+			if ( +tmp_rsrc && rs->tmp )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
+			for( auto const& [k,v] : rs ->tokens) { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//
@@ -247,17 +263,19 @@ namespace Backends::Sge {
 		}
 
 		// data
-		SpawnedMap mutable  spawned_rsrcs     ;      // number of spawned jobs queued in sge queue
-		uint32_t            n_max_queued_jobs = -1 ; // no limit by default
-		::string            repo_key          ;      // a short identifier of the repository
-		::string            cpu_rsrc          ;      // key to use to ask for cpu
-		::string            mem_rsrc          ;      // key to use to ask for memory (in MB)
-		::string            tmp_rsrc          ;      // key to use to ask for tmp    (in MB)
-		::string            sge_bin_dir_s     ;
-		::string            sge_cell          ;
-		::string            sge_cluster       ;
-		::string            sge_root_dir_s    ;
-		Daemon              daemon            ;      // info sensed from sge daemon
+		SpawnedMap mutable spawned_rsrcs     ;      // number of spawned jobs queued in sge queue
+		::vector<int16_t>  req_prios         ;      // indexed by req
+		uint32_t           n_max_queued_jobs = -1 ; // no limit by default
+		::string           repo_key          ;      // a short identifier of the repository
+		int16_t            dflt_prio         = 0  ; // used when not specified with lmake -b
+		::string           cpu_rsrc          ;      // key to use to ask for cpu
+		::string           mem_rsrc          ;      // key to use to ask for memory (in MB)
+		::string           tmp_rsrc          ;      // key to use to ask for tmp    (in MB)
+		::string           sge_bin_dir_s     ;
+		::string           sge_cell          ;
+		::string           sge_cluster       ;
+		::string           sge_root_dir_s    ;
+		Daemon             daemon            ;      // info sensed from sge daemon
 	} ;
 
 	DequeThread<::pair<SgeBackend const*,SgeId>> SgeBackend::_s_sge_cancel_thread ;
@@ -288,13 +306,14 @@ namespace Backends::Sge {
 		return                                os <<')'                           ;
 	}
 
-	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon , JobIdx ) {
+	inline RsrcsData::RsrcsData(::vmap_ss&& m) {
 		sort(m) ;
 		for( auto&& [k,v] : ::move(m) ) {
 			switch (k[0]) {
-				case 'c' : if (k=="cpu") { cpu = from_string_with_units<    uint16_t>(v) ; continue ; } break ;
-				case 'm' : if (k=="mem") { mem = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
-				case 't' : if (k=="tmp") { tmp = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 'c' : if (k=="cpu"  ) { cpu   = from_string_with_units<    uint16_t>(v) ; continue ; } break ;
+				case 'm' : if (k=="mem"  ) { mem   = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 'q' : if (k=="queue") { queue =                                      v  ; continue ; } break ;
+				case 't' : if (k=="tmp"  ) { tmp   = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
 				default : ;
 			}
 			tokens.emplace_back( k , from_string_with_units<uint64_t>(v) ) ;

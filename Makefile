@@ -102,26 +102,28 @@ SRC_ENGINE := $(SRC)/lmakeserver
 
 # LMAKE
 LMAKE_SERVER_PY_FILES := \
-	$(SLIB)/read_makefiles.py            \
-	$(SLIB)/serialize.py                 \
-	$(LIB)/lmake/__init__.py             \
-	$(LIB)/lmake/auto_sources.py         \
-	$(LIB)/lmake/import_machinery.py     \
-	$(LIB)/lmake/custom_importer.py      \
-	$(LIB)/lmake/rules.py                \
-	$(LIB)/lmake/sources.py              \
-	$(LIB)/lmake/utils.py                \
-	$(LIB)/lmake_debug/default.py        \
-	$(LIB)/lmake_debug/enter.py          \
-	$(LIB)/lmake_debug/gdb.py            \
-	$(LIB)/lmake_debug/none.py           \
-	$(LIB)/lmake_debug/pudb.py           \
-	$(LIB)/lmake_debug/vscode.py         \
-	$(LIB)/lmake_debug/utils.py          \
-	$(LIB)/lmake_debug/runtime/pdb.py    \
-	$(LIB)/lmake_debug/runtime/pudb.py   \
-	$(LIB)/lmake_debug/runtime/vscode.py \
-	$(LIB)/lmake_debug/runtime/utils.py  \
+	$(SLIB)/read_makefiles.py              \
+	$(SLIB)/serialize.py                   \
+	$(LIB)/lmake/__init__.py               \
+	$(LIB)/lmake/auto_sources.py           \
+	$(LIB)/lmake/import_machinery.py       \
+	$(LIB)/lmake/custom_importer.py        \
+	$(LIB)/lmake/rules.py                  \
+	$(LIB)/lmake/sources.py                \
+	$(LIB)/lmake/utils.py                  \
+	$(LIB)/lmake_debug/__init__.py         \
+	$(LIB)/lmake_debug/default.py          \
+	$(LIB)/lmake_debug/enter.py            \
+	$(LIB)/lmake_debug/gdb.py              \
+	$(LIB)/lmake_debug/none.py             \
+	$(LIB)/lmake_debug/pudb.py             \
+	$(LIB)/lmake_debug/vscode.py           \
+	$(LIB)/lmake_debug/utils.py            \
+	$(LIB)/lmake_debug/runtime/__init__.py \
+	$(LIB)/lmake_debug/runtime/pdb_.py     \
+	$(LIB)/lmake_debug/runtime/pudb_.py    \
+	$(LIB)/lmake_debug/runtime/vscode.py   \
+	$(LIB)/lmake_debug/runtime/utils.py    \
 	$(LIB)/lmake_runtime.py
 
 LMAKE_SERVER_BIN_FILES := \

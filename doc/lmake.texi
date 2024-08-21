@@ -681,7 +681,7 @@ Unless overridden, the following standard debug methods are provided :
 @item
 @tab @file{lmake_debug.default}
 @tab Job is run under pdb control.
-@tab Job is run with the @code{-x} flag (so that commands are traced) and an interactive shell (as provided by the @code{$SHELL} environment variable) is open in the job environment.
+@tab Job is run with the @code{-x} flag (so that commands are traced).
 @item g
 @tab @file{lmake_debug.gdb}
 @tab Job interpreter is run under gdb control.
@@ -3038,6 +3038,7 @@ The configuration is composed of :
 By default, this is automatically determined by the SGE daemon.
 @item @code{cluster} : The cluster used by the SGE daemon. This is translated into the @code{SGE_CLUSTER} environment variable when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.
+@item @code{default_prio} : the priority used to submit jobs to the SGE daemon if none is specified on the @code{lmake} command line.
 @item @code{n_max_queued_jobs} : @lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
 This is done to decrease the load of the SGE daemon as @lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
 (helped in this by the limited precision on CPU, memory and temporary disk space requirements).
@@ -3058,6 +3059,13 @@ For example if specified as @code{cpu_r} and the rule of a job contains @code{re
 For example if specified as @code{mem_r} and the rule of a job contains @code{resources=@{'mem':'10M'@}}, this is translated into @code{-l mem_r=10} on the @code{qsub} command line.
 @item @code{tmp_resource} : This is the name of a resource used to require memory temporary disk space in MB.
 For example if specified as @code{tmp_r} and the rule of a job contains @code{resources=@{'tmp':'100M'@}}, this is translated into @code{-l tmp_r=10}0 on the @code{qsub} command line.
+@end itemize
+
+The @code{resources} rule attributes is composed of :
+@itemize @minus
+@item standard resources @code{cpu}, @code{mem} and @code{tmp}.
+@item @code{queue} : the queue used to submit jobs to the SGE daemon.
+@item any other resource passed to the SGE daemon through the @code{-l} option of @code{qsub}.
 @end itemize
 
 @section slurm backend
@@ -3125,6 +3133,7 @@ The @code{resources} rule attributes is composed of :
 @item @code{excludes} @code{feature}, @code{gres}, @code{licence}, @code{nodes}, @code{part}, @code{qos}, @code{reserv} : these are passed as is to the slurm daemon.
 For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example @code{gres0}, @code{gres1}).
 The absence of index is equivalent to index 0.
+@item any other resource passed to the slurm daemon as licenses.
 @end itemize
 
 @anchor{autodep}

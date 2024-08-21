@@ -270,7 +270,15 @@ Status Gather::exec_child() {
 	while ( epoll.cnt || +_wait ) {
 		Pdate now = New ;
 		if (now>_end_child) {
-			if      ( !_wait[Kind::ChildEnd]                     ) set_status(Status::Err,"still active after having been dead for "+network_delay.short_str()                    ) ;
+			if (!_wait[Kind::ChildEnd]) {
+				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait ) ; // else we should already have exited
+				::string msg ;
+				if ( _wait[Kind::Stdout]                        ) msg += "stdout " ;
+				if ( _wait[Kind::Stdout] && _wait[Kind::Stderr] ) msg += "and "    ;
+				if (                        _wait[Kind::Stderr] ) msg += "stderr " ;
+				msg << "still open after having been dead for " << network_delay.short_str() ;
+				set_status(Status::Err,msg) ;
+			}
 			else if ( _kill_step && _kill_step< kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+_kill_step      +" times"                      ) ;
 			else if (               _kill_step==kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+kill_sigs.size()+" times followed by a SIGKILL") ;
 			else if ( _timeout_fired                             ) set_status(Status::Err,"still alive after having timed out and been killed with SIGKILL"                       ) ;
