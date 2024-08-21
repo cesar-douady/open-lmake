@@ -111,8 +111,9 @@ int main( int argc , char* argv[] ) {
 		//
 		if (+job_space.root_view_s) root_dir_s = job_space.root_view_s ;
 		if (+job_space.tmp_view_s ) tmp_dir_s  = job_space.tmp_view_s  ;
-		env["ROOT_DIR"] = no_slash(root_dir_s) ;
-		env["TMPDIR"  ] = no_slash(tmp_dir_s ) ;
+		/**/                       env["ROOT_DIR"] = no_slash(root_dir_s) ;
+		/**/                       env["TMPDIR"  ] = no_slash(tmp_dir_s ) ;
+		if (!env.contains("HOME")) env["HOME"    ] = env["TMPDIR"]        ;                                  // by default, set HOME to TMPDIR as this cannot be set from rule
 		//
 		/**/                                        gather.env                     = &env                                                            ;
 		/**/                                        gather.cwd                     = cmd_line.flag_args[+CmdFlag::Cwd]                               ;

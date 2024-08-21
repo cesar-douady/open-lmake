@@ -131,10 +131,7 @@ class SourceRule(_RuleBase) :
 
 class HomelessRule(Rule) :
 	'base rule to redirect the HOME environment variable to TMPDIR'
-	def cmd() :
-		import os
-		os.environ['HOME'] = os.environ['TMPDIR']
-	cmd.shell = 'export HOME=$TMPDIR'             # defining a function with a shell attribute is the way to have both python & shell pre-commands
+	environ_cmd = { 'HOME' : None } # HOME is set by default to TMPDIR
 
 class TraceRule(Rule) :
 	'base rule to trace shell commands to stdout'

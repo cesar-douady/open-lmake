@@ -1268,9 +1268,9 @@ Rust uses a special link mechanism which defeats the default @code{ld_audit} aut
 This base @code{class} merely sets the autodep method to @code{ld_preload} which works around this problem.
 
 @subsection @code{class HomelessRule}
-This @code{class} copies the @code{TMPDIR} environment variable to the @code{HOME} one.
+This @code{class} removes the @code{HOME} environment variable, which is then set by default to the value of the @code{TMPDIR} environment variable.
 This is a way to ensure that various tools behave the same way as if they were run for the first time.
-By default  the @code{HOME} environment variable points to the root of the repository, which permits to put various init code there.
+By default the @code{HOME} environment variable points to the root of the repository, which permits to put various init code there.
 
 @subsection @code{class TraceRule}
 This @code{class} defines a preamble for use by shell rules that set the @code{-x} flag (which traces commands) so that traces are sent to stdout.
@@ -2314,6 +2314,8 @@ It is  @code{1} initially and is incremented each time a job is run.
 It is always at least @code{1} and efforts are made to maintain it as small as possible.
 @item @code{TMPDIR}            : The name of a directory which is empty at the start of the job.
 If the temporary directory is not kept through the use of the @code{keep_tmp} attribute or the @code{-t} option, this directory is cleaned up at the end of the job execution.
+@item @code{HOME}              : This variable is set to the value of the TMPDIR variable if not set.
+However it is set by default to the root of the repository by the @code{Rule} base class.
 @end itemize
 
 @subsection if it is a @code{function}

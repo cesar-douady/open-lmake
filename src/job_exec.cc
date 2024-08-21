@@ -94,6 +94,7 @@ SeqId             g_trace_id       = 0/*garbage*/ ;
 			g_start_info.autodep_env.tmp_dir_s = ::move  (tmp_dir_s) ;
 		}
 	}
+	if (!res.contains("HOME")) res["HOME"] = res["TMPDIR"] ;                  // by default, set HOME to TMPDIR as this cannot be set from rule
 	//
 	Trace trace("prepare_env",g_start_info.autodep_env.tmp_dir_s,g_phy_tmp_dir_s,res) ;
 	//
