@@ -229,8 +229,8 @@ namespace Backends {
 			pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 5 ;
 			for( auto const& [t,a] : pre_actions )
 				switch (a.tag) {
-					case FileActionTag::UnlnkWarning  :
-					case FileActionTag::UnlnkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
+					case FileActionTag::UnlinkWarning  :
+					case FileActionTag::UnlinkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
 					default : ;
 				}
 		} catch (::pair_ss const& msg_err) {

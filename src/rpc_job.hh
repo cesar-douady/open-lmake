@@ -43,9 +43,9 @@ ENUM_1( BackendTag // PER_BACKEND : add a tag for each backend
 ENUM_1( FileActionTag
 ,	HasFile = Uniquify // <=HasFile means action acts on file
 ,	Src                // file is src, no action
-,	Unlnk
-,	UnlnkWarning
-,	UnlnkPolluted
+,	Unlink             // used in ldebug, so it cannot be Unlnk
+,	UnlinkWarning      // .
+,	UnlinkPolluted     // .
 ,	None
 ,	NoUniquify         // no action, just warn if file has several links
 ,	Uniquify

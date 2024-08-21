@@ -70,22 +70,23 @@ class Job :
 					fi
 				}
 			''')
-		if any(a=='unlink_warning' for a in self.pre_actions.values()) :
+		if any(a in ('unlink_warning','unlink_polluted') for a in self.pre_actions.values()) :
 			res += multi_strip('''
 				rm_warning() {
-					if [ -f "$1" ] ; then
-						echo warning : rm "$1" >&2
-						rm -f "$1"
+					if [ -f "$2" ] ; then
+						echo $1 : rm "$2" >&2
+						rm -f "$2"
 					fi
 				}
 			''')
 		for f,a in self.pre_actions.items() :
 			f = mk_shell_str(f)
-			if   a=='mkdir'          : res += f'mkdir -p   {f}\n'
-			elif a=='rmdir'          : res += f'rmdir      {f} 2>/dev/null\n'
-			elif a=='unlink'         : res += f'rm -f      {f}\n'
-			elif a=='unlink_warning' : res += f'rm_warning {f}\n'
-			elif a=='uniquify'       : res += f'uniquify   {f}\n'
+			if   a=='mkdir'           : res += f'mkdir -p            {f}\n'
+			elif a=='rmdir'           : res += f'rmdir               {f} 2>/dev/null\n'
+			elif a=='unlink'          : res += f'rm -f               {f}\n'
+			elif a=='unlink_warning'  : res += f'rm_warning warning  {f}\n'
+			elif a=='unlink_polluted' : res += f'rm_warning polluted {f}\n'
+			elif a=='uniquify'        : res += f'uniquify            {f}\n'
 		return res
 
 	def gen_tmp_dir(self) :

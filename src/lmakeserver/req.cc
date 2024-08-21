@@ -486,7 +486,7 @@ namespace Engine {
 				+	( stats.ended[+JobReport::Rerun ]                   ? " rerun:"s   +  stats.ended[+JobReport::Rerun ]                   : ""s )
 				+	                                                      " running:"s +  stats.cur(JobStep::Exec  )
 				+	( stats.cur(JobStep::Queued)                        ? " queued:"s  +  stats.cur(JobStep::Queued)                        : ""s )
-				+	( stats.cur(JobStep::Dep   )                        ? " waiting:"s +  stats.cur(JobStep::Dep   )                        : ""s )
+				+	( stats.cur(JobStep::Dep   )>1                      ? " waiting:"s + (stats.cur(JobStep::Dep   )-1                )     : ""s ) // suppress job representing Req itself
 				)
 			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;

@@ -34,9 +34,9 @@ using namespace Hash ;
 	for( auto const& [f,a] : pre_actions ) {                                                                  // pre_actions are adequately sorted
 		SWEAR(+f) ;                                                                                           // acting on root dir is non-sense
 		switch (a.tag) {
-			case FileActionTag::Unlnk         :
-			case FileActionTag::UnlnkWarning  :
-			case FileActionTag::UnlnkPolluted :
+			case FileActionTag::Unlink         :
+			case FileActionTag::UnlinkWarning  :
+			case FileActionTag::UnlinkPolluted :
 			case FileActionTag::None          : {
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                                                                             // file does not exist, nothing to do
