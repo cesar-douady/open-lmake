@@ -22,10 +22,13 @@ namespace JobSupport {
 			if (sr.file_loc<=FileLoc::Dep) deps.emplace_back(::move(sr.real),sr.file_info) ;
 		}
 		ad.accesses = ~Accesses() ;
-		JobExecRpcReply reply = r.report_sync_access( JobExecRpcReq( verbose?Proc::DepVerbose:Proc::Access , ::move(deps) , ad , verbose , "depend" ) ) ;
-		//
-		if (verbose) return reply.dep_infos ;
-		else         return {}              ;
+		if (verbose) {
+			JobExecRpcReply reply = r.report_sync_access( JobExecRpcReq( Proc::DepVerbose , ::move(deps) , ad , true/*verbose*/ , "depend" ) ) ;
+			return reply.dep_infos ;
+		} else {
+			r.report_sync_access( JobExecRpcReq( Proc::Access , 0 , ::move(deps) , ad , false/*verbose*/ , "depend" ) ) ;
+			return {} ;
+		}
 	}
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow ) {
@@ -35,7 +38,7 @@ namespace JobSupport {
 			if (sr.file_loc<=FileLoc::Repo) targets.emplace_back(::move(sr.real),sr.file_info) ;
 			/**/                            ad.accesses |= sr.accesses ;                         // pessimistic but in practice, sr.accesses is identical for all files (empty if no_follow, else Lnk)
 		}
-		r.report_access( JobExecRpcReq( Proc::Access , ::move(targets) , ad , "target" ) ) ;
+		r.report_async_access( JobExecRpcReq( Proc::Access , 0 , ::move(targets) , ad , "target" ) ) ;
 	}
 
 	Bool3 check_deps( Record const& r , bool verbose ) {
@@ -45,7 +48,7 @@ namespace JobSupport {
 	::pair_s<bool/*ok*/> decode( Record const& r , ::string&& file , ::string&& code , ::string&& ctx ) {
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(file),.read=true,.write=true,.comment="decode"}) ;
 		//
-		r.report_access( JobExecRpcReq( Proc::Access , {{sr.real,sr.file_info}} , {.accesses=sr.accesses} , "decode" ) ) ;
+		r.report_async_access( JobExecRpcReq( Proc::Access , 0 , {{sr.real,sr.file_info}} , {.accesses=sr.accesses} , "decode" ) ) ;
 		//
 		JobExecRpcReply reply = r.report_sync_direct(JobExecRpcReq( Proc::Decode , ::move(sr.real) , ::move(code) , ::move(ctx) )) ;
 		//
@@ -55,7 +58,7 @@ namespace JobSupport {
 	::pair_s<bool/*ok*/> encode( Record const& r , ::string&& file , ::string&& val , ::string&& ctx , uint8_t min_len ) {
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(file),.read=true,.write=true,.comment="encode"}) ;
 		//
-		r.report_access( JobExecRpcReq( Proc::Access , {{sr.real,sr.file_info}} , {.accesses=sr.accesses} , "encode" ) ) ;
+		r.report_async_access( JobExecRpcReq( Proc::Access , 0 , {{sr.real,sr.file_info}} , {.accesses=sr.accesses} , "encode" ) ) ;
 		//
 		JobExecRpcReply reply = r.report_sync_direct(JobExecRpcReq( Proc::Encode , ::move(sr.real) , ::move(val) , ::move(ctx) , min_len )) ;
 		//

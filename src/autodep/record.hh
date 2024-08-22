@@ -51,16 +51,12 @@ struct Record {
 	}
 	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) {
 		SWEAR( !s_access_cache && !_s_autodep_env ) ;
-		_s_autodep_env = new AutodepEnv                                            { ade } ;
-		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
+		_s_mk_autodep_env(new AutodepEnv{ade}) ;
 		return *_s_autodep_env ;
 	}
 	static AutodepEnv const& s_autodep_env(NewType) {
-		SWEAR(bool(s_access_cache)==bool(_s_autodep_env)) ;
-		if (!_s_autodep_env) {
-			_s_autodep_env = new AutodepEnv{New} ;
-			s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
-		}
+		SWEAR( !s_access_cache == !_s_autodep_env ) ;
+		if (!_s_autodep_env) _s_mk_autodep_env(new AutodepEnv{New}) ;
 		return *_s_autodep_env ;
 	}
 	static void s_hide(int fd) {
@@ -71,16 +67,27 @@ struct Record {
 		if ( _s_root_fd  .fd>=0 &&  uint(_s_root_fd  .fd)>=min && uint(_s_root_fd  .fd)<=max ) _s_root_fd  .detach() ;
 		if ( _s_report_fd.fd>=0 &&  uint(_s_report_fd.fd)>=min && uint(_s_report_fd.fd)<=max ) _s_report_fd.detach() ;
 	}
+	// private
+	static void _s_mk_autodep_env(AutodepEnv* ade) {
+		_s_autodep_env = ade                                                       ;
+		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
+		// use a random number as starting point for access id's, then it is incremented at each access
+		// this ensures reasonable uniqueness while avoiding heavy host/pid/local_id to ensure uniqueness
+		AutoCloseFd fd = ::open("/dev/urandom",O_RDONLY) ; SWEAR(+fd)                  ;                                      // getrandom is not available in CentOS7
+		ssize_t     rc = ::read(fd,&_s_id,sizeof(_s_id)) ; SWEAR(rc==sizeof(_s_id),rc) ;
+		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;                                             // ensure we can confortably generate ids while never generating 0
+	}
 	// static data
 public :
-	static bool                                                   s_static_report  ;                                      // if true <=> report deps to s_deps instead of through s_report_fd() socket
+	static bool                                                   s_static_report  ; // if true <=> report deps to s_deps instead of through s_report_fd() socket
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
-	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;                                      // map file to read accesses
+	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ; // map file to read accesses
 private :
 	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                                                                   // a file descriptor to repo root dir
+	static Fd          _s_root_fd     ;                                              // a file descriptor to repo root dir
 	static Fd          _s_report_fd   ;
+	static uint64_t    _s_id          ;                                              // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -97,8 +104,9 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd()) ;
 	}
 	//
-	void report_access( ::string&& f , FileInfo fi , Accesses a , bool write , ::string&& c={} , bool force=false ) const {
-		report_access( { Proc::Access , {{::move(f),fi}} , {.write=Maybe&write,.accesses=a} , ::move(c) } , force ) ;
+	uint64_t/*id*/ report_access( ::string&& f , FileInfo fi , Accesses a , bool write , ::string&& c={} , bool force=false ) const {
+		report_async_access( { Proc::Access , ++_s_id , {{::move(f),fi}} , {.write=Maybe&write,.accesses=a} , ::move(c) } , force ) ;
+		return _s_id ;
 	}
 	// for modifying accesses (_report_update, _report_target, _report_unlnk, _report_targets) :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
@@ -108,43 +116,53 @@ private :
 	// - it is then confirmed (with an ok arg to manage errors) after the access
 	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
 	//
-	//                                                                                                                                                                        write
-	void _report_dep   ( FileLoc fl , ::string&& f , FileInfo fi , Accesses a , ::string&& c={} ) const { if ( fl<=FileLoc::Dep  && +a ) report_access( ::move(f) , fi , a  , false , ::move(c) ) ; }
-	void _report_target( FileLoc fl , ::string&& f ,                            ::string&& c={} ) const { if ( fl<=FileLoc::Repo       ) report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
-	void _report_unlnk ( FileLoc fl , ::string&& f ,                            ::string&& c={} ) const { if ( fl<=FileLoc::Repo       ) report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
+	void _report_dep   ( FileLoc fl , ::string&& f , FileInfo fi , Accesses a , ::string&& c={} ) const {
+		if ( fl<=FileLoc::Dep  && +a ) report_access( ::move(f) , fi , a  , false/*write*/ , ::move(c) ) ;
+	}
+	uint64_t/*id*/ _report_target( FileLoc fl , ::string&& f ,                            ::string&& c={} ) const {
+		if (fl<=FileLoc::Repo) return report_access( ::move(f) , {} , {} , true/*write*/  , ::move(c) ) ;
+		else                   return 0                                                                 ;
+	}
+	uint64_t/*id*/ _report_unlnk ( FileLoc fl , ::string&& f , ::string&& c={} ) const {
+		if (fl<=FileLoc::Repo) return report_access( ::move(f) , {} , {} , true/*write*/  , ::move(c) ) ;
+		else                   return 0                                                                 ;
+	}
 	//
 	void _report_dep   ( FileLoc fl , ::string&& f , Accesses a , ::string&& c={} ) const { if (+a) _report_dep( fl , ::move(f) , FileInfo(s_root_fd(),f) , a , ::move(c) ) ; }
 	//
-	void _report_update( FileLoc fl , ::string&& f , ::string&& f0 , FileInfo fi , Accesses a , ::string&& c={} ) const { // f0 is the file to which we write if non-empty
-		if (!f0) { //!                                                                write
-			if      ( fl<=FileLoc::Repo       ) report_access( ::move(f ) , fi , a  , true  , ::move(c) ) ;
-			else if ( fl<=FileLoc::Dep  && +a ) report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
+	uint64_t/*id*/ _report_update( FileLoc fl , ::string&& f , ::string&& f0 , FileInfo fi , Accesses a , ::string&& c={} ) const { // f0 is the file to which we write if non-empty
+		if (!f0) { //!                                                                       write
+			if      ( fl<=FileLoc::Repo       ) return report_access( ::move(f ) , fi , a  , true  , ::move(c) ) ;
+			else if ( fl<=FileLoc::Dep  && +a )        report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
 		} else {
-			if      ( fl<=FileLoc::Dep  && +a ) report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
-			if      ( fl<=FileLoc::Repo       ) report_access( ::move(f0) , fi , {} , true  , ::move(c) ) ;
+			if      ( fl<=FileLoc::Dep  && +a )        report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
+			if      ( fl<=FileLoc::Repo       ) return report_access( ::move(f0) , fi , {} , true  , ::move(c) ) ;
 		}
+		return 0 ;
 	}
-	void _report_update( FileLoc fl , ::string&& f , ::string&& f0 , Accesses a , ::string&& c={} ) const {
-		_report_update( fl , ::move(f) , ::move(f0) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ;
+	uint64_t/*id*/ _report_update( FileLoc fl , ::string&& f , ::string&& f0 , Accesses a , ::string&& c={} ) const {
+		return _report_update( fl , ::move(f) , ::move(f0) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ;
 	}
 	//
-	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
+	uint64_t/*id*/ _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
 		::vmap_s<FileInfo> files ;
 		for( ::string const& f : fs ) files.emplace_back( f , FileInfo(s_root_fd(),f) ) ;
-		report_access({ Proc::Access , ::move(files) , {.write=Maybe&u,.accesses=a} , ::move(c) }) ;
+		report_async_access({ Proc::Access , ++_s_id , ::move(files) , {.write=Maybe&u,.accesses=a} , ::move(c) }) ;
+		return _s_id ;
 	}
-	void _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
+	uint64_t/*id*/ _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
 		vmap_s<FileInfo> files ;
 		for( ::string& f : fs ) files.emplace_back(::move(f),FileInfo()) ;
-		report_access({ Proc::Access , ::move(files) , {.write=Maybe} , ::move(c) }) ;
+		report_async_access({ Proc::Access , ++_s_id , ::move(files) , {.write=Maybe} , ::move(c) }) ;
+		return _s_id ;
 	}
 	void _report_tmp( bool sync=false , ::string&& c={} ) const {
 		if      (!_tmp_cache) _tmp_cache = true ;
 		else if (!sync     ) return ;
 		report_direct({Proc::Tmp,sync,::move(c)}) ;
 	}
-	void _report_confirm( FileLoc fl , bool ok ) const {
-		if (fl==FileLoc::Repo) report_direct({ Proc::Confirm , ok }) ;
+	void _report_confirm( uint64_t id , bool ok ) const {
+		if (id) report_direct({ Proc::Confirm , id , ok }) ;
 	}
 	void _report_guard( FileLoc fl , ::string&& f , ::string&& c={} ) const {
 		if (fl<=FileLoc::Repo) report_direct({ Proc::Guard , ::move(f) , ::move(c) }) ;
@@ -157,9 +175,9 @@ public :
 		if ( Fd fd=s_report_fd() ; +fd ) { OMsgBuf().send(fd,jerr)      ; return true  ; }
 		/**/                                                              return false ;
 	}
-	JobExecRpcReply report_sync_direct( JobExecRpcReq&& , bool force=false ) const ;
-	bool            report_access     ( JobExecRpcReq&& , bool force=false ) const ;
-	JobExecRpcReply report_sync_access( JobExecRpcReq&& , bool force=false ) const ;
+	JobExecRpcReply report_sync_direct ( JobExecRpcReq&& , bool force=false ) const ;
+	bool            report_async_access( JobExecRpcReq&& , bool force=false ) const ;
+	JobExecRpcReply report_sync_access ( JobExecRpcReq&& , bool force=false ) const ;
 	//
 	[[noreturn]] void report_panic(::string&& s) const { report_direct({Proc::Panic,::move(s)}) ; exit(Rc::Usage) ; } // continuing is meaningless
 	/**/         void report_trace(::string&& s) const { report_direct({Proc::Trace,::move(s)}) ;                   }
@@ -260,8 +278,8 @@ public :
 		::string      & real_write()       { return +real0 ? real0 : real ; }
 		// data
 		::string real     ;
-		::string real0    ;                                                // real in case reading and writing is to different files because of overlays
-		Accesses accesses ;                                                // Access::Lnk if real was accessed as a sym link
+		::string real0    ;                                       // real in case reading and writing is to different files because of overlays
+		Accesses accesses ;                                       // Access::Lnk if real was accessed as a sym link
 	} ; //!              Writable,ChkSimple
 	using Solve    = _Solve<false  ,false   > ;
 	using WSolve   = _Solve<true   ,false   > ;
@@ -279,10 +297,15 @@ public :
 		Chmod() = default ;
 		Chmod( Record& , Path&& , bool exe , bool no_follow , ::string&& comment ) ;
 		// services
-		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
+		int operator()( Record& r , int rc ) {
+			r._report_confirm( id , rc>=0 ) ;
+			return rc ;
+		}
+		//
+		uint64_t id = 0/*garbage*/ ;
 	} ;
 	struct Hide {
-		Hide( Record&          ) {              }                          // in case nothing to hide, just to ensure invariants
+		Hide( Record&          ) {              }                 // in case nothing to hide, just to ensure invariants
 		Hide( Record& , int fd ) { s_hide(fd) ; }
 		#if HAS_CLOSE_RANGE
 			#ifdef CLOSE_RANGE_CLOEXEC
@@ -303,10 +326,14 @@ public :
 		Lnk() = default ;
 		Lnk( Record& , Path&& src , Path&& dst , bool no_follow , ::string&& comment ) ;
 		// services
-		int operator()( Record& r , int rc ) { r._report_confirm(dst.file_loc,rc>=0) ; return rc ; }
+		int operator()( Record& r , int rc ) {
+			r._report_confirm( id , rc>=0 ) ;
+			return rc ;
+		}
 		// data
-		Solve src ;
-		Solve dst ;
+		Solve    src ;
+		Solve    dst ;
+		uint64_t id  = 0/*garbage*/ ;
 	} ;
 	struct Mkdir : Solve {
 		Mkdir() = default ;
@@ -325,9 +352,13 @@ public :
 		Open() = default ;
 		Open( Record& , Path&& , int flags , ::string&& comment ) ;
 		// services
-		int operator()( Record& r , int rc ) { { if (confirm) r._report_confirm(file_loc,rc>=0) ; } return rc ; }
+		int operator()( Record& r , int rc ) {
+			r._report_confirm( id , rc>=0 ) ;
+r.report_trace(fmt_string("open rc ",rc," file_loc ",file_loc)) ; // XXX : suppress
+			return rc ;
+		}
 		// data
-		bool confirm = false ;
+		uint64_t id = 0/*garbage*/ ;
 	} ;
 	template<bool ChkSimple=false> struct _Read : _Solve<false/*Writable*/,ChkSimple> {
 		using Base = _Solve<false/*Writable*/,ChkSimple> ;
@@ -352,7 +383,7 @@ public :
 		// data
 		char*  buf      = nullptr ;
 		size_t sz       = 0       ;
-		bool   emulated = false   ;                                        // if true <=> backdoor was used
+		bool   emulated = false   ;                               // if true <=> backdoor was used
 	} ;
 	struct Rename {
 		// cxtors & casts
@@ -360,14 +391,16 @@ public :
 		Rename( Record& , Path&& src , Path&& dst , bool exchange , bool no_replace , ::string&& comment ) ;
 		// services
 		int operator()( Record& r , int rc ) {
-			FileLoc fl = dst.file_loc ; if (exchange) fl &= src.file_loc ; // if exchange, we confirm if either src or dst is in repo
-			r._report_confirm( fl , rc>=0 ) ;
+			r._report_confirm( unlnk_id , rc>=0 ) ;
+			r._report_confirm( write_id , rc>=0 ) ;
 			return rc ;
 		}
 		// data
-		Solve src      ;
-		Solve dst      ;
-		bool  exchange ;
+		Solve    src      ;
+		Solve    dst      ;
+		uint64_t unlnk_id = 0/*garbage*/ ;
+		uint64_t write_id = 0/*garbage*/ ;
+		bool     exchange ;
 	} ;
 	struct Stat : Solve {
 		// cxtors & casts
@@ -382,15 +415,24 @@ public :
 		Symlink() = default ;
 		Symlink( Record& r , Path&& p , ::string&& comment ) ;
 		// services
-		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
+		int operator()( Record& r , int rc ) {
+			r._report_confirm( id , rc>=0 ) ;
+			return rc ;
+		}
 		// data
+		uint64_t id = 0/*garbage*/ ;
 	} ;
 	struct Unlnk : Solve {
 		// cxtors & casts
 		Unlnk() = default ;
 		Unlnk( Record& , Path&& , bool remove_dir , ::string&& comment ) ;
 		// services
-		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
+		int operator()( Record& r , int rc ) {
+			r._report_confirm( id , rc>=0 ) ;
+			return rc ;
+		}
+		// data
+		uint64_t id = 0/*garbage*/ ;
 	} ;
 	//
 	void chdir(const char* dir) {
@@ -403,7 +445,7 @@ public :
 	bool disabled   = false ;
 private :
 	Disk::RealPath _real_path ;
-	mutable bool   _tmp_cache = false ;                                    // record that tmp usage has been reported, no need to report any further
+	mutable bool   _tmp_cache = false ;                           // record that tmp usage has been reported, no need to report any further
 } ;
 
 template<bool Writable=false> ::ostream& operator<<( ::ostream& os , Record::_Path<Writable> const& p ) {

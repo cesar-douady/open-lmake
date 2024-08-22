@@ -81,10 +81,11 @@ template<bool At> [[maybe_unused]] static void _entry_chdir( void* & ctx , Recor
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res ) {
-	if (!ctx) return res ;
-	Record::Chdir* cd = static_cast<Record::Chdir*>(ctx) ;
-	(*cd)(r,res,pid) ;
-	delete cd ;
+	if (ctx) {
+		Record::Chdir* cd = static_cast<Record::Chdir*>(ctx) ;
+		(*cd)(r,res,pid) ;
+		delete cd ;
+	}
 	return res ;
 }
 
@@ -95,10 +96,11 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void* &
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_t res ) {
-	if (!ctx) return res ;
-	Record::Chmod* cm = static_cast<Record::Chmod*>(ctx) ;
-	(*cm)(r,res) ;
-	delete cm ;
+	if (ctx) {
+		Record::Chmod* cm = static_cast<Record::Chmod*>(ctx) ;
+		(*cm)(r,res) ;
+		delete cm ;
+	}
 	return res ;
 }
 
@@ -126,10 +128,11 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & c
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
-	if (!ctx) return res ;
-	Record::Lnk* l = static_cast<Record::Lnk*>(ctx) ;
-	(*l)(r,res) ;
-	delete l ;
+	if (ctx) {
+		Record::Lnk* l = static_cast<Record::Lnk*>(ctx) ;
+		(*l)(r,res) ;
+		delete l ;
+	}
 	return res ;
 }
 
@@ -151,14 +154,14 @@ template<bool At> [[maybe_unused]] static void _entry_mkdir( void* & /*ctx*/ , R
 template<bool At> [[maybe_unused]] static void _entry_open( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		ctx = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , comment ) ;
-	}
-	catch (int) {}
+	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
-	if (!ctx) return res ;
-	Record::Open* o = static_cast<Record::Open*>(ctx) ;
-	(*o)( r , res ) ;
-	delete o ;
+	if (ctx) {
+		Record::Open* o = static_cast<Record::Open*>(ctx) ;
+		(*o)( r , res ) ;
+		delete o ;
+	}
 	return res ;
 }
 
@@ -173,16 +176,17 @@ template<bool At> [[maybe_unused]] static void _entry_read_lnk( void* & ctx , Re
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
-	if (!ctx) return res ;
-	RLB* rlb = static_cast<RLB*>(ctx) ;
-	SWEAR( res<=ssize_t(rlb->first.sz) , res , rlb->first.sz ) ;
-	if ( pid && res>=0 ) _peek( pid , rlb->first.buf , rlb->second , res ) ;
-	res = (rlb->first)(r,res) ;
-	if (pid) {
-		if ( rlb->first.emulated && res>=0 ) _poke( pid , rlb->second , rlb->first.buf , res ) ; // access to backdoor was emulated, we must transport result to actual user space
-		delete[] rlb->first.buf ;
+	if (ctx) {
+		RLB* rlb = static_cast<RLB*>(ctx) ;
+		SWEAR( res<=ssize_t(rlb->first.sz) , res , rlb->first.sz ) ;
+		if ( pid && res>=0 ) _peek( pid , rlb->first.buf , rlb->second , res ) ;
+		res = (rlb->first)(r,res) ;
+		if (pid) {
+			if ( rlb->first.emulated && res>=0 ) _poke( pid , rlb->second , rlb->first.buf , res ) ; // access to backdoor was emulated, we must transport result to actual user space
+			delete[] rlb->first.buf ;
+		}
+		delete rlb ;
 	}
-	delete rlb ;
 	return res ;
 }
 
@@ -203,10 +207,11 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* 
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
-	if (!ctx) return res ;
-	Record::Rename* rn = static_cast<Record::Rename*>(ctx) ;
-	(*rn)(r,res) ;
-	delete rn ;
+	if (ctx) {
+		Record::Rename* rn = static_cast<Record::Rename*>(ctx) ;
+		(*rn)(r,res) ;
+		delete rn ;
+	}
 	return res ;
 }
 
@@ -217,10 +222,11 @@ template<bool At> [[maybe_unused]] static void _entry_symlink( void* & ctx , Rec
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
-	if (!ctx) return res ;
-	Record::Symlink* sl = static_cast<Record::Symlink*>(ctx) ;
-	(*sl)(r,res) ;
-	delete sl ;
+	if (ctx) {
+		Record::Symlink* sl = static_cast<Record::Symlink*>(ctx) ;
+		(*sl)(r,res) ;
+		delete sl ;
+	}
 	return res ;
 }
 
@@ -233,10 +239,11 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlink( void* 
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , pid_t , int64_t res ) {
-	if (!ctx) return res ;
-	Record::Unlnk* u = static_cast<Record::Unlnk*>(ctx) ;
-	(*u)(r,res) ;
-	delete u ;
+	if (ctx) {
+		Record::Unlnk* u = static_cast<Record::Unlnk*>(ctx) ;
+		(*u)(r,res) ;
+		delete u ;
+	}
 	return res ;
 }
 

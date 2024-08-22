@@ -37,7 +37,7 @@ using namespace Hash ;
 			case FileActionTag::Unlink         :
 			case FileActionTag::UnlinkWarning  :
 			case FileActionTag::UnlinkPolluted :
-			case FileActionTag::None          : {
+			case FileActionTag::None           : {
 				FileSig sig { nfs_guard.access(f) } ;
 				if (!sig) break ;                                                                             // file does not exist, nothing to do
 				bool done       = true/*garbage*/                                                           ;
@@ -77,7 +77,7 @@ using namespace Hash ;
 			break ;
 		DF}
 	}
-	trace("done",STR(ok),msg) ;
+	trace("done",STR(ok),localize(msg)) ;
 	return {msg,ok} ;
 }
 

@@ -52,21 +52,25 @@ struct JobExecRpcReq {
 	using P     = JobExecProc    ;
 	// cxtors & casts
 	JobExecRpcReq() = default ;
-	// Confirm always has a confirm argument
-	static constexpr P Confirm = P::Confirm ;
-	JobExecRpcReq( P p ,                   ::string&& t={} ) : proc{p} ,                                                              txt{::move(t)} { SWEAR( p<P::HasFiles && p!=Confirm ) ; }
-	JobExecRpcReq( P p , bool sc         , ::string&& t={} ) : proc{p} , sync{sc&&p!=Confirm} , digest{.write=(No|sc)&(p==Confirm)} , txt{::move(t)} { SWEAR( p<P::HasFiles               ) ; }
-	JobExecRpcReq( P p , bool s , bool c , ::string&& t={} ) : proc{p} , sync{s             } , digest{.write= No|c               } , txt{::move(t)} { SWEAR(                  p==Confirm ) ; }
-	//
-	JobExecRpcReq( P p , ::vmap_s<FI>&& fs , AD const& d , bool s , ::string&& c ) : proc{p} , sync{s} , files{::move(fs)} , digest{d} , txt{::move(c)} { SWEAR(p==P::Access||p==P::DepVerbose) ; }
-	JobExecRpcReq( P p , ::vmap_s<FI>&& fs , AD const& d ,          ::string&& c ) : JobExecRpcReq{p,::move(fs),d,false/*sync*/,::move(c)} {}
-	//
-	JobExecRpcReq( P p , ::string&& f , ::string&& c ) : proc{p} , files{{{::move(f),{}}}} , txt{::move(c)} { SWEAR(p==P::Guard) ; }
 	//
 	#define S ::string
+	JobExecRpcReq( P p ,                                S&& t={} ) : proc{p} ,                                         txt{::move(t)} { SWEAR( p!=P::Confirm && p<P::HasFiles ) ; }
+	JobExecRpcReq( P p ,              bool s          , S&& t={} ) : proc{p} , sync{s} ,                               txt{::move(t)} { SWEAR( p!=P::Confirm && p<P::HasFiles ) ; }
+	JobExecRpcReq( P p , uint64_t i ,          bool c , S&& t={} ) : proc{p} ,           id{i} , digest{.write=No|c} , txt{::move(t)} { SWEAR( p==P::Confirm && i             ) ; }
+	JobExecRpcReq( P p , uint64_t i , bool s , bool c , S&& t={} ) : proc{p} , sync{s} , id{i} , digest{.write=No|c} , txt{::move(t)} { SWEAR( p==P::Confirm && i             ) ; }
+	//
+	// we need an id if access must be confirmed
+	JobExecRpcReq(P p,uint64_t i,::vmap_s<FI>&& fs,AD const& d,bool s,S&& c) : proc{p},sync{s},id{i},files{::move(fs)},digest{d},txt{::move(c)} { SWEAR( p==P::Access && bool(i)>=(d.write==Maybe) ) ; }
+	JobExecRpcReq(P p,uint64_t i,::vmap_s<FI>&& fs,AD const& d,       S&& c) : proc{p},        id{i},files{::move(fs)},digest{d},txt{::move(c)} { SWEAR( p==P::Access && bool(i)>=(d.write==Maybe) ) ; }
+	//
+	JobExecRpcReq( P p ,              ::vmap_s<FI>&& fs , AD const& d , bool s , S&& c ) : proc{p} , sync{s} ,         files{::move(fs)} , digest{d} , txt{::move(c)} { SWEAR(p==P::DepVerbose) ; }
+	JobExecRpcReq( P p ,              ::vmap_s<FI>&& fs , AD const& d ,          S&& c ) : proc{p} ,                   files{::move(fs)} , digest{d} , txt{::move(c)} { SWEAR(p==P::DepVerbose) ; }
+	//
+	JobExecRpcReq( P p , S&& f , S&& c ) : proc{p} , files{{{::move(f),{}}}} , txt{::move(c)} { SWEAR(p==P::Guard) ; }
+	//
 	// no need for dates for codec
-	JobExecRpcReq(P p,S&& f,S&& code,S&& c           ) : proc{p} , sync{true} ,               files{{{::move(f),{}}}} , digest{.accesses=Access::Reg} , txt{code} , ctx{c} { SWEAR(p==P::Decode) ; }
-	JobExecRpcReq(P p,S&& f,S&& val ,S&& c,uint8_t ml) : proc{p} , sync{true} , min_len{ml} , files{{{::move(f),{}}}} , digest{.accesses=Access::Reg} , txt{val } , ctx{c} { SWEAR(p==P::Encode) ; }
+	JobExecRpcReq(P p,S&& f,S&& code,S&& c           ) : proc{p},sync{true},            date{},files{{{::move(f),{}}}},digest{.accesses=Access::Reg},txt{code},ctx{c} { SWEAR(p==P::Decode) ; }
+	JobExecRpcReq(P p,S&& f,S&& val ,S&& c,uint8_t ml) : proc{p},sync{true},min_len{ml},date{},files{{{::move(f),{}}}},digest{.accesses=Access::Reg},txt{val },ctx{c} { SWEAR(p==P::Encode) ; }
 	#undef S
 	// services
 	template<IsStream T> void serdes(T& s) {
@@ -82,25 +86,26 @@ struct JobExecRpcReq {
 			case P::Tmp        :
 			case P::Trace      :
 			case P::Panic      :
-			case P::Guard      :                                                  break ;
-			case P::Confirm    : ::serdes(s,digest.write) ;                       break ;
-			case P::Access     :
-			case P::DepVerbose : ::serdes(s,digest      ) ;                       break ;
-			case P::Decode     : ::serdes(s,ctx         ) ;                       break ;
-			case P::Encode     : ::serdes(s,ctx         ) ; ::serdes(s,min_len) ; break ;
+			case P::Guard      :                                              break ;
+			case P::Confirm    : ::serdes(s,id)  ; ::serdes(s,digest.write) ; break ;
+			case P::Access     : ::serdes(s,id)  ; ::serdes(s,digest      ) ; break ;
+			case P::DepVerbose :                   ::serdes(s,digest      ) ; break ;
+			case P::Decode     : ::serdes(s,ctx) ;                            break ;
+			case P::Encode     : ::serdes(s,ctx) ; ::serdes(s,min_len)      ; break ;
 			default : ;
 		}
 		::serdes(s,txt) ;
 	}
 	// data
-	P            proc    = {}    ;
-	bool         sync    = false ;
-	uint8_t      min_len = 0     ; // if proc==Encode
-	Pdate        date    = New   ; // access date to reorder accesses during analysis
+	P            proc    = {}           ;
+	bool         sync    = false        ;
+	uint8_t      min_len = 0            ; // if proc==Encode
+	uint64_t     id      = 0/*garbage*/ ; // if proc==Access|Confirm used by Confirm to refer to confirmed Access
+	Pdate        date    = New          ; //                         access date to reorder accesses during analysis
 	::vmap_s<FI> files   ;
 	AD           digest  ;
-	::string     txt     ;         // if proc==Access|Decode|Encode|Trace (comment for Access, code for Decode, value for Encode)
-	::string     ctx     ;         // if proc==Decode|Encode
+	::string     txt     ;                // if proc==Access|Decode|Encode|Trace comment for Access, code for Decode, value for Encode
+	::string     ctx     ;                // if proc==Decode|Encode
 } ;
 
 struct JobExecRpcReply {
