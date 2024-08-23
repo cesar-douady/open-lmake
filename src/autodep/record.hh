@@ -25,20 +25,24 @@ struct Record {
 	//
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
-		if (!_s_root_fd) {
+		pid_t pid = ::getpid() ;
+		if (!(+_s_root_fd&&_s_root_pid==pid)) {
 			_s_root_fd = { Disk::open_read(Disk::no_slash(_s_autodep_env->root_dir_s)) , true/*no_std*/ } ;                   // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
+			_s_root_pid = pid ;
 		}
 		return _s_root_fd ;
 	}
 	static Fd s_report_fd() {
-		if ( !_s_report_fd && +_s_autodep_env->service ) {
+		pid_t pid = ::getpid() ;
+		if ( !(+_s_report_fd&&_s_report_pid==pid) && +_s_autodep_env->service ) {
 			// establish connection with server
 			::string const& service = _s_autodep_env->service ;
 			if (service.back()==':') _s_report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
 			else                     _s_report_fd = ClientSockFd(service).detach()                                          ;
 			_s_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
 			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",service) ;
+			_s_report_pid = pid ;
 		}
 		return _s_report_fd ;
 	}
@@ -73,21 +77,24 @@ struct Record {
 		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
 		// use a random number as starting point for access id's, then it is incremented at each access
 		// this ensures reasonable uniqueness while avoiding heavy host/pid/local_id to ensure uniqueness
-		AutoCloseFd fd = ::open("/dev/urandom",O_RDONLY) ; SWEAR(+fd)                  ;                                      // getrandom is not available in CentOS7
+		AutoCloseFd fd = ::open("/dev/urandom",O_RDONLY) ; SWEAR(+fd)                  ; // getrandom is not available in CentOS7
 		ssize_t     rc = ::read(fd,&_s_id,sizeof(_s_id)) ; SWEAR(rc==sizeof(_s_id),rc) ;
-		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;                                             // ensure we can confortably generate ids while never generating 0
+		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;        // ensure we can confortably generate ids while never generating 0
 	}
 	// static data
 public :
-	static bool                                                   s_static_report  ; // if true <=> report deps to s_deps instead of through s_report_fd() socket
+	static bool                                                   s_static_report  ;     // if true <=> report deps to s_deps instead of through s_report_fd() socket
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
-	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ; // map file to read accesses
+	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;     // map file to read accesses
 private :
 	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                              // a file descriptor to repo root dir
+	static Fd          _s_root_fd     ;                                                  // a file descriptor to repo root dir
+	static pid_t       _s_root_pid    ;                                                  // pid in which _s_root_fd is valid
+public:
 	static Fd          _s_report_fd   ;
-	static uint64_t    _s_id          ;                                              // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
+	static pid_t       _s_report_pid  ;                                                  // pid in which _s_report_fd is valid
+	static uint64_t    _s_id          ;                                                  // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -169,11 +176,19 @@ private :
 	}
 public :
 	bool/*sent*/ report_direct( JobExecRpcReq&& jerr , bool force=false ) const {
-		//                                                                       sent
-		if ( !force && disabled        )                                  return false ;
-		if ( s_static_report           ) { _static_report(::move(jerr)) ; return true  ; }
-		if ( Fd fd=s_report_fd() ; +fd ) { OMsgBuf().send(fd,jerr)      ; return true  ; }
-		/**/                                                              return false ;
+		if ( !force && disabled ) {
+			return false/*sent*/ ;
+		}
+		if (s_static_report) {
+			_static_report(::move(jerr)) ;
+			return true/*sent*/ ;
+		}
+		if ( Fd fd=s_report_fd() ; +fd ) {
+			try                       { OMsgBuf().send(fd,jerr) ;          }
+			catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }                                 // this justifies panic, but we cannot report panic !
+			return true/*sent*/ ;
+		}
+		return false/*sent*/ ;
 	}
 	JobExecRpcReply report_sync_direct ( JobExecRpcReq&& , bool force=false ) const ;
 	bool            report_async_access( JobExecRpcReq&& , bool force=false ) const ;
@@ -354,7 +369,6 @@ public :
 		// services
 		int operator()( Record& r , int rc ) {
 			r._report_confirm( id , rc>=0 ) ;
-r.report_trace(fmt_string("open rc ",rc," file_loc ",file_loc)) ; // XXX : suppress
 			return rc ;
 		}
 		// data

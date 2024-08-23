@@ -479,12 +479,30 @@ namespace Engine {
 					if (target->is_src_anti()) {                                       // source may have been modified
 						if (!crc.valid()) crc = Crc(tn,g_config->hash_algo) ;          // force crc computation if updating a source
 						//
-						/**/                           if (td.extra_tflags[ExtraTflag::SourceOk]) goto SourceOk ;
-						for( Req req : running_reqs_ ) if (req->options.flags[ReqFlag::SourceOk]) goto SourceOk ;
-						//
-						if (crc==Crc::None) severe_msg << "unexpected unlink of source " << mk_file(tn,No /*exists*/) <<'\n' ;
-						else                severe_msg << "unexpected write to source "  << mk_file(tn,Yes/*exists*/) <<'\n' ;
-						if (ok==Yes       ) status = Status::Err ;
+						switch (target->buildable) {
+							case Buildable::DynSrc :
+							case Buildable::Src    :
+								/**/                           if (td.extra_tflags[ExtraTflag::SourceOk]) goto SourceOk ;
+								for( Req req : running_reqs_ ) if (req->options.flags[ReqFlag::SourceOk]) goto SourceOk ;
+							break ;
+							default : ;
+						}
+						{	::string msg = "unexpected" ;
+							if (crc==Crc::None) msg += " unlink of" ;
+							else                msg += " write to"  ;
+							switch (target->buildable) {
+								case Buildable::LongName  : msg << " file (name too long : "<<tn.size()<<" chars)" ; break ;
+								case Buildable::DynAnti   :
+								case Buildable::Anti      : msg << " anti-file"                                    ; break ;
+								case Buildable::SrcDir    : msg << " source dir"                                   ; break ;
+								case Buildable::SubSrcDir : msg << " source sub-dir"                               ; break ;
+								case Buildable::DynSrc    :
+								case Buildable::Src       : msg << " source"                                       ; break ;
+								case Buildable::SubSrc    : msg << " sub-source"                                   ; break ;
+							DF}
+							severe_msg << msg <<" : "<< mk_file(tn,No /*exists*/) <<'\n' ;
+						}
+						if (ok==Yes) status = Status::Err ;
 					SourceOk : ;
 					}
 					//

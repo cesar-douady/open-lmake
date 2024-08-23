@@ -539,15 +539,20 @@ namespace Engine {
 								else            push_entry("required by",localize(mk_file(    n         ->name()),ro.startup_dir_s)) ;
 							}
 							if (has_start) {
-								JobInfoStart const& rs          = job_info.start                             ;
-								SubmitAttrs  const& sa          = rs.submit_attrs                            ;
-								::string            cwd         = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
-								::string            phy_tmp_dir = no_slash(start.autodep_env.tmp_dir_s)      ;
-								::string            pressure    = sa.pressure.short_str()                    ;
+								JobInfoStart const& rs              = job_info.start                             ;
+								SubmitAttrs  const& sa              = rs.submit_attrs                            ;
+								::string            cwd             = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
+								bool                has_phy_tmp_dir = +start.autodep_env.tmp_dir_s                ;
+								::string            phy_tmp_dir     = no_slash(start.autodep_env.tmp_dir_s)      ;
+								::string            pressure        = sa.pressure.short_str()                    ;
 								//
-								if (!phy_tmp_dir)
+								if (!has_phy_tmp_dir)
 									for( auto const& [k,v] : start.env )
-										if (k=="TMPDIR") { phy_tmp_dir = v==EnvPassMrkr ? "..." : v ; break ; }
+										if (k=="TMPDIR") {
+											phy_tmp_dir     = v==EnvPassMrkr ? "..." : v ;
+											has_phy_tmp_dir = true                       ;
+											break ;
+										}
 								//
 								if (+sa.reason         ) push_entry( "reason" , localize(reason_str(sa.reason) , ro.startup_dir_s) ) ;
 								if (rs.host!=NoSockAddr) push_entry( "host"   , SockFd::s_host(rs.host)                            ) ;
@@ -557,7 +562,7 @@ namespace Engine {
 									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                             ) ;
 								}
 								//
-								if (+phy_tmp_dir                  ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),ro.startup_dir_s) ) ;
+								if ( has_phy_tmp_dir              ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),ro.startup_dir_s) ) ;
 								if ( sa.live_out                  ) push_entry( "live_out"         , "true"                                          ) ;
 								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"       , no_slash(start.job_space.chroot_dir_s)          ) ;
 								if (+start.job_space.root_view_s  ) push_entry( "root_view"        , no_slash(start.job_space.root_view_s )          ) ;

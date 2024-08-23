@@ -27,7 +27,9 @@ bool                                                   Record::s_static_report =
 ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache  = nullptr      ; // map file to read accesses
 AutodepEnv*                                            Record::_s_autodep_env  = nullptr      ; // declare as pointer to avoid late initialization
 Fd                                                     Record::_s_root_fd      ;
+pid_t                                                  Record::_s_root_pid     = 0            ;
 Fd                                                     Record::_s_report_fd    ;
+pid_t                                                  Record::_s_report_pid   = 0            ;
 uint64_t                                               Record::_s_id           = 0/*garbage*/ ;
 
 bool Record::s_is_simple(const char* file) {
@@ -39,7 +41,8 @@ bool Record::s_is_simple(const char* file) {
 		case 'b' : if (strncmp(file+1,"bin/" ,4)==0) top_sz = 5 ; break ;
 		case 'd' : if (strncmp(file+1,"dev/" ,4)==0) top_sz = 5 ; break ;
 		case 'e' : if (strncmp(file+1,"etc/" ,4)==0) top_sz = 5 ; break ;
-		case 's' : if (strncmp(file+1,"sys/" ,4)==0) top_sz = 5 ; break ;
+		case 's' : if (strncmp(file+1,"sbin/",5)==0) top_sz = 6 ;
+		/**/       if (strncmp(file+1,"sys/" ,4)==0) top_sz = 5 ; break ;
 		case 'u' : if (strncmp(file+1,"usr/" ,4)==0) top_sz = 5 ; break ;
 		case 'v' : if (strncmp(file+1,"var/" ,4)==0) top_sz = 5 ; break ;
 		case 'l' :
@@ -47,12 +50,12 @@ bool Record::s_is_simple(const char* file) {
 			if      (strncmp(file+4,"/"  ,1)   ) top_sz = 5 ;     // in lib      => simple
 			else if (strncmp(file+4,"32/",3)   ) top_sz = 7 ;     // in lib32    => simple
 			else if (strncmp(file+4,"64/",3)   ) top_sz = 7 ;     // in lib64    => simple
-		break ;
+		break ;                                                   // else        => not simple
 		case 'p' :                                                // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
 			if ( strncmp(file+1,"proc/",5)!=0 ) break ;           // not in /proc      => not simple
 			if ( file[6]>='0' && file[6]<='9' ) break ;           // in /proc/<pid>    => not simple
 			if ( strncmp(file+6,"self/",5)==0 ) break ;           // not in /proc/self => not simple
-			top_sz = 6 ;
+			top_sz = 6 ;                                          // else              => simple
 		break ;
 		default  : ;
 	}
@@ -84,7 +87,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 		case Proc::Guard   :
 		case Proc::Tmp     :
 		case Proc::Trace   : break ;
-		default            : *s_deps_err<<"unexpected proc "<<snake(jerr.proc)<<'\n' ;
+		default            : *s_deps_err<<"unexpected "<<snake(jerr.proc)<<'\n' ;
 	}
 }
 
