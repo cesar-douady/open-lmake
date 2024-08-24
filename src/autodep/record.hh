@@ -305,7 +305,7 @@ public :
 		Chdir() = default ;
 		Chdir( Record& , Path&& , ::string&& comment ) ;
 		// services
-		int operator()( Record& , int rc , pid_t=0 ) ;
+		int operator()( Record& , int rc ) ;
 	} ;
 	struct Chmod : Solve {
 		// cxtors & casts
@@ -449,11 +449,10 @@ public :
 		uint64_t id = 0/*garbage*/ ;
 	} ;
 	//
-	void chdir(const char* dir) {
+	void chdir() {
 		seen_chdir = true ;
-		_real_path.chdir(dir) ;
+		_real_path.chdir() ;
 	}
-	//
 	// data
 	bool seen_chdir = false ;
 	bool disabled   = false ;

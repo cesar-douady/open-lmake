@@ -415,10 +415,8 @@ namespace Disk {
 		RealPath() = default ;
 		// src_dirs_s may be either absolute or relative, but must be canonic
 		// tmp_dir_s must be absolute and canonic
-		RealPath ( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe ,                                                    p ) ; }
-		RealPath ( RealPathEnv const& rpe , ::string&& cwd , pid_t p=0 ) { init( rpe , ::move(cwd)                                      , p ) ; }
-		void init( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe , p?read_lnk("/proc/"s+p+"/cwd"):no_slash(cwd_s()) , p ) ; }
-		void init( RealPathEnv const&     , ::string&& cwd , pid_t  =0 ) ;
+		RealPath ( RealPathEnv const& rpe , pid_t p=0 ) { init(rpe,p) ; }
+		void init( RealPathEnv const&     , pid_t  =0 ) ;
 		// services
 		FileLoc file_loc( ::string const& real ) const { return _env->file_loc(real) ; }
 		//
@@ -427,22 +425,25 @@ namespace Disk {
 		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,         file ,no_follow) ; }
 		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve(at     ,         {}   ,no_follow) ; }
 		//
-		vmap_s<Accesses> exec (SolveReport&  ) ;                                                                                      // arg is updated to reflect last interpreter
-		void             chdir(::string&& dir) {
-			SWEAR(is_abs(dir),dir) ;
-			cwd_ = ::move(dir) ;
+		vmap_s<Accesses> exec(SolveReport&) ;                                                                                         // arg is updated to reflect last interpreter
+		//
+		void chdir() ;
+		::string cwd() {
+			if ( !pid && ::getpid()!=_cwd_pid ) chdir() ;                                                                             // refresh _cwd if it was updated in the child part of a clone
+			return _cwd ;
 		}
 	private :
 		size_t _find_src_idx(::string const& real) const ;
 		// data
 	public :
-		pid_t    pid  = 0 ;
-		::string cwd_ ;
+		pid_t pid = 0 ;
 	private :
 		RealPathEnv const* _env            ;
 		::string           _admin_dir      ;
 		::vector_s         _abs_src_dirs_s ;                                                                                          // this is an absolute version of src_dirs
 		size_t             _root_dir_sz    ;
+		::string           _cwd            ;
+		pid_t              _cwd_pid        = 0 ;                                                                                      // pid for which _cwd is valid if pid==0
 	} ;
 	::ostream& operator<<( ::ostream& , RealPath::SolveReport const& ) ;
 

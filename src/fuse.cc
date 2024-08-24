@@ -135,7 +135,6 @@ namespace Fuse {
 			if (rc<0) ::cerr<<t_thread_key<<" "<<"Mount::close error "<<rc<<" "<<errno<<" "<<strerror(errno)<<endl ;
 		}
 
-		int fuse_session_loop(struct fuse_session*) ;
 		void Mount::_loop(::stop_token) {
 			::cerr<<t_thread_key<<" "<<"start loop"<<endl;
 			::fuse_loop(_fuse) ;

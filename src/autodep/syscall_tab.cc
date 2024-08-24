@@ -80,10 +80,10 @@ template<bool At> [[maybe_unused]] static void _entry_chdir( void* & ctx , Recor
 		else    { Record::Chdir* cd = new Record::Chdir( r , {_path<At>(pid,args+0)} , comment ) ; ctx = cd ; }
 	} catch (int) {}
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
 		Record::Chdir* cd = static_cast<Record::Chdir*>(ctx) ;
-		(*cd)(r,res,pid) ;
+		(*cd)(r,res) ;
 		delete cd ;
 	}
 	return res ;

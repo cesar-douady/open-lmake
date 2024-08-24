@@ -147,10 +147,8 @@ Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(
 	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                           // in case of overlay, create dir in the view
 	r._report_guard( file_loc , ::move(real_write()) , ::move(c) ) ;
 }
-int Record::Chdir::operator()( Record& r , int rc , pid_t pid ) {
-	if (rc!=0) return rc ;
-	if (pid  ) r.chdir(Disk::read_lnk("/proc/"s+pid+"/cwd").c_str()) ;
-	else       r.chdir(no_slash(Disk::cwd_s())             .c_str()) ;
+int Record::Chdir::operator()( Record& r , int rc ) {
+	if (rc==0) r.chdir() ;
 	return rc ;
 }
 

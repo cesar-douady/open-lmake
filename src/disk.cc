@@ -430,7 +430,7 @@ namespace Disk {
 	::ostream& operator<<( ::ostream& os , RealPath const& rp ) {
 		/**/                     os << "RealPath("             ;
 		if (+rp.pid            ) os << rp.pid <<','            ;
-		/**/                     os <<      rp.cwd_            ;
+		/**/                     os <<      rp._cwd            ;
 		/**/                     os <<','<< rp._admin_dir      ;
 		if (+rp._abs_src_dirs_s) os <<','<< rp._abs_src_dirs_s ;
 		return                   os <<')'                      ;
@@ -452,15 +452,16 @@ namespace Disk {
 		}
 	}
 
-	void RealPath::init( RealPathEnv const& rpe , ::string&& cwd , pid_t p ) {
+	void RealPath::init( RealPathEnv const& rpe , pid_t p ) {
 		SWEAR( is_abs(rpe.root_dir_s) , rpe.root_dir_s ) ;
 		SWEAR( is_abs(rpe.tmp_dir_s ) , rpe.tmp_dir_s  ) ;
 		//
 		pid          = p                                  ;
 		_env         = &rpe                               ;
 		_admin_dir   = no_slash(rpe.root_dir_s+AdminDirS) ;
-		cwd_         = ::move(cwd)                        ;
 		_root_dir_sz = _env->root_dir_s.size()            ;
+		//
+		chdir() ; // initialize _cwd
 		//
 		for ( ::string const& sd_s : rpe.src_dirs_s ) _abs_src_dirs_s.push_back(mk_glb(sd_s,rpe.root_dir_s)) ;
 	}
@@ -496,7 +497,7 @@ namespace Disk {
 		::string        tmp_dir       = +_env->tmp_dir_s?no_slash(_env->tmp_dir_s ):""s ;
 		::string        real          ; real.reserve(file.size()) ;                       // canonical (link free, absolute, no ., .. nor empty component). Empty instead of '/'. Anticipate no link
 		if (!pos) {                                                                       // file is relative, meaning relative to at
-			if      (at==Fd::Cwd) real = cwd_                                  ;
+			if      (at==Fd::Cwd) real = cwd()                                 ;
 			else if (pid        ) real = read_lnk(s_proc+'/'+pid+"/fd/"+at.fd) ;
 			else                  real = read_lnk(s_proc+"/self/fd/"   +at.fd) ;
 			//
@@ -635,6 +636,11 @@ namespace Disk {
 			sr = solve(interpreter,false/*no_follow*/) ;
 		}
 		return res ;
+	}
+
+	void RealPath::chdir() {
+		if (pid)   _cwd = read_lnk("/proc/"s+pid+"/cwd") ;
+		else     { _cwd = no_slash(cwd_s())              ; _cwd_pid = ::getpid() ; }
 	}
 
 }
