@@ -19,15 +19,7 @@
 #ifdef STRUCT_DECL
 
 // START_OF_VERSIONING
-ENUM( VarCmd
-,	Stems   , Stem
-,	Targets , Match , StarMatch
-,	Deps    , Dep
-,	Rsrcs   , Rsrc
-)
-// END_OF_VERSIONING
 
-// START_OF_VERSIONING
 ENUM_1( EnvFlag
 ,	Dflt = Rsrc
 //
@@ -35,14 +27,20 @@ ENUM_1( EnvFlag
 ,	Rsrc // consider variable as a resource : upon modification, rebuild job if it was in error
 ,	Cmd  // consider variable as a cmd      : upon modification, rebuild job
 )
-// END_OF_VERSIONING
 
-// START_OF_VERSIONING
+ENUM_1( RuleCrcState
+,	CmdOk = RsrcsOld // <=CmdOk means no need to run job because of cmd
+,	Ok
+,	RsrcsOld
+,	RsrcsForgotten   // when rsrcs are forgotten (and rsrcs were old), process as if cmd changed (i.e. always rerun)
+,	CmdOld
+)
+
 ENUM_2( Special
-,	Shared  = Infinite // <=Shared means there is a single such rule
-,	HasJobs = Plain    // <=HasJobs means jobs can refer to this rule
+,	NShared = Plain // <NShared means there is a single such rule
+,	HasJobs = Plain // <=HasJobs means jobs can refer to this rule
 //
-,	None               // value 0 reserved to mean not initialized, so shared rules have an idx equal to special
+,	None            // value 0 reserved to mean not initialized, so shared rules have an idx equal to special
 ,	Req
 ,	Infinite
 ,	Plain
@@ -50,12 +48,22 @@ ENUM_2( Special
 ,	Anti
 ,	GenericSrc
 )
+
+ENUM( VarCmd
+,	Stems   , Stem
+,	Targets , Match , StarMatch
+,	Deps    , Dep
+,	Rsrcs   , Rsrc
+)
+
 // END_OF_VERSIONING
 
 namespace Engine {
 
-	struct Rule     ;
-	struct RuleData ;
+	struct Rule        ;
+	struct RuleCrc     ;
+	struct RuleData    ;
+	struct RuleCrcData ;
 
 	struct RuleTgt ;
 
@@ -75,19 +83,21 @@ namespace Engine {
 	} ;
 
 	struct Rule : RuleBase {
-		friend ::ostream& operator<<( ::ostream& os , Rule const r ) ;
-		static constexpr char   JobMrkr  =  0 ;                        // ensure no ambiguity between job names and node names
-		static constexpr char   StarMrkr =  0 ;                        // signal a star stem in job_name
-		static constexpr char   StemMrkr =  0 ;                        // signal a stem in job_name & targets & deps & cmd
+		friend ::ostream& operator<<( ::ostream& , Rule const ) ;
+		static constexpr char   StarMrkr =  0 ;                   // signal a star stem in job_name
+		static constexpr char   StemMrkr =  0 ;                   // signal a stem in job_name & targets & deps & cmd
 		static constexpr VarIdx NoVar    = -1 ;
 		//
 		struct SimpleMatch ;
 		// cxtors & casts
 		using RuleBase::RuleBase ;
-		Rule(RuleBase const& rb     ) : RuleBase{ rb                                                      } {                                                     }
-		Rule(::string const& job_sfx) : Rule    { decode_int<Idx>( &job_sfx[job_sfx.size()-sizeof(Idx)] ) } { SWEAR(job_sfx.size()>=sizeof(Idx),job_sfx.size()) ; }
-		// acesses
-		::string job_sfx() const ;
+		Rule(RuleBase const& rb) : RuleBase{rb} {}
+	} ;
+
+	struct RuleCrc : RuleCrcBase {
+		friend ::ostream& operator<<( ::ostream& , RuleCrc const ) ;
+		// cxtors & casts
+		using RuleCrcBase::RuleCrcBase ;
 	} ;
 
 }
@@ -273,8 +283,7 @@ namespace Engine {
 			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
 			::sort(env) ;                                                                                                    // stabilize rsrcs crc
 			// check
-			if ( method==AutodepMethod::Fuse    && !HAS_FUSE     ) throw snake(method)+" is not supported on this system"s ; // PER_AUTODEP_METHOD
-			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw snake(method)+" is not supported on this system"s ; // .
+			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw snake(method)+" is not supported on this system"s ; // PER_AUTODEP_METHOD.
 		}
 		// data
 		// START_OF_VERSIONING
@@ -506,7 +515,8 @@ namespace Engine {
 	struct RuleData {
 		friend ::ostream& operator<<( ::ostream& , RuleData const& ) ;
 		friend Rule ;
-		static constexpr VarIdx NoVar = Rule::NoVar ;
+		static constexpr char   JobMrkr =  0          ;                // ensure no ambiguity between job names and node names
+		static constexpr VarIdx NoVar   = Rule::NoVar ;
 		struct MatchEntry {
 			// services
 			void set_pattern( ::string&&        , VarIdx n_stems ) ;
@@ -519,8 +529,6 @@ namespace Engine {
 			::vector<VarIdx> ref_cnts  = {} ;                          // indexed by stem, number of times stem is referenced
 			// END_OF_VERSIONING
 		} ;
-		// static data
-		static size_t s_name_sz ;
 		// cxtors & casts
 		RuleData(                                        ) = default ;
 		RuleData( Special , ::string const& src_dir_s={} ) ;           // src_dir in case Special is SrcDir
@@ -548,13 +556,9 @@ namespace Engine {
 		//
 		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
 		//
-		FileNameIdx job_sfx_len() const {
-			return
-				1                                                                                                                                 // null to disambiguate w/ Node names
-			+	n_static_stems * sizeof(FileNameIdx)*2                                                                                            // pos+len for each stem
-			+	sizeof(RuleIdx)                                                                                                                   // Rule index
-			;
-		}
+		FileNameIdx job_sfx_len(                ) const ;
+		::string    job_sfx    (                ) const ;
+		void        validate   (::string job_sfx) const ;
 		// services
 		::string add_cwd( ::string&& file , bool top=false ) const {
 			if ( !top && +cwd_s ) return Disk::mk_glb(file,cwd_s) ;
@@ -600,15 +604,10 @@ namespace Engine {
 		uint8_t                   n_submits          = 0     ;                     // max number of submission for a given job for a given req (disabled if 0)
 		// derived data
 		::vector<uint32_t> stem_mark_cnts   ;                                      // number of capturing groups within each stem
-		Crc                match_crc        = Crc::None ;
-		Crc                cmd_crc          = Crc::None ;
-		Crc                rsrcs_crc        = Crc::None ;
-		VarIdx             n_static_stems   = 0         ;
-		VarIdx             n_static_targets = 0         ;                          // number of official static targets
-		VarIdx             n_statics        = 0         ;
-		// management data
-		ExecGen cmd_gen   = 1 ;                                                    // cmd generation, must be >0 as 0 means !cmd_ok
-		ExecGen rsrcs_gen = 1 ;                                                    // for a given cmd, resources generation, must be >=cmd_gen
+		RuleCrc            crc              ;
+		VarIdx             n_static_stems   = 0 ;
+		VarIdx             n_static_targets = 0 ;                                  // number of official static targets
+		VarIdx             n_statics        = 0 ;
 		// stats
 		mutable Delay    cost_per_token = {} ;                                     // average cost per token
 		mutable Delay    exec_time      = {} ;                                     // average exec_time
@@ -620,6 +619,20 @@ namespace Engine {
 		/**/     TargetPattern  job_name_pattern ;
 		::vector<TargetPattern> patterns         ;
 	} ;
+
+	struct RuleCrcData {
+		friend ::ostream& operator<<( ::ostream& , RuleCrcData const& ) ;
+		using State = RuleCrcState ;
+		// data
+		// START_OF_VERSIONING
+		Crc   match ;
+		Crc   cmd   ;
+		Crc   rsrcs ;
+		Rule  rule  = {}            ;        // rule associated with match
+		State state = State::CmdOld ;        // if !=No, cmd is ok, if ==Yes, rsrcs are not
+		// END_OF_VERSIONING
+	} ;
+	static_assert(sizeof(RuleCrcData)==32) ; // check expecte size
 
 	// SimpleMatch does not call Python and only provides services that can be served with this constraint
 	struct Rule::SimpleMatch {
@@ -666,28 +679,30 @@ namespace Engine {
 		mutable ::vmap_s<DepSpec>     _deps               ;
 	} ;
 
-	struct RuleTgt : Rule {
+	struct RuleTgt : RuleCrc {
 		friend ::ostream& operator<<( ::ostream& , RuleTgt const ) ;
-		using Rep = Uint< NBits<Rule> + NBits<VarIdx> > ;
+		using Rep = Uint< NBits<RuleCrc> + NBits<VarIdx> > ;
 		//cxtors & casts
-		RuleTgt(                    ) = default ;
-		RuleTgt( Rule r , VarIdx ti ) : Rule{r} , tgt_idx{ti} {}
+		RuleTgt(                        ) = default ;
+		RuleTgt( RuleCrc rc , VarIdx ti ) : RuleCrc{rc} , tgt_idx{ti} {}
 		// accesses
-		Rep                operator+   (              ) const { return (+Rule(*this)<<NBits<VarIdx>) | tgt_idx  ; }
+		Rep                operator+   (              ) const { return (+RuleCrc(*this)<<NBits<VarIdx>) | tgt_idx  ; }
 		bool               operator==  (RuleTgt const&) const = default ;
 		::partial_ordering operator<=> (RuleTgt const&) const = default ;
 		//
-		::string const& key         () const {                                                          return _matches().first                       ; }
-		::string const& target      () const { SWEAR(_matches().second.flags.tflags()[Tflag::Target]) ; return _matches().second.pattern              ; }
-		Tflags          tflags      () const {                                                          return _matches().second.flags.tflags      () ; }
-		ExtraTflags     extra_tflags() const {                                                          return _matches().second.flags.extra_tflags() ; }
-		//
-		bool sure() const { return ( tgt_idx<(*this)->n_static_targets && !extra_tflags()[ExtraTflag::Optional] ) || tflags()[Tflag::Phony] ; }
-	private :
-		::pair_s<RuleData::MatchEntry> const& _matches() const { return (*this)->matches[tgt_idx] ; }
+		::pair_s<RuleData::MatchEntry> const& key_matches () const { SWEAR(+(*this)->rule)          ; return (*this)->rule->matches [tgt_idx] ; }
+		TargetPattern                  const& pattern     () const { SWEAR(+(*this)->rule)          ; return (*this)->rule->patterns[tgt_idx] ; }
+		::string                       const& key         () const {                                  return key_matches().first              ; }
+		RuleData::MatchEntry           const& matches     () const {                                  return key_matches().second             ; }
+		::string                       const& target      () const { SWEAR(tflags()[Tflag::Target]) ; return matches().pattern                ; }
+		Tflags                                tflags      () const {                                  return matches().flags.tflags      ()   ; }
+		ExtraTflags                           extra_tflags() const {                                  return matches().flags.extra_tflags()   ; }
 		// services
-	public :
-		TargetPattern const& pattern() const { return (*this)->patterns[tgt_idx] ; }
+		bool sure() const {
+			Rule       r  = (*this)->rule   ; if (!r) return false ;
+			MatchFlags mf = matches().flags ;
+			return ( tgt_idx<r->n_static_targets && !mf.extra_tflags()[ExtraTflag::Optional] ) || mf.tflags()[Tflag::Phony] ;
+		}
 		// data
 		VarIdx tgt_idx = 0 ;
 	} ;
@@ -698,23 +713,6 @@ namespace Engine {
 #ifdef IMPL
 
 namespace Engine {
-
-	//
-	// Rule
-	//
-
-	inline ::string Rule::job_sfx() const {
-		::string res(
-			size_t(
-					1                                             // JobMrkr to disambiguate with Node names
-				+	(*this)->n_static_stems*sizeof(FileNameIdx)*2 // room for stems spec
-				+	sizeof(Idx)                                   // Rule index set below
-			)
-		,	JobMrkr
-		) ;
-		encode_int( &res[res.size()-sizeof(Idx)] , +*this ) ;
-		return res ;
-	}
 
 	//
 	// Attrs
@@ -828,7 +826,7 @@ namespace Engine {
 		::vector<CmdIdx> ctx_  ;
 		::vector_s       fixed { 1 } ;
 		size_t           fi    = 0   ;
-		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
+		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) { // /!\ not a iota
 			if (fstr[ci]==Rule::StemMrkr) {
 				VarCmd vc = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
 				VarIdx i  = decode_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
@@ -850,7 +848,7 @@ namespace Engine {
 	template<class T> Py::Ptr<Py::Object> Dynamic<T>::_eval_code( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
-		Rule       r       = +match ? match.rule : job->rule ;
+		Rule       r       = +match ? match.rule : job->rule() ;
 		::vector_s to_del  ;
 		::string   to_eval ;
 		eval_ctx( job , match , rsrcs
@@ -913,9 +911,7 @@ namespace Engine {
 		::serdes(s,stdin_idx       ) ;
 		::serdes(s,allow_ext       ) ;
 		::serdes(s,stem_mark_cnts  ) ;
-		::serdes(s,match_crc       ) ;
-		::serdes(s,cmd_crc         ) ;
-		::serdes(s,rsrcs_crc       ) ;
+		::serdes(s,crc             ) ;
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
 		::serdes(s,n_statics       ) ;
@@ -933,8 +929,6 @@ namespace Engine {
 			::serdes(s,is_python         ) ;
 			::serdes(s,force             ) ;
 			::serdes(s,n_submits         ) ;
-			::serdes(s,cmd_gen           ) ;
-			::serdes(s,rsrcs_gen         ) ;
 			::serdes(s,cost_per_token    ) ;
 			::serdes(s,exec_time         ) ;
 			::serdes(s,stats_weight      ) ;
@@ -944,7 +938,23 @@ namespace Engine {
 			_compile() ;
 		}
 	}
+	inline FileNameIdx RuleData::job_sfx_len() const {
+		return
+			1                                      // JobMrkr to disambiguate w/ Node names
+		+	n_static_stems * sizeof(FileNameIdx)*2 // pos+len for each stem
+		+	sizeof(Crc::Val)                       // Rule
+		;
+	}
+	inline ::string RuleData::job_sfx() const {
+		::string res( job_sfx_len() , JobMrkr ) ;
+		encode_int( &res[res.size()-sizeof(Crc::Val)] , +crc->match ) ;
+		return res ;
+	}
 	// END_OF_VERSIONING
+	inline void RuleData::validate(::string job_sfx) const {
+		Crc crc_ { decode_int<Crc::Val>(&job_sfx[job_sfx.size()-sizeof(Crc::Val)]) } ;
+		SWEAR( crc_==crc->match , name , crc_ , crc->match ) ;
+	}
 
 }
 
@@ -952,8 +962,8 @@ namespace std {
 	template<> struct hash<Engine::RuleTgt> {
 		size_t operator()(Engine::RuleTgt const& rt) const { // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
 			size_t res = 0x811c9dc5 ;
-			res = (res^+Engine::Rule(rt)) * 0x01000193 ;
-			res = (res^ rt.tgt_idx      ) * 0x01000193 ;
+			res = (res^+Engine::RuleCrc(rt)) * 0x01000193 ;
+			res = (res^ rt.tgt_idx         ) * 0x01000193 ;
 			return res ;
 		}
 	} ;

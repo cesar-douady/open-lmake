@@ -221,13 +221,13 @@ namespace Backends::Slurm {
 		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status s ) const {
 			if ( !se.verbose && s==Status::Ok ) return {{},true/*retry*/} ;                          // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::pair_s<Bool3/*job_ok*/> info ;
-			for( int c=0 ; c<2 ; c++ ) {
+			for( int c : iota(2) ) {
 				Delay d { 0.01 }                                               ;
 				Pdate e = Pdate(New) + ::max(g_config->network_delay,Delay(1)) ; // ensure a reasonable minimum
-				for( Pdate c = New ;; c+=d ) {
+				for( Pdate pd = New ;; pd+=d ) {
 					info = slurm_job_state(se.id) ;
 					if (info.second!=Maybe) goto JobDead ;
-					if (c>=e              ) break        ;
+					if (pd>=e             ) break        ;
 					d.sleep_for() ;                                              // wait, hoping job is dying, double delay every loop until hearbeat tick
 					d = ::min( d+d , g_config->heartbeat_tick ) ;
 				}
@@ -349,7 +349,7 @@ namespace Backends::Slurm {
 			throw "no resource "+k+" for backend "+snake(MyTag) ;
 
 		}
-		if ( d.manage_mem && !(*this)[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule->name+".resources={'mem':'1M'}" ;
+		if ( d.manage_mem && !(*this)[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule()->name+".resources={'mem':'1M'}" ;
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
 		::vmap_ss res ;

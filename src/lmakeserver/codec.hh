@@ -14,8 +14,6 @@
 
 namespace Codec {
 
-	extern bool writable ;
-
 	bool/*ok*/ refresh( NodeIdx , ReqIdx ) ;
 
 	struct Closure {

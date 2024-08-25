@@ -96,8 +96,8 @@ template<> struct Serdeser<::string> {
 } ;
 
 template<class T,size_t N> struct Serdeser<T[N]> {
-	static void s_serdes( ::ostream& os , T const a[N] ) { for( size_t i=0 ; i<N ; i++ ) serdes(os,a[i]) ; }
-	static void s_serdes( ::istream& is , T       a[N] ) { for( size_t i=0 ; i<N ; i++ ) serdes(is,a[i]) ; }
+	static void s_serdes( ::ostream& os , T const a[N] ) { for( size_t i : iota(N) ) serdes(os,a[i]) ; }
+	static void s_serdes( ::istream& is , T       a[N] ) { for( size_t i : iota(N) ) serdes(is,a[i]) ; }
 } ;
 
 template<class T,size_t N> struct Serdeser<::array<T,N>> {
@@ -106,28 +106,28 @@ template<class T,size_t N> struct Serdeser<::array<T,N>> {
 } ;
 
 template<class T> struct Serdeser<::vector<T>> {
-	static void s_serdes( ::ostream& os , ::vector<T> const& v ) { uint32_t sz=_sz32(v) ; serdes(os,sz) ;                for( T const& x : v ) serdes(os,x) ; }
-	static void s_serdes( ::istream& is , ::vector<T>      & v ) { uint32_t sz          ; serdes(is,sz) ; v.resize(sz) ; for( T      & x : v ) serdes(is,x) ; }
+	static void s_serdes( ::ostream& os , ::vector<T> const& v ) { serdes(os,_sz32(v)) ;                 for( T const& x : v ) serdes(os,x) ; }
+	static void s_serdes( ::istream& is , ::vector<T>      & v ) { v.resize(deserialize<uint32_t>(is)) ; for( T      & x : v ) serdes(is,x) ; }
 } ;
 
 template<class T> struct Serdeser<::set<T>> {
-	static void s_serdes( ::ostream& os , ::set<T> const& s ) { uint32_t sz=_sz32(s) ; serdes(os,sz) ;             for( T const& x : s          )         serdes(os,x) ;                 }
-	static void s_serdes( ::istream& is , ::set<T>      & s ) { uint32_t sz          ; serdes(is,sz) ; s.clear() ; for( size_t i=0 ; i<sz ; i++ ) { T x ; serdes(is,x) ; s.insert(x) ; } }
+	static void s_serdes( ::ostream& os , ::set<T> const& s ) { serdes(os,_sz32(s)) ; for( T const& x : s                                              )          serdes        (os,x)  ; }
+	static void s_serdes( ::istream& is , ::set<T>      & s ) { s.clear() ;           for( [[maybe_unused]] size_t i : iota(deserialize<uint32_t>(is)) ) s.insert(deserialize<T>(is  )) ; }
 } ;
 
 template<class T> struct Serdeser<::uset<T>> {
-	static void s_serdes( ::ostream& os , ::uset<T> const& s ) { uint32_t sz=_sz32(s) ; serdes(os,sz) ;             for( T const& x : s          )         serdes(os,x) ;                 }
-	static void s_serdes( ::istream& is , ::uset<T>      & s ) { uint32_t sz          ; serdes(is,sz) ; s.clear() ; for( size_t i=0 ; i<sz ; i++ ) { T x ; serdes(is,x) ; s.insert(x) ; } }
+	static void s_serdes( ::ostream& os , ::uset<T> const& s ) { serdes(os,_sz32(s)) ; for( T const& x : s                                              )          serdes        (os,x)  ; }
+	static void s_serdes( ::istream& is , ::uset<T>      & s ) { s.clear() ;           for( [[maybe_unused]] size_t i : iota(deserialize<uint32_t>(is)) ) s.insert(deserialize<T>(is  )) ; }
 } ;
 
 template<class K,class V> struct Serdeser<::map<K,V>> {
-	static void s_serdes( ::ostream& os , ::map<K,V> const& m ) { uint32_t sz=_sz32(m) ; serdes(os,sz) ;             for( auto const& p : m       )                   serdes(os,p) ;                 }
-	static void s_serdes( ::istream& is , ::map<K,V>      & m ) { uint32_t sz          ; serdes(is,sz) ; m.clear() ; for( size_t i=0 ; i<sz ; i++ ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
+	static void s_serdes( ::ostream& os , ::map<K,V> const& m ) { serdes(os,_sz32(m)) ; for( ::pair<K const,V> const& p : m                              )          serdes                  (os,p)  ; }
+	static void s_serdes( ::istream& is , ::map<K,V>      & m ) { m.clear() ;           for( [[maybe_unused]] size_t i : iota(deserialize<uint32_t>(is)) ) m.insert(deserialize<::pair<K,V>>(is  )) ; }
 } ;
 
 template<class K,class V> struct Serdeser<::umap<K,V>> {
-	static void s_serdes( ::ostream& os , ::umap<K,V> const& m ) { uint32_t sz=_sz32(m) ; serdes(os,sz) ;             for( auto const& p : m       )                   serdes(os,p) ;                 }
-	static void s_serdes( ::istream& is , ::umap<K,V>      & m ) { uint32_t sz          ; serdes(is,sz) ; m.clear() ; for( size_t i=0 ; i<sz ; i++ ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
+	static void s_serdes( ::ostream& os , ::umap<K,V> const& m ) { serdes(os,_sz32(m)) ; for( ::pair<K const,V> const& p : m                              )          serdes                  (os,p)  ; }
+	static void s_serdes( ::istream& is , ::umap<K,V>      & m ) { m.clear() ;           for( [[maybe_unused]] size_t i : iota(deserialize<uint32_t>(is)) ) m.insert(deserialize<::pair<K,V>>(is  )) ; }
 } ;
 
 template<class T,class U> struct Serdeser<::pair<T,U>> {

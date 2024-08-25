@@ -265,7 +265,7 @@ namespace Store {
 				_at(path[lvl-1].first).subs( path[lvl-1].second , last.subs(true/*left*/) ) ; // right son of last is null : this is what makes it last
 				// and move it in lieu of res
 				last.black(res.black()) ;
-				for( uint8_t left=0 ; left<2 ; left++ ) last.subs( left , res.subs(left) ) ;
+				for( uint8_t left : iota<uint8_t>(2) ) last.subs( left , res.subs(left) ) ;
 				_fix_parent( root , path , res_lvl , last_idx ) ;
 				path[res_lvl].first = last_idx ;                               // fix path to reflect updated tree
 			} else {

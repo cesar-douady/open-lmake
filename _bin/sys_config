@@ -171,8 +171,10 @@ fi
 #
 # ADDR2LINE
 #
-[ ""              ] || ADDR2LINE=$(find $(dirname $(realpath $CXX)) -name llvm-addr2line)
-[ -x "$ADDR2LINE" ] || ADDR2LINE=$(find $(dirname $(realpath $CXX)) -name addr2line     )
+case $CXX_FLAVOR in
+	gcc  ) ADDR2LINE=$CXX_DIR/addr2line      ;;
+	clang) ADDR2LINE=$CXX_DIR/llvm-addr2line ;;
+esac
 [ -x "$ADDR2LINE" ] || ADDR2LINE=$(type -p addr2line)
 
 #
@@ -180,13 +182,6 @@ fi
 # test whether we can include linux/close_range.h
 #
 HAS_CLOSE_RANGE=$(ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
-
-#
-# HAS_FUSE
-#
-HAS_FUSE=0 # fuse does not work for now
-# HAS_FUSE=$(ok pkg-config fuse3)
-# [ $HAS_FUSE = 1 ] || echo no fuse support >>$SUM_FILE
 
 #
 # HAS_LD_AUDIT
@@ -368,6 +363,20 @@ nm -D stat_trial > stat_trial.nm
 NEED_STAT_WRAPPERS=$(( ! $(ok grep -wq stat stat_trial.nm) ))
 
 #
+# OBJCOPY
+#
+case $CXX_FLAVOR in
+	gcc  ) OBJCOPY=$CXX_DIR/objcopy      ;;
+	clang) OBJCOPY=$CXX_DIR/llvm-objcopy ;;
+esac
+[ -x "$OBJCOPY" ] || OBJCOPY=$(type -p objcopy)
+
+#
+# STD_PATH
+#
+STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
+
+#
 # USE_LIBC_START_MAIN
 #
 cat <<"EOF" > start_main.c
@@ -382,11 +391,6 @@ cc -o start_main -xc start_main.c
 USE_LIBC_START_MAIN=$(./start_main)
 
 #
-# STD_PATH
-#
-STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
-
-#
 # MAP_VFORK
 #
 # Linux specifies vfork more precisely than Posix
@@ -399,7 +403,8 @@ SYS_CONFIG_OK      := 1
 LMAKE_FLAGS        := $LMAKE_FLAGS
 #
 BASH               := /bin/bash
-GIT                := $(type -p ${GIT:-git})
+GIT                := $(type -p git)
+STD_PATH           := $STD_PATH
 #
 PYTHON2            := $PYTHON2
 PY2_INCLUDEDIR     := $PY2_INCLUDEDIR
@@ -416,21 +421,21 @@ HAS_PY3_DYN        := ${HAS_PY3_DYN#0}
 PY_LD_LIBRARY_PATH := $PY_LD_LIBRARY_PATH
 #
 CXX                := $CXX
+CXX_DIR            := $CXX_DIR
 CXX_FLAVOR         := $CXX_FLAVOR
 CXX_STD            := $CXX_STD
+LD_SO_LIB          := $LD_SO_LIB
+LD_SO_LIB_32       := $LD_SO_LIB_32
 LIB_STACKTRACE     := $LIB_STACKTRACE
 LIB_STACKTRACE_32  := $LIB_STACKTRACE_32
 LINK_LIB_PATH      := $LINK_LIB_PATH
 LINK_LIB_PATH_32   := $LINK_LIB_PATH_32
+OBJCOPY            := $OBJCOPY
 STD_INC_DIRS       := $STD_INC_DIRS
 #
 SLURM_INC_DIR      := $SLURM_INC_DIR
 #
-LD_SO_LIB          := $LD_SO_LIB
-LD_SO_LIB_32       := $LD_SO_LIB_32
-#
 HAS_32             := ${HAS_32#0}
-HAS_FUSE           := ${HAS_FUSE#0}
 HAS_LD_AUDIT       := ${HAS_LD_AUDIT#0}
 HAS_PCRE           := ${HAS_PCRE#0}
 HAS_SECCOMP        := ${HAS_SECCOMP#0}
@@ -438,8 +443,6 @@ HAS_SGE            := ${HAS_SGE#0}
 HAS_SLURM          := ${HAS_SLURM#0}
 HAS_STACKTRACE     := ${HAS_STACKTRACE#0}
 HAS_STACKTRACE_32  := ${HAS_STACKTRACE_32#0}
-#
-STD_PATH           := $STD_PATH
 EOF
 
 if [ "$LD_SO_LIB_32" ] ; then
@@ -457,7 +460,6 @@ cat >$H_FILE <<EOF
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_32                      $HAS_32
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
-	#define HAS_FUSE                    $HAS_FUSE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD
 	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW

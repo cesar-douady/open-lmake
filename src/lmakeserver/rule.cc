@@ -142,7 +142,7 @@ namespace Engine {
 	// return str with stems substituted with the return value of cb and special characters outside stems escaped as asked
 	static ::string _subst_target( ::string const& str , SubstTargetFunc const& cb , Escape escape=Escape::None , VarIdx stop_above=Rule::NoVar ) {
 		::string res ;
-		for( size_t i=0 ; i<str.size() ; i++ ) {
+		for( size_t i=0 ; i<str.size() ; i++ ) {                                                  // /!\ not a iota
 			char c = str[i] ;
 			if (c==Rule::StemMrkr) {
 				VarIdx stem = decode_int<VarIdx>(&str[i+1]) ; i += sizeof(VarIdx) ;
@@ -166,7 +166,7 @@ namespace Engine {
 
 	// same as above, except pos is position in input and no result
 	static void _parse_target( ::string const& str , ParseTargetFunc const& cb ) {
-		for( size_t i=0 ; i<str.size() ; i++ ) {
+		for( size_t i=0 ; i<str.size() ; i++ ) {                                   // /!\ not a iota
 			char c = str[i] ;
 			if (c==Rule::StemMrkr) {
 				VarIdx stem = decode_int<VarIdx>(&str[i+1]) ; i += sizeof(VarIdx) ;
@@ -242,7 +242,7 @@ namespace Engine {
 
 	void DynamicDskBase::_s_eval( Job j , Rule::SimpleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
 		::string         res        ;
-		Rule             r          = +j ? j->rule : m.rule            ;
+		Rule             r          = +j ? j->rule() : m.rule          ;
 		::vmap_ss const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs ;
 		::vector_s       mtab       ;
 		::vmap_ss        dtab       ;
@@ -263,10 +263,10 @@ namespace Engine {
 				case VarCmd::Dep       :                                                                        cb_str(vc,i,deps()    [i].first,deps   ()[i].second) ;   break ;
 				case VarCmd::Rsrc      : { auto it = rsrcs().find(rsrcs_spec[i].first) ; if (it!=rsrcs().end()) cb_str(vc,i,it->first          ,it->second         ) ; } break ;
 				//
-				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems   ; j++ ) dct.emplace_back(r->stems  [j].first,stems  ()[j]) ; cb_dct(vc,i,"stems"    ,dct   ) ; break ;
-				case VarCmd::Targets : for( VarIdx j=0 ; j<r->n_static_targets ; j++ ) dct.emplace_back(r->matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
-				case VarCmd::Deps    : for( auto const& [k,d] : deps()               ) dct.emplace_back(k                  ,d           ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
-				case VarCmd::Rsrcs   :                                                                                                      cb_dct(vc,i,"resources",rsrcs_) ; break ;
+				case VarCmd::Stems   : for( VarIdx j : iota(r->n_static_stems  ) ) dct.emplace_back(r->stems  [j].first,stems  ()[j]) ; cb_dct(vc,i,"stems"    ,dct   ) ; break ;
+				case VarCmd::Targets : for( VarIdx j : iota(r->n_static_targets) ) dct.emplace_back(r->matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
+				case VarCmd::Deps    : for( auto const& [k,d] : deps()           ) dct.emplace_back(k                  ,d           ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
+				case VarCmd::Rsrcs   :                                                                                                  cb_dct(vc,i,"resources",rsrcs_) ; break ;
 			DF}
 		}
 	}
@@ -282,11 +282,21 @@ namespace Engine {
 	}
 
 	//
+	// RuleCrc
+	//
+
+	::ostream& operator<<( ::ostream& os , RuleCrc const r ) {
+		/**/    os << "RC(" ;
+		if (+r) os << +r   ;
+		return  os << ')'  ;
+	}
+
+	//
 	// RuleTgt
 	//
 
 	::ostream& operator<<( ::ostream& os , RuleTgt const rt ) {
-		return os << "RT(" << Rule(rt) <<':'<< int(rt.tgt_idx) << ')' ;
+		return os << "RT(" << RuleCrc(rt) <<':'<< int(rt.tgt_idx) << ')' ;
 	}
 
 	//
@@ -459,7 +469,7 @@ namespace Engine {
 			Ptr<Object> py_obj = _eval_code(match) ;
 			//
 			::map_s<VarIdx> dep_idxs ;
-			for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
+			for( VarIdx di : iota<VarIdx>(spec.deps.size()) ) dep_idxs[spec.deps[di].first] = di ;
 			if (*py_obj!=Py::None) {
 				if (!py_obj->is_a<Py::Dict>()) throw "type error : "s+py_obj->ob_type->tp_name+" is not a dict" ;
 				for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
@@ -507,7 +517,7 @@ namespace Engine {
 	::string RuleData::gen_py_line( Job j , Rule::SimpleMatch& m/*lazy*/ , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const {
 		if (vc!=VarCmd::StarMatch) return key+" = "+mk_py_str(val)+'\n' ;
 		//
-		Rule           r    = +m ? m.rule : j->rule ;
+		Rule           r    = +m ? m.rule : j->rule() ;
 		::vector_s     args ;
 		::uset<VarIdx> seen ;
 		::string   expr = _subst_target(
@@ -585,8 +595,6 @@ namespace Engine {
 	// RuleData
 	//
 
-	size_t RuleData::s_name_sz = 0 ;
-
 	void RuleData::MatchEntry::set_pattern( ::string&& p , VarIdx n_stems ) {
 		pattern  = ::move(p)                 ;
 		ref_cnts = ::vector<VarIdx>(n_stems) ;
@@ -600,11 +608,10 @@ namespace Engine {
 		target += s              ;
 	}
 
-	RuleData::RuleData( Special s , ::string const& src_dir_s ) {
-		if (s<=Special::Shared) SWEAR( !src_dir_s                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
+	RuleData::RuleData( Special s , ::string const& src_dir_s ) : special{s} , name{snake(s)} {
+		SWEAR(+s) ;
+		if (s<Special::NShared) SWEAR( !src_dir_s                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
 		else                    SWEAR( +src_dir_s && is_dirname(src_dir_s) , s , src_dir_s ) ; // ensure source dir ends with a /
-		special = s        ;
-		name    = snake(s) ;
 		switch (s) {
 			case Special::Req      : force = true      ; break ;
 			case Special::Infinite : prio  = -Infinity ; break ;                               // -inf : it can appear after other rules
@@ -619,10 +626,10 @@ namespace Engine {
 				stems         .emplace_back("",".*"                ) ;
 				stem_mark_cnts.push_back   (0                      ) ;
 				matches       .emplace_back("",MatchEntry{job_name}) ;
-				_set_crcs() ;
 				_compile () ;
 			break ;
 		DF}
+		_set_crcs() ;
 	}
 
 	::ostream& operator<<( ::ostream& os , RuleData const& rd ) {
@@ -641,7 +648,7 @@ namespace Engine {
 			_parse_target( b , [&]( FileNameIdx pos , VarIdx s )->void { if ( s>=n_static_stems && sz_b==b.size() ) sz_b = is_prefix?pos:b.size()-1-pos ; } ) ;
 			FileNameIdx     sz = sz_a>sz_b ? sz_b : sz_a ;
 			// analyse divergence
-			for( FileNameIdx i=0 ; i<sz ; i++ ) {
+			for( FileNameIdx i=0 ; i<sz ; i++ ) {                                                      // /!\ not a iota
 				FileNameIdx ia        = i  ; if (!is_prefix) ia   = a.size()-1-ia                    ; // current index
 				FileNameIdx ib        = i  ; if (!is_prefix) ib   = b.size()-1-ib                    ; // .
 				FileNameIdx iae       = ia ; if ( is_prefix) iae += sizeof(VarIdx)                   ; // last char of stem if it is one (cannot subtract sizeof(VarIdx) as FileNameIdx is unsigned)
@@ -662,7 +669,7 @@ namespace Engine {
 			}
 			if ( sz == (sz_a>sz_b?b.size():a.size()) ) {     // if shortest is a prefix of longest, analyse remaining of longest to see if we are certain it is non-empty
 				::string const& l = sz_a>sz_b ? a : b ;      // longest
-				for( FileNameIdx i=sz ; i<l.size() ; i++ ) {
+				for( FileNameIdx i=sz ; i<l.size() ; i++ ) {                                           // /!\ not a iota
 					FileNameIdx j       = i ; if (!is_prefix) j   = l.size()-1-j                     ; // current index
 					FileNameIdx je      = j ; if ( is_prefix) je += sizeof(VarIdx)                   ; // last char of stem if it is one (cannot subtract sizeof(VarIdx) as FileNameIdx is unsigned)
 					bool        is_stem = je>=sizeof(VarIdx) && l[je-sizeof(VarIdx)]==Rule::StemMrkr ;
@@ -686,7 +693,7 @@ namespace Engine {
 			field = "__special__" ;
 			if (dct.contains(field)) {
 				special = mk_enum<Special>(dct[field].as_a<Str>()) ;
-				if (special<=Special::Shared) throw "unexpected value for __special__ attribute : "s+snake(special) ;
+				if (special<Special::NShared) throw "unexpected value for __special__ attribute : "s+snake(special) ;
 			} else {
 				special = Special::Plain ;
 			}
@@ -856,8 +863,8 @@ namespace Engine {
 				if (!star) n_static_stems = stems.size() ;
 			}
 			::umap_s<CmdIdx> var_idxs ;
-			/**/                                       var_idxs["stems"       ] = {VarCmd::Stems,0} ;
-			for( VarIdx s=0 ; s<n_static_stems ; s++ ) var_idxs[stems[s].first] = {VarCmd::Stem ,s} ;
+			/**/                                   var_idxs["stems"       ] = {VarCmd::Stems,0} ;
+			for( VarIdx s : iota(n_static_stems) ) var_idxs[stems[s].first] = {VarCmd::Stem ,s} ;
 			if (stems.size()>NoVar) throw "too many stems : "s+stems.size()+" > "+int(NoVar) ;
 			//
 			// reformat job_name & targets to improve matching efficiency
@@ -872,7 +879,7 @@ namespace Engine {
 			_parse_py( job_name , &unnamed_star_idx , mk_fixed , mk_stem ) ;
 			::string new_job_name = ::move(mk_tgt) ;
 			// compile potential conflicts as there are rare and rather expensive to detect, we can avoid most of the verifications by statically analyzing targets
-			for( VarIdx mi=0 ; mi<matches.size() ; mi++ ) {
+			for( VarIdx mi : iota<VarIdx>(matches.size()) ) {
 				MatchEntry& me = matches[mi].second ;
 				// avoid processing target if it is identical to job_name
 				// this is not an optimization, it is to ensure unnamed_star_idx's match
@@ -882,7 +889,7 @@ namespace Engine {
 					_parse_py( me.pattern , &unnamed_star_idx , mk_fixed , mk_stem ) ;
 					me.set_pattern(::move(mk_tgt),stems.size()) ;
 				}
-				for( VarIdx mi2=0 ; mi2<mi ; mi2++ )
+				for( VarIdx mi2 : iota(mi) )
 					if ( _may_conflict( n_static_stems , me.pattern , matches[mi2].second.pattern ) ) { trace("conflict",mi,mi2) ; me.conflicts.push_back(mi2) ; }
 			}
 			job_name = ::move(new_job_name) ;
@@ -898,21 +905,21 @@ namespace Engine {
 			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field]              ) ; else throw "not found"s ;
 			field = "max_submit_count" ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] , uint8_t(1) ) ;
 			//
-			/**/                                          var_idxs["targets"        ] = { VarCmd::Targets                              , 0  } ;
-			for( VarIdx mi=0 ; mi<matches.size() ; mi++ ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
+			/**/                                            var_idxs["targets"        ] = { VarCmd::Targets                              , 0  } ;
+			for( VarIdx mi : iota<VarIdx>(matches.size()) ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
 			//
 			field = "deps" ;
 			if (dct.contains("deps_attrs")) deps_attrs = { dct["deps_attrs"].as_a<Tuple>() , var_idxs , *this } ;
 			//
-			/**/                                                    var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
-			for( VarIdx d=0 ; d<deps_attrs.spec.deps.size() ; d++ ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
+			/**/                                                        var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
+			for( VarIdx d : iota<VarIdx>(deps_attrs.spec.deps.size()) ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
 			field = "cache_none_attrs"   ; if (dct.contains(field)) cache_none_attrs   = { dct[field].as_a<Tuple>() , var_idxs } ;
 			field = "submit_rsrcs_attrs" ; if (dct.contains(field)) submit_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs } ;
 			field = "submit_none_attrs"  ; if (dct.contains(field)) submit_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs } ;
 			//
-			/**/                                                             var_idxs["resources"                           ] = { VarCmd::Rsrcs , 0 } ;
-			for( VarIdx r=0 ; r<submit_rsrcs_attrs.spec.rsrcs.size() ; r++ ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
+			/**/                                                                 var_idxs["resources"                           ] = { VarCmd::Rsrcs , 0 } ;
+			for( VarIdx r : iota<VarIdx>(submit_rsrcs_attrs.spec.rsrcs.size()) ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
 			//
 			field = "start_cmd_attrs"   ; if (dct.contains(field)) start_cmd_attrs   = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			field = "cmd"               ; if (dct.contains(field)) cmd               = { dct[field].as_a<Tuple>() , var_idxs , *this } ; else throw "not found"s ;
@@ -921,12 +928,12 @@ namespace Engine {
 			field = "end_cmd_attrs"     ; if (dct.contains(field)) end_cmd_attrs     = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			field = "end_none_attrs"    ; if (dct.contains(field)) end_none_attrs    = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			//
-			for( VarIdx mi=0 ; mi<n_static_targets ; mi++ ) {
+			for( VarIdx mi : iota(n_static_targets) ) {
 				if (matches[mi].first!="<stdout>") continue ;
 				stdout_idx = mi ;
 				break ;
 			}
-			for( VarIdx di=0 ; di<deps_attrs.spec.deps.size() ; di++ ) {
+			for( VarIdx di : iota<VarIdx>(deps_attrs.spec.deps.size()) ) {
 				if (deps_attrs.spec.deps[di].first!="<stdin>") continue ;
 				stdin_idx = di ;
 				break ;
@@ -1037,7 +1044,7 @@ namespace Engine {
 	}
 	static ::string _pretty_fstr( ::string const& fstr , RuleData const& rd ) {
 			::string res ;
-			for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
+			for( size_t ci=0 ; ci<fstr.size() ; ci++ ) { // /!\ not a iota
 				switch (fstr[ci]) {
 					case Rule::StemMrkr : {
 						VarCmd vc = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
@@ -1087,7 +1094,7 @@ namespace Engine {
 		OStringStream res ;
 		res << indent("matches :\n",i) ;
 		//
-		for( VarIdx mi=0 ; mi<matches.size() ; mi++ ) {
+		for( VarIdx mi : iota<VarIdx>(matches.size()) ) {
 			::string             const& k     = matches[mi].first  ;
 			RuleData::MatchEntry const& me    = matches[mi].second ;
 			OStringStream               flags ;
@@ -1137,7 +1144,7 @@ namespace Engine {
 			res <<'\n' ;
 		}
 		res << indent("patterns :\n",i) ;
-		for( size_t mi=0 ; mi<matches.size() ; mi++ )
+		for( size_t mi : iota(matches.size()) )
 			res << indent(
 				fmt_string(
 					/**/    ::setw(w1) , kind(matches[mi].second)
@@ -1357,14 +1364,13 @@ namespace Engine {
 	}
 
 	// START_OF_VERSIONING
-	// match_crc is an id of the rule : a new rule is a replacement of an old rule if it has the same match_crc
+	// crc->match is an id of the rule : a new rule is a replacement of an old rule if it has the same crc->match
 	// also, 2 rules matching identically is forbidden : the idea is that one is useless
 	// this is not strictly true, though : you could imagine a rule generating a* from b, another generating a* from b but with disjoint sets of a*
 	// although awkward & useless (as both rules could be merged), this can be meaningful
-	// if the need arises, we will add an "id" artificial field entering in match_crc to distinguish them
+	// if the need arises, we will add an "id" artificial field entering in crc->match to distinguish them
 	void RuleData::_set_crcs() {
-		bool       special = is_special() ;
-		Hash::Xxh  h       ;                                                                     // each crc continues after the previous one, so they are standalone
+		Hash::Xxh h ;                                                                            // each crc continues after the previous one, so they are standalone
 		//
 		::vmap_s<bool> targets ;
 		for( auto const& [k,me] : matches )
@@ -1374,42 +1380,54 @@ namespace Engine {
 		h.update(stems  ) ;
 		h.update(cwd_s  ) ;
 		h.update(targets) ;
-		if (special) {
+		if (is_special()) {
 			h.update(allow_ext) ;                                                                // only exists for special rules
 		} else {
 			h.update(job_name)        ;                                                          // job_name has no effect for source & anti as it is only used to store jobs and there are none
 			deps_attrs.update_hash(h) ;                                                          // no deps for source & anti
 		}
-		match_crc = h.digest() ;
+		Crc match = h.digest() ;
 		//
-		if (special) return ;                                                                    // source & anti are only capable of matching
-		//
-		h.update(Node::s_src_dirs_crc()) ;                                                       // src_dirs influences deps recording
-		h.update(matches               ) ;                                                       // these define names and influence cmd execution, all is not necessary but simpler to code
-		h.update(force                 ) ;
-		h.update(is_python             ) ;
-		cmd            .update_hash(h)   ;
-		start_cmd_attrs.update_hash(h)   ;
-		end_cmd_attrs  .update_hash(h)   ;
-		cmd_crc = h.digest() ;
-		//
-		submit_rsrcs_attrs.update_hash(h) ;
-		start_rsrcs_attrs .update_hash(h) ;
-		rsrcs_crc = h.digest() ;
+		if (is_special()) {
+			crc = {match} ;
+		} else {
+			h.update(Node::s_src_dirs_crc()) ;                                                   // src_dirs influences deps recording
+			h.update(matches               ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
+			h.update(force                 ) ;
+			h.update(is_python             ) ;
+			cmd            .update_hash(h)   ;
+			start_cmd_attrs.update_hash(h)   ;
+			end_cmd_attrs  .update_hash(h)   ;
+			Crc cmd = h.digest() ;
+			//
+			submit_rsrcs_attrs.update_hash(h) ;
+			start_rsrcs_attrs .update_hash(h) ;
+			Crc rsrcs = h.digest() ;
+			//
+			crc = { match , cmd , rsrcs } ;
+		}
 	}
 	// END_OF_VERSIONING
+
+	//
+	// RuleCrcData
+	//
+
+	::ostream& operator<<( ::ostream& os , RuleCrcData const& rcd ) {
+		return os << "RCD(" << rcd.rule <<','<< rcd.state <<','<< rcd.match <<','<< rcd.cmd <<','<< rcd.rsrcs << ')' ;
+	}
 
 	//
 	// Rule::SimpleMatch
 	//
 
-	Rule::SimpleMatch::SimpleMatch(Job job) : rule{job->rule} {
+	Rule::SimpleMatch::SimpleMatch(Job job) : rule{job->rule()} {
 		::string name_ = job->full_name() ;
 		//
-		SWEAR( Rule(name_)==rule , mk_printable(name_) , rule->name ) ;                                 // only name suffix is considered to make Rule
+		rule->validate(name_) ;
 		//
-		char* p = &name_[name_.size()-( rule->n_static_stems*(sizeof(FileNameIdx)*2) + sizeof(Idx) )] ; // start of suffix
-		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
+		char* p = &name_[name_.size()-rule->job_sfx_len()+1] ; // start of suffix, after JobMrkr
+		for( [[maybe_unused]] VarIdx s : iota(rule->n_static_stems) ) {
 			FileNameIdx pos = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			stems.push_back(name_.substr(pos,sz)) ;
@@ -1418,17 +1436,17 @@ namespace Engine {
 
 	Rule::SimpleMatch::SimpleMatch( Rule r , TargetPattern const& pattern , ::string const& name , bool chk_psfx ) {
 		Trace trace("SimpleMatch",r,name,STR(chk_psfx)) ;
-		Re::Match m = pattern.match(name,chk_psfx) ;
-		if (!m) { trace("no_match") ; return ; }
+		/**/                                         if (!r) { trace("no_rule" ) ; return ; }
+		Re::Match m = pattern.match(name,chk_psfx) ; if (!m) { trace("no_match") ; return ; }
 		rule = r ;
-		for( VarIdx s=0 ; s<r->n_static_stems ; s++ ) stems.push_back(::string(m[pattern.groups[s]])) ;
+		for( VarIdx s : iota(r->n_static_stems) ) stems.push_back(::string(m[pattern.groups[s]])) ;
 		trace("stems",stems) ;
 	}
 
-	Rule::SimpleMatch::SimpleMatch( RuleTgt rt , ::string const& target , bool chk_psfx ) : SimpleMatch{rt,rt.pattern(),target,chk_psfx} {
+	Rule::SimpleMatch::SimpleMatch( RuleTgt rt , ::string const& target , bool chk_psfx ) : SimpleMatch{rt->rule,rt.pattern(),target,chk_psfx} {
 		if (!*this) return ;
-		for( VarIdx t : rt->matches[rt.tgt_idx].second.conflicts ) {
-			if (!rt->patterns[t].match(target,true/*chk_psfx*/)) continue ;
+		for( VarIdx t : rt.matches().conflicts ) {
+			if (!rule->patterns[t].match(target,true/*chk_psfx*/)) continue ;
 			rule .clear() ;
 			stems.clear() ;
 			Trace("SimpleMatch","conflict",rt.tgt_idx,t) ;
@@ -1459,7 +1477,7 @@ namespace Engine {
 
 	::vector_s Rule::SimpleMatch::star_patterns() const {
 		::vector_s res ; res.reserve(rule->matches.size()-rule->n_statics) ;
-		for( VarIdx t=rule->n_statics ; t<rule->matches.size() ; t++ ) {
+		for( VarIdx t : iota<VarIdx>( rule->n_statics , rule->matches.size() ) ) {
 			size_t                      cur_group = 1                       ;
 			::vector<uint32_t>          groups    (rule->stems.size())      ;   // used to set back references
 			RuleData::MatchEntry const& me        = rule->matches[t].second ;
@@ -1481,7 +1499,7 @@ namespace Engine {
 
 	::vector_s Rule::SimpleMatch::py_matches() const {
 		::vector_s res = static_matches() ;
-		for( VarIdx mi=rule->n_statics ; mi<rule->matches.size() ; mi++ ) {
+		for( VarIdx mi : iota<VarIdx>( rule->n_statics , rule->matches.size() ) ) {
 			::uset<VarIdx> seen ;
 			res.push_back(_subst_target(
 				rule->matches[mi].second.pattern
@@ -1500,7 +1518,7 @@ namespace Engine {
 
 	::vector_s Rule::SimpleMatch::static_matches() const {
 		::vector_s res ; res.reserve(rule->n_statics) ;
-		for( VarIdx mi=0 ; mi<rule->n_statics ; mi++ ) {
+		for( VarIdx mi : iota(rule->n_statics) ) {
 			res.push_back(_subst_target(
 				rule->matches[mi].second.pattern
 			,	[&](VarIdx s)->::string {
@@ -1525,9 +1543,9 @@ namespace Engine {
 				else                                       return '{'+key+"*}" ;
 			}
 		) ;
-		::string sfx = rule.job_sfx() ;                                                      // provides room for stems, but we have to fill it
-		size_t   i   = 1              ;                                                      // skip initial JobMrkr
-		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
+		::string sfx = rule->job_sfx() ;                                                     // provides room for stems, but we have to fill it
+		size_t   i   = 1               ;                                                     // skip initial JobMrkr
+		for( VarIdx s : iota(rule->n_static_stems) ) {
 			encode_int<FileNameIdx>( &sfx[i] , poss [s]        ) ; i+= sizeof(FileNameIdx) ;
 			encode_int<FileNameIdx>( &sfx[i] , stems[s].size() ) ; i+= sizeof(FileNameIdx) ; // /!\ beware of selecting encode_int of the right size
 		}

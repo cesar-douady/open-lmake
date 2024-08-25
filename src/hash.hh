@@ -38,10 +38,11 @@ namespace Hash {
 
 	struct Crc {
 		friend ::ostream& operator<<( ::ostream& , Crc const ) ;
-		static constexpr uint8_t NChkBits = 8 ;                  // as Crc may be used w/o protection against collision, ensure we have some margin
+		using Val = uint64_t ;
+		static constexpr uint8_t NChkBits = 8 ;                        // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
-		static constexpr uint64_t ChkMsk = ~lsb_msk<uint64_t>(NChkBits) ;
-
+		static constexpr Val ChkMsk = ~lsb_msk<Val>(NChkBits) ;
+		//
 		static const Crc Unknown ;
 		static const Crc Lnk     ;
 		static const Crc Reg     ;
@@ -53,8 +54,8 @@ namespace Hash {
 			return !crc.match(crc,a) ;
 		}
 		// cxtors & casts
-		constexpr Crc(                          ) = default ;
-		constexpr Crc( uint64_t v , bool is_lnk ) : _val{bit(v,0,is_lnk)} {}
+		constexpr Crc(                            ) = default ;
+		constexpr Crc( Val v , Bool3 is_lnk=Maybe ) : _val{is_lnk==Maybe?v:bit(v,0,is_lnk==Yes)} {}
 		constexpr Crc(FileTag tag) {
 			switch (tag) {
 				case FileTag::None  :
@@ -80,7 +81,7 @@ namespace Hash {
 		// accesses
 		constexpr bool              operator== (Crc const& other) const = default ;
 		constexpr ::strong_ordering operator<=>(Crc const& other) const = default ;
-		constexpr uint64_t          operator+  (                ) const { return  _val                                             ; }
+		constexpr Val               operator+  (                ) const { return  _val                                             ; }
 		constexpr bool              operator!  (                ) const { return !+*this                                           ; }
 		constexpr bool              valid      (                ) const { return _val>=+CrcSpecial::Valid                          ; }
 		constexpr bool              exists     (                ) const { return +*this && *this!=None                             ; }
@@ -95,7 +96,7 @@ namespace Hash {
 		Accesses diff_accesses( Crc other                          ) const ;
 		bool     never_match  (             Accesses a=~Accesses() ) const ;
 	private :
-		uint64_t _val = +CrcSpecial::Unknown ;
+		Val _val = +CrcSpecial::Unknown ;
 	} ;
 
 	template<class T        > struct IsUnstableIterableHelper ;                                                       // unable to generate hash of unordered containers
@@ -144,7 +145,7 @@ namespace Hash {
 		void _update( const void* p , size_t sz ) ;
 		// data
 	public :
-		bool is_lnk = false ;
+		Bool3 is_lnk = Maybe ;
 	private :
 		XXH3_state_t _state ;
 	} ;

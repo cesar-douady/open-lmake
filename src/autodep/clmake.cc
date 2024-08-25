@@ -49,7 +49,7 @@ static ::vector_s _get_files(Tuple const& py_args) {
 	} else {
 		/**/                                                                                 res.reserve(py_args.size()) ; for( Object const& py : py_args ) push(py     ) ;
 	}
-	for( size_t i=0 ; i<res.size() ; i++ ) if(!res[i]) throw "argument "s+(i+1)+" is empty" ;
+	for( size_t i : iota(res.size()) ) if(!res[i]) throw "argument "s+(i+1)+" is empty" ;
 	return res ;
 }
 
@@ -92,7 +92,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	Ptr<Dict> res { New } ;
 	//
 	SWEAR( dep_infos.size()==files.size() , dep_infos.size() , files.size() ) ;
-	for( size_t i=0 ; i<dep_infos.size() ; i++ ) {
+	for( size_t i : iota(dep_infos.size()) ) {
 		Object* py_ok = nullptr/*garbage*/ ;
 		switch (dep_infos[i].first) {
 			case Yes   : py_ok = &True  ; break ;
@@ -318,11 +318,10 @@ PyMODINIT_FUNC
 	_g_record = {New,Yes/*enabled*/} ;
 	//
 	Ptr<Module> mod    { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
-	Ptr<Tuple>  py_ads { HAS_FUSE+HAS_LD_AUDIT+3 }                       ; // PER_AUTODEP_METHOD : add entries here
-	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM     }                       ; // PER_BACKEND        : add entries here
+	Ptr<Tuple>  py_ads { HAS_LD_AUDIT+3 }                                ; // PER_AUTODEP_METHOD : add entries here
+	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM }                           ; // PER_BACKEND        : add entries here
 	//
 	size_t i = 0 ;
-	if (HAS_FUSE    ) py_ads->set_item(i++,*Ptr<Str>("fuse"               )) ;
 	if (HAS_LD_AUDIT) py_ads->set_item(i++,*Ptr<Str>("ld_audit"           )) ;
 	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload"         )) ;
 	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload_jemalloc")) ;

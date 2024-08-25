@@ -99,13 +99,13 @@ namespace Engine {
 		if ((*this)->has_backend) Backend::s_close_req(+*this) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
 		Idx n_reqs = s_n_reqs() ;
-		for( Idx i=(*this)->idx_by_start ; i<n_reqs-1 ; i++ ) {
+		for( Idx i : iota( (*this)->idx_by_start , n_reqs-1 ) ) {
 			s_reqs_by_start[i]               = s_reqs_by_start[i+1] ;
 			s_reqs_by_start[i]->idx_by_start = i                    ;
 		}
 		s_reqs_by_start.pop_back() ;
 		{	Lock lock{s_reqs_mutex} ;
-			for( Idx i=(*this)->idx_by_eta ; i<n_reqs-1 ; i++ ) {
+			for( Idx i : iota( (*this)->idx_by_eta , n_reqs-1 ) ) {
 				_s_reqs_by_eta[i]             = _s_reqs_by_eta[i+1] ;
 				_s_reqs_by_eta[i]->idx_by_eta = i                   ;
 			}
@@ -155,9 +155,9 @@ namespace Engine {
 				d = d->dir() ;
 				goto Next ;
 			}
-			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) )        // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
-				if (j->c_req_info(*this).done()) to_raise.insert(j->rule) ;
-			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {      // 2nd pass to find the loop
+			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) )          // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
+				if (j->c_req_info(*this).done()) to_raise.insert(j->rule()) ;
+			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {        // 2nd pass to find the loop
 				JobReqInfo const& cjri = j->c_req_info(*this) ;
 				if (cjri.done()          ) continue ;
 				if (cjri.speculative_wait) to_forget.push_back(d) ;
@@ -175,7 +175,7 @@ namespace Engine {
 		(*this)->audit_node( Color::Err , "cycle detected for",node ) ;
 		Node deepest   = cycle.back()  ;
 		bool seen_loop = deepest==node ;
-		for( size_t i=0 ; i<cycle.size() ; i++ ) {
+		for( size_t i : iota(cycle.size()) ) {
 			const char* prefix ;
 			/**/ if ( seen_loop && i==0 && i==cycle.size()-1 ) { prefix = "^-- " ;                    }
 			else if ( seen_loop && i==0                      ) { prefix = "^   " ;                    }
@@ -235,18 +235,19 @@ namespace Engine {
 		if (!job->err()) return false/*overflow*/ ;
 		//
 		bool intermediate = job->run_status==RunStatus::DepErr ;
-		if ( (*this)->_send_err( intermediate , job->rule->name , +target?target->name():job->name() , n_err , lvl ) ) return true/*overflow*/ ;
+		Rule r            = job->rule()                        ;
+		if ( (*this)->_send_err( intermediate , r->name , +target?target->name():job->name() , n_err , lvl ) ) return true/*overflow*/ ;
 		//
 		if ( !seen_stderr && job->run_status==RunStatus::Ok ) // show first stderr
-			switch (job->rule->special) {
+			switch (r->special) {
 				case Special::Infinite :
 					(*this)->audit_info( Color::None , job->special_stderr() , lvl+1 ) ;
 					seen_stderr = true ;
 				break ;
 				case Special::Plain : {
 					Rule::SimpleMatch match          ;
-					JobInfo           job_info       = job.job_info()                                                       ;
-					EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval( job , match , job_info.start.rsrcs ) ;
+					JobInfo           job_info       = job.job_info()                                               ;
+					EndNoneAttrs      end_none_attrs = r->end_none_attrs.eval( job , match , job_info.start.rsrcs ) ;
 					//
 					if (!job_info.end.end.proc) (*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 					else                        seen_stderr = (*this)->audit_stderr( job , job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
@@ -278,7 +279,7 @@ namespace Engine {
 			::uset<Job > seen_jobs   ;
 			::uset<Node> seen_nodes  ;
 			NfsGuard     nfs_guard   { g_config->reliable_dirs }                                      ;
-			if (job->rule->special==Special::Req) {
+			if (job->rule()->special==Special::Req) {
 				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable) _report_err             (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
 				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) (*this)->_report_no_rule(d,nfs_guard                                  ) ;
 			} else {
@@ -311,7 +312,7 @@ namespace Engine {
 				::array<Watcher,NWatchers> tmp = _watchers_a ;
 				_watchers_a.~array() ;
 				::vector<Watcher>& ws = *new ::vector<Watcher>(NWatchers+1) ;               // cannot put {} here or it is taken as an initializer list
-				for( uint8_t i=0 ; i<NWatchers ; i++ ) ws[i] = tmp[i] ;
+				for( uint8_t i : iota(NWatchers) ) ws[i] = tmp[i] ;
 				//vvvvvvvvvvvvvvvvvvvvv
 				ws[NWatchers] = watcher ;
 				//^^^^^^^^^^^^^^^^^^^^^
@@ -357,7 +358,7 @@ namespace Engine {
 	void ReqData::clear() {
 		Trace trace("clear",job) ;
 		SWEAR( !n_running() , n_running() ) ;
-		if ( +job && job->rule->special==Special::Req ) job.pop();
+		if ( +job && job->rule()->special==Special::Req ) job.pop();
 		*this = {} ;
 	}
 
@@ -407,8 +408,8 @@ namespace Engine {
 			::vmap<Job,JobIdx/*order*/> frozen_jobs_ = mk_vmap(frozen_jobs) ;
 			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx/*order*/> const& a , ::pair<Job,JobIdx/*order*/> b ) { return a.second<b.second ; } ) ;      // sort in discovery order
 			size_t w = 0 ;
-			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
-			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , fmt_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
+			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule()->name.size() ) ;
+			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , fmt_string("frozen ",::setw(w),j->rule()->name) , j->name() ) ;
 		}
 		if (+frozen_nodes) {
 			::vmap<Node,NodeIdx/*order*/> frozen_nodes_ = mk_vmap(frozen_nodes) ;
@@ -425,8 +426,8 @@ namespace Engine {
 			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ;  // sort in discovery order
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
-			if (job->rule->special!=Special::Req) {
-				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(job->rule->name)+" -J "+mk_shell_str(job->name()) ) ;
+			if ( Rule r=job->rule() ; r->special!=Special::Req) {
+				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->name)+" -J "+mk_shell_str(job->name()) ) ;
 			} else {
 				::string dl ;
 				for( Dep const& d : job->deps ) dl<<' '<<mk_shell_str(d->name()) ;
@@ -440,7 +441,7 @@ namespace Engine {
 		if (g_config->console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config->console.date_prec,true/*in_day*/)     <<' '           ;
 		if (g_config->console.host_len              ) msg <<      ::setw(g_config->console.host_len)<<SockFd::s_host(host) <<' '           ;
 		/**/                                          msg <<      ::setw(StepSz                   )<<step                                  ;
-		/**/                                          msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule_name                             ;
+		/**/                                          msg <<' '<< ::setw(Rule::s_name_sz          )<<rule_name                             ;
 		if (g_config->console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"") ;
 		audit( audit_fd , log_stream , options , c , ::move(msg).str()+' '+mk_file(job_name) ) ;
 		last_info = {} ;
@@ -456,7 +457,7 @@ namespace Engine {
 			::string_view shorten = first_lines(stderr,max_stderr_len) ;
 			if (shorten.size()<stderr.size()) {
 				audit_info_as_is( Color::None , ::string(shorten) , lvl ) ;
-				audit_info      ( Color::Note , "... (for full content : lshow -e -J "+mk_file(j->name(),FileDisplay::Shell)+" -R "+mk_shell_str(j->rule->name)+" )" , lvl ) ;
+				audit_info      ( Color::Note , "... (for full content : lshow -e -J "+mk_file(j->name(),FileDisplay::Shell)+" -R "+mk_shell_str(j->rule()->name)+" )" , lvl ) ;
 				return true ;
 			}
 		}
@@ -486,8 +487,8 @@ namespace Engine {
 	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , ::string const& target , size_t& n_err , DepDepth lvl ) {
 		if (!n_err) return true/*overflow*/ ;
 		n_err-- ;
-		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , fmt_string(::setw(::max(size_t(8)/*dangling*/,RuleData::s_name_sz)),pfx) , target , lvl ) ;
-		else       audit_info( Color::Warning                            , "..."                                                                                   ) ;
+		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , fmt_string(::setw(::max(size_t(8)/*dangling*/,Rule::s_name_sz)),pfx) , target , lvl ) ;
+		else       audit_info( Color::Warning                            , "..."                                                                               ) ;
 		return !n_err/*overflow*/ ;
 	}
 
@@ -514,12 +515,12 @@ namespace Engine {
 		//
 		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                                            // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
 			Rule::SimpleMatch m{rt,name} ;
-			if (!m                        )              continue ;
-			if (rt->special==Special::Anti) { art = rt ; break    ; }
+			if (!m                              )              continue ;
+			if (rt->rule->special==Special::Anti) { art = rt ; break    ; }
 			//
 			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::MissingStatic ) goto Continue ; // do not pass *this as req to avoid generating error message at cxtor time
-			try                      { rt->deps_attrs.eval(m) ; }
-			catch (::pair_ss const&) { goto Continue ;          }                                       // do not consider rule if deps cannot be computed
+			try                      { rt->rule->deps_attrs.eval(m) ; }
+			catch (::pair_ss const&) { goto Continue ;                }                                 // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		Continue :
 			mrts.emplace_back(rt,::move(m)) ;
@@ -535,7 +536,7 @@ namespace Engine {
 			Node              missing_dep ;
 			::vmap_s<DepSpec> static_deps ;
 			if ( +jt && jt->run_status!=RunStatus::MissingStatic ) { reason      = "does not produce it"                                      ; goto Report ; }
-			try                                                    { static_deps = rt->deps_attrs.eval(m)                                     ;               }
+			try                                                    { static_deps = rt->rule->deps_attrs.eval(m)                               ;               }
 			catch (::pair_ss const& msg_err)                       { reason      = "cannot compute its deps :\n"+msg_err.first+msg_err.second ; goto Report ; }
 			{	::string missing_key ;
 				for( bool search_non_buildable : {true,false} )                                         // first search a non-buildable, if not found, search for non makable as deps have been made
@@ -553,13 +554,13 @@ namespace Engine {
 				reason = "misses static dep " + missing_key + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
 			}
 		Report :
-			if (+missing_dep) audit_node( Color::Note , "rule "+rt->name+' '+reason+" :" , missing_dep , lvl+1 ) ;
-			else              audit_info( Color::Note , "rule "+rt->name+' '+reason      ,               lvl+1 ) ;
+			if (+missing_dep) audit_node( Color::Note , "rule "+rt->rule->name+' '+reason+" :" , missing_dep , lvl+1 ) ;
+			else              audit_info( Color::Note , "rule "+rt->rule->name+' '+reason      ,               lvl+1 ) ;
 			//
 			if ( +missing_dep && n_missing==1 && (!g_config->max_err_lines||lvl<g_config->max_err_lines) ) _report_no_rule( missing_dep , nfs_guard , lvl+2 ) ;
 		}
 		//
-		if (+art) audit_info( Color::Note , "anti-rule "+art->name+" matches" , lvl+1 ) ;
+		if (+art) audit_info( Color::Note , "anti-rule "+art->rule->name+" matches" , lvl+1 ) ;
 	}
 
 	//

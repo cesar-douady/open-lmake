@@ -63,7 +63,7 @@ int main( int argc , char* argv[]) {
 	//
 	SWEAR( dep_infos.size()==cmd_line.args.size() , dep_infos.size() , cmd_line.args.size() ) ;
 	int rc = 0 ;
-	for( size_t i=0 ; i<dep_infos.size() ; i++ ) {
+	for( size_t i : iota(dep_infos.size()) ) {
 		switch (dep_infos[i].first) {
 			case Yes   : ::cout << "ok  " ;          break ;
 			case Maybe : ::cout << "??? " ; rc = 1 ; break ;

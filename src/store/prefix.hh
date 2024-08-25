@@ -225,7 +225,7 @@ namespace Store {
 			{	fill_from( 0 , chunk_sz , from , start ) ;
 			}
 			void fill_from( ChunkIdx start , ChunkIdx sz , Item const& from , ChunkIdx from_start ) {
-				for( ChunkIdx i=0 ; i<sz ; i++ ) chunk(start+i) = from.chunk(from_start+i) ;
+				for( ChunkIdx i : iota(sz) ) chunk(start+i) = from.chunk(from_start+i) ;
 			}
 			void prepend_from( Item const& from , ChunkIdx start ) {
 				chunk_sz += from.chunk_sz-start ;
@@ -600,7 +600,7 @@ namespace Store {
 			Base::init( name_ , writable_ , ::forward<A>(hdr_args)... ) ;
 			// fix in case of crash during an operation
 			if (!writable_) { SWEAR(!_n_saved(),_n_saved()) ; return ; } // cannot fix if not writable
-			for( uint8_t i=0 ; i<_n_saved() ; i++ ) {
+			for( uint8_t i : iota(_n_saved()) ) {
 				auto const& [idx,save_item] = _save()[i] ;
 				save_item.restore(_at(idx)) ;
 			}
@@ -1144,15 +1144,15 @@ namespace Store {
 				Item     const& item     = _at(idx)      ;
 				ChunkIdx        chunk_sz = item.chunk_sz ;
 				if (psfx_sz>=chunk_sz) {
-					if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , chunk_sz ) ;                   // both psfx & chunk are stored in reverse order
+					if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , chunk_sz ) ;                    // both psfx & chunk are stored in reverse order
 					else         psfx_path.emplace_back(idx,chunk_sz) ;
 					psfx_sz -= chunk_sz ;
 				} else {
 					if (psfx_sz) {
-						if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , psfx_sz ) ;                // both psfx & chunk are stored in reverse order
+						if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , psfx_sz ) ;                 // both psfx & chunk are stored in reverse order
 						else         psfx_path.emplace_back(idx,psfx_sz) ;
 					}
-					if (Reverse) Prefix::append( name , &item.chunk(chunk_sz-1-psfx_sz) , chunk_sz-psfx_sz ) ;   // both name & chunk are stored in reverse order
+					if (Reverse) Prefix::append( name , &item.chunk(chunk_sz-1-psfx_sz) , chunk_sz-psfx_sz ) ;    // both name & chunk are stored in reverse order
 					else         name_path.emplace_back(idx,chunk_sz-psfx_sz) ;
 					psfx_sz = 0 ;
 				}
@@ -1160,11 +1160,11 @@ namespace Store {
 			if (!Reverse) {
 				for( auto it=psfx_path.crbegin() ; it!=psfx_path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
-					for( int i=0 ; i<it->second ; i++ ) psfx.push_back(item.chunk(item.chunk_sz-it->second+i)) ; // chunk is stored in reverse order
+					for( ChunkIdx i : iota(it->second) ) psfx.push_back(item.chunk(item.chunk_sz-it->second+i)) ; // chunk is stored in reverse order
 				}
 				for( auto it=name_path.crbegin() ; it!=name_path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
-					for( int i=0 ; i<it->second ; i++ ) name.push_back(item.chunk(i)) ;                          // chunk is stored in reverse order
+					for( ChunkIdx i : iota(it->second) ) name.push_back(item.chunk(i)) ;                          // chunk is stored in reverse order
 				}
 			}
 			return { name , psfx } ;
@@ -1197,7 +1197,7 @@ namespace Store {
 			if (!Reverse) {
 				for( auto it=path.crbegin() ; it!=path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
-					for( int i=0 ; i<it->second ; i++ ) res.push_back(ItemChar<S>(item.chunk(i))) ;                // chunk is stored in reverse order
+					for( ChunkIdx i : iota(it->second) ) res.push_back(ItemChar<S>(item.chunk(i))) ;               // chunk is stored in reverse order
 				}
 			}
 			return res ;
@@ -1207,12 +1207,12 @@ namespace Store {
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to get
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
 			VecStr<S>                                res  ;
-			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ;                                                     // when !Reverse, we must walk from root to idx but we gather path from idx back to root
+			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ; // when !Reverse, we must walk from root to idx but we gather path from idx back to root
 			for(; +idx ; idx = _at(idx).prev ) {
 				Item     const& item         = _at(idx)                        ;
 				ChunkIdx        chunk_sz     = item.chunk_sz                   ;
 				ChunkIdx        min_chunk_sz = ::min(size_t(chunk_sz),psfx_sz) ;
-				if (Reverse) Prefix::append( res , &item.chunk(chunk_sz-1) , min_chunk_sz ) ;                   // both res & chunk are stored in reverse order
+				if (Reverse) Prefix::append( res , &item.chunk(chunk_sz-1) , min_chunk_sz ) ;                    // both res & chunk are stored in reverse order
 				else         path.emplace_back(idx,min_chunk_sz) ;
 				if (psfx_sz>chunk_sz) psfx_sz -= chunk_sz ;
 				else                  break ;
@@ -1220,7 +1220,7 @@ namespace Store {
 			if (!Reverse) {
 				for( auto it=path.crbegin() ; it!=path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
-					for( int i=0 ; i<it->second ; i++ ) res.push_back(item.chunk(item.chunk_sz-it->second+i)) ; // chunk is stored in reverse order
+					for( ChunkIdx i : iota(it->second) ) res.push_back(item.chunk(item.chunk_sz-it->second+i)) ; // chunk is stored in reverse order
 				}
 			}
 			return res ;

@@ -1483,6 +1483,8 @@ If performed, @code{$ROOT_DIR} will reflect this value.
 
 As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
 
+As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
+
 @section @code{tmp_view}
 
 @multitable @columnfractions 0.1 0.9

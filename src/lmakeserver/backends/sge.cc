@@ -389,7 +389,7 @@ namespace Backends::Sge {
 	}
 
 	::string sge_mk_name(::string&& s) {
-		for( size_t i=0 ; i<s.size() ; i++ )
+		for( size_t i : iota(s.size()) )
 			switch (s[i]) {
 				case '/'  : s[i] = '|' ; break ; // this char is forbidden in SGE names (cf man 5 sge_types), replace with best approximation (for cosmetic only, ambiguities are acceptable)
 				case ':'  : s[i] = ';' ; break ;

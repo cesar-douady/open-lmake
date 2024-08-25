@@ -9,7 +9,7 @@
 using namespace Engine ;
 
 static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
-	::cout << ::setw(13)<<jn <<" : "<< ::setw(20)<<r  <<" : "<< mk_printable(n) <<'\n' ; // suppress useless " around n
+	::cout << ::setw(13)<<jn <<" : "<< ::setw(13)<<r  <<" : "<< mk_printable(n) <<'\n' ; // suppress useless " around n
 }
 
 int main( int argc , char* /*argv*/[] ) {
@@ -20,8 +20,8 @@ int main( int argc , char* /*argv*/[] ) {
 	try                       { Persistent::new_config({}/*config*/,false/*dynamic*/) ; }
 	catch (::string const& e) { exit(Rc::Format,e) ;                                    }
 	//
-	for( const Rule r : Persistent::rule_lst() )             _out( {}            , fmt_string(r      ) , r->name   ) ;
-	for( const Job  j : Persistent::job_lst () ) { j.chk() ; _out( fmt_string(j) , fmt_string(j->rule) , j->name() ) ; }
+	for( const Rule r : Persistent::rule_lst() )             _out( {}            , fmt_string(r        ) , r->name   ) ;
+	for( const Job  j : Persistent::job_lst () ) { j.chk() ; _out( fmt_string(j) , fmt_string(j->rule()) , j->name() ) ; }
 	for( const Node n : Persistent::node_lst() ) {
 		n.chk() ;
 		switch (n->buildable) {

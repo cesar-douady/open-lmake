@@ -71,9 +71,8 @@ else :
 	if not root_dir : del root_dir
 #
 autodeps = ()
-if "$HAS_FUSE"     : autodeps += ('fuse'    ,)
-if "$HAS_LD_AUDIT" : autodeps += ('ld_audit',)
-autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
+if "$HAS_LD_AUDIT" : autodeps += ('ld_audit',                                )
+if True            : autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
 #
 backends = ('local',)
 if "$HAS_SGE"   : backends += ('sge'  ,)

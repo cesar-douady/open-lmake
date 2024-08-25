@@ -252,7 +252,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	::string                 msg       ;
 	Mutex<MutexLvl::JobExec> msg_mutex ;
 	{	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
-		for( size_t i=0 ; i<n_threads ; i++ )
+		for( size_t i : iota(n_threads) )
 			crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex ) ; // just constructing and destructing the threads will execute & join them
 	}
 	return msg ;

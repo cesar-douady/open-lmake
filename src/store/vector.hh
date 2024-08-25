@@ -46,18 +46,18 @@ namespace Store {
 			// cxtors & casts
 			using Base::Base ;
 			template<::convertible_to<Item> I> Chunk(::vector_view<I> const& v) : Base{Sz(v.size())} {
-				for( Sz i=0 ; i<sz ; i++ ) new(items()+i) Item{v[i]} ;
+				for( Sz i : iota(sz) ) new(items()+i) Item{v[i]} ;
 			}
 			template<::convertible_to<Item> I0,::convertible_to<Item> I> Chunk( I0 const& x0 , ::vector_view<I> const& v ) : Base{Sz(1+v.size())} {
 				new(items()) Item{x0} ;
-				for( Sz i=1 ; i<sz ; i++ ) new(items()+i) Item{v[i-1]} ;
+				for( Sz i : iota(1,sz) ) new(items()+i) Item{v[i-1]} ;
 			}
 			//
 			Chunk (                  VecView const& v ) requires(IsTrivial) : Base{Sz(  v.size())} {                   memcpy( items()   , v.cbegin() , v.size()*sizeof(Item) ) ; }
 			Chunk ( Item const& x0 , VecView const& v ) requires(IsTrivial) : Base{Sz(1+v.size())} { items()[0] = x0 ; memcpy( items()+1 , v.cbegin() , v.size()*sizeof(Item) ) ; }
 			//
-			~Chunk() requires(!IsTrivial) { for( Sz i=0 ; i<sz ; i++ ) items()[i].~Item() ; }
-			~Chunk() requires( IsTrivial) {                                                 }
+			~Chunk() requires(!IsTrivial) { for( Sz i : iota(sz) ) items()[i].~Item() ; }
+			~Chunk() requires( IsTrivial) {                                             }
 			//
 			operator VecView() const { return VecView(items(),sz) ; }
 			// accesses
@@ -65,7 +65,7 @@ namespace Store {
 			// services
 			void shorten_by(Sz by) {
 				SWEAR( by<sz , by , sz ) ;
-				for( Sz i=sz-by ; i<sz ; i++ ) items()[i].~Item() ;
+				for( Sz i : iota(sz-by,sz) ) items()[i].~Item() ;
 				sz = sz-by ;
 			}
 		} ;
@@ -154,9 +154,9 @@ namespace Store {
 			}
 			// in place
 			Item* items = chunk.items() ;
-			for( size_t i=0 ; i<::min(v.size(),size_t(chunk.sz)) ; i++ ) items[i] = v[i] ;
-			if (v.size()<chunk.sz) for( size_t i=v.size() ; i<chunk.sz ; i++ ) items[i].~Item()        ;
-			else                   for( size_t i=chunk.sz ; i<v.size() ; i++ ) new(items+i) Item{v[i]} ;
+			for( size_t i : iota(::min(v.size(),size_t(chunk.sz))) ) items[i] = v[i] ;
+			if (v.size()<chunk.sz) for( size_t i : iota( v.size() , chunk.sz ) ) items[i].~Item()        ;
+			else                   for( size_t i : iota( chunk.sz , v.size() ) ) new(items+i) Item{v[i]} ;
 			chunk.sz = v.size() ;
 			return idx ;
 		}
@@ -181,9 +181,9 @@ namespace Store {
 			// in place
 			Item* items = chunk.items()+chunk.sz ;
 			chunk.sz += v.size() ;
-			//                                   vvvvvvvvvvvvvvvvvvvvvvv
-			for( size_t i=0 ; i<v.size() ; i++ ) new(items+i) Item{v[i]} ;
-			//                                   ^^^^^^^^^^^^^^^^^^^^^^^
+			//                               vvvvvvvvvvvvvvvvvvvvvvv
+			for( size_t i : iota(v.size()) ) new(items+i) Item{v[i]} ;
+			//                               ^^^^^^^^^^^^^^^^^^^^^^^
 			return idx ;
 		}
 		//

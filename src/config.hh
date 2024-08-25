@@ -27,6 +27,7 @@ using PsfxIdx     = uint32_t ; // each rule appears in a few Psfx slots, so this
 using ReqIdx      = uint8_t  ;
 using RuleIdx     = uint16_t ;
 using RuleStrIdx  = uint32_t ; // used to index serialized Rule description
+using RuleCrcIdx  = uint32_t ;
 using RuleTgtsIdx = uint32_t ;
 using TargetsIdx  = uint32_t ; // used to index targets
 using VarIdx      = uint8_t  ; // used to index stems, targets, deps & rsrcs within a Rule

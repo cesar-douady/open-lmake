@@ -106,7 +106,7 @@ Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
 	if ( ehdr.e_ident[EI_CLASS]              != (Is64Bits                       ?ELFCLASS64 :ELFCLASS32 ) ) throw 4 ; // bad word width : .
 	if ( ehdr.e_ident[EI_DATA ]              != (::endian::native==::endian::big?ELFDATA2MSB:ELFDATA2MSB) ) throw 5 ; // bad endianness : .
 	//
-	for( size_t i=0 ; i<ehdr.e_phnum ; i++ ) {
+	for( size_t i : iota(ehdr.e_phnum) ) {
 		size_t      phdr_offset = ehdr.e_phoff + i*ehdr.e_phentsize ;
 		Phdr const& phdr        = file_map.get<Phdr>(phdr_offset)   ;
 		if (phdr.p_type==PT_DYNAMIC) {
@@ -119,7 +119,7 @@ DoSection :
 	size_t string_shdr_offset = ehdr.e_shoff + ehdr.e_shstrndx*ehdr.e_shentsize  ;
 	size_t string_offset      = file_map.get<Shdr>(string_shdr_offset).sh_offset ;
 	//
-	for( size_t i=0 ; i<ehdr.e_shnum ; i++ ) {
+	for( size_t i : iota(ehdr.e_shnum) ) {
 		size_t      shdr_offset  = ehdr.e_shoff + i*ehdr.e_shentsize ;
 		Shdr const& shdr         = file_map.get<Shdr>(shdr_offset)   ;
 		size_t      shdr_name    = string_offset + shdr.sh_name      ;
@@ -134,7 +134,7 @@ DoSection :
 template<class T> T const& Elf::DynDigest::_s_vma_to_ref( size_t vma , FileMap const& file_map ) {
 	if (!file_map) return *reinterpret_cast<const T*>(vma) ;
 	Ehdr const& ehdr = file_map.get<Ehdr>() ;
-	for( size_t i=0 ; i<ehdr.e_phnum ; i++ ) {
+	for( size_t i : iota(ehdr.e_phnum) ) {
 		Phdr const& phdr = file_map.get<Phdr>( ehdr.e_phoff + i*ehdr.e_phentsize ) ;
 		if ( phdr.p_type!=PT_LOAD                                                  ) continue ;
 		if ( vma<(phdr.p_vaddr&-phdr.p_align) || vma>=(phdr.p_vaddr+phdr.p_filesz) ) continue ;

@@ -40,7 +40,7 @@ size_t   g_max_line_sz  = 0/*garbage*/ ;
 		size_t   cnt   = 0               ;
 		size_t   start = 0               ;
 		LineKind kind  = LineKind::Blank ; for( char c : l ) if (!::isspace(c)) { kind = LineKind::Plain ; break ; }
-		for( size_t i=0 ; i<l.size() ; i++ ) {
+		for( size_t i : iota(l.size()) ) {
 			if (l[i]=='\t') {
 				lvl++ ;
 				cnt   = 0   ;
@@ -108,7 +108,7 @@ void optimize( ::vector<Line>& lines) {
 	//
 	size_t py         = Npos ;
 	size_t break_lvl1 = 0    ;                                                                      // minimum indentation level of line separating comments, 0 is reserved to mean blank line
-	for( size_t y=0 ; y<tab.h ; y++ ) {
+	for( size_t y : iota(tab.h) ) {
 		Line const&         l  =            lines[y ]                           ;
 		::vector_view<Info> t  =            tab  [y ]                           ;
 		::vector_view<Info> pt = py!=Npos ? tab  [py] : ::vector_view<Info>(t0) ;
@@ -120,7 +120,7 @@ void optimize( ::vector<Line>& lines) {
 		py = y ;
 		size_t px = 0     ;
 		Info   pi = pt[0] ;
-		for( size_t x=1 ; x<pt.size() ; x++ )
+		for( size_t x : iota(1,pt.size()) )
 			if (pt[x]<pi) { pi = pt[x] ; px = x ; }
 		if (break_lvl1) pi.breaks[break_lvl1-1]++ ;
 		break_lvl1 = n_lvls+1 ;
@@ -139,9 +139,8 @@ void optimize( ::vector<Line>& lines) {
 	if (py==Npos) return ;                                                                          // nothing to optimize
 	size_t              min_x  = 0       ;
 	::vector_view<Info> last_t = tab[py] ;
-	for( size_t x=1 ; x<last_t.size() ; x++ ) {
+	for( size_t x : iota(1,last_t.size()) )
 		if (last_t[x]<last_t[min_x]) min_x = x ;
-	}
 	SWEAR(!last_t[min_x].ko) ;
 	for( size_t y1=tab.h ; y1>0 ; y1-- ) {
 		Line& l = lines[y1-1] ;

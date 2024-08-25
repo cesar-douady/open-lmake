@@ -412,6 +412,8 @@ namespace Engine {
 	} ;
 
 	extern ThreadDeque<EngineClosure,true/*Flush*/> g_engine_queue ;
+	extern bool                                     g_writable     ;
+
 
 }
 

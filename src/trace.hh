@@ -106,7 +106,7 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		if (!_t_buf) _t_buf = new OStringStream ;
 		//
 		*_t_buf << (_s_ping?'"':'\'') << t_thread_key << Time::Pdate(New).str(3/*prec*/,true/*in_day*/) << '\t' ;
-		for( int i=0 ; i<_t_lvl ; i++ ) {
+		for( int i : iota(_t_lvl) ) {
 			if ( _first && i==_t_lvl-1 ) *_t_buf << '*'                          ;
 			else                         *_t_buf << Seps[ i % (sizeof(Seps)-1) ] ;
 			*_t_buf << '\t' ;

@@ -1,0 +1,438 @@
+diff --git a/Makefile b/Makefile
+index 9a7a9cc..b334218 100644
+--- a/Makefile
++++ b/Makefile
+@@ -131,7 +131,7 @@ LINT_CHKS  := -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
+ LINT_OPTS  := '-header-filter=.*' $(LINT_CHKS)
+ 
+ # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
+-CPP_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . $(FUSE_CC_FLAGS) -idirafter /usr/include/linux
++CPP_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
+ 
+ PY2_INC_DIRS   := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -isystem
+ PY2_CC_FLAGS   := $(if $(PYTHON2),$(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register)
+@@ -139,8 +139,6 @@ PY2_LINK_FLAGS := $(if $(PYTHON2),$(patsubst %,-L%,$(PY2_LIB_DIR)) $(patsubst %,
+ PY3_INC_DIRS   := $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))                  # for some reasons, compilation does not work if standard inc dirs are given with -isystem
+ PY3_CC_FLAGS   := $(patsubst %,-isystem %,$(PY3_INC_DIRS)) -Wno-register
+ PY3_LINK_FLAGS := $(patsubst %,-L%,$(PY3_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY3_LIB_DIR)) -l:$(PY3_LIB_BASE)
+-FUSE_CC_FLAGS  := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --cflags))
+-FUSE_LIB       := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --libs  ))
+ PCRE_LIB       := $(if $(HAS_PCRE),-lpcre2-8)
+ 
+ PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,             $@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
+@@ -317,7 +315,6 @@ lib/%.py : _lib/%.src.py sys_config.mk
+ 	@sed \
+ 		-e 's!\$$BASH!$(BASH)!'                          \
+ 		-e 's!\$$GIT!$(GIT)!'                            \
+-		-e 's!\$$HAS_FUSE!$(HAS_FUSE)!'                  \
+ 		-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
+ 		-e 's!\$$HAS_SGE!$(HAS_SGE)!'                    \
+ 		-e 's!\$$HAS_SLURM!$(HAS_SLURM)!'                \
+@@ -428,7 +425,6 @@ CLIENT_SAN_OBJS := \
+ SERVER_SAN_OBJS := \
+ 	$(LMAKE_BASIC_SAN_OBJS)                   \
+ 	src/app$(SAN).o                           \
+-	$(if $(HAS_FUSE),src/autodep/fuse.o)      \
+ 	src/py$(SAN).o                            \
+ 	src/re$(SAN).o                            \
+ 	src/rpc_client$(SAN).o                    \
+@@ -481,7 +477,7 @@ LMAKE_DBG_FILES += _bin/lmakeserver bin/lrepair _bin/ldump
+ _bin/lmakeserver bin/lrepair _bin/ldump :
+ 	@mkdir -p $(@D)
+ 	@echo link to $@
+-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
++	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+ 	@$(SPLIT_DBG)
+ 
+ 
+@@ -509,17 +505,13 @@ LMAKE_DBG_FILES += _bin/ldump_job
+ _bin/ldump_job : \
+ 	$(LMAKE_BASIC_SAN_OBJS) \
+ 	src/app$(SAN).o         \
+-	$(if $(HAS_FUSE),src/autodep/fuse.o)     \
+-	$(if $(HAS_FUSE),src/autodep/record.o)   \
+-	$(if $(HAS_FUSE),src/autodep/backdoor.o) \
+-	$(if $(HAS_FUSE),src/rpc_job_exec.o)     \
+ 	src/rpc_job$(SAN).o     \
+ 	src/trace$(SAN).o       \
+ 	src/autodep/env$(SAN).o \
+ 	src/ldump_job$(SAN).o
+ 	@mkdir -p $(@D)
+ 	@echo link to $@
+-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(FUSE_LIB) $(LINK_LIB)
++	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
+ 	@$(SPLIT_DBG)
+ 
+ LMAKE_DBG_FILES += _bin/align_comments
+@@ -557,7 +549,6 @@ REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) src/autodep/job_support.o
+ JOB_EXEC_OBJS := \
+ 	$(AUTODEP_OBJS)      \
+ 	src/app.o            \
+-	$(if $(HAS_FUSE),src/autodep/fuse.o) \
+ 	src/py.o             \
+ 	src/re.o             \
+ 	src/rpc_job.o        \
+@@ -573,7 +564,7 @@ LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
+ _bin/job_exec bin/lautodep : # XXX : why job_exec and autodep do not support sanitize thread ?
+ 	@mkdir -p $(@D)
+ 	@echo link to $@
+-	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
++	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+ 	@$(SPLIT_DBG)
+ 
+ LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps
+diff --git a/_bin/sys_config b/_bin/sys_config
+index e303bb0..18edb79 100755
+--- a/_bin/sys_config
++++ b/_bin/sys_config
+@@ -183,13 +183,6 @@ esac
+ #
+ HAS_CLOSE_RANGE=$(ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
+ 
+-#
+-# HAS_FUSE
+-#
+-HAS_FUSE=0 # fuse does not work for now
+-# HAS_FUSE=$(ok pkg-config fuse3)
+-# [ $HAS_FUSE = 1 ] || echo no fuse support >>$SUM_FILE
+-
+ #
+ # HAS_LD_AUDIT
+ # test whether LD_AUDIT environment variable is managed by dynamic linker
+@@ -443,7 +436,6 @@ STD_INC_DIRS       := $STD_INC_DIRS
+ SLURM_INC_DIR      := $SLURM_INC_DIR
+ #
+ HAS_32             := ${HAS_32#0}
+-HAS_FUSE           := ${HAS_FUSE#0}
+ HAS_LD_AUDIT       := ${HAS_LD_AUDIT#0}
+ HAS_PCRE           := ${HAS_PCRE#0}
+ HAS_SECCOMP        := ${HAS_SECCOMP#0}
+@@ -468,7 +460,6 @@ cat >$H_FILE <<EOF
+ 	#define ADDR2LINE                   "$ADDR2LINE"
+ 	#define HAS_32                      $HAS_32
+ 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
+-	#define HAS_FUSE                    $HAS_FUSE
+ 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
+ 	#define HAS_MEMFD                   $HAS_MEMFD
+ 	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW
+diff --git a/_lib/lmake/py_clmake.src.py b/_lib/lmake/py_clmake.src.py
+index bef02c3..0ee042f 100644
+--- a/_lib/lmake/py_clmake.src.py
++++ b/_lib/lmake/py_clmake.src.py
+@@ -71,9 +71,8 @@ else :
+ 	if not root_dir : del root_dir
+ #
+ autodeps = ()
+-if "$HAS_FUSE"     : autodeps += ('fuse'    ,)
+ if "$HAS_LD_AUDIT" : autodeps += ('ld_audit',                                )
+-autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
++if True            : autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
+ #
+ backends = ('local',)
+ if "$HAS_SGE"   : backends += ('sge'  ,)
+diff --git a/lmake_env/Lmakefile.py b/lmake_env/Lmakefile.py
+index 5170a59..1e82e39 100644
+--- a/lmake_env/Lmakefile.py
++++ b/lmake_env/Lmakefile.py
+@@ -152,7 +152,7 @@ class ConfigH(BaseRule) :
+ 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
+ 	cmd          = 'cd ext/{DirS} ; ./configure'
+ 
+-class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
++class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
+ 	targets = {
+ 		'H'     : 'sys_config.h'
+ 	,	'TRIAL' : r'trial/{*:.*}'
+@@ -164,13 +164,10 @@ class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
+ 		while read k e v ; do
+ 			case $k in
+ 				'#'*      ) ;;
+-				*HAS_FUSE*) echo    > {MK('$k')} ;;
+ 				*HAS_PCRE*) echo    > {MK('$k')} ;;
+ 				*         ) echo $v > {MK('$k')} ;;
+ 			esac
+ 		done < $TMPDIR/mk
+-		echo '#undef  HAS_FUSE'   >> {H}
+-		echo '#define HAS_FUSE 0' >> {H}
+ 		echo '#undef  HAS_PCRE'   >> {H}
+ 		echo '#define HAS_PCRE 0' >> {H}
+ 		#echo > {MK('HAS_PCRE')}
+@@ -249,16 +246,13 @@ class LinkRule(PathRule,PyRule) :
+ 	combine      = ('opts',)
+ 	opts         = []                                           # options before inputs & outputs
+ 	resources    = {'mem':'1G'}
+-	need_fuse    = False
+ 	need_python  = False
+ 	need_seccomp = False
+ 	def cmd() :
+-		nf  = need_fuse    and sys_config('HAS_FUSE'   )
+ 		ns  = need_seccomp and sys_config('HAS_SECCOMP')
+ 		lst = sys_config('LIB_STACKTRACE')
+ 		if True        : post_opts = ['-ldl']
+ 		if lst         : post_opts.append(f'-l{lst}')
+-		if nf          : post_opts.append('-lfuse3')
+ 		if ns          : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists
+ 		if need_python :
+ 			post_opts.append(f"-L{sysconfig.get_config_var('LIBDIR')}")
+@@ -269,7 +263,6 @@ class LinkRule(PathRule,PyRule) :
+ 		run_gxx( TARGET
+ 		,	*opts
+ 		,	*deps.values()
+-		,	*( ('src/autodep/fuse.o',) if nf else () )
+ 		,	*post_opts
+ 		)
+ 
+@@ -356,8 +349,6 @@ opt_tab.update({
+ ,	r'src/.*'             : ( '-iquote'    , 'ext_lnk'                      )
+ ,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     ,)
+ ,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'          ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
+-,	r'src/fuse'           : ( '-idirafter' , f'/usr/include/fuse3'          ) # in case fuse is available (else, does not hurt)
+-,	r'src/rpc_job'        : ( '-idirafter' , f'/usr/include/fuse3'          ) # .
+ })
+ 
+ class Link(BaseRule) :
+@@ -411,7 +402,6 @@ class LinkAutodep(LinkAutodepEnv) :
+ 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
+ 	,	'RPC_CLIENT'   : None
+ 	}
+-	need_fuse    = True
+ 	need_seccomp = True
+ 
+ class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
+@@ -452,7 +442,6 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
+ 	,	'STORE'      : 'src/lmakeserver/store.o'
+ 	,	'MAIN'       : 'src/lmakeserver/main.o'
+ 	}
+-	need_fuse = True
+ 
+ class LinkLrepairExe(LinkLmakeserverExe) :
+ 	targets = { 'TARGET' : 'bin/lrepair' }
+@@ -479,7 +468,6 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
+ 	,	'STORE'      : 'src/lmakeserver/store.o'
+ 	,	'MAIN'       : 'src/ldump.o'
+ 	}
+-	need_fuse = True
+ 
+ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
+ 	targets = { 'TARGET' : '_bin/ldump_job' }
+@@ -487,7 +475,6 @@ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
+ 		'RPC_JOB' : 'src/rpc_job.o'
+ 	,	'MAIN'    : 'src/ldump_job.o'
+ 	}
+-	need_fuse = True
+ 
+ for client in ('lforget','lmake','lmark','lshow') :
+ 	class LinkLmake(LinkClientAppExe) :
+diff --git a/src/autodep/clmake.cc b/src/autodep/clmake.cc
+index f809f1b..6b279f7 100644
+--- a/src/autodep/clmake.cc
++++ b/src/autodep/clmake.cc
+@@ -318,11 +318,10 @@ PyMODINIT_FUNC
+ 	_g_record = {New,Yes/*enabled*/} ;
+ 	//
+ 	Ptr<Module> mod    { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
+-	Ptr<Tuple>  py_ads { HAS_FUSE+HAS_LD_AUDIT+3 }                       ; // PER_AUTODEP_METHOD : add entries here
++	Ptr<Tuple>  py_ads { HAS_LD_AUDIT+3 }                                ; // PER_AUTODEP_METHOD : add entries here
+ 	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM }                           ; // PER_BACKEND        : add entries here
+ 	//
+ 	size_t i = 0 ;
+-	if (HAS_FUSE    ) py_ads->set_item(i++,*Ptr<Str>("fuse"               )) ;
+ 	if (HAS_LD_AUDIT) py_ads->set_item(i++,*Ptr<Str>("ld_audit"           )) ;
+ 	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload"         )) ;
+ 	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload_jemalloc")) ;
+diff --git a/src/autodep/gather.cc b/src/autodep/gather.cc
+index ff2b417..474f469 100644
+--- a/src/autodep/gather.cc
++++ b/src/autodep/gather.cc
+@@ -9,9 +9,6 @@
+ #include "ptrace.hh"
+ 
+ #include "gather.hh"
+-#if HAS_FUSE
+-	#include "fuse.hh"
+-#endif
+ 
+ using namespace Disk ;
+ using namespace Hash ;
+@@ -193,11 +190,6 @@ Fd Gather::_spawn_child() {
+ 		child_fd  = pipe.read  ;
+ 		report_fd = pipe.write ;
+ 	} else {
+-		#if HAS_FUSE
+-			if (method==AutodepMethod::Fuse) {                                                   // PER_AUTODEP_METHOD : handle case
+-				Fuse::Mount::s_autodep_env(autodep_env) ;
+-			} else
+-		#endif
+ 		if (method>=AutodepMethod::Ld) {                                                         // PER_AUTODEP_METHOD : handle case
+ 			::string env_var ;
+ 			switch (method) {                                                                    // PER_AUTODEP_METHOD : handle case
+@@ -379,9 +371,6 @@ Status Gather::exec_child() {
+ 					int                     cnt = ::read( fd , &si , sizeof(si) ) ; SWEAR(cnt>0) ;
+ 					if (si.ssi_pid) ::waitpid(si.ssi_pid,&wstatus,0) ;                             // else  wstatus is already set
+ 					if ( pid_t(si.ssi_pid)==_child.pid && !WIFSTOPPED(wstatus) ) {
+-						#if HAS_FUSE
+-							if (method==AutodepMethod::Fuse) Fuse::Mount::s_close_report() ;       // close fuse reporting as no one else will tell it
+-						#endif
+ 						end_date   = New                      ;
+ 						_end_child = end_date + network_delay ;                                    // wait at most network_delay for reporting & stdout & stderr to settle down
+ 						if      (WIFEXITED  (wstatus)) set_status(             WEXITSTATUS(wstatus)!=0 ? Status::Err : Status::Ok       ) ;
+diff --git a/src/autodep/lautodep.cc b/src/autodep/lautodep.cc
+index e491e9a..4e2d8ed 100644
+--- a/src/autodep/lautodep.cc
++++ b/src/autodep/lautodep.cc
+@@ -120,7 +120,7 @@ int main( int argc , char* argv[] ) {
+ 	,	{ CmdFlag::Job           , { .short_name='j' , .has_arg=true  , .doc="job  index keep tmp dir if mentioned"                                                                      } }
+ 	,	{ CmdFlag::KeepEnv       , { .short_name='k' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
+ 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
+-	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, fuse, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                } }
++	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                      } }
+ 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
+ 	,	{ CmdFlag::RootView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
+ 	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                    } }
+diff --git a/src/lmakeserver/rule.x.hh b/src/lmakeserver/rule.x.hh
+index 9cfa395..87ec32d 100644
+--- a/src/lmakeserver/rule.x.hh
++++ b/src/lmakeserver/rule.x.hh
+@@ -283,8 +283,7 @@ namespace Engine {
+ 			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
+ 			::sort(env) ;                                                                                                    // stabilize rsrcs crc
+ 			// check
+-			if ( method==AutodepMethod::Fuse    && !HAS_FUSE     ) throw snake(method)+" is not supported on this system"s ; // PER_AUTODEP_METHOD
+-			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw snake(method)+" is not supported on this system"s ; // .
++			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw snake(method)+" is not supported on this system"s ; // PER_AUTODEP_METHOD.
+ 		}
+ 		// data
+ 		// START_OF_VERSIONING
+diff --git a/src/rpc_job.cc b/src/rpc_job.cc
+index a7473a3..d77c6df 100644
+--- a/src/rpc_job.cc
++++ b/src/rpc_job.cc
+@@ -11,10 +11,6 @@
+ 
+ #include "rpc_job.hh"
+ 
+-#if HAS_FUSE
+-	#include "autodep/fuse.hh"
+-#endif
+-
+ using namespace Disk ;
+ using namespace Hash ;
+ 
+@@ -136,14 +132,6 @@ static void _mount_bind( ::string const& dst , ::string const& src ) { // src an
+ 		throw "cannot bind mount "+src+" onto "+dst+" : "+strerror(errno) ;
+ }
+ 
+-#if HAS_FUSE
+-	static vector<Fuse::Mount> _fuse_store ;
+-	static void _mount_fuse( ::string const& dst_s , ::string const& src_s , ::string const& pfx_s , bool report_writes ) {
+-		Trace trace("_mount_fuse",dst_s,src_s,pfx_s,STR(report_writes)) ;
+-		_fuse_store.emplace_back( dst_s , src_s , pfx_s , report_writes ) ;
+-	}
+-#endif
+-
+ static void _mount_tmp( ::string const& dst_s , size_t sz_mb ) {
+ 	SWEAR(sz_mb) ;
+ 	Trace trace("_mount_tmp",dst_s,sz_mb) ;
+@@ -211,14 +199,10 @@ bool/*entered*/ JobSpace::enter(
+ ,	size_t                 tmp_sz_mb
+ ,	::string const&        work_dir_s
+ ,	::vector_s const&      src_dirs_s
+-,	bool                   use_fuse
+ ) {
+-	#if !HAS_FUSE
+-		SWEAR(!use_fuse) ;
+-	#endif
+-	Trace trace("JobSpace::enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s,STR(use_fuse)) ;
++	Trace trace("JobSpace::enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s) ;
+ 	//
+-	if ( !use_fuse && !*this ) return false/*entered*/ ;
++	if (!*this) return false/*entered*/ ;
+ 	//
+ 	int uid = ::getuid() ;          // must be done before unshare that invents a new user
+ 	int gid = ::getgid() ;          // .
+@@ -262,16 +246,15 @@ bool/*entered*/ JobSpace::enter(
+ 	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ;
+ 	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
+ 	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
+-	trace("create",STR(must_create_root),STR(must_create_tmp),STR(use_fuse)) ;
+-	if ( must_create_root || must_create_tmp || +views || use_fuse )
++	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
++	if ( must_create_root || must_create_tmp || +views )
+ 		try { unlnk_inside_s(work_dir_s) ; } catch (::string const& e) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
+-	if ( must_create_root || must_create_tmp || use_fuse ) {              // we cannot mount directly in chroot_dir
++	if ( must_create_root || must_create_tmp ) {                          // we cannot mount directly in chroot_dir
+ 		if (!work_dir_s)
+ 			throw
+ 				"need a work dir to"s
+ 			+	(	must_create_root ? " create root view"
+ 				:	must_create_tmp  ? " create tmp view"
+-				:	use_fuse         ? " use fuse"
+ 				:	                   " ???"
+ 				)
+ 			;
+@@ -302,12 +285,6 @@ bool/*entered*/ JobSpace::enter(
+ 	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
+ 	//
+ 	::string root_dir_s = +root_view_s ? root_view_s : phy_root_dir_s ;
+-	#if HAS_FUSE
+-		if (use_fuse) { //!                                                                                                                         pfx_s     report_writes
+-			/**/                                          _mount_fuse( chroot_dir+                 root_dir_s  ,                  phy_root_dir_s  , {}        , true      ) ;
+-			for( ::string const& src_dir_s : src_dirs_s ) _mount_fuse( chroot_dir+mk_abs(src_dir_s,root_dir_s) , mk_abs(src_dir_s,phy_root_dir_s) , src_dir_s , false     ) ;
+-		} else
+-	#endif
+ 	if (+root_view_s) _mount_bind( chroot_dir+super_root_view_s , phy_super_root_dir_s ) ;
+ 	if (+tmp_view_s ) {
+ 		if      (+phy_tmp_dir_s) _mount_bind( chroot_dir+tmp_view_s , phy_tmp_dir_s ) ;
+@@ -348,14 +325,6 @@ bool/*entered*/ JobSpace::enter(
+ 	return true/*entered*/ ;
+ }
+ 
+-void JobSpace::exit() {
+-	Trace trace("JobSpace::exit") ;
+-	#if HAS_FUSE
+-		_fuse_store.clear() ;
+-	#endif
+-	trace("done") ;
+-}
+-
+ // XXX : implement recursive views
+ // for now, phys cannot englobe or lie within a view, but when it is to be implemented, it is here
+ ::vmap_s<::vector_s> JobSpace::flat_phys() const {
+@@ -549,13 +518,8 @@ bool/*entered*/ JobRpcReply::enter(
+ 	}
+ 	if (!cmd_env.contains("HOME")) cmd_env["HOME"] = no_slash(autodep_env.tmp_dir_s) ; // by default, set HOME to tmp dir as this cannot be set from rule
+ 	//
+-	#if HAS_FUSE
+-		bool need_fuse = method==AutodepMethod::Fuse ;
+-	#else
+-		bool need_fuse = false ;
+-	#endif
+ 	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                            ;
+-	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s , need_fuse ) ;
++	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s ) ;
+ 	if (entered) {
+ 		// find a good starting pid
+ 		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
+diff --git a/src/rpc_job.hh b/src/rpc_job.hh
+index d535e90..8a529a2 100644
+--- a/src/rpc_job.hh
++++ b/src/rpc_job.hh
+@@ -21,7 +21,6 @@ ENUM_2( AutodepMethod                     // PER_AUTODEP_METHOD : add entry here
+ ,	Ld   = LdAudit                        // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
+ ,	Dflt = HAS_LD_AUDIT?LdAudit:LdPreload // by default, use  a compromize between speed an reliability
+ ,	None
+-,	Fuse
+ ,	Ptrace
+ ,	LdAudit
+ ,	LdPreload
+@@ -600,9 +599,8 @@ struct JobSpace {
+ 	,	size_t                 tmp_sz_mb      // .
+ 	,	::string        const& work_dir_s     // .
+ 	,	::vector_s      const& src_dirs_s={}  // .
+-	,	bool                   use_fuse   = false // .
+ 	) ;
+-	void exit() ;
++	void exit() {}
+ 	//
+ 	::vmap_s<::vector_s> flat_phys() const ;  // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+ 	//

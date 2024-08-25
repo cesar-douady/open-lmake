@@ -120,7 +120,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Job           , { .short_name='j' , .has_arg=true  , .doc="job  index keep tmp dir if mentioned"                                                                      } }
 	,	{ CmdFlag::KeepEnv       , { .short_name='k' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
-	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, fuse, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                } }
+	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                      } }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
 	,	{ CmdFlag::RootView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
 	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                    } }

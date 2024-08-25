@@ -387,13 +387,12 @@ namespace Disk {
 				size_t start = dvg ;
 				ok  = domain.size() <= chk.size()     ;
 				dvg = ok ? domain.size() : chk.size() ;
-				for( size_t i=start ; i<dvg ; i++ ) {
+				for( size_t i : iota(start,dvg) )
 					if (domain[i]!=chk[i]) {
 						ok  = false ;
 						dvg = i     ;
 						return ;
 					}
-				}
 				if ( domain.size() < chk.size() ) ok = chk[domain.size()]=='/' ;
 			}
 			bool   ok  = false ;

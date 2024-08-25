@@ -31,7 +31,6 @@ ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other comma
 ,	Delete     // if proc==Mark
 ,	Deps       // if proc==Show
 ,	Env        // if proc==Show
-,	Error      // if proc==Forget, forget previous error, i.e. rerun targets in error that appear up-to-date
 ,	Info       // if proc==Show
 ,	InvDeps    // if proc==Show
 ,	InvTargets // if proc==Show

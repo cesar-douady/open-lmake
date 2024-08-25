@@ -26,14 +26,6 @@ SpecificOptions
 Item(B(-d),B(--deps))
 In addition to being out-of-date, job will forget about hidden deps.
 
-Item(B(-e),B(--error))
-This is a global option and no targets must be specified.
-Mark all jobs in error as out-of-date.
-.IP
-This is useful when you have seen transient errors.
-Just rerunning jobs in error will wash these.
-If you need finer control, use more specific options with associated targets.
-
 Item(B(-r),B(--resources))
 This is a global option and no targets must be specified.
 Mark jobs that have been successfully built with old resources as out-of-date.

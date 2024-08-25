@@ -296,7 +296,7 @@ namespace Engine {
 
 namespace Engine {
 
-	struct NodeData : DataBase {
+	struct NodeData : JobNodeData {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
@@ -308,7 +308,7 @@ namespace Engine {
 		static Mutex<MutexLvl::NodeCrcDate> s_crc_date_mutex ;
 		// cxtors & casts
 		NodeData(                                          ) = delete ;                                               // if necessary, we must take care of the union
-		NodeData( Name n , bool no_dir , bool locked=false ) : DataBase{n} {
+		NodeData( Name n , bool no_dir , bool locked=false ) : JobNodeData{n} {
 			if (!no_dir) dir() = Node(_dir_name(),false/*no_dir*/,locked) ;
 		}
 		~NodeData() {
@@ -358,9 +358,9 @@ namespace Engine {
 		bool           done      ( Req            , NodeGoal ) const ;
 		bool           done      ( Req                       ) const ;
 		//
-		bool match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                             ; }
-		bool has_actual_job    (         ) const {                          return is_plain() && +actual_job() && !actual_job()->rule.old() ; }
-		bool has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return is_plain() && actual_job()==j                            ; }
+		bool match_ok      (     ) const {                     return match_gen>=Rule::s_match_gen                         ; }
+		bool has_actual_job(     ) const {                     return is_plain() && +actual_job() && +actual_job()->rule() ; }
+		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return is_plain() && actual_job()==j                        ; }
 		//
 		Manual manual        (                  FileSig const& ) const ;
 		Manual manual        (                                 ) const { return manual(FileSig(name())) ; }
@@ -588,8 +588,8 @@ namespace Engine {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		if (status()!=NodeStatus::Plain) return {} ;
 		RuleIdx prio_idx = conform_idx() ;
-		Prio prio = job_tgts()[prio_idx]->rule->prio ;
-		while ( prio_idx && job_tgts()[prio_idx-1]->rule->prio==prio ) prio_idx-- ; // rewind to first job within prio level
+		Prio prio = job_tgts()[prio_idx]->rule()->prio ;
+		while ( prio_idx && job_tgts()[prio_idx-1]->rule()->prio==prio ) prio_idx-- ; // rewind to first job within prio level
 		return prio_job_tgts(prio_idx) ;
 	}
 

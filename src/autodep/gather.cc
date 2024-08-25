@@ -6,7 +6,6 @@
 #include "app.hh"
 #include "thread.hh"
 
-#include "fuse.hh"
 #include "ptrace.hh"
 
 #include "gather.hh"
@@ -191,9 +190,7 @@ Fd Gather::_spawn_child() {
 		child_fd  = pipe.read  ;
 		report_fd = pipe.write ;
 	} else {
-		if (method==AutodepMethod::Fuse) {                                                       // PER_AUTODEP_METHOD : handle case
-			Fuse::Mount::s_autodep_env(autodep_env) ;
-		} else if (method>=AutodepMethod::Ld) {                                                  // PER_AUTODEP_METHOD : handle case
+		if (method>=AutodepMethod::Ld) {                                                         // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
 			switch (method) {                                                                    // PER_AUTODEP_METHOD : handle case
 				#if HAS_32
@@ -374,7 +371,6 @@ Status Gather::exec_child() {
 					int                     cnt = ::read( fd , &si , sizeof(si) ) ; SWEAR(cnt>0) ;
 					if (si.ssi_pid) ::waitpid(si.ssi_pid,&wstatus,0) ;                             // else  wstatus is already set
 					if ( pid_t(si.ssi_pid)==_child.pid && !WIFSTOPPED(wstatus) ) {
-						if (method==AutodepMethod::Fuse) Fuse::Mount::s_close_report() ;           // close fuse reporting as no one else will tell it
 						end_date   = New                      ;
 						_end_child = end_date + network_delay ;                                    // wait at most network_delay for reporting & stdout & stderr to settle down
 						if      (WIFEXITED  (wstatus)) set_status(             WEXITSTATUS(wstatus)!=0 ? Status::Err : Status::Ok       ) ;
@@ -382,8 +378,8 @@ Status Gather::exec_child() {
 						else                           fail("unexpected wstatus : ",wstatus) ;
 						epoll.del(fd) ;
 						_wait &= ~Kind::ChildEnd ;
-						/**/                   epoll.cnt-- ;                                    // dont wait for new connections from job (but process those that come)
-						if (+server_master_fd) epoll.cnt-- ;                                    // idem for connections from server
+						/**/                   epoll.cnt-- ;                                               // dont wait for new connections from job (but process those that come)
+						if (+server_master_fd) epoll.cnt-- ;                                               // idem for connections from server
 						trace("close",kind,si.ssi_pid,status,::hex,wstatus,::dec,"wait",_wait,epoll.cnt) ;
 					}
 				} break ;
@@ -394,7 +390,7 @@ Status Gather::exec_child() {
 					if (is_job) { SWEAR( fd==job_master_fd    , fd , job_master_fd    ) ; slave = job_master_fd   .accept().detach() ; epoll.add_read(slave,Kind::JobSlave   ) ; }
 					else        { SWEAR( fd==server_master_fd , fd , server_master_fd ) ; slave = server_master_fd.accept().detach() ; epoll.add_read(slave,Kind::ServerSlave) ; }
 					trace("read_slave",STR(is_job),slave,"wait",_wait,epoll.cnt) ;
-					slaves[slave] ;                                                             // allocate entry
+					slaves[slave] ;                                                                        // allocate entry
 				} break ;
 				case Kind::ServerSlave : {
 					JobMngtRpcReply jmrr        ;
@@ -560,5 +556,5 @@ void Gather::reorder(bool at_end) {
 		i_dst++ ;
 	}
 	accesses.resize(i_dst) ;
-	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map.at(accesses[i].first) = i ;                                     // always recompute access_map as accesses has been sorted
+	for( NodeIdx i : iota(accesses.size()) ) access_map.at(accesses[i].first) = i ;                                         // always recompute access_map as accesses has been sorted
 }

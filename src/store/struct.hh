@@ -62,6 +62,7 @@ namespace Store {
 		template<class... A> StructFile( NewType                              , A&&... hdr_args ) requires( HasFile) { init( New             , ::forward<A>(hdr_args)... ) ; }
 		/**/                 StructFile( ::string const& name , bool writable                   ) requires(!HasFile) { init( name , writable                             ) ; }
 		template<class... A> StructFile( ::string const& name , bool writable , A&&... hdr_args ) requires( HasFile) { init( name , writable , ::forward<A>(hdr_args)... ) ; }
+		//
 		/**/                 void init( NewType                                                        ) requires(!HasFile) { init( "" , true                             ) ; }
 		template<class... A> void init( NewType                                      , A&&... hdr_args ) requires( HasFile) { init( "" , true , ::forward<A>(hdr_args)... ) ; }
 		/**/                 void init( ::string const& /*name*/ , bool /*writable*/                   ) requires(!HasFile) {}
@@ -89,10 +90,10 @@ namespace Store {
 		Sz             & _size      ()       requires(HasFile) { return _struct_hdr().sz                          ; }
 		// services
 	public :
-		/**/                 void pop         ( Idx idx               ) requires(           HasData ) { if (+idx) at(idx).~Data() ;                      }
-		template<class... A> void emplace     ( Idx idx , A&&... args ) requires(           HasData ) { new(&at(idx)) Data{::forward<A>(args)...} ;      }
-		template<class... A> Idx  emplace_back( Sz  sz  , A&&... args ) requires(  Multi            ) { return _emplace_back(sz,::forward<A>(args)...) ; }
-		template<class... A> Idx  emplace_back(           A&&... args ) requires( !Multi && HasData ) { return _emplace_back(1 ,::forward<A>(args)...) ; }
+		/**/                 void pop         ( Idx idx               ) requires(           HasData ) { _chk_writable("pop item"   ) ; if (+idx) at(idx).~Data() ;                 }
+		template<class... A> void emplace     ( Idx idx , A&&... args ) requires(           HasData ) { _chk_writable("insert item") ; new(&at(idx)) Data{::forward<A>(args)...} ; }
+		template<class... A> Idx  emplace_back( Sz  sz  , A&&... args ) requires(  Multi            ) { return _emplace_back(sz,::forward<A>(args)...) ;                           }
+		template<class... A> Idx  emplace_back(           A&&... args ) requires( !Multi && HasData ) { return _emplace_back(1 ,::forward<A>(args)...) ;                           }
 		void clear() {
 			ULock lock{_mutex} ;
 			_clear() ;
@@ -106,10 +107,15 @@ namespace Store {
 			Base::_clear(sizeof(StructHdr)) ;
 			_size() = 1 ;
 		}
+		void _chk_writable(const char* msg) requires(HasData) {
+			if (!writable) throw "cannot "s+msg+" in read-only file "+name ;
+		}
 	private :
 		void _chk_sz( Idx   idx   , Sz   sz   ) requires(   HasDataSz && Multi  ) { SWEAR( sz==Idx(_at(idx).n_items()) , sz , _at(idx).n_items() ) ; }
 		void _chk_sz( Idx /*idx*/ , Sz /*sz*/ ) requires(!( HasDataSz && Multi )) {                                                                  }
+		//
 		template<class... A> Idx _emplace_back( Sz sz , A&&... args ) requires(HasData) {
+			_chk_writable("append item") ;
 			Sz old_sz ;
 			Sz new_sz ;
 			{	ULock lock{_mutex} ;

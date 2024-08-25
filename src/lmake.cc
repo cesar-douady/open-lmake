@@ -84,8 +84,8 @@ int main( int argc , char* argv[] ) {
 	SWEAR(argc>0) ;
 	::vector_s            env_args = split(get_env("LMAKE_ARGS"))                   ;
 	::vector<const char*> args     = {argv[0]} ; args.reserve(env_args.size()+argc) ;
-	for( ::string const& a : env_args ) args.push_back(a.c_str()) ;
-	for( int i=1 ; i<argc ; i++       ) args.push_back(argv[i]  ) ;
+	for( ::string const& a : env_args     ) args.push_back(a.c_str()) ;
+	for( int             i : iota(1,argc) ) args.push_back(argv[i]  ) ;
 	Trace trace("main",::c_vector_view<const char*>(argv,argc)) ;
 	/**/  trace("main",env_args                               ) ;
 	/**/  trace("main",args                                   ) ;

@@ -20,7 +20,8 @@ FORCE : ;
 sys_config.env : FORCE
 	@if [ ! -f $@ ] ; then                   \
 		echo new $@ ;                        \
-		{	echo CXX=$$CXX                 ; \
+		{	echo PATH=$$PATH               ; \
+			echo CXX=$$CXX                 ; \
 			echo PYTHON2=$$PYTHON2         ; \
 			echo PYTHON=$$PYTHON           ; \
 			echo SLURM_ROOT=$$SLURM_ROOT   ; \
@@ -85,7 +86,8 @@ SRCS := $(shell cat Manifest 2>/dev/null)
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA := ,
 
-HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden -g -fdebug-prefix-map=$(ROOT_DIR)=.
+# XXX : add -fdebug_prefix-map=$(ROOT_DIR)=??? when we know a sound value (e.g. the dir in which sources will be installed)
+HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden -g
 # syntax for LMAKE_FLAGS : (O[0123])?G?d?t?(S[AT])?P?C?
 # - O[0123] : compiler optimization level, defaults to 1 if profiling else 3
 # - G       : ease debugging
@@ -95,23 +97,21 @@ HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=
 # - ST      : -fsanitize threads
 # - P       : -pg
 # - C       : coverage (not operational yet)
-OPT_FLAGS    := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,-O3)
-OPT_FLAGS    := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(OPT_FLAGS))
-OPT_FLAGS    := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(OPT_FLAGS))
-OPT_FLAGS    := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0,$(OPT_FLAGS))
-HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
-HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
-EXTRA_FLAGS  := $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
+EXTRA_FLAGS  := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,-O3)
+EXTRA_FLAGS  := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(OPT_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(OPT_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(OPT_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0 -fno-inline,$(OPT_FLAGS))
+EXTRA_FLAGS  += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
 EXTRA_FLAGS  += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
 EXTRA_FLAGS  += $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
+HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
+HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
 SAN_FLAGS    += $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
 COVERAGE     += $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
-#
-CXX_DIR := $(shell dirname $(CXX))
-OBJCOPY := $(CXX_DIR)/objcopy
 #
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
 LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath=%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath=%))
@@ -123,7 +123,7 @@ ifeq ($(CXX_FLAVOR),clang)
     WARNING_FLAGS += $(CLANG_WARNING_FLAGS)
 endif
 #
-USER_FLAGS := -std=$(CXX_STD) $(OPT_FLAGS) $(EXTRA_FLAGS)
+USER_FLAGS := -std=$(CXX_STD) $(EXTRA_FLAGS)
 COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
 LINT       := clang-tidy
 LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
@@ -131,7 +131,7 @@ LINT_CHKS  := -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
 LINT_OPTS  := '-header-filter=.*' $(LINT_CHKS)
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-CPP_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . $(FUSE_CC_FLAGS) -idirafter /usr/include/linux
+CPP_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
 
 PY2_INC_DIRS   := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -isystem
 PY2_CC_FLAGS   := $(if $(PYTHON2),$(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register)
@@ -139,8 +139,6 @@ PY2_LINK_FLAGS := $(if $(PYTHON2),$(patsubst %,-L%,$(PY2_LIB_DIR)) $(patsubst %,
 PY3_INC_DIRS   := $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))                  # for some reasons, compilation does not work if standard inc dirs are given with -isystem
 PY3_CC_FLAGS   := $(patsubst %,-isystem %,$(PY3_INC_DIRS)) -Wno-register
 PY3_LINK_FLAGS := $(patsubst %,-L%,$(PY3_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY3_LIB_DIR)) -l:$(PY3_LIB_BASE)
-FUSE_CC_FLAGS  := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --cflags))
-FUSE_LIB       := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --libs  ))
 PCRE_LIB       := $(if $(HAS_PCRE),-lpcre2-8)
 
 PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,             $@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
@@ -317,7 +315,6 @@ lib/%.py : _lib/%.src.py sys_config.mk
 	@sed \
 		-e 's!\$$BASH!$(BASH)!'                          \
 		-e 's!\$$GIT!$(GIT)!'                            \
-		-e 's!\$$HAS_FUSE!$(HAS_FUSE)!'                  \
 		-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
 		-e 's!\$$HAS_SGE!$(HAS_SGE)!'                    \
 		-e 's!\$$HAS_SLURM!$(HAS_SLURM)!'                \
@@ -372,30 +369,27 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 # compilation
 #
 
-# these files are generated and cannot be reliably discovered with gcc -M option
-AUTO_H := version.hh
+%.i     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E              -o $@ $<
+%-m32.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E -m32         -o $@ $<
+%-py2.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E              -o $@ $<
+%-san.i : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -E $(SAN_FLAGS) -o $@ $<
 
-%.i     : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E              -o $@ $<
-%-m32.i : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E -m32         -o $@ $<
-%-py2.i : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E              -o $@ $<
-%-san.i : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -E $(SAN_FLAGS) -o $@ $<
-
-%.s     : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S              -o $@ $<
-%-m32.s : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -m32         -o $@ $<
-%-py2.s : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S              -o $@ $<
-%-san.s : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S $(SAN_FLAGS) -o $@ $<
+%.s     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S              -o $@ $<
+%-m32.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -m32         -o $@ $<
+%-py2.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S              -o $@ $<
+%-san.s : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S $(SAN_FLAGS) -o $@ $<
 
 COMPILE_O = $(COMPILE) -c -frtti -fPIC
-%.o     : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
-%-m32.o : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O) -m32         -o $@ $<
-%-py2.o : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
-%-san.o : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O) $(SAN_FLAGS) -o $@ $<
+%.o     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
+%-m32.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O) -m32         -o $@ $<
+%-py2.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
+%-san.o : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O) $(SAN_FLAGS) -o $@ $<
 
-%.chk   : %.cc $(AUTO_H) ; @echo $(LINT) $(USER_FLAGS) to $@ ; $(LINT) $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CPP_FLAGS) >$@ ; [ ! -s $@ ]
+%.chk   : %.cc ; @echo $(LINT) $(USER_FLAGS) to $@ ; $(LINT) $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CPP_FLAGS) >$@ ; [ ! -s $@ ]
 
-%.d : %.cc $(AUTO_H)
+%.d : %.cc
 	@$(COMPILE) \
-		-MM                                                  \
+		-MM -MG                                              \
 		-MF $@                                               \
 		-MT '$(@:%.d=%.i) $(@:%.d=%-m32.i) $(@:%-py2.d=%.i)' \
 		-MT '$(@:%.d=%.s) $(@:%.d=%-m32.s) $(@:%.d=%-py2.s)' \
@@ -431,7 +425,6 @@ CLIENT_SAN_OBJS := \
 SERVER_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)                   \
 	src/app$(SAN).o                           \
-	$(if $(HAS_FUSE),src/autodep/fuse.o)      \
 	src/py$(SAN).o                            \
 	src/re$(SAN).o                            \
 	src/rpc_client$(SAN).o                    \
@@ -484,7 +477,7 @@ LMAKE_DBG_FILES += _bin/lmakeserver bin/lrepair _bin/ldump
 _bin/lmakeserver bin/lrepair _bin/ldump :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
 	@$(SPLIT_DBG)
 
 
@@ -510,19 +503,15 @@ bin/ldebug : # XXX : why ldebug does not support sanitize thread ?
 
 LMAKE_DBG_FILES += _bin/ldump_job
 _bin/ldump_job : \
-	$(LMAKE_BASIC_SAN_OBJS)                  \
-	src/app$(SAN).o                          \
-	$(if $(HAS_FUSE),src/autodep/fuse.o)     \
-	$(if $(HAS_FUSE),src/autodep/record.o)   \
-	$(if $(HAS_FUSE),src/autodep/backdoor.o) \
-	$(if $(HAS_FUSE),src/rpc_job_exec.o)     \
-	src/rpc_job$(SAN).o                      \
-	src/trace$(SAN).o                        \
-	src/autodep/env$(SAN).o                  \
+	$(LMAKE_BASIC_SAN_OBJS) \
+	src/app$(SAN).o         \
+	src/rpc_job$(SAN).o     \
+	src/trace$(SAN).o       \
+	src/autodep/env$(SAN).o \
 	src/ldump_job$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(FUSE_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
 	@$(SPLIT_DBG)
 
 LMAKE_DBG_FILES += _bin/align_comments
@@ -558,15 +547,14 @@ AUTODEP_OBJS := $(BASIC_REMOTE_OBJS) src/autodep/syscall_tab.o
 REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) src/autodep/job_support.o
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)                      \
-	src/app.o                            \
-	$(if $(HAS_FUSE),src/autodep/fuse.o) \
-	src/py.o                             \
-	src/re.o                             \
-	src/rpc_job.o                        \
-	src/trace.o                          \
-	src/autodep/gather.o                 \
-	src/autodep/ptrace.o                 \
+	$(AUTODEP_OBJS)      \
+	src/app.o            \
+	src/py.o             \
+	src/re.o             \
+	src/rpc_job.o        \
+	src/trace.o          \
+	src/autodep/gather.o \
+	src/autodep/ptrace.o \
 	src/autodep/record.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS) src/job_exec.o
@@ -576,7 +564,7 @@ LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
 _bin/job_exec bin/lautodep : # XXX : why job_exec and autodep do not support sanitize thread ?
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
 	@$(SPLIT_DBG)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps

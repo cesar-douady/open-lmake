@@ -111,7 +111,7 @@ namespace Re {
 			for( auto const& [_,v] : _cache )
 				if (v.second==Use::Unused) ::pcre2_code_free(const_cast<::pcre2_code*>(v.first)) ;
 			_cache.clear() ;
-			for( size_t i=0 ; i<keys.size() ; i++ ) {
+			for( size_t i : iota(keys.size()) ) {
 				bool inserted = _cache.try_emplace(keys[i],codes[i],Use::Unused).second ; SWEAR(inserted,keys[i]) ;
 			}
 			_n_unused = keys.size() ;

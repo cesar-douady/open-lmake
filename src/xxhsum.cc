@@ -15,7 +15,7 @@ int main( int argc , char* argv[] ) {
 		::string gmon_dir_s ; try { gmon_dir_s = search_root_dir_s().first+GMON_DIR_S ; } catch(...) {}
 		set_env( "GMON_OUT_PREFIX" , dir_guard(gmon_dir_s+"align_comment") ) ;                          // in case profiling is used, ensure unique gmon.out
 	#endif
-	for( int i=1 ; i<argc ; i++ ) {
+	for( int i : iota(1,argc) ) {
 		::cout << ::string(Crc(argv[i])) ;
 		if (argc>2) ::cout <<' '<< argv[i] ;
 		::cout <<'\n' ;

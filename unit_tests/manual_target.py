@@ -13,12 +13,12 @@ if __name__!='__main__' :
 
 	lmake.manifest = (
 		'Lmakefile.py'
-	,	'step'
+	,	'src'
 	)
 
 	class Star(Rule) :
 		targets = { 'DST' : r'a{*:\d}' }
-		dep     = 'step'
+		dep     = 'src'
 		cmd = multi_strip('''
 			echo good > a1
 			[ -e a2 ]
@@ -36,7 +36,7 @@ else :
 
 	import ut
 
-	print(1,file=open('step','w'))
+	print(1,file=open('src','w'))
 
 	open('a2','w').write('bad1')
 
@@ -46,6 +46,6 @@ else :
 
 	ut.lmake( 'cpy' )
 
-	print(2,file=open('step','w'))
+	print(2,file=open('src','w'))
 
 	ut.lmake( 'cpy' , changed=1 , steady=1 )

@@ -23,8 +23,6 @@ namespace Codec::Persistent {
 
 namespace Codec {
 
-	bool writable = false ;
-
 	DequeThread<Codec::Closure>* g_codec_queue = nullptr ;
 
 	::umap_s<Closure::Entry> Closure::s_tab      ;
@@ -41,8 +39,8 @@ namespace Codec {
 		static DequeThread<Closure> s_queue{'D',Codec::codec_thread_func} ;
 		g_codec_queue = &s_queue ;
 		//
-		Persistent::val_file .init(CodecPfx+"/vals"s ,writable) ; // writing CodecPfx+"/vals"s triggers a warning with -O3, probably a gcc bug
-		Persistent::code_file.init(CodecPfx+"/codes"s,writable) ; // .
+		Persistent::val_file .init(CodecPfx+"/vals"s ,g_writable) ; // writing CodecPfx+"/vals"s triggers a warning with -O3, probably a gcc bug
+		Persistent::code_file.init(CodecPfx+"/codes"s,g_writable) ; // .
 	}
 
 	void _create_node( ::string const& file , Node node , Buildable buildable , ::string const& txt ) {
@@ -150,7 +148,7 @@ namespace Codec {
 						FAIL("codec crc clash for code",crc) ;
 					} else {
 						uint8_t d ; for ( d=code.size() ; d>=1 && '0'<=code[d-1] && code[d-1]<='9' ; d-- ) ;
-						for( size_t inc=1 ; inc<codes.size() ; inc++ ) {
+						for( size_t inc : iota(1,codes.size()) ) {
 							new_code = code.substr(0,d) + (from_string<size_t>(code.substr(d),true/*empty_ok*/)+inc) ;
 							if (!codes.contains(new_code)) goto NewCode ;
 						}

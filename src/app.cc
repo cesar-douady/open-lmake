@@ -29,7 +29,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 	sanitize(::cout) ;
 	sanitize(::cerr) ;
 	//
-	for( int sig=1 ; sig<NSIG ; sig++ ) if (is_sig_sync(sig)) set_sig_handler(sig,crash_handler) ; // catch all synchronous signals so as to generate a backtrace
+	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler(sig,crash_handler) ; // catch all synchronous signals so as to generate a backtrace
 	//
 	if (!g_startup_dir_s) g_startup_dir_s = new ::string ;
 	if (!g_root_dir_s   ) {

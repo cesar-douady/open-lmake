@@ -108,7 +108,7 @@ namespace Disk {
 		SWEAR( is_dirname(dir_s)             ,        dir_s ) ;
 		SWEAR( is_abs(file)==is_abs_s(dir_s) , file , dir_s ) ;
 		size_t last_slash1 = 0 ;
-		for( size_t i=0 ; i<file.size() ; i++ ) {
+		for( size_t i : iota(file.size()) ) {
 			if (file[i]!=dir_s[i]) break ;
 			if (file[i]=='/'     ) last_slash1 = i+1 ;
 		}
@@ -498,8 +498,8 @@ namespace Disk {
 	}
 
 	size_t RealPath::_find_src_idx(::string const& real) const {
-		for( size_t i=0 ; i<_abs_src_dirs_s.size() ; i++ ) if (real.starts_with(_abs_src_dirs_s[i])) return i    ;
-		/**/                                                                                         return Npos ;
+		for( size_t i : iota(_abs_src_dirs_s.size()) ) if (real.starts_with(_abs_src_dirs_s[i])) return i    ;
+		/**/                                                                                     return Npos ;
 	}
 
 	// strong performance efforts have been made :

@@ -55,21 +55,22 @@ namespace Engine::Makefiles {
 		return res ;
 	}
 
-	static ::umap<Crc,RuleData> _gather_rules(Sequence const& py_rules) {
-		::umap<Crc,RuleData> rules ;
-		::uset_s             names ;
+	static ::vector<RuleData> _gather_rules(Sequence const& py_rules) {
+		::vector<RuleData>  res   ;
+		::umap<Crc,RuleIdx> crcs  ;
+		::uset_s            names ;
 		for( Object const& py_rule : py_rules ) {
 			RuleData rd  = py_rule.as_a<Dict>() ;
-			Crc      crc = rd.match_crc ;
-			if (names.contains(rd.name)) {
-				if ( rules.contains(crc) && rules.at(crc).name==rd.name ) throw "rule " + rd.name + " appears twice"      ;
-				else                                                      throw "two rules have the same name " + rd.name ;
+			if ( auto it_inserted=names.insert(rd.name) ; !it_inserted.second ) {
+				auto it = crcs.find(rd.crc->match) ;
+				if ( it!=crcs.end() && res[it->second].crc==rd.crc ) throw "rule " + rd.name + " appears twice"      ;
+				else                                                 throw "two rules have the same name " + rd.name ;
 			}
-			if (rules.contains(crc)) throw "rule " + rd.name + " and rule " + rules.at(crc).name + " match identically and are redundant" ;
-			names.insert(rd.name) ;
-			rules[crc] = ::move(rd) ;
+			if ( auto it_inserted=crcs.try_emplace(rd.crc->match,res.size()) ; !it_inserted.second )
+				throw "rule " + rd.name + " and rule " + res[it_inserted.first->second].name + " match identically and are redundant" ;
+			res.push_back(::move(rd)) ;
 		}
-		return rules ;
+		return res ;
 	}
 
 	// dep file line format :
@@ -314,23 +315,23 @@ namespace Engine::Makefiles {
 		if (invalidate_src) {
 			try {
 				NoGil no_gil { gil } ;
-				//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				invalidate_src &= Persistent::new_srcs( ::move(srcs) , dynamic ) ;
-			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				invalidate_src = Persistent::new_srcs( ::move(srcs) , dynamic ) ;
+			} catch (::string const& e) { //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// if srcs_digest is empty, sources were in config
 				throw "cannot "s+(dynamic?"dynamically ":"")+"read sources (because "+(+srcs_digest.first?srcs_digest.first:config_digest.first)+") : "+e ;
 			}
 		}
 		//
-		::umap<Crc,RuleData>   rules           ;
+		::vector<RuleData>     rules           ;
 		::pair_s<bool/*done*/> rules_digest    = _refresh_rules_srcs<true/*IsRules*/>( rules , rules_deps , changed_rules , py_info , startup_dir_s , nfs_guard ) ;
 		bool                   invalidate_rule = rules_digest.second                                                                                              ;
 		if (invalidate_rule) {
 			try {
 				NoGil no_gil { gil } ;                                                             // release gil as new_rules acquires it when needed
-				//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				invalidate_rule &= Persistent::new_rules( ::move(rules) , dynamic ) ;
-			} catch (::string const& e) { //!  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				invalidate_rule = Persistent::new_rules( ::move(rules) , dynamic ) ;
+			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// if rules_digest is empty, rules were in config
 				throw "cannot dynamically read rules (because " + (+rules_digest.first?rules_digest.first:config_digest.first) + ") : " + e ;
 			}

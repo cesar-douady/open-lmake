@@ -152,7 +152,7 @@ class ConfigH(BaseRule) :
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 
-class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
+class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
 	targets = {
 		'H'     : 'sys_config.h'
 	,	'TRIAL' : r'trial/{*:.*}'
@@ -164,13 +164,10 @@ class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
 		while read k e v ; do
 			case $k in
 				'#'*      ) ;;
-				*HAS_FUSE*) echo    > {MK('$k')} ;;
 				*HAS_PCRE*) echo    > {MK('$k')} ;;
 				*         ) echo $v > {MK('$k')} ;;
 			esac
 		done < $TMPDIR/mk
-		echo '#undef  HAS_FUSE'   >> {H}
-		echo '#define HAS_FUSE 0' >> {H}
 		echo '#undef  HAS_PCRE'   >> {H}
 		echo '#define HAS_PCRE 0' >> {H}
 		#echo > {MK('HAS_PCRE')}
@@ -249,16 +246,13 @@ class LinkRule(PathRule,PyRule) :
 	combine      = ('opts',)
 	opts         = []                                           # options before inputs & outputs
 	resources    = {'mem':'1G'}
-	need_fuse    = False
 	need_python  = False
 	need_seccomp = False
 	def cmd() :
-		nf  = need_fuse    and sys_config('HAS_FUSE'   )
 		ns  = need_seccomp and sys_config('HAS_SECCOMP')
 		lst = sys_config('LIB_STACKTRACE')
 		if True        : post_opts = ['-ldl']
 		if lst         : post_opts.append(f'-l{lst}')
-		if nf          : post_opts.append('-lfuse3')
 		if ns          : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists
 		if need_python :
 			post_opts.append(f"-L{sysconfig.get_config_var('LIBDIR')}")
@@ -269,7 +263,6 @@ class LinkRule(PathRule,PyRule) :
 		run_gxx( TARGET
 		,	*opts
 		,	*deps.values()
-		,	*( ('src/autodep/fuse.o',) if nf else () )
 		,	*post_opts
 		)
 
@@ -356,8 +349,6 @@ opt_tab.update({
 ,	r'src/.*'             : ( '-iquote'    , 'ext_lnk'                      )
 ,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     ,)
 ,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'          ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
-,	r'src/fuse'           : ( '-idirafter' , f'/usr/include/fuse3'          ) # in case fuse is available (else, does not hurt)
-,	r'src/rpc_job'        : ( '-idirafter' , f'/usr/include/fuse3'          ) # .
 })
 
 class Link(BaseRule) :
@@ -411,7 +402,6 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
 	,	'RPC_CLIENT'   : None
 	}
-	need_fuse    = True
 	need_seccomp = True
 
 class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
@@ -452,7 +442,6 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
-	need_fuse = True
 
 class LinkLrepairExe(LinkLmakeserverExe) :
 	targets = { 'TARGET' : 'bin/lrepair' }
@@ -479,7 +468,6 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/ldump.o'
 	}
-	need_fuse = True
 
 class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
@@ -487,7 +475,6 @@ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 		'RPC_JOB' : 'src/rpc_job.o'
 	,	'MAIN'    : 'src/ldump_job.o'
 	}
-	need_fuse = True
 
 for client in ('lforget','lmake','lmark','lshow') :
 	class LinkLmake(LinkClientAppExe) :

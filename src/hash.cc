@@ -61,7 +61,7 @@ namespace Hash {
 			case CrcSpecial::Empty   : return "empty-R"   ;
 			case CrcSpecial::Plain   : {
 				::string res ; res.reserve(sizeof(_val)*2+2) ;
-				for( size_t i=0 ; i<sizeof(_val) ; i++ ) {
+				for( size_t i : iota(sizeof(_val)) ) {
 					uint8_t b = _val>>(i*8) ;
 					{ uint8_t d = b>>4  ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
 					{ uint8_t d = b&0xf ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
@@ -106,7 +106,7 @@ namespace Hash {
 		XXH3_INITSTATE   (&_state) ;
 		XXH3_64bits_reset(&_state) ;
 	}
-	Xxh::Xxh(FileTag tag) : is_lnk{tag==FileTag::Lnk} {
+	Xxh::Xxh(FileTag tag) : is_lnk{No|(tag==FileTag::Lnk)} {
 		XXH3_INITSTATE(&_state) ;
 		switch (tag) {
 			case FileTag::Reg :                  XXH3_64bits_reset           ( &_state                                         ) ; break ;
@@ -115,7 +115,7 @@ namespace Hash {
 		DF}
 	}
 
-	Crc  Xxh::digest  (                           ) const { return { XXH3_64bits_digest(&_state     ) , is_lnk } ; }
-	void Xxh::_update ( const void* p , size_t sz )       {          XXH3_64bits_update(&_state,p,sz) ;            }
+	Crc  Xxh::digest (                           ) const { return { XXH3_64bits_digest(&_state     ) , is_lnk } ; }
+	void Xxh::_update( const void* p , size_t sz )       {          XXH3_64bits_update(&_state,p,sz) ;            }
 
 }

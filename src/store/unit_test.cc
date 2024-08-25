@@ -277,18 +277,17 @@ template<bool HasHdr,bool HasData,bool BitIsKey,bool MultiRoot> struct TestRedBl
 			first = false ;
 		}
 		chk() ;
-		for( size_t i=0 ; i<n ; i++ ) SWEAR(file.key(idxs[i])==keys[i]) ;
+		for( size_t i : iota(n) ) SWEAR(file.key(idxs[i])==keys[i]) ;
 		::vector<Idx> chk_idxs ;
-		for( size_t i=0 ; i<n ; i++ ) chk_idxs.push_back(search(keys[i],false)) ;
+		for( size_t i : iota(n) ) chk_idxs.push_back(search(keys[i],false)) ;
 		SWEAR(chk_idxs==idxs) ;
 	}
 	void test_tree() {
-		for( Key a=16 ; a<19 ; a++ )
-		for( Key b=16 ; b<19 ; b++ )
-		for( Key c=16 ; c<19 ; c++ ) {
-			if (::set({a,b,c}).size()!=3) continue ;
-			test_tree({a,b,c}) ;
-		}
+		for( Key a : iota<Key>(16,19) )
+			for( Key b : iota<Key>(16,19) )
+				for( Key c : iota<Key>(16,19) )
+					if (::set({a,b,c}).size()==3)
+						test_tree({a,b,c}) ;
 	}
 	void test_data() requires( !HasData ||  BitIsKey || !MultiRoot ) {}
 	void test_data() requires(  HasData && !BitIsKey &&  MultiRoot ) {

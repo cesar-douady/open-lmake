@@ -21,7 +21,6 @@ ENUM_2( AutodepMethod                     // PER_AUTODEP_METHOD : add entry here
 ,	Ld   = LdAudit                        // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 ,	Dflt = HAS_LD_AUDIT?LdAudit:LdPreload // by default, use  a compromize between speed an reliability
 ,	None
-,	Fuse
 ,	Ptrace
 ,	LdAudit
 ,	LdPreload
@@ -579,8 +578,8 @@ struct JobSpace {
 		bool operator!() const { return !+*this ; }
 		// data
 		// START_OF_VERSIONING
-		::vector_s phys    ;                      // (upper,lower...)
-		::vector_s copy_up ;                      // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
+		::vector_s phys    ;                  // (upper,lower...)
+		::vector_s copy_up ;                  // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
 	} ;
 	// accesses
@@ -594,17 +593,16 @@ struct JobSpace {
 		::serdes(s,views       ) ;
 	}
 	bool/*entered*/ enter(
-		::vmap_s<MountAction>& deps               // out
-	,	::string        const& phy_root_dir_s     // in
-	,	::string        const& phy_tmp_dir_s      // .
-	,	size_t                 tmp_sz_mb          // .
-	,	::string        const& work_dir_s         // .
-	,	::vector_s      const& src_dirs_s = {}    // .
-	,	bool                   use_fuse   = false // .
+		::vmap_s<MountAction>& deps           // out
+	,	::string        const& phy_root_dir_s // in
+	,	::string        const& phy_tmp_dir_s  // .
+	,	size_t                 tmp_sz_mb      // .
+	,	::string        const& work_dir_s     // .
+	,	::vector_s      const& src_dirs_s={}  // .
 	) ;
-	void exit() ;
+	void exit() {}
 	//
-	::vmap_s<::vector_s> flat_phys() const ;      // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	::vmap_s<::vector_s> flat_phys() const ;  // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
 	void mk_canon(::string const& phy_root_dir_s) ;
 private :
@@ -613,10 +611,10 @@ private :
 	// data
 public :
 	// START_OF_VERSIONING
-	::string            chroot_dir_s = {} ;       // absolute dir which job chroot's to before execution (empty if unused)
-	::string            root_view_s  = {} ;       // absolute dir under which job sees repo root dir     (empty if unused)
-	::string            tmp_view_s   = {} ;       // absolute dir under which job sees tmp dir           (empty if unused)
-	::vmap_s<ViewDescr> views        = {} ;       // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
+	::string            chroot_dir_s = {} ;   // absolute dir which job chroot's to before execution (empty if unused)
+	::string            root_view_s  = {} ;   // absolute dir under which job sees repo root dir     (empty if unused)
+	::string            tmp_view_s   = {} ;   // absolute dir under which job sees tmp dir           (empty if unused)
+	::vmap_s<ViewDescr> views        = {} ;   // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
 } ;
 

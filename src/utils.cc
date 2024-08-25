@@ -394,19 +394,19 @@ void set_sig_handler( int sig , void (*handler)(int) ) {
 		//
 		int backtrace_sz = backtrace(stack,StackSize) ; // XXX : dont know how to avoid malloc here
 		int stack_sz     = 0                          ;
-		for( int i=hide_cnt+1 ; i<backtrace_sz ; i++ ) {
+		for( int i : iota( hide_cnt+1 , backtrace_sz ) ) {
 			stack_sz += fill_src_points( stack[i] , symbolic_stack+stack_sz , StackSize-stack_sz ) ;
 			if (strcmp(symbolic_stack[stack_sz-1].func,"main")==0) break ;
 		}
 		size_t  wf = 0 ;
 		uint8_t wl = 0 ;
-		for( int i=0 ; i<stack_sz ; i++ ) {
+		for( int i : iota(stack_sz) ) {
 			uint8_t w = 0 ; for( size_t l=symbolic_stack[i].line ; l ; l/=10 ) w++ ;
 			wf = ::max( wf , strnlen(symbolic_stack[i].file,PATH_MAX) ) ;
 			wl = ::max( wl , w                                        ) ;
 		}
 		os << "approximately" << endl ;
-		for( int i=0 ; i<stack_sz ; i++ ) {
+		for( int i : iota(stack_sz) ) {
 			/**/                        os <<         ::setw(wf)<<          symbolic_stack[i].file         ;
 			if (symbolic_stack[i].line) os <<':'   << ::setw(wl)<< ::right<<symbolic_stack[i].line<<::left ;
 			else                        os <<' '   << ::setw(wl)<< ""                                      ;

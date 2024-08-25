@@ -120,7 +120,7 @@ items :
 		- while suspended, consider resources to be freed
 		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 		- then resume participates to allocation competition
-! implement fuse as an autodep method
+? implement fuse as an autodep method
 	- does not seem doable because read foo/bar first does a lookup(foo)
 ? provide more options to stderr management :
 	- redirect to stdout

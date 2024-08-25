@@ -346,7 +346,6 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 		- `T` : wait terminated processes in local backend
 		- `W` : deferred processing of wakeup connection errors
 	- in job exec:
-		- `F`        : the fuse loop
 		- `<number>` : compute crc
 	- in lmake:
 		- `I` : manage ^C

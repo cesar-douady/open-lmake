@@ -25,6 +25,7 @@
 #include <limits>
 #include <map>
 #include <mutex>
+#include <ranges>
 #include <set>
 #include <shared_mutex>
 #include <sstream>
@@ -38,8 +39,8 @@
 #include "sys_config.h"
 #include "non_portable.hh"
 
-using namespace std ; // use std at top level so one write ::stuff instead of std::stuff
-using std::getline ;  // special case getline which also has a C version that hides std::getline
+using namespace std    ; // use std at top level so one write ::stuff instead of std::stuff
+using std::getline     ; // special case getline which also has a C version that hides std::getline
 
 //
 // meta programming
@@ -189,10 +190,13 @@ template<class T>          VT(T)             max          ( T const& x          
 
 #undef TVT
 
-template<class T> T& grow( ::vector<T>& v , uint32_t i ) {
+template<class T> T& grow( ::vector<T>& v , size_t i ) {
 	if(i>=v.size()) v.resize(i+1) ;
 	return v[i] ;
 }
+
+template<         class I > constexpr auto iota(            I  stop ) { return ::views::iota(I (     ),stop) ; }
+template<class I1,class I2> constexpr auto iota( I1 start , I2 stop ) { return ::views::iota(I2(start),stop) ; }
 
 //
 // streams
@@ -357,7 +361,7 @@ template<char C='\t',size_t N=1> ::string indent( ::string const& s , size_t i=1
 	::string res ; res.reserve(s.size()+N*(s.size()>>4)) ;                           // anticipate lines of size 16, this is a reasonable pessimistic guess (as overflow is expensive)
 	bool     sol = true ;
 	for( char c : s ) {
-		if (sol) for( size_t k=0 ; k<i*N ; k++ ) res += C ;
+		if (sol) for( [[maybe_unused]] size_t k : iota(i*N) ) res += C ;
 		res += c       ;
 		sol  = c=='\n' ;
 	}
@@ -396,7 +400,7 @@ inline ::vector_s split(::string_view const& txt) {
 inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=Npos ) {
 	::vector_s res ;
 	size_t     pos = 0 ;
-	for( size_t i=0 ; i<n_sep ; i++ ) {
+	for( [[maybe_unused]] size_t i : iota(n_sep) ) {
 		size_t   end    = txt.find(sep,pos) ;
 		res.emplace_back( txt.substr(pos,end-pos) ) ;
 		if (end==Npos) return res ;                   // we have exhausted all sep's
@@ -408,7 +412,7 @@ inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=Npos
 
 inline ::string_view first_lines( ::string_view const& txt , size_t n_sep , char sep='\n' ) {
 	size_t pos = -1 ;
-	for( size_t i=0 ; i<n_sep ; i++ ) {
+	for( [[maybe_unused]] size_t i : iota(n_sep) ) {
 		pos = txt.find(sep,pos+1) ;
 		if (pos==Npos) return txt ;
 	}
@@ -417,12 +421,12 @@ inline ::string_view first_lines( ::string_view const& txt , size_t n_sep , char
 
 template<::integral I> I decode_int(const char* p) {
 	I r = 0 ;
-	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) r |= I(uint8_t(p[i]))<<(i*8) ; // little endian, /!\ : beware of signs, casts & integer promotion
+	for( uint8_t i : iota<uint8_t>(sizeof(I)) ) r |= I(uint8_t(p[i]))<<(i*8) ; // little endian, /!\ : beware of signs, casts & integer promotion
 	return r ;
 }
 
 template<::integral I> void encode_int( char* p , I x ) {
-	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) p[i] = char(x>>(i*8)) ; // little endian
+	for( uint8_t i : iota<uint8_t>(sizeof(I)) ) p[i] = char(x>>(i*8)) ; // little endian
 }
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
@@ -698,7 +702,7 @@ template<size_t Sz> constexpr ::array<char,Sz*2> _enum_snake0(::array<char,Sz> c
 template<size_t Sz,size_t VSz> constexpr ::array<string_view,Sz> _enum_mk_tab(::array<char,VSz> const& vals) {
 	::array<string_view,Sz> res  {}/*constexpr*/ ;
 	const char*             item = vals.data()   ;
-	for( size_t i=0 ; i<Sz ; i++ ) {
+	for( size_t i : iota(Sz) ) {
 		size_t len = 0 ; while (item[len]) len++ ;
 		res[i]  = {item,len} ;
 		item   += len+1      ; // point to the start of the next one (it will not be dereferenced at the end)

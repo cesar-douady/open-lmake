@@ -30,7 +30,7 @@ namespace Time {
 		if (*this<Delay()) { out<<"-" ; s = -s ; ns = -ns ; }
 		out << s ;
 		if (prec) {
-			for( int i=prec ; i<9 ; i++ ) ns /= 10 ;
+			for( [[maybe_unused]] int i : iota(prec,9) ) ns /= 10 ;
 			out <<'.'<< ::setfill('0')<<::setw(prec)<<::right<<ns ;
 		}
 		return ::move(out).str() ;
@@ -71,7 +71,7 @@ namespace Time {
 		::localtime_r(&s,&t) ;
 		out << ::put_time( &t , in_day?"%T":"%F %T" ) ;
 		if (prec) {
-			for( int i=prec ; i<9 ; i++ ) ns /= 10 ;
+			for( [[maybe_unused]] int i : iota(prec,9) ) ns /= 10 ;
 			out <<'.'<< ::setfill('0')<<::setw(prec)<<::right<<ns ;
 		}
 		return ::move(out).str() ;

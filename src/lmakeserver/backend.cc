@@ -254,7 +254,7 @@ namespace Backends {
 		DF}
 		Job                      job                 { jrr.job }           ;
 		JobExec                  job_exec            ;
-		Rule                     rule                = job->rule           ;
+		Rule                     rule                = job->rule()         ;
 		Rule::SimpleMatch        match               = job->simple_match() ;
 		JobRpcReply              reply               { Proc::Start }       ;
 		vmap<Node,FileAction>    pre_actions         ;
@@ -383,7 +383,7 @@ namespace Backends {
 		//
 		reply.deps = _mk_digest_deps(::move(deps_attrs)) ;
 		if (+deps) {
-			::umap_s<VarIdx> dep_idxes ; for( VarIdx i=0 ; i<reply.deps.size() ; i++ ) dep_idxes[reply.deps[i].first] = i ;
+			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )
 				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;   // update existing dep
 				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      } // create new dep
@@ -457,7 +457,7 @@ namespace Backends {
 		}
 		in_addr_t reply_addr = reply.addr ;                                                                                      // save before move
 		JobInfoStart jis {
-			.rule_cmd_crc =        rule->cmd_crc
+			.rule_cmd_crc =        rule->crc->cmd
 		,	.stems        = ::move(match.stems         )
 		,	.eta          =        eta
 		,	.submit_attrs =        submit_attrs

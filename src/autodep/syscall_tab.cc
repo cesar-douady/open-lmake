@@ -21,8 +21,8 @@
 		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
 		if (errno) throw errno ;
 		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
-		for( uint64_t len=0 ; len<sizeof(long)-offset ; len++ ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
-		/**/                                                                            res.append( buf+offset , sizeof(long)-offset ) ;
+		for( uint64_t len : iota(sizeof(long)-offset) ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
+		/**/                                                                    res.append( buf+offset , sizeof(long)-offset ) ;
 		src += sizeof(long)-offset ;
 	}
 }

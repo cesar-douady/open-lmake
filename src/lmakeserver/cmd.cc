@@ -29,15 +29,15 @@ namespace Engine {
 		if (_is_mark_glb(ro.key)) {
 			::vector<Job > jobs  = Job ::s_frozens() ;
 			::vector<Node> nodes = Node::s_frozens() ;
-			size_t         w     = 0                 ; for( Job j : jobs ) w = ::max(w,j->rule->name.size()) ;
+			size_t         w     = 0                 ; for( Job j : jobs ) w = ::max(w,j->rule()->name.size()) ;
 			if (ro.key==ReqKey::Clear) {
 				for( Job  j : jobs  ) j->status = Status::New ;
 				for( Node n : nodes ) n->mk_no_src() ;
 				Job ::s_clear_frozens() ;
 				Node::s_clear_frozens() ;
 			}
-			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , fmt_string(::setw(w),j->rule->name,' ',mk_file(j->name()              )) ) ;
-			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , fmt_string(::setw(w),              ' ',mk_file(n->name(),Yes/*exists*/)) ) ;
+			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , fmt_string(::setw(w),j->rule()->name,' ',mk_file(j->name()              )) ) ;
+			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , fmt_string(::setw(w),                ' ',mk_file(n->name(),Yes/*exists*/)) ) ;
 			return true ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
@@ -48,16 +48,12 @@ namespace Engine {
 			::vector<Node> nodes ;
 			//
 			auto handle_job = [&](Job j)->void {
-				if (add) {
-					if (!j.active()) throw "job not found " +mk_file(j->name()) ;
-					if ( j.frozen()) throw "already frozen "+mk_file(j->name()) ;
-				} else {
-					if (!j.active()) throw "not frozen "+mk_file(j->name()) ;
-					if (!j.frozen()) throw "not frozen "+mk_file(j->name()) ;
-				}
-				if (j->running()) throw "job is running"+mk_file(j->name()) ;
+				/**/       if ( !j || j->rule().is_shared() ) throw "job not found " +mk_file(j->name()) ;
+				if (add) { if (  j.frozen  ()               ) throw "already frozen "+mk_file(j->name()) ; }
+				else     { if ( !j.frozen  ()               ) throw "not frozen "    +mk_file(j->name()) ; }
+				/**/       if (  j->running()               ) throw "job is running" +mk_file(j->name()) ;
 				//
-				w = ::max( w , j->rule->name.size() ) ;
+				w = ::max( w , j->rule()->name.size() ) ;
 				jobs.push_back(j) ;
 			} ;
 			auto handle_node = [&](Node n)->void {
@@ -74,14 +70,15 @@ namespace Engine {
 				for( Node t : ecr.targets() ) {
 					t->set_buildable() ;
 					Job j = t->actual_job() ;
-					if      ( add && !j.active()                                        ) handle_node(t) ;
+					if      ( add && (!j||j->rule().is_shared())                        ) handle_node(t) ;
 					else if ( t->is_src_anti()                                          ) handle_node(t) ;
 					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
 					else {
-						Job cj = t->conform_job_tgt() ;
+						Rule r  = j->rule()            ;
+						Job  cj = t->conform_job_tgt() ;
 						trace("fail",t->buildable,t->conform_idx(),t->status(),cj) ;
-						if (+cj) throw "target was produced by "+j->rule->name+" instead of "+cj->rule->name+" (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
-						else     throw "target was produced by "+j->rule->name+                              " (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
+						if (+cj) throw "target was produced by "+r->name+" instead of "+cj->rule()->name+" (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
+						else     throw "target was produced by "+r->name+                                " (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
 					}
 				}
 			}
@@ -93,7 +90,7 @@ namespace Engine {
 				Job::s_frozens(add,jobs) ;
 				for( Job j : jobs ) {
 					if (!add) j->status = Status::New ;
-					audit( fd , ro , add?Color::Warning:Color::Note , fmt_string(::setw(w),j->rule->name,' ',mk_file(j->name())) ) ;
+					audit( fd , ro , add?Color::Warning:Color::Note , fmt_string(::setw(w),j->rule()->name,' ',mk_file(j->name())) ) ;
 				}
 			}
 			if (+nodes) {
@@ -145,7 +142,7 @@ namespace Engine {
 
 	static void _send_job( Fd fd , ReqOptions const& ro , Bool3 show_deps , bool hide , Job job , DepDepth lvl=0 ) {
 		Color color = Color::None ;
-		Rule  rule  = job->rule   ;
+		Rule  rule  = job->rule() ;
 		if      (hide                   ) color = Color::HiddenNote ;
 		else if (job->status==Status::Ok) color = Color::Ok         ;
 		else if (job.frozen()           ) color = Color::Warning    ;
@@ -200,7 +197,7 @@ namespace Engine {
 		if (+start.cwd_s                 ) res << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)                 ) << '\n' ;
 		/**/                               res << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                   ) << '\n' ;
 		/**/                               res << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat                       ) << '\n' ;
-		/**/                               res << ",\tis_python      = " << mk_py_str(j->rule->is_python                    ) << '\n' ;
+		/**/                               res << ",\tis_python      = " << mk_py_str(j->rule()->is_python                  ) << '\n' ;
 		if (ro.flags[ReqFlag::KeepTmp]   ) res << ",\tkeep_tmp       = " <<           "True"                                  << '\n' ;
 		/**/                               res << ",\tkey            = " << mk_py_str(key                                   ) << '\n' ;
 		/**/                               res << ",\tjob            = " <<           +j                                      << '\n' ;
@@ -271,7 +268,7 @@ namespace Engine {
 					}
 					{	res <<",\t"<< mk_py_str("lower") <<" : (" ;
 						First first2 ;
-						for( size_t i=1 ; i<descr.phys.size() ; i++ ) res << first2("",",") << mk_py_str(descr.phys[i]) ;
+						for( size_t i : iota(1,descr.phys.size()) ) res << first2("",",") << mk_py_str(descr.phys[i]) ;
 						res << first2("",",","") << ")\n\t\t" ;
 					}
 					if (+descr.copy_up) {
@@ -292,9 +289,9 @@ namespace Engine {
 
 	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
 		JobTgt job = target->actual_job() ;
-		if (!job.active()) {
+		if (job->rule().is_shared()) {
 			/**/                              if (target->status()>NodeStatus::Makable) goto NoJob ;
-			job = target->conform_job_tgt() ; if (!job.active()                       ) goto NoJob ;
+			job = target->conform_job_tgt() ; if (job->rule().is_shared()             ) goto NoJob ;
 		}
 		Trace("target",target,job) ;
 		return job ;
@@ -320,8 +317,8 @@ namespace Engine {
 			if (targets.size()!=1) throw "can only debug a single target"s ;
 			job = _job_from_target(fd,ro,ecr.targets()[0]) ;
 		}
-		if (!job                   ) throw "no job found"s                         ;
-		if (job->rule->is_special()) throw "cannot debug "+job->rule->name+" jobs" ;
+		if (!job                                  ) throw "no job found"s                 ;
+		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->name+" jobs" ;
 		//
 		JobInfo job_info = job.job_info() ;
 		if (!job_info.start.start.proc) {
@@ -371,17 +368,13 @@ namespace Engine {
 					for( Node t : ecr.targets() ) ok &= t->forget( ro.flags[ReqFlag::Targets] , ro.flags[ReqFlag::Deps] ) ;
 				}
 			break ;
-			case ReqKey::Error :
-				Persistent::invalidate_exec(true/*cmd_ok*/) ;
-			break ;
-			case ReqKey::Resources :
-				for( Rule r : Rule::s_lst() ) {
-					if (r->cmd_gen==r->rsrcs_gen) continue ;
-					r.data().cmd_gen = r->rsrcs_gen ;
-					r.save() ;                                                                    // we have modified rule, we must record it to make modif persistent
-					audit( ecr.out_fd , ro , Color::Note , "refresh "+r->name , true/*as_is*/ ) ;
+			case ReqKey::Resources : {
+				::uset<Rule> refreshed ;
+				for( RuleCrc rc : Persistent::rule_crc_lst() ) if ( RuleCrcData& rcd=rc.data() ; rcd.state==RuleCrcState::RsrcsOld) {
+					rcd.state = RuleCrcState::RsrcsForgotten ;
+					if (refreshed.insert(rcd.rule).second) audit( ecr.out_fd , ro , Color::Note , "refresh "+rcd.rule->name , true/*as_is*/ ) ;
 				}
-			break ;
+			} break ;
 		DF}
 		return ok ;
 	}
@@ -462,8 +455,8 @@ namespace Engine {
 				case JobStep::Exec   : {
 					SWEAR( lvl>=backlog.size() , lvl , backlog.size() ) ;
 					DepDepth l = lvl - backlog.size() ;
-					for( Job j : backlog ) audit( fd , *ro , Color::HiddenNote , ""s+'W'+' '+j  ->rule->name+' '+mk_file(j  ->name()) , false/*as_is*/ , l++ ) ;
-					/**/                   audit( fd , *ro , color             , ""s+hdr+' '+job->rule->name+' '+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
+					for( Job j : backlog ) audit( fd , *ro , Color::HiddenNote , ""s+'W'+' '+j  ->rule()->name+' '+mk_file(j  ->name()) , false/*as_is*/ , l++ ) ;
+					/**/                   audit( fd , *ro , color             , ""s+hdr+' '+job->rule()->name+' '+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
 					backlog = {} ;
 					return ;
 				}
@@ -485,7 +478,7 @@ namespace Engine {
 
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
-		Rule             rule         = job->rule                  ;
+		Rule             rule         = job->rule()                ;
 		JobInfo          job_info     = job.job_info()             ;
 		bool             has_start    = +job_info.start.start.proc ;
 		bool             has_end      = +job_info.end  .end  .proc ;
@@ -681,7 +674,7 @@ namespace Engine {
 										{	vd_str <<" , "<< mk_py_str("lower") <<':' ;
 											First first ;
 											vd_str <<'(' ;
-											for( size_t i=1 ; i<vd.phys.size() ; i++ ) vd_str << first("",",") << mk_py_str(vd.phys[i]) ;
+											for( size_t i : iota(1,vd.phys.size()) ) vd_str << first("",",") << mk_py_str(vd.phys[i]) ;
 											vd_str << first("",",","") <<')' ;
 										}
 										if (+vd.copy_up) {
@@ -718,7 +711,7 @@ namespace Engine {
 											{	vd_str << "upper:" << mk_file(vd.phys[0]) ; }
 											{	vd_str <<" , "<< "lower" <<':' ;
 												First first ;
-												for( size_t i=1 ; i<vd.phys.size() ; i++ ) vd_str << first("",",") << mk_file(vd.phys[i]) ;
+												for( size_t i : iota(1,vd.phys.size()) ) vd_str << first("",",") << mk_file(vd.phys[i]) ;
 											}
 											if (+vd.copy_up) {
 												vd_str <<" , "<< "copy_up" <<':' ;
@@ -826,14 +819,14 @@ namespace Engine {
 						size_t w              = 0                         ;
 						bool   seen_candidate = false                     ;
 						for( Job j : target->conform_job_tgts() ) {
-							w               = ::max(w,j->rule->name.size()) ;
-							seen_candidate |= j!=cj                         ;
+							w               = ::max(w,j->rule()->name.size()) ;
+							seen_candidate |= j!=cj                           ;
 						}
-						for( Job j : target->conform_job_tgts() ) {
-							if      (j==job         ) continue ;
-							if      (!seen_candidate) audit( fd , ro , Color::Note , fmt_string("official job " ,::setw(w),j->rule->name," : ",mk_file(j->name())) ) ; // no need to align
-							else if (j==cj          ) audit( fd , ro , Color::Note , fmt_string("official job  ",::setw(w),j->rule->name," : ",mk_file(j->name())) ) ; // align
-							else                      audit( fd , ro , Color::Note , fmt_string("job candidate ",::setw(w),j->rule->name," : ",mk_file(j->name())) ) ;
+						for( Job j : target->conform_job_tgts() ) if (j!=job) {
+							Rule r = j->rule() ;
+							if      (!seen_candidate) audit( fd , ro , Color::Note , fmt_string("official job " ,::setw(w),r->name," : ",mk_file(j->name())) ) ; // no need to align
+							else if (j==cj          ) audit( fd , ro , Color::Note , fmt_string("official job  ",::setw(w),r->name," : ",mk_file(j->name())) ) ; // align
+							else                      audit( fd , ro , Color::Note , fmt_string("job candidate ",::setw(w),r->name," : ",mk_file(j->name())) ) ;
 						}
 					}
 					if (!job) {
@@ -848,15 +841,16 @@ namespace Engine {
 					_show_job(fd,ro,job,lvl) ;
 				break ;
 				case ReqKey::Deps    : {
-					bool     always = ro.flags[ReqFlag::Verbose] ;
-					double   prio   = -Infinity                  ;
+					bool     always      = ro.flags[ReqFlag::Verbose] ;
+					bool     seen_actual = false                      ;
 					if ( target->is_plain() && +target->dir() ) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
 					for( JobTgt jt : target->conform_job_tgts() ) {
 						bool hide = !jt.produces(target) ;
+						seen_actual |= !hide && jt==job ;
 						if      (always) _send_job( fd , ro , Yes   , hide          , jt , lvl ) ;
 						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , jt , lvl ) ;
 					}
-					if (prio!=-Infinity) _send_job( fd , ro , always?Yes:Maybe , false/*hide*/ , job ) ; // actual job is output last as this is what user views first
+					if ( !seen_actual && +job ) _send_job( fd , ro , always?Yes:Maybe , false/*hide*/ , job ) ; // actual job is output last as this is what user views first
 				} break ;
 				case ReqKey::InvDeps :
 					for( Job j : Persistent::job_lst() )

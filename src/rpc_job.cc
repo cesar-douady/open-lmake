@@ -11,8 +11,6 @@
 
 #include "rpc_job.hh"
 
-#include "autodep/fuse.hh"
-
 using namespace Disk ;
 using namespace Hash ;
 
@@ -134,12 +132,6 @@ static void _mount_bind( ::string const& dst , ::string const& src ) { // src an
 		throw "cannot bind mount "+src+" onto "+dst+" : "+strerror(errno) ;
 }
 
-static vector<Fuse::Mount> _fuse_store ;
-static void _mount_fuse( ::string const& dst_s , ::string const& src_s , ::string const& pfx_s , bool report_writes ) {
-	Trace trace("_mount_fuse",dst_s,src_s,pfx_s,STR(report_writes)) ;
-	_fuse_store.emplace_back( dst_s , src_s , pfx_s , report_writes ) ;
-}
-
 static void _mount_tmp( ::string const& dst_s , size_t sz_mb ) {
 	SWEAR(sz_mb) ;
 	Trace trace("_mount_tmp",dst_s,sz_mb) ;
@@ -152,16 +144,16 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 	SWEAR(srcs_s.size()>1,dst_s,srcs_s,work_s) ; // use bind mount in that case
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
-	for( size_t i=1 ; i<srcs_s.size() ; i++ )
+	for( size_t i : iota(1,srcs_s.size()) )
 		if (srcs_s[i].find(':')!=Npos)
 			throw "cannot overlay mount "+dst_s+" to "+fmt_string(srcs_s)+"with embedded columns (:)" ;
 	mk_dir_s(work_s) ;
 	//
-	::string                                  data  = "userxattr"                      ;
-	/**/                                      data += ",upperdir="+no_slash(srcs_s[0]) ;
-	/**/                                      data += ",lowerdir="+no_slash(srcs_s[1]) ;
-	for( size_t i=2 ; i<srcs_s.size() ; i++ ) data += ':'         +no_slash(srcs_s[i]) ;
-	/**/                                      data += ",workdir=" +no_slash(work_s   ) ;
+	::string                                data  = "userxattr"                      ;
+	/**/                                    data += ",upperdir="+no_slash(srcs_s[0]) ;
+	/**/                                    data += ",lowerdir="+no_slash(srcs_s[1]) ;
+	for( size_t i : iota(2,srcs_s.size()) ) data += ':'         +no_slash(srcs_s[i]) ;
+	/**/                                    data += ",workdir=" +no_slash(work_s   ) ;
 	if (::mount( nullptr ,  no_slash(dst_s).c_str() , "overlay" , 0 , data.c_str() )!=0)
 		throw "cannot overlay mount "+dst_s+" to "+data+" : "+strerror(errno) ;
 }
@@ -207,11 +199,10 @@ bool/*entered*/ JobSpace::enter(
 ,	size_t                 tmp_sz_mb
 ,	::string const&        work_dir_s
 ,	::vector_s const&      src_dirs_s
-,	bool                   use_fuse
 ) {
-	Trace trace("JobSpace::enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s,STR(use_fuse)) ;
+	Trace trace("JobSpace::enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s) ;
 	//
-	if ( !use_fuse && !*this ) return false/*entered*/ ;
+	if (!*this) return false/*entered*/ ;
 	//
 	int uid = ::getuid() ;          // must be done before unshare that invents a new user
 	int gid = ::getgid() ;          // .
@@ -231,9 +222,9 @@ bool/*entered*/ JobSpace::enter(
 	::string phy_super_root_dir_s ; // dir englobing all relative source dirs
 	::string super_root_view_s    ; // .
 	if (+root_view_s) {
-		phy_super_root_dir_s = phy_root_dir_s ; for( size_t i=0 ; i<src_dirs_uphill_lvl ; i++ ) phy_super_root_dir_s = dir_name_s(phy_super_root_dir_s) ;
-		super_root_view_s    = root_view_s    ; for( size_t i=0 ; i<src_dirs_uphill_lvl ; i++ ) super_root_view_s    = dir_name_s(super_root_view_s   ) ;
-		SWEAR(phy_super_root_dir_s!="/",phy_root_dir_s,src_dirs_uphill_lvl) ;                                                                             // this should have been checked earlier
+		phy_super_root_dir_s = phy_root_dir_s ; for( [[maybe_unused]] size_t i : iota(src_dirs_uphill_lvl) ) phy_super_root_dir_s = dir_name_s(phy_super_root_dir_s) ;
+		super_root_view_s    = root_view_s    ; for( [[maybe_unused]] size_t i : iota(src_dirs_uphill_lvl) ) super_root_view_s    = dir_name_s(super_root_view_s   ) ;
+		SWEAR(phy_super_root_dir_s!="/",phy_root_dir_s,src_dirs_uphill_lvl) ;                                                                      // this should have been checked earlier
 		if (!super_root_view_s) {
 			highest.pop_back() ;
 			throw
@@ -255,16 +246,15 @@ bool/*entered*/ JobSpace::enter(
 	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ;
 	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
 	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
-	trace("create",STR(must_create_root),STR(must_create_tmp),STR(use_fuse)) ;
-	if ( must_create_root || must_create_tmp || +views || use_fuse )
+	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
+	if ( must_create_root || must_create_tmp || +views )
 		try { unlnk_inside_s(work_dir_s) ; } catch (::string const& e) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
-	if ( must_create_root || must_create_tmp || use_fuse ) {              // we cannot mount directly in chroot_dir
+	if ( must_create_root || must_create_tmp ) {                          // we cannot mount directly in chroot_dir
 		if (!work_dir_s)
 			throw
 				"need a work dir to"s
 			+	(	must_create_root ? " create root view"
 				:	must_create_tmp  ? " create tmp view"
-				:	use_fuse         ? " use fuse"
 				:	                   " ???"
 				)
 			;
@@ -295,13 +285,8 @@ bool/*entered*/ JobSpace::enter(
 	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
 	//
 	::string root_dir_s = +root_view_s ? root_view_s : phy_root_dir_s ;
-	if (use_fuse) { //!                                                                                                                         pfx_s     report_writes
-		/**/                                          _mount_fuse( chroot_dir+                 root_dir_s  ,                  phy_root_dir_s  , {}        , true      ) ;
-		for( ::string const& src_dir_s : src_dirs_s ) _mount_fuse( chroot_dir+mk_abs(src_dir_s,root_dir_s) , mk_abs(src_dir_s,phy_root_dir_s) , src_dir_s , false     ) ;
-	} else if (+root_view_s) {
-		/**/                                          _mount_bind( chroot_dir+super_root_view_s            , phy_super_root_dir_s             ) ;
-	}
-	if (+tmp_view_s) {
+	if (+root_view_s) _mount_bind( chroot_dir+super_root_view_s , phy_super_root_dir_s ) ;
+	if (+tmp_view_s ) {
 		if      (+phy_tmp_dir_s) _mount_bind( chroot_dir+tmp_view_s , phy_tmp_dir_s ) ;
 		else if (tmp_sz_mb     ) _mount_tmp ( chroot_dir+tmp_view_s , tmp_sz_mb     ) ;
 	}
@@ -322,7 +307,7 @@ bool/*entered*/ JobSpace::enter(
 				if (is_dirname(cu))
 					_create(report,dst) ;
 				else
-					for( size_t i=1 ; i<descr.phys.size() ; i++ )
+					for( size_t i : iota(1,descr.phys.size()) )
 						if (_create(report,dst,descr.phys[i]+cu)) break ;
 			}
 		}
@@ -338,12 +323,6 @@ bool/*entered*/ JobSpace::enter(
 	}
 	trace("done") ;
 	return true/*entered*/ ;
-}
-
-void JobSpace::exit() {
-	Trace trace("JobSpace::exit") ;
-	_fuse_store.clear() ;
-	trace("done") ;
 }
 
 // XXX : implement recursive views
@@ -539,8 +518,8 @@ bool/*entered*/ JobRpcReply::enter(
 	}
 	if (!cmd_env.contains("HOME")) cmd_env["HOME"] = no_slash(autodep_env.tmp_dir_s) ; // by default, set HOME to tmp dir as this cannot be set from rule
 	//
-	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                                                          ;
-	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s , method==AutodepMethod::Fuse ) ;
+	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                            ;
+	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s ) ;
 	if (entered) {
 		// find a good starting pid
 		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common

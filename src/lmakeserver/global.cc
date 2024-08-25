@@ -13,6 +13,7 @@ using namespace Time ;
 namespace Engine {
 
 	ThreadDeque<EngineClosure> g_engine_queue ;
+	bool                       g_writable     = false ;
 
 	static ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
 		if (!l) {
@@ -237,7 +238,7 @@ namespace Engine {
 					Sequence const& py_c2 = py_c1[r].as_a<Sequence>() ;
 					if (py_c2.size()!=3) throw "size is "s+py_c2.size()+"!=3" ;
 					fields.emplace_back() ;
-					for( size_t rgb=0 ; rgb<3 ; rgb++ ) {
+					for( size_t rgb : iota(3) ) {
 						fields[3] = ::string( &"rgb"[rgb] , 1 ) ;
 						size_t cc = py_c2[rgb].as_a<Int>() ;
 						if (cc>=256) throw "color is "s+cc+">=256" ;
@@ -483,25 +484,21 @@ namespace Engine {
 
 	Job EngineClosureReq::job(::string const& startup_dir_s) const {
 		SWEAR(as_job()) ;
-		Rule r ;
 		if (options.flags[ReqFlag::Rule]) {
 			::string const& rule_name = options.flag_args[+ReqFlag::Rule] ;
-			auto it = Rule::s_by_name.find(rule_name) ;
-			if (it!=Rule::s_by_name.end()) r = it->second ;
-			else                           throw "cannot find rule "+rule_name ;
-			Job j{r,files[0]} ;
-			if (!j) throw "cannot find job "+mk_rel(files[0],startup_dir_s)+" using rule "+rule_name ;
+			auto            it        = Rule::s_by_name.find(rule_name)   ; if (it==Rule::s_by_name.end()) throw "cannot find rule "+rule_name                                              ;
+			Job             j         { it->second , files[0] }           ; if (!j                       ) throw "cannot find job "+mk_rel(files[0],startup_dir_s)+" using rule "+rule_name ;
 			return j ;
 		}
 		::vector<Job> candidates ;
-		for( Rule r : Rule::s_lst() ) {
+		for( Rule r : Persistent::rule_lst() ) {
 			if ( Job j{r,files[0]} ; +j ) candidates.push_back(j) ;
 		}
 		if (candidates.size()==1) return candidates[0] ;
 		if (!candidates         ) throw "cannot find job "+mk_rel(files[0],startup_dir_s) ;
 		//
 		::string err_str = "several rules match, consider :\n" ;
-		for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule->name)+" -J "+files[0] ,1) << '\n' ;
+		for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule()->name)+" -J "+files[0] ,1) << '\n' ;
 		throw err_str ;
 	}
 
