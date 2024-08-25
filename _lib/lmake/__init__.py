@@ -12,11 +12,11 @@ else                         : from clmake  import * # .
 
 from .utils import *
 
-native_version = (2,0)
+version = ('24.09',0)
 
-def version(major,minor) :
+def check_version(major,minor=0) :
 	'''check version'''
-	if major!=native_version[0] or minor<native_version[1] : raise RuntimeError('required version '+str((major,minor))+' is incompatible with native version '+str(native_version))
+	if major!=version[0] or minor>version[1] : raise RuntimeError('required version '+str((major,minor))+' is incompatible with native version '+str(version))
 
 # Lmakefile must :
 # - update variable lmake.config : the server configuration, default is a reasonable configuration

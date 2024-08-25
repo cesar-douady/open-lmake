@@ -20,11 +20,6 @@
 
 // ENUM macro does not work inside namespace's
 
-ENUM(Algo
-,	Xxh   // default, must be first
-,	Md5
-)
-
 ENUM_3( CrcSpecial  // use non-abbreviated names as it is used for user
 ,	Valid = None    // >=Valid means value represent file content, >Val means that in addition, file exists
 ,	Reg   = Regular // translate into abbreviated names
@@ -38,14 +33,6 @@ ENUM_3( CrcSpecial  // use non-abbreviated names as it is used for user
 )
 
 namespace Hash {
-
-	struct _Md5 ;
-	struct _Xxh ;
-
-	template<class H> struct _Cooked ;
-
-	using Md5 = _Cooked<_Md5> ;
-	using Xxh = _Cooked<_Xxh> ;
 
 	//
 	// Crc
@@ -80,10 +67,10 @@ namespace Hash {
 				case FileTag::Empty : *this = Crc::Empty ; break ;
 			DF}
 		}
-		Crc(                             ::string const& filename , Algo a ) ;
-		Crc( Disk::FileSig&/*out*/ sig , ::string const& filename , Algo a ) {
+		Crc(                             ::string const& filename ) ;
+		Crc( Disk::FileSig&/*out*/ sig , ::string const& filename ) {
 			sig   = Disk::FileSig(filename) ;
-			*this = Crc(filename,a)         ;
+			*this = Crc(filename)         ;
 			if (Disk::FileSig(filename)!=sig) *this = Crc(sig.tag()) ; // file was moving, association date<=>crc is not reliable
 		}
 	private :
@@ -113,99 +100,55 @@ namespace Hash {
 		uint64_t _val = +CrcSpecial::Unknown ;
 	} ;
 
-	//
-	// Md5
-	//
-
-	// class to compute Crc's (md5)
-	// Construct without arg.
-	// Call update with :
-	// - An arg
-	//   - STL objects are supported but not distinguished from one another.
-	//     For example, a vector and an array with same content will provide the same crc.
-	//     unordered_map and unordered_set are not supported as there is no way to guarantee order
-	//   - if arg is a STL containers, components are split and pushed.
-	// - A pointer and a size (number of elements). Elements are pushed without being split.
-	//
-	// call hash object to retrieve Crc
 	template<class T        > struct IsUnstableIterableHelper ;                                                       // unable to generate hash of unordered containers
 	template<class K,class V> struct IsUnstableIterableHelper<::umap<K,V>> { static constexpr bool value = true ; } ; // cannot specialize a concept, so use a struct
 	template<class K        > struct IsUnstableIterableHelper<::uset<K  >> { static constexpr bool value = true ; } ; // .
 	template<class T> concept IsUnstableIterable = IsUnstableIterableHelper<T>::value ;
 
-	struct _Md5 {
-		static constexpr size_t HashSz =  4 ;
-		static constexpr size_t BlkSz  = 16 ;
-		// cxtors & cast
-	protected :
-		_Md5(           ) ;
-		_Md5(FileTag tag) : is_lnk{tag==FileTag::Lnk} { if (tag!=FileTag::Reg) _salt = snake(tag) ; }
-		// services
-		void _update( const void* p , size_t sz ) ;
-		Crc  digest (                           ) && ; // context is no more usable once digest has been asked
+	template<class T> concept _SimpleUpdate = sizeof(T)==1 || ::is_integral_v<T> ;
+	struct Xxh {
+		// statics
 	private :
-		void     _update64(const uint32_t _data[BlkSz]) ;
-		void     _update64(                           ) { _update64(_blk) ;                         }
-		uint8_t* _bblk    (                           ) { return reinterpret_cast<uint8_t*>(_blk) ; }
-		// data
-	public :
-		bool is_lnk = false ;
-	private :
-		alignas(uint64_t) uint32_t _hash[HashSz] ;     // alignment to allow direct appending of _cnt<<3 (message length in bits)
-		uint32_t                   _blk [BlkSz ] ;
-		uint64_t                   _cnt          ;
-		::string                   _salt         ;
-		bool                       _closed       = false ;
-	} ;
-
-	struct _Xxh {
-	private :
-		static void _s_init_lnk() { Lock lock{_s_inited_mutex} ; if (_s_lnk_inited) return ; XXH3_generateSecret(_s_lnk_secret,sizeof(_s_lnk_secret),"lnk",3) ; _s_lnk_inited = true ; }
-		static void _s_init_exe() { Lock lock{_s_inited_mutex} ; if (_s_exe_inited) return ; XXH3_generateSecret(_s_exe_secret,sizeof(_s_exe_secret),"exe",3) ; _s_exe_inited = true ; }
+		static void _s_init_salt() {
+			if (_s_salt_inited) return ;                                       // fast path : avoid taking lock
+			Lock lock{_s_salt_init_mutex} ;
+			if (_s_salt_inited) return ;                                       // repeat test after lock in case of contention
+			XXH3_generateSecret(_s_lnk_secret,sizeof(_s_lnk_secret),"lnk",3) ;
+			XXH3_generateSecret(_s_exe_secret,sizeof(_s_exe_secret),"exe",3) ;
+			_s_salt_inited = true ;
+		}
 		// static data
 		static char                  _s_lnk_secret[XXH3_SECRET_SIZE_MIN] ;
 		static char                  _s_exe_secret[XXH3_SECRET_SIZE_MIN] ;
-		static Mutex<MutexLvl::Hash> _s_inited_mutex                     ;
-		static bool                  _s_lnk_inited                       ;
-		static bool                  _s_exe_inited                       ;
-	protected :
-		// cxtors & cast
-		_Xxh(       ) ;
-		_Xxh(FileTag) ;
-		//
-		_Xxh           (_Xxh const&) = delete ;
-		_Xxh& operator=(_Xxh const&) = delete ;
+		static Mutex<MutexLvl::Hash> _s_salt_init_mutex                  ;
+		static bool                  _s_salt_inited                      ;
+		//cxtors & casts
+	public :
+		Xxh(         ) ;
+		Xxh(FileTag t) ;
+		template<class... As> Xxh( As&&... args) : Xxh{} { update(::forward<As>(args)...) ; }
 		// services
+		Crc digest() const ;
+		//
+		template<_SimpleUpdate T> Xxh& update( T const* p , size_t sz ) {
+			_update( p , sizeof(*p)*sz ) ;
+			return *this ;
+		}
+		template<_SimpleUpdate T> Xxh& update(T const& x) {
+			::array<char,sizeof(x)> buf = ::bit_cast<array<char,sizeof(x)>>(x) ;
+			_update( &buf , sizeof(x) ) ;
+			return *this ;
+		}
+		/**/                                                                      Xxh& update(::string const& s ) { update(s.size()) ; update(s.data(),s.size()) ; return *this ; }
+		template<class T> requires( !_SimpleUpdate<T> && !IsUnstableIterable<T> ) Xxh& update( T       const& x ) { update(serialize(x)) ;                         return *this ; }
+		template<class T> requires(                       IsUnstableIterable<T> ) Xxh& update( T       const& x ) = delete ;
+	private :
 		void _update( const void* p , size_t sz ) ;
-		Crc  digest (                           ) const ;
 		// data
 	public :
 		bool is_lnk = false ;
 	private :
 		XXH3_state_t _state ;
-	} ;
-
-	template<class T> concept _AutoCooked = sizeof(T)==1 || ::is_integral_v<T> ;
-	template<class H> struct _Cooked : H {
-		//cxtors & casts
-		_Cooked(         ) = default ;
-		_Cooked(FileTag t) : H{t} {}
-		template<class... As> _Cooked( As&&... args) { update(::forward<As>(args)...) ; }
-		// services
-		using H::digest ;
-		//
-		template<_AutoCooked T> _Cooked& update( T const* p , size_t sz ) {
-			H::_update( p , sizeof(*p)*sz ) ;
-			return *this ;
-		}
-		template<_AutoCooked T> _Cooked& update(T const& x) {
-			::array<char,sizeof(x)> buf = ::bit_cast<array<char,sizeof(x)>>(x) ;
-			H::_update( &buf , sizeof(x) ) ;
-			return *this ;
-		}
-		/**/                                                                    _Cooked& update(::string const& s ) { update(s.size()) ; update(s.data(),s.size()) ; return *this ; }
-		template<class T> requires( !_AutoCooked<T> && !IsUnstableIterable<T> ) _Cooked& update( T       const& x ) { update(serialize(x)) ;                         return *this ; }
-		template<class T> requires(                     IsUnstableIterable<T> ) _Cooked& update( T       const& x ) = delete ;
 	} ;
 
 	//

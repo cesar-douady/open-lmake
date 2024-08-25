@@ -213,8 +213,8 @@ namespace Backends::Sge {
 			::vector_s sge_cmd_line = {
 				"qsub"
 			,	"-b"     , "y"
-			,	"-o"     , "/dev/null"                                                                                                         // XXX : if verbose, collect stdout
-			,	"-e"     , "/dev/null"                                                                                                         // XXX : if verbose, collect stderr
+			,	"-o"     , "/dev/null"                                                                                                         // XXX : if verbose, collect stdout/sderr
+			,	"-j"     , "y"
 			,	"-shell" , "n"
 			,	"-terse"
 			,	"-N"     , sge_mk_name(repo_key+Job(j)->name())

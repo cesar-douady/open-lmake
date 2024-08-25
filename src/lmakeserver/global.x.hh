@@ -103,7 +103,6 @@ namespace Engine {
 		bool operator==(ConfigClean const&) const = default ;
 		// data
 		Version    db_version             ;                    // must always stay first so it is always understood, by default, db version does not match
-		Algo       hash_algo              = {}               ;
 		LnkSupport lnk_support            = LnkSupport::Full ;
 		::string   user_local_admin_dir_s ;
 		::string   key                    ;                    // random key to differentiate repo from other repos

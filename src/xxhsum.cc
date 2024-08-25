@@ -12,7 +12,7 @@ using namespace Hash ;
 int main( int argc , char* argv[] ) {
 
 	for( int i=1 ; i<argc ; i++ ) {
-		::cout << ::string(Crc(argv[i],Algo::Xxh)) ;
+		::cout << ::string(Crc(argv[i])) ;
 		if (argc>2) ::cout <<' '<< argv[i] ;
 		::cout <<'\n' ;
 	}

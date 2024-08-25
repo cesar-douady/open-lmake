@@ -83,7 +83,6 @@ namespace Engine {
 	::ostream& operator<<( ::ostream& os , Config const& sc ) {
 		os << "Config("
 			/**/ << sc.db_version.major <<'.'<< sc.db_version.minor
-			<<','<< sc.hash_algo
 			<<','<< sc.lnk_support
 		;
 		if (sc.max_dep_depth       )                  os <<",MD" << sc.max_dep_depth          ;
@@ -129,7 +128,6 @@ namespace Engine {
 		::vector_s fields = {{}} ;
 		try {
 			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) date_prec              = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "hash_algo"           ; if (py_map.contains(fields[0])) hash_algo              = mk_enum<Algo>             (py_map[fields[0]].as_a<Str  >())           ;
 			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())           ;
 			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
 			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
@@ -280,7 +278,6 @@ namespace Engine {
 		//
 		res << "clean :\n" ;
 		/**/                         res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		if (+hash_algo             ) res << "\thash_algo       : " << snake(hash_algo  )                      <<'\n' ;
 		/**/                         res << "\tlink_support    : " << snake(lnk_support)                      <<'\n' ;
 		/**/                         res << "\tkey             : " << key                                     <<'\n' ;
 		if (+user_local_admin_dir_s) res << "\tlocal_admin_dir : " << no_slash(user_local_admin_dir_s)        <<'\n' ;

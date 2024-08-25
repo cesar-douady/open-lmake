@@ -297,7 +297,6 @@ namespace Backends {
 				/**/                               reply.autodep_env.src_dirs_s    = *g_src_dirs_s                                     ;
 				/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
 				/**/                               reply.date_prec                 = g_config->date_prec                               ;
-				/**/                               reply.hash_algo                 = g_config->hash_algo                               ;
 				/**/                               reply.keep_tmp_dir              = keep_tmp_dir                                      ;
 				/**/                               reply.key                       = g_config->key                                     ;
 				/**/                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;

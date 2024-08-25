@@ -25,9 +25,9 @@ namespace Engine {
 		for( Node d : to_mkdirs )
 			for( Node hd=d->dir() ; +hd ; hd = hd->dir() )
 				if (!to_mkdir_uphills.insert(hd).second) break ;
-		for( auto const& [_,d] : match.deps() )                                       // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
+		for( auto const& [_,d] : match.deps() )                                           // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
 			for( Node hd=Node(d.txt)->dir() ; +hd ; hd = hd->dir() )
-				if (!locked_dirs.insert(hd).second) break ;                           // if dir contains a dep, it cannot be rmdir'ed
+				if (!locked_dirs.insert(hd).second) break ;                               // if dir contains a dep, it cannot be rmdir'ed
 		//
 		// remove old targets
 		for( Target t : targets ) {
@@ -477,7 +477,7 @@ namespace Engine {
 					}
 					//
 					if (target->is_src_anti()) {                                       // source may have been modified
-						if (!crc.valid()) crc = Crc(tn,g_config->hash_algo) ;          // force crc computation if updating a source
+						if (!crc.valid()) crc = Crc(tn) ;                              // force crc computation if updating a source
 						//
 						switch (target->buildable) {
 							case Buildable::DynSrc :
@@ -1116,7 +1116,7 @@ namespace Engine {
 					SpecialStep ss = SpecialStep::Idle ;
 					if (!( t->crc.valid() && FileSig(nfs_guard.access(tn))==t->date().sig )) {
 						FileSig sig  ;
-						Crc   crc { sig , tn , g_config->hash_algo } ;
+						Crc   crc { sig , tn } ;
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
 						Trace trace( "frozen" , t->crc ,"->", crc , t->date() ,"->", sig ) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -1180,7 +1180,7 @@ namespace Engine {
 						//
 						vmap<Node,FileAction> fas     = pre_actions(match) ;
 						::vmap_s<FileAction>  actions ; for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
-						::pair_s<bool/*ok*/>  dfa_msg = do_file_actions( ::move(actions) , nfs_guard , g_config->hash_algo ) ;
+						::pair_s<bool/*ok*/>  dfa_msg = do_file_actions( ::move(actions) , nfs_guard ) ;
 						//
 						if ( +dfa_msg.first || !dfa_msg.second ) {
 							run_status = RunStatus::Err ;

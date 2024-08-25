@@ -133,7 +133,7 @@ namespace Engine {
 		} else {
 			if ( crc.valid() && sig==date().sig ) return false/*updated*/ ;
 			Crc crc_ = Crc::Reg ;
-			while ( crc_==Crc::Reg || crc_==Crc::Lnk ) crc_ = Crc(sig,name_,g_config->hash_algo) ;                            // ensure file is stable when computing crc
+			while ( crc_==Crc::Reg || crc_==Crc::Lnk ) crc_ = Crc(sig,name_) ;                                                // ensure file is stable when computing crc
 			Accesses mismatch = crc.diff_accesses(crc_) ;
 			//vvvvvvvvvvvvvvvvvvv
 			refresh( crc_ , sig ) ;
@@ -740,7 +740,7 @@ namespace Engine {
 			nd.date() = FileSig(ndn) ;
 		} else {
 			FileSig sig ;
-			Crc     crc { sig , ndn , g_config->hash_algo } ;
+			Crc     crc { sig , ndn } ;
 			if (!nd.crc.match(crc)) return {m,false/*refreshed*/} ; // real modif
 			nd.date() = sig ;
 		}
