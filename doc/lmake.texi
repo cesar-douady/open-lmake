@@ -2081,6 +2081,8 @@ If @code{None} or @code{''}, no bind mount is performed.
 
 If performed, the @code{$ROOT_DIR} env variable will reflect this value.
 
+As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
+
 @section @code{tmp_view}
 
 @multitable @columnfractions 0.1 0.9
@@ -2107,6 +2109,8 @@ The physical directory is :
 if the value of this resource is 0, no @code{tmpfs} file system is created.
 @item Else, a directory determined by @lmake lying in the @code{LMAKE} directory.
 @end itemize
+
+As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
 
 @section @code{views}
 

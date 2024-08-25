@@ -449,7 +449,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	// data
 	// START_OF_VERSIONING
-	static constexpr uint8_t NSzBits = 5 ;                                       // XXX : set to 8 by making room by storeing accesses on 3 bits rather than 8
+	static constexpr uint8_t NSzBits = 5 ;                                       // XXX : set to 8 by making room by storing accesses on 3 bits rather than 8
 	Accesses accesses               ;                                            // 3<8 bits
 	Dflags   dflags                 ;                                            // 6<8 bits
 	bool     parallel      :1       = false ;                                    //   1 bit
