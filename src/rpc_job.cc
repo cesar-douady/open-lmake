@@ -121,7 +121,7 @@ static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (
 
 static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
 	Trace trace("_mount_bind",dst,src) ;
-	if (::mount( no_slash(src).c_str() , no_slash( dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
+	if (::mount( no_slash(src).c_str() , no_slash(dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
 		throw "cannot bind mount "+src+" onto "+dst+" : "+strerror(errno) ;
 }
 static void _mount_fuse( ::string const& dst_s , ::string const& src_s ) {
@@ -229,7 +229,7 @@ bool/*entered*/ JobSpace::enter(
 	if ( +super_root_view_s && super_root_view_s.rfind('/',super_root_view_s.size()-2)!=0 ) throw "non top-level root_view not yet implemented"s ; // XXX : handle cases where dir is not top level
 	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
 	//
-	::string chroot_dir       ; if (+chroot_dir_s) chroot_dir = no_slash(chroot_dir_s) ;
+	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ;
 	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
 	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
 	trace("create",STR(must_create_root),STR(must_create_tmp)) ;

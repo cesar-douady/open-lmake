@@ -93,10 +93,8 @@ namespace Disk {
 		return ::move(path) ;
 	}
 	inline ::string no_slash(::string&& path) {
-		if (is_dirname(path)) {
-			if (!path) return "." ;
-			path.pop_back() ;
-		}
+		if ( !path                              ) return "." ;
+		if ( path.back()=='/' && path.size()!=1 ) path.pop_back() ; // special case '/' as this is the usual convention : no / at the end of dirs, except for /
 		return ::move(path) ;
 	}
 	inline ::string with_slash(::string const& file) { return with_slash(::copy(file)) ; }

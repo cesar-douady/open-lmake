@@ -63,13 +63,12 @@ SeqId             g_trace_id       = 0/*garbage*/ ;
 ::umap_s<FileSig> g_created_views  ;
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
-	::map_ss res     ;
-	::string abs_cwd = no_slash(*g_root_dir_s+g_start_info.cwd_s) ;
-	g_start_info.autodep_env.root_dir_s = *g_root_dir_s ;
-	res["PWD"        ] = abs_cwd                            ;
-	res["ROOT_DIR"   ] = no_slash(*g_root_dir_s)            ;
-	res["SEQUENCE_ID"] = ::to_string(g_seq_id             ) ;
-	res["SMALL_ID"   ] = ::to_string(g_start_info.small_id) ;
+	::map_ss res ;
+	g_start_info.autodep_env.root_dir_s = *g_root_dir_s                              ;
+	res["PWD"        ]                  = no_slash(*g_root_dir_s+g_start_info.cwd_s) ;
+	res["ROOT_DIR"   ]                  = no_slash(*g_root_dir_s)                    ;
+	res["SEQUENCE_ID"]                  = ::to_string(g_seq_id             )         ;
+	res["SMALL_ID"   ]                  = ::to_string(g_start_info.small_id)         ;
 	for( auto& [k,v] : g_start_info.env ) {
 		if (v!=EnvPassMrkr) {
 			res[k] = ::move(v) ;

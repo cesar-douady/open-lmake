@@ -28,7 +28,7 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* transport pdict as pdict, not dict
+* transport pdict as pdict rather than as dict
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
 	- put adequate $PLATFORM in LD_PRELOAD
@@ -93,9 +93,6 @@ items :
 	- in store/file.hh, reserve address space after NBits instead of type
 	- first candidate would be deps, by far the most demanding
 * add a warning when ids reach 15/16 of their limits
-* get rid of double crc (md5+xxh)
-	- keep only xxh
-	- superior on all metrics
 ? use the Path struct instead of at/file
 	- everywhere applicable
 ? implement noexcept/except everywhere pertinent
@@ -110,11 +107,9 @@ items :
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
-* support SGE
-	- https://wiki.archlinux.org/title/Son_of_Grid_Engine
 * implement fuse as an autodep method
 	- use namespaces
-	- interestingly enough : it is a wait to accept bind mount from repo
+	- interestingly enough : it is a way to accept bind mount from repo
 * provide a mechansim to prevent writing non-targets
 	- mount an overlay over the repo
 	- at the end, transport targets to their real location

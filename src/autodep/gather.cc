@@ -516,7 +516,7 @@ void Gather::reorder(bool at_end) {
 		::string const& file   = access.first         ;
 		::AccessDigest& digest = access.second.digest ;
 		if ( digest.write==No && !digest.dflags && !digest.tflags ) {
-			auto it = dirs.find(file) ;
+			auto it = dirs.find(file+'/') ;
 			if (it!=dirs.end()) {
 				if (it->second) { trace("skip_from_prev"  ,file) ; digest.accesses  = {}           ; }
 				else            { trace("no_lnk_from_prev",file) ; digest.accesses &= ~Access::Lnk ; }
@@ -529,7 +529,7 @@ void Gather::reorder(bool at_end) {
 		}
 		bool exists = access.second.dep_info.exists()==Yes ;
 		for( ::string dir_s=dir_name_s(file) ; +dir_s ; dir_s=dir_name_s(dir_s) ) {
-			auto [it,inserted] = dirs.try_emplace(no_slash(dir_s),exists) ;
+			auto [it,inserted] = dirs.try_emplace(dir_s,exists) ;
 			if (!inserted) {
 				if (it->second>=exists) break ;                                                                             // all uphill dirs are already inserted if a dir has been inserted
 				it->second = exists ;                                                                                       // record existence of a sub-file as soon as one if found
