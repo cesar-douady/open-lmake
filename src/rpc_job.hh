@@ -246,9 +246,9 @@ struct FileAction {
 	Hash::Crc     crc ;                                                                                  // expected (else, quarantine)
 	Disk::FileSig sig ;                                                                                  // .
 } ;
-/**/   ::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks/*out*/ , ::vmap_s<FileAction>&&    , Disk::NfsGuard&    , Algo   ) ;
-inline ::pair_s<bool/*ok*/> do_file_actions( ::vector_s& unlnks/*out*/ , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng , Algo a ) { return do_file_actions(&unlnks,::move(pa),ng,a) ; }
-inline ::pair_s<bool/*ok*/> do_file_actions(                             ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng , Algo a ) { return do_file_actions(nullptr,::move(pa),ng,a) ; }
+/**/   ::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks/*out*/ , ::vmap_s<FileAction>&&    , Disk::NfsGuard&    ) ;
+inline ::pair_s<bool/*ok*/> do_file_actions( ::vector_s& unlnks/*out*/ , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(&unlnks,::move(pa),ng) ; }
+inline ::pair_s<bool/*ok*/> do_file_actions(                             ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(nullptr,::move(pa),ng) ; }
 
 struct AccDflags {
 	// services
@@ -626,7 +626,6 @@ struct JobRpcReply {
 				::serdes(s,date_prec     ) ;
 				::serdes(s,deps          ) ;
 				::serdes(s,env           ) ;
-				::serdes(s,hash_algo     ) ;
 				::serdes(s,interpreter   ) ;
 				::serdes(s,job_space     ) ;
 				::serdes(s,keep_tmp_dir  ) ;
@@ -657,7 +656,6 @@ struct JobRpcReply {
 	Time::Delay              date_prec      ;                       // proc==Start
 	::vmap_s<DepDigest>      deps           ;                       // proc==Start , deps already accessed (always includes static deps)
 	::vmap_ss                env            ;                       // proc==Start
-	Algo                     hash_algo      = {}                  ; // proc==Start
 	::vector_s               interpreter    ;                       // proc==Start , actual interpreter used to execute cmd
 	JobSpace                 job_space      ;                       // proc==Start
 	bool                     keep_tmp_dir   = false               ; // proc==Start

@@ -63,13 +63,12 @@ SeqId             g_trace_id       = 0/*garbage*/ ;
 ::umap_s<FileSig> g_created_views  ;
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
-	::map_ss res     ;
-	::string abs_cwd = no_slash(*g_root_dir_s+g_start_info.cwd_s) ;
-	g_start_info.autodep_env.root_dir_s = *g_root_dir_s ;
-	res["PWD"        ] = abs_cwd                            ;
-	res["ROOT_DIR"   ] = no_slash(*g_root_dir_s)            ;
-	res["SEQUENCE_ID"] = ::to_string(g_seq_id             ) ;
-	res["SMALL_ID"   ] = ::to_string(g_start_info.small_id) ;
+	::map_ss res ;
+	g_start_info.autodep_env.root_dir_s = *g_root_dir_s                              ;
+	res["PWD"        ]                  = no_slash(*g_root_dir_s+g_start_info.cwd_s) ;
+	res["ROOT_DIR"   ]                  = no_slash(*g_root_dir_s)                    ;
+	res["SEQUENCE_ID"]                  = ::to_string(g_seq_id             )         ;
+	res["SMALL_ID"   ]                  = ::to_string(g_start_info.small_id)         ;
 	for( auto& [k,v] : g_start_info.env ) {
 		if (v!=EnvPassMrkr) {
 			res[k] = ::move(v) ;
@@ -173,27 +172,27 @@ Digest analyze(Status status=Status::New) {                                     
 			//                                         // ... no need to optimize (could compute other crcs while waiting) as this is exceptional
 			bool    written  = ad.write==Yes ;
 			FileSig sig      ;
-			Crc     crc      ;                         // lazy evaluated (not in parallel, but need is exceptional)
-			if (ad.write==Maybe) {                     // if we dont know if file has been written, detect file update from disk
-				if (info.dep_info.kind==DepInfoKind::Crc) { crc = Crc(sig,file,g_start_info.hash_algo) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
-				else                                                                                     written |= info.dep_info.sig()!=sig ;
+			Crc     crc      ;                                                                                            // lazy evaluated (not in parallel, but need is exceptional)
+			if (ad.write==Maybe) {                                                                                        // if we dont know if file has been written, detect file update from disk
+				if (info.dep_info.kind==DepInfoKind::Crc) { crc = Crc(sig,file) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
+				else                                                              written |= info.dep_info.sig()!=sig ;
 			}
-			if (!crc) sig = file ;                                                                // sig is computed at the same time as crc, but we need it in all cases
+			if (!crc) sig = file ;                                                                                        // sig is computed at the same time as crc, but we need it in all cases
 			//
 			TargetDigest td       { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
 			bool unlnk    = !sig  ;
 			bool reported = false ;
 			//
-			if (is_dep                        ) td.tflags    |= Tflag::Incremental              ; // if is_dep, previous target state is guaranteed by being a dep, use it
+			if (is_dep                        ) td.tflags    |= Tflag::Incremental              ;                         // if is_dep, previous target state is guaranteed by being a dep, use it
 			if (!td.tflags[Tflag::Incremental]) td.pre_exist  = info.dep_info.seen(ad.accesses) ;
 			switch (flags.is_target) {
 				case Yes   : break ;
 				case Maybe :
-					if (unlnk) break ;                                                            // it is ok to write and unlink temporary files
+					if (unlnk) break ;                              // it is ok to write and unlink temporary files
 				[[fallthrough]] ;
 				case No :
-					if (!written                          ) break ;                               // it is ok to attempt writing as long as attempt does not succeed
-					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                               // it is ok if explicitly allowed by user
+					if (!written                          ) break ; // it is ok to attempt writing as long as attempt does not succeed
+					if (ad.extra_tflags[ExtraTflag::Allow]) break ; // it is ok if explicitly allowed by user
 					trace("bad access",ad,flags) ;
 					if (ad.write==Maybe    ) res.msg << "maybe "                        ;
 					/**/                     res.msg << "unexpected "                   ;
@@ -205,7 +204,7 @@ Digest analyze(Status status=Status::New) {                                     
 			}
 			if ( is_dep && !unlnk ) {
 				trace("dep_and_target",ad,flags) ;
-				if (!reported) {                                                                  // if dep and unexpected target, prefer unexpected message rather than this one
+				if (!reported) {                                    // if dep and unexpected target, prefer unexpected message rather than this one
 					const char* read ;
 					switch (first_read.second) {
 						case Access::Lnk  : read = "readlink" ; break ;
@@ -214,7 +213,7 @@ Digest analyze(Status status=Status::New) {                                     
 					}
 					res.msg << read<<" as dep before being known as a target : "<<mk_file(file)<<'\n' ;
 				}
-				ad.tflags |= Tflag::Incremental ;                                                 // file will have a predictible content, no reason to wash it
+				ad.tflags |= Tflag::Incremental ;                   // file will have a predictible content, no reason to wash it
 			}
 			if (written) {
 				if      ( unlnk                                                          )                         td.crc = Crc::None    ;
@@ -271,7 +270,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
 		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ci]] ;
 		Pdate                   before = New                     ;
-		e.second.crc = Crc( e.second.sig/*out*/ , e.first , g_start_info.hash_algo ) ;
+		e.second.crc = Crc( e.second.sig/*out*/ , e.first ) ;
 		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.sig,e.first) ;
 		if (!e.second.crc.valid()) {
 			Lock lock{*msg_mutex} ;
@@ -355,7 +354,7 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add( false/*star*/ , dt , mf            ) ;
 		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
 		//
-		{	::pair_s<bool/*ok*/> wash_report = do_file_actions( g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
+		{	::pair_s<bool/*ok*/> wash_report = do_file_actions( g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard ) ;
 			end_report.msg += ensure_nl(::move(wash_report.first)) ;
 			if (!wash_report.second) {
 				end_report.digest.status = Status::LateLostErr ;

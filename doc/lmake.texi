@@ -26,7 +26,7 @@
 @set UPDATED 22 April 2024
 @set UPDATED-MONTH April 2024
 @set EDITION @dfn{work in progress}
-@set VERSION 0.1
+@set VERSION 22.09
 
 @settitle @value{TITLE}
 @setchapternewpage odd
@@ -1098,15 +1098,22 @@ line1
 @end group
 @end example
 
-@section @code{def version(major,minor)}
+@section @code{def check_version(major,minor)}
 
 This function is used to check that the expected version is compatible with the actual version.
 
-Upon new releases of @lmake, the major version is incremented if it is not backward compatible, else the minor version is increased if the interface is modified (i.e. new features are supported).
+Upon new releases of @lmake, the major version is a tag of the form YY.MM providing the year and month of publication if it is not backward compatible.
+Else the minor version is increased if the interface is modified (i.e. new features are supported).
 Hence, the check is that major versions must match equal and the actual minor version must be at least the expected minor version.
 
 This function must be called right after having imported the @lmake module as it may adapt itself to the required version when this function is called.
 For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.
+
+@section @code{version}
+
+This variable holds the native version of @lmake.
+It is a tuple formed with a @code{str} (the major version) and a @code{int} (the minor version).
+See previous section for more information.
 
 @subsection @code{def search_root_dir(cwd=os.getcwd())}
 Return the root dir as seen from passed @code{cwd} argument.

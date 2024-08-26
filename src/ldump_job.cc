@@ -48,7 +48,6 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "auto_mkdir   : "  << jrr.autodep_env.auto_mkdir          <<'\n' ;
 	::cout << "job_space    : "  << jrr.job_space                       <<'\n' ;
 	::cout << "cwd_s        : "  << jrr.cwd_s                           <<'\n' ;
-	::cout << "hash_algo    : "  << jrr.hash_algo                       <<'\n' ;
 	::cout << "ignore_stat  : "  << jrr.autodep_env.ignore_stat         <<'\n' ;
 	::cout << "interpreter  : "  << jrr.interpreter                     <<'\n' ;
 	::cout << "kill_sigs    : "  << jrr.kill_sigs                       <<'\n' ;

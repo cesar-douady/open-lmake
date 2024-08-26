@@ -25,23 +25,23 @@ using namespace Hash ;
 	return                              os <<')'                      ;
 }
 
-::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks/*out*/ , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Algo ha ) {
+::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks/*out*/ , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
 	::uset_s keep_dirs ;
 	::string msg       ;
 	bool     ok        = true ;
 	//
 	Trace trace("do_file_actions",pre_actions) ;
-	for( auto const& [f,a] : pre_actions ) {                                                                  // pre_actions are adequately sorted
-		SWEAR(+f) ;                                                                                           // acting on root dir is non-sense
+	for( auto const& [f,a] : pre_actions ) {                                                               // pre_actions are adequately sorted
+		SWEAR(+f) ;                                                                                        // acting on root dir is non-sense
 		switch (a.tag) {
 			case FileActionTag::Unlink         :
 			case FileActionTag::UnlinkWarning  :
 			case FileActionTag::UnlinkPolluted :
 			case FileActionTag::None           : {
 				FileSig sig { nfs_guard.access(f) } ;
-				if (!sig) break ;                                                                             // file does not exist, nothing to do
-				bool done       = true/*garbage*/                                                           ;
-				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ;
+				if (!sig) break ;                                                                          // file does not exist, nothing to do
+				bool done       = true/*garbage*/                                                        ;
+				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f))) ;
 				if (quarantine) {
 					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
 					if (done) msg<<"quarantined "         <<mk_file(f)<<'\n' ;
@@ -69,7 +69,7 @@ using namespace Hash ;
 				if (!keep_dirs.contains(f))
 					try {
 						rmdir_s(with_slash(nfs_guard.change(f))) ;
-					} catch (::string const&) {                                                               // if a dir cannot rmdir'ed, no need to try those uphill
+					} catch (::string const&) {                                                            // if a dir cannot rmdir'ed, no need to try those uphill
 						keep_dirs.insert(f) ;
 						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )
 							if (!keep_dirs.insert(no_slash(d_s)).second) break ;
@@ -121,7 +121,7 @@ static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (
 
 static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
 	Trace trace("_mount_bind",dst,src) ;
-	if (::mount( no_slash(src).c_str() , no_slash( dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
+	if (::mount( no_slash(src).c_str() , no_slash(dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
 		throw "cannot bind mount "+src+" onto "+dst+" : "+strerror(errno) ;
 }
 static void _mount_fuse( ::string const& dst_s , ::string const& src_s ) {
@@ -229,7 +229,7 @@ bool/*entered*/ JobSpace::enter(
 	if ( +super_root_view_s && super_root_view_s.rfind('/',super_root_view_s.size()-2)!=0 ) throw "non top-level root_view not yet implemented"s ; // XXX : handle cases where dir is not top level
 	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
 	//
-	::string chroot_dir       ; if (+chroot_dir_s) chroot_dir = no_slash(chroot_dir_s) ;
+	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ;
 	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
 	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
 	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
