@@ -59,18 +59,18 @@ namespace Backdoor {
 		static constexpr char Cmd[] = "solve" ;
 		struct Reply {
 			friend ::ostream& operator<<( ::ostream& , Reply const& ) ;
-			::string real      ;                // if read : last file in case of overlay, if write : first file in case of overlay, if both : overlays not supported
+			::string real      ;                                        // if read : last file in case of overlay, if write : first file in case of overlay, if both : overlays not supported
 			FileInfo file_info ;
 			FileLoc  file_loc  = FileLoc::Ext ;
-			Accesses accesses  ;                // accesses to report on real
+			Accesses accesses  ;                                        // accesses to report on real
 		} ;
 		size_t reply_len(         ) const ;
 		Reply  process  (Record& r) const ;
 		// data
 		::string file      = {}      ;
 		bool     no_follow = false   ;
-		bool     read      = false   ;          // if both read & write, overlays are not supported
-		bool     write     = false   ;          // .
+		bool     read      = false   ;                                  // if both read & write, overlays are not supported
+		bool     write     = false   ;                                  // .
 		bool     create    = false   ;
 		::string comment   = "solve" ;
 	} ;

@@ -138,9 +138,9 @@ namespace Engine {
 		// services
 		bool operator==(ConfigStatic const&) const = default ;
 		// data
-		Time::Delay    date_prec      ;
-		Time::Delay    heartbeat      ;
-		Time::Delay    heartbeat_tick ;
+		Time::Delay    date_prec      ;                                              // precision of dates on disk
+		Time::Delay    heartbeat      ;                                              // min time between successive heartbeat probes for any given job
+		Time::Delay    heartbeat_tick ;                                              // min time between successive heartbeat probes
 		DepDepth       max_dep_depth  = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
 		Time::Delay    network_delay  ;
 		size_t         path_max       = -1   ;                                       // if -1 <=> unlimited

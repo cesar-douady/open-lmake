@@ -502,8 +502,6 @@ namespace Engine {
 		DynamicStartCmdAttrs           (DynamicStartCmdAttrs     && src) : Base           {::move(src)} {}                 // .
 		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
-		// services
-		StartCmdAttrs eval( Rule::SimpleMatch const& , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
 	} ;
 
 	struct DynamicCmd : Dynamic<Cmd> {

@@ -6,7 +6,11 @@
 #include <sched.h>
 #include <sys/mount.h>
 
+#include "disk.hh"
+
 #include "process.hh"
+
+using namespace Disk ;
 
 [[noreturn]] static void _exit( Rc rc , const char* msg=nullptr ) {     // signal-safe
 	if (msg) {
@@ -38,16 +42,16 @@
 	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if (_c2po.write!=Fd::Stdout) ::dup2(_c2po.write,Fd::Stdout) ; // save stdout in case it is modified and we want to redirect stderr to it
 	if (stderr_fd==NoneFd) ::close(Fd::Stderr) ; else if (_c2pe.write!=Fd::Stderr) ::dup2(_c2pe.write,Fd::Stderr) ;
 	//
-	if (_p2c .read >Fd::Std) _p2c .read .close() ;                                      // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-	if (_c2po.write>Fd::Std) _c2po.write.close() ;                                      // .
-	if (_c2pe.write>Fd::Std) _c2pe.write.close() ;                                      // .
+	if (_p2c .read >Fd::Std) _p2c .read .close() ;                                                // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
+	if (_c2po.write>Fd::Std) _c2po.write.close() ;                                                // .
+	if (_c2pe.write>Fd::Std) _c2pe.write.close() ;                                                // .
 	//
-	if (+cwd_   ) { if (::chdir(cwd_.c_str()) !=0) _exit(Rc::System,"cannot chdir") ; } // /!\ dont use exit which is not signal-safe
+	if (+cwd_s  ) { if (::chdir(no_slash(cwd_s).c_str())!=0) _exit(Rc::System,"cannot chdir") ; } // /!\ dont use exit which is not signal-safe
 	//
-	if (pre_exec) { if (pre_exec(pre_exec_arg)!=0) _exit(Rc::Fail                 ) ; } // /!\ dont use exit which is not signal-safe
+	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail                 ) ; } // /!\ dont use exit which is not signal-safe
 	//
 	#if HAS_CLOSE_RANGE
-		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                                    // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
+		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                                              // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
 	#endif
 	//
 	if (first_pid) {
@@ -125,7 +129,7 @@ void Child::spawn() {
 	if (first_pid) {
 		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                             ; // we need a trampoline stack if we launch a grand-child
 		void*              trampoline_stack_ptr = trampoline_stack.data()+(StackGrowsDownward?trampoline_stack.size():0) ; // .
-		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID , this ) ;
+		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;         // CLONE_NEWNS is important to mount the new /proc without disturing caller
 	} else {
 		pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD              , this ) ;
 	}

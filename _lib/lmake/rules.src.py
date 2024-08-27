@@ -66,10 +66,10 @@ class Rule(_RuleBase) :
 #	allow_stderr     = False                           # if set, writing to stderr is not an error but a warning
 #	auto_mkdir       = False                           # auto mkdir directory in case of chdir
 	backend          = 'local'                         # may be set anywhere in the inheritance hierarchy if execution must be remote
-#	chroot           = None                            # chroot directory to execute cmd (if None, empty or absent, no chroot is not done)
+#	chroot_dir       = '/'                             # chroot directory to execute cmd (if None, empty or absent, no chroot is not done)
 #	cache            = None                            # cache used to store results for this rule. None means no caching
 #	cmd                                                # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
-#	cwd                                                # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
+#	cwd              = ''                              # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
 #                                                      # defaults to the nearest root dir of the module in which the rule is defined
 	deps             = {}                              # patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {'SRC':'{File}.c'}
 	#                                                  # deps may have flags (use - to reset), e.g. {'TOOL':('tool','Critical','-Essential')}, flags may be :
@@ -90,12 +90,12 @@ class Rule(_RuleBase) :
 #	n_tokens         = 1                               # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 #	prio             = 0                               # in case of ambiguity, rules are selected with highest prio first
 	python           = (python,)                       # python used for callable cmd
-#	root             = '/repo'                         # absolute path under which the root directory of the repo is seen (if None, empty, or absent, no bind mount is done)
+#	root_view        = '/repo'                         # absolute path under which the root directory of the repo is seen (if None, empty, or absent, no bind mount is done)
 	shell            = (shell ,)                       # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
 	start_delay      = 3                               # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
 	max_stderr_len   = 100                             # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 #	timeout          = None                            # timeout allocated to job execution (in s), must be None or an int
-#	tmp              = '/tmp'                          # may be :
+#	tmp_view         = '/tmp'                          # may be :
 	#                                                  # - not specified, '' or None : do not mount tmp dir
 	#                                                  # - str                       : must be an absolute path which tmp dir is mounted on.
 	#                                                  # physical tmp dir is :

@@ -452,7 +452,7 @@ namespace Disk {
 		}
 	}
 
-	void RealPath::init( RealPathEnv const& rpe , pid_t p ) {
+	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) {
 		SWEAR( is_abs(rpe.root_dir_s) , rpe.root_dir_s ) ;
 		SWEAR( is_abs(rpe.tmp_dir_s ) , rpe.tmp_dir_s  ) ;
 		//
@@ -502,12 +502,12 @@ namespace Disk {
 			else                  real = read_lnk(s_proc+"/self/fd/"   +at.fd) ;
 			//
 			if (!is_abs(real) ) return {} ;                                               // user code might use the strangest at, it will be an error but we must support it
-			if (real.size()==1) real.clear() ;
+			if (real.size()==1) real.clear() ;                                            // if '/', we must substitute the empty string to enforce invariant
 		}
-		_Dvg in_repo   { root_dir   , real } ;                                            // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
-		_Dvg in_tmp    { tmp_dir    , real } ;                                            // keep track of where we are w.r.t. tmp        , always track symlinks
-		_Dvg in_admin  { _admin_dir , real } ;                                            // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
-		_Dvg in_proc   { s_proc     , real } ;                                            // keep track of where we are w.r.t. /proc      , always track symlinks
+		_Dvg in_repo   { root_dir   , real }         ;                                    // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
+		_Dvg in_tmp    { tmp_dir    , real }         ;                                    // keep track of where we are w.r.t. tmp        , always track symlinks
+		_Dvg in_admin  { _admin_dir , real }         ;                                    // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
+		_Dvg in_proc   { s_proc     , real }         ;                                    // keep track of where we are w.r.t. /proc      , always track symlinks
 		bool is_in_tmp = +_env->tmp_dir_s && +in_tmp ;
 		// loop INVARIANT : accessed file is real+'/'+cur->substr(pos)
 		// when pos>cur->size(), we are done and result is real

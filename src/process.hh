@@ -134,7 +134,7 @@ public :
 	Fd              stderr_fd          = Fd::Stderr ;
 	::map_ss const* env                = nullptr    ;
 	::map_ss const* add_env            = nullptr    ;
-	::string        cwd_               = {}         ;
+	::string        cwd_s              = {}         ;
 	int/*rc*/       (*pre_exec)(void*) = nullptr    ; // if no cmd_line, this is the entire function exected as child returning the exit status
 	void*           pre_exec_arg       = nullptr    ;
 	// child info

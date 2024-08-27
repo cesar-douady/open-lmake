@@ -114,8 +114,7 @@ bool/*sent*/ Record::report_async_access( JobExecRpcReq&& jerr , bool force ) co
 		}
 		if (!miss) return false/*sent*/ ;                                                  // modifying accesses cannot be cached as we do not know what other processes may have done in between
 	}
-	report_direct(::move(jerr)) ;
-	return true/*sent*/ ;
+	return report_direct(::move(jerr)) ;
 }
 
 JobExecRpcReply Record::report_sync_direct( JobExecRpcReq&& jerr , bool force ) const {
