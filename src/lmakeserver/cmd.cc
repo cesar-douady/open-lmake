@@ -210,10 +210,10 @@ namespace Engine {
 		get_script << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)                                                  ) << '\n' ;
 		get_script << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                                                 ) << '\n' ;
 		get_script << ",\tname           = " << mk_py_str(j->name()                                                              ) << '\n' ;
-		get_script << ",\troot_view      = " << mk_py_str(+start.job_space.chroot_dir_s?no_slash(start.job_space.root_view_s ):"") << '\n' ;
+		get_script << ",\troot_view      = " << mk_py_str(+start.job_space.root_view_s ?no_slash(start.job_space.root_view_s ):"") << '\n' ;
 		get_script << ",\tstdin          = " << mk_py_str(start.stdin                                                            ) << '\n' ;
 		get_script << ",\tstdout         = " << mk_py_str(start.stdout                                                           ) << '\n' ;
-		get_script << ",\ttmp_view       = " << mk_py_str(+start.job_space.chroot_dir_s?no_slash(start.job_space.tmp_view_s  ):"") << '\n' ;
+		get_script << ",\ttmp_view       = " << mk_py_str(+start.job_space.tmp_view_s  ?no_slash(start.job_space.tmp_view_s  ):"") << '\n' ;
 		//
 		get_script << ",\tpreamble =\n" << mk_py_str(start.cmd.first ) << '\n' ;
 		get_script << ",\tcmd =\n"      << mk_py_str(start.cmd.second) << '\n' ;

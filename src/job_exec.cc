@@ -404,7 +404,7 @@ int main( int argc , char* argv[] ) {
 				static constexpr uint64_t NPids     = MAX_PID - FirstPid                  ;           // number of available pid's
 				static constexpr uint64_t delta_pid = (1640531527*NPids) >> n_bits(NPids) ;           // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
 				//
-				g_gather.first_pid =FirstPid + ((g_start_info.small_id*delta_pid)>>(32-n_bits(NPids)))%NPids ; // delta_pid on 64 bits to avoid rare overflow in multiplication
+				g_gather.first_pid = FirstPid + ((g_start_info.small_id*delta_pid)>>(32-n_bits(NPids)))%NPids ; // delta_pid on 64 bits to avoid rare overflow in multiplication
 			}
 		} catch (::string const& e) {
 			end_report.msg += e ; goto End ;
@@ -416,7 +416,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.autodep_env       = ::move(g_start_info.autodep_env    ) ;
 		g_gather.autodep_env.views = ::move(flat_views                  ) ;
 		g_gather.cur_deps_cb       =        cur_deps_cb                   ;
-		g_gather.cwd               =        no_slash(g_start_info.cwd_s)  ;
+		g_gather.cwd_s             =        g_start_info.cwd_s            ;
 		g_gather.env               =        &cmd_env                      ;
 		g_gather.job               =        g_job                         ;
 		g_gather.kill_sigs         = ::move(g_start_info.kill_sigs      ) ;
@@ -428,7 +428,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.service_mngt      =        g_service_mngt                ;
 		g_gather.timeout           =        g_start_info.timeout          ;
 		//
-		if (!g_start_info.method)                                                                              // if no autodep, consider all static deps are fully accessed
+		if (!g_start_info.method)                                                                               // if no autodep, consider all static deps are fully accessed
 			for( auto& [d,digest] : g_start_info.deps ) if (digest.dflags[Dflag::Static]) {
 				digest.accesses = ~Accesses() ;
 				if ( digest.is_crc && !digest.crc().valid() ) digest.sig(FileSig(d)) ;
@@ -461,9 +461,9 @@ int main( int argc , char* argv[] ) {
 		//
 		end_report.msg += compute_crcs(digest) ;
 		//
-		if (!g_start_info.autodep_env.reliable_dirs) {                                                         // fast path : avoid listing targets & guards if reliable_dirs
-			for( auto const& [t,_] : digest.targets  ) g_nfs_guard.change(t) ;                                 // protect against NFS strange notion of coherence while computing crcs
-			for( auto const&  f    : g_gather.guards ) g_nfs_guard.change(f) ;                                 // .
+		if (!g_start_info.autodep_env.reliable_dirs) {                                                          // fast path : avoid listing targets & guards if reliable_dirs
+			for( auto const& [t,_] : digest.targets  ) g_nfs_guard.change(t) ;                                  // protect against NFS strange notion of coherence while computing crcs
+			for( auto const&  f    : g_gather.guards ) g_nfs_guard.change(f) ;                                  // .
 			g_nfs_guard.close() ;
 		}
 		//
@@ -471,7 +471,7 @@ int main( int argc , char* argv[] ) {
 			if (!cmd_env.contains("TMPDIR"))
 				digest.msg << "accessed "<<no_slash(g_gather.autodep_env.tmp_dir_s)<<" without dedicated tmp dir\n" ;
 			else if (!g_start_info.keep_tmp_dir)
-				try                     { unlnk_inside_s(g_gather.autodep_env.tmp_dir_s,true/*force*/) ; }     // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
+				try                     { unlnk_inside_s(g_gather.autodep_env.tmp_dir_s,true/*force*/) ; }      // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
 				catch (::string const&) {                                                                }
 		}
 		//
@@ -498,7 +498,7 @@ End :
 	try {
 		ClientSockFd fd           { g_service_end , NConnectionTrials } ;
 		Pdate        end_overhead = New                                 ;
-		end_report.digest.stats.total = end_overhead - start_overhead ;                                        // measure overhead as late as possible
+		end_report.digest.stats.total = end_overhead - start_overhead ;                                         // measure overhead as late as possible
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		OMsgBuf().send( fd , end_report ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

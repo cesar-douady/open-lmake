@@ -116,7 +116,7 @@ int main( int argc , char* argv[] ) {
 		if (!env.contains("HOME")) env["HOME"    ] = env["TMPDIR"]        ;                                  // by default, set HOME to TMPDIR as this cannot be set from rule
 		//
 		/**/                                        gather.env                     = &env                                                            ;
-		/**/                                        gather.cwd                     = cmd_line.flag_args[+CmdFlag::Cwd]                               ;
+		if (cmd_line.flags[CmdFlag::Cwd          ]) gather.cwd_s                   = with_slash(cmd_line.flag_args[+CmdFlag::Cwd])                   ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) gather.method                  = method                                                          ;
 		/**/                                        gather.autodep_env.auto_mkdir  = cmd_line.flags[CmdFlag::AutoMkdir ]                             ;
 		/**/                                        gather.autodep_env.ignore_stat = cmd_line.flags[CmdFlag::IgnoreStat]                             ;

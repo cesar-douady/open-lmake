@@ -182,7 +182,7 @@ Fd Gather::_spawn_child() {
 	_child.stderr_fd  = child_stderr                          ;
 	_child.first_pid  = first_pid                             ;
 	if (method==AutodepMethod::Ptrace) {                        // PER_AUTODEP_METHOD : handle case
-		// we split the responsability into 2 processes :
+		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
 		Pipe pipe{New,true/*no_std*/} ;
@@ -199,7 +199,7 @@ Fd Gather::_spawn_child() {
 			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) _add_env[env_var] += ':' + get_env(env_var) ; }
 		}
-		new_exec( New , cmd_line[0] ) ;
+		new_exec( New , mk_glb(cmd_line[0],cwd_s) ) ;
 		SWEAR(is_blocked_sig(SIGCHLD)) ;
 		child_fd = open_sigs_fd({SIGCHLD}) ;
 	}
@@ -207,7 +207,7 @@ Fd Gather::_spawn_child() {
 	_child.cmd_line = cmd_line  ;
 	_child.env      = env       ;
 	_child.add_env  = &_add_env ;
-	_child.cwd_     = cwd       ;
+	_child.cwd_s    = cwd_s     ;
 	if (method==AutodepMethod::Ptrace) {
 		::latch ready{1} ;
 		_ptrace_thread = ::jthread( _s_do_child , this , report_fd , &ready ) ;             // /!\ _child must be spawned from tracing thread
@@ -217,7 +217,7 @@ Fd Gather::_spawn_child() {
 		_child.spawn() ;
 		//^^^^^^^^^^^^
 	}
-	if (+timeout                     ) { _end_timeout = start_date + timeout ; trace("set_timeout",timeout,_end_timeout) ; }
+	if (+timeout) { _end_timeout = start_date + timeout ; trace("set_timeout",timeout,_end_timeout) ; }
 	trace("child_pid",_child.pid) ;
 	return child_fd ;
 }

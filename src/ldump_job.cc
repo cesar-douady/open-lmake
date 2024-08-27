@@ -44,26 +44,33 @@ void print_start(JobRpcReply const& jrr) {
 	SWEAR( jrr.proc==JobRpcProc::Start , jrr.proc ) ;
 	::cout << "--start--\n" ;
 	//
-	::cout << "addr         : "  << hex<<jrr.addr<<dec                  <<'\n' ;
-	::cout << "auto_mkdir   : "  << jrr.autodep_env.auto_mkdir          <<'\n' ;
-	::cout << "job_space    : "  << jrr.job_space                       <<'\n' ;
-	::cout << "cwd_s        : "  << jrr.cwd_s                           <<'\n' ;
-	::cout << "ignore_stat  : "  << jrr.autodep_env.ignore_stat         <<'\n' ;
-	::cout << "interpreter  : "  << jrr.interpreter                     <<'\n' ;
-	::cout << "kill_sigs    : "  << jrr.kill_sigs                       <<'\n' ;
-	::cout << "live_out     : "  << jrr.live_out                        <<'\n' ;
-	::cout << "method       : "  << jrr.method                          <<'\n' ;
-	::cout << "small_id     : "  << jrr.small_id                        <<'\n' ;
-	::cout << "stdin        : "  << jrr.stdin                           <<'\n' ;
-	::cout << "stdout       : "  << jrr.stdout                          <<'\n' ;
-	::cout << "timeout      : "  << jrr.timeout                         <<'\n' ;
-	::cout << "physical tmp : "  << no_slash(jrr.autodep_env.tmp_dir_s) <<'\n' ; // tmp directory on disk
-	::cout << "use_script   : "  << jrr.use_script                      <<'\n' ;
+	::cout << "addr         : "  << hex<<jrr.addr<<dec          <<'\n' ;
+	::cout << "auto_mkdir   : "  << jrr.autodep_env.auto_mkdir  <<'\n' ;
+	::cout << "chroot_dir_s : "  << jrr.job_space.chroot_dir_s  <<'\n' ;
+	::cout << "cwd_s        : "  << jrr.cwd_s                   <<'\n' ;
+	::cout << "date_prec    : "  << jrr.date_prec               <<'\n' ;
+	::cout << "ignore_stat  : "  << jrr.autodep_env.ignore_stat <<'\n' ;
+	::cout << "interpreter  : "  << jrr.interpreter             <<'\n' ;
+	::cout << "keep_tmp_dir : "  << jrr.keep_tmp_dir            <<'\n' ;
+	::cout << "key          : "  << jrr.key                     <<'\n' ;
+	::cout << "kill_sigs    : "  << jrr.kill_sigs               <<'\n' ;
+	::cout << "live_out     : "  << jrr.live_out                <<'\n' ;
+	::cout << "method       : "  << jrr.method                  <<'\n' ;
+	::cout << "tmp_dir_s    : "  << jrr.autodep_env.tmp_dir_s   <<'\n' ; // tmp directory on disk
+	::cout << "root_view_s  : "  << jrr.job_space.root_view_s   <<'\n' ;
+	::cout << "small_id     : "  << jrr.small_id                <<'\n' ;
+	::cout << "stdin        : "  << jrr.stdin                   <<'\n' ;
+	::cout << "stdout       : "  << jrr.stdout                  <<'\n' ;
+	::cout << "timeout      : "  << jrr.timeout                 <<'\n' ;
+	::cout << "tmp_sz_mb    : "  << jrr.tmp_sz_mb               <<'\n' ;
+	::cout << "tmp_view_s   : "  << jrr.job_space.tmp_view_s    <<'\n' ;
+	::cout << "use_script   : "  << jrr.use_script              <<'\n' ;
 	//
-	::cout << "deps :\n"           ; _print_map(jrr.deps          )                            ;
-	::cout << "static matches :\n" ; _print_map(jrr.static_matches)                            ;
-	::cout << "star matches :\n"   ; _print_map(jrr.star_matches  )                            ;
-	::cout << "env :\n"            ; _print_map(jrr.env           )                            ;
+	::cout << "deps :\n"           ; _print_map(jrr.deps           )                           ;
+	::cout << "env :\n"            ; _print_map(jrr.env            )                           ;
+	::cout << "star matches :\n"   ; _print_map(jrr.star_matches   )                           ;
+	::cout << "static matches :\n" ; _print_map(jrr.static_matches )                           ;
+	::cout << "views :\n"          ; _print_map(jrr.job_space.views)                           ;
 	::cout << "cmd :\n"            ; ::cout << ensure_nl(indent(jrr.cmd.first+jrr.cmd.second)) ;
 }
 

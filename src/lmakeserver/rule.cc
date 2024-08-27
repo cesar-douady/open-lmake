@@ -496,18 +496,6 @@ namespace Engine {
 	}
 
 	//
-	// StartCmdAttrs
-	//
-
-	StartCmdAttrs DynamicStartCmdAttrs::eval( Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
-		StartCmdAttrs res = Base::eval(m,rsrcs,deps) ;
-		::string interpreter0 = m.rule->add_cwd(::copy(res.interpreter[0])) ;
-		AutodepLock lock{deps} ;
-		Record::Read( auditor() , interpreter0.c_str() , false/*no_follow*/ , false/*keep_real*/ , "dyn_attr_eval" ) ;
-		return res ;
-	}
-
-	//
 	// Cmd
 	//
 

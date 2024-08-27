@@ -413,8 +413,7 @@ namespace Disk {
 		RealPath() = default ;
 		// src_dirs_s may be either absolute or relative, but must be canonic
 		// tmp_dir_s must be absolute and canonic
-		RealPath ( RealPathEnv const& rpe , pid_t p=0 ) { init(rpe,p) ; }
-		void init( RealPathEnv const&     , pid_t  =0 ) ;
+		RealPath ( RealPathEnv const& rpe , pid_t p=0 ) ;
 		// services
 		FileLoc file_loc( ::string const& real ) const { return _env->file_loc(real) ; }
 		//
