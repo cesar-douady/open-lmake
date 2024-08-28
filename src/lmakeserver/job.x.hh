@@ -154,13 +154,13 @@ namespace Engine {
 		void live_out(            ::string const& ) const ;
 		//
 		JobMngtRpcReply  job_analysis( JobMngtProc , ::vector<Dep> const& deps                ) const ; // answer to requests from job execution
-		bool/*modified*/ end         ( JobRpcReq&& , bool sav_jrr , ::vmap_ss const& rsrcs={} ) ;       // hit indicates that result is from a cache hit
+		void             end         ( JobRpcReq&& , bool sav_jrr , ::vmap_ss const& rsrcs={} ) ;       // hit indicates that result is from a cache hit
 		void             give_up     ( Req={} , bool report=true                              ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
-		JobReport audit_end( ::string const& pfx , ReqInfo&    , ::string const& msg , ::string const& stderr    , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const ;
-		JobReport audit_end( ::string const& pfx , ReqInfo& ri ,                       ::string const& stderr={} , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const {
-			return audit_end(pfx,ri,{}/*msg*/,stderr,max_stderr_len,modified,exec_time) ;
+		JobReport audit_end(ReqInfo&   ,bool with_stats,::string const& pfx,::string const& msg,::string const& stderr   ,size_t max_stderr_len=-1,Delay exec_time={}) const ;
+		JobReport audit_end(ReqInfo& ri,bool with_stats,::string const& pfx,                    ::string const& stderr={},size_t max_stderr_len=-1,Delay exec_time={}) const {
+			return audit_end(ri,with_stats,pfx,{}/*msg*/,stderr,max_stderr_len,exec_time) ;
 		}
 		// data
 		in_addr_t host       = NoSockAddr ;
@@ -232,6 +232,7 @@ namespace Engine {
 		bool             speculative_wait:1 = false ;                    //          1 bit , if true <=> job is waiting for speculative deps only
 		Bool3            speculate       :2 = Yes   ;                    //          2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
 		bool             reported        :1 = false ;                    //          1 bit , used for delayed report when speculating
+		bool             modified        :1 = false ;                    //          1 bit , modified when last run
 		BackendTag       backend         :2 = {}    ;                    //          2 bits
 	private :
 		Step _step:3 = {} ;                                              //          3 bits
@@ -329,10 +330,10 @@ namespace Engine {
 			/**/                          if (speculate==Yes         ) return ;                       // fast path : nothing to propagate
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
-			if ( speculate==No && ri.reported && ri.done() && err() ) {
-				audit_end("was_",ri) ;
-				// XXX : generate JobReport::Steady when pertinent, which means remember the modified bit
-				req->stats.move( JobReport::Speculative , err()?JobReport::Failed:JobReport::Done , exec_time ) ;
+			if ( speculate==No && ri.reported && ri.done() ) {
+				if      (err()      ) { audit_end(ri,false/*with_stats*/,"was_") ; req->stats.move( JobReport::Speculative , JobReport::Failed , exec_time ) ; }
+				else if (ri.modified)                                              req->stats.move( JobReport::Speculative , JobReport::Done   , exec_time ) ;
+				else                                                               req->stats.move( JobReport::Speculative , JobReport::Steady , exec_time ) ;
 			}
 			_propag_speculate(ri) ;
 		}

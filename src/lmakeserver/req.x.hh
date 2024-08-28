@@ -125,8 +125,7 @@ namespace Engine {
 	struct JobAudit {
 		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
 		// data
-		JobReport report      = {}   /*garbage*/ ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
-		bool      modified    = false/*garbage*/ ;
+		JobReport report      = {} /*garbage*/ ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
 		::string  backend_msg ;
 	} ;
 

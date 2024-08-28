@@ -140,6 +140,7 @@ namespace Engine {
 		/**/                  os << "JRI(" << ri.req                  ;
 		/**/                  os <<','  << (ri.full?"full":"makable") ;
 		if (ri.speculate!=No) os <<",S:"<< ri.speculate               ;
+		if (ri.modified     ) os <<",modified"                        ;
 		/**/                  os <<','  << ri.step()                  ;
 		/**/                  os <<'@'  << ri.iter                    ;
 		/**/                  os <<':'  << ri.state                   ;
@@ -388,7 +389,7 @@ namespace Engine {
 		}
 	}
 
-	bool/*modified*/ JobExec::end( JobRpcReq&& jrr , bool sav_jrr , ::vmap_ss const& rsrcs ) {
+	void JobExec::end( JobRpcReq&& jrr , bool sav_jrr , ::vmap_ss const& rsrcs ) {
 		JobDigest&        digest           = jrr.digest                                           ;
 		Status            status           = digest.status                                        ;           // status will be modified, need to make a copy
 		Bool3             ok               = is_ok  (status)                                      ;
@@ -617,6 +618,7 @@ namespace Engine {
 			ReqInfo& ri = (*this)->req_info(req) ;
 			trace("req_before",target_reason,status,ri) ;
 			req->missing_audits.erase(*this) ;                                                     // old missing audit is obsolete as soon as we have rerun the job
+			ri.modified = modified ;
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason job_err_reason = (*this)->make( ri , end_action , target_reason , Yes/*speculate*/ , &old_exec_time , false/*wakeup_watchers*/ ) ;
@@ -633,28 +635,27 @@ namespace Engine {
 			//
 			Delay    exec_time = digest.stats.total ;
 			::string pfx       = !ri.done() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
-			//
-			JobReport jr = audit_end( pfx , ri , job_msg , full_report&&!job_err?stderr:""s , end_none_attrs.max_stderr_len , modified , exec_time ) ; // dont report user stderr if analysis ...
-			if (ri.done()) {                                                                                                                           // ... made it meaningless
+			// dont report user stderr if analysis made it meaningless
+			JobReport jr = audit_end( ri , true/*with_stats*/ , pfx , job_msg , full_report&&!job_err?stderr:""s , end_none_attrs.max_stderr_len , exec_time ) ;
+			if (ri.done()) {
 				trace("wakeup_watchers",ri) ;
 				ri.wakeup_watchers() ;
 				one_done = true ;
 			} else {
-				req->missing_audits[*this] = { jr , modified , msg } ;
+				req->missing_audits[*this] = { jr , msg } ;
 			}
 			trace("req_after",ri) ;
 			req.chk_end() ;
 		}
 		// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
-		if ( upload && one_done ) {                                                                                                                    // cache only successful results
+		if ( upload && one_done ) {                                                                // cache only successful results
 			NfsGuard nfs_guard{g_config->reliable_dirs} ;
 			Cache::s_tab.at(cache_none_attrs.key)->upload( *this , digest , nfs_guard ) ;
 		}
 		trace("summary",*this) ;
-		return modified ;
 	}
 
-	JobReport JobExec::audit_end( ::string const& pfx , ReqInfo& ri , ::string const& msg , ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time ) const {
+	JobReport JobExec::audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , ::string const& msg , ::string const& stderr , size_t max_stderr_len , Delay exec_time ) const {
 		using JR = JobReport ;
 		//
 		Req            req         = ri.req           ;
@@ -665,6 +666,7 @@ namespace Engine {
 		const char*    step        = nullptr          ;
 		bool           with_stderr = true             ;
 		bool           speculate   = ri.speculate!=No ;
+		bool           done        = ri.done()        ;
 		//
 		if      (jd.run_status!=RunStatus::Ok   ) { res = JR::Failed    ; color = Color::Err     ;                       step = snake_cstr(jd.run_status) ; }
 		else if (jd.status==Status::Killed      ) { res = JR::Killed    ; color = Color::Note    ; with_stderr = false ;                                    }
@@ -672,17 +674,17 @@ namespace Engine {
 		else if (is_lost(jd.status)             ) { res = JR::Lost      ; color = Color::Warning ; with_stderr = false ;                                    }
 		else if (req.zombie()                   ) { res = JR::Completed ; color = Color::Note    ; with_stderr = false ;                                    }
 		else if (jd.err()                       ) { res = JR::Failed    ; color = Color::Err     ;                                                          }
-		else if (modified                       ) { res = JR::Done      ; color = Color::Ok      ;                                                          }
+		else if (ri.modified                    ) { res = JR::Done      ; color = Color::Ok      ;                                                          }
 		else                                      { res = JR::Steady    ; color = Color::Ok      ;                                                          }
 		//
-		if      (ri.done()                      )   jr = res          ;
+		if      (done                           )   jr = res          ;
 		else if (jd.status==Status::EarlyChkDeps) { jr = JR::Resubmit ; color = Color::Note ; with_stderr = false ; step = nullptr ; }
 		else                                      { jr = JR::Rerun    ; color = Color::Note ;                       step = nullptr ; }
 		//
 		if (color==Color::Err) { if ( speculate                ) color = Color::SpeculateErr ; }
 		else                   { if ( + with_stderr && +stderr ) color = Color::Warning      ; }
 		if (!step) step = snake_cstr(jr) ;
-		Trace trace("audit_end",color,pfx,step,*this,ri,STR(modified),jr,STR(+msg),STR(+stderr)) ;
+		Trace trace("audit_end",color,pfx,step,*this,ri,STR(with_stats),STR(done),STR(speculate),jr,STR(+msg),STR(+stderr)) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		req->audit_job(color,pfx+step,*this,true/*at_end*/,exec_time) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -690,8 +692,8 @@ namespace Engine {
 		if (with_stderr) req->audit_stderr( *this , msg , stderr , max_stderr_len , 1 ) ;
 		else             req->audit_stderr( *this , msg , {}     , max_stderr_len , 1 ) ;
 		//
-		if ( speculate && jr<=JobReport::Done ) jr = JobReport::Speculative ;
-		req->stats.add(jr,exec_time) ;
+		if ( speculate && done ) jr = JR::Speculative ;
+		if ( with_stats        ) req->stats.add(jr,exec_time) ;
 		//
 		return res ;
 	}
@@ -1036,8 +1038,8 @@ namespace Engine {
 				req->audit_stderr( idx() , ensure_nl(rule->end_none_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , -1 , 1 ) ;
 			}
 			JobReason r = reason() ;
-			if (r.tag>=JobReasonTag::Err) audit_end( ja.report==JobReport::Hit?"hit_":"was_" , ri , reason_str(r)  , stderr , max_stderr_len , ja.modified ) ;
-			else                          audit_end( ja.report==JobReport::Hit?"hit_":"was_" , ri , ja.backend_msg , stderr , max_stderr_len , ja.modified ) ;
+			if (r.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , ja.report==JobReport::Hit?"hit_":"was_" , reason_str(r)  , stderr , max_stderr_len ) ;
+			else                          audit_end( ri , true/*with_stats*/ , ja.report==JobReport::Hit?"hit_":"was_" , ja.backend_msg , stderr , max_stderr_len ) ;
 			req->missing_audits.erase(it) ;
 		}
 		trace("wakeup",ri) ;
@@ -1196,9 +1198,9 @@ namespace Engine {
 						if (ri.live_out) je.live_out(ri,job_info.end.end.digest.stdout) ;
 						ri.step(Step::Hit) ;
 						trace("hit_result") ;
-						bool modified = je.end( ::move(job_info.end.end) , false/*sav_jrr*/ ) ;               // no resources nor backend for cached jobs
+						je.end( ::move(job_info.end.end) , false/*sav_jrr*/ ) ;                               // no resources nor backend for cached jobs
 						req->stats.add(JobReport::Hit) ;
-						req->missing_audits[idx()] = { JobReport::Hit , modified , {} } ;
+						req->missing_audits[idx()] = { JobReport::Hit , {} } ;
 						return true/*maybe_new_deps*/ ;
 					} catch (::string const&) {}                                                              // if we cant download result, it is like a miss
 				break ;

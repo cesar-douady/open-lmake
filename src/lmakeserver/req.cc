@@ -578,7 +578,6 @@ namespace Engine {
 
 	::ostream& operator<<( ::ostream& os , JobAudit const& ja ) {
 		/**/                 os << "JobAudit(" << ja.report ;
-		if (ja.modified    ) os << ",modified"              ;
 		if (+ja.backend_msg) os <<','<< ja.backend_msg      ;
 		return               os <<')'                       ;
 
