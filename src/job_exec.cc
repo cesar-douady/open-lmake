@@ -95,7 +95,7 @@ SeqId             g_trace_id       = 0/*garbage*/ ;
 	}
 	if (!res.contains("HOME")) res["HOME"] = res["TMPDIR"] ;                  // by default, set HOME to TMPDIR as this cannot be set from rule
 	//
-	Trace trace("prepare_env",g_start_info.autodep_env.tmp_dir_s,g_phy_tmp_dir_s,res) ;
+	Trace trace("prepare_env",g_start_info.tmp_sz_mb,g_start_info.autodep_env.tmp_dir_s,g_phy_tmp_dir_s,res) ;
 	//
 	try {
 		if (+g_phy_tmp_dir_s) unlnk_inside_s(g_phy_tmp_dir_s,true/*force*/) ; // ensure tmp dir is clean (force because g_phy_tmp_dir_s is absolute)

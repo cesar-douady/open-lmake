@@ -3002,6 +3002,8 @@ In addition to dedicated resources, all backends manage the following 3 resource
 The backend is expected to ensure that such memory is available for the job.
 Unit must be coherent with the one used in the configuration. It is MB by default.
 @item @code{tmp} : The size of necessary temporary disk space.
+By default temporary disk space is not managed, i.e. the @code{TMPDIR} environment variable is set (to an empty dir) with no size limit (other than the physical disk size)
+but no reservation is made in the backend.
 @end itemize
 
 @anchor{local-backend}
@@ -3075,8 +3077,9 @@ For example if specified as @code{tmp_r} and the rule of a job contains @code{re
 The @code{resources} rule attributes is composed of :
 @itemize @minus
 @item standard resources @code{cpu}, @code{mem} and @code{tmp}.
-@item @code{queue} : the queue used to submit jobs to the SGE daemon.
-@item any other resource passed to the SGE daemon through the @code{-l} option of @code{qsub}.
+@item @code{hard} : @code{qsub} options to be used after a @code{-hard} option.
+@item @code{soft} : @code{qsub} options to be used after a @code{-soft} option.
+@item any other resource passed to the SGE daemon through the @code{-l} @code{qsub} option.
 @end itemize
 
 @section slurm backend
