@@ -365,9 +365,9 @@ namespace Backends::Sge {
 				case 'm' : if (k=="mem" ) { mem  = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
 				case 's' : if (k=="soft") { soft = _split_rsrcs                        (v) ; continue ; } break ;
 				case 't' : if (k=="tmp" ) { tmp  = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case '-' : throw "resource cannot start with - :"+k ;
 				default : ;
 			}
-			if (k[0]=='-') throw "resource cannot start with - :"+k ;
 			tokens.emplace_back( k , from_string_with_units<uint64_t>(v) ) ;
 		}
 	}
