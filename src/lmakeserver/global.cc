@@ -33,33 +33,37 @@ namespace Engine {
 		/**/       report_txt += color_sfx(ro,c)                              ;
 		/**/       report_txt += '\n'                                         ;
 		//
-		using Proc = ReqRpcReplyProc ;
-		try                       { OMsgBuf().send( out_fd , ReqRpcReply(Proc::Txt,_audit_indent(::move(report_txt),lvl,sep)) ) ; } // if we lose connection, there is nothing much we can do ...
-		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                              } // ... about it (hoping that we can still trace)
+		try                       { OMsgBuf().send( out_fd , ReqRpcReply(ReqRpcReplyProc::Txt,_audit_indent(::move(report_txt),lvl,sep)) ) ; } // if we lose connection, there is nothing much we ...
+		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                                         } // ... can do about it (hoping that we can still trace)
 		if (log)
-			try                       { *log << _audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep) << ::flush ; }         // .
+			try                       { *log << _audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep) << ::flush ; }                    // .
 			catch (::string const& e) { Trace("audit","lost_log",e) ;                                                     }
 	}
 
 	void audit_file( Fd out_fd , ::string&& file ) {
-		using Proc = ReqRpcReplyProc ;
-		try                       { OMsgBuf().send( out_fd , ReqRpcReply(Proc::File,::move(file)) ) ; } // if we lose connection, there is nothing much we can do ...
-		catch (::string const& e) { Trace("audit_file","lost_client",e) ;                             } // ... about it (hoping that we can still trace)
+		try                       { OMsgBuf().send( out_fd , ReqRpcReply(ReqRpcReplyProc::File,::move(file)) ) ; } // if we lose connection, there is nothing much we ...
+		catch (::string const& e) { Trace("audit_file","lost_client",e) ;                                        } // ... can do about it (hoping that we can still trace)
 	}
 
 	void _audit_status( Fd out_fd , ::ostream* log , ReqOptions const& , bool ok ) {
-		using Proc = ReqRpcReplyProc ;
-		try                       { OMsgBuf().send( out_fd , ReqRpcReply(Proc::Status,ok) ) ; }        // if we lose connection, there is nothing much we can do ...
-		catch (::string const& e) { Trace("audit_status","lost_client",e) ;                   }        // ... about it (hoping that we can still trace)
+		try                       { OMsgBuf().send( out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ; } // if we lose connection, there is nothing much we ...
+		catch (::string const& e) { Trace("audit_status","lost_client",e) ;                              } // ... can do about it (hoping that we can still trace)
 		if (log)
-			try                       { *log << "status : " << (ok?"ok":"failed") <<'\n'<< ::flush ; } // .
+			try                       { *log << "status : " << (ok?"ok":"failed") <<'\n'<< ::flush ; }     // .
 			catch (::string const& e) { Trace("audit_status","lost_log",e) ;                         }
 	}
 
-	void _audit_ctrl_c( Fd , ::ostream* log , ReqOptions const& ) {
+	void _audit_ctrl_c( Fd out_fd , ::ostream* log , ReqOptions const& ro ) {
 		// lmake echos a \n as soon as it sees ^C (and it does that much faster than we could), no need to do it here
+		::string msg ;
+		if (g_config->console.date_prec!=uint8_t(-1)) msg << Pdate(New).str(g_config->console.date_prec,true/*in_day*/) <<' ' ;
+		/**/                                          msg << "kill"                                                           ;
+		::string report_txt  = color_pfx(ro,Color::Note) + msg + color_sfx(ro,Color::Note) +'\n' ;
+		//
+		try                       { OMsgBuf().send( out_fd , ReqRpcReply(ReqRpcReplyProc::Txt,::move(report_txt)) ) ; } // if we lose connection, there is nothing much we ...
+		catch (::string const& e) { Trace("audit_ctrl_c","lost_client",e) ;                                           } // ... can do about it (hoping that we can still trace)
 		if (log)
-			try                       { *log << "^C\n"<< ::flush ;           }
+			try                       { *log << "^C\n" << msg << ::endl ;    }                                          // .
 			catch (::string const& e) { Trace("audit_ctrl_c","lost_log",e) ; }
 	}
 
@@ -361,7 +365,7 @@ namespace Engine {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
-		SWEAR(+key) ;                                                   // ensure no init problem
+		SWEAR(+key) ;                                           // ensure no init problem
 		::string std_dir_s = PrivateAdminDirS+"local_admin/"s ;
 		if (!user_local_admin_dir_s) {
 			local_admin_dir_s = ::move(std_dir_s) ;
@@ -465,7 +469,7 @@ namespace Engine {
 		::vector<Node> targets   ; targets.reserve(files.size()) ;                                    // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
-			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                            // we may refer to a symbolic link
+			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                    // we may refer to a symbolic link
 			if (rp.file_loc==FileLoc::Repo) targets.emplace_back(rp.real) ;
 			else                            err_str << _audit_indent(mk_rel(target,startup_dir_s),1) << '\n' ;
 		}

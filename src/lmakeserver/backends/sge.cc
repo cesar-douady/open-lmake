@@ -233,7 +233,7 @@ namespace Backends::Sge {
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//
-			::pair_s<bool/*ok*/> digest = sge_exec_client( ::move(sge_cmd_line) , true/*gather_stdout*/ ) ;
+			::pair_s<bool/*ok*/> digest = sge_exec_client( ::move(sge_cmd_line) , true/*gather_stdout*/ ) ; // need to gather sge id
 			Trace trace(BeChnl,"Sge::launch_job",repo_key,j,digest,sge_cmd_line,rs,STR(verbose)) ;
 			if (!digest.second) throw "cannot submit SGE job "+Job(j)->name() ;
 			return from_string<SgeId>(digest.first) ;
@@ -246,9 +246,9 @@ namespace Backends::Sge {
 			cmd_line[0] = sge_bin_dir_s+cmd_line[0] ;
 			Child child {
 				.cmd_line  = cmd_line
-			,	.stdin_fd  = Child::NoneFd
-			,	.stdout_fd = gather_stdout ? Child::NoneFd : Child::NoneFd
-			,	.stderr_fd = Child::NoneFd
+			,	.stdin_fd  =                                 Child::NoneFd
+			,	.stdout_fd = gather_stdout ? Child::PipeFd : Child::NoneFd
+			,	.stderr_fd =                                 Child::NoneFd
 			,	.add_env   = &add_env
 			} ;
 			child.spawn() ;

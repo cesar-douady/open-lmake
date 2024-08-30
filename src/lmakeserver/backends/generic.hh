@@ -323,6 +323,10 @@ namespace Backends {
 		virtual ::string start(JobIdx job) {
 			auto          it = spawned_jobs.find(job) ; if (it==spawned_jobs.end()) return {} ;                     // job was killed in the mean time
 			SpawnedEntry& se = it->second             ;
+			if (!se.id) {
+				Lock lock{id_mutex} ;                                                                               // ensure se.id has been updated
+				SWEAR(se.id,job) ;
+			}
 			//
 			spawned_jobs.start(*this,it) ;
 			::string msg = start_job(job,se) ;
@@ -332,10 +336,7 @@ namespace Backends {
 		virtual ::pair_s<bool/*retry*/> end( JobIdx j , Status s ) {
 			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return {{},false/*retry*/} ;      // job was killed in the mean time
 			SpawnedEntry& se = it->second           ; SWEAR(se.started) ;
-			if (!se.id) {
-				Lock lock{id_mutex} ;                                                                               // ensure se.id has been updated
-				SWEAR(se.id) ;
-			}
+			SWEAR(se.id,j) ;                                                                                        // occurs after start, then se.id has been updated
 			::pair_s<bool/*retry*/> digest = end_job(j,se,s) ;
 			spawned_jobs.erase(*this,it) ;                                                                          // erase before calling launch so job is freed w.r.t. n_jobs
 			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                     // if we have a Req limited by n_jobs, we may have to launch a job
