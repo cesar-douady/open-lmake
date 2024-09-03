@@ -17,11 +17,11 @@ namespace Engine {
 
 	vmap<Node,FileAction> JobData::pre_actions( Rule::SimpleMatch const& match , bool mark_target_dirs ) const { // thread-safe
 		Trace trace("pre_actions",idx(),STR(mark_target_dirs)) ;
-		::uset<Node>                    to_mkdirs        = match.target_dirs() ;
-		::uset<Node>                    to_mkdir_uphills ;
-		::uset<Node>                    locked_dirs      ;
-		::umap  <Node,NodeIdx/*depth*/> to_rmdirs        ;
-		::vmap<Node,FileAction>         actions          ;
+		::uset<Node>                  to_mkdirs        = match.target_dirs() ;
+		::uset<Node>                  to_mkdir_uphills ;
+		::uset<Node>                  locked_dirs      ;
+		::umap<Node,NodeIdx/*depth*/> to_rmdirs        ;
+		::vmap<Node,FileAction>       actions          ;
 		for( Node d : to_mkdirs )
 			for( Node hd=d->dir() ; +hd ; hd = hd->dir() )
 				if (!to_mkdir_uphills.insert(hd).second) break ;
@@ -33,9 +33,9 @@ namespace Engine {
 		for( Target t : targets ) {
 			FileActionTag fat = {}/*garbage*/ ;
 			//
-			if      (t->crc==Crc::None            ) fat = FileActionTag::None           ; // nothing to wash
-			else if (t->is_src_anti()             ) fat = FileActionTag::Src            ; // dont touch sources, not even integrity check
-			else if (t->polluted                  ) fat = FileActionTag::UnlinkPolluted ; // wash pollution
+			if      ( t->crc==Crc::None           ) fat = FileActionTag::None           ; // nothing to wash
+			else if ( t->is_src_anti()            ) fat = FileActionTag::Src            ; // dont touch sources, not even integrity check
+			else if ( t->polluted                 ) fat = FileActionTag::UnlinkPolluted ; // wash pollution
 			else if (!t.tflags[Tflag::Incremental]) fat = FileActionTag::Unlink         ;
 			else if ( t.tflags[Tflag::NoUniquify ]) fat = FileActionTag::NoUniquify     ;
 			else                                    fat = FileActionTag::Uniquify       ;
@@ -50,10 +50,10 @@ namespace Engine {
 					if ( !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ) fa.tag = FileActionTag::UnlinkWarning ;
 				[[fallthrough]] ;
 				case FileActionTag::UnlinkPolluted :
-				case FileActionTag::None          :
+				case FileActionTag::None           :
 					actions.emplace_back(t,fa) ;
 					if ( Node td=t->dir() ; +td ) {
-						//
+						Lock    lock  { _s_target_dirs_mutex } ;
 						NodeIdx depth = 0 ;
 						for( Node hd=td ; +hd ; (hd=hd->dir()),depth++ )
 							if (_s_target_dirs.contains(hd)) goto NextTarget ; // everything under a protected dir is protected, dont even start walking from td
