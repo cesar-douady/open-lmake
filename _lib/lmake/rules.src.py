@@ -131,7 +131,7 @@ class SourceRule(_RuleBase) :
 
 class HomelessRule(Rule) :
 	'base rule to redirect the HOME environment variable to TMPDIR'
-	environ_cmd = { 'HOME' : None } # HOME is set by default to TMPDIR
+	environ_cmd = { 'HOME' : None }                                 # HOME is set by default to TMPDIR
 
 class TraceRule(Rule) :
 	'base rule to trace shell commands to stdout'
@@ -146,29 +146,29 @@ class DirtyRule(Rule) :
 
 class _PyRule(Rule) :
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file, so stat accesses must be deemed read accesses
-	side_deps        = { '__PY__'  : ( r'{*:(.+/)?}{*:\w+}.py'  , 'StatReadData' ) }      # this is actually a noop as stat syscalls are deemed to access size, but this might change
-	environ_cmd      = pdict( PYTHONPATH=':'.join((_lmake_dir+'/lib',root_dir)) )
-	gen_module_deps  = False
-	mask_python_deps = False
-	def cmd() :                                                                           # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
-		if gen_module_deps or mask_python_deps :                                          # fast path :if nothing to do, do nothing
-			try : import lmake
-			except ImportError :
-				import sys
-				sys.path[0:0] = (_lmake_dir+'/lib',)
-			from lmake.import_machinery import fix_import
-			fix_import(gen_module_deps=gen_module_deps,mask_python_deps=mask_python_deps)
-	cmd.shell = ''                                                                        # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
+	side_deps   = { '__PY__'  : ( r'{*:(.+/)?}{*:\w+}.py'  , 'StatReadData' ) } # this is actually a noop as stat syscalls are deemed to access size, but this might change
+	environ_cmd = pdict( PYTHONPATH=':'.join((_lmake_dir+'/lib',root_dir)) )
+	py_rule     = None
+	def cmd() :                                                                      # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
+		import sys
+		if py_rule==None                                    : raise RuntimeError('cannot determine what kind of PyRule is used'                                          )
+		if py_rule=='Py2Rule' and sys.version_info.major!=2 : raise RuntimeError('cannot use %s with python%d.%d'%(py_rule,sys.version_info.major,sys.version_info.minor))
+		if py_rule=='Py3Rule' and sys.version_info.major!=3 : raise RuntimeError('cannot use %s with python%d.%d'%(py_rule,sys.version_info.major,sys.version_info.minor))
+		try : import lmake
+		except ImportError :
+			sys.path[0:0] = (_lmake_dir+'/lib',)
+		from lmake.import_machinery import fix_import
+		fix_import(py_rule)
+	cmd.shell = ''                                                                   # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
 class Py2Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	side_targets    = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }
-	gen_module_deps = True
+	py_rule         = 'Py2Rule'
 	python          = python2
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	side_targets     = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental'  ) }
-	gen_module_deps  = True
-	mask_python_deps = True
+	py_rule         = 'Py3Rule'
 
 PyRule = Py3Rule
 

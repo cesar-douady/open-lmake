@@ -75,6 +75,6 @@ def _gen_module_deps() :
 	else :
 		_sys.meta_path.append(Depend)
 
-def fix_import(gen_module_deps=True,mask_python_deps=True) :
-	if (mask_python_deps) : _mask_python_deps()
-	if (gen_module_deps ) : _gen_module_deps ()
+def fix_import(py_rule) :
+	if py_rule=='Py3Rule' : _mask_python_deps()
+	if True               : _gen_module_deps ()

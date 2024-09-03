@@ -5,6 +5,8 @@
 
 if __name__!='__main__' :
 
+	import os
+
 	import lmake
 	from lmake.rules import Rule,PyRule
 
@@ -21,10 +23,15 @@ if __name__!='__main__' :
 		deps    = { 'SRC' : 'read/src'  }
 		cmd     = 'cd read_write ; cp src dut'           # a typical cmd that work in a dir rather than having inputs and outputs
 
-	class Dut2(Rule) :
-		views   = { 'read_write/' : ('write/','/usr/include/') } # mount read_write as write on top of /usr/include
-		targets = { 'DUT' : 'write/dut2' }
-		cmd     = 'cd read_write ; cp alloca.h dut2'             # a typical cmd that work in a dir rather than having inputs and outputs
+	class Dut2(PyRule) :
+		tmp_view = '/tmp'
+#		python   = ('/usr/bin/python',)
+		python   = ( '/tmp/vs_venv/bin/python',)
+		views    = { '/tmp/vs_venv/' : ('/tmp/vs_venv_upper/','/home/cdy/tmp/my_venv/') }
+		target   = 'write/dut2'
+		def cmd():
+			os.makedirs('/tmp/vs_venv_upper/lib/python3.10/site-packages')
+			open('/tmp/vs_venv/lib/python3.10/site-packages/testfile','w').close()
 
 	class Test(Rule) :
 		target = 'test{Test:.*}'
@@ -47,4 +54,5 @@ else :
 	#
 	open('ref2','w').write(open('/usr/include/alloca.h').read())
 
-	ut.lmake( 'test' , 'test2' , new=3 , done=4 )
+	ut.lmake( 'test' , new=2 , done=2 )
+#	ut.lmake( 'test3' , new=0 , done=2 ) # XXX : make it work

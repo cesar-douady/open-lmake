@@ -179,9 +179,9 @@ namespace Engine {
 					d = dd ;
 					goto Next ;
 				}
-				fail_prod("not done but all deps are done : ",j->name()) ;
+				fail_prod("not done but all deps are done :",j->name()) ;
 			}
-			fail_prod("not done but all pertinent jobs are done : ",d->name()) ;
+			fail_prod("not done but all pertinent jobs are done :",d->name()) ;
 		Next :
 			cycle.push_back(d) ;
 		}
@@ -272,7 +272,7 @@ namespace Engine {
 		if (!job->c_req_info(*this).done()) {
 			for( Dep const& d : job->deps )
 				if (!d->done(*this)) { _report_cycle(d) ; goto Done ; }
-			fail_prod("job not done but all deps are done : ",job->name()) ;
+			fail_prod("job not done but all deps are done :",job->name()) ;
 		} else {
 			size_t       n_err       = g_config->max_err_lines ? g_config->max_err_lines : size_t(-1) ;
 			bool         seen_stderr = false                                                          ;
@@ -514,8 +514,8 @@ namespace Engine {
 		//
 		if ( node->status()==NodeStatus::Uphill || node->status()==NodeStatus::Transient ) {
 			Node dir ; for( dir=node->dir() ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transient) ; dir=dir->dir() ) ;
-			swear_prod(+dir                              ,"dir is buildable for ",name," but cannot find buildable dir"                  ) ;
-			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for ",name," but cannot find buildable dir until",dir->name()) ;
+			swear_prod(+dir                              ,"dir is buildable for",name,"but cannot find buildable dir"                  ) ;
+			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for",name,"but cannot find buildable dir until",dir->name()) ;
 			/**/                                audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
 			if (dir->status()==NodeStatus::Src) audit_node( Color::Note , "dir is a source :"  , dir  , lvl+1 ) ;
 			else                                audit_node( Color::Note , "dir is buildable :" , dir  , lvl+1 ) ;

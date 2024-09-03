@@ -90,7 +90,7 @@ struct Child {
 	[[noreturn]] static int _s_do_child_trampoline(void* self) { reinterpret_cast<Child*>(self)->_do_child_trampoline() ; }
 	// cxtors & casts
 	~Child() {
-		swear_prod(pid==0,"bad pid ",pid) ;
+		swear_prod(pid==0,"bad pid",pid) ;
 	}
 	// accesses
 	bool operator+() const { return pid     ; }
@@ -110,7 +110,7 @@ struct Child {
 		SWEAR(pid!=0) ;
 		int wstatus ;
 		int rc = ::waitpid(pid,&wstatus,0) ;
-		swear_prod(rc==pid,"cannot wait for pid ",pid) ;
+		swear_prod(rc==pid,"cannot wait for pid",pid) ;
 		waited() ;
 		return wstatus ;
 	}

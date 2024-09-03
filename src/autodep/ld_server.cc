@@ -42,8 +42,8 @@ void* get_orig(const char* libcall) {
 	}
 	if (!libcall) return nullptr ;                                                            // used to initialize s_libcall_tab
 	::array<char,NChar> lc = {} ; strncpy(lc.data(),libcall,NChar-1) ;
-	try         { return s_libcall_tab.load()->at(lc) ;                 }
-	catch (...) { fail_prod("cannot find symbol ",libcall," in libc") ; }
+	try         { return s_libcall_tab.load()->at(lc) ;               }
+	catch (...) { fail_prod("cannot find symbol",libcall,"in libc") ; }
 }
 // initialize s_libcall_tab as early as possible, before any fork
 // unfortunately some libs do accesses before entering main, so we cannot be sure this init is before all libcalls

@@ -27,7 +27,7 @@ struct Record {
 		SWEAR(_s_autodep_env) ;
 		pid_t pid = ::getpid() ;
 		if (!(+_s_root_fd&&_s_root_pid==pid)) {
-			_s_root_fd = { Disk::open_read(Disk::no_slash(_s_autodep_env->root_dir_s)) , true/*no_std*/ } ;                   // avoid poluting standard descriptors
+			_s_root_fd = { Disk::open_read(Disk::no_slash(_s_autodep_env->root_dir_s)) , true/*no_std*/ } ;                       // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 			_s_root_pid = pid ;
 		}
@@ -38,10 +38,14 @@ struct Record {
 		if ( !(+_s_report_fd&&_s_report_pid==pid) && +_s_autodep_env->service ) {
 			// establish connection with server
 			::string const& service = _s_autodep_env->service ;
-			if (service.back()==':') _s_report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
-			else                     _s_report_fd = ClientSockFd(service).detach()                                          ;
-			_s_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
-			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",service) ;
+			try {
+				if (service.back()==':') _s_report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
+				else                     _s_report_fd = ClientSockFd(service).detach()                                          ;
+				_s_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
+			} catch (::string const& e) {
+				fail_prod("while trying to report deps",e) ;
+			}
+			swear_prod(+_s_report_fd,"cannot connect to job_exec through",service) ;
 			_s_report_pid = pid ;
 		}
 		return _s_report_fd ;
@@ -77,9 +81,9 @@ struct Record {
 		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
 		// use a random number as starting point for access id's, then it is incremented at each access
 		// this ensures reasonable uniqueness while avoiding heavy host/pid/local_id to ensure uniqueness
-		AutoCloseFd fd = ::open("/dev/urandom",O_RDONLY) ; SWEAR(+fd)                  ;                                      // getrandom is not available in CentOS7
+		AutoCloseFd fd = ::open("/dev/urandom",O_RDONLY) ; SWEAR(+fd)                  ;                                          // getrandom is not available in CentOS7
 		ssize_t     rc = ::read(fd,&_s_id,sizeof(_s_id)) ; SWEAR(rc==sizeof(_s_id),rc) ;
-		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;                                             // ensure we can confortably generate ids while never generating 0
+		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;                                                 // ensure we can confortably generate ids while never generating 0
 	}
 	// static data
 public :

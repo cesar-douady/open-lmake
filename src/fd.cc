@@ -91,7 +91,7 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 
 SlaveSockFd ServerSockFd::accept() {
 	SlaveSockFd slave_fd = ::accept( fd , nullptr , nullptr ) ;
-	swear_prod(+slave_fd,"cannot accept from ",*this) ;
+	swear_prod(+slave_fd,"cannot accept from",*this) ;
 	return slave_fd ;
 }
 
@@ -99,9 +99,9 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 	if (!*this) init() ;
 	swear_prod(fd>=0,"cannot create socket") ;
 	static_assert( sizeof(in_port_t)==2 && sizeof(in_addr_t)==4 ) ;                            // else use adequate htons/htonl according to the sizes
-	struct sockaddr_in sa = s_sockaddr(server,port) ;
-	Pdate end      ;
-	bool  too_late = false ;
+	struct sockaddr_in sa       = s_sockaddr(server,port) ;
+	Pdate              end      ;
+	bool               too_late = false                   ;
 	for( int i=n_trials ; i>0 ; i-- ) {
 		if (+timeout) {
 			Pdate now = New ;
@@ -121,9 +121,9 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 	}
 	int en = errno ;                                                                           // catch errno before any other syscall
 	close() ;
-	if      (too_late  ) throw ""s+strerror(en)+" after "+timeout.short_str() ;
-	else if (n_trials>1) throw ""s+strerror(en)+" after "+n_trials+" trials"  ;
-	else                 throw ""s+strerror(en)                               ;
+	if      (too_late  ) throw fmt_string("cannot connect to ",s_addr_str(server),':',port," : ",strerror(en)," after ",timeout.short_str()) ;
+	else if (n_trials>1) throw fmt_string("cannot connect to ",s_addr_str(server),':',port," : ",strerror(en)," after ",n_trials," trials" ) ;
+	else                 throw fmt_string("cannot connect to ",s_addr_str(server),':',port," : ",strerror(en)                              ) ;
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {

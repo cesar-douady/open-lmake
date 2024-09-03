@@ -509,7 +509,7 @@ template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
 #define DF default : FAIL() ; // for use at end of switch statements
 
 inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
-	swear_prod(pid>1,"killing process ",pid) ;                                  // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
+	swear_prod(pid>1,"killing process",pid) ;                                   // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
 	//
 	if (!as_group          ) return ::kill(pid,sig)==0 ;
 	if (::kill(-pid,sig)==0) return true               ;                        // fast path : group exists, nothing else to do
@@ -1005,11 +1005,11 @@ inline ::string get_env( ::string const& name , ::string const& dflt={} ) {
 }
 inline void set_env( ::string const& name , ::string const& val ) {
 	int rc = ::setenv( name.c_str() , val.c_str() , true ) ;
-	swear_prod(rc==0,"cannot setenv ",name," to ",val) ;
+	swear_prod(rc==0,"cannot setenv",name,"to",val) ;
 }
 inline void del_env(::string const& name) {
 	int rc = ::unsetenv(name.c_str()) ;
-	swear_prod(rc==0,"cannot unsetenv ",name) ;
+	swear_prod(rc==0,"cannot unsetenv",name) ;
 }
 
 ::string beautify_filename(::string const&) ;

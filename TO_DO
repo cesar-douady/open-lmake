@@ -28,6 +28,7 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* make side_deps and side_targets dynamic
 * transport pdict as pdict rather than as dict
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
