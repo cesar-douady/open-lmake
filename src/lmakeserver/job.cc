@@ -51,7 +51,7 @@ namespace Engine {
 					actions.emplace_back(t,fa) ;
 					if ( !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ) warnings.push_back(t) ;
 					if ( Node td=t->dir() ; +td ) {
-						//
+						Lock    lock  { _s_target_dirs_mutex } ;
 						NodeIdx depth = 0 ;
 						for( Node hd=td ; +hd ; (hd=hd->dir()),depth++ )
 							if (_s_target_dirs.contains(hd)) goto NextTarget ; // everything under a protected dir is protected, dont even start walking from td
