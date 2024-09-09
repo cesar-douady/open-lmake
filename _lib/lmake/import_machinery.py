@@ -43,37 +43,43 @@ def _mask_python_deps() :
 def _maybe_local(file) :
 	'fast check for local files, avoiding full absolute path generation'
 	return not file or file[0]!='/' or file.startswith(root_dir)
+
+def _depend_module(module_name,path=None) :
+	if path==None : path = _sys.path
+	tail = module_name.rsplit('.',1)[-1]
+	for dir in path :
+		if dir : dir += '/'
+		base = dir+tail
+		if _maybe_local(base) :
+			for suffix in module_suffixes :
+				file = base+suffix
+				depend(file,required=False,read=True)
+				if _osp.exists(file) : return
+		else :
+			for suffix in _std_suffixes :
+				if _osp.exists(base+suffix) : return
+
 if _sys.version_info.major==2 :
 	_std_suffixes = ['.py','.so','/__init__.py']               # standard suffixes are not available with Python2
+	def _gen_module_deps() :
+		'''fixes imports so as to be sure all files needed to do an import is correctly reported (not merely those that exist)'''
+		class Depend :
+			@staticmethod
+			def find_module(module_name,path=None) :
+				_depend_module(module_name,path)
+		# put dependency checker before accessing standard path based module loader
+		_sys.meta_path.append(Depend)
 else :
 	import importlib.machinery as _machinery
 	_std_suffixes = _machinery.all_suffixes()+['/__init__.py'] # account for packages, not included in all_suffixes()
-
-def _gen_module_deps() :
-	'''fixes imports so as to be sure all files needed to do an import is correctly reported (not merely those that exist)'''
-	class Depend :
-		@staticmethod
-		def find_spec(module_name,path,target=None) :
-			if path==None : path = _sys.path
-			tail = module_name.rsplit('.',1)[-1]
-			for dir in path :
-				if dir : dir += '/'
-				base = dir+tail
-				if _maybe_local(base) :
-					for suffix in module_suffixes :
-						file = base+suffix
-						depend(file,required=False,read=True)
-						if _osp.exists(file) : return
-				else :
-					for suffix in _std_suffixes :
-						if _osp.exists(base+suffix) : return
-	# put dependency checker before the first path based finder
-	for i in range(len(_sys.meta_path)) :
-		if _sys.meta_path[i]==_machinery.PathFinder :
-			_sys.meta_path.insert(i,Depend)
-			break
-	else :
-		_sys.meta_path.append(Depend)
+	def _gen_module_deps() :
+		'''fixes imports so as to be sure all files needed to do an import is correctly reported (not merely those that exist)'''
+		class Depend :
+			@staticmethod
+			def find_spec(module_name,path,target=None) :
+				_depend_module(module_name,path)
+		try    : _sys.meta_path.insert( _sys.meta_path.index(_machinery.PathFinder) , Depend ) # put dependency checker before the first path based finder
+		except : _sys.meta_path.append(                                               Depend ) # or at the end if none is found
 
 def fix_import(py_rule) :
 	if py_rule=='Py3Rule' : _mask_python_deps()

@@ -190,7 +190,7 @@ public :
 			return true/*sent*/ ;
 		}
 		if ( Fd fd=s_report_fd() ; +fd ) {
-			try                       { OMsgBuf().send(fd,jerr) ;          }
+			try                       { OMsgBuf().send(fd,jerr) ;                   }
 			catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }                                 // this justifies panic, but we cannot report panic !
 			return true/*sent*/ ;
 		}

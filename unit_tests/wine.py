@@ -65,9 +65,9 @@ else :
 	import ut
 
 	if not wine :
-		print('skipped (wine not found)',file=sys.stderr)
+		print('wine not found',file=open('skipped','w'))
 	elif not osp.exists(hostname_exe) :
-		print(f'skipped ({hostname_exe} not found',file=sys.stderr)
+		print(f'{hostname_exe} not found',file=open('skipped','w'))
 	else :
 		methods = ['none','ld_preload']
 		if lmake.has_ptrace   : methods.append('ptrace'  )

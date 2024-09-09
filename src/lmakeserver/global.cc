@@ -338,13 +338,15 @@ namespace Engine {
 				continue ;
 			}
 			res <<"\t\t"<< snake(t) <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
-			::vmap_ss descr = bbe->descr() ;
-			size_t w = 0 ;
-			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
-			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()) ;
-			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k <<" : "<< v <<'\n' ;
-			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< ::setw(w)<<k <<" : "<< v <<'\n' ;
-			if (+be.ifce)                     res <<indent<'\t'>(be.ifce,3)             <<'\n' ;
+			::vmap_ss descr = bbe->descr()   ;
+			size_t    w     = 4/*len(addr)*/ ;
+			if ( !bbe->is_local() )           w = ::max(w,size_t(4)/*len(addr)*/) ;
+			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()              ) ;
+			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()              ) ;
+			if ( !bbe->is_local() )           res <<"\t\t\t"<< ::setw(w)<<"addr" <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k      <<" : "<< v                             <<'\n' ;
+			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< ::setw(w)<<k      <<" : "<< v                             <<'\n' ;
+			if (+be.ifce)                     res <<indent<'\t'>(be.ifce,3)                                              <<'\n' ;
 		}
 		//
 		if (trace!=TraceConfig()) {

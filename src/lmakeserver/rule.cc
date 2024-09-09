@@ -312,16 +312,16 @@ namespace Engine {
 	namespace Attrs {
 
 		bool/*updated*/ acquire( bool& dst , Object const* py_src ) {
-			if (!py_src      ) {           return false ;                              }
-			if (*py_src==None) { if (!dst) return false ; dst = false ; return true  ; }
+			if (!py_src      ) {           return false/*updated*/ ;                                        }
+			if (*py_src==None) { if (!dst) return false/*updated*/ ; dst = false ; return true/*updated*/ ; }
 			//
 			dst = +*py_src ;
-			return true ;
+			return true/*updated*/ ;
 		}
 
 		bool/*updated*/ acquire( Delay& dst , Object const* py_src , Delay min , Delay max ) {
-			if (!py_src      ) {           return false ;                           }
-			if (*py_src==None) { if (!dst) return false ; dst = {} ; return true  ; }
+			if (!py_src      )             return false/*updated*/ ;
+			if (*py_src==None) { if (!dst) return false/*updated*/ ; dst = {} ; return true/*updated*/ ; }
 			//
 			double d = 0 ;
 			if      (py_src->is_a<Float>()) d =             py_src->as_a<Float>()  ;
@@ -330,19 +330,39 @@ namespace Engine {
 			dst = Delay(d) ;
 			if (dst<min) throw "underflow"s ;
 			if (dst>max) throw "overflow"s  ;
-			return true ;
+			return true/*updated*/ ;
+		}
+
+		bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Object const* py_src ) {
+			if (!py_src      )             return false/*updated*/ ;
+			if (*py_src==None) { if (!dst) return false/*updated*/ ; dst = {} ; return true/*updated*/ ; }
+			::string   upper   ;
+			::vector_s lower   ;
+			::vector_s copy_up ;
+			if (py_src->is_a<Str>()) {
+				if (!acquire(upper,py_src)) throw "nothing to bind to"s ;
+			} else if (py_src->is_a<Dict>()) {
+				Dict const& py_dct = py_src->as_a<Dict>() ;
+				if (!acquire_from_dct(upper  ,py_dct,"upper"  )) throw "no upper"s ;
+				/**/ acquire_from_dct(lower  ,py_dct,"lower"  ) ;
+				/**/ acquire_from_dct(copy_up,py_dct,"copy_up") ;
+			} else throw "unexpected view description which is not a str nor a dict"s ;
+			/**/                       dst.phys.push_back(::move(upper)) ;
+			for( ::string& l : lower ) dst.phys.push_back(::move(l    )) ;
+			/**/                       dst.copy_up = ::move(copy_up) ;
+			return true/*updated*/ ;
 		}
 
 		bool/*updated*/ acquire( DbgEntry& dst , Object const* py_src ) {
-			if (!py_src      ) {                          return false ;                           }
-			if (*py_src==None) { if (!dst.first_line_no1) return false ; dst = {} ; return true  ; }
+			if (!py_src      ) {                          return false/*updated*/ ;                                     }
+			if (*py_src==None) { if (!dst.first_line_no1) return false/*updated*/ ; dst = {} ; return true/*updated*/ ; }
 			//
 			Sequence const& py_seq = py_src->as_a<Sequence>() ;
 			acquire(dst.module        ,&py_seq[0].as_a<Str>()                 ) ;
 			acquire(dst.qual_name     ,&py_seq[1].as_a<Str>()                 ) ;
 			acquire(dst.filename      ,&py_seq[2].as_a<Str>()                 ) ;
 			acquire(dst.first_line_no1,&py_seq[3].as_a<Int>(),size_t(1)/*min*/) ;
-			return true ;
+			return true/*updated*/ ;
 		}
 
 		::string subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed ) {
@@ -985,6 +1005,25 @@ namespace Engine {
 		//
 		return res.str() ;
 	}
+
+	static ::string _pretty_views( size_t i , ::vmap_s<JobSpace::ViewDescr> const& m ) {
+		OStringStream res  ;
+		for( auto const& [k,v] : m ) {
+			res << ::string(i,'\t') << k <<" :" ;
+			SWEAR(+v.phys) ;
+			if (v.phys.size()==1) {
+				SWEAR(!v.copy_up) ;
+				res <<' '<< v.phys[0] ;
+			} else {
+				size_t w = +v.copy_up ? 7 : 5 ;
+				/**/            res <<'\n'<< ::string(i+1,'\t') << ::setw(w)<<"upper"   <<" : "<< v.phys[0]                                 ;
+				/**/            res <<'\n'<< ::string(i+1,'\t') << ::setw(w)<<"lower"   <<" : "<< ::vector_view(&v.phys[1],v.phys.size()-1) ;
+				if (+v.copy_up) res <<'\n'<< ::string(i+1,'\t') << ::setw(w)<<"copy_up" <<" : "<< v.copy_up                                 ;
+			}
+			res <<'\n' ;
+		}
+		return res.str() ;
+	}
 	static ::string _pretty_fstr( ::string const& fstr , RuleData const& rd ) {
 			::string res ;
 			for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
@@ -1201,8 +1240,8 @@ namespace Engine {
 			if (+sca.job_space.root_view_s ) do_field( "root_view"   , no_slash  (sca.job_space.root_view_s ) ) ;
 			if (+sca.job_space.tmp_view_s  ) do_field( "tmp_view"    , no_slash  (sca.job_space.tmp_view_s  ) ) ;
 		}
-		if (+sca.job_space.views) res << indent("views :\n"  ,i) << _pretty_vmap( i+1 , sca.job_space.views ) ;
-		if (+sca.env            ) res << indent("environ :\n",i) << _pretty_env ( i+1 , sca.env             ) ;
+		if (+sca.job_space.views) res << indent("views :\n"  ,i) << _pretty_views( i+1 , sca.job_space.views ) ;
+		if (+sca.env            ) res << indent("environ :\n",i) << _pretty_env  ( i+1 , sca.env             ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {

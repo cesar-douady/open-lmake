@@ -22,7 +22,7 @@ if __name__!='__main__' :
 
 	class Bad(BaseRule) :
 		targets = { 'Bad' : 'bad1{*:}' }
-		cmd     = 'sleep 3' # dont produce bad
+		cmd     = 'sleep 3'              # dont produce bad
 
 	class Ptr(BaseRule) :
 		target = 'ptr'
@@ -33,7 +33,7 @@ if __name__!='__main__' :
 		allow_stderr = True
 		cmd = '''
 			deps="$( cat ptr 2>/dev/null || echo bad1 bad2 )"
-			ldepend $deps                             # makes deps required
+			ldepend $deps                                     # makes deps required
 			echo $deps $(cat $deps) >&2
 			echo $(cat $deps)
 			sleep 2
@@ -52,5 +52,4 @@ else :
 
 	import ut
 
-#	ut.lmake( 'bad' , failed=1 , rc=1 )
 	ut.lmake( 'chk' , done=5 , may_rerun=2 , steady=1 )

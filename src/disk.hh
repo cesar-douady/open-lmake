@@ -333,6 +333,11 @@ namespace Disk {
 		else               return res+'/' ;
 	}
 
+	/**/   FileTag copy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , bool unlnk_dst=false , bool mk_read_only=false ) ;
+	inline FileTag copy( Fd sat    , ::string const& sf       ,             ::string const& df       , bool ud       =false , bool ro          =false ) { return copy(sat    ,sf,Fd::Cwd,df,ud,ro) ; }
+	inline FileTag copy(             ::string const& sf       , Fd dat    , ::string const& df       , bool ud       =false , bool ro          =false ) { return copy(Fd::Cwd,sf,dat    ,df,ud,ro) ; }
+	inline FileTag copy(             ::string const& sf       ,             ::string const& df       , bool ud       =false , bool ro          =false ) { return copy(Fd::Cwd,sf,Fd::Cwd,df,ud,ro) ; }
+
 	struct FileMap {
 		// cxtors & casts
 		FileMap(                        ) = default ;

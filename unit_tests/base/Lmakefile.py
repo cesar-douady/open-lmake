@@ -72,7 +72,7 @@ for to in (None,5) :
 		deps    = { 'SRC' : '{File}' }
 		timeout = to
 		def cmd() :
-			span = re.search('\d+',Wait)
+			span = re.search(r'\d+',Wait)
 			read_before = 'r' not in Wait[span.end  ():            ]
 			write_after = 'w' not in Wait[            :span.start()]
 			cnt         = int(       Wait[span.start():span.end  ()])

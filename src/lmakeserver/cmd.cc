@@ -193,7 +193,7 @@ namespace Engine {
 		AutodepEnv  const& ade       = start.autodep_env        ;
 		Rule::SimpleMatch  match     = j->simple_match()        ;
 		//
-		for( Node t  : j->targets ) t->set_buildable() ; // necessary for pre_actions()
+		for( Node t  : j->targets ) t->set_buildable() ;                           // necessary for pre_actions()
 		::string get_script ;
 		get_script << "from "<<runner<<" import gen_script\n" ;
 		get_script << "script = gen_script(\n" ;
@@ -253,11 +253,30 @@ namespace Engine {
 		}
 		{	get_script << ",\tviews = {" ;
 			First first1 ;
-			for( auto const& [view,phys] : start.job_space.views ) {
-				get_script << first1("\n\t\t",",\t") << mk_py_str(view) << " : (" ;
-				First first2 ;
-				for( ::string const& p : phys ) get_script << first2("",",") <<' '<< mk_py_str(p) <<' ' ;
-				get_script << first2("",",","") << ")\n\t" ;
+			for( auto const& [view,descr] : start.job_space.views ) {
+				SWEAR(+descr.phys) ;
+				get_script << first1("\n\t\t",",\t") << mk_py_str(view) << " : " ;
+				if (+descr.phys.size()==1) {                                       // bind case
+					SWEAR(!descr.copy_up) ;
+					get_script << mk_py_str(descr.phys[0]) ;
+				} else {                                                           // overlay case
+					get_script << '{' ;
+					{	get_script <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
+					}
+					{	get_script <<",\t"<< mk_py_str("lower") <<" : (" ;
+						First first2 ;
+						for( size_t i=1 ; i<descr.phys.size() ; i++ ) get_script << first2("",",") << mk_py_str(descr.phys[i]) ;
+						get_script << first2("",",","") << ")\n\t\t" ;
+					}
+					if (+descr.copy_up) {
+						get_script <<",\t"<< mk_py_str("copy_up") <<" : (" ;
+						First first2 ;
+						for( ::string const& p : descr.copy_up ) get_script << first2("",",") << mk_py_str(p) ;
+						get_script << first2("",",","") << ")\n\t\t" ;
+					}
+					get_script << "}" ;
+				}
+				get_script << "\n\t" ;
 			}
 			get_script << "}\n" ;
 		}

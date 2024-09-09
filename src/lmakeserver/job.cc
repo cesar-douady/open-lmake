@@ -233,30 +233,31 @@ namespace Engine {
 	}
 
 	JobInfo Job::job_info( bool need_start , bool need_end ) const {                 // read job info from ancillary file, taking care of queued events
-		Lock lock { _s_record_thread } ;
+		Lock    lock        { _s_record_thread } ;
 		JobInfo res         ;
-		bool    found_start = false ;
-		bool    found_end   = false ;
+		bool    found_start = false              ;
+		bool    found_end   = false              ;
 		SWEAR( need_start || need_end ) ;                                            // else, this is useless
 		auto do_entry = [&](::pair<Job,JobInfo> const& jji)->void {
 			if (jji.first!=*this) return ;
 			JobInfo const& ji = jji.second ;
 			if (+ji.start) {
-				/**/               found_start = true     ;
-				if ( need_start)   res.start   = ji.start ;
-				if (found_end  ) { res.end     = {}       ; found_end = false ; }    // start event replace file
+				/**/              found_start = true     ;
+				if (need_start)   res.start   = ji.start ;
+				if (found_end ) { res.end     = {}       ; found_end = false ; }     // start event replace file
 			}
 			if (+ji.end) {                                                           // end event append to file
 				/**/          found_end = true   ;
 				if (need_end) res.end   = ji.end ;
 			}
 		} ;
+		/**/                                      do_entry(_s_record_thread.cur()) ; // dont forget entry being processed (handle first as this is this the oldest entry)
 		for( auto const& jji : _s_record_thread ) do_entry(jji                   ) ; // linear searching is not fast, but this is rather exceptional and this queue is small (actually mostly empty)
-		/**/                                      do_entry(_s_record_thread.cur()) ; // dont forget entry being processed
-		if (!found_start) try {                                                      // ignore errors, we get what exists
+		Trace trace("job_info",STR(need_start),STR(need_end),STR(found_start),STR(found_end)) ;
+		if (!found_start) try {                                                                                                                // ignore errors, we get what exists
 			IFStream jas { ancillary_file() } ;
-			/**/                          try { deserialize( jas , res.start ) ; } catch (...) { res.start = {} ; } // even if we do not need start, we need to skip it
-			if ( need_end && !found_end ) try { deserialize( jas , res.end   ) ; } catch (...) { res.end   = {} ; }
+			/**/                          try { deserialize( jas , res.start ) ; trace("start_from_file") ; } catch (...) { res.start = {} ; } // even if we do not need start, we need to skip it
+			if ( need_end && !found_end ) try { deserialize( jas , res.end   ) ; trace("end_from_file"  ) ; } catch (...) { res.end   = {} ; }
 		} catch (...) {}
 		return res ;
 	}

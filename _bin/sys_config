@@ -14,54 +14,66 @@ START_DIR=$(pwd)
 mkdir -p trial
 cd       trial
 
-PYTHON2=${PYTHON2:-python2} ; PYTHON2=$(type -p $PYTHON2||:) # ok if we have no python2
-PYTHON=${PYTHON:-python3}   ; PYTHON=$( type -p $PYTHON    )
-CXX=${CXX:-g++}             ; CXX=$(    type -p $CXX       )
+CXX=${CXX:-g++} ; cxx=$(type -p $CXX)
+[ "$cxx" ] || { echo $CXX not found >&2 ; exit 1 ; }
+CXX=$cxx
 
 #
 # Python configuration (Python2 is optional)
 #
 
-for python in $PYTHON2 $PYTHON ; do
-	if [ -x $python ] ; then
-		eval $($python -c 'if True :
-			import sys
-			v = sys.version_info
-			if v.major==2 :
-				if v.minor<7 : exit(0)                                                                    # Python2 is optional
-				pfx = "PY2"
-			elif v.major==3 :
-				if v.minor<6 :
-					print("echo python3 version must be at least 3.6 ; exit 1")
-					exit(1)
-				pfx = "PY"
-			else :
-				print("echo unexpected python version",v.major," ; exit 1")
-				exit(1)
-			#
-			import sysconfig
-			print(pfx+"_INCLUDEDIR="+sysconfig.get_config_var("INCLUDEDIR"))
-			print(pfx+"_INCLUDEPY=" +sysconfig.get_config_var("INCLUDEPY" ))
-			print(pfx+"_LIB_BASE="  +sysconfig.get_config_var("LDLIBRARY" ))
-			lib_dir = sysconfig.get_config_var("LIBDIR")
-			if not ( (lib_dir+"/").startswith("/usr/lib/") or (lib_dir+"/").startswith("/usr/lib64/") ) :
-				print(pfx+"_LIB_DIR="+lib_dir)                                                            # suppress dir as required in case of installed package
-		')
-	fi
-done
-if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY_LIB_DIR:$PY2_LIB_DIR                 # both present, separate with :
-else                                          PY_LD_LIBRARY_PATH=$PY_LIB_DIR$PY2_LIB_DIR                  # only one is present
+config_python() {
+	python=$1
+	ver=$2
+	python=${python:-python$ver}
+	p=$(type -p $python || :)
+	[ "$p" ] || { echo $python not found >&2 ; return 1 ; }
+	python=$p
+	llp=$LD_LIBRARY_PATH
+	export LD_LIBRARY_PATH="$(dirname $(dirname $python))/lib:$LD_LIBRARY_PATH"
+	py_major=$($python -c 'import sys       ; print(sys.version_info.major                )')
+	py_minor=$($python -c 'import sys       ; print(sys.version_info.minor                )')
+	inc_dir=$( $python -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEDIR"))')
+	inc_py=$(  $python -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEPY" ))')
+	lib_base=$($python -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY" ))')
+	lib_dir=$( $python -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"    ))')
+	case $ver in
+		2)
+			[ $py_major -eq 2 ] || { echo $python version must be 2.x          >&2 ; return 1 ; }
+			[ $py_minor -ge 7 ] || { echo $python version must be at least 2.7 >&2 ; return 1 ; }
+		;;
+		3)
+			[ $py_major -eq 3 ] || { echo $python version must be 3.x          >&2 ; return 1 ; }
+			[ $py_minor -ge 6 ] || { echo $python version must be at least 3.6 >&2 ; return 1 ; }
+		;;
+	esac
+	[ "${lib_base%.so}" != "${lib_base}" ] || { echo $python library $lib_base is not a shared library >&2 ; return 1 ; }
+	case "$lib_dir/" in
+		/usr/lib/*)   lib_dir= ;;
+		/usr/lib64/*) lib_dir= ;;
+	esac
+	[ ! "$lib_dir" ] || lib_opt=-L$lib_dir
+	cat <<-"EOF" >probe_python$ver.c
+		#include <Python.h>
+		int main() {
+			PyObject* none = Py_None ;
+		}
+	EOF
+	$CXX -o probe_python$ver -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { echo $python is unusable as a library >&2 ; return 1 ; }
+	eval "PYTHON${ver#3}=$python"
+	eval "PY${ver#3}_INCLUDEDIR=$inc_dir"
+	eval "PY${ver#3}_INCLUDEPY=$inc_py"
+	eval "PY${ver#3}_LIB_BASE=$lib_base"
+	eval "PY${ver#3}_LIB_DIR=$lib_dir"
+	LD_LIBRARY_PATH=$llp
+}
+
+config_python "$PYTHON2" 2 || PYTHON2= # python2 is optional
+config_python "$PYTHON"  3 || exit 1
+
+if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY_LIB_DIR:$PY2_LIB_DIR # both present, separate with :
+else                                          PY_LD_LIBRARY_PATH=$PY_LIB_DIR$PY2_LIB_DIR  # only one is present
 fi
-# cancel Python2 if unusable as a library
-cat <<"EOF" > probe_python2.c
-	#include <Python.h>
-	int main() {
-		PyObject* none = Py_None ;
-	}
-EOF
-p2ld=$PY2_LIB_DIR
-[ "$p2ld" ] && p2ld="-L$p2ld"
-$CXX -o probe_python2 -I$PY2_INCLUDEPY $p2ld probe_python2.c -l:$PY2_LIB_BASE || PYTHON2=
 
 #
 # CXX configuration
@@ -332,32 +344,33 @@ MAP_VFORK=0
 cd $START_DIR
 
 cat >$MK_FILE <<EOF
-BASH           := /bin/bash
-GIT            := $(type -p ${GIT:-git})
+BASH               := /bin/bash
+GIT                := $(type -p ${GIT:-git})
 #
-PYTHON2        := $PYTHON2
-PY2_INCLUDEDIR := $PY2_INCLUDEDIR
-PY2_INCLUDEPY  := $PY2_INCLUDEPY
-PY2_LIB_DIR    := $PY2_LIB_DIR
-PY2_LIB_BASE   := $PY2_LIB_BASE
-PYTHON         := $PYTHON
-PY_INCLUDEDIR  := $PY_INCLUDEDIR
-PY_INCLUDEPY   := $PY_INCLUDEPY
-PY_LIB_DIR     := $PY_LIB_DIR
-PY_LIB_BASE    := $PY_LIB_BASE
+PYTHON2            := $PYTHON2
+PY2_INCLUDEDIR     := $PY2_INCLUDEDIR
+PY2_INCLUDEPY      := $PY2_INCLUDEPY
+PY2_LIB_DIR        := $PY2_LIB_DIR
+PY2_LIB_BASE       := $PY2_LIB_BASE
+PYTHON             := $PYTHON
+PY_INCLUDEDIR      := $PY_INCLUDEDIR
+PY_INCLUDEPY       := $PY_INCLUDEPY
+PY_LIB_DIR         := $PY_LIB_DIR
+PY_LIB_BASE        := $PY_LIB_BASE
+PY_LD_LIBRARY_PATH := $PY_LD_LIBRARY_PATH
 #
-CXX            := $CXX
-CXX_FLAVOR     := $CXX_FLAVOR
-LINK_LIB_PATH  := $LINK_LIB_PATH
-STD_INC_DIRS   := $STD_INC_DIRS
+CXX                := $CXX
+CXX_FLAVOR         := $CXX_FLAVOR
+LINK_LIB_PATH      := $LINK_LIB_PATH
+STD_INC_DIRS       := $STD_INC_DIRS
 #
-HAS_FUSE       := ${HAS_FUSE#0}
-HAS_PCRE       := ${HAS_PCRE#0}
-HAS_SECCOMP    := ${HAS_SECCOMP#0}
-HAS_SGE        := ${HAS_SGE#0}
-HAS_SLURM      := ${HAS_SLURM#0}
+HAS_FUSE           := ${HAS_FUSE#0}
+HAS_PCRE           := ${HAS_PCRE#0}
+HAS_SECCOMP        := ${HAS_SECCOMP#0}
+HAS_SGE            := ${HAS_SGE#0}
+HAS_SLURM          := ${HAS_SLURM#0}
 #
-STD_PATH       := $STD_PATH
+STD_PATH           := $STD_PATH
 EOF
 
 cat >$H_FILE <<EOF

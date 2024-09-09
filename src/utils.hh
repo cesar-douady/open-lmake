@@ -959,11 +959,6 @@ template<MutexLvl Lvl_,class M=void,bool S=false/*shared*/> struct Mutex : ::con
 template<MutexLvl Lvl,class M=void,bool S=true/*shared*/> using SharedMutex = Mutex<Lvl,M,S> ;
 
 template<class M,bool S=false/*shared*/> struct Lock {
-	struct Anti {
-		Anti (Lock& l) : _lock{l} { _lock.unlock() ; }
-		~Anti(       )            { _lock.lock  () ; }
-		Lock& _lock ;
-	} ;
 	// cxtors & casts
 	Lock (                          ) = default ;
 	Lock ( Lock&& l                 )              { *this = ::move(l) ;     }
@@ -978,7 +973,6 @@ template<class M,bool S=false/*shared*/> struct Lock {
 		return *this ;
 	}
 	// services
-	Anti anti        ()              { return Anti(*this) ;                                              }
 	void swear_locked() requires(!S) { _mutex->swear_locked       () ;                                   }
 	void swear_locked() requires( S) { _mutex->swear_locked_shared() ;                                   }
 	void lock        () requires(!S) { SWEAR(!_locked) ; _locked = true  ; _mutex->lock         (_lvl) ; }

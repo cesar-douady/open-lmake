@@ -32,7 +32,7 @@ if __name__!='__main__' :
 	class TmpMap(Rule) :
 		target   = 'tmp_map_dut'
 		tmp_view = '/tmp'
-		views    = { '/tmp/merged/' : ('/tmp/upper/','/tmp/lower/') }
+		views    = { '/tmp/merged/' : { 'upper':'/tmp/upper/' , 'lower':'/tmp/lower/' } }
 		cmd = '''
 			echo lower > /tmp/lower/x
 			echo upper > /tmp/merged/x

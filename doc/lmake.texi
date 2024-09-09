@@ -881,13 +881,21 @@ Options :
 @item @code{-v}
 @tab  @code{--views}
 @tab  @code{views}
-@tab The mapping must be provided as a python @code{dict}  mapping views to their corresponding list of origin (beware of quoting with regard to shell).
+@tab The mapping must be provided as a python @code{dict}  mapping views to their corresponding description (beware of quoting with regard to shell) :
+@itemize @minus
+@item either a @code{str} in which case a bind mount will be performed.
+@item or a @code{dict} with keys @code{upper} (a @code{str}) and @code{lower} (a single @code{str} or a list of @code{str}) to describe an overlay mount.
+A key @code{copy_up} (a single @code{str} or a list of @code{str}) may be provided to list directories to create in upper and files to copy from lower to upper.
+Directories a recognized when element ends with @code{/}.
+Such copying may be necessary to provide read/write access to elements that are otherwise read-only in lower.
+@code{copy_up} elements are provided relative to the root of the view.
+@end itemize
 @item @code{-w}
 @tab  @code{--work-dir}
 @tab
 @tab The name of a directory.
 Its content is unpredictable after execution.
-This is necessary as soon as one of the views has more than one origin (in that case, overlayfs is used, which requires aorking directory).
+This is necessary as soon as one of the views is implemented with an overlay mount.
 @end multitable
 
 @section @code{xxhsum}
@@ -2136,6 +2144,14 @@ This attribute defines a mapping from logical views to physical directories.
 Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a @code{/} or not.
 Files must be mapped to files and directories to directories.
 Both logical views and physical locations may be inside or outside the repository, but it is not possible to map an external view to a local location.
+Physical description may be :
+@itemize @minus
+@item a @code{str} in which case a bind mount is performed.
+@item a @code{dict} with keys @code{upper} (a @code{str}) and @code{lower} (a single @code{str} or a list of @code{str}) in which case an overlay mount is performed.
+Key @code{copy_up} (a single @code{str} or a list of @code{str}) may also be used to provide a list of directories to create in upper or files to copy from lower to upper.
+Directories are recognized when they end with @code{/}.
+Such @code{copy_up} items are provided relative to the root of the view.
+@end itemize
 The mapping is done through bind mounts (cf @pxref {namespaces}).
 
 @section @code{cwd}

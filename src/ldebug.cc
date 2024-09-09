@@ -14,6 +14,7 @@ using namespace Disk ;
 using namespace Py   ;
 
 ::string keys() {
+	Gil gil ;
 	try {
 		Ptr<Object> py_cfg_data = py_eval(read_content(ADMIN_DIR_S "lmake/config_data.py")) ;
 		Object&     py_cfg      = py_cfg_data->as_a<Dict>().get_item("config")              ;

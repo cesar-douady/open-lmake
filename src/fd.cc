@@ -136,7 +136,7 @@ in_addr_t SockFd::s_addr(::string const& server) {
 		bool      first0 = false ;                                                                      // prevent leading 0's (unless component is 0)
 		for( char c : server ) {
 			if (c=='.') {
-				if (first) goto Method2 ;
+				if (first) goto ByIfce ;
 				addr  = (addr<<8) | byte ;                                                              // network order is big endian
 				byte  = 0                ;
 				first = true             ;
@@ -146,17 +146,17 @@ in_addr_t SockFd::s_addr(::string const& server) {
 			if ( c>='0' && c<='9' ) {
 				byte = byte*10 + (c-'0') ;
 				if      (first    ) { first0 = first && c=='0' ; first  = false ; }
-				else if (first0   )   goto Method2 ;
-				if      (byte>=256)   goto Method2 ;
+				else if (first0   )   goto ByIfce ;
+				if      (byte>=256)   goto ByIfce ;
 				continue ;
 			}
-			goto Method2 ;
+			goto ByIfce ;
 		}
-		if (first) goto Method2 ;
-		if (n!=4 ) goto Method2 ;
+		if (first) goto ByIfce ;
+		if (n!=4 ) goto ByIfce ;
 		return addr ;
 	}
-Method2 : ;
+ByIfce : ;
 	{	struct ifaddrs* ifa ;
 		if (::getifaddrs(&ifa)==0) {
 			for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next )

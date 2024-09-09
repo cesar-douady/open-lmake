@@ -45,7 +45,7 @@ else :
 
 	try    : sp.check_output('rustc') # dont test rust if rust in not installed
 	except :
-		print('rustc not available',file=sys.stderr)
+		print('rustc not available',file=open('skipped','w'))
 		exit()
 
 	print('''

@@ -55,10 +55,11 @@ else :
 	os.makedirs('CACHE/LMAKE')
 	print('1M',file=open('CACHE/LMAKE/size','w'))
 
-	ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 )              # check target is out of date
-	ut.lmake( 'hello+auto1.hide' , done=0 ,               new=0 )              # check target is up to date
+	ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 ) # check target is out of date
+	ut.lmake( 'hello+auto1.hide' , done=0 ,               new=0 ) # check target is up to date
 
-	os.system('rm -rf LMAKE *auto*')
+	os.system('mkdir bck ; mv LMAKE *auto* bck')
+	os.system('find CACHE -type f -ls')
 
 	print('hello2',file=open('hello','w'))
-#	ut.lmake( 'hello+auto1.hide' , done=1 , hit_done=2 , new=1 )              # check cache hit on common part, and miss when we depend on hello
+	ut.lmake( 'hello+auto1.hide' , done=1 , hit_steady=2 , new=1 ) # check cache hit on common part, and miss when we depend on hello

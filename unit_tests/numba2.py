@@ -38,4 +38,5 @@ else :
 	try :
 		import numba
 		ut.lmake('dut',done=1)
-	except : pass
+	except :
+		print('no numba available',open('skipped','w'))

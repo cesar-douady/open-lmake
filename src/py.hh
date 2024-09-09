@@ -17,8 +17,9 @@ ENUM( Exception
 )
 
 namespace Py {
-	struct Gil :     Lock<Mutex<MutexLvl::Gil>> {
-		using Base = Lock<Mutex<MutexLvl::Gil>> ;
+
+	struct Gil {
+		friend struct NoGil ;
 		// statics
 		static void s_swear_locked() { _s_mutex.swear_locked() ; }
 		// static data
@@ -26,10 +27,21 @@ namespace Py {
 		static Mutex<MutexLvl::Gil> _s_mutex ;
 		// cxtors & casts
 	public :
-		Gil () : Base{_s_mutex} { trace("acquired") ; }
-		~Gil()                  { trace("released") ; }
+		Gil () : _lock{_s_mutex} { Trace trace("Gil::acquire") ; _state = PyGILState_Ensure (      ) ; }
+		~Gil()                   { Trace trace("Gil::release") ;          PyGILState_Release(_state) ; }
 		// data
-		Trace trace { "Gil" } ;
+	private :
+		Lock<Mutex<MutexLvl::Gil>> _lock  ;
+		PyGILState_STATE           _state ;
+	} ;
+
+	struct NoGil {
+		// cxtors & casts
+		NoGil (Gil& g) : _gil{g} { Trace trace("NoGil::acquire") ;                                   PyGILState_Release(_gil._state) ; _gil._lock.unlock() ; }
+		~NoGil(      )           { Trace trace("NoGil::release") ; _gil._lock.lock() ; _gil._state = PyGILState_Ensure (           ) ;                       }
+	private :
+		// data
+		Gil& _gil ;
 	} ;
 
 	struct Object       ;
@@ -65,7 +77,7 @@ namespace Py {
 		return *from_py<T>(v) ;
 	}
 
-	void init( ::string const& lmake_dir_s , bool multi_thread=false ) ; // if multi_thread, GIL must be acquired before each any call to Python API
+	void init(::string const& lmake_dir_s) ;
 
 	::string py_err_str_clear() ;        // like PyErr_Print, but return text instead of printing it (Python API provides no means to do this !)
 	//

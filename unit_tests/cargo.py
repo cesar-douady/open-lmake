@@ -59,9 +59,10 @@ else :
 	if sav is None : del os.environ['LD_PRELOAD']
 	else           :     os.environ['LD_PRELOAD'] = sav
 
-	try    : sp.check_output('cargo') # dont test rust if rust is not installed
+	try :
+		sp.check_output('cargo') # dont test rust if rust is not installed
 	except :
-		print('cargo not available',file=sys.stderr)
+		print('cargo not available',file=open('skipped','w'))
 		exit()
 
 	os.makedirs('hello/src',exist_ok=True)

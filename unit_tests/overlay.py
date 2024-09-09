@@ -18,20 +18,20 @@ if __name__!='__main__' :
 	)
 
 	class Dut(Rule) :
-		views   = { 'read_write/' : ('write/','read/') } # mount read_write as write on top of read
+		views   = { 'read_write/' : {'upper':'write/','lower':'read/'} } # mount read_write as write on top of read
 		targets = { 'DUT' : 'write/dut' }
 		deps    = { 'SRC' : 'read/src'  }
-		cmd     = 'cd read_write ; cp src dut'           # a typical cmd that work in a dir rather than having inputs and outputs
+		cmd     = 'cd read_write ; cp src dut'                           # a typical cmd that work in a dir rather than having inputs and outputs
 
 	class Dut2(PyRule) :
 		tmp_view = '/tmp'
-#		python   = ('/usr/bin/python',)
-		python   = ( '/tmp/vs_venv/bin/python',)
-		views    = { '/tmp/vs_venv/' : ('/tmp/vs_venv_upper/','/home/cdy/tmp/my_venv/') }
+		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':'/usr/include/','copy_up':'sys/'} } # create an overlay over a read-only dir
 		target   = 'write/dut2'
 		def cmd():
-			os.makedirs('/tmp/vs_venv_upper/lib/python3.10/site-packages')
-			open('/tmp/vs_venv/lib/python3.10/site-packages/testfile','w').close()
+			import stat
+			dir   = '/tmp/merged/sys'                                                                    # a subdir that exists in /usr/include
+			open(dir+'/testfile','w').write('good')
+			print(open(dir+'/testfile').read())
 
 	class Test(Rule) :
 		target = 'test{Test:.*}'
@@ -51,8 +51,7 @@ else :
 
 	print('good',file=open('ref'     ,'w'))
 	print('good',file=open('read/src','w'))
-	#
-	open('ref2','w').write(open('/usr/include/alloca.h').read())
+	print('good',file=open('ref2'    ,'w'))
 
-	ut.lmake( 'test' , new=2 , done=2 )
-#	ut.lmake( 'test3' , new=0 , done=2 ) # XXX : make it work
+	ut.lmake( 'test'  , new=2 , done=2 )
+	ut.lmake( 'test2' , new=1 , done=2 )

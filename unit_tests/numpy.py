@@ -7,12 +7,12 @@ if __name__!='__main__' :
 
 	import lmake
 
-	try                        : import numpy                                  # check we can import numpy
-	except ModuleNotFoundError : numpy = None                                  # but ignore test if module does not exist
+	try                        : import numpy # check we can import numpy
+	except ModuleNotFoundError : numpy = None # but ignore test if module does not exist
 
 	lmake.manifest = ('Lmakefile.py',)
 else :
 
 	import ut
 
-	ut.lmake(done=0,new=0)                                                     # just check we can load Lmakefile.py
+	ut.lmake(done=0,new=0) # just check we can load Lmakefile.py

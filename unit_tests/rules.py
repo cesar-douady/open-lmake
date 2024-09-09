@@ -12,7 +12,7 @@ if __name__!='__main__' :
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	for r in range(n) :                                                     # ensure rules recording can handle a lot of rules
+	for r in range(n) :   # ensure rules recording can handle a lot of rules
 		class Sfx(Rule) :
 			name = f'Sfx{r}'
 			target = f'{{File:.*}}.{r}'
@@ -26,4 +26,4 @@ else :
 
 	import ut
 
-	ut.lmake()                                                                 # ensure no crash and reasonable time
+	ut.lmake() # ensure no crash and reasonable time

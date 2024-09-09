@@ -168,7 +168,7 @@ static bool _is_lcl_tmp( ::string const& f , ::string const& tmp_view_s ) {
 	/**/             return f.starts_with(tmp_view_s) ;
 } ;
 
-bool/*entered*/ JobSpace::enter(
+::pair<bool/*entered*/,::vector_s/*deps*/> JobSpace::enter(
 	::string const&   phy_root_dir_s
 ,	::string const&   phy_tmp_dir_s
 ,	size_t            tmp_sz_mb
@@ -179,7 +179,7 @@ bool/*entered*/ JobSpace::enter(
 	Trace trace("enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s,STR(use_fuse)) ;
 	//
 	if ( use_fuse && !root_view_s ) throw "cannot use fuse for autodep without root_view"s ;
-	if ( !*this                   ) return false/*entered*/                                ;
+	if ( !*this                   ) return {false/*entered*/,{}/*deps*/}                   ;
 	//
 	int uid = ::getuid() ;                                                                           // must be done before unshare that invents a new user
 	int gid = ::getgid() ;                                                                           // .
@@ -233,7 +233,7 @@ bool/*entered*/ JobSpace::enter(
 	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
 	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
 	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
-	if ( must_create_root || must_create_tmp ) {                                                                                      // we may not mount directly in chroot_dir
+	if ( must_create_root || must_create_tmp ) {                                                                                // we may not mount directly in chroot_dir
 		if (!work_dir_s)
 			throw
 				"need a work dir to create"s
@@ -253,10 +253,10 @@ bool/*entered*/ JobSpace::enter(
 			switch (FileInfo(src_f).tag()) {
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : OFStream{           private_f                 } ; _mount_bind(private_f,src_f) ; break ;        // create file
-				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                ) ; _mount_bind(private_f,src_f) ; break ;        // create dir
-				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)) ;                                break ;        // copy symlink
-				default             : ;                                                                                               // exclude weird files
+				case FileTag::Exe   : OFStream{           private_f                 } ; _mount_bind(private_f,src_f) ; break ;  // create file
+				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                ) ; _mount_bind(private_f,src_f) ; break ;  // create dir
+				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)) ;                                break ;  // copy symlink
+				default             : ;                                                                                         // exclude weird files
 			}
 		}
 		if (must_create_root) mk_dir_s(work_root_dir+super_root_view_s) ;
@@ -264,13 +264,13 @@ bool/*entered*/ JobSpace::enter(
 		chroot_dir = ::move(work_root_dir) ;
 	}
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                 ) ;                                                                // necessary to be allowed to write the gid_map (if desirable)
+	_atomic_write( "/proc/self/setgroups" , "deny"                 ) ;                                                          // necessary to be allowed to write the gid_map (if desirable)
 	_atomic_write( "/proc/self/uid_map"   , ""s+uid+' '+uid+" 1\n" ) ;
 	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
 	//
 	::string root_dir_s ;
 	if (!root_view_s) {
-		SWEAR(!use_fuse) ;                                                                                                            // need a view to mount repo with fuse
+		SWEAR(!use_fuse) ;                                                                                                      // need a view to mount repo with fuse
 		root_dir_s = phy_root_dir_s ;
 	} else {
 		root_dir_s = chroot_dir+root_view_s ;
@@ -285,39 +285,54 @@ bool/*entered*/ JobSpace::enter(
 	if      (+chroot_dir ) _chroot(chroot_dir)    ;
 	if      (+root_view_s) _chdir(root_view_s   ) ;
 	else if (+chroot_dir ) _chdir(phy_root_dir_s) ;
+	::vector_s deps ;
 	if (+views) {
 		size_t i = 0 ;
-		for( auto const& [view,phys] : views ) {
+		for( auto const& [view,descr] : views ) {
 			::string   abs_view = mk_abs(view,root_dir_s) ;
-			::vector_s abs_phys ; for( ::string const& phy : phys ) abs_phys.push_back(mk_abs(phy,root_dir_s)) ;
+			::vector_s abs_phys ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,root_dir_s)) ;
+			if (is_dirname(view))
+				for( ::string const& cu : descr.copy_up ) {
+					::string dst = descr.phys[0]+cu ;
+					if (is_dirname(cu)) {
+						mk_dir_s(dst) ;
+					} else {
+						for( size_t i=1 ; i<descr.phys.size() ; i++ ) {
+							::string src = descr.phys[i]+cu ;
+							deps.push_back(src) ;
+							if (+copy(src,dst)) break ;
+						}
+					}
+				}
+			/**/                                    if ( is_dirname(view) && _is_lcl_tmp(view,tmp_view_s) ) mk_dir_s(view) ;
+			for( ::string const& phy : descr.phys ) if ( is_dirname(phy ) && _is_lcl_tmp(phy ,tmp_view_s) ) mk_dir_s(phy ) ;
 			//
-			/**/                              if ( is_dirname(view) && _is_lcl_tmp(view,tmp_view_s) ) mk_dir_s(view) ;
-			for( ::string const& phy : phys ) if ( is_dirname(phy ) && _is_lcl_tmp(phy ,tmp_view_s) ) mk_dir_s(phy ) ;
-			//
-			if (phys.size()==1) {
+			size_t          sz    = descr.phys.size() ; SWEAR(sz) ;
+			::string const& upper = descr.phys[0]     ;
+			if (sz==1) {
 				_mount_bind( abs_view , abs_phys[0] ) ;
 			} else {
-				::string work_s = is_lcl(phys[0]) ? work_dir_s+"view_work/"+(i++)+'/' : phys[0].substr(0,phys[0].size()-1)+".work/" ; // if not in the repo, it must be in tmp
+				::string work_s = is_lcl(upper) ? work_dir_s+"view_work/"+(i++)+'/' : upper.substr(0,upper.size()-1)+".work/" ; // if not in the repo, it must be in tmp
 				mk_dir_s(work_s) ;
 				_mount_overlay( abs_view , abs_phys , mk_abs(work_s,root_dir_s) ) ;
 			}
 		}
 	}
 	trace("done") ;
-	return true/*entered*/ ;
+	return {true/*entered*/,deps} ;
 }
 
-::vmap_s<::vector_s> JobSpace::flat_views() const {
-	// ves maps each view to { [upper,lower,...] , exceptions }
+::vmap_s<::vector_s> JobSpace::flat_phys() const {
+	// ves maps each view to { view_descr , exceptions }
 	// exceptions are immediate subfiles that are mapped elsewhere through another entry
-	// if phys is empty, entry is just exists to record exceptions, but no mapping is associated to view
+	// if view_descr.phys is empty, entry is just exists to record exceptions, but no mapping is associated to view
 	::umap_s<::pair<::vector_s,::uset_s>> ves ;
 	// invariant : ves is always complete and accurate, but may contains recursive entries
 	// at the end, no more recursive entries are left
 	//
 	// first intialize ves
-	for( auto const& [view,phys] : views ) {
-		bool inserted = ves.try_emplace( view , phys , ::uset_s() ).second ; SWEAR(inserted) ;
+	for( auto const& [view,descr] : views ) {
+		bool inserted = ves.try_emplace( view , descr.phys , ::uset_s() ).second ; SWEAR(inserted) ;
 		for( ::string f=view ; +f&&f!="/" ;) {
 			::string b = base_name (f) ;
 			f = dir_name_s(f) ;
@@ -355,7 +370,9 @@ bool/*entered*/ JobSpace::enter(
 		}
 	}
 	// now, there are no more recursive entries
-	::vmap_s<::vector_s> res ; for( auto& [view,phys_excs] : ves ) if (+phys_excs.first) res.emplace_back(view,phys_excs.first) ;
+	::vmap_s<::vector_s> res ;
+	for( auto& [view,phys_excs] : ves )
+		if (+phys_excs.first) res.emplace_back(view,phys_excs.first) ;
 	return res ;
 }
 
@@ -363,14 +380,14 @@ void JobSpace::chk() const {
 	if ( +chroot_dir_s && !(is_abs(chroot_dir_s)&&is_canon(chroot_dir_s)) ) throw "chroot_dir must be a canonic absolute path : "+no_slash(chroot_dir_s) ;
 	if ( +root_view_s  && !(is_abs(root_view_s )&&is_canon(root_view_s )) ) throw "root_view must be a canonic absolute path : " +no_slash(root_view_s ) ;
 	if ( +tmp_view_s   && !(is_abs(tmp_view_s  )&&is_canon(tmp_view_s  )) ) throw "tmp_view must be a canonic absolute path : "  +no_slash(tmp_view_s  ) ;
-	for( auto const& [view,phys] : views ) {
+	for( auto const& [view,descr] : views ) {
 		bool lcl_view    = _is_lcl_tmp(view,tmp_view_s) ;
 		bool is_dir_view = is_dirname(view)             ;
 		/**/                             if ( !view                                                                    ) throw "cannot map empty view"s                          ;
 		/**/                             if ( !is_canon(view)                                                          ) throw "cannot map non-canonic view "+view               ;
-		/**/                             if ( !is_dir_view && phys.size()!=1                                           ) throw "cannot overlay map non-dir " +view               ;
+		/**/                             if ( !is_dir_view && descr.phys.size()!=1                                     ) throw "cannot overlay map non-dir " +view               ;
 		for( auto const& [v,_] : views ) if ( &v!=&view && view.starts_with(v) && (v.back()=='/'||view[v.size()]=='/') ) throw "cannot map "                 +view+" within "+v  ;
-		for( ::string const& phy : phys ) {
+		for( ::string const& phy : descr.phys ) {
 			bool lcl_phy = _is_lcl_tmp(phy,tmp_view_s) ;
 			if ( !phy                             ) throw "cannot map "              +view+" to empty location"        ;
 			if ( !is_canon(phy)                   ) throw "cannot map "              +view+" to non-canonic view "+phy ;

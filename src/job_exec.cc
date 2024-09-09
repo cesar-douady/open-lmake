@@ -78,6 +78,10 @@ SeqId             g_trace_id       = 0/*garbage*/ ;
 			res[k] = ::move(v) ;
 		}
 	}
+	if (PY_LD_LIBRARY_PATH[0]!=0) {
+		auto [it,inserted] = res.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
+		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
+	}
 	if      ( g_start_info.keep_tmp_dir                  ) g_phy_tmp_dir_s = g_phy_root_dir_s+AdminDirS       +"tmp/"+g_job                +'/' ;
 	else if ( auto it=res.find("TMPDIR") ; it!=res.end() ) g_phy_tmp_dir_s = it->second+'/'+g_start_info.key+'/'     +g_start_info.small_id+'/' ;
 	else if ( +g_start_info.tmp_sz_mb                    ) g_phy_tmp_dir_s = g_phy_root_dir_s+PrivateAdminDirS+"tmp/"+g_start_info.small_id+'/' ;
@@ -374,16 +378,16 @@ int main( int argc , char* argv[] ) {
 			trace("created",f) ;
 		} ;
 		//
-		::map_ss             cmd_env    ;
-		::vmap_s<::vector_s> flat_views = g_start_info.job_space.flat_views() ;
-		for( auto const& [view,phys] : flat_views ) {
+		::map_ss             cmd_env   ;
+		::vmap_s<::vector_s> flat_phys = g_start_info.job_space.flat_phys() ;
+		for( auto const& [view,phys] : flat_phys ) {
 			/**/                              handle_entry(view,true /*is_view*/) ;
 			for( ::string const& phy : phys ) handle_entry(phy ,false/*is_view*/) ;
 		}
 		try {
 			cmd_env = prepare_env(end_report) ;
 			//
-			bool entered = g_start_info.job_space.enter(
+			::pair<bool/*entered*/,::vector_s/*deps*/> entered = g_start_info.job_space.enter(
 				g_phy_root_dir_s
 			,	g_phy_tmp_dir_s
 			,	g_start_info.tmp_sz_mb
@@ -391,7 +395,7 @@ int main( int argc , char* argv[] ) {
 			,	g_start_info.autodep_env.src_dirs_s
 			,	g_start_info.method==AutodepMethod::Fuse
 			) ;
-			if (entered) {
+			if (entered.first) {
 				// find a good starting pid
 				// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
 				// to do that we spread pid's among the availale range by setting the first pid used by jos as apart from each other as possible
@@ -405,6 +409,11 @@ int main( int argc , char* argv[] ) {
 				static constexpr uint64_t delta_pid = (1640531527*NPids) >> n_bits(NPids) ;           // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
 				//
 				g_gather.first_pid = FirstPid + ((g_start_info.small_id*delta_pid)>>(32-n_bits(NPids)))%NPids ; // delta_pid on 64 bits to avoid rare overflow in multiplication
+				for( ::string& d : entered.second ) {
+					if (!is_lcl(d)) continue ;                                                                  // XXX : handle case where dep is in a source dir
+					DepDigest dd { ~Access::Stat , FileInfo(d) } ;                                              // use d before being moved
+					g_start_info.deps.emplace_back(::move(d),::move(dd)) ;
+				}
 			}
 		} catch (::string const& e) {
 			end_report.msg += e ; goto End ;
@@ -414,7 +423,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.addr              =        g_start_info.addr             ;
 		g_gather.as_session        =        true                          ;
 		g_gather.autodep_env       = ::move(g_start_info.autodep_env    ) ;
-		g_gather.autodep_env.views = ::move(flat_views                  ) ;
+		g_gather.autodep_env.views = ::move(flat_phys                   ) ;
 		g_gather.cur_deps_cb       =        cur_deps_cb                   ;
 		g_gather.cwd_s             =        g_start_info.cwd_s            ;
 		g_gather.env               =        &cmd_env                      ;
@@ -428,7 +437,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.service_mngt      =        g_service_mngt                ;
 		g_gather.timeout           =        g_start_info.timeout          ;
 		//
-		if (!g_start_info.method)                                                                               // if no autodep, consider all static deps are fully accessed
+		if (!g_start_info.method)                                                                          // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,digest] : g_start_info.deps ) if (digest.dflags[Dflag::Static]) {
 				digest.accesses = ~Accesses() ;
 				if ( digest.is_crc && !digest.crc().valid() ) digest.sig(FileSig(d)) ;
@@ -461,9 +470,9 @@ int main( int argc , char* argv[] ) {
 		//
 		end_report.msg += compute_crcs(digest) ;
 		//
-		if (!g_start_info.autodep_env.reliable_dirs) {                                                          // fast path : avoid listing targets & guards if reliable_dirs
-			for( auto const& [t,_] : digest.targets  ) g_nfs_guard.change(t) ;                                  // protect against NFS strange notion of coherence while computing crcs
-			for( auto const&  f    : g_gather.guards ) g_nfs_guard.change(f) ;                                  // .
+		if (!g_start_info.autodep_env.reliable_dirs) {                                                     // fast path : avoid listing targets & guards if reliable_dirs
+			for( auto const& [t,_] : digest.targets  ) g_nfs_guard.change(t) ;                             // protect against NFS strange notion of coherence while computing crcs
+			for( auto const&  f    : g_gather.guards ) g_nfs_guard.change(f) ;                             // .
 			g_nfs_guard.close() ;
 		}
 		//
@@ -471,7 +480,7 @@ int main( int argc , char* argv[] ) {
 			if (!cmd_env.contains("TMPDIR"))
 				digest.msg << "accessed "<<no_slash(g_gather.autodep_env.tmp_dir_s)<<" without dedicated tmp dir\n" ;
 			else if (!g_start_info.keep_tmp_dir)
-				try                     { unlnk_inside_s(g_gather.autodep_env.tmp_dir_s,true/*force*/) ; }      // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
+				try                     { unlnk_inside_s(g_gather.autodep_env.tmp_dir_s,true/*force*/) ; } // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
 				catch (::string const&) {                                                                }
 		}
 		//
@@ -498,7 +507,7 @@ End :
 	try {
 		ClientSockFd fd           { g_service_end , NConnectionTrials } ;
 		Pdate        end_overhead = New                                 ;
-		end_report.digest.stats.total = end_overhead - start_overhead ;                                         // measure overhead as late as possible
+		end_report.digest.stats.total = end_overhead - start_overhead ;                                    // measure overhead as late as possible
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		OMsgBuf().send( fd , end_report ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

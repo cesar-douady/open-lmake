@@ -18,7 +18,9 @@ if 'slurm' in lmake.backends :
 		,	'world'
 		)
 
-		lmake.config.backends.slurm = { 'interface' : socket.gethostname() } # check that interface is interpreted w/o crash
+		lmake.config.backends.slurm = { # check that interface is interpreted w/o crash
+			'interface' : socket.gethostname()
+		}
 
 		class Cat(Rule) :
 			stems = {

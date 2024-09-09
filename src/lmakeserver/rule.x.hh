@@ -101,10 +101,11 @@ namespace Engine {
 
 	namespace Attrs {
 		// statics
-		/**/                   bool/*updated*/ acquire( bool & dst , Py::Object const* py_src                                                                               ) ;
-		/**/                   bool/*updated*/ acquire( Delay& dst , Py::Object const* py_src , Delay min=Delay::Lowest              , Delay max=Delay::Highest             ) ;
-		template<::integral I> bool/*updated*/ acquire( I    & dst , Py::Object const* py_src , I     min=::numeric_limits<I>::min() , I     max=::numeric_limits<I>::max() ) ;
-		template<StdEnum    E> bool/*updated*/ acquire( E    & dst , Py::Object const* py_src                                                                               ) ;
+		/**/                   bool/*updated*/ acquire( bool               & dst , Py::Object const* py_src                                                                               ) ;
+		/**/                   bool/*updated*/ acquire( Delay              & dst , Py::Object const* py_src , Delay min=Delay::Lowest              , Delay max=Delay::Highest             ) ;
+		/**/                   bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Py::Object const* py_src                                                                               ) ;
+		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=::numeric_limits<I>::min() , I     max=::numeric_limits<I>::max() ) ;
+		template<StdEnum    E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src                                                                               ) ;
 		//
 		template<        bool Env=false>                                       bool/*updated*/ acquire( ::string   & dst , Py::Object const* py_src ) ;
 		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) ;
@@ -235,8 +236,8 @@ namespace Engine {
 			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"    ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = Disk::with_slash(job_space.tmp_view_s  ) ;
 			Attrs::acquire_from_dct( use_script             , py_dct , "use_script"  ) ;
 			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"       ) ;
-			::sort(env            ) ;                                                  // stabilize cmd crc
-			::sort(job_space.views) ;                                                  // .
+			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
+			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
 		}
 		// data
 		// START_OF_VERSIONING
@@ -285,7 +286,7 @@ namespace Engine {
 			Attrs::acquire_env     ( env     , py_dct , "env"                            ) ;
 			Attrs::acquire_from_dct( method  , py_dct , "autodep"                        ) ;
 			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
-			::sort(env) ;                                                                    // stabilize rsrcs crc
+			::sort(env) ;                                                                                                    // stabilize rsrcs crc
 			// check
 			if ( method==AutodepMethod::Fuse    && !HAS_FUSE     ) throw snake(method)+" is not supported on this system"s ; // PER_AUTODEP_METHOD
 			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw snake(method)+" is not supported on this system"s ; // .
@@ -294,7 +295,7 @@ namespace Engine {
 		// START_OF_VERSIONING
 		::vmap_ss     env     ;
 		AutodepMethod method  = {} ;
-		Time::Delay   timeout ;                                                              // if 0 <=> no timeout, maximum time allocated to job execution in s
+		Time::Delay   timeout ;                                                                                              // if 0 <=> no timeout, maximum time allocated to job execution in s
 		// END_OF_VERSIONING
 	} ;
 
@@ -793,18 +794,18 @@ namespace Engine {
 			if (*py_src==Py::None) { if (!dst) return false ; dst = {} ; return true  ; }
 			//
 			bool            updated = false                   ;
-			::map_s<T>      map     = mk_map(dst)             ;
+			::map_s<T>      dst_map = mk_map(dst)             ;
 			Py::Dict const& py_map = py_src->as_a<Py::Dict>() ;
 			for( auto const& [py_key,py_val] : py_map ) {
 				::string key = py_key.template as_a<Py::Str>() ;
 				if constexpr (Env)
 					if (py_val==Py::Ellipsis) {
-						updated  = true        ;
-						map[key] = EnvPassMrkr ;                                     // special case for environment where we put an otherwise illegal marker to ask to pass value from job_exec env
+						updated      = true        ;
+						dst_map[key] = EnvPassMrkr ;                                 // special case for environment where we put an otherwise illegal marker to ask to pass value from job_exec env
 						continue ;
 					}
 				try {
-					auto [it,inserted] = map.emplace(key,T()) ;
+					auto [it,inserted] = dst_map.emplace(key,T()) ;
 					/**/               updated |= inserted                         ;
 					if constexpr (Env) updated |= acquire<Env>(it->second,&py_val) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
 					else               updated |= acquire     (it->second,&py_val) ; // ... to make repo robust to moves of lmake or itself
@@ -812,7 +813,7 @@ namespace Engine {
 					throw "for item "+key+" : "+e ;
 				}
 			}
-			dst = mk_vmap(map) ;
+			dst = mk_vmap(dst_map) ;
 			return updated ;
 		}
 

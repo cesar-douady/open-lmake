@@ -237,7 +237,7 @@ version.hh : version.hh.stamp ;
 # Sense git bin dir at install time so as to be independent of it at run time.
 # Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
 $(LIB)/%.py : $(SLIB)/%.src.py
-	@mkdir -p $(@D)
+	mkdir -p $(@D)
 	sed \
 		-e 's!\$$BASH!$(BASH)!'                          \
 		-e 's!\$$PYTHON2!$(PYTHON2)!'                    \
@@ -720,7 +720,7 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	@for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
 	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH CXX=$(CXX_EXE) $(ROOT_DIR)/$< ) </dev/null >$@.out 2>$@.err \
-	&&	mv $@.out $@                                                                                                          \
+	&&	( mv $@.out $@ ; [ ! -f $(@D)/skipped ] || echo skipped $@ : $$(cat $(@D)/skipped) )                                  \
 	||	( cat $@.out $@.err ; exit 1 )
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
@@ -728,8 +728,15 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	@mkdir -p $(@D)
 	@( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ) ; : # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	@cp $< $(@D)/Lmakefile.py
-	@	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib CXX=$(CXX_EXE) $(PYTHON) Lmakefile.py ) </dev/null >$@.out 2>$@.err \
-	&&	mv $@.out $@                                                                                                                                                              \
+	@	(	cd $(@D) ;                                                                       \
+				PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH                                 \
+				PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib                                  \
+				CXX=$(CXX_EXE)                                                               \
+				LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                \
+			$(PYTHON)                                                                        \
+				Lmakefile.py                                                                 \
+		) </dev/null >$@.out 2>$@.err                                                        \
+	&&	( mv $@.out $@ ; [ ! -f $(@D)/skipped ] || echo skipped $@ : $$(cat $(@D)/skipped) ) \
 	||	( cat $@.out $@.err ; exit 1 )
 
 #

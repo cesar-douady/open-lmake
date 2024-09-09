@@ -31,4 +31,5 @@ else :
 	try :
 		import numba
 		ut.lmake('test.so',done=1)
-	except : pass
+	except :
+		print('no numba available',file=open('skipped','w'))

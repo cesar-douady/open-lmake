@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <sys/mman.h>
+#include <sys/sendfile.h>
 
 #include "disk.hh"
 #include "hash.hh"
@@ -337,6 +338,30 @@ namespace Disk {
 
 	void dir_guard( Fd at , ::string const& file ) {
 		if (has_dir(file)) mk_dir_s(at,dir_name_s(file)) ;
+	}
+
+	FileTag copy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , bool unlnk_dst , bool mk_read_only ) {
+		FileInfo fi { src_at , src_file } ;
+		FileTag tag = fi.tag()            ;
+		if (unlnk_dst) unlnk(dst_at,dst_file)                                         ;
+		else           SWEAR( !is_target(dst_at,dst_file) , '@',dst_at,':',dst_file ) ;
+		switch (tag) {
+			case FileTag::None : break ;
+			case FileTag::Reg  :
+			case FileTag::Exe  : {
+				AutoCloseFd rfd = ::openat  ( src_at , src_file.c_str() , O_RDONLY                                           ) ;
+				AutoCloseFd wfd = open_write( dst_at , dst_file         , false/*append*/ , tag==FileTag::Exe , mk_read_only ) ;
+				::sendfile( wfd , rfd , nullptr , fi.sz ) ;
+			}
+			break ;
+			case FileTag::Lnk : {
+				::string target = read_lnk(src_at,src_file) ;
+				dir_guard(dst_at,dst_file) ;
+				lnk( dst_at , dst_file , target ) ;
+			}
+			break ;
+		DF}
+		return tag ;
 	}
 
 	//
