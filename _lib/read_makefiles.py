@@ -249,12 +249,15 @@ def find_static_stems(job_name) :
 
 def mk_dbg_info( dbg , serialize_ctx ) :
 	if not dbg : return ("","")
-	lmake_dir      = avoid_ctx('lmake_dir'     ,serialize_ctx)
-	lmake_runtime  = avoid_ctx('lmake_runtime' ,serialize_ctx)
-	lmake_sourcify = avoid_ctx('lmake_sourcify',serialize_ctx)
+	lmake_dir          = avoid_ctx('lmake_dir'         ,serialize_ctx)
+	lmake_runtime      = avoid_ctx('lmake_runtime'     ,serialize_ctx)
+	lmake_runtime_file = avoid_ctx('lmake_runtime_file',serialize_ctx)
+	lmake_sourcify     = avoid_ctx('lmake_sourcify'    ,serialize_ctx)
 	dbg_info = ''.join((
 		f"{lmake_runtime} = {{}}\n"
-	,	f"exec(open({lmake_dir}+'/lib/lmake_runtime.py').read(),{lmake_runtime})\n"
+	,	f"{lmake_runtime_file} = open({lmake_dir}+'/lib/lmake_runtime.py')\n"
+	,	f"exec({lmake_runtime_file}.read(),{lmake_runtime})\n"
+	,	f"{lmake_runtime_file}.close()\n"                         # ensure no warning with python3.12 -W...
 	,	f"{lmake_sourcify} = {lmake_runtime}['lmake_sourcify']\n"
 	))
 	for func,(module,qualname,filename,firstlineno) in dbg.items() :

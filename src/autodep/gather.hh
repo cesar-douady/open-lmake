@@ -103,8 +103,9 @@ public : //!                                                                    
 	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,c) ; } // new_unlnk is used for internal wash
 	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                      }
 	//
-	void new_deps( PD , ::vmap_s<DepDigest>&& deps , ::string const& stdin={}       ) ;
-	void new_exec( PD , ::string const& exe        , ::string const&      ="s_exec" ) ;
+	void new_dep ( PD pd , ::string&&            dep  , Accesses a               , ::string const& c="s_dep"  ) { _new_access( pd , ::move(dep) , {.accesses=a} , Disk::FileInfo(dep) , c ) ; }
+	void new_deps( PD    , ::vmap_s<DepDigest>&& deps , ::string const& stdin={}                              ) ;
+	void new_exec( PD    , ::string const&       exe  ,                            ::string const&  ="s_exec" ) ;
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
 		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}         // dont care if we cannot report the reply to job

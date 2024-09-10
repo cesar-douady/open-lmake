@@ -343,9 +343,12 @@ namespace Engine {
 				if (!acquire(upper,py_src)) throw "nothing to bind to"s ;
 			} else if (py_src->is_a<Dict>()) {
 				Dict const& py_dct = py_src->as_a<Dict>() ;
-				if (!acquire_from_dct(upper  ,py_dct,"upper"  )) throw "no upper"s ;
-				/**/ acquire_from_dct(lower  ,py_dct,"lower"  ) ;
-				/**/ acquire_from_dct(copy_up,py_dct,"copy_up") ;
+				acquire_from_dct(upper  ,py_dct,"upper"  ) ;
+				acquire_from_dct(lower  ,py_dct,"lower"  ) ;
+				acquire_from_dct(copy_up,py_dct,"copy_up") ;
+				if ( !upper             )                           throw "no upper"s                           ;
+				if ( +copy_up && !lower )                           throw "cannot copy up from nowhere"s        ;
+				for( ::string const& cu : copy_up ) if (is_abs(cu)) throw "copy up item must be relative : "+cu ;
 			} else throw "unexpected view description which is not a str nor a dict"s ;
 			/**/                       dst.phys.push_back(::move(upper)) ;
 			for( ::string& l : lower ) dst.phys.push_back(::move(l    )) ;

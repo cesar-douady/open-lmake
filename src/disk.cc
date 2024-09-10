@@ -194,19 +194,22 @@ namespace Disk {
 		return res ;
 	}
 
-	void unlnk_inside_s( Fd at , ::string const& dir_s , bool force ) {
-		if (!force) SWEAR( is_lcl(dir_s) , dir_s ) ;                                            // unless certain, prevent accidental non-local unlinks
-		for( ::string const& f : lst_dir_s(at,dir_s,dir_s) ) unlnk(at,f,true/*dir_ok*/,force) ;
+	void unlnk_inside_s( Fd at , ::string const& dir_s , bool abs_ok , bool force ) {
+		if (!abs_ok) SWEAR( is_lcl_s(dir_s) , dir_s ) ;                                                                                   // unless certain, prevent accidental non-local unlinks
+		if (force) [[maybe_unused]] int rc = ::fchmodat( at , no_slash(dir_s).c_str() , S_IRWXU|S_IRWXG|S_IRWXO , AT_SYMLINK_NOFOLLOW ) ; // ignore return code as we cannot do much about it
+		for( ::string const& f : lst_dir_s(at,dir_s,dir_s) ) unlnk(at,f,true/*dir_ok*/,abs_ok,force) ;
 	}
 
-	bool/*done*/ unlnk( Fd at , ::string const& file , bool dir_ok , bool force ) {
-		if (!force) SWEAR( is_lcl(file)         , file  ) ;                         // unless certain, prevent accidental non-local unlinks
-		else        SWEAR( at!=Fd::Cwd || +file , force ) ;                         // do not unlink cwd
-		if (::unlinkat(at,file.c_str(),0)==0           ) return true /*done*/ ;
-		if (errno==ENOENT                              ) return false/*done*/ ;
-		if (!dir_ok                                    ) throw "cannot unlink "     +file ;
-		if (errno!=EISDIR                              ) throw "cannot unlink file "+file ;
-		unlnk_inside_s(at,with_slash(file),force) ;
+	bool/*done*/ unlnk( Fd at , ::string const& file , bool dir_ok , bool abs_ok , bool force ) {
+		/**/         SWEAR( +file || at!=Fd::Cwd  , file,at,abs_ok ) ;                            // do not unlink cwd
+		if (!abs_ok) SWEAR( !file || is_lcl(file) , file           ) ;                            // unless certain, prevent accidental non-local unlinks
+		if (::unlinkat(at,file.c_str(),0)==0) return true /*done*/ ;
+		if (errno==ENOENT                   ) return false/*done*/ ;
+		if (!dir_ok                         ) throw "cannot unlink "     +file ;
+		if (errno!=EISDIR                   ) throw "cannot unlink file "+file ;
+		//
+		unlnk_inside_s(at,with_slash(file),abs_ok,force) ;
+		//
 		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw "cannot unlink dir " +file ;
 		return true/*done*/ ;
 	}
@@ -340,11 +343,11 @@ namespace Disk {
 		if (has_dir(file)) mk_dir_s(at,dir_name_s(file)) ;
 	}
 
-	FileTag copy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , bool unlnk_dst , bool mk_read_only ) {
+	FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , bool unlnk_dst , bool mk_read_only ) {
 		FileInfo fi { src_at , src_file } ;
 		FileTag tag = fi.tag()            ;
-		if (unlnk_dst) unlnk(dst_at,dst_file)                                         ;
-		else           SWEAR( !is_target(dst_at,dst_file) , '@',dst_at,':',dst_file ) ;
+		if (unlnk_dst) unlnk(dst_at,dst_file)                                 ;
+		else           SWEAR( !is_target(dst_at,dst_file) , dst_at,dst_file ) ;
 		switch (tag) {
 			case FileTag::None : break ;
 			case FileTag::Reg  :

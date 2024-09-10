@@ -128,15 +128,15 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 			if (!arg[1]) throw "unexpected lonely -"s ;
 			if (arg[1]=='-') {
 				// long option
-				if (arg[2]==0) { force_args = true ; continue ; }                                            // a lonely --, options are no more recognized
+				if (arg[2]==0) { force_args = true ; continue ; }                             // a lonely --, options are no more recognized
 				::string    option ;
 				const char* p      ;
-				for( p=arg+2 ; *p && *p!='=' ; p++ ) option.push_back( *p=='-' ? '_' : *p ) ;                // make snake case to use mk_enum while usual convention for options is to use '-'
+				for( p=arg+2 ; *p && *p!='=' ; p++ ) option.push_back( *p=='-' ? '_' : *p ) ; // make snake case to use mk_enum while usual convention for options is to use '-'
 				if (can_mk_enum<Key>(option)) {
 					Key k = mk_enum<Key>(option) ;
 					if (syntax.keys[+k].short_name) {
-						if (has_key) throw "cannot specify both --"s+option+" and --"+::string(snake(key)) ; // XXX : cast from string_view to string can be suppressed in c++26
-						if (*p     ) throw "unexpected value for option --"s+option                        ;
+						if (has_key) throw "cannot specify both --"s+option+" and --"+snake(key) ;
+						if (*p     ) throw "unexpected value for option --"s+option              ;
 						key     = k    ;
 						has_key = true ;
 						continue ;

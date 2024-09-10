@@ -793,9 +793,9 @@ namespace Engine {
 			if (!py_src          )             return false ;
 			if (*py_src==Py::None) { if (!dst) return false ; dst = {} ; return true  ; }
 			//
-			bool            updated = false                   ;
-			::map_s<T>      dst_map = mk_map(dst)             ;
-			Py::Dict const& py_map = py_src->as_a<Py::Dict>() ;
+			bool            updated = false                    ;
+			::map_s<T>      dst_map = mk_map(dst)              ;
+			Py::Dict const& py_map  = py_src->as_a<Py::Dict>() ;
 			for( auto const& [py_key,py_val] : py_map ) {
 				::string key = py_key.template as_a<Py::Str>() ;
 				if constexpr (Env)

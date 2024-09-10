@@ -185,6 +185,12 @@ ENUM( MatchKind
 )
 // END_OF_VERSIONING
 
+ENUM( MountAction
+,	Access
+,	Read
+,	Write
+)
+
 // START_OF_VERSIONING
 ENUM_3( Status                           // result of job execution
 ,	Early   = EarlyLostErr               // <=Early means output has not been modified
@@ -547,25 +553,40 @@ struct JobSpace {
 	bool operator+() const { return +chroot_dir_s || +root_view_s || +tmp_view_s || +views ; }
 	bool operator!() const { return !+*this                                                ; }
 	// services
-	::pair<bool/*entered*/,::vector_s/*deps*/> enter(
-		::string const&   phy_root_dir_s
-	,	::string const&   phy_tmp_dir_s
-	,	size_t            tmp_sz_mb
-	,	::string const&   work_dir_s
-	,	::vector_s const& src_dirs_s = {}
-	,	bool              use_fuse   = false
-	) const ;
+	template<IsStream T> void serdes(T& s) {
+		if (::is_base_of_v<::istream,T>) _works_s.clear() ;
+		::serdes(s,chroot_dir_s) ;
+		::serdes(s,root_view_s ) ;
+		::serdes(s,tmp_view_s  ) ;
+		::serdes(s,views       ) ;
+	}
+	bool/*entered*/ enter(
+		::vmap_s<MountAction>& deps
+	,	::string const&        phy_root_dir_s
+	,	::string const&        phy_tmp_dir_s
+	,	size_t                 tmp_sz_mb
+	,	::string const&        work_dir_s
+	,	::vector_s const&      src_dirs_s = {}
+	,	bool                   use_fuse   = false
+	) ;
+	void exit() ;
 	//
 	::vmap_s<::vector_s> flat_phys() const ; // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
 	void chk() const ;
+private :
+	bool           _is_lcl_tmp( ::string const&                                                              ) const ;
+	bool/*dst_ok*/ _create    ( ::vmap_s<MountAction>& report , ::string const& dst , ::string const& src={} ) const ;
 	// data
+public :
 	// START_OF_VERSIONING
 	::string            chroot_dir_s = {} ;  // absolute dir which job chroot's to before execution (empty if unused)
 	::string            root_view_s  = {} ;  // absolute dir under which job sees repo root dir     (empty if unused)
 	::string            tmp_view_s   = {} ;  // absolute dir under which job sees tmp dir           (empty if unused)
 	::vmap_s<ViewDescr> views        = {} ;  // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
+private :
+	::vector_s _works_s ;
 } ;
 
 struct JobRpcReq {

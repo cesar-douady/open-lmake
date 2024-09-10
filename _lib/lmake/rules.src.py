@@ -149,7 +149,7 @@ class _PyRule(Rule) :
 	side_deps   = { '__PY__'  : ( r'{*:(.+/)?}{*:\w+}.py'  , 'StatReadData' ) } # this is actually a noop as stat syscalls are deemed to access size, but this might change
 	environ_cmd = pdict( PYTHONPATH=':'.join((_lmake_dir+'/lib',root_dir)) )
 	py_rule     = None
-	def cmd() :                                                                      # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
+	def cmd() :                                                                 # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 		import sys
 		if py_rule==None                                    : raise RuntimeError('cannot determine what kind of PyRule is used'                                          )
 		if py_rule=='Py2Rule' and sys.version_info.major!=2 : raise RuntimeError('cannot use %s with python%d.%d'%(py_rule,sys.version_info.major,sys.version_info.minor))
@@ -159,7 +159,7 @@ class _PyRule(Rule) :
 			sys.path[0:0] = (_lmake_dir+'/lib',)
 		from lmake.import_machinery import fix_import
 		fix_import(py_rule)
-	cmd.shell = ''                                                                   # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
+	cmd.shell = ''                                                              # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
 class Py2Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	side_targets    = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }

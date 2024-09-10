@@ -257,7 +257,7 @@ namespace Caches {
 					copied.push_back(tn) ;
 					nfs_guard.change(tn) ;
 					trace("copy",dfd,ti,tn) ;
-					copy( dfd , ::to_string(ti) , tn , true/*unlnk_dst*/ , false/*mk_read_only*/ ) ;
+					cpy( tn , dfd , ::to_string(ti) , true/*unlnk_dst*/ , false/*mk_read_only*/ ) ;
 					entry.second.sig = FileSig(tn) ;                                                 // target digest is not stored in cache
 				}
 				job_info.end.end.digest.end_date = New ;                                             // date must be after files are copied
@@ -331,7 +331,7 @@ namespace Caches {
 			for( NodeIdx ti=0 ; ti<digest.targets.size() ; ti++ ) {
 				auto const& entry = digest.targets[ti] ;
 				trace("copy",entry.first,dfd,ti) ;
-				copy( entry.first , dfd , ::to_string(ti) , false/*unlnk_dst*/ , true/*mk_read_only*/ ) ;
+				cpy( dfd , ::to_string(ti) , entry.first , false/*unlnk_dst*/ , true/*mk_read_only*/ ) ;
 				if (FileSig(entry.first)!=entry.second.sig) throw "unstable "+entry.first ;               // ensure cache entry is reliable by checking file *after* copy
 			}
 		} catch (::string const& e) {

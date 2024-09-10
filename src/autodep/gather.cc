@@ -89,7 +89,7 @@ void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdi
 			if (!dd.accesses) dd.sig(FileInfo(f)) ; // record now if not previously accessed
 			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , is_stdin?"stdin"s:"s_deps"s ) ;
+		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , is_stdin?"stdin":"s_deps" ) ;
 	}
 }
 

@@ -108,16 +108,16 @@ int main( int argc , char* argv[] ) {
 		if ( cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) ) throw "tmp view must be absolute : "  +cmd_line.flag_args[+CmdFlag::TmpView  ] ;
 		if (                                       !is_abs(tmp_dir_s                              ) ) throw "$TMPDIR must be absolute : "   +no_slash(tmp_dir_s)                     ;
 		//
-		JobSpace job_space {
-			.chroot_dir_s = cmd_line.flags[CmdFlag::ChrootDir] ? with_slash(cmd_line.flag_args[+CmdFlag::ChrootDir]) : ""
-		,	.root_view_s  = cmd_line.flags[CmdFlag::RootView ] ? with_slash(cmd_line.flag_args[+CmdFlag::RootView ]) : ""
-		,	.tmp_view_s   = cmd_line.flags[CmdFlag::TmpView  ] ? with_slash(cmd_line.flag_args[+CmdFlag::TmpView  ]) : ""
-		} ;
+		JobSpace job_space ;
+		job_space.chroot_dir_s = cmd_line.flags[CmdFlag::ChrootDir] ? with_slash(cmd_line.flag_args[+CmdFlag::ChrootDir]) : "" ;
+		job_space.root_view_s  = cmd_line.flags[CmdFlag::RootView ] ? with_slash(cmd_line.flag_args[+CmdFlag::RootView ]) : "" ;
+		job_space.tmp_view_s   = cmd_line.flags[CmdFlag::TmpView  ] ? with_slash(cmd_line.flag_args[+CmdFlag::TmpView  ]) : "" ;
+		//
 		try { job_space.views = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]                                  ) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
 		try { src_dirs_s      = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]                                  ) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		try { env             = _mk_env       (cmd_line.flag_args[+CmdFlag::KeepEnv   ],cmd_line.flag_args[+CmdFlag::Env]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
 		//
-		(void) job_space.enter( *g_root_dir_s , tmp_dir_s , 0 , with_slash(cmd_line.flag_args[+CmdFlag::WorkDir]) , src_dirs_s , method==AutodepMethod::Fuse ).second ;
+		(void)job_space.enter( ::ref(::vmap_s<MountAction>()) , *g_root_dir_s , tmp_dir_s , 0 , with_slash(cmd_line.flag_args[+CmdFlag::WorkDir]) , src_dirs_s , method==AutodepMethod::Fuse ) ;
 		//
 		if (+job_space.root_view_s) root_dir_s = job_space.root_view_s ;
 		if (+job_space.tmp_view_s ) tmp_dir_s  = job_space.tmp_view_s  ;

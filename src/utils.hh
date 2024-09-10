@@ -340,8 +340,8 @@ template<char Delimiter=0> ::string mk_printable(::string     && txt) {
 }
 template<char Delimiter=0> ::string parse_printable( ::string const& , size_t& pos ) ;
 
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&               ) ;
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&               , bool empty_ok=true ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos , bool empty_ok=true ) ;
 
 inline void     set_nl      (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
 inline void     set_no_nl   (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }

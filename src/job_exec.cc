@@ -47,20 +47,19 @@ struct PatternDict {
 	::vmap<RegExpr,MatchFlags> patterns = {} ;
 } ;
 
-Gather            g_gather         ;
-JobIdx            g_job            = 0/*garbage*/ ;
-PatternDict       g_match_dct      ;
-NfsGuard          g_nfs_guard      ;
-SeqId             g_seq_id         = 0/*garbage*/ ;
-::string          g_phy_root_dir_s ;
-::string          g_phy_tmp_dir_s  ;
-::string          g_service_start  ;
-::string          g_service_mngt   ;
-::string          g_service_end    ;
-JobRpcReply       g_start_info     ;
-SeqId             g_trace_id       = 0/*garbage*/ ;
-::vector_s        g_washed         ;
-::umap_s<FileSig> g_created_views  ;
+Gather      g_gather         ;
+JobIdx      g_job            = 0/*garbage*/ ;
+PatternDict g_match_dct      ;
+NfsGuard    g_nfs_guard      ;
+SeqId       g_seq_id         = 0/*garbage*/ ;
+::string    g_phy_root_dir_s ;
+::string    g_phy_tmp_dir_s  ;
+::string    g_service_start  ;
+::string    g_service_mngt   ;
+::string    g_service_end    ;
+JobRpcReply g_start_info     ;
+SeqId       g_trace_id       = 0/*garbage*/ ;
+::vector_s  g_washed         ;
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
 	::map_ss res ;
@@ -220,17 +219,16 @@ Digest analyze(Status status=Status::New) {                                     
 				ad.tflags |= Tflag::Incremental ;                   // file will have a predictible content, no reason to wash it
 			}
 			if (written) {
-				if      ( unlnk                                                          )                         td.crc = Crc::None    ;
-				else if ( auto it=g_created_views.find(file) ; it!=g_created_views.end() ) { td.sig = it->second ; td.crc = FileTag::Reg ; } // file is mapped, it could not be modified
-				else if ( status==Status::Killed || !td.tflags[Tflag::Target]            ) { td.sig = sig        ; td.crc = td.sig.tag() ; } // no crc if meaningless
-				else if ( +crc                                                           ) { td.sig = sig        ; td.crc = crc          ; } // we already have a crc
-					res.crcs.emplace_back(res.targets.size()) ; // record index in res.targets for deferred (parallel) crc computation
+				if      ( unlnk                                               )                  td.crc = Crc::None    ;
+				else if ( status==Status::Killed || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ; } // no crc if meaningless
+				else if ( +crc                                                ) { td.sig = sig ; td.crc = crc          ; } // we already have a crc
+					res.crcs.emplace_back(res.targets.size()) ;                                                            // record index in res.targets for deferred (parallel) crc computation
 			}
-			if ( td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] ) {
+			if ( td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] && unlnk ) {                                         // target was expected but not produced
 				if ( td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ) {
-					if ( unlnk && status==Status::Ok ) res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ; // if job not is ok, this is quite normal, else warn
+					if (status==Status::Ok) res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;    // if job is not ok, this is quite normal, else warn
 				} else {
-					if ( unlnk                       ) td.tflags &= ~Tflag::Target ; // unless static and non-optional or phony, a target loses its official status if not actually produced
+					td.tflags &= ~Tflag::Target ; // if created then unlinked, this is not a target unless static and non-optional or phony
 				}
 			}
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -365,37 +363,22 @@ int main( int argc , char* argv[] ) {
 				goto End ;
 			}
 		}
-		auto handle_entry = [&]( ::string const& f , bool is_view )->void {
-			SWEAR(+f) ;
-			if (!is_lcl(f)   )                 return ;
-			if (is_dirname(f)) { mk_dir_s(f) ; return ; }
-			FileInfo fi{f} ;
-			g_start_info.deps.emplace_back(f,DepDigest(Access::Stat,fi)) ;
-			if (+fi.tag()) return ;
-			::close(::open(dir_guard(f).c_str(),O_RDWR|O_CREAT,0644)) ;
-			if (!is_view) return ;
-			g_created_views.emplace(f,FileSig(f)) ;
-			trace("created",f) ;
-		} ;
 		//
-		::map_ss             cmd_env   ;
-		::vmap_s<::vector_s> flat_phys = g_start_info.job_space.flat_phys() ;
-		for( auto const& [view,phys] : flat_phys ) {
-			/**/                              handle_entry(view,true /*is_view*/) ;
-			for( ::string const& phy : phys ) handle_entry(phy ,false/*is_view*/) ;
-		}
+		::map_ss cmd_env ;
 		try {
 			cmd_env = prepare_env(end_report) ;
 			//
-			::pair<bool/*entered*/,::vector_s/*deps*/> entered = g_start_info.job_space.enter(
-				g_phy_root_dir_s
+			::vmap_s<MountAction> report ;
+			bool entered = g_start_info.job_space.enter(
+				report
+			,	g_phy_root_dir_s
 			,	g_phy_tmp_dir_s
 			,	g_start_info.tmp_sz_mb
 			,	PrivateAdminDirS+"chroot/"s+g_start_info.small_id+'/'
 			,	g_start_info.autodep_env.src_dirs_s
 			,	g_start_info.method==AutodepMethod::Fuse
 			) ;
-			if (entered.first) {
+			if (entered) {
 				// find a good starting pid
 				// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
 				// to do that we spread pid's among the availale range by setting the first pid used by jos as apart from each other as possible
@@ -409,10 +392,17 @@ int main( int argc , char* argv[] ) {
 				static constexpr uint64_t delta_pid = (1640531527*NPids) >> n_bits(NPids) ;           // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
 				//
 				g_gather.first_pid = FirstPid + ((g_start_info.small_id*delta_pid)>>(32-n_bits(NPids)))%NPids ; // delta_pid on 64 bits to avoid rare overflow in multiplication
-				for( ::string& d : entered.second ) {
-					if (!is_lcl(d)) continue ;                                                                  // XXX : handle case where dep is in a source dir
-					DepDigest dd { ~Access::Stat , FileInfo(d) } ;                                              // use d before being moved
-					g_start_info.deps.emplace_back(::move(d),::move(dd)) ;
+				RealPath real_path { g_start_info.autodep_env } ;
+				for( auto& [f,a] : report ) {
+					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
+					for( ::string& l : sr.lnks ) g_gather.new_dep( start_overhead , ::move(l) ,  Access::Lnk  , "mount_lnk" ) ;
+					if (sr.file_loc<=FileLoc::Dep) {
+						if      (a==MountAction::Read ) g_gather.new_dep( start_overhead , ::move(sr.real) , ~Access::Stat , "mount_src" ) ;
+						else if (sr.file_accessed==Yes) g_gather.new_dep( start_overhead , ::move(sr.real) ,  Access::Lnk  , "mount_src" ) ;
+					}
+					if (sr.file_loc<=FileLoc::Repo) {
+						if (a==MountAction::Write) g_gather.new_target( start_overhead , ::move(sr.real) , "mount_target" ) ;
+					}
 				}
 			}
 		} catch (::string const& e) {
@@ -420,22 +410,22 @@ int main( int argc , char* argv[] ) {
 		}
 		trace("prepared",g_start_info.autodep_env) ;
 		//
-		g_gather.addr              =        g_start_info.addr             ;
-		g_gather.as_session        =        true                          ;
-		g_gather.autodep_env       = ::move(g_start_info.autodep_env    ) ;
-		g_gather.autodep_env.views = ::move(flat_phys                   ) ;
-		g_gather.cur_deps_cb       =        cur_deps_cb                   ;
-		g_gather.cwd_s             =        g_start_info.cwd_s            ;
-		g_gather.env               =        &cmd_env                      ;
-		g_gather.job               =        g_job                         ;
-		g_gather.kill_sigs         = ::move(g_start_info.kill_sigs      ) ;
-		g_gather.live_out          =        g_start_info.live_out         ;
-		g_gather.method            =        g_start_info.method           ;
-		g_gather.network_delay     =        g_start_info.network_delay    ;
-		g_gather.seq_id            =        g_seq_id                      ;
-		g_gather.server_master_fd  = ::move(server_fd                   ) ;
-		g_gather.service_mngt      =        g_service_mngt                ;
-		g_gather.timeout           =        g_start_info.timeout          ;
+		g_gather.addr              =        g_start_info.addr                   ;
+		g_gather.as_session        =        true                                ;
+		g_gather.autodep_env       = ::move(g_start_info.autodep_env          ) ;
+		g_gather.autodep_env.views =        g_start_info.job_space.flat_phys()  ;
+		g_gather.cur_deps_cb       =        cur_deps_cb                         ;
+		g_gather.cwd_s             =        g_start_info.cwd_s                  ;
+		g_gather.env               =        &cmd_env                            ;
+		g_gather.job               =        g_job                               ;
+		g_gather.kill_sigs         = ::move(g_start_info.kill_sigs            ) ;
+		g_gather.live_out          =        g_start_info.live_out               ;
+		g_gather.method            =        g_start_info.method                 ;
+		g_gather.network_delay     =        g_start_info.network_delay          ;
+		g_gather.seq_id            =        g_seq_id                            ;
+		g_gather.server_master_fd  = ::move(server_fd                         ) ;
+		g_gather.service_mngt      =        g_service_mngt                      ;
+		g_gather.timeout           =        g_start_info.timeout                ;
 		//
 		if (!g_start_info.method)                                                                          // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,digest] : g_start_info.deps ) if (digest.dflags[Dflag::Static]) {
@@ -444,9 +434,9 @@ int main( int argc , char* argv[] ) {
 			}
 		//
 		g_gather.new_deps( start_overhead , ::move(g_start_info.deps) , g_start_info.stdin ) ;
-		for( auto const& [f,_] : g_created_views ) g_gather.new_target( start_overhead , f , "view" ) ;
-		// non-optional static targets must be reported in all cases
-		for( auto const& [t,f] : g_match_dct.knowns ) if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] ) g_gather.new_unlnk(start_overhead,t) ;
+		for( auto const& [t,f] : g_match_dct.knowns )
+			if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] )
+				g_gather.new_unlnk(start_overhead,t) ;                                                     // always report non-optional static targets
 		//
 		if (+g_start_info.stdin) g_gather.child_stdin = open_read(g_start_info.stdin) ;
 		else                     g_gather.child_stdin = open_read("/dev/null"       ) ;
@@ -476,6 +466,7 @@ int main( int argc , char* argv[] ) {
 			g_nfs_guard.close() ;
 		}
 		//
+		g_start_info.job_space.exit() ;
 		if (g_gather.seen_tmp) {
 			if (!cmd_env.contains("TMPDIR"))
 				digest.msg << "accessed "<<no_slash(g_gather.autodep_env.tmp_dir_s)<<" without dedicated tmp dir\n" ;
