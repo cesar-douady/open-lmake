@@ -32,4 +32,4 @@ else :
 		import numba
 		ut.lmake('test.so',done=1)
 	except :
-		print('no numba available',file=open('skipped','w'))
+		print('numba not available',file=open('skipped','w'))

@@ -54,4 +54,4 @@ else :
 
 				break
 	else :
-		print('no python2 available',file=open('skipped','w'))
+		print('python2 not available',file=open('skipped','w'))

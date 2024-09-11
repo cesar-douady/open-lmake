@@ -65,7 +65,7 @@ else :
 	import ut
 
 	if not wine :
-		print('wine not found',file=open('skipped','w'))
+		print('wine not available',file=open('skipped','w'))
 	elif not osp.exists(hostname_exe) :
 		print(f'{hostname_exe} not found',file=open('skipped','w'))
 	else :

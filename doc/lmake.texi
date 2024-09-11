@@ -603,6 +603,9 @@ There must be a single command while there may be 0 or more options.
 
 Arguments can be files or a single job as described in generic arguments description.
 
+In porcelaine mode, reported files are relative to the root of the repository.
+Otherwise, they are relative to the current working directory.
+
 Commands :
 @itemize @bullet
 @item @code{-b}|@code{--bom} : Output the list of all source files necessary to build the arguments.

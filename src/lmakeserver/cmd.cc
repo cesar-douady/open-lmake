@@ -525,14 +525,15 @@ namespace Engine {
 						break ;
 						case ReqKey::Info : {
 							struct Entry {
-								::string txt   ;
-								Color    color = Color::None ;
-								bool     as_is = false       ;
+								::string txt     ;
+								Color    color   = Color::None ;
+								bool     protect = true        ;
 							} ;
-							bool            porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+							bool            porcelaine = ro.flags[ReqFlag::Porcelaine]       ;
+							::string        su         = porcelaine ? ""s : ro.startup_dir_s ;
 							::vmap_s<Entry> tab        ;
-							auto push_entry = [&]( const char* k , ::string const& v , Color c=Color::None , bool as_is=false )->void {
-								tab.emplace_back( k , Entry{v,c,as_is} ) ;
+							auto push_entry = [&]( const char* k , ::string const& v , Color c=Color::None , bool protect=true )->void {
+								tab.emplace_back( k , Entry{v,c,protect} ) ;
 							} ;
 							//
 							::string ids ;
@@ -551,17 +552,17 @@ namespace Engine {
 								}
 							}
 							//
-							push_entry("ids",ids,Color::None,true/*as_is*/) ;
+							push_entry("ids",ids,Color::None,false/*protect*/) ;
 							if ( Node n=job->asking ; +n ) {
 								while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
-								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),ro.startup_dir_s)) ;
-								else            push_entry("required by",localize(mk_file(    n         ->name()),ro.startup_dir_s)) ;
+								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),su)) ;
+								else            push_entry("required by",localize(mk_file(    n         ->name()),su)) ;
 							}
 							if (has_start) {
 								JobInfoStart const& rs              = job_info.start                             ;
 								SubmitAttrs  const& sa              = rs.submit_attrs                            ;
 								::string            cwd             = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
-								bool                has_phy_tmp_dir = +start.autodep_env.tmp_dir_s                ;
+								bool                has_phy_tmp_dir = +start.autodep_env.tmp_dir_s               ;
 								::string            phy_tmp_dir     = no_slash(start.autodep_env.tmp_dir_s)      ;
 								::string            pressure        = sa.pressure.short_str()                    ;
 								//
@@ -573,25 +574,25 @@ namespace Engine {
 											break ;
 										}
 								//
-								if (+sa.reason         ) push_entry( "reason" , localize(reason_str(sa.reason) , ro.startup_dir_s) ) ;
-								if (rs.host!=NoSockAddr) push_entry( "host"   , SockFd::s_host(rs.host)                            ) ;
+								if (+sa.reason         ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
+								if (rs.host!=NoSockAddr) push_entry( "host"   , SockFd::s_host(rs.host)            ) ;
 								//
 								if (+rs.eta) {
-									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(sa.pressure))+" )"      , Color::None,true/*as_is*/ ) ;
-									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                             ) ;
+									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(sa.pressure))+" )"      , Color::None,false/*protect*/ ) ;
+									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                                ) ;
 								}
 								//
-								if ( has_phy_tmp_dir              ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),ro.startup_dir_s) ) ;
-								if ( sa.live_out                  ) push_entry( "live_out"         , "true"                                          ) ;
-								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"       , no_slash(start.job_space.chroot_dir_s)          ) ;
-								if (+start.job_space.root_view_s  ) push_entry( "root_view"        , no_slash(start.job_space.root_view_s )          ) ;
-								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"         , no_slash(start.job_space.tmp_view_s  )          ) ;
-								if (+start.cwd_s                  ) push_entry( "cwd"              , cwd                                             ) ;
-								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"       , "true"                                          ) ;
-								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat"      , "true"                                          ) ;
-								/**/                                push_entry( "autodep"          , snake_str(start.method)                         ) ;
-								if (+start.timeout                ) push_entry( "timeout"          , start.timeout.short_str()                       ) ;
-								if (sa.tag!=BackendTag::Local     ) push_entry( "backend"          , snake_str(sa.tag)                               ) ;
+								if ( has_phy_tmp_dir              ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),su)      ) ;
+								if ( sa.live_out                  ) push_entry( "live_out"         , "true"                                 ) ;
+								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"       , no_slash(start.job_space.chroot_dir_s) ) ;
+								if (+start.job_space.root_view_s  ) push_entry( "root_view"        , no_slash(start.job_space.root_view_s ) ) ;
+								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"         , no_slash(start.job_space.tmp_view_s  ) ) ;
+								if (+start.cwd_s                  ) push_entry( "cwd"              , cwd                                    ) ;
+								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"       , "true"                                 ) ;
+								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat"      , "true"                                 ) ;
+								/**/                                push_entry( "autodep"          , snake_str(start.method)                ) ;
+								if (+start.timeout                ) push_entry( "timeout"          , start.timeout.short_str()              ) ;
+								if (sa.tag!=BackendTag::Local     ) push_entry( "backend"          , snake_str(sa.tag)                      ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;
@@ -604,11 +605,11 @@ namespace Engine {
 							if (has_end) {
 								push_entry( "end date" , digest.end_date.str()                                                                                          ) ;
 								push_entry( "rc"       , wstatus_str(digest.wstatus) , WIFEXITED(digest.wstatus)&&WEXITSTATUS(digest.wstatus)==0?Color::None:Color::Err ) ;
-								if (porcelaine) { //!                                                                     as_is
-									push_entry( "cpu time"       , ::to_string(double(digest.stats.cpu  )) , Color::None , true ) ;
-									push_entry( "elapsed in job" , ::to_string(double(digest.stats.job  )) , Color::None , true ) ;
-									push_entry( "elapsed total"  , ::to_string(double(digest.stats.total)) , Color::None , true ) ;
-									push_entry( "used mem"       , ::to_string(       digest.stats.mem   ) , Color::None , true ) ;
+								if (porcelaine) { //!                                                                     protect
+									push_entry( "cpu time"       , ::to_string(double(digest.stats.cpu  )) , Color::None , false ) ;
+									push_entry( "elapsed in job" , ::to_string(double(digest.stats.job  )) , Color::None , false ) ;
+									push_entry( "elapsed total"  , ::to_string(double(digest.stats.total)) , Color::None , false ) ;
+									push_entry( "used mem"       , ::to_string(       digest.stats.mem   ) , Color::None , false ) ;
 								} else {
 									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
 									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_units<size_t>(mem_rsrc_str):0                                                                  ;
@@ -622,51 +623,100 @@ namespace Engine {
 								}
 							}
 							//
-							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg,ro.startup_dir_s)                  ) ;
-							if (+job_info.start.stderr) push_entry( "start stderr"  , job_info.start.stderr                    , Color::Warning ) ;
-							if (+end.msg              ) push_entry( "message"       , localize(end      .msg,ro.startup_dir_s)                  ) ;
+							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg,su)                  ) ;
+							if (+job_info.start.stderr) push_entry( "start stderr"  , job_info.start.stderr      , Color::Warning ) ;
+							if (+end.msg              ) push_entry( "message"       , localize(end      .msg,su)                  ) ;
 							// generate output
 							if (porcelaine) {
-								auto audit_rsrcs = [&]( ::string const& k , ::map_ss const& rsrcs , bool allocated )->void {
-									size_t w2  = 0   ; for( auto const& [k,_] : rsrcs  ) w2 = ::max(w2,mk_py_str(k).size()) ;
+								auto audit_map = [&]( ::string const& k , ::map_ss const& m , bool protect , bool allocated )->void {
+									if (!m) return ;
+									size_t w   = 0   ; for( auto const& [k,_] : m  ) w = ::max(w,mk_py_str(k).size()) ;
 									char   sep = ' ' ;
 									audit( fd , ro , mk_py_str(k)+" : {" , true/*as_is*/ , lvl+1 , ',' ) ;
-									for( auto const& [k,v] : required_rsrcs ) {
+									for( auto const& [k,v] : m ) {
 										::string v_str ;
-										if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = ::to_string(from_string_with_units<size_t>(v)) ;
-										else                                               v_str = mk_py_str(v)                                   ;
-										audit( fd , ro , fmt_string(::setw(w2),mk_py_str(k)," : ",v_str) , false/*as_is*/ , lvl+2 , sep ) ;
+										if      ( !protect                                    ) v_str = v                                              ;
+										else if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = ::to_string(from_string_with_units<size_t>(v)) ;
+										else                                                    v_str = mk_py_str(v)                                   ;
+										audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)," : ",v_str) , true/*as_is*/ , lvl+2 , sep ) ;
 										sep = ',' ;
 									}
 									audit( fd , ro , "}" , true/*as_is*/ , lvl+1 ) ;
 								} ;
-								size_t   w  = mk_py_str("job").size()                         ; for( auto const& [k,_] : tab ) w = ::max(w,mk_py_str(k).size()) ;
-								::string jn = localize(mk_file(job->name()),ro.startup_dir_s) ;
-								audit( fd , ro , fmt_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)) , false/*as_is*/ , lvl+1 , '{' ) ;
-								for( auto const& [k,e] : tab )
-									audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)," : ",e.as_is?e.txt:mk_py_str(e.txt)) , false/*as_is*/ , lvl+1 , ',' ) ;
-								if (+required_rsrcs ) audit_rsrcs( "required resources"  , required_rsrcs  , false/*allocated*/ ) ;
-								if (+allocated_rsrcs) audit_rsrcs( "allocated resources" , allocated_rsrcs , true /*allocated*/ ) ;
-								audit( fd , ro , "}" , true/*as_is*/ , lvl ) ;
+								size_t   w     = mk_py_str("job"s).size() ; for( auto const& [k,_] : tab ) w = ::max(w,mk_py_str(k).size()) ;
+								::string jn    = job->name()              ;
+								::map_ss views ;
+								for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
+									::string vd_str ;
+									if (vd.phys.size()==1) {
+										vd_str << mk_py_str(vd.phys[0]) ;
+									} else {
+										vd_str <<"{ " ;
+										{	vd_str << mk_py_str("upper"s) <<':'<< mk_py_str(vd.phys[0]) ; }
+										{	vd_str <<" , "<< mk_py_str("lower"s) <<':' ;
+											First first ;
+											vd_str <<'(' ;
+											for( size_t i=1 ; i<vd.phys.size() ; i++ ) vd_str << first("",",") << mk_py_str(vd.phys[i]) ;
+											vd_str << first("",",","") <<')' ;
+										}
+										if (+vd.copy_up) {
+											vd_str <<" , "<< mk_py_str("copy_up"s) <<':' ;
+											First first ;
+											vd_str << '(' ;
+											for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << mk_py_str(cu) ;
+											vd_str << first("",",","") <<')' ;
+										}
+										vd_str <<" }" ;
+									}
+									views[v] = vd_str ;
+								} //!                                                                                                                           as_is
+								/**/                           audit( fd , ro , fmt_string(::setw(w),mk_py_str("job"s)," : ",mk_py_str(jn)                   ) , true , lvl+1 , '{' ) ;
+								for( auto const& [k,e] : tab ) audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)     ," : ",e.protect?mk_py_str(e.txt):e.txt) , true , lvl+1 , ',' ) ;
+								/**/                           audit_map( "views"               , views           , false/*protect*/ , false/*allocated*/ ) ;
+								/**/                           audit_map( "required resources"  , required_rsrcs  , true /*protect*/ , false/*allocated*/ ) ;
+								/**/                           audit_map( "allocated resources" , allocated_rsrcs , true /*protect*/ , true /*allocated*/ ) ;
+								/**/                           audit( fd , ro , "}"                                                                            , true , lvl         ) ;
 							} else {
-								size_t w = 0 ; for( auto const& [k,e] : tab ) if (e.txt.find('\n')==Npos) w = ::max(w,k.size()) ;
+								size_t w  = 0 ; for( auto const& [k,e ] : tab                   ) if (e.txt.find('\n')==Npos) w  = ::max(w ,k.size()) ;
+								size_t w2 = 0 ; for( auto const& [v,vd] : start.job_space.views ) if (+vd                   ) w2 = ::max(w2,v.size()) ;
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 								for( auto const& [k,e] : tab ) //!                                                                as_is
-									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , fmt_string(::setw(w),k," : ",e.txt) , false , lvl+1 ) ;
-									else                        { audit( fd , ro , e.color ,                      k+" :"         , false , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
+									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , fmt_string(::setw(w),k," : ",e.txt) , true , lvl+1 ) ;
+									else                        { audit( fd , ro , e.color ,                      k+" :"         , true , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
+								if (w2) {
+									audit( fd , ro , "views :" , true/*as_is*/ , lvl+1 ) ;
+									for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
+										::string vd_str ;
+										if (vd.phys.size()==1) {
+											vd_str << mk_file(vd.phys[0]) ;
+										} else {
+											{	vd_str << "upper:" << mk_file(vd.phys[0]) ; }
+											{	vd_str <<" , "<< "lower" <<':' ;
+												First first ;
+												for( size_t i=1 ; i<vd.phys.size() ; i++ ) vd_str << first("",",") << mk_file(vd.phys[i]) ;
+											}
+											if (+vd.copy_up) {
+												vd_str <<" , "<< "copy_up" <<':' ;
+												First first ;
+												for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << cu ;
+											}
+										}
+										audit( fd , ro , fmt_string(::setw(w2),mk_file(v)," : ",vd_str) , false/*as_is*/ , lvl+2 ) ;
+									}
+								}
 								if ( +required_rsrcs || +allocated_rsrcs ) {
-									size_t w2            = 0                ;
+									size_t w2 = 0 ;
 									for( auto const& [k,_] : required_rsrcs  ) w2 = ::max(w2,k.size()) ;
 									for( auto const& [k,_] : allocated_rsrcs ) w2 = ::max(w2,k.size()) ;
 									::string hdr = "resources :" ;
 									if      (!+allocated_rsrcs) hdr = "required " +hdr ;
 									else if (!+required_rsrcs ) hdr = "allocated "+hdr ;
-									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                                     as_is
+									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                                    as_is
 									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
 									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
 									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
 									else {
-										for( auto const& [k,rv] : required_rsrcs ) { //!                                                         as_is
+										for( auto const& [k,rv] : required_rsrcs ) { //!                                                          as_is
 											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , fmt_string(::setw(w2),k,"(required )"," : ",rv) , true , lvl+2 ) ; continue ; }
 											::string const& av = allocated_rsrcs.at(k) ;
 											if (rv==av                      ) { audit( fd , ro , fmt_string(::setw(w2),k,"           "," : ",rv) , true , lvl+2 ) ; continue ; }
@@ -723,8 +773,8 @@ namespace Engine {
 		for( Node target : targets ) {
 			trace("target",target) ;
 			DepDepth lvl = 1 ;
-			if      (porcelaine      ) audit     ( fd , ro , ""s+sep+' '+mk_py_str(localize(mk_file(target->name()),ro.startup_dir_s))+" :" , true/*as_is*/ ) ;
-			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target                                                   ) ;
+			if      (porcelaine      ) audit     ( fd , ro , ""s+sep+' '+mk_py_str(target->name())+" :" , true/*as_is*/ ) ;
+			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target               ) ;
 			else                       lvl-- ;
 			sep = ',' ;
 			bool for_job = true ;

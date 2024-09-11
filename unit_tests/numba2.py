@@ -39,4 +39,4 @@ else :
 		import numba
 		ut.lmake('dut',done=1)
 	except :
-		print('no numba available',open('skipped','w'))
+		print('numba not available',open('skipped','w'))
