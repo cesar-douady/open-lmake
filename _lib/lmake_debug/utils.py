@@ -122,7 +122,7 @@ class Job :
 		if self.source_dirs : res += f' -s{mk_shell_str(repr(self.source_dirs)         )}'
 		if self.tmp_view    : res += f' -t{mk_shell_str(     self.tmp_view             )}'
 		if self.views       : res += f' -v{mk_shell_str(repr(self.views)               )}'
-		if self.views       : res += f" -w{mk_shell_str(     debug_dir+'/work'         )}" # necessary in case a view is an overlay
+		if self.views       : res += f" -w{mk_shell_str(     self.debug_dir+'/work'    )}" # necessary in case a view is an overlay
 		if args             : res += ''.join(' '+x for x in args)                          # must be before redirections to files if args contains redirections
 		if self.stdin       : res += f' <{mk_shell_str(self.stdin )}'
 		if self.stdout      : res += f' >{mk_shell_str(self.stdout)}'

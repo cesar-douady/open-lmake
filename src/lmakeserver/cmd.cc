@@ -261,15 +261,15 @@ namespace Engine {
 					get_script << mk_py_str(descr.phys[0]) ;
 				} else {                                                           // overlay case
 					get_script << '{' ;
-					{	get_script <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
+					{	get_script <<"\n\t\t\t"<< mk_py_str("upper"s) <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
 					}
-					{	get_script <<",\t"<< mk_py_str("lower") <<" : (" ;
+					{	get_script <<",\t"<< mk_py_str("lower"s) <<" : (" ;
 						First first2 ;
 						for( size_t i=1 ; i<descr.phys.size() ; i++ ) get_script << first2("",",") << mk_py_str(descr.phys[i]) ;
 						get_script << first2("",",","") << ")\n\t\t" ;
 					}
 					if (+descr.copy_up) {
-						get_script <<",\t"<< mk_py_str("copy_up") <<" : (" ;
+						get_script <<",\t"<< mk_py_str("copy_up"s) <<" : (" ;
 						First first2 ;
 						for( ::string const& p : descr.copy_up ) get_script << first2("",",") << mk_py_str(p) ;
 						get_script << first2("",",","") << ")\n\t\t" ;

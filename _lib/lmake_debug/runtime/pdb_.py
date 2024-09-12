@@ -14,11 +14,11 @@ def run_py(dbg_dir,deps,func,*args,**kwds) :
 	import sys
 	import traceback
 	load_modules(func,deps)
-	try    : stdin  = open(os.environ['LMAKE_DEBUG_STDIN' ],'r')
-	except : stdin  = None
-	try    : stdout = open(os.environ['LMAKE_DEBUG_STDOUT'],'w')
-	except : stdout = None
-	debugger = pdb.Pdb(stdin=stdin,stdout=stdout)
+	stdin = os.environ.get('LMAKE_DEBUG_STDIN',None)
+	if stdin :
+		try    : stdin = open(stdin,'r')
+		except : raise RuntimeError('cannot debug with pdb when stdin is a dep and views are used')
+	debugger = pdb.Pdb(stdin=stdin,stdout=sys.stderr)
 	try :
 		debugger.runcall(func,*args,**kwds)
 	except BaseException as e :

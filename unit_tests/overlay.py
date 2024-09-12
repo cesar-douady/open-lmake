@@ -29,7 +29,7 @@ if __name__!='__main__' :
 		target   = 'write/dut2'
 		def cmd():
 			import stat
-			dir   = '/tmp/merged/sys'                                                                    # a subdir that exists in /usr/include
+			dir = '/tmp/merged/sys'                                                                      # a subdir that exists in /usr/include
 			open(dir+'/testfile','w').write('good')
 			print(open(dir+'/testfile').read())
 
