@@ -374,6 +374,7 @@ namespace Backends {
 			if ( !req || reqs.size()<=1 ) {
 				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;                  // ensure the last req is the right one
 				// kill waiting jobs
+				res.reserve(waiting_jobs.size()) ;
 				for( auto const& [j,_] : waiting_jobs ) res.push_back(j) ;
 				waiting_jobs.clear() ;
 				for( auto& [_,re] : reqs ) re.clear() ;
@@ -381,6 +382,7 @@ namespace Backends {
 				auto      rit = reqs.find(req) ; SWEAR(rit!=reqs.end()) ;                                           // we should not kill a non-existent req
 				ReqEntry& re  = rit->second    ;
 				// kill waiting jobs
+				res.reserve(re.waiting_jobs.size()) ;
 				for( auto const& [j,_] : re.waiting_jobs ) {
 					WaitingEntry& we = waiting_jobs.at(j) ;
 					if (we.n_reqs==1) waiting_jobs.erase(j) ;

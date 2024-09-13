@@ -158,8 +158,8 @@ namespace Engine {
 			w                  = ::max( w , k.size() ) ;
 			rev_map[d.txt] = k                     ;
 		}
-		::vector<bool> parallel ;  for( Dep const& d : job->deps ) parallel.push_back(d.parallel) ; // first pass to count deps as they are compressed and size is not known upfront
-		NodeIdx d      = 0 ;
+		::vector<bool> parallel ;     for( Dep const& d : job->deps ) parallel.push_back(d.parallel) ; // first pass to count deps as they are compressed and size is not known upfront
+		NodeIdx        d        = 0 ;
 		for( Dep const& dep : job->deps ) {
 			bool       cdp     = d  >0               && parallel[d  ]                                          ;
 			bool       ndp     = d+1<parallel.size() && parallel[d+1]                                          ;
@@ -261,15 +261,15 @@ namespace Engine {
 					get_script << mk_py_str(descr.phys[0]) ;
 				} else {                                                           // overlay case
 					get_script << '{' ;
-					{	get_script <<"\n\t\t\t"<< mk_py_str("upper"s) <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
+					{	get_script <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
 					}
-					{	get_script <<",\t"<< mk_py_str("lower"s) <<" : (" ;
+					{	get_script <<",\t"<< mk_py_str("lower") <<" : (" ;
 						First first2 ;
 						for( size_t i=1 ; i<descr.phys.size() ; i++ ) get_script << first2("",",") << mk_py_str(descr.phys[i]) ;
 						get_script << first2("",",","") << ")\n\t\t" ;
 					}
 					if (+descr.copy_up) {
-						get_script <<",\t"<< mk_py_str("copy_up"s) <<" : (" ;
+						get_script <<",\t"<< mk_py_str("copy_up") <<" : (" ;
 						First first2 ;
 						for( ::string const& p : descr.copy_up ) get_script << first2("",",") << mk_py_str(p) ;
 						get_script << first2("",",","") << ")\n\t\t" ;
@@ -643,8 +643,8 @@ namespace Engine {
 									}
 									audit( fd , ro , "}" , true/*as_is*/ , lvl+1 ) ;
 								} ;
-								size_t   w     = mk_py_str("job"s).size() ; for( auto const& [k,_] : tab ) w = ::max(w,mk_py_str(k).size()) ;
-								::string jn    = job->name()              ;
+								size_t   w     = mk_py_str("job").size() ; for( auto const& [k,_] : tab ) w = ::max(w,mk_py_str(k).size()) ;
+								::string jn    = job->name()             ;
 								::map_ss views ;
 								for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
 									::string vd_str ;
@@ -652,15 +652,15 @@ namespace Engine {
 										vd_str << mk_py_str(vd.phys[0]) ;
 									} else {
 										vd_str <<"{ " ;
-										{	vd_str << mk_py_str("upper"s) <<':'<< mk_py_str(vd.phys[0]) ; }
-										{	vd_str <<" , "<< mk_py_str("lower"s) <<':' ;
+										{	vd_str << mk_py_str("upper") <<':'<< mk_py_str(vd.phys[0]) ; }
+										{	vd_str <<" , "<< mk_py_str("lower") <<':' ;
 											First first ;
 											vd_str <<'(' ;
 											for( size_t i=1 ; i<vd.phys.size() ; i++ ) vd_str << first("",",") << mk_py_str(vd.phys[i]) ;
 											vd_str << first("",",","") <<')' ;
 										}
 										if (+vd.copy_up) {
-											vd_str <<" , "<< mk_py_str("copy_up"s) <<':' ;
+											vd_str <<" , "<< mk_py_str("copy_up") <<':' ;
 											First first ;
 											vd_str << '(' ;
 											for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << mk_py_str(cu) ;
@@ -669,13 +669,13 @@ namespace Engine {
 										vd_str <<" }" ;
 									}
 									views[v] = vd_str ;
-								} //!                                                                                                                           as_is
-								/**/                           audit( fd , ro , fmt_string(::setw(w),mk_py_str("job"s)," : ",mk_py_str(jn)                   ) , true , lvl+1 , '{' ) ;
-								for( auto const& [k,e] : tab ) audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)     ," : ",e.protect?mk_py_str(e.txt):e.txt) , true , lvl+1 , ',' ) ;
+								} //!                                                                                                                          as_is
+								/**/                           audit( fd , ro , fmt_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)                   ) , true , lvl+1 , '{' ) ;
+								for( auto const& [k,e] : tab ) audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)    ," : ",e.protect?mk_py_str(e.txt):e.txt) , true , lvl+1 , ',' ) ;
 								/**/                           audit_map( "views"               , views           , false/*protect*/ , false/*allocated*/ ) ;
 								/**/                           audit_map( "required resources"  , required_rsrcs  , true /*protect*/ , false/*allocated*/ ) ;
 								/**/                           audit_map( "allocated resources" , allocated_rsrcs , true /*protect*/ , true /*allocated*/ ) ;
-								/**/                           audit( fd , ro , "}"                                                                            , true , lvl         ) ;
+								/**/                           audit( fd , ro , "}"                                                                           , true , lvl         ) ;
 							} else {
 								size_t w  = 0 ; for( auto const& [k,e ] : tab                   ) if (e.txt.find('\n')==Npos) w  = ::max(w ,k.size()) ;
 								size_t w2 = 0 ; for( auto const& [v,vd] : start.job_space.views ) if (+vd                   ) w2 = ::max(w2,v.size()) ;

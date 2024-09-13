@@ -122,6 +122,7 @@ namespace Backends::Local {
 				/**/                                         if (rsrc_keys.size()!=dct.size()) throw "cannot change resource names while lmake is running"s ;
 				for( size_t i=0 ; i<rsrc_keys.size() ; i++ ) if (rsrc_keys[i]!=dct[i].first  ) throw "cannot change resource names while lmake is running"s ;
 			} else {
+				rsrc_keys.reserve(dct.size()) ;
 				for( auto const& [k,v] : dct ) {
 					rsrc_idxs[k] = rsrc_keys.size() ;
 					rsrc_keys.push_back(k) ;

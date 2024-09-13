@@ -309,7 +309,8 @@ template<::floating_point F> F from_string( const char* txt , bool empty_ok=fals
 /**/   ::string mk_json_str (::string_view  ) ;
 /**/   ::string mk_shell_str(::string_view  ) ;
 /**/   ::string mk_py_str   (::string_view  ) ;
-inline ::string mk_py_str   (bool          b) { return b ?"True":"False" ; }
+inline ::string mk_py_str   (const char*   s) { return mk_py_str(::string_view(s,strlen(s))) ; }
+inline ::string mk_py_str   (bool          b) { return b ? "True" : "False"                  ; }
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
 inline constexpr bool is_space(char c) {

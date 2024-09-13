@@ -31,6 +31,7 @@ using namespace Hash ;
 	bool     ok        = true ;
 	//
 	Trace trace("do_file_actions",pre_actions) ;
+	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                                       // most actions are unlinks
 	for( auto const& [f,a] : pre_actions ) {                                                               // pre_actions are adequately sorted
 		SWEAR(+f) ;                                                                                        // acting on root dir is non-sense
 		switch (a.tag) {
@@ -131,8 +132,8 @@ static void _mount_fuse( ::string const& dst_s , ::string const& src_s ) {
 static void _mount_tmp( ::string const& dst_s , size_t sz_mb ) {
 	SWEAR(sz_mb) ;
 	Trace trace("_mount_tmp",dst_s,sz_mb) ;
-	if (::mount( "" ,  no_slash(dst_s).c_str() , "tmpfs" , 0/*flags*/ , (::to_string(sz_mb)+"m").c_str() )!=0)
-		throw "cannot mount tmpfs of size"s+sz_mb+" MB onto "+dst_s+" : "+strerror(errno) ;
+	if (::mount( "" ,  no_slash(dst_s).c_str() , "tmpfs" , 0/*flags*/ , ("size="+::to_string(sz_mb)+"m").c_str() )!=0)
+		throw "cannot mount tmpfs of size "+to_string_with_units<'M'>(sz_mb)+"B onto "+no_slash(dst_s)+" : "+strerror(errno) ;
 }
 static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
 	SWEAR(+srcs_s) ;
@@ -309,7 +310,7 @@ bool/*entered*/ JobSpace::enter(
 	size_t work_idx = 0 ;
 	for( auto const& [view,descr] : views ) if (+descr) {                                                                      // empty descr does not represent a view
 		::string   abs_view = mk_abs(view,root_dir_s) ;
-		::vector_s abs_phys ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,root_dir_s)) ;
+		::vector_s abs_phys ;                           abs_phys.reserve(descr.phys.size()) ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,root_dir_s)) ;
 		/**/                                    _create(report,view) ;
 		for( ::string const& phy : descr.phys ) _create(report,phy ) ;
 		if (is_dirname(view)) {

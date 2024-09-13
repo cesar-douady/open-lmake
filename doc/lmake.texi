@@ -2124,7 +2124,7 @@ The physical directory is :
 @itemize
 @item @code{$TMPDIR} if it is specified in the environment of the job. Note that it need not be unique as @lmake will create a unique sub-directory within it.
 @item Else, a @code{tmpfs} file system created for the job execution if the @code{'tmp'} resource is defined, in which case this resource indicates the size of the created @code{tmpfs}.
-if the value of this resource is 0, no @code{tmpfs} file system is created.
+If the value of this resource is 0, no @code{tmpfs} file system is created and access to the tmp directory (either through the @code{tmp_view} if any or @code{'/tmp'}) will generate an error.
 @item Else, a directory determined by @lmake lying in the @code{LMAKE} directory.
 @end itemize
 

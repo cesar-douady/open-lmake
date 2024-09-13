@@ -71,7 +71,7 @@ SeqId       g_trace_id       = 0/*garbage*/ ;
 	for( auto& [k,v] : g_start_info.env ) {
 		if (v!=EnvPassMrkr) {
 			res[k] = ::move(v) ;
-		} else if (has_env(k)) {                                              // if value is special illegal value, use value from environement (typically from slurm)
+		} else if (has_env(k)) {      // if value is special illegal value, use value from environement (typically from slurm)
 			::string v = get_env(k) ;
 			end_report.dynamic_env.emplace_back(k,v) ;
 			res[k] = ::move(v) ;
@@ -81,29 +81,28 @@ SeqId       g_trace_id       = 0/*garbage*/ ;
 		auto [it,inserted] = res.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
 		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
 	}
-	if      ( g_start_info.keep_tmp_dir                  ) g_phy_tmp_dir_s = g_phy_root_dir_s+AdminDirS       +"tmp/"+g_job                +'/' ;
-	else if ( auto it=res.find("TMPDIR") ; it!=res.end() ) g_phy_tmp_dir_s = it->second+'/'+g_start_info.key+'/'     +g_start_info.small_id+'/' ;
-	else if ( +g_start_info.tmp_sz_mb                    ) g_phy_tmp_dir_s = g_phy_root_dir_s+PrivateAdminDirS+"tmp/"+g_start_info.small_id+'/' ;
+	if      ( auto it=res.find("TMPDIR") ; it!=res.end()                   ) g_phy_tmp_dir_s = it->second+'/'+g_start_info.key+'/'     +g_start_info.small_id+'/' ;
+	else if ( g_start_info.tmp_sz_mb==size_t(-1)                           ) g_phy_tmp_dir_s = g_phy_root_dir_s+PrivateAdminDirS+"tmp/"+g_start_info.small_id+'/' ;
+	else if ( g_start_info.tmp_sz_mb && !g_start_info.job_space.tmp_view_s ) throw "cannot create tmpfs of size "s+to_string_with_units<'M'>(g_start_info.tmp_sz_mb)+"B without tmp_view" ;
 	//
-	{	::string tmp_dir_s ;
-		if      ( +g_start_info.job_space.tmp_view_s && (+g_phy_tmp_dir_s||g_start_info.tmp_sz_mb) ) tmp_dir_s = g_start_info.job_space.tmp_view_s ;
-		else if ( +g_phy_tmp_dir_s                                                                 ) tmp_dir_s = g_phy_tmp_dir_s                   ;
+	{	::string const& tmp_dir_s = +g_start_info.job_space.tmp_view_s ? g_start_info.job_space.tmp_view_s : g_phy_tmp_dir_s ; // tmp dir seen by job (must be a ref as g_phy_tmp_dir_s may be updated)
 		if (!tmp_dir_s) {
-			SWEAR(!res.contains("TMPDIR")) ;                                  // else we should use P_tmpdir
-			g_start_info.autodep_env.tmp_dir_s = with_slash(P_tmpdir) ;
+			SWEAR(!res.contains("TMPDIR")) ;
+			g_start_info.autodep_env.tmp_dir_s = with_slash(P_tmpdir) ;                                                        // detect accesses to P_tmpdir (usually /tmp) and generate an error
 		} else {
+			if (g_start_info.keep_tmp_dir) g_phy_tmp_dir_s = g_phy_root_dir_s+AdminDirS+"tmp/"+g_job+'/' ;                     // note that tmp_dir_s may be updated as well
 			res["TMPDIR"]                      = no_slash(tmp_dir_s) ;
-			g_start_info.autodep_env.tmp_dir_s = ::move  (tmp_dir_s) ;
+			g_start_info.autodep_env.tmp_dir_s =          tmp_dir_s  ;
 		}
 	}
-	if (!res.contains("HOME")) res["HOME"] = res["TMPDIR"] ;                  // by default, set HOME to TMPDIR as this cannot be set from rule
+	if (!res.contains("HOME")) res["HOME"] = no_slash(g_start_info.autodep_env.tmp_dir_s) ;                                    // by default, set HOME to tmp dir as this cannot be set from rule
 	//
 	Trace trace("prepare_env",g_start_info.tmp_sz_mb,g_start_info.autodep_env.tmp_dir_s,g_phy_tmp_dir_s,res) ;
 	//
 	try {
-		if (+g_phy_tmp_dir_s) unlnk_inside_s(g_phy_tmp_dir_s,true/*force*/) ; // ensure tmp dir is clean (force because g_phy_tmp_dir_s is absolute)
+		if (+g_phy_tmp_dir_s) unlnk_inside_s(g_phy_tmp_dir_s,true/*abs_ok*/) ;                                                 // ensure tmp dir is clean (force because g_phy_tmp_dir_s is absolute)
 	} catch (::string const&) {
-		try                       { mk_dir_s(g_phy_tmp_dir_s) ;          }    // ensure tmp dir exists
+		try                       { mk_dir_s(g_phy_tmp_dir_s) ;          }                                                     // ensure tmp dir exists
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
 	}
 	return res ;

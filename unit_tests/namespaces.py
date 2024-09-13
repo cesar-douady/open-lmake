@@ -18,7 +18,10 @@ if __name__!='__main__' :
 			class Dut(Rule) :
 				name   = f'dut {tmp_view} {root_view}'
 				target = f'dut.{tmp_view}{root_view}'
-				if tmp_view  : tmp_view  = tmp_view
+				resources = {}
+				if tmp_view  :
+					tmp_view  = tmp_view
+					resources['tmp'] = '100M'
 				if root_view : root_view = root_view
 				cmd = multi_strip('''
 					unset PWD                     # ensure pwd calls getcwd

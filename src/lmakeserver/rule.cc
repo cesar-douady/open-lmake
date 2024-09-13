@@ -1340,7 +1340,7 @@ namespace Engine {
 	}
 
 	::vector_s RuleData::_list_ctx(::vector<CmdIdx> const& ctx) const {
-		::vector_s res ;
+		::vector_s res ; res.reserve(ctx.size()) ;
 		for( auto [vc,i] : ctx ) switch (vc) {
 			case VarCmd::Stem      : res.push_back(stems                        [i].first) ; break ;
 			case VarCmd::StarMatch :
@@ -1457,7 +1457,7 @@ namespace Engine {
 	}
 
 	::vector_s Rule::SimpleMatch::star_patterns() const {
-		::vector_s res ;
+		::vector_s res ; res.reserve(rule->matches.size()-rule->n_statics) ;
 		for( VarIdx t=rule->n_statics ; t<rule->matches.size() ; t++ ) {
 			::uset<VarIdx> seen ;
 			res.push_back(_subst_target(
@@ -1493,7 +1493,7 @@ namespace Engine {
 	}
 
 	::vector_s Rule::SimpleMatch::static_matches() const {
-		::vector_s res ;
+		::vector_s res ; res.reserve(rule->n_statics) ;
 		for( VarIdx mi=0 ; mi<rule->n_statics ; mi++ ) {
 			res.push_back(_subst_target(
 				rule->matches[mi].second.pattern

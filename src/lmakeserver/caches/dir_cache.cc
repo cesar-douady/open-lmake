@@ -251,6 +251,7 @@ namespace Caches {
 				job_info.start.pre_start.job       = +job   ;                                        // id is not stored in cache
 				job_info.start.submit_attrs.reason = reason ;
 				//
+				copied.reserve(job_info.end.end.digest.targets.size()) ;
 				for( NodeIdx ti=0 ; ti<job_info.end.end.digest.targets.size() ; ti++ ) {
 					auto&           entry = job_info.end.end.digest.targets[ti] ;
 					::string const& tn    = entry.first                         ;

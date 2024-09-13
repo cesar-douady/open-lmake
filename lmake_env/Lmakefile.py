@@ -69,8 +69,9 @@ class BaseRule(Rule) :
 	,	'Base' : r'([^/]+)'
 	,	'Ext'  : r'([^/]+)'
 	}
-	backend     = backend
-	resources   = {
+	backend   = backend
+	tmp_view  = '/tmp'
+	resources = {
 		'mem' : '100M'
 	,	'tmp' : '1G'
 	}
