@@ -1267,9 +1267,9 @@ namespace Engine {
 	static ::string _pretty( size_t i , StartNoneAttrs const& sna ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
-		if ( sna.keep_tmp_dir) entries.emplace_back( "keep_tmp"    , fmt_string  (sna.keep_tmp_dir)            ) ;
-		if (+sna.start_delay ) entries.emplace_back( "start_delay" ,              sna.start_delay .short_str() ) ;
-		if (+sna.kill_sigs   ) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs   )            ) ;
+		if ( sna.keep_tmp   ) entries.emplace_back( "keep_tmp"    , fmt_string  (sna.keep_tmp   )            ) ;
+		if (+sna.start_delay) entries.emplace_back( "start_delay" ,              sna.start_delay.short_str() ) ;
+		if (+sna.kill_sigs  ) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
 		/**/              res << _pretty_vmap(i,entries)                                     ;
 		if (+sna.env    ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env ) ;
 		return res.str() ;

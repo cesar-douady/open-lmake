@@ -666,7 +666,7 @@ If a target does not exist, it is deemed secondary information and is shown in g
 
 @section @code{ldebug}
 
-Usage : @code{ldebug [-k|--key <key>] [-n] target}
+Usage : @code{ldebug [-k|--key <key>] [-n] [-t] target}
 
 @code{ldebug} runs a job in a debug environment.
 
@@ -675,6 +675,9 @@ The precise way the job is launched is controled by the @code{lmake.config.debug
 This module must contain a @code{gen_script} function taking a description of the job provided as keyword arguments and returning the script to execute.
 
 When @code{ldebug} is run, the debug script is generated in a file withing the @file{LMAKE} directory and, unless the @code{-n} or @code{--no-exec} option is given, it is executed.
+
+The @code{-t} or @code{--keep-tmp} option is managed the same way as for @code{lmake}.
+In case the job specifies the @code{TMPDIR} environment variable as @code{...}, @code{TMPDIR} must be put in the environment when @code{ldebug} is executed, as it is during job execution.
 
 To write a module for use with @code{ldebug}, the best way is to start from the closest standard module in @file{lib/lmake_debug} and modify it to fit your specific needs.
 
@@ -833,10 +836,6 @@ For option descriptions, refer to the corresponding rule attribute.
 Options :
 @multitable @columnfractions 0.05 0.1 0.15 0.7
 @headitem short option @tab long options @tab rule attribute @tab Description
-@item @code{-m}
-@tab  @code{--autodep-method}
-@tab  @code{autodep}
-@tab
 @item @code{-a}
 @tab  @code{--auto-mkdir}
 @tab  @code{auto_mkdir}
@@ -857,6 +856,10 @@ Options :
 @tab  @code{--ignore-stat}
 @tab  @code{ignore_stat}
 @tab No argument, the presence of this option is equivalent of a @code{True} value for the rule attribute.
+@item @code{-j}
+@tab  @code{--job}
+@tab
+@tab The job id. Only used to compute the tmp directory if @code{-k} is also passed.
 @item @code{-k}
 @tab  @code{--keep-env}
 @tab  @code{environ_*}
@@ -865,6 +868,10 @@ Options :
 @tab  @code{--link-support}
 @tab  @code{link_support}
 @tab This attribute is in @code{lmake.config}, not on the rule.
+@item @code{-m}
+@tab  @code{--autodep-method}
+@tab  @code{autodep}
+@tab
 @item @code{-o}
 @tab  @code{--out}
 @tab
@@ -877,10 +884,18 @@ Options :
 @tab  @code{--source-vdirs}
 @tab  @code{source_dirs}
 @tab The list must be provided as a python @code{tuple} or @code{list} (beware of quoting with regard to shell).
+@item @code{-S}
+@tab  @code{--tmp-size-mb}
+@tab  @code{resources.tmp}
+@tab The size of the tmp directory. Used if created using tmpfs.
 @item @code{-t}
 @tab  @code{--tmp-view}
 @tab  @code{tmp_view}
 @tab
+@item @code{-T}
+@tab  @code{--keep-tmp}
+@tab
+@tab keep tmp directory after execution.
 @item @code{-v}
 @tab  @code{--views}
 @tab  @code{views}

@@ -61,53 +61,6 @@ JobRpcReply g_start_info     ;
 SeqId       g_trace_id       = 0/*garbage*/ ;
 ::vector_s  g_washed         ;
 
-::map_ss prepare_env(JobRpcReq& end_report) {
-	::map_ss res ;
-	g_start_info.autodep_env.root_dir_s = *g_root_dir_s                              ;
-	res["PWD"        ]                  = no_slash(*g_root_dir_s+g_start_info.cwd_s) ;
-	res["ROOT_DIR"   ]                  = no_slash(*g_root_dir_s)                    ;
-	res["SEQUENCE_ID"]                  = ::to_string(g_seq_id             )         ;
-	res["SMALL_ID"   ]                  = ::to_string(g_start_info.small_id)         ;
-	for( auto& [k,v] : g_start_info.env ) {
-		if (v!=EnvPassMrkr) {
-			res[k] = ::move(v) ;
-		} else if (has_env(k)) {      // if value is special illegal value, use value from environement (typically from slurm)
-			::string v = get_env(k) ;
-			end_report.dynamic_env.emplace_back(k,v) ;
-			res[k] = ::move(v) ;
-		}
-	}
-	if (PY_LD_LIBRARY_PATH[0]!=0) {
-		auto [it,inserted] = res.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
-		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
-	}
-	if      ( auto it=res.find("TMPDIR") ; it!=res.end()                   ) g_phy_tmp_dir_s = it->second+'/'+g_start_info.key+'/'     +g_start_info.small_id+'/' ;
-	else if ( g_start_info.tmp_sz_mb==size_t(-1)                           ) g_phy_tmp_dir_s = g_phy_root_dir_s+PrivateAdminDirS+"tmp/"+g_start_info.small_id+'/' ;
-	else if ( g_start_info.tmp_sz_mb && !g_start_info.job_space.tmp_view_s ) throw "cannot create tmpfs of size "s+to_string_with_units<'M'>(g_start_info.tmp_sz_mb)+"B without tmp_view" ;
-	//
-	{	::string const& tmp_dir_s = +g_start_info.job_space.tmp_view_s ? g_start_info.job_space.tmp_view_s : g_phy_tmp_dir_s ; // tmp dir seen by job (must be a ref as g_phy_tmp_dir_s may be updated)
-		if (!tmp_dir_s) {
-			SWEAR(!res.contains("TMPDIR")) ;
-			g_start_info.autodep_env.tmp_dir_s = with_slash(P_tmpdir) ;                                                        // detect accesses to P_tmpdir (usually /tmp) and generate an error
-		} else {
-			if (g_start_info.keep_tmp_dir) g_phy_tmp_dir_s = g_phy_root_dir_s+AdminDirS+"tmp/"+g_job+'/' ;                     // note that tmp_dir_s may be updated as well
-			res["TMPDIR"]                      = no_slash(tmp_dir_s) ;
-			g_start_info.autodep_env.tmp_dir_s =          tmp_dir_s  ;
-		}
-	}
-	if (!res.contains("HOME")) res["HOME"] = no_slash(g_start_info.autodep_env.tmp_dir_s) ;                                    // by default, set HOME to tmp dir as this cannot be set from rule
-	//
-	Trace trace("prepare_env",g_start_info.tmp_sz_mb,g_start_info.autodep_env.tmp_dir_s,g_phy_tmp_dir_s,res) ;
-	//
-	try {
-		if (+g_phy_tmp_dir_s) unlnk_inside_s(g_phy_tmp_dir_s,true/*abs_ok*/) ;                                                 // ensure tmp dir is clean (force because g_phy_tmp_dir_s is absolute)
-	} catch (::string const&) {
-		try                       { mk_dir_s(g_phy_tmp_dir_s) ;          }                                                     // ensure tmp dir exists
-		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
-	}
-	return res ;
-}
-
 struct Digest {
 	::vmap_s<TargetDigest> targets ;
 	::vmap_s<DepDigest   > deps    ;
@@ -363,36 +316,12 @@ int main( int argc , char* argv[] ) {
 			}
 		}
 		//
-		::map_ss cmd_env ;
+		::map_ss              cmd_env       ;
+		::vmap_s<MountAction> enter_actions ;
 		try {
-			cmd_env = prepare_env(end_report) ;
-			//
-			::vmap_s<MountAction> report ;
-			bool entered = g_start_info.job_space.enter(
-				report
-			,	g_phy_root_dir_s
-			,	g_phy_tmp_dir_s
-			,	g_start_info.tmp_sz_mb
-			,	PrivateAdminDirS+"chroot/"s+g_start_info.small_id+'/'
-			,	g_start_info.autodep_env.src_dirs_s
-			,	g_start_info.method==AutodepMethod::Fuse
-			) ;
-			if (entered) {
-				// find a good starting pid
-				// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
-				// to do that we spread pid's among the availale range by setting the first pid used by jos as apart from each other as possible
-				// call phi the golden number and NPids the number of available pids
-				// spreading is maximized by using phi*NPids as an elementary spacing and id (small_id) as an index modulo NPids
-				// this way there is a conflict between job 1 and job 2 when (id2-id1)*phi is near an integer
-				// because phi is the irrational which is as far from rationals as possible, and id's are as small as possible, this probability is minimized
-				// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
-				static constexpr uint32_t FirstPid  = 300                                 ;           // apparently, pid's wrap around back to 300
-				static constexpr uint64_t NPids     = MAX_PID - FirstPid                  ;           // number of available pid's
-				static constexpr uint64_t delta_pid = (1640531527*NPids) >> n_bits(NPids) ;           // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
-				//
-				g_gather.first_pid = FirstPid + ((g_start_info.small_id*delta_pid)>>(32-n_bits(NPids)))%NPids ; // delta_pid on 64 bits to avoid rare overflow in multiplication
+			if ( g_start_info.enter( enter_actions , cmd_env , end_report.dynamic_env , g_gather.first_pid , g_job , g_phy_root_dir_s , g_seq_id ) ) {
 				RealPath real_path { g_start_info.autodep_env } ;
-				for( auto& [f,a] : report ) {
+				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
 					for( ::string& l : sr.lnks ) g_gather.new_dep( start_overhead , ::move(l) ,  Access::Lnk  , "mount_lnk" ) ;
 					if (sr.file_loc<=FileLoc::Dep) {
@@ -465,11 +394,12 @@ int main( int argc , char* argv[] ) {
 			g_nfs_guard.close() ;
 		}
 		//
-		g_start_info.job_space.exit() ;
+		try                       { g_start_info.exit() ;               }
+		catch (::string const& e) { exit(Rc::Fail,"cannot exit : ",e) ; }
 		if (g_gather.seen_tmp) {
 			if (!cmd_env.contains("TMPDIR"))
 				digest.msg << "accessed "<<no_slash(g_gather.autodep_env.tmp_dir_s)<<" without dedicated tmp dir\n" ;
-			else if (!g_start_info.keep_tmp_dir)
+			else if (!g_start_info.keep_tmp)
 				try                     { unlnk_inside_s(g_gather.autodep_env.tmp_dir_s,true/*force*/) ; } // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
 				catch (::string const&) {                                                                }
 		}

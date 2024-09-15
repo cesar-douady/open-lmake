@@ -197,7 +197,7 @@ bool/*entered*/ JobSpace::enter(
 ,	::vector_s const&      src_dirs_s
 ,	bool                   use_fuse
 ) {
-	Trace trace("enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s,STR(use_fuse)) ;
+	Trace trace("JobSpace::enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s,STR(use_fuse)) ;
 	//
 	if ( use_fuse && !root_view_s ) throw  "cannot use fuse for autodep without root_view"s ;
 	if ( !*this                   ) return false/*entered*/                                 ;
@@ -254,7 +254,9 @@ bool/*entered*/ JobSpace::enter(
 	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
 	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
 	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
-	if ( must_create_root || must_create_tmp ) {                                                                               // we may not mount directly in chroot_dir
+	if ( must_create_root || must_create_tmp || +views )
+		try { unlnk_inside_s(work_dir_s) ; } catch (::string const& e) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
+	if ( must_create_root || must_create_tmp ) {                          // we may not mount directly in chroot_dir
 		if (!work_dir_s)
 			throw
 				"need a work dir to create"s
@@ -331,16 +333,17 @@ bool/*entered*/ JobSpace::enter(
 			::string work_s = is_lcl(upper) ? work_dir_s+"work_"+(work_idx++)+'/' : upper.substr(0,upper.size()-1)+".work/" ;  // if not in the repo, it must be in tmp
 			mk_dir_s(work_s) ;
 			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,root_dir_s) ) ;
-			_works_s.push_back(::move(work_s)) ;
 		}
+		_to_umount.push_back(view) ;                                                                                           // ensure tmp dir can be unlinked
 	}
 	trace("done") ;
 	return true/*entered*/ ;
 }
 
 void JobSpace::exit() {
-	for( ::string const& work_s : _works_s ) unlnk(work_s,true/*dir_ok*/,true/*abs_ok*/,true/*force*/) ;
-	_works_s.clear() ;
+	Trace trace("JobSpace::exit",_to_umount) ;
+	for( ::string const& m : _to_umount )
+		if (::umount(no_slash(m).c_str())!=0) throw "cannot umount "+no_slash(m) ;
 }
 
 ::vmap_s<::vector_s> JobSpace::flat_phys() const {
@@ -463,14 +466,14 @@ void JobSpace::chk() const {
 }
 
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
-	/**/                                   os << "JobRpcReply(" << jrr.proc ;
+	os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
 		case JobRpcProc::Start :
 			/**/                           os <<','  << hex<<jrr.addr<<dec                ;
 			/**/                           os <<','  << jrr.autodep_env                   ;
 			if      (+jrr.job_space      ) os <<','  << jrr.job_space                     ;
-			if      ( jrr.keep_tmp_dir   ) os <<','  << "keep"                            ;
-			else if ( jrr.tmp_sz_mb==Npos) os <<",T:"<< "..."                             ;
+			if      ( jrr.keep_tmp       ) os <<','  << "keep"                            ;
+			if      ( jrr.tmp_sz_mb==Npos) os <<",T:"<< "..."                             ;
 			else                           os <<",T:"<< jrr.tmp_sz_mb                     ;
 			if      (+jrr.cwd_s          ) os <<','  << jrr.cwd_s                         ;
 			if      (+jrr.date_prec      ) os <<','  << jrr.date_prec                     ;
@@ -493,7 +496,83 @@ void JobSpace::chk() const {
 		break ;
 		default : ;
 	}
-	return                           os << ')' ;
+	return os << ')' ;
+}
+
+bool/*entered*/ JobRpcReply::enter(
+		::vmap_s<MountAction>& actions                                                                                  // out
+	,	::map_ss             & cmd_env                                                                                  // .
+	,	::vmap_ss            & dynamic_env                                                                              // .
+	,	pid_t                & first_pid                                                                                // .
+	,	JobIdx                 job                                                                                      // in
+	,	::string        const& phy_root_dir_s                                                                           // .
+	,	SeqId                  seq_id                                                                                   // .
+) {
+	Trace trace("JobRpcReply::enter",job,phy_root_dir_s,seq_id) ;
+	//
+	for( auto& [k,v] : env ) {
+		if      (v!=EnvPassMrkr)                                                             cmd_env[k] = ::move(v) ;
+		else if (has_env(k)    ) { ::string v = get_env(k) ; dynamic_env.emplace_back(k,v) ; cmd_env[k] = ::move(v) ; } // if special illegal value, use value from environment (typically from slurm)
+	}
+	//
+	::string phy_tmp_dir_s ;
+	if      ( auto it=cmd_env.find("TMPDIR") ; it!=cmd_env.end()   ) phy_tmp_dir_s = it->second+'/'+key+'/'                +small_id+'/' ;
+	else if ( tmp_sz_mb==Npos                                      ) phy_tmp_dir_s = phy_root_dir_s+PrivateAdminDirS+"tmp/"+small_id+'/' ;
+	if      ( !phy_tmp_dir_s && tmp_sz_mb && !job_space.tmp_view_s ) throw "cannot create tmpfs of size "s+to_string_with_units<'M'>(tmp_sz_mb)+"B without tmp_view" ;
+	if      ( +phy_tmp_dir_s && !is_abs_s(phy_tmp_dir_s)           ) throw "$TMPDIR must be absolute but is "+phy_tmp_dir_s                                          ;
+	if      ( keep_tmp                                             ) phy_tmp_dir_s = phy_root_dir_s+AdminDirS+"tmp/"+job+'/' ;
+	else if ( +phy_tmp_dir_s                                       ) _tmp_dir_s_to_cleanup = phy_tmp_dir_s ;
+	autodep_env.root_dir_s = +job_space.root_view_s ? job_space.root_view_s : phy_root_dir_s ;
+	autodep_env.tmp_dir_s  = +job_space.tmp_view_s  ? job_space.tmp_view_s  : phy_tmp_dir_s  ;
+	//
+	try {
+		if (+phy_tmp_dir_s) unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;             // ensure tmp dir is clean
+	} catch (::string const&) {
+		try                       { mk_dir_s(phy_tmp_dir_s) ;            }             // ensure tmp dir exists
+		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
+	}
+	//
+	cmd_env["PWD"        ] = no_slash(autodep_env.root_dir_s+cwd_s) ;
+	cmd_env["ROOT_DIR"   ] = no_slash(autodep_env.root_dir_s      ) ;
+	cmd_env["SEQUENCE_ID"] = ::to_string(seq_id  )                  ;
+	cmd_env["SMALL_ID"   ] = ::to_string(small_id)                  ;
+	if (PY_LD_LIBRARY_PATH[0]!=0) {
+		auto [it,inserted] = cmd_env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
+		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
+	}
+	//
+	if (+autodep_env.tmp_dir_s) {
+		cmd_env["TMPDIR"] = no_slash(autodep_env.tmp_dir_s) ;
+	} else {
+		SWEAR(!cmd_env.contains("TMPDIR")) ;                                           // if we have a TMPDIR env var, we should have a tmp dir
+		autodep_env.tmp_dir_s = with_slash(P_tmpdir) ;                                 // detect accesses to P_tmpdir (usually /tmp) and generate an error
+	}
+	if (!cmd_env.contains("HOME")) cmd_env["HOME"] = no_slash(autodep_env.tmp_dir_s) ; // by default, set HOME to tmp dir as this cannot be set from rule
+	//
+	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                                                          ;
+	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s , method==AutodepMethod::Fuse ) ;
+	if (entered) {
+		// find a good starting pid
+		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
+		// to do that we spread pid's among the availale range by setting the first pid used by jos as apart from each other as possible
+		// call phi the golden number and NPids the number of available pids
+		// spreading is maximized by using phi*NPids as an elementary spacing and id (small_id) as an index modulo NPids
+		// this way there is a conflict between job 1 and job 2 when (id2-id1)*phi is near an integer
+		// because phi is the irrational which is as far from rationals as possible, and id's are as small as possible, this probability is minimized
+		// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
+		static constexpr uint32_t FirstPid = 300                                 ;     // apparently, pid's wrap around back to 300
+		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ;     // number of available pid's
+		static constexpr uint64_t DelatPid = (1640531527*NPids) >> n_bits(NPids) ;     // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
+		first_pid = FirstPid + ((small_id*DelatPid)>>(32-n_bits(NPids)))%NPids ;       // DelatPid on 64 bits to avoid rare overflow in multiplication
+	}
+	return entered ;
+}
+
+void JobRpcReply::exit() {
+	// work dir cannot be cleaned up as we may have chroot'ed inside
+	Trace trace("JobRpcReply::exit",_tmp_dir_s_to_cleanup) ;
+	job_space.exit() ;
+	if (+_tmp_dir_s_to_cleanup) unlnk_inside_s(_tmp_dir_s_to_cleanup,true/*abs_ok*/ ) ;
 }
 
 //

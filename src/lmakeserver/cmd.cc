@@ -188,32 +188,33 @@ namespace Engine {
 		auto            it     = g_config->dbg_tab.find(key) ; if (it==g_config->dbg_tab.end()) throw "unknown debug method "+ro.flag_args[+ReqFlag::Key] ;
 		::string const& runner = it->second.c_str()          ;
 		//
-		JobRpcReq   const& pre_start = job_info.start.pre_start ;
-		JobRpcReply const& start     = job_info.start.start     ;
-		AutodepEnv  const& ade       = start.autodep_env        ;
-		Rule::SimpleMatch  match     = j->simple_match()        ;
+		JobRpcReply const& start = job_info.start.start ;
+		AutodepEnv  const& ade   = start.autodep_env    ;
+		Rule::SimpleMatch  match = j->simple_match()    ;
 		//
 		for( Node t  : j->targets ) t->set_buildable() ;                           // necessary for pre_actions()
 		::string get_script ;
 		get_script << "from "<<runner<<" import gen_script\n" ;
 		get_script << "script = gen_script(\n" ;
-		get_script <<  "\tauto_mkdir     = " << mk_py_str(ade.auto_mkdir                                                         ) << '\n' ;
-		get_script << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat                                                        ) << '\n' ;
-		get_script << ",\tis_python      = " << mk_py_str(j->rule->is_python                                                     ) << '\n' ;
-		get_script << ",\tsequence_id    = " <<           pre_start.seq_id                                                         << '\n' ;
-		get_script << ",\tsmall_id       = " <<           start.small_id                                                           << '\n' ;
-		get_script << ",\tkeep_env       = " <<           "()"                                                                     << '\n' ;
-		get_script << ",\tkey            = " << mk_py_str(key                                                                    ) << '\n' ;
-		get_script << ",\tautodep_method = " << mk_py_str(snake(start.method)                                                    ) << '\n' ;
-		get_script << ",\tchroot_dir     = " << mk_py_str(+start.job_space.chroot_dir_s?no_slash(start.job_space.chroot_dir_s):"") << '\n' ;
-		get_script << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                                                    ) << '\n' ;
-		get_script << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)                                                  ) << '\n' ;
-		get_script << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                                                 ) << '\n' ;
-		get_script << ",\tname           = " << mk_py_str(j->name()                                                              ) << '\n' ;
-		get_script << ",\troot_view      = " << mk_py_str(+start.job_space.root_view_s ?no_slash(start.job_space.root_view_s ):"") << '\n' ;
-		get_script << ",\tstdin          = " << mk_py_str(start.stdin                                                            ) << '\n' ;
-		get_script << ",\tstdout         = " << mk_py_str(start.stdout                                                           ) << '\n' ;
-		get_script << ",\ttmp_view       = " << mk_py_str(+start.job_space.tmp_view_s  ?no_slash(start.job_space.tmp_view_s  ):"") << '\n' ;
+		//
+		/**/                               get_script <<  "\tauto_mkdir     = " << mk_py_str(ade.auto_mkdir                        ) << '\n' ;
+		/**/                               get_script << ",\tautodep_method = " << mk_py_str(snake(start.method)                   ) << '\n' ;
+		if (+start.job_space.chroot_dir_s) get_script << ",\tchroot_dir     = " << mk_py_str(no_slash(start.job_space.chroot_dir_s)) << '\n' ;
+		if (+start.cwd_s                 ) get_script << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)                 ) << '\n' ;
+		/**/                               get_script << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                   ) << '\n' ;
+		/**/                               get_script << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat                       ) << '\n' ;
+		/**/                               get_script << ",\tis_python      = " << mk_py_str(j->rule->is_python                    ) << '\n' ;
+		if (ro.flags[ReqFlag::KeepTmp]   ) get_script << ",\tkeep_tmp       = " <<           "True"                                  << '\n' ;
+		/**/                               get_script << ",\tkey            = " << mk_py_str(key                                   ) << '\n' ;
+		/**/                               get_script << ",\tjob            = " <<           +j                                      << '\n' ;
+		/**/                               get_script << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                ) << '\n' ;
+		/**/                               get_script << ",\tname           = " << mk_py_str(j->name()                             ) << '\n' ;
+		if (+start.job_space.root_view_s ) get_script << ",\troot_view      = " << mk_py_str(no_slash(start.job_space.root_view_s )) << '\n' ;
+		/**/                               get_script << ",\tstdin          = " << mk_py_str(start.stdin                           ) << '\n' ;
+		/**/                               get_script << ",\tstdout         = " << mk_py_str(start.stdout                          ) << '\n' ;
+		if (ro.flags[ReqFlag::TmpDir]    ) get_script << ",\ttmp_dir        = " << mk_py_str(ro.flag_args[+ReqFlag::TmpDir]        ) << '\n' ;
+		if (start.tmp_sz_mb!=Npos        ) get_script << ",\ttmp_size_mb    = " <<           start.tmp_sz_mb                         << '\n' ;
+		if (+start.job_space.tmp_view_s  ) get_script << ",\ttmp_view       = " << mk_py_str(no_slash(start.job_space.tmp_view_s  )) << '\n' ;
 		//
 		get_script << ",\tpreamble =\n" << mk_py_str(start.cmd.first ) << '\n' ;
 		get_script << ",\tcmd =\n"      << mk_py_str(start.cmd.second) << '\n' ;
@@ -233,7 +234,8 @@ namespace Engine {
 			for( auto const& [t,a] : j->pre_actions(match) ) get_script << first("\n\t\t",",\t") << mk_py_str(t->name()) <<" : "<< mk_py_str(snake(a.tag)) <<"\n\t" ;
 			get_script << "}\n" ;
 		}
-		{	get_script << ",\tsource_dirs = (" ;
+		if (+*g_src_dirs_s) {
+			get_script << ",\tsource_dirs = (" ;
 			First first ;
 			for( ::string const& sd_s : *g_src_dirs_s )
 				get_script << first("\n\t\t",",\t") << mk_py_str(no_slash(sd_s)) << "\n\t" ;

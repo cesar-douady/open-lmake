@@ -57,7 +57,7 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "date_prec    : "  << jrr.date_prec               <<'\n' ;
 	::cout << "ignore_stat  : "  << jrr.autodep_env.ignore_stat <<'\n' ;
 	::cout << "interpreter  : "  << jrr.interpreter             <<'\n' ;
-	::cout << "keep_tmp_dir : "  << jrr.keep_tmp_dir            <<'\n' ;
+	::cout << "keep_tmp     : "  << jrr.keep_tmp                <<'\n' ;
 	::cout << "key          : "  << jrr.key                     <<'\n' ;
 	::cout << "kill_sigs    : "  << jrr.kill_sigs               <<'\n' ;
 	::cout << "live_out     : "  << jrr.live_out                <<'\n' ;

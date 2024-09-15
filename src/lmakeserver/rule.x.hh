@@ -180,10 +180,9 @@ namespace Engine {
 			Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
 			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) {
 				::sort(rsrcs) ;                                            // stabilize rsrcs crc
-				canon() ;
+				s_canon(rsrcs) ;
 			}
 		}
-		void canon() { s_canon(rsrcs) ; }
 		// data
 		// START_OF_VERSIONING
 		BackendTag backend = BackendTag::Local ;                           // backend to use to launch jobs
@@ -306,20 +305,20 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
-			Attrs::acquire_from_dct( keep_tmp_dir , py_dct , "keep_tmp"                           ) ;
-			Attrs::acquire_from_dct( start_delay  , py_dct , "start_delay" , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( kill_sigs    , py_dct , "kill_sigs"                          ) ;
-			Attrs::acquire_from_dct( n_retries    , py_dct , "n_retries"                          ) ;
-			Attrs::acquire_env     ( env          , py_dct , "env"                                ) ;
-			::sort(env) ;                                                                             // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
+			Attrs::acquire_from_dct( keep_tmp    , py_dct , "keep_tmp"                           ) ;
+			Attrs::acquire_from_dct( start_delay , py_dct , "start_delay" , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( kill_sigs   , py_dct , "kill_sigs"                          ) ;
+			Attrs::acquire_from_dct( n_retries   , py_dct , "n_retries"                          ) ;
+			Attrs::acquire_env     ( env         , py_dct , "env"                                ) ;
+			::sort(env) ;                                                                            // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
 		// START_OF_VERSIONING
-		bool              keep_tmp_dir = false ;
-		Time::Delay       start_delay  ;                                                              // job duration above which a start message is generated
-		::vector<uint8_t> kill_sigs    ;                                                              // signals to use to kill job (tried in sequence, 1s apart from each other)
-		uint8_t           n_retries    = 0     ;                                                      // max number of retry if job is lost
-		::vmap_ss         env          ;
+		bool              keep_tmp    = false ;
+		Time::Delay       start_delay ;                                                              // job duration above which a start message is generated
+		::vector<uint8_t> kill_sigs   ;                                                              // signals to use to kill job (tried in sequence, 1s apart from each other)
+		uint8_t           n_retries   = 0     ;                                                      // max number of retry if job is lost
+		::vmap_ss         env         ;
 		// END_OF_VERSIONING
 	} ;
 
