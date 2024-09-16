@@ -1,17 +1,5 @@
-open-lmake (24.05.2-1) UNRELEASED; urgency=low
+open-lmake (24.09.1-1) UNRELEASED; urgency=low
 
-  * bugfix release
+  * support Linux namespaces
 
- -- Cesar Douady <cesar.douady@doliam.fr>  Mon, 03 Jun 2024 15:56:35 +0200
-
-open-lmake (24.05.1-1) UNRELEASED; urgency=low
-
-  * bugfix release
-
- -- Cesar Douady <cesar.douady@doliam.fr>  Wed, 15 May 2024 09:40:19 +0200
-
-open-lmake (1.0-1) UNRELEASED; urgency=low
-
-  * Initial release.
-
- -- Cesar Douady <cesar.douady@doliam.fr>  Wed, 24 Apr 2024 14:22:52 +0200
+ -- Cesar Douady <cesar.douady@doliam.fr>  Tue, 03 Sep 2024 15:56:35 +0200

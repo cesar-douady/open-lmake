@@ -7,7 +7,7 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <sys/stat.h>  // fstatat
+#include <sys/stat.h>  // fstatat, fchmodat
 #include <sys/types.h>
 
 #include "config.hh"
@@ -266,14 +266,14 @@ namespace Disk {
 	// deep list files within dir with prefix in front of each entry, return a single entry {prefix} if file is not a dir (including if file does not exist)
 	::vector_s walk( Fd at , ::string const& file , ::string const& prefix={} ) ;
 	//
-	size_t/*pos*/ mk_dir_s      ( Fd at , ::string const& dir_s ,             bool unlnk_ok=false      ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
-	size_t/*pos*/ mk_dir_s      ( Fd at , ::string const& dir_s , NfsGuard& , bool unlnk_ok=false      ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
-	void          dir_guard     ( Fd at , ::string const& file                                         ) ;
-	void          unlnk_inside_s( Fd at , ::string const& dir_s                     , bool force=false ) ;
-	bool/*done*/  unlnk         ( Fd at , ::string const& file  , bool dir_ok=false , bool force=false ) ; // if dir_ok <=> unlink whole dir if it is one
-	bool          can_uniquify  ( Fd at , ::string const& file                                         ) ;
-	bool/*done*/  uniquify      ( Fd at , ::string const& file                                         ) ;
-	void          rmdir_s       ( Fd at , ::string const& dir_s                                        ) ;
+	size_t/*pos*/ mk_dir_s      ( Fd at , ::string const& dir_s ,             bool unlnk_ok=false                          ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+	size_t/*pos*/ mk_dir_s      ( Fd at , ::string const& dir_s , NfsGuard& , bool unlnk_ok=false                          ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+	void          dir_guard     ( Fd at , ::string const& file                                                             ) ;
+	void          unlnk_inside_s( Fd at , ::string const& dir_s                     , bool abs_ok=false , bool force=false ) ;
+	bool/*done*/  unlnk         ( Fd at , ::string const& file  , bool dir_ok=false , bool abs_ok=false , bool force=false ) ; // if dir_ok <=> unlink whole dir if it is one
+	bool          can_uniquify  ( Fd at , ::string const& file                                                             ) ;
+	bool/*done*/  uniquify      ( Fd at , ::string const& file                                                             ) ;
+	void          rmdir_s       ( Fd at , ::string const& dir_s                                                            ) ;
 	//
 	inline void lnk( Fd at , ::string const& file , ::string const& target ) {
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
@@ -308,9 +308,9 @@ namespace Disk {
 	inline size_t/*pos*/   mk_dir_s      ( ::string const& dir_s ,                bool unlnk_ok=false                        ) { return mk_dir_s      (Fd::Cwd,dir_s,   unlnk_ok         ) ; }
 	inline size_t/*pos*/   mk_dir_s      ( ::string const& dir_s , NfsGuard& ng , bool unlnk_ok=false                        ) { return mk_dir_s      (Fd::Cwd,dir_s,ng,unlnk_ok         ) ; }
 	inline ::string const& dir_guard     ( ::string const& path                                                              ) {        dir_guard     (Fd::Cwd,path) ; return path ;         }
-	inline void            unlnk_inside_s( Fd at                                                                             ) {        unlnk_inside_s(at     ,{}          ,true/*force*/) ; }
-	inline void            unlnk_inside_s( ::string const& dir_s                     , bool force=false                      ) {        unlnk_inside_s(Fd::Cwd,dir_s       ,force        ) ; }
-	inline bool/*done*/    unlnk         ( ::string const& path  , bool dir_ok=false , bool force=false                      ) { return unlnk         (Fd::Cwd,path ,dir_ok,force        ) ; }
+	inline void            unlnk_inside_s( Fd at                                                         , bool force=false  ) {        unlnk_inside_s(at     ,{}          ,false ,force ) ; }
+	inline void            unlnk_inside_s( ::string const& dir_s                     , bool abs_ok=false , bool force=false  ) {        unlnk_inside_s(Fd::Cwd,dir_s       ,abs_ok,force ) ; }
+	inline bool/*done*/    unlnk         ( ::string const& file  , bool dir_ok=false , bool abs_ok=false , bool force=false  ) { return unlnk         (Fd::Cwd,file ,dir_ok,abs_ok,force ) ; }
 	inline bool            can_uniquify  ( ::string const& file                                                              ) { return can_uniquify  (Fd::Cwd,file                      ) ; }
 	inline bool/*done*/    uniquify      ( ::string const& file                                                              ) { return uniquify      (Fd::Cwd,file                      ) ; }
 	inline void            rmdir_s       ( ::string const& dir_s                                                             ) {        rmdir_s       (Fd::Cwd,dir_s                     ) ; }
@@ -332,6 +332,11 @@ namespace Disk {
 		if (res.size()==1) return res     ;           // special case / as ::getcwd returns /, not empty
 		else               return res+'/' ;
 	}
+
+	/**/   FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , bool unlnk_dst=false , bool mk_read_only=false ) ;
+	inline FileTag cpy(             ::string const& df       , Fd sat    , ::string const& sf       , bool ud       =false , bool ro          =false ) { return cpy(Fd::Cwd,df,sat    ,sf,ud,ro) ; }
+	inline FileTag cpy( Fd dat    , ::string const& df       ,             ::string const& sf       , bool ud       =false , bool ro          =false ) { return cpy(dat    ,df,Fd::Cwd,sf,ud,ro) ; }
+	inline FileTag cpy(             ::string const& df       ,             ::string const& sf       , bool ud       =false , bool ro          =false ) { return cpy(Fd::Cwd,df,Fd::Cwd,sf,ud,ro) ; }
 
 	struct FileMap {
 		// cxtors & casts

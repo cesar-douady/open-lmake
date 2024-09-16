@@ -12,7 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* fix compilation with LMAKE_FLAGS=ST
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions
 * reimplement hierarchical repositories
@@ -23,11 +22,13 @@ items :
 		- so as to ensure the sub-repo behaves as an autonomous repo
 	- handle cwd of rules
 	- devise a sound mechanism to read what must be read when reading makefiles
+! fix compilation with LMAKE_FLAGS=ST
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* make side_deps and side_targets dynamic
 * transport pdict as pdict rather than as dict
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
@@ -50,7 +51,7 @@ items :
 ****************************************************************************************************
 
 * when slurm cannot submit job because resources do not exist :
-	- e.g. no TmpDisk mentioned in config and job need it
+	- e.g. no TmpDisk mentioned in config and job needs it
 	- an error message is generated on stderr by slurm_submit_batch_job
 	- error code give no info
 * generate an error when calling depend on a target
@@ -58,13 +59,8 @@ items :
 	- or when it becomes a target if later
 * generate target/dep key everywhere it is pertinent
 * report Source/Anti rule name when appropriate
-* be more consise in console output
-	- and more precise in recorded log
-	- dates, justifications go to log while essential info is shown on screen
-	- e.g. 'dep changed' on screen and actual dates (before, after) in log
-	- same for manual, etc.
 * rework LMAKE/rules
-	- provide all static field flat
+	- provide all static fields flat
 	- then add dynamic code at the end
 ? consider a package for option passing
 	? gnu argp

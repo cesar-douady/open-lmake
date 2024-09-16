@@ -15,6 +15,12 @@ template<class V> void _print_map(::vmap_s<V> const& m) {
 	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<k <<" : "<< v <<'\n' ;
 }
 
+void _print_views(::vmap_s<JobSpace::ViewDescr> const& m) {
+	size_t w = 0 ;
+	for( auto const& [k,v] : m ) w = ::max(w,k.size()) ;
+	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<k <<" : "<< v.phys <<' '<< v.copy_up <<'\n' ;
+}
+
 template<class A> void _print_attrs(::vmap_s<A> const& m) {
 	size_t w = 0 ;
 	for( auto const& [k,_] : m ) w = ::max(w,k.size()) ;
@@ -51,7 +57,7 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "date_prec    : "  << jrr.date_prec               <<'\n' ;
 	::cout << "ignore_stat  : "  << jrr.autodep_env.ignore_stat <<'\n' ;
 	::cout << "interpreter  : "  << jrr.interpreter             <<'\n' ;
-	::cout << "keep_tmp_dir : "  << jrr.keep_tmp_dir            <<'\n' ;
+	::cout << "keep_tmp     : "  << jrr.keep_tmp                <<'\n' ;
 	::cout << "key          : "  << jrr.key                     <<'\n' ;
 	::cout << "kill_sigs    : "  << jrr.kill_sigs               <<'\n' ;
 	::cout << "live_out     : "  << jrr.live_out                <<'\n' ;
@@ -66,11 +72,11 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "tmp_view_s   : "  << jrr.job_space.tmp_view_s    <<'\n' ;
 	::cout << "use_script   : "  << jrr.use_script              <<'\n' ;
 	//
-	::cout << "deps :\n"           ; _print_map(jrr.deps           )                           ;
-	::cout << "env :\n"            ; _print_map(jrr.env            )                           ;
-	::cout << "star matches :\n"   ; _print_map(jrr.star_matches   )                           ;
-	::cout << "static matches :\n" ; _print_map(jrr.static_matches )                           ;
-	::cout << "views :\n"          ; _print_map(jrr.job_space.views)                           ;
+	::cout << "deps :\n"           ; _print_map  (jrr.deps           )                         ;
+	::cout << "env :\n"            ; _print_map  (jrr.env            )                         ;
+	::cout << "star matches :\n"   ; _print_map  (jrr.star_matches   )                         ;
+	::cout << "static matches :\n" ; _print_map  (jrr.static_matches )                         ;
+	::cout << "views :\n"          ; _print_views(jrr.job_space.views)                         ;
 	::cout << "cmd :\n"            ; ::cout << ensure_nl(indent(jrr.cmd.first+jrr.cmd.second)) ;
 }
 

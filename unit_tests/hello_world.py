@@ -31,8 +31,10 @@ if __name__!='__main__' :
 	class CatPy(Cat,PyRule) :
 		target = '{File1}+{File2}_py'
 		def cmd() :
-			print(open(FIRST ).read(),end='')
-			print(open(SECOND).read(),end='')
+			for fn in (FIRST,SECOND) :
+				f = open(fn)
+				print(f.read(),end='')
+				f.close()              # ensure no warnings with python3.12 -W...
 
 else :
 

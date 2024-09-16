@@ -158,8 +158,8 @@ namespace Engine {
 			w                  = ::max( w , k.size() ) ;
 			rev_map[d.txt] = k                     ;
 		}
-		::vector<bool> parallel ;  for( Dep const& d : job->deps ) parallel.push_back(d.parallel) ; // first pass to count deps as they are compressed and size is not known upfront
-		NodeIdx d      = 0 ;
+		::vector<bool> parallel ;     for( Dep const& d : job->deps ) parallel.push_back(d.parallel) ; // first pass to count deps as they are compressed and size is not known upfront
+		NodeIdx        d        = 0 ;
 		for( Dep const& dep : job->deps ) {
 			bool       cdp     = d  >0               && parallel[d  ]                                          ;
 			bool       ndp     = d+1<parallel.size() && parallel[d+1]                                          ;
@@ -174,12 +174,14 @@ namespace Engine {
 		}
 	}
 
-	static ::vmap_ss _mk_env( JobInfo const& job_info ) {
-		::umap_ss de  = mk_umap(job_info.end.end.dynamic_env) ;
-		::vmap_ss res ;
+	static ::pair<::vmap_ss/*set*/,::vector_s/*keep*/> _mk_env( JobInfo const& job_info ) {
+		bool                                        has_end = +job_info.end.end.proc                ;
+		::umap_ss                                   de      = mk_umap(job_info.end.end.dynamic_env) ;
+		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> res     ;
 		for( auto const& [k,v] : job_info.start.start.env )
-			if      (v!=EnvPassMrkr) res.emplace_back(k,v       ) ;
-			else if (de.contains(k)) res.emplace_back(k,de.at(k)) ;
+			if      (v!=EnvPassMrkr) res.first .emplace_back(k,v       ) ;
+			else if (!has_end      ) res.second.push_back   (k         ) ;
+			else if (de.contains(k)) res.first .emplace_back(k,de.at(k)) ;
 		return res ;
 	}
 
@@ -188,40 +190,49 @@ namespace Engine {
 		auto            it     = g_config->dbg_tab.find(key) ; if (it==g_config->dbg_tab.end()) throw "unknown debug method "+ro.flag_args[+ReqFlag::Key] ;
 		::string const& runner = it->second.c_str()          ;
 		//
-		JobRpcReq   const& pre_start = job_info.start.pre_start ;
-		JobRpcReply const& start     = job_info.start.start     ;
-		AutodepEnv  const& ade       = start.autodep_env        ;
-		Rule::SimpleMatch  match     = j->simple_match()        ;
+		JobRpcReply const& start = job_info.start.start ;
+		AutodepEnv  const& ade   = start.autodep_env    ;
+		Rule::SimpleMatch  match = j->simple_match()    ;
 		//
-		for( Node t  : j->targets ) t->set_buildable() ; // necessary for pre_actions()
+		for( Node t  : j->targets ) t->set_buildable() ;                           // necessary for pre_actions()
 		::string get_script ;
 		get_script << "from "<<runner<<" import gen_script\n" ;
 		get_script << "script = gen_script(\n" ;
-		get_script <<  "\tauto_mkdir     = " << mk_py_str(ade.auto_mkdir                                                         ) << '\n' ;
-		get_script << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat                                                        ) << '\n' ;
-		get_script << ",\tis_python      = " << mk_py_str(j->rule->is_python                                                     ) << '\n' ;
-		get_script << ",\tsequence_id    = " <<           pre_start.seq_id                                                         << '\n' ;
-		get_script << ",\tsmall_id       = " <<           start.small_id                                                           << '\n' ;
-		get_script << ",\tkeep_env       = " <<           "()"                                                                     << '\n' ;
-		get_script << ",\tkey            = " << mk_py_str(key                                                                    ) << '\n' ;
-		get_script << ",\tautodep_method = " << mk_py_str(snake(start.method)                                                    ) << '\n' ;
-		get_script << ",\tchroot_dir     = " << mk_py_str(+start.job_space.chroot_dir_s?no_slash(start.job_space.chroot_dir_s):"") << '\n' ;
-		get_script << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                                                    ) << '\n' ;
-		get_script << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)                                                  ) << '\n' ;
-		get_script << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                                                 ) << '\n' ;
-		get_script << ",\tname           = " << mk_py_str(j->name()                                                              ) << '\n' ;
-		get_script << ",\troot_view      = " << mk_py_str(+start.job_space.root_view_s ?no_slash(start.job_space.root_view_s ):"") << '\n' ;
-		get_script << ",\tstdin          = " << mk_py_str(start.stdin                                                            ) << '\n' ;
-		get_script << ",\tstdout         = " << mk_py_str(start.stdout                                                           ) << '\n' ;
-		get_script << ",\ttmp_view       = " << mk_py_str(+start.job_space.tmp_view_s  ?no_slash(start.job_space.tmp_view_s  ):"") << '\n' ;
+		//
+		/**/                               get_script <<  "\tauto_mkdir     = " << mk_py_str(ade.auto_mkdir                        ) << '\n' ;
+		/**/                               get_script << ",\tautodep_method = " << mk_py_str(snake(start.method)                   ) << '\n' ;
+		if (+start.job_space.chroot_dir_s) get_script << ",\tchroot_dir     = " << mk_py_str(no_slash(start.job_space.chroot_dir_s)) << '\n' ;
+		if (+start.cwd_s                 ) get_script << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)                 ) << '\n' ;
+		/**/                               get_script << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                   ) << '\n' ;
+		/**/                               get_script << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat                       ) << '\n' ;
+		/**/                               get_script << ",\tis_python      = " << mk_py_str(j->rule->is_python                    ) << '\n' ;
+		if (ro.flags[ReqFlag::KeepTmp]   ) get_script << ",\tkeep_tmp       = " <<           "True"                                  << '\n' ;
+		/**/                               get_script << ",\tkey            = " << mk_py_str(key                                   ) << '\n' ;
+		/**/                               get_script << ",\tjob            = " <<           +j                                      << '\n' ;
+		/**/                               get_script << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                ) << '\n' ;
+		/**/                               get_script << ",\tname           = " << mk_py_str(j->name()                             ) << '\n' ;
+		if (+start.job_space.root_view_s ) get_script << ",\troot_view      = " << mk_py_str(no_slash(start.job_space.root_view_s )) << '\n' ;
+		/**/                               get_script << ",\tstdin          = " << mk_py_str(start.stdin                           ) << '\n' ;
+		/**/                               get_script << ",\tstdout         = " << mk_py_str(start.stdout                          ) << '\n' ;
+		if (ro.flags[ReqFlag::TmpDir]    ) get_script << ",\ttmp_dir        = " << mk_py_str(ro.flag_args[+ReqFlag::TmpDir]        ) << '\n' ;
+		if (start.tmp_sz_mb!=Npos        ) get_script << ",\ttmp_size_mb    = " <<           start.tmp_sz_mb                         << '\n' ;
+		if (+start.job_space.tmp_view_s  ) get_script << ",\ttmp_view       = " << mk_py_str(no_slash(start.job_space.tmp_view_s  )) << '\n' ;
 		//
 		get_script << ",\tpreamble =\n" << mk_py_str(start.cmd.first ) << '\n' ;
 		get_script << ",\tcmd =\n"      << mk_py_str(start.cmd.second) << '\n' ;
 		//
-		{	get_script << ",\tenv = {" ;
+		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
+		if (+env.first) {
+			get_script << ",\tenv = {" ;
 			First first ;
-			for( auto const& [k,v] : _mk_env(job_info) ) get_script << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
+			for( auto const& [k,v] : env.first ) get_script << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
 			get_script << "}\n" ;
+		}
+		if (+env.second) {
+			get_script << ",\tkeep_env = (" ;
+			First first ;
+			for( ::string const& k : env.second ) get_script << first("",",") << mk_py_str(k) ;
+			get_script << first("",",","") << ")\n" ;
 		}
 		{	get_script << ",\tinterpreter = (" ;
 			First first ;
@@ -233,10 +244,10 @@ namespace Engine {
 			for( auto const& [t,a] : j->pre_actions(match) ) get_script << first("\n\t\t",",\t") << mk_py_str(t->name()) <<" : "<< mk_py_str(snake(a.tag)) <<"\n\t" ;
 			get_script << "}\n" ;
 		}
-		{	get_script << ",\tsource_dirs = (" ;
+		if (+*g_src_dirs_s) {
+			get_script << ",\tsource_dirs = (" ;
 			First first ;
-			for( ::string const& sd_s : *g_src_dirs_s )
-				get_script << first("\n\t\t",",\t") << mk_py_str(no_slash(sd_s)) << "\n\t" ;
+			for( ::string const& sd_s : *g_src_dirs_s ) get_script << first("\n\t\t",",\t") << mk_py_str(no_slash(sd_s)) << "\n\t" ;
 			get_script << first("",",","") << ")\n" ;
 		}
 		{	get_script << ",\tstatic_deps = (" ;
@@ -253,11 +264,30 @@ namespace Engine {
 		}
 		{	get_script << ",\tviews = {" ;
 			First first1 ;
-			for( auto const& [view,phys] : start.job_space.views ) {
-				get_script << first1("\n\t\t",",\t") << mk_py_str(view) << " : (" ;
-				First first2 ;
-				for( ::string const& p : phys ) get_script << first2("",",") <<' '<< mk_py_str(p) <<' ' ;
-				get_script << first2("",",","") << ")\n\t" ;
+			for( auto const& [view,descr] : start.job_space.views ) {
+				SWEAR(+descr.phys) ;
+				get_script << first1("\n\t\t",",\t") << mk_py_str(view) << " : " ;
+				if (+descr.phys.size()==1) {                                       // bind case
+					SWEAR(!descr.copy_up) ;
+					get_script << mk_py_str(descr.phys[0]) ;
+				} else {                                                           // overlay case
+					get_script << '{' ;
+					{	get_script <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
+					}
+					{	get_script <<",\t"<< mk_py_str("lower") <<" : (" ;
+						First first2 ;
+						for( size_t i=1 ; i<descr.phys.size() ; i++ ) get_script << first2("",",") << mk_py_str(descr.phys[i]) ;
+						get_script << first2("",",","") << ")\n\t\t" ;
+					}
+					if (+descr.copy_up) {
+						get_script <<",\t"<< mk_py_str("copy_up") <<" : (" ;
+						First first2 ;
+						for( ::string const& p : descr.copy_up ) get_script << first2("",",") << mk_py_str(p) ;
+						get_script << first2("",",","") << ")\n\t\t" ;
+					}
+					get_script << "}" ;
+				}
+				get_script << "\n\t" ;
 			}
 			get_script << "}\n" ;
 		}
@@ -479,10 +509,12 @@ namespace Engine {
 					switch (ro.key) {
 						case ReqKey::Env : {
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							::vmap_ss env = _mk_env(job_info) ;
-							size_t    w   = 0                 ;
-							for( auto const& [k,v] : env ) w = ::max(w,k.size()) ;
-							for( auto const& [k,v] : env ) audit( fd , ro , fmt_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
+							::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
+							size_t                                      w   = 0                 ;
+							for( auto     const& [k,v] : env.first  ) w = ::max(w,k.size()) ;
+							for( ::string const&  k    : env.second ) w = ::max(w,k.size()) ;
+							for( auto     const& [k,v] : env.first  ) audit( fd , ro , fmt_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
+							for( ::string const&  k    : env.second ) audit( fd , ro , fmt_string(::setw(w),k," ..." ) , true/*as_is*/ , lvl ) ;
 						} break ;
 						case ReqKey::Cmd : //!                                                              as_is
 							if (!has_start) audit( fd , ro , Color::Err , "no info available"              , true , lvl ) ;
@@ -506,14 +538,15 @@ namespace Engine {
 						break ;
 						case ReqKey::Info : {
 							struct Entry {
-								::string txt   ;
-								Color    color = Color::None ;
-								bool     as_is = false       ;
+								::string txt     ;
+								Color    color   = Color::None ;
+								bool     protect = true        ;
 							} ;
-							bool            porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+							bool            porcelaine = ro.flags[ReqFlag::Porcelaine]       ;
+							::string        su         = porcelaine ? ""s : ro.startup_dir_s ;
 							::vmap_s<Entry> tab        ;
-							auto push_entry = [&]( const char* k , ::string const& v , Color c=Color::None , bool as_is=false )->void {
-								tab.emplace_back( k , Entry{v,c,as_is} ) ;
+							auto push_entry = [&]( const char* k , ::string const& v , Color c=Color::None , bool protect=true )->void {
+								tab.emplace_back( k , Entry{v,c,protect} ) ;
 							} ;
 							//
 							::string ids ;
@@ -532,17 +565,17 @@ namespace Engine {
 								}
 							}
 							//
-							push_entry("ids",ids,Color::None,true/*as_is*/) ;
+							push_entry("ids",ids,Color::None,false/*protect*/) ;
 							if ( Node n=job->asking ; +n ) {
 								while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
-								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),ro.startup_dir_s)) ;
-								else            push_entry("required by",localize(mk_file(    n         ->name()),ro.startup_dir_s)) ;
+								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),su)) ;
+								else            push_entry("required by",localize(mk_file(    n         ->name()),su)) ;
 							}
 							if (has_start) {
 								JobInfoStart const& rs              = job_info.start                             ;
 								SubmitAttrs  const& sa              = rs.submit_attrs                            ;
 								::string            cwd             = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
-								bool                has_phy_tmp_dir = +start.autodep_env.tmp_dir_s                ;
+								bool                has_phy_tmp_dir = +start.autodep_env.tmp_dir_s               ;
 								::string            phy_tmp_dir     = no_slash(start.autodep_env.tmp_dir_s)      ;
 								::string            pressure        = sa.pressure.short_str()                    ;
 								//
@@ -554,25 +587,24 @@ namespace Engine {
 											break ;
 										}
 								//
-								if (+sa.reason         ) push_entry( "reason" , localize(reason_str(sa.reason) , ro.startup_dir_s) ) ;
-								if (rs.host!=NoSockAddr) push_entry( "host"   , SockFd::s_host(rs.host)                            ) ;
+								if (+sa.reason         ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
+								if (rs.host!=NoSockAddr) push_entry( "host"   , SockFd::s_host(rs.host)            ) ;
 								//
 								if (+rs.eta) {
-									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(sa.pressure))+" )"      , Color::None,true/*as_is*/ ) ;
-									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                             ) ;
+									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(sa.pressure))+" )"      , Color::None,false/*protect*/ ) ;
+									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                                ) ;
 								}
 								//
-								if ( has_phy_tmp_dir              ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),ro.startup_dir_s) ) ;
-								if ( sa.live_out                  ) push_entry( "live_out"         , "true"                                          ) ;
-								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"       , no_slash(start.job_space.chroot_dir_s)          ) ;
-								if (+start.job_space.root_view_s  ) push_entry( "root_view"        , no_slash(start.job_space.root_view_s )          ) ;
-								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"         , no_slash(start.job_space.tmp_view_s  )          ) ;
-								if (+start.cwd_s                  ) push_entry( "cwd"              , cwd                                             ) ;
-								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"       , "true"                                          ) ;
-								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat"      , "true"                                          ) ;
-								/**/                                push_entry( "autodep"          , snake_str(start.method)                         ) ;
-								if (+start.timeout                ) push_entry( "timeout"          , start.timeout.short_str()                       ) ;
-								if (sa.tag!=BackendTag::Local     ) push_entry( "backend"          , snake_str(sa.tag)                               ) ;
+								if ( sa.live_out                  ) push_entry( "live_out"    , "true"                                 ) ;
+								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"  , no_slash(start.job_space.chroot_dir_s) ) ;
+								if (+start.job_space.root_view_s  ) push_entry( "root_view"   , no_slash(start.job_space.root_view_s ) ) ;
+								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
+								if (+start.cwd_s                  ) push_entry( "cwd"         , cwd                                    ) ;
+								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"  , "true"                                 ) ;
+								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat" , "true"                                 ) ;
+								/**/                                push_entry( "autodep"     , snake_str(start.method)                ) ;
+								if (+start.timeout                ) push_entry( "timeout"     , start.timeout.short_str()              ) ;
+								if ( sa.tag!=BackendTag::Local    ) push_entry( "backend"     , snake_str(sa.tag)                      ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;
@@ -583,13 +615,18 @@ namespace Engine {
 							} catch(::pair_ss const&) {}
 							//
 							if (has_end) {
+								// no need to localize phy_tmp_dir as this is an absolute dir
+								if      (!start.tmp_sz_mb           ) {}
+								else if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , +end.phy_tmp_dir_s?no_slash(end.phy_tmp_dir_s):"<tmpfs>" ) ;
+								else                                  push_entry( "tmp dir"          ,                    no_slash(end.phy_tmp_dir_s)           ) ;
+								//
 								push_entry( "end date" , digest.end_date.str()                                                                                          ) ;
 								push_entry( "rc"       , wstatus_str(digest.wstatus) , WIFEXITED(digest.wstatus)&&WEXITSTATUS(digest.wstatus)==0?Color::None:Color::Err ) ;
-								if (porcelaine) { //!                                                                     as_is
-									push_entry( "cpu time"       , ::to_string(double(digest.stats.cpu  )) , Color::None , true ) ;
-									push_entry( "elapsed in job" , ::to_string(double(digest.stats.job  )) , Color::None , true ) ;
-									push_entry( "elapsed total"  , ::to_string(double(digest.stats.total)) , Color::None , true ) ;
-									push_entry( "used mem"       , ::to_string(       digest.stats.mem   ) , Color::None , true ) ;
+								if (porcelaine) { //!                                                                     protect
+									push_entry( "cpu time"       , ::to_string(double(digest.stats.cpu  )) , Color::None , false ) ;
+									push_entry( "elapsed in job" , ::to_string(double(digest.stats.job  )) , Color::None , false ) ;
+									push_entry( "elapsed total"  , ::to_string(double(digest.stats.total)) , Color::None , false ) ;
+									push_entry( "used mem"       , ::to_string(       digest.stats.mem   ) , Color::None , false ) ;
 								} else {
 									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
 									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_units<size_t>(mem_rsrc_str):0                                                                  ;
@@ -603,51 +640,100 @@ namespace Engine {
 								}
 							}
 							//
-							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg,ro.startup_dir_s)                  ) ;
-							if (+job_info.start.stderr) push_entry( "start stderr"  , job_info.start.stderr                    , Color::Warning ) ;
-							if (+end.msg              ) push_entry( "message"       , localize(end      .msg,ro.startup_dir_s)                  ) ;
+							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg,su)                  ) ;
+							if (+job_info.start.stderr) push_entry( "start stderr"  , job_info.start.stderr      , Color::Warning ) ;
+							if (+end.msg              ) push_entry( "message"       , localize(end      .msg,su)                  ) ;
 							// generate output
 							if (porcelaine) {
-								auto audit_rsrcs = [&]( ::string const& k , ::map_ss const& rsrcs , bool allocated )->void {
-									size_t w2  = 0   ; for( auto const& [k,_] : rsrcs  ) w2 = ::max(w2,mk_py_str(k).size()) ;
+								auto audit_map = [&]( ::string const& k , ::map_ss const& m , bool protect , bool allocated )->void {
+									if (!m) return ;
+									size_t w   = 0   ; for( auto const& [k,_] : m  ) w = ::max(w,mk_py_str(k).size()) ;
 									char   sep = ' ' ;
 									audit( fd , ro , mk_py_str(k)+" : {" , true/*as_is*/ , lvl+1 , ',' ) ;
-									for( auto const& [k,v] : required_rsrcs ) {
+									for( auto const& [k,v] : m ) {
 										::string v_str ;
-										if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = ::to_string(from_string_with_units<size_t>(v)) ;
-										else                                               v_str = mk_py_str(v)                                   ;
-										audit( fd , ro , fmt_string(::setw(w2),mk_py_str(k)," : ",v_str) , false/*as_is*/ , lvl+2 , sep ) ;
+										if      ( !protect                                    ) v_str = v                                              ;
+										else if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = ::to_string(from_string_with_units<size_t>(v)) ;
+										else                                                    v_str = mk_py_str(v)                                   ;
+										audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)," : ",v_str) , true/*as_is*/ , lvl+2 , sep ) ;
 										sep = ',' ;
 									}
 									audit( fd , ro , "}" , true/*as_is*/ , lvl+1 ) ;
 								} ;
-								size_t   w  = mk_py_str("job").size()                         ; for( auto const& [k,_] : tab ) w = ::max(w,mk_py_str(k).size()) ;
-								::string jn = localize(mk_file(job->name()),ro.startup_dir_s) ;
-								audit( fd , ro , fmt_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)) , false/*as_is*/ , lvl+1 , '{' ) ;
-								for( auto const& [k,e] : tab )
-									audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)," : ",e.as_is?e.txt:mk_py_str(e.txt)) , false/*as_is*/ , lvl+1 , ',' ) ;
-								if (+required_rsrcs ) audit_rsrcs( "required resources"  , required_rsrcs  , false/*allocated*/ ) ;
-								if (+allocated_rsrcs) audit_rsrcs( "allocated resources" , allocated_rsrcs , true /*allocated*/ ) ;
-								audit( fd , ro , "}" , true/*as_is*/ , lvl ) ;
+								size_t   w     = mk_py_str("job").size() ; for( auto const& [k,_] : tab ) w = ::max(w,mk_py_str(k).size()) ;
+								::string jn    = job->name()             ;
+								::map_ss views ;
+								for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
+									::string vd_str ;
+									if (vd.phys.size()==1) {
+										vd_str << mk_py_str(vd.phys[0]) ;
+									} else {
+										vd_str <<"{ " ;
+										{	vd_str << mk_py_str("upper") <<':'<< mk_py_str(vd.phys[0]) ; }
+										{	vd_str <<" , "<< mk_py_str("lower") <<':' ;
+											First first ;
+											vd_str <<'(' ;
+											for( size_t i=1 ; i<vd.phys.size() ; i++ ) vd_str << first("",",") << mk_py_str(vd.phys[i]) ;
+											vd_str << first("",",","") <<')' ;
+										}
+										if (+vd.copy_up) {
+											vd_str <<" , "<< mk_py_str("copy_up") <<':' ;
+											First first ;
+											vd_str << '(' ;
+											for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << mk_py_str(cu) ;
+											vd_str << first("",",","") <<')' ;
+										}
+										vd_str <<" }" ;
+									}
+									views[v] = vd_str ;
+								} //!                                                                                                                          as_is
+								/**/                           audit( fd , ro , fmt_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)                   ) , true , lvl+1 , '{' ) ;
+								for( auto const& [k,e] : tab ) audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)    ," : ",e.protect?mk_py_str(e.txt):e.txt) , true , lvl+1 , ',' ) ;
+								/**/                           audit_map( "views"               , views           , false/*protect*/ , false/*allocated*/ ) ;
+								/**/                           audit_map( "required resources"  , required_rsrcs  , true /*protect*/ , false/*allocated*/ ) ;
+								/**/                           audit_map( "allocated resources" , allocated_rsrcs , true /*protect*/ , true /*allocated*/ ) ;
+								/**/                           audit( fd , ro , "}"                                                                           , true , lvl         ) ;
 							} else {
-								size_t w = 0 ; for( auto const& [k,e] : tab ) if (e.txt.find('\n')==Npos) w = ::max(w,k.size()) ;
+								size_t w  = 0 ; for( auto const& [k,e ] : tab                   ) if (e.txt.find('\n')==Npos) w  = ::max(w ,k.size()) ;
+								size_t w2 = 0 ; for( auto const& [v,vd] : start.job_space.views ) if (+vd                   ) w2 = ::max(w2,v.size()) ;
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 								for( auto const& [k,e] : tab ) //!                                                                as_is
-									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , fmt_string(::setw(w),k," : ",e.txt) , false , lvl+1 ) ;
-									else                        { audit( fd , ro , e.color ,                      k+" :"         , false , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
+									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , fmt_string(::setw(w),k," : ",e.txt) , true , lvl+1 ) ;
+									else                        { audit( fd , ro , e.color ,                      k+" :"         , true , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
+								if (w2) {
+									audit( fd , ro , "views :" , true/*as_is*/ , lvl+1 ) ;
+									for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
+										::string vd_str ;
+										if (vd.phys.size()==1) {
+											vd_str << mk_file(vd.phys[0]) ;
+										} else {
+											{	vd_str << "upper:" << mk_file(vd.phys[0]) ; }
+											{	vd_str <<" , "<< "lower" <<':' ;
+												First first ;
+												for( size_t i=1 ; i<vd.phys.size() ; i++ ) vd_str << first("",",") << mk_file(vd.phys[i]) ;
+											}
+											if (+vd.copy_up) {
+												vd_str <<" , "<< "copy_up" <<':' ;
+												First first ;
+												for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << cu ;
+											}
+										}
+										audit( fd , ro , fmt_string(::setw(w2),mk_file(v)," : ",vd_str) , false/*as_is*/ , lvl+2 ) ;
+									}
+								}
 								if ( +required_rsrcs || +allocated_rsrcs ) {
-									size_t w2            = 0                ;
+									size_t w2 = 0 ;
 									for( auto const& [k,_] : required_rsrcs  ) w2 = ::max(w2,k.size()) ;
 									for( auto const& [k,_] : allocated_rsrcs ) w2 = ::max(w2,k.size()) ;
 									::string hdr = "resources :" ;
 									if      (!+allocated_rsrcs) hdr = "required " +hdr ;
 									else if (!+required_rsrcs ) hdr = "allocated "+hdr ;
-									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                                     as_is
+									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                                    as_is
 									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
 									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
 									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
 									else {
-										for( auto const& [k,rv] : required_rsrcs ) { //!                                                         as_is
+										for( auto const& [k,rv] : required_rsrcs ) { //!                                                          as_is
 											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , fmt_string(::setw(w2),k,"(required )"," : ",rv) , true , lvl+2 ) ; continue ; }
 											::string const& av = allocated_rsrcs.at(k) ;
 											if (rv==av                      ) { audit( fd , ro , fmt_string(::setw(w2),k,"           "," : ",rv) , true , lvl+2 ) ; continue ; }
@@ -704,8 +790,8 @@ namespace Engine {
 		for( Node target : targets ) {
 			trace("target",target) ;
 			DepDepth lvl = 1 ;
-			if      (porcelaine      ) audit     ( fd , ro , ""s+sep+' '+mk_py_str(localize(mk_file(target->name()),ro.startup_dir_s))+" :" , true/*as_is*/ ) ;
-			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target                                                   ) ;
+			if      (porcelaine      ) audit     ( fd , ro , ""s+sep+' '+mk_py_str(target->name())+" :" , true/*as_is*/ ) ;
+			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target               ) ;
 			else                       lvl-- ;
 			sep = ',' ;
 			bool for_job = true ;

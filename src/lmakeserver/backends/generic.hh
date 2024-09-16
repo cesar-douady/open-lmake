@@ -323,6 +323,10 @@ namespace Backends {
 		virtual ::string start(JobIdx job) {
 			auto          it = spawned_jobs.find(job) ; if (it==spawned_jobs.end()) return {} ;                     // job was killed in the mean time
 			SpawnedEntry& se = it->second             ;
+			if (!se.id) {
+				Lock lock{id_mutex} ;                                                                               // ensure se.id has been updated
+				SWEAR(se.id,job) ;
+			}
 			//
 			spawned_jobs.start(*this,it) ;
 			::string msg = start_job(job,se) ;
@@ -332,10 +336,7 @@ namespace Backends {
 		virtual ::pair_s<bool/*retry*/> end( JobIdx j , Status s ) {
 			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return {{},false/*retry*/} ;      // job was killed in the mean time
 			SpawnedEntry& se = it->second           ; SWEAR(se.started) ;
-			if (!se.id) {
-				Lock lock{id_mutex} ;                                                                               // ensure se.id has been updated
-				SWEAR(se.id) ;
-			}
+			SWEAR(se.id,j) ;                                                                                        // occurs after start, then se.id has been updated
 			::pair_s<bool/*retry*/> digest = end_job(j,se,s) ;
 			spawned_jobs.erase(*this,it) ;                                                                          // erase before calling launch so job is freed w.r.t. n_jobs
 			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                     // if we have a Req limited by n_jobs, we may have to launch a job
@@ -373,6 +374,7 @@ namespace Backends {
 			if ( !req || reqs.size()<=1 ) {
 				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;                  // ensure the last req is the right one
 				// kill waiting jobs
+				res.reserve(waiting_jobs.size()) ;
 				for( auto const& [j,_] : waiting_jobs ) res.push_back(j) ;
 				waiting_jobs.clear() ;
 				for( auto& [_,re] : reqs ) re.clear() ;
@@ -380,6 +382,7 @@ namespace Backends {
 				auto      rit = reqs.find(req) ; SWEAR(rit!=reqs.end()) ;                                           // we should not kill a non-existent req
 				ReqEntry& re  = rit->second    ;
 				// kill waiting jobs
+				res.reserve(re.waiting_jobs.size()) ;
 				for( auto const& [j,_] : re.waiting_jobs ) {
 					WaitingEntry& we = waiting_jobs.at(j) ;
 					if (we.n_reqs==1) waiting_jobs.erase(j) ;

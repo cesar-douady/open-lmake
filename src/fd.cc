@@ -91,7 +91,7 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 
 SlaveSockFd ServerSockFd::accept() {
 	SlaveSockFd slave_fd = ::accept( fd , nullptr , nullptr ) ;
-	swear_prod(+slave_fd,"cannot accept from ",*this) ;
+	swear_prod(+slave_fd,"cannot accept from",*this) ;
 	return slave_fd ;
 }
 
@@ -99,9 +99,9 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 	if (!*this) init() ;
 	swear_prod(fd>=0,"cannot create socket") ;
 	static_assert( sizeof(in_port_t)==2 && sizeof(in_addr_t)==4 ) ;                            // else use adequate htons/htonl according to the sizes
-	struct sockaddr_in sa = s_sockaddr(server,port) ;
-	Pdate end      ;
-	bool  too_late = false ;
+	struct sockaddr_in sa       = s_sockaddr(server,port) ;
+	Pdate              end      ;
+	bool               too_late = false                   ;
 	for( int i=n_trials ; i>0 ; i-- ) {
 		if (+timeout) {
 			Pdate now = New ;
@@ -121,9 +121,9 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 	}
 	int en = errno ;                                                                           // catch errno before any other syscall
 	close() ;
-	if      (too_late  ) throw ""s+strerror(en)+" after "+timeout.short_str() ;
-	else if (n_trials>1) throw ""s+strerror(en)+" after "+n_trials+" trials"  ;
-	else                 throw ""s+strerror(en)                               ;
+	if      (too_late  ) throw fmt_string("cannot connect to ",s_addr_str(server),':',port," : ",strerror(en)," after ",timeout.short_str()) ;
+	else if (n_trials>1) throw fmt_string("cannot connect to ",s_addr_str(server),':',port," : ",strerror(en)," after ",n_trials," trials" ) ;
+	else                 throw fmt_string("cannot connect to ",s_addr_str(server),':',port," : ",strerror(en)                              ) ;
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {
@@ -136,7 +136,7 @@ in_addr_t SockFd::s_addr(::string const& server) {
 		bool      first0 = false ;                                                                      // prevent leading 0's (unless component is 0)
 		for( char c : server ) {
 			if (c=='.') {
-				if (first) goto Method2 ;
+				if (first) goto ByIfce ;
 				addr  = (addr<<8) | byte ;                                                              // network order is big endian
 				byte  = 0                ;
 				first = true             ;
@@ -146,17 +146,17 @@ in_addr_t SockFd::s_addr(::string const& server) {
 			if ( c>='0' && c<='9' ) {
 				byte = byte*10 + (c-'0') ;
 				if      (first    ) { first0 = first && c=='0' ; first  = false ; }
-				else if (first0   )   goto Method2 ;
-				if      (byte>=256)   goto Method2 ;
+				else if (first0   )   goto ByIfce ;
+				if      (byte>=256)   goto ByIfce ;
 				continue ;
 			}
-			goto Method2 ;
+			goto ByIfce ;
 		}
-		if (first) goto Method2 ;
-		if (n!=4 ) goto Method2 ;
+		if (first) goto ByIfce ;
+		if (n!=4 ) goto ByIfce ;
 		return addr ;
 	}
-Method2 : ;
+ByIfce : ;
 	{	struct ifaddrs* ifa ;
 		if (::getifaddrs(&ifa)==0) {
 			for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next )

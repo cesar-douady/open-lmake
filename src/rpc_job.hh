@@ -185,6 +185,12 @@ ENUM( MatchKind
 )
 // END_OF_VERSIONING
 
+ENUM( MountAction
+,	Access
+,	Read
+,	Write
+)
+
 // START_OF_VERSIONING
 ENUM_3( Status                           // result of job execution
 ,	Early   = EarlyLostErr               // <=Early means output has not been modified
@@ -534,29 +540,52 @@ private :
 
 struct JobSpace {
 	friend ::ostream& operator<<( ::ostream& , JobSpace const& ) ;
+	struct ViewDescr {
+		bool operator+() const { return +phys   ; }
+		bool operator!() const { return !+*this ; }
+		// data
+		// START_OF_VERSIONING
+		::vector_s phys    ;                      // (upper,lower...)
+		::vector_s copy_up ;                      // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
+		// END_OF_VERSIONING
+	} ;
 	// accesses
 	bool operator+() const { return +chroot_dir_s || +root_view_s || +tmp_view_s || +views ; }
 	bool operator!() const { return !+*this                                                ; }
 	// services
+	template<IsStream T> void serdes(T& s) {
+		::serdes(s,chroot_dir_s) ;
+		::serdes(s,root_view_s ) ;
+		::serdes(s,tmp_view_s  ) ;
+		::serdes(s,views       ) ;
+	}
 	bool/*entered*/ enter(
-		::string const&   phy_root_dir_s
-	,	::string const&   phy_tmp_dir_s
-	,	size_t            tmp_sz_mb
-	,	::string const&   work_dir_s
-	,	::vector_s const& src_dirs_s = {}
-	,	bool              use_fuse   = false
-	) const ;
+		::vmap_s<MountAction>& deps               // out
+	,	::string        const& phy_root_dir_s     // in
+	,	::string        const& phy_tmp_dir_s      // .
+	,	size_t                 tmp_sz_mb          // .
+	,	::string        const& work_dir_s         // .
+	,	::vector_s      const& src_dirs_s = {}    // .
+	,	bool                   use_fuse   = false // .
+	) ;
+	void exit() ;
 	//
-	::vmap_s<::vector_s> flat_views() const ; // views after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	::vmap_s<::vector_s> flat_phys() const ;      // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
 	void chk() const ;
+private :
+	bool           _is_lcl_tmp( ::string const&                                                              ) const ;
+	bool/*dst_ok*/ _create    ( ::vmap_s<MountAction>& report , ::string const& dst , ::string const& src={} ) const ;
 	// data
+public :
 	// START_OF_VERSIONING
-	::string             chroot_dir_s = {} ;  // absolute dir which job chroot's to before execution (empty if unused)
-	::string             root_view_s  = {} ;  // absolute dir under which job sees repo root dir     (empty if unused)
-	::string             tmp_view_s   = {} ;  // absolute dir under which job sees tmp dir           (empty if unused)
-	::vmap_s<::vector_s> views        = {} ;  // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
+	::string            chroot_dir_s = {} ;       // absolute dir which job chroot's to before execution (empty if unused)
+	::string            root_view_s  = {} ;       // absolute dir under which job sees repo root dir     (empty if unused)
+	::string            tmp_view_s   = {} ;       // absolute dir under which job sees tmp dir           (empty if unused)
+	::vmap_s<ViewDescr> views        = {} ;       // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
+private :
+	::vector_s _to_umount ;                       // used to unmount upon exit
 } ;
 
 struct JobRpcReq {
@@ -586,21 +615,23 @@ struct JobRpcReq {
 				::serdes(s,msg ) ;
 			break ;
 			case P::End :
-				::serdes(s,digest     ) ;
-				::serdes(s,dynamic_env) ;
-				::serdes(s,msg        ) ;
+				::serdes(s,digest       ) ;
+				::serdes(s,phy_tmp_dir_s) ;
+				::serdes(s,dynamic_env  ) ;
+				::serdes(s,msg          ) ;
 			break ;
 		DF}
 	}
 	// data
 	// START_OF_VERSIONING
-	P         proc        = P::None ;
-	SI        seq_id      = 0       ;
-	JI        job         = 0       ;
-	in_port_t port        = 0       ; // if proc==Start
-	JobDigest digest      ;           // if proc==End
-	::vmap_ss dynamic_env ;           // if proc==End  , env variables computed in job_exec
-	::string  msg         ;
+	P         proc          = P::None ;
+	SI        seq_id        = 0       ;
+	JI        job           = 0       ;
+	in_port_t port          = 0       ; // if proc==Start
+	JobDigest digest        ;           // if proc==End
+	::string  phy_tmp_dir_s ;           // if proc==End
+	::vmap_ss dynamic_env   ;           // if proc==End  , env variables computed in job_exec
+	::string  msg           ;
 	// END_OF_VERSIONING)
 } ;
 
@@ -628,7 +659,7 @@ struct JobRpcReply {
 				::serdes(s,env           ) ;
 				::serdes(s,interpreter   ) ;
 				::serdes(s,job_space     ) ;
-				::serdes(s,keep_tmp_dir  ) ;
+				::serdes(s,keep_tmp      ) ;
 				::serdes(s,key           ) ;
 				::serdes(s,kill_sigs     ) ;
 				::serdes(s,live_out      ) ;
@@ -646,6 +677,17 @@ struct JobRpcReply {
 			break ;
 		DF}
 	}
+	bool/*entered*/ enter(
+		::vmap_s<MountAction>&                                      // out
+	,	::map_ss             & cmd_env                              // .
+	,	::string             & phy_tmp_dir_s                        // .
+	,	::vmap_ss            & dynamic_env                          // .
+	,	pid_t                & first_pid                            // .
+	,	JobIdx                                                      // in
+	,	::string        const& phy_root_dir_s                       // .
+	,	SeqId                                                       // .
+	) ;
+	void exit() ;
 	// data
 	// START_OF_VERSIONING
 	Proc                     proc           = {}                  ;
@@ -658,7 +700,7 @@ struct JobRpcReply {
 	::vmap_ss                env            ;                       // proc==Start
 	::vector_s               interpreter    ;                       // proc==Start , actual interpreter used to execute cmd
 	JobSpace                 job_space      ;                       // proc==Start
-	bool                     keep_tmp_dir   = false               ; // proc==Start
+	bool                     keep_tmp       = false               ; // proc==Start
 	::string                 key            ;                       // proc==Start , key used to uniquely identify repo
 	vector<uint8_t>          kill_sigs      ;                       // proc==Start
 	bool                     live_out       = false               ; // proc==Start
@@ -674,6 +716,8 @@ struct JobRpcReply {
 	size_t                   tmp_sz_mb      = Npos                ; // proc==Start , if not Npos and TMPDIR not defined, tmp size in MB
 	bool                     use_script     = false               ; // proc==Start
 	// END_OF_VERSIONING
+private :
+	::string _tmp_dir_s_to_cleanup ;                                // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
 struct JobMngtRpcReq {

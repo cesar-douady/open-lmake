@@ -69,8 +69,9 @@ class BaseRule(Rule) :
 	,	'Base' : r'([^/]+)'
 	,	'Ext'  : r'([^/]+)'
 	}
-	backend     = backend
-	resources   = {
+	backend   = backend
+	tmp_view  = '/tmp'
+	resources = {
 		'mem' : '100M'
 	,	'tmp' : '1G'
 	}
@@ -167,7 +168,7 @@ class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
 class VersionH(BaseRule) :
 	target = 'version.hh'
 	deps = { 'EXE' : '_bin/version' }
-	cmd  = "./{EXE} $(grep '\.cc$' Manifest) $(grep '\.hh$' Manifest)"
+	cmd  = r"./{EXE} $(grep '\.cc$' Manifest) $(grep '\.hh$' Manifest)"
 
 opt_tab = {}
 class GenOpts(BaseRule,PyRule) :

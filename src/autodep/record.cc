@@ -246,7 +246,7 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange_ ,
 ,	dst     { r , ::move(dst_) , true  , exchange_ , true  , c+".dst" }
 ,	exchange{ exchange_                                               }
 {
-	if (src.real==dst.real) return ;                                                                                          // posix says in this case, it is nop
+	if (src.real==dst.real) return ;    // posix says in this case, it is nop
 	if (exchange          ) c += "<>" ;
 	// rename has not occurred yet so for each dir :
 	// - files are read and unlinked
@@ -260,16 +260,16 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange_ ,
 	::uset_s   unlnks ;
 	::vector_s writes ;
 	if ( src.file_loc<=FileLoc::Dep || dst.file_loc==FileLoc::Repo ) {
-		::vector_s sfxs = walk(s_root_fd(),src.real) ;                                                                        // list only accessible files
-		if ( src.file_loc<=FileLoc::Dep  && +src.real0 ) for( ::string const& s : sfxs ) unlnks.insert   ( src.real + s ) ;
-		if ( src.file_loc<=FileLoc::Dep  && !src.real0 ) for( ::string const& s : sfxs ) reads .push_back( src.real + s ) ;   // overlaid files are not unlinked
-		if ( dst.file_loc==FileLoc::Repo               ) for( ::string const& d : sfxs ) writes.push_back( dst.real + d ) ;
+		::vector_s sfxs = walk(s_root_fd(),src.real) ;                                                                                                                    // list only accessible files
+		if ( src.file_loc<=FileLoc::Dep  && +src.real0 )                                               for( ::string const& s : sfxs ) unlnks.insert   ( src.real + s ) ;   // overlaid files are kept
+		if ( src.file_loc<=FileLoc::Dep  && !src.real0 ) { reads .reserve(reads .size()+sfxs.size()) ; for( ::string const& s : sfxs ) reads .push_back( src.real + s ) ; } // .
+		if ( dst.file_loc==FileLoc::Repo               ) { writes.reserve(writes.size()+sfxs.size()) ; for( ::string const& d : sfxs ) writes.push_back( dst.real + d ) ; }
 	}
 	if ( exchange && ( dst.file_loc<=FileLoc::Dep || src.file_loc==FileLoc::Repo ) ) {
-		::vector_s sfxs = walk(s_root_fd(),dst.real) ;                                                                        // list only accessible files
-		if ( dst.file_loc<=FileLoc::Dep  && +dst.real0 ) for( ::string const& s : sfxs ) unlnks.insert   ( dst.real + s ) ;
-		if ( dst.file_loc<=FileLoc::Dep  && !dst.real0 ) for( ::string const& s : sfxs ) reads .push_back( dst.real + s ) ;   // overlaid files are not unlinked
-		if ( src.file_loc==FileLoc::Repo               ) for( ::string const& d : sfxs ) writes.push_back( src.real + d ) ;
+		::vector_s sfxs = walk(s_root_fd(),dst.real) ;                                                                                                                    // list only accessible files
+		if ( dst.file_loc<=FileLoc::Dep  && +dst.real0 )                                               for( ::string const& s : sfxs ) unlnks.insert   ( dst.real + s ) ;   // overlaid files are kept
+		if ( dst.file_loc<=FileLoc::Dep  && !dst.real0 ) { reads .reserve(reads .size()+sfxs.size()) ; for( ::string const& s : sfxs ) reads .push_back( dst.real + s ) ; } // .
+		if ( src.file_loc==FileLoc::Repo               ) { writes.reserve(writes.size()+sfxs.size()) ; for( ::string const& d : sfxs ) writes.push_back( src.real + d ) ; }
 	}
 	for( ::string const& w : writes ) {
 		auto it = unlnks.find(w) ;

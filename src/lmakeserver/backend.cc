@@ -198,7 +198,7 @@ namespace Backends {
 		SubmitAttrs              submit_attrs        ;
 		::vmap_ss                rsrcs               ;
 		Pdate                    eta                 ;
-		bool                     keep_tmp_dir        = false/*garbage*/    ;
+		bool                     keep_tmp            = false/*garbage*/    ;
 		::vector<ReqIdx>         reqs                ;
 		Trace trace(BeChnl,"_s_handle_job_start",jrr) ;
 		_s_starting_job = jrr.job ;
@@ -211,10 +211,10 @@ namespace Backends {
 			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
 			StartEntry& entry = it->second                         ;
 			trace("entry1",entry) ;
-			submit_attrs = ::move(entry.submit_attrs) ;
-			rsrcs        =        entry.rsrcs         ;
-			reqs         =        entry.reqs          ;
-			tie(eta,keep_tmp_dir) = entry.req_info() ;
+			submit_attrs      = ::move(entry.submit_attrs) ;
+			rsrcs             =        entry.rsrcs         ;
+			reqs              =        entry.reqs          ;
+			tie(eta,keep_tmp) = entry.req_info()           ;
 		}
 		trace("submit_attrs",submit_attrs) ;
 		::vmap_s<DepDigest>& deps          = submit_attrs.deps ;
@@ -256,7 +256,7 @@ namespace Backends {
 					start_msg_err     = msg_err                     ;
 					jrr.msg <<set_nl<< rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
 				}
-				keep_tmp_dir |= start_none_attrs.keep_tmp_dir ;
+				keep_tmp |= start_none_attrs.keep_tmp ;
 				//
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
 			[[fallthrough]] ;
@@ -297,7 +297,7 @@ namespace Backends {
 				/**/                               reply.autodep_env.src_dirs_s    = *g_src_dirs_s                                     ;
 				/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
 				/**/                               reply.date_prec                 = g_config->date_prec                               ;
-				/**/                               reply.keep_tmp_dir              = keep_tmp_dir                                      ;
+				/**/                               reply.keep_tmp                  = keep_tmp                                          ;
 				/**/                               reply.key                       = g_config->key                                     ;
 				/**/                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
 				/**/                               reply.live_out                  = submit_attrs.live_out                             ;

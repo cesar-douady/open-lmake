@@ -23,10 +23,10 @@
 @end macro
 
 @set TITLE The lmake Manual
-@set UPDATED 22 April 2024
-@set UPDATED-MONTH April 2024
+@set UPDATED 03 September 2024
+@set UPDATED-MONTH September 2024
 @set EDITION @dfn{work in progress}
-@set VERSION 22.09
+@set VERSION 24.09
 
 @settitle @value{TITLE}
 @setchapternewpage odd
@@ -492,7 +492,7 @@ If it starts with @code{r} or @code{R}, reverse video is assumed.
 Else output is not colorized.
 @end itemize
 
-If the @code{LMAKE_VIDEO} environment variable is defined, it is processed as if provided to the @code{--video} option.
+If @code{$LMAKE_VIDEO} is defined, it is processed as if provided to the @code{--video} option.
 
 @section @lmake
 
@@ -531,7 +531,7 @@ This way, if you want a reliable run, then you must not modify the repository wh
 But if you are running @lmake in an interactive mode, it is very comfortable to be able to go on with your edition session while some regression testing is running.
 At worst, you will have an error mentionning a file has been overwritten, but you will not have an incoherent result based on some old files and some newer files.
 
-Before processing arguments, @lmake prepends the content of the @code{LMAKE_ARGS} environment variable, separated by spaces.
+Before processing arguments, @lmake prepends the content of @code{$LMAKE_ARGS}, separated by spaces.
 This eases the management of user preferences.
 For example, a user may like to systematically pass the @code{-a} and @code{-t} options, in which case it can set @code{LMAKE_ARGS='-a -t'}.
 
@@ -603,6 +603,9 @@ There must be a single command while there may be 0 or more options.
 
 Arguments can be files or a single job as described in generic arguments description.
 
+In porcelaine mode, reported files are relative to the root of the repository.
+Otherwise, they are relative to the current working directory.
+
 Commands :
 @itemize @bullet
 @item @code{-b}|@code{--bom} : Output the list of all source files necessary to build the arguments.
@@ -663,7 +666,7 @@ If a target does not exist, it is deemed secondary information and is shown in g
 
 @section @code{ldebug}
 
-Usage : @code{ldebug [-k|--key <key>] [-n] target}
+Usage : @code{ldebug [-k|--key <key>] [-n] [-t] target}
 
 @code{ldebug} runs a job in a debug environment.
 
@@ -673,44 +676,48 @@ This module must contain a @code{gen_script} function taking a description of th
 
 When @code{ldebug} is run, the debug script is generated in a file withing the @file{LMAKE} directory and, unless the @code{-n} or @code{--no-exec} option is given, it is executed.
 
+The @code{-t} or @code{--keep-tmp} option is managed the same way as for @code{lmake}.
+In case the job specifies @code{$TMPDIR} as @code{...}, @code{$TMPDIR} must be put in the environment when @code{ldebug} is executed, as it is during job execution.
+
 To write a module for use with @code{ldebug}, the best way is to start from the closest standard module in @file{lib/lmake_debug} and modify it to fit your specific needs.
 
 Unless overridden, the following standard debug methods are provided :
 @multitable @columnfractions 0.05 0.15 0.4 0.4
 @headitem Key @tab Module @tab Python job @tab Shell job
-@item
+@item <default>
 @tab @file{lmake_debug.default}
 @tab Job is run under pdb control.
 @tab Job is run with the @code{-x} flag (so that commands are traced).
 @item g
 @tab @file{lmake_debug.gdb}
 @tab Job interpreter is run under gdb control.
-@tab Job interpreter is run under gdb control.
+Alias @code{r} is redefined to run with adequate redirections.
+@tab idem
 @item u
 @tab @file{lmake_debug.pudb}
 @tab Job is run under pudb control.
 @tab Not supported
 @item e
 @tab @file{lmake_debug.enter}
-@tab Job is not run, just an interactive shell (as provided by the @code{$SHELL} environment variable) is open in the job environment.
-@tab Job is not run, just an interactive shell (as provided by the @code{$SHELL} environment variable) is open in the job environment.
+@tab Job is not run.
+An interactive shell (as provided by @code{$SHELL}, which defaults to @file{/bin/bash}) is open in the job environment (environment, cwd, namespace, chroot, mounts, tmp, ...).
+@code{$HOME} and @code{$SHLVL} are kept from actual environment to ease interactive session.
+In particular @code{$SHLVL} can be used to provide a differentiated prompt if adequately defined in the start up file (usually @file{~/.bashrc}).
+@tab idem
 @item n
 @tab @file{lmake_debug.none}
 @tab Job is run normally with no debug support.
-@tab Job is run normally with no debug support.
+@tab idem
 @end multitable
 
 In addition to running the job, these standard modules provide the following environment variables to the job :
 @itemize @minus
-@item @code{LMAKE_DEBUG_KEY}    : the key provided by the @code{-k} or @code{--key} option.
-@item @code{LMAKE_DEBUG_STDIN}  : the file connected as stdin to @code{ldebug} when it was launched (usually a tty)
+@item @code{$LMAKE_DEBUG_KEY}    : the key provided by the @code{-k} or @code{--key} option.
+@item @code{$LMAKE_DEBUG_STDIN}  : the file connected as stdin to @code{ldebug} when it was launched (usually a tty)
 if the job has its stdin redirected (in case the @code{dep} rule attribute is defined).
-@item @code{LMAKE_DEBUG_STDOUT} : the file connected as stdout to @code{ldebug} when it was launched (usually a tty)
+@item @code{$LMAKE_DEBUG_STDOUT} : the file connected as stdout to @code{ldebug} when it was launched (usually a tty)
 if the job has its stdout redirected (in case the @code{target} rule attribute is defined).
 @end itemize
-
-When an interactive session is started, the @code{HOME} and @code{SHLVL} are preserved to provide a smooth user environment.
-In particular @code{$SHLVL} can be used to provide a differentiated prompt if adequately defined in the start up file (usually @file{~/.bashrc}).
 
 Providing a working @code{pudb} with redirected stdin/stdout necessitated to patch it. This patch is dynamically applied as part of the job start up procedure.
 
@@ -830,10 +837,6 @@ For option descriptions, refer to the corresponding rule attribute.
 Options :
 @multitable @columnfractions 0.05 0.1 0.15 0.7
 @headitem short option @tab long options @tab rule attribute @tab Description
-@item @code{-m}
-@tab  @code{--autodep-method}
-@tab  @code{autodep}
-@tab
 @item @code{-a}
 @tab  @code{--auto-mkdir}
 @tab  @code{auto_mkdir}
@@ -854,6 +857,10 @@ Options :
 @tab  @code{--ignore-stat}
 @tab  @code{ignore_stat}
 @tab No argument, the presence of this option is equivalent of a @code{True} value for the rule attribute.
+@item @code{-j}
+@tab  @code{--job}
+@tab
+@tab The job id. Only used to compute the tmp directory if @code{-k} is also passed.
 @item @code{-k}
 @tab  @code{--keep-env}
 @tab  @code{environ_*}
@@ -862,6 +869,10 @@ Options :
 @tab  @code{--link-support}
 @tab  @code{link_support}
 @tab This attribute is in @code{lmake.config}, not on the rule.
+@item @code{-m}
+@tab  @code{--autodep-method}
+@tab  @code{autodep}
+@tab
 @item @code{-o}
 @tab  @code{--out}
 @tab
@@ -874,20 +885,36 @@ Options :
 @tab  @code{--source-vdirs}
 @tab  @code{source_dirs}
 @tab The list must be provided as a python @code{tuple} or @code{list} (beware of quoting with regard to shell).
+@item @code{-S}
+@tab  @code{--tmp-size-mb}
+@tab  @code{resources.tmp}
+@tab The size of the tmp directory. Used if created using tmpfs.
 @item @code{-t}
 @tab  @code{--tmp-view}
 @tab  @code{tmp_view}
 @tab
+@item @code{-T}
+@tab  @code{--keep-tmp}
+@tab
+@tab keep tmp directory after execution.
 @item @code{-v}
 @tab  @code{--views}
 @tab  @code{views}
-@tab The mapping must be provided as a python @code{dict}  mapping views to their corresponding list of origin (beware of quoting with regard to shell).
+@tab The mapping must be provided as a python @code{dict}  mapping views to their corresponding description (beware of quoting with regard to shell) :
+@itemize @minus
+@item either a @code{str} in which case a bind mount will be performed.
+@item or a @code{dict} with keys @code{upper} (a @code{str}) and @code{lower} (a single @code{str} or a list of @code{str}) to describe an overlay mount.
+A key @code{copy_up} (a single @code{str} or a list of @code{str}) may be provided to list directories to create in upper and files to copy from lower to upper.
+Directories a recognized when element ends with @code{/}.
+Such copying may be necessary to provide read/write access to elements that are otherwise read-only in lower.
+@code{copy_up} elements are provided relative to the root of the view.
+@end itemize
 @item @code{-w}
 @tab  @code{--work-dir}
 @tab
 @tab The name of a directory.
 Its content is unpredictable after execution.
-This is necessary as soon as one of the views has more than one origin (in that case, overlayfs is used, which requires aorking directory).
+This is necessary as soon as one of the views is implemented with an overlay mount.
 @end multitable
 
 @section @code{xxhsum}
@@ -1275,9 +1302,9 @@ Rust uses a special link mechanism which defeats the default @code{ld_audit} aut
 This base @code{class} merely sets the autodep method to @code{ld_preload} which works around this problem.
 
 @subsection @code{class HomelessRule}
-This @code{class} removes the @code{HOME} environment variable, which is then set by default to the value of the @code{TMPDIR} environment variable.
+This @code{class} removes @code{$HOME} from the environment, which is then set by default to @code{$TMPDIR}.
 This is a way to ensure that various tools behave the same way as if they were run for the first time.
-By default the @code{HOME} environment variable points to the root of the repository, which permits to put various init code there.
+By default @code{$HOME} points to the root of the repository, which permits to put various init code there.
 
 @subsection @code{class TraceRule}
 This @code{class} defines a preamble for use by shell rules that set the @code{-x} flag (which traces commands) so that traces are sent to stdout.
@@ -1383,9 +1410,9 @@ If @code{None}, no restriction apply.
 The default value should suit the needs of most users.
 
 @item @code{local_admin_dir}
-@tab @code{LMAKE}
+@tab @file{LMAKE}
 @tab Clean
-@tab This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
+@tab This variable contains a directory to be used for @lmake administration in addition to the @file{LMAKE} directory.
 Actually most of the accesses are made in this directory (cf @pxref{dir-local_admin_dir}).
 
 @item @code{link_support}
@@ -2086,7 +2113,7 @@ It must be an absolute path not lying in the temporary directory (e.g. @code{'/r
 
 If @code{None} or @code{''}, no bind mount is performed.
 
-If performed, the @code{$ROOT_DIR} env variable will reflect this value.
+If performed, @code{$ROOT_DIR} will reflect this value.
 
 As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
 
@@ -2105,16 +2132,16 @@ As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok,
 
 This attribute defines the name which the temporary directory available for job execution is mounted on (cf @pxref {namespaces}).
 
-If @code{None}, @code{''} or not specified, this directory is not mounted and job must use the @code{$TMPDIR} environment variable to identify it.
+If @code{None}, @code{''} or not specified, this directory is not mounted and job must use @code{$TMPDIR} to identify it.
 Else, it must be an absolute path.
-in this case, the @code{$TMPDIR} environment variable is redefined as this value when job is executed.
+in this case, @code{$TMPDIR} is redefined as this value when job is executed.
 
 The physical directory is :
 @itemize
 @item @code{$TMPDIR} if it is specified in the environment of the job. Note that it need not be unique as @lmake will create a unique sub-directory within it.
 @item Else, a @code{tmpfs} file system created for the job execution if the @code{'tmp'} resource is defined, in which case this resource indicates the size of the created @code{tmpfs}.
-if the value of this resource is 0, no @code{tmpfs} file system is created.
-@item Else, a directory determined by @lmake lying in the @code{LMAKE} directory.
+If the value of this resource is 0, no @code{tmpfs} file system is created and access to the tmp directory (either through the @code{tmp_view} if any or @code{'/tmp'}) will generate an error.
+@item Else, a directory determined by @lmake lying in the @file{LMAKE} directory.
 @end itemize
 
 As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
@@ -2136,6 +2163,14 @@ This attribute defines a mapping from logical views to physical directories.
 Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a @code{/} or not.
 Files must be mapped to files and directories to directories.
 Both logical views and physical locations may be inside or outside the repository, but it is not possible to map an external view to a local location.
+Physical description may be :
+@itemize @minus
+@item a @code{str} in which case a bind mount is performed.
+@item a @code{dict} with keys @code{upper} (a @code{str}) and @code{lower} (a single @code{str} or a list of @code{str}) in which case an overlay mount is performed.
+Key @code{copy_up} (a single @code{str} or a list of @code{str}) may also be used to provide a list of directories to create in upper or files to copy from lower to upper.
+Directories are recognized when they end with @code{/}.
+Such @code{copy_up} items are provided relative to the root of the view.
+@end itemize
 The mapping is done through bind mounts (cf @pxref {namespaces}).
 
 @section @code{cwd}
@@ -2314,18 +2349,18 @@ At the end of the supplied executable and arguments, @code{'-c'} and the actual 
 
 Whether @code{cmd} is a @code{str} or a @code{function}, the following environment variable are automatically set, if not explicitly set by the @code{environ} attribute :
 @itemize @minus
-@item @code{LD_AUDIT}          : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_audit'} (cf @pxref{autodep}).
-@item @code{LD_PRELOAD}        : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_preload'} or @code{'ld_preload_jemalloc'} (cf @pxref{autodep}).
-@item @code{LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (cf @pxref{autodep}).
-@item @code{PWD}               : The initial directory in which @code{cmd} is run, as provided by the @code{cwd} attribute (often the root of the repository).
-@item @code{ROOT_DIR}          : The root of the repository.
-@item @code{SEQUENCE_ID}       : A value which is unique for each run.
-It is  @code{1} initially and is incremented each time a job is run.
-@item @code{SMALL_ID}          : A value which is unique among running job at any given time.
+@item @code{$LD_AUDIT}          : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_audit'} (cf @pxref{autodep}).
+@item @code{$LD_PRELOAD}        : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_preload'} or @code{'ld_preload_jemalloc'} (cf @pxref{autodep}).
+@item @code{$LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (cf @pxref{autodep}).
+@item @code{$PWD}               : The initial directory in which @code{cmd} is run, as provided by the @code{cwd} attribute (often the root of the repository).
+@item @code{$ROOT_DIR}          : The root of the repository.
+@item @code{$SEQUENCE_ID}       : A value which is unique for each run.
+It is @code{1} initially and is incremented each time a job is run.
+@item @code{$SMALL_ID}          : A value which is unique among running job at any given time.
 It is always at least @code{1} and efforts are made to maintain it as small as possible.
-@item @code{TMPDIR}            : The name of a directory which is empty at the start of the job.
+@item @code{$TMPDIR}            : The name of a directory which is empty at the start of the job.
 If the temporary directory is not kept through the use of the @code{keep_tmp} attribute or the @code{-t} option, this directory is cleaned up at the end of the job execution.
-@item @code{HOME}              : This variable is set to the value of the TMPDIR variable if not set.
+@item @code{$HOME}              : This variable is set to the value of the TMPDIR variable if not set.
 However it is set by default to the root of the repository by the @code{Rule} base class.
 @end itemize
 
@@ -3002,6 +3037,8 @@ In addition to dedicated resources, all backends manage the following 3 resource
 The backend is expected to ensure that such memory is available for the job.
 Unit must be coherent with the one used in the configuration. It is MB by default.
 @item @code{tmp} : The size of necessary temporary disk space.
+By default temporary disk space is not managed, i.e. @code{$TMPDIR} is set (to a freshly created empty empty dir which is cleaned up after execution)
+with no size limit (other than the physical disk size) but no reservation is made in the backend.
 @end itemize
 
 @anchor{local-backend}
@@ -3045,9 +3082,9 @@ The SGE backend connects to a SGE daemon to schedule jobs, which allows :
 The configuration is composed of :
 @itemize @bullet
 @item @code{bin_dir} : The directory in which to find SGE executables such as @code{qsub}. This entry must be specified.
-@item @code{cell} : The cell used by the SGE daemon. This is translated into the @code{SGE_CELL} environment variable when SGE commands are called.
+@item @code{cell} : The cell used by the SGE daemon. This is translated into @code{$SGE_CELL} when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.
-@item @code{cluster} : The cluster used by the SGE daemon. This is translated into the @code{SGE_CLUSTER} environment variable when SGE commands are called.
+@item @code{cluster} : The cluster used by the SGE daemon. This is translated into @code{$SGE_CLUSTER} when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.
 @item @code{default_prio} : the priority used to submit jobs to the SGE daemon if none is specified on the @code{lmake} command line.
 @item @code{n_max_queued_jobs} : @lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
@@ -3063,7 +3100,7 @@ A reasonable value probably lies in the 20-100 range.
 This key is meant to be a short identifier of the repository.
 By default it is the base name of the repository followed by @code{:}.
 Note that SGE precludes some characters and these are replaced by close looking characters (e.g. @code{;} instead of @code{:}).
-@item @code{root_dir} : The root directory of the SGE daemon. This is translated into the @code{SGE_ROOT} environment variable when SGE commands are called. This entry must be specified.
+@item @code{root_dir} : The root directory of the SGE daemon. This is translated into @code{$SGE_ROOT} when SGE commands are called. This entry must be specified.
 @item @code{cpu_resource} : This is the name of a resource used to require cpu's.
 For example if specified as @code{cpu_r} and the rule of a job contains @code{resources=@{'cpu':2@}}, this is translated into @code{-l cpu_r=2} on the @code{qsub} command line.
 @item @code{mem_resource} : This is the name of a resource used to require memory in MB.
@@ -3075,8 +3112,9 @@ For example if specified as @code{tmp_r} and the rule of a job contains @code{re
 The @code{resources} rule attributes is composed of :
 @itemize @minus
 @item standard resources @code{cpu}, @code{mem} and @code{tmp}.
-@item @code{queue} : the queue used to submit jobs to the SGE daemon.
-@item any other resource passed to the SGE daemon through the @code{-l} option of @code{qsub}.
+@item @code{hard} : @code{qsub} options to be used after a @code{-hard} option.
+@item @code{soft} : @code{qsub} options to be used after a @code{-soft} option.
+@item any other resource passed to the SGE daemon through the @code{-l} @code{qsub} option.
 @end itemize
 
 @section slurm backend
@@ -3156,12 +3194,12 @@ From this information @lmake can determine if accesses were within the constrain
 Several methods are available to spy jobs.
 Not all methods are supported on all systems, though.
 
-In all cases, the environment variable @code{LMAKE_AUTO_DEP_ENV} must remain in the environment untouched for the autodep mechanism to work correctly.
+In all cases, @code{$LMAKE_AUTO_DEP_ENV} must remain in the environment untouched for the autodep mechanism to work correctly.
 
 @subsection @code{'None'} or @code{'none'}
 
 The job is not instrumented.
-The only intrusion is the presence of the environment variable @code{LMAKE_AUTODEP_ENV}.
+The only intrusion is the presence of @code{$LMAKE_AUTODEP_ENV}.
 
 The only way to report activity is through the use of @code{ldepend} / @code{ltarget} or similar functions available in the @code{lmake} module.
 
@@ -3172,7 +3210,7 @@ This method is @strong{not} recommanded.
 
 @subsection @code{'LdPreload'} or @code{'ld_preload'}
 
-The job is run with a library loaded using the @code{LD_PRELOAD} environment variable that catches some calls to the @file{libc.so} (such as @code{open}) to track activity.
+The job is run with a library loaded using @code{$LD_PRELOAD} that catches some calls to the @file{libc.so} (such as @code{open}) to track activity.
 This environment variable may be modified as long as the librairy introduced by @lmake stays present.
 
 This requires @file{libc.so} to be dynamically linked.
@@ -3194,7 +3232,7 @@ This method is recommanded on systems that lack the rtld-audit capability when j
 
 @subsection @code{'LdAudit'} or @code{'ld_audit'}
 
-This method is similar to @code{ld_preload} except that the rtld-audit (through the @code{LD_AUDIT} environment variable) mechanism is used instead of @code{LD_PRELOAD},
+This method is similar to @code{ld_preload} except that the rtld-audit (through @code{$LD_AUDIT}) mechanism is used instead of @code{$LD_PRELOAD},
 which is less invasive (cases where it is not transparent are very awkward).
 This environment variable may be modified as long as the librairy introduced by @lmake stays present.
 

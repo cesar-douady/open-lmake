@@ -34,7 +34,7 @@ class Job (utils.Job) :
 
 	def config(self) :
 		root = self.root_view or lmake.root_dir
-		cwd  = osp.join(root,self.cwd)
+		cwd  = osp.join(root,self.cwd) if self.cwd else root
 		return {
 			'folders': [
 				{ 'path' : root }

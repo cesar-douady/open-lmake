@@ -17,7 +17,7 @@ static bool started() { return _g_started ; }
 
 void* get_orig(const char* libcall) {
 	void* res = ::dlsym(RTLD_NEXT,libcall) ;
-	swear_prod(res,"cannot find symbol ",libcall," in libc") ;
+	swear_prod(res,"cannot find symbol",libcall,"in libc") ;
 	return res ;
 }
 

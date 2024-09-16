@@ -31,8 +31,22 @@ def no_nl(s) :
 # XXX : handle ROOT_DIR and TMPDIR in case of views
 class Job :
 
+	chroot_dir  = None
+	cwd         = None
+	root_view   = None
+	source_dirs = None
+	tmp_dir     = None
+	tmp_size_mb = None
+	tmp_view    = None
+
 	def __init__(self,attrs) :
+		self.env      = {}
+		self.keep_env = ()
 		for k,v in attrs.items() : setattr(self,k,v)
+		self.env['ROOT_DIR'   ] = mk_shell_str(lmake.root_dir)
+		self.env['SEQUENCE_ID'] = str(0)
+		self.env['SMALL_ID'   ] = str(0)
+		self.keep_env           = (*self.keep_env,'DISPLAY','LMAKE_HOME','LMAKE_SHLVL','XAUTHORITY','XDG_RUNTIME_DIR')
 
 	#
 	# functions for generating cmd file
@@ -96,36 +110,35 @@ class Job :
 			mkdir -p "$TMPDIR"
 		''')
 
-	def starter(self,*args) :
-		autodep            = f'{osp.dirname(osp.dirname(osp.dirname(__file__)))}/bin/autodep'
-		keep_env           = self.keep_env + ('DISPLAY','LMAKE_HOME','LMAKE_SHLVL','TMPDIR','XAUTHORITY','XDG_RUNTIME_DIR')
-		env                = dict(self.env)
-		env['ROOT_DIR'   ] = mk_shell_str(lmake.root_dir  )
-		env['SEQUENCE_ID'] = str         (self.sequence_id)
-		env['SMALL_ID'   ] = str         (self.small_id   )
+	def starter(self,*args,enter=False,**kwds) :
+		autodep  = f'{osp.dirname(osp.dirname(osp.dirname(__file__)))}/bin/autodep'
 		#
-		preamble  = 'export LMAKE_HOME="$HOME"\n'
-		preamble += 'export LMAKE_SHLVL="${SHLVL:-1}"\n'
-		preamble += 'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
+		preamble = ''
+		if enter        : preamble +=  'export LMAKE_HOME="$HOME"\n'                             # use specified value in job, but original one in entered shell
+		if enter        : preamble +=  'export LMAKE_SHLVL="${SHLVL:-1}"\n'                      # .
+		if True         : preamble +=  'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
+		if self.tmp_dir : preamble += f'export TMPDIR={mk_shell_str(self.tmp_dir)}\n'
 		#
 		res = mk_shell_str(autodep)
-		if True             : res += f' -m{self.autodep_method                          }'
-		if self.auto_mkdir  : res +=  ' -a'
-		if self.chroot_dir  : res += f' -c{mk_shell_str(self.chroot_dir                )}'
-		if self.cwd         : res += f' -d{mk_shell_str(self.cwd                       )}'
-		if self.env         : res += f' -e{mk_shell_str(repr(env)                      )}'
-		if self.ignore_stat : res +=  ' -i'
-		if True             : res += f' -k{mk_shell_str(repr(keep_env)                 )}'
-		if True             : res += f' -l{self.link_support                            }'
-		if True             : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses')}"
-		if self.root_view   : res += f' -r{mk_shell_str(     self.root_view            )}'
-		if self.source_dirs : res += f' -s{mk_shell_str(repr(self.source_dirs)         )}'
-		if self.tmp_view    : res += f' -t{mk_shell_str(     self.tmp_view             )}'
-		if self.views       : res += f' -v{mk_shell_str(repr(self.views)               )}'
-		if self.views       : res += f" -w{mk_shell_str(     debug_dir+'/work'         )}" # necessary in case a view is an overlay
-		if args             : res += ''.join(' '+x for x in args)                          # must be before redirections to files if args contains redirections
-		if self.stdin       : res += f' <{mk_shell_str(self.stdin )}'
-		if self.stdout      : res += f' >{mk_shell_str(self.stdout)}'
+		if self.auto_mkdir        : res +=  ' -a'
+		if self.chroot_dir        : res += f' -c{mk_shell_str(     self.chroot_dir            )}'
+		if self.cwd               : res += f' -d{mk_shell_str(     self.cwd                   )}'
+		if self.env               : res += f' -e{mk_shell_str(repr(self.env                  ))}'
+		if self.ignore_stat       : res +=  ' -i'
+		if True                   : res += f' -j{self.job                                      }'
+		if True                   : res += f' -k{mk_shell_str(repr(self.keep_env             ))}'
+		if True                   : res += f' -l{                  self.link_support           }'
+		if True                   : res += f' -m{                  self.autodep_method         }'
+		if True                   : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
+		if self.root_view         : res += f' -r{mk_shell_str(     self.root_view             )}'
+		if self.source_dirs       : res += f' -s{mk_shell_str(repr(self.source_dirs          ))}'
+		if self.tmp_size_mb!=None : res += f' -S{mk_shell_str(repr(self.tmp_size_mb          ))}'
+		if self.tmp_view          : res += f' -t{mk_shell_str(     self.tmp_view              )}' # tmp_size_mb may be 0, in which case it must be passed
+		if self.views             : res += f' -v{mk_shell_str(repr(self.views                ))}'
+		#
+		if True                   : res += ''.join(' '+x for x in args)                          # must be before redirections to files if args contains redirections
+		if self.stdin             : res += f' <{mk_shell_str(self.stdin )}'
+		if self.stdout            : res += f' >{mk_shell_str(self.stdout)}'
 		#
 		return preamble,res
 
@@ -181,26 +194,27 @@ class Job :
 	def cmd_file(self) :
 		return self.debug_dir+'/cmd'
 
-	def gen_start_line(self) :
-		preamble,line = self.starter(*(mk_shell_str(c) for c in self.interpreter),mk_shell_str(self.cmd_file()))
-		return preamble+line+'\n'                                                                                # do not use exec to launch autodep so as to keep stdin & stdout open
+	def gen_start_line(self,**kwds) :
+		preamble,line = self.starter( *(mk_shell_str(c) for c in self.interpreter) , mk_shell_str(self.cmd_file()) , **kwds )
+		return preamble+line+'\n'                                                                                             # do not use exec to launch autodep so as to keep stdin & stdout open
 
-	def gen_lmake_env(self) :
-		def add_env(key,val) :
-			nonlocal res
-			res           += f'export {key}={val}\n'
-			self.keep_env += (key,)
+	def gen_lmake_env(self,enter=False,**kwds) :
 		res = ''
-		if True        : add_env('LMAKE_DEBUG_KEY'   ,mk_shell_str(self.key))
-		if self.stdin  : add_env('LMAKE_DEBUG_STDIN' ,'/proc/$$/fd/0'       )
-		if self.stdout : add_env('LMAKE_DEBUG_STDOUT','/proc/$$/fd/1'       )
+		self.env['LMAKE_DEBUG_KEY'] = mk_shell_str(self.key)
+		if enter :
+			def add_env(key,val) :
+				nonlocal res
+				res += f'export {key}={val}\n'
+				self.keep_env.append(key)
+			if self.stdin  : add_env('LMAKE_DEBUG_STDIN' ,'/proc/$$/fd/0')
+			if self.stdout : add_env('LMAKE_DEBUG_STDOUT','/proc/$$/fd/1')
 		return res
 
-	def gen_preamble(self) :
-		res  = self.gen_init       ()
-		res += self.gen_pre_actions()
-		res += self.gen_tmp_dir    ()
-		res += self.gen_lmake_env  ()
+	def gen_preamble(self,**kwds) :
+		res  = self.gen_init       (      )
+		res += self.gen_pre_actions(      )
+		res += self.gen_tmp_dir    (      )
+		res += self.gen_lmake_env  (**kwds)
 		return res
 
 	def write_cmd(self,**kwds) :
@@ -212,6 +226,6 @@ class Job :
 
 	def gen_script(self,**kwds) :
 		self.write_cmd(**kwds)
-		res  = self.gen_preamble  ()
-		res += self.gen_start_line()
+		res  = self.gen_preamble  (**kwds)
+		res += self.gen_start_line(**kwds)
 		return res

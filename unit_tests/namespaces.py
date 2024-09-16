@@ -13,13 +13,17 @@ if __name__!='__main__' :
 	,	'tmp_map_ref'
 	)
 
-	for tmp_view in (None,'/tmp','/new_tmp') :
-		for root_view in (None,'/repo') :
+	for tmp_view in (None,'tmp','new_tmp') :
+		for root_view in (None,'repo') :
 			class Dut(Rule) :
-				name   = f'dut {tmp_view} {root_view}'
-				target = f'dut.{tmp_view}{root_view}'
-				if tmp_view  : tmp_view  = tmp_view
-				if root_view : root_view = root_view
+				name      = f'dut {tmp_view} {root_view}'
+				target    = f'dut.{tmp_view}.{root_view}'
+				resources = {}
+				if tmp_view :
+					tmp_view         = '/'+tmp_view
+					resources['tmp'] = '100M'
+				if root_view :
+					root_view = '/'+root_view
 				cmd = multi_strip('''
 					unset PWD                     # ensure pwd calls getcwd
 					pwd          > $TMPDIR/stdout
@@ -32,7 +36,7 @@ if __name__!='__main__' :
 	class TmpMap(Rule) :
 		target   = 'tmp_map_dut'
 		tmp_view = '/tmp'
-		views    = { '/tmp/merged/' : ('/tmp/upper/','/tmp/lower/') }
+		views    = { '/tmp/merged/' : { 'upper':'/tmp/upper/' , 'lower':'/tmp/lower/' } }
 		cmd = '''
 			echo lower > /tmp/lower/x
 			echo upper > /tmp/merged/x
@@ -54,5 +58,5 @@ else :
 
 	print('lower\nupper',file=open('tmp_map_ref','w'))
 
-	ut.lmake( *(f'dut.{t}{r}' for t in (None,'/tmp','/new_tmp') for r in (None,'/repo') ) ,         done=6 )
-	ut.lmake( 'tmp_map_test'                                                              , new=1 , done=2 )
+	ut.lmake( *(f'dut.{t}.{r}' for t in (None,'tmp','new_tmp') for r in (None,'repo') ) ,         done=6 )
+	ut.lmake( 'tmp_map_test'                                                            , new=1 , done=2 )

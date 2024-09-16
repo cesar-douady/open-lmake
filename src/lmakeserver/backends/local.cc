@@ -122,6 +122,7 @@ namespace Backends::Local {
 				/**/                                         if (rsrc_keys.size()!=dct.size()) throw "cannot change resource names while lmake is running"s ;
 				for( size_t i=0 ; i<rsrc_keys.size() ; i++ ) if (rsrc_keys[i]!=dct[i].first  ) throw "cannot change resource names while lmake is running"s ;
 			} else {
+				rsrc_keys.reserve(dct.size()) ;
 				for( auto const& [k,v] : dct ) {
 					rsrc_idxs[k] = rsrc_keys.size() ;
 					rsrc_keys.push_back(k) ;
@@ -180,8 +181,10 @@ namespace Backends::Local {
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx , SpawnedEntry const& se ) const {            // called after job_exec has had time to start
 			SWEAR(se.id) ;
-			if (kill_process(se.id,0)) return {{}/*msg*/,HeartbeatState::Alive} ;
-			/**/                       return {{}/*msg*/,HeartbeatState::Lost } ;
+			int wstatus = 0 ;
+			if      ( ::waitpid(se.id,&wstatus,WNOHANG)==0           ) return {{}/*msg*/,HeartbeatState::Alive} ;   // process is still alive
+			else if ( !WIFEXITED(wstatus) || WEXITSTATUS(wstatus)!=0 ) return {{}/*msg*/,HeartbeatState::Err  } ;   // process just died with an error
+			else                                                       return {{}/*msg*/,HeartbeatState::Lost } ;   // process died long before (already waited) or just died with no error
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (se.zombie) return ;

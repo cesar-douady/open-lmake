@@ -14,6 +14,7 @@ using namespace Disk ;
 using namespace Py   ;
 
 ::string keys() {
+	Gil gil ;
 	try {
 		Ptr<Object> py_cfg_data = py_eval(read_content(ADMIN_DIR_S "lmake/config_data.py")) ;
 		Object&     py_cfg      = py_cfg_data->as_a<Dict>().get_item("config")              ;
@@ -32,11 +33,16 @@ int main( int argc , char* argv[] ) {
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{},{
-		{ ReqFlag::Key    , { .short_name='k' , .has_arg=true  , .doc="entry into config.debug to specify debug method" } }
-	,	{ ReqFlag::NoExec , { .short_name='n' , .has_arg=false , .doc="dont execute, just generate files"               } }
+		{ ReqFlag::Key     , { .short_name='k' , .has_arg=true  , .doc="entry into config.debug to specify debug method" } }
+	,	{ ReqFlag::NoExec  , { .short_name='n' , .has_arg=false , .doc="dont execute, just generate files"               } }
+	,	{ ReqFlag::KeepTmp , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"                } }
 	}} ;
-	syntax.flags[+ReqFlag::Key].doc <<' '<< keys() ; // add available keys to usage
+	syntax.flags[+ReqFlag::Key].doc <<' '<< keys() ;                // add available keys to usage
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
+	if (has_env("TMPDIR")) {                                        // provide TMPDIR env var in case job specifies TMPDIR as ...
+		cmd_line.flags                       |= ReqFlag::TmpDir   ;
+		cmd_line.flag_args[+ReqFlag::TmpDir]  = get_env("TMPDIR") ;
+	}
 	//
 	if ( cmd_line.args.size()<1 ) syntax.usage("need a target to debug"                                ) ;
 	if ( cmd_line.args.size()>1 ) syntax.usage("cannot debug "s+cmd_line.args.size()+" targets at once") ;

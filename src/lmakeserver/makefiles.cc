@@ -158,7 +158,7 @@ namespace Engine::Makefiles {
 	}
 
 	static void _stamp_deps(::string const& action) {
-		swear_prod( ::rename( _deps_file(action,true/*new*/).c_str() , _deps_file(action,false/*new*/).c_str() )==0 , "stamp deps for ",action) ;
+		swear_prod( ::rename( _deps_file(action,true/*new*/).c_str() , _deps_file(action,false/*new*/).c_str() )==0 , "stamp deps for" , action ) ;
 	}
 
 	static ::pair<Ptr<Dict>,::vector_s/*deps*/> _read_makefiles( ::string const& action , ::string const& module ) {
@@ -302,10 +302,11 @@ namespace Engine::Makefiles {
 						env_stream << first("",",")<<'\t'<< ::setw(w)<<mk_py_str(::string_view(*e,eq-*e)) <<" : "<< mk_py_str(::string(eq+1)) << '\n' ;
 				env_stream << "}\n" ;
 			}
-			_g_env["HOME"] = no_slash(*g_root_dir_s)       ;
-			_g_env["PATH"] = STD_PATH                      ;
-			_g_env["UID" ] = to_string(getuid())           ;
-			_g_env["USER"] = ::getpwuid(getuid())->pw_name ;
+			/**/                          _g_env["HOME"           ] = no_slash(*g_root_dir_s)       ;
+			/**/                          _g_env["PATH"           ] = STD_PATH                      ;
+			/**/                          _g_env["UID"            ] = to_string(getuid())           ;
+			/**/                          _g_env["USER"           ] = ::getpwuid(getuid())->pw_name ;
+			if (PY_LD_LIBRARY_PATH[0]!=0) _g_env["LD_LIBRARY_PATH"] = PY_LD_LIBRARY_PATH            ;
 		}
 		//
 		::pair_s<bool/*done*/> config_digest = _refresh_config( config , py_info , config_deps , startup_dir_s , nfs_guard ) ;
@@ -319,7 +320,7 @@ namespace Engine::Makefiles {
 			if ( old.rules_module!=new_.rules_module ) new_rules = !old.rules_module ? Reason::Set : !new_.rules_module ? Reason::Cleared : Reason::Modified ;
 		} ;
 		try {
-			Gil::Anti no_gil { gil } ;                                                             // release gil as new_config needs Backend which is of lower priority
+			NoGil no_gil { gil } ;                                                                 // release gil as new_config needs Backend which is of lower priority
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -336,7 +337,7 @@ namespace Engine::Makefiles {
 		bool invalidate_src = srcs_digest.second ;
 		if (invalidate_src) {
 			try {
-				Gil::Anti no_gil { gil } ;
+				NoGil no_gil { gil } ;
 				//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate_src &= Persistent::new_srcs( ::move(srcs) , ::move(src_dirs_s) , dynamic ) ;
 			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -350,7 +351,7 @@ namespace Engine::Makefiles {
 		bool invalidate_rule = rules_digest.second ;
 		if (invalidate_rule) {
 			try {
-				Gil::Anti no_gil { gil } ;                                                         // release gil as new_rules acquires it when needed
+				NoGil no_gil { gil } ;                                                             // release gil as new_rules acquires it when needed
 				//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate_rule &= Persistent::new_rules( ::move(rules) , dynamic ) ;
 			} catch (::string const& e) { //!  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

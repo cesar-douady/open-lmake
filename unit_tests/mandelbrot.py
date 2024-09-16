@@ -49,9 +49,10 @@ else :
 
 	import ut
 
-	try    : sp.check_output('cargo') # dont test rust if rust is not installed
+	try :
+		sp.check_output('cargo') # dont test rust if rust is not installed
 	except :
-		print('cargo not available',file=sys.stderr)
+		print('cargo not available',file=open('skipped','w'))
 		exit()
 
 	os.symlink('../mandelbrot.zip','mandelbrot.zip')

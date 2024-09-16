@@ -38,12 +38,13 @@ namespace Backends::Sge {
 		// accesses
 		bool operator==(RsrcsData const&) const = default ;
 		// data
-		int16_t            prio   = 0 ; // priority specified with the -p option (required with lmake -b)
-		uint16_t           cpu    = 0 ; // number of logical cpu (uses cpu_rsrc as resource with the -l option)
-		uint32_t           mem    = 0 ; // memory   in MB        (uses mem_rsrc as resource with the -l option)
-		uint32_t           tmp    = 0 ; // tmp disk              (uses tmp_rsrc as resource with the -l option)
-		::string           queue  ;     // queue specified with the -q option
-		::vmap_s<uint64_t> tokens ;     // generic resources     (qsub -l<key>=<val> for each entry)
+		int16_t            prio   = 0  ; // priority              : qsub -p <prio>     (prio comes from lmake -b               )
+		uint16_t           cpu    = 0  ; // number of logical cpu : qsub -l <cpu_rsrc> (cpu_rsrc comes from config, always hard)
+		uint32_t           mem    = 0  ; // memory   in MB        : qsub -l <mem_rsrc> (mem_rsrc comes from config, always hard)
+		uint32_t           tmp    = -1 ; // tmp disk in MB        : qsub -l <tmp_rsrc> (tmp_rsrc comes from config, always hard) default : dont manage tmp size (provide infinite storage, reserve none)
+		::vmap_s<uint64_t> tokens ;      // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
+		::vector_s         hard   ;      // hard options          : qsub -hard <val>
+		::vector_s         soft   ;      // soft options          : qsub -soft <val>
 		// services
 		::vmap_ss mk_vmap(void) const ;
 	} ;
@@ -54,15 +55,13 @@ namespace std {
 	template<> struct hash<Backends::Sge::RsrcsData> {
 		size_t operator()(Backends::Sge::RsrcsData const& rd) const {
 			Hash::Xxh h ;
-			h.update(rd.prio ) ;
-			h.update(rd.cpu  ) ;
-			h.update(rd.mem  ) ;
-			h.update(rd.tmp  ) ;
-			h.update(rd.queue) ;
-			for( auto const& [k,v] : rd.tokens ) {
-				h.update(k) ;
-				h.update(v) ;
-			}
+			h.update(rd.prio         ) ;
+			h.update(rd.cpu          ) ;
+			h.update(rd.mem          ) ;
+			h.update(rd.tmp          ) ;
+			h.update(rd.tokens.size()) ; for( auto     const& [k,v] : rd.tokens ) { h.update(k) ; h.update(v) ; }
+			h.update(rd.hard  .size()) ; for( ::string const&    v  : rd.hard   )                 h.update(v) ;
+			h.update(rd.soft  .size()) ; for( ::string const&    v  : rd.soft   )                 h.update(v) ;
 			return +h.digest() ;
 		}
 	} ;
@@ -224,16 +223,17 @@ namespace Backends::Sge {
 			SWEAR(+reqs) ;                                                                                                                     // why launch a job if for no req ?
 			int16_t prio = ::numeric_limits<int16_t>::min() ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
 			//
-			if ( +rs->queue           )           { sge_cmd_line.push_back("-q") ; sge_cmd_line.push_back(                         rs->queue ) ; }
-			if ( prio                 )           { sge_cmd_line.push_back("-p") ; sge_cmd_line.push_back(               to_string(prio     )) ; }
-			if ( +cpu_rsrc && rs->cpu )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
-			if ( +mem_rsrc && rs->mem )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
-			if ( +tmp_rsrc && rs->tmp )           { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
-			for( auto const& [k,v] : rs ->tokens) { sge_cmd_line.push_back("-l") ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
+			if ( prio                                             ) { sge_cmd_line.push_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
+			if ( +cpu_rsrc && rs->cpu                             ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
+			if ( +mem_rsrc && rs->mem                             ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
+			if ( +tmp_rsrc && (rs->tmp!=0&&rs->tmp!=uint32_t(-1)) ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
+			for( auto const& [k,v] : rs ->tokens )                  { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
+			if ( +rs->hard                                        ) {                                   for( ::string const& s : rs->hard ) sge_cmd_line.push_back(s) ; }
+			if ( +rs->soft                                        ) { sge_cmd_line.push_back("-soft") ; for( ::string const& s : rs->soft ) sge_cmd_line.push_back(s) ; }
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//
-			::pair_s<bool/*ok*/> digest = sge_exec_client( ::move(sge_cmd_line) , true/*gather_stdout*/ ) ;
+			::pair_s<bool/*ok*/> digest = sge_exec_client( ::move(sge_cmd_line) , true/*gather_stdout*/ ) ; // need to gather sge id
 			Trace trace(BeChnl,"Sge::launch_job",repo_key,j,digest,sge_cmd_line,rs,STR(verbose)) ;
 			if (!digest.second) throw "cannot submit SGE job "+Job(j)->name() ;
 			return from_string<SgeId>(digest.first) ;
@@ -246,9 +246,9 @@ namespace Backends::Sge {
 			cmd_line[0] = sge_bin_dir_s+cmd_line[0] ;
 			Child child {
 				.cmd_line  = cmd_line
-			,	.stdin_fd  = Child::NoneFd
-			,	.stdout_fd = gather_stdout ? Child::NoneFd : Child::NoneFd
-			,	.stderr_fd = Child::NoneFd
+			,	.stdin_fd  =                                 Child::NoneFd
+			,	.stdout_fd = gather_stdout ? Child::PipeFd : Child::NoneFd
+			,	.stderr_fd =                                 Child::NoneFd
 			,	.add_env   = &add_env
 			} ;
 			child.spawn() ;
@@ -301,21 +301,71 @@ namespace Backends::Sge {
 	//
 
 	::ostream& operator<<( ::ostream& os , RsrcsData const& rsd ) {
-		/**/                                  os <<"(cpu:"<<       rsd.cpu       ;
-		if (rsd.mem)                          os <<",mem:"<<       rsd.mem<<"MB" ;
-		if (rsd.tmp)                          os <<",tmp:"<<       rsd.tmp<<"MB" ;
-		for( auto const& [k,v] : rsd.tokens ) os <<','<< k <<':'<< v             ;
+		/**/                                  os <<"(cpu="<<       rsd.cpu       ;
+		if (rsd.mem              )            os <<",mem="<<       rsd.mem<<"MB" ;
+		if (rsd.tmp!=uint32_t(-1))            os <<",tmp="<<       rsd.tmp<<"MB" ;
+		for( auto const& [k,v] : rsd.tokens ) os <<','<< k <<'='<< v             ;
+		if (+rsd.hard            )            os <<",H:"<<         rsd.hard      ;
+		if (+rsd.soft            )            os <<",S:"<<         rsd.soft      ;
 		return                                os <<')'                           ;
 	}
 
+	::vector_s _split_rsrcs(::string const& s) {
+		// validate syntax as violating it could lead really unexpected behavior, such as executing an unexpected command
+		::vector_s res = split(s) ;
+		size_t     i   ;
+		for( i=0 ; i<res.size() ; i++ ) {
+			::string const& v = res[i] ;
+			if (v[0]!='-') throw "bad option does not start with - : "+v ;
+			switch (v[1]) {
+				case 'a' : if (v=="-a"      ) { i++ ;                                                   continue ; }
+				/**/       if (v=="-ac"     ) { i++ ;                                                   continue ; }
+				/**/       if (v=="-ar"     ) { i++ ;                                                   continue ; } break ;
+				case 'A' : if (v=="-A"      ) { i++ ;                                                   continue ; } break ;
+				case 'b' : if (v=="-binding") { i++ ; i += res[i]=="env"||res[i]=="pe"||res[i]=="set" ; continue ; } break ;
+				case 'c' : if (v=="-c"      ) { i++ ;                                                   continue ; }
+				/**/       if (v=="-ckpt"   ) { i++ ;                                                   continue ; }
+				/**/       if (v=="-clear"  ) {                                                         continue ; } break ;
+				case 'd' : if (v=="-dc"     ) { i++ ;                                                   continue ; }
+				/**/       if (v=="-display") { i++ ;                                                   continue ; }
+				/**/       if (v=="-dl"     ) { i++ ;                                                   continue ; } break ;
+				case 'h' : if (v=="-h"      ) { i++ ;                                                   continue ; } break ;
+				case 'j' : if (v=="-js"     ) { i++ ;                                                   continue ; } break ;
+				case 'l' : if (v=="-l"      ) { i++ ;                                                   continue ; } break ;
+				case 'm' : if (v=="-m"      ) { i++ ;                                                   continue ; }
+				/**/       if (v=="-masterq") { i++ ;                                                   continue ; } break ;
+				case 'M' : if (v=="-M"      ) { i++ ;                                                   continue ; } break ;
+				case 'n' : if (v=="-notify" ) {                                                         continue ; }
+				/**/       if (v=="-now"    ) { i++ ;                                                   continue ; } break ;
+				case 'N' : if (v=="-N"      ) { i++ ;                                                   continue ; } break ;
+				case 'P' : if (v=="-P"      ) { i++ ;                                                   continue ; } break ;
+				case 'p' : if (v=="-p"      ) { i++ ;                                                   continue ; }
+				/**/       if (v=="-pe"     ) { i++ ; i++ ;                                             continue ; }
+				/**/       if (v=="-pty"    ) { i++ ;                                                   continue ; } break ;
+				case 'q' : if (v=="-q"      ) { i++ ;                                                   continue ; } break ;
+				case 'R' : if (v=="-R"      ) { i++ ;                                                   continue ; } break ;
+				case 'r' : if (v=="-r"      ) { i++ ;                                                   continue ; } break ;
+				case 's' : if (v=="-sc"     ) { i++ ;                                                   continue ; } break ;
+				case 'v' : if (v=="-v"      ) { i++ ;                                                   continue ; } break ;
+				case 'V' : if (v=="-V"      ) {                                                         continue ; } break ;
+				case 'w' : if (v=="-wd"     ) { i++ ;                                                   continue ; } break ;
+				default : ;
+			}
+			throw "unexpected option : "+v ;
+		}
+		if (i!=res.size()) throw "option "+res.back()+" expects an argument" ;
+		return res ;
+	}
 	inline RsrcsData::RsrcsData(::vmap_ss&& m) {
 		sort(m) ;
 		for( auto&& [k,v] : ::move(m) ) {
 			switch (k[0]) {
-				case 'c' : if (k=="cpu"  ) { cpu   = from_string_with_units<    uint16_t>(v) ; continue ; } break ;
-				case 'm' : if (k=="mem"  ) { mem   = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
-				case 'q' : if (k=="queue") { queue =                                      v  ; continue ; } break ;
-				case 't' : if (k=="tmp"  ) { tmp   = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_units<    uint16_t>(v) ; continue ; } break ;
+				case 'h' : if (k=="hard") { hard = _split_rsrcs                        (v) ; continue ; } break ;
+				case 'm' : if (k=="mem" ) { mem  = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 's' : if (k=="soft") { soft = _split_rsrcs                        (v) ; continue ; } break ;
+				case 't' : if (k=="tmp" ) { tmp  = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case '-' : throw "resource cannot start with - :"+k ;
 				default : ;
 			}
 			tokens.emplace_back( k , from_string_with_units<uint64_t>(v) ) ;
@@ -324,9 +374,9 @@ namespace Backends::Sge {
 	::vmap_ss RsrcsData::mk_vmap(void) const {
 		::vmap_ss res ;
 		// It may be interesting to know the number of cpu reserved to know how many thread to launch in some situation
-		/**/                              res.emplace_back( "cpu" , to_string_with_units     (cpu) ) ;
-		/**/                              res.emplace_back( "mem" , to_string_with_units<'M'>(mem) ) ;
-		/**/                              res.emplace_back( "tmp" , to_string_with_units<'M'>(tmp) ) ;
+		if (cpu              )            res.emplace_back( "cpu" , to_string_with_units     (cpu) ) ;
+		if (mem              )            res.emplace_back( "mem" , to_string_with_units<'M'>(mem) ) ;
+		if (tmp!=uint32_t(-1))            res.emplace_back( "tmp" , to_string_with_units<'M'>(tmp) ) ;
 		for( auto const& [k,v] : tokens ) res.emplace_back( k     , to_string_with_units     (v  ) ) ;
 		return res ;
 	}

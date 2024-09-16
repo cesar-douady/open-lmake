@@ -309,7 +309,8 @@ template<::floating_point F> F from_string( const char* txt , bool empty_ok=fals
 /**/   ::string mk_json_str (::string_view  ) ;
 /**/   ::string mk_shell_str(::string_view  ) ;
 /**/   ::string mk_py_str   (::string_view  ) ;
-inline ::string mk_py_str   (bool          b) { return b ?"True":"False" ; }
+inline ::string mk_py_str   (const char*   s) { return mk_py_str(::string_view(s,strlen(s))) ; }
+inline ::string mk_py_str   (bool          b) { return b ? "True" : "False"                  ; }
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
 inline constexpr bool is_space(char c) {
@@ -340,8 +341,8 @@ template<char Delimiter=0> ::string mk_printable(::string     && txt) {
 }
 template<char Delimiter=0> ::string parse_printable( ::string const& , size_t& pos ) ;
 
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&               ) ;
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&               , bool empty_ok=true ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos , bool empty_ok=true ) ;
 
 inline void     set_nl      (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
 inline void     set_no_nl   (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
@@ -509,7 +510,7 @@ template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
 #define DF default : FAIL() ; // for use at end of switch statements
 
 inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
-	swear_prod(pid>1,"killing process ",pid) ;                                  // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
+	swear_prod(pid>1,"killing process",pid) ;                                   // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
 	//
 	if (!as_group          ) return ::kill(pid,sig)==0 ;
 	if (::kill(-pid,sig)==0) return true               ;                        // fast path : group exists, nothing else to do
@@ -959,11 +960,6 @@ template<MutexLvl Lvl_,class M=void,bool S=false/*shared*/> struct Mutex : ::con
 template<MutexLvl Lvl,class M=void,bool S=true/*shared*/> using SharedMutex = Mutex<Lvl,M,S> ;
 
 template<class M,bool S=false/*shared*/> struct Lock {
-	struct Anti {
-		Anti (Lock& l) : _lock{l} { _lock.unlock() ; }
-		~Anti(       )            { _lock.lock  () ; }
-		Lock& _lock ;
-	} ;
 	// cxtors & casts
 	Lock (                          ) = default ;
 	Lock ( Lock&& l                 )              { *this = ::move(l) ;     }
@@ -978,7 +974,6 @@ template<class M,bool S=false/*shared*/> struct Lock {
 		return *this ;
 	}
 	// services
-	Anti anti        ()              { return Anti(*this) ;                                              }
 	void swear_locked() requires(!S) { _mutex->swear_locked       () ;                                   }
 	void swear_locked() requires( S) { _mutex->swear_locked_shared() ;                                   }
 	void lock        () requires(!S) { SWEAR(!_locked) ; _locked = true  ; _mutex->lock         (_lvl) ; }
@@ -1005,11 +1000,11 @@ inline ::string get_env( ::string const& name , ::string const& dflt={} ) {
 }
 inline void set_env( ::string const& name , ::string const& val ) {
 	int rc = ::setenv( name.c_str() , val.c_str() , true ) ;
-	swear_prod(rc==0,"cannot setenv ",name," to ",val) ;
+	swear_prod(rc==0,"cannot setenv",name,"to",val) ;
 }
 inline void del_env(::string const& name) {
 	int rc = ::unsetenv(name.c_str()) ;
-	swear_prod(rc==0,"cannot unsetenv ",name) ;
+	swear_prod(rc==0,"cannot unsetenv",name) ;
 }
 
 ::string beautify_filename(::string const&) ;

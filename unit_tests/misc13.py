@@ -42,4 +42,4 @@ else :
 
 	print('step=2',file=open('step.py','w'))
 	os.unlink('sdep')
-	ut.lmake( 'dut' , done=2 , steady=1 )               # check sdep is not forgetten due to execution w/o hdep
+	ut.lmake( 'dut' , done=2 , steady=1 ) # check sdep is not forgetten due to execution w/o hdep

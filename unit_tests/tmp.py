@@ -86,6 +86,5 @@ else :
 
 	import ut
 
-	if Rule.autodep!='ptrace' :
-		ut.lmake( 'ok1','ok2' , done=6 ) # check target is out of date
-		ut.lmake( 'test.chk'  , done=3 )
+	ut.lmake( 'ok1','ok2' , done=6 ) # check target is out of date
+	ut.lmake( 'test.chk'  , done=3 )

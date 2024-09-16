@@ -51,7 +51,7 @@ struct Fd {
 	void no_std() {
 		if ( !*this || fd>Std.fd ) return ;
 		int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , Std.fd+1 ) ;
-		swear_prod(new_fd>Std.fd,"cannot duplicate ",fd) ;
+		swear_prod(new_fd>Std.fd,"cannot duplicate",fd) ;
 		close() ;
 		fd = new_fd ;
 	}
@@ -181,7 +181,7 @@ struct ServerSockFd : SockFd {
 		if (!*this  ) init() ;
 		if (!backlog) backlog = 100 ;
 		int rc = ::listen(fd,backlog) ;
-		swear_prod(rc==0,"cannot listen on ",*this," with backlog ",backlog," (",rc,')') ;
+		swear_prod(rc==0,"cannot listen on",*this,"with backlog",backlog,'(',rc,')') ;
 	}
 	::string service(in_addr_t addr) const { return s_service(addr,port()) ; }
 	::string service(              ) const { return s_service(     port()) ; }
@@ -237,7 +237,7 @@ struct Epoll {
 		static_assert(sizeof(T)<=4) ;
 		epoll_event event { .events=write?EPOLLOUT:EPOLLIN , .data={.u64=(uint64_t(uint32_t(data))<<32)|uint32_t(fd_) } } ;
 		int rc = epoll_ctl( int(fd) , EPOLL_CTL_ADD , int(fd_) , &event ) ;
-		swear_prod(rc==0,"cannot add ",fd_," to epoll ",fd," (",strerror(errno),')') ;
+		swear_prod(rc==0,"cannot add",fd_,"to epoll",fd,'(',strerror(errno),')') ;
 		cnt += wait ;
 	}
 	void del( Fd fd_ , bool wait=true ) {                                                                                                        // wait must be coherent with corresponding add

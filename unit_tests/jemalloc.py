@@ -45,7 +45,7 @@ else :
 	else           :     os.environ['LD_PRELOAD'] = sav
 
 	if not has_jemalloc :
-		print('jemalloc not available',file=sys.stderr)
+		print('jemalloc not available',file=open('skipped','w'))
 		exit()
 
 	import ut

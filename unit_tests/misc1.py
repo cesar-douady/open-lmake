@@ -30,8 +30,8 @@ else :
 	os.environ['LMAKE_ARGS'] = 'test'
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( failed=1 , new=0 , rc=1 )                               # unexpected write to a
+	ut.lmake( failed=1 , new=0 , rc=1 )      # unexpected write to a
 
 	os.unlink('a')
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( steady=1 , new=0 , rc=0 )                               # fixed
+	ut.lmake( steady=1 , new=0 , rc=0 )      # fixed

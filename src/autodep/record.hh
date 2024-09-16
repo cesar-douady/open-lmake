@@ -27,7 +27,7 @@ struct Record {
 		SWEAR(_s_autodep_env) ;
 		pid_t pid = ::getpid() ;
 		if (!(+_s_root_fd&&_s_root_pid==pid)) {
-			_s_root_fd = { Disk::open_read(Disk::no_slash(_s_autodep_env->root_dir_s)) , true/*no_std*/ } ;                   // avoid poluting standard descriptors
+			_s_root_fd = { Disk::open_read(Disk::no_slash(_s_autodep_env->root_dir_s)) , true/*no_std*/ } ;                       // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 			_s_root_pid = pid ;
 		}
@@ -38,10 +38,14 @@ struct Record {
 		if ( !(+_s_report_fd&&_s_report_pid==pid) && +_s_autodep_env->service ) {
 			// establish connection with server
 			::string const& service = _s_autodep_env->service ;
-			if (service.back()==':') _s_report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
-			else                     _s_report_fd = ClientSockFd(service).detach()                                          ;
-			_s_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
-			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",service) ;
+			try {
+				if (service.back()==':') _s_report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
+				else                     _s_report_fd = ClientSockFd(service).detach()                                          ;
+				_s_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
+			} catch (::string const& e) {
+				fail_prod("while trying to report deps",e) ;
+			}
+			swear_prod(+_s_report_fd,"cannot connect to job_exec through",service) ;
 			_s_report_pid = pid ;
 		}
 		return _s_report_fd ;
@@ -77,24 +81,24 @@ struct Record {
 		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
 		// use a random number as starting point for access id's, then it is incremented at each access
 		// this ensures reasonable uniqueness while avoiding heavy host/pid/local_id to ensure uniqueness
-		AutoCloseFd fd = ::open("/dev/urandom",O_RDONLY) ; SWEAR(+fd)                  ; // getrandom is not available in CentOS7
+		AutoCloseFd fd = ::open("/dev/urandom",O_RDONLY) ; SWEAR(+fd)                  ;                                          // getrandom is not available in CentOS7
 		ssize_t     rc = ::read(fd,&_s_id,sizeof(_s_id)) ; SWEAR(rc==sizeof(_s_id),rc) ;
-		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;        // ensure we can confortably generate ids while never generating 0
+		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;                                                 // ensure we can confortably generate ids while never generating 0
 	}
 	// static data
 public :
-	static bool                                                   s_static_report  ;     // if true <=> report deps to s_deps instead of through s_report_fd() socket
+	static bool                                                   s_static_report  ; // if true <=> report deps to s_deps instead of through s_report_fd() socket
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
-	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;     // map file to read accesses
+	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ; // map file to read accesses
 private :
 	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                                  // a file descriptor to repo root dir
-	static pid_t       _s_root_pid    ;                                                  // pid in which _s_root_fd is valid
+	static Fd          _s_root_fd     ;                                              // a file descriptor to repo root dir
+	static pid_t       _s_root_pid    ;                                              // pid in which _s_root_fd is valid
 public:
 	static Fd          _s_report_fd   ;
-	static pid_t       _s_report_pid  ;                                                  // pid in which _s_report_fd is valid
-	static uint64_t    _s_id          ;                                                  // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
+	static pid_t       _s_report_pid  ;                                              // pid in which _s_report_fd is valid
+	static uint64_t    _s_id          ;                                              // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -123,19 +127,21 @@ private :
 	// - it is then confirmed (with an ok arg to manage errors) after the access
 	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
 	//
-	void _report_dep   ( FileLoc fl , ::string&& f , FileInfo fi , Accesses a , ::string&& c={} ) const {
-		if ( fl<=FileLoc::Dep  && +a ) report_access( ::move(f) , fi , a  , false/*write*/ , ::move(c) ) ;
+	void _report_dep( FileLoc fl , ::string&& f , FileInfo fi , Accesses a , ::string&& c={} ) const {
+		if ( fl<=FileLoc::Dep && +a ) report_access( ::move(f) , fi , a  , false/*write*/ , ::move(c) ) ;
 	}
 	uint64_t/*id*/ _report_target( FileLoc fl , ::string&& f ,                            ::string&& c={} ) const {
 		if (fl<=FileLoc::Repo) return report_access( ::move(f) , {} , {} , true/*write*/  , ::move(c) ) ;
 		else                   return 0                                                                 ;
 	}
-	uint64_t/*id*/ _report_unlnk ( FileLoc fl , ::string&& f , ::string&& c={} ) const {
+	uint64_t/*id*/ _report_unlnk( FileLoc fl , ::string&& f , ::string&& c={} ) const {
 		if (fl<=FileLoc::Repo) return report_access( ::move(f) , {} , {} , true/*write*/  , ::move(c) ) ;
 		else                   return 0                                                                 ;
 	}
 	//
-	void _report_dep   ( FileLoc fl , ::string&& f , Accesses a , ::string&& c={} ) const { if (+a) _report_dep( fl , ::move(f) , FileInfo(s_root_fd(),f) , a , ::move(c) ) ; }
+	void _report_dep( FileLoc fl , ::string&& f , Accesses a , ::string&& c={} ) const {
+		if (+a) _report_dep( fl , ::move(f) , FileInfo(s_root_fd(),f) , a , ::move(c) ) ;
+	}
 	//
 	uint64_t/*id*/ _report_update( FileLoc fl , ::string&& f , ::string&& f0 , FileInfo fi , Accesses a , ::string&& c={} ) const { // f0 is the file to which we write if non-empty
 		if (!f0) { //!                                                                       write
@@ -184,7 +190,7 @@ public :
 			return true/*sent*/ ;
 		}
 		if ( Fd fd=s_report_fd() ; +fd ) {
-			try                       { OMsgBuf().send(fd,jerr) ;          }
+			try                       { OMsgBuf().send(fd,jerr) ;                   }
 			catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }                                 // this justifies panic, but we cannot report panic !
 			return true/*sent*/ ;
 		}
@@ -210,7 +216,6 @@ public :
 		_Path(_Path && p) { *this = ::move(p) ; }
 		_Path& operator=(_Path&& p) {
 			_deallocate() ;
-			file_loc    = p.file_loc  ;
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
@@ -233,7 +238,6 @@ public :
 		// data
 	public :
 		bool    allocated = false            ;                                                                        // if true <=> file has been allocated and must be freed upon destruction
-		FileLoc file_loc  = FileLoc::Unknown ;                                                                        // updated when analysis is done
 		Fd      at        = Fd::Cwd          ;                                                                        // at & file may be modified, but together, they always refer to the same file ...
 		Char*   file      = nullptr          ;                                                                        // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ; //!            Writable
@@ -241,9 +245,8 @@ public :
 	using WPath = _Path<true  > ;
 	template<bool Writable=false,bool ChkSimple=false> struct _Solve : _Path<Writable> {
 		using Base = _Path<Writable> ;
-		using Base::file_loc ;
-		using Base::at       ;
-		using Base::file     ;
+		using Base::at   ;
+		using Base::file ;
 		_Solve()= default ;
 		_Solve( Record& r , Base&& path , bool no_follow , bool read , bool create , ::string const& c={} ) : Base{::move(path)} {
 			using namespace Disk ;
@@ -252,37 +255,38 @@ public :
 			//
 			SolveReport sr = r._real_path.solve(at,file,no_follow) ;
 			//
-			auto report_dep = [&]( FileLoc file_loc , ::string&& file , Accesses a , bool store , const char* key )->void {
+			auto report_dep = [&]( FileLoc fl , ::string&& file , Accesses a , bool store , const char* key )->void {
 				::string ck = c+'.'+key ;
 				for( auto const& [view,phys] : s_autodep_env().views ) {
+					if (!phys                                                                      ) continue ; // empty phys do not represent a view
 					if (!( file.starts_with(view) && (is_dirname(view)||file.size()==view.size()) )) continue ;
 					for( size_t i=0 ; i<phys.size() ; i++ ) {
 						bool     last  = i==phys.size()-1                                 ;
 						::string f     = phys[i] + file.substr(view.size())               ;
 						FileInfo fi    = !last||+a ? FileInfo(s_root_fd(),f) : FileInfo() ;
-						bool     found = fi.tag()!=FileTag::None                          ;
+						bool     found = fi.tag()!=FileTag::None || !read                 ;                           // if not reading, assume file is found in upper
+						fl = r._real_path.file_loc(f) ;                                                               // use f before ::move
 						if (store) {
-							if      (last ) real  = f ;
-							else if (found) real  = f ;
-							else if (i==0 ) real0 = f ;                                                               // real0 is only significative when not equal to real
+							if      (last ) { real  = f ; file_loc  = fl ; }
+							else if (found) { real  = f ; file_loc  = fl ; }
+							else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                          // real0 is only significative when not equal to real
 						}
-						if      (last ) { if (+a) r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a              , ck+i ) ; return ; }
-						else if (found) {         r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi , a|Access::Stat , ck+i ) ; return ; }
-						else                      r._report_dep( r._real_path.file_loc(f) , ::move(f) , fi ,   Access::Stat , ck+i ) ;
+						if      (last ) { if (+a) r._report_dep( fl , ::move(f) , fi , a              , ck+i ) ; return ; }
+						else if (found) {         r._report_dep( fl , ::move(f) , fi , a|Access::Stat , ck+i ) ; return ; }
+						else                      r._report_dep( fl , ::move(f) , fi ,   Access::Stat , ck+i ) ;
 					}
 					return ;
 				}
 				// when no views match, process as if last
-				if (+a) { if (store) real = ::move(file) ;                                                             }
-				else    { if (store) real =        file  ; r._report_dep( file_loc , ::move(file) , a , ::move(ck) ) ; }
+				if (+a) { if (store) { real =        file  ; file_loc = sr.file_loc ; } r._report_dep( fl , ::move(file) , a , ::move(ck) ) ; }
+				else    { if (store) { real = ::move(file) ; file_loc = sr.file_loc ; }                                                       }
 			} ;
 			//
 			if (sr.file_accessed==Yes) accesses = Access::Lnk ;
-			/**/                       file_loc = sr.file_loc ;
 			//                                                                                                                      accesses      store
 			for( ::string& lnk : sr.lnks                               ) report_dep( FileLoc::Dep , ::move(lnk)                   , Access::Lnk , false , "lnk"  ) ;
-			if ( !read  && sr.file_accessed==Maybe && has_dir(sr.real) ) report_dep( file_loc     , no_slash(dir_name_s(sr.real)) , Access::Lnk , false , "last" ) ; // real dir is not protected ...
-			/**/                                                         report_dep( file_loc     , ::move(sr.real)               , {}          , true  , "file" ) ; // ... by real
+			if ( !read  && sr.file_accessed==Maybe && has_dir(sr.real) ) report_dep( sr.file_loc  , no_slash(dir_name_s(sr.real)) , Access::Lnk , false , "last" ) ; // real dir is not protected ...
+			/**/                                                         report_dep( sr.file_loc  , ::move(sr.real)               , {}          , true  , "file" ) ; // ... by real
 			//
 			if ( create && sr.file_loc==FileLoc::Tmp ) r._report_tmp() ;
 		}
@@ -292,9 +296,11 @@ public :
 		::string const& real_write() const { return +real0 ? real0 : real ; }
 		::string      & real_write()       { return +real0 ? real0 : real ; }
 		// data
-		::string real     ;
-		::string real0    ;                                       // real in case reading and writing is to different files because of overlays
-		Accesses accesses ;                                       // Access::Lnk if real was accessed as a sym link
+		FileLoc  file_loc  = FileLoc::Unknown ;
+		FileLoc  file_loc0 = FileLoc::Unknown ;
+		::string real      ;
+		::string real0     ;                      // real in case reading and writing is to different files because of overlays
+		Accesses accesses  ;                      // Access::Lnk if real was accessed as a sym link
 	} ; //!              Writable,ChkSimple
 	using Solve    = _Solve<false  ,false   > ;
 	using WSolve   = _Solve<true   ,false   > ;
@@ -320,7 +326,7 @@ public :
 		uint64_t id = 0/*garbage*/ ;
 	} ;
 	struct Hide {
-		Hide( Record&          ) {              }                 // in case nothing to hide, just to ensure invariants
+		Hide( Record&          ) {              } // in case nothing to hide, just to ensure invariants
 		Hide( Record& , int fd ) { s_hide(fd) ; }
 		#if HAS_CLOSE_RANGE
 			#ifdef CLOSE_RANGE_CLOEXEC
@@ -397,7 +403,7 @@ public :
 		// data
 		char*  buf      = nullptr ;
 		size_t sz       = 0       ;
-		bool   emulated = false   ;                               // if true <=> backdoor was used
+		bool   emulated = false   ;               // if true <=> backdoor was used
 	} ;
 	struct Rename {
 		// cxtors & casts
@@ -458,7 +464,7 @@ public :
 	bool disabled   = false ;
 private :
 	Disk::RealPath _real_path ;
-	mutable bool   _tmp_cache = false ;                           // record that tmp usage has been reported, no need to report any further
+	mutable bool   _tmp_cache = false ;           // record that tmp usage has been reported, no need to report any further
 } ;
 
 template<bool Writable=false> ::ostream& operator<<( ::ostream& os , Record::_Path<Writable> const& p ) {

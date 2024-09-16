@@ -53,3 +53,5 @@ else :
 				ut.lmake( 'world+world' , done=1               ) # check reconvergence
 
 				break
+	else :
+		print('python2 not available',file=open('skipped','w'))

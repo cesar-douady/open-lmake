@@ -397,7 +397,7 @@ bool/*interrupted*/ engine_loop() {
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
 	_g_read_only = app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ; // server is always launched at root
-	Py::init( *g_lmake_dir_s , true/*multi-thread*/ )   ;
+	Py::init(*g_lmake_dir_s) ;
 	AutodepEnv ade ;
 	ade.root_dir_s = *g_root_dir_s ;
 	Record::s_static_report = true ;
