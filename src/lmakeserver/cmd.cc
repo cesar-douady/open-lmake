@@ -174,12 +174,14 @@ namespace Engine {
 		}
 	}
 
-	static ::vmap_ss _mk_env( JobInfo const& job_info ) {
-		::umap_ss de  = mk_umap(job_info.end.end.dynamic_env) ;
-		::vmap_ss res ;
+	static ::pair<::vmap_ss/*set*/,::vector_s/*keep*/> _mk_env( JobInfo const& job_info ) {
+		bool                                        has_end = +job_info.end.end.proc                ;
+		::umap_ss                                   de      = mk_umap(job_info.end.end.dynamic_env) ;
+		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> res     ;
 		for( auto const& [k,v] : job_info.start.start.env )
-			if      (v!=EnvPassMrkr) res.emplace_back(k,v       ) ;
-			else if (de.contains(k)) res.emplace_back(k,de.at(k)) ;
+			if      (v!=EnvPassMrkr) res.first .emplace_back(k,v       ) ;
+			else if (!has_end      ) res.second.push_back   (k         ) ;
+			else if (de.contains(k)) res.first .emplace_back(k,de.at(k)) ;
 		return res ;
 	}
 
@@ -219,10 +221,18 @@ namespace Engine {
 		get_script << ",\tpreamble =\n" << mk_py_str(start.cmd.first ) << '\n' ;
 		get_script << ",\tcmd =\n"      << mk_py_str(start.cmd.second) << '\n' ;
 		//
-		{	get_script << ",\tenv = {" ;
+		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
+		if (+env.first) {
+			get_script << ",\tenv = {" ;
 			First first ;
-			for( auto const& [k,v] : _mk_env(job_info) ) get_script << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
+			for( auto const& [k,v] : env.first ) get_script << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
 			get_script << "}\n" ;
+		}
+		if (+env.second) {
+			get_script << ",\tkeep_env = (" ;
+			First first ;
+			for( ::string const& k : env.second ) get_script << first("",",") << mk_py_str(k) ;
+			get_script << first("",",","") << ")\n" ;
 		}
 		{	get_script << ",\tinterpreter = (" ;
 			First first ;
@@ -237,8 +247,7 @@ namespace Engine {
 		if (+*g_src_dirs_s) {
 			get_script << ",\tsource_dirs = (" ;
 			First first ;
-			for( ::string const& sd_s : *g_src_dirs_s )
-				get_script << first("\n\t\t",",\t") << mk_py_str(no_slash(sd_s)) << "\n\t" ;
+			for( ::string const& sd_s : *g_src_dirs_s ) get_script << first("\n\t\t",",\t") << mk_py_str(no_slash(sd_s)) << "\n\t" ;
 			get_script << first("",",","") << ")\n" ;
 		}
 		{	get_script << ",\tstatic_deps = (" ;
@@ -500,10 +509,12 @@ namespace Engine {
 					switch (ro.key) {
 						case ReqKey::Env : {
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							::vmap_ss env = _mk_env(job_info) ;
-							size_t    w   = 0                 ;
-							for( auto const& [k,v] : env ) w = ::max(w,k.size()) ;
-							for( auto const& [k,v] : env ) audit( fd , ro , fmt_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
+							::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
+							size_t                                      w   = 0                 ;
+							for( auto     const& [k,v] : env.first  ) w = ::max(w,k.size()) ;
+							for( ::string const&  k    : env.second ) w = ::max(w,k.size()) ;
+							for( auto     const& [k,v] : env.first  ) audit( fd , ro , fmt_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
+							for( ::string const&  k    : env.second ) audit( fd , ro , fmt_string(::setw(w),k," ..." ) , true/*as_is*/ , lvl ) ;
 						} break ;
 						case ReqKey::Cmd : //!                                                              as_is
 							if (!has_start) audit( fd , ro , Color::Err , "no info available"              , true , lvl ) ;
@@ -584,17 +595,16 @@ namespace Engine {
 									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                                ) ;
 								}
 								//
-								if ( has_phy_tmp_dir              ) push_entry( "physical tmp dir" , localize(mk_file(phy_tmp_dir),su)      ) ;
-								if ( sa.live_out                  ) push_entry( "live_out"         , "true"                                 ) ;
-								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"       , no_slash(start.job_space.chroot_dir_s) ) ;
-								if (+start.job_space.root_view_s  ) push_entry( "root_view"        , no_slash(start.job_space.root_view_s ) ) ;
-								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"         , no_slash(start.job_space.tmp_view_s  ) ) ;
-								if (+start.cwd_s                  ) push_entry( "cwd"              , cwd                                    ) ;
-								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"       , "true"                                 ) ;
-								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat"      , "true"                                 ) ;
-								/**/                                push_entry( "autodep"          , snake_str(start.method)                ) ;
-								if (+start.timeout                ) push_entry( "timeout"          , start.timeout.short_str()              ) ;
-								if (sa.tag!=BackendTag::Local     ) push_entry( "backend"          , snake_str(sa.tag)                      ) ;
+								if ( sa.live_out                  ) push_entry( "live_out"    , "true"                                 ) ;
+								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"  , no_slash(start.job_space.chroot_dir_s) ) ;
+								if (+start.job_space.root_view_s  ) push_entry( "root_view"   , no_slash(start.job_space.root_view_s ) ) ;
+								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
+								if (+start.cwd_s                  ) push_entry( "cwd"         , cwd                                    ) ;
+								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"  , "true"                                 ) ;
+								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat" , "true"                                 ) ;
+								/**/                                push_entry( "autodep"     , snake_str(start.method)                ) ;
+								if (+start.timeout                ) push_entry( "timeout"     , start.timeout.short_str()              ) ;
+								if ( sa.tag!=BackendTag::Local    ) push_entry( "backend"     , snake_str(sa.tag)                      ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;
@@ -605,6 +615,11 @@ namespace Engine {
 							} catch(::pair_ss const&) {}
 							//
 							if (has_end) {
+								// no need to localize phy_tmp_dir as this is an absolute dir
+								if      (!start.tmp_sz_mb           ) {}
+								else if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , +end.phy_tmp_dir_s?no_slash(end.phy_tmp_dir_s):"<tmpfs>" ) ;
+								else                                  push_entry( "tmp dir"          ,                    no_slash(end.phy_tmp_dir_s)           ) ;
+								//
 								push_entry( "end date" , digest.end_date.str()                                                                                          ) ;
 								push_entry( "rc"       , wstatus_str(digest.wstatus) , WIFEXITED(digest.wstatus)&&WEXITSTATUS(digest.wstatus)==0?Color::None:Color::Err ) ;
 								if (porcelaine) { //!                                                                     protect

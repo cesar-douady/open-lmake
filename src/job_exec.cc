@@ -319,7 +319,7 @@ int main( int argc , char* argv[] ) {
 		::map_ss              cmd_env       ;
 		::vmap_s<MountAction> enter_actions ;
 		try {
-			if ( g_start_info.enter( enter_actions , cmd_env , end_report.dynamic_env , g_gather.first_pid , g_job , g_phy_root_dir_s , g_seq_id ) ) {
+			if ( g_start_info.enter( enter_actions , cmd_env , end_report.phy_tmp_dir_s , end_report.dynamic_env , g_gather.first_pid , g_job , g_phy_root_dir_s , g_seq_id ) ) {
 				RealPath real_path { g_start_info.autodep_env } ;
 				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;

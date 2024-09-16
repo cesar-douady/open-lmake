@@ -10,17 +10,17 @@ class Job(Job) :
 		self.write_cmd()
 		#
 		call_line  = [ '"$(type -p gdb)"' ]
-		call_line += ( '-ex' , '"set environment TMPDIR=$TMPDIR"' ) # gdb keep the environment except TMPDIR
+		call_line += ( '-ex' , '"set environment TMPDIR=$TMPDIR"' )                                              # gdb keeps the environment except TMPDIR
 		if self.stdin or self.stdout :
-			# in case of redirections, define alias r to run with adequate redirections
-			run = 'run'
-			if self.stdin  : run += ' <'+self.stdin
-			if self.stdout : run += ' >'+self.stdout
-			call_line += ( '-ex' , mk_shell_str('define r') )
-			call_line += ( '-ex' , mk_shell_str(run)        )
-			call_line += ( '-ex' , 'end'                    )
-			self.stdin  = None
-			self.stdout = None
+			if self.stdin or self.stdout :                                                                       # in case of redirections, define alias r to run with adequate redirections
+				if True        : run  = 'run'
+				if self.stdin  : run += ' <'+self.stdin
+				if self.stdout : run += ' >'+self.stdout
+				call_line += ( '-ex' , mk_shell_str('define r') )
+				call_line += ( '-ex' , mk_shell_str(run)        )
+				call_line += ( '-ex' , 'end'                    )
+				self.stdin  = None                                                                               # gdb handles redirection
+				self.stdout = None                                                                               # .
 		call_line += ( '--args' , *(mk_shell_str(c) for c in self.interpreter) , mk_shell_str(self.cmd_file()) )
 		#
 		self.autodep_method = 'none'

@@ -8,13 +8,16 @@ import os
 from .utils import Job,mk_shell_str
 
 def gen_script(**kwds) :
-	job        = Job(kwds)
-	job.stdin  = None                                                              # we do not want any redirection as we do not execute job
-	job.stdout = None                                                              # .
-	try    : del job.env['HOME']                                                   # keep HOME and SHLVL to execute interactive sub-shell normally
-	except : pass                                                                  # .
-	job.keep_env += ('HOME','SHLVL')                                               # .
-	start_preamble,start_line = job.starter(mk_shell_str(os.getenv('SHELL')),'-i')
+	job = Job(kwds)
+	# we do not want any redirection as we do not execute job
+	job.stdin  = None
+	job.stdout = None
+	# prepare a comfortable interactive environment
+	job.env.pop('HOME' ,None)
+	job.env.pop('SHLVL',None)
+	job.keep_env += ('HOME','SHLVL')
+	#
+	start_preamble,start_line = job.starter(mk_shell_str(os.getenv('SHELL','/bin/bash')),'-i')
 	return (
 		job.gen_init()
 	+	start_preamble

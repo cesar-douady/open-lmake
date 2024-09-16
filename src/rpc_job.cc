@@ -444,9 +444,9 @@ void JobSpace::chk() const {
 ::ostream& operator<<( ::ostream& os , JobRpcReq const& jrr ) {
 	/**/                      os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
 	switch (jrr.proc) {
-		case JobRpcProc::Start : os <<','<< jrr.port                           ; break ;
-		case JobRpcProc::End   : os <<','<< jrr.digest <<','<< jrr.dynamic_env ; break ;
-		default                :                                                 break ;
+		case JobRpcProc::Start : os <<','<< jrr.port                                                     ; break ;
+		case JobRpcProc::End   : os <<','<< jrr.digest <<','<< jrr.phy_tmp_dir_s <<','<< jrr.dynamic_env ; break ;
+		default                :                                                                           break ;
 	}
 	return                    os <<','<< jrr.msg <<')' ;
 }
@@ -502,6 +502,7 @@ void JobSpace::chk() const {
 bool/*entered*/ JobRpcReply::enter(
 		::vmap_s<MountAction>& actions                                                                                  // out
 	,	::map_ss             & cmd_env                                                                                  // .
+	,	::string             & phy_tmp_dir_s                                                                            // .
 	,	::vmap_ss            & dynamic_env                                                                              // .
 	,	pid_t                & first_pid                                                                                // .
 	,	JobIdx                 job                                                                                      // in
@@ -515,11 +516,15 @@ bool/*entered*/ JobRpcReply::enter(
 		else if (has_env(k)    ) { ::string v = get_env(k) ; dynamic_env.emplace_back(k,v) ; cmd_env[k] = ::move(v) ; } // if special illegal value, use value from environment (typically from slurm)
 	}
 	//
-	::string phy_tmp_dir_s ;
-	if      ( auto it=cmd_env.find("TMPDIR") ; it!=cmd_env.end()   ) phy_tmp_dir_s = it->second+'/'+key+'/'                +small_id+'/' ;
-	else if ( tmp_sz_mb==Npos                                      ) phy_tmp_dir_s = phy_root_dir_s+PrivateAdminDirS+"tmp/"+small_id+'/' ;
+	if ( auto it=cmd_env.find("TMPDIR") ; it!=cmd_env.end()   ) {
+		if (!is_abs(it->second)) throw "$TMPDIR must be absolute but is "+it->second ;
+		phy_tmp_dir_s = with_slash(it->second)+key+'/'+small_id+'/' ;
+	} else if (tmp_sz_mb==Npos) {
+		phy_tmp_dir_s = phy_root_dir_s+PrivateAdminDirS+"tmp/"+small_id+'/' ;
+	} else {
+		phy_tmp_dir_s = {} ;
+	}
 	if      ( !phy_tmp_dir_s && tmp_sz_mb && !job_space.tmp_view_s ) throw "cannot create tmpfs of size "s+to_string_with_units<'M'>(tmp_sz_mb)+"B without tmp_view" ;
-	if      ( +phy_tmp_dir_s && !is_abs_s(phy_tmp_dir_s)           ) throw "$TMPDIR must be absolute but is "+phy_tmp_dir_s                                          ;
 	if      ( keep_tmp                                             ) phy_tmp_dir_s = phy_root_dir_s+AdminDirS+"tmp/"+job+'/' ;
 	else if ( +phy_tmp_dir_s                                       ) _tmp_dir_s_to_cleanup = phy_tmp_dir_s ;
 	autodep_env.root_dir_s = +job_space.root_view_s ? job_space.root_view_s : phy_root_dir_s ;

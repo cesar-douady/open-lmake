@@ -615,21 +615,23 @@ struct JobRpcReq {
 				::serdes(s,msg ) ;
 			break ;
 			case P::End :
-				::serdes(s,digest     ) ;
-				::serdes(s,dynamic_env) ;
-				::serdes(s,msg        ) ;
+				::serdes(s,digest       ) ;
+				::serdes(s,phy_tmp_dir_s) ;
+				::serdes(s,dynamic_env  ) ;
+				::serdes(s,msg          ) ;
 			break ;
 		DF}
 	}
 	// data
 	// START_OF_VERSIONING
-	P         proc        = P::None ;
-	SI        seq_id      = 0       ;
-	JI        job         = 0       ;
-	in_port_t port        = 0       ; // if proc==Start
-	JobDigest digest      ;           // if proc==End
-	::vmap_ss dynamic_env ;           // if proc==End  , env variables computed in job_exec
-	::string  msg         ;
+	P         proc          = P::None ;
+	SI        seq_id        = 0       ;
+	JI        job           = 0       ;
+	in_port_t port          = 0       ; // if proc==Start
+	JobDigest digest        ;           // if proc==End
+	::string  phy_tmp_dir_s ;           // if proc==End
+	::vmap_ss dynamic_env   ;           // if proc==End  , env variables computed in job_exec
+	::string  msg           ;
 	// END_OF_VERSIONING)
 } ;
 
@@ -678,6 +680,7 @@ struct JobRpcReply {
 	bool/*entered*/ enter(
 		::vmap_s<MountAction>&                                      // out
 	,	::map_ss             & cmd_env                              // .
+	,	::string             & phy_tmp_dir_s                        // .
 	,	::vmap_ss            & dynamic_env                          // .
 	,	pid_t                & first_pid                            // .
 	,	JobIdx                                                      // in
