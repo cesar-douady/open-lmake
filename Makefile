@@ -803,14 +803,14 @@ install : $(LMAKE_BINS) $(LMAKE_REMOTE_FILES) $(LMAKE_SERVER_PY_FILES) $(DOC)/lm
 # Install debian packages needed to build open-lmake package
 # /!\ use : sudo make debdeps, as you need privileges for these commands
 #
-debdeps:
+debdeps :
 	apt install dh-make devscripts debhelper equivs
 	mk-build-deps --install debian/control
 
 #
 # Build debian package (then install it using: apt install <pkg>)
 #
-deb:
+deb :
 	debuild -b -us -uc
 
 # uncoment to automatically cleanup repo before building package

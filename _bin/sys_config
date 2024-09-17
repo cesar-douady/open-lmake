@@ -244,7 +244,7 @@ fi
 # HAS_SLURM
 #
 if [ "$SLURM" ] ; then
-	SLURM_INC_DIR=$SLURM
+	SLURM_INC_DIR=$SLURM/include
 	SLURM_SO="$(find $SLURM -name lib32 -prune -o -name libslurm.so || :)" # exclude 32 bits in case of ...
 	SLURM_SO=${SLURM_SO% *}                                                # only select first if there is ambiguity
 fi
