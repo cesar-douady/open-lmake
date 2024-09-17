@@ -45,10 +45,11 @@ namespace Backends {
 
 		friend void send_reply( JobIdx , JobMngtRpcReply&& ) ;
 
-		using SmallId     = uint32_t          ;
-		using CoarseDelay = Time::CoarseDelay ;
-		using Pdate       = Time::Pdate       ;
-		using Proc        = JobRpcProc        ;
+		using SmallId       = uint32_t          ;
+		using TotalWorkload = uint64_t          ;
+		using CoarseDelay   = Time::CoarseDelay ;
+		using Pdate         = Time::Pdate       ;
+		using Proc          = JobRpcProc        ;
 
 		struct StartEntry {
 			friend ::ostream& operator<<( ::ostream& , StartEntry const& ) ;
@@ -76,14 +77,15 @@ namespace Backends {
 			}
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
-			Conn             conn         ;
-			Pdate            start_date   ;
-			::uset_s         washed       ;
-			::vmap_ss        rsrcs        ;
-			::vector<ReqIdx> reqs         ;
-			SubmitAttrs      submit_attrs ;
-			bool             old          = false        ; // becomes true the first time heartbeat passes (only old entries are checked by heartbeat, so first time is skipped for improved perf)
-			Tag              tag          = Tag::Unknown ;
+			Conn             conn           ;
+			Pdate            date           ;
+			TotalWorkload    total_workload = 0            ;
+			::uset_s         washed         ;
+			::vmap_ss        rsrcs          ;
+			::vector<ReqIdx> reqs           ;
+			SubmitAttrs      submit_attrs   ;
+			bool             old            = false        ; // becomes true the first time heartbeat passes (only old entries are checked by heartbeat, so first time is skipped for improved perf)
+			Tag              tag            = Tag::Unknown ;
 		} ;
 
 		struct DeferredEntry {
@@ -105,6 +107,9 @@ namespace Backends {
 			Status release( ::map<JobIdx,StartEntry>::iterator , Status=Status::Ok ) ; // much like erase, but manage retry count
 		} ;
 
+		using JobThread      = ServerThread    <JobRpcReq    ,false/*Flush*/> ;
+		using JobMngtThread  = ServerThread    <JobMngtRpcReq,false/*Flush*/> ;
+		using DeferredThread = TimedDequeThread<DeferredEntry,false/*Flush*/> ;
 		// statics
 		static bool             s_is_local  (Tag) ;
 		static bool             s_ready     (Tag) ;
@@ -144,28 +149,32 @@ namespace Backends {
 		static void            _s_handle_deferred_report( DeferredEntry&&                                              ) ;
 		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                              ) ;
 		//
-		using JobThread      = ServerThread    <JobRpcReq    ,false/*Flush*/> ;
-		using JobMngtThread  = ServerThread    <JobMngtRpcReq,false/*Flush*/> ;
-		using DeferredThread = TimedDequeThread<DeferredEntry,false/*Flush*/> ;
+		static void _s_update_total_workload() {
+			Pdate now = New ;
+			_s_total_workload      += s_n_running_jobs*(now-_s_total_workload_date).msec() ;
+			_s_total_workload_date  = now                                                  ;
+		}
 		// static data
 	public :
-		static ::string s_executable  ;
-		static Backend* s_tab[N<Tag>] ;
+		static ::string                 s_executable     ;
+		static ::atomic<SmallId> const& s_n_running_jobs ;
+		static Backend*                 s_tab[N<Tag>]    ;
 	protected :
 		static Mutex<MutexLvl::Backend> _s_mutex ;
 	private :
-		static JobThread                 _s_job_start_thread       ;
-		static JobMngtThread             _s_job_mngt_thread        ;
-		static JobThread                 _s_job_end_thread         ;
-		static DeferredThread            _s_deferred_report_thread ;
-		static DeferredThread            _s_deferred_wakeup_thread ;
-		static ::atomic<JobIdx>          _s_starting_job           ;                                      // this job is starting when _starting_job_mutex is locked
-		static Mutex<MutexLvl::StartJob> _s_starting_job_mutex     ;
-		static StartTab                  _s_start_tab              ;                                      // use map instead of umap because heartbeat iterates over while tab is moving
-		static SmallIds<SmallId>         _s_small_ids              ;
-		static SmallId                   _s_max_small_id           ;
-	public :
+		static DeferredThread                       _s_deferred_report_thread ;
+		static DeferredThread                       _s_deferred_wakeup_thread ;
+		static JobThread                            _s_job_start_thread       ;
+		static JobMngtThread                        _s_job_mngt_thread        ;
+		static JobThread                            _s_job_end_thread         ;
+		static SmallIds<SmallId,true/*ThreadSafe*/> _s_small_ids              ;
+		static ::atomic<JobIdx>                     _s_starting_job           ;                           // this job is starting when _starting_job_mutex is locked
+		static Mutex<MutexLvl::StartJob>            _s_starting_job_mutex     ;
+		static StartTab                             _s_start_tab              ;                           // use map instead of umap because heartbeat iterates over while tab is moving
+		static TotalWorkload                        _s_total_workload         ;                           // in ms, total sum of all job exec time since process start
+		static Pdate                                _s_total_workload_date    ;                           // last date total_workload was updated
 		// services
+	public :
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
 		virtual bool             is_local (                                     ) const { return true ; }
 		virtual ::vmap_ss        descr    (                                     ) const { return {}   ; }

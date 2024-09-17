@@ -11,9 +11,9 @@ MAKEFLAGS += -r -R
 
 .DEFAULT_GOAL := DFLT
 
-$(shell { echo CXX=$$CXX ; echo PYTHON2=$$PYTHON2 ; echo PYTHON=$$PYTHON ; } >sys_config.env.tmp                                                     )
-$(shell cmp sys_config.env sys_config.env.tmp 2>/dev/null || { cp sys_config.env.tmp sys_config.env ; echo new env : >&2 ; cat sys_config.env >&2 ; })
-$(shell rm -f sys_config.env.tmp                                                                                                                     )
+$(shell { echo CXX=$$CXX ; echo PYTHON2=$$PYTHON2 ; echo PYTHON=$$PYTHON ; echo SLURM=$$SLURM ; echo LMAKE_FLAGS=$$LMAKE_FLAGS ; } >sys_config.env.tmp )
+$(shell cmp sys_config.env sys_config.env.tmp 2>/dev/null || { cp sys_config.env.tmp sys_config.env ; echo new env : >&2 ; cat sys_config.env >&2 ; }  )
+$(shell rm -f sys_config.env.tmp                                                                                                                       )
 
 sys_config.log : _bin/sys_config sys_config.env
 	. ./sys_config.env ; ./$< $(@:%.log=%.mk) $(@:%.log=%.h) 2>$@ || cat $@
@@ -27,7 +27,7 @@ include sys_config.mk
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA := ,
 
-HIDDEN_FLAGS = -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
+HIDDEN_FLAGS = -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden --std=$(LANG)
 # syntax for LMAKE_FLAGS : O[0123]G?D?T?S[AT]C?
 # - O[0123] : compiler optimization level, defaults to 3
 # - G       : -g
@@ -68,7 +68,7 @@ ifeq ($(CXX_FLAVOR),clang)
     WARNING_FLAGS += $(CLANG_WARNING_FLAGS)
 endif
 #
-USER_FLAGS := $(OPT_FLAGS) $(EXTRA_FLAGS) -std=$(LANG)
+USER_FLAGS := $(OPT_FLAGS) $(EXTRA_FLAGS)
 COMPILE    := $(CXX_EXE) $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
 LINT       := clang-tidy
 LINT_OPTS  := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
@@ -322,6 +322,9 @@ $(SRC)/autodep/ld_preload.o          : $(SRC)/autodep/ld_common.x.cc $(SRC)/auto
 $(SRC)/autodep/ld_preload_jemalloc.o : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
 $(SRC)/autodep/ld_server$(SAN).o     : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
 $(SRC)/autodep/ld_audit.o            : $(SRC)/autodep/ld_common.x.cc
+ifneq ($(SLURM_INC_DIR),)
+    $(SRC_ENGINE)/backends/slurm$(SAN).o : CPP_OPTS += -isystem $(SLURM_INC_DIR)
+endif
 
 $(SBIN)/lmakeserver : \
 	$(LMAKE_BASIC_SAN_OBJS)                                 \
@@ -778,7 +781,7 @@ $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
 #
 # archive
 #
-VERSION     := 0.1
+VERSION     := 24.09
 ARCHIVE_DIR := open-lmake-$(VERSION)
 lmake.tar.gz  : TAR_COMPRESS := z
 lmake.tar.bz2 : TAR_COMPRESS := j

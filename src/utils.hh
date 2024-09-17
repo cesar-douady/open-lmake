@@ -1018,8 +1018,10 @@ template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 		NoLock(NoMutex) {}
 	} ;
 private :
-	using _Mutex = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
-	using _Lock  = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
+	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
+	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
+	using _AtomicT = ::conditional_t< ThreadSafe , ::atomic<T>              , T       > ;
+	// services
 public :
 	T acquire() {
 		 T    res  ;
@@ -1028,25 +1030,26 @@ public :
 			res = n_allocated ;
 			if (n_allocated==::numeric_limits<T>::max()) throw "cannot allocate id"s ;
 			n_allocated++ ;
-			SWEAR(n_allocated) ;        // ensure no overflow
 		} else {
 			res = *free_ids.begin() ;
 			free_ids.erase(res) ;
 		}
+		n_acquired++ ;                                  // protected by _mutex
+		SWEAR(n_acquired!=::numeric_limits<T>::min()) ; // ensure no overflow
 		return res ;
 	}
 	void release(T id) {
-		if (!id) return ;               // id 0 has not been acquired
+		if (!id) return ;                               // id 0 has not been acquired
 		_Lock lock { _mutex } ;
-		SWEAR(!free_ids.contains(id)) ; // else, double release
+		SWEAR(!free_ids.contains(id)) ;                 // else, double release
 		free_ids.insert(id) ;
+		n_acquired-- ;                                  // protected by _mutex
+		SWEAR(n_acquired!=::numeric_limits<T>::max()) ; // ensure no underflow
 	}
 	// data
-	T n_acquired() const {
-		return n_allocated - 1 - free_ids.size() ;
-	}
-	set<T> free_ids    ;
-	T      n_allocated = 1 ;            // dont use id 0 so that it is free to mean "no id"
+	set<T>   free_ids    ;
+	T        n_allocated = 1 ;                          // dont use id 0 so that it is free to mean "no id"
+	_AtomicT n_acquired  = 0 ;                          // can be freely read by any thread if ThreadSafe
 private :
 	_Mutex _mutex ;
 } ;

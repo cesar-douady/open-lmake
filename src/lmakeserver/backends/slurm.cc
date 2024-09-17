@@ -410,7 +410,7 @@ namespace Backends::Slurm {
 		decltype(::slurm_submit_batch_job                 )* submit_batch_job                  = nullptr/*garbage*/ ;
 	}
 
-	static constexpr char LibSlurm[] = "libslurm.so" ;
+	static constexpr char LibSlurm[] = SLURM_SO ;
 	template<class T> void _load_func( void* handler , T*& dst , const char* name ) {
 		dst = reinterpret_cast<T*>(::dlsym(handler,name)) ;
 		if (!dst) throw "cannot find "s+name+" in "+LibSlurm ;

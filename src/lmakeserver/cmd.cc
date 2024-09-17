@@ -627,6 +627,7 @@ namespace Engine {
 									push_entry( "elapsed in job" , ::to_string(double(digest.stats.job  )) , Color::None , false ) ;
 									push_entry( "elapsed total"  , ::to_string(double(digest.stats.total)) , Color::None , false ) ;
 									push_entry( "used mem"       , ::to_string(       digest.stats.mem   ) , Color::None , false ) ;
+									push_entry( "cost"           , ::to_string(double(job->cost         )) , Color::None , false ) ;
 								} else {
 									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
 									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_units<size_t>(mem_rsrc_str):0                                                                  ;
@@ -637,6 +638,7 @@ namespace Engine {
 									push_entry( "elapsed in job" , digest.stats.job  .short_str()                                       ) ;
 									push_entry( "elapsed total"  , digest.stats.total.short_str()                                       ) ;
 									push_entry( "used mem"       , mem_str                        , overflow?Color::Warning:Color::None ) ;
+									push_entry( "cost"           , job->cost         .short_str()                                       ) ;
 								}
 							}
 							//

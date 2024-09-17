@@ -391,6 +391,7 @@ namespace Engine {
 	}
 
 	void JobExec::end( JobRpcReq&& jrr , bool sav_jrr , ::vmap_ss const& rsrcs ) {
+		JobData&          data             = **this                                               ;
 		JobDigest&        digest           = jrr.digest                                           ;
 		Status            status           = digest.status                                        ;           // status will be modified, need to make a copy
 		Bool3             ok               = is_ok  (status)                                      ;
@@ -400,8 +401,8 @@ namespace Engine {
 		bool              modified         = false                                                ;
 		bool              fresh_deps       = status==Status::EarlyChkDeps || status>Status::Async ;           // if job did not go through, old deps are better than new ones
 		bool              seen_dep_date    = false                                                ;
-		Rule              rule             = (*this)->rule                                        ;
-		::vector<Req>     running_reqs_    = (*this)->running_reqs(true/*with_zombies*/)          ;
+		Rule              rule             = data.rule                                            ;
+		::vector<Req>     running_reqs_    = data.running_reqs(true/*with_zombies*/)              ;
 		::string          local_msg        ;                                                                  // to be reported if job was otherwise ok
 		::string          severe_msg       ;                                                                  // to be reported always
 		CacheNoneAttrs    cache_none_attrs ;
@@ -426,7 +427,7 @@ namespace Engine {
 		try                                  { end_cmd_attrs = rule->end_cmd_attrs.eval(*this,match) ;       }
 		catch (::pair_ss const& /*msg,err*/) { severe_msg << "cannot compute " << EndCmdAttrs::Msg << '\n' ; }
 		//
-		(*this)->status = Status::New ;        // ensure we cannot appear up to date while working on data
+		data.status = Status::New ;            // ensure we cannot appear up to date while working on data
 		fence() ;
 		//
 		Trace trace("end",*this,status) ;
@@ -435,7 +436,7 @@ namespace Engine {
 		//
 		if ( !lost && status>Status::Early ) { // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
 			//
-			for( Node t : (*this)->targets ) if (t->has_actual_job(*this)) t->actual_job() = {} ;  // ensure targets we no more generate do not keep pointing to us
+			for( Node t : data.targets ) if (t->has_actual_job(*this)) t->actual_job() = {} ;      // ensure targets we no more generate do not keep pointing to us
 			//
 			::vector<Target> targets ; targets.reserve(digest.targets.size()) ;
 			for( auto const& [tn,td] : digest.targets ) {
@@ -527,9 +528,9 @@ namespace Engine {
 				}
 			}
 			::sort(targets) ;                                                          // ease search in targets
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			(*this)->targets.assign(targets) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvv
+			data.targets.assign(targets) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		//
 		// handle deps
@@ -538,7 +539,7 @@ namespace Engine {
 		if (fresh_deps) {
 			::uset<Node>  old_deps ;
 			::vector<Dep> deps     ; deps.reserve(digest.deps.size()) ;
-			for( Dep const& d : (*this)->deps )
+			for( Dep const& d : data.deps )
 				if (d->is_plain())
 					for( Node dd=d ; +dd ; dd=dd->dir() )
 						if (!old_deps.insert(dd).second) break ;                                                  // record old deps and all uphill dirs as these are implicit deps
@@ -564,9 +565,9 @@ namespace Engine {
 				deps.push_back(dep) ;
 				trace("dep",dep) ;
 			}
-			//vvvvvvvvvvvvvvvvvvvvvvvv
-			(*this)->deps.assign(deps) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvv
+			data.deps.assign(deps) ;
+			//^^^^^^^^^^^^^^^^^^^^
 		}
 		//
 		// wrap up
@@ -584,18 +585,18 @@ namespace Engine {
 			stderr <<set_nl<< digest.stderr ;
 		}
 		//
-		(*this)->exec_ok(true) ;                                                           // effect of old cmd has gone away with job execution
+		data.exec_ok(true) ;                                                               // effect of old cmd has gone away with job execution
 		fence() ;                                                                          // only update status once every other info is set in case of crash and avoid transforming garbage into Err
 		if      ( lost           && status<=Status::Early   ) status = Status::EarlyLost ;
 		else if ( lost                                      ) status = Status::LateLost  ;
 		else if ( +target_reason && status> Status::Garbage ) status = Status::BadTarget ;
-		//vvvvvvvvvvvvvvvvvvvvvv
-		(*this)->status = status ;
-		//^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvv
+		data.status = status ;
+		//^^^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
-		bool     upload = sav_jrr && (*this)->run_status==RunStatus::Ok && ok==Yes  && +cache_none_attrs.key ;
+		bool     upload = sav_jrr && data.run_status==RunStatus::Ok && ok==Yes  && +cache_none_attrs.key ;
 		::string msg    ;
-		trace("wrap_up",STR(sav_jrr),ok,cache_none_attrs.key,(*this)->run_status,STR(upload)) ;
+		trace("wrap_up",STR(sav_jrr),ok,cache_none_attrs.key,data.run_status,STR(upload)) ;
 		if (sav_jrr) {
 			msg = jrr.msg ;
 			jrr.msg <<set_nl<< local_msg << severe_msg ;
@@ -608,22 +609,23 @@ namespace Engine {
 		//
 		if (ok==Yes) {                   // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 			SWEAR(+digest.stats.total) ;
-			(*this)->exec_time = digest.stats.total ;
-			rule.new_job_exec_time( digest.stats.total , (*this)->tokens1 ) ;
+			data.exec_time = digest.stats.total ;
+			data.cost      = cost               ;
+			rule.new_job_exec_time( digest.stats.total , data.tokens1 ) ;
 		}
-		CoarseDelay old_exec_time = (*this)->best_exec_time().first                              ;
+		CoarseDelay old_exec_time = data.best_exec_time().first                                  ;
 		MakeAction  end_action    = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
 		bool        one_done      = false                                                        ;
-		for( Req req : running_reqs_ ) (*this)->req_info(req).step(Step::End) ;                    // ensure no confusion with previous run
+		for( Req req : running_reqs_ ) data.req_info(req).step(Step::End) ;                        // ensure no confusion with previous run
 		for( Req req : running_reqs_ ) {
-			ReqInfo& ri = (*this)->req_info(req) ;
+			ReqInfo& ri = data.req_info(req) ;
 			trace("req_before",target_reason,status,ri) ;
 			req->missing_audits.erase(*this) ;                                                     // old missing audit is obsolete as soon as we have rerun the job
 			ri.modified = modified ;
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
-			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobReason job_err_reason = (*this)->make( ri , end_action , target_reason , Yes/*speculate*/ , &old_exec_time , false/*wakeup_watchers*/ ) ;
-			//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobReason job_err_reason = data.make( ri , end_action , target_reason , Yes/*speculate*/ , &old_exec_time , false/*wakeup_watchers*/ ) ;
+			//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			bool     full_report = ri.done() || !has_new_deps            ;                         // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_err_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;

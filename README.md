@@ -58,11 +58,12 @@ it has been tested with the dockers listed in the docker directory
 
 - type make
 	- this builds all necessary files and some unit tests
-	- you must invoke `git clean -fdx` if you modified the Makefile
-	- you may have to invoke `git clean -fdx lmake_env` or even `git clean -fdx` after a `git pull`
+	- you must invoke `git clean -fdx` if you modified the Makefile or otherwise if you want a reliable build
+	- you may have to invoke `git clean -fdx lmake_env*` or even `git clean -fdx` after a `git pull`
 		- lmake_env is a directory which builds lmake under lmake, for test purpose, no guarantee that the resulting lmake is funtional for now
-		- it is not cleaned on purpose before running as this creates variability for testing lmake, but may fail
-		- and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary
+		- lmake_env-cache is a directory containing cached results from jobs in lmake_env
+		- they are not cleaned on purpose before running as this creates variability for testing lmake, but may fail
+		- and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary to get a reliable build
 	- you can type make LMAKE to just build all necessary files
 	- you can type make lmake.tar.gz (built by default) to make a tar ball of the compiled files that you can easily deploy
 - install
@@ -80,6 +81,7 @@ it has been tested with the dockers listed in the docker directory
 		- PYTHON2 can be set to your preferred Python 2 (defaults to python2). You will be told if it is not supported.
 		- PYTHON can be set to your preferred Python 3 (defaults to python3). You will be told if it is not supported.
 		- CXX can be set to your preferred C++ compiler. You will be told if it is not supported.
+		- SLURM can be set to the root dir of the slurm installation. For example, slurm.h will be found as $SLURM/include/slurm/slurm.h
 		- LMAKE_FLAGS can be defined as O[0123]G?D?T?S[AB]C?
 			- O[0123] controls the -O option (default : 3                  )
 			- G controls the -g option       (default : no debug           )
@@ -88,7 +90,6 @@ it has been tested with the dockers listed in the docker directory
 		- the -j flag of make is automatically set to the number of processors, you may want to override this, though
 	- it is up to you to provide a suitable LD\_LIBRARY\_PATH value.
 	  it will be transferred as a default value for rules, to the extent it is necessary to provide the lmake semantic
-	- if you modify these variables, you should execute git clean as make will not detect such modifications automatically.
 
 # coding rules
 

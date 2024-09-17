@@ -243,7 +243,13 @@ fi
 #
 # HAS_SLURM
 #
-if $CXX -E --include slurm/slurm.h -xc - </dev/null >/dev/null
+if [ "$SLURM" ] ; then
+	SLURM_INC_DIR=$SLURM
+	SLURM_SO="$(find $SLURM -name lib32 -prune -o -name libslurm.so || :)" # exclude 32 bits in case of ...
+	SLURM_SO=${SLURM_SO% *}                                                # only select first if there is ambiguity
+fi
+[ "$SLURM" ] || SLURM_SO=libslurm.so
+if $CXX -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc - </dev/null >/dev/null
 then HAS_SLURM=1
 else HAS_SLURM=0
 fi
@@ -364,6 +370,8 @@ CXX_FLAVOR         := $CXX_FLAVOR
 LINK_LIB_PATH      := $LINK_LIB_PATH
 STD_INC_DIRS       := $STD_INC_DIRS
 #
+SLURM_INC_DIR      := $SLURM_INC_DIR
+#
 HAS_FUSE           := ${HAS_FUSE#0}
 HAS_PCRE           := ${HAS_PCRE#0}
 HAS_SECCOMP        := ${HAS_SECCOMP#0}
@@ -393,6 +401,7 @@ cat >$H_FILE <<EOF
 	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
+	#define SLURM_SO                    "$SLURM_SO"
 	#define STD_PATH                    "$STD_PATH"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF
