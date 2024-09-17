@@ -63,6 +63,13 @@ ENUM_1( NodeStatus
 ,	Unknown
 )
 
+ENUM( Polluted
+,	Clean
+,	Old
+,	PreExist
+,	Job
+)
+
 namespace Engine {
 
 	struct Node        ;
@@ -496,25 +503,26 @@ namespace Engine {
 			Ddate       log_date ;                               // ~40   < 64 bits,         logical date to detect overwritten
 			Codec::Code code     ;                               //         32 bits,         offset in association file where the association line can be found
 		} ;
-		//Name   name   ;                                        //         32 bits, inherited
-		Watcher  asking ;                                        //         32 bits,         last watcher needing this node
-		Crc      crc    = Crc::None ;                            // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		//Name  name   ;                                         //         32 bits, inherited
+		Watcher asking ;                                         //         32 bits,         last watcher needing this node
+		Crc     crc    = Crc::None ;                             // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 	private :
 		union {
 			IfPlain  _if_plain  = {} ;                           //        256 bits
-			IfDecode _if_decode ;                                //         32 bits
-			IfEncode _if_encode ;                                //         32 bits
+			IfDecode _if_decode ;                                //         96 bits
+			IfEncode _if_encode ;                                //         96 bits
 		} ;
 	public :
+		Job       polluting_job           ;                      //         32 bits,          polluting job when polluted was last set to Polluted::Job
 		MatchGen  match_gen:NMatchGenBits = 0                  ; //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4             = Buildable::Unknown ; //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		bool      polluted :1             = false              ; //          1 bit ,          if true <= node was produced by a non-official job or badly produced by official job
+		Polluted  polluted :2             = Polluted::Clean    ; //          2 bits,          reason for pollution
 	private :
 		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		Tflags  _actual_tflags ;                                 //          8 bits,          tflags associated with actual_job
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(NodeData)==56) ;                        // check expected size
+	static_assert(sizeof(NodeData)==64) ;                        // check expected size
 
 }
 

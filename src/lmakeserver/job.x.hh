@@ -218,8 +218,8 @@ namespace Engine {
 			friend ::ostream& operator<<( ::ostream& , State const& ) ;
 			JobReason reason          = {}    ;                          //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
 			bool      missing_dsk  :1 = false ;                          //          1 bit , if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
-			RunStatus stamped_err  :2 = {}    ;                          //          2 bits, errors seen in dep until iter before    last parallel chunk, Maybe means missing static
-			RunStatus proto_err    :2 = {}    ;                          //          2 bits, errors seen in dep until iter including last parallel chunk, Maybe means missing static
+			RunStatus stamped_err  :2 = {}    ;                          //          2 bits, errors seen in dep until iter before    last parallel chunk
+			RunStatus proto_err    :2 = {}    ;                          //          2 bits, errors seen in dep until iter including last parallel chunk
 			bool      stamped_modif:1 = false ;                          //          1 bit , modifs seen in dep until iter before    last parallel chunk
 			bool      proto_modif  :1 = false ;                          //          1 bit , modifs seen in dep until iter including last parallel chunk
 		} ;
