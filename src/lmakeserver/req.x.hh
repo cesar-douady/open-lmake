@@ -16,6 +16,7 @@ ENUM( JobReport
 ,	Done      // <=Done means job was run and reported a status
 ,	Completed
 ,	Killed
+,	Retry
 ,	Lost
 ,	LostErr
 ,	Resubmit

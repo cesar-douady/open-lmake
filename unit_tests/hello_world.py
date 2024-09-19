@@ -32,9 +32,7 @@ if __name__!='__main__' :
 		target = '{File1}+{File2}_py'
 		def cmd() :
 			for fn in (FIRST,SECOND) :
-				f = open(fn)
-				print(f.read(),end='')
-				f.close()              # ensure no warnings with python3.12 -W...
+				with open(fn) as f : print(f.read(),end='')
 
 else :
 

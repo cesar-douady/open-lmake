@@ -68,6 +68,7 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	NoTrigger       // if proc==                         Mark        , prevent lmake from rebuilding dependent jobs
 ,	Porcelaine      //                                                 generate easy to parse output
 ,	Quiet           //                                                 do not generate user oriented messages
+,	RetryOnError    // if proc==                  Make               , retry jobs in error
 ,	Rule            //                                                 rule name when interpreting arg as job name
 ,	SourceOk        // if proc==                  Make               , allow lmake to overwrite source files
 ,	Sync            //                                               , force synchronous operation (start server and wait for its end)

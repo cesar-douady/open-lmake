@@ -668,24 +668,26 @@ namespace Engine {
 		JobData const& jd          = **this           ;
 		Color          color       = {}/*garbage*/    ;
 		JR             res         = {}/*garbage*/    ; // report if not Rerun
-		JR             jr          = {}/*garbage*/    ; // report to do now
 		const char*    step        = nullptr          ;
 		bool           with_stderr = true             ;
 		bool           speculate   = ri.speculate!=No ;
 		bool           done        = ri.done()        ;
 		//
-		if      (jd.run_status!=RunStatus::Ok   ) { res = JR::Failed    ; color = Color::Err     ;                       step = snake_cstr(jd.run_status) ; }
-		else if (jd.status==Status::Killed      ) { res = JR::Killed    ; color = Color::Note    ; with_stderr = false ;                                    }
-		else if (is_lost(jd.status) && jd.err() ) { res = JR::LostErr   ; color = Color::Err     ;                       step = "lost_err"                ; }
-		else if (is_lost(jd.status)             ) { res = JR::Lost      ; color = Color::Warning ; with_stderr = false ;                                    }
-		else if (req.zombie()                   ) { res = JR::Completed ; color = Color::Note    ; with_stderr = false ;                                    }
-		else if (jd.err()                       ) { res = JR::Failed    ; color = Color::Err     ;                                                          }
-		else if (ri.modified                    ) { res = JR::Done      ; color = Color::Ok      ;                                                          }
-		else                                      { res = JR::Steady    ; color = Color::Ok      ;                                                          }
+		if      (jd.run_status!=RunStatus::Ok    ) { res = JR::Failed    ; color = Color::Err     ;                       step = snake_cstr(jd.run_status) ; }
+		else if (jd.status==Status::Killed       ) { res = JR::Killed    ; color = Color::Note    ; with_stderr = false ;                                    }
+		else if (is_lost (jd.status) && jd.err() ) { res = JR::LostErr   ; color = Color::Err     ;                       step = "lost_err"                ; }
+		else if (is_lost (jd.status)             ) { res = JR::Lost      ; color = Color::Warning ; with_stderr = false ;                                    }
+		else if (is_retry(jd.status)             ) { res = JR::Retry     ; color = Color::Warning ; with_stderr = false ;                                    }
+		else if (req.zombie()                    ) { res = JR::Completed ; color = Color::Note    ; with_stderr = false ;                                    }
+		else if (jd.err()                        ) { res = JR::Failed    ; color = Color::Err     ;                                                          }
+		else if (ri.modified                     ) { res = JR::Done      ; color = Color::Ok      ;                                                          }
+		else                                       { res = JR::Steady    ; color = Color::Ok      ;                                                          }
 		//
-		if      (done                           )   jr = res          ;
-		else if (jd.status==Status::EarlyChkDeps) { jr = JR::Resubmit ; color = Color::Note ; with_stderr = false ; step = nullptr ; }
-		else                                      { jr = JR::Rerun    ; color = Color::Note ;                       step = nullptr ; }
+		JR jr = res ;                                   // report to do now
+		if (!done) {
+			if      (jd.status==Status::EarlyChkDeps) { jr = JR::Resubmit ; color = Color::Note ; with_stderr = false ; step = nullptr ; }
+			else if (res!=JR::Retry                 ) { jr = JR::Rerun    ; color = Color::Note ;                       step = nullptr ; }
+		}
 		//
 		if (color==Color::Err) { if ( speculate                ) color = Color::SpeculateErr ; }
 		else                   { if ( + with_stderr && +stderr ) color = Color::Warning      ; }
@@ -747,6 +749,7 @@ namespace Engine {
 		,	JobReasonTag::Killed                                                                                    // Killed
 		,	JobReasonTag::ChkDeps                                                                                   // ChkDeps
 		,	JobReasonTag::PollutedTargets                                                                           // BadTarget
+		,	JobReasonTag::Retry                                                                                     // Retry
 		,	JobReasonTag::None                                                                                      // Ok
 		,	JobReasonTag::None                                                                                      // Err
 		} ;
@@ -1159,15 +1162,22 @@ namespace Engine {
 		for( Req r : running_reqs(false/*with_zombies*/) ) if (r!=req) {
 			ReqInfo const& cri = c_req_info(r) ;
 			ri.backend = cri.backend ;
-			ri.step(cri.step()) ;                                                                                // Exec or Queued, same as other reqs
+			ri.step(cri.step()) ;                                        // Exec or Queued, same as other reqs
 			ri.inc_wait() ;
 			if (ri.step()==Step::Exec) req->audit_job(Color::Note,"started",idx()) ;
-			Backend::s_add_pressure( ri.backend , +idx() , +req , {.live_out=ri.live_out,.pressure=pressure} ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
+			SubmitAttrs sa = {
+				.live_out = ri.live_out
+			,	.pressure = pressure
+			} ;
+			if (req->options.flags[ReqFlag::RetryOnError]) sa.n_retries = from_string<uint8_t>(req->options.flag_args[+ReqFlag::RetryOnError]) ;
+			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Backend::s_add_pressure( ri.backend , +idx() , +req , sa ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
+			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("other_req",r,ri) ;
 			return true/*maybe_new_deps*/ ;
 		}
 		//
-		for( Node t : targets ) t->set_buildable() ; // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
+		for( Node t : targets ) t->set_buildable() ;                     // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		CacheNoneAttrs cache_none_attrs ;
 		try {
@@ -1193,7 +1203,7 @@ namespace Engine {
 						if ( +dfa_msg.first || !dfa_msg.second ) {
 							run_status = RunStatus::Err ;
 							req->audit_job ( dfa_msg.second?Color::Note:Color::Err , "wash" , idx()     ) ;
-							req->audit_info( Color::Note , dfa_msg.first                            , 1 ) ;
+							req->audit_info(                Color::Note            , dfa_msg.first  , 1 ) ;
 							trace("hit_err",dfa_msg,ri) ;
 							if (!dfa_msg.second) return false/*maybe_new_deps*/ ;
 						}
@@ -1265,6 +1275,7 @@ namespace Engine {
 			,	.deps      = ::move(deps)
 			,	.reason    = reason
 			} ;
+			if (req->options.flags[ReqFlag::RetryOnError]) sa.n_retries = ::max( sa.n_retries , from_string<uint8_t>(req->options.flag_args[+ReqFlag::RetryOnError]) ) ;
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Backend::s_submit( ri.backend , +idx() , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

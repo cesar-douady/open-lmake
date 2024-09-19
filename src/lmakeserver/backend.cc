@@ -61,7 +61,7 @@ namespace Backends {
 
 	Status Backend::StartTab::release( ::map<JobIdx,StartEntry>::iterator it , Status status ) {
 		Trace trace(BeChnl,"release",it->first,status) ;
-		if ( is_lost(status) && is_ok(status)==Maybe ) {
+		if (is_retry(status)) {
 			uint8_t& n_retries = it->second.submit_attrs.n_retries ;
 			if (n_retries!=0) {                                      // keep entry to keep on going retry count
 				uint8_t nr = n_retries - 1 ;                         // record trial and save value
@@ -456,6 +456,12 @@ namespace Backends {
 			StartEntry& entry = it->second                         ;
 			_s_update_total_workload()                ;
 			_s_small_ids.release(entry.conn.small_id) ;
+			if (jrr.digest.status==Status::Err)
+				for( ReqIdx r : entry.reqs )
+					if (Req(r)->options.flags[ReqFlag::RetryOnError]) {
+						jrr.digest.status = Status::Retry ;
+						break ;
+					}
 			//
 			je = { job , entry.conn.host , entry.date , New } ;
 			uint64_t      dly_ms   = (Pdate(New)-entry.date).msec()                                 ;
@@ -471,7 +477,7 @@ namespace Backends {
 			//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			set_nl(jrr.msg) ; jrr.msg += msg ;
 			if ( jrr.digest.status==Status::LateLost && !msg ) jrr.msg           += "vanished after start\n"                   ;
-			if ( is_lost(jrr.digest.status) && !ok           ) jrr.digest.status  = Status::LateLostErr                        ;
+			if ( is_lost(jrr.digest.status) && !ok           ) jrr.digest.status  = mk_err(jrr.digest.status)                  ;
 			/**/                                               jrr.digest.status  = _s_start_tab.release(it,jrr.digest.status) ;
 		}
 		trace("info") ;

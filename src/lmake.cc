@@ -74,6 +74,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of jobs"                          } }
 	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                     } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"           } }
+	,	{ ReqFlag::RetryOnError    , { .short_name='r' , .has_arg=true  , .doc="retry jobs in error"                         } }
 	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"             } }
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"            } }
 	,	{ ReqFlag::Verbose         , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"             } }
@@ -89,10 +90,11 @@ int main( int argc , char* argv[] ) {
 	/**/  trace("main",env_args                               ) ;
 	/**/  trace("main",args                                   ) ;
 	//
-	ReqCmdLine      cmd_line { syntax , int(args.size()) , args.data() } ;
-	::string const& n_jobs   = cmd_line.flag_args[+ReqFlag::Jobs]        ;
-	try                       { from_string<JobIdx>(n_jobs,true/*empty_ok*/) ;                           }
-	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+n_jobs) ; }
+	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
+	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                           }
+	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+cmd_line.flag_args[+ReqFlag::Jobs]) ; }
+	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::RetryOnError],true/*empty_ok*/) ;                    }
+	catch (::string const& e) { syntax.usage("cannot understand retry count ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ; }
 	// start interrupt handling thread once server is started
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Make , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;

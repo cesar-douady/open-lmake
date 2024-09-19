@@ -10,7 +10,7 @@ class Job(Job) :
 		self.write_cmd()
 		#
 		call_line  = [ '"$(type -p gdb)"' ]
-		call_line += ( '-ex' , '"set environment TMPDIR=$TMPDIR"' )                                              # gdb keeps the environment except TMPDIR
+		call_line += ( '-ex' , '"set environment TMPDIR $TMPDIR"' )                                              # gdb keeps the environment except TMPDIR
 		if self.stdin or self.stdout :
 			if self.stdin or self.stdout :                                                                       # in case of redirections, define alias r to run with adequate redirections
 				if True        : run  = 'run'

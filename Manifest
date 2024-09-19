@@ -255,6 +255,7 @@ unit_tests/rename.py
 unit_tests/repair.py
 unit_tests/rerun.py
 unit_tests/resources.py
+unit_tests/retry.py
 unit_tests/rules.py
 unit_tests/rust.py
 unit_tests/scratchpad.py

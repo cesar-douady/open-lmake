@@ -496,7 +496,7 @@ If @code{$LMAKE_VIDEO} is defined, it is processed as if provided to the @code{-
 
 @section @lmake
 
-Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [[-j|--jobs] max_jobs] [-m|--manual-ok] [-o|--live-out] [-l|--local] [-v|--versbose-backend] targets...}
+Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [[-j|--jobs] max_jobs] [-o|--live-out] [[-r|--retry-on-error] count] [-l|--local] [-v|--versbose-backend] targets...}
 
 @lmake launches all necessary jobs to ensure that targets are generated following rules specified in @Lmakefile.
 
@@ -546,14 +546,14 @@ Note that backend only impacts resources and scheduling, not the content of the 
 Contrarily to the @code{lforget -e} command, this only concerns this execution, not subsequent ones.
 @item @code{-j}|@code{--jobs} max_jobs : When this option is used, @lmake will limit the overall number of simultaneous jobs to max_jobs per backend.
 If several @lmake commands run simultaneously, a job cannot be launched on behalf of a given command if the number of running jobs is not less than its associated max_jobs.
-@item @code{-m}|@code{--manual-ok} : normally, @lmake refuses to launch a job that may overwrite a modification done by the user (unless the file is empty)
-as @lmake fears to jettison important information from the user.
-With this option, the user instructs @lmake that this fear is not pertinent.
 @item @code{-o}|@code{--live-out} : normally, @lmake does not output the stdout of jobs (such stdout is accessible with the @code{lshow} command).
 However, sometimes it is practical to have the output while jobs are running.
 Generating such output for all jobs would produce an intermixed flow of characters of all jobs running in parallel making such an output unreadable.
 When this option is used, only the jobs directly producing the asked targets have their output generated on the output of @lmake.
 Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
+@item @code{-r}|@code{--retry-on-error} count : ask @lmake to retry jobs in case of error.
+The number of retries is the max between count and the n_retries attribute of the rule.
+This is useful for unattended execution (e.g. nightly regressions) when system reliability is not enough to guarantee correct execution at the desired level.
 @item @code{-l}|@code{--local} : with this option, jobs are launched locally (i.e. using the @code{local} backend) instead of the backend mentioned in the rule.
 Note that if 2 @lmake commands with different values for this option are running simultaneously, in case a job is necessary for both, it may be launched locally or remotely.
 The originally targetted backend is in charge of mapping required resources mentioned in the rule to local resources understandable by the local backend.
@@ -2733,6 +2733,9 @@ This attribute provides the number of allowed retries before giving up when a jo
 For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called @code{job_exec}) was manually killed.
 
 In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.
+
+Job is also retried if the @code{-r} or @code{--retry-on-error} option is passed to @lmake.
+In that case, the number of retries is the max between the 2 values.
 
 @section @code{use_script}
 

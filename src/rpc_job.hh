@@ -93,6 +93,7 @@ ENUM_3( JobReasonTag                                // see explanations in table
 ,	Force
 ,	Garbage
 ,	Killed
+,	Retry
 ,	Lost
 ,	New
 //	with node
@@ -126,6 +127,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"job forced"                                    // Force
 ,	"job ran with unstable data"                    // Garbage
 ,	"job was killed"                                // Killed
+,	"job was in error"                              // Retry
 ,	"job was lost"                                  // Lost
 ,	"job was never run"                             // New
 //	with node
@@ -160,6 +162,7 @@ static constexpr uint8_t JobReasonTagPrios[] = {
 ,	51                                              // Force
 ,	51                                              // Garbage
 ,	51                                              // Killed
+,	51                                              // Retry
 ,	51                                              // Lost
 ,	52                                              // New
 //	with node
@@ -198,50 +201,60 @@ ENUM( MountAction
 )
 
 // START_OF_VERSIONING
-ENUM_3( Status                           // result of job execution
-,	Early   = EarlyLostErr               // <=Early means output has not been modified
-,	Async   = Killed                     // <=Async means job was interrupted asynchronously
-,	Garbage = BadTarget                  // <=Garbage means job has not run reliably
-,	New                                  // job was never run
-,	EarlyChkDeps                         // dep check failed before job actually started
-,	EarlyErr                             // job was not started because of error
-,	EarlyLost                            // job was lost before starting     , retry
-,	EarlyLostErr                         // job was lost before starting     , do not retry
-,	LateLost                             // job was lost after having started, retry
-,	LateLostErr                          // job was lost after having started, do not retry
-,	Killed                               // job was killed
-,	ChkDeps                              // dep check failed
-,	BadTarget                            // target was not correctly initialized or simultaneously written by another job
-,	Ok                                   // job execution ended successfully
-,	Err                                  // job execution ended in error
+ENUM_3( Status             // result of job execution
+,	Early   = EarlyLostErr // <=Early means output has not been modified
+,	Async   = Killed       // <=Async means job was interrupted asynchronously
+,	Garbage = Retry        // <=Garbage means job has not run reliably
+,	New                    // job was never run
+,	EarlyChkDeps           // dep check failed before job actually started
+,	EarlyErr               // job was not started because of error
+,	EarlyLost              // job was lost before starting     , retry
+,	EarlyLostErr           // job was lost before starting     , do not retry
+,	LateLost               // job was lost after having started, retry
+,	LateLostErr            // job was lost after having started, do not retry
+,	Killed                 // job was killed
+,	ChkDeps                // dep check failed
+,	BadTarget              // target was not correctly initialized or simultaneously written by another job
+,	Retry                  // job is in error but we are instructed to retry on error
+,	Ok                     // job execution ended successfully
+,	Err                    // job execution ended in error
 )
 // END_OF_VERSIONING
-inline bool  is_lost(Status s) { return s<=Status::LateLostErr && s>=Status::EarlyLost ; }
-inline Bool3 is_ok  (Status s) {
-	static constexpr Bool3 IsOkTab[] = {
-		Maybe                            // New
-	,	Maybe                            // EarlyChkDeps
-	,	No                               // EarlyErr
-	,	Maybe                            // EarlyLost
-	,	No                               // EarlyLostErr
-	,	Maybe                            // LateLost
-	,	No                               // LateLostErr
-	,	Maybe                            // Killed
-	,	Maybe                            // ChkDeps
-	,	Maybe                            // BadTarget
-	,	Yes                              // Ok
-	,	No                               // Err
-	} ;
-	static_assert(sizeof(IsOkTab)==N<Status>) ;
-	return IsOkTab[+s] ;
+inline bool is_lost (Status s) {
+	switch (s) {
+		case Status::EarlyLost    :
+		case Status::EarlyLostErr :
+		case Status::LateLost     :
+		case Status::LateLostErr  : return true  ;
+		default                   : return false ;
+	}
+}
+inline bool is_retry(Status s) {
+	switch (s) {
+		case Status::EarlyLost :
+		case Status::LateLost  :
+		case Status::Retry     : return true  ;
+		default                : return false ;
+	}
+}
+inline Bool3 is_ok(Status s) {
+	switch (s) {
+		case Status::Ok           : return Yes   ;
+		case Status::EarlyErr     :
+		case Status::EarlyLostErr :
+		case Status::LateLostErr  :
+		case Status::Err          : return No    ;
+		default                   : return Maybe ;
+	}
 }
 inline Status mk_err(Status s) {
+	if (is_ok(s)==No) return s ;
 	switch (s) {
 		case Status::New       : return Status::EarlyErr     ;
 		case Status::EarlyLost : return Status::EarlyLostErr ;
 		case Status::LateLost  : return Status::LateLostErr  ;
-		case Status::Ok        : return Status::Err          ;
-	DF}
+		default                : return Status::Err          ;
+	}
 }
 
 static const ::string EnvPassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
@@ -837,9 +850,9 @@ struct SubmitAttrs {
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		// tag, deps and n_retries are independent of req but may not always be present
-		if      ( tag==BackendTag::Unknown) tag       = other.tag       ; else if ( other.tag!=BackendTag::Unknown) SWEAR(tag      ==other.tag      ,tag      ,other.tag      ) ;
-		if      (!deps                    ) deps      = other.deps      ; else if (+other.deps                    ) SWEAR(deps     ==other.deps     ,deps     ,other.deps     ) ;
-		if      (!n_retries               ) n_retries = other.n_retries ; else if ( other.n_retries               ) SWEAR(n_retries==other.n_retries,n_retries,other.n_retries) ;
+		if      ( tag==BackendTag::Unknown) tag  = other.tag  ; else if ( other.tag!=BackendTag::Unknown) SWEAR(tag ==other.tag ,tag ,other.tag ) ;
+		if      (!deps                    ) deps = other.deps ; else if (+other.deps                    ) SWEAR(deps==other.deps,deps,other.deps) ;
+		n_retries  = ::max(n_retries,other.n_retries) ;
 		pressure   = ::max(pressure ,other.pressure ) ;
 		live_out  |= other.live_out                   ;
 		reason    |= other.reason                     ;
