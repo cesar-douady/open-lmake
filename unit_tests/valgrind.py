@@ -25,7 +25,7 @@ if __name__!='__main__' :
 else :
 
 	import shutil
-	if not shutil.which('valgring') :
+	if not shutil.which('valgrind') :
 		print('valgrind not available',file=open('skipped','w'))
 		exit()
 

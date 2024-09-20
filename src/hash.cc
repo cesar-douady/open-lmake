@@ -15,8 +15,8 @@ namespace Hash {
 
 	::ostream& operator<<( ::ostream& os , Crc const crc ) {
 		CrcSpecial special{crc} ;
-		if (special==CrcSpecial::Plain  ) return os << "Crc("<<::string(crc)<<','<<(crc.is_lnk()?'L':'R')<<')' ;
-		else                              return os << "Crc("<<special<<')'                                    ;
+		if (special==CrcSpecial::Plain) return os << "Crc("<<::string(crc)<<','<<(crc.is_lnk()?'L':'R')<<')' ;
+		else                            return os << "Crc("<<special<<')'                                    ;
 	}
 
 	Crc::Crc(::string const& filename) {
@@ -54,13 +54,23 @@ namespace Hash {
 	}
 
 	Crc::operator ::string() const {
-		if ( CrcSpecial special=CrcSpecial(*this) ; special<CrcSpecial::Plain ) return ::string(snake(special)) ;
-		::string res ; res.reserve(sizeof(_val)*2) ;
-		for( size_t i=0 ; i<sizeof(_val) ; i++ ) {
-			uint8_t b = _val>>(i*8) ;
-			for( uint8_t d : {b>>4,b&0xf} ) res.push_back( d<10 ? '0'+d : 'a'+d-10 ) ;
-		}
-		return res ;
+		switch (CrcSpecial(*this)) {
+			case CrcSpecial::Unknown : return "unknown"   ;
+			case CrcSpecial::Lnk     : return "unknown-L" ;
+			case CrcSpecial::Reg     : return "unknown-R" ;
+			case CrcSpecial::None    : return "none"      ;
+			case CrcSpecial::Empty   : return "empty-R"   ;
+			case CrcSpecial::Plain   : {
+				::string res ; res.reserve(sizeof(_val)*2+2) ;
+				for( size_t i=0 ; i<sizeof(_val) ; i++ ) {
+					uint8_t b = _val>>(i*8) ;
+					{ uint8_t d = b>>4  ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
+					{ uint8_t d = b&0xf ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
+				}
+				res += is_lnk()?"-L":"-R" ;
+				return res ;
+			} break ;
+		DF}
 	}
 
 	Accesses Crc::diff_accesses( Crc other ) const {

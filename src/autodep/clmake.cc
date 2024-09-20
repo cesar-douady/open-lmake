@@ -83,7 +83,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
-	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ;
+	::vector<pair<Bool3/*ok*/,Crc>> dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ;
 	//
 	if (!verbose) return None.to_py_boost() ;
 	//

@@ -155,7 +155,7 @@ namespace Engine {
 		size_t    w       = 0 ;
 		::umap_ss rev_map ;
 		for( auto const& [k,d] : rule->deps_attrs.eval(job->simple_match()) ) {
-			w                  = ::max( w , k.size() ) ;
+			w              = ::max( w , k.size() ) ;
 			rev_map[d.txt] = k                     ;
 		}
 		::vector<bool> parallel ;     for( Dep const& d : job->deps ) parallel.push_back(d.parallel) ; // first pass to count deps as they are compressed and size is not known upfront

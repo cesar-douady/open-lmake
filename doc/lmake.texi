@@ -988,6 +988,14 @@ The following options are supported :
 @itemize @bullet
 @item @code{-L}|@code{--follow-symlinks} : follow the last level symbolic link, default is not to follow.
 @item @code{-v}|@code{--verbose}         : write lines composed of the crc and the name separated by a space for each required dependency.
+The crc is :
+@itemize @minus
+@item @code{unknown} : the crc could not be computed, typically because the file is a special file (such as a device for example)
+@item @code{none}    : the file does not exist
+@item @code{empty-R} : the file is an empty regular file
+@item @code{<crc>-R} : the file is a regular file , <crc> is 16-digit hexadecimal number computed after its content
+@item @code{<crc>-L} : the file is a symbolic link, <crc> is 16-digit hexadecimal number computed on the link (not the content of the target of the link)
+@end itemize
 @item @code{-R}|@code{--no-read}         : does not report an actual read, only dep flags. Default is to report a read and alter flags.
 @item @code{-c}|@code{--critical}        : create critical deps (cf @pxref{critical-deps}).
 @item @code{-E}|@code{--essential}       : passed dependencies will appear in the flow shown with a graphical tool.
@@ -1182,24 +1190,31 @@ This allows the user to have access to these environment variables when explicit
 
 The Python @lmake module also provides a Python API to the job supporting command described above.
 The correspondance is :
-@table @asis
+@multitable @columnfractions 0.3 0.2 0.5
+@headitem Function @tab equivalent command @tab Comment
 @item @code{def check_deps()}
-@code{lcheck_deps}
+@tab @code{lcheck_deps}
+@tab
 @item @code{def depend(*files,follow_symlinks=True,verbose=False,read=True,critical=False,essential=False,ignore_error=False,required=True,ignore=False,stat_read_data=False)}
-@code{ldepend}
-@code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
+@tab @code{ldepend}
+@tab @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
+If @code{verbose}, the result is a @code{dict} indexed by files, whose values are 2-tuples formed by :
+@itemize @minus
+@item a status : @code{True} if the file was up to date and ok, @code{False} if the file was up to date and in error, @code{None} if the file was not up to date.
+@item a @code{str} containing the crc as described for @code{ldepend}.
+@end itemize
 @item @code{def target(*files,follow_symlinks=True,write=True,essential=False,incremental=False,phony=False,no_uniquify=False,no_warning=False,ignore=False,source_ok=False,allow=True)}
-@code{ltarget}
-@code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
+@tab@code{ltarget}
+@tab @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{target('file1','file2')} or @code{target(('file1','file2'))}.
 @item @code{def decode(file,context,code)}
-@code{ldecode}
-The return value is the value associated with code.
+@tab@code{ldecode}
+@tab The return value is the value associated with code.
 @item @code{def encode(file,context,value,min_len=1)}
-@code{lencode}
-The return value is the generated of retrieved code.
-@end table
+@tab @code{lencode}
+@tab The return value is the generated of retrieved code.
+@end multitable
 
 @section @code{lmake.get_autodep}
 @code{def get_autodep()}
