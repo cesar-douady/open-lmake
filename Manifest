@@ -204,6 +204,7 @@ unit_tests/dynamic.py
 unit_tests/dynamic_py.py
 unit_tests/escape.py
 unit_tests/force.py
+unit_tests/forget.py
 unit_tests/gcda.py
 unit_tests/generic_sources.py
 unit_tests/git.py

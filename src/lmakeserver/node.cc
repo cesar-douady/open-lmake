@@ -818,6 +818,8 @@ namespace Engine {
 				/**/ deps.emplace_back().chunk[0] = dep                     ;
 			} else {                                                                                  // create a chunk just for dep
 				deps.push_back(dep) ;
+				deps.back().hdr.sz             = 0  ;                                                 // dep may have a non-null sz (which is not significant as far as the dep alone is concerned)
+				deps.back().hdr.chunk_accesses = {} ;                                                 // useless, just to avoid a random value hanging around
 			}
 		} else {
 			Dep& hdr = deps[hole].hdr ;
