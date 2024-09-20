@@ -12,6 +12,7 @@ __pycache__
 
 # directories
 *.dir
+/_bin/
 /bin/
 /lib/
 
@@ -35,13 +36,6 @@ __pycache__
 *.stamp
 */stamp
 *.inc_stamp
-
-# binaries
-/_bin/align_comments
-/_bin/job_exec
-/_bin/ldump
-/_bin/ldump_job
-/_bin/lmakeserver
 
 # tests
 tok

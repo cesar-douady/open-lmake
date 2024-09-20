@@ -33,3 +33,8 @@ def multi_strip(txt) :
 		ls = [ l[1:] for l in ls ]
 		l0 = ls[0]
 	return ''.join(l+'\n' for l in ls)
+
+def find_cc_ld_library_path(cc) :
+	import subprocess as sp
+	import os.path    as osp
+	return sp.run( (osp.dirname(osp.dirname(osp.dirname(__file__)))+'/bin/find_cc_ld_library_path',cc) , stdout=sp.PIPE , check=True , universal_newlines=True ).stdout.strip()

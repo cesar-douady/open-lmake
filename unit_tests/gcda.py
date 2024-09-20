@@ -5,12 +5,11 @@
 
 if __name__!='__main__' :
 
-	import os
-
 	import lmake
 	from lmake.rules import Rule,PyRule
 
-	gxx = lmake.user_environ.get('CXX','g++')
+	gxx             = lmake.user_environ.get('CXX','g++')
+	ld_library_path = lmake.find_cc_ld_library_path(gxx)
 
 	depth = len(lmake.root_dir.split('/')) - 1
 
@@ -46,9 +45,10 @@ if __name__!='__main__' :
 		cmd = "{gxx} -fprofile-arcs -o {SO} -shared {' '.join((f for k,f in deps.items()))}"
 
 	class Dut(Rule) :
-		targets = { 'DUT':'dut' , 'GCDA':'gcda_dir/{File*:.*}' }
-		deps    = { 'EXE':'hello_world'                        }
-		cmd     = 'GCOV_PREFIX=gcda_dir GCOV_PREFIX_STRIP={depth} ./{EXE} >{DUT}'
+		targets     = { 'DUT':'dut' , 'GCDA':'gcda_dir/{File*:.*}' }
+		deps        = { 'EXE':'hello_world'                        }
+		environ_cmd = { 'LD_LIBRARY_PATH' : ld_library_path        }
+		cmd         = 'GCOV_PREFIX=gcda_dir GCOV_PREFIX_STRIP={depth} ./{EXE} >{DUT}'
 
 	class Test(Rule) :
 		target = 'test'
