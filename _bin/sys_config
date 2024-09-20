@@ -17,9 +17,31 @@ rm -rf trial
 mkdir  trial
 cd     trial
 
-CXX=${CXX:-g++} ; cxx=$(type -p $CXX)
-[ "$cxx" ] || { echo $CXX not found >&2 ; exit 1 ; }
-CXX=$cxx
+CXX=${CXX:-g++}
+
+case "$(basename $CXX)" in
+	clang  ) CXX_FLAVOR=clang ;;
+	clang++) CXX_FLAVOR=clang ;;
+	gcc    ) CXX_FLAVOR=gcc   ;;
+	gcc-*  ) CXX_FLAVOR=gcc   ;;
+	cc     ) CXX_FLAVOR=gcc   ;;
+	g++    ) CXX_FLAVOR=gcc   ;;
+	g++-*  ) CXX_FLAVOR=gcc   ;;
+	c++    ) CXX_FLAVOR=gcc   ;;
+	*      ) echo cannot recognize c compiler $CCX >&2 ; exit 1 ;;
+esac
+
+CXX=$(type -p $CXX)
+[ "$CXX" ] || { echo $CXX not found >&2 ; exit 1 ; }
+
+CXX_VERSION="$($CXX --version | head -1)"
+CXX_VERSION="${CXX_VERSION##* }"
+CXX_VERSION="${CXX_VERSION%%.*}"
+
+case "$CXX_FLAVOR" in
+	clang) [[ $CXX_VERSION -ge 14 ]] || { echo $CXX version $CXX_VERSION must be at least 14 >&2 ; exit 1 ; } ;;
+	gcc  ) [[ $CXX_VERSION -ge 11 ]] || { echo $CXX version $CXX_VERSION must be at least 11 >&2 ; exit 1 ; } ;;
+esac
 
 #
 # Python configuration (Python2 is optional)
