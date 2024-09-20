@@ -10,9 +10,12 @@ H_FILE=$2
 
 unset CDPATH # ensure cd goes to the right directory and writes nothing to stdout
 
+PATH="$(realpath $(dirname $0)):$PATH" # access to local exe's
+
 START_DIR=$(pwd)
-mkdir -p trial
-cd       trial
+rm -rf trial
+mkdir  trial
+cd     trial
 
 CXX=${CXX:-g++} ; cxx=$(type -p $CXX)
 [ "$cxx" ] || { echo $CXX not found >&2 ; exit 1 ; }
@@ -81,38 +84,10 @@ fi
 [ "$CXX" != "${CXX%++*}" ] || { echo cannot recognize c++ compiler $CXX ; exit 1 ; } # ensure we can find "++" in cxx, for example gcc or clang will not work, we must use g++ and clang++
 type -p $CXX >/dev/null    || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
 
-case "$($CXX --version|head -1)" in
-	*clang* ) CXX_FLAVOR=clang ; v=$($CXX -dumpversion) ; [ ${v%%.*} -lt 14 ] && { echo clang version must be at least 14  ; exit 1 ; } ;;
-	*g++*   ) CXX_FLAVOR=gcc   ; v=$($CXX -dumpversion) ; [ ${v%%.*} -lt 11 ] && { echo gcc   version must be at least 11  ; exit 1 ; } ;;
-	*       )                                                                      echo cannot recognize c++ compiler $CXX ; exit 1     ;;
-esac
+LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
+LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
 
-$CXX -v -o /dev/null -std=c++20 -xc++ -<<< "int main(){}" 2>compiler_info
-if [ $CXX_FLAVOR = gcc ] ; then
-	LLP="$(grep LIBRARY_PATH= compiler_info)" # e.g. : LIBRARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
-	LLP="${LLP#LIBRARY_PATH=}"                # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
-	LLP="$(sed 's/:/ /g' -<<< $LLP)"          # e.g. : /usr/lib/x /a/b /c /a/b/c/..
-elif [ $CXX_FLAVOR = clang ] ; then
-	set $(grep -- -L compiler_info)
-	while [ $# != 0 ] ; do
-		case $1 in
-			-L  ) LLP="$LLP $2" ; shift ;;
-			-L* ) LLP="$LLP ${1#-L}"    ;;
-			*   )                       ;;
-		esac
-		shift
-	done
-fi
-LLP="$(realpath $LLP | sort -u)"              # e.g. : /a/b /c /usr/lib/x
-LINK_LIB_PATH=
-for l in $LLP ; do                            # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
-	case $l/ in
-		/usr/lib/*  )                                   ;;
-		/usr/lib64/*)                                   ;;
-		*           ) LINK_LIB_PATH="$LINK_LIB_PATH $l" ;;
-	esac
-done
-
+$CXX -v -E -o /dev/null -xc - </dev/null 2>compiler_info
 STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' compiler_info)) )" # echo is used to replace \n by space
 
 #

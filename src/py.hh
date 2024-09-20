@@ -92,8 +92,9 @@ namespace Py {
 		return nullptr ;
 	}
 
-	Ptr<Object> py_eval(::string const&) ;
-	Ptr<Dict  > py_run (::string const&) ;
+	Ptr<Object> py_eval( ::string const& expr             ) ;
+	void        py_run ( ::string const& text , Dict& env ) ;
+	Ptr<Dict>   py_run ( ::string const& text             ) ;
 
 	//
 	// Object

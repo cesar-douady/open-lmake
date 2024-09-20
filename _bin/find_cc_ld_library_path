@@ -1,0 +1,67 @@
+#!/bin/bash -e
+# This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Copyright (c) 2023 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+cc=$1
+
+case x"$cc" in
+	x      ) echo usage : $0 path/to/c-compiler >&2 ; exit 2 ;;
+	x-h    ) echo usage : $0 path/to/c-compiler >&2 ; exit 2 ;;
+	x--help) echo usage : $0 path/to/c-compiler >&2 ; exit 2 ;;
+esac
+
+for w in $($cc --version|head -1) ; do
+	case $w in
+		clang  ) flavor=clang ; break ;;
+		clang++) flavor=clang ; break ;;
+		gcc    ) flavor=gcc   ; break ;;
+		cc     ) flavor=gcc   ; break ;;
+		g++    ) flavor=gcc   ; break ;;
+		c++    ) flavor=gcc   ; break ;;
+	esac
+done
+[ "$flavor" ] || { echo cannot recognize c compiler $cc ; exit 2 ; }
+
+info=$($cc -v -o /dev/null -xc - <<< "int main(){}" 2>&1)
+
+case $flavor in
+	gcc)
+		for libs in $info ; do
+			case $libs in
+				LIBRARY_PATH=*)                  # e.g. : LIBRARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
+					libs="${libs#LIBRARY_PATH=}" # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
+					libs="${libs//:/ }"          # e.g. : /usr/lib/x /a/b /c /a/b/c/..
+					break
+				;;
+			esac
+		done
+	;;
+	clang)
+		set $info
+		while [ $# != 0 ] ; do
+			case $1 in
+				-L ) libs="$libs $2" ; shift ;;
+				-L*) libs="$libs ${1#-L}"    ;;
+				*  )                         ;;
+			esac
+			shift
+		done
+	;;
+esac
+libs="$(realpath $libs | sort -u)"               # e.g. : /a/b /c /usr/lib/x
+
+ld_library_path=
+for l in $libs ; do # e.g. : /a/b /c (filter out standard dirs as required in case of installed package)
+	case $l/ in
+		/lib/*      )                                       ;;
+		/lib64/*    )                                       ;;
+		/usr/lib/*  )                                       ;;
+		/usr/lib64/*)                                       ;;
+		*           ) ld_library_path="$ld_library_path:$l" ;;
+	esac
+done
+ld_library_path=${ld_library_path#:}
+
+echo $ld_library_path

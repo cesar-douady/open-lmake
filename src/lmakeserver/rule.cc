@@ -522,6 +522,29 @@ namespace Engine {
 	// Cmd
 	//
 
+	::string RuleData::gen_py_line( Job j , Rule::SimpleMatch& m/*lazy*/ , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const {
+		if (vc!=VarCmd::StarMatch) return key+" = "+mk_py_str(val)+'\n' ;
+		//
+		Rule       r    = +m ? m.rule : j->rule ;
+		::vector_s args ;
+		::string   expr = _subst_target(
+			matches[i].second.pattern
+		,	[&](VarIdx s)->::string {
+				::string k = stems[s].first ;
+				if ( k.front()=='<' and k.back()=='>' )   k = k.substr(1,k.size()-2) ;
+				if ( s>=r->n_static_stems             ) { args.push_back(k) ;                return '{'+k+'}'                ; }
+				else                                    { if (!m) m = Rule::SimpleMatch(j) ; return _fstr_escape(m.stems[s]) ; } // solve lazy m
+			}
+		,	Escape::Fstr
+		) ;
+		::string res   = "def "+key+'(' ;
+		First    first ;
+		for( ::string const& a : args ) res <<first("",",")<<' '<<a<<' ' ;
+		res<<") : return f"<<mk_py_str(expr)<<'\n'    ;
+		res<<key<<".regexpr = "<<mk_py_str(val)<<'\n' ;
+		return res ;
+	}
+
 	void Cmd::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		::string raw_cmd ;
 		Attrs::acquire_from_dct( raw_cmd , *py_src , "cmd" ) ;
@@ -547,47 +570,26 @@ namespace Engine {
 				Attrs::acquire( cmd , &py_obj->as_a<Str>() ) ;
 			}
 			return {{}/*preamble*/,::move(cmd)} ;
-		}
-		::string res ;
-		eval_ctx( match , rsrcs
-		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
-				if (vc!=VarCmd::StarMatch) {
-					res+=key+" = "+mk_py_str(val)+'\n' ;
-					return ;
+		} else {
+			::string res ;
+			eval_ctx( match , rsrcs
+			,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
+					res += r->gen_py_line( match , vc , i , key , val ) ;
 				}
-				::vector_s args ;
-				::string expr = _subst_target(
-					r->matches[i].second.pattern
-				,	[&](VarIdx s)->::string {
-						::string k = r->stems[s].first ;
-						if ( k.front()=='<' and k.back()=='>' ) k = k.substr(1,k.size()-2) ;
-						if ( s>=r->n_static_stems             ) { args.push_back(k) ; return '{'+k+'}'                    ; }
-						else                                                          return _fstr_escape(match.stems[s]) ;
+			,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) -> void {
+					res<<key<<" = {\n" ;
+					bool f = true ;
+					for( auto const& [k,v] : val ) {
+						if (!f) res += ',' ;
+						res<<'\t'<<mk_py_str(k)<<" : "<<mk_py_str(v)<<'\n' ;
+						f = false ;
 					}
-				,	Escape::Fstr
-				) ;
-				res<<"def "<<key<<'(' ;
-				const char* sep = "" ;
-				for( ::string const& a : args ) {
-					res<<sep<<' ' <<a<<' ' ;
-					sep = "," ;
+					res += "}\n" ;
 				}
-				res<<") : return f"<<mk_py_str(expr)<<'\n'     ;
-				res<<key<<".regexpr = "<<mk_py_str(val )<<'\n' ;
-			}
-		,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) -> void {
-				res<<key<<" = {\n" ;
-				bool f = true ;
-				for( auto const& [k,v] : val ) {
-					if (!f) res += ',' ;
-					res<<'\t'<<mk_py_str(k)<<" : "<<mk_py_str(v)<<'\n' ;
-					f = false ;
-				}
-				res += "}\n" ;
-			}
-		) ;
-		res <<set_nl<< spec.cmd ;
-		return {append_dbg_info(res)/*preamble*/,"cmd()"} ;
+			) ;
+			res <<set_nl<< spec.cmd ;
+			return {append_dbg_info(res)/*preamble*/,"cmd()"} ;
+		}
 	}
 
 	::ostream& operator<<( ::ostream& os , DbgEntry const& de ) {

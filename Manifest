@@ -4,6 +4,7 @@ Makefile
 Manifest
 README.md
 TO_DO
+_bin/find_cc_ld_library_path
 _bin/sys_config
 _bin/ut_launch
 _bin/version
@@ -295,6 +296,7 @@ unit_tests/transient.py
 unit_tests/unstable.script
 unit_tests/uphill.py
 unit_tests/use_script.py
+unit_tests/valgrind.py
 unit_tests/vfork.py
 unit_tests/views.py
 unit_tests/wide.py

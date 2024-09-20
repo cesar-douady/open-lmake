@@ -127,17 +127,18 @@ LMAKE_SERVER_PY_FILES := \
 	$(LIB)/lmake_runtime.py
 
 LMAKE_SERVER_BIN_FILES := \
-	$(SBIN)/lmakeserver    \
-	$(SBIN)/ldump          \
-	$(SBIN)/ldump_job      \
-	$(SBIN)/align_comments \
-	$(BIN)/autodep         \
-	$(BIN)/ldebug          \
-	$(BIN)/lforget         \
-	$(BIN)/lmake           \
-	$(BIN)/lmark           \
-	$(BIN)/lrepair         \
-	$(BIN)/lshow           \
+	$(SBIN)/lmakeserver            \
+	$(SBIN)/ldump                  \
+	$(SBIN)/ldump_job              \
+	$(SBIN)/align_comments         \
+	$(BIN)/autodep                 \
+	$(BIN)/ldebug                  \
+	$(BIN)/lforget                 \
+	$(BIN)/lmake                   \
+	$(BIN)/lmark                   \
+	$(BIN)/lrepair                 \
+	$(BIN)/lshow                   \
+	$(BIN)/find_cc_ld_library_path \
 	$(BIN)/xxhsum
 
 LMAKE_SERVER_FILES := \
