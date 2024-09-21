@@ -20,15 +20,17 @@ cd     trial
 CXX=${CXX:-g++}
 
 case "$(basename $CXX)" in
-	clang  ) CXX_FLAVOR=clang ;;
-	clang++) CXX_FLAVOR=clang ;;
-	gcc    ) CXX_FLAVOR=gcc   ;;
-	gcc-*  ) CXX_FLAVOR=gcc   ;;
-	cc     ) CXX_FLAVOR=gcc   ;;
-	g++    ) CXX_FLAVOR=gcc   ;;
-	g++-*  ) CXX_FLAVOR=gcc   ;;
-	c++    ) CXX_FLAVOR=gcc   ;;
-	*      ) echo cannot recognize c compiler $CCX >&2 ; exit 1 ;;
+	clang++  ) CXX_FLAVOR=clang ;;
+	clang++-*) CXX_FLAVOR=clang ;;
+	g++      ) CXX_FLAVOR=gcc   ;;
+	g++-*    ) CXX_FLAVOR=gcc   ;;
+	c++      ) CXX_FLAVOR=gcc   ;;
+	clang    ) echo compiler must be a native C++ one, such as clang++             >&2 ; exit 1 ;;
+	clang-*  ) echo compiler must be a native C++ one, such as clang++${CXX#clang} >&2 ; exit 1 ;;
+	gcc      ) echo compiler must be a native C++ one, such as g++                 >&2 ; exit 1 ;;
+	gcc-*    ) echo compiler must be a native C++ one, such as g++${CXX#gcc}       >&2 ; exit 1 ;;
+	cc       ) echo compiler must be a native C++ one, such as c++                 >&2 ; exit 1 ;;
+	*        ) echo cannot recognize c compiler $CCX                               >&2 ; exit 1 ;;
 esac
 
 CXX=$(type -p $CXX)

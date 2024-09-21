@@ -156,12 +156,12 @@ namespace Backends {
 		}
 		// static data
 	public :
-		static ::string                 s_executable     ;
 		static ::atomic<SmallId> const& s_n_running_jobs ;
 		static Backend*                 s_tab[N<Tag>]    ;
 	protected :
 		static Mutex<MutexLvl::Backend> _s_mutex ;
 	private :
+		static ::string                             _s_job_exec               ;
 		static DeferredThread                       _s_deferred_report_thread ;
 		static DeferredThread                       _s_deferred_wakeup_thread ;
 		static JobThread                            _s_job_start_thread       ;

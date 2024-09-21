@@ -80,9 +80,9 @@ namespace Backends {
 	// Backend
 	//
 
-	::string                             Backend::s_executable              ;
 	::atomic<SmallId> const&             Backend::s_n_running_jobs          = _s_small_ids.n_acquired ;
 	Backend*                             Backend::s_tab[N<Tag>]             = {}                      ;
+	::string                             Backend::_s_job_exec               ;
 	Mutex<MutexLvl::Backend >            Backend::_s_mutex                  ;
 	Backend::DeferredThread              Backend::_s_deferred_report_thread ;
 	Backend::DeferredThread              Backend::_s_deferred_wakeup_thread ;
@@ -615,7 +615,7 @@ namespace Backends {
 		_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ;
 		_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ;
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
-		if (!dynamic) s_executable = *g_lmake_dir_s+"_bin/job_exec" ;
+		if (!dynamic) _s_job_exec = *g_lmake_dir_s+"_bin/job_exec" ;
 		//
 		Lock lock{_s_mutex} ;
 		for( Tag t : All<Tag> ) if (+t) {
@@ -662,7 +662,7 @@ namespace Backends {
 		else       { uint8_t nr = entry.submit_attrs.n_retries ; entry.submit_attrs = submit_attrs ; entry.submit_attrs.n_retries = nr ; } // keep retry count if it was counting
 		trace("create_start_tab",job,entry) ;
 		::vector_s cmd_line {
-			s_executable
+			_s_job_exec
 		,	_s_job_start_thread.fd.service(s_tab[+tag]->addr)
 		,	_s_job_mngt_thread .fd.service(s_tab[+tag]->addr)
 		,	_s_job_end_thread  .fd.service(s_tab[+tag]->addr)
