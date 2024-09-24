@@ -5,3 +5,5 @@ if command -v py3compile >/dev/null 2>&1; then
 	py3compile /usr/lib/open-lmake/_lib/
 	py3compile /usr/lib/open-lmake/lib/
 fi
+
+#DEBHELPER#
