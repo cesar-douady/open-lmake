@@ -68,7 +68,6 @@ config = pdict(
 	,	host_length    = None           # length of the host field (lines will be misaligned if a host is longer)
 	,	has_exec_time  = True           # if True, output the exec_time field
 	)
-,	n_tokens_tab = pdict()              # table of number of tokens referenced by rules. This indirection allows dynamic update of this value while rules cannot be dynamically updated
 ,	backends = pdict(                   # PER_BACKEND : provide a default configuration for each backend
 		precisions = pdict(             # precision of resources allocated for jobs, one entry for each standard resource (for all backends).
 			cpu = 8                     # encodes the highest number with full granularity, 8 is a reasonable value

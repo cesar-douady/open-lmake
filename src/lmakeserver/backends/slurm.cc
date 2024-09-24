@@ -103,10 +103,10 @@ namespace Backends::Slurm {
 	RsrcsData                 parse_args        (::string const& args    ) ;
 	void                      slurm_cancel      (SlurmId         slurm_id) ;
 	::pair_s<Bool3/*job_ok*/> slurm_job_state   (SlurmId         slurm_id) ;
-	::string                  read_stderr       (JobIdx                  ) ;
+	::string                  read_stderr       (Job                     ) ;
 	Daemon                    slurm_sense_daemon(                        ) ;
 	//
-	SlurmId slurm_spawn_job( ::stop_token , ::string const& key , JobIdx , ::vector<ReqIdx> const& , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
+	SlurmId slurm_spawn_job( ::stop_token , ::string const& key , Job , ::vector<ReqIdx> const& , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
 
 	p_cxxopts g_optParse = create_parser() ;
 
@@ -181,10 +181,6 @@ namespace Backends::Slurm {
 			return res ;
 		}
 
-		virtual ::vmap_s<size_t> n_tokenss() const {
-			return mk_vmap(daemon.licenses) ;
-		}
-
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
 			bool             single = false             ;
 			::umap_s<size_t> capa   = mk_umap(capacity) ;
@@ -199,18 +195,18 @@ namespace Backends::Slurm {
 			return res ;
 		}
 
-		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
+		virtual void open_req( Req req , JobIdx n_jobs ) {
 			Base::open_req(req,n_jobs) ;
-			grow(req_forces,req) = parse_args(Req(req)->options.flag_args[+ReqFlag::Backend]) ;
+			grow(req_forces,+req) = parse_args(Req(req)->options.flag_args[+ReqFlag::Backend]) ;
 		}
 
-		virtual void close_req(ReqIdx req) {
+		virtual void close_req(Req req) {
 			Base::close_req(req) ;
 			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
 		}
 
-		virtual ::vmap_ss export_( RsrcsData const& rs                           ) const { return rs.mk_vmap()                                      ; }
-		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req , JobIdx ji ) const { return blend( {::move(rsa),daemon,ji} ,req_forces[req] ) ; }
+		virtual ::vmap_ss export_( RsrcsData const& rs                    ) const { return rs.mk_vmap()                                       ; }
+		virtual RsrcsData import_( ::vmap_ss     && rsa , Req req , Job j ) const { return blend( {::move(rsa),daemon,+j} ,req_forces[+req] ) ; }
 		//
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
@@ -223,11 +219,11 @@ namespace Backends::Slurm {
 		virtual void start_rsrcs(Rsrcs const& rs) const {
 			spawned_rsrcs.dec(rs) ;
 		}
-		virtual ::string start_job( JobIdx , SpawnedEntry const& se ) const {
+		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
 			SWEAR(+se.rsrcs) ;
 			return "slurm_id:"s+se.id.load() ;
 		}
-		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
+		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status s ) const {
 			if ( !se.verbose && s==Status::Ok ) return {{},true/*retry*/} ;                             // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
@@ -250,7 +246,7 @@ namespace Backends::Slurm {
 			}
 			return { info.first , info.second!=No } ;
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job j , SpawnedEntry const& se ) const {
 			::pair_s<Bool3/*job_ok*/> info = slurm_job_state(se.id) ;
 			if (info.second==Maybe) return {{}/*msg*/,HeartbeatState::Alive} ;
 			//
@@ -264,7 +260,7 @@ namespace Backends::Slurm {
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;     // asynchronous (as faster and no return value) cancel
 		}
-		virtual SlurmId launch_job( ::stop_token st , JobIdx j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
+		virtual SlurmId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
 			nice &= 0x7fffffff ;                                                                         // slurm will not accept negative values, default values overflow in ... 2091
 			SlurmId id = slurm_spawn_job( st , repo_key , j , reqs , nice , cmd_line , *rs , verbose ) ;
@@ -586,11 +582,11 @@ namespace Backends::Slurm {
 		return { msg , ok } ;
 	}
 
-	static ::string _get_log_dir_s  (JobIdx job) { return Job(job).ancillary_file(AncillaryTag::Backend)+'/' ; }
-	static ::string _get_stderr_file(JobIdx job) { return _get_log_dir_s(job) + "stderr"                     ; }
-	static ::string _get_stdout_file(JobIdx job) { return _get_log_dir_s(job) + "stdout"                     ; }
+	static ::string _get_log_dir_s  (Job job) { return job.ancillary_file(AncillaryTag::Backend)+'/' ; }
+	static ::string _get_stderr_file(Job job) { return _get_log_dir_s(job) + "stderr"                ; }
+	static ::string _get_stdout_file(Job job) { return _get_log_dir_s(job) + "stdout"                ; }
 
-	::string read_stderr(JobIdx job) {
+	::string read_stderr(Job job) {
 		Trace trace(BeChnl,"Slurm::read_stderr",job) ;
 		::string stderr_file = _get_stderr_file(job) ;
 		try {
@@ -609,7 +605,7 @@ namespace Backends::Slurm {
 		res += '\n' ;
 		return res ;
 	}
-	SlurmId slurm_spawn_job( ::stop_token st , ::string const& key , JobIdx job , ::vector<ReqIdx> const& reqs , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
+	SlurmId slurm_spawn_job( ::stop_token st , ::string const& key , Job job , ::vector<ReqIdx> const& reqs , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
 		static char* env[1] = {const_cast<char *>("")} ;
 		Trace trace(BeChnl,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
 		//
@@ -617,7 +613,7 @@ namespace Backends::Slurm {
 		SWEAR(nice        >=0) ;
 		//
 		::string                 wd          = no_slash(*g_root_dir_s)  ;
-		::string                 job_name    = key + Job(job)->name()   ;
+		::string                 job_name    = key + job->name()        ;
 		::string                 script      = _cmd_to_string(cmd_line) ;
 		::string                 stderr_file ;
 		::string                 stdout_file ;

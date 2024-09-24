@@ -495,10 +495,11 @@ namespace Engine::Persistent {
 			} else {
 				old_r = it->second ;
 				old_rules.erase(it) ;
-				new_rd.cmd_gen      = old_r->cmd_gen      ;
-				new_rd.rsrcs_gen    = old_r->rsrcs_gen    ;
-				new_rd.exec_time    = old_r->exec_time    ;
-				new_rd.stats_weight = old_r->stats_weight ;
+				new_rd.cmd_gen        = old_r->cmd_gen        ;
+				new_rd.rsrcs_gen      = old_r->rsrcs_gen      ;
+				new_rd.cost_per_token = old_r->cost_per_token ;
+				new_rd.exec_time      = old_r->exec_time      ;
+				new_rd.stats_weight   = old_r->stats_weight   ;
 				SWEAR( +old_r<keep_cmd_gens.size() , old_r , keep_cmd_gens.size() ) ;
 				if (new_rd.rsrcs_crc!=old_r->rsrcs_crc) {
 					bool cmd_ok = new_rd.cmd_crc==old_r->cmd_crc ;

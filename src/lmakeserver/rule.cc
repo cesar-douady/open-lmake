@@ -290,13 +290,6 @@ namespace Engine {
 		return  os << ')'  ;
 	}
 
-	void Rule::new_job_exec_time( Delay exec_time , Tokens1 tokens1 ) {
-		if((*this)->stats_weight<RuleWeight) (*this)->stats_weight++ ;
-		Delay delta = (exec_time-(*this)->exec_time) / (*this)->stats_weight ;
-		(*this)->exec_time += delta ;
-		for( Req req : Req::s_reqs_by_start ) req.inc_rule_exec_time(*this,delta,tokens1) ;
-	}
-
 	//
 	// RuleTgt
 	//
@@ -796,7 +789,9 @@ namespace Engine {
 					Dflags          dflags             ;
 					ExtraTflags     extra_tflags       ;
 					ExtraDflags     extra_dflags       ;
-					//
+					// ignore side_targets and side_deps for source and anti-rules
+					// this is meaningless, but may be inherited for stems, typically as a PyRule
+					if ( !is_official_target && is_special() ) continue ;
 					// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 					if (target==job_name) {
 						if (job_name_is_star) is_star = true ;
@@ -824,16 +819,15 @@ namespace Engine {
 					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
 					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)                                ) throw snake(kind)+" must be relative to root dir : "s                    +target ;
-					if ( !is_lcl(target)                                               ) throw snake(kind)+" must be local : "s                                   +target ;
-					if ( !is_canon(target)                                             ) throw snake(kind)+" must be canonical : "s                               +target ;
-					if ( +missing_stems                                                ) throw "missing stems "+fmt_string(missing_stems)+" in "+snake(kind)+" : "+target ;
-					if ( !is_official_target                   && is_special()         ) throw "flags are meaningless for source and anti-rules"s                         ;
-					if (  is_star                              && is_special()         ) throw "star "s+snake(kind)+"s are meaningless for source and anti-rules"         ;
-					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                              ;
-					if ( tflags      [Tflag     ::Incremental] && is_stdout            ) throw "stdout cannot be directed to an incremental target"s                      ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && is_star              ) throw "star targets are natively optional"                                       ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony"                              ;
+					if ( target.starts_with(root_dir_s)                                ) throw snake(kind)+" must be relative to root dir : "s                              +target ;
+					if ( !is_lcl(target)                                               ) throw snake(kind)+" must be local : "s                                             +target ;
+					if ( !is_canon(target)                                             ) throw snake(kind)+" must be canonical : "s                                         +target ;
+					if ( +missing_stems                                                ) throw "missing stems "+fmt_string(missing_stems)+" in "+snake(kind)+" : "          +target ;
+					if (  is_star                              && is_special()         ) throw "star "s+snake(kind)+"s are meaningless for source and anti-rules"                   ;
+					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                                        ;
+					if ( tflags      [Tflag     ::Incremental] && is_stdout            ) throw "stdout cannot be directed to an incremental target"s                                ;
+					if ( extra_tflags[ExtraTflag::Optional   ] && is_star              ) throw "star targets are natively optional : "                                      +target ;
+					if ( extra_tflags[ExtraTflag::Optional   ] && tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony : "                             +target ;
 					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;
@@ -902,7 +896,6 @@ namespace Engine {
 			field = "force"            ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field]              ) ;
 			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field]              ) ; else throw "not found"s ;
 			field = "max_submit_count" ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] , uint8_t(1) ) ;
-			field = "n_tokens"         ; if (dct.contains(field)) Attrs::acquire( n_tokens  , &dct[field]              ) ;
 			//
 			/**/                                          var_idxs["targets"        ] = { VarCmd::Targets                              , 0  } ;
 			for( VarIdx mi=0 ; mi<matches.size() ; mi++ ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
@@ -973,6 +966,14 @@ namespace Engine {
 		) ;
 		res.re = RegExpr( res.txt , true/*fast*/ ) ;                                    // stem regexprs have been validated, normally there is no error here
 		return res ;
+	}
+
+	void RuleData::new_job_report( Delay exec_time , CoarseDelay cost , uint32_t tokens ) const {
+		if (stats_weight<RuleWeight) stats_weight++ ;
+		Delay::Tick cost_per_token_delta = Delay(cost).val()/tokens - cost_per_token.val() ;
+		Delay::Tick exec_time_delta      = exec_time  .val()        - exec_time     .val() ;
+		cost_per_token += Delay(New,cost_per_token_delta/stats_weight) ;
+		exec_time      += Delay(New,exec_time_delta     /stats_weight) ;
 	}
 
 	void RuleData::_compile() {
@@ -1319,7 +1320,6 @@ namespace Engine {
 		if (!is_special()) {
 			if (force      ) entries.emplace_back( "force"            , fmt_string (force    ) ) ;
 			if (n_submits  ) entries.emplace_back( "max_submit_count" , ::to_string(n_submits) ) ;
-			if (n_tokens!=1) entries.emplace_back( "n_tokens"         , ::to_string(n_tokens ) ) ;
 		}
 		res << _pretty_vmap(1,entries) ;
 		if (+stems) res << indent("stems :\n",1) << _pretty_vmap   (      2,stems,true/*uniq*/) ;

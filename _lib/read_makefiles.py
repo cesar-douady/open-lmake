@@ -64,7 +64,6 @@ StdAttrs = {
 ,	'max_stderr_len'    : ( int   , True  )
 ,	'n_retries'         : ( int   , True  )
 ,	'max_submit_count'  : ( int   , False )
-,	'n_tokens'          : ( int   , False )
 ,	'order'             : ( list  , False )
 ,	'python'            : ( tuple , False )
 ,	'resources'         : ( dict  , True  )
@@ -406,7 +405,7 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		for attr in ('cwd','ete','force','max_submit_count','n_tokens') :
+		for attr in ('cwd','ete','force','max_submit_count') :
 			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
 
 	def handle_create_none(self) :

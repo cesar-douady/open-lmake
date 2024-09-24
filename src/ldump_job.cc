@@ -21,12 +21,6 @@ void _print_views(::vmap_s<JobSpace::ViewDescr> const& m) {
 	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<k <<" : "<< v.phys <<' '<< v.copy_up <<'\n' ;
 }
 
-template<class A> void _print_attrs(::vmap_s<A> const& m) {
-	size_t w = 0 ;
-	for( auto const& [k,_] : m ) w = ::max(w,k.size()) ;
-	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<k <<" : "<< v <<'\n' ;
-}
-
 void print_submit_attrs(SubmitAttrs const& sa) {
 	::cout << "--submit attrs--\n" ;
 	//
@@ -87,16 +81,20 @@ void print_end(JobRpcReq const& jrr) {
 	//
 	::cout << "--end--\n" ;
 	//
-	::cout << "digest.status      : " << jd.status   <<'\n' ;
-	::cout << "digest.wstatus     : " << jd.wstatus  <<'\n' ;
-	::cout << "digest.end_date    : " << jd.end_date <<'\n' ;
-	::cout << "digest.stats.cpu   : " << st.cpu      <<'\n' ;
-	::cout << "digest.stats.job   : " << st.job      <<'\n' ;
-	::cout << "digest.stats.total : " << st.total    <<'\n' ;
-	::cout << "digest.stats.mem   : " << st.mem      <<'\n' ;
+	::cout << "phy_dynamic_tmp_s  : " << jrr.phy_tmp_dir_s <<'\n' ;
 	//
-	::cout << "digest.targets :\n"      ; _print_attrs(jd.targets     )          ;
-	::cout << "digest.deps :\n"         ; _print_attrs(jd.deps        )          ;
+	::cout << "digest.status      : " << jd.status         <<'\n' ;
+	::cout << "digest.wstatus     : " << jd.wstatus        <<'\n' ;
+	::cout << "digest.end_date    : " << jd.end_date       <<'\n' ;
+	::cout << "digest.stats.cpu   : " << st.cpu            <<'\n' ;
+	::cout << "digest.stats.job   : " << st.job            <<'\n' ;
+	::cout << "digest.stats.total : " << st.total          <<'\n' ;
+	::cout << "digest.stats.mem   : " << st.mem            <<'\n' ;
+	//
+	::cout << "dynamic_env :\n"         ; _print_map(jrr.dynamic_env)            ;
+	//
+	::cout << "digest.targets :\n"      ; _print_map(jd.targets     )            ;
+	::cout << "digest.deps :\n"         ; _print_map(jd.deps        )            ;
 	::cout << "digest.stderr :\n"       ; ::cout << ensure_nl(indent(jd.stderr)) ;
 	::cout << "digest.stdout :\n"       ; ::cout << ensure_nl(indent(jd.stdout)) ;
 	//

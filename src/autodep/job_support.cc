@@ -15,9 +15,15 @@ using Proc = JobExecProc ;
 
 namespace JobSupport {
 
+	static void _chk_files(::vector_s const& files) {
+		for( ::string const& f : files ) if (f.size()>PATH_MAX) throw "file name too long ("s+f.size()+" characters)" ;
+	}
+
 	::vector<pair<Bool3/*ok*/,Crc>> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool verbose ) {
 		::vmap_s<FileInfo> deps ;
+		_chk_files(files) ;
 		for( ::string& f : files ) {
+			if (f.size()>PATH_MAX) throw "file name too long ("s+f.size()+" characters)" ;
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(f),.no_follow=no_follow,.read=true,.write=false,.comment="depend"}) ;
 			if (sr.file_loc<=FileLoc::Dep) deps.emplace_back(::move(sr.real),sr.file_info) ;
 		}
@@ -33,6 +39,7 @@ namespace JobSupport {
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow ) {
 		::vmap_s<FileInfo> targets ;
+		_chk_files(files) ;
 		for( ::string& f : files ) {
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(f),.no_follow=no_follow,.read=false,.write=true,.create=true,.comment="target"}) ;
 			if (sr.file_loc<=FileLoc::Repo) targets.emplace_back(::move(sr.real),sr.file_info) ;

@@ -81,7 +81,7 @@ namespace Backends::Sge {
 	Daemon   sge_sense_daemon(SgeBackend const&                     ) ;
 	::string sge_mk_name     (::string&&                            ) ;
 	//
-	SgeId sge_spawn_job( ::stop_token , ::string const& key , JobIdx , ::vector<ReqIdx> const& , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
+	SgeId sge_spawn_job( ::stop_token , ::string const& key , Job , ::vector<ReqIdx> const& , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
 
 	constexpr Tag MyTag = Tag::Sge ;
 
@@ -156,10 +156,6 @@ namespace Backends::Sge {
 			return {} ;
 		}
 
-		virtual ::vmap_s<size_t> n_tokenss() const {
-			return {} ;
-		}
-
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
 			bool             single = false             ;
 			::umap_s<size_t> capa   = mk_umap(capacity) ;
@@ -173,19 +169,19 @@ namespace Backends::Sge {
 			return res ;
 		}
 
-		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
+		virtual void open_req( Req req , JobIdx n_jobs ) {
 			Base::open_req(req,n_jobs) ;
-			::string const& prio = Req(req)->options.flag_args[+ReqFlag::Backend] ;
-			grow(req_prios,req) = +prio ? from_string<int16_t>(prio) : dflt_prio ;
+			::string const& prio = req->options.flag_args[+ReqFlag::Backend] ;
+			grow(req_prios,+req) = +prio ? from_string<int16_t>(prio) : dflt_prio ;
 		}
 
-		virtual void close_req(ReqIdx req) {
+		virtual void close_req(Req req) {
 			Base::close_req(req) ;
 			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
 		}
 
-		virtual ::vmap_ss export_( RsrcsData const& rs                    ) const { return rs.mk_vmap()  ; }
-		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx , JobIdx ) const { return {::move(rsa)} ; }
+		virtual ::vmap_ss export_( RsrcsData const& rs              ) const { return rs.mk_vmap()  ; }
+		virtual RsrcsData import_( ::vmap_ss     && rsa , Req , Job ) const { return {::move(rsa)} ; }
 		//
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
@@ -198,19 +194,19 @@ namespace Backends::Sge {
 		virtual void start_rsrcs(Rsrcs const& rs) const {
 			spawned_rsrcs.dec(rs) ;
 		}
-		virtual ::string start_job( JobIdx , SpawnedEntry const& se ) const {
+		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
 			SWEAR(+se.rsrcs) ;
 			return "sge_id:"s+se.id.load() ;
 		}
 		// XXX : implement end_job to give explanations if verbose (mimic slurm)
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx , SpawnedEntry const& se ) const {
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {
 			if (sge_exec_client({"qstat","-j",::to_string(se.id)}).second) return { {}/*msg*/                      , HeartbeatState::Alive } ;
 			else                                                           return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                             // asynchronous (as faster and no return value) cancel
 		}
-		virtual SgeId launch_job( ::stop_token , JobIdx j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
+		virtual SgeId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			::vector_s sge_cmd_line = {
 				"qsub"
 			,	"-b"     , "y"

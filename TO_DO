@@ -169,13 +169,6 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* improve Req eta
-	- compute cost for each job :
-		- elapsed time / parallelism
-		- parallelism is evaluated by computing an overall cost at all time
-		- then the overall cost while job was running can be obtained by subtracting overall cost at start from overall cost at end
-		- overall cost / elapsed time is the parallelism
-	- eta can be obtained by adding cost of all waiting jobs
 * when links are accessed, it is instantaneous
 	- then record fileinfo or filesig
 	- and only consider file incoherent if it has been accessed with potentially different content

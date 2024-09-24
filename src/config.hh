@@ -59,6 +59,9 @@ static_assert(NExecGen>=3) ;
 // max number of bits a code may have for lencode/ldecode
 static constexpr uint8_t MaxCodecBits = 32 ; // if more than 32 bits, then we need a stronger Crc as we are subject to the anniversary paradox here
 
+// max number of Req's
+static constexpr ReqIdx NReqs = ::numeric_limits<ReqIdx>::max() ;
+
 //
 // Directories
 //
@@ -73,7 +76,7 @@ static constexpr char PrivateAdminDirS[] = PRIVATE_ADMIN_DIR_S ;
 
 // weight associated to rule when a job completes
 // the average value kept in rule is the weighted average between old average value and job value with weiths RuleWeight and 1
-static constexpr NodeIdx RuleWeight = 100 ;
+static constexpr JobIdx RuleWeight = 100 ;
 
 // number of job traces to keep (indexed by unique id)
 static constexpr SeqId JobHistorySz = 1000 ;
@@ -92,3 +95,5 @@ using MatchGen = Uint<NMatchGenBits> ;
 
 static constexpr uint8_t NExecGenBits = n_bits(NExecGen+1) ;
 using ExecGen = Uint<NExecGenBits> ;
+
+using Tokens = uint16_t ; // tokens can go from 1 to 256

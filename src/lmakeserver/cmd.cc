@@ -572,20 +572,10 @@ namespace Engine {
 								else            push_entry("required by",localize(mk_file(    n         ->name()),su)) ;
 							}
 							if (has_start) {
-								JobInfoStart const& rs              = job_info.start                             ;
-								SubmitAttrs  const& sa              = rs.submit_attrs                            ;
-								::string            cwd             = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
-								bool                has_phy_tmp_dir = +start.autodep_env.tmp_dir_s               ;
-								::string            phy_tmp_dir     = no_slash(start.autodep_env.tmp_dir_s)      ;
-								::string            pressure        = sa.pressure.short_str()                    ;
-								//
-								if (!has_phy_tmp_dir)
-									for( auto const& [k,v] : start.env )
-										if (k=="TMPDIR") {
-											phy_tmp_dir     = v==EnvPassMrkr ? "..." : v ;
-											has_phy_tmp_dir = true                       ;
-											break ;
-										}
+								JobInfoStart const& rs       = job_info.start                             ;
+								SubmitAttrs  const& sa       = rs.submit_attrs                            ;
+								::string            cwd      = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
+								::string            pressure = sa.pressure.short_str()                    ;
 								//
 								if (+sa.reason         ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
 								if (rs.host!=NoSockAddr) push_entry( "host"   , SockFd::s_host(rs.host)            ) ;
@@ -605,6 +595,7 @@ namespace Engine {
 								/**/                                push_entry( "autodep"     , snake_str(start.method)                ) ;
 								if (+start.timeout                ) push_entry( "timeout"     , start.timeout.short_str()              ) ;
 								if ( sa.tag!=BackendTag::Local    ) push_entry( "backend"     , snake_str(sa.tag)                      ) ;
+								if ( start.use_script             ) push_entry( "use_script"  , "true"                                 ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;

@@ -83,7 +83,9 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
-	::vector<pair<Bool3/*ok*/,Crc>> dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ;
+	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
+	try                       { dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ; }
+	catch (::string const& e) { py_err_set(Exception::ValueErr,e) ;                                                      }
 	//
 	if (!verbose) return None.to_py_boost() ;
 	//
@@ -117,9 +119,10 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	::vector_s files ;
-	try                       { files = _get_files(py_args) ;             }
-	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
-	JobSupport::target( _g_record , ::move(files) , ad , no_follow ) ;
+	try                       { files = _get_files(py_args) ;                                      }
+	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ;                          }
+	try                       { JobSupport::target( _g_record , ::move(files) , ad , no_follow ) ; }
+	catch (::string const& e) { return py_err_set(Exception::ValueErr,e) ;                         }
 	//
 	return None.to_py_boost() ;
 }

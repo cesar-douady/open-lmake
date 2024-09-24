@@ -88,8 +88,6 @@ namespace Engine {
 		Rule(::string const& job_sfx) : Rule    { decode_int<Idx>( &job_sfx[job_sfx.size()-sizeof(Idx)] ) } { SWEAR(job_sfx.size()>=sizeof(Idx),job_sfx.size()) ; }
 		// acesses
 		::string job_sfx() const ;
-		// services
-		void new_job_exec_time( Delay , Tokens1 ) ;
 	} ;
 
 }
@@ -173,19 +171,25 @@ namespace Engine {
 	// used at submit time, participate in resources
 	struct SubmitRsrcsAttrs {
 		static constexpr const char* Msg = "submit resources attributes" ;
-		static void s_canon(::vmap_ss& rsrcs) ;                            // round and cannonicalize standard resources
+		static void s_canon(::vmap_ss& rsrcs) ;                               // round and cannonicalize standard resources
 		// services
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
 			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) {
-				::sort(rsrcs) ;                                            // stabilize rsrcs crc
+				::sort(rsrcs) ;                                               // stabilize rsrcs crc
 				s_canon(rsrcs) ;
 			}
 		}
+		uint32_t tokens() const {
+			for(auto const& [k,v] : rsrcs) if (k=="cpu")
+				try                     { return from_string<uint32_t>(v) ; }
+				catch (::string const&) { break ;                           } // no valid cpu count, do as if no cpu found
+			return 1 ;                                                        // not found : default to 1 cpu
+		}
 		// data
 		// START_OF_VERSIONING
-		BackendTag backend = BackendTag::Local ;                           // backend to use to launch jobs
+		BackendTag backend = BackendTag::Local ;                              // backend to use to launch jobs
 		::vmap_ss  rsrcs   ;
 		// END_OF_VERSIONING
 	} ;
@@ -582,6 +586,7 @@ namespace Engine {
 		::string gen_py_line(       Rule::SimpleMatch const& m       , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const {
 			return gen_py_line( {} , const_cast<Rule::SimpleMatch&>(m) , vc , i , key , val ) ;                                                   // cannot lazy evaluate w/o a job
 		}
+		void new_job_report( Delay exec_time , CoarseDelay cost , uint32_t tokens ) const ;
 	private :
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx     ) const ;
 		void          _set_crcs  (                                 ) ;
@@ -611,7 +616,6 @@ namespace Engine {
 		Dynamic<StartNoneAttrs  > start_none_attrs   ;         // in no    crc, evaluated before execution
 		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;         // in cmd   crc, evaluated after  execution
 		Dynamic<EndNoneAttrs    > end_none_attrs     ;         // in no    crc, evaluated after  execution
-		size_t                    n_tokens           = 1     ; // in no    crc, contains the number of tokens to determine parallelism to use for ETA computation
 		bool                      is_python          = false ;
 		bool                      force              = false ;
 		uint8_t                   n_submits          = 0     ; // max number of submission for a given job for a given req (disabled if 0)
@@ -623,8 +627,9 @@ namespace Engine {
 		ExecGen cmd_gen   = 1 ;                                // cmd generation, must be >0 as 0 means !cmd_ok
 		ExecGen rsrcs_gen = 1 ;                                // for a given cmd, resources generation, must be >=cmd_gen
 		// stats
-		mutable Delay  exec_time    = {} ;                     // average exec_time
-		mutable JobIdx stats_weight = 0  ;                     // number of jobs used to compute average
+		mutable Delay  cost_per_token = {} ;                   // average cost per token
+		mutable Delay  exec_time      = {} ;                   // average exec_time
+		mutable JobIdx stats_weight   = 0  ;                   // number of jobs used to compute average cost_per_token and exec_time
 
 		// END_OF_VERSIONING
 
@@ -942,12 +947,12 @@ namespace Engine {
 			::serdes(s,start_none_attrs  ) ;
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
-			::serdes(s,n_tokens          ) ;
 			::serdes(s,is_python         ) ;
 			::serdes(s,force             ) ;
 			::serdes(s,n_submits         ) ;
 			::serdes(s,cmd_gen           ) ;
 			::serdes(s,rsrcs_gen         ) ;
+			::serdes(s,cost_per_token    ) ;
 			::serdes(s,exec_time         ) ;
 			::serdes(s,stats_weight      ) ;
 		}

@@ -35,12 +35,14 @@ uint64_t                                               Record::_s_id           =
 bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                     // no file is simple (not documented, but used in practice)
 	if (!file[0]     ) return true  ;                                     // empty file is simple
-	if ( file[0]!='/') return false ;                                     // relative files are complex, in particular we dont even know relative to hat (the dirfd arg is not passed in)
+	if ( file[0]!='/') return false ;                                     // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
 	size_t top_sz = 0 ;
 	switch (file[1]) {                                                    // recognize simple and frequent top level system directories
 		case 'b' : if (strncmp(file+1,"bin/" ,4)==0) top_sz = 5 ; break ;
 		case 'd' : if (strncmp(file+1,"dev/" ,4)==0) top_sz = 5 ; break ;
 		case 'e' : if (strncmp(file+1,"etc/" ,4)==0) top_sz = 5 ; break ;
+		case 'o' : if (strncmp(file+1,"opt/" ,4)==0) top_sz = 5 ; break ; // used to install 3rd party software, not a data dir
+		case 'r' : if (strncmp(file+1,"run/" ,4)==0) top_sz = 5 ; break ;
 		case 's' : if (strncmp(file+1,"sbin/",5)==0) top_sz = 6 ;
 		/**/       if (strncmp(file+1,"sys/" ,4)==0) top_sz = 5 ; break ;
 		case 'u' : if (strncmp(file+1,"usr/" ,4)==0) top_sz = 5 ; break ;

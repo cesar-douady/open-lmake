@@ -2671,28 +2671,6 @@ If it is a @code{str}, it must be convertible to a float after interpretation.
 
 It is only used to estimate the ETA (cf @pxref{eta-estimation}).
 
-@section @code{n_tokens}
-
-@multitable @columnfractions 0.1 0.9
-@item Inheritance
-@tab Python
-@item Type
-@tab @code{int}
-@item Constraint
-@tab >=1
-@item Default
-@tab @code{1}
-@item Dynamic
-@tab No.
-@end multitable
-
-This attribute indicates to @lmake a quantity of abstract resources used to estimate the expected parallelism of jobs within this rule.
-
-It is only used to estimate the ETA (cf @pxref{eta-estimation}).
-
-Note that although this field is static, it may be modified while @lmake is running and new value will be taken into account as soon as a new @lmake command is launched.
-It is thus possible to refer to backend resources.
-
 @section @code{start_delay}
 
 @multitable @columnfractions 0.1 0.9
@@ -3479,10 +3457,10 @@ For example, if you need 10 minutes of processing and you have 2 cpus, this will
 For example if you need to run a 2 minutes job followed by a 3 minutes job, and in parallel you must run a 4 minutes job, this will last 2+3=5 minutes.
 @end itemize
 
-@lmake uses the first approach. For that it must know the critical resource for each job.
-This is the purpose of the @code{n_tokens} and @code{job_tokens} attributes of the rules.
-Each job accounts for ETE*@code{job_tokens}/@code{n_tokens}, and all these are accumulated to produce an overall time.
-The ETA is then the current time + this accumulated time.
+@lmake uses the first approach.
+For that it measures the parallelism of each job while running and the ETA is computed after the sum of the costs of all waiting and running jobs,
+the cost being the execution time divided by the observed parallelism.
+Jobs running for the first time inherit a moving average of the last 100 run jobs of the same rule.
 
 @anchor{video-mode}
 @section Video mode and colors

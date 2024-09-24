@@ -40,7 +40,7 @@ namespace Time {
 		static constexpr bool IsNs           = TicksPerSecond==1'000'000'000l ;
 		//
 		using Tick     = T                                            ;
-		using T32      = ::conditional_t<IsUnsigned,uint32_t,int32_t> ;
+		using Tick32   = ::conditional_t<IsUnsigned,uint32_t,int32_t> ;
 		using TimeSpec = struct ::timespec                            ;
 		using TimeVal  = struct ::timeval                             ;
 		// cxtors & casts
@@ -53,10 +53,7 @@ namespace Time {
 		constexpr explicit TimeBase(float           v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
 		constexpr explicit TimeBase(TimeSpec const& ts)                      : _val{   ts.tv_sec*TicksPerSecond + ts.tv_nsec      } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
 		constexpr explicit TimeBase(TimeVal  const& tv)                      : _val{   tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
-	protected :
-		constexpr explicit TimeBase(NewType,T v) : _val{v} {}
-		//
-	public :
+		constexpr explicit TimeBase(NewType,Tick    v )                      : _val{   v                                          } {}
 		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=sec() , .tv_nsec=nsec_in_s() } ; return ts                          ; }
 		constexpr explicit operator TimeVal () const { TimeVal  tv{ .tv_sec=sec() , .tv_usec=usec_in_s() } ; return tv                          ; }
 		constexpr explicit operator double  () const {                                                       return double(_val)/TicksPerSecond ; }
@@ -64,14 +61,15 @@ namespace Time {
 		// accesses
 		constexpr bool operator+() const { return  _val ; }
 		constexpr bool operator!() const { return !_val ; }
+		constexpr Tick val      () const { return  _val ; }
 		//
-		constexpr T   sec      () const {                       return _val/TicksPerSecond   ; }
-		constexpr T   nsec     () const { static_assert(IsNs) ; return _val                  ; }
-		constexpr T32 nsec_in_s() const { static_assert(IsNs) ; return _val%TicksPerSecond   ; }
-		constexpr T   usec     () const {                       return nsec     ()/1000      ; }
-		constexpr T32 usec_in_s() const {                       return nsec_in_s()/1000      ; }
-		constexpr T   msec     () const {                       return nsec     ()/1000'000l ; }
-		constexpr T32 msec_in_s() const {                       return nsec_in_s()/1000'000  ; }
+		constexpr Tick   sec      () const {                       return _val/TicksPerSecond   ; }
+		constexpr Tick   nsec     () const { static_assert(IsNs) ; return _val                  ; }
+		constexpr Tick32 nsec_in_s() const { static_assert(IsNs) ; return _val%TicksPerSecond   ; }
+		constexpr Tick   usec     () const {                       return nsec     ()/1000      ; }
+		constexpr Tick32 usec_in_s() const {                       return nsec_in_s()/1000      ; }
+		constexpr Tick   msec     () const {                       return nsec     ()/1000'000l ; }
+		constexpr Tick32 msec_in_s() const {                       return nsec_in_s()/1000'000  ; }
 		//
 		void clear() { _val = 0 ; }
 		// data
@@ -157,9 +155,18 @@ namespace Time {
 		}
 		constexpr explicit operator double() const { return double(Delay(*this)) ; }
 		constexpr explicit operator float () const { return float (Delay(*this)) ; }
+		// accesses
+		constexpr bool operator+() const { return _val    ; }
+		constexpr bool operator!() const { return !+*this ; }
+		//
+		constexpr Delay::Tick   sec      () const { return Delay(*this).sec      () ; }
+		constexpr Delay::Tick   nsec     () const { return Delay(*this).nsec     () ; }
+		constexpr Delay::Tick32 nsec_in_s() const { return Delay(*this).nsec_in_s() ; }
+		constexpr Delay::Tick   usec     () const { return Delay(*this).usec     () ; }
+		constexpr Delay::Tick32 usec_in_s() const { return Delay(*this).usec_in_s() ; }
+		constexpr Delay::Tick   msec     () const { return Delay(*this).msec     () ; }
+		constexpr Delay::Tick32 msec_in_s() const { return Delay(*this).msec_in_s() ; }
 		// services
-		constexpr bool              operator+  (                    ) const { return _val ;                      }
-		constexpr bool              operator!  (                    ) const { return !_val ;                     }
 		constexpr CoarseDelay       operator+  (Delay              d) const { return Delay(*this) + d ;          }
 		constexpr CoarseDelay&      operator+= (Delay              d)       { *this = *this + d ; return *this ; }
 		constexpr bool              operator== (CoarseDelay const& d) const { return _val== d._val ;             }

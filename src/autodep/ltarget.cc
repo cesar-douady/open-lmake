@@ -55,7 +55,8 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::NoAllow    ]) ad.extra_tflags |= ExtraTflag::Allow       ;
 	if ( cmd_line.flags[Flag::SourceOk   ]) ad.extra_tflags |= ExtraTflag::SourceOk    ;
 	//
-	JobSupport::target( {New,Yes/*enabled*/} , ::move(cmd_line.args) , ad , no_follow ) ;
+	try                       { JobSupport::target( {New,Yes/*enabled*/} , ::move(cmd_line.args) , ad , no_follow ) ; }
+	catch (::string const& e) { exit(Rc::Usage,e) ;                                                                   }
 	//
 	return 0 ;
 }

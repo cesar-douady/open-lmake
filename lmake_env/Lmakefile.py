@@ -77,7 +77,6 @@ class BaseRule(Rule) :
 	}
 	n_retries   = 1
 	start_delay = 2
-	n_tokens    = config.backends.local.cpu
 
 class PathRule(BaseRule) :                       # compiler must be accessed using the PATH as it must find its sub-binaries
 	environ_cmd = { 'PATH' : os.getenv('PATH') }
@@ -236,7 +235,6 @@ for ext,basic_opts in basic_opts_tab.items() :
 			,	*add_flags
 			,	SRC
 			)
-		n_tokens  = config.backends.local.cc
 		resources = {
 			'mem' : '2G'
 		,	'cc'  : 1

@@ -137,7 +137,7 @@ namespace Backends {
 		return os <<')' ;
 	}
 
-	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_eta to reorder them upon need
+	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_etas to reorder them upon need
 	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all
 	template< Tag T , class SpawnId , class RsrcsData , class RsrcsDataAsk , bool IsLocal > struct GenericBackend : Backend {
 
@@ -147,19 +147,19 @@ namespace Backends {
 		using WaitingEntry = _WaitingEntry<RsrcsAsk>      ;
 		using SpawnedEntry = _SpawnedEntry<SpawnId,Rsrcs> ;
 
-		struct SpawnedTab : ::umap<JobIdx,SpawnedEntry> {
-			using Base = ::umap<JobIdx,SpawnedEntry> ;
+		struct SpawnedTab : ::umap<Job,SpawnedEntry> {
+			using Base = ::umap<Job,SpawnedEntry> ;
 			using typename Base::iterator       ;
 			using typename Base::const_iterator ;
 			//
-			const_iterator find(JobIdx j) const { const_iterator res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
-			iterator       find(JobIdx j)       { iterator       res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
+			const_iterator find(Job j) const { const_iterator res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
+			iterator       find(Job j)       { iterator       res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
 			//
 			bool   operator+() const { return _sz     ; }                     // cannot inherit from Base as zombies would be counted
 			bool   operator!() const { return !+*this ; }                     // .
 			size_t size     () const { return _sz     ; }                     // .
 			//
-			iterator create( GenericBackend const& be , JobIdx j , RsrcsAsk const& rsrcs_ask ) {
+			iterator create( GenericBackend const& be , Job j , RsrcsAsk const& rsrcs_ask ) {
 				Rsrcs    rsrcs = be.acquire_rsrcs(rsrcs_ask) ;
 				iterator res   = Base::try_emplace(j).first  ;
 				SWEAR(res->second.zombie) ;
@@ -196,7 +196,7 @@ namespace Backends {
 			}
 			// data
 			CoarseDelay pressure ;
-			JobIdx      job      ;
+			Job         job      ;
 		} ;
 
 		struct ReqEntry {
@@ -209,7 +209,7 @@ namespace Backends {
 			}
 			// data
 			::umap<RsrcsAsk,set<PressureEntry>> waiting_queues ;
-			::umap<JobIdx,CoarseDelay         > waiting_jobs   ;
+			::umap<Job,CoarseDelay            > waiting_jobs   ;
 			JobIdx                              n_jobs         = 0     ; // manage -j option (if >0 no more than n_jobs can be launched on behalf of this req)
 			bool                                verbose        = false ;
 		} ;
@@ -220,20 +220,20 @@ namespace Backends {
 		virtual bool call_launch_after_start() const { return false ; }
 		virtual bool call_launch_after_end  () const { return false ; }
 		//
-		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const&                   ) const { return true ; } // true if job with such resources can be spawned eventually
-		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const&                   ) const = 0 ;             // true if job with such resources can be spawned now
-		virtual Rsrcs        acquire_rsrcs ( RsrcsAsk     const&                   ) const = 0 ;             // acquire maximum possible asked resources
-		virtual void         start_rsrcs   ( Rsrcs        const&                   ) const {}                // handle resources at start of job
-		virtual void         end_rsrcs     ( Rsrcs        const&                   ) const {}                // handle resources at end   of job
-		virtual ::vmap_ss    export_       ( RsrcsData    const&                   ) const = 0 ;             // export resources in   a publicly manageable form
-		virtual RsrcsDataAsk import_       ( ::vmap_ss        && , ReqIdx , JobIdx ) const = 0 ;             // import resources from a publicly manageable form
+		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const&             ) const { return true ; } // true if job with such resources can be spawned eventually
+		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const&             ) const = 0 ;             // true if job with such resources can be spawned now
+		virtual Rsrcs        acquire_rsrcs ( RsrcsAsk     const&             ) const = 0 ;             // acquire maximum possible asked resources
+		virtual void         start_rsrcs   ( Rsrcs        const&             ) const {}                // handle resources at start of job
+		virtual void         end_rsrcs     ( Rsrcs        const&             ) const {}                // handle resources at end   of job
+		virtual ::vmap_ss    export_       ( RsrcsData    const&             ) const = 0 ;             // export resources in   a publicly manageable form
+		virtual RsrcsDataAsk import_       ( ::vmap_ss        && , Req , Job ) const = 0 ;             // import resources from a publicly manageable form
 		//
-		virtual ::string                 start_job           ( JobIdx , SpawnedEntry const&          ) const { return  {}                        ; }
-		virtual ::pair_s<bool/*retry*/>  end_job             ( JobIdx , SpawnedEntry const& , Status ) const { return {{},false/*retry*/       } ; }
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx , SpawnedEntry const&          ) const { return {{},HeartbeatState::Alive} ; } // only called before start
-		virtual void                     kill_queued_job     (          SpawnedEntry const&          ) const = 0 ;                                   // .
+		virtual ::string                 start_job           ( Job , SpawnedEntry const&          ) const { return  {}                        ; }
+		virtual ::pair_s<bool/*retry*/>  end_job             ( Job , SpawnedEntry const& , Status ) const { return {{},false/*retry*/       } ; }
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const&          ) const { return {{},HeartbeatState::Alive} ; } // only called before start
+		virtual void                     kill_queued_job     (       SpawnedEntry const&          ) const = 0 ;                                   // .
 		//
-		virtual SpawnId launch_job( ::stop_token , JobIdx , ::vector<ReqIdx> const& , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& , bool verbose ) const = 0 ;
+		virtual SpawnId launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& , bool verbose ) const = 0 ;
 
 		// services
 		virtual void config( vmap_ss const& dct , bool dynamic ) {
@@ -243,14 +243,14 @@ namespace Backends {
 		virtual bool is_local() const {
 			return IsLocal ;
 		}
-		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
+		virtual void open_req( Req req , JobIdx n_jobs ) {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;
 			Lock lock     { Req::s_reqs_mutex }                                                              ;      // taking Req::s_reqs_mutex is compulsery to derefence req
 			bool inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
 			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                          // check no overflow
 			SWEAR(inserted) ;
 		}
-		virtual void close_req(ReqIdx req) {
+		virtual void close_req(Req req) {
 			auto it = reqs.find(req) ;
 			Trace trace(BeChnl,"close_req",req,STR(it==reqs.end())) ;
 			if (it==reqs.end()) return ;                                                                            // req has been killed
@@ -264,7 +264,7 @@ namespace Backends {
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
-		virtual void submit( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
+		virtual void submit( Job job , Req req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
 			RsrcsAsk rsa { New , import_(::move(rsrcs),req,job) } ;                                                 // compile rsrcs
 			if (!fit_eventually(*rsa)) throw "not enough resources to launch job "+Job(job)->name() ;
 			ReqEntry& re = reqs.at(req) ;
@@ -278,7 +278,7 @@ namespace Backends {
 			re.waiting_queues[rsa].insert({pressure,job}) ;
 			_new_submitted_jobs = true ;                                                                            // called from main thread, as launch
 		}
-		virtual void add_pressure( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs ) {
+		virtual void add_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) {
 			Trace trace(BeChnl,"add_pressure",job,req,submit_attrs) ;
 			ReqEntry& re  = reqs.at(req)           ;
 			auto      wit = waiting_jobs.find(job) ;
@@ -304,7 +304,7 @@ namespace Backends {
 			we.verbose      |= re.verbose   ;
 			we.n_reqs++ ;
 		}
-		virtual void set_pressure( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs ) {
+		virtual void set_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) {
 			ReqEntry& re = reqs.at(req)           ;                                                                 // req must be known to already know job
 			auto      it = waiting_jobs.find(job) ;
 			//
@@ -320,7 +320,7 @@ namespace Backends {
 			old_pressure = pressure ;
 		}
 	protected :
-		virtual ::string start(JobIdx job) {
+		virtual ::string start(Job job) {
 			auto          it = spawned_jobs.find(job) ; if (it==spawned_jobs.end()) return {} ;                     // job was killed in the mean time
 			SpawnedEntry& se = it->second             ;
 			if (!se.id) {
@@ -333,7 +333,7 @@ namespace Backends {
 			if (call_launch_after_start()) _launch_queue.wakeup() ;
 			return msg ;
 		}
-		virtual ::pair_s<bool/*retry*/> end( JobIdx j , Status s ) {
+		virtual ::pair_s<bool/*retry*/> end( Job j , Status s ) {
 			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return {{},false/*retry*/} ;      // job was killed in the mean time
 			SpawnedEntry& se = it->second           ; SWEAR(se.started) ;
 			SWEAR(se.id,j) ;                                                                                        // occurs after start, then se.id has been updated
@@ -342,7 +342,7 @@ namespace Backends {
 			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                     // if we have a Req limited by n_jobs, we may have to launch a job
 			return digest ;
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat(JobIdx j) {                                                      // called on jobs that did not start after at least newwork_delay time
+		virtual ::pair_s<HeartbeatState> heartbeat(Job j) {                                                         // called on jobs that did not start after at least newwork_delay time
 			{	auto it = spawned_jobs.find(j) ;
 				if (it==spawned_jobs.end()) {
 					Trace trace(BeChnl,"heartbeat","not_found",j) ;
@@ -368,11 +368,11 @@ namespace Backends {
 			return {"could not launch job",HeartbeatState::Err} ;
 		}
 		// kill all if req==0
-		virtual ::vector<JobIdx> kill_waiting_jobs(ReqIdx req=0) {
-			::vector<JobIdx> res ;
+		virtual ::vector<Job> kill_waiting_jobs(Req req={}) {
+			::vector<Job> res ;
 			Trace trace(BeChnl,"kill_req",T,req,reqs.size()) ;
 			if ( !req || reqs.size()<=1 ) {
-				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;                  // ensure the last req is the right one
+				if (+req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;                 // ensure the last req is the right one
 				// kill waiting jobs
 				res.reserve(waiting_jobs.size()) ;
 				for( auto const& [j,_] : waiting_jobs ) res.push_back(j) ;
@@ -393,7 +393,7 @@ namespace Backends {
 			}
 			return res ;
 		}
-		virtual void kill_job(JobIdx j) {
+		virtual void kill_job(Job j) {
 			Trace trace(BeChnl,"kill_job",j) ;
 			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return ;                          // job was not actually spawned
 			SpawnedEntry& se = it->second           ; SWEAR(!se.started) ;                                          // if job is started, it is not our responsibility any more
@@ -414,7 +414,7 @@ namespace Backends {
 			} ;
 			for( auto [req,eta] : Req::s_etas() ) {                                                                 // /!\ it is forbidden to dereference req without taking Req::s_reqs_mutex first
 				Trace trace(BeChnl,"launch",req) ;
-				::vmap<JobIdx,LaunchDescr> launch_descrs ;
+				::vmap<Job,LaunchDescr> launch_descrs ;
 				{	Lock lock { _s_mutex } ;
 					auto rit = reqs.find(+req) ;
 					if (rit==reqs.end()) continue ;
@@ -432,20 +432,20 @@ namespace Backends {
 						::set<PressureEntry>& pressure_set = candidate->second                                     ;
 						auto                  pressure1    = pressure_set.begin()                                  ; SWEAR(pressure1!=pressure_set.end(),candidate->first) ; // a candidate ...
 						Pdate                 prio         = eta-pressure1->pressure                               ;                                                         // ... with no pressure ?
-						JobIdx                j            = pressure1->job                                        ;
+						Job                   j            = pressure1->job                                        ;
 						auto                  wit          = waiting_jobs.find(j)                                  ;
 						SpawnedEntry&         se           = spawned_jobs.create(*this,j,candidate->first)->second ;
 						//
 						se.verbose = wit->second.verbose ;
 						::vector<ReqIdx> rs { +req } ;
 						for( auto const& [r,re] : reqs )
-							if      (!re.waiting_jobs.contains(j)) SWEAR(r!=+req,r) ;
-							else if (r!=+req                     ) rs.push_back(r)  ;
+							if      (!re.waiting_jobs.contains(j)) SWEAR(r!=req,r)  ;
+							else if (r!=req                      ) rs.push_back(+r) ;
 						launch_descrs.emplace_back( j , LaunchDescr{ rs , acquire_cmd_line(T,j,rs,export_(*se.rsrcs),wit->second.submit_attrs) , prio , &se } ) ;
 						waiting_jobs.erase(wit) ;
 						//
 						for( ReqIdx r : rs ) {
-							ReqEntry& re   = reqs.at(r)              ;
+							ReqEntry& re   = reqs.at(Req(r))         ;
 							auto      wit1 = re.waiting_jobs.find(j) ;
 							if (r!=+req) {
 								auto                  wit2 = re.waiting_queues.find(candidate->first) ;
@@ -488,10 +488,10 @@ namespace Backends {
 		}
 
 		// data
-		::umap<ReqIdx,ReqEntry    > reqs         ;                         // all open Req's
-		ReqIdx                      n_n_jobs     ;                         // number of Req's that has a non-null n_jobs
-		::umap<JobIdx,WaitingEntry> waiting_jobs ;                         // jobs retained here
-		SpawnedTab                  spawned_jobs ;                         // jobs spawned until end
+		::umap<Req,ReqEntry    > reqs         ;                            // all open Req's
+		ReqIdx                   n_n_jobs     ;                            // number of Req's that has a non-null n_jobs
+		::umap<Job,WaitingEntry> waiting_jobs ;                            // jobs retained here
+		SpawnedTab               spawned_jobs ;                            // jobs spawned until end
 	protected :
 		Mutex<MutexLvl::BackendId> mutable id_mutex ;
 	private :

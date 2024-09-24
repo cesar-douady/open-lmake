@@ -87,7 +87,6 @@ class Rule(_RuleBase) :
 #	keep_tmp         = False                           # keep tmp dir after job execution
 	kill_sigs        = (_signal.SIGKILL,)              # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
 	n_retries        = 1                               # number of retries in case of job lost. 1 is a reasonable value
-#	n_tokens         = 1                               # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 #	prio             = 0                               # in case of ambiguity, rules are selected with highest prio first
 	python           = (python,)                       # python used for callable cmd
 #	root_view        = '/repo'                         # absolute path under which the root directory of the repo is seen (if None, empty, or absent, no bind mount is done)

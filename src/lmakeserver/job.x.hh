@@ -192,11 +192,11 @@ namespace Engine {
 		}
 		bool done(bool is_full=false) const { return step()>=Step::Done && (!is_full||full) ; }
 		//
-		Step step(      ) const { return _step ; }
-		void step(Step s) ;
+		Step step(          ) const { return _step ; }
+		void step(Step s,Job) ;
 		// services
-		void reset() {
-			if (step()>Step::Dep) step(Step::Dep) ;
+		void reset(Job j) {
+			if (step()>Step::Dep) step(Step::Dep,j) ;
 			iter  = {}      ;
 			state = State() ;
 		}
@@ -279,7 +279,8 @@ namespace Engine {
 		Job      idx () const { return Job::s_idx(*this)              ; }
 		::string name() const { return full_name(rule->job_sfx_len()) ; }
 		//
-		bool active() const { return !rule.old() ; }
+		bool   active() const { return !rule.old() ; }
+		Tokens tokens() const { return tokens1+1   ; }
 		//
 		ReqInfo const& c_req_info  (Req                   ) const ;
 		ReqInfo      & req_info    (Req                   ) const ;
@@ -294,12 +295,6 @@ namespace Engine {
 		bool has_req   (Req) const ;
 		//
 		void exec_ok(bool ok) { SWEAR(!rule->is_special(),rule->special) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
-		//
-		::pair<Delay,bool/*from_rule*/> best_exec_time() const {
-			if (rule->is_special()) return { {}              , false } ;
-			if (+exec_time        ) return {       exec_time , false } ;
-			else                    return { rule->exec_time , true  } ;
-		}
 		//
 		bool sure   () const ;
 		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
@@ -322,8 +317,10 @@ namespace Engine {
 		::string special_stderr(Node                               ) const ;
 		::string special_stderr(                                   ) const ;                                      // cannot declare a default value for incomplete type Node
 		//
-		void              invalidate_old() ;
-		Rule::SimpleMatch simple_match  () const ;                                                                // thread-safe
+		void              invalidate_old(                                    ) ;
+		Rule::SimpleMatch simple_match  (                                    ) const ;                            // thread-safe
+		void              estimate_stats( uint32_t tokens                    ) ;
+		void              record_stats  ( Delay exec_time , CoarseDelay cost ) ;
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
@@ -339,7 +336,7 @@ namespace Engine {
 			_propag_speculate(ri) ;
 		}
 		//
-		JobReason/*err*/ make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
+		JobReason/*err*/ make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , bool wakeup_watchers=true ) ;
 		//
 		void wakeup(ReqInfo& ri) { make(ri,MakeAction::Wakeup) ; }
 		//
@@ -364,16 +361,17 @@ namespace Engine {
 		Node             asking                   ;                                                               //     32 bits,        last target needing this job
 		Targets          targets                  ;                                                               //     32 bits, owned, for plain jobs
 		Deps             deps                     ;                                                               // 31<=32 bits, owned
-		Rule             rule                     ;                                                               //     16 bits,        can be retrieved from full_name, but would be slower
+		Rule             rule                     ;                                                               //     16 bits,        can be retrieved from full_name, but would be much slower
 		CoarseDelay      exec_time                ;                                                               //     16 bits,        for plain jobs
 		CoarseDelay      cost                     ;                                                               //     16 bits,        exec_time / average number of parallel jobs during execution
-		ExecGen          exec_gen  :NExecGenBits  = 0     ;                                                       //      8 bits,        for plain jobs, cmd generation of rule
-		mutable MatchGen match_gen :NMatchGenBits = 0     ;                                                       //      8 bits,        if <Rule::s_match_gen => deemed !sure
-		Tokens1          tokens1                  = 0     ;                                                       //      8 bits,        for plain jobs, number of tokens - 1 for eta computation
-		RunStatus        run_status:3             = {}    ;                                                       //      3 bits
-		Status           status    :4             = {}    ;                                                       //      4 bits
+		Tokens1          tokens1                  = 0  ;                                                          //      8 bits,        for plain jobs, number of tokens - 1 for eta computation
+		ExecGen          exec_gen  :NExecGenBits  = 0  ;                                                          //      8 bits,        for plain jobs, cmd generation of rule
+		mutable MatchGen match_gen :NMatchGenBits = 0  ;                                                          //      8 bits,        if <Rule::s_match_gen => deemed !sure
+		RunStatus        run_status:3             = {} ;                                                          //      3 bits
+		Status           status    :4             = {} ;                                                          //      4 bits
 	private :
-		mutable bool     _sure     :1             = false ;                                                       //      1 bit
+		bool             _reliable_stats:1 = false ;                                                              //      1 bit ,        if true, cost has been observed from previous execution
+		mutable bool     _sure          :1 = false ;                                                              //      1 bit
 		// END_OF_VERSIONING
 	} ;
 	static_assert(sizeof(JobData)==28) ;                                                                          // check expected size
@@ -395,13 +393,17 @@ namespace Engine {
 	inline Job::Job( Special sp ,          Deps deps ) : Job{                                New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
 	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
 
-	inline bool Job::active() const { return +*this && (*this)->active() ; }
+	inline bool Job::active() const {
+		return +*this && (*this)->active() ;
+	}
 
 	//
 	// JobExec
 	//
 
-	inline bool/*reported*/ JobExec::report_start(ReqInfo& ri) const { return report_start(ri,{}) ; }
+	inline bool/*reported*/ JobExec::report_start(ReqInfo& ri) const {
+		return report_start(ri,{}) ;
+	}
 
 	//
 	// JobTgt
@@ -409,7 +411,9 @@ namespace Engine {
 
 	inline JobTgt::JobTgt( RuleTgt rt , ::string const& t , Req r , DepDepth lvl ) : JobTgt{ Job(rt,t,r,lvl) , rt.sure() } {}
 
-	inline bool JobTgt::sure() const { return is_static_phony() && (*this)->sure() ; }
+	inline bool JobTgt::sure() const {
+		return is_static_phony() && (*this)->sure() ;
+	}
 
 	inline bool JobTgt::produces(Node t,bool actual) const {
 		if ( (*this)->missing()                            ) return false                             ; // missing jobs produce nothing
@@ -439,10 +443,27 @@ namespace Engine {
 		return t.tflags ;
 	}
 
-	inline Rule::SimpleMatch JobData::simple_match() const { return Rule::SimpleMatch(idx()) ; }
-
 	inline void JobData::invalidate_old() {
 		if ( +rule && rule.old() ) idx().pop() ;
+	}
+
+	inline Rule::SimpleMatch JobData::simple_match() const {
+		return Rule::SimpleMatch(idx()) ;
+	}
+
+	inline void JobData::estimate_stats( uint32_t tokens_ ) {
+		if (_reliable_stats) return ;
+		SWEAR(tokens_>0) ;
+		tokens1   = ::min( uint32_t(tokens_-1) , uint32_t(::numeric_limits<Tokens1>::max()) ) ;
+		cost      = rule->cost_per_token * tokens()                                           ;
+		exec_time = rule->exec_time                                                           ;
+	}
+
+	inline void JobData::record_stats( Delay exec_time_ , CoarseDelay cost_ ) {
+		exec_time       = exec_time_ ;
+		cost            = cost_      ;
+		_reliable_stats = true       ;
+		rule->new_job_report( exec_time_ , cost_ , tokens() ) ;
 	}
 
 	inline void JobData::add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) {
@@ -492,17 +513,6 @@ namespace Engine {
 
 	inline bool JobData::has_req(Req r) const {
 		return Req::s_store[+r].jobs.contains(idx()) ;
-	}
-
-	//
-	// JobReqInfo
-	//
-
-	inline void JobReqInfo::step(Step s) {
-		if ( _step==s                                             ) return ;                  // fast path
-		if ( _step>=Step::MinCurStats && _step<Step::MaxCurStats1 ) req->stats.cur(_step)-- ;
-		if ( s    >=Step::MinCurStats && s    <Step::MaxCurStats1 ) req->stats.cur(s    )++ ;
-		_step = s ;
 	}
 
 }

@@ -56,6 +56,7 @@ namespace Engine {
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
 		//
+		Trace trace("Rmake",*this,s_n_reqs(),data.start_ddate,data.start_pdate) ;
 		try {
 			JobIdx n_jobs = from_string<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
 			if (ecr.as_job()) data.job = ecr.job()                                                                            ;
@@ -66,7 +67,7 @@ namespace Engine {
 			close() ;
 			throw ;
 		}
-		Trace trace("make",*this,s_n_reqs(),data.start_ddate,data.start_pdate,data.job) ;
+		trace("job",data.job) ;
 		//
 		Job::ReqInfo& jri = data.job->req_info(*this) ;
 		jri.live_out = (*this)->options.flags[ReqFlag::LiveOut] ;
@@ -111,50 +112,36 @@ namespace Engine {
 		}
 	}
 
-	void Req::inc_rule_exec_time( Rule rule , Delay delta , Tokens1 tokens1 ) {
-			auto it = (*this)->ete_n_rules.find(rule) ;
-			if (it==(*this)->ete_n_rules.end()) return ;
-			(*this)->ete += delta * it->second * (tokens1+1) / rule->n_tokens ; // adjust req ete's that are computed after this exec_time, accounting for parallel execution
-			_adjust_eta() ;
-	}
-	void Req::new_exec_time( JobData const& job , bool remove_old , bool add_new , Delay old_exec_time ) {
-		SWEAR( !job.rule->is_special() , job.rule->special ) ;
-		if ( !remove_old && !add_new ) return ;                                                                                        // nothing to do
-		Delay delta ;
-		Rule  rule  = job.rule ;
-		if (remove_old) {                                                                                                              // use old info
-			if (+old_exec_time) { delta -= old_exec_time   ;                                                                         }
-			else                { delta -= rule->exec_time ; SWEAR((*this)->ete_n_rules[rule]>0) ; (*this)->ete_n_rules[rule] -= 1 ; }
-		}
-		if (add_new) {                                                                                                                 // use new info
-			if (+job.exec_time) { delta += job.exec_time ;                                     }
-			else                { delta += rule->exec_time ; (*this)->ete_n_rules[rule] += 1 ; }
-		}
-		(*this)->ete += delta * (job.tokens1+1) / rule->n_tokens ;                                                                     // account for parallel execution when computing ete
+	void Req::new_eta() {
+		Pdate       now       { New }                                                         ;
+		Pdate       new_eta   = Backend::s_submitted_eta(*this) + (*this)->stats.waiting_cost ;
+		Delay       old_ete   = ::max(((*this)->eta-now),Delay())                             ;
+		Delay       new_ete   = ::max((new_eta     -now),Delay())                             ;
+		Delay::Tick delta_ete = ::abs(new_ete.val()-old_ete.val())                            ;
+		//
+		if ( delta_ete <= (old_ete.val()>>3) ) return ; // eta did not change significatively
+		(*this)->eta = now+new_ete ;
 		_adjust_eta() ;
+		Backend::s_new_req_etas() ;                     // tell backends that etas changed significatively
 	}
+
 	void Req::_adjust_eta(bool push_self) {
-			Pdate now = New ;
-			Trace trace("_adjust_eta",now,(*this)->ete) ;
+			Trace trace("_adjust_eta",(*this)->eta) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
-			bool changed = false ;
-			{	Lock lock       { s_reqs_mutex }      ;
-				Idx  idx_by_eta = (*this)->idx_by_eta ;
-				(*this)->eta = now + (*this)->ete ;
-				if (push_self) _s_reqs_by_eta.push_back(*this) ;
-				while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>(*this)->eta ) {                                             // if eta is decreased
-					( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ;                       // swap w/ prev entry
-					( _s_reqs_by_eta[idx_by_eta-1] = *this                        )->idx_by_eta = idx_by_eta-1 ;                       // .
-					changed = true ;
-				}
-				if (!changed)
-					while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->eta<(*this)->eta ) {                              // if eta is increased
-						( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ;                   // swap w/ next entry
-						( _s_reqs_by_eta[idx_by_eta+1] = *this                        )->idx_by_eta = idx_by_eta+1 ;                   // .
-						changed = true ;
-					}
+			bool changed    = false               ;
+			Lock lock       { s_reqs_mutex }      ;
+			Idx  idx_by_eta = (*this)->idx_by_eta ;
+			if (push_self) _s_reqs_by_eta.push_back(*this) ;
+			while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>(*this)->eta ) {                       // if eta is decreased
+				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
+				( _s_reqs_by_eta[idx_by_eta-1] = *this                        )->idx_by_eta = idx_by_eta-1 ; // .
+				changed = true ;
 			}
-			if (changed) Backend::s_new_req_eta(+*this) ;                                                                              // tell backends that req priority order has changed
+			if (changed) return ;
+			while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->eta<(*this)->eta ) {            // if eta is increased
+				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ; // swap w/ next entry
+				( _s_reqs_by_eta[idx_by_eta+1] = *this                        )->idx_by_eta = idx_by_eta+1 ; // .
+			}
 	}
 
 	void Req::_report_cycle(Node node) {
@@ -199,10 +186,13 @@ namespace Engine {
 			(*this)->audit_node( Color::Note , prefix,cycle[i] , 1 ) ;
 		}
 		if ( +to_forget || +to_raise ) {
-			(*this)->audit_info( Color::Note , "consider :\n" ) ;
-			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget - d" , n                            , 1 ) ;
+			(*this)->audit_info( Color::Note , "consider some of :\n" ) ;
+			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget -d" , n                             , 1 ) ;
 			if (+to_raise)            (*this)->audit_info( Color::Note , "add to Lmakefile.py :"                      , 1 ) ;
 			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , r->name+".prio = "+::to_string(r->prio)+"+1" , 2 ) ;
+			/**/                      (*this)->audit_info( Color::Note , "for t in (<cycle above>) :"                 , 2 ) ;
+			/**/                      (*this)->audit_info( Color::Note , "class MyAntiRule(AntiRule) :"               , 3 ) ;
+			/**/                      (*this)->audit_info( Color::Note , "target = t"                                 , 4 ) ;
 		}
 	}
 

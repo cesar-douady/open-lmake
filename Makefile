@@ -54,9 +54,9 @@ CXX_EXE := $(shell bash -c 'type -p $(CXX)')
 LANG    := c++20
 #
 SAN                 := $(if $(strip $(SAN_FLAGS)),.san,)
-LINK_OPTS           := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
+LINK_OPTS           := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread   # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 LINK_O              := $(CXX_EXE) $(COVERAGE) -r
-LINK_SO             := $(CXX_EXE) $(COVERAGE) $(LINK_OPTS) -shared                 # some usage may have specific libs, avoid dependencies
+LINK_SO             := $(CXX_EXE) $(COVERAGE) $(LINK_OPTS) -shared -static-libstdc++ # some user codes may have specific (and older) libs, avoid dependencies
 LINK_BIN            := $(CXX_EXE) $(COVERAGE) $(LINK_OPTS)
 LINK_LIB            := -ldl
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
@@ -93,8 +93,8 @@ PY_LINK_OPTS := $(patsubst %,-L%,$(PY_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=
 ifneq ($(HAS_FUSE),)
     FUSE_CC_OPTS   := $(shell pkg-config fuse3 --cflags)
     FUSE_LINK_OPTS := $(shell pkg-config fuse3 --libs  )
-    #FUSE_CC_OPTS   := -I /home/cdy/fuse/include -I /home/cdy/fuse/build
-    #FUSE_LINK_OPTS := /home/cdy/fuse/build/lib/libfuse3.so
+                                                                                      #FUSE_CC_OPTS   := -I /home/cdy/fuse/include -I /home/cdy/fuse/build
+                                                                                      #FUSE_LINK_OPTS := /home/cdy/fuse/build/lib/libfuse3.so
 endif
 
 # Engine
@@ -409,9 +409,9 @@ $(SBIN)/ldump : \
 	$(SRC)/rpc_job_exec$(SAN).o            \
 	$(SRC)/fuse$(SAN).o                    \
 	$(SRC)/trace$(SAN).o                   \
+	$(SRC)/autodep/backdoor$(SAN).o        \
 	$(SRC)/autodep/env$(SAN).o             \
 	$(SRC)/autodep/ld_server$(SAN).o       \
-	$(SRC)/autodep/backdoor$(SAN).o        \
 	$(SRC)/autodep/record$(SAN).o          \
 	$(SRC)/autodep/syscall_tab$(SAN).o     \
 	$(SRC)/store/file$(SAN).o              \
@@ -428,7 +428,7 @@ $(SBIN)/ldump : \
 	$(SRC)/ldump$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LINK_LIB)
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
 	$(LMAKE_BASIC_SAN_OBJS)    \

@@ -55,7 +55,9 @@ int main( int argc , char* argv[]) {
 	if ( cmd_line.flags[Flag::Ignore      ]) ad.extra_dflags |= ExtraDflag::Ignore       ;
 	if ( cmd_line.flags[Flag::StatReadData]) ad.extra_dflags |= ExtraDflag::StatReadData ;
 	//
-	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose ) ;
+	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos ;
+	try                       { dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose ) ; }
+	catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                         }
 	//
 	if (!verbose) return 0 ;
 	//
