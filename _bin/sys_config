@@ -294,30 +294,31 @@ fi
 cd $START_DIR
 
 cat >$MK_FILE <<EOF
-BASH           := /bin/bash
-GIT            := $(type -p ${GIT:-git})
+BASH               := /bin/bash
+GIT                := $(type -p ${GIT:-git})
 #
-PYTHON2        := $PYTHON2
-PY2_INCLUDEDIR := $PY2_INCLUDEDIR
-PY2_INCLUDEPY  := $PY2_INCLUDEPY
-PY2_LIB_DIR    := $PY2_LIB_DIR
-PY2_LIB_BASE   := $PY2_LIB_BASE
-PYTHON         := $PYTHON
-PY_INCLUDEDIR  := $PY_INCLUDEDIR
-PY_INCLUDEPY   := $PY_INCLUDEPY
-PY_LIB_DIR     := $PY_LIB_DIR
-PY_LIB_BASE    := $PY_LIB_BASE
+PYTHON2            := $PYTHON2
+PY2_INCLUDEDIR     := $PY2_INCLUDEDIR
+PY2_INCLUDEPY      := $PY2_INCLUDEPY
+PY2_LIB_DIR        := $PY2_LIB_DIR
+PY2_LIB_BASE       := $PY2_LIB_BASE
+PYTHON             := $PYTHON
+PY_INCLUDEDIR      := $PY_INCLUDEDIR
+PY_INCLUDEPY       := $PY_INCLUDEPY
+PY_LIB_DIR         := $PY_LIB_DIR
+PY_LIB_BASE        := $PY_LIB_BASE
+PY_LD_LIBRARY_PATH := $PY_LD_LIBRARY_PATH
 #
-CXX            := $CXX
-CXX_FLAVOR     := $CXX_FLAVOR
-LINK_LIB_PATH  := $LINK_LIB_PATH
-STD_INC_DIRS   := $STD_INC_DIRS
+CXX                := $CXX
+CXX_FLAVOR         := $CXX_FLAVOR
+LINK_LIB_PATH      := $LINK_LIB_PATH
+STD_INC_DIRS       := $STD_INC_DIRS
 #
-HAS_PCRE       := ${HAS_PCRE#0}
-HAS_SECCOMP    := ${HAS_SECCOMP#0}
-HAS_SLURM      := ${HAS_SLURM#0}
+HAS_PCRE           := ${HAS_PCRE#0}
+HAS_SECCOMP        := ${HAS_SECCOMP#0}
+HAS_SLURM          := ${HAS_SLURM#0}
 #
-STD_PATH       := $(env -i /bin/bash -c 'echo $PATH')
+STD_PATH           := $(env -i /bin/bash -c 'echo $PATH')
 EOF
 
 cat >$H_FILE <<EOF
