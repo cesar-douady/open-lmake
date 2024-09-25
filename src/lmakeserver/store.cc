@@ -259,6 +259,7 @@ namespace Engine::Persistent {
 				}
 				// set job
 				Job job { {rule,::move(job_info.start.stems)} } ;
+				if (!job) goto NextJob ;
 				job->targets.assign(targets) ;
 				job->deps   .assign(deps   ) ;
 				job->status = job_info.end.end.digest.status ;
