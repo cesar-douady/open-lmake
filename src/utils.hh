@@ -71,9 +71,9 @@ template<class T> using AsChar = ::conditional_t<IsChar<T>,T,char> ;            
 template<class D,class B> concept IsA       = ::is_same_v<remove_const_t<B>,remove_const_t<D>> || ::is_base_of_v<remove_const_t<B>,remove_const_t<D>> ;
 template<class T        > concept IsNotVoid = !::is_void_v<T>                                                                                         ;
 
-template<class T> constexpr T        copy    (T const& x) { return x ; }
-template<class T> constexpr T      & ref     (T     && x) { return x ; }
-template<class T> constexpr T const& constify(T const& x) { return x ; }
+template<class T> constexpr T        copy    (T const& x) { return   x ; }
+template<class T> constexpr T      & ref     (T     && x) { return *&x ; }
+template<class T> constexpr T const& constify(T const& x) { return   x ; }
 
 template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
 

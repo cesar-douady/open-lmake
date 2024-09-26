@@ -28,19 +28,19 @@ if __name__!='__main__' :
 		]
 
 	class CpyLocal(Rule) :
-		target = '{File:.*}.lcl'
+		target = r'{File:.*}.lcl'
 		cmd    = 'cat local/{File}.src'
 
 	class CpyExtRel(Rule) :
-		target = '{File:.*}.rel'
+		target = r'{File:.*}.rel'
 		cmd    = 'cat ../srcs_rel/{File}.src'
 
 	class CpyExtAbs(Rule) :
-		target = '{File:.*}.abs'
+		target = r'{File:.*}.abs'
 		cmd    = f"cat {osp.abspath('../srcs_abs')}/{{File}}.src"
 
 	class Cpy(Rule) :
-		target = '{File:.*}.cpy'
+		target = r'{File:.*}.cpy'
 		cmd    = 'cat {File}'
 
 else :

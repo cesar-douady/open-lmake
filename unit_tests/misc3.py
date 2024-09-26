@@ -17,7 +17,7 @@ if __name__!='__main__' :
 	from step import step
 
 	class X(PyRule) :
-		targets = { 'X' : '{Key:[12]}{*:}' }
+		targets = { 'X' : r'{Key:[12]}{*:}' }
 		def cmd() :
 			if int(Key)!=step : raise ValueError('bad Key')
 			open(Key,'w')

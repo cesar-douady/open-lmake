@@ -112,23 +112,24 @@ namespace Backends {
 	template< class SpawnId , class Rsrcs > struct _SpawnedEntry {
 		// ctors & casts
 		void create(Rsrcs const& rs) {
-			SWEAR(zombie) ;
+			SWEAR(!live) ;
 			rsrcs   = rs    ;
 			id      = 0     ;
 			started = false ;
 			verbose = false ;
-			zombie  = false ;
+			live    = true  ;
 		}
 		// data
 		Rsrcs             rsrcs   ;
 		::atomic<SpawnId> id      = 0     ;
+		::atomic<bool   > failed  = false ; // if true <=> job could not ben launched
 		bool              started = false ; // if true <=> start() has been called for this job, for assert only
 		bool              verbose = false ;
-		::atomic<bool   > zombie  = true  ; // entry waiting for suppression
+		::atomic<bool   > live    = false ; // if false <=> entry waiting for suppression
 	} ;
 	template< class SpawnId , class Rsrcs > ::ostream& operator<<( ::ostream& os , _SpawnedEntry<SpawnId,Rsrcs> const& se ) {
 		os << "SpawnedEntry(" ;
-		if (!se.zombie) {
+		if (se.live) {
 			/**/            os <<      se.rsrcs ;
 			if (se.id     ) os <<','<< se.id    ;
 			if (se.started) os <<",started"     ;
@@ -152,17 +153,17 @@ namespace Backends {
 			using typename Base::iterator       ;
 			using typename Base::const_iterator ;
 			//
-			const_iterator find(Job j) const { const_iterator res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
-			iterator       find(Job j)       { iterator       res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
+			const_iterator find(Job j) const { const_iterator res = Base::find(j) ; if ( res==Base::end() || !res->second.live ) return Base::end() ; else return res ; }
+			iterator       find(Job j)       { iterator       res = Base::find(j) ; if ( res==Base::end() || !res->second.live ) return Base::end() ; else return res ; }
 			//
-			bool   operator+() const { return _sz     ; }                     // cannot inherit from Base as zombies would be counted
-			bool   operator!() const { return !+*this ; }                     // .
-			size_t size     () const { return _sz     ; }                     // .
+			bool   operator+() const { return _sz     ; }                    // cannot inherit from Base as zombies would be counted
+			bool   operator!() const { return !+*this ; }                    // .
+			size_t size     () const { return _sz     ; }                    // .
 			//
 			iterator create( GenericBackend const& be , Job j , RsrcsAsk const& rsrcs_ask ) {
 				Rsrcs    rsrcs = be.acquire_rsrcs(rsrcs_ask) ;
 				iterator res   = Base::try_emplace(j).first  ;
-				SWEAR(res->second.zombie) ;
+				SWEAR(!res->second.live) ;
 				res->second.create(rsrcs) ;
 				_sz++ ;
 				return res ;
@@ -173,18 +174,18 @@ namespace Backends {
 				it->second.started = true ;
 			}
 			void erase( GenericBackend const& be , iterator it ) {
-				SWEAR(!it->second.zombie) ;
+				SWEAR(it->second.live) ;
 				if (!it->second.started) be.start_rsrcs(it->second.rsrcs) ;
 				/**/                     be.end_rsrcs  (it->second.rsrcs) ;
 				if (it->second.id      ) Base::erase(it) ;
-				else                     it->second.zombie = true ;           // if no id, we may not have the necesary lock to erase the entry, defer
+				else                     it->second.live = false ;           // if no id, we may not have the necesary lock to erase the entry, defer
 				_sz-- ;
 			} ;
 			void flush(iterator it) {
-				if ( it!=Base::end() && it->second.zombie ) Base::erase(it) ; // solve deferred action
+				if ( it!=Base::end() && !it->second.live ) Base::erase(it) ; // solve deferred action
 			}
 		private :
-			size_t _sz = 0 ;                                                  // dont trust Base::size() as zombies would be counted
+			size_t _sz = 0 ;                                                 // dont trust Base::size() as zombies would be counted
 		} ;
 
 		struct PressureEntry {
@@ -260,7 +261,7 @@ namespace Backends {
 			reqs.erase(it) ;
 			if (!reqs) {
 				SWEAR(!waiting_jobs,waiting_jobs) ;
-				SWEAR(!spawned_jobs,spawned_jobs) ;                                                                 // there may be zombie entries waiting for destruction
+				SWEAR(!spawned_jobs,spawned_jobs) ;                                                                 // there may be !live entries waiting for destruction
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
@@ -346,16 +347,17 @@ namespace Backends {
 			{	auto it = spawned_jobs.find(j) ;
 				if (it==spawned_jobs.end()) {
 					Trace trace(BeChnl,"heartbeat","not_found",j) ;
-					goto NotLaunched ;
+					return {"job disappeared",HeartbeatState::Err} ;
 				}
 				SpawnedEntry& se = it->second ;
 				SWEAR(!se.started,j) ;                                                                              // we should not be called on started jobs
 				if (!se.id) {
-					Lock lock { id_mutex } ;
-					if (!se.id) {
+					Lock lock { id_mutex } ;                                                                        // ensure _launch is no more processing entry
+					if (!se.id) {                                                                                   // repeat test so test and decision are atomic
 						Trace trace(BeChnl,"heartbeat","no_id",j) ;
-						goto NotLaunched ;
-					}                                                                                               // repeat test so test and decision are atomic
+						if (se.failed) return {"could not launch job",HeartbeatState::Err  } ;
+						else           return {{}                    ,HeartbeatState::Alive} ;                      // book keeping is not updated yet
+					}
 				}
 				::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
 				if (digest.second!=HeartbeatState::Alive) {
@@ -364,8 +366,6 @@ namespace Backends {
 				}
 				return digest ;
 			}
-		NotLaunched :
-			return {"could not launch job",HeartbeatState::Err} ;
 		}
 		// kill all if req==0
 		virtual ::vector<Job> kill_waiting_jobs(Req req={}) {
@@ -444,10 +444,10 @@ namespace Backends {
 						launch_descrs.emplace_back( j , LaunchDescr{ rs , acquire_cmd_line(T,j,rs,export_(*se.rsrcs),wit->second.submit_attrs) , prio , &se } ) ;
 						waiting_jobs.erase(wit) ;
 						//
-						for( ReqIdx r : rs ) {
-							ReqEntry& re   = reqs.at(Req(r))         ;
+						for( Req r : rs ) {
+							ReqEntry& re   = reqs.at(r)              ;
 							auto      wit1 = re.waiting_jobs.find(j) ;
-							if (r!=+req) {
+							if (r!=req) {
 								auto                  wit2 = re.waiting_queues.find(candidate->first) ;
 								::set<PressureEntry>& pes  = wit2->second                             ;
 								PressureEntry         pe   { wit1->second , j }                       ;                // /!\ pressure is job pressure for r, not for req
@@ -455,7 +455,7 @@ namespace Backends {
 								if (pes.size()==1) re.waiting_queues.erase(wit2) ;                                     // last entry for this rsrcs, erase the entire queue
 								else               pes              .erase(pe  ) ;
 							}
-							re.waiting_jobs.erase (wit1) ;
+							re.waiting_jobs.erase(wit1) ;
 						}
 						if (pressure_set.size()==1) queues      .erase(candidate) ;                                    // last entry for this rsrcs, erase the entire queue
 						else                        pressure_set.erase(pressure1) ;
@@ -464,7 +464,7 @@ namespace Backends {
 				for( auto& [ji,ld] : launch_descrs ) {
 					Lock lock { id_mutex } ;
 					SpawnedEntry& se = *ld.entry ;
-					if (se.zombie) continue ;                                                                          // job was cancelled before being launched
+					if (!se.live) continue ;                                                                           // job was cancelled before being launched
 					try {
 						SpawnId id = launch_job( st , ji , ld.reqs , ld.prio , ld.cmd_line , se.rsrcs , se.verbose ) ; // XXX : manage errors, for now rely on heartbeat
 						SWEAR(id,ji) ;                                                                                 // null id is used to mark absence of id
@@ -472,14 +472,15 @@ namespace Backends {
 						trace("child",ji,ld.prio,id,ld.cmd_line) ;
 					} catch (::string const& e) {
 						trace("fail",ji,ld.prio,e) ;
+						se.failed = true ;
 						_launch_queue.wakeup() ;                                               // we may have new jobs to launch as we did not launch all jobs we were supposed to
 					}
 				}
 				{	Lock lock { _s_mutex } ;
 					for( auto const& [ji,_] : launch_descrs ) {
 						auto it=spawned_jobs.find(ji) ; if (it==spawned_jobs.end()) continue ;
-						if (!it->second.id) spawned_jobs.erase(*this,it) ;                     // job could not be launched, release resources
-						/**/                spawned_jobs.flush(      it) ;                     // collect unused entry now that we hold _s_mutex
+						if (it->second.failed) spawned_jobs.erase(*this,it) ;                  // job could not be launched, release resources
+						/**/                   spawned_jobs.flush(      it) ;                  // collect unused entry now that we hold _s_mutex
 					}
 					launch_descrs.clear() ;                                                    // destroy entries while holding the lock
 				}

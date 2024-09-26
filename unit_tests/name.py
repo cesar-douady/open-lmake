@@ -19,8 +19,8 @@ if __name__!='__main__' :
 	class Expand(Rule) :
 		name = f'expand{step}'
 		targets = {
-			'TARGET'  : '{File:.*}.tgzdir/{*:.*}'
-		,	'TRIGGER' : '{File}.tgzdir.trigger'
+			'TARGET'  : r'{File:.*}.tgzdir/{*:.*}'
+		,	'TRIGGER' :  '{File}.tgzdir.trigger'
 		}
 		deps = { 'TGZ' : '{File}.tgz' }
 		cmd  = 'tar -xvf {TGZ} -C {File}.tgzdir >{TRIGGER}'

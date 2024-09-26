@@ -21,7 +21,7 @@ if __name__!='__main__' :
 		cmd    = 'echo good_content'
 
 	class Bad(BaseRule) :
-		targets = { 'Bad' : 'bad1{*:}' }
+		targets = { 'Bad' : r'bad1{*:}' }
 		cmd     = 'sleep 3'              # dont produce bad
 
 	class Ptr(BaseRule) :

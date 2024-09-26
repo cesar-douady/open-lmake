@@ -31,7 +31,7 @@ if __name__!='__main__' :
 		cmd    = 'echo src_content'
 
 	class Chk(Rule) :
-		target = '{File:.*}.ok'
+		target = r'{File:.*}.ok'
 		deps = {
 			'DUT' : '{File}'
 		,	'REF' : '{File}.ref'

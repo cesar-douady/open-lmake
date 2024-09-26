@@ -18,13 +18,13 @@ if __name__!='__main__' :
 	)
 
 	class Test(PyRule) :
-		targets = { 'DST' : '{File:.*}.test' }
+		targets = { 'DST' : r'{File:.*}.test' }
 		if step==1 :
 			side_targets = {
 				'UNIQ' : 'uniq'
-			,	'SIDE' : 'side.{*:[12]}'
+			,	'SIDE' : r'side.{*:[12]}'
 			}
-			side_deps = { 'NO_DEP' : ( 'no_dep.{*:[12]}' , 'Ignore' ) }
+			side_deps = { 'NO_DEP' : ( r'no_dep.{*:[12]}' , 'Ignore' ) }
 		allow_stderr = True
 		def cmd() :
 			open('no_dep.1')

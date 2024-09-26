@@ -22,7 +22,7 @@ if __name__!='__main__' :
 		cmd = 'echo hello >{HELLO} ; echo world > {WORLD}'
 
 	class Cmp(Rule) :
-		target = '{File:.*}.ok'
+		target = r'{File:.*}.ok'
 		deps   = {
 			'ACTUAL' : '{File}'
 		,	'REF'    : '{File}.ref'

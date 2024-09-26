@@ -52,7 +52,7 @@ if __name__!='__main__' :
 		cmd = 'diff {REF} {DUT}'
 
 	class GenDir(Base) :
-		targets  = { 'DST' : '{File:.*}.dir/{*:.*}' }
+		targets  = { 'DST' : r'{File:.*}.dir/{*:.*}' }
 		tmp_view = '/tmp'
 		cmd      = '''
 			cd $TMPDIR
@@ -64,8 +64,8 @@ if __name__!='__main__' :
 		'''
 
 	class UpdateDir(Base) :
-		targets  = { 'DST' : '{File:.*}.dir2/{*:.*}' }
-		deps     = { 'SRC' : '{File}.dir/d/a'        }
+		targets  = { 'DST' : r'{File:.*}.dir2/{*:.*}' }
+		deps     = { 'SRC' :  '{File}.dir/d/a'        }
 		tmp_view = '/tmp'
 		cmd      = '''
 			cd $TMPDIR
@@ -76,7 +76,7 @@ if __name__!='__main__' :
 		'''
 
 	class ChkDir(Base) :
-		target = '{File:.*}.chk'
+		target = r'{File:.*}.chk'
 		deps   = { 'DUT' : '{File}.dir2/d/a' }
 		cmd    = '''
 			[ $(cat {DUT}) = a:aa ]

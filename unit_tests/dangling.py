@@ -11,7 +11,7 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Dep(PyRule) :
-		targets = { 'OUT' : 'deps/{*:.*}' }
+		targets = { 'OUT' : r'deps/{*:.*}' }
 		cmd     = ''
 
 	class Dut(Rule):

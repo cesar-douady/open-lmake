@@ -204,7 +204,7 @@ namespace Backends::Sge {
 			else                                                           return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                             // asynchronous (as faster and no return value) cancel
+			if (se.live) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                                // asynchronous (as faster and no return value) cancel
 		}
 		virtual SgeId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			::vector_s sge_cmd_line = {
@@ -229,7 +229,7 @@ namespace Backends::Sge {
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//
-			::pair_s<bool/*ok*/> digest = sge_exec_client( ::move(sge_cmd_line) , true/*gather_stdout*/ ) ; // need to gather sge id
+			::pair_s<bool/*ok*/> digest = sge_exec_client( ::move(sge_cmd_line) , true/*gather_stdout*/ ) ;                                    // need to gather sge id
 			Trace trace(BeChnl,"Sge::launch_job",repo_key,j,digest,sge_cmd_line,rs,STR(verbose)) ;
 			if (!digest.second) throw "cannot submit SGE job "+Job(j)->name() ;
 			return from_string<SgeId>(digest.first) ;

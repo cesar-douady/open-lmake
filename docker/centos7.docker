@@ -3,7 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# build command : cd docker ; docker build -f centos7.docker -t centos7 .
+# build command : cd docker ; sudo docker build -f centos7.docker -t centos7 .
 
 FROM centos:7
 
@@ -11,15 +11,19 @@ FROM centos:7
 # necessary to compile lmake
 #
 
+RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-Base.repo
+RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-fasttrack.repo
+RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-x86_64-kernel.repo
+RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-CR.repo
 RUN yum install -y centos-release-scl
+RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo
+RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl.repo
 RUN yum install -y devtoolset-11
 RUN yum install -y ed
 RUN yum install -y texinfo
 RUN yum install -y git
-RUN yum install -y python3
-RUN yum install -y python3-devel
-RUN yum install -y autoconf
-RUN yum install -y automake
+RUN yum install -y python3 python3-devel
+RUN yum install -y autoconf automake
 RUN yum install -y epel-release
 RUN yum install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel
 #RUN yum install -y libseccomp

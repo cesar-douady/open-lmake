@@ -183,7 +183,7 @@ namespace Backends::Local {
 			else                                                       return {{}/*msg*/,HeartbeatState::Lost } ;   // process died long before (already waited) or just died with no error
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (se.zombie) return ;
+			if (!se.live) return ;
 			kill_process(se.id,SIGHUP) ;                                                                            // jobs killed here have not started yet, so we just want to kill job_exec
 			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
 		}

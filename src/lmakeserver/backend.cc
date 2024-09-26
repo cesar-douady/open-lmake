@@ -700,14 +700,14 @@ namespace Backends {
 		//
 		SubmitRsrcsAttrs::s_canon(rsrcs) ;
 		//
-		auto        [it,fresh] = _s_start_tab.emplace(job,StartEntry()) ;                                                                  // create entry
+		auto        [it,fresh] = _s_start_tab.emplace(job,StartEntry()) ;                                                    // create entry
 		StartEntry& entry      = it->second                             ;
-		entry.open() ;
-		entry.tag   = tag           ;
-		entry.reqs  = reqs          ;
-		entry.rsrcs = ::move(rsrcs) ;
-		if (fresh) {                                             entry.submit_attrs = submit_attrs ;                                     }
-		else       { uint8_t nr = entry.submit_attrs.n_retries ; entry.submit_attrs = submit_attrs ; entry.submit_attrs.n_retries = nr ; } // keep retry count if it was counting
+		if (fresh)                                                            entry.submit_attrs = submit_attrs          ;
+		else       { Save sav { entry.submit_attrs.n_retries } ; entry = {} ; entry.submit_attrs = submit_attrs          ; } // ensure entry is clean but keep retry count if it was counting
+		/**/                                                                  entry.conn.seq_id  = (*Engine::g_seq_id)++ ;
+		/**/                                                                  entry.tag          = tag                   ;
+		/**/                                                                  entry.reqs         = reqs                  ;
+		/**/                                                                  entry.rsrcs        = ::move(rsrcs)         ;
 		trace("create_start_tab",job,entry) ;
 		::vector_s cmd_line {
 			_s_job_exec

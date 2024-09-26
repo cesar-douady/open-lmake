@@ -16,7 +16,7 @@ if __name__!='__main__' :
 		cmd     = 'ln -s /usr/bin/cat {CAT}'
 
 	class Reg(Rule) :
-		target = 'x{:\d}'
+		target = r'x{:\d}'
 		cmd    = ''
 
 	class Dut1(Rule) :

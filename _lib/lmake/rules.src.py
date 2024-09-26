@@ -3,10 +3,11 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys    as _sys
-import os     as _os
-import pwd    as _pwd
-import signal as _signal
+import sys     as _sys
+import os      as _os
+import os.path as _osp
+import pwd     as _pwd
+import signal  as _signal
 
 import lmake
 from . import has_ld_audit,pdict,root_dir # if not in an lmake repo, root_dir is not set to current dir
@@ -177,4 +178,9 @@ class DynamicPyRule(Rule):
 
 class RustRule(Rule) :
 	'base rule for use by any code written in Rust (including cargo and rustc that are written in rust)'
-	autodep = 'ld_preload'                                                                               # rust use a dedicated loader that does not call auditing code when using ld_audit
+	autodep     = 'ld_preload'                                                                           # rust use a dedicated loader that does not call auditing code when using ld_audit
+	if 'RUSTUP_HOME' in _os.environ :
+		environ_cmd = {
+			'RUSTUP_HOME' : _os.environ['RUSTUP_HOME']                                                   # ensure var is passed to job
+		,	'PATH'        : _osp.dirname(_os.environ['RUSTUP_HOME'])+'/.cargo/bin:...'                   # ... stands for inherited value
+		}

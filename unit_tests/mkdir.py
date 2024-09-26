@@ -17,7 +17,7 @@ if __name__!='__main__' :
 
 	class Dut(PyRule):
 		target  = 'dut'
-		targets = { 'OUT' : 'out/{*:.*}' }
+		targets = { 'OUT' : r'out/{*:.*}' }
 		def cmd():
 			import os
 			dir = OUT(f'v{step}')

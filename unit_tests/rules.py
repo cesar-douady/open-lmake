@@ -15,11 +15,11 @@ if __name__!='__main__' :
 	for r in range(n) :   # ensure rules recording can handle a lot of rules
 		class Sfx(Rule) :
 			name = f'Sfx{r}'
-			target = f'{{File:.*}}.{r}'
+			target = fr'{{File:.*}}.{r}'
 			cmd = ''
 		class Pfx(Rule) :
 			name = f'Pfx{r}'
-			target = f'{r}.{{File:.*}}'
+			target = fr'{r}.{{File:.*}}'
 			cmd = ''
 
 else :

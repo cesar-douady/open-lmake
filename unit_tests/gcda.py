@@ -45,9 +45,9 @@ if __name__!='__main__' :
 		cmd = "{gxx} -fprofile-arcs -o {SO} -shared {' '.join((f for k,f in deps.items()))}"
 
 	class Dut(Rule) :
-		targets     = { 'DUT':'dut' , 'GCDA':'gcda_dir/{File*:.*}' }
-		deps        = { 'EXE':'hello_world'                        }
-		environ_cmd = { 'LD_LIBRARY_PATH' : ld_library_path        }
+		targets     = { 'DUT':'dut' , 'GCDA':r'gcda_dir/{File*:.*}' }
+		deps        = { 'EXE':'hello_world'                         }
+		environ_cmd = { 'LD_LIBRARY_PATH' : ld_library_path         }
 		cmd         = 'GCOV_PREFIX=gcda_dir GCOV_PREFIX_STRIP={depth} ./{EXE} >{DUT}'
 
 	class Test(Rule) :

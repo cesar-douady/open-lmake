@@ -17,6 +17,10 @@ rm -rf trial
 mkdir  trial
 cd     trial
 
+#
+# CXX configuration
+#
+
 CXX=${CXX:-g++}
 
 case "$(basename $CXX)" in
@@ -39,13 +43,27 @@ CXX=$(type -p $CXX)
 CXX_VERSION="$($CXX --version | head -1)"
 CXX_VERSION="${CXX_VERSION##* }"
 CXX_VERSION="${CXX_VERSION%%.*}"
-
 case "$CXX_FLAVOR" in
 	clang) [[ $CXX_VERSION -ge 14 ]] || { echo $CXX version $CXX_VERSION must be at least 14 >&2 ; exit 1 ; } ;;
 	gcc  ) [[ $CXX_VERSION -ge 11 ]] || { echo $CXX version $CXX_VERSION must be at least 11 >&2 ; exit 1 ; } ;;
 esac
 
-#
+[ "$CXX" != "${CXX%++*}" ] || { echo cannot recognize c++ compiler $CXX ; exit 1 ; } # ensure we can find "++" in cxx, for example gcc or clang will not work, we must use g++ and clang++
+type -p $CXX >/dev/null    || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
+
+LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
+LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
+
+$CXX -v -E -o /dev/null -xc - </dev/null 2>compiler_info
+STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' compiler_info)) )" # echo is used to replace \n by space
+
+if   $CXX -o /dev/null -xc++ -std=c++23 - <<< 'int main() {}' ; then CXX_STD=c++23
+elif $CXX -o /dev/null -xc++ -std=c++20 - <<< 'int main() {}' ; then CXX_STD=c++20
+else
+	echo $CXX must support at least c++20
+	exit 1
+fi
+
 # Python configuration (Python2 is optional)
 #
 
@@ -101,18 +119,6 @@ config_python "$PYTHON"  3 || exit 1
 if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY_LIB_DIR:$PY2_LIB_DIR # both present, separate with :
 else                                          PY_LD_LIBRARY_PATH=$PY_LIB_DIR$PY2_LIB_DIR  # only one is present
 fi
-
-#
-# CXX configuration
-#
-[ "$CXX" != "${CXX%++*}" ] || { echo cannot recognize c++ compiler $CXX ; exit 1 ; } # ensure we can find "++" in cxx, for example gcc or clang will not work, we must use g++ and clang++
-type -p $CXX >/dev/null    || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
-
-LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
-LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
-
-$CXX -v -E -o /dev/null -xc - </dev/null 2>compiler_info
-STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' compiler_info)) )" # echo is used to replace \n by space
 
 #
 # ADDR2LINE
@@ -193,7 +199,7 @@ cat <<"EOF" > ostringstream_view.cc
 	#include <sstream>
 	std::string_view ossv = std::ostringstream().view() ;
 EOF
-if $CXX -c -std=c++20 -o ostringstream_view.o ostringstream_view.cc
+if $CXX -c -std=$CXX_STD -o ostringstream_view.o ostringstream_view.cc
 then HAS_OSTRINGSTREAM_VIEW=1
 else HAS_OSTRINGSTREAM_VIEW=0
 fi
@@ -208,7 +214,7 @@ cat <<"EOF" > pcre.cc
 		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
 	}
 EOF
-if $CXX -c -std=c++20 -o pcre.o pcre.cc
+if $CXX -c -std=$CXX_STD -o pcre.o pcre.cc
 then HAS_PCRE=1
 else HAS_PCRE=0
 fi
@@ -366,6 +372,7 @@ PY_LD_LIBRARY_PATH := $PY_LD_LIBRARY_PATH
 #
 CXX                := $CXX
 CXX_FLAVOR         := $CXX_FLAVOR
+CXX_STD            := $CXX_STD
 LINK_LIB_PATH      := $LINK_LIB_PATH
 STD_INC_DIRS       := $STD_INC_DIRS
 #

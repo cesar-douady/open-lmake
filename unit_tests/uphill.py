@@ -11,7 +11,7 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class A(Rule) :
-		targets = { 'A' : 'a/{*:.*}' }
+		targets = { 'A' : r'a/{*:.*}' }
 		cmd     = 'exit 1'
 
 	class E(Rule) :

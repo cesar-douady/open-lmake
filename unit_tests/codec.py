@@ -16,7 +16,7 @@ if __name__!='__main__' :
 	)
 
 	class CodecSh(Rule) :
-		target = '{File:.*}_sh'
+		target = r'{File:.*}_sh'
 		shell  = ('/bin/bash','-e')
 		cmd    = '''
 			code=$( echo {File}_sh | lencode -f codec_file -x ctx -l 4 )
@@ -25,14 +25,14 @@ if __name__!='__main__' :
 		'''
 
 	class CodecPy(PyRule) :
-		target = '{File:.*}_py'
+		target = r'{File:.*}_py'
 		def cmd() :
 			code = lmake.encode('codec_file','ctx',File+'_py\n',3)
 			print(code)
 			print(lmake.decode('codec_file','ctx',code))
 
 	class Chk(PyRule) :
-		target = '{File:.*}.ok'
+		target = r'{File:.*}.ok'
 		dep    = '{File}'
 		def cmd() :
 			l = sys.stdin.read().split('\n')

@@ -34,7 +34,7 @@ if __name__!='__main__' :
 			print(open(dir+'/testfile').read())
 
 	class Test(Rule) :
-		target = 'test{Test:.*}'
+		target = r'test{Test:.*}'
 		deps = {
 			'DUT' : 'write/dut{Test}'
 		,	'REF' : 'ref{Test}'

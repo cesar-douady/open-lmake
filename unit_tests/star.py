@@ -18,16 +18,16 @@ if __name__!='__main__' :
 	)
 
 	class Opt(Rule) :
-		targets = { 'DST' : ('{File:.*}.opt','Optional') }
+		targets = { 'DST' : (r'{File:.*}.opt','Optional') }
 		cmd     = '[ {File} != ok ] || echo 1 > {DST}'
 
 	class Opt2(Rule) :
 		prio = -1
-		targets = { 'DST' : '{File:.*}.opt' }
+		targets = { 'DST' : r'{File:.*}.opt' }
 		cmd     = 'echo 2 > {DST}'
 
 	class Star(Rule) :
-		targets = { 'DST' : ('{File:.*}.star{D*:\\d+}',) }
+		targets = { 'DST' : (r'{File:.*}.star{D*:\d+}',) }
 		dep     = '{File}'
 		def cmd() :
 			text = sys.stdin.read()
@@ -35,12 +35,12 @@ if __name__!='__main__' :
 			open(f'{File}.star2','w').write(text)
 
 	class Cpy(Rule) :
-		target = '{File:.*}.cpy'
+		target = r'{File:.*}.cpy'
 		dep    = '{File}'
 		cmd    = 'cat'
 
 	class Chk(Rule) :
-		target = '{File:.*}.ok'
+		target = r'{File:.*}.ok'
 		deps = {
 			'DUT' : '{File}'
 		,	'REF' : '{File}.ref'

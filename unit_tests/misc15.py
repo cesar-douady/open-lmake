@@ -12,7 +12,7 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Dut(PyRule) :
-		targets = { 'DUT' : 'dut/{*:.*}' }
+		targets = { 'DUT' : r'dut/{*:.*}' }
 		def cmd() :
 			import os
 			import subprocess as sp

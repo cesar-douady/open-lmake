@@ -15,7 +15,7 @@ if __name__!='__main__' :
 		cmd    = 'echo dut'
 
 	class Cpy(Rule) :
-		target           = '{File:.*}.cpy'
+		target           = r'{File:.*}.cpy'
 		max_submit_count = 1
 		allow_stderr     = True
 		cmd              = ' cat {File} ; : '

@@ -99,7 +99,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 	::string kill_server_msg ;
 	if ( +server_service && !server_is_local ) kill_server_msg << "ssh "<<SockFd::s_host(server_service)+' ' ;
 	if ( server_pid                          ) kill_server_msg << "kill "<<server_pid                        ;
-	if ( +kill_server_msg                    ) kill_server_msg << '\t'<<kill_server_msg<<'\n'                ;
+	if ( +kill_server_msg                    ) kill_server_msg =  '\t'+kill_server_msg+'\n'                  ;
 	trace("cannot_connect",server_service,kill_server_msg) ;
 	exit(Rc::Format
 	,	"cannot connect to server, consider :\n"

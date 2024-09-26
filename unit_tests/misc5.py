@@ -12,7 +12,7 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class PyEnv(Rule) :
-		targets = { 'DST' : 'py_env/{*:.*}' }
+		targets = { 'DST' : r'py_env/{*:.*}' }
 		cmd = '''
 			python3 -m venv py_env
 			. py_env/bin/activate

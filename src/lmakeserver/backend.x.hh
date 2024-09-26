@@ -96,16 +96,11 @@ namespace Backends {
 				SmallId   small_id = 0          ;
 			} ;
 			// cxtors & casts
-			StartEntry(       ) = default ;
-			StartEntry(NewType) { open() ; }
+			StartEntry() = default ;
 			// accesses
 			bool operator+() const { return +conn   ; }
 			bool operator!() const { return !+*this ; }
 			// services
-			void open() {
-				SWEAR(!*this) ;
-				conn.seq_id = (*Engine::g_seq_id)++ ;
-			}
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
 			Conn             conn         ;
@@ -130,7 +125,7 @@ namespace Backends {
 
 		struct StartTab : ::map<Job,StartEntry> {
 			using Base = ::map<Job,StartEntry> ;
-			// if !seq_id, entry is kept solely for its sbmit_attrs.n_retries attribute, behave as if it does not exist
+			// if !seq_id, entry is kept solely for its submit_attrs.n_retries attribute, behave as if it does not exist
 			auto find    ( Job j             ) const {              auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }
 			auto find    ( Job j , SeqId sid ) const { SWEAR(sid) ; auto res = Base::find(j) ; if ( res!=end() &&  res->second.conn.seq_id!=sid ) return end() ; else return res ; }
 			auto find    ( Job j             )       {              auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }

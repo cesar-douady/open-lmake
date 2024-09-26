@@ -18,8 +18,8 @@ if __name__!='__main__' :
 
 	class Dut2(Rule) :
 		max_submit_count = 2
-		autodep          = 'ptrace'                     # valgrind does not go through libc to write its output
-		targets          = { 'LOGS' : 'logdir/{*:.*}' }
+		autodep          = 'ptrace'                      # valgrind does not go through libc to write its output
+		targets          = { 'LOGS' : r'logdir/{*:.*}' }
 		cmd = '''
 			{valgrind} --log-file={LOGS('log')} --tool=memcheck hostname
 		'''

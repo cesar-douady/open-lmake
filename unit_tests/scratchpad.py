@@ -23,7 +23,7 @@ if __name__!='__main__' :
 	for ad in autodeps :
 		class Cat(Rule) :
 			name    = f'cat {ad}'
-			target  = f'{{File:.*}}.{ad}'
+			target  = fr'{{File:.*}}.{ad}'
 			dep     = '{File}'
 			autodep = ad
 			cmd = multi_strip('''

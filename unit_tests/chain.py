@@ -29,7 +29,7 @@ if __name__!='__main__' :
 		cmd = 'cat {FIRST} {SECOND}'
 
 	class Cpy(BaseRule) :
-		target = '{File:.*}.cpy'
+		target = r'{File:.*}.cpy'
 		dep    = '{File}'
 		cmd    = 'cat'
 

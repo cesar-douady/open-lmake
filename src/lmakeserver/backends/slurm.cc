@@ -224,7 +224,7 @@ namespace Backends::Slurm {
 			return "slurm_id:"s+se.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status s ) const {
-			if ( !se.verbose && s==Status::Ok ) return {{},true/*retry*/} ;                             // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
+			if ( !se.verbose && s==Status::Ok ) return {{},true/*retry*/} ;                          // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
 				Delay d { 0.01 }                                               ;
@@ -258,7 +258,7 @@ namespace Backends::Slurm {
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;     // asynchronous (as faster and no return value) cancel
+			if (se.live) _s_slurm_cancel_thread.push(se.id) ;        // asynchronous (as faster and no return value) cancel
 		}
 		virtual SlurmId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
@@ -652,7 +652,7 @@ namespace Backends::Slurm {
 		for( int i=0 ; i<SlurmSpawnTrials ; i++ ) {
 			submit_response_msg_t* msg = nullptr/*garbage*/ ;
 			bool                   err = false  /*garbage*/ ;
-			errno = 0 ;                                                                          // normally useless
+			errno = 0 ;                                            // normally useless
 			{	Lock lock { _slurm_mutex } ;
 				if (job_descr.size()==1) {
 					err = SlurmApi::submit_batch_job(&job_descr[0],&msg)!=SLURM_SUCCESS ;
@@ -662,14 +662,14 @@ namespace Backends::Slurm {
 					SlurmApi::list_destroy(l) ;
 				}
 			}
-			int sav_errno = errno ;                                                              // save value before calling any slurm or libc function
+			int sav_errno = errno ;                                // save value before calling any slurm or libc function
 			if (msg) {
 				SlurmId res = msg->job_id ;
-				SWEAR(res!=0) ;                                                                  // null id is used to signal absence of id
+				SWEAR(res!=0) ;                                    // null id is used to signal absence of id
 				SlurmApi::free_submit_response_response_msg(msg) ;
 				if (!sav_errno) { SWEAR(!err) ; return res ; }
 			}
-			SWEAR(sav_errno!=0) ;                                                                // if err, we should have a errno, else if no errno, we should have had a msg containing an id
+			SWEAR(sav_errno!=0) ;                                  // if err, we should have a errno, else if no errno, we should have had a msg containing an id
 			switch (sav_errno) {
 				case EAGAIN                              :
 				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY :
