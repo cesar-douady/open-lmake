@@ -31,9 +31,11 @@ _lib/lmake_runtime.py
 _lib/read_makefiles.py
 _lib/serialize.py
 _lib/ut.py
+debian/apparmor-profile
 debian/changelog
 debian/control
 debian/copyright
+debian/open-lmake.dirs
 debian/open-lmake.links
 debian/open-lmake.lintian-overrides
 debian/open-lmake.postinst

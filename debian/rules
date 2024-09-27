@@ -6,6 +6,8 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
+APPARMOR_VERSION="$(shell apparmor_parser --version | sed -En 's/^.*version ([0-9]).*/\1/p')"
+
 %:
 	dh $@
 
@@ -14,6 +16,10 @@ override_dh_auto_build:
 
 override_dh_auto_install:
 	dh_auto_install -- prefix=/usr
+ifeq ($(APPARMOR_VERSION),"4")
+	cp debian/apparmor-profile debian/open-lmake/etc/apparmor.d/open-lmake
+	dh_apparmor --profile-name=open-lmake -popen-lmake
+endif
 
 override_dh_strip:
 	dh_strip --no-automatic-dbgsym
