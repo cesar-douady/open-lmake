@@ -33,7 +33,7 @@ namespace Time {
 			for( int i=prec ; i<9 ; i++ ) ns /= 10 ;
 			out <<'.'<< ::setfill('0')<<::setw(prec)<<::right<<ns ;
 		}
-		return out.str() ;
+		return ::move(out).str() ;
 	}
 
 	::string Delay::short_str() const {
@@ -74,7 +74,7 @@ namespace Time {
 			for( int i=prec ; i<9 ; i++ ) ns /= 10 ;
 			out <<'.'<< ::setfill('0')<<::setw(prec)<<::right<<ns ;
 		}
-		return out.str() ;
+		return ::move(out).str() ;
 	}
 
 	Date::Date(::string_view const& s) {

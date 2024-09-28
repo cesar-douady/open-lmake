@@ -22,7 +22,7 @@ void trace( ::string const& msg , int i=0 ) {
 	::ostringstream line ;
 	if (i) line << i <<' ' ;
 	line << msg<<" : "<<(now.tv_sec%10)<<'.'<<(now.tv_nsec/1000000)<<'\n' ;
-	::cout << line.str() << flush ;
+	::cout << ::move(line).str() << flush ;
 }
 
 void crazy_open( ::stop_token stop , int i ) {

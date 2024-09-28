@@ -52,15 +52,18 @@ WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
 CXX_EXE := $(shell bash -c 'type -p $(CXX)')
 #
+LINK_OPTS           := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 SAN                 := $(if $(strip $(SAN_FLAGS)),.san,)
-LINK_OPTS           := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread   # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 LINK_O              := $(CXX_EXE) $(COVERAGE) -r
-LINK_SO             := $(CXX_EXE) $(COVERAGE) $(LINK_OPTS) -shared -static-libstdc++ # some user codes may have specific (and older) libs, avoid dependencies
+LINK_SO             := $(CXX_EXE) $(COVERAGE) $(LINK_OPTS) -shared -static-libstdc++            # some user codes may have specific (and older) libs, avoid dependencies
 LINK_BIN            := $(CXX_EXE) $(COVERAGE) $(LINK_OPTS)
 LINK_LIB            := -ldl
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 ifneq ($(HAS_PCRE),)
     LINK_LIB += -lpcre2-8
+endif
+ifneq ($(HAS_STACKTRACE),)
+    LINK_LIB += -lstdc++_libbacktrace
 endif
 #
 ifeq ($(CXX_FLAVOR),clang)

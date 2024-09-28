@@ -14,13 +14,7 @@ from subprocess import run,check_output,DEVNULL,STDOUT
 
 import lmake
 
-gxx          = lmake.user_environ.get('CXX','g++')
-gxx_is_clang = 'clang' in check_output( (gxx,"--version") , universal_newlines=True )
-
-try    : has_fuse     = run(('pkg-config','fuse3'                                                 ),stderr=DEVNULL).returncode==0
-except : has_fuse     = False
-try    : has_seccomp  = run((gxx,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0
-except : has_seccomp  = False
+gxx = lmake.user_environ.get('CXX','g++')
 
 from lmake       import config,pdict
 from lmake.rules import Rule,PyRule,AntiRule,TraceRule
@@ -152,17 +146,24 @@ class ConfigH(BaseRule) :
 class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
 	targets = {
 		'H'     : 'sys_config.h'
-	,	'TRIAL' : 'trial/{*:.*}'
-	}
-	side_targets = {
-		'MK'    : 'sys_config.mk'
+	,	'TRIAL' : r'trial/{*:.*}'
+	,	'MK'    : r'sys_config.dir/{*:.*}'
 	}
 	deps = { 'EXE' : '_bin/sys_config' }
 	cmd  = '''
-		CXX={gxx} PYTHON={sys.executable} ./{EXE} {MK} {H} 2>&1
+		CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/mk {H} 2>&1
+		while read k e v ; do
+			case $k in
+				'#'*) ;;
+				*   ) echo $v > {MK('$k')} ;;
+			esac
+		done < $TMPDIR/mk
 		echo '#undef  HAS_PCRE'   >> {H}
 		echo '#define HAS_PCRE 0' >> {H}
+		#echo > {MK('HAS_PCRE')}
 	'''
+def sys_config(key) :
+	return open(f'sys_config.dir/{key}').read().strip()
 
 class VersionH(BaseRule) :
 	target = 'version.hh'
@@ -195,9 +196,9 @@ class Marker(BaseRule,PyRule) :
 		open(MRKR,'w')
 
 basic_opts_tab = {
-	'c'   : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra',                                             '-std=c99'  )
-,	'cc'  : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type','-std=c++20') # on some systems, there is a warning type-limits
-,	'cxx' : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type','-std=c++20') # .
+	'c'   : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra',                                            )
+,	'cc'  : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type') # on some systems, there is a warning type-limits
+,	'cxx' : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type') # .
 }
 def run_gxx(target,*args) :
 		cmd_line = ( gxx , '-o' , target , '-fdiagnostics-color=always' , *args )
@@ -226,9 +227,12 @@ for ext,basic_opts in basic_opts_tab.items() :
 				seen_inc = x in ('-I','-iquote','-isystem','-idirafter')
 			lmake.depend(*mrkrs)
 			lmake.check_deps()
-			if gxx_is_clang : clang_opts = ('-Wno-misleading-indentation','-Wno-unknown-warning-option','-Wno-c2x-extensions','-Wno-unused-function','-Wno-c++2b-extensions')
-			else            : clang_opts = ()
+			if sys_config('CXX_FLAVOR')=='clang' : clang_opts = ('-Wno-misleading-indentation','-Wno-unknown-warning-option','-Wno-c2x-extensions','-Wno-unused-function','-Wno-c++2b-extensions')
+			else                                 : clang_opts = ()
+			if ext=='c'                          : std        = 'c99'
+			else                                 : std        = sys_config('CXX_STD')
 			run_gxx( OBJ
+			,	f'-std={std}'
 			,	'-c' , '-fPIC' , '-pthread' , f'-frandom-seed={OBJ}' , '-fvisibility=hidden'
 			,	*basic_opts
 			,	*clang_opts
@@ -241,27 +245,32 @@ for ext,basic_opts in basic_opts_tab.items() :
 		}
 
 class LinkRule(PathRule,PyRule) :
-	combine       = ('pre_opts','rev_post_opts')
-	pre_opts      = []                           # options before inputs & outputs
-	rev_post_opts = []                           # options after  inputs & outputs, combine appends at each level, but here we want to prepend
-	resources     = {'mem':'1G'}
+	combine      = ('opts',)
+	opts         = []                                                                             # options before inputs & outputs
+	resources    = {'mem':'1G'}
+	need_fuse    = False
+	need_python  = False
+	need_seccomp = False
 	def cmd() :
+		if True                                          : post_opts = ['-ldl']
+		if                  sys_config('HAS_STACKTRACE') : post_opts.append('-lstdc++_libbacktrace')
+		if need_fuse    and sys_config('HAS_FUSE'      ) : post_opts.append('-lfuse3')
+		if need_python                                   : post_opts += ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
+		if need_seccomp and sys_config('HAS_SECCOMP'   ) : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists
 		run_gxx( TARGET
-		,	*pre_opts
+		,	*opts
 		,	*deps.values()
-		,	*reversed(rev_post_opts)
+		,	*post_opts
 		)
 
 class LinkO(LinkRule) :
-	pre_opts = ('-r','-fPIC')
+	opts = ('-r','-fPIC')
 
 class LinkSo(LinkRule) :
-	pre_opts      = ('-shared-libgcc','-shared','-pthread')
-	rev_post_opts = ()
+	opts = ('-shared-libgcc','-shared','-pthread')
 
 class LinkExe(LinkRule) :
-	pre_opts      = '-pthread'
-	rev_post_opts = ()
+	opts = '-pthread'
 
 #
 # application
@@ -338,12 +347,9 @@ opt_tab.update({
 ,	r'src/.*'             : ( '-iquote'    , 'ext_lnk'                       )
 ,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     , )
 ,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'           ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
-})                                                                             # ... but beware that otherwise, /usr/include must be prefered, hence -idirafter
-if has_fuse :
-	opt_tab.update({
-		r'src/fuse'    : ( '-idirafter' , f'/usr/include/fuse3' )
-	,	r'src/rpc_job' : ( '-idirafter' , f'/usr/include/fuse3' )
-	})
+,	r'src/fuse'           : ( '-idirafter' , f'/usr/include/fuse3'           ) # in case fuse is available (else, does not hurt)
+,	r'src/rpc_job'        : ( '-idirafter' , f'/usr/include/fuse3'           ) # .
+})
 
 class Link(BaseRule) :
 	deps = {
@@ -356,7 +362,6 @@ class Link(BaseRule) :
 	,	'TIME'         : 'src/time.o'
 	,	'UTILS'        : 'src/utils.o'
 	}
-	rev_post_opts = '-ldl'
 
 class LinkLibSo(Link,LinkSo) :
 	deps = { 'RPC_JOB_EXEC' : 'src/rpc_job_exec.o' }
@@ -382,9 +387,10 @@ class LinkPython(Link) :
 	deps = {
 		'PY' : 'src/py.o'
 	}
-	rev_post_opts = ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
+	need_python = True
 
 class LinkAutodep(LinkAutodepEnv) :
+	virtual = True
 	deps = {
 		'BACKDOOR'     : 'src/autodep/backdoor.o'
 	,	'GATHER'       : 'src/autodep/gather.o'
@@ -396,10 +402,8 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'FUSE'         : 'src/fuse.o'
 	,	'RPC_CLIENT'   : None
 	}
-	# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
-	rev_post_opts = ()
-	if has_fuse    : rev_post_opts += ('-lfuse3'           ,)
-	if has_seccomp : rev_post_opts += ('-l:libseccomp.so.2',)
+	need_fuse    = True
+	need_seccomp = True
 
 class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_lib/ld_{Method:audit|preload|preload_jemalloc}.so' }
@@ -440,7 +444,7 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
-	if has_fuse : rev_post_opts = ('-lfuse3',)
+	need_fuse = True
 
 class LinkLrepairExe(LinkLmakeserverExe) :
 	targets = { 'TARGET' : 'bin/lrepair' }
@@ -468,7 +472,7 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/ldump.o'
 	}
-	if has_fuse : rev_post_opts = ('-lfuse3',)
+	need_fuse = True
 
 class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
@@ -477,7 +481,7 @@ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	,	'FUSE'    : 'src/fuse.o'
 	,	'MAIN'    : 'src/ldump_job.o'
 	}
-	if has_fuse : rev_post_opts = ('-lfuse3',)
+	need_fuse = True
 
 for client in ('lforget','lmake','lmark','lshow') :
 	class LinkLmake(LinkClientAppExe) :

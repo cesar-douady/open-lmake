@@ -26,10 +26,10 @@ template<HasSerdeser   T                                         > void serdes( 
 template< Serializable T1 , Serializable T2 , Serializable... Ts > void serdes( ::ostream& os , T1 const& x1 , T2 const& x2 , Ts const&... xs ) { serdes(os,x1) ; serdes(os,x2,xs...) ; }
 template< Serializable T1 , Serializable T2 , Serializable... Ts > void serdes( ::istream& is , T1      & x1 , T2      & x2 , Ts      &... xs ) { serdes(is,x1) ; serdes(is,x2,xs...) ; }
 //
-template<Serializable T> void     serialize  ( ::ostream& os , T const& x ) {                     serdes(os ,x  ) ; os.flush()       ; }
-template<Serializable T> ::string serialize  (                 T const& x ) { OStringStream res ; serdes(res,x  ) ; return res.str() ; }
-template<Serializable T> void     deserialize( ::istream& is , T      & x ) {                     serdes(is ,x  ) ;                    }
-template<Serializable T> T        deserialize( ::istream& is              ) { T             res ; serdes(is ,res) ; return res       ; }
+template<Serializable T> void     serialize  ( ::ostream& os , T const& x ) {                     serdes(os ,x  ) ; os.flush()               ; }
+template<Serializable T> ::string serialize  (                 T const& x ) { OStringStream res ; serdes(res,x  ) ; return ::move(res).str() ; }
+template<Serializable T> void     deserialize( ::istream& is , T      & x ) {                     serdes(is ,x  ) ;                            }
+template<Serializable T> T        deserialize( ::istream& is              ) { T             res ; serdes(is ,res) ; return res               ; }
 //
 template<Serializable T> void serialize  ( ::ostream&&     os , T const& x ) {        serialize  <T>(os              ,x) ; }
 template<Serializable T> void deserialize( ::istream&&     is , T      & x ) {        deserialize<T>(is              ,x) ; }

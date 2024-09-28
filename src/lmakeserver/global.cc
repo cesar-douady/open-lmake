@@ -360,7 +360,7 @@ namespace Engine {
 			}
 		}
 		//
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 
 	void Config::open(bool dynamic) {

@@ -288,7 +288,7 @@ int main( int argc , char* argv[] ) {
 			g_start_info = IMsgBuf().receive<JobRpcReply>( fd                                                                ) ;
 			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
-			trace("no_server",g_service_start,STR(found_server),e) ;
+			trace("no_start_info",g_service_start,STR(found_server),e) ;
 			if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
 			else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
 		}

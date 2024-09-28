@@ -1009,7 +1009,7 @@ namespace Engine {
 		for( auto const& [k,_] : m ) wk = ::max(wk,k.size()) ;
 		for( auto const& [k,v] : m ) if ( !uniq || keys.insert(k).second ) res << ::string(i,'\t') << ::setw(wk)<<k <<" : "<< v <<'\n' ;
 		//
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 
 	static ::string _pretty_views( size_t i , ::vmap_s<JobSpace::ViewDescr> const& m ) {
@@ -1028,7 +1028,7 @@ namespace Engine {
 			}
 			res <<'\n' ;
 		}
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty_fstr( ::string const& fstr , RuleData const& rd ) {
 			::string res ;
@@ -1141,7 +1141,7 @@ namespace Engine {
 				,'\n')
 			,	i+1
 			) ;
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty_sigs( ::vector<uint8_t> const& sigs ) {
 		::string        res  ;
@@ -1188,7 +1188,7 @@ namespace Engine {
 			else        res <<             patterns[k]          ;
 			/**/        res <<'\n' ;
 		}
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty( size_t i , CreateNoneAttrs const& sna ) {
 		if (sna.tokens1) return ::string(i,'\t')+"job_tokens : "+(sna.tokens1+1)+'\n' ;
@@ -1223,7 +1223,7 @@ namespace Engine {
 			/**/                     res <<'\n'           ;
 		}
 		//
-		return indent(res.str(),i) ;
+		return indent(::move(res).str(),i) ;
 	}
 	static ::string _pretty( size_t i , StartCmdAttrs const& sca ) {
 		size_t        key_sz = 0 ;
@@ -1248,7 +1248,7 @@ namespace Engine {
 		}
 		if (+sca.job_space.views) res << indent("views :\n"  ,i) << _pretty_views( i+1 , sca.job_space.views ) ;
 		if (+sca.env            ) res << indent("environ :\n",i) << _pretty_env  ( i+1 , sca.env             ) ;
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {
 		if (!c.cmd      ) return {}                                          ;
@@ -1265,7 +1265,7 @@ namespace Engine {
 		#pragma GCC diagnostic pop
 		/**/              res << _pretty_vmap(i,entries)                                 ;
 		if (+sra.env    ) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env ) ;
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty( size_t i , StartNoneAttrs const& sna ) {
 		OStringStream res     ;
@@ -1275,7 +1275,7 @@ namespace Engine {
 		if (+sna.kill_sigs  ) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
 		/**/              res << _pretty_vmap(i,entries)                                     ;
 		if (+sna.env    ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env ) ;
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty( size_t i , EndCmdAttrs const& eca ) {
 		::vmap_ss entries ;
@@ -1338,7 +1338,7 @@ namespace Engine {
 			res << _pretty_str(1,end_none_attrs          ) ;
 		}
 		//
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 
 	::vector_s RuleData::_list_ctx(::vector<CmdIdx> const& ctx) const {

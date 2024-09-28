@@ -264,9 +264,15 @@ fi
 #
 cat <<"EOF" > stacktrace.cc
 	#include <stacktrace>
-	std::stacktrace st ;
+	using namespace std ;
+	int main() {                                    // mimic a mini-program using stack trace
+		::stacktrace st = ::stacktrace::current() ;
+		int          rc = 0                       ;
+		for( ::stacktrace_entry const& e : st ) rc += e.source_line() ;
+		return rc ;
+	}
 EOF
-if $CXX -c -std=c++23 -o stacktrace.o stacktrace.cc
+if $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace # compile and link, to ensure both steps are ok
 then HAS_STACKTRACE=1
 else HAS_STACKTRACE=0
 fi
@@ -383,6 +389,7 @@ HAS_PCRE           := ${HAS_PCRE#0}
 HAS_SECCOMP        := ${HAS_SECCOMP#0}
 HAS_SGE            := ${HAS_SGE#0}
 HAS_SLURM          := ${HAS_SLURM#0}
+HAS_STACKTRACE     := ${HAS_STACKTRACE#0}
 #
 STD_PATH           := $STD_PATH
 EOF

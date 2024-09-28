@@ -443,7 +443,7 @@ namespace Engine {
 		/**/                                          msg <<      ::setw(StepSz                   )<<step                                  ;
 		/**/                                          msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule_name                             ;
 		if (g_config->console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"") ;
-		audit( audit_fd , log_stream , options , c , msg.str()+' '+mk_file(job_name) ) ;
+		audit( audit_fd , log_stream , options , c , ::move(msg).str()+' '+mk_file(job_name) ) ;
 		last_info = {} ;
 	}
 

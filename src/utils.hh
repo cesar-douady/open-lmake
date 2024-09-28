@@ -279,7 +279,7 @@ namespace std {
 template<class... A> ::string fmt_string(A const&... args) {
 	OStringStream res ;
 	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
-	return res.str() ;
+	return ::move(res).str() ;
 }
 
 template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const& txt , bool empty_ok=false , bool hex=false ) {
@@ -1006,8 +1006,6 @@ inline void del_env(::string const& name) {
 	int rc = ::unsetenv(name.c_str()) ;
 	swear_prod(rc==0,"cannot unsetenv",name) ;
 }
-
-::string beautify_filename(::string const&) ;
 
 template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 	struct NoMutex {
