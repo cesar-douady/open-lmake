@@ -622,6 +622,7 @@ namespace Backends::Slurm {
 		::string                 stderr_file ;
 		::string                 stdout_file ;
 		::vector<job_desc_msg_t> job_descr   { rsrcs.size() }           ;
+		::vector_s               gress       { rsrcs.size() }           ;                                                 // keep alive until slurm is called
 		if(verbose) {
 			stderr_file = _get_stderr_file(job) ;
 			stdout_file = _get_stdout_file(job) ;
@@ -630,6 +631,7 @@ namespace Backends::Slurm {
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			job_desc_msg_t* j = &job_descr[i] ;
 			SlurmApi::init_job_desc_msg(j) ;
+			gress[i] = "gres:"+r.gres ;
 			//
 			/**/                     j->env_size        = 1                                                             ;
 			/**/                     j->environment     = env                                                           ;
@@ -641,22 +643,22 @@ namespace Backends::Slurm {
 			/**/                     j->work_dir        = wd.data()                                                     ;
 			/**/                     j->name            = const_cast<char*>(job_name.c_str())                           ;
 			//
-			if(+r.excludes         ) j->exc_nodes     = const_cast<char*>(r.excludes      .data()) ;
-			if(+r.feature          ) j->features      = const_cast<char*>(r.feature       .data()) ;
-			if(+r.gres             ) j->tres_per_node = const_cast<char*>(("gres:"+r.gres).data()) ;
-			if(+r.licenses         ) j->licenses      = const_cast<char*>(r.licenses      .data()) ;
-			if(+r.nodes            ) j->req_nodes     = const_cast<char*>(r.nodes         .data()) ;
-			if(+r.part             ) j->partition     = const_cast<char*>(r.part          .data()) ;
-			if(+r.qos              ) j->qos           = const_cast<char*>(r.qos           .data()) ;
-			if(+r.reserv           ) j->reservation   = const_cast<char*>(r.reserv        .data()) ;
-			if(i==0                ) j->script        =                   script          .data()  ;
-			/**/                     j->nice          = NICE_OFFSET+nice                           ;
+			if(+r.excludes) j->exc_nodes     = const_cast<char*>(r.excludes.data()) ;
+			if(+r.feature ) j->features      = const_cast<char*>(r.feature .data()) ;
+			if(+r.gres    ) j->tres_per_node =                   gress[i]  .data()  ;                                     // keep alive
+			if(+r.licenses) j->licenses      = const_cast<char*>(r.licenses.data()) ;
+			if(+r.nodes   ) j->req_nodes     = const_cast<char*>(r.nodes   .data()) ;
+			if(+r.part    ) j->partition     = const_cast<char*>(r.part    .data()) ;
+			if(+r.qos     ) j->qos           = const_cast<char*>(r.qos     .data()) ;
+			if(+r.reserv  ) j->reservation   = const_cast<char*>(r.reserv  .data()) ;
+			if(i==0       ) j->script        =                   script    .data()  ;
+			/**/            j->nice          = NICE_OFFSET+nice                     ;
 			i++ ;
 		}
 		for( int i=0 ; i<SlurmSpawnTrials ; i++ ) {
 			submit_response_msg_t* msg = nullptr/*garbage*/ ;
 			bool                   err = false  /*garbage*/ ;
-			errno = 0 ;                                                                          // normally useless
+			errno = 0 ;                                            // normally useless
 			{	Lock lock { _slurm_mutex } ;
 				if (job_descr.size()==1) {
 					err = SlurmApi::submit_batch_job(&job_descr[0],&msg)!=SLURM_SUCCESS ;
@@ -666,14 +668,14 @@ namespace Backends::Slurm {
 					SlurmApi::list_destroy(l) ;
 				}
 			}
-			int sav_errno = errno ;                                                              // save value before calling any slurm or libc function
+			int sav_errno = errno ;                                // save value before calling any slurm or libc function
 			if (msg) {
 				SlurmId res = msg->job_id ;
-				SWEAR(res!=0) ;                                                                  // null id is used to signal absence of id
+				SWEAR(res!=0) ;                                    // null id is used to signal absence of id
 				SlurmApi::free_submit_response_response_msg(msg) ;
 				if (!sav_errno) { SWEAR(!err) ; return res ; }
 			}
-			SWEAR(sav_errno!=0) ;                                                                // if err, we should have a errno, else if no errno, we should have had a msg containing an id
+			SWEAR(sav_errno!=0) ;                                  // if err, we should have a errno, else if no errno, we should have had a msg containing an id
 			switch (sav_errno) {
 				case EAGAIN                              :
 				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY :
