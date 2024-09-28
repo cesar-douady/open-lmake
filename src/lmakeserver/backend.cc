@@ -36,7 +36,12 @@ namespace Backends {
 	//
 
 	::ostream& operator<<( ::ostream& os , Backend::Workload const& wl ) {
-		return os << "Workload(" << wl._ref_workload/1000. <<'@'<< wl._ref_date <<','<< wl._reasonable_workload <<'/'<< wl._n_reasonable <<','<< wl._n_running <<','<< wl._submitted_cost <<')' ;
+		/**/   os << "Workload("                                                 ;
+		/**/   os <<      wl._ref_workload       /1000. <<'@'<< wl._ref_date     ;
+		/**/   os <<','<< wl._reasonable_workload/1000. <<'/'<< wl._n_reasonable ;
+		/**/   os <<','<< wl._n_running                                          ;
+		/**/   os <<','<< wl._submitted_cost                                     ;
+		return os <<')'                                                          ;
 	}
 
 	::ostream& operator<<( ::ostream& os , Backend::StartEntry const& ste ) {
@@ -52,19 +57,24 @@ namespace Backends {
 	}
 
 	void Backend::Workload::_refresh() {
-		Pdate now { New }                  ;
-		Val   d   = (now-_ref_date).msec() ;
-		//
-		_ref_workload += _n_running*d ;
-		_ref_date      = now          ;
+		Pdate now = Pdate(New).round_msec() ;                        // avoid rounding error (cf below)
+		Val d     = (now-_ref_date).msec() ;
 		//
 		for( auto it = _eta_set.begin() ; it!=_eta_set.end() && now>=it->first ;) {
-			_reasonable_workload -= (it->first-_ref_date).msec() ;
-			_n_reasonable        -= it->second->tokens()        ;
-			_eta_tab.erase(it->second) ;                          // erase _eta_tab while it is still valid
+			Tokens tokens         = it->second->tokens()         ;
+			Val    delta_workload = (it->first-_ref_date).msec() ;
+			SWEAR(_n_reasonable       >=tokens        ,_n_reasonable       ,tokens        ) ;
+			SWEAR(_reasonable_workload>=delta_workload,_reasonable_workload,delta_workload) ;
+			_reasonable_workload -= delta_workload ;
+			_n_reasonable        -= tokens         ;
+			_eta_tab.erase(it->second) ;                             // erase _eta_tab while it is still valid
 			_eta_set.erase(it++      ) ;
 		}
-		_reasonable_workload -= _n_reasonable*d ;
+		//
+		_ref_workload += _n_running*d ;                              // this is where there is a rounding error if we do not round now
+		_ref_date      = now          ;                              // _ref_date is always rounded on ms
+		if (_n_reasonable) _reasonable_workload -= _n_reasonable*d ;
+		else               SWEAR(!_reasonable_workload,_reasonable_workload) ;
 	}
 
 	Backend::Workload::Val Backend::Workload::start( ::vector<ReqIdx> const& reqs , Job j ) {

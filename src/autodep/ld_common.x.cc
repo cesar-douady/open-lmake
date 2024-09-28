@@ -192,23 +192,25 @@ using Execp = AuditAction<_Execp,0/*NP*/> ;
 struct Fopen : AuditAction<Record::Open> {
 	using Base = AuditAction<Record::Open> ;
 	static int mk_flags(const char* mode) {
-		bool a = false ;
-		bool c = false ;
-		bool p = false ;
 		bool r = false ;
 		bool w = false ;
-		for( const char* m=mode ; *m && *m!=',' ; m++ )                                       // after a ',', there is a css=xxx which we do not care about
+		bool a = false ;
+		bool p = false ;
+		for( const char* m=mode ; *m && *m!=',' ; m++ )                                                // after a ',', there is a css=xxx which we do not care about
 			switch (*m) {
-				case 'a' : a = true ; break ;
-				case 'c' : c = true ; break ;
-				case '+' : p = true ; break ;
 				case 'r' : r = true ; break ;
 				case 'w' : w = true ; break ;
+				case 'a' : a = true ; break ;
+				case '+' : p = true ; break ;
+				case 'c' :            return O_PATH ;                                                  // gnu extension, no access
 				default : ;
 			}
-		if (a+r+w!=1) return O_PATH ;                                                         // error case   , no access
-		if (c       ) return O_PATH ;                                                         // gnu extension, no access
-		/**/          return ( p ? O_RDWR : r ? O_RDONLY : O_WRONLY ) | ( w ? O_TRUNC : 0 ) ; // normal posix
+		if (a+r+w!=1) return O_PATH ;                                                                  // error case   , no access
+		int flags = p ? O_RDWR : r ? O_RDONLY : O_WRONLY ;
+		if (!r) flags |= O_CREAT  ;
+		if (w ) flags |= O_TRUNC  ;
+		if (a ) flags |= O_APPEND ;
+		return flags ;
 	}
 	Fopen( Record::Path&& pth , const char* mode , ::string const& comment ) : Base{ ::move(pth) , mk_flags(mode) , comment+'.'+mode } {}
 	FILE* operator()(FILE* fp) {

@@ -237,12 +237,12 @@ public :
 		}
 		// data
 	public :
-		bool    allocated = false            ;                                                                        // if true <=> file has been allocated and must be freed upon destruction
-		Fd      at        = Fd::Cwd          ;                                                                        // at & file may be modified, but together, they always refer to the same file ...
-		Char*   file      = nullptr          ;                                                                        // ... except in the case of mkstemp (& al.) that modifies its arg in place
+		bool  allocated = false   ;                                                                                   // if true <=> file has been allocated and must be freed upon destruction
+		Fd    at        = Fd::Cwd ;                                                                                   // at & file may be modified, but together, they always refer to the same file ...
+		Char* file      = nullptr ;                                                                                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ; //!            Writable
-	using Path  = _Path<false > ;
-	using WPath = _Path<true  > ;
+	using Path  = _Path<false> ;
+	using WPath = _Path<true > ;
 	template<bool Writable=false,bool ChkSimple=false> struct _Solve : _Path<Writable> {
 		using Base = _Path<Writable> ;
 		using Base::at   ;
@@ -258,7 +258,7 @@ public :
 			auto report_dep = [&]( FileLoc fl , ::string&& file , Accesses a , bool store , const char* key )->void {
 				::string ck = c+'.'+key ;
 				for( auto const& [view,phys] : s_autodep_env().views ) {
-					if (!phys                                                                      ) continue ; // empty phys do not represent a view
+					if (!phys                                                                      ) continue ;       // empty phys do not represent a view
 					if (!( file.starts_with(view) && (is_dirname(view)||file.size()==view.size()) )) continue ;
 					for( size_t i=0 ; i<phys.size() ; i++ ) {
 						bool     last  = i==phys.size()-1                                 ;

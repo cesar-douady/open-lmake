@@ -6,7 +6,7 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 
-ut_launch -done 2 -new 1 lmake src1.6r.wait &
+ut_launch -done 2 -new 1 lmake -s src1.6r.wait & # use -s option to be sure lmakeserver is done when lmake is done
 
 sleep 3
 
@@ -15,6 +15,6 @@ echo new_src >>Manifest # and tell lmake
 
 ut_launch -done 0 -rc 1 lmake new_src # cannot dynamically modify sources
 
-wait %1
+wait %1 # -s option ensures server is done
 
 ut_launch -new 1 lmake new_src # can build target once server is steady

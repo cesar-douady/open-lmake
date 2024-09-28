@@ -320,7 +320,7 @@ namespace Disk {
 			switch (errno) {
 				case EEXIST :
 					if ( unlnk_ok && !is_dir(at,no_slash(d_s)) )   unlnk(at,no_slash(d_s)) ;                   // retry
-					else                                         { to_mk_s.pop_back() ; res = d_s.size()-1 ; } // done
+					else                                         { res = d_s.size()-1 ; to_mk_s.pop_back() ; } // done
 				break ;
 				case ENOENT  :
 				case ENOTDIR :

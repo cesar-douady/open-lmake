@@ -177,6 +177,7 @@ namespace Engine {
 			uint8_t date_prec     = -1    ;                   // -1 means no date at all in console output
 			uint8_t host_len      = 0     ;                   //  0 means no host at all in console output
 			bool    has_exec_time = false ;
+			bool    show_eta      = false ;
 		} ;
 
 		// services

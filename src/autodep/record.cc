@@ -199,12 +199,12 @@ Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , ::string&& c ) :
 // - if it is an official target, it is not a dep, whether you declare reading it or not
 // - else, we do not compute a CRC on it and its actual content is not guaranteed. What is important in this case is that the execution of the job does not see the content.
 //
-static bool _ignore   (int flags) { return (flags&O_PATH) && Record::s_autodep_env().ignore_stat              ; }
-static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
-static bool _do_stat  (int flags) { return  flags&O_PATH      || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
-static bool _do_read  (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC) ; }
-static bool _do_write (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY                     ; }
-static bool _do_create(int flags) { return   flags&O_CREAT                                                    ; }
+static bool _ignore   (int flags) { return (flags&O_PATH) && Record::s_autodep_env().ignore_stat                                                              ; }
+static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )                                                        ; }
+static bool _do_stat  (int flags) { return (flags&O_PATH)     || ( (flags&O_CREAT) && (flags&O_EXCL) ) || ( !(flags&O_CREAT) && (flags&O_ACCMODE)!=O_RDONLY ) ; }
+static bool _do_read  (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC)                                                 ; }
+static bool _do_write (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY                                                                     ; }
+static bool _do_create(int flags) { return   flags&O_CREAT                                                                                                    ; }
 //
 Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
 	Solve{ r , !_ignore(flags)?::move(path):Path() , _no_follow(flags) , _do_read(flags) , _do_create(flags) , c }

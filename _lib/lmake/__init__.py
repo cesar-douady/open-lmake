@@ -65,8 +65,9 @@ config = pdict(
 ,	sub_prio_boost      = 1             # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 ,	console = pdict(                    # tailor output lines
 		date_precision = None           # number of second decimals in the timestamp field
-	,	host_length    = None           # length of the host field (lines will be misaligned if a host is longer)
 	,	has_exec_time  = True           # if True, output the exec_time field
+	,	host_length    = None           # length of the host field (lines will be misaligned if a host is longer)
+	,	show_eta       = True           # if True, the title includes the ETA of the lmake command
 	)
 ,	backends = pdict(                   # PER_BACKEND : provide a default configuration for each backend
 		precisions = pdict(             # precision of resources allocated for jobs, one entry for each standard resource (for all backends).

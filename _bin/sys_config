@@ -40,16 +40,13 @@ esac
 CXX=$(type -p $CXX)
 [ "$CXX" ] || { echo $CXX not found >&2 ; exit 1 ; }
 
-CXX_VERSION="$($CXX --version | head -1)"
-CXX_VERSION="${CXX_VERSION##* }"
-CXX_VERSION="${CXX_VERSION%%.*}"
+CXX_VERSION=$($CXX -dumpversion)                                               # outputs either major version or full version, depending on flavors and versions
+CXX_VERSION=${CXX_VERSION%%.*}                                                 # strip minor if present
+[ "$CXX_VERSION" ] || { echo cannot determine version of $CXX >&2 ; exit 1 ; }
 case "$CXX_FLAVOR" in
 	clang) [[ $CXX_VERSION -ge 14 ]] || { echo $CXX version $CXX_VERSION must be at least 14 >&2 ; exit 1 ; } ;;
 	gcc  ) [[ $CXX_VERSION -ge 11 ]] || { echo $CXX version $CXX_VERSION must be at least 11 >&2 ; exit 1 ; } ;;
 esac
-
-[ "$CXX" != "${CXX%++*}" ] || { echo cannot recognize c++ compiler $CXX ; exit 1 ; } # ensure we can find "++" in cxx, for example gcc or clang will not work, we must use g++ and clang++
-type -p $CXX >/dev/null    || { echo cannot find      c++ compiler $CXX ; exit 1 ; }
 
 LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
 LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
@@ -64,6 +61,7 @@ else
 	exit 1
 fi
 
+#
 # Python configuration (Python2 is optional)
 #
 
@@ -260,7 +258,7 @@ else HAS_SLURM=0
 fi
 
 #
-# HAS_STACKTRACE
+# LIB_STACKTRACE
 #
 cat <<"EOF" > stacktrace.cc
 	#include <stacktrace>
@@ -272,9 +270,11 @@ cat <<"EOF" > stacktrace.cc
 		return rc ;
 	}
 EOF
-if $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace # compile and link, to ensure both steps are ok
-then HAS_STACKTRACE=1
-else HAS_STACKTRACE=0
+if   $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE=stdc++_libbacktrace # compile and link, to ensure both steps are ok
+elif $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE=stdc++exp           # .
+fi
+if [ "$LIB_STACKTRACE" ] ; then HAS_STACKTRACE=1
+else                            HAS_STACKTRACE=0
 fi
 
 #
@@ -379,6 +379,7 @@ PY_LD_LIBRARY_PATH := $PY_LD_LIBRARY_PATH
 CXX                := $CXX
 CXX_FLAVOR         := $CXX_FLAVOR
 CXX_STD            := $CXX_STD
+LIB_STACKTRACE     := $LIB_STACKTRACE
 LINK_LIB_PATH      := $LINK_LIB_PATH
 STD_INC_DIRS       := $STD_INC_DIRS
 #
@@ -389,7 +390,6 @@ HAS_PCRE           := ${HAS_PCRE#0}
 HAS_SECCOMP        := ${HAS_SECCOMP#0}
 HAS_SGE            := ${HAS_SGE#0}
 HAS_SLURM          := ${HAS_SLURM#0}
-HAS_STACKTRACE     := ${HAS_STACKTRACE#0}
 #
 STD_PATH           := $STD_PATH
 EOF

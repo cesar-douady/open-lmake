@@ -42,10 +42,11 @@ namespace Engine {
 			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                               }
 			catch (...) { exit(Rc::System,"cannot create symlink ",last," to ",lcl_log_file) ; }
 			data.start_ddate = file_date(log_file) ;                                             // use log_file as a date marker
-			data.start_pdate = New                 ;                                             // use log_file as a date marker
+			data.start_pdate = New                 ;
 			break ;
 		}
 		//
+		data.eta          = data.start_pdate   ;
 		data.idx_by_start = s_n_reqs()         ;
 		data.idx_by_eta   = s_n_reqs()         ;                                                 // initially, eta is far future
 		data.jobs .dflt   = JobReqInfo (*this) ;
@@ -113,16 +114,15 @@ namespace Engine {
 	}
 
 	void Req::new_eta() {
-		Pdate       now       { New }                                                         ;
-		Pdate       new_eta   = Backend::s_submitted_eta(*this) + (*this)->stats.waiting_cost ;
-		Delay       old_ete   = ::max(((*this)->eta-now),Delay())                             ;
-		Delay       new_ete   = ::max((new_eta     -now),Delay())                             ;
-		Delay::Tick delta_ete = ::abs(new_ete.val()-old_ete.val())                            ;
+		Pdate new_eta   = Backend::s_submitted_eta(*this) + (*this)->stats.waiting_cost ;
+		Pdate old_eta   = (*this)->eta                                                  ;
+		Delay old_ete   = old_eta-Pdate(New)                                            ;
+		Delay delta_ete = new_eta>old_eta ? new_eta-old_eta : old_eta-new_eta           ; // cant use ::abs(new_eta-old_eta) because of signedness
 		//
-		if ( delta_ete <= (old_ete.val()>>3) ) return ; // eta did not change significatively
-		(*this)->eta = now+new_ete ;
+		if ( delta_ete.val() <= (old_ete.val()>>4) ) return ;                             // eta did not change significatively
+		(*this)->eta = new_eta ;
 		_adjust_eta() ;
-		Backend::s_new_req_etas() ;                     // tell backends that etas changed significatively
+		Backend::s_new_req_etas() ;                                                       // tell backends that etas changed significatively
 	}
 
 	void Req::_adjust_eta(bool push_self) {
@@ -477,6 +477,7 @@ namespace Engine {
 				+	                                                      " running:"s +  stats.cur(JobStep::Exec  )
 				+	( stats.cur(JobStep::Queued)                        ? " queued:"s  +  stats.cur(JobStep::Queued)                        : ""s )
 				+	( stats.cur(JobStep::Dep   )>1                      ? " waiting:"s + (stats.cur(JobStep::Dep   )-1                )     : ""s ) // suppress job representing Req itself
+				+	( g_config->console.show_eta                        ? " - ETA:"s   +  eta.str(0/*prec*/,true/*in_day*/)                 : ""s )
 				)
 			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;

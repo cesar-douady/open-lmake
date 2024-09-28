@@ -168,6 +168,8 @@ namespace Engine {
 				}
 				fields[1] = "has_exec_time" ;
 				if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
+				fields[1] = "show_eta" ;
+				if (py_console.contains(fields[1])) console.show_eta      = +py_console[fields[1]] ;
 				fields.pop_back() ;
 			}
 			//
@@ -320,6 +322,7 @@ namespace Engine {
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
 		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
 		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
+		/**/                                res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
 		//
 		bool has_digits = false ; for( StdRsrc r : All<StdRsrc> ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
 		if (has_digits) {

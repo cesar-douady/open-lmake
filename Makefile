@@ -62,8 +62,8 @@ CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -
 ifneq ($(HAS_PCRE),)
     LINK_LIB += -lpcre2-8
 endif
-ifneq ($(HAS_STACKTRACE),)
-    LINK_LIB += -lstdc++_libbacktrace
+ifneq ($(LIB_STACKTRACE),)
+    LINK_LIB += -l$(LIB_STACKTRACE)
 endif
 #
 ifeq ($(CXX_FLAVOR),clang)
@@ -225,7 +225,7 @@ CPP_SOURCES := $(filter %.cc,$(SOURCES)) $(filter %.hh,$(SOURCES))
 
 # use a stamp to implement a by value update (while make works by date)
 version.hh.stamp : _bin/version Manifest $(CPP_SOURCES)
-	@./$< $(CPP_SOURCES) > $@
+	@./$< $(CPP_SOURCES) >$@
 	@# dont touch output if it is steady
 	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version ; \
 	else                                mv $@ $(@:%.stamp=%) ; echo new    version ; \
@@ -239,7 +239,7 @@ version.hh : version.hh.stamp ;
 # add system configuration to lmake.py :
 # Sense git bin dir at install time so as to be independent of it at run time.
 # Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
-$(LIB)/%.py : $(SLIB)/%.src.py
+$(LIB)/%.py : $(SLIB)/%.src.py sys_config.mk
 	mkdir -p $(@D)
 	sed \
 		-e 's!\$$BASH!$(BASH)!'                          \

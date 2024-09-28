@@ -59,7 +59,7 @@ if 'importer_done' not in sys.__dict__ :
 		here  = frame.f_code.co_filename
 		while frame :
 			fileName = frame.f_code.co_filename
-			if fileName!=here and not re.match('^<frozen importlib\\..*>$',fileName) :
+			if fileName!=here and not re.match(r'^<frozen importlib\..*>$',fileName) :
 				return not isLocal(fileName)
 			frame = frame.f_back
 		assert False,'spontaneous call to import'

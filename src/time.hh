@@ -63,13 +63,13 @@ namespace Time {
 		constexpr bool operator!() const { return !_val ; }
 		constexpr Tick val      () const { return  _val ; }
 		//
-		constexpr Tick   sec      () const {                       return _val/TicksPerSecond   ; }
-		constexpr Tick   nsec     () const { static_assert(IsNs) ; return _val                  ; }
-		constexpr Tick32 nsec_in_s() const { static_assert(IsNs) ; return _val%TicksPerSecond   ; }
-		constexpr Tick   usec     () const {                       return nsec     ()/1000      ; }
-		constexpr Tick32 usec_in_s() const {                       return nsec_in_s()/1000      ; }
-		constexpr Tick   msec     () const {                       return nsec     ()/1000'000l ; }
-		constexpr Tick32 msec_in_s() const {                       return nsec_in_s()/1000'000  ; }
+		constexpr Tick   sec      () const {                       return _val       /TicksPerSecond ; }
+		constexpr Tick   msec     () const {                       return nsec     ()/1000'000       ; }
+		constexpr Tick32 msec_in_s() const {                       return nsec_in_s()/1000'000       ; }
+		constexpr Tick   usec     () const {                       return nsec     ()/1000           ; }
+		constexpr Tick32 usec_in_s() const {                       return nsec_in_s()/1000           ; }
+		constexpr Tick   nsec     () const { static_assert(IsNs) ; return _val                       ; }
+		constexpr Tick32 nsec_in_s() const { static_assert(IsNs) ; return _val%TicksPerSecond        ; }
 		//
 		void clear() { _val = 0 ; }
 		// data
@@ -227,16 +227,20 @@ namespace Time {
 		constexpr ::strong_ordering operator<=>(Pdate const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
-		constexpr Pdate  operator+ (Delay other) const {                       return Pdate(New,_val+other._val) ; }
-		constexpr Pdate  operator- (Delay other) const {                       return Pdate(New,_val-other._val) ; }
-		constexpr Pdate& operator+=(Delay other)       { *this = *this+other ; return *this                      ; }
-		constexpr Pdate& operator-=(Delay other)       { *this = *this-other ; return *this                      ; }
+		constexpr Pdate  operator+ (Delay other) const {                       return Pdate( New , _val+other._val ) ; }
+		constexpr Pdate  operator- (Delay other) const {                       return Pdate( New , _val-other._val ) ; }
+		constexpr Pdate& operator+=(Delay other)       { *this = *this+other ; return *this                          ; }
+		constexpr Pdate& operator-=(Delay other)       { *this = *this-other ; return *this                          ; }
 		constexpr Delay  operator- (Pdate      ) const ;
+		//
+		constexpr Pdate round_sec () const {                       return Pdate( New , _val-_val% TicksPerSecond           ) ; }
+		constexpr Pdate round_msec() const { static_assert(IsNs) ; return Pdate( New , _val-_val%(TicksPerSecond/1000    ) ) ; }
+		constexpr Pdate round_usec() const { static_assert(IsNs) ; return Pdate( New , _val-_val%(TicksPerSecond/1000'000) ) ; }
 		//
 		bool/*slept*/ sleep_until( ::stop_token , bool flush=true ) const ;                               // if flush, consider we slept if asked to stop but we do not have to wait
 		void          sleep_until(                                ) const ;
 		//
-		::string str ( uint8_t prec=0 , bool in_day=false ) const { if (*this<Future) return Date::str(prec,in_day) ; else return "Future" ; }
+		::string str( uint8_t prec=0 , bool in_day=false ) const { if (*this<Future) return Date::str(prec,in_day) ; else return "Future" ; }
 	} ;
 
 	// DDate represents the date of a file, together with its tag (as the lsb's of _val)

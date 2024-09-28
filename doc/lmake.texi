@@ -1518,6 +1518,11 @@ And because of the performance cost, this option has been designed to avoid payi
 @tab This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
 If @code{None}, no timestamp is generated.
 
+@item @code{console.has_exec_time}
+@tab @code{True}
+@tab Dynamic
+@tab If this attribute is true, execution time is reported each time a job is completed.
+
 @item @code{console.host_length}
 @tab @code{None}
 @tab Dynamic
@@ -1525,10 +1530,10 @@ If @code{None}, no timestamp is generated.
 If @code{None}, the host is not shown.
 Note that no host is shown for local execution.
 
-@item @code{console.has_exec_time}
+@item @code{console.show_eta}
 @tab @code{True}
 @tab Dynamic
-@tab If this attribute is true, execution time is reported each time a job is completed.
+@tab If this attribute is true, the title shows the ETA of the command, in addition to statistics about number of jobs.
 
 @item @code{trace.size}
 @tab @code{100_000_000}

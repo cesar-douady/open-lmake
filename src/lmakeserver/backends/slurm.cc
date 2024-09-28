@@ -599,77 +599,83 @@ namespace Backends::Slurm {
 	}
 
 	static ::string _cmd_to_string(::vector_s const& cmd_line) {
-		::string res = "#!/bin/sh" ;
-		char sep = '\n' ;
-		for ( ::string const& s : cmd_line ) { res<<sep<<s ; sep = ' ' ; }
+		::string res   = "#!/bin/sh" ;
+		First    first ;
+		for ( ::string const& s : cmd_line ) res <<first("\n"," ")<< s ;
 		res += '\n' ;
 		return res ;
 	}
 	SlurmId slurm_spawn_job( ::stop_token st , ::string const& key , Job job , ::vector<ReqIdx> const& reqs , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
-		static char* env[1] = {const_cast<char *>("")} ;
+		static constexpr char* env[1] = {const_cast<char*>("")} ;
+		static ::string        wd     = no_slash(*g_root_dir_s) ;
 		Trace trace(BeChnl,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
 		//
 		SWEAR(rsrcs.size()> 0) ;
 		SWEAR(nice        >=0) ;
-		//
-		::string                 wd          = no_slash(*g_root_dir_s)  ;
+		// first element is treated specially to avoid allocation in the very frequent case of a single element
 		::string                 job_name    = key + job->name()        ;
 		::string                 script      = _cmd_to_string(cmd_line) ;
-		::string                 stderr_file ;
-		::string                 stdout_file ;
-		::vector<job_desc_msg_t> job_descr   { rsrcs.size() }           ;
+		::string                 stderr_file ;                                                                                                //                 keep alive until slurm is called
+		::string                 stdout_file ;                                                                                                //                 .
+		job_desc_msg_t           job_desc0   ;                                                                                                // first element
+		::string                 gres0       ;                                                                                                // .             , .
+		::vector<job_desc_msg_t> job_descs   ; job_descs.reserve(rsrcs.size()-1) ;                                                            // other elements
+		::vector_s               gress       ; gress    .reserve(rsrcs.size()-1) ;                                                            // .             , .
 		if(verbose) {
 			stderr_file = _get_stderr_file(job) ;
 			stdout_file = _get_stdout_file(job) ;
 			mk_dir_s(_get_log_dir_s(job)) ;
 		}
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
-			job_desc_msg_t* j = &job_descr[i] ;
-			SlurmApi::init_job_desc_msg(j) ;
+			//                            first element            other elements
+			job_desc_msg_t& j    = i==0 ? job_desc0              : job_descs.emplace_back()               ; SlurmApi::init_job_desc_msg(&j) ;
+			::string      & gres = i==0 ? (gres0="gres:"+r.gres) : gress    .emplace_back("gres:"+r.gres) ;                                   // keep alive
 			//
-			/**/                     j->env_size        = 1                                                             ;
-			/**/                     j->environment     = env                                                           ;
-			/**/                     j->cpus_per_task   = r.cpu                                                         ;
-			/**/                     j->pn_min_memory   = r.mem                                                         ; //in MB
-			if (r.tmp!=uint32_t(-1)) j->pn_min_tmp_disk = r.tmp                                                         ; //in MB
-			/**/                     j->std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;
-			/**/                     j->std_out         = verbose ? stdout_file.data() : const_cast<char*>("/dev/null") ;
-			/**/                     j->work_dir        = wd.data()                                                     ;
-			/**/                     j->name            = const_cast<char*>(job_name.c_str())                           ;
+			/**/                     j.cpus_per_task   = r.cpu                                                         ;
+			/**/                     j.environment     = const_cast<char**>(env)                                       ;
+			/**/                     j.env_size        = 1                                                             ;
+			/**/                     j.name            = const_cast<char*>(job_name.c_str())                           ;
+			/**/                     j.pn_min_memory   = r.mem                                                         ;                      //in MB
+			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;                      //in MB
+			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;                      // keep alive
+			/**/                     j.std_out         = verbose ? stdout_file.data() : const_cast<char*>("/dev/null") ;                      // keep alive
+			/**/                     j.work_dir        = wd.data()                                                     ;
 			//
-			if(+r.excludes         ) j->exc_nodes     = const_cast<char*>(r.excludes      .data()) ;
-			if(+r.feature          ) j->features      = const_cast<char*>(r.feature       .data()) ;
-			if(+r.gres             ) j->tres_per_node = const_cast<char*>(("gres:"+r.gres).data()) ;
-			if(+r.licenses         ) j->licenses      = const_cast<char*>(r.licenses      .data()) ;
-			if(+r.nodes            ) j->req_nodes     = const_cast<char*>(r.nodes         .data()) ;
-			if(+r.part             ) j->partition     = const_cast<char*>(r.part          .data()) ;
-			if(+r.qos              ) j->qos           = const_cast<char*>(r.qos           .data()) ;
-			if(+r.reserv           ) j->reservation   = const_cast<char*>(r.reserv        .data()) ;
-			if(i==0                ) j->script        =                   script          .data()  ;
-			/**/                     j->nice          = NICE_OFFSET+nice                           ;
+			if(+r.excludes) j.exc_nodes     = const_cast<char*>(r.excludes.data()) ;
+			if(+r.feature ) j.features      = const_cast<char*>(r.feature .data()) ;
+			if(+r.licenses) j.licenses      = const_cast<char*>(r.licenses.data()) ;
+			if(+r.nodes   ) j.req_nodes     = const_cast<char*>(r.nodes   .data()) ;
+			if(+r.part    ) j.partition     = const_cast<char*>(r.part    .data()) ;
+			if(+r.qos     ) j.qos           = const_cast<char*>(r.qos     .data()) ;
+			if(+r.reserv  ) j.reservation   = const_cast<char*>(r.reserv  .data()) ;
+			if(+r.gres    ) j.tres_per_node =                   gres      .data()  ;
+			if(i==0       ) j.script        =                   script    .data()  ;
+			/**/            j.nice          = NICE_OFFSET+nice                     ;
 			i++ ;
 		}
 		for( int i=0 ; i<SlurmSpawnTrials ; i++ ) {
 			submit_response_msg_t* msg = nullptr/*garbage*/ ;
 			bool                   err = false  /*garbage*/ ;
-			errno = 0 ;                                            // normally useless
+			errno = 0 ;                                                                         // normally useless
 			{	Lock lock { _slurm_mutex } ;
-				if (job_descr.size()==1) {
-					err = SlurmApi::submit_batch_job(&job_descr[0],&msg)!=SLURM_SUCCESS ;
-				} else {
-					List l = SlurmApi::list_create(nullptr) ; for ( job_desc_msg_t& c : job_descr ) SlurmApi::list_append(l,&c) ;
+				if (!job_descs) {                                                               // single element case
+					err = SlurmApi::submit_batch_job(&job_desc0,&msg)!=SLURM_SUCCESS ;
+				} else {                                                                        // multi-elements case
+					List l = SlurmApi::list_create(nullptr/*dealloc_func*/) ;
+					/**/                                  SlurmApi::list_append(l,&job_desc0) ; // first element
+					for ( job_desc_msg_t& c : job_descs ) SlurmApi::list_append(l,&c        ) ; // other elements
 					err = SlurmApi::submit_batch_het_job(l,&msg)!=SLURM_SUCCESS ;
 					SlurmApi::list_destroy(l) ;
 				}
 			}
-			int sav_errno = errno ;                                // save value before calling any slurm or libc function
+			int sav_errno = errno ;                                                             // save value before calling any slurm or libc function
 			if (msg) {
 				SlurmId res = msg->job_id ;
-				SWEAR(res!=0) ;                                    // null id is used to signal absence of id
+				SWEAR(res!=0) ;                                                                 // null id is used to signal absence of id
 				SlurmApi::free_submit_response_response_msg(msg) ;
 				if (!sav_errno) { SWEAR(!err) ; return res ; }
 			}
-			SWEAR(sav_errno!=0) ;                                  // if err, we should have a errno, else if no errno, we should have had a msg containing an id
+			SWEAR(sav_errno!=0) ;                                                               // if err, we should have a errno, else if no errno, we should have had a msg containing an id
 			switch (sav_errno) {
 				case EAGAIN                              :
 				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY :

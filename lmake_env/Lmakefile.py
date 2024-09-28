@@ -37,6 +37,7 @@ config.caches.dir = {
 lmake.version = (0,1)
 
 config.console.date_precision = 2
+config.console.show_eta       = True
 
 config.local_admin_dir = lmake.root_dir+'/LMAKE_LOCAL'
 
@@ -252,8 +253,9 @@ class LinkRule(PathRule,PyRule) :
 	need_python  = False
 	need_seccomp = False
 	def cmd() :
+		lib_stacktrace = sys_config('LIB_STACKTRACE')
 		if True                                          : post_opts = ['-ldl']
-		if                  sys_config('HAS_STACKTRACE') : post_opts.append('-lstdc++_libbacktrace')
+		if                  lib_stacktrace               : post_opts.append(f'-l{lib_stacktrace}')
 		if need_fuse    and sys_config('HAS_FUSE'      ) : post_opts.append('-lfuse3')
 		if need_python                                   : post_opts += ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
 		if need_seccomp and sys_config('HAS_SECCOMP'   ) : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists

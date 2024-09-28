@@ -240,7 +240,9 @@ namespace Backends {
 	inline void  Backend::Workload::kill  ( Req r , Job j ) { _submitted_cost[+r] -= Delay(j->cost).val() ; } // finally decide not to execute it
 	//
 	inline Pdate Backend::Workload::submitted_eta(Req r) const {
-		return _ref_date + Delay(_reasonable_workload/1000./_n_running) + Delay(New,_submitted_cost[+r]) ;
+		Pdate res = _ref_date + Delay(New,_submitted_cost[+r]) ;
+		if (_n_running) res += Delay(_reasonable_workload/1000./_n_running) ;
+		return res ;
 	}
 
 	inline bool             Backend::s_is_local  (Tag t) { return                     s_tab[+t]->is_local()  ; }
