@@ -516,7 +516,7 @@ namespace Backends::Slurm {
 		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",slurm_err()) ;
 	}
 
-	::pair_s<Bool3/*job_ok*/> slurm_job_state(uint32_t slurm_id) {                                                                           // Maybe means job has not completed
+	::pair_s<Bool3/*job_ok*/> slurm_job_state(uint32_t slurm_id) {                                                                   // Maybe means job has not completed
 		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		//
@@ -529,13 +529,13 @@ namespace Backends::Slurm {
 			}
 		}
 		//
-		bool completed = true ;                                                                                                              // job is completed if all tasks are
+		bool completed = true ;                                                                                                      // job is completed if all tasks are
 		for ( uint32_t i=0 ; i<resp->record_count ; i++ ) {
 			slurm_job_info_t const& ji = resp->job_array[i]                          ;
 			job_states              js = job_states( ji.job_state & JOB_STATE_BASE ) ;
 			//
 			completed &= js>=JOB_COMPLETE ;
-			if (js<=JOB_COMPLETE) continue ;                                                                                                 // we only search errors
+			if (js<=JOB_COMPLETE) continue ;                                                                                         // we only search errors
 			const char* on_nodes  = !ji.nodes||::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
 			int         exit_code = ji.exit_code                                                            ;
 			// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
@@ -545,19 +545,19 @@ namespace Backends::Slurm {
 			switch(js) {
 				// if slurm sees job failure, somthing weird occurred (if actual job fails, job_exec reports an error and completes successfully) -> retry
 				// possible job_states values (from slurm.h) :
-				//   JOB_PENDING                                                                                                             // queued waiting for initiation
-				//   JOB_RUNNING                                                                                                             // allocated resources and executing
-				//   JOB_SUSPENDED                                                                                                           // allocated resources, execution suspended
-				//   JOB_COMPLETE                                                                                                            // completed execution successfully
-				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ;         // cancelled by user
-				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ;         // completed execution unsuccessfully
-				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ;         // terminated on reaching time limit
-				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated on node failure
-				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated due to preemption
-				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated due to node boot failure
-				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated on deadline
-				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ;         // experienced out of memory error
-				//   JOB_END                                                                                                                 // not a real state, last entry in table
+				//   JOB_PENDING                                                                                                     // queued waiting for initiation
+				//   JOB_RUNNING                                                                                                     // allocated resources and executing
+				//   JOB_SUSPENDED                                                                                                   // allocated resources, execution suspended
+				//   JOB_COMPLETE                                                                                                    // completed execution successfully
+				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ; // cancelled by user
+				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ; // completed execution unsuccessfully
+				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // terminated on reaching time limit
+				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on node failure
+				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to preemption
+				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to node boot failure
+				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on deadline
+				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // experienced out of memory error
+				//   JOB_END                                                                                                         // not a real state, last entry in table
 				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
 			}
 		}
@@ -601,6 +601,7 @@ namespace Backends::Slurm {
 		::string                 s_errPath ;
 		::string                 s_outPath ;
 		::vector<job_desc_msg_t> job_descr { rsrcs.size() }           ;
+		::vector_s               gress     { rsrcs.size() }           ;                        // keep alive until slurm is called
 		if(verbose) {
 			s_errPath = _get_stderr_path(job) ;
 			s_outPath = _get_stdout_path(job) ;
@@ -609,6 +610,7 @@ namespace Backends::Slurm {
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			job_desc_msg_t* j = &job_descr[i] ;
 			SlurmApi::init_job_desc_msg(j) ;
+			gress[i] = "gres:"+r.gres ;
 			//
 			j->env_size        = 1                                                           ;
 			j->environment     = env                                                         ;
@@ -620,16 +622,16 @@ namespace Backends::Slurm {
 			j->work_dir        = wd.data()                                                   ;
 			j->name            = const_cast<char*>(job_name.c_str())                         ;
 			//
-			if(+r.excludes) j->exc_nodes     = const_cast<char*>(r.excludes      .data()) ;
-			if(+r.feature ) j->features      = const_cast<char*>(r.feature       .data()) ;
-			if(+r.gres    ) j->tres_per_node = const_cast<char*>(("gres:"+r.gres).data()) ;
-			if(+r.licenses) j->licenses      = const_cast<char*>(r.licenses      .data()) ;
-			if(+r.nodes   ) j->req_nodes     = const_cast<char*>(r.nodes         .data()) ;
-			if(+r.part    ) j->partition     = const_cast<char*>(r.part          .data()) ;
-			if(+r.qos     ) j->qos           = const_cast<char*>(r.qos           .data()) ;
-			if(+r.reserv  ) j->reservation   = const_cast<char*>(r.reserv        .data()) ;
-			if(i==0       ) j->script        =                   script          .data()  ;
-			/**/            j->nice          = NICE_OFFSET+nice                           ;
+			if(+r.excludes) j->exc_nodes     = const_cast<char*>(r.excludes.data()) ;
+			if(+r.feature ) j->features      = const_cast<char*>(r.feature .data()) ;
+			if(+r.gres    ) j->tres_per_node =                   gress[i]  .data()  ;          // keep alive
+			if(+r.licenses) j->licenses      = const_cast<char*>(r.licenses.data()) ;
+			if(+r.nodes   ) j->req_nodes     = const_cast<char*>(r.nodes   .data()) ;
+			if(+r.part    ) j->partition     = const_cast<char*>(r.part    .data()) ;
+			if(+r.qos     ) j->qos           = const_cast<char*>(r.qos     .data()) ;
+			if(+r.reserv  ) j->reservation   = const_cast<char*>(r.reserv  .data()) ;
+			if(i==0       ) j->script        =                   script    .data()  ;
+			/**/            j->nice          = NICE_OFFSET+nice                     ;
 			i++ ;
 		}
 		bool                   err = false  /*garbage*/ ;

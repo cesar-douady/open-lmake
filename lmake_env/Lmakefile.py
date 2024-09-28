@@ -159,7 +159,7 @@ class SysConfig(PathRule) : # XXX : handle PCRE
 class VersionH(BaseRule) :
 	target = 'version.hh'
 	deps = { 'EXE' : '_bin/version' }
-	cmd  = "./{EXE} $(grep '\.cc$' Manifest) $(grep '\.hh$' Manifest)"
+	cmd  = r"./{EXE} $(grep '\.cc$' Manifest) $(grep '\.hh$' Manifest)"
 
 opt_tab = {}
 class GenOpts(BaseRule) :
