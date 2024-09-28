@@ -122,6 +122,7 @@ namespace Backends {
 		// data
 		Rsrcs             rsrcs   ;
 		::atomic<SpawnId> id      = 0     ;
+		::atomic<bool   > failed  = false ; // if true <=> job could not ben launched
 		bool              started = false ; // if true <=> start() has been called for this job, for assert only
 		bool              verbose = false ;
 		::atomic<bool   > zombie  = true  ; // entry waiting for suppression
@@ -346,16 +347,17 @@ namespace Backends {
 			{	auto it = spawned_jobs.find(j) ;
 				if (it==spawned_jobs.end()) {
 					Trace trace(BeChnl,"heartbeat","not_found",j) ;
-					goto NotLaunched ;
+					return {"job disappeared",HeartbeatState::Err} ;
 				}
 				SpawnedEntry& se = it->second ;
 				SWEAR(!se.started,j) ;                                                                              // we should not be called on started jobs
 				if (!se.id) {
-					Lock lock { id_mutex } ;
-					if (!se.id) {
+					Lock lock { id_mutex } ;                                                                        // ensure _launch is no more processing entry
+					if (!se.id) {                                                                                   // repeat test so test and decision are atomic
 						Trace trace(BeChnl,"heartbeat","no_id",j) ;
-						goto NotLaunched ;
-					}                                                                                               // repeat test so test and decision are atomic
+						if (se.failed) return {"could not launch job",HeartbeatState::Err  } ;
+						else           return {{}                    ,HeartbeatState::Alive} ;                      // book keeping is not updated yet
+					}
 				}
 				::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
 				if (digest.second!=HeartbeatState::Alive) {
@@ -364,8 +366,6 @@ namespace Backends {
 				}
 				return digest ;
 			}
-		NotLaunched :
-			return {"could not launch job",HeartbeatState::Err} ;
 		}
 		// kill all if req==0
 		virtual ::vector<JobIdx> kill_waiting_jobs(ReqIdx req=0) {
@@ -472,6 +472,7 @@ namespace Backends {
 						trace("child",ji,ld.prio,id,ld.cmd_line) ;
 					} catch (::string const& e) {
 						trace("fail",ji,ld.prio,e) ;
+						se.failed = true ;
 						_launch_queue.wakeup() ;                                               // we may have new jobs to launch as we did not launch all jobs we were supposed to
 					}
 				}
