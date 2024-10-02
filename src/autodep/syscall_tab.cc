@@ -32,8 +32,8 @@
 	SWEAR(pid) ;
 	errno = 0 ;
 	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) { // invariant : copy src[i:sz] to dst
-		uint64_t offset = src%sizeof(long) ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
+		size_t offset = src%sizeof(long) ;
+		long   word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
 		if (errno) throw 0 ;
 		chunk = ::min( sizeof(long) - offset , sz ) ;
 		::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
@@ -45,8 +45,8 @@
 	SWEAR(pid) ;
 	errno = 0 ;
 	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                 // invariant : copy src[i:sz] to dst
-		uint64_t offset = dst%sizeof(long) ;
-		long     word   = 0/*garbage*/     ;
+		size_t offset = dst%sizeof(long) ;
+		long   word   = 0/*garbage*/     ;
 		chunk = ::min( sizeof(long) - offset , sz ) ;
 		if ( offset || offset+chunk<sizeof(long) ) {                                // partial word
 			word = ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;

@@ -12,13 +12,18 @@
 
 using namespace std ;
 
-static constexpr int  MaxErrno            = 255                ;               // this is pretty comfortable, actual value is 133 // XXX : find a way to use a documented value
-static constexpr char NpErrnoSymbolName[] = "__errno_location" ;               // XXX : find a way to stick to documented interfaces
-static constexpr bool StackGrowsDownward  = true               ;               // XXX : find a way to determine that
+static constexpr char NpErrnoSymbolName[]  = "__errno_location" ; // XXX : find a way to stick to documented interfaces
+static constexpr bool NpStackGrowsDownward = true               ; // XXX : find a way to determine that
+
+#if __x86_64__ || __aarch64__
+	static constexpr uint8_t NpWordSz = 64 ;
+#elif __i386__ || __arm__
+	static constexpr uint8_t NpWordSz = 32 ;
+#endif
 
 int np_get_fd(std::filebuf& fb) ;
 
-::array<uint64_t,6> np_ptrace_get_args( pid_t pid               ) ;
-int64_t             np_ptrace_get_res ( pid_t pid               ) ;
-long                np_ptrace_get_nr  ( pid_t pid               ) ;
-void                np_ptrace_set_res ( pid_t pid , int64_t val ) ;
+::array<uint64_t,6> np_ptrace_get_args( pid_t pid ,               uint8_t word_sz ) ; // word_sz must be 32 or 64
+int64_t             np_ptrace_get_res ( pid_t pid ,               uint8_t word_sz ) ; // .
+long                np_ptrace_get_nr  ( pid_t pid ,               uint8_t word_sz ) ; // .
+void                np_ptrace_set_res ( pid_t pid , int64_t val , uint8_t word_sz ) ; // .

@@ -5,6 +5,12 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+ok() {
+	if $@ >/dev/null ; then echo 1
+	else                    echo 0
+	fi
+}
+
 MK_FILE=$1
 H_FILE=$2
 
@@ -56,9 +62,7 @@ STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of 
 
 if   $CXX -o /dev/null -xc++ -std=c++23 - <<< 'int main() {}' ; then CXX_STD=c++23
 elif $CXX -o /dev/null -xc++ -std=c++20 - <<< 'int main() {}' ; then CXX_STD=c++20
-else
-	echo $CXX must support at least c++20
-	exit 1
+else                                                            echo $CXX must support at least c++20 ; exit 1
 fi
 
 #
@@ -72,7 +76,7 @@ config_python() {
 	p=$(type -p $python || :)
 	[ "$p" ] || { echo $python not found >&2 ; return 1 ; }
 	python=$p
-	llp=$LD_LIBRARY_PATH
+	llp=$LD_LIBRARY_PATH                                                        # save LD_LIBARY_PATH
 	export LD_LIBRARY_PATH="$(dirname $(dirname $python))/lib:$LD_LIBRARY_PATH"
 	py_major=$($python -c 'import sys       ; print(sys.version_info.major                )')
 	py_minor=$($python -c 'import sys       ; print(sys.version_info.minor                )')
@@ -104,19 +108,26 @@ config_python() {
 	EOF
 	$CXX -o probe_python$ver -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { echo $python is unusable as a library >&2 ; return 1 ; }
 	eval "PYTHON${ver#3}=$python"
-	eval "PY${ver#3}_INCLUDEDIR=$inc_dir"
-	eval "PY${ver#3}_INCLUDEPY=$inc_py"
-	eval "PY${ver#3}_LIB_BASE=$lib_base"
-	eval "PY${ver#3}_LIB_DIR=$lib_dir"
-	LD_LIBRARY_PATH=$llp
+	eval "PY${ver}_INCLUDEDIR=$inc_dir"
+	eval "PY${ver}_INCLUDEPY=$inc_py"
+	eval "PY${ver}_LIB_BASE=$lib_base"
+	eval "PY${ver}_LIB_DIR=$lib_dir"
+	LD_LIBRARY_PATH=$llp                                                        # restore LD_LIBARY_PATH
 }
 
 config_python "$PYTHON2" 2 || PYTHON2= # python2 is optional
 config_python "$PYTHON"  3 || exit 1
 
-if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY_LIB_DIR:$PY2_LIB_DIR # both present, separate with :
-else                                          PY_LD_LIBRARY_PATH=$PY_LIB_DIR$PY2_LIB_DIR  # only one is present
+if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR:$PY2_LIB_DIR # both present, separate with :
+else                                          PY_LD_LIBRARY_PATH=$PY3_LIB_DIR$PY2_LIB_DIR  # only one is present
 fi
+
+#
+# LD_SO_LIB64 & LD_SO_LIB32
+#
+$CXX      -o ld_so_lib    -xc - <<< 'int main(){}' && LD_SO_LIB=$(   strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib    2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
+$CXX -m32 -o ld_so_lib_32 -xc - <<< 'int main(){}' && LD_SO_LIB_32=$(strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib_32 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
+[ "$LD_SO_LIB" -eq "$LD_SO_LIB_32" ] && LD_SO_LIB_32=
 
 #
 # ADDR2LINE
@@ -129,18 +140,13 @@ fi
 # HAS_CLOSE_RANGE
 # test whether we can include linux/close_range.h
 #
-if $CXX -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null
-then HAS_CLOSE_RANGE=1
-else HAS_CLOSE_RANGE=0
-fi
+HAS_CLOSE_RANGE=$( ok $CXX -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
 
 #
 # HAS_FUSE
 #
-if pkg-config fuse3 --cflags --libs >/dev/null
-then HAS_FUSE=0                                # XXX : enable fuse when ready
-else HAS_FUSE=0
-fi
+HAS_FUSE=$(ok pkg-config fuse3)
+HAS_FUSE=0                      # XXX : enable fuse when ready
 
 #
 # HAS_LD_AUDIT
@@ -184,10 +190,7 @@ cat <<"EOF" > memfd.c
 	#include<sys/mman.h>
 	int main() { memfd_create("trial",0) ; }
 EOF
-if $CXX -Werror -o memfd -xc memfd.c
-then HAS_MEMFD=1
-else HAS_MEMFD=0
-fi
+HAS_MEMFD=$(ok $CXX -Werror -o memfd -xc memfd.c)
 
 #
 # HAS_OSTRINGSTREAM_VIEW
@@ -197,10 +200,7 @@ cat <<"EOF" > ostringstream_view.cc
 	#include <sstream>
 	std::string_view ossv = std::ostringstream().view() ;
 EOF
-if $CXX -c -std=$CXX_STD -o ostringstream_view.o ostringstream_view.cc
-then HAS_OSTRINGSTREAM_VIEW=1
-else HAS_OSTRINGSTREAM_VIEW=0
-fi
+HAS_OSTRINGSTREAM_VIEW=$( ok $CXX -c -std=$CXX_STD -o ostringstream_view.o ostringstream_view.cc )
 
 #
 # HAS_PCRE
@@ -208,14 +208,11 @@ fi
 cat <<"EOF" > pcre.cc
 	#define PCRE2_CODE_UNIT_WIDTH 8
 	#include <pcre2.h>
-	void foo() {
+	int main() {
 		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
 	}
 EOF
-if $CXX -c -std=$CXX_STD -o pcre.o pcre.cc
-then HAS_PCRE=1
-else HAS_PCRE=0
-fi
+HAS_PCRE=$( ok $CXX -std=$CXX_STD -o pcre.o pcre.cc -lpcre2-8 )
 
 #
 # HAS_SECCOMP
@@ -230,18 +227,14 @@ cat <<"EOF" > seccomp.c
 	}
 EOF
 # usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccomp.h) but some systems have seccomp.h directly installed in /usr/include/linux
-if $CXX -idirafter /usr/include/linux -o seccomp -xc seccomp.c -l:libseccomp.so.2
-then HAS_SECCOMP=1
-else HAS_SECCOMP=0
+if $CXX -idirafter /usr/include/linux -o seccomp -xc seccomp.c -l:libseccomp.so.2 ; then HAS_SECCOMP=1
+else                                                                                     HAS_SECCOMP=0
 fi
 
 #
 # HAS_SGE
 #
-if type -p qsub >/dev/null
-then HAS_SGE=1
-else HAS_SGE=0
-fi
+HAS_SGE=$(ok type -p qsub)
 
 #
 # HAS_SLURM
@@ -252,10 +245,7 @@ if [ "$SLURM" ] ; then
 	SLURM_SO=${SLURM_SO% *}                                                # only select first if there is ambiguity
 fi
 [ "$SLURM" ] || SLURM_SO=libslurm.so
-if $CXX -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc - </dev/null >/dev/null
-then HAS_SLURM=1
-else HAS_SLURM=0
-fi
+HAS_SLURM=$( ok $CXX -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc /dev/null )
 
 #
 # LIB_STACKTRACE
@@ -270,12 +260,14 @@ cat <<"EOF" > stacktrace.cc
 		return rc ;
 	}
 EOF
-if   $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE=stdc++_libbacktrace # compile and link, to ensure both steps are ok
-elif $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE=stdc++exp           # .
+if   $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE=stdc++_libbacktrace         # compile and link, to ensure both steps are ok
+elif $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE=stdc++exp                   # .
 fi
-if [ "$LIB_STACKTRACE" ] ; then HAS_STACKTRACE=1
-else                            HAS_STACKTRACE=0
+if   $CXX -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE_32=stdc++_libbacktrace # compile and link, to ensure both steps are ok
+elif $CXX -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE_32=stdc++exp           # .
 fi
+HAS_STACKTRACE=$((   ${LIB_STACKTRACE:+   1}))
+HAS_STACKTRACE_32=$((${LIB_STACKTRACE_32:+1}))
 
 #
 # MAX_PID
@@ -293,10 +285,7 @@ cat <<"EOF" > undef_ptrace_macros.c
 		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
 	}
 EOF
-if $CXX -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c
-then MUST_UNDEF_PTRACE_MACROS=1
-else MUST_UNDEF_PTRACE_MACROS=0
-fi
+MUST_UNDEF_PTRACE_MACROS=$( ok $CXX -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c )
 
 #
 # HAS_PTRACE_GET_SYSCALL_INFO (must be after MUST_UNDEF_PTRACE_MACROS)
@@ -311,10 +300,7 @@ cat <<"EOF" > get_syscall_info.c
 		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
 	}
 EOF
-if $CXX -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS  -o get_syscall_info.o -xc get_syscall_info.c
-then HAS_PTRACE_GET_SYSCALL_INFO=1
-else HAS_PTRACE_GET_SYSCALL_INFO=0
-fi
+HAS_PTRACE_GET_SYSCALL_INFO=$( ok $CXX -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o get_syscall_info.o -xc get_syscall_info.c )
 
 #
 # NEED_STAT_WRAPPERS
@@ -326,10 +312,8 @@ cat <<"EOF" > stat.c
 	int main() { stat("",&buf) ; }
 EOF
 $CXX -o stat_trial -xc stat.c
-if nm -D stat_trial | grep -wq stat
-then NEED_STAT_WRAPPERS=0
-else NEED_STAT_WRAPPERS=1
-fi
+nm -D stat_trial > stat_trial.nm
+NEED_STAT_WRAPPERS=$(( ! $(ok grep -wq stat stat_trial.nm) ))
 
 #
 # USE_LIBC_START_MAIN
@@ -370,20 +354,24 @@ PY2_INCLUDEPY      := $PY2_INCLUDEPY
 PY2_LIB_DIR        := $PY2_LIB_DIR
 PY2_LIB_BASE       := $PY2_LIB_BASE
 PYTHON             := $PYTHON
-PY_INCLUDEDIR      := $PY_INCLUDEDIR
-PY_INCLUDEPY       := $PY_INCLUDEPY
-PY_LIB_DIR         := $PY_LIB_DIR
-PY_LIB_BASE        := $PY_LIB_BASE
+PY3_INCLUDEDIR     := $PY3_INCLUDEDIR
+PY3_INCLUDEPY      := $PY3_INCLUDEPY
+PY3_LIB_DIR        := $PY3_LIB_DIR
+PY3_LIB_BASE       := $PY3_LIB_BASE
 PY_LD_LIBRARY_PATH := $PY_LD_LIBRARY_PATH
 #
 CXX                := $CXX
 CXX_FLAVOR         := $CXX_FLAVOR
 CXX_STD            := $CXX_STD
 LIB_STACKTRACE     := $LIB_STACKTRACE
+LIB_STACKTRACE_32  := $LIB_STACKTRACE_32
 LINK_LIB_PATH      := $LINK_LIB_PATH
 STD_INC_DIRS       := $STD_INC_DIRS
 #
 SLURM_INC_DIR      := $SLURM_INC_DIR
+#
+LD_SO_LIB          := $LD_SO_LIB
+LD_SO_LIB_32       := $LD_SO_LIB_32
 #
 HAS_FUSE           := ${HAS_FUSE#0}
 HAS_PCRE           := ${HAS_PCRE#0}
@@ -394,6 +382,16 @@ HAS_SLURM          := ${HAS_SLURM#0}
 STD_PATH           := $STD_PATH
 EOF
 
+if [ "$LD_SO_LIB_32" ] ; then
+	case $HAS_STACKTRACE$HAS_STACKTRACE_32 in
+		00) HAS_STACKTRACE_CUR=0                           >> $H_FILE ;;
+		01) HAS_STACKTRACE_CUR='(__i386__||__arm__)'       >> $H_FILE ;;
+		10) HAS_STACKTRACE_CUR='(__x86_64__||__aarch64__)' >> $H_FILE ;;
+		11) HAS_STACKTRACE_CUR=1                           >> $H_FILE ;;
+	esac
+else
+	HAS_STACKTRACE_CUR=$HAS_STACKTRACE
+fi
 cat >$H_FILE <<EOF
 	#pragma once
 	#define ADDR2LINE                   "$ADDR2LINE"
@@ -407,7 +405,7 @@ cat >$H_FILE <<EOF
 	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_SGE                     $HAS_SGE
 	#define HAS_SLURM                   $HAS_SLURM
-	#define HAS_STACKTRACE              $HAS_STACKTRACE
+	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define MAP_VFORK                   $MAP_VFORK

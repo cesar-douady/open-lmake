@@ -20,6 +20,7 @@ RUN dnf install -y python3
 RUN dnf install -y python3-devel
 RUN dnf install -y --enablerepo=crb texinfo-tex
 RUN dnf install -y libseccomp
+RUN dnf install -y strace
 
 #RUN dnf install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel
 

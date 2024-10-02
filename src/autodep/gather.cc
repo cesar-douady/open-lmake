@@ -153,6 +153,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 }
 
 void Gather::_do_child( Fd report_fd , ::latch* ready ) {
+	t_thread_key = 'T' ;
 	AutodepPtrace::s_init(autodep_env) ;
 	_child.pre_exec = AutodepPtrace::s_prepare_child  ;
 	//vvvvvvvvvvvv
@@ -189,12 +190,12 @@ Fd Gather::_spawn_child() {
 		child_fd  = pipe.read  ;
 		report_fd = pipe.write ;
 	} else {
-		if (method>=AutodepMethod::Ld) {                                                                                                                    // PER_AUTODEP_METHOD : handle case
+		if (method>=AutodepMethod::Ld) {                                                                                                                     // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
-			switch (method) {                                                                                                                               // PER_AUTODEP_METHOD : handle case
-				case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_dir_s+"_lib/ld_audit.so"            ; break ;
-				case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_lib/ld_preload.so"          ; break ;
-				case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_lib/ld_preload_jemalloc.so" ; break ;
+			switch (method) {                                                                                                                                // PER_AUTODEP_METHOD : handle case
+				case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_dir_s+"_$LIB/ld_audit.so"            ; break ;
+				case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_$LIB/ld_preload.so"          ; break ;
+				case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_$LIB/ld_preload_jemalloc.so" ; break ;
 			DF}
 			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) _add_env[env_var] += ':' + get_env(env_var) ; }
@@ -238,6 +239,7 @@ Status Gather::exec_child() {
 	::umap<Fd,Jerr>                                      delayed_check_deps ;               // check_deps events are delayed to ensure all previous deps are received
 	size_t                                               live_out_pos       = 0           ;
 	::umap<Fd,pair<IMsgBuf,::umap<uint64_t/*id*/,Jerr>>> slaves             ;               // Jerr's are waiting for confirmation
+	bool                                                 panic_seen         = false       ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
 		if ( status==Status::New || status==Status::Ok ) status = status_ ;                 // else there is already another reason
@@ -427,8 +429,8 @@ Status Gather::exec_child() {
 					Jerr jerr         ;
 					auto sit          = slaves.find(fd) ;
 					auto& slave_entry = sit->second     ;
-					try         { if (!slave_entry.first.receive_step(fd,jerr)) continue ; }
-					catch (...) { trace("no_jerr",kind,fd,jerr) ; jerr.proc = Proc::None ; }                                        // fd was closed, ensure no partially received jerr
+					try                       { if (!slave_entry.first.receive_step(fd,jerr)) continue ;   }
+					catch (::string const& e) { trace("no_jerr",kind,fd,jerr,e) ; jerr.proc = Proc::None ; }                        // fd was closed, ensure no partially received jerr
 					Proc proc  = jerr.proc ;                                                                                        // capture essential info so as to be able to move jerr
 					bool sync_ = jerr.sync ;                                                                                        // .
 					if (proc!=Proc::Access) trace(kind,fd,proc) ;                                                                   // there may be too many Access'es, only trace within _new_accesses
@@ -454,14 +456,22 @@ Status Gather::exec_child() {
 							if      (jerr.digest.write!=Maybe                                    ) _new_accesses(fd,::move(jerr)) ;
 							else if (!slave_entry.second.try_emplace(jerr.id,::move(jerr)).second) FAIL()                         ; // check no id clash and defer until confirm resolution
 						break ;
-						case Proc::Tmp        : seen_tmp = true ;                           break           ;
-						case Proc::Guard      : _new_guards(fd,::move(jerr)) ;              break           ;
+						case Proc::Tmp        : seen_tmp = true ;                       break        ;
+						case Proc::Guard      : _new_guards(fd,::move(jerr)) ;          break        ;
 						case Proc::DepVerbose :
 						case Proc::Decode     :
-						case Proc::Encode     : _send_to_server(fd,::move(jerr)) ;          goto NoReply    ;
-						case Proc::ChkDeps    : delayed_check_deps[fd] = ::move(jerr) ;     goto NoReply    ;                       // if sync, reply is delayed as well
-						case Proc::Panic      : set_status(Status::Err,jerr.txt) ; kill() ; [[fallthrough]] ;
-						case Proc::Trace      : trace(jerr.txt) ;                           break           ;
+						case Proc::Encode     : _send_to_server(fd,::move(jerr)) ;      goto NoReply ;
+						case Proc::ChkDeps    : delayed_check_deps[fd] = ::move(jerr) ; goto NoReply ;                              // if sync, reply is delayed as well
+						case Proc::Panic :
+							if (!panic_seen) {                                                                                      // report only first panic
+								set_status(Status::Err,jerr.txt) ;
+								kill() ;
+								panic_seen = true ;
+							}
+						[[fallthrough]] ;
+						case Proc::Trace :
+							trace(jerr.txt) ;
+						break ;
 					DF}
 					if (sync_) sync( fd , JobExecRpcReply(proc) ) ;
 				NoReply : ;

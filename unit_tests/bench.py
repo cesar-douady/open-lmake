@@ -15,7 +15,7 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,PyRule
 
-	gxx = lmake.user_environ.get('CXX','g++')
+	gxx = lmake.user_environ.get('CXX') or 'g++'
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -26,15 +26,13 @@ if __name__!='__main__' :
 	class Compile(Rule) :
 		targets = { 'OBJ' : r'{File:.*}.o' }
 		deps    = { 'SRC' : '{File}.c'     }
-		autodep = 'ld_preload'                  # clang seems to be hostile to ld_audit
-		cmd     = '{gxx} -c -o {OBJ} -xc {SRC}'
+		autodep = 'ld_preload'                                        # clang seems to be hostile to ld_audit
+		cmd     = 'PATH=$(dirname {gxx}) {gxx} -c -o {OBJ} -xc {SRC}'
 
 	class Link(Rule) :
 		targets = { 'EXE' : r'{File:.*}.exe' }
-		autodep = 'ld_preload'                                                      # clang seems to be hostile to ld_audit
-		def cmd() :
-			lmake.depend(*(f'{File}.file_{o}.o' for o in range(l)))                 # fake link
-		cmd = "{gxx} -o {EXE} {' '.join((f'{File}.file_{o}.o' for o in range(l)))}"
+		autodep = 'ld_preload'                                                                                # clang seems to be hostile to ld_audit
+		cmd     = "PATH=$(dirname {gxx}) {gxx} -o {EXE} {' '.join((f'{File}.file_{o}.o' for o in range(l)))}"
 
 	class All(PyRule) :
 		target = r'all_{N:\d+}'

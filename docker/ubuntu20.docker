@@ -13,6 +13,7 @@ RUN                                apt-get install -y build-essential
 RUN                                apt-get install -y ed git texinfo
 RUN                                apt-get install -y python2 python3-dev python3-numba python3-venv
 RUN                                apt-get install -y libseccomp-dev
+RUN                                apt-get install -y strace
 
 # gcc
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test

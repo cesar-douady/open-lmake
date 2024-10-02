@@ -17,6 +17,7 @@ __pycache__
 /lib/
 
 # doc
+/doc/info.texi
 /doc/lmake.html
 
 #auto-configuration
@@ -60,4 +61,5 @@ tok
 /debian/*debhelper*
 /debian/*substvars
 /debian/files
+/debian/changelog
 /debian/*/

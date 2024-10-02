@@ -23,10 +23,12 @@
 @end macro
 
 @set TITLE The lmake Manual
-@set UPDATED 03 September 2024
-@set UPDATED-MONTH September 2024
 @set EDITION @dfn{work in progress}
-@set VERSION 24.09
+@c info.texi contains :
+@c @set VERSION       <version>
+@c @set UPDATED       <date>
+@c @set UPDATED-MONTH <date>
+@include info.texi
 
 @settitle @value{TITLE}
 @setchapternewpage odd
@@ -1183,7 +1185,7 @@ Use the @code{search_root_dir} function if you want to get the nearest hierarchi
 @item has_ld_preload
 @code{True} if autodep method @code{'ld_preload'} is supported, else @code{False}.
 @item has_ptrace
-@code{True} if autodep method @code{'ld_ptrace'} is supported, else @code{False}.
+@code{True} if autodep method @code{'ptrace'} is supported, else @code{False}.
 @item backends
 The list of implemented backends. @code{local} is always present.
 @item no_crc
@@ -3216,7 +3218,7 @@ The only way to report activity is through the use of @code{ldepend} / @code{lta
 The main advantage is that this method is not invasive (or marginally).
 The main inconvenient is that no automatic hidden dependencies are recorded, one has to explicitly call @code{ldepend} and experience shows it is very difficult not to forget some.
 
-This method is @strong{not} recommanded.
+This method is @strong{not} recommended.
 
 @subsection @code{'LdPreload'} or @code{'ld_preload'}
 
@@ -3231,14 +3233,14 @@ The main advantage is that this method is available even on rather old versions 
 The main inconvenient is that it is somewhat invasive and there are cases of incompatibilities (e.g. sometimes the use of the @code{jemalloc} package depending on its configuration).
 Also, it will not run correctly if some commands have the @file{libc} statically linked and this will go undetected.
 
-This method is recommanded on systems that lack the rtld-audit capability when jobs do not use @code{jemalloc}.
+This method is recommended on systems that lack the rtld-audit capability when jobs do not use @code{jemalloc}.
 
 @subsection @code{'LdPreloadJemalloc'} or @code{'ld_preload_jemalloc'}
 
 This method is very similar to the previous method except it fully support @code{'jemalloc'}.
 The drawback, though, is that it may miss a few dependencies, in some rare occasions, in case accesses are made before @code{main()} is called.
 
-This method is recommanded on systems that lack the rtld-audit capability when jobs use @code{jemalloc}.
+This method is recommended on systems that lack the rtld-audit capability when jobs use @code{jemalloc}.
 
 @subsection @code{'LdAudit'} or @code{'ld_audit'}
 
@@ -3252,18 +3254,18 @@ The main advantage is that is is both performant, very little invasive and stati
 The main inconvenient is that it requires a rather recent version of Linux and there are cases of incompatibilites
 (e.g. code written in @code{rust}, including the rust compilers @code{cargo} and @code{rustc}).
 
-This method is recommanded on systems that support it.
+This method is recommended on systems that support it.
 
 @subsection @code{'Ptrace'} or @code{'ptrace'}
 
-The job is run @code{ptrace}'ed. The seccomp mechanism is used to reduce the performance hit to the minimum possible but still, it is often unacceptable.
+The job is run @code{ptrace}'ed. The seccomp mechanism is used (if available) to reduce the performance hit to the minimum possible but still, it is often unacceptable.
 There is no requirement that @file{libc.so} be dynamically linked.
 It is almost not invasive (mostly the job cannot use ptrace itself, i.e. you will not be able to run an executable level debugger).
 
 Th main adavantage is that it works with a statically linked @code{libc}.
-The main inconvenient is that the performance hit can be severe.
+The main inconvenients are that the performance hit can be severe and that 32 bits executables are not supported yet (if run on a 64 bits system).
 
-This method is recommanded as a fall back when the previous (@code{ld_preload} and @code{ld_audit}) methods cannot be used.
+This method is recommended as a fall back when the previous (@code{ld_preload} and @code{ld_audit}) methods cannot be used.
 
 @anchor{link-support}
 @section Link support

@@ -8,7 +8,7 @@ _bin/find_cc_ld_library_path
 _bin/sys_config
 _bin/ut_launch
 _bin/version
-_lib/lmake/__init__.py
+_lib/lmake/__init__.src.py
 _lib/lmake/auto_sources.py
 _lib/lmake/custom_importer.py
 _lib/lmake/import_machinery.py
@@ -32,7 +32,7 @@ _lib/lmake_runtime.py
 _lib/read_makefiles.py
 _lib/serialize.py
 _lib/ut.py
-debian/changelog
+debian/changelog.src
 debian/control
 debian/copyright
 debian/open-lmake.links
@@ -203,6 +203,7 @@ unit_tests/dyn_accesses.py
 unit_tests/dynamic.py
 unit_tests/dynamic_py.py
 unit_tests/escape.py
+unit_tests/exe_32bits.py
 unit_tests/force.py
 unit_tests/forget.py
 unit_tests/gcda.py

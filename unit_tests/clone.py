@@ -10,7 +10,7 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
-	gxx             = lmake.user_environ.get('CXX','g++')
+	gxx             = lmake.user_environ.get('CXX') or 'g++'
 	ld_library_path = lmake.find_cc_ld_library_path(gxx)
 
 	lmake.manifest = (
@@ -22,7 +22,8 @@ if __name__!='__main__' :
 	class Compile(Rule) :
 		targets = { 'EXE' : r'{File:.*}.exe' }
 		deps    = { 'SRC' :  '{File}.cc'     }
-		cmd     = '{gxx} -O0 -fdiagnostics-color=always -std=c++20 -pthread -o {EXE} {SRC}'
+		autodep = 'ld_preload'                                                                                    # clang seems to be hostile to ld_audit
+		cmd     = 'PATH=$(dirname {gxx}) {gxx} -O0 -fdiagnostics-color=always -std=c++20 -pthread -o {EXE} {SRC}'
 
 	class Dut(Rule) :
 		target      = r'{File:.*}.out'

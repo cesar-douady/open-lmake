@@ -14,7 +14,8 @@ from subprocess import run,check_output,DEVNULL,STDOUT
 
 import lmake
 
-gxx = lmake.user_environ.get('CXX','g++')
+version = lmake.user_environ.get('VERSION','??.??')
+gxx     = lmake.user_environ.get('CXX'    ,'g++'  )
 
 from lmake       import config,pdict
 from lmake.rules import Rule,PyRule,AntiRule,TraceRule
@@ -33,8 +34,6 @@ config.caches.dir = {
 ,	'repo' : lmake.root_dir
 ,	'dir'  : osp.dirname(lmake.root_dir)+'/lmake_env-cache'
 }
-
-lmake.version = (0,1)
 
 config.console.date_precision = 2
 config.console.show_eta       = True
@@ -77,15 +76,25 @@ class PathRule(BaseRule) :                       # compiler must be accessed usi
 	environ_cmd = { 'PATH' : os.getenv('PATH') }
 	cache       = 'dir'
 
+class HtmlInfo(BaseRule) :
+	target = '{DirS}info.texi'
+	cmd = '''
+		echo "@set VERSION       {version}"
+		echo "@set UPDATED       $(env -i date '+%d %B %Y')"
+		echo "@set UPDATED-MONTH $(env -i date '+%B %Y'   )"
+	'''
 class Html(BaseRule,TraceRule) :
-	targets = { 'HTML' : '{File}.html' }
-	deps    = { 'TEXI' : '{File}.texi' }
+	targets = { 'HTML' : '{DirS}{Base}.html' }
+	deps    = { 'TEXI' : '{DirS}{Base}.texi' }
 	environ_cmd = {
 		'LANGUAGE' : ''
 	,	'LC_ALL'   : ''
 	,	'LANG'     : ''
 	}
-	cmd = 'texi2any --html --no-split -o {HTML} {TEXI}'
+	cmd = '''
+		cd {DirS}.                                            # manage case where DirS is empty
+		texi2any --html --no-split -o {Base}.html {Base}.texi
+	'''
 
 class Unpack(BaseRule) :
 	targets = {
@@ -339,7 +348,7 @@ class CpyLmakePy(BaseRule,PyRule) :
 		import shutil
 		txt = sys.stdin.read()
 		txt = txt.replace('$BASH'           ,Rule.shell[0]                             )
-		txt = txt.replace('$GIT'            ,shutil.which('git' )                      )
+		txt = txt.replace('$GIT'            ,shutil.which('git' ) or ''                )
 		txt = txt.replace('$LD_LIBRARY_PATH',Rule.environ_cmd.get('LD_LIBRARY_PATH',''))
 		txt = txt.replace('$STD_PATH'       ,Rule.environ_cmd.PATH                     )
 		sys.stdout.write(txt)

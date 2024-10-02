@@ -33,6 +33,7 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 		ignore missing submodules if ignore_missing_submodules is True
 		kwds are ignored which simplifies the usage of auto_sources
 	'''
+	if not _git : raise NotImplementedError('git is not installed')
 	def run( cmd , dir=None ) :
 		# old versions of git (e.g. 1.8) require an open stdin (although is is not used)
 		return _sp.run( cmd , cwd=dir , check=True , stdin=_sp.DEVNULL , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()

@@ -54,10 +54,10 @@ namespace Time {
 		constexpr explicit TimeBase(TimeSpec const& ts)                      : _val{   ts.tv_sec*TicksPerSecond + ts.tv_nsec      } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
 		constexpr explicit TimeBase(TimeVal  const& tv)                      : _val{   tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
 		constexpr explicit TimeBase(NewType,Tick    v )                      : _val{   v                                          } {}
-		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=sec() , .tv_nsec=nsec_in_s() } ; return ts                          ; }
-		constexpr explicit operator TimeVal () const { TimeVal  tv{ .tv_sec=sec() , .tv_usec=usec_in_s() } ; return tv                          ; }
-		constexpr explicit operator double  () const {                                                       return double(_val)/TicksPerSecond ; }
-		constexpr explicit operator float   () const {                                                       return float (_val)/TicksPerSecond ; }
+		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=time_t(sec()) , .tv_nsec=nsec_in_s() } ; return ts                          ; }
+		constexpr explicit operator TimeVal () const { TimeVal  tv{ .tv_sec=time_t(sec()) , .tv_usec=usec_in_s() } ; return tv                          ; }
+		constexpr explicit operator double  () const {                                                               return double(_val)/TicksPerSecond ; }
+		constexpr explicit operator float   () const {                                                               return float (_val)/TicksPerSecond ; }
 		// accesses
 		constexpr bool operator+() const { return  _val ; }
 		constexpr bool operator!() const { return !_val ; }

@@ -21,9 +21,8 @@ if __name__!='__main__' :
 
 	class WineRule(Rule) :
 		chroot_dir        = '/'                                             # ensure pid namespace is used to ensure reliale job termination
-		side_targets      = { 'WINE'    : (r'.wine/{*:.*}','incremental') }
-		environ_resources = { 'DISPLAY' : lmake.user_environ['DISPLAY']   }
-		timeout           = 30                                              # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
+		side_targets      = { 'WINE'    : (r'.wine/{*:.*}','incremental') } # wine writes .wine dir, even after init
+		environ_resources = { 'DISPLAY' : lmake.user_environ['DISPLAY']   } # wine needs a display in all cases
 
 	class WineInit(WineRule) :
 		target       = '.wine/init'
@@ -31,17 +30,20 @@ if __name__!='__main__' :
 		side_targets = { 'WINE' : None            }
 		allow_stderr = True
 		environ_cmd  = { 'DBUS_SESSION_BUS_ADDRESS' : lmake.user_environ['DBUS_SESSION_BUS_ADDRESS'] } # else a file is created in .dbus/session-bus
-		cmd          = 'wine64 cmd'                                                                    # do nothing, just to init support files (in targets)
+		timeout      = 30           # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
+		cmd          = 'wine64 cmd' # do nothing, just to init support files (in targets)
 
-	class Dut(Base,WineRule) :
-		target  = 'dut.{Method}'
-		deps    = { 'WINE_INIT' : '.wine/init' }
-		autodep = '{Method}'
-		cmd     = 'wine64 hostname ; sleep 1' # wine64 terminates before hostname, so we have to wait to get the result
+	for ext in ('','64') :
+		class Dut(Base,WineRule) :
+			name    = f'Dut{ext}'
+			target  = f'dut{ext}.{{Method}}'
+			deps    = { 'WINE_INIT' : '.wine/init' }
+			autodep = '{Method}'
+			cmd     = f'wine{ext} hostname ; sleep 1' # wine64 terminates before hostname, so we have to wait to get the result
 
 	class Chk(Base) :
-		target = r'test.{Method}'
-		dep    =  'dut.{Method}'
+		target = r'test{Ext:64|}.{Method}'
+		dep    =  'dut{Ext}.{Method}'
 		def cmd() :
 			import socket
 			import sys
@@ -51,8 +53,10 @@ if __name__!='__main__' :
 
 else :
 
+	import os
 	import os.path as osp
 	import shutil
+	import subprocess as sp
 	import sys
 
 	import ut
@@ -75,5 +79,9 @@ else :
 		methods = ['none','ld_preload']
 		if lmake.has_ptrace   : methods.append('ptrace'  )
 		if lmake.has_ld_audit : methods.append('ld_audit')
-		ut.lmake( *(f'test.{m}' for m in methods) , done=1+2*len(methods) , new=0 , rc=0 )
-		ut.lmake( *(f'test.{m}' for m in methods)                                        ) # ensure nothing needs to be remade
+		ut.lmake( *(f'test64.{m}' for m in methods) , done=1+2*len(methods) , new=0 , rc=0 )
+		ut.lmake( *(f'test64.{m}' for m in methods)                                        )       # ensure nothing needs to be remade
+		if os.environ['HAS_32BITS'] and shutil.which('wine') :
+			methods_32 = [m for m in methods if m!='ptrace']
+			ut.lmake( *(f'test.{m}' for m in methods_32) , done=2*len(methods_32) , new=0 , rc=0 ) # ptrace is not supported in 32 bits
+			ut.lmake( *(f'test.{m}' for m in methods_32)                                         ) # ensure nothing needs to be remade

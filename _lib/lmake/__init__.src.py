@@ -12,7 +12,7 @@ else                         : from clmake  import * # .
 
 from .utils import *
 
-version = ('24.09',0)
+version = ('$VERSION',0) # substituted at build time
 
 def check_version(major,minor=0) :
 	'''check version'''

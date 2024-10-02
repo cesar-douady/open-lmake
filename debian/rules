@@ -19,7 +19,7 @@ override_dh_strip:
 	dh_strip --no-automatic-dbgsym
 
 override_dh_makeshlibs:
-	dh_makeshlibs -X/usr/lib/open-lmake/_lib/ld_audit.so -X/usr/lib/open-lmake/_lib/ld_preload.so -X/usr/lib/open-lmake/lib/clmake.so
+# Do nothing
 
 override_dh_dwz:
 # Do nothing

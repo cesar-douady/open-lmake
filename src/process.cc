@@ -124,12 +124,12 @@ void Child::spawn() {
 	//
 	// /!\ memory for child stack must be allocated before calling clone
 	::vector<uint64_t> child_stack ( StackSz/sizeof(uint64_t) ) ;
-	_child_stack_ptr = child_stack.data()+(StackGrowsDownward?child_stack.size():0) ;
+	_child_stack_ptr = child_stack.data()+(NpStackGrowsDownward?child_stack.size():0) ;
 	//
 	if (first_pid) {
-		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                             ; // we need a trampoline stack if we launch a grand-child
-		void*              trampoline_stack_ptr = trampoline_stack.data()+(StackGrowsDownward?trampoline_stack.size():0) ; // .
-		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;         // CLONE_NEWNS is important to mount the new /proc without disturing caller
+		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                               ; // we need a trampoline stack if we launch a grand-child
+		void*              trampoline_stack_ptr = trampoline_stack.data()+(NpStackGrowsDownward?trampoline_stack.size():0) ; // .
+		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is important to mount the new /proc without disturing caller
 	} else {
 		pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD              , this ) ;
 	}

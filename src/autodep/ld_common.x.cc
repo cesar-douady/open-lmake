@@ -553,8 +553,8 @@ struct Mkstemp : WSolve {
 	int symlinkat(CC* t,int d,CC* p) NE { HEADER1(symlinkat,false,p,(t,d,p)) ; Symlink r{{d,p},"symlinkat"} ; return r(orig(t,d,p)) ; }
 
 	// truncate                                          is_stat
-	int truncate  (CC* p,off_t l) NE { HEADER1(truncate  ,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate"  } ; return r(orig(p,l)) ; }
-	int truncate64(CC* p,off_t l) NE { HEADER1(truncate64,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(p,l)) ; }
+	int truncate  (CC* p,off_t   l) NE { HEADER1(truncate  ,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate"  } ; return r(orig(p,l)) ; }
+	int truncate64(CC* p,off64_t l) NE { HEADER1(truncate64,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(p,l)) ; }
 
 	// unlink                                            is_stat
 	int unlink  (      CC* p      ) NE { HEADER1(unlink  ,false,p,(  p  )) ; Unlnk r{   p ,false/*rmdir*/      ,"unlink"  } ; return r(orig(  p  )) ; }

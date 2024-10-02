@@ -1,0 +1,5 @@
+open-lmake ($VERSION.1-1) UNRELEASED; urgency=low
+
+  * support Linux namespaces
+
+ -- Cesar Douady <cesar.douady@doliam.fr>  $DATE

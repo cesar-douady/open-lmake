@@ -8,7 +8,7 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,PyRule
 
-	gxx             = lmake.user_environ.get('CXX','g++')
+	gxx             = lmake.user_environ.get('CXX') or 'g++'
 	ld_library_path = lmake.find_cc_ld_library_path(gxx)
 
 	depth = len(lmake.root_dir.split('/')) - 1
@@ -26,7 +26,8 @@ if __name__!='__main__' :
 	class Compile(Rule) :
 		targets = { 'OBJ' : r'{File:.*}.o' }
 		deps    = { 'SRC' :  '{File}.c'    }
-		cmd     = '{gxx} -fprofile-arcs -c -O0 -fPIC -o {OBJ} -xc {SRC}'
+		autodep = 'ld_preload'                                                                 # clang seems to be hostile to ld_audit
+		cmd     = 'PATH=$(dirname {gxx}) {gxx} -fprofile-arcs -c -O0 -fPIC -o {OBJ} -xc {SRC}'
 
 	class Link(Rule) :
 		targets = { 'EXE' :'hello_world' }
@@ -34,7 +35,8 @@ if __name__!='__main__' :
 			'MAIN' : 'hello_world.o'
 		,	'SO'   : 'hello_world.so'
 		}
-		cmd = "{gxx} -fprofile-arcs -o {EXE} {' '.join((f'./{f}' for k,f in deps.items()))}"
+		autodep = 'ld_preload'                                                                                     # clang seems to be hostile to ld_audit
+		cmd = "PATH=$(dirname {gxx}) {gxx} -fprofile-arcs -o {EXE} {' '.join((f'./{f}' for k,f in deps.items()))}"
 
 	class So(Rule) :
 		targets = { 'SO' : 'hello_world.so' }

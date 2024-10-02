@@ -5,8 +5,6 @@
 
 #include "hash.hh"
 
-#include "re.hh"
-
 using namespace Hash ;
 
 int main( int argc , char* argv[] ) {

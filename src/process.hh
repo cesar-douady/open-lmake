@@ -70,7 +70,8 @@ inline bool is_sig_sync(int sig) {
 		case SIGABRT :
 		case SIGBUS  :
 		case SIGFPE  :
-		case SIGSEGV : return true  ;
+		case SIGSEGV :
+		case SIGSYS  : return true  ;
 		default      : return false ;
 	}
 }
