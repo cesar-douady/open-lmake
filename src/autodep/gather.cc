@@ -38,8 +38,8 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	digest.dflags       |= ad.dflags       ;
 	digest.extra_dflags |= ad.extra_dflags ;
 	//
-	bool tfi =        ad.extra_tflags[ExtraTflag::Ignore] ;
-	bool dfi = tfi || ad.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
+	bool tfi =        digest.extra_tflags[ExtraTflag::Ignore] ;
+	bool dfi = tfi || digest.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
 	//
 	if (!dfi) {
 		for( Access a : All<Access> ) if (read[+a]<=pd) goto NotFirst ;
