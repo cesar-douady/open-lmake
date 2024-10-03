@@ -30,9 +30,7 @@ items :
 
 * make side_deps and side_targets dynamic
 * transport pdict as pdict rather than as dict
-* manage 32 bits executables
-	- compile ld_audit.so (and co) in both 32 & 64 bits
-	- put adequate $PLATFORM in LD_PRELOAD
+* manage 32 bits executables with ptrace
 * generate meaningful message in case of I/O error such as disk full
 ! before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
@@ -192,7 +190,6 @@ items :
 	- max number of resources slots in backend
 	- total number of deps
 	- total number of pressure updates
-* gprof
 * no req_info for non-buildable nodes
 * there can be 1 backend thread per backend
 	- with one master socket

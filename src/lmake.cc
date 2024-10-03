@@ -19,16 +19,16 @@ using namespace Time ;
 static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 	t_thread_key = 'I' ;
 	Trace trace ;
-	::stop_callback stop_cb { stop , [&](){ kill_self(SIGINT) ; } } ;          // transform request_stop into an event we wait for
+	::stop_callback stop_cb { stop , [&](){ kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for
 	trace("start") ;
 	for(;;) {
 		using SigInfo = struct signalfd_siginfo ;
 		ssize_t cnt = ::read(int_fd,&::ref(SigInfo()),sizeof(SigInfo)) ;
 		SWEAR( cnt==sizeof(SigInfo) , cnt ) ;
-		if (stop.stop_requested()) break ;                                     // not an interrupt, just normal exit
+		if (stop.stop_requested()) break ;                            // not an interrupt, just normal exit
 		trace("send_int") ;
 		OMsgBuf().send(g_server_fds.out,ReqRpcReq(ReqProc::Kill)) ;
-		::cout << ::endl ;                                                     // output is nicer if ^C is on its own line
+		::cout << ::endl ;                                            // output is nicer if ^C is on its own line
 		g_seen_int = true ;
 	}
 	trace("done") ;
@@ -52,7 +52,7 @@ static void _handle_int(bool start) {
 	} ;
 	static ::jthread int_jt ;
 	if (start) {
-		if (is_blocked_sig(SIGINT)) return ; // nothing to handle if ^C is blocked
+		if (is_blocked_sig(SIGINT)) return ;          // nothing to handle if ^C is blocked
 		static Exit exit ;
 		int_jt = ::jthread( _int_thread_func , exit.int_fd ) ;
 	} else {
@@ -65,6 +65,7 @@ static void _handle_int(bool start) {
 }
 
 int main( int argc , char* argv[] ) {
+	set_env("GMON_OUT_PREFIX","gmon.out.lmake") ; // in case profiling is used, ensure unique gmon.out
 	Trace::s_backup_trace = true ;
 	app_init(false/*read_only_ok*/,Maybe/*chk_version*/) ;
 	//

@@ -78,7 +78,7 @@ Digest analyze(Status status=Status::New) {                                     
 		MatchFlags    flags = g_match_dct.at(file) ;
 		AccessDigest& ad    = info.digest          ;
 		switch (flags.is_target) {
-			// if Ignore is in flags, it is there since the beginning
+			// manage ignore flag if mentioned in the rule
 			case Yes   : ad.tflags |= flags.tflags() ; ad.extra_tflags |= flags.extra_tflags() ; if (flags.extra_tflags()[ExtraTflag::Ignore]) { ad.accesses = {} ; ad.write = No ; } break ;
 			case No    : ad.dflags |= flags.dflags() ; ad.extra_dflags |= flags.extra_dflags() ; if (flags.extra_dflags()[ExtraDflag::Ignore])   ad.accesses = {} ;                   break ;
 			case Maybe :                                                                       ;                                                                                      break ;
@@ -251,6 +251,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 }
 
 int main( int argc , char* argv[] ) {
+	set_env("GMON_OUT_PREFIX","gmon.out.job_exec") ;  // in case profiling is used, ensure unique gmon.out
 	Pdate        start_overhead = Pdate(New) ;
 	ServerSockFd server_fd      { New }      ;        // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
@@ -271,8 +272,8 @@ int main( int argc , char* argv[] ) {
 		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_root_dir_s)<<'\n' ;
 		goto End ;
 	}
-	Trace::s_sz = 10<<20 ;                                                                            // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                           // necessary to capture it using signalfd
+	Trace::s_sz = 10<<20 ;                                                                                 // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                                // necessary to capture it using signalfd
 	app_init(false/*read_only_ok*/,No/*chk_version*/) ;
 	//
 	{	Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
@@ -289,13 +290,13 @@ int main( int argc , char* argv[] ) {
 			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			trace("no_start_info",g_service_start,STR(found_server),e) ;
-			if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
-			else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
+			if (found_server) exit(Rc::Fail                                                       ) ;      // this is typically a ^C
+			else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ;      // this may be a server config problem, better to report
 		}
 		trace("g_start_info",Pdate(New),g_start_info) ;
 		switch (g_start_info.proc) {
-			case JobRpcProc::None  : return 0 ;                                                       // server ask us to give up
-			case JobRpcProc::Start : break    ;                                                       // normal case
+			case JobRpcProc::None  : return 0 ;                                                            // server ask us to give up
+			case JobRpcProc::Start : break    ;                                                            // normal case
 		DF}
 		try                       { g_start_info.job_space.chk() ;   }
 		catch (::string const& e) { end_report.msg += e ; goto End ; }

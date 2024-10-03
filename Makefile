@@ -30,11 +30,11 @@ include sys_config.mk
 COMMA := ,
 
 HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
-# syntax for LMAKE_FLAGS : O[0123]G?D?T?S[AT]C?
+# syntax for LMAKE_FLAGS : O[0123]G?d?t?S[AT]C?
 # - O[0123] : compiler optimization level, defaults to 3
 # - G       : -g
-# - D       : -DNDEBUG
-# - T       : -DNO_TRACE
+# - d       : -DNDEBUG
+# - t       : -DNO_TRACE
 # - SA      : -fsanitize address
 # - ST      : -fsanitize threads
 # - C       : coverage (not operational yet)
@@ -48,6 +48,7 @@ EXTRA_FLAGS  += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
 EXTRA_FLAGS  += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
 SAN_FLAGS    += $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
+SAN_FLAGS    += $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
 COVERAGE     += $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
@@ -58,7 +59,7 @@ CXX_DIR := $(shell dirname $(CXX_EXE))
 LINK_OPTS           := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
 LINK                := PATH=$(CXX_DIR):$$PATH $(CXX_EXE) $(COVERAGE) $(LINK_OPTS)
-LINK_LIB             = -ldl $(if $(and $(LD_SO_LIB_32),$(findstring $(LD_SO_LIB_32),$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
+LINK_LIB             = -ldl $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32),$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 #
 ifeq ($(CXX_FLAVOR),clang)
@@ -89,11 +90,11 @@ FUSE_CC_OPTS  := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --cflags))
 FUSE_LIB      := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --libs  ))
 PCRE_LIB      := $(if $(HAS_PCRE),-lpcre2-8)
 
-PY_CC_OPTS   = $(if $(and $(PYTHON2)     ,$(findstring -py2,           $@)),$(PY2_CC_OPTS)  ,$(PY3_CC_OPTS)  )
-PY_LINK_OPTS = $(if $(and $(LD_SO_LIB_32),$(findstring 2.so,           $@)),$(PY2_LINK_OPTS),$(PY3_LINK_OPTS))
-PY_SO        = $(if $(and $(PYTHON2)     ,$(findstring 2.so,           $@)),-py2)
-MOD_SO       = $(if $(and $(LD_SO_LIB_32),$(findstring $(LD_SO_LIB_32),$@)),-m32)
-MOD_O        = $(if $(and $(LD_SO_LIB_32),$(findstring -m32,           $@)),-m32)
+PY_CC_OPTS   = $(if $(and $(PYTHON2)     ,$(findstring -py2,            $@)),$(PY2_CC_OPTS)  ,$(PY3_CC_OPTS)  )
+PY_LINK_OPTS = $(if $(and $(LD_SO_LIB_32),$(findstring 2.so,            $@)),$(PY2_LINK_OPTS),$(PY3_LINK_OPTS))
+PY_SO        = $(if $(and $(PYTHON2)     ,$(findstring 2.so,            $@)),-py2)
+MOD_SO       = $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32),$@)),-m32)
+MOD_O        = $(if $(and $(LD_SO_LIB_32),$(findstring -m32,            $@)),-m32)
 
 # Engine
 SRC_ENGINE := $(SRC)/lmakeserver
@@ -145,15 +146,15 @@ LMAKE_SERVER_FILES := \
 
 LMAKE_REMOTE_SLIBS := ld_audit.so ld_preload.so ld_preload_jemalloc.so
 LMAKE_REMOTE_FILES := \
-	$(if $(LD_SO_LIB_32),$(patsubst %,_$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
-	$(patsubst %,_$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                          \
-	$(LIB)/clmake.so                                                             \
-	$(if $(PYTHON2),$(LIB)/clmake2.so)                                           \
-	$(SBIN)/job_exec                                                             \
-	$(BIN)/lcheck_deps                                                           \
-	$(BIN)/ldecode                                                               \
-	$(BIN)/lencode                                                               \
-	$(BIN)/ldepend                                                               \
+	$(if $(LD_SO_LIB_32),$(patsubst %,_d$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
+	$(patsubst %,_d$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                           \
+	$(LIB)/clmake.so                                                              \
+	$(if $(PYTHON2),$(LIB)/clmake2.so)                                            \
+	$(SBIN)/job_exec                                                              \
+	$(BIN)/lcheck_deps                                                            \
+	$(BIN)/ldecode                                                                \
+	$(BIN)/lencode                                                                \
+	$(BIN)/ldepend                                                                \
 	$(BIN)/ltarget
 
 LMAKE_BASIC_OBJS_ := \
@@ -287,7 +288,7 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 	@touch $@
 
 #
-# engine
+# compilation
 #
 
 ALL_H := version.hh sys_config.h ext/xxhash.h
@@ -499,12 +500,12 @@ $(BIN)/% :
 
 # remote libs generate errors when -fsanitize=thread // XXX fix these errors and use $(SAN)
 
-_$(LD_SO_LIB)/ld_audit.so               : $(AUTODEP_OBJS)             $(SRC)/autodep/ld_audit.o
-_$(LD_SO_LIB)/ld_preload.so             : $(AUTODEP_OBJS)             $(SRC)/autodep/ld_preload.o
-_$(LD_SO_LIB)/ld_preload_jemalloc.so    : $(AUTODEP_OBJS)             $(SRC)/autodep/ld_preload_jemalloc.o
-_$(LD_SO_LIB_32)/ld_audit.so            : $(AUTODEP_OBJS:%.o=%-m32.o) $(SRC)/autodep/ld_audit-m32.o
-_$(LD_SO_LIB_32)/ld_preload.so          : $(AUTODEP_OBJS:%.o=%-m32.o) $(SRC)/autodep/ld_preload-m32.o
-_$(LD_SO_LIB_32)/ld_preload_jemalloc.so : $(AUTODEP_OBJS:%.o=%-m32.o) $(SRC)/autodep/ld_preload_jemalloc-m32.o
+_d$(LD_SO_LIB)/ld_audit.so               : $(AUTODEP_OBJS)             $(SRC)/autodep/ld_audit.o
+_d$(LD_SO_LIB)/ld_preload.so             : $(AUTODEP_OBJS)             $(SRC)/autodep/ld_preload.o
+_d$(LD_SO_LIB)/ld_preload_jemalloc.so    : $(AUTODEP_OBJS)             $(SRC)/autodep/ld_preload_jemalloc.o
+_d$(LD_SO_LIB_32)/ld_audit.so            : $(AUTODEP_OBJS:%.o=%-m32.o) $(SRC)/autodep/ld_audit-m32.o
+_d$(LD_SO_LIB_32)/ld_preload.so          : $(AUTODEP_OBJS:%.o=%-m32.o) $(SRC)/autodep/ld_preload-m32.o
+_d$(LD_SO_LIB_32)/ld_preload_jemalloc.so : $(AUTODEP_OBJS:%.o=%-m32.o) $(SRC)/autodep/ld_preload_jemalloc-m32.o
 
 $(LIB)/clmake.so $(LIB)/clmake2.so : SO_OPTS = $(PY_LINK_OPTS)
 $(LIB)/clmake.so                   : $(REMOTE_OBJS) $(SRC)/py.o     $(SRC)/autodep/clmake.o

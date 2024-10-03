@@ -83,10 +83,13 @@ it has been tested with the dockers listed in the docker directory
 		- CXX can be set to your preferred C++ compiler. You will be told if it is not supported.
 		- SLURM can be set to the root dir of the slurm installation. For example, slurm.h will be found as $SLURM/include/slurm/slurm.h
 		- LMAKE_FLAGS can be defined as O[0123]G?D?T?S[AB]C?
-			- O[0123] controls the -O option (default : 3                  )
-			- G controls the -g option       (default : no debug           )
-			- d controls -DNDEBUG            (default : asserts are enabled)
-			- t controls -DNO_TRACE          (default : traces are enabled )
+			- O[0123] controls the -O option                                      (default : 3                               )
+			- G       controls the -g option                                      (default : no debug                        )
+			- d       controls     -DNDEBUG                                       (default : asserts are enabled             )
+			- t       controls     -DNO_TRACE                                     (default : traces are enabled              )
+			- SA      controls the -fsantize=address -fsanitize=undefined options (exclusive with ST                         )
+			- ST      controls the -fsantize=thread                       option  (exclusive with SA                         )
+			- P       controls the -pg                                    option  (profiling info is in gmon.out.<tool>.<pid>)
 		- the -j flag of make is automatically set to the number of processors, you may want to override this, though
 	- it is up to you to provide a suitable LD\_LIBRARY\_PATH value.
 	  it will be transferred as a default value for rules, to the extent it is necessary to provide the lmake semantic

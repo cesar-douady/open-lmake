@@ -88,7 +88,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			}
 			client_to_server.write.close() ;
 			server_to_client.read .close() ;
-			server.wait() ;                                                 // dont care about return code, we are going to relauch/reconnect anyway
+			server.wait() ;                                                  // dont care about return code, we are going to relauch/reconnect anyway
 		} catch (::string const& e) {
 			exit(Rc::System,e) ;
 		}

@@ -37,9 +37,9 @@ static void _get_set( pid_t pid , int n_words , UserRegsStruct& regs , bool set 
 		(void)n_words ;
 		if ( ::ptrace( set?PTRACE_SETREGS:PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs )<0 ) throw "cannot "s+(set?"set":"get")+" regs" ;
 	#elif __aarch64__ || __arm__
-		Iovec iov { .iov_base=&regs , .iov_len=n_words*sizeof(Word) } ;                                                 // read/write n_words registers
+		Iovec iov { .iov_base=&regs , .iov_len=n_words*sizeof(Word) } ;                                                                                       // read/write n_words registers
 		if ( ::ptrace( set?PTRACE_SETREGSET:PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov )<0 ) throw "cannot "s+(set?"set":"get")+' '+n_words+" regs" ;
-		SWEAR(iov.iov_len==n_words*sizeof(Word),iov.iov_len  ) ;                                                        // check all asked regs have been read/written
+		SWEAR(iov.iov_len==n_words*sizeof(Word),iov.iov_len) ; // check all asked regs have been read/written
 	#endif
 }
 //!                                                                                                                                       set

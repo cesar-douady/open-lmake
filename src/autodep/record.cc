@@ -132,9 +132,9 @@ JobExecRpcReply Record::report_sync_direct( JobExecRpcReq&& jerr , bool force ) 
 }
 
 JobExecRpcReply Record::report_sync_access( JobExecRpcReq&& jerr , bool force ) const {
+	jerr.sync = true ;
 	bool sent = report_async_access(::move(jerr),force) ;
-	if (!jerr.sync) return {}           ;
-	if (sent      ) return _get_reply() ;
+	if (sent) return _get_reply() ;
 	// not under lmake, try to mimic server as much as possible, but of course no real info available
 	// XXX : for Encode/Decode, we should interrogate the server or explore association file directly so as to allow jobs to run with reasonable data
 	switch (jerr.proc) {

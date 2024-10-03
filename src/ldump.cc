@@ -13,6 +13,7 @@ static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
 }
 
 int main( int argc , char* /*argv*/[] ) {
+	set_env("GMON_OUT_PREFIX","gmon.out.ldump") ; // in case profiling is used, ensure unique gmon.out
 	//
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
 	app_init(true/*read_only_ok*/) ;

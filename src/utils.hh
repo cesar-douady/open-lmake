@@ -461,17 +461,19 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 	::abort() ;
 }
 
-[[noreturn]] inline void unreachable() {
-	#ifdef __has_builtin
-		#if __has_builtin(__builtin_unreachable)
-			__builtin_unreachable() ;
+#if __cplusplus < 202300                     // defined in <utility> in c++23
+	[[noreturn]] inline void unreachable() {
+		#ifdef __has_builtin
+			#if __has_builtin(__builtin_unreachable)
+				__builtin_unreachable() ;
+			#else
+				::abort() ;
+			#endif
 		#else
 			::abort() ;
 		#endif
-	#else
-		::abort() ;
-	#endif
-}
+	}
+#endif
 
 template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG

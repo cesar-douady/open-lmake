@@ -38,19 +38,21 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	digest.dflags       |= ad.dflags       ;
 	digest.extra_dflags |= ad.extra_dflags ;
 	//
-	bool tfi =        ad.extra_tflags[ExtraTflag::Ignore] ;
-	bool dfi = tfi || ad.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
+	bool tfi =        digest.extra_tflags[ExtraTflag::Ignore] ;
+	bool dfi = tfi || digest.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
 	//
 	if (!dfi) {
 		for( Access a : All<Access> ) if (read[+a]<=pd) goto NotFirst ;
 		dep_info = di ;
-	NotFirst : ;
+	NotFirst :
+		for( Access a : All<Access> ) if ( PD& d=read[+a] ; ad.accesses[a]       && pd<d ) { digest.accesses |= a ; d = pd ; }
+		/**/                          if ( PD& d=seen     ; di.seen(ad.accesses) && pd<d )                          d = pd ;
 	}
-	//
-	for( Access a : All<Access> ) { if (!dfi) {                            if ( PD& d=read[+a] ; ad.accesses[a]                     && pd<d ) { digest.accesses |= a ; d = pd ; } } }
-	/**/                          { if (!dfi) {                            if ( PD& d=seen     ; di.seen(ad.accesses)               && pd<d )                          d = pd ;   } }
-	/**/                          { if (!tfi) { digest.write |= ad.write ; if ( PD& d=write    ; ad.write==Yes                      && pd<d )                          d = pd ;   } }
-	/**/                          { if (!tfi) {                            if ( PD& d=target   ; ad.extra_tflags[ExtraTflag::Allow] && pd<d )                          d = pd ;   } }
+	if (!tfi) {
+		digest.write |= ad.write ;
+		if ( PD& d=write  ; ad.write==Yes                      && pd<d ) d = pd ;
+		if ( PD& d=target ; ad.extra_tflags[ExtraTflag::Allow] && pd<d ) d = pd ;
+	}
 	//
 }
 
@@ -190,12 +192,12 @@ Fd Gather::_spawn_child() {
 		child_fd  = pipe.read  ;
 		report_fd = pipe.write ;
 	} else {
-		if (method>=AutodepMethod::Ld) {                                                                                                                     // PER_AUTODEP_METHOD : handle case
+		if (method>=AutodepMethod::Ld) {                                                                                                                      // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
-			switch (method) {                                                                                                                                // PER_AUTODEP_METHOD : handle case
-				case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_dir_s+"_$LIB/ld_audit.so"            ; break ;
-				case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_$LIB/ld_preload.so"          ; break ;
-				case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_$LIB/ld_preload_jemalloc.so" ; break ;
+			switch (method) {                                                                                                                                 // PER_AUTODEP_METHOD : handle case
+				case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_dir_s+"_d$LIB/ld_audit.so"            ; break ;
+				case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_d$LIB/ld_preload.so"          ; break ;
+				case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_d$LIB/ld_preload_jemalloc.so" ; break ;
 			DF}
 			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) _add_env[env_var] += ':' + get_env(env_var) ; }
@@ -433,7 +435,8 @@ Status Gather::exec_child() {
 					catch (::string const& e) { trace("no_jerr",kind,fd,jerr,e) ; jerr.proc = Proc::None ; }                        // fd was closed, ensure no partially received jerr
 					Proc proc  = jerr.proc ;                                                                                        // capture essential info so as to be able to move jerr
 					bool sync_ = jerr.sync ;                                                                                        // .
-					if (proc!=Proc::Access) trace(kind,fd,proc) ;                                                                   // there may be too many Access'es, only trace within _new_accesses
+					if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                             // there may be too many Access'es, only trace within _new_accesses
+					// XXX : we should process sync accesses once we are sure that all pending async accesses are processed
 					switch (proc) {
 						case Proc::Confirm : {
 							trace("confirm",jerr.id,jerr.digest.write) ;

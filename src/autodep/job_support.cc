@@ -28,13 +28,9 @@ namespace JobSupport {
 			if (sr.file_loc<=FileLoc::Dep) deps.emplace_back(::move(sr.real),sr.file_info) ;
 		}
 		ad.accesses = ~Accesses() ;
-		if (verbose) {
-			JobExecRpcReply reply = r.report_sync_access( JobExecRpcReq( Proc::DepVerbose , ::move(deps) , ad , true/*verbose*/ , "depend" ) ) ;
-			return reply.dep_infos ;
-		} else {
-			r.report_sync_access( JobExecRpcReq( Proc::Access , 0 , ::move(deps) , ad , false/*verbose*/ , "depend" ) ) ;
-			return {} ;
-		}
+		// use sync reports even when no reply is necessary to ensure correct ordering with following requests using a different report Fd
+		if (verbose) { JobExecRpcReply reply = r.report_sync_access( JobExecRpcReq( Proc::DepVerbose       , ::move(deps) , ad , "depend" ) ) ; return reply.dep_infos ; }
+		else         {                         r.report_sync_access( JobExecRpcReq( Proc::Access , 0/*id*/ , ::move(deps) , ad , "depend" ) ) ; return {}              ; }
 	}
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow ) {
