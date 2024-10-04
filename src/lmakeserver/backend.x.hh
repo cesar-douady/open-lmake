@@ -163,6 +163,7 @@ namespace Backends {
 		// called by job_exec thread
 		static ::string/*msg*/          s_start    ( Tag , Job          ) ;                                             // called by job_exec  thread, sub-backend lock must have been takend by caller
 		static ::pair_s<bool/*retry*/>  s_end      ( Tag , Job , Status ) ;                                             // .
+		static void                     s_heartbeat( Tag                ) ;                                             // called by heartbeat thread, sub-backend lock must have been takend by caller
 		static ::pair_s<HeartbeatState> s_heartbeat( Tag , Job          ) ;                                             // called by heartbeat thread, sub-backend lock must have been takend by caller
 		//
 	protected :
@@ -215,6 +216,7 @@ namespace Backends {
 		virtual void                     launch   (          ) = 0 ;                                   // called to trigger launch of waiting jobs
 		virtual ::string/*msg*/          start    (Job       ) = 0 ;                                   // tell sub-backend job started, return an informative message
 		virtual ::pair_s<bool/*retry*/>  end      (Job,Status) { return {}                         ; } // tell sub-backend job ended, return a message and whether to retry jobs with garbage status
+		virtual void                     heartbeat(          ) {                                     } // regularly called between launch and start
 		virtual ::pair_s<HeartbeatState> heartbeat(Job       ) { return {{},HeartbeatState::Alive} ; } // regularly called between launch and start, initially with enough delay for job to connect
 		//
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ ) const { return {} ; } // map resources for this backend to local resources knowing local capacity
@@ -260,6 +262,7 @@ namespace Backends {
 	//
 	inline ::string/*msg*/          Backend::s_start    ( Tag t , Job j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
 	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , Job j , Status s ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
+	inline void                     Backend::s_heartbeat( Tag t                    ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_heartbeat",t  ) ; return s_tab[+t]->heartbeat(   ) ; }
 	inline ::pair_s<HeartbeatState> Backend::s_heartbeat( Tag t , Job j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
 
 }

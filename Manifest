@@ -144,6 +144,7 @@ src/process.cc
 src/process.hh
 src/py.cc
 src/py.hh
+src/re.cc
 src/re.hh
 src/rpc_client.cc
 src/rpc_client.hh

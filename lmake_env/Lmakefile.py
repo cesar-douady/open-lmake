@@ -370,6 +370,7 @@ class Link(BaseRule) :
 	,	'LIB'          : 'src/lib.o'
 	,	'NON_PORTABLE' : 'src/non_portable.o'
 	,	'PROCESS'      : 'src/process.o'
+	,	'RE'           : 'src/re.o'
 	,	'TIME'         : 'src/time.o'
 	,	'UTILS'        : 'src/utils.o'
 	}

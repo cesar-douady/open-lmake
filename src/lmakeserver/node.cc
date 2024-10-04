@@ -230,15 +230,15 @@ namespace Engine {
 		//
 		RuleIdx  n_skip = 0 ;
 		for( RuleTgt const& rt : rule_tgts().view() ) {
-			if (!rt.pattern().match(name_)) { n_skip++ ; continue ; }
-			switch (rt->special) {
-				case Special::GenericSrc : rule_tgts() = ::vector<RuleTgt>({rt}) ; return Buildable::DynSrc  ;
-				case Special::Anti       : rule_tgts() = ::vector<RuleTgt>({rt}) ; return Buildable::DynAnti ;
-				case Special::Plain      : rule_tgts().shorten_by(n_skip) ;        return Buildable::Maybe   ; // no special rule applies
-			DF}
+			if (rt->special==Special::Plain                  ) { rule_tgts().shorten_by(n_skip) ; return Buildable::Maybe ; } // no special rule applies, avoid pattern matching
+			if (!rt.pattern().match(name_,false/*chk_psfx*/) ) { n_skip++                       ; continue                ; } // rule is pre-filtered, so no need to match prefix and suffix
+			rule_tgts() = ::vector<RuleTgt>({rt}) ;
+			if (rt->special==Special::Anti      ) return Buildable::DynAnti ;
+			if (rt->special==Special::GenericSrc) return Buildable::DynSrc  ;
+			FAIL("unexpected special rule",rt->name,rt->special) ;
 		}
 		rule_tgts().clear() ;
-		return Buildable::Maybe ;                                                                              // node may be buildable from dir
+		return Buildable::Maybe ;                                                                                            // node may be buildable from dir
 	}
 
 	// instantiate rule_tgts into job_tgts by taking the first iso-prio chunk and set rule_tgts accordingly
@@ -256,9 +256,9 @@ namespace Engine {
 		for( RuleTgt const& rt : rule_tgts_ ) {
 			SWEAR(!rt->is_special()) ;
 			if (rt->prio<prio) goto Done ;
-			//          vvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobTgt jt = JobTgt(rt,name_,req,lvl+1) ;
-			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobTgt jt = JobTgt(rt,name_,false/*chk_psfx*/,req,lvl+1) ;         // rule is pre-filtered, so no need to match prefix and suffix
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (+jt) {
 				if (jt.sure()) { buildable  = Buildable::Yes   ; n = NoIdx ; } // after a sure job, we can forget about rules at lower prio
 				else             buildable |= Buildable::Maybe ;

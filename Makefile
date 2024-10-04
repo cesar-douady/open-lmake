@@ -31,14 +31,15 @@ COMMA := ,
 
 HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
 # syntax for LMAKE_FLAGS : O[0123]G?d?t?S[AT]C?
-# - O[0123] : compiler optimization level, defaults to 3
+# - O[0123] : compiler optimization level, defaults to 1 if profiling else 3
 # - G       : -g
 # - d       : -DNDEBUG
 # - t       : -DNO_TRACE
 # - SA      : -fsanitize address
 # - ST      : -fsanitize threads
+# - P       : -pg
 # - C       : coverage (not operational yet)
-OPT_FLAGS    := -O3
+OPT_FLAGS    := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,-O3)
 OPT_FLAGS    := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(OPT_FLAGS))
 OPT_FLAGS    := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(OPT_FLAGS))
 OPT_FLAGS    := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0,$(OPT_FLAGS))
@@ -147,7 +148,7 @@ LMAKE_SERVER_FILES := \
 LMAKE_REMOTE_SLIBS := ld_audit.so ld_preload.so ld_preload_jemalloc.so
 LMAKE_REMOTE_FILES := \
 	$(if $(LD_SO_LIB_32),$(patsubst %,_d$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
-	$(patsubst %,_d$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                           \
+	$(patsubst %,_d$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                          \
 	$(LIB)/clmake.so                                                              \
 	$(if $(PYTHON2),$(LIB)/clmake2.so)                                            \
 	$(SBIN)/job_exec                                                              \
@@ -347,6 +348,7 @@ SERVER_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)                \
 	$(SRC)/app$(SAN).o                     \
 	$(SRC)/py$(SAN).o                      \
+	$(SRC)/re$(SAN).o                      \
 	$(SRC)/rpc_client$(SAN).o              \
 	$(SRC)/rpc_job$(SAN).o                 \
 	$(SRC)/rpc_job_exec$(SAN).o            \
@@ -472,6 +474,7 @@ JOB_EXEC_OBJS := \
 	$(AUTODEP_OBJS)         \
 	$(SRC)/app.o            \
 	$(SRC)/py.o             \
+	$(SRC)/re.o             \
 	$(SRC)/rpc_job.o        \
 	$(SRC)/fuse.o           \
 	$(SRC)/trace.o          \

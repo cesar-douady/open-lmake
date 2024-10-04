@@ -92,13 +92,13 @@ namespace Engine {
 		// cxtors & casts
 	public :
 		using JobBase::JobBase ;
-		Job( Rule::SimpleMatch&&          , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting
-		Job( RuleTgt , ::string const& t  , Req={} , DepDepth lvl=0 ) ; // plain Job, match on target
-		Job( Rule    , ::string const& jn , Req={} , DepDepth lvl=0 ) ; // plain Job, match on name, used for repairing or when required from command line
+		Job( Rule::SimpleMatch&&                               , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting
+		Job( RuleTgt , ::string const& t  , bool chk_psfx=true , Req={} , DepDepth lvl=0 ) ; // plain Job, match on target
+		Job( Rule    , ::string const& jn , bool chk_psfx=true , Req={} , DepDepth lvl=0 ) ; // plain Job, match on name, used for repairing or when required from command line
 		//
-		Job( Special ,               Deps deps               ) ;        // Job used to represent a Req
-		Job( Special , Node target , Deps deps               ) ;        // special job
-		Job( Special , Node target , ::vector<JobTgt> const& ) ;        // multi
+		Job( Special ,               Deps deps               ) ;                             // Job used to represent a Req
+		Job( Special , Node target , Deps deps               ) ;                             // special job
+		Job( Special , Node target , ::vector<JobTgt> const& ) ;                             // multi
 		// accesses
 		bool active() const ;
 		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
@@ -113,10 +113,10 @@ namespace Engine {
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::ostream& operator<<( ::ostream& , JobTgt ) ;
 		// cxtors & casts
-		JobTgt(                                                              ) = default ;
-		JobTgt( Job j , bool isp=false                                       ) : Job(j ) { if (+j) is_static_phony(isp)          ; } // if no job, ensure JobTgt appears as false
-		JobTgt( RuleTgt rt , ::string const& t , Req req={} , DepDepth lvl=0 ) ;
-		JobTgt( JobTgt const& jt                                             ) : Job(jt) { is_static_phony(jt.is_static_phony()) ; }
+		JobTgt(                                                                                   ) = default ;
+		JobTgt( Job j , bool isp=false                                                            ) : Job(j ) { if (+j) is_static_phony(isp)          ; } // if no job, ensure JobTgt appears as false
+		JobTgt( RuleTgt rt , ::string const& t , bool chk_psfx=true , Req req={} , DepDepth lvl=0 ) ;
+		JobTgt( JobTgt const& jt                                                                  ) : Job(jt) { is_static_phony(jt.is_static_phony()) ; }
 		//
 		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; is_static_phony(jt.is_static_phony()) ; return *this ; }
 		//
@@ -387,8 +387,8 @@ namespace Engine {
 	// Job
 	//
 
-	inline Job::Job( RuleTgt rt , ::string const& t  , Req req , DepDepth lvl ) : Job{Rule::SimpleMatch(rt,t ),req,lvl} {}
-	inline Job::Job( Rule    r  , ::string const& jn , Req req , DepDepth lvl ) : Job{Rule::SimpleMatch(r ,jn),req,lvl} {}
+	inline Job::Job( RuleTgt rt , ::string const& t  , bool chk_psfx , Req req , DepDepth lvl ) : Job{Rule::SimpleMatch(rt,t ,chk_psfx),req,lvl} {}
+	inline Job::Job( Rule    r  , ::string const& jn , bool chk_psfx , Req req , DepDepth lvl ) : Job{Rule::SimpleMatch(r ,jn,chk_psfx),req,lvl} {}
 	//
 	inline Job::Job( Special sp ,          Deps deps ) : Job{                                New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
 	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
@@ -409,7 +409,7 @@ namespace Engine {
 	// JobTgt
 	//
 
-	inline JobTgt::JobTgt( RuleTgt rt , ::string const& t , Req r , DepDepth lvl ) : JobTgt{ Job(rt,t,r,lvl) , rt.sure() } {}
+	inline JobTgt::JobTgt( RuleTgt rt , ::string const& t , bool chk_psfx , Req r , DepDepth lvl ) : JobTgt{ Job(rt,t,chk_psfx,r,lvl) , rt.sure() } {}
 
 	inline bool JobTgt::sure() const {
 		return is_static_phony() && (*this)->sure() ;

@@ -163,7 +163,7 @@ namespace Engine::Makefiles {
 
 	static ::pair<Ptr<Dict>,::vector_s/*deps*/> _read_makefiles( ::string const& action , ::string const& module ) {
 		//
-		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
+		static RegExpr pyc_re { R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
 		//
 		Trace trace("_read_makefiles",action,module,Pdate(New)) ;
 		//
@@ -194,7 +194,7 @@ namespace Engine::Makefiles {
 		for( auto const& [d,ai] : gather.accesses ) {
 			if (ai.digest.write!=No) continue ;
 			::string py ;
-			if ( Match m = pyc_re.match(d) ; +m ) py = ::string(m[1/*dir_s*/])+::string(m[3/*module*/])+".py" ;
+			if ( Match m = pyc_re.match(d) ; +m ) py = ::string(m[1/*dir_s*/])+::string(m[2/*module*/])+".py" ;
 			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.push_back(py) ; }
 			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.push_back(d ) ; }
 		}

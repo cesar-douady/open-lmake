@@ -83,7 +83,7 @@ it has been tested with the dockers listed in the docker directory
 		- CXX can be set to your preferred C++ compiler. You will be told if it is not supported.
 		- SLURM can be set to the root dir of the slurm installation. For example, slurm.h will be found as $SLURM/include/slurm/slurm.h
 		- LMAKE_FLAGS can be defined as O[0123]G?D?T?S[AB]C?
-			- O[0123] controls the -O option                                      (default : 3                               )
+			- O[0123] controls the -O option                                      (default : 1 if profiling else 3           )
 			- G       controls the -g option                                      (default : no debug                        )
 			- d       controls     -DNDEBUG                                       (default : asserts are enabled             )
 			- t       controls     -DNO_TRACE                                     (default : traces are enabled              )

@@ -29,18 +29,7 @@ namespace Engine {
 
 	using namespace Disk ;
 	using namespace Py   ;
-	using namespace Re   ;
 	using namespace Time ;
-
-	static const ::string _g_re_specials = "()[]{}?*+-|^$\\.&~# \t\n\r\v\f" ;
-	static ::string _re_escape(::string const& s) {
-		::string res ; res.reserve(s.size()+(s.size()>>4)) ;        // take a little margin for escapes
-		for( char c : s ) {
-			if (_g_re_specials.find(c)!=Npos) res.push_back('\\') ; // escape specials
-			/**/                              res.push_back(c   ) ;
-		}
-		return res ;
-	}
 
 	static const ::string _g_fstr_specials = "{}" ;
 	static ::string _fstr_escape(::string const& s) {
@@ -162,7 +151,7 @@ namespace Engine {
 			} else {
 				switch (escape) {
 					case Escape::None :                                                   break ;
-					case Escape::Re   : if (_g_re_specials  .find(c)!=Npos) res += '\\' ; break ; // escape specials
+					case Escape::Re   : if (Re::SpecialChars.find(c)!=Npos) res += '\\' ; break ; // escape specials
 					case Escape::Fstr : if (_g_fstr_specials.find(c)!=Npos) res += c    ; break ; // double specials
 				DF}
 				res += c ;
@@ -954,8 +943,8 @@ namespace Engine {
 		,	[&](VarIdx s)->::string {
 				if ( s>=n_static_stems && for_name ) {
 					::string const& k = stems[s].first ;
-					if (k.front()=='<'&&k.back()=='>' ) return _re_escape("{*}"     ) ; // when matching on job name, star stems are matched as they are reported to user
-					else                                return _re_escape('{'+k+"*}") ; // .
+					if (k.front()=='<'&&k.back()=='>' ) return Re::escape("{*}"     ) ; // when matching on job name, star stems are matched as they are reported to user
+					else                                return Re::escape('{'+k+"*}") ; // .
 				}
 				if (res.groups[s]) return "(?:\\"s+int(res.groups[s])+')' ;             // already seen, we must protect against following text potentially containing numbers
 				res.groups[s]  = cur_group             ;
@@ -964,7 +953,7 @@ namespace Engine {
 			}
 		,	Escape::Re
 		) ;
-		res.re = RegExpr( res.txt , true/*fast*/ ) ;                                    // stem regexprs have been validated, normally there is no error here
+		res.re = Re::RegExpr( res.txt , true/*fast*/ ) ;                                // stem regexprs have been validated, normally there is no error here
 		return res ;
 	}
 
@@ -979,8 +968,8 @@ namespace Engine {
 	void RuleData::_compile() {
 		try {
 			for( auto const& [k,s] : stems )
-				try         { stem_mark_counts.push_back(RegExpr(s).mark_count()) ; }
-				catch (...) { throw "bad regexpr for stem "+k+" : "+s ;  }
+				try         { stem_mark_counts.push_back(Re::RegExpr('('+s+')').mark_count()-1) ; } // -1 to account for the added level of () ...
+				catch (...) { throw "bad regexpr for stem "+k+" : "+s ;  }                          // ... /!\ regexpr variable parts are assumed to be enclosed within ()
 			// job_name & targets
 			/**/                                job_name_pattern = _mk_pattern(job_name  ,true /*for_name*/)  ;
 			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me.pattern,false/*for_name*/)) ;
@@ -1417,19 +1406,19 @@ namespace Engine {
 		}
 	}
 
-	Rule::SimpleMatch::SimpleMatch( Rule r , TargetPattern const& pattern , ::string const& name ) {
-		Trace trace("SimpleMatch",r,name) ;
-		Match m = pattern.match(name) ;
+	Rule::SimpleMatch::SimpleMatch( Rule r , TargetPattern const& pattern , ::string const& name , bool chk_psfx ) {
+		Trace trace("SimpleMatch",r,name,STR(chk_psfx)) ;
+		Re::Match m = pattern.match(name,chk_psfx) ;
 		if (!m) { trace("no_match") ; return ; }
 		rule = r ;
 		for( VarIdx s=0 ; s<r->n_static_stems ; s++ ) stems.push_back(::string(m[pattern.groups[s]])) ;
 		trace("stems",stems) ;
 	}
 
-	Rule::SimpleMatch::SimpleMatch( RuleTgt rt , ::string const& target ) : SimpleMatch{rt,rt.pattern(),target} {
+	Rule::SimpleMatch::SimpleMatch( RuleTgt rt , ::string const& target , bool chk_psfx ) : SimpleMatch{rt,rt.pattern(),target,chk_psfx} {
 		if (!*this) return ;
 		for( VarIdx t : rt->matches[rt.tgt_idx].second.conflicts ) {
-			if (!rt->patterns[t].match(target)) continue ;
+			if (!rt->patterns[t].match(target,true/*chk_psfx*/)) continue ;
 			rule .clear() ;
 			stems.clear() ;
 			Trace("SimpleMatch","conflict",rt.tgt_idx,t) ;
@@ -1465,7 +1454,7 @@ namespace Engine {
 			res.push_back(_subst_target(
 				rule->matches[t].second.pattern
 			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return _re_escape(stems[s]) ;
+					if (s<rule->n_static_stems) return Re::escape(stems[s]) ;
 					if (seen.insert(s).second ) return '('     +rule->stems[s].second      +')' ;
 					else                        return "(?:\\"s+rule->patterns[t].groups[s]+')' ; // we must protect against following text potentially containing numbers
 				}
@@ -1482,7 +1471,7 @@ namespace Engine {
 			res.push_back(_subst_target(
 				rule->matches[mi].second.pattern
 			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return _re_escape(stems[s]) ;
+					if (s<rule->n_static_stems) return Re::escape(stems[s]) ;
 					::pair_ss const& stem = rule->stems[s] ;
 					if      ( !seen.insert(s).second                            ) return "(?P="+stem.first                +')' ;
 					else if ( stem.first.front()=='<' && stem.first.back()=='>' ) return '('   +               stem.second+')' ; // stem is unnamed

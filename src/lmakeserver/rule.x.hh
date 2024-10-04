@@ -521,7 +521,7 @@ namespace Engine {
 	} ;
 
 	struct TargetPattern {
-		Re::Match match(::string const& t) const { return re.match(t) ; }
+		Re::Match match(::string const& t,bool chk_psfx=true) const { return re.match(t,chk_psfx) ; }
 		// data
 		Re::RegExpr      re     ;
 		::vector<VarIdx> groups ; // indexed by stem index, provide the corresponding group number in pattern
@@ -650,10 +650,10 @@ namespace Engine {
 		SimpleMatch(                                        ) = default ;
 		SimpleMatch( Rule    r , ::vector_s const& ss       ) : rule{r} , stems{ss} {}
 		SimpleMatch( Job                                    ) ;
-		SimpleMatch( Rule    r , ::string   const& job_name ) : SimpleMatch{r,r->job_name_pattern,job_name} {}
-		SimpleMatch( RuleTgt   , ::string   const& target   ) ;
+		SimpleMatch( Rule    r , ::string   const& job_name , bool chk_psfx=true ) : SimpleMatch{r,r->job_name_pattern,job_name,chk_psfx} {}
+		SimpleMatch( RuleTgt   , ::string   const& target   , bool chk_psfx=true ) ;
 	private :
-		SimpleMatch( Rule , TargetPattern const& , ::string const& ) ;
+		SimpleMatch( Rule , TargetPattern const& , ::string const& , bool chk_psfx=true ) ;
 	public :
 		bool operator==(SimpleMatch const&) const = default ;
 		bool operator+ (                  ) const { return +rule ; }

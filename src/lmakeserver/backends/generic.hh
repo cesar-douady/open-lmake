@@ -277,7 +277,7 @@ namespace Backends {
 			re.waiting_jobs[job] = pressure ;
 			waiting_jobs.emplace( job , WaitingEntry(rsa,submit_attrs,re.verbose) ) ;
 			re.waiting_queues[rsa].insert({pressure,job}) ;
-			_new_submitted_jobs = true ;                                                                            // called from main thread, as launch
+			if (!_oldest_submitted_job.load()) _oldest_submitted_job = New ;
 		}
 		virtual void add_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) {
 			Trace trace(BeChnl,"add_pressure",job,req,submit_attrs) ;
@@ -343,29 +343,31 @@ namespace Backends {
 			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                     // if we have a Req limited by n_jobs, we may have to launch a job
 			return digest ;
 		}
+		virtual void heartbeat() {
+			if (_oldest_submitted_job.load()+g_config->heartbeat<Pdate(New)) launch() ;                             // prevent jobs from being accumulated for too long
+		}
 		virtual ::pair_s<HeartbeatState> heartbeat(Job j) {                                                         // called on jobs that did not start after at least newwork_delay time
-			{	auto it = spawned_jobs.find(j) ;
-				if (it==spawned_jobs.end()) {
-					Trace trace(BeChnl,"heartbeat","not_found",j) ;
-					return {"job disappeared",HeartbeatState::Err} ;
-				}
-				SpawnedEntry& se = it->second ;
-				SWEAR(!se.started,j) ;                                                                              // we should not be called on started jobs
-				if (!se.id) {
-					Lock lock { id_mutex } ;                                                                        // ensure _launch is no more processing entry
-					if (!se.id) {                                                                                   // repeat test so test and decision are atomic
-						Trace trace(BeChnl,"heartbeat","no_id",j) ;
-						if (se.failed) return {"could not launch job",HeartbeatState::Err  } ;
-						else           return {{}                    ,HeartbeatState::Alive} ;                      // book keeping is not updated yet
-					}
-				}
-				::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
-				if (digest.second!=HeartbeatState::Alive) {
-					Trace trace(BeChnl,"heartbeat",j,se.id,digest.second) ;
-					spawned_jobs.erase(*this,it) ;
-				}
-				return digest ;
+			auto it = spawned_jobs.find(j) ;
+			if (it==spawned_jobs.end()) {
+				Trace trace(BeChnl,"heartbeat","not_found",j) ;
+				return {"job disappeared",HeartbeatState::Err} ;
 			}
+			SpawnedEntry& se = it->second ;
+			SWEAR(!se.started,j) ;                                                                                  // we should not be called on started jobs
+			if (!se.id) {
+				Lock lock { id_mutex } ;                                                                            // ensure _launch is no more processing entry
+				if (!se.id) {                                                                                       // repeat test so test and decision are atomic
+					Trace trace(BeChnl,"heartbeat","no_id",j) ;
+					if (se.failed) return {"could not launch job",HeartbeatState::Err  } ;
+					else           return {{}                    ,HeartbeatState::Alive} ;                          // book keeping is not updated yet
+				}
+			}
+			::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
+			if (digest.second!=HeartbeatState::Alive) {
+				Trace trace(BeChnl,"heartbeat",j,se.id,digest.second) ;
+				spawned_jobs.erase(*this,it) ;
+			}
+			return digest ;
 		}
 		// kill all if req==0
 		virtual ::vector<Job> kill_waiting_jobs(Req req={}) {
@@ -401,8 +403,8 @@ namespace Backends {
 			else       { Lock lock { id_mutex } ; if (se.id) kill_queued_job(se) ; spawned_jobs.erase(*this,it) ; } // lock to ensure se.id is up to date and do same actions (erase while holding lock)
 		}
 		virtual void launch() {
-			if (!_new_submitted_jobs) return ;
-			_new_submitted_jobs = false ;                                                                           // called from main thread, as submit
+			if (!_oldest_submitted_job.load()) return ;
+			_oldest_submitted_job = Pdate() ;
 			_launch_queue.wakeup() ;
 		}
 		void _launch(::stop_token st) {
@@ -489,15 +491,15 @@ namespace Backends {
 		}
 
 		// data
-		::umap<Req,ReqEntry    > reqs         ;                            // all open Req's
-		ReqIdx                   n_n_jobs     ;                            // number of Req's that has a non-null n_jobs
-		::umap<Job,WaitingEntry> waiting_jobs ;                            // jobs retained here
-		SpawnedTab               spawned_jobs ;                            // jobs spawned until end
+		::umap<Req,ReqEntry    > reqs         ;                      // all open Req's
+		ReqIdx                   n_n_jobs     ;                      // number of Req's that has a non-null n_jobs
+		::umap<Job,WaitingEntry> waiting_jobs ;                      // jobs retained here
+		SpawnedTab               spawned_jobs ;                      // jobs spawned until end
 	protected :
 		Mutex<MutexLvl::BackendId> mutable id_mutex ;
 	private :
-		WakeupThread<false/*Flush*/> mutable _launch_queue       ;
-		bool                                 _new_submitted_jobs = false ; // submit and launch are both called from main thread, so no need for protection
+		WakeupThread<false/*Flush*/> mutable _launch_queue         ;
+		::atomic<Pdate>                      _oldest_submitted_job ; // if no date, no new job
 
 	} ;
 

@@ -657,6 +657,10 @@ namespace Backends {
 			if (!g_config->heartbeat_tick.sleep_for(stop)) break ;                                                    // limit job checks
 			continue ;
 		WrapAround :
+			for( Tag t : All<Tag> ) if (s_ready(t)) {
+				Lock lock { _s_mutex } ;
+				s_heartbeat(t) ;
+			}
 			ji = 0 ;
 			Delay d = g_config->heartbeat + g_config->network_delay ;                                                 // ensure jobs have had a minimal time to start and signal it
 			if ((last_wrap_around+d).sleep_until(stop,false/*flush*/)) { last_wrap_around = Pdate(New) ; continue ; } // limit job checks
