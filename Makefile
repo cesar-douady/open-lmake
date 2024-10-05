@@ -60,7 +60,7 @@ CXX_DIR := $(shell dirname $(CXX_EXE))
 LINK_OPTS           := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
 LINK                := PATH=$(CXX_DIR):$$PATH $(CXX_EXE) $(COVERAGE) $(LINK_OPTS)
-LINK_LIB             = -ldl $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32),$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
+LINK_LIB             = -ldl $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 #
 ifeq ($(CXX_FLAVOR),clang)
@@ -91,11 +91,11 @@ FUSE_CC_OPTS  := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --cflags))
 FUSE_LIB      := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --libs  ))
 PCRE_LIB      := $(if $(HAS_PCRE),-lpcre2-8)
 
-PY_CC_OPTS   = $(if $(and $(PYTHON2)     ,$(findstring -py2,            $@)),$(PY2_CC_OPTS)  ,$(PY3_CC_OPTS)  )
-PY_LINK_OPTS = $(if $(and $(LD_SO_LIB_32),$(findstring 2.so,            $@)),$(PY2_LINK_OPTS),$(PY3_LINK_OPTS))
-PY_SO        = $(if $(and $(PYTHON2)     ,$(findstring 2.so,            $@)),-py2)
-MOD_SO       = $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32),$@)),-m32)
-MOD_O        = $(if $(and $(LD_SO_LIB_32),$(findstring -m32,            $@)),-m32)
+PY_CC_OPTS   = $(if $(and $(PYTHON2)     ,$(findstring -py2,             $@)),$(PY2_CC_OPTS)  ,$(PY3_CC_OPTS)  )
+PY_LINK_OPTS = $(if $(and $(LD_SO_LIB_32),$(findstring 2.so,             $@)),$(PY2_LINK_OPTS),$(PY3_LINK_OPTS))
+PY_SO        = $(if $(and $(PYTHON2)     ,$(findstring 2.so,             $@)),-py2)
+MOD_SO       = $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
+MOD_O        = $(if $(and $(LD_SO_LIB_32),$(findstring -m32,             $@)),-m32)
 
 # Engine
 SRC_ENGINE := $(SRC)/lmakeserver

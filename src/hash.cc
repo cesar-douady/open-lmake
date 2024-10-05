@@ -76,8 +76,8 @@ namespace Hash {
 	Accesses Crc::diff_accesses( Crc other ) const {
 		if ( valid() && other.valid() ) {            // if either does not represent a precise content, assume contents are different
 			uint64_t diff = _val ^ other._val ;
-			if (! diff                                       ) return {} ;                                                                   // crc's are identical, cannot perceive difference
-			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near crc match, must increase CRC size",*this,"versus",other) ;
+			if (! diff                                       ) return {} ;                                                                // crc's are identical, cannot perceive difference
+			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near crc clash, must increase CRC size",*this,"versus",other) ;
 		}
 		// qualify the accesses that can perceive the difference
 		Accesses res = ~Accesses() ;
