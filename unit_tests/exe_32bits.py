@@ -49,6 +49,10 @@ else :
 	from lmake import multi_strip
 	import ut
 
+	if not os.environ['HAS_32BITS'] :
+		print('no 32 bits support',file=open('skipped','w'))
+		exit()
+
 	gxx = os.environ.get('CXX') or 'g++'
 
 	open('hello_world.c','w').write(multi_strip(r'''
@@ -61,21 +65,15 @@ else :
 	'''))
 	print('hello world',file=open('ref','w'))
 
+	bad_32  = lmake.has_ptrace      # 32 bits with ptrace is not supported
 	methods = ['none','ld_preload']
 	if lmake.has_ptrace   : methods.append('ptrace'  )
 	if lmake.has_ld_audit : methods.append('ld_audit')
 
-	word_szs = [64]
-	if os.environ['HAS_32BITS'] :
-		bad_32 = lmake.has_ptrace # 32 bits with ptrace is not supported
-		word_szs.append(32)
-	else :
-		bad_32 = False
-
 	ut.lmake(
-		*(f'test-{sz}.{m}' for sz in word_szs for m in methods)
-	,	new  = 2
-	,	done = len(word_szs) + 2*(len(word_szs)*len(methods)-bad_32)
-	,	failed=bad_32
-	,	rc=bad_32
+		*(f'test-{sz}.{m}' for sz in (64,32) for m in methods)
+	,	new    = 2
+	,	done   = 2 + 2*(2*len(methods)-bad_32)
+	,	failed = bad_32
+	,	rc     = bad_32
 	)

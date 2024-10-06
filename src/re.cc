@@ -46,7 +46,7 @@ namespace Re {
 
 		::umap_s<pcre2_code*> RegExpr::s_code_store ;
 
-		RegExpr::RegExpr( ::string const& pattern , bool /*fast*/ , bool /*no_groups*/ ) {
+		RegExpr::RegExpr(::string const& pattern) {
 			const char* start_pat = pattern.c_str()          ;
 			const char* end_pat   = start_pat+pattern.size() ;
 			const char* start     = nullptr/*garbage*/       ;

@@ -306,7 +306,6 @@ class TarLmake(BaseRule) :
 	,	'LIB2'                : 'lib/lmake/import_machinery.py'
 	,	'LIB3'                : 'lib/lmake/rules.py'
 	,	'LIB4'                : 'lib/lmake/sources.py'
-	,	'LIB_RT'              : 'lib/lmake_runtime.py'
 	,	'LIB_DBG_UTILS'       : 'lib/lmake_debug/utils.py'
 	,	'LIB_DBG1'            : 'lib/lmake_debug/default.py'
 	,	'LIB_DBG2'            : 'lib/lmake_debug/enter.py'
@@ -354,12 +353,12 @@ class CpyLmakePy(BaseRule,PyRule) :
 		sys.stdout.write(txt)
 
 opt_tab.update({
-	r'.*'                 : ( '-I'         , sysconfig.get_path("include")   )
-,	r'src/.*'             : ( '-iquote'    , 'ext_lnk'                       )
-,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     , )
-,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'           ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
-,	r'src/fuse'           : ( '-idirafter' , f'/usr/include/fuse3'           ) # in case fuse is available (else, does not hurt)
-,	r'src/rpc_job'        : ( '-idirafter' , f'/usr/include/fuse3'           ) # .
+	r'.*'                 : ( '-I'         , sysconfig.get_path("include")  )
+,	r'src/.*'             : ( '-iquote'    , 'ext_lnk'                      )
+,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     ,)
+,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'          ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
+,	r'src/fuse'           : ( '-idirafter' , f'/usr/include/fuse3'          ) # in case fuse is available (else, does not hurt)
+,	r'src/rpc_job'        : ( '-idirafter' , f'/usr/include/fuse3'          ) # .
 })
 
 class Link(BaseRule) :

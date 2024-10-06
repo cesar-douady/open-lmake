@@ -451,7 +451,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 			if (t_thread_key!='?') ::cerr <<':'<< t_thread_key      ;
 			/**/                   ::cerr <<" :"                    ;
 		}
-		[[maybe_unused]] bool _[] ={false,(::cerr<<' '<<args,false)...} ;
+		[[maybe_unused]] bool _[] = {false,(::cerr<<' '<<args,false)...} ;
 		::cerr << '\n' ;
 		set_sig_handler(sig,SIG_DFL) ;
 		write_backtrace(::cerr,hide_cnt+1) ; // rather than merely calling abort, this works even if crash_handler is not installed

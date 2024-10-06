@@ -163,7 +163,7 @@ namespace Engine::Makefiles {
 
 	static ::pair<Ptr<Dict>,::vector_s/*deps*/> _read_makefiles( ::string const& action , ::string const& module ) {
 		//
-		static RegExpr pyc_re { R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
+		static RegExpr pyc_re = R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)"s ; // dir_s is \1, module is \2, matches both python 2 & 3
 		//
 		Trace trace("_read_makefiles",action,module,Pdate(New)) ;
 		//

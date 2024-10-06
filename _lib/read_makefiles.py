@@ -246,22 +246,72 @@ def find_static_stems(job_name) :
 		else                 : raise ValueError(f'spurious {{ in job_name {job_name}')
 	return stems
 
-def mk_dbg_info( dbg , serialize_ctx ) :
-	if not dbg : return ("","")
-	lmake_dir          = avoid_ctx('lmake_dir'         ,serialize_ctx)
-	lmake_runtime      = avoid_ctx('lmake_runtime'     ,serialize_ctx)
-	lmake_runtime_file = avoid_ctx('lmake_runtime_file',serialize_ctx)
-	lmake_sourcify     = avoid_ctx('lmake_sourcify'    ,serialize_ctx)
-	dbg_info = ''.join((
-		f"{lmake_runtime} = {{}}\n"
-	,	f"{lmake_runtime_file} = open({lmake_dir}+'/lib/lmake_runtime.py')\n"
-	,	f"exec({lmake_runtime_file}.read(),{lmake_runtime})\n"
-	,	f"{lmake_runtime_file}.close()\n"                         # ensure no warning with python3.12 -W...
-	,	f"{lmake_sourcify} = {lmake_runtime}['lmake_sourcify']\n"
-	))
-	for func,(module,qualname,filename,firstlineno) in dbg.items() :
-		dbg_info += f'{lmake_sourcify}({func},{module!r},{qualname!r},{filename!r},{firstlineno})\n'
-	return lmake_dir,dbg_info
+
+try :
+	(lambda:None).__code__.replace(co_filename='',co_firstlineno=1)
+	has_code_replace = True
+except :
+	has_code_replace = False
+def mk_dbg_info( dbg , serialize_ctx , for_this_python ) :
+	if not dbg : return ''
+	single = len(dbg)==1
+	if single :
+		for k,v in dbg.items() : func,module,qualname,filename,firstlineno = k,*(repr(a) for a in v)
+	else :
+		func,module,qualname,filename,firstlineno = 'func','module','qualname','filename','firstlineno'
+		sourcify                                  = avoid_ctx('sourcify',serialize_ctx)
+	tab1     = '' if for_this_python else '\t'
+	tab2     = '' if single          else '\t'
+	dbg_info = ''
+	if not for_this_python :
+		dbg_info += "try :\n"
+		if not single :
+			dbg_info += "\t(lambda:None).__code__.replace(co_filename='',co_firstlineno=1)\n"
+	if has_code_replace or not for_this_python :
+		if not single :
+			dbg_info += f"{tab1}def {sourcify}(func,module,qualname,filename,firstlineno) :\n"
+			dbg_info += f"{tab1}{tab2}try :\n"
+		dbg_info += f"{tab1}{tab2}{tab2}{func}.__code__     = {func}.__code__.replace( co_filename={filename} , co_firstlineno={firstlineno} )\n"
+		dbg_info += f"{tab1}{tab2}{tab2}{func}.__module__   = {module}\n"
+		dbg_info += f"{tab1}{tab2}{tab2}{func}.__qualname__ = {qualname}\n"
+		if not single :
+			dbg_info += f"{tab1}{tab2}except : pass\n"                                                                                    # this is purely cosmetic, if it does not work, no harm
+	if not for_this_python :
+		dbg_info += "except :\n"
+	if not has_code_replace or not for_this_python :
+		if single :
+			c         = avoid_ctx('c',serialize_ctx)
+		else :
+			dbg_info += f"{tab1}def {sourcify}({func},{module},{qualname},{filename},{firstlineno}) :\n"
+			c         = 'c'
+		dbg_info += f"{tab1}{tab2}try :\n"
+		dbg_info += f"{tab1}{tab2}\t{c:4} = {func}.__code__\n"
+		dbg_info += f"{tab1}{tab2}\targs = [{c}.co_argcount]\n"
+		dbg_info += f"{tab1}{tab2}\tif hasattr({c},'co_posonlyargcount') : args.append({c}.co_posonlyargcount)\n"
+		dbg_info += f"{tab1}{tab2}\tif hasattr({c},'co_kwonlyargcount' ) : args.append({c}.co_kwonlyargcount )\n"
+		dbg_info += f"{tab1}{tab2}\targs += [\n"
+		dbg_info += f"{tab1}{tab2}\t\t{c}.co_nlocals\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_stacksize\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_flags\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_code\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_consts\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_names\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_varnames\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{filename}\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_name\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{firstlineno}\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_lnotab\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_freevars\n"
+		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_cellvars\n"
+		dbg_info += f"{tab1}{tab2}\t]\n"
+		dbg_info += f"{tab1}{tab2}\t{func}.__code__     = {c}.__class__(*args)\n"
+		dbg_info += f"{tab1}{tab2}\t{func}.__module__   = {module}\n"
+		dbg_info += f"{tab1}{tab2}\t{func}.__qualname__ = {qualname}\n"
+		dbg_info += f"{tab1}{tab2}except : pass\n"                                                                                    # this is purely cosmetic, if it does not work, no harm
+	if not single :
+		for func,(module,qualname,filename,firstlineno) in dbg.items() :
+			dbg_info += f'{sourcify}({func},{module!r},{qualname!r},{filename!r},{firstlineno})\n'
+	return dbg_info
 
 def static_fstring(s) :
 	'suppress double { and } assuming no variable part'
@@ -364,7 +414,7 @@ class Handle :
 		,	no_imports     = in_repo_re    # non-static deps are forbidden, transport all local modules by value
 		,	call_callables = True
 		)
-		return ( static_val , tuple(names) , ctx , code , *mk_dbg_info(dbg,serialize_ctx) )
+		return ( static_val , tuple(names) , ctx , code , mk_dbg_info(dbg,serialize_ctx,True) )
 
 	def handle_matches(self) :
 		if 'target' in self.attrs : self.attrs.targets['<stdout>'] = self.attrs.pop('target')
@@ -528,8 +578,8 @@ class Handle :
 						a1 = '' if not b1 else x
 						if b1 : cmd += f'\t{a1} = { c.__name__}({a})\n'
 						else  : cmd += f'\t{        c.__name__}({a})\n'
-			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , *mk_dbg_info(dbg,serialize_ctx) )
-			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                              )
+			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , mk_dbg_info(dbg,serialize_ctx,False) )
+			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                                   )
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)
 			self._init()

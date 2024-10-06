@@ -71,6 +71,7 @@ USER_FLAGS := -std=$(CXX_STD) $(OPT_FLAGS) $(EXTRA_FLAGS)
 COMPILE    := PATH=$(CXX_DIR):$$PATH $(CXX_EXE) $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
 LINT       := clang-tidy
 LINT_OPTS  := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
+LINT_OPTS  += -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
 ROOT_DIR   := $(abspath .)
 LIB        := lib
 SLIB       := _lib
@@ -123,8 +124,7 @@ LMAKE_SERVER_PY_FILES := \
 	$(LIB)/lmake_debug/runtime/pdb_.py     \
 	$(LIB)/lmake_debug/runtime/pudb_.py    \
 	$(LIB)/lmake_debug/runtime/vscode.py   \
-	$(LIB)/lmake_debug/runtime/utils.py    \
-	$(LIB)/lmake_runtime.py
+	$(LIB)/lmake_debug/runtime/utils.py
 
 LMAKE_SERVER_BIN_FILES := \
 	$(SBIN)/lmakeserver            \

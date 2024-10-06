@@ -854,6 +854,7 @@ struct SubmitAttrs {
 		if      (!deps                    ) deps = other.deps ; else if (+other.deps                    ) SWEAR(deps==other.deps,deps,other.deps) ;
 		n_retries  = ::max(n_retries,other.n_retries) ;
 		pressure   = ::max(pressure ,other.pressure ) ;
+		tokens1    = ::max(tokens1  ,other.tokens1  ) ;
 		live_out  |= other.live_out                   ;
 		reason    |= other.reason                     ;
 		return *this ;
@@ -868,6 +869,7 @@ struct SubmitAttrs {
 	BackendTag          tag       = {}    ;
 	bool                live_out  = false ;
 	uint8_t             n_retries = 0     ;
+	Tokens1             tokens1   = 0     ;
 	Time::CoarseDelay   pressure  = {}    ;
 	::vmap_s<DepDigest> deps      = {}    ;
 	JobReason           reason    = {}    ;

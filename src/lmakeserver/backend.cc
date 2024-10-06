@@ -285,20 +285,22 @@ namespace Backends {
 		int                  step          = 0                 ;
 		deps_attrs = rule->deps_attrs.eval(match) ;              // this cannot fail as it was already run to construct job
 		try {
-			cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 1 ;
-			start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
-			start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
-			//
-			pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 5 ;
-			for( auto const& [t,a] : pre_actions )
-				switch (a.tag) {
-					case FileActionTag::UnlinkWarning  :
-					case FileActionTag::UnlinkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
-					default : ;
-				}
-		} catch (::pair_ss const& msg_err) {
-			start_msg_err.first  <<set_nl<< msg_err.first  ;
-			start_msg_err.second <<set_nl<< msg_err.second ;
+			try {
+				cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 1 ;
+				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
+				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
+				//
+				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
+				for( auto const& [t,a] : pre_actions )
+					switch (a.tag) {
+						case FileActionTag::UnlinkWarning  :
+						case FileActionTag::UnlinkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
+						default : ;
+					}
+			} catch (::string const& e) { throw ::pair_ss(e,{}) ; }
+		} catch (::pair_ss const& e) {
+			start_msg_err.first  <<set_nl<< e.first  ;
+			start_msg_err.second <<set_nl<< e.second ;
 			switch (step) {
 				case 0 : start_msg_err.first <<set_nl<< rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
 				case 1 : start_msg_err.first <<set_nl<< rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
@@ -310,13 +312,14 @@ namespace Backends {
 		// record as much info as possible in reply
 		::uset_s env_keys ;
 		switch (step) {
-			case 5 :
+			case 4 :
 				// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 				try {
-					start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&deps) ;
-				} catch (::pair_ss const& msg_err) {
-					start_none_attrs  = rule->start_none_attrs.spec ;
-					start_msg_err     = msg_err                     ;
+					try                       { start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&deps) ; }
+					catch (::string const& e) { throw ::pair_ss(e,{}) ;                                             }
+				} catch (::pair_ss const& e) {
+					start_msg_err    = e                           ;
+					start_none_attrs = rule->start_none_attrs.spec ;
 					jrr.msg <<set_nl<< rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
 				}
 				keep_tmp |= start_none_attrs.keep_tmp ;
@@ -402,7 +405,7 @@ namespace Backends {
 			//                 vvvvvvvvvvvvvvvvvvvvvvv
 			jrr.msg <<set_nl<< s_start(entry.tag,+job) ;
 			//                 ^^^^^^^^^^^^^^^^^^^^^^^
-			if ( step<5 || !deps_done ) {
+			if ( step<4 || !deps_done ) {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				OMsgBuf().send(fd,JobRpcReply(Proc::None)) ; // silently tell job_exec to give up
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -523,8 +526,9 @@ namespace Backends {
 			//
 			je = { job , entry.conn.host , entry.date , New } ;
 
-			/**/      _s_workload.end ( entry.reqs , job                               ) ;
-			je.cost = _s_workload.cost(              job , entry.workload , entry.date ) ;
+			/**/         _s_workload.end ( entry.reqs , job                               ) ;
+			je.cost    = _s_workload.cost(              job , entry.workload , entry.date ) ;
+			je.tokens1 = entry.submit_attrs.tokens1                                         ;
 			//
 			rsrcs = ::move(entry.rsrcs) ;
 			trace("release_start_tab",job,entry) ;

@@ -220,14 +220,6 @@ namespace Engine {
 		//           args for store         args for JobData
 		*this = Job( match.full_name(),Dflt , match,deps   ) ; // initially, static deps are deemed read, then actual accesses will be considered
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
-		try {
-			(*this)->tokens1 = rule->create_none_attrs.eval( *this , match , &::ref(::vmap_s<DepDigest>()) ).tokens1 ; // we cant record deps here, but we dont care, no impact on target
-		} catch (::pair_ss const& msg_err) {
-			(*this)->tokens1 = rule->create_none_attrs.spec.tokens1 ;
-			req->audit_job(Color::Note,"dynamic",*this) ;
-			req->audit_stderr( *this , ensure_nl(rule->create_none_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , -1 , 1 ) ;
-		}
 		trace("found",*this) ;
 	}
 
@@ -622,7 +614,7 @@ namespace Engine {
 		//
 		if (ok==Yes) {                   // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 			SWEAR(+digest.stats.total) ;
-			data.record_stats( digest.stats.total , cost ) ;
+			data.record_stats( digest.stats.total , cost , tokens1 ) ;
 		}
 		MakeAction  end_action    = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
 		bool        one_done      = false                                                        ;
@@ -827,7 +819,7 @@ namespace Engine {
 			if ( rule->n_submits && ri.n_submits>rule->n_submits ) { SWEAR(is_ok(status)==No) ; goto Done   ; }     // we do not analyze, ensure we have an error state
 		}
 		if (ri.step()==Step::None) {
-			estimate_stats(rule->submit_rsrcs_attrs.spec.tokens()) ;                                           // initial guestimate to accumulate waiting costs while resources are not fully known yet
+			estimate_stats() ;                                                                                 // initial guestimate to accumulate waiting costs while resources are not fully known yet
 			ri.step(Step::Dep,idx()) ;
 			if (ri.full) {
 				JobReasonTag jrt = {} ;
@@ -1271,15 +1263,17 @@ namespace Engine {
 		ri.step(Step::Queued,idx()) ;
 		ri.backend = submit_rsrcs_attrs.backend ;
 		try {
+			Tokens1 tokens1 = submit_rsrcs_attrs.tokens1() ;
 			SubmitAttrs sa = {
 				.live_out  = ri.live_out
 			,	.n_retries = submit_none_attrs.n_retries
+			,	.tokens1   = tokens1
 			,	.pressure  = pressure
 			,	.deps      = ::move(deps)
 			,	.reason    = reason
 			} ;
 			if (req->options.flags[ReqFlag::RetryOnError]) sa.n_retries = ::max( sa.n_retries , from_string<uint8_t>(req->options.flag_args[+ReqFlag::RetryOnError]) ) ;
-			estimate_stats(submit_rsrcs_attrs.tokens()) ;                                                     // refine estimate with best available info just before submitting
+			estimate_stats(tokens1) ;                                                                         // refine estimate with best available info just before submitting
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Backend::s_submit( ri.backend , +idx() , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

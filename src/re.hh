@@ -77,7 +77,7 @@ namespace Re {
 			static ::umap_s<pcre2_code*> s_code_store ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr( ::string const& pattern , bool fast=false , bool no_groups=false ) ;
+			RegExpr(::string const& pattern) ;
 			//
 			RegExpr           (RegExpr&& re) { swap(*this,re) ;                }
 			RegExpr& operator=(RegExpr&& re) { swap(*this,re) ; return *this ; }
@@ -122,14 +122,12 @@ namespace Re {
 
 		struct RegExpr : private ::regex {
 			friend Match ;
-			static constexpr ::regex_constants::syntax_option_type None { 0 } ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr( ::string const& pattern , bool fast=false , bool no_groups=false ) :
+			RegExpr(::string const& pattern) :
 				::regex{ pattern ,
-					/**/         ::regex::ECMAScript
-				|	(fast      ? ::regex::optimize   : None )
-				|	(no_groups ? ::regex::nosubs     : None )
+					::regex::ECMAScript
+				|	::regex::optimize
 				}
 			{}
 			// services

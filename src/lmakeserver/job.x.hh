@@ -165,6 +165,7 @@ namespace Engine {
 		// data
 		in_addr_t   host       = NoSockAddr ;
 		CoarseDelay cost       ;                                                                        // exec time / average number of running job during execution
+		Tokens1     tokens1    ;
 		Pdate       start_date ;
 		Pdate       end_date   ;                                                                        // if no end_date, job is stil on going
 	} ;
@@ -317,10 +318,11 @@ namespace Engine {
 		::string special_stderr(Node                               ) const ;
 		::string special_stderr(                                   ) const ;                                      // cannot declare a default value for incomplete type Node
 		//
-		void              invalidate_old(                                    ) ;
-		Rule::SimpleMatch simple_match  (                                    ) const ;                            // thread-safe
-		void              estimate_stats( uint32_t tokens                    ) ;
-		void              record_stats  ( Delay exec_time , CoarseDelay cost ) ;
+		void              invalidate_old(                                              ) ;
+		Rule::SimpleMatch simple_match  (                                              ) const ;                  // thread-safe
+		void              estimate_stats(                                              ) ;
+		void              estimate_stats(                                      Tokens1 ) ;
+		void              record_stats  ( Delay exec_time , CoarseDelay cost , Tokens1 ) ;
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
@@ -364,7 +366,7 @@ namespace Engine {
 		Rule             rule                     ;                                                               //     16 bits,        can be retrieved from full_name, but would be much slower
 		CoarseDelay      exec_time                ;                                                               //     16 bits,        for plain jobs
 		CoarseDelay      cost                     ;                                                               //     16 bits,        exec_time / average number of parallel jobs during execution
-		Tokens1          tokens1                  = 0  ;                                                          //      8 bits,        for plain jobs, number of tokens - 1 for eta computation
+		Tokens1          tokens1                  = 0  ;                                                          //      8 bits,        for plain jobs, number of tokens - 1 for eta estimation
 		ExecGen          exec_gen  :NExecGenBits  = 0  ;                                                          //      8 bits,        for plain jobs, cmd generation of rule
 		mutable MatchGen match_gen :NMatchGenBits = 0  ;                                                          //      8 bits,        if <Rule::s_match_gen => deemed !sure
 		RunStatus        run_status:3             = {} ;                                                          //      3 bits
@@ -451,19 +453,23 @@ namespace Engine {
 		return Rule::SimpleMatch(idx()) ;
 	}
 
-	inline void JobData::estimate_stats( uint32_t tokens_ ) {
+	inline void JobData::estimate_stats() {
 		if (_reliable_stats) return ;
-		SWEAR(tokens_>0) ;
-		tokens1   = ::min( uint32_t(tokens_-1) , uint32_t(::numeric_limits<Tokens1>::max()) ) ;
-		cost      = rule->cost_per_token * tokens()                                           ;
-		exec_time = rule->exec_time                                                           ;
+		cost      = rule->cost()    ;
+		exec_time = rule->exec_time ;
+	}
+	inline void JobData::estimate_stats( Tokens1 tokens1 ) {
+		if (_reliable_stats) return ;
+		cost      = rule->cost_per_token * (tokens1+1) ;
+		exec_time = rule->exec_time                    ;
 	}
 
-	inline void JobData::record_stats( Delay exec_time_ , CoarseDelay cost_ ) {
+	inline void JobData::record_stats( Delay exec_time_ , CoarseDelay cost_ , Tokens1 tokens1_ ) {
 		exec_time       = exec_time_ ;
 		cost            = cost_      ;
+		tokens1         = tokens1_   ;
 		_reliable_stats = true       ;
-		rule->new_job_report( exec_time_ , cost_ , tokens() ) ;
+		rule->new_job_report( exec_time_ , cost_ , tokens1_ ) ;
 	}
 
 	inline void JobData::add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) {
