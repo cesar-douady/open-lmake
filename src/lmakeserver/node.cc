@@ -789,7 +789,7 @@ namespace Engine {
 
 	::string Dep::accesses_str() const {
 		::string res ; res.reserve(N<Access>) ;
-		for( Access a : All<Access> ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ;
+		for( Access a : All<Access> ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX : for some reason, clang-tidy fires up here
 		return res ;
 	}
 

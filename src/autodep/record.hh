@@ -148,7 +148,7 @@ private :
 			if      ( fl<=FileLoc::Repo       ) return report_access( ::move(f ) , fi , a  , true  , ::move(c) ) ;
 			else if ( fl<=FileLoc::Dep  && +a )        report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
 		} else {
-			if      ( fl<=FileLoc::Dep  && +a )        report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
+			if      ( fl<=FileLoc::Dep  && +a )        report_access( ::move(f ) , fi , a  , false , ::copy(c) ) ;
 			if      ( fl<=FileLoc::Repo       ) return report_access( ::move(f0) , fi , {} , true  , ::move(c) ) ;
 		}
 		return 0 ;

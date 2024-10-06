@@ -11,36 +11,41 @@ FROM centos:7
 # necessary to compile lmake
 #
 
-RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-Base.repo
-RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-fasttrack.repo
-RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-x86_64-kernel.repo
-RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-CR.repo
-RUN yum install -y centos-release-scl
-RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo
-RUN sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl.repo
-RUN yum install -y devtoolset-11
-RUN yum install -y ed
-RUN yum install -y texinfo
-RUN yum install -y git
-RUN yum install -y python3 python3-devel
-RUN yum install -y autoconf automake
-RUN yum install -y epel-release
-RUN yum install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel
-RUN yum install -y strace
+RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-Base.repo
+RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-fasttrack.repo
+RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-x86_64-kernel.repo
+RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-CR.repo
+RUN  yum install -y centos-release-scl
+RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo
+RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl.repo
+
+# build a minimal environment
+
+# compulsery
+RUN  yum install -y epel-release
+RUN  yum install -y devtoolset-11
+RUN  yum install -y python3 python3-devel
+RUN  yum install -y git
+RUN  yum install -y texinfo
+# optional
+#RUN yum install -y strace                                                 # try a docke without strace
 #RUN yum install -y libseccomp
+#RUN yum install -y glibc-devel.i686 libgcc.i686 gcc-toolset-11-libstdc++-devel.i686
+#RUN yum install -y pcre2 pcre2-devel
+#RUN yum install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work
 
 #
 # not necessary for lmake
 #
 
 # necessary to compile slurm 23.11
-RUN yum install -y sudo
-RUN yum install -y rpm-build
-RUN yum install -y munge-devel
-RUN yum install -y readline-devel
-RUN yum install -y mariadb-client mariadb-shared mariadb-devel mariadb-server mariadb-backup
-RUN yum install -y 'perl(ExtUtils::MakeMaker)'
-RUN yum install -y pam-devel
+#RUN yum install -y sudo
+#RUN yum install -y rpm-build
+#RUN yum install -y munge-devel
+#RUN yum install -y readline-devel
+#RUN yum install -y mariadb-client mariadb-shared mariadb-devel mariadb-server mariadb-backup
+#RUN yum install -y 'perl(ExtUtils::MakeMaker)'
+#RUN yum install -y pam-devel
 
 RUN     useradd --uid 1001 --home-dir /home/cdy cdy
 RUN     echo 'cdy ALL = NOPASSWD: ALL' >> /etc/sudoers

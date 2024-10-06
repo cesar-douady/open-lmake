@@ -456,6 +456,7 @@ namespace Py {
 			Py_ssize_t p   = _pos    ;
 			PyObject*  key = nullptr ;
 			PyObject*  val = nullptr ;
+			SWEAR(_iterable) ;
 			PyDict_Next( _iterable->to_py() , &p , &key , &val ) ;
 			return { *from_py(key) , *from_py(val) } ;
 		}

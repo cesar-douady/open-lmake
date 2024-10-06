@@ -178,13 +178,13 @@ Fd Gather::_spawn_child() {
 	Fd child_fd  ;
 	Fd report_fd ;
 	//
-	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ; // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                             // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
 	_child.stdin_fd   = child_stdin                           ;
 	_child.stdout_fd  = child_stdout                          ;
 	_child.stderr_fd  = child_stderr                          ;
 	_child.first_pid  = first_pid                             ;
-	if (method==AutodepMethod::Ptrace) {                        // PER_AUTODEP_METHOD : handle case
+	if (method==AutodepMethod::Ptrace) {                                                    // PER_AUTODEP_METHOD : handle case
 		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
@@ -192,12 +192,18 @@ Fd Gather::_spawn_child() {
 		child_fd  = pipe.read  ;
 		report_fd = pipe.write ;
 	} else {
-		if (method>=AutodepMethod::Ld) {                                                                                                                      // PER_AUTODEP_METHOD : handle case
+		if (method>=AutodepMethod::Ld) {                                                    // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
-			switch (method) {                                                                                                                                 // PER_AUTODEP_METHOD : handle case
-				case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_dir_s+"_d$LIB/ld_audit.so"            ; break ;
-				case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_d$LIB/ld_preload.so"          ; break ;
-				case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s+"_d$LIB/ld_preload_jemalloc.so" ; break ;
+			switch (method) {                                                               // PER_AUTODEP_METHOD : handle case
+				#if HAS_32
+					#define DOLLAR_LIB "$LIB"                                               // 32 bits is supported, use ld.so automatic detection feature
+				#else
+					#define DOLLAR_LIB "lib"                                                // 32 bits is not supported, use standard name
+				#endif
+				case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_dir_s + "_d" DOLLAR_LIB "/ld_audit.so"            ; break ;
+				case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s + "_d" DOLLAR_LIB "/ld_preload.so"          ; break ;
+				case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s + "_d" DOLLAR_LIB "/ld_preload_jemalloc.so" ; break ;
+				#undef DOLLAR_LIB
 			DF}
 			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) _add_env[env_var] += ':' + get_env(env_var) ; }

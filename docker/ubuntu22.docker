@@ -13,10 +13,17 @@ RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: -i.bak /etc/apt/source
 
 RUN apt-get update --fix-missing       # 1 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN apt-get install -y build-essential
-RUN apt-get install -y ed git texinfo libseccomp-dev
+
+# compulsery
+RUN apt-get install -y python3-dev
+RUN apt-get install -y git
+RUN apt-get install -y texinfo
+# optional
 RUN apt-get install -y g++-12 gdb
-RUN apt-get install -y python2 python3-dev python3-numba python3-venv
 RUN apt-get install -y clang
+RUN apt-get install -y libseccomp-dev
+RUN apt-get install -y python2
+RUN apt-get install -y python3-numba python3-venv
 RUN apt-get install -y strace
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy

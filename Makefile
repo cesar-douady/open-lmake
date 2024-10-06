@@ -57,9 +57,9 @@ WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 CXX_EXE := $(shell bash -c 'type -p $(CXX)')
 CXX_DIR := $(shell dirname $(CXX_EXE))
 #
-LINK_OPTS           := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
-LINK                := PATH=$(CXX_DIR):$$PATH $(CXX_EXE) $(COVERAGE) $(LINK_OPTS)
+LINK_FLAGS           = $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath=%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath=%))
+LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX_EXE) $(COVERAGE) -pthread $(LINK_FLAGS)
 LINK_LIB             = -ldl $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 #
@@ -70,8 +70,9 @@ endif
 USER_FLAGS := -std=$(CXX_STD) $(OPT_FLAGS) $(EXTRA_FLAGS)
 COMPILE    := PATH=$(CXX_DIR):$$PATH $(CXX_EXE) $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
 LINT       := clang-tidy
-LINT_OPTS  := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
-LINT_OPTS  += -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
+LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
+LINT_CHKS  := -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
+LINT_OPTS  := '-header-filter=.*' $(LINT_CHKS)
 ROOT_DIR   := $(abspath .)
 LIB        := lib
 SLIB       := _lib
@@ -82,21 +83,21 @@ SRC        := src
 LMAKE_ENV  := lmake_env
 STORE_LIB  := $(SRC)/store
 
-PY2_INC_DIRS  := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -isystem
-PY2_CC_OPTS   := $(if $(PYTHON2),$(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register)
-PY2_LINK_OPTS := $(if $(PYTHON2),$(patsubst %,-L%,$(PY2_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY2_LIB_DIR)) -l:$(PY2_LIB_BASE))
-PY3_INC_DIRS  := $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))                  # for some reasons, compilation does not work if standard inc dirs are given with -isystem
-PY3_CC_OPTS   := $(patsubst %,-isystem %,$(PY3_INC_DIRS)) -Wno-register
-PY3_LINK_OPTS := $(patsubst %,-L%,$(PY3_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY3_LIB_DIR)) -l:$(PY3_LIB_BASE)
-FUSE_CC_OPTS  := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --cflags))
-FUSE_LIB      := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --libs  ))
-PCRE_LIB      := $(if $(HAS_PCRE),-lpcre2-8)
+PY2_INC_DIRS   := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -isystem
+PY2_CC_FLAGS   := $(if $(PYTHON2),$(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register)
+PY2_LINK_FLAGS := $(if $(PYTHON2),$(patsubst %,-L%,$(PY2_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY2_LIB_DIR)) -l:$(PY2_LIB_BASE))
+PY3_INC_DIRS   := $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))                  # for some reasons, compilation does not work if standard inc dirs are given with -isystem
+PY3_CC_FLAGS   := $(patsubst %,-isystem %,$(PY3_INC_DIRS)) -Wno-register
+PY3_LINK_FLAGS := $(patsubst %,-L%,$(PY3_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY3_LIB_DIR)) -l:$(PY3_LIB_BASE)
+FUSE_CC_FLAGS  := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --cflags))
+FUSE_LIB       := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --libs  ))
+PCRE_LIB       := $(if $(HAS_PCRE),-lpcre2-8)
 
-PY_CC_OPTS   = $(if $(and $(PYTHON2)     ,$(findstring -py2,             $@)),$(PY2_CC_OPTS)  ,$(PY3_CC_OPTS)  )
-PY_LINK_OPTS = $(if $(and $(LD_SO_LIB_32),$(findstring 2.so,             $@)),$(PY2_LINK_OPTS),$(PY3_LINK_OPTS))
-PY_SO        = $(if $(and $(PYTHON2)     ,$(findstring 2.so,             $@)),-py2)
-MOD_SO       = $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
-MOD_O        = $(if $(and $(LD_SO_LIB_32),$(findstring -m32,             $@)),-m32)
+PY_CC_FLAGS   = $(if $(and $(PYTHON2)     ,$(findstring -py2,             $@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
+PY_LINK_FLAGS = $(if $(and $(LD_SO_LIB_32),$(findstring 2.so,             $@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
+PY_SO         = $(if $(and $(PYTHON2)     ,$(findstring 2.so,             $@)),-py2)
+MOD_SO        = $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
+MOD_O         = $(if $(and $(LD_SO_LIB_32),$(findstring -m32,             $@)),-m32)
 
 # Engine
 SRC_ENGINE := $(SRC)/lmakeserver
@@ -295,25 +296,25 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 ALL_H := version.hh sys_config.h ext/xxhash.h
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . $(FUSE_CC_OPTS) -idirafter /usr/include/linux
+CPP_FLAGS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . $(FUSE_CC_FLAGS) -idirafter /usr/include/linux
 
-%.i     : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%-m32.i : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E -m32                      $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%-py2.i : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%.s     : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%-m32.s : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S -m32                      $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%-py2.s : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%.o     : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%-m32.o : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c -m32         -frtti -fPIC $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%-py2.o : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%-san.o : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%.chk   : %.cc $(ALL_H) ; @echo $(LINT) $(USER_FLAGS)              to $@ ; $(LINT)    $< -- $(LINT_OPTS)           $(PY_CC_OPTS) $(CPP_OPTS) >$@ ; [ ! -s $@ ]
+%.i     : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-m32.i : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E -m32                      $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-py2.i : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%.s     : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-m32.s : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S -m32                      $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-py2.s : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%.o     : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-m32.o : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c -m32         -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-py2.o : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-san.o : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%.chk   : %.cc $(ALL_H) ; @echo $(LINT) $(USER_FLAGS)              to $@ ; $(LINT)    $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CPP_FLAGS) >$@ ; [ ! -s $@ ]
 
 %.d : %.cc $(ALL_H)
 	@$(COMPILE) \
 		-MM                                                  \
 		-MF $@                                               \
-		$(PY_CC_OPTS) $(CPP_OPTS)                            \
+		$(PY_CC_FLAGS) $(CPP_FLAGS)                          \
 		-MT '$(@:%.d=%.i) $(@:%.d=%-m32.i) $(@:%-py2.d=%.i)' \
 		-MT '$(@:%.d=%.s) $(@:%.d=%-m32.s) $(@:%.d=%-py2.s)' \
 		-MT '$(@:%.d=%.o) $(@:%.d=%-m32.o) $(@:%.d=%-py2.o)' \
@@ -335,7 +336,7 @@ $(SRC)/autodep/ld_audit.o            : $(SRC)/autodep/ld_common.x.cc
 $(SRC)/autodep/ld_preload.o          : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
 $(SRC)/autodep/ld_preload_jemalloc.o : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
 $(SRC)/autodep/ld_server$(SAN).o     : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
-$(SRC_ENGINE)/backends/slurm$(SAN).o : CPP_OPTS += $(if $(SLURM_INC_DIR),-isystem $(SLURM_INC_DIR))
+$(SRC_ENGINE)/backends/slurm$(SAN).o : CPP_FLAGS += $(if $(SLURM_INC_DIR),-isystem $(SLURM_INC_DIR))
 
 CLIENT_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)   \
@@ -399,7 +400,7 @@ $(SBIN)/ldump : \
 $(SBIN)/lmakeserver $(BIN)/lrepair $(SBIN)/ldump :
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
 
 
 $(BIN)/lmake   : $(CLIENT_SAN_OBJS)               $(SRC)/lmake$(SAN).o
@@ -417,7 +418,7 @@ $(BIN)/lmake $(BIN)/lshow $(BIN)/lforget $(BIN)/lmark :
 $(BIN)/ldebug :
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
+	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
 	$(LMAKE_BASIC_SAN_OBJS)    \
@@ -429,7 +430,7 @@ $(SBIN)/ldump_job : \
 	$(SRC)/ldump_job$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(FUSE_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(FUSE_LIB) $(LINK_LIB)
 
 $(SBIN)/align_comments : \
 	$(LMAKE_BASIC_SAN_OBJS) \
@@ -488,7 +489,7 @@ $(BIN)/autodep   : $(JOB_EXEC_OBJS) $(SRC)/autodep/autodep.o
 $(SBIN)/job_exec $(BIN)/autodep :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(PY_LINK_OPTS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(BIN)/ldecode     : $(REMOTE_OBJS) $(SRC)/autodep/ldecode.o
 $(BIN)/ldepend     : $(REMOTE_OBJS) $(SRC)/autodep/ldepend.o
@@ -510,14 +511,14 @@ _d$(LD_SO_LIB_32)/ld_audit.so            : $(AUTODEP_OBJS:%.o=%-m32.o) $(SRC)/au
 _d$(LD_SO_LIB_32)/ld_preload.so          : $(AUTODEP_OBJS:%.o=%-m32.o) $(SRC)/autodep/ld_preload-m32.o
 _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so : $(AUTODEP_OBJS:%.o=%-m32.o) $(SRC)/autodep/ld_preload_jemalloc-m32.o
 
-$(LIB)/clmake.so $(LIB)/clmake2.so : SO_OPTS = $(PY_LINK_OPTS)
+$(LIB)/clmake.so $(LIB)/clmake2.so : SO_FLAGS = $(PY_LINK_FLAGS)
 $(LIB)/clmake.so                   : $(REMOTE_OBJS) $(SRC)/py.o     $(SRC)/autodep/clmake.o
 $(LIB)/clmake2.so                  : $(REMOTE_OBJS) $(SRC)/py-py2.o $(SRC)/autodep/clmake-py2.o
 
 %.so :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -shared -static-libstdc++ $(MOD_SO) -o $@ $^ $(SO_OPTS) $(LINK_LIB) # some user codes may have specific (and older) libs, avoid dependencies
+	@$(LINK) -shared -static-libstdc++ $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(LINK_LIB) # some user codes may have specific (and older) libs, avoid dependencies
 
 #
 # Unit tests

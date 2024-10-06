@@ -45,8 +45,11 @@ esac
 
 CXX=$(type -p $CXX)
 [ "$CXX" ] || { echo $CXX not found >&2 ; exit 1 ; }
+CXX_DIR=$(dirname $CXX)
 
-CXX_VERSION=$($CXX -dumpversion)                                               # outputs either major version or full version, depending on flavors and versions
+cc() { PATH=$CXX_DIR:$PATH $CXX "$@" ; }
+
+CXX_VERSION=$(cc -dumpversion)                                                 # outputs either major version or full version, depending on flavors and versions
 CXX_VERSION=${CXX_VERSION%%.*}                                                 # strip minor if present
 [ "$CXX_VERSION" ] || { echo cannot determine version of $CXX >&2 ; exit 1 ; }
 case "$CXX_FLAVOR" in
@@ -54,15 +57,12 @@ case "$CXX_FLAVOR" in
 	gcc  ) [[ $CXX_VERSION -ge 11 ]] || { echo $CXX version $CXX_VERSION must be at least 11 >&2 ; exit 1 ; } ;;
 esac
 
-LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
-LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
-
-$CXX -v -E -o /dev/null -xc - </dev/null 2>compiler_info
+cc -v -E -o /dev/null -xc - </dev/null 2>compiler_info
 STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' compiler_info)) )" # echo is used to replace \n by space
 
-if   $CXX -o /dev/null -xc++ -std=c++23 - <<< 'int main() {}' ; then CXX_STD=c++23
-elif $CXX -o /dev/null -xc++ -std=c++20 - <<< 'int main() {}' ; then CXX_STD=c++20
-else                                                            echo $CXX must support at least c++20 ; exit 1
+if   cc -o /dev/null -xc++ -std=c++23 - <<< 'int main() {}' ; then CXX_STD=c++23
+elif cc -o /dev/null -xc++ -std=c++20 - <<< 'int main() {}' ; then CXX_STD=c++20
+else                                                          echo $CXX must support at least c++20 ; exit 1
 fi
 
 #
@@ -106,7 +106,7 @@ config_python() {
 			PyObject* none = Py_None ;
 		}
 	EOF
-	$CXX -o probe_python$ver -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { echo $python is unusable as a library >&2 ; return 1 ; }
+	cc -o probe_python$ver -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { echo $python is unusable as a library >&2 ; return 1 ; }
 	eval "PYTHON${ver#3}=$python"
 	eval "PY${ver}_INCLUDEDIR=$inc_dir"
 	eval "PY${ver}_INCLUDEPY=$inc_py"
@@ -123,11 +123,28 @@ else                                          PY_LD_LIBRARY_PATH=$PY3_LIB_DIR$PY
 fi
 
 #
-# LD_SO_LIB64 & LD_SO_LIB32
+# LD_SO_LIB & LD_SO_LIB32
 #
-$CXX      -o ld_so_lib    -xc - <<< 'int main(){}' && LD_SO_LIB=$(   strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib    2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
-$CXX -m32 -o ld_so_lib_32 -xc - <<< 'int main(){}' && LD_SO_LIB_32=$(strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib_32 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
-[ "$LD_SO_LIB" -eq "$LD_SO_LIB_32" ] && LD_SO_LIB_32=
+cc      -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib    2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
+cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib_32 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
+if [ "$LD_SO_LIB" -a "$LD_SO_LIB_32" -a "$LD_SO_LIB" != "$LD_SO_LIB_32" ] ; then
+	HAS_32=1                                                                     # we have both 32 and 64 bits, use the ld.so $LIB feature
+else
+	HAS_32=0                                                                     # ensure we do not the ld.so $LIB feature
+	LD_SO_LIB=lib                                                                # if auto-detect failed, dont support 32-bits and take a standard value for LD_SO_LIB
+	LD_SO_LIB_32=                                                                # .
+fi
+
+#
+# LINK_LIB_PATH
+#
+
+LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
+LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
+if [ $HAS_32 != 0 ] ; then
+	LINK_LIB_PATH_32=$(find_cc_ld_library_path -m32 $CXX)
+	LINK_LIB_PATH_32=${LINK_LIB_PATH_32//:/ }
+fi
 
 #
 # ADDR2LINE
@@ -140,7 +157,7 @@ $CXX -m32 -o ld_so_lib_32 -xc - <<< 'int main(){}' && LD_SO_LIB_32=$(strace -E L
 # HAS_CLOSE_RANGE
 # test whether we can include linux/close_range.h
 #
-HAS_CLOSE_RANGE=$( ok $CXX -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
+HAS_CLOSE_RANGE=$( ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
 
 #
 # HAS_FUSE
@@ -175,8 +192,8 @@ if [ -z "$HAS_LD_AUDIT" ] ; then
 		#include<stdlib.h>
 		unsigned int la_version(unsigned int) { printf("1") ; exit(0) ; }
 	EOF
-	$CXX -o audited                   -xc audited.c
-	$CXX -o ld_audit.so -shared -fPIC -xc ld_audit.c
+	cc -o audited                   -xc audited.c
+	cc -o ld_audit.so -shared -fPIC -xc ld_audit.c
 	HAS_LD_AUDIT=$(LD_AUDIT=./ld_audit.so ./audited)
 fi
 
@@ -190,7 +207,7 @@ cat <<"EOF" > memfd.c
 	#include<sys/mman.h>
 	int main() { memfd_create("trial",0) ; }
 EOF
-HAS_MEMFD=$(ok $CXX -Werror -o memfd -xc memfd.c)
+HAS_MEMFD=$(ok cc -Werror -o memfd -xc memfd.c)
 
 #
 # HAS_OSTRINGSTREAM_VIEW
@@ -200,7 +217,7 @@ cat <<"EOF" > ostringstream_view.cc
 	#include <sstream>
 	std::string_view ossv = std::ostringstream().view() ;
 EOF
-HAS_OSTRINGSTREAM_VIEW=$( ok $CXX -c -std=$CXX_STD -o ostringstream_view.o ostringstream_view.cc )
+HAS_OSTRINGSTREAM_VIEW=$( ok cc -c -std=$CXX_STD -o ostringstream_view.o ostringstream_view.cc )
 
 #
 # HAS_PCRE
@@ -212,7 +229,7 @@ cat <<"EOF" > pcre.cc
 		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
 	}
 EOF
-HAS_PCRE=$( ok $CXX -std=$CXX_STD -o pcre.o pcre.cc -lpcre2-8 )
+HAS_PCRE=$( ok cc -std=$CXX_STD -o pcre.o pcre.cc -lpcre2-8 )
 
 #
 # HAS_SECCOMP
@@ -227,9 +244,7 @@ cat <<"EOF" > seccomp.c
 	}
 EOF
 # usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccomp.h) but some systems have seccomp.h directly installed in /usr/include/linux
-if $CXX -idirafter /usr/include/linux -o seccomp -xc seccomp.c -l:libseccomp.so.2 ; then HAS_SECCOMP=1
-else                                                                                     HAS_SECCOMP=0
-fi
+HAS_SECCOMP=$(ok cc -idirafter /usr/include/linux -o seccomp -xc seccomp.c -l:libseccomp.so.2 )
 
 #
 # HAS_SGE
@@ -245,7 +260,7 @@ if [ "$SLURM" ] ; then
 	SLURM_SO=${SLURM_SO% *}                                                # only select first if there is ambiguity
 fi
 [ "$SLURM" ] || SLURM_SO=libslurm.so
-HAS_SLURM=$( ok $CXX -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc /dev/null )
+HAS_SLURM=$( ok cc -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc /dev/null )
 
 #
 # LIB_STACKTRACE
@@ -260,11 +275,11 @@ cat <<"EOF" > stacktrace.cc
 		return rc ;
 	}
 EOF
-if   $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE=stdc++_libbacktrace         # compile and link, to ensure both steps are ok
-elif $CXX -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE=stdc++exp                   # .
+if   cc -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE=stdc++_libbacktrace         # compile and link, to ensure both steps are ok
+elif cc -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE=stdc++exp                   # .
 fi
-if   $CXX -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE_32=stdc++_libbacktrace # compile and link, to ensure both steps are ok
-elif $CXX -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE_32=stdc++exp           # .
+if   cc -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE_32=stdc++_libbacktrace # compile and link, to ensure both steps are ok
+elif cc -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE_32=stdc++exp           # .
 fi
 HAS_STACKTRACE=$((   ${LIB_STACKTRACE:+   1}))
 HAS_STACKTRACE_32=$((${LIB_STACKTRACE_32:+1}))
@@ -285,7 +300,7 @@ cat <<"EOF" > undef_ptrace_macros.c
 		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
 	}
 EOF
-MUST_UNDEF_PTRACE_MACROS=$( ok $CXX -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c )
+MUST_UNDEF_PTRACE_MACROS=$( ok cc -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c )
 
 #
 # HAS_PTRACE_GET_SYSCALL_INFO (must be after MUST_UNDEF_PTRACE_MACROS)
@@ -300,7 +315,7 @@ cat <<"EOF" > get_syscall_info.c
 		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
 	}
 EOF
-HAS_PTRACE_GET_SYSCALL_INFO=$( ok $CXX -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o get_syscall_info.o -xc get_syscall_info.c )
+HAS_PTRACE_GET_SYSCALL_INFO=$( ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o get_syscall_info.o -xc get_syscall_info.c )
 
 #
 # NEED_STAT_WRAPPERS
@@ -311,7 +326,7 @@ cat <<"EOF" > stat.c
 	struct stat buf ;
 	int main() { stat("",&buf) ; }
 EOF
-$CXX -o stat_trial -xc stat.c
+cc -o stat_trial -xc stat.c
 nm -D stat_trial > stat_trial.nm
 NEED_STAT_WRAPPERS=$(( ! $(ok grep -wq stat stat_trial.nm) ))
 
@@ -326,7 +341,7 @@ cat <<"EOF" > start_main.c
 	}
 	int main() { write(1,"0",1) ; }
 EOF
-$CXX -o start_main -xc start_main.c
+cc -o start_main -xc start_main.c
 USE_LIBC_START_MAIN=$(./start_main)
 
 #
@@ -366,6 +381,7 @@ CXX_STD            := $CXX_STD
 LIB_STACKTRACE     := $LIB_STACKTRACE
 LIB_STACKTRACE_32  := $LIB_STACKTRACE_32
 LINK_LIB_PATH      := $LINK_LIB_PATH
+LINK_LIB_PATH_32   := $LINK_LIB_PATH_32
 STD_INC_DIRS       := $STD_INC_DIRS
 #
 SLURM_INC_DIR      := $SLURM_INC_DIR
@@ -395,6 +411,7 @@ fi
 cat >$H_FILE <<EOF
 	#pragma once
 	#define ADDR2LINE                   "$ADDR2LINE"
+	#define HAS_32                      $HAS_32
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_FUSE                    $HAS_FUSE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT

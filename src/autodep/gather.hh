@@ -46,7 +46,7 @@ ENUM( KillStep
 ,	Kill   // must be last as following values are used
 )
 
-struct Gather {
+struct Gather {                                                                                                 // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::ostream& operator<<( ::ostream& , Gather const& ) ;
 	using Kind = GatherKind    ;
 	using Proc = JobExecProc   ;
@@ -108,12 +108,12 @@ public : //!                                                                    
 	void new_exec( PD    , ::string const&       exe  ,                            ::string const&  ="s_exec" ) ;
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
-		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}         // dont care if we cannot report the reply to job
+		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child() ;
 	//
-	void reorder(bool at_end) ;                                                // reorder accesses by first read access and suppress superfluous accesses
+	void reorder(bool at_end) ;                                                                       // reorder accesses by first read access and suppress superfluous accesses
 private :
 	Fd   _spawn_child(                               ) ;
 	void _do_child   ( Fd report_fd , ::latch* ready ) ;
@@ -146,8 +146,8 @@ public :
 	ServerSockFd                      server_master_fd ;
 	::string                          service_mngt     ;
 	PD                                start_date       ;
-	::string                          stdout           ;                       // contains child stdout if child_stdout==Pipe
-	::string                          stderr           ;                       // contains child stderr if child_stderr==Pipe
+	::string                          stdout           ;                                              // contains child stdout if child_stdout==Pipe
+	::string                          stderr           ;                                              // contains child stderr if child_stderr==Pipe
 	Time::Delay                       timeout          ;
 	int                               wstatus          = 0                   ;
 private :
@@ -159,7 +159,7 @@ private :
 	PD                  _end_child     = PD::Future ;
 	PD                  _end_kill      = PD::Future ;
 	size_t              _kill_step     = 0          ;
-	NodeIdx             _parallel_id   = 0          ;                          // id to identify parallel deps
+	NodeIdx             _parallel_id   = 0          ;                                                 // id to identify parallel deps
 	bool                _timeout_fired = false      ;
-	BitMap<Kind>        _wait          ;                                       // events we are waiting for
+	BitMap<Kind>        _wait          ;                                                              // events we are waiting for
 } ;

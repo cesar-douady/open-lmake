@@ -5,14 +5,15 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 case x"$1" in
-	x      ) echo usage : $0 path/to/c-compiler >&2 ; exit 2 ;;
-	x-h    ) echo usage : $0 path/to/c-compiler >&2 ; exit 2 ;;
-	x--help) echo usage : $0 path/to/c-compiler >&2 ; exit 2 ;;
+	x      ) echo usage : $0 [-m32] path/to/c-compiler >&2 ; exit 2 ;;
+	x-h    ) echo usage : $0 [-m32] path/to/c-compiler >&2 ; exit 2 ;;
+	x--help) echo usage : $0 [-m32] path/to/c-compiler >&2 ; exit 2 ;;
+	x-m32  ) m32=-m32 ; shift                                       ;;
 esac
 
 cc=$1
 
-info=$($cc -v -o /dev/null -xc - <<< "int main(){}" 2>&1)
+info=$($cc $m32 -v -o /dev/null -xc - <<< "int main(){}" 2>&1)
 
 case $cc in
 	*clang*)
