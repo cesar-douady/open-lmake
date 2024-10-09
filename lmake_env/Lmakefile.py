@@ -206,9 +206,9 @@ class Marker(BaseRule,PyRule) :
 		open(MRKR,'w')
 
 basic_opts_tab = {
-	'c'   : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra',                                            )
-,	'cc'  : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type') # on some systems, there is a warning type-limits
-,	'cxx' : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type') # .
+	'c'   : ('-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra',                                            )
+,	'cc'  : ('-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type') # on some systems, there is a warning type-limits
+,	'cxx' : ('-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type') # .
 }
 def run_gxx(target,*args) :
 		cmd_line = ( gxx , '-o' , target , '-fdiagnostics-color=always' , *args )
@@ -262,15 +262,23 @@ class LinkRule(PathRule,PyRule) :
 	need_python  = False
 	need_seccomp = False
 	def cmd() :
-		lib_stacktrace = sys_config('LIB_STACKTRACE')
-		if True                                          : post_opts = ['-ldl']
-		if                  lib_stacktrace               : post_opts.append(f'-l{lib_stacktrace}')
-		if need_fuse    and sys_config('HAS_FUSE'      ) : post_opts.append('-lfuse3')
-		if need_python                                   : post_opts += ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
-		if need_seccomp and sys_config('HAS_SECCOMP'   ) : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists
+		nf  = need_fuse    and sys_config('HAS_FUSE'   )
+		ns  = need_seccomp and sys_config('HAS_SECCOMP')
+		lst = sys_config('LIB_STACKTRACE')
+		if True        : post_opts = ['-ldl']
+		if lst         : post_opts.append(f'-l{lst}')
+		if nf          : post_opts.append('-lfuse3')
+		if ns          : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists
+		if need_python :
+			post_opts.append(f"-L{sysconfig.get_config_var('LIBDIR')}")
+			lib = sysconfig.get_config_var('LDLIBRARY')
+			assert lib.startswith('lib')
+			lib = lib[3:].rsplit('.',1)[0]
+			post_opts.append(f"-l{lib}")
 		run_gxx( TARGET
 		,	*opts
 		,	*deps.values()
+		,	*( ('src/fuse.o',) if nf else () )
 		,	*post_opts
 		)
 
@@ -410,7 +418,6 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'SYSCALL'      : 'src/autodep/syscall_tab.o'
 	,	'RPC_JOB'      : 'src/rpc_job.o'
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
-	,	'FUSE'         : 'src/fuse.o'
 	,	'RPC_CLIENT'   : None
 	}
 	need_fuse    = True
@@ -436,7 +443,6 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
-	,	'FUSE'       : 'src/fuse.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
@@ -468,7 +474,6 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
-	,	'FUSE'       : 'src/fuse.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
@@ -489,7 +494,6 @@ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
 	deps = {
 		'RPC_JOB' : 'src/rpc_job.o'
-	,	'FUSE'    : 'src/fuse.o'
 	,	'MAIN'    : 'src/ldump_job.o'
 	}
 	need_fuse = True

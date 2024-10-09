@@ -11,18 +11,20 @@
 
 using namespace Disk ;
 
-int main( int /*argc*/ , char* /*argv*/[] ) {
+int main( int argc , char* argv[] ) {
 	t_thread_key = '=' ;
 	::cerr<<t_thread_key<<" "<<"start "<<cwd_s()<<endl ;
+
+	SWEAR(argc==2,argc) ;
 
 	Fuse::Mount fm { "a" , "b" } ;
 
 	::sleep(1) ;
-	::cerr<<t_thread_key<<" "<<"main1 "<<cwd_s()<<endl ;
+	::cerr<<t_thread_key<<" "<<"main1 "<<cwd_s()<<" "<<FileInfo("b")<<endl ;
 	struct stat stbuf ;
 	int rc = ::lstat("a/x",&stbuf) ;
 	::cerr<<t_thread_key<<" "<<"main2"<<" "<<rc<<endl ;
-	try         { OFStream("a/x") << "toto" << endl ;              }
+	try         { OFStream("a/x") << argv[1] << endl ;             }
 	catch (...) { ::cerr<<t_thread_key<<" "<<"write error"<<endl ; }
 	::cerr<<t_thread_key<<" "<<"main3\n";
 	try                       { ::cout<<read_content("a/x") ;                    }

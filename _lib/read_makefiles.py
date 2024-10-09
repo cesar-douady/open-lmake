@@ -6,7 +6,7 @@
 import sys
 
 from importlib import import_module
-from os        import getcwd
+from os        import getcwd,environ
 from os.path   import abspath,dirname,relpath
 import re
 
@@ -18,6 +18,14 @@ sys.implementation.cache_tag = None                                             
 sys.dont_write_bytecode      = True                                               # and dont generate them
 sys.path                     = [lmake_dir+'/lib',lmake_dir+'/_lib','.',*sys.path] # ensure we have safe entries in front so as to be immune to uncontrolled user settings
 
+if len(sys.argv)!=4 :
+	print('usage : python read_makefiles.py <out_file> [ config | rules | srcs ] <module>',file=sys.stderr)
+	sys.exit(1)
+
+out_file                = sys.argv[1]
+action                  = sys.argv[2]
+environ['LMAKE_ACTION'] = action
+
 import lmake     # import before user code to be sure user did not play with sys.path
 import serialize
 
@@ -26,13 +34,7 @@ pdict              = lmake.pdict
 
 sys.path = [sys.path[0],*sys.path[2:]] # suppress access to _lib
 
-if len(sys.argv)!=4 :
-	print('usage : python read_makefiles.py <out_file> [ config | rules | srcs ] <module>',file=sys.stderr)
-	sys.exit(1)
-
-out_file =               sys.argv[1]
-action   =               sys.argv[2]
-module   = import_module(sys.argv[3])
+module = import_module(sys.argv[3])
 
 # helper constants
 StdAttrs = {
@@ -648,8 +650,6 @@ def handle_config(config) :
 
 rule_modules = { r.__module__ for r in lmake._rules }
 
-handle_config(lmake.config)
-
 rules = [ fmt_rule_chk(r) for r in lmake._rules      ]
 rules = [              r  for r in rules        if r ]
 
@@ -661,16 +661,16 @@ def error(txt='') :
 	print(txt,file=sys.stderr)
 	exit(2)
 
-if not lmake.manifest and 'sources_module' not in lmake.config : lmake.config.sources_module = 'lmake.auto_sources'
-
 gen_config = action=='config'
 gen_rules  = action=='rules'
 gen_srcs   = action=='srcs'
 if gen_config :
-	if   not lmake.config.get('rules_module')   : gen_rules = True
-	elif rules                                  : error('cannot set lmake.config.rules_module and define rules'   )
-	if   not lmake.config.get('sources_module') : gen_srcs  = True
-	elif lmake.manifest                         : error('cannot set lmake.config.sources_module and lmake.sources')
+	if not lmake.manifest and 'sources_module' not in lmake.config : lmake.config.sources_module = 'lmake.auto_sources'
+	if True                                                        : handle_config(lmake.config)
+	if   not lmake.config.get('rules_module')                      : gen_rules = True
+	elif rules                                                     : error('cannot set lmake.config.rules_module and define rules'   )
+	if   not lmake.config.get('sources_module')                    : gen_srcs  = True
+	elif lmake.manifest                                            : error('cannot set lmake.config.sources_module and lmake.sources')
 
 lvl_stack = []
 def sep(l) :

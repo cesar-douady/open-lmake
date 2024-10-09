@@ -44,7 +44,7 @@ if __name__!='__main__' :
 	class All(PyRule):
 		target = r'all_{Backend:slurm|local}{Verbose:(_verbose)?}_{N:\d+}'
 		def cmd():
-			lmake.depend([f'out_{Backend}{Verbose}_{i}' for i in range(int(N))])
+			lmake.depend(*(f'out_{Backend}{Verbose}_{i}' for i in range(int(N))))
 
 else :
 
@@ -54,4 +54,4 @@ else :
 
 	if 'slurm' in lmake.backends : ut.lmake( f'all_slurm_{n}'         , steady=n+1 , done=n , may_rerun=n+1 )
 	if True                      : ut.lmake( f'all_local_{n}'         , steady=n+1 , done=n , may_rerun=n+1 )
-	if True                      : ut.lmake( f'all_local_verbose_{n}' , steady=  1 , done=n , may_rerun=  1 )
+	if not lmake.Autodep.IsFake  : ut.lmake( f'all_local_verbose_{n}' , steady=  1 , done=n , may_rerun=  1 )

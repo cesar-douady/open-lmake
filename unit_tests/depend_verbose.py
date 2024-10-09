@@ -61,6 +61,10 @@ if __name__!='__main__' :
 
 else :
 
+	if lmake.Autodep.IsFake :
+		print('clmake not available',file=open('skipped','w'))
+		exit()
+
 	import os
 	import shutil
 

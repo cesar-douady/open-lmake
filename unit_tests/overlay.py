@@ -13,8 +13,9 @@ if __name__!='__main__' :
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'read/src'
-	,	'ref'
-	,	'ref2'
+	,	'write/dut.ref'
+	,	'write/dut2.ref'
+	,	'dut3.ref'
 	)
 
 	class Dut(Rule) :
@@ -33,11 +34,18 @@ if __name__!='__main__' :
 			open(dir+'/testfile','w').write('good')
 			print(open(dir+'/testfile').read())
 
+	class Dut3(Rule) :
+		tmp_view = '/tmp'
+		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':lmake.root_dir+'/'} }
+		target   = 'dut3'
+		def cmd():
+			print(open('/tmp/merged/read/src').read(),end='')
+
 	class Test(Rule) :
-		target = r'test{Test:.*}'
+		target = r'{Test:.*}.ok'
 		deps = {
-			'DUT' : 'write/dut{Test}'
-		,	'REF' : 'ref{Test}'
+			'DUT' : '{Test}'
+		,	'REF' : '{Test}.ref'
 		}
 		cmd = 'diff {REF} {DUT}'
 
@@ -47,11 +55,13 @@ else :
 
 	import ut
 
-	os.makedirs('read',exist_ok=True)
+	os.makedirs('read' ,exist_ok=True)
+	os.makedirs('write',exist_ok=True)
 
-	print('good',file=open('ref'     ,'w'))
 	print('good',file=open('read/src','w'))
-	print('good',file=open('ref2'    ,'w'))
 
-	ut.lmake( 'test'  , new=2 , done=2 )
-	ut.lmake( 'test2' , new=1 , done=2 )
+	print('good',file=open('write/dut.ref' ,'w'))
+	print('good',file=open('write/dut2.ref','w'))
+	print('good',file=open('dut3.ref'      ,'w'))
+
+	ut.lmake( 'write/dut.ok' , 'write/dut2.ok' , 'dut3.ok'  , new=4 , done=6 )

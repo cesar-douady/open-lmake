@@ -560,6 +560,7 @@ private :
 struct JobSpace {
 	friend ::ostream& operator<<( ::ostream& , JobSpace const& ) ;
 	struct ViewDescr {
+		friend ::ostream& operator<<( ::ostream& , ViewDescr const& ) ;
 		bool operator+() const { return +phys   ; }
 		bool operator!() const { return !+*this ; }
 		// data
@@ -591,7 +592,7 @@ struct JobSpace {
 	//
 	::vmap_s<::vector_s> flat_phys() const ;      // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
-	void chk() const ;
+	void mk_canon(::string const& phy_root_dir_s) ;
 private :
 	bool           _is_lcl_tmp( ::string const&                                                              ) const ;
 	bool/*dst_ok*/ _create    ( ::vmap_s<MountAction>& report , ::string const& dst , ::string const& src={} ) const ;

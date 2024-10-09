@@ -201,13 +201,18 @@ Digest analyze(Status status=Status::New) {                                     
 
 ::vmap_s<DepDigest> cur_deps_cb() { return analyze().deps ; }
 
+::string g_to_unlnk ;                                                                                            // XXX : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line() {
 	::vector_s cmd_line = ::move(g_start_info.interpreter) ;                                                     // avoid copying as interpreter is used only here
 	if ( g_start_info.use_script || (g_start_info.cmd.first.size()+g_start_info.cmd.second.size())>ARG_MAX/2 ) { // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
+		// XXX : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
+		// correct code :
+		// ::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
+		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;
 		OFStream(dir_guard(cmd_file)) << g_start_info.cmd.first << g_start_info.cmd.second ;
 		cmd_line.reserve(cmd_line.size()+1) ;
-		cmd_line.push_back(::move(cmd_file)) ;
+		cmd_line.push_back(mk_abs(cmd_file,*g_root_dir_s)) ;                                                     // provide absolute script so as to support cwd
+		g_to_unlnk = ::move(cmd_file) ;
 	} else {
 		cmd_line.reserve(cmd_line.size()+2) ;
 		cmd_line.push_back( "-c"                                             ) ;
@@ -298,8 +303,8 @@ int main( int argc , char* argv[] ) {
 			case JobRpcProc::None  : return 0 ;                                                            // server ask us to give up
 			case JobRpcProc::Start : break    ;                                                            // normal case
 		DF}
-		try                       { g_start_info.job_space.chk() ;   }
-		catch (::string const& e) { end_report.msg += e ; goto End ; }
+		try                       { g_start_info.job_space.mk_canon(g_phy_root_dir_s) ; }
+		catch (::string const& e) { end_report.msg += e ; goto End ;                    }
 		//
 		g_root_dir_s = new ::string{ +g_start_info.job_space.root_view_s ? g_start_info.job_space.root_view_s : g_phy_root_dir_s } ;
 		//
@@ -383,6 +388,8 @@ int main( int argc , char* argv[] ) {
 		Status status = g_gather.exec_child() ;
 		//              ^^^^^^^^^^^^^^^^^^^^^
 		struct rusage rsrcs ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
+		//
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;
 		//
 		Digest digest = analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;

@@ -16,18 +16,20 @@ if __name__!='__main__' :
 	)
 
 	class TestNumba(PyRule) :
-		targets     = { 'TGT' : 'test.so'}
-		environ_cmd = { 'PYTHONPATH' : numba_home+':...' } # ... stands for inherited value
+		targets      = { 'TGT' : 'test.so'}
+		side_targets = { 'O'   : 'test.o' }
+		environ_cmd  = { 'PYTHONPATH' : numba_home+':...' } # '...' stands for inherited value
 		def cmd() :
 			from numba.pycc import CC
 			import numpy as np
+			import os
 			cc = CC('test')
 			@cc.export('test_nb','uint16[:]()')
 			def test_nb():
 				res = np.empty((1,),dtype=np.uint16)
 				return res
 			cc.target_cpu  = None
-			cc.output_file = TGT
+			cc.output_file = os.getcwd()+'/'+TGT            # provide absolute name so that it's ok even with use_script=True
 			cc.compile()
 
 else :

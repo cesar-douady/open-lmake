@@ -13,17 +13,51 @@ MAKEFLAGS += -r -R
 
 .DEFAULT_GOAL := DFLT
 
-$(shell { echo CXX=$$CXX ; echo PYTHON2=$$PYTHON2 ; echo PYTHON=$$PYTHON ; echo SLURM=$$SLURM ; echo LMAKE_FLAGS=$$LMAKE_FLAGS ; } >sys_config.env.tmp )
-$(shell cmp sys_config.env sys_config.env.tmp 2>/dev/null || { cp sys_config.env.tmp sys_config.env ; echo new env : >&2 ; cat sys_config.env >&2 ; }  )
+$(shell { echo CXX=$$CXX ; echo PYTHON2=$$PYTHON2 ; echo PYTHON=$$PYTHON ; echo SLURM_ROOT=$$SLURM_ROOT ; echo LMAKE_FLAGS=$$LMAKE_FLAGS ; } >sys_config.env.tmp )
+$(shell cmp sys_config.env sys_config.env.tmp 2>/dev/null || { cp sys_config.env.tmp sys_config.env ; echo new env >&2 ; }                             )
 $(shell rm -f sys_config.env.tmp                                                                                                                       )
 
 sys_config.log : _bin/sys_config sys_config.env
-	set -a ; . ./sys_config.env ; ./$< $(@:%.log=%.mk) $(@:%.log=%.h) 2>$@ || cat $@ # reread sys_config.env in case it has been modified while reading an old sys_config.mk
-sys_config.mk : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
-sys_config.h  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
+	@echo sys_config
+	@# reread sys_config.env in case it has been modified while reading an old sys_config.mk
+	@set -a ;                                                                   \
+	. ./sys_config.env ;                                                        \
+	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@
+sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
+sys_config.h   : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
+sys_config.sum : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
+sys_config.err : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
+
+%.SUMMARY : %
+	@echo '***********'
+	@echo '* SUMMARY *'
+	@echo '***********'
+	@echo '*'
+	@echo '* provided env :'
+	@echo '*'
+	@cat sys_config.env
+	@echo '*'
+	@echo '* sys_config summary :'
+	@echo '*'
+	@cat sys_config.sum
 
 # defines HAS_SECCOMP, HAS_SGE and HAS_SLURM
 include sys_config.mk
+
+ifeq ($(SYS_CONFIG_OK),0)
+$(shell echo '*********'        >&2 )
+$(shell echo '* ERROR *'        >&2 )
+$(shell echo '*********'        >&2 )
+$(shell echo '*'                >&2 )
+$(shell echo '* provided env :' >&2 )
+$(shell echo '*'                >&2 )
+$(shell cat sys_config.env      >&2 )
+$(shell echo '*'                >&2 )
+$(shell echo '* error :'        >&2 )
+$(shell echo '*'                >&2 )
+$(shell cat sys_config.err >&2 )
+$(error )
+endif
 
 # this is the recommanded way to insert a , when calling functions
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
@@ -94,7 +128,7 @@ FUSE_LIB       := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --libs  ))
 PCRE_LIB       := $(if $(HAS_PCRE),-lpcre2-8)
 
 PY_CC_FLAGS   = $(if $(and $(PYTHON2)     ,$(findstring -py2,             $@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
-PY_LINK_FLAGS = $(if $(and $(LD_SO_LIB_32),$(findstring 2.so,             $@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
+PY_LINK_FLAGS = $(if $(and $(PYTHON2)     ,$(findstring 2.so,             $@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
 PY_SO         = $(if $(and $(PYTHON2)     ,$(findstring 2.so,             $@)),-py2)
 MOD_SO        = $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
 MOD_O         = $(if $(and $(LD_SO_LIB_32),$(findstring -m32,             $@)),-m32)
@@ -108,8 +142,10 @@ LMAKE_SERVER_PY_FILES := \
 	$(SLIB)/serialize.py                   \
 	$(LIB)/lmake/__init__.py               \
 	$(LIB)/lmake/auto_sources.py           \
-	$(LIB)/lmake/import_machinery.py       \
+	$(LIB)/lmake/config.py                 \
 	$(LIB)/lmake/custom_importer.py        \
+	$(LIB)/lmake/import_machinery.py       \
+	$(LIB)/lmake/py_clmake.py              \
 	$(LIB)/lmake/rules.py                  \
 	$(LIB)/lmake/sources.py                \
 	$(LIB)/lmake/utils.py                  \
@@ -150,8 +186,8 @@ LMAKE_REMOTE_SLIBS := ld_audit.so ld_preload.so ld_preload_jemalloc.so
 LMAKE_REMOTE_FILES := \
 	$(if $(LD_SO_LIB_32),$(patsubst %,_d$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
 	$(patsubst %,_d$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                          \
-	$(LIB)/clmake.so                                                              \
-	$(if $(PYTHON2),$(LIB)/clmake2.so)                                            \
+	$(if $(HAS_PY3_DYN),$(LIB)/clmake.so)                                         \
+	$(if $(HAS_PY2_DYN),$(LIB)/clmake2.so)                                        \
 	$(SBIN)/job_exec                                                              \
 	$(BIN)/lcheck_deps                                                            \
 	$(BIN)/ldecode                                                                \
@@ -180,9 +216,11 @@ LMAKE_ALL_FILES := \
 
 LINT : $(patsubst %.cc,%.chk, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) )
 
-DFLT : LMAKE UNIT_TESTS LMAKE_TEST lmake.tar.gz
+DFLT_TGT : LMAKE_TGT UNIT_TESTS LMAKE_TEST lmake.tar.gz
+DFLT     : DFLT_TGT.SUMMARY
 
-ALL : DFLT STORE_TEST $(DOC)/lmake.html
+ALL_TGT : DFLT_TGT LINT STORE_TEST
+ALL     : ALL_TGT.SUMMARY
 
 %.inc_stamp : % # prepare a stamp to be included, so as to force availability of a file w/o actually including it
 	>$@
@@ -240,10 +278,14 @@ version.hh : version.hh.stamp ;
 # Sense git bin dir at install time so as to be independent of it at run time.
 # Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
 $(LIB)/%.py : $(SLIB)/%.src.py sys_config.mk
-	mkdir -p $(@D)
-	sed \
+	@echo customize $< to $@
+	@mkdir -p $(@D)
+	@sed \
 		-e 's!\$$BASH!$(BASH)!'                          \
 		-e 's!\$$GIT!$(GIT)!'                            \
+		-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
+		-e 's!\$$HAS_SGE!$(HAS_SGE)!'                    \
+		-e 's!\$$HAS_SLURM!$(HAS_SLURM)!'                \
 		-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
 		-e 's!\$$PYTHON2!$(PYTHON2)!'                    \
 		-e 's!\$$PYTHON!$(PYTHON)!'                      \
@@ -261,7 +303,8 @@ $(BIN)/% : $(SBIN)/%
 
 LMAKE_SERVER : $(LMAKE_SERVER_FILES)
 LMAKE_REMOTE : $(LMAKE_REMOTE_FILES)
-LMAKE        : LMAKE_SERVER LMAKE_REMOTE
+LMAKE_TGT    : LMAKE_SERVER LMAKE_REMOTE
+LMAKE        : LMAKE_TGT.SUMMARY
 
 #
 # store
@@ -293,24 +336,25 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 # compilation
 #
 
-ALL_H := version.hh sys_config.h ext/xxhash.h
+# these files are generated and cannot be reliably discovered with gcc -M option
+AUTO_H := version.hh
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CPP_FLAGS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . $(FUSE_CC_FLAGS) -idirafter /usr/include/linux
 
-%.i     : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%-m32.i : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E -m32                      $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%-py2.i : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%.s     : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%-m32.s : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S -m32                      $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%-py2.s : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%.o     : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%-m32.o : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c -m32         -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%-py2.o : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%-san.o : %.cc $(ALL_H) ; @echo $(CXX)  $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
-%.chk   : %.cc $(ALL_H) ; @echo $(LINT) $(USER_FLAGS)              to $@ ; $(LINT)    $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CPP_FLAGS) >$@ ; [ ! -s $@ ]
+%.i     : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-m32.i : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E -m32                      $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-py2.i : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -E                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%.s     : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-m32.s : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S -m32                      $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-py2.s : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -S                           $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%.o     : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-m32.o : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c -m32         -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-py2.o : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS)              to $@ ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%-san.o : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_FLAGS) $(CPP_FLAGS) -o $@ $<
+%.chk   : %.cc $(AUTO_H) ; @echo $(LINT) $(USER_FLAGS)              to $@ ; $(LINT)    $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CPP_FLAGS) >$@ ; [ ! -s $@ ]
 
-%.d : %.cc $(ALL_H)
+%.d : %.cc $(AUTO_H)
 	@$(COMPILE) \
 		-MM                                                  \
 		-MF $@                                               \
@@ -323,7 +367,7 @@ CPP_FLAGS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . $(FUSE_C
 		-MT '$@'                                             \
 		$< 2>/dev/null || :
 
-include $(patsubst %.cc,%.d, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) )
+include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) ) )
 
 #
 # lmake
@@ -348,12 +392,12 @@ CLIENT_SAN_OBJS := \
 SERVER_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)                \
 	$(SRC)/app$(SAN).o                     \
+	$(if $(HAS_FUSE),$(SRC)/fuse.o)        \
 	$(SRC)/py$(SAN).o                      \
 	$(SRC)/re$(SAN).o                      \
 	$(SRC)/rpc_client$(SAN).o              \
 	$(SRC)/rpc_job$(SAN).o                 \
 	$(SRC)/rpc_job_exec$(SAN).o            \
-	$(SRC)/fuse$(SAN).o                    \
 	$(SRC)/trace$(SAN).o                   \
 	$(SRC)/autodep/backdoor$(SAN).o        \
 	$(SRC)/autodep/env$(SAN).o             \
@@ -421,12 +465,12 @@ $(BIN)/ldebug :
 	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
-	$(LMAKE_BASIC_SAN_OBJS)    \
-	$(SRC)/app$(SAN).o         \
-	$(SRC)/rpc_job$(SAN).o     \
-	$(SRC)/fuse$(SAN).o        \
-	$(SRC)/trace$(SAN).o       \
-	$(SRC)/autodep/env$(SAN).o \
+	$(LMAKE_BASIC_SAN_OBJS)         \
+	$(SRC)/app$(SAN).o              \
+	$(if $(HAS_FUSE),$(SRC)/fuse.o) \
+	$(SRC)/rpc_job$(SAN).o          \
+	$(SRC)/trace$(SAN).o            \
+	$(SRC)/autodep/env$(SAN).o      \
 	$(SRC)/ldump_job$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
@@ -472,14 +516,14 @@ AUTODEP_OBJS := $(BASIC_REMOTE_OBJS) $(SRC)/autodep/syscall_tab.o
 REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) $(SRC)/autodep/job_support.o
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)         \
-	$(SRC)/app.o            \
-	$(SRC)/py.o             \
-	$(SRC)/re.o             \
-	$(SRC)/rpc_job.o        \
-	$(SRC)/fuse.o           \
-	$(SRC)/trace.o          \
-	$(SRC)/autodep/gather.o \
+	$(AUTODEP_OBJS)                 \
+	$(SRC)/app.o                    \
+	$(if $(HAS_FUSE),$(SRC)/fuse.o) \
+	$(SRC)/py.o                     \
+	$(SRC)/re.o                     \
+	$(SRC)/rpc_job.o                \
+	$(SRC)/trace.o                  \
+	$(SRC)/autodep/gather.o         \
 	$(SRC)/autodep/ptrace.o
 
 $(SBIN)/job_exec : $(JOB_EXEC_OBJS) $(SRC)/job_exec.o
@@ -543,6 +587,7 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 				PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH                                                  \
 				CXX=$(CXX_EXE)                                                                                \
 				HAS_32BITS=$(if $(LD_SO_LIB_32),1)                                                            \
+				PYTHON2=$(PYTHON2)                                                                            \
 			$(ROOT_DIR)/$<                                                                                    \
 		) </dev/null >$@.out 2>$@.err                                                                         \
 	&&	( if [ ! -f $(@D)/skipped ] ; then mv $@.out $@ ; else echo skipped $@ : $$(cat $(@D)/skipped) ; fi ) \
@@ -559,6 +604,7 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 				CXX=$(CXX_EXE)                                                                                \
 				LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                                 \
 				HAS_32BITS=$(if $(LD_SO_LIB_32),1)                                                            \
+				PYTHON2=$(PYTHON2)                                                                            \
 			$(PYTHON)                                                                                         \
 				Lmakefile.py                                                                                  \
 		) </dev/null >$@.out 2>$@.err                                                                         \
@@ -610,7 +656,7 @@ lmake.tar.gz  : TAR_COMPRESS := z
 lmake.tar.bz2 : TAR_COMPRESS := j
 lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 	@rm -rf $(ARCHIVE_DIR)
-	for d in $^ ; do mkdir -p $$(dirname $(ARCHIVE_DIR)/$$d) ; cp $$d $(ARCHIVE_DIR)/$$d ; done
+	@for d in $^ ; do mkdir -p $$(dirname $(ARCHIVE_DIR)/$$d) ; cp $$d $(ARCHIVE_DIR)/$$d ; done
 	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
 
 #

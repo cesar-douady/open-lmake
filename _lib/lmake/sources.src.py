@@ -6,7 +6,7 @@
 import os.path    as _osp
 import subprocess as _sp
 
-from clmake import root_dir # if not in an lmake repo, root_dir is not set to current dir
+from . import root_dir # if not in an lmake repo, root_dir is not set to current dir
 
 def manifest_sources(manifest='Manifest',**kwds) :
 	'''

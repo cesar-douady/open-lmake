@@ -172,8 +172,8 @@ namespace Backends {
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_attrs,rsrcs) ;
 		//
 		if ( tag!=Tag::Local && _localize(tag,r) ) {
-			SWEAR(+tag<N<Tag>) ;                                                   // prevent compiler array bound warning in next statement
-			if (!s_tab[+tag]) throw "backend "s+snake(tag)+" is not implemented" ;
+			SWEAR(+tag<N<Tag>) ;                                                                // prevent compiler array bound warning in next statement
+			if (!s_tab[+tag]) throw "open-lmake was compiled without "s+snake(tag)+" support" ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
 			tag   = Tag::Local                                                            ;
 			trace("local",rsrcs) ;

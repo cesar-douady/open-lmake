@@ -256,7 +256,7 @@ static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 #define F(name,descr) { #name , reinterpret_cast<PyCFunction>(name) , METH_VARARGS|METH_KEYWORDS , descr }
 static PyMethodDef funcs[] = {
 	F( check_deps          , "check_deps(verbose=False)"                                                             " Ensure that all previously seen deps are up-to-date."                       )
-,	F( decode              , "decode(code,file,ctx)"                                                                 " Return the associated value passed by encode(value,file,ctx)."              )
+,	F( decode              , "decode(file,ctx,code)"                                                                 " Return the associated value passed by encode(value,file,ctx)."              )
 ,	F( depend              , "depend(dep1,dep2,...,verbose=False,follow_symlinks=True,<dep flags=True>,...)"         " Pretend read of all argument and mark them with flags mentioned as True."   )
 ,	F( encode              , "encode(value,file,ctx,min_length=1)"                                                   " Return a code associated with value. If necessary create such a code of"
 	/**/                                                                                                             " length at least min_length after a checksum computed after value."          )

@@ -162,13 +162,13 @@ class _PyRule(Rule) :
 	cmd.shell = ''                                                              # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
 class Py2Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
-	side_targets    = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }
-	py_rule         = 'Py2Rule'
-	python          = python2
+	side_targets = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }
+	py_rule      = 'Py2Rule'
+	python       = python2
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
-	side_targets     = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental'  ) }
-	py_rule         = 'Py3Rule'
+	side_targets = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental'  ) }
+	py_rule      = 'Py3Rule'
 
 PyRule = Py3Rule
 

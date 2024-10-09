@@ -23,7 +23,7 @@ template<class E,class T> static constexpr bool _chk_flags_tab(::array<::pair<E,
 // START_OF_VERSIONING
 ENUM_2( Dflag        // flags for deps
 ,	NRule = Required // number of Dflag's allowed in rule definition
-,	NDyn  = Static   // number of Dflag's allowed in lside flags
+,	NDyn  = Static   // number of Dflag's allowed in side flags
 	//
 ,	Critical         // if modified, ignore following deps
 ,	Essential        // show when generating user oriented graphs
@@ -61,7 +61,7 @@ static_assert(_chk_flags_tab(ExtraDflagChars)) ;
 // START_OF_VERSIONING
 ENUM_2( Tflag      // flags for targets
 ,	NRule = Static // number of Tflag's allowed in rule definition
-,	NDyn  = Phony  // number of Tflag's allowed inlside flags
+,	NDyn  = Phony  // number of Tflag's allowed inside flags
 ,	Essential      // show when generating user oriented graphs
 ,	Incremental    // reads are allowed (before earliest write if any)
 ,	NoUniquify     // target is uniquified if it has several links and is incremental

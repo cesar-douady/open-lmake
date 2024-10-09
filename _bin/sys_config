@@ -5,20 +5,28 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+START_DIR=$(pwd)
+
+MK_FILE=$( realpath ${1:-/dev/null})
+H_FILE=$(  realpath ${2:-/dev/null})
+SUM_FILE=$(realpath ${3:-/dev/null})
+ERR_FILE=$(realpath ${4:-/dev/null})
+
+echo SYS_CONFIG_OK := 0 >$MK_FILE  # this will be overwritten at the end, when auto-config has gone through
+                        >$H_FILE   # useless, for sanity only
+                        >$SUM_FILE # empty file as from now on, we append to it
+                        >$ERR_FILE # .
+
 ok() {
 	if $@ >/dev/null ; then echo 1
 	else                    echo 0
 	fi
 }
 
-MK_FILE=$1
-H_FILE=$2
-
 unset CDPATH # ensure cd goes to the right directory and writes nothing to stdout
 
 PATH="$(realpath $(dirname $0)):$PATH" # access to local exe's
 
-START_DIR=$(pwd)
 rm -rf trial
 mkdir  trial
 cd     trial
@@ -35,35 +43,38 @@ case "$(basename $CXX)" in
 	g++      ) CXX_FLAVOR=gcc   ;;
 	g++-*    ) CXX_FLAVOR=gcc   ;;
 	c++      ) CXX_FLAVOR=gcc   ;;
-	clang    ) echo compiler must be a native C++ one, such as clang++             >&2 ; exit 1 ;;
-	clang-*  ) echo compiler must be a native C++ one, such as clang++${CXX#clang} >&2 ; exit 1 ;;
-	gcc      ) echo compiler must be a native C++ one, such as g++                 >&2 ; exit 1 ;;
-	gcc-*    ) echo compiler must be a native C++ one, such as g++${CXX#gcc}       >&2 ; exit 1 ;;
-	cc       ) echo compiler must be a native C++ one, such as c++                 >&2 ; exit 1 ;;
-	*        ) echo cannot recognize c compiler $CCX                               >&2 ; exit 1 ;;
+	clang    ) echo \$CXX=$CXX must be a native C++ one, such as clang++             >>$ERR_FILE ; exit 1 ;;
+	clang-*  ) echo \$CXX=$CXX must be a native C++ one, such as clang++${CXX#clang} >>$ERR_FILE ; exit 1 ;;
+	gcc      ) echo \$CXX=$CXX must be a native C++ one, such as g++                 >>$ERR_FILE ; exit 1 ;;
+	gcc-*    ) echo \$CXX=$CXX must be a native C++ one, such as g++${CXX#gcc}       >>$ERR_FILE ; exit 1 ;;
+	cc       ) echo \$CXX=$CXX must be a native C++ one, such as c++                 >>$ERR_FILE ; exit 1 ;;
+	*        ) echo \$CXX=$CXX cannot be recognized as a c++ compiler                >>$ERR_FILE ; exit 1 ;;
 esac
 
 CXX=$(type -p $CXX)
-[ "$CXX" ] || { echo $CXX not found >&2 ; exit 1 ; }
+[ "$CXX" ] || { echo $CXX not found >>$ERR_FILE ; exit 1 ; }
 CXX_DIR=$(dirname $CXX)
 
 cc() { PATH=$CXX_DIR:$PATH $CXX "$@" ; }
 
-CXX_VERSION=$(cc -dumpversion)                                                 # outputs either major version or full version, depending on flavors and versions
-CXX_VERSION=${CXX_VERSION%%.*}                                                 # strip minor if present
-[ "$CXX_VERSION" ] || { echo cannot determine version of $CXX >&2 ; exit 1 ; }
+CXX_VERSION=$(cc -dumpversion)                                                                               # outputs either major version or full version, depending on flavors and versions
+CXX_VERSION=${CXX_VERSION%%.*}                                                                               # strip minor if present
+[ "$CXX_VERSION" ] || { echo cannot determine version of $CXX "($CXX_FLAVOR style)" >>$ERR_FILE ; exit 1 ; }
 case "$CXX_FLAVOR" in
-	clang) [[ $CXX_VERSION -ge 14 ]] || { echo $CXX version $CXX_VERSION must be at least 14 >&2 ; exit 1 ; } ;;
-	gcc  ) [[ $CXX_VERSION -ge 11 ]] || { echo $CXX version $CXX_VERSION must be at least 11 >&2 ; exit 1 ; } ;;
+	clang) [[ $CXX_VERSION -ge 14 ]] || { echo $CXX version $CXX_VERSION must be at least 14 >>$ERR_FILE ; exit 1 ; } ;;
+	gcc  ) [[ $CXX_VERSION -ge 11 ]] || { echo $CXX version $CXX_VERSION must be at least 11 >>$ERR_FILE ; exit 1 ; } ;;
 esac
-
-cc -v -E -o /dev/null -xc - </dev/null 2>compiler_info
-STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' compiler_info)) )" # echo is used to replace \n by space
 
 if   cc -o /dev/null -xc++ -std=c++23 - <<< 'int main() {}' ; then CXX_STD=c++23
 elif cc -o /dev/null -xc++ -std=c++20 - <<< 'int main() {}' ; then CXX_STD=c++20
-else                                                          echo $CXX must support at least c++20 ; exit 1
+else
+	echo $CXX must support at least c++20 >>$ERR_FILE ; exit 1
 fi
+
+echo "using $CXX as $CXX_STD compiler (version $CXX_VERSION)" >>$SUM_FILE
+
+cc -v -E -o /dev/null -xc - </dev/null 2>compiler_info
+STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' compiler_info)) )" # echo is used to replace \n by space
 
 #
 # Python configuration (Python2 is optional)
@@ -74,7 +85,7 @@ config_python() {
 	ver=$2
 	python=${python:-python$ver}
 	p=$(type -p $python || :)
-	[ "$p" ] || { echo $python not found >&2 ; return 1 ; }
+	[ "$p" ] || { msg="$python not found" ; return 1 ; }
 	python=$p
 	llp=$LD_LIBRARY_PATH                                                        # save LD_LIBARY_PATH
 	export LD_LIBRARY_PATH="$(dirname $(dirname $python))/lib:$LD_LIBRARY_PATH"
@@ -86,17 +97,20 @@ config_python() {
 	lib_dir=$( $python -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"    ))')
 	case $ver in
 		2)
-			[ $py_major -eq 2 ] || { echo $python version must be 2.x          >&2 ; return 1 ; }
-			[ $py_minor -ge 7 ] || { echo $python version must be at least 2.7 >&2 ; return 1 ; }
+			[ $py_major -eq 2 ] || { msg="$python version must be 2.x"          ; return 1 ; }
+			[ $py_minor -ge 7 ] || { msg="$python version must be at least 2.7" ; return 1 ; }
 		;;
 		3)
-			[ $py_major -eq 3 ] || { echo $python version must be 3.x          >&2 ; return 1 ; }
-			[ $py_minor -ge 6 ] || { echo $python version must be at least 3.6 >&2 ; return 1 ; }
+			[ $py_major -eq 3 ] || { msg="$python version must be 3.x"          ; return 1 ; }
+			[ $py_minor -ge 6 ] || { msg="$python version must be at least 3.6" ; return 1 ; }
 		;;
 	esac
-	[ "${lib_base%.so}" != "${lib_base}" ] || { echo $python library $lib_base is not a shared library >&2 ; return 1 ; }
+	case "$lib_base" in
+		*.so | *.a ) ;;
+		*          ) msg="$python library $lib_base is not a python library" ; return 1 ;;
+	esac
 	case "$lib_dir/" in
-		/usr/lib/*)   lib_dir= ;;
+		/usr/lib/*  ) lib_dir= ;;
 		/usr/lib64/*) lib_dir= ;;
 	esac
 	[ ! "$lib_dir" ] || lib_opt=-L$lib_dir
@@ -106,20 +120,25 @@ config_python() {
 			PyObject* none = Py_None ;
 		}
 	EOF
-	cc -o probe_python$ver -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { echo $python is unusable as a library >&2 ; return 1 ; }
+	cc -o probe_python$ver -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { msg="$python is unusable as python library" ; return 1 ; }
 	eval "PYTHON${ver#3}=$python"
 	eval "PY${ver}_INCLUDEDIR=$inc_dir"
 	eval "PY${ver}_INCLUDEPY=$inc_py"
 	eval "PY${ver}_LIB_BASE=$lib_base"
 	eval "PY${ver}_LIB_DIR=$lib_dir"
+	case "$lib_base" in
+		*.so) eval "HAS_PY${ver}_DYN=1" ; echo "using $python as python$ver (version $py_major.$py_minor)"                                           >>$SUM_FILE ;;
+		*.a ) eval "HAS_PY${ver}_DYN=0" ; echo "using $python as python$ver (version $py_major.$py_minor) with static library (minimal job support)" >>$SUM_FILE ;;
+	esac
 	LD_LIBRARY_PATH=$llp                                                        # restore LD_LIBARY_PATH
 }
 
-config_python "$PYTHON2" 2 || PYTHON2= # python2 is optional
-config_python "$PYTHON"  3 || exit 1
+config_python "$PYTHON2" 2 || { echo "no python2 support ($msg)" >>$SUM_FILE ; PYTHON2= ; } # python2 is optional
+config_python "$PYTHON"  3 || { echo                      $msg   >>$ERR_FILE ; exit 1   ; } # python3 is compulsery
 
-if [ "$PY2_LIB_DIR" -a "$PY_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR:$PY2_LIB_DIR # both present, separate with :
-else                                          PY_LD_LIBRARY_PATH=$PY3_LIB_DIR$PY2_LIB_DIR  # only one is present
+if   [ "$PY2_LIB_DIR" -a "$PY3_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR:$PY2_LIB_DIR
+elif [ "$PY2_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY2_LIB_DIR
+elif [ "$PY3_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR
 fi
 
 #
@@ -130,6 +149,7 @@ cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(strace -E L
 if [ "$LD_SO_LIB" -a "$LD_SO_LIB_32" -a "$LD_SO_LIB" != "$LD_SO_LIB_32" ] ; then
 	HAS_32=1                                                                     # we have both 32 and 64 bits, use the ld.so $LIB feature
 else
+	[ "$LD_SO_LIB_32" ] || echo no 32 bits support >>$SUM_FILE                   # else we are running on a 32 bits system
 	HAS_32=0                                                                     # ensure we do not the ld.so $LIB feature
 	LD_SO_LIB=lib                                                                # if auto-detect failed, dont support 32-bits and take a standard value for LD_SO_LIB
 	LD_SO_LIB_32=                                                                # .
@@ -141,7 +161,7 @@ fi
 
 LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
 LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
-if [ $HAS_32 != 0 ] ; then
+if [ $HAS_32 = 1 ] ; then
 	LINK_LIB_PATH_32=$(find_cc_ld_library_path -m32 $CXX)
 	LINK_LIB_PATH_32=${LINK_LIB_PATH_32//:/ }
 fi
@@ -157,30 +177,22 @@ fi
 # HAS_CLOSE_RANGE
 # test whether we can include linux/close_range.h
 #
-HAS_CLOSE_RANGE=$( ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
+HAS_CLOSE_RANGE=$(ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
 
 #
 # HAS_FUSE
 #
 HAS_FUSE=$(ok pkg-config fuse3)
-HAS_FUSE=0                      # XXX : enable fuse when ready
+[ $HAS_FUSE = 1 ] || echo no fuse support >>$SUM_FILE
 
 #
 # HAS_LD_AUDIT
 # test whether LD_AUDIT environment variable is managed by dynamic linker
 #
 source /etc/os-release
-case "$ID" in
-	ubuntu)
-		case "$VERSION_ID" in
-			20.04) HAS_LD_AUDIT=0 ;; # Ubuntu fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
-		esac
-	;;
-	centos)
-		case "$VERSION_ID" in
-			7) HAS_LD_AUDIT=0 ;;     # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
-		esac
-	;;
+case "$ID/$VERSION_ID" in
+	ubuntu/20.04) HAS_LD_AUDIT=0 ;; # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
+	centos/7    ) HAS_LD_AUDIT=0 ;; # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
 esac
 if [ -z "$HAS_LD_AUDIT" ] ; then
 	cat <<-"EOF" > audited.c
@@ -196,6 +208,8 @@ if [ -z "$HAS_LD_AUDIT" ] ; then
 	cc -o ld_audit.so -shared -fPIC -xc ld_audit.c
 	HAS_LD_AUDIT=$(LD_AUDIT=./ld_audit.so ./audited)
 fi
+#
+[ $HAS_LD_AUDIT = 1 ] || echo no LD_AUDIT support >>$SUM_FILE
 
 #
 # HAS_MEMFD
@@ -217,7 +231,7 @@ cat <<"EOF" > ostringstream_view.cc
 	#include <sstream>
 	std::string_view ossv = std::ostringstream().view() ;
 EOF
-HAS_OSTRINGSTREAM_VIEW=$( ok cc -c -std=$CXX_STD -o ostringstream_view.o ostringstream_view.cc )
+HAS_OSTRINGSTREAM_VIEW=$(ok cc -c -std=$CXX_STD -o ostringstream_view.o ostringstream_view.cc )
 
 #
 # HAS_PCRE
@@ -229,7 +243,9 @@ cat <<"EOF" > pcre.cc
 		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
 	}
 EOF
-HAS_PCRE=$( ok cc -std=$CXX_STD -o pcre.o pcre.cc -lpcre2-8 )
+HAS_PCRE=$(ok cc -std=$CXX_STD -o pcre.o pcre.cc -lpcre2-8 )
+#
+[ $HAS_PCRE = 1 ] || echo "no pcre2 support, fall back to (slower) c++ STL regular expression library" >>$SUM_FILE
 
 #
 # HAS_SECCOMP
@@ -245,22 +261,28 @@ cat <<"EOF" > seccomp.c
 EOF
 # usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccomp.h) but some systems have seccomp.h directly installed in /usr/include/linux
 HAS_SECCOMP=$(ok cc -idirafter /usr/include/linux -o seccomp -xc seccomp.c -l:libseccomp.so.2 )
+#
+[ $HAS_SECCOMP = 1 ] || echo "no seccomp support, fall back to (slower when autodep=ptrace) ptrace to trace jobs" >>$SUM_FILE
 
 #
 # HAS_SGE
 #
 HAS_SGE=$(ok type -p qsub)
+#
+[ $HAS_SGE = 1 ] || echo no sge support >>$SUM_FILE
 
 #
 # HAS_SLURM
 #
-if [ "$SLURM" ] ; then
-	SLURM_INC_DIR=$SLURM/include
-	SLURM_SO="$(find $SLURM -name lib32 -prune -o -name libslurm.so || :)" # exclude 32 bits in case of ...
-	SLURM_SO=${SLURM_SO% *}                                                # only select first if there is ambiguity
+if [ "$SLURM_ROOT" ] ; then
+	SLURM_INC_DIR=$SLURM_ROOT/include
+	SLURM_SO="$(find $SLURM_ROOT -name lib32 -prune -o -name libslurm.so || :)" # exclude 32 bits in case of ...
+	SLURM_SO=${SLURM_SO% *}                                                     # only select first if there is ambiguity
 fi
-[ "$SLURM" ] || SLURM_SO=libslurm.so
-HAS_SLURM=$( ok cc -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc /dev/null )
+[ "$SLURM_ROOT" ] || SLURM_SO=libslurm.so
+HAS_SLURM=$(ok cc -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc /dev/null )
+#
+[ $HAS_SLURM = 1 ] || echo no slurm support >>$SUM_FILE
 
 #
 # LIB_STACKTRACE
@@ -283,6 +305,8 @@ elif cc -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; th
 fi
 HAS_STACKTRACE=$((   ${LIB_STACKTRACE:+   1}))
 HAS_STACKTRACE_32=$((${LIB_STACKTRACE_32:+1}))
+#
+[ $HAS_STACKTRACE = 1 ] || echo "no stacktrace support, fall back to (lower quality back trace in case of crash) addr2line" >>$SUM_FILE
 
 #
 # MAX_PID
@@ -300,7 +324,7 @@ cat <<"EOF" > undef_ptrace_macros.c
 		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
 	}
 EOF
-MUST_UNDEF_PTRACE_MACROS=$( ok cc -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c )
+MUST_UNDEF_PTRACE_MACROS=$(ok cc -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c )
 
 #
 # HAS_PTRACE_GET_SYSCALL_INFO (must be after MUST_UNDEF_PTRACE_MACROS)
@@ -315,7 +339,7 @@ cat <<"EOF" > get_syscall_info.c
 		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
 	}
 EOF
-HAS_PTRACE_GET_SYSCALL_INFO=$( ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o get_syscall_info.o -xc get_syscall_info.c )
+HAS_PTRACE_GET_SYSCALL_INFO=$(ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o get_syscall_info.o -xc get_syscall_info.c )
 
 #
 # NEED_STAT_WRAPPERS
@@ -357,9 +381,9 @@ STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
 # with posix, we must map vfork to fork as vfork is a subset of fork and instrumenting exec in child is forbidden with vfork
 MAP_VFORK=0
 
-cd $START_DIR
-
 cat >$MK_FILE <<EOF
+SYS_CONFIG_OK      := 1
+#
 BASH               := /bin/bash
 GIT                := $(type -p ${GIT:-git})
 #
@@ -368,11 +392,13 @@ PY2_INCLUDEDIR     := $PY2_INCLUDEDIR
 PY2_INCLUDEPY      := $PY2_INCLUDEPY
 PY2_LIB_DIR        := $PY2_LIB_DIR
 PY2_LIB_BASE       := $PY2_LIB_BASE
+HAS_PY2_DYN        := ${HAS_PY2_DYN#0}
 PYTHON             := $PYTHON
 PY3_INCLUDEDIR     := $PY3_INCLUDEDIR
 PY3_INCLUDEPY      := $PY3_INCLUDEPY
 PY3_LIB_DIR        := $PY3_LIB_DIR
 PY3_LIB_BASE       := $PY3_LIB_BASE
+HAS_PY3_DYN        := ${HAS_PY3_DYN#0}
 PY_LD_LIBRARY_PATH := $PY_LD_LIBRARY_PATH
 #
 CXX                := $CXX
@@ -390,6 +416,7 @@ LD_SO_LIB          := $LD_SO_LIB
 LD_SO_LIB_32       := $LD_SO_LIB_32
 #
 HAS_FUSE           := ${HAS_FUSE#0}
+HAS_LD_AUDIT       := ${HAS_LD_AUDIT#0}
 HAS_PCRE           := ${HAS_PCRE#0}
 HAS_SECCOMP        := ${HAS_SECCOMP#0}
 HAS_SGE            := ${HAS_SGE#0}

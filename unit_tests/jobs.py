@@ -32,7 +32,7 @@ if __name__!='__main__' :
 		target    = r'out_{N:\d+}'
 		resources = {'mem':1}
 		def cmd() :
-			lmake.depend([f'file_{x}' for x in range(int(N))])
+			lmake.depend(*(f'file_{x}' for x in range(int(N))))
 
 else :
 

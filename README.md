@@ -81,7 +81,7 @@ it has been tested with the dockers listed in the docker directory
 		- PYTHON2 can be set to your preferred Python 2 (defaults to python2). You will be told if it is not supported.
 		- PYTHON can be set to your preferred Python 3 (defaults to python3). You will be told if it is not supported.
 		- CXX can be set to your preferred C++ compiler. You will be told if it is not supported.
-		- SLURM can be set to the root dir of the slurm installation. For example, slurm.h will be found as $SLURM/include/slurm/slurm.h
+		- SLURM_ROOT can be set to the root dir of the slurm installation. For example, slurm.h will be found as $SLURM_ROOT/include/slurm/slurm.h
 		- LMAKE_FLAGS can be defined as O[0123]G?D?T?S[AB]C?
 			- O[0123] controls the -O option                                      (default : 1 if profiling else 3           )
 			- G       controls the -g option                                      (default : no debug                        )
@@ -294,13 +294,14 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 - trace entries are timestamped and a letter indicates the thread :
 	- '=' refers to the main thread
 	- in server :
-		- C : cancel jobs in slurm backend
+		- C : cancel jobs in sge and slurm backend (2 threads)
 		- D : handle lencode/ldecode
 		- E : job end
 		- H : heartbeat
 		- J : record job data
-		- L : launch jobs, both in local and slurm backends (2 threads)
+		- L : launch jobs, in local,sge and slurm backends (3 threads)
 		- M : job management
+		- Q : manage queries from clients
 		- R : deferred reports
 		- S : job start
 		- T : wait terminated processes in local backend
@@ -308,6 +309,7 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 	- in job exec :
 		- <number> : compute crc
 	- in lmake :
+		- F : the fuse loop
 		- I : manage ^C
 - trace records are indented to reflect the call graph
 	- indentation are done with tabs, preceded by a follow up character (chosen to be graphically light), this eases the reading
@@ -316,6 +318,7 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 	- in a function that already has a Trace variable, just call the variable with the info you want to trace
 	- else, declare a variable of type Trace. The first argument is a title that will be repeated in all records using the same trace object
 	- all Trace objects created while this one is alive will be indented, thus reproducing the call graph in the trace
+	- booleans cannot be traced as this is mostly unreadable. Instead use the STR macro to transform the boolean into a string. STR(foo) will be "foo" if foo is true, else "!foo".
 
 # modification
 

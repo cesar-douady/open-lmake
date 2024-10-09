@@ -379,7 +379,7 @@ namespace Disk {
 
 	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {
 		Stat st ;
-		if (::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|(no_follow?AT_SYMLINK_NOFOLLOW:0) )!=0) return ;
+		if (::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|(no_follow?AT_SYMLINK_NOFOLLOW:0) )<0) return ;
 		//
 		FileTag tag ;
 		if (S_ISREG(st.st_mode)) {
