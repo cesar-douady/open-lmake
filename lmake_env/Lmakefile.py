@@ -153,7 +153,7 @@ class ConfigH(BaseRule) :
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 
-class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
+class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
 	targets = {
 		'H'     : 'sys_config.h'
 	,	'TRIAL' : r'trial/{*:.*}'
@@ -164,10 +164,14 @@ class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
 		CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/mk {H} 2>&1
 		while read k e v ; do
 			case $k in
-				'#'*) ;;
-				*   ) echo $v > {MK('$k')} ;;
+				'#'*      ) ;;
+				*HAS_FUSE*) echo    > {MK('$k')} ;;
+				*HAS_PCRE*) echo    > {MK('$k')} ;;
+				*         ) echo $v > {MK('$k')} ;;
 			esac
 		done < $TMPDIR/mk
+		echo '#undef  HAS_FUSE'   >> {H}
+		echo '#define HAS_FUSE 0' >> {H}
 		echo '#undef  HAS_PCRE'   >> {H}
 		echo '#define HAS_PCRE 0' >> {H}
 		#echo > {MK('HAS_PCRE')}
@@ -278,7 +282,7 @@ class LinkRule(PathRule,PyRule) :
 		run_gxx( TARGET
 		,	*opts
 		,	*deps.values()
-		,	*( ('src/fuse.o',) if nf else () )
+		,	*( ('src/autodep/fuse.o',) if nf else () )
 		,	*post_opts
 		)
 

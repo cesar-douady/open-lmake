@@ -22,15 +22,15 @@ struct AutodepEnv : Disk::RealPathEnv {
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,static_cast<RealPathEnv&>(*this)) ;
 		::serdes(s,auto_mkdir                      ) ;
-		::serdes(s,disabled                        ) ;
+		::serdes(s,enable                          ) ;
 		::serdes(s,ignore_stat                     ) ;
 		::serdes(s,service                         ) ;
 		::serdes(s,views                           ) ;
 	}
 	// data
-	bool                 auto_mkdir  = false ; // if true <=> auto mkdir in case of chdir
-	bool                 disabled    = false ; // if true <=> no automatic report
-	bool                 ignore_stat = false ; // if true <=> stat-like syscalls do not trigger dependencies
+	bool                 auto_mkdir  = false ; // if true  <=> auto mkdir in case of chdir
+	bool                 enable      = true  ; // if false <=> no automatic report
+	bool                 ignore_stat = false ; // if true  <=> stat-like syscalls do not trigger dependencies
 	::string             service     ;
 	::vmap_s<::vector_s> views       ;
 } ;

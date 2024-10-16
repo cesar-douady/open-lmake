@@ -101,9 +101,6 @@ items :
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
-* implement fuse as an autodep method
-	- use namespaces
-	- interestingly enough : it is a way to accept bind mount from repo
 * provide a mechansim to prevent writing non-targets
 	- mount an overlay over the repo
 	- at the end, transport targets to their real location
@@ -127,6 +124,8 @@ items :
 		- while suspended, consider resources to be freed
 		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 		- then resume participates to allocation competition
+! implement fuse as an autodep method
+	- does not seem doable because read foo/bar first does a lookup(foo)
 ? provide only visibility to system+repo+tmp to jobs
 	- how to identify system ?
 ? implement a ref/check mechanism

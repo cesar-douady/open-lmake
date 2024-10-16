@@ -183,6 +183,7 @@ HAS_CLOSE_RANGE=$(ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev
 # HAS_FUSE
 #
 HAS_FUSE=$(ok pkg-config fuse3)
+HAS_FUSE=0                                            # fuse does not work for now
 [ $HAS_FUSE = 1 ] || echo no fuse support >>$SUM_FILE
 
 #

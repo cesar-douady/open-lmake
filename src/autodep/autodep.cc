@@ -99,6 +99,7 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 }
 
 int main( int argc , char* argv[] ) {
+    block_sigs({SIGCHLD}) ;
 	app_init(true/*read_only_ok*/,false/*cd_root*/) ;
 	Py::init(*g_lmake_dir_s) ;
 	::string dbg_dir_s = *g_root_dir_s+AdminDirS+"debug/" ;
@@ -168,7 +169,7 @@ int main( int argc , char* argv[] ) {
 	//
 	Status status ;
 	try {
-		BlockedSig blocked{{SIGCHLD,SIGINT}} ;
+		BlockedSig blocked{{SIGINT}} ;
 		gather.autodep_env       = ::move(autodep_env)   ;
 		gather.autodep_env.views = job_space.flat_phys() ;
 		gather.cmd_line          = cmd_line.args         ;
@@ -185,10 +186,10 @@ int main( int argc , char* argv[] ) {
 	try {
 		if (cmd_line.flags[CmdFlag::Out]) { user_out.open(cmd_line.flag_args[+CmdFlag::Out]) ; ds = &user_out ; }
 		else                              {                                                    ds = &::cerr   ; }
+        start_info.exit() ;
 	} catch (::string const& e) {
 		exit(Rc::System,e) ;
 	}
-	start_info.exit() ;
 	::ostream& deps_stream = *ds ;
 	deps_stream << "targets :\n" ;
 	for( auto const& [target,ai] : gather.accesses ) {

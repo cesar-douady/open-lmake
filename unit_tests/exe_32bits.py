@@ -65,15 +65,13 @@ else :
 	'''))
 	print('hello world',file=open('ref','w'))
 
-	bad_32  = lmake.has_ptrace      # 32 bits with ptrace is not supported
-	methods = ['none','ld_preload']
-	if lmake.has_ptrace   : methods.append('ptrace'  )
-	if lmake.has_ld_audit : methods.append('ld_audit')
+	bad_32   = 'ptrace' in lmake.autodeps # 32 bits with ptrace is not supported
+	autodeps = ('none',*lmake.autodeps)
 
 	ut.lmake(
-		*(f'test-{sz}.{m}' for sz in (64,32) for m in methods)
+		*(f'test-{sz}.{m}' for sz in (64,32) for m in autodeps)
 	,	new    = 2
-	,	done   = 2 + 2*(2*len(methods)-bad_32)
+	,	done   = 2 + 2*(2*len(autodeps)-bad_32)
 	,	failed = bad_32
 	,	rc     = bad_32
 	)

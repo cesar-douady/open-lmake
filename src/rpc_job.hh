@@ -79,7 +79,7 @@ ENUM( JobRpcProc
 
 // START_OF_VERSIONING
 ENUM_3( JobReasonTag                                // see explanations in table below
-,	HasNode = NoTarget                              // if >=HasNode, a node is associated
+,	HasNode = BusyTarget                            // if >=HasNode, a node is associated
 ,	Err     = DepOverwritten
 ,	Missing = DepMissingStatic
 	//
@@ -97,6 +97,7 @@ ENUM_3( JobReasonTag                                // see explanations in table
 ,	Lost
 ,	New
 //	with node
+,	BusyTarget
 ,	NoTarget
 ,	OldTarget
 ,	PrevTarget
@@ -131,6 +132,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"job was lost"                                  // Lost
 ,	"job was never run"                             // New
 //	with node
+,	"busy target"                                   // BusyTarget
 ,	"missing target"                                // NoTarget
 ,	"target produced by an old job"                 // OldTarget
 ,	"target previously existed"                     // PrevTarget
@@ -166,6 +168,7 @@ static constexpr uint8_t JobReasonTagPrios[] = {
 ,	51                                              // Lost
 ,	52                                              // New
 //	with node
+,	1                                               // BusyTarget     this should not occur as there is certainly another reason to be running
 ,	20                                              // NoTarget
 ,	21                                              // OldTarget
 ,	22                                              // PrevTarget
@@ -604,8 +607,6 @@ public :
 	::string            tmp_view_s   = {} ;       // absolute dir under which job sees tmp dir           (empty if unused)
 	::vmap_s<ViewDescr> views        = {} ;       // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
-private :
-	::vector_s _to_umount ;                       // used to unmount upon exit
 } ;
 
 struct JobRpcReq {

@@ -307,9 +307,9 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 		- T : wait terminated processes in local backend
 		- W : deferred processing of wakeup connection errors
 	- in job exec :
+		- F        : the fuse loop
 		- <number> : compute crc
 	- in lmake :
-		- F : the fuse loop
 		- I : manage ^C
 - trace records are indented to reflect the call graph
 	- indentation are done with tabs, preceded by a follow up character (chosen to be graphically light), this eases the reading

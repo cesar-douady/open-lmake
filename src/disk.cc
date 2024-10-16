@@ -377,23 +377,27 @@ namespace Disk {
 		return   os << ')'                   ;
 	}
 
+	FileTag FileInfo::_s_tag(Stat const& st) {
+		if (S_ISREG(st.st_mode)) {
+			if (st.st_mode&S_IXUSR) return FileTag::Exe   ;
+			if (!st.st_size       ) return FileTag::Empty ;
+			/**/                    return FileTag::Reg   ;
+		}
+		if (S_ISLNK(st.st_mode)) return FileTag::Lnk  ;
+		if (S_ISDIR(st.st_mode)) return FileTag::Dir  ;
+		/**/                     return FileTag::None ; // awkward file, ignore
+	}
+
+	FileInfo::FileInfo(Stat const& st) {
+		FileTag tag = _s_tag(st) ;
+		if (tag==FileTag::Dir)   date = Ddate(   tag) ;
+		else                   { date = Ddate(st,tag) ; sz = st.st_size ; }
+	}
+
 	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {
 		Stat st ;
 		if (::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|(no_follow?AT_SYMLINK_NOFOLLOW:0) )<0) return ;
-		//
-		FileTag tag ;
-		if (S_ISREG(st.st_mode)) {
-			if      (st.st_mode&S_IXUSR) tag = FileTag::Exe   ;
-			else if (!st.st_size       ) tag = FileTag::Empty ;
-			else                         tag = FileTag::Reg   ;
-		} else if (S_ISLNK(st.st_mode)) {
-			tag = FileTag::Lnk ;
-		} else {
-			if (S_ISDIR(st.st_mode)) date = Ddate(FileTag::Dir) ;
-			return ;
-		}
-		sz   = st.st_size   ;
-		date = Ddate(st,tag);
+		*this = st ;
 	}
 
 	//

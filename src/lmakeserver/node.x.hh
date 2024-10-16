@@ -63,8 +63,10 @@ ENUM_1( NodeStatus
 ,	Unknown
 )
 
-ENUM( Polluted
-,	Clean
+ENUM_1( Polluted
+,	Dirty = Old  // >=Dirty means target is really polluted
+,	Clean        // must be first
+,	Busy
 ,	Old
 ,	PreExist
 ,	Job
@@ -516,7 +518,7 @@ namespace Engine {
 		Job       polluting_job           ;                      //         32 bits,          polluting job when polluted was last set to Polluted::Job
 		MatchGen  match_gen:NMatchGenBits = 0                  ; //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4             = Buildable::Unknown ; //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		Polluted  polluted :2             = Polluted::Clean    ; //          2 bits,          reason for pollution
+		Polluted  polluted :3             = Polluted::Clean    ; //          2 bits,          reason for pollution
 	private :
 		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		Tflags  _actual_tflags ;                                 //          8 bits,          tflags associated with actual_job
@@ -612,7 +614,7 @@ namespace Engine {
 	}
 
 	inline void NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
-		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) ) return ; // fast path
+		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted ) return ; // fast path
 		_do_make(ri,ma,s) ;
 	}
 

@@ -5,11 +5,6 @@
 
 import lmake
 
-autodeps = []
-if lmake.has_ptrace     : autodeps.append('ptrace'    )
-if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
-if lmake.has_ld_preload : autodeps.append('ld_preload')
-
 if __name__!='__main__' :
 
 	import os
@@ -25,7 +20,7 @@ if __name__!='__main__' :
 	,	'deps.hello+world.ref'
 	,	'interpreter.hello+world.ref'
 	,	'env.hello.ref'
-	,	*(f'autodep.{ad}.ref' for ad in autodeps)
+	,	*(f'autodep.{ad}.ref' for ad in lmake.autodeps)
 	,	'resources.1.ref'
 	,	'resources.2.ref'
 	,	'auto_mkdir.no.ref'
@@ -154,7 +149,7 @@ else :
 	print(2                    ,file=open('resources.2.ref'            ,'w'))
 	print('hello'              ,file=open('auto_mkdir.yes.ref'         ,'w'))
 	#
-	for ad in autodeps : print('hello',file=open(f'autodep.{ad}.ref','w'))
+	for ad in lmake.autodeps : print('hello',file=open(f'autodep.{ad}.ref','w'))
 	open('auto_mkdir.no.ref','w')
 
 	print(f'step=0',file=open('step.py','w'))
@@ -180,4 +175,4 @@ else :
 		ut.lmake( 'auto_mkdir.yes.ok'          , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,               resubmit=rc ,            rc=rc )
 		ut.lmake( 'cmd'                        , done=1-rc   , steady=0    , failed=rc , new=0    ,                                        rc=rc )
 		#
-		for ad in autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2-rc*2 , steady=0 , failed=rc , new=rc , resubmit=rc , rc=rc )
+		for ad in lmake.autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2-rc*2 , steady=0 , failed=rc , new=rc , resubmit=rc , rc=rc )

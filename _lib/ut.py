@@ -6,6 +6,7 @@
 import re
 import os.path    as osp
 import subprocess as sp
+import sys
 import time
 
 from lmake import pdict
@@ -20,6 +21,7 @@ def lmake(*args,rc=0,summary=None,**kwds) :
 
 		cmd = ('lmake',*args)
 		print()
+		print(time.ctime())
 		print( '+ ' + ' '.join(cmd) )
 		proc = sp.run( cmd , universal_newlines=True , stdin=None , stdout=sp.PIPE )
 		print(proc.stdout,end='',flush=True)
@@ -67,3 +69,5 @@ def lmake(*args,rc=0,summary=None,**kwds) :
 	except RuntimeError as e :
 		print('*** '+e.args[0])
 		raise
+	finally :
+		sys.stdout.flush()

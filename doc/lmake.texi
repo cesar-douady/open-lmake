@@ -1166,11 +1166,6 @@ Return the root dir as seen from passed @code{cwd} argument.
 
 Note that his may be different from the @code{root_dir} variable in case there is a @Lmakefile file in a subdir.
 
-@subsection @code{def has_backend(backend)}
-Return @code{True} if the passed backend is implemented, else return @code{False}.
-
-Raises the @code{ValueError} exception is the passed backend is unknown.
-
 @section constants
 
 The following constants are defined :
@@ -1180,14 +1175,10 @@ The root directory of the repository as determined when the @lmake command was r
 
 Recursive sub-repositories are ignored.
 Use the @code{search_root_dir} function if you want to get the nearest hierarchical root dir.
-@item has_ld_audit
-@code{True} if autodep method @code{'ld_audit'} is supported, else @code{False}.
-@item has_ld_preload
-@code{True} if autodep method @code{'ld_preload'} is supported, else @code{False}.
-@item has_ptrace
-@code{True} if autodep method @code{'ptrace'} is supported, else @code{False}.
+@item autodeps
+The @code{tuple} of implemented autodep methods. @code{'ld_preload'} and @code{'ptrace'} are always present.
 @item backends
-The list of implemented backends. @code{local} is always present.
+The @code{tuple} of implemented backends. @code{local} is always present.
 @item no_crc
 The 64-bit @code{int} checksum when it has not been computed (yet).
 @item crc_no_file
@@ -2040,6 +2031,7 @@ Flags may be arbitrarily nested into sub-@code{list}'s or sub-@code{tuple}'s.
 @item Essential          @tab essential       @tab Yes     @tab This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
 @item Critical           @tab critical        @tab No      @tab This dep is critial (cf @pxref{critical-deps}).
 @item IgnoreError        @tab ignore_error    @tab No      @tab This dep may be in error, job will be launched anyway.
+@item Required           @tab required        @tab No      @tab This dep is deemed to be read, even if not actually read by the job.
 @item StatReadData       @tab stat_read_data  @tab No      @tab If this dep is accessed with a stat-like access, it is deemed to have accessed its content, which may increase the number of rebuilds.
 @item Top                @tab top             @tab No      @tab dep pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
 @end multitable

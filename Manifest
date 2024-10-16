@@ -61,6 +61,8 @@ src/autodep/backdoor.hh
 src/autodep/clmake.cc
 src/autodep/env.cc
 src/autodep/env.hh
+src/autodep/fuse.cc
+src/autodep/fuse.hh
 src/autodep/gather.cc
 src/autodep/gather.hh
 src/autodep/job_support.cc
@@ -90,9 +92,6 @@ src/disk.cc
 src/disk.hh
 src/fd.cc
 src/fd.hh
-src/fuse.cc
-src/fuse.hh
-src/fuse_test.cc
 src/hash.cc
 src/hash.hh
 src/job_exec.cc
@@ -209,6 +208,7 @@ unit_tests/escape.py
 unit_tests/exe_32bits.py
 unit_tests/force.py
 unit_tests/forget.py
+unit_tests/fuse.py
 unit_tests/gcda.py
 unit_tests/generic_sources.py
 unit_tests/git.py
@@ -233,6 +233,7 @@ unit_tests/misc12.py
 unit_tests/misc13.py
 unit_tests/misc14.py
 unit_tests/misc15.py
+unit_tests/misc16.py
 unit_tests/misc2.py
 unit_tests/misc3.py
 unit_tests/misc4.py

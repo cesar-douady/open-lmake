@@ -6,6 +6,7 @@
 #include "app.hh"
 #include "thread.hh"
 
+#include "fuse.hh"
 #include "ptrace.hh"
 
 #include "gather.hh"
@@ -173,18 +174,18 @@ void Gather::_do_child( Fd report_fd , ::latch* ready ) {
 
 Fd Gather::_spawn_child() {
 	SWEAR(+cmd_line) ;
-	Trace trace("_spawn_child",cmd_line,child_stdin,child_stdout,child_stderr) ;
+	Trace trace("_spawn_child",child_stdin,child_stdout,child_stderr) ;
 	//
 	Fd child_fd  ;
 	Fd report_fd ;
 	//
-	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                             // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                  // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
 	_child.stdin_fd   = child_stdin                           ;
 	_child.stdout_fd  = child_stdout                          ;
 	_child.stderr_fd  = child_stderr                          ;
 	_child.first_pid  = first_pid                             ;
-	if (method==AutodepMethod::Ptrace) {                                                    // PER_AUTODEP_METHOD : handle case
+	if (method==AutodepMethod::Ptrace) {                                                         // PER_AUTODEP_METHOD : handle case
 		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
@@ -192,13 +193,15 @@ Fd Gather::_spawn_child() {
 		child_fd  = pipe.read  ;
 		report_fd = pipe.write ;
 	} else {
-		if (method>=AutodepMethod::Ld) {                                                    // PER_AUTODEP_METHOD : handle case
+		if (method==AutodepMethod::Fuse) {                                                       // PER_AUTODEP_METHOD : handle case
+			Fuse::Mount::s_autodep_env(autodep_env) ;
+		} else if (method>=AutodepMethod::Ld) {                                                  // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
-			switch (method) {                                                               // PER_AUTODEP_METHOD : handle case
+			switch (method) {                                                                    // PER_AUTODEP_METHOD : handle case
 				#if HAS_32
-					#define DOLLAR_LIB "$LIB"                                               // 32 bits is supported, use ld.so automatic detection feature
+					#define DOLLAR_LIB "$LIB"                                                    // 32 bits is supported, use ld.so automatic detection feature
 				#else
-					#define DOLLAR_LIB "lib"                                                // 32 bits is not supported, use standard name
+					#define DOLLAR_LIB "lib"                                                     // 32 bits is not supported, use standard name
 				#endif
 				case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_dir_s + "_d" DOLLAR_LIB "/ld_audit.so"            ; break ;
 				case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_dir_s + "_d" DOLLAR_LIB "/ld_preload.so"          ; break ;
@@ -212,15 +215,15 @@ Fd Gather::_spawn_child() {
 		SWEAR(is_blocked_sig(SIGCHLD)) ;
 		child_fd = open_sigs_fd({SIGCHLD}) ;
 	}
-	start_date      = New       ;                                                           // record job start time as late as possible
+	start_date      = New       ;                                                                // record job start time as late as possible
 	_child.cmd_line = cmd_line  ;
 	_child.env      = env       ;
 	_child.add_env  = &_add_env ;
 	_child.cwd_s    = cwd_s     ;
 	if (method==AutodepMethod::Ptrace) {
 		::latch ready{1} ;
-		_ptrace_thread = ::jthread( _s_do_child , this , report_fd , &ready ) ;             // /!\ _child must be spawned from tracing thread
-		ready.wait() ;                                                                      // wait until _child.pid is available
+		_ptrace_thread = ::jthread( _s_do_child , this , report_fd , &ready ) ;                  // /!\ _child must be spawned from tracing thread
+		ready.wait() ;                                                                           // wait until _child.pid is available
 	} else {
 		//vvvvvvvvvvvv
 		_child.spawn() ;
@@ -241,16 +244,16 @@ Status Gather::exec_child() {
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	AutoCloseFd                                          child_fd           ;
-	::jthread                                            wait_jt            ;               // thread dedicated to wating child
+	::jthread                                            wait_jt            ;                    // thread dedicated to wating child
 	Epoll                                                epoll              { New }       ;
 	Status                                               status             = Status::New ;
-	::umap<Fd,Jerr>                                      delayed_check_deps ;               // check_deps events are delayed to ensure all previous deps are received
+	::umap<Fd,Jerr>                                      delayed_check_deps ;                    // check_deps events are delayed to ensure all previous deps are received
 	size_t                                               live_out_pos       = 0           ;
-	::umap<Fd,pair<IMsgBuf,::umap<uint64_t/*id*/,Jerr>>> slaves             ;               // Jerr's are waiting for confirmation
+	::umap<Fd,pair<IMsgBuf,::umap<uint64_t/*id*/,Jerr>>> slaves             ;                    // Jerr's are waiting for confirmation
 	bool                                                 panic_seen         = false       ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
-		if ( status==Status::New || status==Status::Ok ) status = status_ ;                 // else there is already another reason
+		if ( status==Status::New || status==Status::Ok ) status = status_ ;                      // else there is already another reason
 		if ( +msg_                                     ) msg << set_nl << msg_ ;
 	} ;
 	auto kill = [&](bool next_step=false)->void {
@@ -281,7 +284,7 @@ Status Gather::exec_child() {
 		Pdate now = New ;
 		if (now>_end_child) {
 			if (!_wait[Kind::ChildEnd]) {
-				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait ) ; // else we should already have exited
+				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , _end_child ) ; // else we should already have exited
 				::string msg ;
 				if ( _wait[Kind::Stdout]                        ) msg += "stdout " ;
 				if ( _wait[Kind::Stdout] && _wait[Kind::Stderr] ) msg += "and "    ;
@@ -311,13 +314,13 @@ Status Gather::exec_child() {
 		}
 		::vector<Epoll::Event> events = epoll.wait(wait_for) ;
 		if (!events) {
-			if (+delayed_check_deps) {                                        // process delayed check deps after all other events
+			if (+delayed_check_deps) {      // process delayed check deps after all other events
 				trace("delayed_chk_deps") ;
 				for( auto& [fd,jerr] : delayed_check_deps ) _send_to_server(fd,::move(jerr)) ;
 				delayed_check_deps.clear() ;
 				continue ;
 			}
-			if (_wait[Kind::ChildStart]) {                                    // handle case where we are killed before starting : create child when we have processed waiting connections from server
+			if (_wait[Kind::ChildStart]) {  // handle case where we are killed before starting : create child when we have processed waiting connections from server
 				try {
 					child_fd = _spawn_child() ;
 					_wait &= ~Kind::ChildStart ;
@@ -372,8 +375,9 @@ Status Gather::exec_child() {
 					struct signalfd_siginfo si  ;
 					int                     cnt = ::read( fd , &si , sizeof(si) ) ; SWEAR(cnt>0) ;
 					if (si.ssi_pid) ::waitpid(si.ssi_pid,&wstatus,0) ;                             // else  wstatus is already set
-					if (!WIFSTOPPED(wstatus)) {
-						end_date = New ;
+					if ( pid_t(si.ssi_pid)==_child.pid && !WIFSTOPPED(wstatus) ) {
+						if (method==AutodepMethod::Fuse) Fuse::Mount::s_close_report() ;           // close fuse reporting as no one else will tell it
+						end_date   = New                      ;
 						_end_child = end_date + network_delay ;                                    // wait at most network_delay for reporting & stdout & stderr to settle down
 						if      (WIFEXITED  (wstatus)) set_status(             WEXITSTATUS(wstatus)!=0 ? Status::Err : Status::Ok       ) ;
 						else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG   (wstatus))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
@@ -382,7 +386,7 @@ Status Gather::exec_child() {
 						_wait &= ~Kind::ChildEnd ;
 						/**/                   epoll.cnt-- ;                                    // dont wait for new connections from job (but process those that come)
 						if (+server_master_fd) epoll.cnt-- ;                                    // idem for connections from server
-						trace("close",kind,status,::hex,wstatus,::dec,"wait",_wait,epoll.cnt) ;
+						trace("close",kind,si.ssi_pid,status,::hex,wstatus,::dec,"wait",_wait,epoll.cnt) ;
 					}
 				} break ;
 				case Kind::JobMaster    :
@@ -412,7 +416,7 @@ Status Gather::exec_child() {
 							case JobMngtProc::Encode : {
 								SWEAR(+jmrr.fd) ;
 								auto it = _codec_files.find(jmrr.fd) ;
-								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , ::string(snake(jmrr.proc)) ) ;
+								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , snake_str(jmrr.proc) ) ;
 								_codec_files.erase(it) ;
 							} break ;
 						DF}

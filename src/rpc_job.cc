@@ -6,11 +6,12 @@
 #include <sys/mount.h>
 
 #include "disk.hh"
-#include "fuse.hh"
 #include "hash.hh"
 #include "trace.hh"
 
 #include "rpc_job.hh"
+
+#include "autodep/fuse.hh"
 
 using namespace Disk ;
 using namespace Hash ;
@@ -132,19 +133,23 @@ static void _mount_bind( ::string const& dst , ::string const& src ) { // src an
 	if (::mount( no_slash(src).c_str() , no_slash(dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
 		throw "cannot bind mount "+src+" onto "+dst+" : "+strerror(errno) ;
 }
-static void _mount_fuse( ::string const& dst_s , ::string const& src_s ) {
-	Trace trace("_mount_fuse",dst_s,src_s) ;
-	static Fuse::Mount fuse_mount{ dst_s , src_s } ;
+
+static vector<Fuse::Mount> _fuse_store ;
+static void _mount_fuse( ::string const& dst_s , ::string const& src_s , ::string const& pfx_s , bool report_writes ) {
+	Trace trace("_mount_fuse",dst_s,src_s,pfx_s,STR(report_writes)) ;
+	_fuse_store.emplace_back( dst_s , src_s , pfx_s , report_writes ) ;
 }
+
 static void _mount_tmp( ::string const& dst_s , size_t sz_mb ) {
 	SWEAR(sz_mb) ;
 	Trace trace("_mount_tmp",dst_s,sz_mb) ;
 	if (::mount( "" ,  no_slash(dst_s).c_str() , "tmpfs" , 0/*flags*/ , ("size="+::to_string(sz_mb)+"m").c_str() )!=0)
 		throw "cannot mount tmpfs of size "+to_string_with_units<'M'>(sz_mb)+"B onto "+no_slash(dst_s)+" : "+strerror(errno) ;
 }
+
 static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
 	SWEAR(+srcs_s) ;
-	SWEAR(srcs_s.size()>1,dst_s,srcs_s,work_s) ;                       // use bind mount in that case
+	SWEAR(srcs_s.size()>1,dst_s,srcs_s,work_s) ; // use bind mount in that case
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
 	for( size_t i=1 ; i<srcs_s.size() ; i++ )
@@ -206,8 +211,7 @@ bool/*entered*/ JobSpace::enter(
 ) {
 	Trace trace("JobSpace::enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s,STR(use_fuse)) ;
 	//
-	if ( use_fuse && !root_view_s ) throw  "cannot use fuse for autodep without root_view"s ;
-	if ( !*this                   ) return false/*entered*/                                 ;
+	if ( !use_fuse && !*this ) return false/*entered*/ ;
 	//
 	int uid = ::getuid() ;          // must be done before unshare that invents a new user
 	int gid = ::getgid() ;          // .
@@ -251,16 +255,18 @@ bool/*entered*/ JobSpace::enter(
 	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ;
 	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
 	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
-	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
-	if ( must_create_root || must_create_tmp || +views )
+	trace("create",STR(must_create_root),STR(must_create_tmp),STR(use_fuse)) ;
+	if ( must_create_root || must_create_tmp || +views || use_fuse )
 		try { unlnk_inside_s(work_dir_s) ; } catch (::string const& e) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
-	if ( must_create_root || must_create_tmp ) {                          // we may not mount directly in chroot_dir
+	if ( must_create_root || must_create_tmp || use_fuse ) {              // we cannot mount directly in chroot_dir
 		if (!work_dir_s)
 			throw
-				"need a work dir to create"s
-			+	( must_create_root                    ? " root view" : "" )
-			+	( must_create_root && must_create_tmp ? " and"       : "" )
-			+	(                     must_create_tmp ? " tmp view"  : "" )
+				"need a work dir to"s
+			+	(	must_create_root ? " create root view"
+				:	must_create_tmp  ? " create tmp view"
+				:	use_fuse         ? " use fuse"
+				:	                   " ???"
+				)
 			;
 		::vector_s top_lvls        = lst_dir_s(+chroot_dir_s?chroot_dir_s:"/") ;
 		::string   work_root_dir   = work_dir_s+"root"                         ;
@@ -289,14 +295,12 @@ bool/*entered*/ JobSpace::enter(
 	_atomic_write( "/proc/self/uid_map"   , ""s+uid+' '+uid+" 1\n" ) ;
 	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
 	//
-	::string root_dir_s ;
-	if (!root_view_s) {
-		SWEAR(!use_fuse) ;                                                                                                     // need a view to mount repo with fuse
-		root_dir_s = phy_root_dir_s ;
-	} else {
-		root_dir_s = chroot_dir+root_view_s ;
-		if (use_fuse) _mount_fuse( chroot_dir+super_root_view_s , phy_super_root_dir_s ) ;
-		else          _mount_bind( chroot_dir+super_root_view_s , phy_super_root_dir_s ) ;
+	::string root_dir_s = +root_view_s ? root_view_s : phy_root_dir_s ;
+	if (use_fuse) { //!                                                                                                                         pfx_s     report_writes
+		/**/                                          _mount_fuse( chroot_dir+                 root_dir_s  ,                  phy_root_dir_s  , {}        , true      ) ;
+		for( ::string const& src_dir_s : src_dirs_s ) _mount_fuse( chroot_dir+mk_abs(src_dir_s,root_dir_s) , mk_abs(src_dir_s,phy_root_dir_s) , src_dir_s , false     ) ;
+	} else if (+root_view_s) {
+		/**/                                          _mount_bind( chroot_dir+super_root_view_s            , phy_super_root_dir_s             ) ;
 	}
 	if (+tmp_view_s) {
 		if      (+phy_tmp_dir_s) _mount_bind( chroot_dir+tmp_view_s , phy_tmp_dir_s ) ;
@@ -332,16 +336,15 @@ bool/*entered*/ JobSpace::enter(
 			mk_dir_s(work_s) ;
 			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,root_dir_s) ) ;
 		}
-		_to_umount.push_back(view) ;                                                                                           // ensure tmp dir can be unlinked
 	}
 	trace("done") ;
 	return true/*entered*/ ;
 }
 
 void JobSpace::exit() {
-	Trace trace("JobSpace::exit",_to_umount) ;
-	for( ::string const& m : _to_umount )
-		if (::umount(no_slash(m).c_str())!=0) throw "cannot umount "+no_slash(m) ;
+	Trace trace("JobSpace::exit") ;
+	_fuse_store.clear() ;
+	trace("done") ;
 }
 
 // XXX : implement recursive views
@@ -560,8 +563,8 @@ bool/*entered*/ JobRpcReply::enter(
 void JobRpcReply::exit() {
 	// work dir cannot be cleaned up as we may have chroot'ed inside
 	Trace trace("JobRpcReply::exit",_tmp_dir_s_to_cleanup) ;
-	job_space.exit() ;
 	if (+_tmp_dir_s_to_cleanup) unlnk_inside_s(_tmp_dir_s_to_cleanup,true/*abs_ok*/ ) ;
+	job_space.exit() ;
 }
 
 //

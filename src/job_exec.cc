@@ -92,14 +92,15 @@ Digest analyze(Status status=Status::New) {                                     
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
-			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                                   // fast path : no matching, no pollution, no washing => forget it
+			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                                            // fast path : no matching, no pollution, no washing => forget it
 			)
 		;
 		// handle deps
 		if (is_dep) {
 			DepDigest dd { ad.accesses , info.dep_info , ad.dflags } ;
 			//
-			if ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = ~Accesses() ;
+			if      ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = ~Accesses() ; // StatReadData transforms stat access into full access
+			else if ( ad.dflags[Dflag::Static]  && ad.dflags[Dflag::Required]                ) dd.accesses = ~Accesses() ; // required static deps are deemed to be fully accessed
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
 			dd.hot          = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.date_prec) ;
@@ -176,13 +177,12 @@ Digest analyze(Status status=Status::New) {                                     
 				else if ( +crc                                                ) { td.sig = sig ; td.crc = crc          ; } // we already have a crc
 					res.crcs.emplace_back(res.targets.size()) ;                                                            // record index in res.targets for deferred (parallel) crc computation
 			}
-			if ( td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] && unlnk ) {                                         // target was expected but not produced
-				if ( td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ) {
-					if (status==Status::Ok) res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;    // if job is not ok, this is quite normal, else warn
-				} else {
-					td.tflags &= ~Tflag::Target ; // if created then unlinked, this is not a target unless static and non-optional or phony
-				}
-			}
+			if (
+				td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] // target is expected
+			&&	unlnk                                                                                                                      // but not produced
+			&&	status==Status::Ok                                                                                                         // and there no more important reason
+			)
+				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                                // warn specifically
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -193,7 +193,9 @@ Digest analyze(Status status=Status::New) {                                     
 	}
 	for( ::string const& t : g_washed ) if (!g_gather.access_map.contains(t)) {
 		trace("wash",t) ;
-		res.targets.emplace_back( t , TargetDigest{.extra_tflags=ExtraTflag::Wash,.crc=Crc::None} ) ;
+		MatchFlags flags = g_match_dct.at(t) ;
+		if (flags.extra_tflags()[ExtraTflag::Ignore]) continue ;
+		res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ExtraTflag::Wash , .crc=Crc::None } ) ;
 	}
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
@@ -224,8 +226,8 @@ Digest analyze(Status status=Status::New) {                                     
 void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex ) {
 	static ::atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
-	Trace trace("crc",targets->size(),crcs->size()) ;
-	NodeIdx cnt = 0 ;                                           // cnt is for trace only
+	Trace trace("crc_thread_func",targets->size(),crcs->size()) ;
+	NodeIdx cnt = 0 ;                                             // cnt is for trace only
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
 		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ci]] ;
 		Pdate                   before = New                     ;
@@ -402,8 +404,6 @@ int main( int argc , char* argv[] ) {
 			g_nfs_guard.close() ;
 		}
 		//
-		try                       { g_start_info.exit() ;               }
-		catch (::string const& e) { exit(Rc::Fail,"cannot exit : ",e) ; }
 		if (g_gather.seen_tmp) {
 			if (!cmd_env.contains("TMPDIR"))
 				digest.msg << "accessed "<<no_slash(g_gather.autodep_env.tmp_dir_s)<<" without dedicated tmp dir\n" ;
@@ -431,16 +431,19 @@ int main( int argc , char* argv[] ) {
 		} ;
 	}
 End :
-	Trace trace("end",end_report.digest.status) ;
-	try {
-		ClientSockFd fd           { g_service_end , NConnectionTrials } ;
-		Pdate        end_overhead = New                                 ;
-		end_report.digest.stats.total = end_overhead - start_overhead ;                                    // measure overhead as late as possible
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		OMsgBuf().send( fd , end_report ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		trace("done",end_overhead) ;
-	} catch (::string const& e) { exit(Rc::Fail,"after job execution : ",e) ; }
+	{	Trace trace("end",end_report.digest.status) ;
+		try {
+			ClientSockFd fd           { g_service_end , NConnectionTrials } ;
+			Pdate        end_overhead = New                                 ;
+			end_report.digest.stats.total = end_overhead - start_overhead ;                                // measure overhead as late as possible
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send( fd , end_report ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			trace("done",end_overhead) ;
+		} catch (::string const& e) { exit(Rc::Fail,"after job execution : ",e) ; }
+	}
+	try                       { g_start_info.exit() ;                             }
+	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }
 	//
 	return 0 ;
 }

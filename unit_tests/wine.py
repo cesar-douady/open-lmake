@@ -71,17 +71,20 @@ else :
 	if wine64.startswith('/usr/bin/') : prefix_exe = '/usr/lib/x86_64-linux-gnu/wine/x86_64-windows'
 	else                              : prefix_exe = osp.dirname(osp.dirname(wine64))+'/lib64/wine/x86_64-windows'
 
-	cmd_exe      = f'{prefix_exe}/cmd.exe'
+	cmd_exe = f'{prefix_exe}/cmd.exe'
+	if not osp.exists(cmd_exe) :
+		print(f'{cmd_exe} not found',file=open('skipped','w'))
+		exit()
+
 	hostname_exe = f'{prefix_exe}/hostname.exe'
-	if   not osp.exists(cmd_exe)      : print(f'{cmd_exe} not found'     ,file=open('skipped','w'))
-	elif not osp.exists(hostname_exe) : print(f'{hostname_exe} not found',file=open('skipped','w'))
-	else :
-		methods = ['none','ld_preload']
-		if lmake.has_ptrace   : methods.append('ptrace'  )
-		if lmake.has_ld_audit : methods.append('ld_audit')
-		ut.lmake( *(f'test64.{m}' for m in methods) , done=1+2*len(methods) , new=0 , rc=0 )
-		ut.lmake( *(f'test64.{m}' for m in methods)                                        )       # ensure nothing needs to be remade
-		if os.environ['HAS_32BITS'] and shutil.which('wine') :
-			methods_32 = [m for m in methods if m!='ptrace']
-			ut.lmake( *(f'test.{m}' for m in methods_32) , done=2*len(methods_32) , new=0 , rc=0 ) # ptrace is not supported in 32 bits
-			ut.lmake( *(f'test.{m}' for m in methods_32)                                         ) # ensure nothing needs to be remade
+	if not osp.exists(hostname_exe) :
+		print(f'{hostname_exe} not found',file=open('skipped','w'))
+		exit()
+
+	autodeps = ('none',*lmake.autodeps)
+	ut.lmake( *(f'test64.{m}' for m in autodeps) , done=1+2*len(autodeps) , new=0 , rc=0 )
+	ut.lmake( *(f'test64.{m}' for m in autodeps)                                         )     # ensure nothing needs to be remade
+	if os.environ['HAS_32BITS'] and shutil.which('wine') :
+		methods_32 = [m for m in autodeps if m!='ptrace']
+		ut.lmake( *(f'test.{m}' for m in methods_32) , done=2*len(methods_32) , new=0 , rc=0 ) # ptrace is not supported in 32 bits
+		ut.lmake( *(f'test.{m}' for m in methods_32)                                         ) # ensure nothing needs to be remade

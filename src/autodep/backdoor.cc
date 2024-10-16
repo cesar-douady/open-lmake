@@ -23,8 +23,8 @@ namespace Backdoor {
 	}
 	size_t Enable::reply_len() const { return 1 ; } // just a bool
 	Enable::Reply Enable::process(Record& r) const {
-		bool res = !r.disabled ;
-		if (enable!=Maybe) r.disabled = enable==No ;
+		bool res = r.enable ;
+		if (enable!=Maybe) r.enable = enable==Yes ;
 		return res ;
 	}
 

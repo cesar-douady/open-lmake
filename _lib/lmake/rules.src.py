@@ -10,7 +10,7 @@ import pwd     as _pwd
 import signal  as _signal
 
 import lmake
-from . import has_ld_audit,pdict,root_dir # if not in an lmake repo, root_dir is not set to current dir
+from . import autodeps,pdict,root_dir # if not in an lmake repo, root_dir is not set to current dir
 
 shell            = '$BASH'                       # substituted at installation time
 python2          = '$PYTHON2'                    # .
@@ -103,8 +103,8 @@ class Rule(_RuleBase) :
 	#                                                  # - else a tmpfs sized after the 'tmp' resource if specified (no tmpfs is created if value is 0)
 	#                                                  # - else a private sub-directory in the LMAKE directory
 #	use_script       = False                           # use a script to run job rather than calling interpreter with -c
-	if has_ld_audit : autodep = 'ld_audit'             # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
-	else            : autodep = 'ld_preload'           # .
+	if 'ld_audit' in autodeps : autodep = 'ld_audit'   # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
+	else                      : autodep = 'ld_preload' # .
 	resources = {                                      # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
 		'cpu' : 1                                      # number of cpu's to allocate to job
 #	,	'mem' : '100M'                                 # memory to allocate to job

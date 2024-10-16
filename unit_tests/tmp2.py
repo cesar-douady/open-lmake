@@ -132,6 +132,6 @@ else :
 	assert 1<=cnts.may_rerun+cnts.rerun and cnts.may_rerun+cnts.rerun<=4
 	assert cnts.done+cnts.steady==9
 
-	if lmake.has_ld_audit :
+	if 'ld_audit' in lmake.autodeps :
 		print("autodep='ld_audit'",file=open('step.py','w'))
 		ut.lmake( 'lnk_dut.ok' , 'cp_dut.ok' , 'touch_dut.ok' , 'exec_dut.ok' , new=0 , steady=4 )

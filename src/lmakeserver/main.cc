@@ -189,6 +189,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					trace("req",rrr) ;
 					switch (rrr.proc) {
 						case ReqProc::Make : {
+							SWEAR(!_g_read_only) ;
 							Req r{New} ;
 							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
@@ -200,7 +201,9 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						case ReqProc::Debug  : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 						case ReqProc::Forget :
 						case ReqProc::Mark   :
-						case ReqProc::Show   :
+							SWEAR(!_g_read_only) ;
+						[[fallthrough]] ;
+						case ReqProc::Show :
 							epoll.del(fd) ; trace("del_fd",rrr.proc,fd) ;                   // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							in_tab.erase(fd) ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -469,8 +472,9 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s) ; }             // cleanup
-	catch (::string const& e) { exit(Rc::System,e) ;                       }
+	if (!_g_read_only)
+		try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s) ; }         // cleanup
+		catch (::string const& e) { exit(Rc::System,e) ;                       }
 	//
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;

@@ -283,6 +283,7 @@ $(LIB)/%.py : $(SLIB)/%.src.py sys_config.mk
 	@sed \
 		-e 's!\$$BASH!$(BASH)!'                          \
 		-e 's!\$$GIT!$(GIT)!'                            \
+		-e 's!\$$HAS_FUSE!$(HAS_FUSE)!'                  \
 		-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
 		-e 's!\$$HAS_SGE!$(HAS_SGE)!'                    \
 		-e 's!\$$HAS_SLURM!$(HAS_SLURM)!'                \
@@ -390,30 +391,30 @@ CLIENT_SAN_OBJS := \
 	$(SRC)/trace$(SAN).o
 
 SERVER_SAN_OBJS := \
-	$(LMAKE_BASIC_SAN_OBJS)                \
-	$(SRC)/app$(SAN).o                     \
-	$(if $(HAS_FUSE),$(SRC)/fuse.o)        \
-	$(SRC)/py$(SAN).o                      \
-	$(SRC)/re$(SAN).o                      \
-	$(SRC)/rpc_client$(SAN).o              \
-	$(SRC)/rpc_job$(SAN).o                 \
-	$(SRC)/rpc_job_exec$(SAN).o            \
-	$(SRC)/trace$(SAN).o                   \
-	$(SRC)/autodep/backdoor$(SAN).o        \
-	$(SRC)/autodep/env$(SAN).o             \
-	$(SRC)/autodep/ld_server$(SAN).o       \
-	$(SRC)/autodep/record$(SAN).o          \
-	$(SRC)/autodep/syscall_tab$(SAN).o     \
-	$(SRC)/store/file$(SAN).o              \
-	$(SRC_ENGINE)/backend$(SAN).o          \
-	$(SRC_ENGINE)/cache$(SAN).o            \
-	$(SRC_ENGINE)/caches/dir_cache$(SAN).o \
-	$(SRC_ENGINE)/codec$(SAN).o            \
-	$(SRC_ENGINE)/global$(SAN).o           \
-	$(SRC_ENGINE)/job$(SAN).o              \
-	$(SRC_ENGINE)/node$(SAN).o             \
-	$(SRC_ENGINE)/req$(SAN).o              \
-	$(SRC_ENGINE)/rule$(SAN).o             \
+	$(LMAKE_BASIC_SAN_OBJS)                 \
+	$(SRC)/app$(SAN).o                      \
+	$(if $(HAS_FUSE),$(SRC)/autodep/fuse.o) \
+	$(SRC)/py$(SAN).o                       \
+	$(SRC)/re$(SAN).o                       \
+	$(SRC)/rpc_client$(SAN).o               \
+	$(SRC)/rpc_job$(SAN).o                  \
+	$(SRC)/rpc_job_exec$(SAN).o             \
+	$(SRC)/trace$(SAN).o                    \
+	$(SRC)/autodep/backdoor$(SAN).o         \
+	$(SRC)/autodep/env$(SAN).o              \
+	$(SRC)/autodep/ld_server$(SAN).o        \
+	$(SRC)/autodep/record$(SAN).o           \
+	$(SRC)/autodep/syscall_tab$(SAN).o      \
+	$(SRC)/store/file$(SAN).o               \
+	$(SRC_ENGINE)/backend$(SAN).o           \
+	$(SRC_ENGINE)/cache$(SAN).o             \
+	$(SRC_ENGINE)/caches/dir_cache$(SAN).o  \
+	$(SRC_ENGINE)/codec$(SAN).o             \
+	$(SRC_ENGINE)/global$(SAN).o            \
+	$(SRC_ENGINE)/job$(SAN).o               \
+	$(SRC_ENGINE)/node$(SAN).o              \
+	$(SRC_ENGINE)/req$(SAN).o               \
+	$(SRC_ENGINE)/rule$(SAN).o              \
 	$(SRC_ENGINE)/store$(SAN).o
 
 $(SBIN)/lmakeserver : \
@@ -465,12 +466,15 @@ $(BIN)/ldebug :
 	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
-	$(LMAKE_BASIC_SAN_OBJS)         \
-	$(SRC)/app$(SAN).o              \
-	$(if $(HAS_FUSE),$(SRC)/fuse.o) \
-	$(SRC)/rpc_job$(SAN).o          \
-	$(SRC)/trace$(SAN).o            \
-	$(SRC)/autodep/env$(SAN).o      \
+	$(LMAKE_BASIC_SAN_OBJS)                     \
+	$(SRC)/app$(SAN).o                          \
+	$(if $(HAS_FUSE),$(SRC)/autodep/fuse.o)     \
+	$(if $(HAS_FUSE),$(SRC)/autodep/record.o)   \
+	$(if $(HAS_FUSE),$(SRC)/autodep/backdoor.o) \
+	$(if $(HAS_FUSE),$(SRC)/rpc_job_exec.o)     \
+	$(SRC)/rpc_job$(SAN).o                      \
+	$(SRC)/trace$(SAN).o                        \
+	$(SRC)/autodep/env$(SAN).o                  \
 	$(SRC)/ldump_job$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@
@@ -491,14 +495,6 @@ $(BIN)/xxhsum : \
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
-$(BIN)/fuse_test : \
-	$(LMAKE_BASIC_OBJS) \
-	$(SRC)/fuse.o       \
-	$(SRC)/fuse_test.o
-	@mkdir -p $(BIN)
-	@echo link to $@
-	@$(LINK) -o $@ $^ $(FUSE_LIB) $(LINK_LIB)
-
 #
 # remote
 #
@@ -516,15 +512,16 @@ AUTODEP_OBJS := $(BASIC_REMOTE_OBJS) $(SRC)/autodep/syscall_tab.o
 REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) $(SRC)/autodep/job_support.o
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)                 \
-	$(SRC)/app.o                    \
-	$(if $(HAS_FUSE),$(SRC)/fuse.o) \
-	$(SRC)/py.o                     \
-	$(SRC)/re.o                     \
-	$(SRC)/rpc_job.o                \
-	$(SRC)/trace.o                  \
-	$(SRC)/autodep/gather.o         \
-	$(SRC)/autodep/ptrace.o
+	$(AUTODEP_OBJS)                         \
+	$(SRC)/app.o                            \
+	$(if $(HAS_FUSE),$(SRC)/autodep/fuse.o) \
+	$(SRC)/py.o                             \
+	$(SRC)/re.o                             \
+	$(SRC)/rpc_job.o                        \
+	$(SRC)/trace.o                          \
+	$(SRC)/autodep/gather.o                 \
+	$(SRC)/autodep/ptrace.o                 \
+	$(SRC)/autodep/record.o
 
 $(SBIN)/job_exec : $(JOB_EXEC_OBJS) $(SRC)/job_exec.o
 $(BIN)/autodep   : $(JOB_EXEC_OBJS) $(SRC)/autodep/autodep.o

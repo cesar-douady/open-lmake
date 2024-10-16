@@ -24,12 +24,12 @@ def depend(
 	cmd_line = [_bin('ldepend')]
 	if     critical        : cmd_line.append('--critical'       )
 	if     essential       : cmd_line.append('--essential'      )
-	if     ignore_error    : cmd_line.append('--ignore_error'   )
-	if not required        : cmd_line.append('--no_required'    )
+	if     ignore_error    : cmd_line.append('--ignore-error'   )
+	if not required        : cmd_line.append('--no-required'    )
 	if     ignore          : cmd_line.append('--ignore'         )
-	if     stat_read_data  : cmd_line.append('--stat_read_data' )
-	if     follow_symlinks : cmd_line.append('--follow_symlinks')
-	if not read            : cmd_line.append('--no_read'        )
+	if     stat_read_data  : cmd_line.append('--stat-read-data' )
+	if     follow_symlinks : cmd_line.append('--follow-symlinks')
+	if not read            : cmd_line.append('--no-read'        )
 	cmd_line += args
 	_run(cmd_line)
 def target(
@@ -40,14 +40,14 @@ def target(
 	cmd_line = [_bin('ltarget')]
 	if     essential       : cmd_line.append('--essential'      )
 	if     incremental     : cmd_line.append('--incremental'    )
-	if     no_uniquify     : cmd_line.append('--no_uniquify'    )
-	if     no_warning      : cmd_line.append('--no_warning'     )
+	if     no_uniquify     : cmd_line.append('--no-uniquify'    )
+	if     no_warning      : cmd_line.append('--no-warning'     )
 	if     phony           : cmd_line.append('--phony'          )
 	if     ignore          : cmd_line.append('--ignore'         )
-	if     no_allow        : cmd_line.append('--no_allow'       )
-	if     source_ok       : cmd_line.append('--source_ok'      )
-	if     follow_symlinks : cmd_line.append('--follow_symlinks')
-	if not write           : cmd_line.append('--no_write'       )
+	if     no_allow        : cmd_line.append('--no-allow'       )
+	if     source_ok       : cmd_line.append('--source-ok'      )
+	if     follow_symlinks : cmd_line.append('--follow-symlinks')
+	if not write           : cmd_line.append('--no-write'       )
 	cmd_line += args
 	_run(cmd_line)
 #
@@ -65,10 +65,11 @@ else :
 	while root_dir!='/' and not _osp.exists(root_dir+'/Lmakefile.py') : root_dir = _osp.dirname(root_dir)                       # avoid searching Lmakefile.py to avoid new dependency
 	if not root_dir : del root_dir
 #
-has_ld_audit            = bool($HAS_LD_AUDIT)
-has_ld_preload          = True
-has_ld_preload_jemalloc = True
-has_ptrace              = True
+autodeps = ()
+if "$HAS_FUSE"     : autodeps += ('fuse'    ,)
+if "$HAS_LD_AUDIT" : autodeps += ('ld_audit',)
+autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
+#
 backends = ('local',)
 if "$HAS_SGE"   : backends += ('sge'  ,)
 if "$HAS_SLURM" : backends += ('slurm',)

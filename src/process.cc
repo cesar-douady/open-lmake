@@ -56,7 +56,7 @@ using namespace Disk ;
 	//
 	if (first_pid) {
 		SWEAR(first_pid>1,first_pid) ;
-		// mount is not signal-safe and we should only allowed signal-safe functions here, but this is a syscall, should be ok
+		// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
 		if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) {
 			perror("cannot mount /proc ") ;
 			_exit(Rc::System) ;                                                                                    // /!\ dont use exit which is not signal-safe
@@ -85,16 +85,16 @@ using namespace Disk ;
 
 void Child::spawn() {
 	SWEAR( +cmd_line                                                            ) ;
-	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ;                                        // ensure reasonably simple situations
-	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ;                                        // .
-	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ;                                        // .
-	SWEAR( !( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                  ) ;                                        // .
+	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ;                                          // ensure reasonably simple situations
+	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ;                                          // .
+	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ;                                          // .
+	SWEAR( !( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                  ) ;                                          // .
 	if (stdin_fd ==PipeFd) _p2c .open() ; else if (+stdin_fd ) _p2c .read  = stdin_fd  ;
 	if (stdout_fd==PipeFd) _c2po.open() ; else if (+stdout_fd) _c2po.write = stdout_fd ;
 	if (stderr_fd==PipeFd) _c2pe.open() ; else if (+stderr_fd) _c2pe.write = stderr_fd ;
 	//
 	// /!\ memory for environment must be allocated before calling clone
-	::vector_s env_vector ;                                                                                                // ensure actual env strings (of the form name=val) lifetime
+	::vector_s env_vector ;                                                                                                  // ensure actual env strings (of the form name=val) lifetime
 	if (env) {
 		size_t n_env = env->size() + (add_env?add_env->size():0) ;
 		env_vector.reserve(n_env) ;
@@ -131,11 +131,11 @@ void Child::spawn() {
 		void*              trampoline_stack_ptr = trampoline_stack.data()+(NpStackGrowsDownward?trampoline_stack.size():0) ; // .
 		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is important to mount the new /proc without disturing caller
 	} else {
-		pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD              , this ) ;
+		pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD                          , this ) ;
 	}
 	//
 	if (pid==-1) {
-		waited() ;                                                                                                         // ensure we can be destructed
+		waited() ;                                                                                                           // ensure we can be destructed
 		throw "cannot spawn process "+fmt_string(cmd_line)+" : "+strerror(errno) ;
 	}
 	//

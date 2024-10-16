@@ -61,6 +61,7 @@ using namespace Time ;
 	void Trace::_s_open() {
 		if (s_sz<4096         ) return ; // not enough room to trace
 		if (!s_channels.load()) return ; // nothing to trace
+		if (!*g_trace_file    ) return ; // nowhere to trace to
 		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
@@ -71,7 +72,7 @@ using namespace Time ;
 		::string tmp_trace_file = trace_dir_s+::to_string(Pdate(New).nsec_in_s())+'-'+getpid() ;
 		mk_dir_s(trace_dir_s) ;
 		//
-		_s_cur_sz = 4096                                                                                  ;
+		_s_cur_sz = 4096                                                                                                       ;
 		_s_fd     = { ::open( tmp_trace_file.c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0666 ) , true/*no_std*/ } ;
 		//
 		if ( !_s_fd                                                        ) throw "cannot create temporary trace file "+tmp_trace_file+" : "+strerror(errno)             ;

@@ -23,8 +23,8 @@ static constexpr Channels DfltChannels = ~Channels() ;
 
 	struct Trace {
 		// statics
-		static void s_start         (               ) {}
-		static void s_new_trace_file(::string const&) {}
+		static void s_start         (                   ) {}
+		static void s_new_trace_file(::string const& ={}) {}
 		template<class T> static ::string s_str( T const& , ::string const& ) { return {} ; }
 		// static data
 		static ::atomic<bool    > s_backup_trace ;
@@ -45,8 +45,8 @@ static constexpr Channels DfltChannels = ~Channels() ;
 
 	struct Trace {
 		// statics
-		static void s_start         (               ) ;
-		static void s_new_trace_file(::string const&) ;
+		static void s_start         (                   ) ;
+		static void s_new_trace_file(::string const& ={}) ;
 	private :
 		static void _s_open  () ;
 		static void _t_commit() ;

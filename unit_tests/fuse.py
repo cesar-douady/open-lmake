@@ -3,13 +3,9 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import os.path as osp
-
 import lmake
 
 if __name__!='__main__' :
-
-	import socket
 
 	from lmake.rules import Rule,PyRule
 
@@ -18,10 +14,6 @@ if __name__!='__main__' :
 	,	'hello'
 	,	'world'
 	)
-
-	lmake.config.backends.slurm = {        # check that interface is interpreted w/o crash
-		'interface' : socket.gethostname()
-	}
 
 	class Cat(Rule) :
 		stems = {
@@ -32,27 +24,29 @@ if __name__!='__main__' :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		backend   = 'slurm'
-		resources = {'mem':'20M'}
 
 	class CatSh(Cat) :
-		target = '{File1}+{File2}_sh'
-		cmd    = 'cat {FIRST} {SECOND}'
+		autodep   = 'fuse'
+		root_view = '/repo'
+		target    = '{File1}+{File2}_sh'
+		cmd       = 'cat {FIRST} {SECOND}'
 
 	class CatPy(Cat,PyRule) :
-		target = '{File1}+{File2}_py'
+		autodep   = 'fuse'
+		root_view = '/repo'
+		target    = '{File1}+{File2}_py'
 		def cmd() :
-			print(open(FIRST ).read(),end='')
-			print(open(SECOND).read(),end='')
+			for fn in (FIRST,SECOND) :
+				with open(fn) as f : print(f.read(),end='')
 
 else :
 
-	if 'slurm' not in lmake.backends :
-		print('slurm not compiled in',file=open('skipped','w'))
+	if 'fuse' not in lmake.autodeps :
+		print('fuse seems impossible to implement',file=open('skipped','w'))
 		exit()
-	if not osp.exists('/etc/slurm/slurm.conf') :
-		print('slurm not available',file=open('skipped','w'))
-		exit()
+
+	import os
+	import os.path as osp
 
 	import ut
 
@@ -62,3 +56,10 @@ else :
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 ) # check targets are out of date
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 ) # check targets are up to date
 	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         ) # check reconvergence
+
+	assert os.system('ldebug hello+world_sh'  )==0 # check no crash
+	assert os.system('chmod -w -R .'          )==0
+	assert os.system('lshow -i hello+world_sh')==0 # check we can interrogate a read-only repo
+	assert os.system('chmod u+w -R .'         )==0 # restore state
+
+	assert not osp.exists('LMAKE/server'),'server is still alive'

@@ -388,8 +388,8 @@ namespace Engine {
 		::string        base    = full_dep.substr(dir_s.size())                   ;
 		//
 		auto bad = [&] [[noreturn]] (::string const& msg) {
-			if (kind==DepKind::Dep) throw "dep "+key +" (" +dep_for_msg+") "+msg ;
-			else                    throw snake(kind)+" ("s+dep_for_msg+") "+msg ;
+			if (kind==DepKind::Dep) throw "dep "+key     +" ("+dep_for_msg+") "+msg ;
+			else                    throw snake_str(kind)+" ("+dep_for_msg+") "+msg ;
 		} ;
 		//
 		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(dir_s+base)) ;
@@ -685,7 +685,7 @@ namespace Engine {
 			field = "__special__" ;
 			if (dct.contains(field)) {
 				special = mk_enum<Special>(dct[field].as_a<Str>()) ;
-				if (special<=Special::Shared) throw "unexpected value for __special__ attribute : "+snake(special) ;
+				if (special<=Special::Shared) throw "unexpected value for __special__ attribute : "s+snake(special) ;
 			} else {
 				special = Special::Plain ;
 			}
@@ -804,7 +804,7 @@ namespace Engine {
 								}
 								auto it = stem_stars.find(k) ;
 								if ( it==stem_stars.end() || it->second==Yes )
-									throw stem_words(k,star,unnamed)+" appears in "+snake(kind)+" but not in "+job_name_msg+", consider using "+k+'*';
+									throw stem_words(k,star,unnamed)+" appears in "s+snake(kind)+" but not in "+job_name_msg+", consider using "+k+'*';
 								if (is_official_target)
 									missing_stems.erase(k) ;
 							}
@@ -816,9 +816,9 @@ namespace Engine {
 					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
 					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)                                ) throw snake(kind)+" must be relative to root dir : "s                    +target ;
-					if ( !is_lcl(target)                                               ) throw snake(kind)+" must be local : "s                                   +target ;
-					if ( !is_canon(target)                                             ) throw snake(kind)+" must be canonical : "s                               +target ;
+					if ( target.starts_with(root_dir_s)                                ) throw snake_str(kind)+" must be relative to root dir : "                 +target ;
+					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                                +target ;
+					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                            +target ;
 					if ( +missing_stems                                                ) throw "missing stems "+fmt_string(missing_stems)+" in "+snake(kind)+" : "+target ;
 					if (  is_star                              && is_special()         ) throw "star "s+snake(kind)+"s are meaningless for source and anti-rules"         ;
 					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                              ;
