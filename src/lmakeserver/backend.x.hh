@@ -52,10 +52,11 @@ namespace Backends {
 
 		struct Workload {
 			// a job stops being reasonable when it has already run longer than its last known exec_time
+			// a workload is a sum of weighted exec times in ms, i.e. with 3 jobs for 4 tokens in parallel workload advances by 4 each ms
+			// all delays and dates are rounded to ms to avoid rounding errors
 			friend ::ostream& operator<<( ::ostream& , Workload const& ) ;
-			using Val = uint64_t ;
-			// statics
-			// static data
+			using Val    = uint64_t                  ;
+			using Tokens = Uint<sizeof(Tokens1)*8+1> ;               // +1 to allow adding 1 without overflow
 		private :
 			//services
 		public :
@@ -72,12 +73,12 @@ namespace Backends {
 			void _refresh() ;
 			// data
 			Val                      _ref_workload        = 0 ;      // total workload at ref_date
-			Pdate                    _ref_date            ;          // later than any job start date and end date
-			::set<::pair<Pdate,Job>> _eta_set             ;          // jobs whose eta is in the future
-			::umap<Job,Pdate>        _eta_tab             ;          // .
-			Val                      _reasonable_workload = 0 ;      // total workload of all started jobs past ref_date (i.e. that appear in _eta_set/_eta_tab)
-			JobIdx                   _n_running           = 0 ;      // number of running                                       tokens
-			JobIdx                   _n_reasonable        = 0 ;      // number of reasonable (i.e. listed in _eta_set/_eta_tab) tokens
+			Pdate                    _ref_date            ;          // later than any job start date and end date, always rounded to ms
+			::umap<Job,Pdate>        _eta_tab             ;          // jobs whose eta is post ref_date
+			::set<::pair<Pdate,Job>> _eta_set             ;          // same info, but ordered by dates
+			Val                      _reasonable_workload = 0 ;      // sum of (eta-_ref_date) in _eta_tab
+			JobIdx                   _running_tokens      = 0 ;      // sum of tokens for all running jobs
+			JobIdx                   _reasonable_tokens   = 0 ;      // sum ok tokens in _eta_tab
 			//
 			::array<::atomic<Delay::Tick>,NReqs+1> _submitted_cost ; // use plain integer so as to use atomic increment/decrement instructions because schedule/cancel are called w/o lock
 		} ;
@@ -243,7 +244,7 @@ namespace Backends {
 	//
 	inline Pdate Backend::Workload::submitted_eta(Req r) const {
 		Pdate res = _ref_date + Delay(New,_submitted_cost[+r]) ;
-		if (_n_running) res += Delay(_reasonable_workload/1000./_n_running) ;
+		if (_running_tokens) res += Delay(_reasonable_workload/1000./_running_tokens) ;                       // divide by 1000 to convert to seconds
 		return res ;
 	}
 

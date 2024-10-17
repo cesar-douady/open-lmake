@@ -13,6 +13,7 @@ ENUM( JobReport
 ,	Speculative
 ,	Steady
 ,	Failed
+,	SubmitLoop
 ,	Done      // <=Done means job was run and reported a status
 ,	Completed
 ,	Killed

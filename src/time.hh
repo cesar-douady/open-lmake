@@ -113,6 +113,10 @@ namespace Time {
 		template<class T> requires(::is_arithmetic_v<T>) constexpr Delay& operator*=(T f)       { *this = *this*f ; return *this ; }
 		template<class T> requires(::is_arithmetic_v<T>) constexpr Delay& operator/=(T f)       { *this = *this/f ; return *this ; }
 		//
+		constexpr Delay round_sec () const {                       return Delay( New , _val-_val% TicksPerSecond           ) ; }
+		constexpr Delay round_msec() const { static_assert(IsNs) ; return Delay( New , _val-_val%(TicksPerSecond/1000    ) ) ; }
+		constexpr Delay round_usec() const { static_assert(IsNs) ; return Delay( New , _val-_val%(TicksPerSecond/1000'000) ) ; }
+		//
 		bool/*slept*/ sleep_for( ::stop_token , bool flush=true ) const ;                                 // if flush, consider we slept if asked to stop but we do not have to wait
 		void          sleep_for(                                ) const ;
 		//

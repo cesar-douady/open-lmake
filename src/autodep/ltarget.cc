@@ -12,7 +12,6 @@
 
 ENUM(Key,None)
 ENUM(Flag
-,	FollowSymlinks
 ,	NoWrite
 ,	Essential
 ,	Incremental
@@ -26,8 +25,7 @@ ENUM(Flag
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax{{
-		{ Flag::FollowSymlinks , { .short_name='L' , .has_arg=false , .doc="Logical view, follow symbolic links" } }
-	,	{ Flag::NoWrite        , { .short_name='W' , .has_arg=false , .doc="does not report a write, only flags" } }
+		{ Flag::NoWrite , { .short_name='W' , .has_arg=false , .doc="does not report a write, only flags" } }
 	//
 	,	{ Flag::Essential   , { .short_name=TflagChars     [+Tflag     ::Essential  ].second , .has_arg=false , .doc="show when generating user oriented graphs"                              } }
 	,	{ Flag::Incremental , { .short_name=TflagChars     [+Tflag     ::Incremental].second , .has_arg=false , .doc="do not rm file before job execution"                                    } }
@@ -43,8 +41,7 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.args) return 0 ;                                                                            // fast path : declare no targets
 	for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot declare empty file as target"   ) ;
 	//
-	AccessDigest ad        { .write=No|!cmd_line.flags[Flag::NoWrite] } ;
-	bool         no_follow = !cmd_line.flags[Flag::FollowSymlinks]      ;
+	AccessDigest ad { .write=No|!cmd_line.flags[Flag::NoWrite] } ;
 	//
 	if ( cmd_line.flags[Flag::Essential  ]) ad.tflags       |= Tflag     ::Essential   ;
 	if ( cmd_line.flags[Flag::Incremental]) ad.tflags       |= Tflag     ::Incremental ;
@@ -55,8 +52,8 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::NoAllow    ]) ad.extra_tflags |= ExtraTflag::Allow       ;
 	if ( cmd_line.flags[Flag::SourceOk   ]) ad.extra_tflags |= ExtraTflag::SourceOk    ;
 	//
-	try                       { JobSupport::target( {New,Yes/*enabled*/} , ::move(cmd_line.args) , ad , no_follow ) ; }
-	catch (::string const& e) { exit(Rc::Usage,e) ;                                                                   }
+	try                       { JobSupport::target( {New,Yes/*enabled*/} , ::move(cmd_line.args) , ad ) ; }
+	catch (::string const& e) { exit(Rc::Usage,e) ;                                                       }
 	//
 	return 0 ;
 }

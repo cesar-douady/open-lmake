@@ -29,4 +29,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'dut.ok' , may_rerun=1 , done=1 , submit_loop=1 , was_done=1 , rc=1 )
+	ut.lmake( 'dut.ok' , may_rerun=1 , done=1 , submit_loop=1 , rc=1 )

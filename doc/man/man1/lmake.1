@@ -1,0 +1,254 @@
+.TH LMAKE 1 "18 October 2024" "Doliam" "User Commands"
+.SH NAME
+lmake \- a reliable & scalable tool to execute a full flow
+
+.SH SYNOPSIS
+\fBlmake\fR [\fIOPTION\fR]... [\fITARGET\fR]...
+
+.SH DESCRIPTION
+.LP
+The \fBlmake\fR utility determines automatically which pieces of a flow need to be executed and launch them.
+This is based in the historical \fImake\fR program initially written by Stuart Feldman in 1976 with notable differences :
+.IP \[bu]
+\fBlmake\fR is reliable.
+It ensures that necessary jobs are run in adequate order so that the asked files are in the same state as if all derived files were removed and all jobs were run.
+In particular, this includes automatic discovery of actual dependencies.
+.IP \[bu]
+\fBlmake\fR is scalable.
+Millions of files can be derived easily (job execution may require heavy resources, but \fBlmake\fR will stay light).
+.IP \[bu]
+The makefile is called \fILmakefile.py\fR and is written in Python3.
+.IP \[bu]
+Rule matching is based of regular expressions, not just a single wildcard (% with \fImake\fR).
+.IP \[bu]
+Recipies can be written in \fBbash\fR (1) or \fBpython\fR (1).
+.IP \[bu]
+Several \fBlmake\fR commands can be run simultaneously in the same directory.
+Jobs needed by several of them will be shared.
+Simlarly sources files can be edited without risks while \fBlmake\fR is running.
+Derived files will be generated according to the state of the source files at the time the command was launched.
+If this is not possible because an old version of a source file need to be accessed after it has been modified, an error will be generated.
+Rerunning the same \fBlmake\fR command will take into account the new content of such source files.
+.IP \[bu]
+File states are based on content (using a checksum) rather than dates.
+This makes it possible to avoid running a dependent job if a file has been reconstructed identically to its previous content.
+.LP
+\fBlmake\fR manages a fully coherent directory called a repository.
+When it starts, it first determine the root of the repository (cf. \fBFILES\fR below).
+.LP
+To reach these goals, \fBlmake\fR maintains a state in the \fILMAKE\fR directory, instrument jobs (to catch all file accesses) during their execution
+and launches a daemon (called \fBlmakeserver\fR) that can be shared between several concurrent invocations of \flmake\fR.
+.LP
+\fBlmake\fR generates an output line for each significant event :
+.IP \[bu]
+When a job starts if it is long (duration that qualifies a job as long is configurable). This start line is deemed of secondary importance.
+.IP \[bu]
+When a job terminates.  Such lines are followed by the content of stderr if any and status is known.
+Typically the job status is not known at the end of execution when a new dep was discovered that turned out to be out-of-date.
+In that case, the dep is rebuilt, and if the new content is identical to the old one, \fBlmake\fR can decide that the job was run with up-to-date deps.
+.IP \[bu]
+When the job status is finally known, if it was not known when it terminated.
+Such lines are followed by the content of stderr if any.
+.LP
+During execution, if launched from a terminal, \fBlmake\fR also generates a progression status in the title bar.
+This progression status line contains :
+.IP \[bu]
+The number of executed jobs (split between useful, rerun and hit)
+.IP \[bu]
+The number of queued jobs, i.e. jobs that are waiting for resources to be run
+.IP \[bu]
+The number of waiting jobs, i.e. jbos that are waiting for dependencies to be run
+.LP
+At the end of the execution, if the asked targets are not successfully generated, a summary is generated reminding the errors (with a configurable max, 20 by default)
+and the stderr of the first error. Intermediate targets are deemed of secondary importance.
+.LP
+Before processing arguments, \fBlmake\fR prepends the content of \fB$LMAKE_ARGS\fR, separated by spaces.
+This eases the management of user preferences.
+For example, a user may like to systematically pass the \fF-a\fR and @\fFt\fR options, in which case they can set \fBLMAKE_ARGS\fR=\fB-a -t\fR.
+
+
+.SH OPTIONS
+
+.LP
+Options common to all tools of the \fBopen-lmake\fI set of utilities :
+.TP
+\fB-h\fR, \fB--help\fR
+Print a short help and exit.
+.TP
+\fB-J\fR, \fB--job\fR
+Passed arguments are interpreted as job names rather than as file names.
+Job names are the names that appear, for example, on start and done lines when \fBlmake\fR executes a job.
+.TP
+\fB-R\fR \fIrule\fR, \fB--rule\fR=\fIrule\fR
+When the \fB-J\fR option is used, this options allows the specification of a rule, given by its name.
+This is necessary when the job name is ambiguous as several rules may lead to the same job name.
+.TP
+\fB-q\fR, \fB--quiet\fR
+Do not generate user oriented messages.
+Strictly generate what is asked.
+This is practical if output is meant for automatic processing.
+.TP
+\fB-S\fR, \fB--sync\fR
+Ensure server is launched (i.e. do not connect to an existing server) and wait for its termination.
+.TP
+\fB-V\fR \fImode\fR, \fB--video\fR=\fImode\fR
+Explicitly ask for a video mode instead of interrogating connected terminal.
+If mode starts with \fBn\fR or \fBN\fR, normal video (black on white) is assumed.
+If it starts with \fBr\fR or \fBR\fR, reverse video (white on black) is assumed.
+Else output is not colorized.
+video mode has an impact on generated colors as nice looking colors are not the same in each case.
+
+.LP
+Options specific to \fBlmake\fR :
+
+.TP
+\fB-a\fR, \fB--archive\fR
+Ensure all intermediate files are up to date, in addition to the asked targets.
+This is useful for example if you want to archive a fully built repository.
+.TP
+\fB-b\fR \fIvalue\fR, \fB--backend\fR=\fIvalue\fR
+Pass value to backend.
+This is used for example to pass a partition or specificities to the slurm backend for a particular command.
+Note that backend only impacts resources and scheduling, not the content of the targets, so specifying such an option does not hurt repeatability.
+.TP
+\fB-e\fR, \fB--forget-old-errors\fR
+Assume encountered errors (before this command) are transicent.
+Contrarily to the \fBlforget -e\fR command, this only concerns this execution, not subsequent ones.
+.TP
+\fB-j\fR jobs, \fB--jobs\fR=\fIjobs\fR
+When this option is used, \fBlmake\fR will limit the overall number of simultaneous jobs to \fIjobs\fR per backend.
+If several \fBlmake\fR commands run simultaneously, a job cannot be launched on behalf of a given command if the number of running jobs is not less than its associated \fIjobs\fR.
+.TP
+\fB-o\fR, \fB--live-out\fR
+Normally, \fFlmake\fR does not output the stdout of jobs (such stdout is accessible with the \fBlshow -o\fR command).
+However, sometimes it is practical to have the output while jobs are running.
+Generating such output for all jobs would produce an intermixed flow of characters of all jobs running in parallel making such an output unreadable.
+When this option is used, only the jobs directly producing the asked targets have their output generated on the output of \fBlmake\fR.
+Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
+.TP
+\fB-r\fR \fIcount\fR, \fB--retry-on-error\fR=\fIcount\fR
+Ask \fBlmake\fR to retry jobs in case of error.
+The number of retries is the max between count and the n_retries attribute of the rule.
+This is useful for unattended execution (e.g. nightly regressions) when system reliability is not enough to guarantee correct execution at the desired level.
+.TP
+\fB-l\fR, \fB--local\fR
+With this option, jobs are launched locally (i.e. using the \fIlocal\fR backend) instead of the backend mentioned in the rule.
+Note that if 2 \fBlmake\fR commands with different values for this option are running simultaneously, in case a job is necessary for both, it may be launched locally or remotely.
+The originally targetted backend is in charge of mapping required resources mentioned in the rule to local resources understandable by the local backend.
+.TP
+\fB-s\fR, \fB--source-ok\fR
+Normally, \fBlmake\fR refuses to launch a job that may overwrite a source.
+With this option, the user instructs \fBlmake\fR that this is allowed.
+.TP
+\fB-t\fR, \fB--keep-tmp\fR
+Normally, \fBlmake\fR washes the temporary directory allocated to a job at the end of job execution.
+With this option, the user instructs \fBlmake\fR to keep the temporary directories, as if the \fIkeep_tmp\fR attribute was set for all rules.
+The kept temporary directory can be retreived with \fBlshow -i\fR.
+.TP
+\fB-v\fR, \fB--verbose\fR
+Enable the generation of some execution information from backend.
+This is not done systematicly as this may incur a performance hit.
+These information are available by using \fBlshow -i\fR.
+
+.SH "EXIT STATUS"
+.LP
+\fBlmake\fR exits with a status of zero if the asked targets could be built or were already up-to-date.
+Else it exits with a non-zero status.
+
+.SH OUTPUT
+.LP
+While \fblmake\fR runs, it outputs a log.
+This log is also recorded in \fILMAKE/outputs/<start date>\fR with the following differences :
+.IP \[bu]
+It is not colored.
+.IP \[bu]
+Reported files are relative to the root of the repository, not to the current working directory where the \fBlmake\fR command has been launched.
+.LP
+The log contains a line, possibly followed by attached information when the following events occur :
+.IP \[bu]
+A job is started, if the job duration is longer than the \fIstart_delay\fR attribute of the rule.
+.IP \[bu]
+A job is completed.
+.IP \[bu]
+A job status is known, while it was not known when it completed.
+.IP \[bu]
+A source file has been seen as modified.
+.IP \[bu]
+A frozen file or a target of a frozen job is needed.
+.LP
+Once the build process is complete, a summary is generated with :
+.IP \[bu]
+The frozen files and jobs that we necessary to carry out the build.
+.IP \[bu]
+The jobs in error (the first of them is accompanied with its stderr).
+
+.SH ENVIRONMENT
+.LP
+The content of \fB$LMAKE_ARGS\fR is prepended to command line arguments.
+.LP
+Unless explicitely asked in \fILmakefile.py\fR, the environment is mostly ignored when \fBlmake\fR is run, i.e. it is not passed to the jobs.
+The goal is to improve repeatability by protecting jobs from the variability environment variables may cause.
+In particular :
+.IP \[bu]
+\fB$HOME\fR is redirected to the root of the repository.
+This protects the job from all specificities stored in \fI.xxxrc\fR files in the home directory.
+.IP \[bu]
+\fB$LMAKE_ARGS\fR, although used by \fBlmake\fR, is not passed to jobs.
+.IP \[bu]
+\fB$PATH\fR is reset to the default path for the system, plus the \fIopen-lmake\fR bin directory.
+.IP \[bu]
+\fB$PYTHONPATH\fR is set to the \fIopen-lmake\fR lib directory.
+.IP \[bu]
+\fB$TMPDIR\fR is redirected to an isolated, empty directory which is cleaned up at the end of each job execution.
+This way, the job can freely use this directory and need not take care of clean-up.
+.LP
+Moreover, a few variables are set during job execution :
+.IP \[bu]
+\fB$JOB_ID\fR is set to an integer specific of a job.
+It does not change between executions, but may be different in different repository, even if strictly identical.
+.IP \[bu]
+\fB$SMALL_ID\fR is set to a as small as possible integer such that a different value is set for jobs running concurrently.
+.IP \[bu]
+\fB$SEQUENCE_ID\fR is set to a different value each time a job is run, they are never recycled.
+
+.SH FILES
+.LP
+The file \fILmakefile.py\fR is searched in the current directory and in parent directories.
+If a single one is found, this determines the root of the repository.
+If several are found, the existence of an \fILMAKE\fR directory is checked.
+If a single one is found, this determines the root of the repository.
+In other cases, \fBlmake\fR will not start.
+
+.SH "SEE ALSO"
+.LP
+\fBautodep\fR(1),
+\fBfind_cc_ld_library_path\fR(1),
+\fBlcheck_deps\fR(1),
+\fBldebug\fR(1),
+\fBldecode\fR(1),
+\fBlencode\fR(1),
+\fBlforget\fR(1),
+\fBlmark\fR(1),
+\fBlrepair\fR(1),
+\fBlshow\fR(1),
+\fBltarget\fR(1),
+\fBxxhsum\fR(1).
+.LP
+The python module \fBlmake\fR.
+
+.SH "COPYRIGHT"
+Copyright \(co 2023-2024, Doliam.
+This file is part of
+.IR "open-lmake" .
+.LP
+\fopen-lmake\fR is free software; you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, version 3 of the License.
+.LP
+\fBopen-lmake\fR is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+.LP
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see
+.IR http://www.gnu.org/licenses/ .

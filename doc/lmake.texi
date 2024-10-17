@@ -498,100 +498,7 @@ If @code{$LMAKE_VIDEO} is defined, it is processed as if provided to the @code{-
 
 @section @lmake
 
-Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [[-j|--jobs] max_jobs] [-o|--live-out] [[-r|--retry-on-error] count] [-l|--local] [-v|--versbose-backend] targets...}
-
-@lmake launches all necessary jobs to ensure that targets are generated following rules specified in @Lmakefile.
-
-@lmake generates an output line for each significant event :
-@itemize @bullet
-@item When a job starts if it is long (duration that qualifies a job as long is configurable). This start line is deemed of secondary importance.
-@item When a job terminates.  Such lines are followed by the content of stderr if any and status is known.
-@item When the job status is finally known, if it was not known when it terminated.
-Such lines are followed by the content of stderr if any.
-Typically the job status is not known at the end of execution when a new dep was discovered that turned out to be out-of-date.
-In that case, the dependency is rebuilt, and if the new content is identical to the old one, @lmake can then decide that the job was run with up-to-date deps.
-@end itemize
-
-During execution, if launched from a terminal, @lmake also generates a progression status in the title bar.
-This progression status line contains :
-@itemize @bullet
-@item the number of executed jobs (split between useful, rerun and hit)
-@item the number of queued jobs, i.e. jobs that are waiting for resources to be run
-@item the number of waiting jobs, i.e. jbos that are waiting for dependencies to be run
-@end itemize
-
-At the end of the execution, if the asked targets are not successfully generated, a summary is generated reminding the errors (with a configurable max, 20 by default)
-and the stderr of the first error. Intermediate targets are deemed of secondary importance.
-
-When run @lmake launches a server and direct its request to it.
-This server can then serve other @lmake requests, so that several @lmake process can run simultaneously in the same repository.
-
-During a @lmake process, all jobs are launched according to the state of the repository at the time the @lmake command was launched.
-This way, edition in the repository can go on while the @lmake process runs.
-If it turns out that a file is needed that has been modified since @lmake was launched, it will be deemed in error for that process.
-This way, if you want a reliable run, then you must not modify the repository while @lmake is running.
-But if you are running @lmake in an interactive mode, it is very comfortable to be able to go on with your edition session while some regression testing is running.
-At worst, you will have an error mentionning a file has been overwritten, but you will not have an incoherent result based on some old files and some newer files.
-
-Before processing arguments, @lmake prepends the content of @code{$LMAKE_ARGS}, separated by spaces.
-This eases the management of user preferences.
-For example, a user may like to systematically pass the @code{-a} and @code{-t} options, in which case it can set @code{LMAKE_ARGS='-a -t'}.
-
-Options :
-@itemize @bullet
-@item @code{-a}|@code{--archive} : ensure all intermediate files are up to date, in addition to the asked targets.
-This is useful for example if you want to archive a fully built repository.
-@item @code{-b}|@code{--backend} : pass value to backend.
-This is used for example to pass a partition or specificities to the slurm backend for a particular command.
-Note that backend only impacts resources and scheduling, not the content of the targets, so specifying such an option does not hurt repeatability.
-@item @code{-e}|@code{--forget-old-errors} : assume encountered errors are transicent.
-Contrarily to the @code{lforget -e} command, this only concerns this execution, not subsequent ones.
-@item @code{-j}|@code{--jobs} max_jobs : When this option is used, @lmake will limit the overall number of simultaneous jobs to max_jobs per backend.
-If several @lmake commands run simultaneously, a job cannot be launched on behalf of a given command if the number of running jobs is not less than its associated max_jobs.
-@item @code{-o}|@code{--live-out} : normally, @lmake does not output the stdout of jobs (such stdout is accessible with the @code{lshow} command).
-However, sometimes it is practical to have the output while jobs are running.
-Generating such output for all jobs would produce an intermixed flow of characters of all jobs running in parallel making such an output unreadable.
-When this option is used, only the jobs directly producing the asked targets have their output generated on the output of @lmake.
-Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
-@item @code{-r}|@code{--retry-on-error} count : ask @lmake to retry jobs in case of error.
-The number of retries is the max between count and the n_retries attribute of the rule.
-This is useful for unattended execution (e.g. nightly regressions) when system reliability is not enough to guarantee correct execution at the desired level.
-@item @code{-l}|@code{--local} : with this option, jobs are launched locally (i.e. using the @code{local} backend) instead of the backend mentioned in the rule.
-Note that if 2 @lmake commands with different values for this option are running simultaneously, in case a job is necessary for both, it may be launched locally or remotely.
-The originally targetted backend is in charge of mapping required resources mentioned in the rule to local resources understandable by the local backend.
-@item @code{-s}|@code{--source-ok} : normally, @lmake refuses to launch a job that may overwrite a source.
-With this option, the user instructs @lmake that this is allowed.
-@item @code{-t}|@code{--keep-tmp} : normally, @lmake washes the temporary directory allocated to a job at the end of job execution.
-With this option, the user instructs @lmake to keep the temporary directories, as if the @code{keep_tmp} attribute was set for all rules.
-The kept temporary directory can be retreived with @code{lshow -i}.
-@item @code{-v}|@code{--verbose} : enable the generation of some execution information from backend.
-This is not systematic as this may incur a performance hit.
-These information is available by using @code{lshow -i}.
-@end itemize
-
-@subsection output
-
-While @lmake runs, it outputs a log.
-This log is also recorded in @file{LMAKE/outputs/<start date>} with the following differences :
-@itemize @minus
-@item It is not colored.
-@item Files are relative to the root of the repository, not to the current working directory where the @lmake command has been launched.
-@end itemize
-
-The log contains a line, possibly followed by attached information when the following events occur :
-@itemize @minus
-@item A job is started, if the job duration is longer than the @code{start_delay} attribute of the rule.
-@item A job is completed.
-@item A job status is known, while it was not known when it completed.
-@item A source file has been seen as modified.
-@item A frozen file or a target of a frozen job is needed.
-@end itemize
-
-Once the build process is complete, a summary is generated with :
-@itemize @minus
-@item The frozen files and jobs that we necessary to carry out the build.
-@item The jobs in error (the first of them is accompanied with its stderr).
-@end itemize
+Please consult man pages using @code{man lmake}.
 
 @section @code{lshow}
 
@@ -1029,7 +936,7 @@ You then modify @file{generator} and because you are confident in your modificat
 @lmake will run the compilation of @file{heavy.o}, which lasts 10 minutes and discover that you need @file{generated.h}, which is out-of-date.
 It will then rebuild @file{generated.h} and rerun the compilation to @file{heavy.o}, another 10 minutes.
 
-Suppose now that your compilation script separate the preprocessor (say 10 secondes) phase from the compilation (10 minutes) phase and call @code{lcheck_deps} inbetween.
+Suppose now that your compilation script separates the preprocessor (say 10 secondes) phase from the compilation (10 minutes) phase and call @code{lcheck_deps} inbetween.
 In that case, the first run will stop after preprocessing as @code{lcheck_deps} will kill the job at that moment and the overall time will be 10 minutes 10 secondes instead of 20 minutes.
 
 Note the following points :
@@ -1054,17 +961,19 @@ If for some reasons you run with autodep method @code{none}, this is the way to 
 
 Also, it is possible to alter the target flags for these targets. Flags accumulate and apply if the files are independently accessed.
 
+Symlobic links are not followed when files are interpreted.
+Following symbolic links would inevitably lead to files being read (to check if they are symbolic links) before being a target, which would be an error.
+
 The following options are supported :
 @itemize @bullet
-@item @code{-L} or @code{--follow-symlinks} : follow the last level symbolic link, default is not to follow.
-@item @code{-W} or @code{--no-write}        : does not report an actual write, only target flags. Default is to report a write an alter flags.
-@item @code{-E} or @code{--essential}       : show when generating user oriented graphs.
-@item @code{-i} or @code{--incremental}     : target is not unliked before job execution and read accesses to it are ignored.
-@item @code{-u} or @code{--no-uniquify}     : target is not uniquified if several links are pointing to it. Only meaningful for incremental targets.
-@item @code{-w} or @code{--no-warning}      : no warning is emitted if target is either uniquified or unlinked while generated by another job.
-@item @code{-I} or @code{--ignore}          : from now on, ignore all reads and writes to target.
-@item @code{-a} or @code{--no-allow}        : unless this option is passed, @code{ltarget} makes its arguments valid targets (cf @pxref{targets-deps}).
-@item @code{-s} or @code{--source-ok}       : unless this option is passed, @code{ltarget} writing to a source is an error.
+@item @code{-W} or @code{--no-write}    : does not report an actual write, only target flags. Default is to report a write an alter flags.
+@item @code{-E} or @code{--essential}   : show when generating user oriented graphs.
+@item @code{-i} or @code{--incremental} : target is not unliked before job execution and read accesses to it are ignored.
+@item @code{-u} or @code{--no-uniquify} : target is not uniquified if several links are pointing to it. Only meaningful for incremental targets.
+@item @code{-w} or @code{--no-warning}  : no warning is emitted if target is either uniquified or unlinked while generated by another job.
+@item @code{-I} or @code{--ignore}      : from now on, ignore all reads and writes to target.
+@item @code{-a} or @code{--no-allow}    : unless this option is passed, @code{ltarget} makes its arguments valid targets (cf @pxref{targets-deps}).
+@item @code{-s} or @code{--source-ok}   : unless this option is passed, @code{ltarget} writing to a source is an error.
 @end itemize
 
 @section @code{ldecode}
@@ -1206,7 +1115,7 @@ If @code{verbose}, the result is a @code{dict} indexed by files, whose values ar
 @item a status : @code{True} if the file was up to date and ok, @code{False} if the file was up to date and in error, @code{None} if the file was not up to date.
 @item a @code{str} containing the crc as described for @code{ldepend}.
 @end itemize
-@item @code{def target(*files,follow_symlinks=True,write=True,essential=False,incremental=False,phony=False,no_uniquify=False,no_warning=False,ignore=False,source_ok=False,allow=True)}
+@item @code{def target(*files,write=True,essential=False,incremental=False,phony=False,no_uniquify=False,no_warning=False,ignore=False,source_ok=False,allow=True)}
 @tab@code{ltarget}
 @tab @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{target('file1','file2')} or @code{target(('file1','file2'))}.

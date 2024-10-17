@@ -181,7 +181,7 @@ Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , ::str
 }
 
 Record::Mkdir::Mkdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	r._report_dep ( file_loc , ::copy(real) , accesses|Access::Stat , ::copy(c) ) ;                                                       // fails if file exists, hence sensitive to existence
+	r._report_dep ( file_loc , ::copy(real) , accesses|Access::Stat , ::copy(c) ) ;                                                        // fails if file exists, hence sensitive to existence
 	r.report_guard( file_loc , ::move(real) ,                         ::move(c) ) ;
 }
 
@@ -209,18 +209,18 @@ static bool _do_create(int flags) { return   flags&O_CREAT                      
 Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
 	Solve{ r , !_ignore(flags)?::move(path):Path() , _no_follow(flags) , _do_read(flags) , _do_create(flags) , c }
 {
-	if ( !file || !file[0]             ) return ;                                                        // includes ignore_stat cases
-	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                        // we already solved, this is enough
-	if ( file_loc>FileLoc::Dep         ) return ;                                                        // fast path
+	if ( !file || !file[0]             ) return ;                                                                   // includes ignore_stat cases
+	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                   // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep         ) return ;                                                                   // fast path
 	//
 	bool do_stat  = _do_stat (flags) ;
 	bool do_read  = _do_read (flags) ;
 	bool do_write = _do_write(flags) ;
 	//
-	c << '.' << flags << '.' ;
-	if (do_stat ) { c += 'S' ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, user can access all info with a further fstat, which is not piggy-backed
-	if (do_read ) { c += 'R' ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
-	if (do_write)   c += 'W' ;
+	if (_no_follow(flags))   c += ".NF" ;
+	if (do_stat          ) { c += ".S"  ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, there may be a further fstat, which is not piggy-backed
+	if (do_read          ) { c += ".R"  ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
+	if (do_write         )   c += ".W"  ;
 	//
 	if      ( do_write           ) id = r._report_update( file_loc , ::move(real) , ::move(real0) , accesses , ::move(c) ) ;
 	else if ( do_read || do_stat )      r._report_dep   ( file_loc , ::move(real) ,                 accesses , ::move(c) ) ;
@@ -295,6 +295,7 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , ::string&& c ) :
 	Solve{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , false/*create*/ , c }
 {
+	if (no_follow) c += ".NF" ;
 	if (!s_autodep_env().ignore_stat) r._report_dep( file_loc , ::move(real) , accesses|a , ::move(c) ) ;
 }
 

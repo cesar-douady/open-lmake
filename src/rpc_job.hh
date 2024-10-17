@@ -220,6 +220,7 @@ ENUM_3( Status             // result of job execution
 ,	BadTarget              // target was not correctly initialized or simultaneously written by another job
 ,	Retry                  // job is in error but we are instructed to retry on error
 ,	Ok                     // job execution ended successfully
+,	SubmitLoop             // job needs to be rerun but we have already submitted it too many times
 ,	Err                    // job execution ended in error
 )
 // END_OF_VERSIONING
@@ -246,6 +247,7 @@ inline Bool3 is_ok(Status s) {
 		case Status::EarlyErr     :
 		case Status::EarlyLostErr :
 		case Status::LateLostErr  :
+		case Status::SubmitLoop   :
 		case Status::Err          : return No    ;
 		default                   : return Maybe ;
 	}

@@ -531,13 +531,12 @@ namespace Backends::Slurm {
 		SWEAR(slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		{	Lock lock { _slurm_mutex } ;
-			if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS)
-				switch (errno) {
-					case EAGAIN                              :
-					case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                             job_ok
-					case ESLURM_NODES_BUSY                   : return { "slurm daemon busy : "   +slurm_err() , Maybe } ; // no info : heartbeat will retry, end will eventually cancel
-					default                                  : return { "cannot load job info : "+slurm_err() , Yes   } ;
-				}
+			if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS) switch (errno) {
+				case EAGAIN                              :
+				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                             job_ok
+				case ESLURM_NODES_BUSY                   : return { "slurm daemon busy : "   +slurm_err() , Maybe } ; // no info : heartbeat will retry, end will eventually cancel
+				default                                  : return { "cannot load job info : "+slurm_err() , Yes   } ;
+			}
 		}
 		::string                msg ;
 		Bool3                   ok  = Yes     ;

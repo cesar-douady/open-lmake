@@ -83,7 +83,7 @@ inline ::string wstatus_str(int wstatus) {
 }
 
 struct Child {
-	static constexpr size_t StackSz = 16<<10 ;        // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k
+	static constexpr size_t StackSz = 16<<10 ;                       // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k
 	static constexpr Fd     NoneFd  { -1 }   ;
 	static constexpr Fd     PipeFd  { -2 }   ;
 	// statics
@@ -122,8 +122,9 @@ struct Child {
 	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
 	bool         is_alive(       ) const { return kill_process(pid,0                         ) ; }
 private :
-	[[noreturn]] void _do_child           () ;
-	[[noreturn]] void _do_child_trampoline() ;        // used when creating a new pid namespace : we need an intermediate process as the init process
+	[[noreturn]] void _do_child           (                      ) ;
+	[[noreturn]] void _do_child_trampoline(                      ) ; // used when creating a new pid namespace : we need an intermediate process as the init process
+	[[noreturn]] void _exit               ( Rc , const char* msg ) ;
 	//data
 public :
 	// spawn parameters
@@ -136,7 +137,7 @@ public :
 	::map_ss const* env                = nullptr    ;
 	::map_ss const* add_env            = nullptr    ;
 	::string        cwd_s              = {}         ;
-	int/*rc*/       (*pre_exec)(void*) = nullptr    ; // if no cmd_line, this is the entire function exected as child returning the exit status
+	int/*rc*/       (*pre_exec)(void*) = nullptr    ;                // if no cmd_line, this is the entire function exected as child returning the exit status
 	void*           pre_exec_arg       = nullptr    ;
 	// child info
 	pid_t       pid    = 0  ;
@@ -147,7 +148,7 @@ public :
 	Pipe         _p2c             = {}      ;
 	Pipe         _c2po            = {}      ;
 	Pipe         _c2pe            = {}      ;
-	void*        _child_stack_ptr = nullptr ;         // all memory must be allocated before clone is called
-	const char** _child_env       = nullptr ;         // .
-	const char** _child_args      = nullptr ;         // .
+	void*        _child_stack_ptr = nullptr ;                        // all memory must be allocated before clone is called
+	const char** _child_env       = nullptr ;                        // .
+	const char** _child_args      = nullptr ;                        // .
 } ;

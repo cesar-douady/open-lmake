@@ -36,12 +36,12 @@ namespace Backends {
 	//
 
 	::ostream& operator<<( ::ostream& os , Backend::Workload const& wl ) {
-		/**/   os << "Workload("                                                 ;
-		/**/   os <<      wl._ref_workload       /1000. <<'@'<< wl._ref_date     ;
-		/**/   os <<','<< wl._reasonable_workload/1000. <<'/'<< wl._n_reasonable ;
-		/**/   os <<','<< wl._n_running                                          ;
-		/**/   os <<','<< wl._submitted_cost                                     ;
-		return os <<')'                                                          ;
+		/**/   os << "Workload("                                                      ;
+		/**/   os <<      wl._ref_workload       /1000. <<'@'<< wl._ref_date          ;
+		/**/   os <<','<< wl._reasonable_workload/1000. <<'/'<< wl._reasonable_tokens ;
+		/**/   os <<','<< wl._running_tokens                                          ;
+		/**/   os <<','<< wl._submitted_cost                                          ;
+		return os <<')'                                                               ;
 	}
 
 	::ostream& operator<<( ::ostream& os , Backend::StartEntry const& ste ) {
@@ -57,56 +57,63 @@ namespace Backends {
 	}
 
 	void Backend::Workload::_refresh() {
-		Pdate now = Pdate(New).round_msec() ;                        // avoid rounding error (cf below)
-		Val d     = (now-_ref_date).msec() ;
+		Pdate now = Pdate(New).round_msec() ;                                             // avoid rounding errors
 		//
-		for( auto it = _eta_set.begin() ; it!=_eta_set.end() && now>=it->first ;) {
-			Tokens tokens         = it->second->tokens()         ;
-			Val    delta_workload = (it->first-_ref_date).msec() ;
-			SWEAR(_n_reasonable       >=tokens        ,_n_reasonable       ,tokens        ) ;
-			SWEAR(_reasonable_workload>=delta_workload,_reasonable_workload,delta_workload) ;
-			_reasonable_workload -= delta_workload ;
-			_n_reasonable        -= tokens         ;
-			_eta_tab.erase(it->second) ;                             // erase _eta_tab while it is still valid
+		for( auto it = _eta_set.begin() ; it!=_eta_set.end() && it->first<=now ;) {       // eta is passed, job is no more reasonable
+			auto   [eta,job]     = *it                           ;
+			Tokens tokens        = job->tokens1+1                ;
+			Val    left_workload = tokens*(eta-_ref_date).msec() ;
+			SWEAR(_reasonable_tokens  >=tokens       ,_reasonable_tokens  ,tokens       ) ;
+			SWEAR(_reasonable_workload>=left_workload,_reasonable_workload,left_workload) ;
+			_reasonable_tokens   -= tokens        ;
+			_reasonable_workload -= left_workload ;
+			_eta_tab.erase(it->second) ;                                                  // erase _eta_tab while it is still valid
 			_eta_set.erase(it++      ) ;
 		}
 		//
-		_ref_workload += _n_running*d ;                              // this is where there is a rounding error if we do not round now
-		_ref_date      = now          ;                              // _ref_date is always rounded on ms
-		if (_n_reasonable) _reasonable_workload -= _n_reasonable*d ;
-		else               SWEAR(!_reasonable_workload,_reasonable_workload) ;
+		Val delta_date     = (now-_ref_date).msec()        ;
+		Val delta_workload = delta_date*_reasonable_tokens ;
+		_ref_workload += delta_date*_running_tokens ;                                     // this is where there is a rounding error if we do not round now
+		_ref_date      = now                        ;                                     // _ref_date is always rounded on ms
+		SWEAR(_reasonable_workload>=delta_workload,_reasonable_workload,delta_workload) ;
+		_reasonable_workload -= delta_workload ;
+		if (!_reasonable_tokens) SWEAR(!_reasonable_workload,_reasonable_workload) ;      // check no reasonable workload if no reasonable jobs
 	}
 
 	Backend::Workload::Val Backend::Workload::start( ::vector<ReqIdx> const& reqs , Job j ) {
 		for( Req r : reqs ) _submitted_cost[+r] -= Delay(j->cost).val() ;
 		_refresh() ;
-		if ( CoarseDelay jet=j->exec_time ; +jet ) {
-			Pdate jed = _ref_date+jet ;
-			_eta_set.emplace    (jed,j  ) ;
+		Tokens tokens = j->tokens1+1 ;
+		if ( Delay jet=Delay(j->exec_time).round_msec() ; +jet ) { // schedule job based on best estimate
+			Pdate jed = _ref_date + jet ;
 			_eta_tab.try_emplace(j  ,jed) ;
-			_reasonable_workload += jet.msec()  ;
-			_n_reasonable        += j->tokens() ;
+			_eta_set.emplace    (jed,j  ) ;
+			_reasonable_tokens   += tokens            ;
+			_reasonable_workload += tokens*jet.msec() ;
 		}
-		_n_running += j->tokens() ;
+		_running_tokens += tokens ;
 		return _ref_workload ;
 	}
 
 	Backend::Workload::Val Backend::Workload::end( ::vector<ReqIdx> const& , Job j ) {
 		_refresh() ;
-		if ( auto it=_eta_tab.find(j) ; it!=_eta_tab.end() ) {
-			_reasonable_workload -= (it->second-_ref_date).msec() ;
-			_eta_set.erase({it->second,j}) ;                        // erase _eta_set while it is still valid
+		Tokens tokens = j->tokens1+1 ;
+		if ( auto it=_eta_tab.find(j) ; it!=_eta_tab.end() ) {               // cancel scheduled time left to run
+			_reasonable_tokens   -= tokens                                 ;
+			_reasonable_workload -= tokens*((it->second-_ref_date).msec()) ;
+			_eta_set.erase({it->second,j}) ;                                 // erase _eta_set while it is still valid
 			_eta_tab.erase(it            ) ;
-			_n_reasonable -= j->tokens() ;
 		}
-		_n_running -= j->tokens() ;
+		_running_tokens -= tokens ;
 		return _ref_workload ;
 	}
 
+	// cost is the share of exec_time that can be accumulated, i.e. multiplied by the fraction of what was running in parallel
 	Delay Backend::Workload::cost( Job job , Val start_workload , Pdate start_date ) const {
-		uint64_t dly_ms   = (_ref_date-start_date).msec()    ;
-		Val      workload = ::max(_ref_workload-start_workload,Val(1)) ;
-		return Delay((dly_ms/1000.)*dly_ms*job->tokens()/workload) ;     // divide by 1000. to convert to s
+		uint64_t dly_ms   = (_ref_date-start_date).msec()                  ;
+		Val      workload = ::max( _ref_workload-start_workload , Val(1) ) ;
+		Tokens  tokens    = job->tokens1+1                                 ;
+		return Delay((dly_ms/1000.)*dly_ms*tokens/workload) ;                // divide by 1000. to convert to s
 	}
 
 	::pair<Pdate/*eta*/,bool/*keep_tmp*/> Backend::StartEntry::req_info() const {
@@ -613,8 +620,7 @@ namespace Backends {
 		::vmap_ss                rsrcs        ;
 		SubmitAttrs              submit_attrs ;
 		Pdate                    start_date   ;
-		for( JobIdx ji=0 ;; ji++ ) {
-			Job job{ji} ;
+		for( Job job ;; job=Job(+job+1) ) {
 			if (stop.stop_requested()) break ;                                                                        // exit even if sleep_until does not wait
 			{	Lock lock { _s_mutex }                    ;                                                           // lock _s_start_tab for minimal time
 				auto it   = _s_start_tab.lower_bound(job) ;
@@ -665,7 +671,7 @@ namespace Backends {
 				Lock lock { _s_mutex } ;
 				s_heartbeat(t) ;
 			}
-			ji = 0 ;
+			job = {} ;
 			Delay d = g_config->heartbeat + g_config->network_delay ;                                                 // ensure jobs have had a minimal time to start and signal it
 			if ((last_wrap_around+d).sleep_until(stop,false/*flush*/)) { last_wrap_around = Pdate(New) ; continue ; } // limit job checks
 			else                                                       {                                 break    ; }

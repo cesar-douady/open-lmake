@@ -277,11 +277,9 @@ namespace Engine {
 		void _reset_targets(                        ) { _reset_targets(simple_match()) ; }
 		// accesses
 	public :
-		Job      idx () const { return Job::s_idx(*this)              ; }
-		::string name() const { return full_name(rule->job_sfx_len()) ; }
-		//
-		bool   active() const { return !rule.old() ; }
-		Tokens tokens() const { return tokens1+1   ; }
+		Job      idx   () const { return Job::s_idx(*this)              ; }
+		::string name  () const { return full_name(rule->job_sfx_len()) ; }
+		bool     active() const { return !rule.old()                    ; }
 		//
 		ReqInfo const& c_req_info  (Req                   ) const ;
 		ReqInfo      & req_info    (Req                   ) const ;

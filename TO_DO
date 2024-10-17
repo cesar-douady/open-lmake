@@ -203,14 +203,10 @@ items :
 	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
 	- need to do some trials
 ? put all python expressions for a single phase in the same expression
-	- DepsAttrs + CreateNoneAtts
+	- DepsAttrs
 	- SubmitRsrcsAttrs + SubmitNoneAttrs
 	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
 	- EndCmdAttrs + EndNoneAttrs
-? regexprs
-	- consider handling prefix/suffix apart
-		- most importantly sufixes
-		? maybe a pre-pass searching for infix is advisable
 ? record dep crcs in Job rather than in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless

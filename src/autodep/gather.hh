@@ -61,9 +61,14 @@ struct Gather {                                                                 
 		//
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
-		::pair<PD,Access> first_read() const {
-			::pair<PD,Access> res = {PD::Future,Access::Reg} ;                                                  // normally, initial Access is not used, but in case, choose the most ubiquitous access
-			for( Access a : All<Access> ) if ( digest.accesses[a] && read[+a]<res.first ) res = {read[+a],a} ;
+		::pair<PD,Accesses> first_read() const {
+			::pair<PD,Access> res = {PD::Future,{}} ;                                                  // normally, initial Access is not used, but in case, choose the most ubiquitous access
+			for( Access a : All<Access> ) {
+				if (!digest.accesses[a]) continue ;
+				if (read[+a]>res.first ) continue ;
+				if (read[+a]<res.first ) res = {read[+a],a} ;
+				else                     res.second |= a ;
+			}
 			return res ;
 		}
 		// services

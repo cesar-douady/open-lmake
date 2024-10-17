@@ -87,8 +87,8 @@ Digest analyze(Status status=Status::New) {                                     
 		if (ad.write==Yes)                                                                                                                        // ignore reads after earliest confirmed write
 			for( Access a : All<Access> )
 				if (info.read[+a]>info.write) ad.accesses &= ~a ;
-		::pair<Pdate,Access> first_read = info.first_read()                                                                                     ;
-		bool                 is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && +ad.accesses && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning
+		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                     ;
+		bool                   is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && +ad.accesses && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
@@ -118,8 +118,8 @@ Digest analyze(Status status=Status::New) {                                     
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (dd.hot) trace("dep   ",dd,flags,info.dep_info,first_read,g_start_info.date_prec,file) ;
-			else        trace("dep   ",dd,flags,                                                file) ;
+			if (dd.hot) trace("dep hot",dd,flags,info.dep_info,first_read,g_start_info.date_prec,file) ;
+			else        trace("dep    ",dd,flags,                                                file) ;
 		}
 		if (status==Status::New) continue ;            // we are handling chk_deps and we only care about deps
 		// handle targets
@@ -161,15 +161,14 @@ Digest analyze(Status status=Status::New) {                                     
 			if ( is_dep && !unlnk ) {
 				trace("dep_and_target",ad,flags) ;
 				if (!reported) {                                    // if dep and unexpected target, prefer unexpected message rather than this one
-					const char* read ;
-					switch (first_read.second) {
-						case Access::Lnk  : read = "readlink" ; break ;
-						case Access::Stat : read = "stat"     ; break ;
-						default           : read = "read"     ;
-					}
-					res.msg << read<<" as dep before being known as a target : "<<mk_file(file)<<'\n' ;
+					const char* read = nullptr ;
+					if      (ad.dflags[Dflag::Static]       ) read = "a static dep" ;
+					if      (first_read.second[Access::Reg ]) read = "read"         ;
+					else if (first_read.second[Access::Lnk ]) read = "readlink'ed"  ;
+					else if (first_read.second[Access::Stat]) read = "stat'ed"      ;
+					SWEAR(read) ;
+					res.msg << "file was "<<read<<" and later declared as target : "<<mk_file(file)<<'\n' ;
 				}
-				ad.tflags |= Tflag::Incremental ;                   // file will have a predictible content, no reason to wash it
 			}
 			if (written) {
 				if      ( unlnk                                               )                  td.crc = Crc::None    ;
@@ -186,7 +185,7 @@ Digest analyze(Status status=Status::New) {                                     
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("target",ad,td,STR(unlnk),file) ;
+			trace("target ",ad,td,STR(unlnk),file) ;
 		} else if (!is_dep) {
 			trace("ignore",ad,file) ;
 		}

@@ -105,24 +105,22 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 }
 
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args   = *from_py<Tuple const>(args)                    ;
-	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)                    ;
-	bool         no_follow = true                                           ;
-	AccessDigest ad        { .write=Yes , .extra_tflags=ExtraTflag::Allow } ;
+	Tuple const& py_args = *from_py<Tuple const>(args)                    ;
+	Dict  const* py_kwds =  from_py<Dict  const>(kwds)                    ;
+	AccessDigest ad      { .write=Yes , .extra_tflags=ExtraTflag::Allow } ;
 	if (py_kwds) {
 		size_t n_kwds = py_kwds->size() ;
-		/**/                                    if ( const char* s="follow_symlinks" ;                                 py_kwds->contains(s) ) { n_kwds-- ; no_follow =             !(*py_kwds)[s]  ; }
-		/**/                                    if ( const char* s="write"           ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.write  = No |        +(*py_kwds)[s]  ; }
-		for( Tflag      tf  : Tflag::NDyn     ) if ( ::string    s=snake_str(tf )    ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.tflags      .set(tf ,+(*py_kwds)[s]) ; }
-		for( ExtraTflag etf : All<ExtraTflag> ) if ( ::string    s=snake_str(etf)    ; ExtraTflagChars[+etf].second && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_tflags.set(etf,+(*py_kwds)[s]) ; }
+		/**/                                    if ( const char* s="write"        ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.write  = No |        +(*py_kwds)[s]  ; }
+		for( Tflag      tf  : Tflag::NDyn     ) if ( ::string    s=snake_str(tf ) ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.tflags      .set(tf ,+(*py_kwds)[s]) ; }
+		for( ExtraTflag etf : All<ExtraTflag> ) if ( ::string    s=snake_str(etf) ; ExtraTflagChars[+etf].second && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_tflags.set(etf,+(*py_kwds)[s]) ; }
 		//
 		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	::vector_s files ;
-	try                       { files = _get_files(py_args) ;                                      }
-	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ;                          }
-	try                       { JobSupport::target( _g_record , ::move(files) , ad , no_follow ) ; }
-	catch (::string const& e) { return py_err_set(Exception::ValueErr,e) ;                         }
+	try                       { files = _get_files(py_args) ;                          }
+	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ;              }
+	try                       { JobSupport::target( _g_record , ::move(files) , ad ) ; }
+	catch (::string const& e) { return py_err_set(Exception::ValueErr,e) ;             }
 	//
 	return None.to_py_boost() ;
 }

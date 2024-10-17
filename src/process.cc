@@ -12,13 +12,23 @@
 
 using namespace Disk ;
 
-[[noreturn]] static void _exit( Rc rc , const char* msg=nullptr ) {     // signal-safe
+[[noreturn]] void Child::_exit( Rc rc , const char* msg ) { // signal-safe
 	if (msg) {
-		ssize_t cnt ;
-		cnt = ::write(2,msg,strlen(msg)) ; if (cnt<0) rc = Rc::System ; // /!\ cannot use high level I/O because we are only allowed signal-safe functions. Msg contains terminating null
-		cnt = ::write(2,"\n",1         ) ; if (cnt<0) rc = Rc::System ; // .
+		bool ok = true ;
+		ok &= ::write(2,msg,strlen(msg))>=0 ;               // /!\ cannot use high level I/O because we are only allowed signal-safe functions. Msg contains terminating null
+		if (_child_args) {
+			ok &= ::write(2," :",2)>=0 ;                                                   // .
+			for( const char* const* p=_child_args ; *p ; p++ ) {
+				size_t l = strlen(*p) ;
+				ok &= ::write(2," ",1)>=0 ;                                                // .
+				if (l<=100)   ok &= ::write(2,*p ,l )>=0 ;                                 // .
+				else        { ok &= ::write(2,*p ,97)>=0 ; ok &= ::write(2,"...",3)>=0 ; } // .
+			}
+		}
+		ok &= ::write(2,"\n",1)>=0 ;                                                       // .
+		if (!ok) rc = Rc::System ;
 	}
-	_exit(+rc) ;                                                        // /!\ cannot use exit as we are only allowed signal-safe functions
+	::_exit(+rc) ;                                                                         // /!\ cannot use exit as we are only allowed signal-safe functions
 }
 
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
@@ -42,24 +52,24 @@ using namespace Disk ;
 	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if (_c2po.write!=Fd::Stdout) ::dup2(_c2po.write,Fd::Stdout) ; // save stdout in case it is modified and we want to redirect stderr to it
 	if (stderr_fd==NoneFd) ::close(Fd::Stderr) ; else if (_c2pe.write!=Fd::Stderr) ::dup2(_c2pe.write,Fd::Stderr) ;
 	//
-	if (_p2c .read >Fd::Std) _p2c .read .close() ;                                                // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-	if (_c2po.write>Fd::Std) _c2po.write.close() ;                                                // .
-	if (_c2pe.write>Fd::Std) _c2pe.write.close() ;                                                // .
+	if (_p2c .read >Fd::Std) _p2c .read .close() ;   // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
+	if (_c2po.write>Fd::Std) _c2po.write.close() ;   // .
+	if (_c2pe.write>Fd::Std) _c2pe.write.close() ;   // .
 	//
-	if (+cwd_s  ) { if (::chdir(no_slash(cwd_s).c_str())!=0) _exit(Rc::System,"cannot chdir") ; } // /!\ dont use exit which is not signal-safe
+	if (+cwd_s  ) { if (::chdir(no_slash(cwd_s).c_str())!=0) _exit(Rc::System,"cannot chdir"    ) ; }
 	//
-	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail                 ) ; } // /!\ dont use exit which is not signal-safe
+	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail,"cannot setup child") ; }
 	//
 	#if HAS_CLOSE_RANGE
-		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                                              // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
+		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ; // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
 	#endif
 	//
 	if (first_pid) {
 		SWEAR(first_pid>1,first_pid) ;
 		// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
 		if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) {
-			perror("cannot mount /proc ") ;
-			_exit(Rc::System) ;                                                                                    // /!\ dont use exit which is not signal-safe
+			::perror("cannot mount /proc ") ;
+			_exit(Rc::System,"cannot mount /proc") ;
 		}
 		{	char                     first_pid_buf[30] ;                                                           // /!\ cannot use ::string as we are only allowed signal-safe functions
 			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1)                 ; // /!\ .
@@ -68,7 +78,7 @@ using namespace Disk ;
 		}
 		pid_t pid = ::clone( _s_do_child , _child_stack_ptr , SIGCHLD , this ) ;
 		//
-		if (pid==-1) _exit(Rc::System,"cannot spawn sub-process\n") ;                                              // /!\ dont use exit which is not signal-safe
+		if (pid==-1) _exit(Rc::System,"cannot spawn sub-process") ;
 		for(;;) {
 			int   wstatus   ;
 			pid_t child_pid = ::wait(&wstatus) ;
