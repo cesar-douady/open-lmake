@@ -290,10 +290,12 @@ PyMODINIT_FUNC
 	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload"         )) ;
 	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload_jemalloc")) ;
 	/**/              py_ads->set_item(i++,*Ptr<Str>("ptrace"             )) ;
+	SWEAR(i==py_ads->size(),i,py_ads->size()) ;
 	i = 0 ;
 	/**/              py_bes->set_item(i++,*Ptr<Str>("local"              )) ;
 	if (HAS_SGE     ) py_bes->set_item(i++,*Ptr<Str>("sge"                )) ;
 	if (HAS_SLURM   ) py_bes->set_item(i++,*Ptr<Str>("slurm"              )) ;
+	SWEAR(i==py_bes->size(),i,py_bes->size()) ;
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	mod->set_attr( "root_dir"    , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
 	mod->set_attr( "backends"    , *py_bes                                                         ) ;

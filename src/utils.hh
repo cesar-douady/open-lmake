@@ -1139,8 +1139,13 @@ template<char Delimiter> ::string mk_printable(::string const& s) { // encode s 
 			case '\v' : res += "\\v"  ; break ;
 			case '\\' : res += "\\\\" ; break ;
 			default   :
-				if ( is_printable(c) && c!=Delimiter ) res +=                                                                     c    ;
-				else                                   res += fmt_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(uint8_t(c))) ;
+				if ( is_printable(c) && c!=Delimiter ) {
+					res += c ;
+				} else {
+					res += "\\x"                                                ;
+					res += char( (c>>4 )>=10 ? 'a'+((c>>4 )-10) : '0'+(c>>4 ) ) ;
+					res += char( (c&0xf)>=10 ? 'a'+((c&0xf)-10) : '0'+(c&0xf) ) ;
+				}
 		}
 	}
 	return res ;
@@ -1167,10 +1172,11 @@ template<char Delimiter> ::string parse_printable( ::string const& s , size_t& p
 				case 'v'  : res += '\v'       ; break/*switch*/ ;
 				case '\\' : res += '\\'       ; break/*switch*/ ;
 				//
-				case 'x' :
-					res += char(from_string<uint8_t>(::string_view(s_c+pos+1,2),false/*empty_ok*/,true/*hex*/)) ;
-					pos += 2                                                                                    ;
-				break/*switch*/ ;
+				case 'x' : {
+					char x = 0 ; if ( char d=s_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
+					x <<= 4    ; if ( char d=s_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
+					res += x ;
+				} break/*switch*/ ;
 				//
 				default : throw "illegal code \\"s+s_c[pos] ;
 			}

@@ -37,11 +37,15 @@ if __name__!='__main__' :
 
 	class CatSh(Cat) :
 		target = '{File1}+{File2}_sh'
-		cmd    = 'cat {FIRST} {SECOND}'
+		cmd    = '''
+			ldepend {FIRST} {SECOND} # check no crash when executed on different hosts
+			cat     {FIRST} {SECOND}
+		'''
 
 	class CatPy(Cat,PyRule) :
 		target = '{File1}+{File2}_py'
 		def cmd() :
+			lmake.depend(FIRST,SECOND)        # check no crash when executed on different hosts
 			print(open(FIRST ).read(),end='')
 			print(open(SECOND).read(),end='')
 

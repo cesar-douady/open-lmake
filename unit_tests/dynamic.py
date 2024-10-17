@@ -155,8 +155,7 @@ else :
 	print(f'step=0',file=open('step.py','w'))
 	ut.lmake( 'cmd' , done=1 , new=1 )        # create file cmd to ensure transition bad->good does not leave a manual file
 
-#	for s in (1,2) :
-	for s in (1,) :
+	for s in (1,2) :
 		print(f'step={s}',file=open('step.py','w'))
 		rc = 1 if s==1 else 0
 		#
