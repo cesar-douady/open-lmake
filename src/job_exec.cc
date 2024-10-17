@@ -179,8 +179,6 @@ Digest analyze(Status status=Status::New) {                                     
 			if ( td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] && unlnk ) {                                         // target was expected but not produced
 				if ( td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ) {
 					if (status==Status::Ok) res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;    // if job is not ok, this is quite normal, else warn
-				} else {
-					td.tflags &= ~Tflag::Target ; // if created then unlinked, this is not a target unless static and non-optional or phony
 				}
 			}
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -193,7 +191,9 @@ Digest analyze(Status status=Status::New) {                                     
 	}
 	for( ::string const& t : g_washed ) if (!g_gather.access_map.contains(t)) {
 		trace("wash",t) ;
-		res.targets.emplace_back( t , TargetDigest{.extra_tflags=ExtraTflag::Wash,.crc=Crc::None} ) ;
+		MatchFlags flags = g_match_dct.at(t) ;
+		if (flags.extra_tflags()[ExtraTflag::Ignore]) continue ;
+		res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ExtraTflag::Wash , .crc=Crc::None } ) ;
 	}
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;

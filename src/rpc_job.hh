@@ -79,7 +79,7 @@ ENUM( JobRpcProc
 
 // START_OF_VERSIONING
 ENUM_3( JobReasonTag                                // see explanations in table below
-,	HasNode = NoTarget                              // if >=HasNode, a node is associated
+,	HasNode = BusyTarget                            // if >=HasNode, a node is associated
 ,	Err     = DepOverwritten
 ,	Missing = DepMissingStatic
 	//
@@ -96,6 +96,7 @@ ENUM_3( JobReasonTag                                // see explanations in table
 ,	Lost
 ,	New
 //	with node
+,	BusyTarget
 ,	NoTarget
 ,	PollutedTarget
 ,	PrevTarget
@@ -127,6 +128,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"job was lost"                                  // Lost
 ,	"job was never run"                             // New
 //	with node
+,	"busy target"                                   // BusyTarget
 ,	"missing target"                                // NoTarget
 ,	"target polluted by another job"                // PollutedTarget
 ,	"target previously existed"                     // PrevTarget
@@ -159,6 +161,7 @@ static constexpr uint8_t JobReasonTagPrios[] = {
 ,	51                                              // Lost
 ,	52                                              // New
 //	with node
+,	1                                               // BusyTarget
 ,	20                                              // NoTarget
 ,	21                                              // PollutedTarget
 ,	21                                              // PrevTarget

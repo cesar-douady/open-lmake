@@ -6,65 +6,26 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule,PyRule
+	from lmake.rules import Rule
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	class Base(PyRule) :
-		stems = {
-			'W'    : r'(\.w)?'
-		,	'Wait' : r'\d+'
-		,	'Any'  : r'.*'
-		}
+	class Tmp(Rule) :  # tmp is used both as a plain dep for B and as a scratchpad for A
+		target = 'tmp'
+		cmd    = ''
 
-	class Star(Base) :
-		targets = { 'DST' : 'out{W}.{Wait}/{Any*}' }
-		def cmd():
-			import time
-			import os
-			time.sleep(int(Wait))
-			dir = f'out{Wait}'
-			for i in (1,2) :
-				if W                     : open     (DST(f'mrkr{i}'),'w').write('bad')
-				try                      : os.unlink(DST(f'mrkr{i}'))
-				except FileNotFoundError : pass
-			print('a_file',file=open(DST('a_file'),'w'))
+	class A(Rule) :
+		target = 'a'
+		cmd    = 'echo >tmp ; rm tmp ; exit 0'
 
-	class Mrkr(Base) :
-		targets = { 'MRKR' : r'{Any}/mrkr{Wait}' } # cannot use target as we want to wait before creating MRKR
-		def cmd() :
-			import os.path as osp
-			import time
-			time.sleep(int(Wait))
-			print(osp.basename(MRKR),file=open(MRKR,'w'))
-
-	class Res1(Base) :     # check case where mrkr has been unlinked before having been created
-		target = 'res1{W}'
-		def cmd():
-			print(open(f'out{W}.2/mrkr1' ).read().strip())
-			print(open(f'out{W}.2/a_file').read().strip())
-
-	class Res2(Base) :     # check case where mrkr has been unlinked after having been created
-		target = 'res2{W}'
-		def cmd():
-			print(open(f'out{W}.1/mrkr2' ).read().strip())
-			print(open(f'out{W}.1/a_file').read().strip())
-
-	class Chk(Base) :
-		target = 'chk{W}'
-		deps = {
-			'RES1' : 'res1{W}'
-		,	'RES2' : 'res2{W}'
-		}
-		def cmd() :
-			assert open(RES1).read().split()==['mrkr1','a_file']
-			assert open(RES2).read().split()==['mrkr2','a_file']
+	class B(Rule) :
+		target = 'b'
+		dep    = 'a'
+		cmd    = 'cat tmp a'
 
 else :
 
 	import ut
 
-	ut.lmake( 'res2' , 'res2.w' , new=1 , may_rerun=2 , done=5 , rerun=1 , steady=1                       )
-	ut.lmake( 'res1' , 'res1.w' ,         may_rerun=2 , done=4 ,                      was_failed=2 , rc=1 ) # target clash
-	ut.lmake( 'res1' , 'res1.w' ,                       done=2 ,           steady=2                , rc=1 ) # try to recover
-	ut.lmake( 'res1' , 'res1.w' ,                       done=2 ,           steady=2                , rc=1 ) # but this is impossible
+	ut.lmake( 'tmp' ,               done=1              ) # ensure tmp exists
+	ut.lmake( 'b'   , may_rerun=1 , done=2 , was_done=1 ) # tmp is unlinked by a, then regenerated for b

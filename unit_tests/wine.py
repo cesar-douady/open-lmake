@@ -40,6 +40,8 @@ if __name__!='__main__' :
 		target       = '.wine/init'
 		targets      = { 'WINE' : '.wine/{*:.*}' } # for init wine env is not incremental
 		side_targets = { 'WINE' : None           }
+		environ_cmd  = { 'DBUS_SESSION_BUS_ADDRESS' : lmake.user_environ['DBUS_SESSION_BUS_ADDRESS'] } # else a file is created in .dbus/session-bus
+		timeout      = 30           # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
 		cmd          = 'wine64 cmd'                # do nothing, just to init support files (in targets)
 
 	class Dut(Base,WineRule) :
