@@ -1189,7 +1189,7 @@ The correspondance is :
 @code{ldepend}
 @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
-@item @code{def target(*files,follow_symlinks=True,write=True,essential=False,incremental=False,phony=False,no_uniquify=False,no_warning=False,ignore=False,source_ok=False,allow=True)}
+@item @code{def target(*files,follow_symlinks=False,write=True,essential=False,incremental=False,phony=False,no_uniquify=False,no_warning=False,ignore=False,source_ok=False,allow=True)}
 @code{ltarget}
 @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{target('file1','file2')} or @code{target(('file1','file2'))}.
