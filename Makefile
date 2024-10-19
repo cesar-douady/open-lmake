@@ -209,10 +209,16 @@ LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS_:%.o=%$(SAN).o) src/non_portable.o
 
 LMAKE_FILES := $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
 
+DOCKER_FILES := $(filter %.docker,$(shell git ls-files docker))
+
+MAN_FILES := \
+	$(DOC)/man/man1/lmake.1
+
 LMAKE_ALL_FILES := \
 	$(LMAKE_FILES)        \
 	$(DOC)/lmake_doc.pptx \
-	$(DOC)/lmake.html
+	$(DOC)/lmake.html     \
+	$(MAN_FILES)
 
 LINT : $(patsubst %.cc,%.chk, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) )
 
@@ -243,6 +249,10 @@ ext/%.dir.stamp : ext/%.zip
 	@echo "@set UPDATED       $$(env -i date '+%d %B %Y')" >> $(@D)/info.texi
 	@echo "@set UPDATED-MONTH $$(env -i date '+%B %Y'   )" >> $(@D)/info.texi
 	cd $(@D) ; LANGUAGE= LC_ALL= LANG= texi2any --html --no-split --output=$(@F) $(<F)
+
+$(DOC)/man/man1/%.1 : $(DOC)/man/man1/%.1.m $(DOC)/man/utils.mh $(DOC)/man/man1/common.1.m
+	@echo generate man to $@
+	@m4  $(DOC)/man/utils.mh $(DOC)/man/man1/common.1.m $< | grep -v '^$$' >$@
 
 #
 # Manifest
@@ -645,7 +655,22 @@ $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
 	exit $$rc
 
 #
-# archive
+# dockers
+#
+
+DOCKER : $(DOCKER_FILES)
+	@for df in $^ ; do                            \
+		d=$${df%.docker}                        ; \
+		d=$${d##*/}                             ; \
+		echo                                    ; \
+		echo '*'                                ; \
+		echo '*' build docker $$d from $$df     ; \
+		echo '*'                                ; \
+		sudo docker build -f $$df -t $$d docker ; \
+	done
+
+#
+# packaging
 #
 
 ARCHIVE_DIR := open-lmake-$(VERSION)
@@ -659,24 +684,24 @@ lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 #
 # /!\ this rule is necessary for debian packaging to work, it is not primarily made to be executed by user
 #
-install : $(LMAKE_BINS) $(LMAKE_REMOTE_FILES) $(LMAKE_SERVER_PY_FILES) $(DOC)/lmake.html
+install : $(LMAKE_BINS) $(LMAKE_REMOTE_FILES) $(LMAKE_SERVER_PY_FILES) $(DOC)/lmake.html $(DOC_FILES)
 	for f in $(LMAKE_SERVER_BIN_FILES); do install -D        $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
 	for f in $(LMAKE_REMOTE_FILES)    ; do install -D        $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
 	for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
-	install -D $(DOC)/lmake.html $(DESTDIR)/$(prefix)/share/doc/open-lmake/html/lmake.html
+	for f in $(MAN_FILES)             ; do install -D -m 644 $$f $(DESTDIR)/$(prefix)/share/$$f          ; done
+	install -D $(DOC)/lmake.html       $(DESTDIR)/$(prefix)/share/doc/open-lmake/html/lmake.html
 
 #
 # Install debian packages needed to build open-lmake package
-# /!\ use : sudo make debdeps, as you need privileges for these commands
 #
-debdeps :
-	apt install dh-make devscripts debhelper equivs
-	mk-build-deps --install debian/control
+DEBIAN_DEPS :
+	sudo apt install dh-make devscripts debhelper equivs
+	sudo mk-build-deps --install debian/control
 
 #
 # Build debian package (then install it using: apt install <pkg>)
 #
-deb :
+DEBIAN :
 	sed \
 		-e 's!\$$VERSION!$(VERSION)!' \
 		-e 's!\$$DATE!'"$$(date -R)!" \

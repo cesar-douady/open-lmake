@@ -14,7 +14,7 @@ RUN                                apt-get install -y build-essential
 # compulsery
 RUN                                apt-get install -y python3-dev
 RUN                                apt-get install -y git
-RUN                                apt-get install -y texinfo
+RUN                                apt-get install -y texinfo m4
 # optional
 RUN                                apt-get install -y libseccomp-dev
 RUN                                apt-get install -y strace

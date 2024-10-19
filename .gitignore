@@ -19,6 +19,7 @@ __pycache__
 # doc
 /doc/info.texi
 /doc/lmake.html
+/doc/man/man1/*.1
 
 #auto-configuration
 /trial/

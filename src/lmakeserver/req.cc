@@ -197,23 +197,26 @@ namespace Engine {
 	}
 
 	bool/*overflow*/ Req::_report_err( Dep const& dep , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
-		if (dep.dflags[Dflag::IgnoreError]) return false ;
-		if (seen_nodes.contains(dep)      ) return false ;
+		if (dep.dflags[Dflag::IgnoreError]) return false/*overflow*/ ;
+		if (seen_nodes.contains(dep)      ) return false/*overflow*/ ;
 		seen_nodes.insert(dep) ;
 		NodeReqInfo const& cri = dep->c_req_info(*this) ;
 		const char*        err = nullptr                ;
 		switch (dep->status()) {
-			case NodeStatus::Multi     :                                  err = "multi"                                            ; break ;
-			case NodeStatus::Transient :                                  err = "missing transient sub-file"                       ; break ;
-			case NodeStatus::Uphill    : if (dep.dflags[Dflag::Required]) err = "missing required sub-file"                        ; break ;
-			case NodeStatus::Src       : if (dep->crc==Crc::None        ) err = dep.frozen() ? "missing frozen" : "missing source" ; break ;
-			case NodeStatus::SrcDir    : if (dep.dflags[Dflag::Required]) err = "missing required"                                 ; break ;
+			case NodeStatus::Multi     :                                  err = "multi"                                        ; break ;
+			case NodeStatus::Transient :                                  err = "missing transient sub-file"                   ; break ;
+			case NodeStatus::Uphill    : if (dep.dflags[Dflag::Required]) err = "missing required sub-file"                    ; break ;
+			case NodeStatus::Src       : if (dep->crc==Crc::None        ) err = dep.frozen()?"missing frozen":"missing source" ; break ;
+			case NodeStatus::SrcDir    : if (dep.dflags[Dflag::Required]) err = "missing required"                             ; break ;
 			case NodeStatus::Plain :
-				if      (+cri.overwritten           ) err = "overwritten" ;
-				else if (!dep->conform_job_tgts(cri)) err = "not built"   ; // if no better explanation found
+				if (+cri.overwritten)
+					err = "overwritten" ;
+				else if (+dep->conform_job_tgts(cri))
+					for( Job job : dep->conform_job_tgts(cri) ) {
+						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true/*overflow*/ ;
+					}
 				else
-					for( Job job : dep->conform_job_tgts(cri) )
-						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
+					err = "not built" ; // if no better explanation found
 			break ;
 			case NodeStatus::None :
 				if      (dep->manual()>=Manual::Changed) err = "dangling" ;
@@ -221,19 +224,18 @@ namespace Engine {
 			break ;
 		DF}
 		if (err) return (*this)->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
-		else     return false                                                                         ;
+		else     return false/*overflow*/                                                             ;
 	}
 
 	bool/*overflow*/ Req::_report_err( Job job , Node target , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
-		if (seen_jobs.contains(job)) return false ;
+		if (seen_jobs.contains(job)) return false/*overflow*/ ;
 		seen_jobs.insert(job) ;
 		JobReqInfo const& jri = job->c_req_info(*this) ;
-		if (!jri.done()) return false ;
-		if (!job->err()) return false ;
+		if (!jri.done()) return false/*overflow*/ ;
+		if (!job->err()) return false/*overflow*/ ;
 		//
-		bool intermediate = job->run_status==RunStatus::DepErr                                                                      ;
-		bool overflow     = (*this)->_send_err( intermediate , job->rule->name , +target?target->name():job->name() , n_err , lvl ) ;
-		if (overflow) return true ;
+		bool intermediate = job->run_status==RunStatus::DepErr ;
+		if ( (*this)->_send_err( intermediate , job->rule->name , +target?target->name():job->name() , n_err , lvl ) ) return true/*overflow*/ ;
 		//
 		if ( !seen_stderr && job->run_status==RunStatus::Ok && !job->rule->is_special() ) { // show first stderr
 			Rule::SimpleMatch match          ;
@@ -245,8 +247,8 @@ namespace Engine {
 		}
 		if (intermediate)
 			for( Dep const& d : job->deps )
-				if ( _report_err( d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true ;
-		return false ;
+				if ( _report_err( d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true/*overflow*/ ;
+		return false/*overflow*/ ;
 	}
 
 	void Req::chk_end() {

@@ -560,7 +560,8 @@ namespace Engine {
 	Make :
 		SWEAR(prod_idx==NoIdx,prod_idx) ;
 		for(;; first=false ) {
-			while (prod_idx==NoIdx) {
+			for (;;) {
+				SWEAR(ri.prio_idx!=NoIdx) ;
 				if (ri.prio_idx>=job_tgts().size()) {                                                    // gather new job_tgts from rule_tgts
 					SWEAR(!ri.single) ;                                                                  // we only regenerate using an existing job
 					try {
@@ -631,7 +632,8 @@ namespace Engine {
 						else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }      // jobs in error are deemed to produce all their potential targets
 					}
 				}
-				if (ri.waiting()) goto Wait ;
+				if (ri.waiting()   ) goto Wait ;
+				if (prod_idx!=NoIdx) break     ;
 				ri.prio_idx = it.idx ;
 			}
 		DoWakeup :

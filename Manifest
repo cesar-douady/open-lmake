@@ -43,7 +43,9 @@ debian/open-lmake.prerm
 debian/rules
 doc/lmake.texi
 doc/lmake_doc.pptx
-doc/man/man1/lmake.1
+doc/man/man1/common.1.m
+doc/man/man1/lmake.1.m
+doc/man/utils.mh
 docker/centos7.docker
 docker/rocky8.docker
 docker/rocky9.docker
