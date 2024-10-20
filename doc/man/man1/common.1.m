@@ -1,31 +1,146 @@
+Comment(
+	This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+	Copyright (c) 2023 Doliam
+	This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+)
 
-define(`CommonOptions',`
-.LP
-Options common to all tools of the I(open-lmake) set of utilities :
-.TP
-B(-h), B(--help)
-Print a short help and exit.
-.TP
-B(-J), B(--job)
-Passed arguments are interpreted as job names rather than as file names.
-Job names are the names that appear, for example, on start and done lines when B(lmake) executes a job.
-.TP
-B(-R) I(rule), B(--rule)=I(rule)
-When the B(-J) option is used, this options allows the specification of a rule, given by its name.
-This is necessary when the job name is ambiguous as several rules may lead to the same job name.
-.TP
-B(-q), B(--quiet)
-Do not generate user oriented messages.
-Strictly generate what is asked.
-This is practical if output is meant for automatic processing.
-.TP
-B(-S), B(--sync)
-Ensure server is launched (i.e. do not connect to an existing server) and wait for its termination.
-.TP
-B(-V) I(mode), B(--video)=I(mode)
-Explicitly ask for a video mode instead of interrogating connected terminal.
-If mode starts with B(n) or B(N), normal video (black on white) is assumed.
-If it starts with B(r) or B(R), reverse video (white on black) is assumed.
-Else output is not colorized.
-video mode has an impact on generated colors as nice looking colors are not the same in each case.
+define(`OpenLmake',`I(open-lmake)')
+
+define(`Title',`
+	define(`Name',``$1'')
+	.TH translit(Name,a-z,A-Z) 1 "System(`date "+%d %B %Y"')" "Doliam" "User Commands"
+	.SH NAME
+	Name - `$2'
+')
+
+define(`Synopsys',`
+	.SH SYNOPSIS
+	B(Name) [I(OPTION)]... [I(FILE)]...
+')
+
+define(`Header',`
+	Title(`$1',`$2')
+	Synopsys
+')
+
+define(`ClientGeneralities',`
+	.LP
+	B(Name) manages a fully coherent directory called a repository.
+	When it starts, it first determines the root of the repository (cf. B(FILES) below).
+	.LP
+	Arguments and reports are systematically localized to the current working directory.
+	For example, if you launch B(Name b) from directory B(a) in your repository, the argument is file I(a/b) from the root of the repository
+	and reports containing file names (initially seen from the root of the repository) will be shown relative the the current working directory.
+	ifelse(`$1',color,`
+		.LP
+		If launched from a terminal, output is colored.
+		Colors are different depending on whether terminal is normal (black on white) or reverse (white on black) video.
+		These colors can be configured.
+		The colors bears a semantic :
+		Bullet Green means success.
+		Bullet Orange means possible error, depending on future (if error is confirmed, it will be repeated in red).
+		Bullet Red means error.
+		Bullet Magenta means warning.
+		Bullet Blue means notes.
+		Bullet Gray means information of secondary importance.
+		Bullet Uncolored means general output.  In some occasion, it may be colored by user code (e.g. gcc generates colored error messages).
+		.LP
+		If B($LMAKE_VIDEO) is defined, it is processed as if provided to the B(--video) option.
+	')
+')
+
+define(`ClientOptions',`
+	.SH COMMON OPTIONS
+	.LP
+	These options are common to all tools of the OpenLmake set of utilities :
+	Item(B(-h),B(--help))
+	Print a short help and exit.
+	Item(B(-J),B(--job))
+	Passed arguments are interpreted as job names rather than as file names.
+	Job names are the names that appear, for example, on start and done lines when B(lmake) executes a job.
+	Item(B(-R) I(rule),B(--rule)=I(rule))
+	When the B(-J) option is used, this options allows the specification of a rule, given by its name.
+	This is necessary when the job name is ambiguous as several rules may lead to the same job name.
+	Item(B(-q),B(--quiet))
+	Do not generate user oriented messages.
+	Strictly generate what is asked.
+	This is practical if output is meant for automatic processing.
+	Item(B(-S),B(--sync))
+	Ensure server is launched (i.e. do not connect to an existing server) and wait for its termination.
+	This is exceptionally useful in scripts that modify I(Lmakefile.py).
+	Item(B(-v),B(--verbose))
+	Generate more prolix output.
+	ifelse(`$1',color,`
+		Item(B(-V) I(mode),B(--video)=I(mode))
+		Explicitly ask for a video mode instead of interrogating connected terminal.
+		If mode starts with B(n) or B(N), normal video (black on white) is assumed.
+		If it starts with B(r) or B(R), reverse video (white on black) is assumed.
+		Else output is not colorized.
+		video mode has an impact on generated colors as nice looking colors are not the same in each case.
+	')
+')
+
+define(`SpecificOptions',`
+	.SH SPECIFIC OPTIONS
+	.LP
+	These options are specific to B(Name) :
+')
+
+define(`SubCommands',`
+	.SH SUB-COMMANDS
+	.LP
+	A single sub-command must be provided :
+')
+define(`CommonFiles',`
+	.LP
+	The file I(Lmakefile.py) is searched in the current directory and in parent directories.
+	If a single one is found, this determines the root of the repository.
+	If several are found, the existence of an I(LMAKE) directory is checked.
+	If a single one is found, this determines the root of the repository.
+	In other cases, B(Name) will not start.
+')
+
+define(`SeeAlsoSection',`
+	.SH "SEE ALSO"
+	.LP
+	ifelse(Name,autodep,                ,`C(autodep),'                       )
+	ifelse(Name,find_cc_ld_library_path,,`C(find_cc_ld_library_path),'       )
+	ifelse(Name,lcheck_deps,            ,`C(lcheck_deps),'                   )
+	ifelse(Name,ldebug,                 ,`C(ldebug),'                        )
+	ifelse(Name,ldecode,                ,`C(ldecode),'                       )
+	ifelse(Name,ldepend,                ,`C(ldepend),'                       )
+	ifelse(Name,lencode,                ,`C(lencode),'                       )
+	ifelse(Name,lforget,                ,`C(lforget),'                       )
+	ifelse(Name,lmake,                  ,`C(lmake),'                         )
+	ifelse(Name,lmark,                  ,`C(lmark),'                         )
+	ifelse(Name,lrepair,                ,`C(lrepair),'                       )
+	ifelse(Name,lshow,                  ,`C(lshow),'                         )
+	ifelse(Name,ltarget,                ,`C(ltarget)ifelse(Name,xxhsum,,`,')')
+	ifelse(Name,xxhsum,                 ,`C(xxhsum)'                         )
+	.LP
+	The python module B(lmake).
+')
+
+define(`Copyright',`
+	.SH "COPYRIGHT"
+	`Copyright' `\(co' 2023-2024, Doliam.
+	This file is part of OpenLmake.
+	.LP
+	OpenLmake is free software; you can redistribute it and/or modify it under the
+	terms of the GNU General Public License as published by the Free Software
+	Foundation, version 3 of the License.
+	.LP
+	OpenLmake is distributed in the hope that it will be useful, but WITHOUT ANY
+	WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+	A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+	.LP
+	You should have received a copy of the GNU General Public License along with
+	this program.  If not, see
+	.IR http://www.gnu.org/licenses/ .
+')
+
+define(`Footer',`
+	SeeAlsoSection
+	Copyright
 ')

@@ -212,7 +212,20 @@ LMAKE_FILES := $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
 DOCKER_FILES := $(filter %.docker,$(shell git ls-files docker))
 
 MAN_FILES := \
-	$(DOC)/man/man1/lmake.1
+	$(DOC)/man/man1/autodep.1                 \
+	$(DOC)/man/man1/find_cc_ld_library_path.1 \
+	$(DOC)/man/man1/lcheck_deps.1             \
+	$(DOC)/man/man1/ldebug.1                  \
+	$(DOC)/man/man1/ldecode.1                 \
+	$(DOC)/man/man1/ldepend.1                 \
+	$(DOC)/man/man1/lencode.1                 \
+	$(DOC)/man/man1/lforget.1                 \
+	$(DOC)/man/man1/lmake.1                   \
+	$(DOC)/man/man1/lmark.1                   \
+	$(DOC)/man/man1/lrepair.1                 \
+	$(DOC)/man/man1/lshow.1                   \
+	$(DOC)/man/man1/ltarget.1                 \
+	$(DOC)/man/man1/xxhsum.1
 
 LMAKE_ALL_FILES := \
 	$(LMAKE_FILES)        \
@@ -252,7 +265,7 @@ ext/%.dir.stamp : ext/%.zip
 
 $(DOC)/man/man1/%.1 : $(DOC)/man/man1/%.1.m $(DOC)/man/utils.mh $(DOC)/man/man1/common.1.m
 	@echo generate man to $@
-	@m4  $(DOC)/man/utils.mh $(DOC)/man/man1/common.1.m $< | grep -v '^$$' >$@
+	@m4  $(DOC)/man/utils.mh $(DOC)/man/man1/common.1.m $< | sed -e 's:^[\t ]*::' -e 's:-:\\-:g' -e '/^$$/ d' >$@
 
 #
 # Manifest
