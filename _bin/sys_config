@@ -384,6 +384,7 @@ MAP_VFORK=0
 
 cat >$MK_FILE <<EOF
 SYS_CONFIG_OK      := 1
+LMAKE_FLAGS        := $LMAKE_FLAGS
 #
 BASH               := /bin/bash
 GIT                := $(type -p ${GIT:-git})

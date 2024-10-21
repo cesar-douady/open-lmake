@@ -3,9 +3,9 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# build command from top level : sudo docker build -f docker/ubuntu22.docker -t ubuntu22 docker
+# build command from top level : sudo docker build -f docker/ubuntu24.docker -t ubuntu24 docker
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # in case the necesary packages are not found, it may come from a bad /etc/apt//sources.list
 # and this may change from time to time. it has been seen that it was necessary to replace archive.ubuntu.com by fr.archive.ubuntu.com with a line such as :
@@ -19,13 +19,12 @@ RUN apt-get install -y git
 RUN apt-get install -y python3-dev
 RUN apt-get install -y texinfo m4
 # optional
-RUN apt-get install -y g++-12 gdb
+RUN apt-get install -y g++-14 gdb
 RUN apt-get install -y clang
 RUN apt-get install -y libpcre2-dev
 RUN apt-get install -y libseccomp-dev
 RUN apt-get install -y libslurm-dev
-RUN apt-get install -y python2
-RUN apt-get install -y python3-numba python3-venv
+RUN apt-get install -y python3-venv
 RUN apt-get install -y strace
 
 # necessary to build and install debian package

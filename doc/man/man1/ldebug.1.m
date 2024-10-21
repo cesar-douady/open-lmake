@@ -40,6 +40,7 @@ Keep tmp directory after job execution (cf. C(lmake)).
 .SH STANDARD METHODS
 .LP
 Unless overridden, the following standard debug methods are provided :
+.nr TW 0 Comment( prevent debian packaging tool from grumbling about TW not being defined )
 .TS
 tab(!) ;
 c           c                     l                                     l                          c
@@ -54,7 +55,7 @@ e         ! lmake_debug.enter   ! dont run                             ! idem   
 n         ! lmake_debug.none    ! run normally with no debug support   ! idem
 .TE
 .IP (1)
-Runnig with the B(-x) flag usually produces a trace of executed commands.
+Running with the B(-x) flag usually produces a trace of executed commands.
 .IP (2)
 Alias B(r) is redefined to run with adequate redirections.
 .IP (3)
@@ -73,7 +74,7 @@ Item(B($LMAKE_DEBUG_STDOUT)) The file connected as stdout to B(ldebug) when it w
 
 .SH FILES
 .LP
-Debug scripts files are generated in the I(LMAKE/debug) directory as I(LMAKE/debug/<job id>/script). Associated files are besides the the script files.
+Debug script files are generated in the I(LMAKE/debug) directory as I(LMAKE/debug/<job id>/script). Associated files are besides the the script files.
 
 CommonFiles
 .LP

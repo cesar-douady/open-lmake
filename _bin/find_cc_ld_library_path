@@ -44,11 +44,15 @@ libs="$(realpath $libs | sort -u)"               # e.g. : /a/b /c /usr/lib/x
 ld_library_path=
 for l in $libs ; do # e.g. : /a/b /c (filter out standard dirs as required in case of installed package)
 	case $l/ in
-		/lib/*      )                                       ;;
-		/lib64/*    )                                       ;;
-		/usr/lib/*  )                                       ;;
-		/usr/lib64/*)                                       ;;
-		*           ) ld_library_path="$ld_library_path:$l" ;;
+		/lib/*       )                                       ;;
+		/lib64/*     )                                       ;;
+		/lib32/*     )                                       ;;
+		/libx32/*    )                                       ;;
+		/usr/lib/*   )                                       ;;
+		/usr/lib64/* )                                       ;;
+		/usr/lib32/* )                                       ;;
+		/usr/libx32/*)                                       ;;
+		*            ) ld_library_path="$ld_library_path:$l" ;;
 	esac
 done
 ld_library_path=${ld_library_path#:}

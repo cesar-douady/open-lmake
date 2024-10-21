@@ -411,8 +411,9 @@ namespace Backends::Slurm {
 		dst = reinterpret_cast<T*>(::dlsym(handler,name)) ;
 		if (!dst) throw "cannot find "s+name+" in "+LibSlurm ;
 	}
+	static void _exit1() { ::_exit(1) ; }
 	void slurm_init(const char* config_file) {
-		Trace trace(BeChnl,"slurm_init",LibSlurm) ;
+		Trace trace(BeChnl,"slurm_init",LibSlurm,config_file?config_file:"<no config_file>") ;
 		void* handler = ::dlopen(LibSlurm,RTLD_NOW|RTLD_GLOBAL) ;
 		if (!handler) throw "cannot find "s+LibSlurm ;
 		//
@@ -431,7 +432,22 @@ namespace Backends::Slurm {
 		_load_func( handler , SlurmApi::submit_batch_het_job              , "slurm_submit_batch_het_job"              ) ;
 		_load_func( handler , SlurmApi::submit_batch_job                  , "slurm_submit_batch_job"                  ) ;
 		//
-		SlurmApi::init(config_file) ;
+		// /!\ stupid SlurmApi::init function calls exit(1) in case of error !
+		// so the idea here is to fork a process to probe SlurmApi::init
+		if ( pid_t child_pid=::fork() ; !child_pid ) {
+			// in child
+			::atexit(_exit1) ;                                // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
+			Fd dev_null_fd = ::open("/dev/null",O_WRONLY,0) ; // this is just a probe, we want nothing on stderr
+			::dup2(dev_null_fd,2) ;                           // so redirect to /dev/null
+			SlurmApi::init(config_file) ;                     // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
+			::_exit(0) ;                                      // if we are here, everything went smoothly
+		} else {
+			// in parent
+			int wstatus ;
+			pid_t rc = ::waitpid(child_pid,&wstatus,0) ;                                                // gather status to know if we were able to call SlurmApi::init
+			if ( rc<=0 || !WIFEXITED(wstatus) || WEXITSTATUS(wstatus)!=0 ) throw "cannot init slurm"s ; // no, report error
+		}
+		SlurmApi::init(config_file) ;                                                                   // this is now safe as we have already probed it
 		//
 		trace("done") ;
 	}
@@ -526,7 +542,7 @@ namespace Backends::Slurm {
 		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",slurm_err()) ;
 	}
 
-	::pair_s<Bool3/*job_ok*/> slurm_job_state(SlurmId slurm_id) {                                                         // Maybe means job has not completed
+	::pair_s<Bool3/*job_ok*/> slurm_job_state(SlurmId slurm_id) {                                                     // Maybe means job has not completed
 		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
 		SWEAR(slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
@@ -547,19 +563,19 @@ namespace Backends::Slurm {
 			switch (js) {
 				// if slurm sees job failure, somthing weird occurred (if actual job fails, job_exec reports an error and completes successfully)
 				// possible job_states values (from slurm.h) :
-				case JOB_PENDING   :                              ok = Maybe ; continue  ;                                // queued waiting for initiation
-				case JOB_RUNNING   :                              ok = Maybe ; continue  ;                                // allocated resources and executing
-				case JOB_SUSPENDED :                              ok = Maybe ; continue  ;                                // allocated resources, execution suspended
-				case JOB_COMPLETE  :                                           continue  ;                                // completed execution successfully
-				case JOB_CANCELLED : msg = "cancelled by user"s ; ok = Yes   ; goto Done ;                                // cancelled by user
-				case JOB_TIMEOUT   : msg = "timeout"s           ; ok = No    ; goto Done ;                                // terminated on reaching time limit
-				case JOB_NODE_FAIL : msg = "node failure"s      ; ok = Yes   ; goto Done ;                                // terminated on node failure
-				case JOB_PREEMPTED : msg = "preempted"s         ; ok = Yes   ; goto Done ;                                // terminated due to preemption
-				case JOB_BOOT_FAIL : msg = "boot failure"s      ; ok = Yes   ; goto Done ;                                // terminated due to node boot failure
-				case JOB_DEADLINE  : msg = "deadline reached"s  ; ok = Yes   ; goto Done ;                                // terminated on deadline
-				case JOB_OOM       : msg = "out of memory"s     ; ok = No    ; goto Done ;                                // experienced out of memory error
-				//   JOB_END                                                                                              // not a real state, last entry in table
-				case JOB_FAILED :                                                                                         // completed execution unsuccessfully
+				case JOB_PENDING   :                              ok = Maybe ; continue  ;                            // queued waiting for initiation
+				case JOB_RUNNING   :                              ok = Maybe ; continue  ;                            // allocated resources and executing
+				case JOB_SUSPENDED :                              ok = Maybe ; continue  ;                            // allocated resources, execution suspended
+				case JOB_COMPLETE  :                                           continue  ;                            // completed execution successfully
+				case JOB_CANCELLED : msg = "cancelled by user"s ; ok = Yes   ; goto Done ;                            // cancelled by user
+				case JOB_TIMEOUT   : msg = "timeout"s           ; ok = No    ; goto Done ;                            // terminated on reaching time limit
+				case JOB_NODE_FAIL : msg = "node failure"s      ; ok = Yes   ; goto Done ;                            // terminated on node failure
+				case JOB_PREEMPTED : msg = "preempted"s         ; ok = Yes   ; goto Done ;                            // terminated due to preemption
+				case JOB_BOOT_FAIL : msg = "boot failure"s      ; ok = Yes   ; goto Done ;                            // terminated due to node boot failure
+				case JOB_DEADLINE  : msg = "deadline reached"s  ; ok = Yes   ; goto Done ;                            // terminated on deadline
+				case JOB_OOM       : msg = "out of memory"s     ; ok = No    ; goto Done ;                            // experienced out of memory error
+				//   JOB_END                                                                                          // not a real state, last entry in table
+				case JOB_FAILED :                                                                                     // completed execution unsuccessfully
 					// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
 					// however, the user is interested in the received signal, not mapped bash exit code, so undo mapping
 					// signaled wstatus are barely the signal number

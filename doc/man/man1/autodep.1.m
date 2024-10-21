@@ -33,44 +33,60 @@ Bullet Targets : a prefix mentions the type of target, unlink versus write, prec
 Bullet Deps    : a kind of ascii art render parallel accesses.
 
 .SH OPTIONS
-.LP
+
 Item(B(-a),B(--auto-mkdir))
 Mimic setting the rule attribute B(auto_mkdir)=I(True).
+
 Item(B(-c) I(abs_dir),B(--chroot-dir)=I(abs_dir))
 Mimic setting the rule attribute B(chroot_dir)=I(abs_dir).
+
 Item(B(-d) I(dir),B(--cwd)=I(dir))
 Mimic setting the rule attribute B(cwd)=I(dir).
+
 Item(B(-e) I(dict),B(--env)=I(dict))
 I(dict) must be provided as a dict mapping str to str using the Python syntax (which most probably requires shell quoting).
 Set the listed environment variables to their associated values.
+
 Item(B(-i),B(--ignore-stat))
 Mimic setting the rule attribute B(ignore_stat)=I(True).
+
 Item(B(-j) I(id),B(--job)=I(id))
 Pass a job id I(id).
 This is only required in association with the B(-T) option to name the tmp directory.
+
 Item(B(-k) I(list),B(--keep-env)=I(list))
 I(list) must be provided as a  tuple or list of str using the Python syntax (which most probably requires shell quoting).
 Listed variables are kept from the environment.
+
 Item(B(-l) I(key),B(--link-support)=I(key))
 Mimic setting the config attribute B(link_support)=I(key).
+
 Item(B(-m) I(key),B(--autodep-method)=I(key))
 Mimic setting the rule attribute B(autodep)=I(key).
+
 Item(B(-o) I(file),B(--out)=I(file))
 Write access info (deps and targets) to I(file).
+
 Item(B(-r) I(abs_dir),B(--root-view)=I(abs_dir))
 Mimic setting the rule attribute B(root_view)=I(abs_dir).
-Item(B(-s) I(list),B(--source-dirs)=I(list)
+
+Item(B(-s) I(list),B(--source-dirs)=I(list))
 I(list) must be provided as a  tuple or list of str using the Python syntax (which most probably requires shell quoting).
 Mimic setting the rule attribute B(source_dirs)=I(list).
+
 Item(B(-S) I(size),B(--tmp-size-mb)=I(size))
 The size of the tmp directory if created using tmpfs.
+
 Item(B(-t) I(abs_dir),B(--tmp-view)=I(abs_dir))
 Mimic setting the rule attribute B(tmp_view)=I(abs_dir).
+
 Item(B(-T),B(--keep-tmp))
 Mimic setting the rule attribute B(keep_tmp)=I(True).
+
 Item(B(-v) I(dict),B(--views)=I(dict))
 I(dict) must be provided as a dict mapping str to view descriptions using the Python syntax (which most probably requires shell quoting).
 Mimic setting the rule attribute B(views)=I(dict).
+
 Item(B(-w)=I(dir),B(--work-dir)=I(dir))
 Provide a working directory necessary for overlays to work.
 Its content is unpredictable after execution.

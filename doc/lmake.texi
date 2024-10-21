@@ -69,7 +69,7 @@ The @lmake utility automatically determines automatically which pieces of a larg
 and issues the commands to remake them.
 This manual describes @lmake, which was implemented by Cesar Douady.
 
-Our examples show C/C++ and Python programs, since they are most common, but you can use
+Our examples show C/C++ and Python programs, since they are very common, but you can use
 @lmake with any programming language to run any phase of your CI/CD as long as these can be scripted.
 Indeed, @lmake is not limited to programs.
 You can use it to describe any task where some files must be (re)computed automatically
@@ -77,7 +77,7 @@ from others whenever recomputing would generate such files differently than what
 Such situations include dependency modifications, but also command modifications, dependency list modifications,
 apparition of an include file that was in the search path before an include file was actually accessed, symbolic link modifications, etc.
 
-Hard links are also fully supported.
+Hard links are also supported.
 Repositories can be moved (as far as @lmake is concerned, user content may not support moves), archived and restored.
 
 @lmake is designed to be scalable, robust and efficient.
@@ -93,9 +93,10 @@ Such bugs can lead to crashes and to pessimistic behavior (a job is rerun while 
 But special attention has been devoted in its design to ensure that it is never optimistic (a job not being rerun while it should have been).
 In case of any adverse event (lmake crashes or spurious system reboot),
 @lmake automatically recovers potentially corrupted states in a safe way to avoid having to remake the whole project because a few files are corrupted.
+In extreme cases, there is a @code{lrepair} tool that can recover all safe parts of a damaged repository.
 
 Note that @lmake does not only recorver from its own flees, but also a lot of experience is embedded into it to work around system bugs.
-This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the directory containing the file) or SGE/slurm jobs spuriously disappearing.
+This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the directory containing the file) or jobs spuriously disappearing.
 
 By efficient, we mean that jobs are run in parallel, optionally using a batcher such as SGE or slurm, managing limited resources as declared in @Lmakefile.
 We also mean that @lmake makes a lot of effort to determine if it is necessary to run a job (while always staying pessismistic).
@@ -103,27 +104,21 @@ Such effort includes checksum based modification detection rather than date base
 Also, @lmake embed a build cache whereby jobs can record their results in a cache so that if the same run needs to be carried out by another user,
 it may barely fetch the result from the cache rather than run the - potentially lengthy - job.
 
-
 @section Preparing and running @lmake.
 
-To prepare to use @lmake, you must write a file called
-the @Lmakefile that describes the relationships among files
-in your workflow and provides commands for generating each file.
-In a program, typically, the executable file is updated from object
-files, which are in turn made by compiling source files.
+To prepare to use @lmake, you must write a file called @Lmakefile that describes the relationships among files in your workflow and provides commands for generating each file.
+In a program, typically, the executable file is updated from object files, which are in turn made by compiling source files.
 Then unit tests are run from the executable and input files, and the output is compared to some references.
 
-Once a suitable @Lmakefile exists, each time you change anything in the workflow (source files, recipes, ...)
-this simple shell command:
+Once a suitable @Lmakefile exists, each time you change anything in the workflow (source files, recipes, ...), this simple shell command:
 
 @example
 lmake <my_target>
 @end example
 
 @noindent
-suffices to perform all necessary steps so that @file{<my_target>} is reproduced as if all steps leading it were carried out while actually carrying out only necessary steps.
-The @lmake program maintains an internal state in the @file{LMAKE} directory
-to decide which of the files need to be regenerated.
+suffices to perform all necessary steps so that @file{<my_target>} is reproduced as if all steps leading to it were carried out although only necessary steps were actually carried out.
+The @lmake program maintains an internal state in the @file{LMAKE} directory to decide which of the files need to be regenerated.
 For each of those files, it issues the recipes recorded in @Lmakefile.
 During the execution of recipes, @lmake instruments them in order to gather which files were read and written in order to determine hidden dependencies and whether such actions were legal.
 These information are recorded in the @file{LMAKE} directory.
@@ -152,7 +147,7 @@ Finally, be sure to explain what you expected to occur; this will help us decide
 
 if your problem is non-deterministic, i.e. it shows up once in a while, include the entire content of the @file{LMAKE} directory.
 This directory contains extensive execution traces meant to help developers to track down problems.
-Make sure, though, to trim it from any sensitive data.
+Make sure, though, to trim it from any sensitive data (with regard to IP).
 
 Once you have a precise problem you can report it in one of two ways.
 Either send electronic mail to:
@@ -169,20 +164,17 @@ or use our Web-based project management tool, at:
 @end example
 
 @noindent
-In addition to the information above, please be careful to include the
-version number of @lmake you are using.
+In addition to the information above, please be careful to include the version number of @lmake you are using.
 You can get this information from the file @file{LMAKE/version}.
 Be sure also to include the type of machine and operating system you are using.
 One way to obtain this information is by running the command @samp{uname -a}.
 
-
 @chapter An Introduction to @Lmakefile syntax
 
-You need a file called a @Lmakefile to tell @lmake what to do.
+You need a file called @Lmakefile to tell @lmake what to do.
 
-In this chapter, we will discuss a simple @Lmakefile that describes how to
-compile, link and test a tiny executable @file{hello_world} which consists of 3 C++ source files (@file{hello_world.cc}, @file{hello.cc} and @file{world.cc})
-and 2 header files (@file{hello.hh} and @file{world.hh}).
+In this chapter, we will discuss a simple @Lmakefile that describes how to compile, link and test a tiny executable @file{hello_world}
+which consists of 3 C++ source files (@file{hello_world.cc}, @file{hello.cc} and @file{world.cc}) and 2 header files (@file{hello.hh} and @file{world.hh}).
 This tiny executable just writes @code{hello world} on its output.
 There is a reference output (@file{hello_world.ref}) that @lmake uses to check if the execution is correct.
 
@@ -2983,6 +2975,8 @@ This feature is a central point that makes Python multiple inheritance easy to u
 Estimated Time of Arrival. This is the date at which a given event (such as a job being completed) is estimated to occur.
 @item ETE
 Estimated Time En route. This is the remaining time necessary to complete a task.
+@item IP
+Intellectual Property.
 @item LRU
 Least Recently Used. A classical cache replacement policy where the entry that was least recently used is discarded when a new one is allocated.
 @item MRO

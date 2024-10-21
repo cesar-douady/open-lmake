@@ -26,6 +26,7 @@ __pycache__
 /sys_config.*
 /sys_config_env
 /version.hh
+/Manifest
 
 # compiled files
 *.i
@@ -64,3 +65,8 @@ tok
 /debian/files
 /debian/changelog
 /debian/*/
+/open-lmake_*.build
+/open-lmake_*.buildinfo
+/open-lmake_*.changes
+/open-lmake_*.deb
+/debian-repo/

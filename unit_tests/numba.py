@@ -44,7 +44,7 @@ else :
 		sys.path.append(f'{os.environ["VIRTUAL_ENV"]}/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')
 
 	try :
-		import numba
+		import numba.pycc.CC
 	except :
 		print('numba not available',file=open('skipped','w'))
 		exit()

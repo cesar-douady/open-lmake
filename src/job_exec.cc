@@ -191,10 +191,12 @@ Digest analyze(Status status=Status::New) {                                     
 		}
 	}
 	for( ::string const& t : g_washed ) if (!g_gather.access_map.contains(t)) {
+		using ETF = ExtraTflag ;
 		trace("wash",t) ;
 		MatchFlags flags = g_match_dct.at(t) ;
-		if (flags.extra_tflags()[ExtraTflag::Ignore]) continue ;
-		res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ExtraTflag::Wash , .crc=Crc::None } ) ;
+		if      (flags.is_target!=Yes             ) res.targets.emplace_back( t , TargetDigest{                          .extra_tflags=                     ETF::Wash , .crc=Crc::None } ) ;
+		else if (flags.extra_tflags()[ETF::Ignore]) {}
+		else                                        res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ETF::Wash , .crc=Crc::None } ) ;
 	}
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
