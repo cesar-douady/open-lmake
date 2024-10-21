@@ -180,19 +180,6 @@ static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	}
 }
 
-static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args = *from_py<Tuple const>(args) ;
-	if ( py_args.size()!=1 || kwds ) return py_err_set(Exception::TypeErr,"expect exactly a single positional argument") ;
-	::string   be  = py_args[0].as_a<Str>() ;
-	BackendTag tag {}/*garbage*/            ;
-	try                     { tag = mk_enum<BackendTag>(be) ; if (!tag) throw ""s ;          }
-	catch (::string const&) { return py_err_set(Exception::ValueErr,"unknown backend "+be) ; }
-	switch (tag) {                                                                             // PER BACKEND
-		case BackendTag::Local : return            True       .to_py_boost() ;
-		case BackendTag::Slurm : return (HAS_SLURM?True:False).to_py_boost() ;
-	DF} ;
-}
-
 static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds) ;
@@ -253,17 +240,70 @@ static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 
 #define F(name,descr) { #name , reinterpret_cast<PyCFunction>(name) , METH_VARARGS|METH_KEYWORDS , descr }
 static PyMethodDef funcs[] = {
-	F( check_deps          , "check_deps(verbose=False)"                                                             " Ensure that all previously seen deps are up-to-date."                       )
-,	F( decode              , "decode(file,ctx,code)"                                                                 " Return the associated value passed by encode(value,file,ctx)."              )
-,	F( depend              , "depend(dep1,dep2,...,verbose=False,follow_symlinks=True,<dep flags=True>,...)"         " Pretend read of all argument and mark them with flags mentioned as True."   )
-,	F( encode              , "encode(value,file,ctx,min_length=1)"                                                   " Return a code associated with value. If necessary create such a code of"
-	/**/                                                                                                             " length at least min_length after a checksum computed after value."          )
-,	F( get_autodep         , "get_autodep()"                                                                         " Return whether autodep is currenly activated."                              )
-,	F( has_backend         , "has_backend(backend)"                                                                  " Return true if the corresponding backend is implememented."                 )
-,	F( search_sub_root_dir , "search_sub_root_dir(cwd=os.getcwd())"                                                  " Return the nearest hierarchical root dir relative to the actual root dir."  )
-,	F( set_autodep         , "set_autodep(active)"                                                                   " Activate (True) or deactivate(Fale) autodep recording."                     )
-,	F( target              , "target(target1,target2,...,follow_symlinks=True,unlink=False,<target flags=True>,...)" " Pretend write to/unlink all arguments and mark them with flags mentioned"
-	/**/                                                                                                             " as True."                                                                   )
+	F( check_deps ,
+		"check_deps(verbose=false)\n"
+		"Ensure that all previously seen deps are up-to-date.\n"
+		"Job will be killed in case some deps are not up-to-date.\n"
+		"If verbose, wait for server reply (it is unclear that this be useful in any way).\n"
+	)
+,	F( decode ,
+		"decode(file,ctx,code)\n"
+		"Return the associated (long) value passed by encode(file,ctx,val) when it returned (short) code.\n"
+		"This call to encode must have been done before calling decode.\n"
+	)
+,	F( depend ,
+		"depend(\n"
+		"\t*deps\n"
+		",\tfollow_symlinks=False\n"
+		",\tverbose        =False # return a report as a dict  dep:(ok,crc) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
+		",\tread           =True  # pretend deps are read in addition to setting flags\n"
+		"# flags :\n"
+		",\tcritical       =False # if modified, ignore following deps\n"
+		",\tessential      =False # show when generating user oriented graphs\n"
+		",\tignore         =False # ignore deps, used to mask out further accesses\n"
+		",\tignore_error   =False # dont propagate error if dep is in error (Error instead of Err because name is visible from user)\n"
+		",\trequired       =True  # dep must be buildable\n"
+		",\tstat_read_data =False # make stat accesses as if deps contents were fully accessed\n"
+		")\n"
+		"Pretend parallel read of deps (unless read=False) and mark them with flags mentioned as True.\n"
+		"Flags accumulate and are never reset.\n"
+	)
+,	F( encode ,
+		"encode(file,ctx,val,min_length=1)\n"
+		"Return a (short) code associated with (long) val. If necessary create such a code of\n"
+		"length at least min_length based on a checksum computed from value.\n"
+		"val can be retrieve from code using decode(file,ctx,code),\n"
+		"even from another job (as long as it is called after the call to encode).\n"
+		"This means that decode(file,ctx,encode(file,ctx,val,min_length)) always return val for any min_length.\n"
+	)
+,	F( get_autodep ,
+		"get_autodep()\n"
+		"Return True if autodep is currenly activated (else False).\n"
+	)
+,	F( search_sub_root_dir ,
+		"search_sub_root_dir(cwd=os.getcwd())\n"
+		"Return the nearest hierarchical root dir above cwd, relative to the top root dir.\n"
+	)
+,	F( set_autodep ,
+		"set_autodep(active)\n"
+		"Activate (if active) or deactivate (if not active) autodep recording.\n"
+	)
+,	F( target ,
+		"target(\n"
+		"\t*targets\n"
+		",\twrite      =True  # pretend targets are written in addition to setting flags\n"
+		"# flags :\n"
+		",\tallow      =True  # writing to this target is allowed\n"
+		",\tessential  =False # show when generating user oriented graphs\n"
+		",\tignore     =False # ignore targets, used to mask out further accesses\n"
+		",\tincremental=False # reads are allowed (before earliest write if any)\n"
+		",\tno_uniquify=False # target is uniquified if it has several links and is incremental\n"
+		",\tno_warning =False # warn if target is either uniquified or unlinked and generated by another rule\n"
+		",\tsource_ok  =False # ok to overwrite source files\n"
+		")\n"
+		"Pretend write to targets and mark them with flags mentioned as True.\n"
+		"Flags accumulate and are never reset.\n"
+	)
 ,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 } ;
 #undef F

@@ -5,14 +5,20 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+echo 'import lmake'                          >> Lmakefile.py
+echo 'lmake.config.console.date_precision=1' >> Lmakefile.py
 
-ut_launch -done 2 -new 1 lmake -s src1.6r.wait & # use -s option to be sure lmakeserver is done when lmake is done
+ut_launch -done 2 -new 1 lmake -s src1.8r.wait & # use -s option to be sure lmakeserver is done when lmake is done
 
 sleep 3
 
-echo new_src > new_src  # create new source
-echo new_src >>Manifest # and tell lmake
+echo 'lmake.config.console.date_precision=2' >> Lmakefile.py
+ut_launch -done 2 lmake src1.cpy                             # this is ok, config modif can be done dynamically
 
+sleep 1
+
+echo new_src > new_src                # create new source
+echo new_src >>Manifest               # and tell lmake
 ut_launch -done 0 -rc 1 lmake new_src # cannot dynamically modify sources
 
 wait %1 # -s option ensures server is done

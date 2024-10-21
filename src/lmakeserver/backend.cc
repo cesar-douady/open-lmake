@@ -681,11 +681,13 @@ namespace Backends {
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
 		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
-		_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
-		_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ;
-		_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ;
-		_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ;
-		_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ;
+		if (!dynamic) {                                                                                               // if dynamic, threads are already running
+			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
+			_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ;
+			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ;
+			_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ;
+			_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ;
+		}
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
 		if (!dynamic) _s_job_exec = *g_lmake_dir_s+"_bin/job_exec" ;
 		//

@@ -46,7 +46,7 @@ sys.stdout.write(stdout)
 
 actual_cnt = {}
 for l in stdout.splitlines() :
-	m = re.fullmatch('(\x1b\\[[0-9]*m)*(?P<key>\\w+) .*',l)
+	m = re.fullmatch('(\x1b\\[[0-9]*m)*(\\d\\d:\\d\\d:\\d\\d(\\.\\d+)? )?(?P<key>\\w+) .*',l) # allow color info and timestamp in front of key
 	if not m : continue
 	k = m.group('key')
 	actual_cnt[k] = actual_cnt.get(k,0) + 1

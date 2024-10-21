@@ -219,6 +219,7 @@ unit_tests/depend_verbose2.py
 unit_tests/dup.py
 unit_tests/dyn_accesses.py
 unit_tests/dynamic.py
+unit_tests/dynamic_config.script
 unit_tests/dynamic_py.py
 unit_tests/escape.py
 unit_tests/exe_32bits.py
@@ -298,7 +299,6 @@ unit_tests/sym_lnk.py
 unit_tests/tar.py
 unit_tests/target.py
 unit_tests/target2.py
-unit_tests/test01.script
 unit_tests/test05.py
 unit_tests/test06.py
 unit_tests/test07.script

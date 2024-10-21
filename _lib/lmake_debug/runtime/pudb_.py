@@ -3,6 +3,8 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+'This module is a runtime support for running python jobs under pudb control'
+
 # /!\ must be Python2/Python3 compatible
 # /!\ this file must *not* be named pudb.py or the system pdb module cannot be imported
 
