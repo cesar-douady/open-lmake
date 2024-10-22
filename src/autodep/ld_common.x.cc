@@ -568,8 +568,8 @@ struct Mkstemp : WSolve {
 	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HEADER1(utimensat,false,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,false,"utimensat"} ; return r(orig(d,p,t,f)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
-	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses() )
-	//                                                            is_stat                           no_follow accesses
+	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses(Access::Stat) )
+	//                                                           is_stat                           no_follow accesses
 	int access   (      CC* p,int m      ) NE { HEADER1(access   ,true ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),"access"   } ; return r(orig(  p,m  )) ; }
 	int faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,true ,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),"faccessat"} ; return r(orig(d,p,m,f)) ; }
 	#undef ACCESSES

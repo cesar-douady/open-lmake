@@ -4,17 +4,17 @@
 # python caches
 __pycache__
 
-# exceptions
-!/_bin/find_cc_ld_library_path
-!/_bin/sys_config
-!/_bin/ut_launch
-!/_bin/version
-
 # directories
 *.dir
-/_bin/
 /bin/
 /lib/
+
+# binaries
+/_bin/align_comments
+/_bin/job_exec
+/_bin/ldump
+/_bin/ldump_job
+/_bin/lmakeserver
 
 # doc
 /doc/info.texi

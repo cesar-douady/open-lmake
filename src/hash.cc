@@ -15,8 +15,8 @@ namespace Hash {
 
 	::ostream& operator<<( ::ostream& os , Crc const crc ) {
 		CrcSpecial special{crc} ;
-		if (special==CrcSpecial::Plain) return os << "Crc("<<::string(crc)<<','<<(crc.is_lnk()?'L':'R')<<')' ;
-		else                            return os << "Crc("<<special<<')'                                    ;
+		if (special==CrcSpecial::Plain) return os << "Crc("<<::string(crc)<<')' ;
+		else                            return os << "Crc("<<special      <<')' ;
 	}
 
 	Crc::Crc(::string const& filename) {

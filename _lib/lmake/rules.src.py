@@ -186,3 +186,21 @@ class RustRule(Rule) :
 			'RUSTUP_HOME' : _os.environ['RUSTUP_HOME']                                                   # ensure var is passed to job
 		,	'PATH'        : _osp.dirname(_os.environ['RUSTUP_HOME'])+'/.cargo/bin:...'                   # ... stands for inherited value
 		}
+
+class DirRule(Rule) :
+	'''
+		Base rule to ensure the existence of a dir by generating a target within said dir.
+		The default marker is '...'.
+		Usage :
+			class MyDirRule(DirRule) : pass
+		or :
+			class MyDirRule(DirRule) : marker='my_marker'
+		Note : in case of conflict with other rules, you may have to adjust prio
+		Then to ensure that dir exists :
+			lmake.depend(dir+'/'+marker)
+	'''
+	virtual = True
+	marker  = '...'
+	target  = fr'{{Dir:.+}}/{marker}'
+	backend = 'local'                 # command is faster than any other backend overhead
+	cmd     = ''

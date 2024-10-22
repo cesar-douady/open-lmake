@@ -46,8 +46,8 @@ int main( int argc , char* argv[]) {
 	//
 	bool         no_follow = !cmd_line.flags[Flag::FollowSymlinks] ;
 	bool         verbose   =  cmd_line.flags[Flag::Verbose       ] ;
-	AccessDigest ad        = { .accesses=~Accesses() }             ;
-	if ( cmd_line.flags[Flag::NoRead      ]) ad.accesses      = {}                       ;
+	AccessDigest ad        ;
+	if (!cmd_line.flags[Flag::NoRead      ]) ad.accesses      = ~Accesses()              ;
 	if ( cmd_line.flags[Flag::Critical    ]) ad.dflags       |= Dflag     ::Critical     ;
 	if ( cmd_line.flags[Flag::Essential   ]) ad.dflags       |= Dflag     ::Essential    ;
 	if ( cmd_line.flags[Flag::IgnoreError ]) ad.dflags       |= Dflag     ::IgnoreError  ;

@@ -91,6 +91,8 @@ it has been tested with the dockers listed in the docker directory
 			- ST      controls the -fsantize=thread                       option  (exclusive with SA                         )
 			- P       controls the -pg                                    option  (profiling info is in gmon.out.<tool>.<pid>)
 		- the -j flag of make is automatically set to the number of processors, you may want to override this, though
+	- this is true the first time you run make. After that, these values are remembered in the file sys_config.env.
+	- you can freely modify this file sys_config.env, though, it will be taken into account.
 	- it is up to you to provide a suitable LD\_LIBRARY\_PATH value.
 	  it will be transferred as a default value for rules, to the extent it is necessary to provide the lmake semantic
 
@@ -283,7 +285,7 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 
 ## traces
 - when lmake is executed, a trace of activity is generated for debug purpose
-- this is true for all executables (lmake, lmakeserver, autodep, ...)
+- this is true for all executables (lmake, lmakeserver, lautodep, ...)
 - traces are located in :
 	- `LMAKE/lmake/local_admin/trace/<executable>`
 		- for lmakeserver, the most important trace, an history of the last few executions is kept

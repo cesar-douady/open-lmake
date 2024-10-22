@@ -79,12 +79,14 @@ ENUM( JobRpcProc
 
 // START_OF_VERSIONING
 ENUM_3( JobReasonTag                                // see explanations in table below
-,	HasNode = BusyTarget                            // if >=HasNode, a node is associated
+,	HasNode = BusyDep                               // if >=HasNode, a node is associated
 ,	Err     = DepOverwritten
 ,	Missing = DepMissingStatic
 	//
 ,	None
 //	with reason
+,	Busy                                            // job is indeed running
+,	SomeBusyDep                                     // job is waiting for an unknown dep
 ,	OldErr
 ,	Rsrcs
 ,	PollutedTargets
@@ -97,6 +99,7 @@ ENUM_3( JobReasonTag                                // see explanations in table
 ,	Lost
 ,	New
 //	with node
+,	BusyDep                                         // job is waiting for a known dep
 ,	BusyTarget
 ,	NoTarget
 ,	OldTarget
@@ -120,6 +123,8 @@ ENUM_3( JobReasonTag                                // see explanations in table
 static constexpr const char* JobReasonTagStrs[] = {
 	"no reason"                                     // None
 //	with reason
+,	"running"                                       // Busy
+,	"waiting deps"                                  // SomeBusyDep
 ,	"job was in error"                              // OldErr
 ,	"resources changed and job was in error"        // Rsrcs
 ,	"polluted targets"                              // PollutedTargets
@@ -132,6 +137,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"job was lost"                                  // Lost
 ,	"job was never run"                             // New
 //	with node
+,	"waiting dep"                                   // BusyDep
 ,	"busy target"                                   // BusyTarget
 ,	"missing target"                                // NoTarget
 ,	"target produced by an old job"                 // OldTarget
@@ -156,29 +162,32 @@ static constexpr uint8_t JobReasonTagPrios[] = {
 //	no reason, must be 0
 	0                                               // None
 //	with reason
-,	10                                              // OldErr
-,	11                                              // Rsrcs
-,	12                                              // PollutedTargets
-,	30                                              // ChkDeps
-,	50                                              // Cmd
-,	51                                              // Force
-,	51                                              // Garbage
-,	51                                              // Killed
-,	51                                              // Retry
-,	51                                              // Lost
-,	52                                              // New
+,	12                                              // Busy
+,	10                                              // SomeBusyDep
+,	20                                              // OldErr
+,	21                                              // Rsrcs
+,	22                                              // PollutedTargets
+,	40                                              // ChkDeps
+,	60                                              // Cmd
+,	61                                              // Force
+,	61                                              // Garbage
+,	61                                              // Killed
+,	61                                              // Retry
+,	61                                              // Lost
+,	62                                              // New
 //	with node
+,	11                                              // BusyDep
 ,	1                                               // BusyTarget     this should not occur as there is certainly another reason to be running
-,	20                                              // NoTarget
-,	21                                              // OldTarget
-,	22                                              // PrevTarget
-,	23                                              // PollutedTarget
-,	24                                              // ManualTarget
-,	25                                              // ClashTarget
-,	40                                              // DepOutOfDate
-,	41                                              // DepTransient
-,	41                                              // DepUnlnked
-,	41                                              // DepUnstable
+,	30                                              // NoTarget
+,	31                                              // OldTarget
+,	32                                              // PrevTarget
+,	33                                              // PollutedTarget
+,	34                                              // ManualTarget
+,	35                                              // ClashTarget
+,	50                                              // DepOutOfDate
+,	51                                              // DepTransient
+,	51                                              // DepUnlnked
+,	51                                              // DepUnstable
 //	with error, must be higher than ok reasons
 ,	100                                             // DepOverwritten
 ,	101                                             // DepDangling

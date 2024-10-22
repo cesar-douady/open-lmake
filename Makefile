@@ -13,21 +13,18 @@ MAKEFLAGS += -r -R
 
 .DEFAULT_GOAL := DFLT
 
+.PHONY : FORCE
 FORCE : ;
 sys_config.env : FORCE
-	@if [ -f $@.ref ] ; then                 \
-		src=ref          ;                   \
-		cp $@.ref $@.tmp ;                   \
-	else                                     \
-		src=env ;                            \
+	@if [ ! -f $@ ] ; then                   \
+		echo new $@ ;                        \
 		{	echo CXX=$$CXX                 ; \
 			echo PYTHON2=$$PYTHON2         ; \
 			echo PYTHON=$$PYTHON           ; \
 			echo SLURM_ROOT=$$SLURM_ROOT   ; \
 			echo LMAKE_FLAGS=$$LMAKE_FLAGS ; \
-		} >$@.tmp ;                          \
-	fi ;                                     \
-	cmp -s $@.tmp $@ || { cp $@.tmp $@ ; echo new $@ from $$src ; }
+		} >$@ ;                              \
+	fi
 
 sys_config.log : _bin/sys_config sys_config.env
 	@echo sys_config
@@ -182,13 +179,14 @@ LMAKE_SERVER_BIN_FILES := \
 	_bin/ldump                  \
 	_bin/ldump_job              \
 	_bin/align_comments         \
-	bin/autodep                 \
+	bin/lautodep                \
 	bin/find_cc_ld_library_path \
 	bin/ldebug                  \
 	bin/lforget                 \
 	bin/lmake                   \
 	bin/lmark                   \
 	bin/lrepair                 \
+	bin/lrun_cc                 \
 	bin/lshow                   \
 	bin/xxhsum
 
@@ -272,11 +270,11 @@ doc/man/man1/%.1 : doc/man/man1/%.1.m doc/man/utils.mh doc/man/man1/common.1.m
 # versioning
 #
 
-CPP_SRCS := $(filter %.cc,$(SRCS)) $(filter %.hh,$(SRCS))
+VERSION_SRCS := $(filter src/%.cc,$(SRCS)) $(filter src/%.hh,$(SRCS))
 
 # use a stamp to implement a by value update (while make works by date)
-version.hh.stamp : _bin/version Manifest $(CPP_SRCS)
-	@./$< $(CPP_SRCS) >$@
+version.hh.stamp : _bin/version Manifest $(VERSION_SRCS)
+	@./$< $(VERSION_SRCS) >$@
 	@# dont touch output if it is steady
 	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version ; \
 	else                                mv $@ $(@:%.stamp=%) ; echo new    version ; \
@@ -382,7 +380,8 @@ CPP_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . $(FUSE_CC
 		-MT '$@'                                             \
 		$< 2>/dev/null || :
 
-include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(filter-out %.x.cc,$(filter %.cc,$(SRCS))) ) )
+DEP_SRCS := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS)))
+include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
 
 #
 # lmake
@@ -538,10 +537,10 @@ JOB_EXEC_OBJS := \
 	src/autodep/record.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS) src/job_exec.o
-bin/autodep   : $(JOB_EXEC_OBJS) src/autodep/autodep.o
+bin/lautodep  : $(JOB_EXEC_OBJS) src/autodep/lautodep.o
 
 # XXX : why job_exec and autodep do not support sanitize thread ?
-_bin/job_exec bin/autodep :
+_bin/job_exec bin/lautodep :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
@@ -582,43 +581,48 @@ lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/clmake-py
 UT_BASE := $(filter unit_tests/base/%,$(SRCS))
 
 UNIT_TESTS : \
-	$(patsubst %.py,%.dir/tok,     $(filter unit_tests/%.py,    $(SRCS))) \
-	$(patsubst %.script,%.dir/tok, $(filter unit_tests/%.script,$(SRCS))) \
-	$(patsubst %.py,%.dir/tok,     $(filter examples/%.py,      $(SRCS)))
+	$(patsubst %.py,%.dir/tok,        $(filter unit_tests/%.py,      $(SRCS))) \
+	$(patsubst %.script,%.dir/tok,    $(filter unit_tests/%.script  ,$(SRCS))) \
+	$(patsubst %.dir/run.py,%.dir/tok,$(filter examples/%.dir/run.py,$(SRCS)))
+
+TEST_ENV = \
+	export PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH             ; \
+	export PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib:$$PYTHONPATH ; \
+	export CXX=$(CXX)                                               ; \
+	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                            ; \
+	export HAS_32BITS=$(if $(LD_SO_LIB_32),1)                       ; \
+	export PYTHON2=$(PYTHON2)                                       ; \
+	cd $(@D)                                                        ; \
+	exec </dev/null >$(@F).out 2>$(@F).err                          ;
+
+# keep $(@D) to ease debugging, ignore git rc as old versions work but generate errors
+TEST_PRELUDE = \
+	mkdir -p $(@D) ; \
+	( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ; : ; ) ;
+
+TEST_POSTLUDE = \
+	if [ $$? = 0 ] ;                                                                                             \
+	then ( if [ ! -f $(@D)/skipped ] ; then mv $@.out $@ ; else echo skipped $@ : $$(cat $(@D)/skipped) ; fi ) ; \
+	else ( cat $@.out $@.err ; exit 1                                                                        ) ; \
+	fi ;
 
 %.dir/tok : %.script $(LMAKE_FILES) $(UT_BASE) _bin/ut_launch
 	@echo script test to $@
-	@mkdir -p $(@D)
-	@( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ) ; : # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
+	@$(TEST_PRELUDE)
 	@for f in $(UT_BASE) ; do df=$(@D)/$${f#unit_tests/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	@	(	cd $(@D) ;                                                                                        \
-				PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH                                                  \
-				CXX=$(CXX)                                                                                    \
-				HAS_32BITS=$(if $(LD_SO_LIB_32),1)                                                            \
-				PYTHON2=$(PYTHON2)                                                                            \
-			$(ROOT_DIR)/$<                                                                                    \
-		) </dev/null >$@.out 2>$@.err                                                                         \
-	&&	( if [ ! -f $(@D)/skipped ] ; then mv $@.out $@ ; else echo skipped $@ : $$(cat $(@D)/skipped) ; fi ) \
-	||	( cat $@.out $@.err ; exit 1 )
+	@( $(TEST_ENV) $(ROOT_DIR)/$< ) ; $(TEST_POSTLUDE)
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
 	@echo py test to $@
-	@mkdir -p $(@D)
-	@( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ) ; : # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
+	@$(TEST_PRELUDE)
 	@cp $< $(@D)/Lmakefile.py
-	@	(	cd $(@D) ;                                                                                        \
-				PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH                                                  \
-				PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib:$$PYTHONPATH                                      \
-				CXX=$(CXX)                                                                                    \
-				LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                                 \
-				HAS_32BITS=$(if $(LD_SO_LIB_32),1)                                                            \
-				PYTHON2=$(PYTHON2)                                                                            \
-			$(PYTHON)                                                                                         \
-				Lmakefile.py                                                                                  \
-		) </dev/null >$@.out 2>$@.err                                                                         \
-	&&	( if [ ! -f $(@D)/skipped ] ; then mv $@.out $@ ; else echo skipped $@ : $$(cat $(@D)/skipped) ; fi ) \
-	||	( cat $@.out $@.err ; exit 1 )
+	@( $(TEST_ENV) $(PYTHON) Lmakefile.py ) ; $(TEST_POSTLUDE)
+
+%.dir/tok : %.dir/Lmakefile.py %.dir/run.py $(LMAKE_FILES) _lib/ut.py
+	@echo run example to $@
+	@$(TEST_PRELUDE)
+	@( $(TEST_ENV) $(PYTHON) run.py ) ; $(TEST_POSTLUDE)
 
 #
 # lmake env
@@ -714,13 +718,14 @@ install : $(LMAKE_ALL_FILES)
 
 DEBIAN : open-lmake_$(DEBIAN_VERSION).stamp
 
-DEBIAN_BIN_FILES = $(filter bin/%,$(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES))
+DEBIAN_BIN_FILES := $(filter bin/%,$(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES))
+DEBIAN_SRCS      := $(filter-out unit_tests/%,$(filter-out examples/%,$(filter-out lmake_env/%,$(SRCS))))
 
-open-lmake_$(DEBIAN_VERSION).stamp : $(SRCS)
+open-lmake_$(DEBIAN_VERSION).stamp : $(DEBIAN_SRCS)
 	@rm -rf debian-repo
 	@mkdir debian-repo
-	@echo LMAKE_FLAGS=O3Gt > debian-repo/sys_config.env.ref
-	@tar -c $(SRCS) | tar -x -Cdebian-repo
+	@echo LMAKE_FLAGS=O3Gt > debian-repo/sys_config.env
+	@tar -c $(DEBIAN_SRCS) | tar -x -Cdebian-repo
 	@sed \
 		-e 's!\$$DEBIAN_VERSION!$(DEBIAN_VERSION)!' \
 		-e 's!\$$DATE!'"$$(date -R)!" \

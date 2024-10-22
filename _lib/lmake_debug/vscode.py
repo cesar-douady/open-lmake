@@ -52,7 +52,7 @@ class Job (utils.Job) :
 			,	'telemetry.telemetryLevel'  : 'off'
 			}
 		,	'launch' : {
-				'configurations' : [             # env is not set as it is already set by autodep before vscode is launched
+				'configurations' : [             # env is not set as it is already set by lautodep before vscode is launched
 					{	'type'       : 'debugpy'
 					,	'request'    : 'launch'
 					,	'name'       : self.name
@@ -117,7 +117,7 @@ class Job (utils.Job) :
 		# generate script
 		#
 		self.cwd            = ''                      # cwd is handled in vscode config
-		self.autodep_method = 'none'                  # XXX : fix incompatibilities between autodep and vscode
+		self.autodep_method = 'none'                  # XXX : fix incompatibilities between lautodep and vscode
 		preamble,line       = self.starter(*call_line)
 		return self.gen_preamble() + preamble + line + '&\n'
 

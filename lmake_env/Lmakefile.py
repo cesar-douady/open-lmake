@@ -10,15 +10,14 @@ import sys
 import sysconfig
 import tarfile
 import zipfile
-from subprocess import run,check_output,DEVNULL,STDOUT
 
 import lmake
 
 version = lmake.user_environ.get('VERSION','??.??')
 gxx     = lmake.user_environ.get('CXX'    ,'g++'  )
 
-from lmake       import config,pdict
-from lmake.rules import Rule,PyRule,AntiRule,TraceRule
+from lmake       import config,pdict,run_cc
+from lmake.rules import Rule,PyRule,AntiRule,TraceRule,DirRule
 
 if 'slurm' in lmake.backends :
 	backend = 'slurm'
@@ -177,7 +176,8 @@ class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
 		#echo > {MK('HAS_PCRE')}
 	'''
 def sys_config(key) :
-	return open(f'sys_config.dir/{key}').read().strip()
+	try    : return open(f'sys_config.dir/{key}').read().strip()
+	except : return ''
 
 class VersionH(BaseRule) :
 	target = 'version.hh'
@@ -201,13 +201,9 @@ class GenOpts(BaseRule,PyRule) :
 			dir = osp.dirname(dir)
 		print(tuple(res),file=open(OPTS,'w'))
 
-# a rule to ensure dir exists
-class Marker(BaseRule,PyRule) :
-	prio    = 1                         # avoid untar when in a tar dir
-	targets = { 'MRKR' : '{DirS}mrkr' }
-	backend = 'local'
-	def cmd() :
-		open(MRKR,'w')
+# ensure dir exists by depending on dir/...
+class Marker(DirRule) :
+	prio = 1            # avoid untar when in a tar dir
 
 basic_opts_tab = {
 	'c'   : ('-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra',                                            )
@@ -219,7 +215,7 @@ def run_gxx(target,*args) :
 		if '/' in gxx : os.environ['PATH'] = ':'.join((osp.dirname(gxx),os.environ['PATH'])) # gxx calls its subprograms (e.g. as) using PATH, ensure it points to gxx dir
 		for k,v in os.environ.items() : print(f'{k}={v}')
 		print(' '.join(cmd_line))
-		run( cmd_line , check=True )
+		run_cc(*cmd_line)
 for ext,basic_opts in basic_opts_tab.items() :
 	class Compile(PathRule,PyRule) :                                     # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
 		name    = f'compile {ext}'
@@ -231,16 +227,6 @@ for ext,basic_opts in basic_opts_tab.items() :
 		basic_opts = basic_opts                                          # capture value while iterating (w/o this line, basic_opts would be the final value)
 		def cmd() :
 			add_flags = eval(open(OPTS).read())
-			seen_inc  = False
-			missings  = []
-			mrkrs     = []
-			for x in add_flags :
-				if seen_inc and x[0]!='/' :
-					if not File.startswith(x+'/') :                      # if x is a dir of File, it necessarily exists
-						mrkrs.append(osp.join(x,'mrkr'))                 # gxx does not open includes from non-existent dirs
-				seen_inc = x in ('-I','-iquote','-isystem','-idirafter')
-			lmake.depend(*mrkrs)
-			lmake.check_deps()
 			if sys_config('CXX_FLAVOR')=='clang' : clang_opts = ('-Wno-misleading-indentation','-Wno-unknown-warning-option','-Wno-c2x-extensions','-Wno-unused-function','-Wno-c++2b-extensions')
 			else                                 : clang_opts = ()
 			if ext=='c'                          : std        = 'c99'
@@ -260,7 +246,7 @@ for ext,basic_opts in basic_opts_tab.items() :
 
 class LinkRule(PathRule,PyRule) :
 	combine      = ('opts',)
-	opts         = []                                                                             # options before inputs & outputs
+	opts         = []                                           # options before inputs & outputs
 	resources    = {'mem':'1G'}
 	need_fuse    = False
 	need_python  = False
@@ -307,7 +293,7 @@ class TarLmake(BaseRule) :
 	,	'LD_AUDIT'            : '_lib/ld_audit.so'
 	,	'LD_PRELOAD'          : '_lib/ld_preload.so'
 	,	'LD_PRELOAD_JEMALLOC' : '_lib/ld_preload_jemalloc.so'
-	,	'AUTODEP'             : '_bin/autodep'
+	,	'AUTODEP'             : '_bin/lautodep'
 	,	'JOB_EXEC'            : '_bin/job_exec'
 	,	'LDUMP'               : '_bin/ldump'
 	,	'LDUMP_JOB'           : '_bin/ldump_job'
@@ -435,8 +421,8 @@ class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
 	}
 
 class LinkAutodepExe(LinkPython,LinkAutodep,LinkAppExe) :
-	targets = { 'TARGET' : '_bin/autodep'          }
-	deps    = { 'MAIN'   : 'src/autodep/autodep.o' }
+	targets = { 'TARGET' : '_bin/lautodep'          }
+	deps    = { 'MAIN'   : 'src/autodep/lautodep.o' }
 
 class LinkJobExecExe(LinkPython,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/job_exec'  }

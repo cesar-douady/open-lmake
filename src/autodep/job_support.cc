@@ -27,7 +27,6 @@ namespace JobSupport {
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(f),.no_follow=no_follow,.read=true,.write=false,.comment="depend"}) ;
 			if (sr.file_loc<=FileLoc::Dep) deps.emplace_back(::move(sr.real),sr.file_info) ;
 		}
-		ad.accesses = ~Accesses() ;
 		// use sync reports even when no reply is necessary to ensure correct ordering with following requests using a different report Fd
 		if (verbose) { JobExecRpcReply reply = r.report_sync_access( JobExecRpcReq( Proc::DepVerbose       , ::move(deps) , ad , "depend" ) ) ; return reply.dep_infos ; }
 		else         {                         r.report_sync_access( JobExecRpcReq( Proc::Access , 0/*id*/ , ::move(deps) , ad , "depend" ) ) ; return {}              ; }

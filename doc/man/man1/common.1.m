@@ -104,8 +104,8 @@ define(`CommonFiles',`
 define(`SeeAlsoSection',`
 	.SH "SEE ALSO"
 	.LP
-	ifelse(Name,autodep,                ,`C(autodep),'                       )
 	ifelse(Name,find_cc_ld_library_path,,`C(find_cc_ld_library_path),'       )
+	ifelse(Name,lautodep,               ,`C(lautodep),'                      )
 	ifelse(Name,lcheck_deps,            ,`C(lcheck_deps),'                   )
 	ifelse(Name,ldebug,                 ,`C(ldebug),'                        )
 	ifelse(Name,ldecode,                ,`C(ldecode),'                       )
@@ -115,6 +115,7 @@ define(`SeeAlsoSection',`
 	ifelse(Name,lmake,                  ,`C(lmake),'                         )
 	ifelse(Name,lmark,                  ,`C(lmark),'                         )
 	ifelse(Name,lrepair,                ,`C(lrepair),'                       )
+	ifelse(Name,lrun_cc,                ,`C(lrun_cc),'                       )
 	ifelse(Name,lshow,                  ,`C(lshow),'                         )
 	ifelse(Name,ltarget,                ,`C(ltarget)ifelse(Name,xxhsum,,`,')')
 	ifelse(Name,xxhsum,                 ,`C(xxhsum)'                         )

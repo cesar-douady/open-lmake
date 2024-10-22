@@ -1,0 +1,53 @@
+#!/bin/bash -e
+# This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Copyright (c) 2023 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+exe_dir=$(dirname $0)
+
+parse() {
+	declare -a dirs
+	declare -a markers
+	i=0
+	while [ $# != 0 ] ; do
+		case "$1" in
+			-I         ) shift ; dir="$1"              ;;
+			-iquote    ) shift ; dir="$1"              ;;
+			-isystem   ) shift ; dir="$1"              ;;
+			-idirafter ) shift ; dir="$1"              ;;
+			-L         ) shift ; dir="$1"              ;;
+			-I*        )         dir="${1#-I}"         ;;
+			-iquote*   )         dir="${1#-iquote}"    ;;
+			-isystem*  )         dir="${1#-isystem}"   ;;
+			-idirafter*)         dir="${1#-idirafter}" ;;
+			-L*        )         dir="${1#-L}"         ;;
+			*          )         dir=                  ;;
+		esac
+		case "$dir" in
+			=*         ) ;; # gcc specifies that such files are actually within the compiler distribution
+			'$SYSROOT'*) ;; # .
+			''         ) ;;
+			*          )
+				dirs[$i]="$dir"
+				markers[$i]="$dir/$marker"
+				i=$(($i+1))
+			;;
+		esac
+		shift
+	done
+	if [ ${#dirs[@]} != 0 ] ; then
+		mkdir -p "${dirs[@]}"
+		$exe_dir/ldepend --no-required "${markers[@]}"
+		$exe_dir/lcheck_deps
+	fi
+}
+
+marker=...
+case "$1" in
+	-m ) marker="$2"      ; shift ; shift ;;
+	-m*) marker="${2#-m}" ; shift         ;;
+esac
+
+parse "$@"
+"$@"

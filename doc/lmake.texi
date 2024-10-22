@@ -480,6 +480,13 @@ For example, some default values may be modified and if they are used before thi
 @section @code{def find_cc_ld_library_path(cc)}
 Documented with @code{help(lmake.find_cc_ld_library_path)}.
 
+This function determines an adequate value to put in @code{$LD_LIBRARY_PATH} to use programs compiled with @code{cc}.
+
+@section @code{def run_cc(*cmd_line,marker='...',stdin=None)}
+Documented with @code{help(lmake.run_cc)}.
+
+This functions ensures that all directories listed in arguments such as @code{-I} or @code{-L} exist reliably.
+
 @section @code{version}
 
 This variable holds the native version of @lmake.
@@ -546,7 +553,7 @@ For example, you can call @code{target('file1','file2')} or @code{target(('file1
 @section @code{lmake.get_autodep}
 @code{def get_autodep()}
 
-This function returns whether autodep is currently activate (@code{True}) or deactivated (@code{False}).
+This function returns whether autodep is currently activated (@code{True}) or deactivated (@code{False}).
 When activated, the monitoring is performed normally.
 When deactivated, no access monitoring is performed, as if the @code{autodep} rule attribute is set to @code{None}.
 Note that even in that case, the @code{depend} and @code{target} functions work normally.

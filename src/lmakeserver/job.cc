@@ -575,18 +575,16 @@ namespace Engine {
 		// wrap up
 		//
 		if ( ok==Yes && +digest.stderr && !end_cmd_attrs.allow_stderr ) { local_msg+="non-empty stderr\n" ; status = Status::Err ; }
-		EndNoneAttrs    end_none_attrs ;
-		::string        stderr_content ;
-		::string const* stderr         ;
+		EndNoneAttrs end_none_attrs ;
+		::string     stderr         ;
 		try {
 			end_none_attrs = rule->end_none_attrs.eval( *this , match , rsrcs , &::ref(::vmap_s<DepDigest>()) ) ; // we cant record deps here, but we dont care, no impact on target
-			stderr = &digest.stderr ;
+			stderr = digest.stderr ;                                                                              // must copy because digest is move'd when jrr is move'd
 		} catch (::pair_ss const& msg_err) {
 			end_none_attrs = rule->end_none_attrs.spec ;
 			severe_msg << rule->end_none_attrs.s_exc_msg(true/*using_static*/) << '\n' << msg_err.first ;
-			stderr_content  = ensure_nl(msg_err.second) + digest.stderr ;
-			stderr_content <<set_nl<< digest.stderr ;
-			stderr = &stderr_content ;
+			stderr = ensure_nl(msg_err.second) + digest.stderr ;
+			stderr <<set_nl<< digest.stderr ;
 		}
 		//
 		data.exec_ok(true) ;                                                               // effect of old cmd has gone away with job execution
@@ -631,16 +629,18 @@ namespace Engine {
 			bool     job_err     = job_err_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
-				/**/          job_msg =  msg       << set_nl              ;
-				if (!job_err) job_msg << local_msg << set_nl              ;                        // report local_msg if no better message
-				else          job_msg << reason_str(job_err_reason)<<'\n' ;
-				/**/          job_msg << severe_msg                       ;
+				/**/         job_msg << msg                       <<set_nl ;
+				if (job_err) job_msg << reason_str(job_err_reason)<<'\n'   ;
+				else         job_msg << local_msg                 <<set_nl ;                       // report local_msg if no better message
+				/**/         job_msg << severe_msg                         ;
+			} else if (req->options.flags[ReqFlag::Verbose]) {
+				job_msg << reason_str(job_err_reason)<<'\n' ;
 			}
 			//
 			Delay    exec_time = digest.stats.total ;
 			::string pfx       = !ri.done() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
 			// dont report user stderr if analysis made it meaningless
-			JobReport jr = audit_end( ri , true/*with_stats*/ , pfx , job_msg , !job_err?*stderr:""s , end_none_attrs.max_stderr_len , exec_time ) ;
+			JobReport jr = audit_end( ri , true/*with_stats*/ , pfx , job_msg , !job_err?stderr:""s , end_none_attrs.max_stderr_len , exec_time ) ;
 			if (ri.done()) {
 				trace("wakeup_watchers",ri) ;
 				ri.wakeup_watchers() ;
@@ -772,6 +772,7 @@ namespace Engine {
 		CoarseDelay dep_pressure   = ri.pressure + exec_time                                       ;
 		bool        archive        = req->options.flags[ReqFlag::Archive]                          ;
 		JobReason   pre_reason     ;                                                                                // reason to run job when deps are ready before deps analysis
+		JobReason   report_reason  ;
 		//
 		auto reason = [&]()->JobReason {
 			if (ri.force) return pre_reason | ri.reason       | ri.state.reason ;
@@ -837,25 +838,25 @@ namespace Engine {
 		}
 		SWEAR(ri.step()==Step::Dep) ;
 		{
-		RestartAnalysis :                                                                                         // restart analysis here when it is discovered we need deps to run the job
+		RestartAnalysis :                                                                             // restart analysis here when it is discovered we need deps to run the job
 			bool stamped_seen_waiting = false ;
 			bool proto_seen_waiting   = false ;
 			bool critical_modif       = false ;
 			bool critical_waiting     = false ;
 			bool sure                 = true  ;
 			//
-			ri.speculative_wait = false ;                                                                         // initially, we are not waiting at all
+			ri.speculative_wait = false ;                                                             // initially, we are not waiting at all
 			//
 			ReqInfo::State state = ri.state ;
 			pre_reason = _mk_reason(status) ;
 			for ( DepsIter iter {deps,ri.iter} ;; iter++ ) {
 				//
 				bool       seen_all = iter==deps.end()            ;
-				Dep const& dep      = seen_all ? Sentinel : *iter ;                                               // use empty dep as sentinel
+				Dep const& dep      = seen_all ? Sentinel : *iter ;                                   // use empty dep as sentinel
 				if (!dep.parallel) {
-					state.stamped_err   = state.proto_err   ;                                                     // proto become stamped upon sequential dep
-					state.stamped_modif = state.proto_modif ;                                                     // .
-					if ( critical_modif && !seen_all ) {                                                          // suppress deps following modified critical one, except static deps as no-access
+					state.stamped_err   = state.proto_err   ;                                         // proto become stamped upon sequential dep
+					state.stamped_modif = state.proto_modif ;                                         // .
+					if ( critical_modif && !seen_all ) {                                              // suppress deps following modified critical one, except static deps as no-access
 						::vector<Dep> static_deps ;
 						for( DepsIter it=iter ; it!=deps.end() ; it++ ) if (it->dflags[Dflag::Static]) {
 							static_deps.push_back(*it) ;
@@ -865,25 +866,28 @@ namespace Engine {
 						seen_all = !static_deps ;
 					}
 					stamped_seen_waiting = proto_seen_waiting ;
-					if ( query && (stamped_seen_waiting||state.stamped_modif||+state.stamped_err) ) goto Return ; // no reason to analyze any further, we have the answer
+					if ( query && (stamped_seen_waiting||state.stamped_modif||+state.stamped_err) ) { // no reason to analyze any further, we have the answer
+						report_reason = reason() ;
+						goto Return ;
+					}
 				}
 				if (!proto_seen_waiting) {
-					ri.iter  = iter.digest(deps) ;                                                                // fast path : info is recorded in ri, next time, restart analysis here
-					ri.state = state             ;                                                                // .
+					ri.iter  = iter.digest(deps) ;                                                    // fast path : info is recorded in ri, next time, restart analysis here
+					ri.state = state             ;                                                    // .
 				}
 				if ( seen_all || (!dep.parallel&&critical_waiting) ) break ;
 				NodeData &         dnd         = *Node(dep)                                   ;
 				bool               dep_modif   = false                                        ;
 				RunStatus          dep_err     = RunStatus::Ok                                ;
-				bool               care        = +dep.accesses                                ;                   // we care about this dep if we access it somehow
+				bool               care        = +dep.accesses                                ;       // we care about this dep if we access it somehow
 				bool               is_static   =  dep.dflags[Dflag::Static     ]              ;
 				bool               is_critical =  dep.dflags[Dflag::Critical   ] && care      ;
 				bool               sense_err   = !dep.dflags[Dflag::IgnoreError]              ;
 				bool               required    =  dep.dflags[Dflag::Required   ] || is_static ;
 				bool               modif       = state.stamped_modif || ri.force              ;
-				bool               may_care    = care || (modif&&is_static)                   ;                   // if previous modif, consider static deps as fully accessed, as initially
-				NodeReqInfo const* cdri        = &dep->c_req_info(req)                        ;                   // avoid allocating req_info as long as not necessary
-				NodeReqInfo      * dri         = nullptr                                      ;                   // .
+				bool               may_care    = care || (modif&&is_static)                   ;       // if previous modif, consider static deps as fully accessed, as initially
+				NodeReqInfo const* cdri        = &dep->c_req_info(req)                        ;       // avoid allocating req_info as long as not necessary
+				NodeReqInfo      * dri         = nullptr                                      ;       // .
 				NodeGoal           dep_goal    =
 					query                                             ? NodeGoal::Dsk
 				:	ri.full && may_care && (need_run(state)||archive) ? NodeGoal::Dsk
@@ -891,31 +895,32 @@ namespace Engine {
 				:	required                                          ? NodeGoal::Makable
 				:	                                                    NodeGoal::None
 				;
-				if (!dep_goal) continue ;                                                                         // this is not a dep (not static while asked for makable only)
+				if (!dep_goal) continue ;                                                             // this is not a dep (not static while asked for makable only)
 			RestartDep :
 				if (!cdri->waiting()) {
-					ReqInfo::WaitInc sav_n_wait{ri} ;                           // appear waiting in case of recursion loop (loop will be caught because of no job on going)
-					if (!dri        ) cdri = dri    = &dep->req_info(*cdri) ;   // refresh cdri in case dri allocated a new one
-					if (dep_live_out) dri->live_out = true                  ;   // ask live output for last level if user asked it
+					ReqInfo::WaitInc sav_n_wait{ri} ;                                                 // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+					if (!dri        ) cdri = dri    = &dep->req_info(*cdri) ;                         // refresh cdri in case dri allocated a new one
+					if (dep_live_out) dri->live_out = true                  ;                         // ask live output for last level if user asked it
 					Bool3 speculate_dep =
-						is_static                     ? ri.speculate            // static deps do not disappear
-					:	stamped_seen_waiting || modif ?              Yes        // this dep may disappear
-					:	+state.stamped_err            ? ri.speculate|Maybe      // this dep is not the origin of the error
-					:	                                ri.speculate            // this dep will not disappear from us
+						is_static                     ? ri.speculate                                  // static deps do not disappear
+					:	stamped_seen_waiting || modif ?              Yes                              // this dep may disappear
+					:	+state.stamped_err            ? ri.speculate|Maybe                            // this dep is not the origin of the error
+					:	                                ri.speculate                                  // this dep will not disappear from us
 					;
-					if (special!=Special::Req) dnd.asking = idx() ;             // Req jobs are fugitive, dont record them
+					if (special!=Special::Req) dnd.asking = idx() ;                                   // Req jobs are fugitive, dont record them
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
-				if ( is_static && dnd.buildable<Buildable::Yes ) sure = false ; // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
+				if ( is_static && dnd.buildable<Buildable::Yes ) sure = false ;                       // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
 				if (cdri->waiting()) {
 					if      ( is_static                                            ) ri.speculative_wait = false ; // we are non-speculatively waiting, even if after a speculative wait
 					else if ( !stamped_seen_waiting && (+state.stamped_err||modif) ) ri.speculative_wait = true  ;
 					proto_seen_waiting = true ;
 					if (!dri) cdri = dri = &dnd.req_info(*cdri) ;                                                  // refresh cdri in case dri allocated a new one
 					dnd.add_watcher(*dri,idx(),ri,dep_pressure) ;
-					critical_waiting |= is_critical ;
+					critical_waiting |= is_critical                            ;
+					report_reason    |= { JobReasonTag::BusyDep , +Node(dep) } ;
 				} else if ( bool dep_done=dnd.done(*cdri,dep_goal) ; query && !dep_done ) {
 					proto_seen_waiting = true ;                                                                    // if queried dep is not done, it would have been waiting if not queried
 					state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
@@ -986,7 +991,8 @@ namespace Engine {
 					trace("restart_analysis") ;
 					ri.reset(idx()) ;
 					SWEAR(!ri.reason,ri.reason) ;                    // we should have asked for dep on disk if we had a reason to run
-					ri.reason = state.reason ;                       // record that we must ask for dep on disk
+					ri.reason     = state.reason ;                   // record that we must ask for dep on disk
+					report_reason = {}           ;
 					goto RestartAnalysis ;                           // BACKWARD
 				}
 				SWEAR(!( +dep_err && modif && !is_static )) ;        // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
@@ -1001,8 +1007,8 @@ namespace Engine {
 		}
 	Run :
 		trace("run",pre_reason,ri,run_status) ;
-		if ( query && !is_special() )                     goto Return          ;                   // ensure we have a reason to report that we would have run if not queried
-		if ( ri.state.missing_dsk   ) { ri.reset(idx()) ; goto RestartAnalysis ; }
+		if ( query && !is_special() ) { report_reason = reason() ; goto Return          ; }        // ensure we have a reason to report that we would have run if not queried
+		if ( ri.state.missing_dsk   ) { ri.reset(idx())          ; goto RestartAnalysis ; }
 		SWEAR(!ri.state.missing_dsk) ;                                                             // cant run if we are missing some deps on disk
 		if (rule->n_submits) {
 			if (ri.n_submits>=rule->n_submits) {
@@ -1055,12 +1061,18 @@ namespace Engine {
 		//                                  vvvvvvvvvvvvvvvvvvvv
 		if ( ri.done() && wakeup_watchers ) ri.wakeup_watchers() ;
 		//                                  ^^^^^^^^^^^^^^^^^^^^
+		report_reason = reason() ;
 		goto Return ;
 	Wait :
+		switch (ri.step()) {
+			case Step::Queued :
+			case Step::Exec   : report_reason |= JobReasonTag::Busy        ; break ;
+			default           : report_reason |= JobReasonTag::SomeBusyDep ;
+		}
 		SWEAR(!query) ;                                                                                                      // ensure we never wait when query
 		trace("wait",ri) ;
 	Return :
-		return reason() ;
+		return report_reason ;
 	}
 
 	void JobData::_propag_speculate(ReqInfo const& cri) const {

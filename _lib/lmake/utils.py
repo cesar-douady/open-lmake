@@ -3,6 +3,8 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+'this module contains classes and functions that are of general use, not directly linked to lmake'
+
 class pdict(dict) :
 	'''
 		This class is a dict whose items can also be accessed as attributes.
@@ -59,11 +61,3 @@ def multi_strip(txt) :
 		ls = [ l[1:] for l in ls ]
 		l0 = ls[0]
 	return ''.join(l+'\n' for l in ls)
-
-def find_cc_ld_library_path(cc) :
-	'''
-		find_cc_ld_library_path(my_compiler) returns and adequate content to put in LD_LIBRARY_PATH for programs compiled with my_compiler.
-	'''
-	import subprocess as sp
-	import os.path    as osp
-	return sp.run( (osp.dirname(osp.dirname(osp.dirname(__file__)))+'/bin/find_cc_ld_library_path',cc) , stdout=sp.PIPE , check=True , universal_newlines=True ).stdout.strip()

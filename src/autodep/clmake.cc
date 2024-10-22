@@ -62,12 +62,12 @@ static Object const* _gather_arg( Tuple const& py_args , size_t idx , Dict const
 }
 
 static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args   = *from_py<Tuple const>(args)                       ;
-	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)                       ;
-	bool         no_follow = true                                              ;
-	bool         verbose   = false                                             ;
-	bool         read      = true                                              ;
-	AccessDigest ad        { .accesses=~Accesses() , .dflags=Dflag::Required } ;
+	Tuple const& py_args   = *from_py<Tuple const>(args) ;
+	Dict  const* py_kwds   =  from_py<Dict  const>(kwds) ;
+	bool         no_follow = true                        ;
+	bool         verbose   = false                       ;
+	bool         read      = true                        ;
+	AccessDigest ad        { .dflags=Dflag::Required }   ;
 	if (py_kwds) {
 		size_t n_kwds = py_kwds->size() ;
 		/**/                                    if ( const char* s="follow_symlinks" ;                                 py_kwds->contains(s) ) { n_kwds-- ; no_follow =             !(*py_kwds)[s]  ; }
@@ -78,7 +78,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		//
 		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
-	if (!read) ad.accesses = {} ;
+	if (read) ad.accesses = ~Accesses() ;
 	::vector_s files ;
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
