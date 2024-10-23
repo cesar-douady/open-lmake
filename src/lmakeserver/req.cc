@@ -237,14 +237,22 @@ namespace Engine {
 		bool intermediate = job->run_status==RunStatus::DepErr ;
 		if ( (*this)->_send_err( intermediate , job->rule->name , +target?target->name():job->name() , n_err , lvl ) ) return true/*overflow*/ ;
 		//
-		if ( !seen_stderr && job->run_status==RunStatus::Ok && !job->rule->is_special() ) { // show first stderr
-			Rule::SimpleMatch match          ;
-			JobInfo           job_info       = job.job_info()                                                 ;
-			EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,job_info.start.rsrcs) ;
-			//
-			if (!job_info.end.end.proc) (*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-			else                        seen_stderr = (*this)->audit_stderr( job , job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
-		}
+		if ( !seen_stderr && job->run_status==RunStatus::Ok ) // show first stderr
+			switch (job->rule->special) {
+				case Special::Infinite :
+					(*this)->audit_info( Color::None , job->special_stderr() , lvl+1 ) ;
+					seen_stderr = true ;
+				break ;
+				case Special::Plain : {
+					Rule::SimpleMatch match          ;
+					JobInfo           job_info       = job.job_info()                                                       ;
+					EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval( job , match , job_info.start.rsrcs ) ;
+					//
+					if (!job_info.end.end.proc) (*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
+					else                        seen_stderr = (*this)->audit_stderr( job , job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
+				} break ;
+				default : ;
+			}
 		if (intermediate)
 			for( Dep const& d : job->deps )
 				if ( _report_err( d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true/*overflow*/ ;
@@ -385,16 +393,17 @@ namespace Engine {
 		if (+options.startup_dir_s           ) audit_info( Color::Note , fmt_string(::setw(wk),"startup"," dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (+up_to_dates) {
-			static ::string src_msg   = "file is a source"       ;
-			static ::string anti_msg  = "file is anti"           ;
-			static ::string plain_msg = "was already up to date" ;
+			static ::string src_msg       = "file is a source"       ;
+			static ::string anti_msg      = "file is anti"           ;
+			static ::string plain_ok_msg  = "was already up to date" ;
+			static ::string plain_err_msg = "was already in error"   ;
 			size_t w = 0 ;
 			for( Node n : up_to_dates )
-				if      (n->is_src_anti()                ) w = ::max(w,(is_target(n->name())?src_msg:anti_msg).size()) ;
-				else if (n->status()<=NodeStatus::Makable) w = ::max(w,plain_msg                              .size()) ;
+				if      (n->is_src_anti()                ) w = ::max(w,(is_target(n->name())?src_msg     :anti_msg     ).size()) ;
+				else if (n->status()<=NodeStatus::Makable) w = ::max(w,(n->ok()!=No         ?plain_ok_msg:plain_err_msg).size()) ;
 			for( Node n : up_to_dates )
-				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , fmt_string(::setw(w),is_target(n->name())?src_msg:anti_msg," :") , n ) ;
-				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , fmt_string(::setw(w),plain_msg                            ," :") , n ) ;
+				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , fmt_string(::setw(w),is_target(n->name())?src_msg     :anti_msg     ," :") , n ) ;
+				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , fmt_string(::setw(w),n->ok()!=No         ?plain_ok_msg:plain_err_msg," :") , n ) ;
 		}
 		if (+long_names) {
 			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;

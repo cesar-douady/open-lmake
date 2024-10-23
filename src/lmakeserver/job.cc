@@ -190,7 +190,7 @@ namespace Engine {
 	}
 
 	Job::Job( Rule::SimpleMatch&& match , Req req , DepDepth lvl ) {
-		Trace trace("Job",match,lvl) ;
+		Trace trace("Job",match,req,lvl) ;
 		if (!match) { trace("no_match") ; return ; }
 		Rule              rule      = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
 		::vmap_s<DepSpec> dep_names ;
@@ -209,9 +209,9 @@ namespace Engine {
 		for( auto const& [_,dn] : dep_names ) {
 			Node     d { dn.txt }                                                       ;
 			Accesses a = dn.extra_dflags[ExtraDflag::Ignore] ? Accesses() : ~Accesses() ;
-			//vvvvvvvvvvvvvvvvvvv
-			d->set_buildable(lvl) ;
-			//^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			d->set_buildable_throw(req,lvl) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if ( d->buildable<=Buildable::No                    ) { trace("no_dep",d) ; return ; }
 			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , dn.dflags , true/*parallel*/ ) ;
 			else                                                  { deps[it->second].dflags |= dn.dflags ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
@@ -496,14 +496,13 @@ namespace Engine {
 							if (crc==Crc::None) msg += " unlink of" ;
 							else                msg += " write to"  ;
 							switch (target->buildable) {
-								case Buildable::LongName  : msg << " file (name too long : "<<tn.size()<<" chars)" ; break ;
 								case Buildable::DynAnti   :
-								case Buildable::Anti      : msg << " anti-file"                                    ; break ;
-								case Buildable::SrcDir    : msg << " source dir"                                   ; break ;
-								case Buildable::SubSrcDir : msg << " source sub-dir"                               ; break ;
+								case Buildable::Anti      : msg << " anti-file"      ; break ;
+								case Buildable::SrcDir    : msg << " source dir"     ; break ;
+								case Buildable::SubSrcDir : msg << " source sub-dir" ; break ;
 								case Buildable::DynSrc    :
-								case Buildable::Src       : msg << " source"                                       ; break ;
-								case Buildable::SubSrc    : msg << " sub-source"                                   ; break ;
+								case Buildable::Src       : msg << " source"         ; break ;
+								case Buildable::SubSrc    : msg << " sub-source"     ; break ;
 							DF}
 							severe_msg << msg <<" : "<< mk_file(tn,No /*exists*/) <<'\n' ;
 						}

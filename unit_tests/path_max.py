@@ -26,7 +26,7 @@ else :
 
 	import ut
 
-	print('path_max=4',file=open('step.py','w')) ; ut.lmake( '12345' ,          name=1 ,            rc=1 )
-	print('path_max=5',file=open('step.py','w')) ; ut.lmake( '12345' , done=1                            )
-	print('path_max=4',file=open('step.py','w')) ; ut.lmake( '12345' ,          name=1 , unlink=1 , rc=1 )
-	print('path_max=5',file=open('step.py','w')) ; ut.lmake( '12345' , done=0                            )
+	print('path_max=4',file=open('step.py','w')) ; ut.lmake( '12345' ,          failed=1 , rc=1 )
+	print('path_max=5',file=open('step.py','w')) ; ut.lmake( '12345' , done=1                   )
+	print('path_max=4',file=open('step.py','w')) ; ut.lmake( '12345' ,          failed=1 , rc=1 )
+	print('path_max=5',file=open('step.py','w')) ; ut.lmake( '12345' , done=0                   )

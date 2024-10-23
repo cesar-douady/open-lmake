@@ -27,7 +27,6 @@ int main( int argc , char* /*argv*/[] ) {
 	for( const Node n : Persistent::node_lst() ) {
 		n.chk() ;
 		switch (n->buildable) {
-			case Buildable::LongName  :
 			case Buildable::DynAnti   :
 			case Buildable::Anti      :
 			case Buildable::SrcDir    :

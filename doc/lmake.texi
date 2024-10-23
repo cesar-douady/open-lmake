@@ -774,7 +774,7 @@ This attribute specifies the used level.
 @tab @code{1000}
 @tab Static
 @tab The rule selection process is a recursive one (cf @pxref{rule-selection}).
-Several means are provided to avoid infinite recursion and this one is the last resort.
+Several means are provided to avoid infinite recursion.
 The search stops if the depth of the search reaches the value of this attribute, leading to the selection of a special internal rule called @code{'infinite'}.
 @item @code{max_error_lines}
 @tab @code{100}
@@ -792,10 +792,10 @@ To prevent that, @lmake waits for some time before declaring such a job as actua
 This attribute provides this delay in seconds.
 
 @item @code{path_max}
-@tab unlimited
+@tab @code{400}
 @tab Static
 @tab This is one of the infinite recursion protection in the rule selection process (cf @pxref{rule-selection}).
-Any file with name longer than the value of this attribute is deemed not buildable.
+The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called @code{'infinite'}.
 
 @item @code{rules_module}
 @tab empty

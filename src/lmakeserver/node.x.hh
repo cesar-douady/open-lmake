@@ -10,7 +10,6 @@
 #ifdef STRUCT_DECL
 
 ENUM( Buildable
-,	LongName    //                                   name is longer than allowed in config
 ,	DynAnti     //                                   match dependent
 ,	Anti        //                                   match independent
 ,	SrcDir      //                                   match independent (much like star targets, i.e. only existing files are deemed buildable)
@@ -373,7 +372,8 @@ namespace Engine {
 		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;      // Req's are for reporting only
 		//
 		void full_refresh( bool report_no_file , ::vector<Req> const& reqs , ::string const& name ) {
-			set_buildable() ;
+			if (+reqs) set_buildable(reqs[0]) ;
+			else       set_buildable(       ) ;
 			if (is_src_anti()) refresh_src_anti(report_no_file,reqs,name) ;
 			else               manual_refresh  (Req()                   ) ;                    // no manual_steady diagnostic as this may be because of another job
 		}
@@ -413,7 +413,6 @@ namespace Engine {
 		bool is_src_anti() const {
 			SWEAR(match_ok()) ;
 			switch (buildable) {
-				case Buildable::LongName  :
 				case Buildable::DynAnti   :
 				case Buildable::Anti      :
 				case Buildable::SrcDir    :
@@ -451,8 +450,10 @@ namespace Engine {
 		::c_vector_view<JobTgt> conform_job_tgts  (                ) const ;
 		::c_vector_view<JobTgt> candidate_job_tgts(                ) const ;                   // all jobs above prio provided in conform_idx
 		//
-		void set_buildable( Req={}   , DepDepth lvl=0       ) ;                                // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
-		void set_pressure ( ReqInfo& , CoarseDelay pressure ) const ;
+		void set_buildable_throw( Req      , DepDepth lvl=0       ) ;                          // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
+		void set_buildable      ( Req      , DepDepth lvl=0       ) ;                          // set infinite if looping
+		void set_buildable      (                                 ) { set_buildable({}) ; }
+		void set_pressure       ( ReqInfo& , CoarseDelay pressure ) const ;
 		//
 		void propag_speculate( Req req , Bool3 speculate ) const {
 			/**/                          if (speculate==Yes         ) return ;                // fast path : nothing to propagate
@@ -602,8 +603,14 @@ namespace Engine {
 		else if (match_gen<Rule::s_match_gen) { SWEAR(buildable!=Buildable::Unknown) ; match_gen = Rule::s_match_gen ;                                  }
 	}
 
-	inline void NodeData::set_buildable( Req req , DepDepth lvl ) { // req is for error reporting only
-		if (!match_ok()) _do_set_buildable(req,lvl) ;               // if not already set
+	inline void NodeData::set_buildable_throw( Req req , DepDepth lvl ) { // req is for error reporting only
+		if (!match_ok()) _do_set_buildable(req,lvl) ;                     // if not already set
+		SWEAR(buildable!=Buildable::Unknown) ;
+	}
+
+	inline void NodeData::set_buildable( Req req , DepDepth lvl ) {        // req is for error reporting only
+		try                             { set_buildable_throw(req,lvl) ; }
+		catch (::vector<Node> const& e) { set_infinite(e) ;              }
 		SWEAR(buildable!=Buildable::Unknown) ;
 	}
 
