@@ -211,8 +211,7 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 			} catch (::string const&e) {
 				return py_err_set(Exception::ValueErr,e) ;
 			}
-		default : ;
-	}
+	DN}
 	return py_err_set(Exception::ValueErr,"cannot find sub root dir in repository") ;
 }
 

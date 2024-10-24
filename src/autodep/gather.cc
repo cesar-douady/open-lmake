@@ -115,8 +115,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 		//
 		case Proc::Decode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_decode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
 		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
-		default : ;
-	}
+	DN}
 	if (!jerr.sync) fd = {} ;                                            // dont reply if not sync
 	JobMngtRpcReq jmrr ;
 	switch (proc) {

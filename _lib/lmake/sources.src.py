@@ -18,14 +18,14 @@ from . import root_dir # if not in an lmake repo, root_dir is not set to current
 def manifest_sources(manifest='Manifest',**kwds) :
 	'''
 		read manifest, filtering out comments :
-		- comments start with                                                      #
-		- they must be separated from file with spaces
-		- files must start and end with non-space and cannot start with            #
-		- note that files can contain spaces (except first and last character) and # as long as they are not preceded by spaces
+		- comments start with # and must be separated from file with spaces
+		- files may be indented at will
+		- files must start with a non-space, non-# char and end with a non-space char
+		- files must not contain a space-# sequence
 		kwds are ignored which simplifies the usage of auto_sources
 	'''
 	import re
-	line_re = re.compile(r'\s*(?P<file>[^#\s](.*\S)?)?\s+(#.*)?\n?')
+	line_re = re.compile(r'\s*(?P<file>.*?)((^|\s)\s*#.*)?\n?')
 	try                      : stream = open(manifest)
 	except FileNotFoundError : raise NotImplementedError(f'cannot find {manifest}')
 	srcs = [ f for f in ( line_re.fullmatch(l).group('file') for l in stream ) if f ]

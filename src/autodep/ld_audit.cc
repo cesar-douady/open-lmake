@@ -108,8 +108,7 @@ extern "C" {
 			case LA_SER_ORIG    : if (strrchr(name,'/')) ReadCS(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
 			case LA_SER_LIBPATH :
 			case LA_SER_RUNPATH :                        ReadCS(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
-			default : ;
-		}
+		DN}
 		return const_cast<char*>(name) ;
 	}
 

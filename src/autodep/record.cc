@@ -59,8 +59,7 @@ bool Record::s_is_simple(const char* file) {
 			if ( strncmp(file+6,"self/",5)==0 ) break ;           // not in /proc/self => not simple
 			top_sz = 6 ;                                          // else              => simple
 		break ;
-		default  : ;
-	}
+	DN}
 	if (!top_sz) return false ;
 	int depth = 0 ;
 	for ( const char* p=file+top_sz ; *p ; p++ ) {                // ensure we do not escape from top level dir

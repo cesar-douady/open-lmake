@@ -139,8 +139,7 @@ namespace Disk {
 		switch (exists) {
 			case Yes : { if (!is_target(f)) return "(not existing) "+pfx+f ; } break ;
 			case No  : { if ( is_target(f)) return "(existing) "    +pfx+f ; } break ;
-			default  : ;
-		}
+		DN}
 		return pfx+f ;
 	}
 

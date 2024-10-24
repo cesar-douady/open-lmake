@@ -597,7 +597,6 @@ namespace Engine {
 									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                                ) ;
 								}
 								//
-								if ( sa.live_out                  ) push_entry( "live_out"    , "true"                                 ) ;
 								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"  , no_slash(start.job_space.chroot_dir_s) ) ;
 								if (+start.job_space.root_view_s  ) push_entry( "root_view"   , no_slash(start.job_space.root_view_s ) ) ;
 								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
@@ -623,9 +622,9 @@ namespace Engine {
 								else if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , +end.phy_tmp_dir_s?no_slash(end.phy_tmp_dir_s):"<tmpfs>" ) ;
 								else                                  push_entry( "tmp dir"          ,                    no_slash(end.phy_tmp_dir_s)           ) ;
 								//
-								push_entry( "end date" , digest.end_date.str()                                                                                          ) ;
-								push_entry( "rc"       , wstatus_str(digest.wstatus) , WIFEXITED(digest.wstatus)&&WEXITSTATUS(digest.wstatus)==0?Color::None:Color::Err ) ;
+								push_entry( "end date" , digest.end_date.str() ) ;
 								if (porcelaine) { //!                                                                     protect
+									push_entry( "rc"             , wstatus_str(digest.wstatus)             , Color::None , false ) ;
 									push_entry( "cpu time"       , ::to_string(double(digest.stats.cpu  )) , Color::None , false ) ;
 									push_entry( "elapsed in job" , ::to_string(double(digest.stats.job  )) , Color::None , false ) ;
 									push_entry( "elapsed total"  , ::to_string(double(digest.stats.total)) , Color::None , false ) ;
@@ -637,6 +636,10 @@ namespace Engine {
 									bool            overflow     = digest.stats.mem > mem_rsrc                                                                                                   ;
 									::string        mem_str      = to_string_with_units<'M'>(digest.stats.mem>>20)+'B'                                                                           ;
 									if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
+									::string rc_str   = wstatus_str(digest.wstatus) + (wstatus_ok(digest.wstatus)&&+digest.stderr?" (with non-empty stderr)":"") ;
+									Color    rc_color = wstatus_ok(digest.wstatus) ? Color::Ok : Color::Err                                                      ;
+									if ( rc_color==Color::Ok && +digest.stderr ) rc_color = job->status==Status::Ok ? Color::Warning : Color::Err ;
+									push_entry( "rc"             , rc_str                         , rc_color                            ) ;
 									push_entry( "cpu time"       , digest.stats.cpu  .short_str()                                       ) ;
 									push_entry( "elapsed in job" , digest.stats.job  .short_str()                                       ) ;
 									push_entry( "elapsed total"  , digest.stats.total.short_str()                                       ) ;
@@ -789,8 +792,7 @@ namespace Engine {
 		switch (ro.key) {
 			case ReqKey::Bom     : { ShowBom     sb {fd,ro} ; for( Node t : targets ) sb.show_node(t) ; goto Return ; }
 			case ReqKey::Running : { ShowRunning sr {fd,ro} ; for( Node t : targets ) sr.show_node(t) ; goto Return ; }
-			default : ;
-		}
+		DN}
 		if (porcelaine) audit( fd , ro , "{" , true/*as_is*/ ) ;
 		for( Node target : targets ) {
 			trace("target",target) ;
@@ -804,8 +806,7 @@ namespace Engine {
 				case ReqKey::InvDeps    :
 				case ReqKey::InvTargets :
 				case ReqKey::Running    : for_job = false ; break ;
-				default                 : ;
-			}
+			DN}
 			Job job ;
 			if (for_job) {
 				job = _job_from_target(fd,ro,target) ;

@@ -511,6 +511,7 @@ template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
 #define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
 
 #define DF default : FAIL() ; // for use at end of switch statements
+#define DN default :        ; // .
 
 inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
 	swear_prod(pid>1,"killing process",pid) ;                                   // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe

@@ -277,14 +277,13 @@ bool/*entered*/ JobSpace::enter(
 		for( ::string const& f : top_lvls ) {
 			::string src_f     = (+chroot_dir_s?chroot_dir_s:"/"s) + f ;
 			::string private_f = work_root_dir_s                   + f ;
-			switch (FileInfo(src_f).tag()) {
+			switch (FileInfo(src_f).tag()) {                                                                                   // exclude weird files
 				case FileTag::Reg   :
 				case FileTag::Empty :
 				case FileTag::Exe   : OFStream{           private_f                 } ; _mount_bind(private_f,src_f) ; break ; // create file
 				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                ) ; _mount_bind(private_f,src_f) ; break ; // create dir
 				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)) ;                                break ; // copy symlink
-				default             : ;                                                                                        // exclude weird files
-			}
+			DN}
 		}
 		if (must_create_root) mk_dir_s(work_root_dir+super_root_view_s) ;
 		if (must_create_tmp ) mk_dir_s(work_root_dir+tmp_view_s       ) ;
@@ -481,8 +480,7 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 			/**/                           os <<','  << jrr.cmd                           ; // last as it is most probably multi-line
 			;
 		break ;
-		default : ;
-	}
+	DN}
 	return os << ')' ;
 }
 
@@ -595,8 +593,7 @@ void JobRpcReply::exit() {
 		case JobMngtProc::DepVerbose : os <<','<< jmrr.fd <<','<< jmrr.dep_infos                            ; break ;
 		case JobMngtProc::Decode     : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
 		case JobMngtProc::Encode     : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
-		default : ;
-	}
+	DN}
 	return                             os << ')' ;
 }
 

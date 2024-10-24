@@ -44,8 +44,7 @@ namespace Hash {
 					}
 					*this = ctx.digest() ;
 				} break ;
-				default : ;
-			}
+			DN}
 		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
 			Xxh ctx{FileTag::Lnk} ;
 			ctx.update(lnk_target) ;

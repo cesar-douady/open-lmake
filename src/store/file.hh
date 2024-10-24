@@ -27,15 +27,18 @@ namespace Store {
 		using ULock = UniqueLock<AutoLock> ;
 		using SLock = SharedLock<AutoLock> ;
 		// cxtors & casts
-		File (                                                           ) = default ;
+		File () = default ;
 		File ( NewType               , size_t capacity_                  ) { init(New  ,capacity_          ) ; }
 		File ( ::string const& name_ , size_t capacity_ , bool writable_ ) { init(name_,capacity_,writable_) ; }
-		~File(                                                           ) { if (base) close() ;               }
+		~File() {
+			if      (keep_open) _fd.detach() ;
+			else if (base     ) close()      ;
+		}
 		//
 		File& operator=(File&& other) ;
 		//
-		void init( NewType               , size_t capacity_                  ) { init("",capacity_,true) ; }
 		void init( ::string const& name_ , size_t capacity_ , bool writable_ ) ;
+		void init( NewType               , size_t capacity_                  ) { init("",capacity_,true/*writable_*/) ; }
 		void close() {
 			ULock lock{_mutex} ;
 			_dealloc() ;
@@ -83,11 +86,12 @@ namespace Store {
 		void _resize_file(size_t sz      ) ;
 		// data
 	public :
-		::string         name     ;
-		char*            base     = nullptr ;                   // address of mapped file
-		::atomic<size_t> size     = 0       ;                   // underlying file size (fake if no file)
-		size_t           capacity = 0       ;                   // max size that can ever be allocated
-		bool             writable = false   ;
+		::string         name      ;
+		char*            base      = nullptr ;                   // address of mapped file
+		::atomic<size_t> size      = 0       ;                   // underlying file size (fake if no file)
+		size_t           capacity  = 0       ;                   // max size that can ever be allocated
+		bool             writable  = false   ;
+		bool             keep_open = false   ;
 	protected :
 		SharedMutex<MutexLvl::File> mutable _mutex ;
 	private :
@@ -96,18 +100,19 @@ namespace Store {
 
 	template<bool AutoLock> File<AutoLock>& File<AutoLock>::operator=(File&& other) {
 		close() ;
-		name     = ::move(other.name    ) ;
-		base     =        other.base      ; other.base     = nullptr ;
-		size     =        other.size      ; other.size     = 0       ;
-		capacity =        other.capacity  ; other.capacity = 0       ;
-		writable =        other.writable  ; other.writable = false   ;
-		_fd      = ::move(other._fd     ) ;
+		name      = ::move(other.name     ) ;
+		base      =        other.base       ; other.base      = nullptr ;
+		size      =        other.size       ; other.size      = 0       ;
+		capacity  =        other.capacity   ; other.capacity  = 0       ;
+		writable  =        other.writable   ; other.writable  = false   ;
+		keep_open =        other.keep_open  ; other.keep_open = false   ;
+		_fd       = ::move(other._fd      ) ;
 		return *this ;
 	}
 
 	template<bool AutoLock> void File<AutoLock>::init( ::string const& name_ , size_t capacity_ , bool writable_ ) {
-		name     = name_     ;
-		writable = writable_ ;
+		name      = name_      ;
+		writable  = writable_  ;
 		if (!g_page) g_page = ::sysconf(_SC_PAGESIZE) ;
 		capacity = round_up( capacity_ , g_page ) ;
 		//

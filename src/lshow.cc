@@ -38,8 +38,7 @@ int main( int argc , char* argv[] ) {
 		case ReqKey::Targets :
 		case ReqKey::Running :
 		case ReqKey::Stderr  : may_verbose = true ;
-		default : ;
-	}
+	DN}
 	//
 	if ( cmd_line.flags[ReqFlag::Verbose   ] && !may_verbose                     ) syntax.usage("verbose is only for showing deps, targets or stderr") ;
 	if ( cmd_line.flags[ReqFlag::Job       ] && cmd_line.key==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"                ) ;

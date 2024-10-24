@@ -138,8 +138,7 @@ namespace Backends::Sge {
 						case 'r' : if (k=="repo_key"         ) { repo_key          =                       v  ; continue ; }
 						/**/       if (k=="root_dir"         ) { sge_root_dir_s    = with_slash           (v) ; continue ; } break ;
 						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                       v  ; continue ; } break ;
-						default : ;
-					}
+					DN}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
@@ -345,8 +344,7 @@ namespace Backends::Sge {
 				case 'v' : if (v=="-v"      ) { i++ ;                                                   continue ; } break ;
 				case 'V' : if (v=="-V"      ) {                                                         continue ; } break ;
 				case 'w' : if (v=="-wd"     ) { i++ ;                                                   continue ; } break ;
-				default : ;
-			}
+			DN}
 			throw "unexpected option : "+v ;
 		}
 		if (i!=res.size()) throw "option "+res.back()+" expects an argument" ;
@@ -362,8 +360,7 @@ namespace Backends::Sge {
 				case 's' : if (k=="soft") { soft = _split_rsrcs                        (v) ; continue ; } break ;
 				case 't' : if (k=="tmp" ) { tmp  = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
 				case '-' : throw "resource cannot start with - :"+k ;
-				default : ;
-			}
+			DN}
 			tokens.emplace_back( k , from_string_with_units<uint64_t>(v) ) ;
 		}
 	}
@@ -400,8 +397,7 @@ namespace Backends::Sge {
 				case '\\' : s[i] = '|' ; break ;
 				case '*'  : s[i] = '#' ; break ;
 				case '?'  : s[i] = '!' ; break ;
-				default : ;
-			}
+			DN}
 		return ::move(s) ;
 	}
 }

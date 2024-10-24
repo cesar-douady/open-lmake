@@ -592,8 +592,7 @@ TEST_ENV = \
 	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                            ; \
 	export HAS_32BITS=$(if $(LD_SO_LIB_32),1)                       ; \
 	export PYTHON2=$(PYTHON2)                                       ; \
-	cd $(@D)                                                        ; \
-	exec </dev/null >$(@F).out 2>$(@F).err                          ;
+	exec </dev/null >$@.out 2>$@.err
 
 # keep $(@D) to ease debugging, ignore git rc as old versions work but generate errors
 TEST_PRELUDE = \
@@ -611,18 +610,25 @@ TEST_POSTLUDE = \
 	@$(TEST_PRELUDE)
 	@for f in $(UT_BASE) ; do df=$(@D)/$${f#unit_tests/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	@( $(TEST_ENV) $(ROOT_DIR)/$< ) ; $(TEST_POSTLUDE)
+	@( $(TEST_ENV) ; cd $(@D) ; $(ROOT_DIR)/$< ) ; $(TEST_POSTLUDE)
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
 	@echo py test to $@
 	@$(TEST_PRELUDE)
 	@cp $< $(@D)/Lmakefile.py
-	@( $(TEST_ENV) $(PYTHON) Lmakefile.py ) ; $(TEST_POSTLUDE)
+	@( $(TEST_ENV) ; cd $(@D) ; $(PYTHON) Lmakefile.py ) ; $(TEST_POSTLUDE)
 
+# examples can alter their source to show what happens to the user, so copy in a trial dir before execution
 %.dir/tok : %.dir/Lmakefile.py %.dir/run.py $(LMAKE_FILES) _lib/ut.py
 	@echo run example to $@
 	@$(TEST_PRELUDE)
-	@( $(TEST_ENV) $(PYTHON) run.py ) ; $(TEST_POSTLUDE)
+	@(                                                                                      \
+		trial=$(@:%.dir/tok=%.trial) ;                                                      \
+		mkdir -p $$trial ;                                                                  \
+		rm -rf $$trial/* ;                                                                  \
+		tar -c -C$(@D) $(patsubst $(@D)/%,%,$(filter $(@D)/%,$(SRCS))) | tar -x -C$$trial ; \
+		$(TEST_ENV) ; cd $(@:%.dir/tok=%.trial) ; $(PYTHON) run.py                          \
+	) ; $(TEST_POSTLUDE)
 
 #
 # lmake env
@@ -702,6 +708,8 @@ lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 
 DEBIAN_VERSION := $(VERSION).1-1
 
+EXAMPLE_FILES := $(filter examples/%,$(SRCS))
+
 # Install debian packages needed to build open-lmake package
 DEBIAN_DEPS :
 	sudo apt install dh-make devscripts debhelper equivs
@@ -710,11 +718,12 @@ DEBIAN_DEPS :
 #
 # /!\ this rule is necessary for debian packaging to work, it is not primarily made to be executed by user
 #
-install : $(LMAKE_ALL_FILES)
+install : $(LMAKE_ALL_FILES) doc/lmake.html $(EXAMPLE_FILES)
 	for f in $(LMAKE_SERVER_BIN_FILES); do install -D        $$f     $(DESTDIR)/$(prefix)/lib/open-lmake/$$f            ; done
 	for f in $(LMAKE_REMOTE_FILES)    ; do install -D        $$f     $(DESTDIR)/$(prefix)/lib/open-lmake/$$f            ; done
 	for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f     $(DESTDIR)/$(prefix)/lib/open-lmake/$$f            ; done
 	for f in lmake.html               ; do install -D        doc/$$f $(DESTDIR)/$(prefix)/share/doc/open-lmake/html/$$f ; done
+	for f in $(EXAMPLE_FILES)         ; do install -D        $$f     $(DESTDIR)/$(prefix)/share/doc/open-lmake/$$f      ; done
 
 DEBIAN : open-lmake_$(DEBIAN_VERSION).stamp
 

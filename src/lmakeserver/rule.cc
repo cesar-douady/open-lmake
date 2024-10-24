@@ -1312,8 +1312,7 @@ namespace Engine {
 		switch (special) {
 			case Special::Anti       : res <<" AntiRule"   ; break ;
 			case Special::GenericSrc : res <<" SourceRule" ; break ;
-			default : ;
-		}
+		DN}
 		res << '\n' ;
 		if (prio  ) entries.emplace_back( "prio"     , ::to_string(prio)              ) ;
 		/**/        entries.emplace_back( "job_name" , _pretty_job_name(*this)        ) ;

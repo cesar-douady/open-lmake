@@ -6,6 +6,7 @@ __pycache__
 
 # directories
 *.dir
+*.trial
 /bin/
 /lib/
 
@@ -22,7 +23,6 @@ __pycache__
 /doc/man/man1/*.1
 
 #auto-configuration
-/trial/
 /sys_config.*
 /sys_config_env
 /version.hh

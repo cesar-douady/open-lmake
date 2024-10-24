@@ -68,9 +68,9 @@ struct Digest {
 	::string               msg     ;
 } ;
 
-Digest analyze(Status status=Status::New) {                                                                                                       // status==New means job is not done
+Digest analyze(Status status=Status::New) {                                                                                                         // status==New means job is not done
 	Trace trace("analyze",status,g_gather.accesses.size()) ;
-	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                         // typically most of accesses are deps
+	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                           // typically most of accesses are deps
 	Pdate  prev_first_read ;
 	Pdate  relax           = Pdate(New)+g_start_info.network_delay ;
 	//
@@ -84,7 +84,7 @@ Digest analyze(Status status=Status::New) {                                     
 			case Maybe :                                                                       ;                                                                                      break ;
 		DF}
 		//
-		if (ad.write==Yes)                                                                                                                        // ignore reads after earliest confirmed write
+		if (ad.write==Yes)                                                                                                                          // ignore reads after earliest confirmed write
 			for( Access a : All<Access> )
 				if (info.read[+a]>info.write) ad.accesses &= ~a ;
 		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                     ;
@@ -291,7 +291,8 @@ int main( int argc , char* argv[] ) {
 		bool found_server = false ;
 		try {
 			ClientSockFd fd {g_service_start,NConnectionTrials} ;
-			found_server = true ;
+			fd.set_timeout(Delay(100)) ;                                                                   // ensure we dont stay stuck in case server is in the coma ...
+			found_server = true ;                                                                          //  ... 100 = 100 simultaneous connections, 10 jobs/s
 			//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			/**/           OMsgBuf().send                ( fd , JobRpcReq{JobRpcProc::Start,g_seq_id,g_job,server_fd.port()} ) ;
 			g_start_info = IMsgBuf().receive<JobRpcReply>( fd                                                                ) ;

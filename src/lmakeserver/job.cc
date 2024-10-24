@@ -490,8 +490,7 @@ namespace Engine {
 								/**/                           if (td.extra_tflags[ExtraTflag::SourceOk]) goto SourceOk ;
 								for( Req req : running_reqs_ ) if (req->options.flags[ReqFlag::SourceOk]) goto SourceOk ;
 							break ;
-							default : ;
-						}
+						DN}
 						{	::string msg = "unexpected" ;
 							if (crc==Crc::None) msg += " unlink of" ;
 							else                msg += " write to"  ;
@@ -731,8 +730,7 @@ namespace Engine {
 		switch (ri.step()) { //!                                                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			case JobStep::Dep    : for( DepsIter it{deps,ri.iter }; it!=deps.end() ; it++ ) (*it)->    set_pressure( (*it)->req_info(req) ,                  dep_pressure  ) ; break ;
 			case JobStep::Queued :                                                          Backend::s_set_pressure( ri.backend , +idx() , +req , {.pressure=dep_pressure} ) ; break ;
-			default : ; //!                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		}
+		DN} //!                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
 	static JobReasonTag _mk_reason(Status s) {
@@ -971,9 +969,8 @@ namespace Engine {
 								switch(cdri->manual) {
 									case Manual::Empty   :
 									case Manual::Modif   : state.reason |= {JobReasonTag::DepUnstable,+dep} ; dep_err = RunStatus::DepErr ; trace("dangling",dep,cdri->manual) ; break ;
-									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               trace("unlinked",dep             ) ; break ;
-									default              : ;
-								}
+									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               trace("unlnked" ,dep             ) ; break ;
+								DN}
 							} else if ( dep_modif && make_action==MakeAction::End && dep_missing_dsk ) { // dep out of date but we do not wait for it being rebuilt
 								dep_goal = NodeGoal::Dsk ;                                               // we must ensure disk integrity for detailed analysis
 								trace("restart_dep",dep) ;

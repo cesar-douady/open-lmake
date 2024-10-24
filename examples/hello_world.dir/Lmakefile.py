@@ -3,6 +3,10 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+##########################################################################
+# this file is meant to be visualized with 200 columns and tabstop as 4. #
+##########################################################################
+
 import lmake # this is necessary in basically all Lmakefile.py's
 
 # import base classes to define rules

@@ -52,6 +52,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 		try                       { chk_version( !read_only && chk_version_==Maybe ) ; }
 		catch (::string const& e) { exit(Rc::Format,e) ;                               }
 	//
+    t_thread_key = '=' ;                                                                           // we are the main thread
 	if (!read_only)
 		try                       { Trace::s_start() ; }
 		catch (::string const& e) { exit(Rc::Perm,e) ; }

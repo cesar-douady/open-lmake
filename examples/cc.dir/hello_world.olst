@@ -3,6 +3,9 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+# list of objects necessary to link the hello_world application
+# the .o extension are not present as this is meant to be a generic list that may have other usages
+
 hello
 world
 hello_world

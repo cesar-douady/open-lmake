@@ -8,8 +8,6 @@
 @macro XXX{txt}
 @end macro
 
-@XXX{document which config fields are clean/static/dynamic}
-
 @macro lmake
 @code{lmake}
 @end macro
@@ -107,8 +105,11 @@ it may barely fetch the result from the cache rather than run the - potentially 
 @section Preparing and running @lmake.
 
 To prepare to use @lmake, you must write a file called @Lmakefile that describes the relationships among files in your workflow and provides commands for generating each file.
-In a program, typically, the executable file is updated from object files, which are in turn made by compiling source files.
+This is analogous to the @file{makefile} when using @code{make}.
+
+When developping a program, typically, the executable file is built from object files, which in turn are built by compiling source files.
 Then unit tests are run from the executable and input files, and the output is compared to some references.
+Finally a test suite is a collection of such tests.
 
 Once a suitable @Lmakefile exists, each time you change anything in the workflow (source files, recipes, ...), this simple shell command:
 
@@ -173,33 +174,75 @@ One way to obtain this information is by running the command @samp{uname -a}.
 
 You need a file called @Lmakefile to tell @lmake what to do.
 
-In this chapter, we will discuss a simple @Lmakefile that describes how to compile, link and test a tiny executable @file{hello_world}
-which consists of 3 C++ source files (@file{hello_world.cc}, @file{hello.cc} and @file{world.cc}) and 2 header files (@file{hello.hh} and @file{world.hh}).
-This tiny executable just writes @code{hello world} on its output.
-There is a reference output (@file{hello_world.ref}) that @lmake uses to check if the execution is correct.
+In this chapter, we will discuss a simple @Lmakefile that describes how to compile, link and test a tiny executable @file{hello_world.exe}
+which consists of 3 C source files (@file{hello_world.c}, @file{hello.c} and @file{world.c}) and 2 header files (@file{hello.h} and @file{world.h}).
+This tiny executable just writes @code{hello world} on its output with no argument or @code{hello you} if passed @code{you} as only argument.
 
-So, the entire project contains the following files :
+This project is implemented in the @file{examples/cc.dir} directory.
+
+In addition to the source files, there is a file @file{hello_world.olst} listing necessary objects to build the executable @file{hello_world.exe}.
+This is done in such a way that @Lmakefile contains no project specific information.
+
+Also, you need test inputs, in our case @file{world.in} (empty) and @file{smith.in}, and reference outputs, @file{hello_world-world.ref} an @file{hello_world-smith.ref},
+that contains the expected results of running @file{hello_world.exe} on the 2 inputs respectively.
+
+Finally, a test suite is described by @file{hello_world.tlst} which lists the necessary tests to run to validate @file{hello_world.exe}.
+
+@section Genericity
+
+The key to genericity is that file names describe file contents.
+For example, the reference output for running the executable @file{hello_world.exe} on input @file{smith.in} is called @file{hello_world-smith.ref}.
+
+From this latter file name, you can derive :
 @itemize
-@item @file{hello.hh}
-@item @file{hello.cc} (includes @file{hello.hh})
-@item @file{world.hh}
-@item @file{world.cc} (includes @file{world.hh})
-@item @file{hello_world.cc} (includes @file{hello.hh} and @file{world.hh})
-@item @file{hello_world.ref}
+@item the executable : the part before the @code{-}
+@item the input      : the part between the @code{-} and the @code{.}
+@item what it is     : the suffix after the @code{.}
 @end itemize
 
-When @lmake recompiles this tiny executable, each changed C++ source file must be recompiled.
-If a header file has changed, each C++ source file that includes the header file must be recompiled.
-Each compilation produces an object file corresponding to the source file.
-Then, if any source file has changed, all the object files, whether newly made or saved from previous compilations, must be linked together to produce the new tiny executable.
-Finally, if the tiny executable changed, its unit test must be rerun and if the resulting output changes (or if the reference is modified), the actual output must be recompared against the reference.
+A regular expression based analysis will easily reveal the components of this file name.
+This is the heart of @lmake : you describe the flow by using regular expressions, @lmake executes it.
+
+@section Execution
+
+The first time you execute the flow, you need to execute all steps :
+@itemize
+@item compile all source files to object files
+@item link object files to the executable
+@item run all tests
+@item compare to references
+@end itemize
+
+Once this has been done, what needs to be executed depends on what has been modified :
+@multitable @columnfractions 0.2 0.4 0.4
+@headitem What has been modified @tab What needs to be re-executed @tab Notes
+@item nothing
+@tab nothing
+@item a @file{.c} source file
+@tab compile said source file, link, run all tests, do all comparisons
+@tab if the object file happen to be identical to previous one (e.g. changing comments or layout of source file for readability), there is no need to link and test.
+@item a @file{.h} include file
+@tab compile all source files that include said include file, link, run all tests, do all comparisons
+@tab if the object files happen to be identical to previous one (e.g. changing comments or layout of source file for readability), there is no need to link and test.
+@item a test input file
+@tab run said test, do said comparison
+@item a recipe in @Lmakefile
+@tab execute all jobs using said recipe, then all further jobs depending on it
+@tab if anything happen to be rebuilt identically, then the dependent jobs need not be re-executed
+@item the list of objects to link executable
+@tab compile new objects, link, run all tests, do all comparisons
+@tab old objects (no more listed in object list) need not be recompiled, even if corresponding sources are also modified
+@end multitable
+
+@section Description of @Lmakefile
 
 As its name suggests, @Lmakefile is actually a Python file.
 @lmake embeds a Python interpreter (version 3.6+) to interpret @Lmakefile.
 Because Python is among the most powerful and widely used programming language, this choice allows @lmake users to have access to a very powerful language to express complicated workflows
 without the need to learn a new language.
-As a side effect, it also allows the developpers to provide such a powerful means without having to design and implement it.
-Among the features of Python that come handy when describing workflows, one can list variables, functions, f-strings, conditionals, loops and inheritance.
+(As a side effect, it also allows @lmake developpers to provide such a powerful means without having to design and implement it.)
+
+Among the features of Python that come handy when describing workflows, one can list : variables, functions, f-strings, conditionals, loops and inheritance.
 
 The goal of @Lmakefile is to describe 3 aspects of your workflow :
 @itemize @bullet
@@ -219,7 +262,7 @@ These may be consulted in case of doubt about what @lmake has understood of your
 
 The configuration describes some global aspects of the workflow.
 The @lmake module contains a reasonable default value for the @code{lmake.config} variable and in an introduction chapter, there is nothing much to say.
-In a simple workflow, ignoring the configuration step is a good starting point.
+In a simple workflow, ignoring the configuration is a good starting point.
 
 @section Sources
 
@@ -254,9 +297,8 @@ Generally, it will also have the @code{deps} attribute defined and possibly the 
 @group
 from lmake.rules import Rule
 class Compile(Rule) :
-	stems   = @{ 'File' : r'.*'         @}
-	targets = @{ 'OBJ'  : '@{File@}.o'  @}
-	deps    = @{ 'SRC'  : '@{File@}.cc' @}
+	targets = @{ 'OBJ' : r'@{File:.*@}.o' @}
+	deps    = @{ 'SRC' :  '@{File@}.c'    @}
 	cmd     = 'gcc -c -o @{OBJ@} @{SRC@}'
 @end group
 @end example
@@ -270,30 +312,54 @@ Generally speaking, all rules have a @code{name} attribute which defaults to the
 Here, the @code{name} of our rule is @code{'Compile'} but we could have set the attribute @code{name} to @code{'cc compilation'} for example.
 
 @subsection @code{stems}
-Then comes the @code{stems} attribute.
 This attribute provides a vocabulary of (Python) regular expressions that can be further referenced in other attributes.
+
+Usually, stems are most useful when defined in a base classe inherited by several rules as it is generally lighter to define them directly in the @code{targets} or @code{deps} attributes.
+So it is not used in the previous example.
+But in the following case, it is more comfortable to share the vocabulary in the @code{stems} attribute of a base class :
+
+@example
+@group
+class Compile(Rule) :
+	stems = @{ 'File' : r'.*' @}
+class CompileC(Compile) :
+	targets = @{ 'OBJ' : '@{File@}.o' @}
+	deps    = @{ 'SRC' : '@{File@}.c' @}
+	cmd     = 'gcc -c -o @{OBJ@} @{SRC@}'
+class CompileCpp(Compile) :
+	targets = @{ 'OBJ' : '@{File@}.o'  @}
+	deps    = @{ 'SRC' : '@{File@}.cc' @}
+	cmd     = 'g++ -c -o @{OBJ@} @{SRC@}'
+@end group
+@end example
 
 @subsection @code{targets}
 Then, there is the @code{targets} attribute.
 This attribute defines the files that may be generated by this rule.
-Its syntax looks like Python 3.6+ f-strings, except that variable parts (in @code{@{@}}) must be plain variables (not actual expressions).
+Its syntax looks like Python 3.6+ f-strings, except that variable parts (in @code{@{@}}) must be plain variables (not actual expressions)
+optionally followed by a @code{:} and the definition of the regular expression.
 However, this works the other way around, compared to f-strings. With an f-string, you start from a value of @code{File}, say @code{'foo'}, and from that, you can derive the string
 @code{'foo.o'} from the f-string @code{'@{File@}.o'}.
 But here, we start from a file @file{foo.o} and we find that this rule applies if we define @code{File} as @code{'foo'}.
-More precisely, @lmake matches the file name @code{'foo.o'} against the regular expression @code{r'(?P<File>.*)\.o'} and Python provides the group @code{'File'} as @code{'foo'}.
+More precisely, @lmake matches the file name @code{'foo.o'} against the regular expression @code{r'(.*)\.o'}.
+The overall regular expression is computed as the concatenation of the variable parts and the escaped fixed parts.
 
 The reason why the Python 3.6+ f-strings syntax has been leveraged is by symmetry with the @code{deps} attribute described below.
 
 There may be more than a single target (and this is why this attribute is a @code{dict}).
 In that case, the rule is supposed to generate all of them when it is executed and any of them will trigger its execution.
+But in the case of a single target, the @code{target} can be defined as a @code{str} instead of @code{targets}.
+In that case, the stdout of the command is redirected to it.
 
 @subsection @code{deps}
 Then, we find the @code{deps} attribute.
-This attribute define the explicit dependencies the rule need before it can be run.
-This is a @code{dict} mapping keys to actual Python 3.6+ f-strings.
+This attribute define the explicit dependencies the rule needs before it can be run.
+This is a @code{dict} mapping keys to actual Python 3.6+ f-strings (but you must not put the initial f, this is interpreted by @lmake, no Python).
 Once @code{File} has been determined by matching a target, it is fed to the f-strings to determine the explicit dependencies.
 @lmake will automatically determine actual dependencies by spying the rule execution, so one could think mentioning them explicitly is useless.
 To some extent, this is true, with these limitations :
+
+Similarly to targets, the attribute @code{dep} can be defined as a @code{str} instead of @code{deps} and is then fed to the command as its stdin.
 
 @itemize @bullet
 
@@ -302,8 +368,8 @@ Explicit dependencies are not only used to determine if a rule must be run or no
 For a rule to apply, it must match a given file as a target, but also, the computed explicit dependencies must be sources or recursively buildable.
 By contrast, if a hidden dependencies cannot be built (and if it does not actually exist), this is silently ignored (more to come later on this subject).
 
-Imagine for example that you have a rule to compile C++ files and another rule to compute C files. Given @file{foo.o}, @lmake must determine which rule to apply.
-With explicit dependencies, @lmake has the necessary information to select the adequate rule : it will look for files @file{foo.cc} and @file{foo.c} and if one is a source or is buildable,
+Imagine for example that you have a rule to compile C files and another rule to compute C++ files. Given @file{foo.o}, @lmake must determine which rule to apply.
+With explicit dependencies, @lmake has the necessary information to select the adequate rule : it will look for files @file{foo.c} and @file{foo.cc} and if one is a source or is buildable,
 it can then select the corresponding rule.
 Note that if both are sources or buildable, the situation will be ambiguous and @lmake will report an error.
 On the opposite, if none are sources or buildable, @file{file.o} will be deemed not buildable.
@@ -326,126 +392,39 @@ The @code{cmd} attribute can be either a @code{str} or a function.
 
 If it is a @code{str}, it contains a shell script that will be executed when the rule is triggered
 (the shell can be customized and defaults to the default system shell, usually @file{/bin/bash}).
-Before execution, it is interpreted as a Python f-string, i.e. everything between @code{@{@}} is interpreted as a Pyhton expression and the corresponding value is substituted.
-During this process, the stems, targets and deps have their definition from the current job.
-This way, scripts are easy to write and read.
+Before execution, it is interpreted as a Python f-string, i.e. everything between @code{@{@}} is interpreted as a Python expression and the corresponding value is substituted.
+During this process, the stems, targets and deps have their definition from the current job (as well as any referenced attribute or global variables).
 
-It can also be a function and our example rule could have been written as :
+The return code determines the success of the job.
+
+It can also be a function that is called to execute the job, such as :
 @example
 @group
-import subprocess as sp
-from lmake.rules import Rule
-class Compile(Rule) :
-	stems   = @{ 'File' : r'.*'       @}
-	targets = @{ 'OBJ'  : '@{File@}.o'  @}
-	deps    = @{ 'SRC'  : '@{File@}.cc' @}
+import re
+from lmake.rules import PyRule
+class NoComment(PyRule) :
+	target = r'@{File:.*@}.nc'
+	deps   = @{ 'IN' : '@{File@}' @}
 	def cmd() :
-		sp.run( ('gcc','-c','-o',OBJ,SRC) , check=True )
+		text = open(IN).read()
+		filtered = re.sub('(^|\n)\n+',r'\1',re.sub(r'#.*','',text))
+		print(filtered,end='')
 @end group
 @end example
 
-In that case, this function is executed in a Python interpreter when the rule is triggered
+In this case, this function is called in a Python interpreter when the rule is triggered
 (the Python used to run this function can be customized and defaults to the Python used to read @Lmakefile).
-Before execution, the definitions of stems, targets and dependencies are put in the global @code{dict} (and a few others that will be described later).
+Before execution, the definitions of stems, targets and dependencies are put in the global @code{dict}
+(as well as any referenced global variable or rule attribute, such as @code{re} in this example).
 
-Static targets are defined as their associated file name.
-Star targets are defined as functions taking the star stems as arguments and returning the corresponding file.
-The @code{regexpr} attribute of this function is defined as the regular expression that matches the star targets.
-
-For example if target @code{STAR} is @code{'@{Dir:.*@}.tardir/@{File*:.*@}}, @code{STAR} will be defined as a function
-and @code{STAR('foo')} will return @code{'my_dir.tardir/foo'} if executed from a job with @code{Dir} defined as @code{my_dir},
-and @code{STAR.regexpr} will be @code{r'my_dir\.tardir/(.*)'}.
+the job will be considered successful if it returns, raising an exception will trigger an error.
 
 This way, functions are easy to write and read.
 
-@section A simple @Lmakefile
+@section A simple @lmake session
 
-Here is a simple @Lmakefile that sustains our hello_world example :
-
-@example
-@group
-import lmake
-from lmake.rules import Rule
-
-# use default config
-
-# automatic sources
-
-class Base(Rule) :
-	stems = @{ 'File' : r'.*' @}
-
-class Compile(Base) :
-	targets = @{ 'OBJ' : '@{File@}.o'  @}
-	deps    = @{ 'SRC' : '@{File@}.cc' @}
-	cmd     = 'gcc -c -o @{OBJ@} @{SRC@}'
-
-class LinkHelloWorld(Rule) :
-	targets = @{ 'EXE' : 'hello_world' @}
-	deps    = @{
-		'HELLO_WORLD' : 'hello_world.o'
-	,	'HELLO'       : 'hello.o'
-	,	'WORLD'       : 'world.o'
-	@}
-	cmd = 'gcc -o @{EXE@} @{HELLO_WORLD@} @{HELLO@} @{WORLD@}'
-
-class Run(Base) :
-	target = '@{File@}.out'
-	deps   = @{ 'EXE' : '@{File@}' @}
-	cmd    = '@{EXE@}'
-
-class Check(Base) :
-	target = '@{File@}.ok'
-	deps = @{
-		'OUT' : '@{File@}.out'
-	,	'REF' : '@{File@}.ref'
-	@}
-	def cmd() :
-		assert open(OUT).read()==open(REF).read()
-@end group
-@end example
-
-Note a certain number of elements we have not introduced yet :
-@itemize @bullet
-@item
-We use a base class to define the stem @code{File}, so we do not need to repeat its definition in each rule.
-@item
-In rule @code{Run}, we have defined the attribute @code{target} as a @code{str} rather than attribute @code{targets} as a @code{dict}.@*
-This this handy in simple situations and has the following meaning :
-@itemize @bullet
-@item There is a single target
-@item Its content is generated from the stdout of @code{cmd} execution
-@end itemize
-@item
-If @code{cmd} is a @code{str}, the status of the job is determined from the status of the script.
-If @code{cmd} is a function, raising an exception or returning convertible to @code{True} will trigger an error status for the rule execution
-@end itemize
-
-To run our example, we need to execute @code{lmake hello_world.ok} and this will do all necessary steps that ensure proper generation of the @code{hello_world} executable,
-including compilation, link, execution and check.
-
-Note that we do not have to ever mention hidden dependencies (@file{hello.h} and @file{world.h}), these are handled automatically.
-
-A few reactions of @lmake to user actions when you execute @code{lmake hello_world.ok} :
-@itemize @bullet
-
-@item If you modify @file{hello.cc}, @lmake will recompile to @file{hello.o}, then relink to @file{hello_world},
-then re-generate to @file{hello_world.out} and finally re-check to @file{hello_world.ok} if @file{hello_world.out} changed or stop there if it did not.
-
-@item If you modify @file{hello.hh}, @lmake will recompile to @file{hello.o} and to @file{hello_world.o} in parallel (if resources permit), then proceed with the rest of the flow as above.
-
-@item If you merely modify a comment in @file{hello.cc}, @lmake will recompile to @file{hello.o} (which will be identical to its previous content) and stop there.
-
-@item If you modify the compilation script (e.g. to add the @code{'-O'} option), all compilations are rerun and most probably the rest as well.
-
-@item If you @code{rm} @file{hello.o}, nothing happens.
-@item If you @code{rm} @file{hello.o} and modify @file{world.cc}, @lmake will recompile to @file{world.o}, then understands that it needs to @file{hello.o} for the link phase and
-will recompile to it, then proceed with the rest of the workflow.
-
-@item If you modify @file{hello.cc} and @file{hello.o}, @lmake will refuse to regenerate @file{hello.o} over your modifications as it fears to destroy an information which is important for you.
-For example, you may have saved an important work in this wrong file and you may not have a copy elsewhere.
-
-@end itemize
-
+You can copy the directory @file{cc.dir} and execute @code{python run.py}.
+This script executes a simple @lmake session and is largely commented to explain what is going on.
 
 @chapter User Commands
 User commands are documented in man pages.
@@ -463,8 +442,13 @@ Some variables of this module can be defined in @Lmakefile for some specific pur
 @section @code{class pdict}
 Documented with @code{help(lmake.pdict)}.
 
+This class is a dict in which attribute accesses are mapped to item accesses.
+It is very practical to handle configurations.
+
 @section @code{def multi_strip(txt)}
 Documented with @code{help(lmake.multi_strip)}.
+
+This function deindent @code{txt} so as to ease printing code.
 
 @section @code{def check_version(major,minor)}
 
@@ -493,7 +477,7 @@ This variable holds the native version of @lmake.
 It is a tuple formed with a @code{str} (the major version) and a @code{int} (the minor version).
 See previous section for more information.
 
-@subsection @code{def search_root_dir(cwd=os.getcwd())}
+@section @code{def search_root_dir(cwd=os.getcwd())}
 Return the root dir as seen from passed @code{cwd} argument.
 
 Note that his may be different from the @code{root_dir} variable in case there is a @Lmakefile file in a subdir.
@@ -523,13 +507,15 @@ This allows the user to have access to these environment variables when explicit
 @section Job execution support
 
 The Python @lmake module also provides a Python API to the job supporting command described above.
+They are fully documented by running @code{help} on each function.
+
 The correspondance is :
-@multitable @columnfractions 0.3 0.2 0.5
+@multitable @columnfractions 0.3 0.1 0.6
 @headitem Function @tab equivalent command @tab Comment
 @item @code{def check_deps()}
 @tab @code{lcheck_deps}
 @tab
-@item @code{def depend(*files,follow_symlinks=True,verbose=False,read=True,critical=False,essential=False,ignore_error=False,required=True,ignore=False,stat_read_data=False)}
+@item @code{def depend( *files , follow_symlinks=True , verbose=False , read=True , critical=False , essential=False , ignore_error=False , required=True , ignore=False , stat_read_data=False )}
 @tab @code{ldepend}
 @tab @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
@@ -538,7 +524,7 @@ If @code{verbose}, the result is a @code{dict} indexed by files, whose values ar
 @item a status : @code{True} if the file was up to date and ok, @code{False} if the file was up to date and in error, @code{None} if the file was not up to date.
 @item a @code{str} containing the crc as described for @code{ldepend}.
 @end itemize
-@item @code{def target(*files,write=True,essential=False,incremental=False,phony=False,no_uniquify=False,no_warning=False,ignore=False,source_ok=False,allow=True)}
+@item @code{def target( *files , write=True , essential=False , incremental=False , phony=False , no_uniquify=False , no_warning=False , ignore=False , source_ok=False , allow=True )}
 @tab@code{ltarget}
 @tab @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{target('file1','file2')} or @code{target(('file1','file2'))}.
@@ -728,8 +714,8 @@ However, fields may have restrictions :
 @end itemize
 
 Recognized attributes are :
-@multitable @columnfractions 0.1 0.07 0.05 0.78
-@headitem Attribute @tab Default @tab Update @tab Description
+@multitable @columnfractions 0.1            0.07         0.03        0.8
+@headitem                    Attribute @tab Default @tab Update @tab Description
 
 @item @code{disk_date_precision}
 @tab @code{0.010}
@@ -776,8 +762,10 @@ This attribute specifies the used level.
 @tab The rule selection process is a recursive one (cf @pxref{rule-selection}).
 Several means are provided to avoid infinite recursion.
 The search stops if the depth of the search reaches the value of this attribute, leading to the selection of a special internal rule called @code{'infinite'}.
+
 @item @code{max_error_lines}
 @tab @code{100}
+@tab Dynamic
 @tab When a lot of error lines are generated by @lmake, other than copying the @code{stderr} of a job, only the first @code{max_error_lines} ones are actually output,
 followed by a line containing @code{...}.
 The purpose is to ease reading.
@@ -802,8 +790,8 @@ The search stops if any file with a name longer than the value of this attribute
 @tab Static
 @tab Specify a module that is used in place of @code{Lmakefile} to define rules, i.e. this module must define rules the same way as described in this document.
 If this entry is set, @code{Lmakefile} must have no rules defined.
-
-The primary goal is to decouple loading configuration and loadng rules as @lmake tracks dependencies for each of them separately.
+@*
+The primary goal is to decouple loading configuration and loading rules as @lmake tracks dependencies for each of them separately.
 This is both more performant (when there are a lot of rules) and allows dynamic modification of the configuration (for fields that support dynamic updates).
 
 @item @code{sources_module}
@@ -811,10 +799,10 @@ This is both more performant (when there are a lot of rules) and allows dynamic 
 @tab Static
 @tab Specify a module that is used in place of @code{Lmakefile} to define sources, i.e. this module must define sources by setting the @code{lmake.manifest} variable as described in this document.
 If this entry is set, @code{Lmakefile} must have no sources defined in @code{lmake.manifest}.
-
+@*
 The default value (@code{lmake.auto_sources}) merely call @code{lmake.sources.auto_sources()} to define @code{lmake.manifest}.
 Most of the time, this is suitable so the user rarely has to bother with sources.
-
+@*
 The primary goal is to decouple loading configuration and load sources as @lmake tracks dependencies for each of them separately.
 This is both more performant (when there are a lot of sources) and allows dynamic modification of the configuration (for fields that support dynamic updates).
 
@@ -822,18 +810,18 @@ This is both more performant (when there are a lot of sources) and allows dynami
 @tab @code{False} unless only local backend is used
 @tab Static
 @tab Specify whether directory coherence is enforced when a file is created/modified/unlinked.
-
+@*
 It is the case for the following file systems : ceph.
-
+@*
 It is not the case for the followin file systems : NFS.
-
+@*
 When false, enclosing directories are recursively open before any file is accessed to ensure the right file is open,
 and enclosing directory is closed after any file creation, modification or delettion.
 This is due to the fact that some file systems, such as NFS.
 In other words, on such file systems, the "close to open coherence" must be understood as "the data are there, but it does not mean you are guaranteed access to them".
 In order to access the data, you need a reliable directory, which mean you must open the directory before such access, hoping that the directory has been closed by the writer after the last update.
 And this applies recursively.
-
+@*
 This has a performance cost but no more performant method is known to the autor.
 And because of the performance cost, this option has been designed to avoid paying it for file systems that do not require such going through such a headache.
 
@@ -895,10 +883,10 @@ Each color is a triplet RGB of values between 0 and 255.
 @tab This attribute is a @code{pdict} with one entry for each backend
 (cf @pxref{backends} for an explanation of what is the purpose of backends, and see the backends section for a description of the attributes).
 Each entry is a pdict providing resources. Such resources are backend specific.
-
+@*
 In addition the @code{precisions} can be set to a @code{dict} with one entry for each standard resource (@code{cpu}, @code{mem} and @code{tmp}).
 This attribute must be @code{0} or a power of 2 not less than 2.
-
+@*
 If set to a positive value, it represent a number under which full precision is retained when specified in a rule.
 Above it, the relative precision is retained, rounding up.
 For example, if set to 4, values 1, 2, 3, 4 are retained, but 5 is rounded to 6, 7 to 8, 9 to 12 etc (cf @pxref{resource-buckets}).
@@ -913,8 +901,9 @@ The attributes are described in the caches section below.
 
 @section backends
 
-@multitable @columnfractions 0.1 0.07 0.83
-@headitem Attribute @tab Default @tab Description
+@multitable @columnfractions 0.1            0.07         0.83
+@headitem                    Attribute @tab Default @tab Description
+
 @item @code{backends.*.interface}
 @tab best guess
 @tab
@@ -922,22 +911,26 @@ When jobs are launched remotely, they must connect to @lmake when they start and
 This is done by connecting to a socket @lmake has opened for listening, which requires that we must have a means to determine an IP address to connect to.
 The host running @lmake may have several network interfaces, one of them (typically only one) being usable by such remote hosts.
 There is no generic way to determine this address, so in general, @lmake cannot determine it automatically.
-
+@*
 This value may be empty (loop-back for local backend, @code{hostname} look up for remote backends), given in standard dot notation, as the name of an interface (as shown by @code{ifconfig})
 or the name of a host (looked up as for @code{ping}).
+
 @item @code{backends.local.cpu}
 @tab number of physical CPU's
 @tab This is a normal resource that rules can require (which is the case if resources are defaulted)
+
 @item @code{backends.local.mem}
 @tab size of physical memory
 @tab This is the pysical memory necessary for jobs.
 It can be specified as a number or a string representing a number followed by a standard suffix such as @code{k},  @code{M} or @code{G}.
 Internally, the granularity is forced to MBytes before any possible rounding linked with the @code{precisions} attribute.
+
 @item @code{backends.local.tmp}
 @tab 0
 @tab This is the disk size in the temporary directory necessary for jobs.
 It can be specified as a number or a string representing a number followed by a standard suffix such as @code{k},  @code{M} or @code{G}.
 Internally, the granularity is forced to MBytes before any possible rounding linked with the @code{precisions} attribute.
+
 @end multitable
 
 @section caches

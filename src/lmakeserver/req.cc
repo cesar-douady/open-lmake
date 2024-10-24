@@ -251,8 +251,7 @@ namespace Engine {
 					if (!job_info.end.end.proc) (*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 					else                        seen_stderr = (*this)->audit_stderr( job , job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
 				} break ;
-				default : ;
-			}
+			DN}
 		if (intermediate)
 			for( Dep const& d : job->deps )
 				if ( _report_err( d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true/*overflow*/ ;
@@ -384,8 +383,7 @@ namespace Engine {
 					case JobReport::Lost    : c = Color::Warning ; break ;
 					case JobReport::Steady  :
 					case JobReport::Done    : c = Color::Ok      ; break ;
-					default : ;
-				}
+				DN}
 				::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ""s ;
 				audit_info( c , fmt_string(::setw(wk),snake(jr)," time : ",::setw(Delay::ShortStrSz),t," (",::right,::setw(wn),stats.ended[+jr]," jobs)") ) ;
 			}

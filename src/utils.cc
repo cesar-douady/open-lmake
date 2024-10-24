@@ -103,8 +103,7 @@ SingleQuote :
 		case '$'  : goto Complex ;
 		case '\\' : goto Complex ;
 		case '`'  : goto Complex ;
-		default : ;
-	}
+	DN}
 	return "\""s+s+'"' ;                                          // next case : double quotes around text
 Complex :
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + quotes

@@ -160,8 +160,7 @@ namespace Backends::Slurm {
 						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
 						case 'r' : if(k=="repo_key"         ) { repo_key          =                       v  ; continue ; } break ;
 						case 'u' : if(k=="use_nice"         ) { use_nice          = from_string<bool    >(v) ; continue ; } break ;
-						default : ;
-					}
+					DN}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
@@ -343,8 +342,7 @@ namespace Backends::Slurm {
 				case 'p' : if (k=="part"    ) {                                rsds.part     = ::move                              (v) ; continue ; } break ;
 				case 'q' : if (k=="qos"     ) {                                rsds.qos      = ::move                              (v) ; continue ; } break ;
 				case 'r' : if (k=="reserv"  ) {                                rsds.reserv   = ::move                              (v) ; continue ; } break ;
-				default : ;
-			}
+			DN}
 			if ( auto it = d.licenses.find(k) ; it!=d.licenses.end() ) {
 				chk_first() ;
 				if (+rsds.licenses) rsds.licenses += ',' ;
@@ -436,18 +434,18 @@ namespace Backends::Slurm {
 		// so the idea here is to fork a process to probe SlurmApi::init
 		if ( pid_t child_pid=::fork() ; !child_pid ) {
 			// in child
-			::atexit(_exit1) ;                                // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
-			Fd dev_null_fd = ::open("/dev/null",O_WRONLY,0) ; // this is just a probe, we want nothing on stderr
-			::dup2(dev_null_fd,2) ;                           // so redirect to /dev/null
-			SlurmApi::init(config_file) ;                     // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
-			::_exit(0) ;                                      // if we are here, everything went smoothly
+			::atexit(_exit1) ;                                                // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
+			Fd dev_null_fd = ::open("/dev/null",O_WRONLY,0) ;                 // this is just a probe, we want nothing on stderr
+			::dup2(dev_null_fd,2) ;                                           // so redirect to /dev/null
+			SlurmApi::init(config_file) ;                                     // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
+			::_exit(0) ;                                                      // if we are here, everything went smoothly
 		} else {
 			// in parent
 			int wstatus ;
-			pid_t rc = ::waitpid(child_pid,&wstatus,0) ;                                                // gather status to know if we were able to call SlurmApi::init
-			if ( rc<=0 || !WIFEXITED(wstatus) || WEXITSTATUS(wstatus)!=0 ) throw "cannot init slurm"s ; // no, report error
+			pid_t rc = ::waitpid(child_pid,&wstatus,0) ;                      // gather status to know if we were able to call SlurmApi::init
+			if ( rc<=0 || !wstatus_ok(wstatus) ) throw "cannot init slurm"s ; // no, report error
 		}
-		SlurmApi::init(config_file) ;                                                                   // this is now safe as we have already probed it
+		SlurmApi::init(config_file) ;                                         // this is now safe as we have already probed it
 		//
 		trace("done") ;
 	}

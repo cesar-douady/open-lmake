@@ -203,8 +203,7 @@ struct Fopen : AuditAction<Record::Open> {
 				case 'a' : a = true ; break ;
 				case '+' : p = true ; break ;
 				case 'c' :            return O_PATH ;                                                  // gnu extension, no access
-				default : ;
-			}
+			DN}
 		if (a+r+w!=1) return O_PATH ;                                                                  // error case   , no access
 		int flags = p ? O_RDWR : r ? O_RDONLY : O_WRONLY ;
 		if (!r) flags |= O_CREAT  ;

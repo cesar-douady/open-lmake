@@ -302,8 +302,7 @@ namespace Backends {
 					switch (a.tag) {
 						case FileActionTag::UnlinkWarning  :
 						case FileActionTag::UnlinkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
-						default : ;
-					}
+					DN}
 			} catch (::string const& e) { throw ::pair_ss(e,{}) ; }
 		} catch (::pair_ss const& e) {
 			start_msg_err.first  <<set_nl<< e.first  ;

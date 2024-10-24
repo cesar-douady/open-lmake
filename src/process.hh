@@ -76,6 +76,10 @@ inline bool is_sig_sync(int sig) {
 	}
 }
 
+inline bool wstatus_ok(int wstatus) {
+	return WIFEXITED(wstatus) && WEXITSTATUS(wstatus)==0 ;
+}
+
 inline ::string wstatus_str(int wstatus) {
 	if (WIFEXITED  (wstatus)) return WEXITSTATUS(wstatus) ? "exit "s+WEXITSTATUS(wstatus)  : "ok"s   ;
 	if (WIFSIGNALED(wstatus)) return "signal "s+WTERMSIG(wstatus)+'-'+::strsignal(WTERMSIG(wstatus)) ;
@@ -115,10 +119,7 @@ struct Child {
 		waited() ;
 		return wstatus ;
 	}
-	bool wait_ok() {
-		int wstatus = wait() ;
-		return WIFEXITED(wstatus) && WEXITSTATUS(wstatus)==0 ;
-	}
+	bool         wait_ok (       )       { return wstatus_ok(wait())                           ; }
 	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
 	bool         is_alive(       ) const { return kill_process(pid,0                         ) ; }
 private :

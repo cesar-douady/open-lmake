@@ -34,7 +34,6 @@ using namespace Time ;
 	thread_local OStringStream* Trace::_t_buf  = nullptr ;
 
 	void Trace::s_start() {
-		t_thread_key = '=' ;                            // called from main thread
 		if ( !g_trace_file || !*g_trace_file ) return ;
 		Lock lock{_s_mutex} ;
 		dir_guard(*g_trace_file) ;

@@ -392,8 +392,7 @@ namespace Store {
 				switch (kind()) {
 					case Kind::Terminal :               return Dvg::Long ;
 					case Kind::Prefix   : idx = nxt() ; return Dvg::Cont ;
-					default : ;
-				}
+				DN}
 				CharUint dvg_val = Prefix::rep(Prefix::char_at<Reverse>(name,psfx,name_pos)) ;
 				if (dvg_before(dvg_val)) return Dvg::Dvg ;
 				idx = nxt_if(!dvg_at(dvg_val)) ;

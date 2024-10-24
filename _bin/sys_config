@@ -5,12 +5,12 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-START_DIR=$(pwd)
-
 MK_FILE=$( realpath ${1:-/dev/null})
 H_FILE=$(  realpath ${2:-/dev/null})
 SUM_FILE=$(realpath ${3:-/dev/null})
 ERR_FILE=$(realpath ${4:-/dev/null})
+
+trial_dir=${MK_FILE%.*}.trial
 
 echo SYS_CONFIG_OK := 0 >$MK_FILE  # this will be overwritten at the end, when auto-config has gone through
                         >$H_FILE   # useless, for sanity only
@@ -27,9 +27,9 @@ unset CDPATH # ensure cd goes to the right directory and writes nothing to stdou
 
 PATH="$(realpath $(dirname $0)):$PATH" # access to local exe's
 
-rm -rf trial
-mkdir  trial
-cd     trial
+mkdir -p $trial_dir
+rm -rf   $trial_dir/*
+cd       $trial_dir
 
 #
 # CXX configuration

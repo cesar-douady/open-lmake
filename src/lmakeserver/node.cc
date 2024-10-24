@@ -20,6 +20,7 @@ namespace Engine {
 		if (+ri.done_               ) os <<",Done@"       << ri.done_              ;
 		if ( ri.n_wait              ) os <<",wait:"       << ri.n_wait             ;
 		if (+ri.overwritten         ) os <<",overwritten:"<<ri.overwritten         ;
+		if (+ri.manual              ) os <<','            <<ri.manual              ;
 		return                        os <<')'                                     ;
 	}
 
@@ -78,7 +79,7 @@ namespace Engine {
 				if      (dangling) {}
 				else if (query   ) stamp = false ;    // the final state will be to wash the file, in the mean time, dont stamp result
 				else {
-					Trace trace("manual_wash","unlnk",idx()) ;
+					Trace trace("manual_wash",idx(),"unlnk") ;
 					::string n = name() ;
 					SWEAR(is_lcl(n),n) ;
 					unlnk(n) ;
@@ -88,7 +89,7 @@ namespace Engine {
 				}
 			[[fallthrough]] ;
 			case Manual::Modif : {
-				Trace trace("manual_wash","modif",STR(dangling),idx()) ;
+				Trace trace("manual_wash",idx(),"modif",STR(dangling),STR(query)) ;
 				if (dangling) {
 					/**/                  req->audit_node( Color::Err  , "dangling"           , idx()                                        ) ;
 					if (has_actual_job()) req->audit_info( Color::Note , "generated as a side effect of "+mk_file(actual_job()->name())  , 1 ) ;
@@ -107,7 +108,10 @@ namespace Engine {
 			} break ;
 		DF}
 		if (!query) SWEAR(stamp) ;                    // so ri.manual is guaranteed up to date after manual_wash with !query
-		if (stamp) ri.manual = res ;
+		if (stamp) {
+			if ( +res && res!=ri.manual ) Trace trace("manual_wash",idx(),"stamp",res) ;
+			ri.manual = res ;
+		}
 		return res ;
 	}
 
@@ -288,8 +292,7 @@ namespace Engine {
 			case Buildable::Decode :
 			case Buildable::Encode :
 			case Buildable::Loop   :                                   goto Return ;
-			default : ;
-		}
+		DN}
 		status(NodeStatus::Unknown) ;
 		//
 		{	::string name_ = name() ;
@@ -406,11 +409,9 @@ namespace Engine {
 				switch (dir()->status()) {
 					case NodeStatus::Transient :                              goto Transient ;          // forward
 					case NodeStatus::Uphill    : status(NodeStatus::Uphill) ; goto NoSrc     ;          // .
-					default : ;
-				}
+				DN}
 			break ;
-			default : ;
-		}
+		DN}
 		// step 4 : handle what needs dir crc
 		switch (dir()->buildable) {
 			case Buildable::Maybe :
@@ -735,7 +736,11 @@ namespace Engine {
 			if (modified) crc_date(crc_,sd) ;
 			else          date() = sd ;
 		}
-		if (modified) for( Req r : reqs() ) req_info(r).reset(NodeGoal::Status) ; // target is not conform on disk any more
+		for( Req r : reqs() ) {
+			ReqInfo& ri = req_info(r) ;
+			if (modified) ri.reset(NodeGoal::Status) ; // target is not conform on disk any more
+			if (+sd     ) ri.manual = Manual::Ok ;     // if we passed a sig, we know the disk state, and we just updated our records
+		}
 		return modified ;
 	}
 

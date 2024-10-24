@@ -104,10 +104,10 @@ namespace Engine::Persistent {
 		catch (...) { g_config = new Config                                                                  ; }
 	}
 
-	// START_OF_VERSIONING
-
 	static void _init_srcs_rules(bool rescue) {
 		Trace trace("_init_srcs_rules",Pdate(New)) ;
+		//
+		// START_OF_VERSIONING
 		::string dir_s = g_config->local_admin_dir_s+"store/" ;
 		//
 		mk_dir_s(dir_s) ;
@@ -129,13 +129,25 @@ namespace Engine::Persistent {
 		// misc
 		if (writable) {
 			g_seq_id = &_job_file.hdr().seq_id ;
-			if (!*g_seq_id) *g_seq_id = 1 ;                                                                                 // avoid 0 (when store is brand new) to decrease possible confusion
+			if (!*g_seq_id) *g_seq_id = 1 ;                                                                                  // avoid 0 (when store is brand new) to decrease possible confusion
 		}
-		// memory
 		// Rule
 		if (!_rule_file) for( [[maybe_unused]] Special s : Special::Shared ) _rule_file.emplace() ;
 		RuleBase::s_match_gen = _rule_file.c_hdr() ;
+		// END_OF_VERSIONING
+		//
 		SWEAR(RuleBase::s_match_gen>0) ;
+		_job_file      .keep_open = true ; // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
+		_deps_file     .keep_open = true ; // .
+		_targets_file  .keep_open = true ; // .
+		_node_file     .keep_open = true ; // .
+		_job_tgts_file .keep_open = true ; // .
+		_rule_str_file .keep_open = true ; // .
+		_rule_file     .keep_open = true ; // .
+		_rule_tgts_file.keep_open = true ; // .
+		_sfxs_file     .keep_open = true ; // .
+		_pfxs_file     .keep_open = true ; // .
+		_name_file     .keep_open = true ; // .
 		_compile_srcs () ;
 		_compile_rules() ;
 		for( Job  j : _job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
@@ -147,8 +159,8 @@ namespace Engine::Persistent {
 		if (rescue) {
 			::cerr<<"previous crash detected, checking & rescueing"<<endl ;
 			try {
-				chk()              ;                                                                                        // first verify we have a coherent store
-				invalidate_match() ;                                                                                        // then rely only on essential data that should be crash-safe
+				chk()              ;       // first verify we have a coherent store
+				invalidate_match() ;       // then rely only on essential data that should be crash-safe
 				::cerr<<"seems ok"<<endl ;
 			} catch (::string const&) {
 				exit(Rc::Format,"failed to rescue, consider running lrepair") ;
@@ -156,7 +168,6 @@ namespace Engine::Persistent {
 		}
 	}
 
-	// END_OF_VERSIONING
 
 	void chk() {
 		// files

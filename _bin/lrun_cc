@@ -25,8 +25,8 @@ parse() {
 			*          )         dir=                  ;;
 		esac
 		case "$dir" in
-			=*         ) ;; # gcc specifies that such files are actually within the compiler distribution
-			'$SYSROOT'*) ;; # .
+			=*         ) ;;                            # gcc specifies that such files are actually within the compiler distribution
+			'$SYSROOT'*) ;;                            # .
 			''         ) ;;
 			*          )
 				dirs[$i]="$dir"
@@ -39,7 +39,7 @@ parse() {
 	if [ ${#dirs[@]} != 0 ] ; then
 		mkdir -p "${dirs[@]}"
 		$exe_dir/ldepend --no-required "${markers[@]}"
-		$exe_dir/lcheck_deps
+		$exe_dir/lcheck_deps                           # avoid running compiler without proper markers
 	fi
 }
 
