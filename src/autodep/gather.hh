@@ -154,7 +154,7 @@ public :
 	::string                          stdout           ;                                              // contains child stdout if child_stdout==Pipe
 	::string                          stderr           ;                                              // contains child stderr if child_stderr==Pipe
 	Time::Delay                       timeout          ;
-	int                               wstatus          = 0                   ;
+	int                               wstatus          = 0                                          ;
 private :
 	::map_ss            _add_env       ;
 	Child               _child         ;

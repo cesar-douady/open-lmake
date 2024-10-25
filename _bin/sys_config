@@ -12,6 +12,8 @@ ERR_FILE=$(realpath ${4:-/dev/null})
 
 trial_dir=${MK_FILE%.*}.trial
 
+source /etc/os-release # define ID and VERSION_ID
+
 echo SYS_CONFIG_OK := 0 >$MK_FILE  # this will be overwritten at the end, when auto-config has gone through
                         >$H_FILE   # useless, for sanity only
                         >$SUM_FILE # empty file as from now on, we append to it
@@ -190,7 +192,6 @@ HAS_FUSE=0 # fuse does not work for now
 # HAS_LD_AUDIT
 # test whether LD_AUDIT environment variable is managed by dynamic linker
 #
-source /etc/os-release
 case "$ID/$VERSION_ID" in
 	ubuntu/20.04) HAS_LD_AUDIT=0 ;; # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
 	centos/7    ) HAS_LD_AUDIT=0 ;; # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
@@ -375,6 +376,23 @@ USE_LIBC_START_MAIN=$(./start_main)
 STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
 
 #
+# SUPPORT_TIMED_MUTEX
+#
+# there is subtility with timed_mutex : they do syscalls to manage time
+# and because syscalls are trapped by autodep and take mutexes, there is a potential loop preventing their use
+# this show up on centos7, but not on rocky8/9 nor ubuntu20-24
+# this could depend on compiler versions also, but centos7/gcc-11 does not work and rocky8/gcc-11 works
+# XXX : develop a dynamic test rather than relying on os versions
+case "$ID/$VERSION_ID" in
+	ubuntu/* ) SUPPORT_TIMED_MUTEX=1 ;;
+	rocky/8.*) SUPPORT_TIMED_MUTEX=1 ;;
+	rocky/9.*) SUPPORT_TIMED_MUTEX=1 ;;
+	centos/7 ) SUPPORT_TIMED_MUTEX=0 ;;
+	*        ) SUPPORT_TIMED_MUTEX=0 ;; # be conservative if os is unknown
+esac
+[ $SUPPORT_TIMED_MUTEX = 1 ] || echo "cannot use timed_mutex, fall back to mutex (less robust)" >>$SUM_FILE
+
+#
 # MAP_VFORK
 #
 # Linux specifies vfork more precisely than Posix
@@ -459,6 +477,7 @@ cat >$H_FILE <<EOF
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
 	#define SLURM_SO                    "$SLURM_SO"
+	#define SUPPORT_TIMED_MUTEX         $SUPPORT_TIMED_MUTEX
 	#define STD_PATH                    "$STD_PATH"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

@@ -7,26 +7,29 @@
 
 #include "utils.hh"
 
-struct Version {
-	uint32_t major ;
-	uint32_t minor ;
-} ;
+// XXX : to support Idx's above 32 bits, we must :
+// - define NXxxIdxes
+// - define XxxIdx=Uint<NXxxidxes> +/- guard bits (1 for Node, 2 for Job), reserved values (a few for Rule)
+// - allocate address space in store/file.hh after this number rather than from the index type
+// - ensure that all allocations check boundaries
 
 // START_OF_VERSIONING
 
 // idxs
-using ReqIdx      = uint8_t     ;
-using RuleIdx     = uint16_t    ;
-using VarIdx      = uint8_t     ; // used to index stems, targets, deps & rsrcs within a Rule
-using RuleStrIdx  = uint32_t    ; // used to index serialized Rule description
-using NameIdx     = uint32_t    ; // used to index Rule & Job names
-using JobIdx      = uint32_t    ;
-using NodeIdx     = JobIdx      ; // NodeIdx is separated from JobIdx for readability, but there are roughly as many of each other
-using NodeDataIdx = NodeIdx     ; // used to index Node data associated with Unode's
-using RuleTgtsIdx = uint32_t    ;
-using PsfxIdx     = RuleTgtsIdx ;
-using FileNameIdx = uint16_t    ; // 64k for a file name is already ridiculously long
-using CodecIdx    = uint32_t    ; // used to store code <-> value associations in lencode/ldecode
+using CodecIdx    = uint32_t ; // used to store code <-> value associations in lencode/ldecode
+using DepsIdx     = uint32_t ; // used to index deps
+using FileNameIdx = uint16_t ; // 64k for a file name is already ridiculously long
+using JobIdx      = uint32_t ; // 2 guard bits
+using JobTgtsIdx  = uint32_t ; // JobTgts are used to store job candidate for each Node, so this Idx is a little bit larget than NodeIdx
+using NameIdx     = uint32_t ; // used to index Rule & Job names
+using NodeIdx     = uint32_t ; // 1 guard bit, there are a few targets per job, so this idx is a little bit larger than JobIdx
+using PsfxIdx     = uint32_t ; // each rule appears in a few Psfx slots, so this idx is a little bit larger than ruleTgtsIdx
+using ReqIdx      = uint8_t  ;
+using RuleIdx     = uint16_t ;
+using RuleStrIdx  = uint32_t ; // used to index serialized Rule description
+using RuleTgtsIdx = uint32_t ;
+using TargetsIdx  = uint32_t ; // used to index targets
+using VarIdx      = uint8_t  ; // used to index stems, targets, deps & rsrcs within a Rule
 
 // ids
 using SmallId = uint32_t ; // used to identify running jobs, could be uint16_t if we are sure that there cannot be more than 64k jobs running at once

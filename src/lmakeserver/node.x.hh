@@ -154,7 +154,7 @@ namespace Engine {
 		// services
 		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
 		// data
-		Tflags tflags   ;
+		Tflags tflags ;
 	} ;
 	static_assert(sizeof(Target)==8) ;
 
@@ -195,7 +195,7 @@ namespace Engine {
 	struct DepsIter {
 		struct Digest {
 			friend ::ostream& operator<<( ::ostream& , Digest const& ) ;
-			NodeIdx hdr     = 0 ;
+			DepsIdx hdr     = 0 ;
 			uint8_t i_chunk = 0 ;
 		} ;
 		// cxtors & casts
@@ -654,7 +654,7 @@ namespace Engine {
 	inline DepsIter::DepsIter( Deps ds , Digest d ) : hdr{+ds?ds.items()+d.hdr:nullptr} , i_chunk{d.i_chunk} {}
 
 	inline DepsIter::Digest DepsIter::digest(Deps ds) const {
-		return { hdr?NodeIdx(hdr-ds.items()):0 , i_chunk } ;
+		return { hdr?DepsIdx(hdr-ds.items()):0 , i_chunk } ;
 	}
 }
 

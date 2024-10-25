@@ -99,9 +99,8 @@ void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdi
 void Gather::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 	RealPath              rp       { autodep_env }                    ;
 	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
-	for( auto&& [f,a] : rp.exec(sr) ) {
-		_new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
-	}
+	for( auto&& [f,a] : rp.exec(sr) )
+		if (!Record::s_is_simple(f.c_str())) _new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 }
 
 void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {

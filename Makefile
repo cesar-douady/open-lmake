@@ -719,16 +719,16 @@ DEBIAN_DEPS :
 # /!\ this rule is necessary for debian packaging to work, it is not primarily made to be executed by user
 #
 install : $(LMAKE_ALL_FILES) doc/lmake.html $(EXAMPLE_FILES)
-	for f in $(LMAKE_SERVER_BIN_FILES); do install -D        $$f     $(DESTDIR)/$(prefix)/lib/open-lmake/$$f            ; done
-	for f in $(LMAKE_REMOTE_FILES)    ; do install -D        $$f     $(DESTDIR)/$(prefix)/lib/open-lmake/$$f            ; done
-	for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f     $(DESTDIR)/$(prefix)/lib/open-lmake/$$f            ; done
-	for f in lmake.html               ; do install -D        doc/$$f $(DESTDIR)/$(prefix)/share/doc/open-lmake/html/$$f ; done
-	for f in $(EXAMPLE_FILES)         ; do install -D        $$f     $(DESTDIR)/$(prefix)/share/doc/open-lmake/$$f      ; done
+	for f in $(LMAKE_SERVER_BIN_FILES); do install -D        $$f     $(DESTDIR)$(prefix)/lib/open-lmake/$$f            ; done
+	for f in $(LMAKE_REMOTE_FILES)    ; do install -D        $$f     $(DESTDIR)$(prefix)/lib/open-lmake/$$f            ; done
+	for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f     $(DESTDIR)$(prefix)/lib/open-lmake/$$f            ; done
+	for f in lmake.html               ; do install -D -m 644 doc/$$f $(DESTDIR)$(prefix)/share/doc/open-lmake/html/$$f ; done
+	for f in $(EXAMPLE_FILES)         ; do install -D -m 644 $$f     $(DESTDIR)$(prefix)/share/doc/open-lmake/$$f      ; done
 
 DEBIAN : open-lmake_$(DEBIAN_VERSION).stamp
 
 DEBIAN_BIN_FILES := $(filter bin/%,$(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES))
-DEBIAN_SRCS      := $(filter-out unit_tests/%,$(filter-out examples/%,$(filter-out lmake_env/%,$(SRCS))))
+DEBIAN_SRCS      := $(filter-out unit_tests/%,$(filter-out lmake_env/%,$(SRCS)))
 
 open-lmake_$(DEBIAN_VERSION).stamp : $(DEBIAN_SRCS)
 	@rm -rf debian-repo

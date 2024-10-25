@@ -54,8 +54,8 @@ namespace Engine {
 
 namespace Engine {
 	namespace Persistent { using RuleStr     = Vector::Simple<RuleStrIdx,char      ,StoreMrkr> ; }
-	/**/                   using DepsBase    = Vector::Simple<NodeIdx   ,GenericDep,StoreMrkr> ;
-	/**/                   using TargetsBase = Vector::Simple<NodeIdx   ,Target    ,StoreMrkr> ;
+	/**/                   using DepsBase    = Vector::Simple<DepsIdx   ,GenericDep,StoreMrkr> ;
+	/**/                   using TargetsBase = Vector::Simple<TargetsIdx,Target    ,StoreMrkr> ;
 }
 
 #endif
@@ -225,13 +225,13 @@ namespace Engine::Persistent {
 }
 
 namespace Engine {
-	using Name        = Persistent::Name                        ;
-	using JobBase     = Persistent::JobBase                     ;
-	using JobTgtsBase = Vector::Crunch<JobIdx,JobTgt,StoreMrkr> ;
-	using NodeBase    = Persistent::NodeBase                    ;
-	using RuleBase    = Persistent::RuleBase                    ;
-	using RuleTgts    = Persistent::RuleTgts                    ;
-	using DataBase    = Persistent::DataBase                    ;
+	using Name        = Persistent::Name                            ;
+	using JobBase     = Persistent::JobBase                         ;
+	using JobTgtsBase = Vector::Crunch<JobTgtsIdx,JobTgt,StoreMrkr> ;
+	using NodeBase    = Persistent::NodeBase                        ;
+	using RuleBase    = Persistent::RuleBase                        ;
+	using RuleTgts    = Persistent::RuleTgts                        ;
+	using DataBase    = Persistent::DataBase                        ;
 }
 
 #endif

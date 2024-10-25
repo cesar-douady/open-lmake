@@ -362,7 +362,7 @@ namespace Engine {
 	}
 
 	void ReqData::audit_summary(bool err) const {
-		bool warning = +frozen_jobs || +no_triggers || +clash_nodes || +long_names ;
+		bool warning = +frozen_jobs || +no_triggers || +clash_nodes ;
 		audit_info( err ? Color::Err : warning ? Color::Warning : Color::Note ,
 			"+---------+\n"
 			"| SUMMARY |\n"
@@ -403,36 +403,26 @@ namespace Engine {
 				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , fmt_string(::setw(w),is_target(n->name())?src_msg     :anti_msg     ," :") , n ) ;
 				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , fmt_string(::setw(w),n->ok()!=No         ?plain_ok_msg:plain_err_msg," :") , n ) ;
 		}
-		if (+long_names) {
-			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
-			size_t               pm          = 0                   ;
-			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                    // sort in discovery order
-			for( auto [n,_] :                 long_names_                                        ) pm = ::max( pm , n->name().size() ) ;
-			for( auto [n,_] : ::c_vector_view(long_names_,0,g_config->n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
-			if ( g_config->errs_overflow(long_names_.size())                                      ) audit_info( Color::Warning , "..."               ) ;
-			SWEAR(pm>g_config->path_max) ;
-			audit_info( Color::Note , "consider adding in Lmakefile.py : lmake.config.path_max = "s+pm ) ;
-		}
 		if (+frozen_jobs) {
-			::vmap<Job,JobIdx> frozen_jobs_ = mk_vmap(frozen_jobs) ;
-			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ;                       // sort in discovery order
+			::vmap<Job,JobIdx/*order*/> frozen_jobs_ = mk_vmap(frozen_jobs) ;
+			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx/*order*/> const& a , ::pair<Job,JobIdx/*order*/> b ) { return a.second<b.second ; } ) ;      // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
 			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , fmt_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
 		}
 		if (+frozen_nodes) {
-			::vmap<Node,NodeIdx> frozen_nodes_ = mk_vmap(frozen_nodes) ;
-			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                  // sort in discovery order
+			::vmap<Node,NodeIdx/*order*/> frozen_nodes_ = mk_vmap(frozen_nodes) ;
+			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			for( auto [n,_] : frozen_nodes_ ) audit_node( Color::Warning , "frozen " , n ) ;
 		}
 		if (+no_triggers) {
-			::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
-			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                   // sort in discovery order
+			::vmap<Node,NodeIdx/*order*/> no_triggers_ = mk_vmap(no_triggers) ;
+			::sort( no_triggers_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ;  // sort in discovery order
 			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no trigger" , n ) ;
 		}
 		if (+clash_nodes) {
-			::vmap<Node,NodeIdx> clash_nodes_ = mk_vmap(clash_nodes) ;
-			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                   // sort in discovery order
+			::vmap<Node,NodeIdx/*order*/> clash_nodes_ = mk_vmap(clash_nodes) ;
+			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ;  // sort in discovery order
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
 			if (job->rule->special!=Special::Req) {

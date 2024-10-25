@@ -19,7 +19,7 @@
 	for(;;) {
 		uint64_t offset = src%sizeof(long)                                               ;
 		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		if (errno) throw 0 ;
+		if (errno) throw errno ;
 		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
 		for( uint64_t len=0 ; len<sizeof(long)-offset ; len++ ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
 		/**/                                                                            res.append( buf+offset , sizeof(long)-offset ) ;
@@ -34,7 +34,7 @@
 	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) { // invariant : copy src[i:sz] to dst
 		size_t offset = src%sizeof(long) ;
 		long   word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		if (errno) throw 0 ;
+		if (errno) throw errno ;
 		chunk = ::min( sizeof(long) - offset , sz ) ;
 		::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
 	}
@@ -50,17 +50,19 @@
 		chunk = ::min( sizeof(long) - offset , sz ) ;
 		if ( offset || offset+chunk<sizeof(long) ) {                                // partial word
 			word = ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;
-			if (errno) throw 0 ;
+			if (errno) throw errno ;
 		}
 		::memcpy( reinterpret_cast<char*>(&word)+offset , src , chunk ) ;
 		ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
-		if (errno) throw 0 ;
+		if (errno) throw errno ;
 	}
 }
 
 template<bool At> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args ) {
-	if (At) return { Fd(args[0]) , _get_str(pid,args[1]) } ;
-	else    return {               _get_str(pid,args[0]) } ;
+	::string arg = _get_str(pid,args[At]) ;
+	if (Record::s_is_simple(arg.c_str())) throw 0                      ;
+	if (At                              ) return { Fd(args[0]) , arg } ;
+	else                                  return {               arg } ;
 }
 
 static constexpr int FlagAlways = -1 ;
@@ -108,8 +110,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void* &
 [[maybe_unused]] static void _entry_creat( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		ctx = new Record::Open( r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , comment ) ;
-	}
-	catch (int) {}
+	} catch (int) {}
 }
 // use _exit_open as exit proc
 
@@ -123,8 +124,11 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void* 
 
 // hard link
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+	Record::Path old ;
+	try           { old = _path<At>(pid,args+0) ; }
+	catch (int e) { if (e) return ;               } // if e==0, old is simple, else there is an error and access will not be done
 	try {
-		ctx = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
+		ctx = new Record::Lnk( r , ::move(old) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
@@ -203,6 +207,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* 
 		#else
 			bool no_replace = false                                 ;
 		#endif
+		// renaming a simple file (either src or dst) is non-sense, non need to take precautions
 		ctx = new Record::Rename{ r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , comment } ;
 	} catch (int) {}
 }

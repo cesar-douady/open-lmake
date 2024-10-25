@@ -20,6 +20,13 @@ if __name__!='__main__' :
 
 else :
 
+	try :
+		import venv
+		venv.main(('py_env_trial',))
+		open('py_env_trial/bin/activate')
+	except :
+		print('python venv not available',file=open('skipped','w'))
+
 	import ut
 
 	ut.lmake('py_env/pyvenv.cfg',done=1)

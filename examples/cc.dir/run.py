@@ -1,3 +1,4 @@
+#!/bin/python3
 # This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
 # Copyright (c) 2023 Doliam
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
@@ -18,7 +19,7 @@ except :
 	# replace with simple function for interactive experiment by user (non check)
 	import subprocess as sp
 	def lmake(*cmd_line,**kwds) :
-		sp.run( cmd , stdin=None )
+		sp.run( ('lmake',)+cmd_line , stdin=None )
 
 # first, run a full build, the mentioned counts here assumes starting from a clean repository
 lmake( 'hello_world.ok' , new=7 , done=16 , may_rerun=2 , steady=1 )

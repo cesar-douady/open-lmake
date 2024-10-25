@@ -79,7 +79,7 @@ namespace Engine {
 		}
 		// rm enclosing dirs of unlinked targets
 		::vmap<Node,NodeIdx/*depth*/> to_rmdir_vec ; for( auto [k,v] : to_rmdirs ) to_rmdir_vec.emplace_back(k,v) ;
-		::sort( to_rmdir_vec , [&]( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> const& b ) { return a.second>b.second ; } ) ; // sort deeper first, so we rmdir after its children
+		::sort( to_rmdir_vec , [&]( ::pair<Node,NodeIdx/*depth*/> const& a , ::pair<Node,NodeIdx/*depth*/> const& b ) { return a.second>b.second ; } ) ; // sort deeper first, to rmdir after children
 		for( auto [d,_] : to_rmdir_vec ) actions.emplace_back(d,FileActionTag::Rmdir) ;
 		//
 		// mark target dirs to protect from deletion by other jobs
@@ -100,7 +100,7 @@ namespace Engine {
 			for( Node hd=d->dir() ; +hd ; hd = hd->dir() )
 				if (!dir_uphills.insert(hd).second) break ;
 		//
-		auto dec = [&]( ::umap<Node,NodeIdx/*cnt*/>& dirs , Node d )->void {
+		auto dec = [&]( ::umap<Node,Idx/*cnt*/>& dirs , Node d )->void {
 			auto it = dirs.find(d) ;
 			SWEAR(it!=dirs.end()) ;
 			if (it->second==1) dirs.erase(it) ;
@@ -707,9 +707,9 @@ namespace Engine {
 	// JobData
 	//
 
-	Mutex<MutexLvl::TargetDir> JobData::_s_target_dirs_mutex ;
-	::umap<Node,NodeIdx>       JobData::_s_target_dirs       ;
-	::umap<Node,NodeIdx>       JobData::_s_hier_target_dirs  ;
+	Mutex<MutexLvl::TargetDir      > JobData::_s_target_dirs_mutex ;
+	::umap<Node,JobData::Idx/*cnt*/> JobData::_s_target_dirs       ;
+	::umap<Node,JobData::Idx/*cnt*/> JobData::_s_hier_target_dirs  ;
 
 	void JobData::_reset_targets(Rule::SimpleMatch const& match) {
 		::vector<Target> ts    ; ts.reserve(rule->n_static_targets) ;

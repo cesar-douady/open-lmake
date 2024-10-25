@@ -1,3 +1,4 @@
+#!/bin/python3
 # This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
 # Copyright (c) 2023 Doliam
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
@@ -14,7 +15,7 @@ except :
 	# replace with simple function for interactive experiment by user (non check)
 	import subprocess as sp
 	def lmake(*cmd_line,**kwds) :
-		sp.run( cmd , stdin=None )
+		sp.run( ('lmake',)+cmd_line , stdin=None )
 
 lmake( 'hello-world-sh' , 'hello-world-py' , done=2 , new=2 )     # check targets are out of date : 2 new sources (hello and world), 2 new targets
 lmake( 'hello-world-sh' , 'hello-world-py' , done=0 , new=0 )     # check targets are up to date : nothing has changed, nothing is remade

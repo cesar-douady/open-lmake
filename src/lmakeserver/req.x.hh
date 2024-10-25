@@ -14,7 +14,7 @@ ENUM( JobReport
 ,	Steady
 ,	Failed
 ,	SubmitLoop
-,	Done      // <=Done means job was run and reported a status
+,	Done       // <=Done means job was run and reported a status
 ,	Completed
 ,	Killed
 ,	Retry
@@ -286,12 +286,11 @@ namespace Engine {
 		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
 		bool                 has_backend    = false   ;
 		// summary
-		::vector<Node>        up_to_dates  ;            // asked nodes already done when starting
-		::umap<Job ,JobIdx  > frozen_jobs  ;            // frozen     jobs                                   (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx > frozen_nodes ;            // frozen     nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx > long_names   ;            // nodes with name too long                          (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx > no_triggers  ;            // no-trigger nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx > clash_nodes  ;            // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		::vector<Node>                up_to_dates  ;    // asked nodes already done when starting
+		::umap<Job ,JobIdx /*order*/> frozen_jobs  ;    // frozen     jobs                                   (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> frozen_nodes ;    // frozen     nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> no_triggers  ;    // no-trigger nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> clash_nodes  ;    // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }

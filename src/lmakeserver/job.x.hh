@@ -254,9 +254,9 @@ namespace Engine {
 		using MakeAction = JobMakeAction ;
 		// static data
 	private :
-		static Mutex<MutexLvl::TargetDir>  _s_target_dirs_mutex ;
-		static ::umap<Node,NodeIdx/*cnt*/> _s_target_dirs       ;                                                 // dirs created for job execution that must not be deleted
-		static ::umap<Node,NodeIdx/*cnt*/> _s_hier_target_dirs  ;                                                 // uphill hierarchy of _s_target_dirs
+		static Mutex<MutexLvl::TargetDir> _s_target_dirs_mutex ;
+		static ::umap<Node,Idx/*cnt*/>    _s_target_dirs       ;                                                  // dirs created for job execution that must not be deleted
+		static ::umap<Node,Idx/*cnt*/>    _s_hier_target_dirs  ;                                                  // uphill hierarchy of _s_target_dirs
 		// cxtors & casts
 	public :
 		JobData(                                  ) = default ;

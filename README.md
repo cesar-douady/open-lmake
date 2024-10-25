@@ -14,41 +14,41 @@ lmake is like make, except that it is practical, scalable and reliable
 ## more specifically
 
 - handle parallelism & remote execution
-- automatic dependency tracking :
+- automatic dependency tracking:
 	- system activity is tracked to detect file accesses (reads & writes)
 	- dependencies are automatically added upon read
 	- no need for any kind of pre-analysis
 	- even dependencies to non-existing files are kept, in case they appear
-- it is extremely fast :
+- it is extremely fast:
 	- everything is cached, in particular dependencies so that the discovery process is only run when a job is run for the first time or when execution showed they changed
 	- up-to-date analysis is based on CRC's, not on date, so that when a target is remade identically to its previous content, dependents are not remade
 	- all the internal engine is based on id's, not strings, strings are only used to import (e.g. dep tracking) or export (job execution)
-- it is extremely memory efficient :
+- it is extremely memory efficient:
 	- keeping the state of all dependencies is inherently very expensive
 	- thorough efforts are made to keep this book keeping minimal
 	- in particular, names (that tend to be rather long in practice) are kept in a prefix-tree sharing the directory parts
 - generally speaking 1.000.000 targets can be handled with no burden
-- makefile is based on Python3.6 (& upward) :
+- makefile is based on Python3.6 (& upward):
 	- no reason to invent a new language
 	- each rule is a class
 	- can leverage loops, conditions, inheritance, ... all Python power
 	- job scripts can be either shell scripts or Python functions
 	- very readable, no cabalistic automatic variables make has
-- target matching is based on regular expressions :
+- target matching is based on regular expressions:
 	- rather than the very poor '%' of make
 	- there can be several stems
 	- dependencies are generating using f-strings, very flexible
-- rules may have several targets :
+- rules may have several targets:
 	- usually target list is known before job is executed
 	- but target reg-expr is also supported for rules such as untar that generate a bunch of targets whose precise list depends on source content
-- lmake is oriented towards reproducibility :
+- lmake is oriented towards reproducibility:
 	- it tracks the source control system (usually git) and refuses to rely on data that are not tracked
 		- you can force such dependencies, in which cases these exceptions will be reported at each run
 - and more...
 
-# installation
-
 ## requirements
+
+To compile open-lmake, you will need:
 - c++20
 - python 3.6 or later with developer support (i.e. access to the Python.so file)
 
@@ -60,41 +60,76 @@ it has been tested with the dockers listed in the docker directory
 	- this builds all necessary files and some unit tests
 	- you must invoke `git clean -fdx` if you modified the Makefile or otherwise if you want a reliable build
 	- you may have to invoke `git clean -fdx lmake_env*` or even `git clean -fdx` after a `git pull`
-		- lmake_env is a directory which builds lmake under lmake, for test purpose, no guarantee that the resulting lmake is funtional for now
-		- lmake_env-cache is a directory containing cached results from jobs in lmake_env
+		- `lmake_env` is a directory which builds lmake under lmake, for test purpose, no guarantee that the resulting lmake is funtional for now
+		- `lmake_env-cache` is a directory containing cached results from jobs in `lmake_env`
 		- they are not cleaned on purpose before running as this creates variability for testing lmake, but may fail
 		- and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary to get a reliable build
 	- you can type make LMAKE to just build all necessary files
 	- you can type make lmake.tar.gz (built by default) to make a tar ball of the compiled files that you can easily deploy
 - install
-	- untar lmake.tar.gz wherever you want and have your PATH point to the bin directory.
+	- untar `lmake.tar.gz` wherever you want and have your $PATH point to the `bin` directory.
 		- the bin sub-dir contains the executables meant to be executed by the user
-		- the \_bin sub-dir contains the executables necessary for lmake to run, but not meant to be directly invoked by the user
+		- the `_bin` sub-dir contains the executables necessary for lmake to run, but not meant to be directly invoked by the user
 			- it also contains some executables to help debugging lmake itself.
-		- the lib sub-dir contains binary and python files for use by the user
-		- the \_lib sub-dir contains the binary and python files necessary for lmake to run, but not meant for direct use by the user
+		- the `lib` sub-dir contains binary and python files for use by the user
+		- the `_lib` sub-dir contains the binary and python files necessary for lmake to run, but not meant for direct use by the user
 		- the relative positions of these 4 dirs must remain the same, i.e. they must stay in the same directory with the same names.
 - specialization
-	- you can specialize the build process to better suit your needs :
+	- you can specialize the build process to better suit your needs:
 	- this can be done by setting variables
-		- for example, you can run : CXX=/my/g++ make
-		- PYTHON2 can be set to your preferred Python 2 (defaults to python2). You will be told if it is not supported.
-		- PYTHON can be set to your preferred Python 3 (defaults to python3). You will be told if it is not supported.
-		- CXX can be set to your preferred C++ compiler. You will be told if it is not supported.
-		- SLURM_ROOT can be set to the root dir of the slurm installation. For example, slurm.h will be found as $SLURM_ROOT/include/slurm/slurm.h
-		- LMAKE_FLAGS can be defined as O[0123]G?D?T?S[AB]C?
-			- O[0123] controls the -O option                                      (default : 1 if profiling else 3           )
-			- G       controls the -g option                                      (default : no debug                        )
-			- d       controls     -DNDEBUG                                       (default : asserts are enabled             )
-			- t       controls     -DNO_TRACE                                     (default : traces are enabled              )
-			- SA      controls the -fsantize=address -fsanitize=undefined options (exclusive with ST                         )
-			- ST      controls the -fsantize=thread                       option  (exclusive with SA                         )
-			- P       controls the -pg                                    option  (profiling info is in gmon.out.<tool>.<pid>)
-		- the -j flag of make is automatically set to the number of processors, you may want to override this, though
-	- this is true the first time you run make. After that, these values are remembered in the file sys_config.env.
-	- you can freely modify this file sys_config.env, though, it will be taken into account.
-	- it is up to you to provide a suitable LD\_LIBRARY\_PATH value.
+		- for example, you can run: `CXX=/my/g++ make`
+		- `$PYTHON2. can be set to your preferred Python 2 (defaults to python2 as found in your $PATH). You will be told if it is not supported.
+		- `$PYTHON` can be set to your preferred Python 3  (defaults to python3 as found in your $PATH). You will be told if it is not supported.
+		- `$CXX` can be set to your preferred C++ compiler (defaults to g++     as found in your $PATH). You will be told if it is not supported.
+		- `$SLURM_ROOT` can be set to the root dir of the slurm installation (by default, slurm/slurm.h will be searched in the standard include path).
+		  For example, `slurm.h` will be found as `$SLURM_ROOT/include/slurm/slurm.h`
+		- `$LMAKE_FLAGS` can be defined as O[0123]G?d?t?S[AB]P?
+			- O[0123] controls the `-O option`                                      (default: 1 if profiling else 3            )
+			- G       controls the `-g option`                                      (default: no debug                         )
+			- d       controls     `-DNDEBUG`                                       (default: asserts are enabled              )
+			- t       controls     `-DNO_TRACE`                                     (default: traces are enabled               )
+			- SA      controls the `-fsantize=address -fsanitize=undefined` options (exclusive with ST                         )
+			- ST      controls the `-fsantize=thread`                       option  (exclusive with SA                         )
+			- P       controls the `-pg`                                    option  (profiling info is in gmon.out.<tool>.<pid>)
+		- the `-j` flag of make is automatically set to the number of processors, you may want to override this, though
+	- this is true the first time you run make. After that, these values are remembered in the file `sys_config.env`.
+	- you can freely modify this file `sys_config.env`, though, it will be taken into account.
+	- it is up to you to provide a suitable `$LD_LIBRARY_PATH` value.
 	  it will be transferred as a default value for rules, to the extent it is necessary to provide the lmake semantic
+
+# installation
+
+open-lmake does not require to be installed.
+You can run it directly from the build directory.
+This is the simplest way unless you seek a system-wide installation.
+
+If running under Ubuntu and you have the necessary packages installed (that you can find by inspecting Makefile, the entry `DEBIAN_DEPS`),
+you can make a Debian package:
+- type `make DEBIAN`
+- the package is `open-lmake_v24.09.1-1_<arch>.deb`
+- you can install it with `sudo apt install ./open-lmake_v24.09.1-1_<arch>.deb`
+
+Alternatively, you can untar `lmake.tar.gz` at any place.
+
+Installing system-wide with Debian package will take care of placing both binaries and man pages in the standard directories. Alternatively, you can:
+- put `/path/to/open-lmake/bin`     in your `$PATH`
+- put `/path/to/open-lmake/doc/man` in your `$MANPATH`
+This will simplify the user experience but is not required.
+
+# first steps
+
+- you can find a reference documentation in `doc/lmake.html` (`/usr/share/dco/open-lmake/html/lmake.html` if installed with the Debian package)
+- you have man pages for all commands directly accessible if installed with the debian package or if `$MANPATH` is set as explained above
+
+However, the simplest is to give it a try:
+- you can copy `examples/hello_world.dir`(`/usr/share/doc/open-lmake/examples/hello_word.dir` if installed with the Debian package) at some place (you can ignore `tok` and `tok.err`).
+- it is important to copy the example in a fresh directory because the script modifies the sources to mimic a session
+- in particular, if you want to restart, re-copy the example to a fresh directory.
+- cd into it
+- run `./run.py`
+- inspect `Lmakefile.py` and `run.py`, they are abundantly commented
+
+Once you have understood what is going on with `hello_world`, you can repeat these steps with the second example `cc` (`examples/cc.dir`).
 
 # coding rules
 
@@ -118,19 +153,19 @@ it has been tested with the dockers listed in the docker directory
 - `g_`  : global
 - `t_`  : thread local
 - `np_` : non-portable
-- `::`  : standard library or a few exceptions defined in src/utils.hh which, in my mind, should have been part of the STL, e.g. ::vector\_view (analogous to ::string\_view)
+- `::`  : standard library or a few exceptions defined in `src/utils.hh` which, in my mind, should have been part of the STL, e.g. `::vector_view` (analogous to `::string_view`)
 
 Names are suffixed with \_ if needed to suppress ambiguities
 
 ## abbreviations
-- general rules :
-	- words are abbreviated depending on their use and span : the shorter the span and the heavier the usage , the more they are abbreviated
+- general rules:
+	- words are abbreviated depending on their use and span: the shorter the span and the heavier the usage , the more they are abbreviated
 	- words may be abbreviated by their beginning, such as env for environ
 	- words may be abbreviated using only consons such as src for source
 	- these may be combined as in dst for destination
 	- words may further be abbreviated to a single letter or by the first letter of each word (e.g. tf for target flag) when name spans no more than a few lines
 	- words include standard name such as syscall names or libc functions
-- special cases :
+- special cases:
 	<table>
 	<tr> <th> abbrev   </th> <th> full-name              </tdh </tr>
 	<tr> <td> ddate    </td> <td> disk date              </td> </tr>
@@ -139,6 +174,7 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	<tr> <td> lnk      </td> <td> symbolic link          </td> </tr>
 	<tr> <td> ongoing  </td> <td> on going               </td> </tr>
 	<tr> <td> pdate    </td> <td> process date           </td> </tr>
+	<tr> <td> psfx     </td> <td> prefix/suffix          </td> </tr>
 	<tr> <td> regexpr  </td> <td> regular expression     </td> </tr>
 	<tr> <td> serdes   </td> <td> serialize, deserialize </td> </tr>
 	<tr> <td> tflag    </td> <td> target flag            </td> </tr>
@@ -147,7 +183,7 @@ Names are suffixed with \_ if needed to suppress ambiguities
 
 ## layout
 - lines are limited to 200 characters (as is this document)
-- functions are limited to 100 lines :
+- functions are limited to 100 lines:
 	- there are few exceptions, though, where it was impossible to cut without making too artificial a sub-function
 - generally speaking code is put on a single line when several lines are similar and alignment helps readability
 - separators (such as commas, operators, parentheses, ...) pertaining to the same expression are at the same indentation level
@@ -155,22 +191,23 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	- the identation level is the number of tab's appearing on the line before the considered item
 	- when item is less than 3 characters long, the next indentation level (preceded by a tab) is on the same line
 	- expressions are either compact (no space or minimum), spaced (a space between each operators and sub-expressions) or multi-line (with sub-expressions indented)
-	- example :
-
+	- example:
+`
 			a = make_a(
 				my_first_coef [  0] * my_first_data  // note alignment makes expression structure appearing immediately
 			+	my_second_coef[i  ] * my_second_data // note + at identation level 3, subexrpession at indentation level 4
 			+	my_third_coef [i*2] * my_third_data  // note following comment means this one is repeated
 			+	my_foorth_coef[i*3] * my_foorth_data // .
 			) ;
+`
 
 ## invariants are either
 - in swear/fail if reasonably fast to check
-- in a function chk (even if never called) when they can be expressed programatically
+- in a function `chk` (even if never called) when they can be expressed programatically
 - else in comments preceded by the keyword INVARIANT
 
 ## invariants are expected and enforced by public methods
-- this is a general consideration : methods are private/public depending on their dangerosity
+- this is a general consideration: methods are private/public depending on their dangerosity
 - private methods can violate them, though
 	- e.g. `_clear` are local methods violating invariants, clear handles consequences
 - public methods can violate unrelated invariants they can live w/
@@ -181,7 +218,7 @@ Names are suffixed with \_ if needed to suppress ambiguities
 - private otherwise
 
 ## if branch order
-When there is a choice between "if (cond) branch1 else branch2" and "if (!cond) branch2 else branch1", the order is governed by the following prioritized considerations (prefer means put first) :
+When there is a choice between "if (cond) branch1 else branch2" and "if (!cond) branch2 else branch1", the order is governed by the following prioritized considerations (prefer means put first):
 - if there is natural chronological order between branch1 and branch2, respect the natural order
 - prefer simpler branch
 - prefer normal case to error case
@@ -190,13 +227,13 @@ When there is a choice between "if (cond) branch1 else branch2" and "if (!cond) 
 
 ## bool values and if
 Most objects have a natural "empty" value, such as empty strings, empty vectors, the first value of an enum, etc.
-- It is extremely practical to write if (err\_msg) process\_err() ; rather than if (!err\+msg.empty()) process\_err() ;
+- It is extremely practical to write `if (err_msg) process_err() ;` rather than `if (!err_msg.empty()) process_err() ;`
 - This suggests to have casts to bool mostly everywhere, but
 	- this does not apply to enum nor to STL classes
 	- this creates a lot of ambiguities
 	- this is actually pretty dangerous as this weakens static type checking (as bool can in turn be converted to int...)
-- The pefect balance is to define the prefix operators + (non empty) and ! (empty) :
-	- we can write if (+err\_msg) process\_err() ; or if (!err\_msg) process\_ok() ; which is still very light
+- The pefect balance is to define the prefix operators + (non empty) and ! (empty):
+	- we can write `if (+err_msg) process_err() ;` or `if (!err_msg) process_ok() ;` which is still very light
 	- it can apply to any type
 
 ## goto's
@@ -204,7 +241,7 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 - they are always forward unless specifically flagged with a `BACKWARD` comment, which is exceptional
 
 ## comments
-- comments can be realigned with the command \_bin/align\_comments 4 200 [// or #]
+- comments can be realigned with the command `_bin/align_comments 4 200 [// or #]`
 - standard comments
 	- `//vvvvvvvvvvvvvvvvvvvvvvvvvv`
 	- `main purpose of the function`
@@ -224,33 +261,33 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 
 ## main classes
 - Req represents an lmake command
-	- several Req's may be present as several lmake command may run (but there is a single server serving all of them)
-- Rule represents a derivation rule
+	- several `Req`'s may be present as several lmake command may run (but there is a single server serving all of them)
+- `Rule` represents a derivation rule
 	- i.e. a pattern to derive some target files from some source files
-- Job represents a job
+- `Job` represents a job
 	- i.e. a script that may be executed by instantiating a Rule for a particular set of stems
 	- a Job has several targets and several dependencies
 	- targets may be explicit in the Rule (it is said static), or it may be described as matching a regular expression (it is said star).
-		- this is not to be confused by regular expressions used to match a Rule. For example :
+		- this is not to be confused by regular expressions used to match a Rule. For example:
 			- `{File}.o`            in a compilation rule   : this is a static target (a Job produces a single .o)
 			- `{Dir}.untar/{File*}` in a tar exapnsion rule : these are star targets  (a Job produces a bunch of files in a single directory)
 	- dependencies may be expressed explicitly in the Rule (is is said static), or discovered by spying job execution syscall's (it is said hidden)
 		- typically in a compilation rule, .c files are static deps, .h files are hidden deps
-- Node represents a file
-	- a Node has a prioritized list of Job's to try to generate it
-	- Job's with higher priorities are tried first
-	- at given priority, if several jobs can be executed :
+- `Node` represents a file
+	- a `Node` has a prioritized list of `Job`'s to try to generate it
+	- `Job`'s with higher priorities are tried first
+	- at given priority, if several jobs can be executed:
 		- they are all tried in parallel, hoping that a single one will actually generate the node
 			- if several of them actually generate the node, it will be an error condition
 		- unless it can be certain in advance that several of them will generate the node, in which case the error is generated before execution
 
 ## the heart of the algorithm is composed of
-- for static considerations (i.e. does not depend on Req) :
-	- `Node::set_buildable` : analyse a Node and determine if it can be made (3-way answer : No, Yes, Maybe)
+- for static considerations (i.e. does not depend on Req):
+	- `Node::set_buildable`: analyse a Node and determine if it can be made (3-way answer: No, Yes, Maybe)
 		- calls `Job::Job` on Job candidates (down-hill recursion)
-	- `Job::Job` for the plain case : construct a Job if its dependances have a chance to be makable
+	- `Job::Job` for the plain case: construct a Job if its dependances have a chance to be makable
 		 - calls `Node::set_buildable` on static deps (down-hill recursion)
-- for dynamic considerations (i.e. depends on Req) :
+- for dynamic considerations (i.e. depends on Req):
 	- `Node::make`  : analyse a Node, calling Job::make on job candidates that can produce it
 		- calls `Job::make` on Job candidates (down-hill recursion)
 		- calls `Job::make` on Job's waiting for it as a dep (up-hill recursion)
@@ -264,11 +301,11 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 		- calls `Job::make` to analyze execution and ensure everything is ok (or re-submit if there is any reason to do so)
 
 ## state
-- the state is directly maintainted on disk in mapped files :
-	- files are located in LMAKE/store
-	- code that handle them is in :
+- the state is directly maintainted on disk in mapped files:
+	- files are located in `LMAKE/store`
+	- code that handle them is in:
 		- `src/lmakeserver/store.hh` & `.cc` for its part specific to lmake
-		- `src/store`                        for generic code that handle :
+		- `src/store`                        for generic code that handle:
 			- simple objects (possibly with side-car, i.e. a secondary storage with a 1 to 1 correspondance)
 			- vectors
 			- prefix-tree
@@ -285,61 +322,61 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 
 ## traces
 - when lmake is executed, a trace of activity is generated for debug purpose
-- this is true for all executables (lmake, lmakeserver, lautodep, ...)
-- traces are located in :
+- this is true for all executables (`lmake`, `lmakeserver`, `lautodep`, ...)
+- traces are located in:
 	- `LMAKE/lmake/local_admin/trace/<executable>`
-		- for lmakeserver, the most important trace, an history of the last few executions is kept
+		- for `lmakeserver`, the most important trace, an history of the last few executions is kept
 	- `LMAKE/lmake/remote_admin/job_trace/<seq_id>` for remote job execution
 - the first character of each line is either ' or ""
 	- this is because the trace file is managed as a circular buffer for performance
 	- so each time we wrap around, this first character is toggled between ' and "
-- trace entries are timestamped and a letter indicates the thread :
+- trace entries are timestamped and a letter indicates the thread:
 	- '=' refers to the main thread
-	- in server :
-		- C : cancel jobs in sge and slurm backend (2 threads)
-		- D : handle lencode/ldecode
-		- E : job end
-		- H : heartbeat
-		- J : record job data
-		- L : launch jobs, in local,sge and slurm backends (3 threads)
-		- M : job management
-		- Q : manage queries from clients
-		- R : deferred reports
-		- S : job start
-		- T : wait terminated processes in local backend
-		- W : deferred processing of wakeup connection errors
-	- in job exec :
-		- F        : the fuse loop
-		- <number> : compute crc
-	- in lmake :
-		- I : manage ^C
+	- in server:
+		- `C` : cancel jobs in sge and slurm backend (2 threads)
+		- `D` : handle lencode/ldecode
+		- `E` : job end
+		- `H` : heartbeat
+		- `J` : record job data
+		- `L` : launch jobs, in local,sge and slurm backends (3 threads)
+		- `M` : job management
+		- `Q` : manage queries from clients
+		- `R` : deferred reports
+		- `S` : job start
+		- `T` : wait terminated processes in local backend
+		- `W` : deferred processing of wakeup connection errors
+	- in job exec:
+		- `F`        : the fuse loop
+		- `<number>` : compute crc
+	- in lmake:
+		- `I` : manage ^C
 - trace records are indented to reflect the call graph
 	- indentation are done with tabs, preceded by a follow up character (chosen to be graphically light), this eases the reading
-	- when a function is entered, a * replaces the follow up character
-- to add a trace record :
-	- in a function that already has a Trace variable, just call the variable with the info you want to trace
-	- else, declare a variable of type Trace. The first argument is a title that will be repeated in all records using the same trace object
-	- all Trace objects created while this one is alive will be indented, thus reproducing the call graph in the trace
-	- booleans cannot be traced as this is mostly unreadable. Instead use the STR macro to transform the boolean into a string. STR(foo) will be "foo" if foo is true, else "!foo".
+	- when a function is entered, a `*` replaces the follow up character
+- to add a trace record:
+	- in a function that already has a `Trace` variable, just call the variable with the info you want to trace
+	- else, declare a variable of type `Trace`. The first argument is a title that will be repeated in all records using the same trace object
+	- all `Trace` objects created while this one is alive will be indented, thus reproducing the call graph in the trace
+	- booleans cannot be traced as this is mostly unreadable. Instead use the `STR` macro to transform the boolean into a string. `STR(foo)` will be `foo` if foo is true, else `!foo`.
 
 # modification
 
-* before pushing any modification :
+* before pushing any modification:
 	- run make without argument to check nothing unrelated to your modifications is broken
 
-* to add a backend :
+* to add a backend:
 	- make a file `src/lmakeserver/backends/<your_backend>.cc`
 		- and `git add` it
 	- use `src/lmakeserver/backends/local.cc` as a template
 	- run `git grep PER_BACKEND` to see all parts that must be modified
 
-* to add a cache :
+* to add a cache:
 	- make files `src/lmakeserver/caches/<your_cache>.hh` & `.cc`
 		- and git add them
 	- use `src/lmakeserver/caches/dir_cache.hh` & `.cc` as a template
 	- run `git grep PER_CACHE` to see all parts that must be modified
 
-* to add a command handled by the server :
+* to add a command handled by the server:
 	- make a file `src/<your_command>.cc`
 		- and `git add` it
 	- use `src/lshow.cc` as a template
