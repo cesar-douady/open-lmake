@@ -284,13 +284,9 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & 
 #endif
 
 // XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)
-SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // /!\ this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
-	static Tab                         s_tab    = {}    ;
-	static ::atomic<bool>              s_inited = false ;              // set to true once s_tab is initialized
-	if (s_inited) return s_tab ;                                       // fast test not even taking the lock
-	static Mutex<MutexLvl::SyscallTab> s_mutex  ;
-	Lock lock{s_mutex} ;
-	if (s_inited) return s_tab ;                                       // repeat test now that we have the lock in case another thread while in the middle of initializing s_tab
+static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
+	constexpr long NSyscalls = SyscallDescr::NSyscalls ;
+	SyscallDescr::Tab s_tab = {} ;
 	//	/!\ prio must be non-zero as zero means entry is not allocated
 	//	entries marked NFS_GUARD are deemed data access as they touch their enclosing dir and hence must be guarded against strange NFS notion of coherence
 	//	entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
@@ -427,7 +423,8 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // /!\ th
 	#if MAP_VFORK && defined(SYS_vfork)
 		static_assert(SYS_vfork            <NSyscalls) ; s_tab[SYS_vfork            ] = { nullptr                            , nullptr        ,0    , 2  , false , "Vfork"             } ;
 	#endif
-	fence() ;                                                          // ensure serialization
-	s_inited = true ;
 	return s_tab ;
 }
+
+constexpr SyscallDescr::Tab _syscall_descr_tab = _build_syscall_descr_tab() ;
+SyscallDescr::Tab const& SyscallDescr::s_tab = _syscall_descr_tab ;

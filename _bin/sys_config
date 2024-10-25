@@ -376,23 +376,6 @@ USE_LIBC_START_MAIN=$(./start_main)
 STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
 
 #
-# SUPPORT_TIMED_MUTEX
-#
-# there is subtility with timed_mutex : they do syscalls to manage time
-# and because syscalls are trapped by autodep and take mutexes, there is a potential loop preventing their use
-# this show up on centos7, but not on rocky8/9 nor ubuntu20-24
-# this could depend on compiler versions also, but centos7/gcc-11 does not work and rocky8/gcc-11 works
-# XXX : develop a dynamic test rather than relying on os versions
-case "$ID/$VERSION_ID" in
-	ubuntu/* ) SUPPORT_TIMED_MUTEX=1 ;;
-	rocky/8.*) SUPPORT_TIMED_MUTEX=1 ;;
-	rocky/9.*) SUPPORT_TIMED_MUTEX=1 ;;
-	centos/7 ) SUPPORT_TIMED_MUTEX=0 ;;
-	*        ) SUPPORT_TIMED_MUTEX=0 ;; # be conservative if os is unknown
-esac
-[ $SUPPORT_TIMED_MUTEX = 1 ] || echo "cannot use timed_mutex, fall back to mutex (less robust)" >>$SUM_FILE
-
-#
 # MAP_VFORK
 #
 # Linux specifies vfork more precisely than Posix
@@ -477,7 +460,6 @@ cat >$H_FILE <<EOF
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
 	#define SLURM_SO                    "$SLURM_SO"
-	#define SUPPORT_TIMED_MUTEX         $SUPPORT_TIMED_MUTEX
 	#define STD_PATH                    "$STD_PATH"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

@@ -51,7 +51,7 @@ void AutodepPtrace::s_init(AutodepEnv const& ade) {
 	Record::s_autodep_env(ade) ;
 	#if HAS_SECCOMP
 		// XXX : find a way to load seccomp rules that support 32 bits and 64 bits exe's
-		static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
+		static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab ;
 		// prepare seccomp filter outside s_prepare_child as this might very well call malloc
 		bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ;                         // if full link support, we need to analyze uphill dirs
 		swear_prod( ::seccomp_attr_set( s_scmp , SCMP_FLTATR_CTL_OPTIMIZE , 2 )==0 ) ;
@@ -119,7 +119,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 				default : SWEAR(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;                  // ignore other events
 			}
 		DoSyscall :
-			{	static SyscallDescr::Tab const& tab = SyscallDescr::s_tab() ;
+			{	static SyscallDescr::Tab const& tab = SyscallDescr::s_tab ;
 				sig = 0 ;
 				uint32_t word_sz = 0/*garbage*/ ;
 				#if HAS_PTRACE_GET_SYSCALL_INFO                                                   // use portable calls if implemented
