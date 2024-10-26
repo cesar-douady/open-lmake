@@ -150,6 +150,7 @@ MOD_O         = $(if $(and $(LD_SO_LIB_32),$(findstring -m32,             $@)),-
 
 LMAKE_SERVER_PY_FILES := \
 	_lib/read_makefiles.py              \
+	_lib/fmt_rule.py                    \
 	_lib/serialize.py                   \
 	lib/lmake/__init__.py               \
 	lib/lmake/auto_sources.py           \

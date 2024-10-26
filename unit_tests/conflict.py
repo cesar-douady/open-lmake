@@ -27,5 +27,11 @@ else :
 
 	import ut
 
-	ut.lmake( 'tmp' ,               done=1              ) # ensure tmp exists
-	ut.lmake( 'b'   , may_rerun=1 , done=2 , was_done=1 ) # tmp is unlinked by a, then regenerated for b
+	ut.lmake( 'tmp' , done=1 ) # ensure tmp exists
+	#
+	cnt = ut.lmake( 'b'   , may_rerun=1 , done=... , rerun=... , steady=... , was_done=1 ) # tmp is unlinked by a, then regenerated for b
+	# tmp may be to new for b to be done right away
+	if   cnt.done==2 and cnt.rerun==0 and cnt.steady==0 : pass # normal situation
+	elif cnt.done==1 and cnt.rerun==1 and cnt.steady==1 : pass # tmp is too new, b is rerun
+	else :
+		assert False,f'bad counts {cnt}'

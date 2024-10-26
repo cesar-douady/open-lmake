@@ -564,42 +564,43 @@ namespace Engine::Persistent {
 		return res ;
 	}
 
-	bool/*invalidate*/ new_srcs( ::vmap_s<FileTag>&& src_names , ::vector_s&& src_dir_names_s , bool dynamic ) {
-		::map<Node,FileTag    > srcs         ;                                                                                                 // use ordered map/set to ensure stable execution
-		::map<Node,FileTag    > old_srcs     ;                                                                                                 // .
-		::map<Node,FileTag    > new_srcs_    ;                                                                                                 // .
-		::set<Node            > src_dirs     ;                                                                                                 // .
-		::set<Node            > old_src_dirs ;                                                                                                 // .
-		::set<Node            > new_src_dirs ;                                                                                                 // .
+	bool/*invalidate*/ new_srcs( ::pair<::vmap_s<FileTag>/*files*/,::vector_s/*dirs_s*/>&& src_names , bool dynamic ) {
+		::map<Node,FileTag    > srcs         ;                                                                                                  // use ordered map/set to ensure stable execution
+		::map<Node,FileTag    > old_srcs     ;                                                                                                  // .
+		::map<Node,FileTag    > new_srcs_    ;                                                                                                  // .
+		::set<Node            > src_dirs     ;                                                                                                  // .
+		::set<Node            > old_src_dirs ;                                                                                                  // .
+		::set<Node            > new_src_dirs ;                                                                                                  // .
 		Trace trace("new_srcs") ;
 		//
-		size_t    root_dir_depth      = 0       ; { for( char c : *g_root_dir_s ) root_dir_depth += c=='/' ; } root_dir_depth-- ;              // there is one more / than the actual depth
-		size_t    src_dirs_uphill_lvl = 0       ;
-		::string* highest             = nullptr ;
-		for( ::string& d_s : src_dir_names_s ) if (!is_abs_s(d_s))
-			if ( size_t ul=uphill_lvl_s(d_s) ; ul>src_dirs_uphill_lvl ) {
-				src_dirs_uphill_lvl = ul   ;
-				highest             = &d_s ;
-			}
+		size_t          root_dir_depth      = 0       ; { for( char c : *g_root_dir_s ) root_dir_depth += c=='/' ; } root_dir_depth-- ;         // there is one more / than the actual depth
+		size_t          src_dirs_uphill_lvl = 0       ;
+		::string const* highest             = nullptr ;
+		for( ::string const& d_s : src_names.second ) {
+			if (!is_abs_s(d_s))
+				if ( size_t ul=uphill_lvl_s(d_s) ; ul>src_dirs_uphill_lvl ) {
+					src_dirs_uphill_lvl = ul   ;
+					highest             = &d_s ;
+				}
+		}
 		if (root_dir_depth<=src_dirs_uphill_lvl) {
 			SWEAR(highest) ;
-			highest->pop_back() ;
-			throw "cannot access relative source dir "+*highest+" from repository "+no_slash(*g_root_dir_s) ;
+			throw "cannot access relative source dir "+no_slash(*highest)+" from repository "+no_slash(*g_root_dir_s) ;
 		}
 		// format inputs
-		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;               // dont care whether we delete a regular file or a link
+		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;                // dont care whether we delete a regular file or a link
 		//
-		for( auto const& [sn,t] : src_names       )                   srcs.emplace( Node(sn                      ) , t                   ) ;
-		for( ::string&    sn    : src_dir_names_s ) { sn.pop_back() ; srcs.emplace( Node(sn,!is_lcl(sn)/*no_dir*/) , FileTag::Dir/*dir*/ ) ; } // external src dirs need no uphill dir
+		for( auto const& [sn,t] : src_names.first  )                   srcs.emplace( Node(sn                      ) , t                   ) ;
+		for( ::string&    sn    : src_names.second ) { sn.pop_back() ; srcs.emplace( Node(sn,!is_lcl(sn)/*no_dir*/) , FileTag::Dir/*dir*/ ) ; } // external src dirs need no uphill dir
 		//
-		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;                    // non-local nodes have no dir
-		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;                    // .
+		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;                     // non-local nodes have no dir
+		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;                     // .
 		// check
 		for( auto [n,t] : srcs ) {
 			if (!src_dirs.contains(n)) continue ;
 			::string nn   = n->name() ;
 			::string nn_s = nn+'/'    ;
-			for( auto const& [sn,_] : src_names )
+			for( auto const& [sn,_] : src_names.first )
 				if ( sn.starts_with(nn_s) ) throw "source "s+(t==FileTag::Dir?"dir ":"")+nn+" is a dir of "+sn ;
 			FAIL(nn,"is a source dir of no source") ;
 		}
@@ -619,8 +620,8 @@ namespace Engine::Persistent {
 		//
 		if ( !old_srcs && !new_srcs_ ) return false ;
 		if (dynamic) {
-			if (+new_srcs_) throw "new source "    +new_srcs_.begin()->first->name() ;                                                         // XXX : accept new sources if unknown
-			if (+old_srcs ) throw "removed source "+old_srcs .begin()->first->name() ;                                                         // XXX : accept old sources if unknown
+			if (+new_srcs_) throw "new source "    +new_srcs_.begin()->first->name() ;                                                          // XXX : accept new sources if unknown
+			if (+old_srcs ) throw "removed source "+old_srcs .begin()->first->name() ;                                                          // XXX : accept old sources if unknown
 			FAIL() ;
 		}
 		//
@@ -628,8 +629,8 @@ namespace Engine::Persistent {
 		// commit
 		for( bool add : {false,true} ) {
 			::map<Node,FileTag> const& srcs = add ? new_srcs_ : old_srcs ;
-			::vector<Node>             ss   ; ss.reserve(srcs.size()) ;                                                                        // typically, there are very few src dirs
-			::vector<Node>             sds  ;                                                                                                  // .
+			::vector<Node>             ss   ; ss.reserve(srcs.size()) ;                                                                         // typically, there are very few src dirs
+			::vector<Node>             sds  ;                                                                                                   // .
 			for( auto [n,t] : srcs ) if (t==FileTag::Dir) sds.push_back(n) ; else ss.push_back(n) ;
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Node::s_srcs(false/*dirs*/,add,ss ) ;

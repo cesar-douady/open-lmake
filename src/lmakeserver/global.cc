@@ -140,8 +140,8 @@ namespace Engine {
 			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
 			fields[0] = "path_max"            ; if (py_map.contains(fields[0])) path_max               = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs          =                           +py_map[fields[0]]                          ;
-			fields[0] = "rules_module"        ; if (py_map.contains(fields[0])) rules_module           =                            py_map[fields[0]].as_a<Str  >()            ;
-			fields[0] = "sources_module"      ; if (py_map.contains(fields[0])) srcs_module            =                            py_map[fields[0]].as_a<Str  >()            ;
+			fields[0] = "has_split_rules"     ; if (py_map.contains(fields[0])) has_split_rules        =                           +py_map[fields[0]]                          ;
+			fields[0] = "has_split_srcs"      ; if (py_map.contains(fields[0])) has_split_srcs         =                           +py_map[fields[0]]                          ;
 			//
 			fields[0] = "link_support" ;
 			if (py_map.contains(fields[0])) {
@@ -298,8 +298,6 @@ namespace Engine {
 		/**/                             res << "\tnetwork_delay       : " << network_delay .short_str() <<'\n' ;
 		if (path_max!=size_t(-1)       ) res << "\tpath_max            : " << size_t(path_max     )      <<'\n' ;
 		else                             res << "\tpath_max            : " <<        "<unlimited>"       <<'\n' ;
-		if (+rules_module              ) res << "\trules_module        : " <<        rules_module        <<'\n' ;
-		if (+srcs_module               ) res << "\tsources_module      : " <<        srcs_module         <<'\n' ;
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;

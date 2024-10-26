@@ -316,11 +316,11 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 	//
-	bool/*invalidate*/ new_srcs        ( ::vmap_s<FileTag>&& srcs , ::vector_s&& src_dirs_s , bool dynamic ) ;
-	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                             , bool dynamic ) ;
-	void               invalidate_match(                                                                   ) ;
-	void               invalidate_exec ( bool cmd_ok                                                       ) ;
-	void               repair          ( ::string const& from_dir_s                                        ) ;
+	bool/*invalidate*/ new_srcs        ( ::pair<::vmap_s<FileTag>/*files*/,::vector_s/*dirs_s*/>&& srcs , bool dynamic ) ;
+	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                                         , bool dynamic ) ;
+	void               invalidate_match(                                                                               ) ;
+	void               invalidate_exec ( bool cmd_ok                                                                   ) ;
+	void               repair          ( ::string const& from_dir_s                                                    ) ;
 	//
 	NodeFile::Lst  node_lst() ;
 	JobFile ::Lst  job_lst () ;

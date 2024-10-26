@@ -138,16 +138,16 @@ namespace Engine {
 		// services
 		bool operator==(ConfigStatic const&) const = default ;
 		// data
-		Time::Delay    date_prec      ;                                              // precision of dates on disk
-		Time::Delay    heartbeat      ;                                              // min time between successive heartbeat probes for any given job
-		Time::Delay    heartbeat_tick ;                                              // min time between successive heartbeat probes
-		DepDepth       max_dep_depth  = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
-		Time::Delay    network_delay  ;
-		size_t         path_max       = -1   ;                                       // if -1 <=> unlimited
-		::string       rules_module   ;
-		::string       srcs_module    ;
-		TraceConfig    trace          ;
-		::map_s<Cache> caches         ;
+		Time::Delay    date_prec       ;                                              // precision of dates on disk
+		Time::Delay    heartbeat       ;                                              // min time between successive heartbeat probes for any given job
+		Time::Delay    heartbeat_tick  ;                                              // min time between successive heartbeat probes
+		DepDepth       max_dep_depth   = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
+		Time::Delay    network_delay   ;
+		size_t         path_max        = -1   ;                                       // if -1 <=> unlimited
+		bool           has_split_rules ;                                              // if true <=> read independently of config
+		bool           has_split_srcs  ;                                              // .
+		TraceConfig    trace           ;
+		::map_s<Cache> caches          ;
 	} ;
 
 	// changing these can be made dynamically (i.e. while lmake is running)

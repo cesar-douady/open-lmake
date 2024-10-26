@@ -173,6 +173,24 @@ One way to obtain this information is by running the command @samp{uname -a}.
 @chapter An Introduction to @Lmakefile syntax
 
 You need a file called @Lmakefile to tell @lmake what to do.
+Alternatively, this may be a package and the file @file{Lmakefile/__init__.py} must exist.
+This is important as in addition to defining the necessary context for @lmake to work, it also serves as a marker to find the root of the repository.
+The bare existence of a directory @file{Lmakefile} seemed too light to act as a marker, hence the necessity for the @file{__init__.py} file underneath.
+
+The goal of making a package is to define 3 sub-modules @code{config}, @code{rules} and @code{sources}.
+It is recommanded to :
+@itemize
+@item In simple cases, just define @Lmakefile
+@item In more complex cases, splitting in 3 sub-modules may be more performant as each part is individually re-read depending on what has changed.
+For example, if you add a source, sources need to be re-read, but rules need not.
+If it was a single module, everything would be re-read.
+@end itemize
+
+Note that in the case of a package, common code can be placed in @file{Lmakefile/__init__.py} as this is read in all 3 cases.
+For example, a @code{Rule} may need to know the available resources defined in @code{config} to adapt iteself.
+This part of the config can be defined in @file{Lmakefile/__init__.py}.
+
+Throughout this document, @Lmakefile means either @file{Lmakefile.py} or the package @file{Lmakefile}.
 
 In this chapter, we will discuss a simple @Lmakefile that describes how to compile, link and test a tiny executable @file{hello_world.exe}
 which consists of 3 C source files (@file{hello_world.c}, @file{hello.c} and @file{world.c}) and 2 header files (@file{hello.h} and @file{world.h}).
@@ -688,6 +706,8 @@ It is of paramount importance to leave this directory intact as this is where @l
 
 @chapter Config
 
+Configuration is either defined directly in @Lmakefile or you can define a callable or a sub-module called @code{config} which is called/imported.
+
 @lmake can be configured to tailor its parameters to the user needs. When reading its configuration, the environment is reset to a standard environment :
 @itemize @minus
 @item HOME is set to the repository root dir.
@@ -784,27 +804,6 @@ This attribute provides this delay in seconds.
 @tab Static
 @tab This is one of the infinite recursion protection in the rule selection process (cf @pxref{rule-selection}).
 The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called @code{'infinite'}.
-
-@item @code{rules_module}
-@tab empty
-@tab Static
-@tab Specify a module that is used in place of @code{Lmakefile} to define rules, i.e. this module must define rules the same way as described in this document.
-If this entry is set, @code{Lmakefile} must have no rules defined.
-@*
-The primary goal is to decouple loading configuration and loading rules as @lmake tracks dependencies for each of them separately.
-This is both more performant (when there are a lot of rules) and allows dynamic modification of the configuration (for fields that support dynamic updates).
-
-@item @code{sources_module}
-@tab @code{lmake.auto_sources} if @code{lmake.manifest} is empty, else empty
-@tab Static
-@tab Specify a module that is used in place of @code{Lmakefile} to define sources, i.e. this module must define sources by setting the @code{lmake.manifest} variable as described in this document.
-If this entry is set, @code{Lmakefile} must have no sources defined in @code{lmake.manifest}.
-@*
-The default value (@code{lmake.auto_sources}) merely call @code{lmake.sources.auto_sources()} to define @code{lmake.manifest}.
-Most of the time, this is suitable so the user rarely has to bother with sources.
-@*
-The primary goal is to decouple loading configuration and load sources as @lmake tracks dependencies for each of them separately.
-This is both more performant (when there are a lot of sources) and allows dynamic modification of the configuration (for fields that support dynamic updates).
 
 @item @code{reliable_dirs}
 @tab @code{False} unless only local backend is used
@@ -972,7 +971,13 @@ Also, if a file cannot be derived and is not a source, it is deemed unbuildable,
 In this later case, it will be considered dangling and this is an error condition.
 The purpose of this restriction is to ensure repeatability : all buildable files can be (possibly indirectly) derived from sources using rules.
 
-The list of sources is provided to @lmake by setting the @code{lmake.manifest} variable as the list of sources to use or the @code{lmake.config.sources_module} variable as a module to load.
+There are several ways to provide the list of sources (called the manifest) to @lmake :
+@itemize
+@item define @code{lmake.manifest}                : This must be a @code{tuple} or @code{list} listing the sources.
+@item define a callable named @code{sources}      : The callable is called and, as a side effect, must define @code{lmake.manifest}.
+@item implement a sub-module named @code{sources} : The sub-module is imported and, as a side effect, must define @code{lmake.manifest}.
+@item do nothing                                  : @lmake calles the @code{lmake.sources.auto_sources()} function described below.
+@end itemize
 
 The manifest can contain :
 @itemize
@@ -987,7 +992,8 @@ This is true for cache related aspects as well where comparison between job data
 In both cases, names must be canonical, i.e. contain no empty component nor @file{.}, nor @file{..} except initially for relative names.
 
 The following helper functions can be used to provide sources.
-If nothing is mentioned in @Lmakefile, @code{auto_sources()} is called.
+
+Remember that @Lmakefile and, if needed, @file{Manifest} must be listed as sources.
 
 @section @code{manifest_sources(manifest='Manifest',**kwds)} :
 
@@ -1019,6 +1025,18 @@ It raises a @code{FileNotFoundError} exception if none succeeds.
 @chapter Rules
 
 Rules are described as Python @code{class}'es inheriting from @code{lmake.Rule}, @code{lmake.AntiRule} or @code{SourceRule}.
+
+Such classes are either defined directly in @Lmakefile or you can define a callable or a sub-module called @code{rules} that does the same thing when called/imported.
+For example you can define :
+@example
+@group
+def rules() :
+	class MyRule(lmake.Rule) :
+		target = 'my_target'
+		cmd    = ''
+@end group
+@end example
+Or the sub-module @code{Lmakefile.rules} containing such class definitions.
 
 Inheriting from @code{lmake.Rule} is used to define production rules that allows deriving targets from dependencies.
 
@@ -2086,12 +2104,12 @@ Each line contains a file, preceded by a @code{+} if file exists or a @code{!} i
 
 @section @file{LMAKE/rules_deps}
 
-If @code{lmake.rules_module} has been set, this file contains a list of files that @lmake has read to process it.
+If a callable or a sub-module has been set to define rules, this file contains a list of files that @lmake has read to process it.
 Each line contains a file, preceded by a @code{+} if file exists or a @code{!} if it does not.
 
 @section @file{LMAKE/sources_deps}
 
-If @code{lmake.sources_module} has been set or if using the default behavior to list sources, this file contains a list of files that @lmake has read to process it.
+If a callable or a sub-module has been set or if using the default behavior to list sources, this file contains a list of files that @lmake has read to process it.
 Each line contains a file, preceded by a @code{+} if file exists or a @code{!} if it does not.
 
 @section @file{LMAKE/outputs/<date>}
