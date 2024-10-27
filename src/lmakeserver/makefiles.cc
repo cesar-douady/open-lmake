@@ -153,10 +153,9 @@ namespace Engine::Makefiles {
 		swear_prod( ::rename( _deps_file(action,true/*new*/).c_str() , _deps_file(action,false/*new*/).c_str() )==0 , "stamp deps for" , action ) ;
 	}
 
+	static RegExpr const* pyc_re = nullptr ;
+
 	static ::pair<Ptr<Dict>,::vector_s/*deps*/> _read_makefile(::string const& action) {
-		//
-		static RegExpr pyc_re = R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)"s ; // dir_s is \1, module is \2, matches both python 2 & 3
-		//
 		Trace trace("_read_makefile",action,Pdate(New)) ;
 		//
 		::string data   = PrivateAdminDirS+action+"_data.py" ;
@@ -186,7 +185,7 @@ namespace Engine::Makefiles {
 		for( auto const& [d,ai] : gather.accesses ) {
 			if (ai.digest.write!=No) continue ;
 			::string py ;
-			if ( Match m = pyc_re.match(d) ; +m ) py = ::string(m[1/*dir_s*/])+::string(m[2/*module*/])+".py" ;
+			if ( Match m = pyc_re->match(d) ; +m ) py = ::string(m[1/*dir_s*/])+::string(m[2/*module*/])+".py" ;
 			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.push_back(py) ; }
 			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.push_back(d ) ; }
 		}
@@ -356,7 +355,24 @@ namespace Engine::Makefiles {
 		return msg ;
 	}
 
-	::string/*msg*/ refresh        ( bool rescue , bool refresh_ ) { return _refresh( rescue , refresh_ , false/*dynamic*/ , *g_startup_dir_s ) ; }
-	::string/*msg*/ dynamic_refresh(::string const& startup_dir_s) { return _refresh( false  , true     , true /*dynamic*/ , startup_dir_s    ) ; }
+	::string/*msg*/ refresh( bool rescue , bool refresh_ ) {
+		::string reg_exprs_file = PRIVATE_ADMIN_DIR_S "regexprs" ;
+		try         { deserialize( IFStream(reg_exprs_file) , RegExpr::s_cache ) ; }              // load from persistent cache
+		catch (...) {                                                              }              // perf only, dont care of errors (e.g. first time)
+		//
+		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
+		pyc_re = new RegExpr{R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)"s} ;     // dir_s is \1, module is \2, matches both python 2 & 3
+		//
+		::string res = _refresh( rescue , refresh_ , false/*dynamic*/ , *g_startup_dir_s ) ;
+		//
+		if (!RegExpr::s_cache.steady()) {
+			try         { serialize( OFStream(dir_guard(reg_exprs_file)) , RegExpr::s_cache ) ; } // update persistent cache
+			catch (...) {                                                                       } // perf only, dont care of errors (e.g. we are read-only)
+		}
+		return res ;
+	}
+	::string/*msg*/ dynamic_refresh(::string const& startup_dir_s) {
+		return _refresh( false/*rescue*/  , true/*refresh*/ , true/*dynamic*/ , startup_dir_s ) ;
+	}
 
 }

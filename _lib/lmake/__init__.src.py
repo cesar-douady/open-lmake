@@ -95,7 +95,7 @@ def run_cc(*cmd_line,**kwds) :
 	return sp.run(
 		cmd_line
 	,	universal_newlines=True
-	,	stdin=stdin , stdout=sp.PIPE , stderr=sp.PIPE
+	,	stdin=stdin , stdout=sp.PIPE
 	,	check=True
 	)
 

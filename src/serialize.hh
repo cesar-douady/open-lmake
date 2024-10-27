@@ -9,7 +9,7 @@
 
 template<class T> struct Serdeser ;
 
-template<class S> concept IsStream    =                                                                    ::is_same_v<S,ostream>      || ::is_same_v<S,istream>          ;
+template<class S> concept IsStream = ::is_base_of_v<::ostream,S> || ::is_base_of_v<::istream,S> ;
 //
 template<class T> concept HasSerdes   =                  requires( T x , ::istream& is , ::ostream& os ) { x.serdes(os)                ;  x.serdes(is)                ; } ;
 template<class T> concept HasSerdeser = !HasSerdes<T> && requires( T x , ::istream& is , ::ostream& os ) { Serdeser<T>::s_serdes(os,x) ;  Serdeser<T>::s_serdes(is,x) ; } ;

@@ -411,7 +411,7 @@ namespace Engine::Persistent {
 
 	static void _save_rules() {
 		_rule_str_file.clear() ;
-		for( Rule r : rule_lst() ) _rule_file.at(r) = _rule_str_file.emplace(::string(_rule_datas[+r])) ;
+		for( Rule r : rule_lst() ) _rule_file.at(r) = _rule_str_file.emplace(serialize(_rule_datas[+r])) ;
 	}
 
 	static void _set_exec_gen( RuleData& rd , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool dynamic=false ) { // called if at least resources changed
@@ -519,9 +519,9 @@ namespace Engine::Persistent {
 					trace("modified",new_rd,STR(cmd_ok),new_rd.cmd_gen,new_rd.rsrcs_gen) ;
 				}
 			}
-			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			RuleStr rs = _rule_str_file.emplace(::string(new_rd)) ;
-			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			RuleStr rs = _rule_str_file.emplace(serialize(new_rd)) ;
+			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (+old_r) _rule_file.at(old_r) = rs ;
 			else        _rule_file.emplace(rs) ;
 		}

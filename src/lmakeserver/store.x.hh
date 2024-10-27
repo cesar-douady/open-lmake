@@ -495,7 +495,7 @@ namespace Engine::Persistent {
 	inline RuleStr         RuleBase::_str     () const { SWEAR(!is_shared()) ; return _rule_file.c_at(Rule(*this))     ; }
 	// services
 	inline void RuleBase::save() const {
-		_rule_file.at(*this) = _rule_str_file.assign(_str(),::string(**this)) ;
+		_rule_file.at(*this) = _rule_str_file.assign(_str(),serialize(**this)) ;
 	}
 
 	//

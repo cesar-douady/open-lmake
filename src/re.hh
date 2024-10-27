@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "utils.hh"
+#include "serialize.hh"
 
 #if HAS_PCRE
 	#define PCRE2_CODE_UNIT_WIDTH 8
@@ -15,6 +15,14 @@
 #endif
 
 // /!\ this interface assumes that all variable parts are enclosed within () : this simpliies a lot prefix and suffix identification
+
+#if HAS_PCRE
+	ENUM( RegExprUse
+	,	Unused
+	,	Old
+	,	New
+	)
+#endif
 
 namespace Re {
 
@@ -37,7 +45,6 @@ namespace Re {
 		struct Match {
 			friend RegExpr ;
 			friend void swap( Match& a , Match& b ) ;
-			// statics
 		private :
 			// cxtors & casts
 			Match() = default ;
@@ -72,9 +79,30 @@ namespace Re {
 		struct RegExpr {
 			friend Match ;
 			friend void swap( RegExpr& a , RegExpr& b ) ;
-			static constexpr size_t ErrMsgSz = 120 ;      // per PCRE doc
+			using Use = RegExprUse ;
+			static constexpr size_t ErrMsgSz = 120 ;                                 // per PCRE doc
+			struct Cache {
+				// cxtors & casts
+				void serdes(::ostream&) const ;
+				void serdes(::istream&) ;
+				// accesses
+				bool _has_new() const { return _n_unused<0 ; }
+				// services
+				bool steady() const {
+					return !_n_unused ;
+				}
+				pcre2_code const* insert(::string const& infix) ;
+				// data
+			private :
+				::umap_s<::pair<pcre2_code const*,Use/*use*/>> _cache    ;
+				ssize_t                                        _n_unused = 0 ; // <0 if new codes
+			} ;
+			// statics
+		private :
+			static ::pcre2_code* _s_compile(::string const& infix) ;
 			// static data
-			static ::umap_s<pcre2_code*> s_code_store ;
+		public :
+			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
 			RegExpr(::string const& pattern) ;
@@ -91,10 +119,10 @@ namespace Re {
 				return cnt ;
 			}
 			// data
-			::string pfx ;                                // fixed prefix
-			::string sfx ;                                // fixed suffix
+			::string pfx ;                                                           // fixed prefix
+			::string sfx ;                                                           // fixed suffix
 		private :
-			pcre2_code* _code = nullptr ;                 // only contains code for infix part, shared and stored in s_store
+			pcre2_code const* _code = nullptr ;                                      // only contains code for infix part, shared and stored in s_store
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b ) {
 			::swap(a.pfx  ,b.pfx  ) ;
@@ -122,14 +150,15 @@ namespace Re {
 
 		struct RegExpr : private ::regex {
 			friend Match ;
+			static constexpr flag_type Flags = ECMAScript|optimize ;
+			struct Cache {                                           // there is no serialization facility and cache is not implemented, fake it
+				static constexpr bool steady() { return true ; }
+			} ;
+			// static data
+			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr(::string const& pattern) :
-				::regex{ pattern ,
-					::regex::ECMAScript
-				|	::regex::optimize
-				}
-			{}
+			RegExpr(::string const& pattern) : ::regex{pattern,Flags} {}
 			// services
 			Match match( ::string const& subject , bool /*chk_psfx*/=true ) const {
 				Match res ;

@@ -526,14 +526,11 @@ namespace Engine {
 		RuleData( Special , ::string const& src_dir_s={} ) ;           // src_dir in case Special is SrcDir
 		RuleData(::string_view const& str) {
 			IStringStream is{::string(str)} ;
-			serdes(static_cast<::istream&>(is)) ;
+			serdes(is) ;
 		}
 		RuleData(Py::Dict const& dct) {
 			_acquire_py(dct) ;
 			_compile   (   ) ;
-		}
-		operator ::string() const {
-			return serialize(*this) ;
 		}
 		template<IsStream S> void serdes(S&) ;
 	private :
