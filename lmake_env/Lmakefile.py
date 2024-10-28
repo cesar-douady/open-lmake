@@ -205,26 +205,27 @@ class GenOpts(BaseRule,PyRule) :
 class Marker(DirRule) :
 	prio = 1            # avoid untar when in a tar dir
 
+basic_opts = ('-O0','-pedantic','-fno-strict-aliasing','-DNDEBUG','-DNO_TRACE','-Werror','-Wall','-Wextra') # minimize compilation time
 basic_opts_tab = {
-	'c'   : ('-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra',                                            )
-,	'cc'  : ('-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type') # on some systems, there is a warning type-limits
-,	'cxx' : ('-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type') # .
+	'c'   :   basic_opts
+,	'cc'  : (*basic_opts,'-Wno-type-limits','-Wno-cast-function-type')                                      # on some systems, there is a warning type-limits
+,	'cxx' : (*basic_opts,'-Wno-type-limits','-Wno-cast-function-type')                                      # .
 }
 def run_gxx(target,*args) :
 		cmd_line = ( gxx , '-o' , target , '-fdiagnostics-color=always' , *args )
-		if '/' in gxx : os.environ['PATH'] = ':'.join((osp.dirname(gxx),os.environ['PATH'])) # gxx calls its subprograms (e.g. as) using PATH, ensure it points to gxx dir
+		if '/' in gxx : os.environ['PATH'] = ':'.join((osp.dirname(gxx),os.environ['PATH']))                # gxx calls its subprograms (e.g. as) using PATH, ensure it points to gxx dir
 		for k,v in os.environ.items() : print(f'{k}={v}')
 		print(' '.join(cmd_line))
 		run_cc(*cmd_line)
 for ext,basic_opts in basic_opts_tab.items() :
-	class Compile(PathRule,PyRule) :                                     # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
+	class Compile(PathRule,PyRule) :           # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
 		name    = f'compile {ext}'
 		targets = { 'OBJ' : '{File}.o' }
 		deps    = {
 			'SRC'  : f'{{File}}.{ext}'
 		,	'OPTS' : '{File}.opts'
 		}
-		basic_opts = basic_opts                                          # capture value while iterating (w/o this line, basic_opts would be the final value)
+		basic_opts = basic_opts                # capture value while iterating (w/o this line, basic_opts would be the final value)
 		def cmd() :
 			add_flags = eval(open(OPTS).read())
 			if sys_config('CXX_FLAVOR')=='clang' : clang_opts = ('-Wno-misleading-indentation','-Wno-unknown-warning-option','-Wno-c2x-extensions','-Wno-unused-function','-Wno-c++2b-extensions')

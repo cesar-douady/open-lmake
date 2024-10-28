@@ -287,6 +287,17 @@ HAS_SLURM=$(ok cc -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/s
 [ $HAS_SLURM = 1 ] || echo no slurm support >>$SUM_FILE
 
 #
+# HAS_UNREACHABLE
+#
+cat <<"EOF" >unreachable.cc
+	#include <utility>
+	int main() {
+		std::unreachable() ;
+	}
+EOF
+HAS_UNREACHABLE=$(ok cc -std=$CXX_STD -o /dev/null unreachable.cc)
+
+#
 # LIB_STACKTRACE
 #
 cat <<"EOF" > stacktrace.cc
@@ -453,6 +464,7 @@ cat >$H_FILE <<EOF
 	#define HAS_SGE                     $HAS_SGE
 	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
+	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define MAP_VFORK                   $MAP_VFORK

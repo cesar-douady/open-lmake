@@ -356,7 +356,7 @@ namespace Engine::Makefiles {
 	}
 
 	::string/*msg*/ refresh( bool rescue , bool refresh_ ) {
-		::string reg_exprs_file = PRIVATE_ADMIN_DIR_S "regexprs" ;
+		::string reg_exprs_file = PRIVATE_ADMIN_DIR_S "regexpr_cache" ;
 		try         { deserialize( IFStream(reg_exprs_file) , RegExpr::s_cache ) ; }              // load from persistent cache
 		catch (...) {                                                              }              // perf only, dont care of errors (e.g. first time)
 		//

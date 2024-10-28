@@ -463,7 +463,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 	::abort() ;
 }
 
-#if __cplusplus < 202300                     // defined in <utility> in c++23
+#if !HAS_UNREACHABLE                         // defined in <utility> in c++23, use 202100 as g++-12 generates 202100 when -std=c++23
 	[[noreturn]] inline void unreachable() {
 		#ifdef __has_builtin
 			#if __has_builtin(__builtin_unreachable)

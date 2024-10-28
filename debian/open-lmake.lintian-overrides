@@ -1,1 +1,5 @@
 initial-upload-closes-no-bugs
+
+# stupid debian does not understand debug symbol files, filter some errors out
+binary-with-bad-dynamic-table      [usr/lib/open-lmake/**/*.dbg]
+shared-library-lacks-prerequisites [usr/lib/open-lmake/**/*.dbg]

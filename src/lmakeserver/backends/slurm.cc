@@ -92,14 +92,12 @@ namespace std {
 
 namespace Backends::Slurm {
 
-	using p_cxxopts = ::unique_ptr<cxxopts::Options> ;
-	using SlurmId   = uint32_t                       ;
+	using SlurmId = uint32_t ;
 
 	Mutex<MutexLvl::Slurm> _slurm_mutex ; // ensure no more than a single outstanding request to daemon
 
 	void slurm_init(const char* config_file) ;
 
-	p_cxxopts                 create_parser     (                        ) ;
 	RsrcsData                 parse_args        (::string const& args    ) ;
 	void                      slurm_cancel      (SlurmId         slurm_id) ;
 	::pair_s<Bool3/*job_ok*/> slurm_job_state   (SlurmId         slurm_id) ;
@@ -107,8 +105,6 @@ namespace Backends::Slurm {
 	Daemon                    slurm_sense_daemon(                        ) ;
 	//
 	SlurmId slurm_spawn_job( ::stop_token , ::string const& key , Job , ::vector<ReqIdx> const& , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
-
-	p_cxxopts g_optParse = create_parser() ;
 
 	constexpr Tag MyTag = Tag::Slurm ;
 
@@ -454,9 +450,9 @@ namespace Backends::Slurm {
 		return SlurmApi::strerror(errno) ;
 	}
 
-	p_cxxopts create_parser() {
-		p_cxxopts allocated{new cxxopts::Options("slurm","Slurm options parser for lmake")} ;
-		allocated->add_options()
+	static cxxopts::Options _create_parser() {
+		cxxopts::Options res { "slurm" , "Slurm options parser for lmake" } ;
+		res.add_options()
 			( "c,cpus-per-task" , "cpus-per-task" , cxxopts::value<uint16_t>() )
 			( "mem"             , "mem"           , cxxopts::value<uint32_t>() )
 			( "tmp"             , "tmp"           , cxxopts::value<uint32_t>() )
@@ -470,53 +466,48 @@ namespace Backends::Slurm {
 			( "reservation"     , "reservation"   , cxxopts::value<::string>() )
 			( "h,help"          , "print usage"                                )
 		;
-		return allocated;
+		return res ;
 	}
-
 	RsrcsData parse_args(::string const& args) {
-		static ::string slurm = "slurm" ;                  // apparently "slurm"s.data() does not work as memory is freed right away
+		static ::string         s_slurm     = "slurm"          ;                   // apparently "slurm"s.data() does not work as memory is freed right away
+		static cxxopts::Options s_opt_parse = _create_parser() ;
+		//
 		Trace trace(BeChnl,"parse_args",args) ;
 		//
-		if (!args) return {} ;                             // fast path
+		if (!args) return {} ;                                                     // fast path
 		//
-		::vector_s arg_vec   = split(args,' ')           ;
-		uint32_t   argc      = 1                         ;
-		char **    argv      = new char*[arg_vec.size()] ; // large enough to hold all args (may not be entirely used if there are several RsrcsDataSingle's)
-		RsrcsData  res       ;
-		bool       seen_help = false                     ;
+		::vector_s      arg_vec = split(args,' ') ; arg_vec.push_back(":")       ; // sentinel to parse last args
+		::vector<char*> argv    ;                   argv.reserve(arg_vec.size()) ;
+		RsrcsData       res     ;
 		//
-		argv[0] = slurm.data() ;
-		arg_vec.push_back(":") ;                           // sentinel to parse last args
-		for ( ::string& ca : arg_vec ) {
-			if (ca!=":") {
-				argv[argc++] = ca.data() ;
+		argv.push_back(s_slurm.data()) ;
+		for ( ::string& arg : arg_vec ) {
+			if (arg!=":") {
+				argv.push_back(arg.data()) ;
 				continue ;
 			}
 			RsrcsDataSingle res1 ;
 			try {
-				auto result = g_optParse->parse(argc,argv) ;
+				auto opts = s_opt_parse.parse(argv.size(),argv.data()) ;
 				//
-				if (result.count("cpus-per-task")) res1.cpu      = result["cpus-per-task"].as<uint16_t>() ;
-				if (result.count("mem"          )) res1.mem      = result["mem"          ].as<uint32_t>() ;
-				if (result.count("tmp"          )) res1.tmp      = result["tmp"          ].as<uint32_t>() ;
-				if (result.count("constraint"   )) res1.feature  = result["constraint"   ].as<::string>() ;
-				if (result.count("exclude"      )) res1.excludes = result["exclude"      ].as<::string>() ;
-				if (result.count("gres"         )) res1.gres     = result["gres"         ].as<::string>() ;
-				if (result.count("licenses"     )) res1.licenses = result["licenses"     ].as<::string>() ;
-				if (result.count("nodelist"     )) res1.nodes    = result["nodelist"     ].as<::string>() ;
-				if (result.count("partition"    )) res1.part     = result["partition"    ].as<::string>() ;
-				if (result.count("qos"          )) res1.qos      = result["qos"          ].as<::string>() ;
-				if (result.count("reservation"  )) res1.reserv   = result["reservation"  ].as<::string>() ;
-				//
-				if (result.count("help")) seen_help = true ;
-			} catch (const cxxopts::exceptions::exception& e) {
+				if (opts.count("cpus-per-task")) res1.cpu      = opts["cpus-per-task"].as<uint16_t>() ;
+				if (opts.count("mem"          )) res1.mem      = opts["mem"          ].as<uint32_t>() ;
+				if (opts.count("tmp"          )) res1.tmp      = opts["tmp"          ].as<uint32_t>() ;
+				if (opts.count("constraint"   )) res1.feature  = opts["constraint"   ].as<::string>() ;
+				if (opts.count("exclude"      )) res1.excludes = opts["exclude"      ].as<::string>() ;
+				if (opts.count("gres"         )) res1.gres     = opts["gres"         ].as<::string>() ;
+				if (opts.count("licenses"     )) res1.licenses = opts["licenses"     ].as<::string>() ;
+				if (opts.count("nodelist"     )) res1.nodes    = opts["nodelist"     ].as<::string>() ;
+				if (opts.count("partition"    )) res1.part     = opts["partition"    ].as<::string>() ;
+				if (opts.count("qos"          )) res1.qos      = opts["qos"          ].as<::string>() ;
+				if (opts.count("reservation"  )) res1.reserv   = opts["reservation"  ].as<::string>() ;
+				if (opts.count("help"         )) throw s_opt_parse.help() ;
+			} catch (cxxopts::exceptions::exception const& e) {
 				throw "Error while parsing slurm options: "s+e.what() ;
 			}
-			res.push_back(res1) ;
-			argc = 1 ;
+			res.push_back(::move(res1)) ;
+			argv.resize(1)              ;
 		}
-		delete[] argv ;
-		if (seen_help) throw g_optParse->help() ;
 		return res ;
 	}
 

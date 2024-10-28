@@ -39,6 +39,7 @@ __pycache__
 *.stamp
 */stamp
 *.inc_stamp
+*.dbg
 
 # tests
 tok

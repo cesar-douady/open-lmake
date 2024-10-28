@@ -530,6 +530,7 @@ namespace Engine {
 		}
 		RuleData(Py::Dict const& dct) {
 			_acquire_py(dct) ;
+			_set_crcs  (   ) ;
 			_compile   (   ) ;
 		}
 		template<IsStream S> void serdes(S&) ;
@@ -598,9 +599,13 @@ namespace Engine {
 		bool                      force              = false ;
 		uint8_t                   n_submits          = 0     ;                     // max number of submission for a given job for a given req (disabled if 0)
 		// derived data
-		VarIdx n_static_stems   = 0 ;
-		VarIdx n_static_targets = 0 ;                                              // number of official static targets
-		VarIdx n_statics        = 0 ;
+		::vector<uint32_t> stem_mark_cnts   ;                                      // number of capturing groups within each stem
+		Crc                match_crc        = Crc::None ;
+		Crc                cmd_crc          = Crc::None ;
+		Crc                rsrcs_crc        = Crc::None ;
+		VarIdx             n_static_stems   = 0         ;
+		VarIdx             n_static_targets = 0         ;                          // number of official static targets
+		VarIdx             n_statics        = 0         ;
 		// management data
 		ExecGen cmd_gen   = 1 ;                                                    // cmd generation, must be >0 as 0 means !cmd_ok
 		ExecGen rsrcs_gen = 1 ;                                                    // for a given cmd, resources generation, must be >=cmd_gen
@@ -612,12 +617,8 @@ namespace Engine {
 		// END_OF_VERSIONING
 		//
 		// not stored on disk
-		::vector<uint32_t>      stem_mark_counts ;                                 // number of capturing groups within each stem
 		/**/     TargetPattern  job_name_pattern ;
 		::vector<TargetPattern> patterns         ;
-		Crc                     match_crc        = Crc::None ;
-		Crc                     cmd_crc          = Crc::None ;
-		Crc                     rsrcs_crc        = Crc::None ;
 	} ;
 
 	// SimpleMatch does not call Python and only provides services that can be served with this constraint
@@ -911,6 +912,10 @@ namespace Engine {
 		::serdes(s,stdout_idx      ) ;
 		::serdes(s,stdin_idx       ) ;
 		::serdes(s,allow_ext       ) ;
+		::serdes(s,stem_mark_cnts  ) ;
+		::serdes(s,match_crc       ) ;
+		::serdes(s,cmd_crc         ) ;
+		::serdes(s,rsrcs_crc       ) ;
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
 		::serdes(s,n_statics       ) ;

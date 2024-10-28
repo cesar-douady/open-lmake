@@ -616,10 +616,11 @@ namespace Engine {
 				n_static_targets              = 1            ;
 				n_statics                     = 1            ;
 				allow_ext                     = true         ;                                 // sources may lie outside repo
-				stems           .emplace_back("",".*"                ) ;
-				stem_mark_counts.push_back   (0                      ) ;
-				matches         .emplace_back("",MatchEntry{job_name}) ;
-				_compile() ;
+				stems         .emplace_back("",".*"                ) ;
+				stem_mark_cnts.push_back   (0                      ) ;
+				matches       .emplace_back("",MatchEntry{job_name}) ;
+				_set_crcs() ;
+				_compile () ;
 			break ;
 		DF}
 	}
@@ -846,8 +847,11 @@ namespace Engine {
 			for( bool star : {false,true} ) {                                                                            // keep only useful stems and order them : static first, then star
 				for( auto const& [k,v] : stem_stars ) {
 					if (v==(No|!star)) continue ;                                                                        // stems that are both static and start appear twice
+					::string const& s = stem_defs.at(k) ;
 					stem_idxs.emplace     ( k+" *"[star] , VarIdx(stems.size()) ) ;
-					stems    .emplace_back( k            , stem_defs.at(k)      ) ;
+					stems    .emplace_back( k            , s                    ) ;
+					try         { stem_mark_cnts.push_back(Re::RegExpr(s).mark_count()) ; }
+					catch (...) { throw "bad regexpr for stem "+k+" : "+s ;               }
 				}
 				if (!star) n_static_stems = stems.size() ;
 			}
@@ -953,7 +957,7 @@ namespace Engine {
 				if (res.groups[s]) return "(?:\\"s+res.groups[s]+')' ;                  // already seen, we must protect against following text potentially containing numbers
 				bool capture = s<n_static_stems || me.ref_cnts[s]>1 ;                   // star stems are only captured if back referenced
 				if (capture) res.groups[s] = cur_group ;
-				cur_group += capture+stem_mark_counts[s] ;
+				cur_group += capture+stem_mark_cnts[s] ;
 				return (capture?"(":"(?:")+stems[s].second+')' ;
 			}
 		,	Escape::Re
@@ -982,15 +986,11 @@ namespace Engine {
 
 	void RuleData::_compile() {
 		try {
-			for( auto const& [k,s] : stems )
-				try         { stem_mark_counts.push_back(Re::RegExpr("(?:"+s+')').mark_count()) ; } // /!\ regexpr variable parts are assumed to be enclosed within ()
-				catch (...) { throw "bad regexpr for stem "+k+" : "+s ;                           }
 			// job_name & targets
 			MatchEntry job_name_match_entry ; job_name_match_entry.set_pattern(job_name,stems.size()) ;
 			job_name_pattern = _mk_pattern(job_name_match_entry,true /*for_name*/)  ;
 			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/ )) ;
 			//
-			_set_crcs() ;
 			deps_attrs        .compile() ;
 			cache_none_attrs  .compile() ;
 			submit_rsrcs_attrs.compile() ;
@@ -1470,7 +1470,7 @@ namespace Engine {
 					if (groups[s]             ) return "(?:\\"s+groups[s]+')' ; // enclose in () to protect against following text potentially containing numbers
 					bool capture = me.ref_cnts[s]>1 ;
 					if (capture) groups[s] = cur_group ;
-					cur_group += capture+rule->stem_mark_counts[s] ;
+					cur_group += capture+rule->stem_mark_cnts[s] ;
 					return (capture?"(":"(?:")+rule->stems[s].second+')' ;
 				}
 			,	Escape::Re

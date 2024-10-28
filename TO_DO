@@ -30,8 +30,8 @@ items :
 
 * make side_deps and side_targets dynamic
 * transport pdict as pdict rather than as dict
-* manage 32 bits executables with ptrace
 * generate meaningful message in case of I/O error such as disk full
+! manage 32 bits executables with ptrace
 ! before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
@@ -106,10 +106,6 @@ items :
 	- at the end, transport targets to their real location
 	- drop other written files
 	- generate an error or not if any such files, depending on user declaration
-* provide more options to stderr management :
-	- redirect to stdout
-	- hide it (still accessible in lshow -e)
-	? rename allow_stderr to stderr
 * implement cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
@@ -126,6 +122,10 @@ items :
 		- then resume participates to allocation competition
 ! implement fuse as an autodep method
 	- does not seem doable because read foo/bar first does a lookup(foo)
+? provide more options to stderr management :
+	- redirect to stdout
+	- hide it (still accessible in lshow -e)
+	? rename allow_stderr to stderr
 ? provide only visibility to system+repo+tmp to jobs
 	- how to identify system ?
 ? implement a ref/check mechanism
@@ -207,7 +207,7 @@ items :
 	- SubmitRsrcsAttrs + SubmitNoneAttrs
 	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
 	- EndCmdAttrs + EndNoneAttrs
-? record dep crcs in Job rather than in Dep
+? record dep crcs crc in Job rather than all crcs in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless
 	- this way we can severely reduce the Deps size (4x if we can manage accesses)
