@@ -3,7 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# build command : cd docker ; docker build -f ubuntu22.docker -t ubuntu22 .
+# build command from top level : sudo docker build -f docker/ubuntu22.docker -t ubuntu22 docker
 
 FROM ubuntu:22.04
 
@@ -13,12 +13,28 @@ RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: -i.bak /etc/apt/source
 
 RUN apt-get update --fix-missing       # 1 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN apt-get install -y build-essential
-RUN apt-get install -y ed git texinfo libseccomp-dev
+
+# compulsery
+RUN apt-get install -y git
+RUN apt-get install -y python3-dev
+RUN apt-get install -y texinfo m4
+# optional
 RUN apt-get install -y g++-12 gdb
-RUN apt-get install -y python2 python3-dev python3-numba python3-venv
 RUN apt-get install -y clang
+RUN apt-get install -y libpcre2-dev
+RUN apt-get install -y libseccomp-dev
+RUN apt-get install -y libslurm-dev
+RUN apt-get install -y python2
+RUN apt-get install -y python3-numba python3-venv
+RUN apt-get install -y strace
+
+# necessary to build and install debian package
+RUN apt-get install -y dh-make devscripts debhelper equivs
+RUN apt-get install -y ed
+RUN apt-get install -y sudo
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
+RUN     echo 'cdy ALL = NOPASSWD: ALL' >> /etc/sudoers
 USER    1001:1001
 WORKDIR /home/cdy
 ENV     USER=cdy

@@ -62,12 +62,12 @@ static Object const* _gather_arg( Tuple const& py_args , size_t idx , Dict const
 }
 
 static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args   = *from_py<Tuple const>(args)                       ;
-	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)                       ;
-	bool         no_follow = true                                              ;
-	bool         verbose   = false                                             ;
-	bool         read      = true                                              ;
-	AccessDigest ad        { .accesses=~Accesses() , .dflags=Dflag::Required } ;
+	Tuple const& py_args   = *from_py<Tuple const>(args) ;
+	Dict  const* py_kwds   =  from_py<Dict  const>(kwds) ;
+	bool         no_follow = true                        ;
+	bool         verbose   = false                       ;
+	bool         read      = true                        ;
+	AccessDigest ad        { .dflags=Dflag::Required }   ;
 	if (py_kwds) {
 		size_t n_kwds = py_kwds->size() ;
 		/**/                                    if ( const char* s="follow_symlinks" ;                                 py_kwds->contains(s) ) { n_kwds-- ; no_follow =             !(*py_kwds)[s]  ; }
@@ -78,12 +78,14 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		//
 		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
-	if (!read) ad.accesses = {} ;
+	if (read) ad.accesses = ~Accesses() ;
 	::vector_s files ;
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
-	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ;
+	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
+	try                       { dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ; }
+	catch (::string const& e) { py_err_set(Exception::ValueErr,e) ;                                                      }
 	//
 	if (!verbose) return None.to_py_boost() ;
 	//
@@ -103,23 +105,22 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 }
 
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args   = *from_py<Tuple const>(args)                    ;
-	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)                    ;
-	bool         no_follow = true                                           ;
-	AccessDigest ad        { .write=Yes , .extra_tflags=ExtraTflag::Allow } ;
+	Tuple const& py_args = *from_py<Tuple const>(args)                    ;
+	Dict  const* py_kwds =  from_py<Dict  const>(kwds)                    ;
+	AccessDigest ad      { .write=Yes , .extra_tflags=ExtraTflag::Allow } ;
 	if (py_kwds) {
 		size_t n_kwds = py_kwds->size() ;
-		/**/                                    if ( const char* s="follow_symlinks" ;                                 py_kwds->contains(s) ) { n_kwds-- ; no_follow =             !(*py_kwds)[s]  ; }
-		/**/                                    if ( const char* s="write"           ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.write  = No |        +(*py_kwds)[s]  ; }
-		for( Tflag      tf  : Tflag::NDyn     ) if ( ::string    s=snake_str(tf )    ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.tflags      .set(tf ,+(*py_kwds)[s]) ; }
-		for( ExtraTflag etf : All<ExtraTflag> ) if ( ::string    s=snake_str(etf)    ; ExtraTflagChars[+etf].second && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_tflags.set(etf,+(*py_kwds)[s]) ; }
+		/**/                                    if ( const char* s="write"        ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.write  = No |        +(*py_kwds)[s]  ; }
+		for( Tflag      tf  : Tflag::NDyn     ) if ( ::string    s=snake_str(tf ) ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.tflags      .set(tf ,+(*py_kwds)[s]) ; }
+		for( ExtraTflag etf : All<ExtraTflag> ) if ( ::string    s=snake_str(etf) ; ExtraTflagChars[+etf].second && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_tflags.set(etf,+(*py_kwds)[s]) ; }
 		//
 		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	::vector_s files ;
-	try                       { files = _get_files(py_args) ;             }
-	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
-	JobSupport::target( _g_record , ::move(files) , ad , no_follow ) ;
+	try                       { files = _get_files(py_args) ;                          }
+	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ;              }
+	try                       { JobSupport::target( _g_record , ::move(files) , ad ) ; }
+	catch (::string const& e) { return py_err_set(Exception::ValueErr,e) ;             }
 	//
 	return None.to_py_boost() ;
 }
@@ -179,19 +180,6 @@ static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	}
 }
 
-static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args = *from_py<Tuple const>(args) ;
-	if ( py_args.size()!=1 || kwds ) return py_err_set(Exception::TypeErr,"expect exactly a single positional argument") ;
-	::string   be  = py_args[0].as_a<Str>() ;
-	BackendTag tag {}/*garbage*/            ;
-	try                     { tag = mk_enum<BackendTag>(be) ; if (!tag) throw ""s ;          }
-	catch (::string const&) { return py_err_set(Exception::ValueErr,"unknown backend "+be) ; }
-	switch (tag) {                                                                             // PER BACKEND
-		case BackendTag::Local : return            True       .to_py_boost() ;
-		case BackendTag::Slurm : return (HAS_SLURM?True:False).to_py_boost() ;
-	DF} ;
-}
-
 static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds) ;
@@ -223,8 +211,7 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 			} catch (::string const&e) {
 				return py_err_set(Exception::ValueErr,e) ;
 			}
-		default : ;
-	}
+	DN}
 	return py_err_set(Exception::ValueErr,"cannot find sub root dir in repository") ;
 }
 
@@ -252,17 +239,70 @@ static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 
 #define F(name,descr) { #name , reinterpret_cast<PyCFunction>(name) , METH_VARARGS|METH_KEYWORDS , descr }
 static PyMethodDef funcs[] = {
-	F( check_deps          , "check_deps(verbose=False)"                                                             " Ensure that all previously seen deps are up-to-date."                       )
-,	F( decode              , "decode(code,file,ctx)"                                                                 " Return the associated value passed by encode(value,file,ctx)."              )
-,	F( depend              , "depend(dep1,dep2,...,verbose=False,follow_symlinks=True,<dep flags=True>,...)"         " Pretend read of all argument and mark them with flags mentioned as True."   )
-,	F( encode              , "encode(value,file,ctx,min_length=1)"                                                   " Return a code associated with value. If necessary create such a code of"
-	/**/                                                                                                             " length at least min_length after a checksum computed after value."          )
-,	F( get_autodep         , "get_autodep()"                                                                         " Return whether autodep is currenly activated."                              )
-,	F( has_backend         , "has_backend(backend)"                                                                  " Return true if the corresponding backend is implememented."                 )
-,	F( search_sub_root_dir , "search_sub_root_dir(cwd=os.getcwd())"                                                  " Return the nearest hierarchical root dir relative to the actual root dir."  )
-,	F( set_autodep         , "set_autodep(active)"                                                                   " Activate (True) or deactivate(Fale) autodep recording."                     )
-,	F( target              , "target(target1,target2,...,follow_symlinks=True,unlink=False,<target flags=True>,...)" " Pretend write to/unlink all arguments and mark them with flags mentioned"
-	/**/                                                                                                             " as True."                                                                   )
+	F( check_deps ,
+		"check_deps(verbose=false)\n"
+		"Ensure that all previously seen deps are up-to-date.\n"
+		"Job will be killed in case some deps are not up-to-date.\n"
+		"If verbose, wait for server reply (it is unclear that this be useful in any way).\n"
+	)
+,	F( decode ,
+		"decode(file,ctx,code)\n"
+		"Return the associated (long) value passed by encode(file,ctx,val) when it returned (short) code.\n"
+		"This call to encode must have been done before calling decode.\n"
+	)
+,	F( depend ,
+		"depend(\n"
+		"\t*deps\n"
+		",\tfollow_symlinks=False\n"
+		",\tverbose        =False # return a report as a dict  dep:(ok,crc) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
+		",\tread           =True  # pretend deps are read in addition to setting flags\n"
+		"# flags :\n"
+		",\tcritical       =False # if modified, ignore following deps\n"
+		",\tessential      =False # show when generating user oriented graphs\n"
+		",\tignore         =False # ignore deps, used to mask out further accesses\n"
+		",\tignore_error   =False # dont propagate error if dep is in error (Error instead of Err because name is visible from user)\n"
+		",\trequired       =True  # dep must be buildable\n"
+		",\tstat_read_data =False # make stat accesses as if deps contents were fully accessed\n"
+		")\n"
+		"Pretend parallel read of deps (unless read=False) and mark them with flags mentioned as True.\n"
+		"Flags accumulate and are never reset.\n"
+	)
+,	F( encode ,
+		"encode(file,ctx,val,min_length=1)\n"
+		"Return a (short) code associated with (long) val. If necessary create such a code of\n"
+		"length at least min_length based on a checksum computed from value.\n"
+		"val can be retrieve from code using decode(file,ctx,code),\n"
+		"even from another job (as long as it is called after the call to encode).\n"
+		"This means that decode(file,ctx,encode(file,ctx,val,min_length)) always return val for any min_length.\n"
+	)
+,	F( get_autodep ,
+		"get_autodep()\n"
+		"Return True if autodep is currenly activated (else False).\n"
+	)
+,	F( search_sub_root_dir ,
+		"search_sub_root_dir(cwd=os.getcwd())\n"
+		"Return the nearest hierarchical root dir above cwd, relative to the top root dir.\n"
+	)
+,	F( set_autodep ,
+		"set_autodep(active)\n"
+		"Activate (if active) or deactivate (if not active) autodep recording.\n"
+	)
+,	F( target ,
+		"target(\n"
+		"\t*targets\n"
+		",\twrite      =True  # pretend targets are written in addition to setting flags\n"
+		"# flags :\n"
+		",\tallow      =True  # writing to this target is allowed\n"
+		",\tessential  =False # show when generating user oriented graphs\n"
+		",\tignore     =False # ignore targets, used to mask out further accesses\n"
+		",\tincremental=False # reads are allowed (before earliest write if any)\n"
+		",\tno_uniquify=False # target is uniquified if it has several links and is incremental\n"
+		",\tno_warning =False # warn if target is either uniquified or unlinked and generated by another rule\n"
+		",\tsource_ok  =False # ok to overwrite source files\n"
+		")\n"
+		"Pretend write to targets and mark them with flags mentioned as True.\n"
+		"Flags accumulate and are never reset.\n"
+	)
 ,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 } ;
 #undef F
@@ -277,25 +317,31 @@ PyMODINIT_FUNC
 {
 	_g_record = {New,Yes/*enabled*/} ;
 	//
-	Ptr<Module> mod   { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
-	Ptr<Tuple>  py_bes{ 1+HAS_SGE+HAS_SLURM }                           ;                                          // PER_BACKEND : add an entry here
-	size_t      i                                                       = 0 ;
-	/**/           py_bes->set_item(i++,*Ptr<Str>("local")) ;
-	if (HAS_SGE  ) py_bes->set_item(i++,*Ptr<Str>("sge"  )) ;
-	if (HAS_SLURM) py_bes->set_item(i++,*Ptr<Str>("slurm")) ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "root_dir"                , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
-	mod->set_attr( "backends"                , *py_bes                                                         ) ;
-	mod->set_attr( "has_fuse"                , *Ptr<Bool>(bool(HAS_FUSE    ))                                  ) ; // PER_AUTODEP_METHOD
-	mod->set_attr( "has_ld_audit"            , *Ptr<Bool>(bool(HAS_LD_AUDIT))                                  ) ; // .
-	mod->set_attr( "has_ld_preload"          ,                True                                             ) ; // .
-	mod->set_attr( "has_ld_preload_jemalloc" ,                True                                             ) ; // .
-	mod->set_attr( "has_ptrace"              ,                True                                             ) ; // .
-	mod->set_attr( "no_crc"                  , *Ptr<Int>(+Crc::Unknown)                                        ) ;
-	mod->set_attr( "crc_a_link"              , *Ptr<Int>(+Crc::Lnk    )                                        ) ;
-	mod->set_attr( "crc_a_reg"               , *Ptr<Int>(+Crc::Reg    )                                        ) ;
-	mod->set_attr( "crc_no_file"             , *Ptr<Int>(+Crc::None   )                                        ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Ptr<Module> mod    { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
+	Ptr<Tuple>  py_ads { HAS_FUSE+HAS_LD_AUDIT+3 }                       ; // PER_AUTODEP_METHOD : add entries here
+	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM     }                       ; // PER_BACKEND        : add entries here
+	//
+	size_t i = 0 ;
+	if (HAS_FUSE    ) py_ads->set_item(i++,*Ptr<Str>("fuse"               )) ;
+	if (HAS_LD_AUDIT) py_ads->set_item(i++,*Ptr<Str>("ld_audit"           )) ;
+	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload"         )) ;
+	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload_jemalloc")) ;
+	/**/              py_ads->set_item(i++,*Ptr<Str>("ptrace"             )) ;
+	SWEAR(i==py_ads->size(),i,py_ads->size()) ;
+	i = 0 ;
+	/**/              py_bes->set_item(i++,*Ptr<Str>("local"              )) ;
+	if (HAS_SGE     ) py_bes->set_item(i++,*Ptr<Str>("sge"                )) ;
+	if (HAS_SLURM   ) py_bes->set_item(i++,*Ptr<Str>("slurm"              )) ;
+	SWEAR(i==py_bes->size(),i,py_bes->size()) ;
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "root_dir"    , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
+	mod->set_attr( "backends"    , *py_bes                                                         ) ;
+	mod->set_attr( "autodeps"    , *py_ads                                                         ) ;
+	mod->set_attr( "no_crc"      , *Ptr<Int>(+Crc::Unknown)                                        ) ;
+	mod->set_attr( "crc_a_link"  , *Ptr<Int>(+Crc::Lnk    )                                        ) ;
+	mod->set_attr( "crc_a_reg"   , *Ptr<Int>(+Crc::Reg    )                                        ) ;
+	mod->set_attr( "crc_no_file" , *Ptr<Int>(+Crc::None   )                                        ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;

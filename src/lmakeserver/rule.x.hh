@@ -88,8 +88,6 @@ namespace Engine {
 		Rule(::string const& job_sfx) : Rule    { decode_int<Idx>( &job_sfx[job_sfx.size()-sizeof(Idx)] ) } { SWEAR(job_sfx.size()>=sizeof(Idx),job_sfx.size()) ; }
 		// acesses
 		::string job_sfx() const ;
-		// services
-		void new_job_exec_time( Delay , Tokens1 ) ;
 	} ;
 
 }
@@ -152,40 +150,28 @@ namespace Engine {
 		// END_OF_VERSIONING
 	} ;
 
-	// used at match time, but participate in nothing
-	struct CreateNoneAttrs {
-		static constexpr const char* Msg = "create ancillary attributes" ;
-		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
-			size_t tokens = 0/*garbage*/ ;
-			Attrs::acquire_from_dct( tokens , py_dct , "job_tokens" ) ;
-			if      (tokens==0                              ) tokens1 = 0                                ;
-			else if (tokens>::numeric_limits<Tokens1>::max()) tokens1 = ::numeric_limits<Tokens1>::max() ;
-			else                                              tokens1 = tokens-1                         ;
-		}
-		// data
-		// START_OF_VERSIONING
-		Tokens1 tokens1 = 0 ;
-		// END_OF_VERSIONING
-	} ;
-
 	// used at submit time, participate in resources
 	struct SubmitRsrcsAttrs {
 		static constexpr const char* Msg = "submit resources attributes" ;
-		static void s_canon(::vmap_ss& rsrcs) ;                            // round and cannonicalize standard resources
+		static void s_canon(::vmap_ss& rsrcs) ;                                                                                                         // round and cannonicalize standard resources
 		// services
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
 			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) {
-				::sort(rsrcs) ;                                            // stabilize rsrcs crc
+				::sort(rsrcs) ;                                                                                                                         // stabilize rsrcs crc
 				s_canon(rsrcs) ;
 			}
 		}
+		Tokens1 tokens1() const {
+			for(auto const& [k,v] : rsrcs) if (k=="cpu")
+				try                     { return ::min( ::max(from_string<uint32_t>(v),uint32_t(1))-1 , uint32_t(::numeric_limits<Tokens1>::max()) ); }
+				catch (::string const&) { break ;                                                                                                     } // no valid cpu count, do as if no cpu found
+			return 0 ;                                                                                                                                  // not found : default to 1 cpu
+		}
 		// data
 		// START_OF_VERSIONING
-		BackendTag backend = BackendTag::Local ;                           // backend to use to launch jobs
+		BackendTag backend = BackendTag::Local ;                                                                                                        // backend to use to launch jobs
 		::vmap_ss  rsrcs   ;
 		// END_OF_VERSIONING
 	} ;
@@ -365,12 +351,11 @@ namespace Engine {
 		// services
 		// START_OF_VERSIONING
 		template<IsStream S> void serdes(S& s) {
-			::serdes(s,is_dynamic        ) ;
-			::serdes(s,glbs_str          ) ;
-			::serdes(s,code_str          ) ;
-			::serdes(s,ctx               ) ;
-			::serdes(s,lmake_dir_var_name) ;
-			::serdes(s,dbg_info          ) ;
+			::serdes(s,is_dynamic) ;
+			::serdes(s,glbs_str  ) ;
+			::serdes(s,code_str  ) ;
+			::serdes(s,ctx       ) ;
+			::serdes(s,dbg_info  ) ;
 		}
 		void update_hash(Hash::Xxh& h) const { // ignore debug info as these does not participate to the semantic
 			h.update(is_dynamic) ;
@@ -381,13 +366,7 @@ namespace Engine {
 		// END_OF_VERSIONING
 		::string append_dbg_info(::string const& code) const {
 			::string res = code ;
-			if (+dbg_info) {
-				res
-				<<	set_nl
-				<<	lmake_dir_var_name<<" = "<<mk_py_str(Disk::no_slash(*g_lmake_dir_s))<<'\n'
-				<<	dbg_info
-				;
-			}
+			if (+dbg_info) res << set_nl << dbg_info ;
 			return res ;
 		}
 		// data
@@ -399,8 +378,7 @@ namespace Engine {
 		::vector<CmdIdx> ctx        ;          // a list of stems, targets & deps, accessed by code
 		// END_OF_VERSIONING
 		// START_OF_VERSIONING
-		::string lmake_dir_var_name = {} ;     // name of variable holding lmake_dir
-		::string dbg_info           = {} ;
+		::string dbg_info = {} ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -438,15 +416,15 @@ namespace Engine {
 		static bool s_is_dynamic(Py::Tuple const&) ;
 		// cxtors & casts
 		using Base::Base ;
-		Dynamic           (Dynamic const& src) : Base{       src } , glbs{       src.glbs } , code{       src.code } {}                            // mutex is not copiable
-		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{::move(src.glbs)} , code{::move(src.code)} {}                            // .
-		Dynamic& operator=(Dynamic const& src) {                                                                                                   // .
+		Dynamic           (Dynamic const& src) : Base{       src } , glbs{       src.glbs } , code{       src.code } {}                                  // mutex is not copiable
+		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{::move(src.glbs)} , code{::move(src.code)} {}                                  // .
+		Dynamic& operator=(Dynamic const& src) {                                                                                                         // .
 			Base::operator=(src) ;
 			glbs = src.glbs ;
 			code = src.code ;
 			return *this ;
 		}
-		Dynamic& operator=(Dynamic&& src) {                                                                                                        // .
+		Dynamic& operator=(Dynamic&& src) {                                                                                                              // .
 			Base::operator=(::move(src)) ;
 			glbs = ::move(src.glbs) ;
 			code = ::move(src.code) ;
@@ -461,18 +439,18 @@ namespace Engine {
 		T eval( Job j , Rule::SimpleMatch      & m ,                             ::vmap_s<DepDigest>* deps         ) const { return eval( j  ,                                m  , {}    , deps ) ; }
 		T eval(         Rule::SimpleMatch const& m ,                             ::vmap_s<DepDigest>* deps         ) const { return eval( {} , const_cast<Rule::SimpleMatch&>(m) , {}    , deps ) ; }
 		//
-		void eval_ctx( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs , EvalCtxFuncStr const&     , EvalCtxFuncDct const&     ) const ; // SimpleMatch is lazy evaluated from Job
-		void eval_ctx(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cbs , EvalCtxFuncDct const& cbd ) const {
-			return eval_ctx( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , cbs , cbd ) ;                                                        // cannot lazy evaluate w/o a job
+		void eval_ctx( Job , Rule::SimpleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs , EvalCtxFuncStr const&     , EvalCtxFuncDct const&     ) const ;
+		void eval_ctx(       Rule::SimpleMatch const& m       , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cbs , EvalCtxFuncDct const& cbd ) const {
+			return eval_ctx( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , cbs , cbd ) ;                                                              // cannot lazy evaluate w/o a job
 		}
-		::string parse_fstr( ::string const& fstr , Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;                         // SimpleMatch is lazy evaluated from Job
+		::string parse_fstr( ::string const& fstr , Job , Rule::SimpleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} ) const ;
 		::string parse_fstr( ::string const& fstr ,       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
-			return parse_fstr( fstr , {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                                           // cannot lazy evaluate w/o a job
+			return parse_fstr( fstr , {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 	protected :
-		Py::Ptr<Py::Object> _eval_code( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
-		Py::Ptr<Py::Object> _eval_code(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const { // cannot lazy evaluate w/o a job
-			return _eval_code( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , deps ) ;
+		Py::Ptr<Py::Object> _eval_code( Job , Rule::SimpleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
+		Py::Ptr<Py::Object> _eval_code(       Rule::SimpleMatch const& m       , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const {
+			return _eval_code( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , deps ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 		// data
 	private :
@@ -513,16 +491,16 @@ namespace Engine {
 		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		// SimpleMatch is lazy evaluated from Job (when there is one)
 		::pair_ss/*script,call*/ eval( Rule::SimpleMatch const& , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
 	} ;
 
 	struct TargetPattern {
-		Re::Match match(::string const& t) const { return re.match(t) ; }
+		// services
+		Re::Match match(::string const& t,bool chk_psfx=true) const { return re.match(t,chk_psfx) ; }
 		// data
-		Re::RegExpr      re     ;
-		::vector<VarIdx> groups ; // indexed by stem index, provide the corresponding group number in pattern
-		::string         txt    ; // human readable pattern
+		Re::RegExpr        re     ;
+		::vector<uint32_t> groups ; // indexed by stem index, provide the corresponding group number in pattern
+		::string           txt    ; // human readable pattern
 	} ;
 
 	struct RuleData {
@@ -530,26 +508,30 @@ namespace Engine {
 		friend Rule ;
 		static constexpr VarIdx NoVar = Rule::NoVar ;
 		struct MatchEntry {
+			// services
+			void set_pattern( ::string&&        , VarIdx n_stems ) ;
+			void set_pattern( ::string const& p , VarIdx n_stems ) { set_pattern(::copy(p),n_stems) ; }
 			// data
+			// START_OF_VERSIONING
 			::string         pattern   = {} ;
 			MatchFlags       flags     = {} ;
-			::vector<VarIdx> conflicts = {} ;                                                                  // for target only, the idx of the previous targets that may conflict with this one
+			::vector<VarIdx> conflicts = {} ;                          // for target only, the idx of the previous targets that may conflict with this one
+			::vector<VarIdx> ref_cnts  = {} ;                          // indexed by stem, number of times stem is referenced
+			// END_OF_VERSIONING
 		} ;
 		// static data
 		static size_t s_name_sz ;
 		// cxtors & casts
 		RuleData(                                        ) = default ;
-		RuleData( Special , ::string const& src_dir_s={} ) ;                                                   // src_dir in case Special is SrcDir
+		RuleData( Special , ::string const& src_dir_s={} ) ;           // src_dir in case Special is SrcDir
 		RuleData(::string_view const& str) {
 			IStringStream is{::string(str)} ;
-			serdes(static_cast<::istream&>(is)) ;
+			serdes(is) ;
 		}
 		RuleData(Py::Dict const& dct) {
 			_acquire_py(dct) ;
+			_set_crcs  (   ) ;
 			_compile   (   ) ;
-		}
-		operator ::string() const {
-			return serialize(*this) ;
 		}
 		template<IsStream S> void serdes(S&) ;
 	private :
@@ -561,16 +543,16 @@ namespace Engine {
 		::string pretty_str() const ;
 		// accesses
 		bool   is_special  (         ) const { return special!=Special::Plain                              ; }
-		bool   user_defined(         ) const { return !allow_ext                                           ; } // used to decide to print in LMAKE/rules
+		bool   user_defined(         ) const { return !allow_ext                                           ; }                                    // used to decide to print in LMAKE/rules
 		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags() ; }
 		//
 		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
 		//
 		FileNameIdx job_sfx_len() const {
 			return
-				1                                                                                              // null to disambiguate w/ Node names
-			+	n_static_stems * sizeof(FileNameIdx)*2                                                         // pos+len for each stem
-			+	sizeof(RuleIdx)                                                                                // Rule index
+				1                                                                                                                                 // null to disambiguate w/ Node names
+			+	n_static_stems * sizeof(FileNameIdx)*2                                                                                            // pos+len for each stem
+			+	sizeof(RuleIdx)                                                                                                                   // Rule index
 			;
 		}
 		// services
@@ -578,60 +560,65 @@ namespace Engine {
 			if ( !top && +cwd_s ) return Disk::mk_glb(file,cwd_s) ;
 			else                  return ::move(file)             ;
 		}
+		//
+		::string gen_py_line( Job , Rule::SimpleMatch      &/*lazy*/ , VarCmd    , VarIdx   , ::string const& key , ::string const& val ) const ;
+		::string gen_py_line(       Rule::SimpleMatch const& m       , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const {
+			return gen_py_line( {} , const_cast<Rule::SimpleMatch&>(m) , vc , i , key , val ) ;                                                   // cannot lazy evaluate w/o a job
+		}
+		void        new_job_report( Delay exec_time , CoarseDelay cost , Tokens1 tokens1 ) const ;
+		CoarseDelay cost          (                                                      ) const ;
 	private :
-		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx     ) const ;
-		void          _set_crcs  (                                 ) ;
-		TargetPattern _mk_pattern( ::string const& , bool for_name ) const ;
-
+		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx       ) const ;
+		void          _set_crcs  (                                   ) ;
+		TargetPattern _mk_pattern( MatchEntry const& , bool for_name ) const ;
 		// START_OF_VERSIONING
 		// user data
 	public :
 		Special              special    = Special::None ;
-		Prio                 prio       = 0             ;      // the priority of the rule
-		::string             name       ;                      // the short message associated with the rule
-		::vmap_ss            stems      ;                      // stems are ordered : statics then stars, stems used as both static and star appear twice
-		::string             cwd_s      ;                      // cwd in which to interpret targets & deps and execute cmd (with ending /)
-		::string             job_name   ;                      // used to show in user messages (not all fields are actually used)
-		::vmap_s<MatchEntry> matches    ;                      // keep star user order, static entries first in MatchKind order
-		VarIdx               stdout_idx = NoVar         ;      // index of target used as stdout
-		VarIdx               stdin_idx  = NoVar         ;      // index of dep used as stdin
-		bool                 allow_ext  = false         ;      // if true <=> rule may match outside repo
+		Prio                 prio       = 0             ;                          // the priority of the rule
+		::string             name       ;                                          // the short message associated with the rule
+		::vmap_ss            stems      ;                                          // stems are ordered : statics then stars, stems used as both static and star appear twice
+		::string             cwd_s      ;                                          // cwd in which to interpret targets & deps and execute cmd (with ending /)
+		::string             job_name   ;                                          // used to show in user messages (not all fields are actually used)
+		::vmap_s<MatchEntry> matches    ;                                          // keep star user order, static entries first in MatchKind order
+		VarIdx               stdout_idx = NoVar         ;                          // index of target used as stdout
+		VarIdx               stdin_idx  = NoVar         ;                          // index of dep used as stdin
+		bool                 allow_ext  = false         ;                          // if true <=> rule may match outside repo
 		// following is only if plain rules
-		DynamicDepsAttrs          deps_attrs         ;         // in match crc, evaluated at job creation time
-		Dynamic<CreateNoneAttrs > create_none_attrs  ;         // in no    crc, evaluated at job creation time
-		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
-		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;         // in rsrcs crc, evaluated at submit time
-		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;         // in no    crc, evaluated at submit time
-		DynamicStartCmdAttrs      start_cmd_attrs    ;         // in cmd   crc, evaluated before execution
-		DynamicCmd                cmd                ;         // in cmd   crc, evaluated before execution
-		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;         // in rsrcs crc, evaluated before execution
-		Dynamic<StartNoneAttrs  > start_none_attrs   ;         // in no    crc, evaluated before execution
-		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;         // in cmd   crc, evaluated after  execution
-		Dynamic<EndNoneAttrs    > end_none_attrs     ;         // in no    crc, evaluated after  execution
-		size_t                    n_tokens           = 1     ; // in no    crc, contains the number of tokens to determine parallelism to use for ETA computation
+		DynamicDepsAttrs          deps_attrs         ;                             // in match crc, evaluated at job creation time
+		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                             // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
+		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                             // in rsrcs crc, evaluated at submit time
+		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;                             // in no    crc, evaluated at submit time
+		DynamicStartCmdAttrs      start_cmd_attrs    ;                             // in cmd   crc, evaluated before execution
+		DynamicCmd                cmd                ;                             // in cmd   crc, evaluated before execution
+		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;                             // in rsrcs crc, evaluated before execution
+		Dynamic<StartNoneAttrs  > start_none_attrs   ;                             // in no    crc, evaluated before execution
+		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;                             // in cmd   crc, evaluated after  execution
+		Dynamic<EndNoneAttrs    > end_none_attrs     ;                             // in no    crc, evaluated after  execution
 		bool                      is_python          = false ;
 		bool                      force              = false ;
-		uint8_t                   n_submits          = 0     ; // max number of submission for a given job for a given req (disabled if 0)
+		uint8_t                   n_submits          = 0     ;                     // max number of submission for a given job for a given req (disabled if 0)
 		// derived data
-		VarIdx n_static_stems   = 0 ;
-		VarIdx n_static_targets = 0 ;                          // number of official static targets
-		VarIdx n_statics        = 0 ;
+		::vector<uint32_t> stem_mark_cnts   ;                                      // number of capturing groups within each stem
+		Crc                match_crc        = Crc::None ;
+		Crc                cmd_crc          = Crc::None ;
+		Crc                rsrcs_crc        = Crc::None ;
+		VarIdx             n_static_stems   = 0         ;
+		VarIdx             n_static_targets = 0         ;                          // number of official static targets
+		VarIdx             n_statics        = 0         ;
 		// management data
-		ExecGen cmd_gen   = 1 ;                                // cmd generation, must be >0 as 0 means !cmd_ok
-		ExecGen rsrcs_gen = 1 ;                                // for a given cmd, resources generation, must be >=cmd_gen
+		ExecGen cmd_gen   = 1 ;                                                    // cmd generation, must be >0 as 0 means !cmd_ok
+		ExecGen rsrcs_gen = 1 ;                                                    // for a given cmd, resources generation, must be >=cmd_gen
 		// stats
-		mutable Delay  exec_time    = {} ;                     // average exec_time
-		mutable JobIdx stats_weight = 0  ;                     // number of jobs used to compute average
-
+		mutable Delay    cost_per_token = {} ;                                     // average cost per token
+		mutable Delay    exec_time      = {} ;                                     // average exec_time
+		mutable uint64_t tokens1_32     = 0  ; static_assert(sizeof(Tokens1)<=4) ; // average number of tokens1 <<32
+		mutable JobIdx   stats_weight   = 0  ;                                     // number of jobs used to compute average cost_per_token and exec_time
 		// END_OF_VERSIONING
-
+		//
 		// not stored on disk
-		::vector<size_t>        stem_mark_counts ;
 		/**/     TargetPattern  job_name_pattern ;
 		::vector<TargetPattern> patterns         ;
-		Crc                     match_crc        = Crc::None ;
-		Crc                     cmd_crc          = Crc::None ;
-		Crc                     rsrcs_crc        = Crc::None ;
 	} ;
 
 	// SimpleMatch does not call Python and only provides services that can be served with this constraint
@@ -642,10 +629,10 @@ namespace Engine {
 		SimpleMatch(                                        ) = default ;
 		SimpleMatch( Rule    r , ::vector_s const& ss       ) : rule{r} , stems{ss} {}
 		SimpleMatch( Job                                    ) ;
-		SimpleMatch( Rule    r , ::string   const& job_name ) : SimpleMatch{r,r->job_name_pattern,job_name} {}
-		SimpleMatch( RuleTgt   , ::string   const& target   ) ;
+		SimpleMatch( Rule    r , ::string   const& job_name , bool chk_psfx=true ) : SimpleMatch{r,r->job_name_pattern,job_name,chk_psfx} {}
+		SimpleMatch( RuleTgt   , ::string   const& target   , bool chk_psfx=true ) ;
 	private :
-		SimpleMatch( Rule , TargetPattern const& , ::string const& ) ;
+		SimpleMatch( Rule , TargetPattern const& , ::string const& , bool chk_psfx=true ) ;
 	public :
 		bool operator==(SimpleMatch const&) const = default ;
 		bool operator+ (                  ) const { return +rule ; }
@@ -863,19 +850,24 @@ namespace Engine {
 	template<class T> Py::Ptr<Py::Object> Dynamic<T>::_eval_code( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
-		::vector_s to_del ;
+		Rule       r       = +match ? match.rule : job->rule ;
+		::vector_s to_del  ;
+		::string   to_eval ;
 		eval_ctx( job , match , rsrcs
-		,	[&]( VarCmd , VarIdx , ::string const& key , ::string const& val ) -> void {
-				glbs->set_item(key,*Py::Ptr<Py::Str>(val)) ;
+		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
 				to_del.push_back(key) ;
+				if (vc!=VarCmd::StarMatch) glbs->set_item(key,*Py::Ptr<Py::Str>(val)) ;
+				else                       to_eval += r->gen_py_line( job , match , vc , i , key , val ) ;
 			}
 		,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) -> void {
+				to_del.push_back(key) ;
 				Py::Ptr<Py::Dict> py_dct { New } ;
 				for( auto const& [k,v] : val ) py_dct->set_item(k,*Py::Ptr<Py::Str>(v)) ;
 				glbs->set_item(key,*py_dct) ;
-				to_del.push_back(key) ;
 			}
 		) ;
+		try                       { Py::py_run(to_eval,*glbs) ;              }
+		catch (::string const& e) { throw ::pair_ss({}/*msg*/,e/*stderr*/) ; }
 		Py::Ptr<Py::Object> res      ;
 		::string            err      ;
 		bool                seen_err = false  ;
@@ -884,8 +876,8 @@ namespace Engine {
 		try                       { res = code->eval(*glbs) ;   }
 		//                                ^^^^^^^^^^^^^^^^^
 		catch (::string const& e) { err = e ; seen_err = true ; }
-		for( ::string const& key : to_del ) glbs->del_item(key) ;        // delete job-related info, just to avoid percolation to other jobs, even in case of error
-		if ( +lock.err || seen_err ) throw ::pair(lock.err/*msg*/,err) ;
+		for( ::string const& key : to_del ) glbs->del_item(key) ;                     // delete job-related info, just to avoid percolation to other jobs, even in case of error
+		if ( +lock.err || seen_err ) throw ::pair_ss(lock.err/*msg*/,err/*stderr*/) ;
 		return res ;
 	}
 
@@ -897,7 +889,7 @@ namespace Engine {
 			if (*py_obj!=Py::None) {
 				if (!py_obj->is_a<Py::Dict>()) throw "type error : "s+py_obj->ob_type->tp_name+" is not a dict" ;
 				try                       { res.update(py_obj->template as_a<Py::Dict>()) ; }
-				catch (::string const& e) { throw ::pair_ss({}/*msg*/,e/*err*/) ;           }
+				catch (::string const& e) { throw ::pair_ss({}/*msg*/,e/*stderr*/) ;        }
 			}
 		}
 		return res ;
@@ -920,12 +912,15 @@ namespace Engine {
 		::serdes(s,stdout_idx      ) ;
 		::serdes(s,stdin_idx       ) ;
 		::serdes(s,allow_ext       ) ;
+		::serdes(s,stem_mark_cnts  ) ;
+		::serdes(s,match_crc       ) ;
+		::serdes(s,cmd_crc         ) ;
+		::serdes(s,rsrcs_crc       ) ;
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
 		::serdes(s,n_statics       ) ;
 		if (special==Special::Plain) {
 			::serdes(s,deps_attrs        ) ;
-			::serdes(s,create_none_attrs ) ;
 			::serdes(s,cache_none_attrs  ) ;
 			::serdes(s,submit_rsrcs_attrs) ;
 			::serdes(s,submit_none_attrs ) ;
@@ -935,12 +930,12 @@ namespace Engine {
 			::serdes(s,start_none_attrs  ) ;
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
-			::serdes(s,n_tokens          ) ;
 			::serdes(s,is_python         ) ;
 			::serdes(s,force             ) ;
 			::serdes(s,n_submits         ) ;
 			::serdes(s,cmd_gen           ) ;
 			::serdes(s,rsrcs_gen         ) ;
+			::serdes(s,cost_per_token    ) ;
 			::serdes(s,exec_time         ) ;
 			::serdes(s,stats_weight      ) ;
 		}

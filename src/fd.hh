@@ -147,6 +147,12 @@ public :
 		no_std() ;
 	}
 	// services
+	void set_receive_timeout(Time::Delay to) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
+	void set_send_timeout   (Time::Delay to) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to_tv , sizeof(to_tv) ) ; }
+	void set_timeout        (Time::Delay to) {
+		set_receive_timeout(to) ;
+		set_send_timeout   (to) ;
+	}
 	in_addr_t peer_addr() const {
 		static_assert(sizeof(in_addr_t)==4) ;    // else use adequate ntohs/ntohl according to the size
 		struct sockaddr_in peer_addr ;

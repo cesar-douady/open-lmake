@@ -30,10 +30,8 @@ items :
 
 * make side_deps and side_targets dynamic
 * transport pdict as pdict rather than as dict
-* manage 32 bits executables
-	- compile ld_audit.so (and co) in both 32 & 64 bits
-	- put adequate $PLATFORM in LD_PRELOAD
 * generate meaningful message in case of I/O error such as disk full
+! manage 32 bits executables with ptrace
 ! before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
@@ -103,18 +101,11 @@ items :
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
-* implement fuse as an autodep method
-	- use namespaces
-	- interestingly enough : it is a way to accept bind mount from repo
 * provide a mechansim to prevent writing non-targets
 	- mount an overlay over the repo
 	- at the end, transport targets to their real location
 	- drop other written files
 	- generate an error or not if any such files, depending on user declaration
-* provide more options to stderr management :
-	- redirect to stdout
-	- hide it (still accessible in lshow -e)
-	? rename allow_stderr to stderr
 * implement cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
@@ -129,6 +120,12 @@ items :
 		- while suspended, consider resources to be freed
 		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 		- then resume participates to allocation competition
+! implement fuse as an autodep method
+	- does not seem doable because read foo/bar first does a lookup(foo)
+? provide more options to stderr management :
+	- redirect to stdout
+	- hide it (still accessible in lshow -e)
+	? rename allow_stderr to stderr
 ? provide only visibility to system+repo+tmp to jobs
 	- how to identify system ?
 ? implement a ref/check mechanism
@@ -169,13 +166,6 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* improve Req eta
-	- compute cost for each job :
-		- elapsed time / parallelism
-		- parallelism is evaluated by computing an overall cost at all time
-		- then the overall cost while job was running can be obtained by subtracting overall cost at start from overall cost at end
-		- overall cost / elapsed time is the parallelism
-	- eta can be obtained by adding cost of all waiting jobs
 * when links are accessed, it is instantaneous
 	- then record fileinfo or filesig
 	- and only consider file incoherent if it has been accessed with potentially different content
@@ -199,7 +189,6 @@ items :
 	- max number of resources slots in backend
 	- total number of deps
 	- total number of pressure updates
-* gprof
 * no req_info for non-buildable nodes
 * there can be 1 backend thread per backend
 	- with one master socket
@@ -214,15 +203,11 @@ items :
 	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
 	- need to do some trials
 ? put all python expressions for a single phase in the same expression
-	- DepsAttrs + CreateNoneAtts
+	- DepsAttrs
 	- SubmitRsrcsAttrs + SubmitNoneAttrs
 	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
 	- EndCmdAttrs + EndNoneAttrs
-? regexprs
-	- consider handling prefix/suffix apart
-		- most importantly sufixes
-		? maybe a pre-pass searching for infix is advisable
-? record dep crcs in Job rather than in Dep
+? record dep crcs crc in Job rather than all crcs in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless
 	- this way we can severely reduce the Deps size (4x if we can manage accesses)

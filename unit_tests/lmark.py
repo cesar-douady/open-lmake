@@ -14,12 +14,12 @@ if __name__!='__main__' :
 	)
 
 	class Cpy(Rule) :
-		target = '{File:.*}.cpy'
+		target = r'{File:.*}.cpy'
 		dep    = '{File}'
 		cmd    = 'cat'
 
 	class Cpy2(Rule) :
-		target = '{File:.*}.cpy2'
+		target = r'{File:.*}.cpy2'
 		dep    = '{File}.cpy'
 		cmd    = 'cat'
 

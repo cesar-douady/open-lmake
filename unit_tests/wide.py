@@ -23,18 +23,18 @@ if __name__!='__main__' :
 		backend = 'local'
 
 	class GenFile(PyRule) :
-		target    = 'file_{:\d+}'
+		target    = r'file_{:\d+}'
 		backend   = backend
 		resources = { 'mem' : '1M' }
 		def cmd() :
 			for x in range(1000) : print(x)
 
 	class Trig(PyRule) :
-		target = 'out_{P:\d+}_{N:\d+}'
+		target = r'out_{P:\d+}_{N:\d+}'
 		def cmd() :
 			p = int(P)
-			if p : lmake.depend([f'out_{p-1}_{x}' for x in range(int(N)+1)])
-			else : lmake.depend([f'file_{x}'      for x in range(int(N)+1)])
+			if p : lmake.depend(*(f'out_{p-1}_{x}' for x in range(int(N)+1)))
+			else : lmake.depend(*(f'file_{x}'      for x in range(int(N)+1)))
 
 else :
 

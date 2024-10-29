@@ -22,8 +22,8 @@ extern "C" {
 	::string root_dir_s = from_dir_s                                    ;
 	::vector_s candidates ;
 	for(;; root_dir_s = dir_name_s(root_dir_s) ) {
-		if (is_target(root_dir_s+"Lmakefile.py")) candidates.push_back(root_dir_s) ;
-		if (root_dir_s.size()==1                ) break ;
+		if ( is_target(root_dir_s+"Lmakefile.py") || is_target(root_dir_s+"Lmakefile/__init__.py") ) candidates.push_back(root_dir_s) ;
+		if ( root_dir_s.size()==1                                                                  ) break ;
 	}
 	switch (candidates.size()) {
 		case 0 : throw "cannot find root dir"s ;

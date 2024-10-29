@@ -14,7 +14,7 @@
 
 struct MsgBuf {
 	friend ::ostream& operator<<( ::ostream& , MsgBuf const& ) ;
-	using Len = size_t ;
+	using Len = uint32_t ;                                       // /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
 	// statics
 	static Len s_sz(const char* str) {
 		Len len = 0 ; ::memcpy( &len , str , sizeof(Len) ) ;
@@ -22,9 +22,9 @@ struct MsgBuf {
 	}
 protected :
 	// data
-	Len      _len       = 0     ; // data sent/received so far, reading : may also apply to len accumulated in buf
-	::string _buf       ;         // reading : sized after expected size, but actuall filled up only with len char's    // writing : contains len+data to be sent
-	bool     _data_pass = false ; // reading : if true <=> buf contains partial data, else it contains partial data len // writing : if true <=> buf contains data
+	Len      _len       = 0     ;                                // data sent/received so far, reading : may also apply to len accumulated in buf
+	::string _buf       ;                                        // reading : sized after expected size, but actuall filled up only with len char's    // writing : contains len+data to be sent
+	bool     _data_pass = false ;                                // reading : if true <=> buf contains partial data, else it contains partial data len // writing : if true <=> buf contains data
 } ;
 inline ::ostream& operator<<( ::ostream& os , MsgBuf const& mb ) { return os<<"MsgBuf("<<mb._len<<','<<mb._data_pass<<')' ; }
 
@@ -46,7 +46,8 @@ struct IMsgBuf : MsgBuf {
 	}
 	template<class T> bool/*complete*/ receive_step( Fd fd , T& res ) {
 		ssize_t cnt = ::read( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) throw "cannot receive over fd "+fmt_string(fd) ;
+		if      (cnt<0 ) throw "cannot receive over "      +fmt_string(fd)+" : "+strerror(errno) ;
+		else if (cnt==0) throw "peer closed connection on "+fmt_string(fd)                       ;
 		_len += cnt ;
 		if (_len<_buf.size()) return false/*complete*/ ;                          // _buf is still partial
 		if (_data_pass) {
@@ -59,7 +60,8 @@ struct IMsgBuf : MsgBuf {
 			SWEAR( _buf.size()==sizeof(Len) , _buf.size() ) ;
 			Len len = s_sz(_buf.data()) ;
 			// we now expect the data
-			_buf.resize(len) ;
+			try         { _buf.resize(len) ;                              }
+			catch (...) { throw "cannot resize message to lenght "s+len ; }
 			_data_pass = true ;
 			_len       = 0    ;
 			return false/*complete*/ ;
@@ -71,7 +73,8 @@ struct OMsgBuf : MsgBuf {
 	// statics
 	template<class T> static ::string s_send(T const& x) {
 		::string res = serialize(::pair<Len,T>(0,x)) ; SWEAR(res.size()>=sizeof(Len)) ; // directly serialize in res to avoid copy : serialize a pair with length+data
-		Len      len = res.size()-sizeof(Len)        ;
+		size_t   len_ = res.size()-sizeof(Len)       ;
+		Len      len  = len_                         ; SWEAR(len==len_,len_)          ; // ensure truncation is harmless
 		::memcpy( res.data() , &len , sizeof(Len) ) ;                                   // overwrite len
 		return res ;
 	}

@@ -11,16 +11,16 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class XSrc(SourceRule) :
-		target = '{File:.*}.src'
+		target = r'{File:.*}.src'
 
 	class Cpy(Rule) :
-		target = '{File:.*}.cpy'
+		target = r'{File:.*}.cpy'
 		dep    = '{File}'
 		cmd    = 'cat'
 
 	class Test(Rule) :
 		target       = 'test'
-		side_targets = { 'SUB' : ( '{*:.*}.src' , 'source_ok','incremental' ) }
+		side_targets = { 'SUB' : ( r'{*:.*}.src' , 'source_ok','incremental' ) }
 		cmd = '''
 			echo sub > sub.src
 			cat sub.src.cpy

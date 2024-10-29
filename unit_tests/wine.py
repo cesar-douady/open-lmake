@@ -3,16 +3,6 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import os.path as osp
-import shutil
-
-# try to adapt to various installations
-wine = shutil.which('wine')
-if wine :
-	wine = osp.realpath(wine)
-	if wine.startswith('/usr/bin/') : hostname_exe = '/usr/lib/x86_64-linux-gnu/wine/x86_64-windows/hostname.exe'
-	else                            : hostname_exe = osp.dirname(osp.dirname(wine))+'/lib64/wine/x86_64-windows/hostname.exe'
-
 import lmake
 
 if __name__!='__main__' :
@@ -30,27 +20,30 @@ if __name__!='__main__' :
 		stems = { 'Method' : r'\w+' }
 
 	class WineRule(Rule) :
-		chroot_dir        = '/'                                            # ensure pid namespace is used to ensure reliale job termination
-		side_targets      = { 'WINE'    : ('.wine/{*:.*}','incremental') }
-		environ_resources = { 'DISPLAY' : lmake.user_environ['DISPLAY']  }
-		timeout           = 30                                             # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
-		allow_stderr      = True
+		chroot_dir        = '/'                                             # ensure pid namespace is used to ensure reliale job termination
+		side_targets      = { 'WINE'    : (r'.wine/{*:.*}','incremental') } # wine writes .wine dir, even after init
+		environ_resources = { 'DISPLAY' : lmake.user_environ['DISPLAY']   } # wine needs a display in all cases
 
 	class WineInit(WineRule) :
 		target       = '.wine/init'
-		targets      = { 'WINE' : '.wine/{*:.*}' } # for init wine env is not incremental
-		side_targets = { 'WINE' : None           }
-		cmd          = 'wine64 cmd'                # do nothing, just to init support files (in targets)
+		targets      = { 'WINE' : r'.wine/{*:.*}' }                                                    # for init wine env is not incremental
+		side_targets = { 'WINE' : None            }
+		allow_stderr = True
+		environ_cmd  = { 'DBUS_SESSION_BUS_ADDRESS' : lmake.user_environ['DBUS_SESSION_BUS_ADDRESS'] } # else a file is created in .dbus/session-bus
+		timeout      = 30           # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
+		cmd          = 'wine64 cmd' # do nothing, just to init support files (in targets)
 
-	class Dut(Base,WineRule) :
-		target  = 'dut.{Method}'
-		deps    = { 'WINE_INIT' : '.wine/init' }
-		autodep = '{Method}'
-		cmd     = 'wine64 {hostname_exe} ; sleep 1'
+	for ext in ('','64') :
+		class Dut(Base,WineRule) :
+			name    = f'Dut{ext}'
+			target  = f'dut{ext}.{{Method}}'
+			deps    = { 'WINE_INIT' : '.wine/init' }
+			autodep = '{Method}'
+			cmd     = f'wine{ext} hostname ; sleep 1' # wine64 terminates before hostname, so we have to wait to get the result
 
 	class Chk(Base) :
-		target = r'test.{Method}'
-		dep    =  'dut.{Method}'
+		target = r'test{Ext:64|}.{Method}'
+		dep    =  'dut{Ext}.{Method}'
 		def cmd() :
 			import socket
 			import sys
@@ -60,17 +53,38 @@ if __name__!='__main__' :
 
 else :
 
+	import os
+	import os.path as osp
+	import shutil
+	import subprocess as sp
 	import sys
 
 	import ut
 
-	if not wine :
-		print('wine not available',file=open('skipped','w'))
-	elif not osp.exists(hostname_exe) :
+	wine64 = shutil.which('wine64')
+	if not wine64 :
+		print('wine64 not available',file=open('skipped','w'))
+		exit()
+
+	# try to adapt to various installations
+	wine64 = osp.realpath(wine64)
+	if wine64.startswith('/usr/bin/') : prefix_exe = '/usr/lib/x86_64-linux-gnu/wine/x86_64-windows'
+	else                              : prefix_exe = osp.dirname(osp.dirname(wine64))+'/lib64/wine/x86_64-windows'
+
+	cmd_exe = f'{prefix_exe}/cmd.exe'
+	if not osp.exists(cmd_exe) :
+		print(f'{cmd_exe} not found',file=open('skipped','w'))
+		exit()
+
+	hostname_exe = f'{prefix_exe}/hostname.exe'
+	if not osp.exists(hostname_exe) :
 		print(f'{hostname_exe} not found',file=open('skipped','w'))
-	else :
-		methods = ['none','ld_preload']
-		if lmake.has_ptrace   : methods.append('ptrace'  )
-		if lmake.has_ld_audit : methods.append('ld_audit')
-		ut.lmake( *(f'test.{m}' for m in methods) , done=1+2*len(methods) , new=0 , rc=0 )
-		ut.lmake( *(f'test.{m}' for m in methods)                                        ) # ensure nothing needs to be remade
+		exit()
+
+	autodeps = ('none',*lmake.autodeps)
+	ut.lmake( *(f'test64.{m}' for m in autodeps) , done=1+2*len(autodeps) , new=0 , rc=0 )
+	ut.lmake( *(f'test64.{m}' for m in autodeps)                                         )     # ensure nothing needs to be remade
+	if os.environ['HAS_32BITS'] and shutil.which('wine') :
+		methods_32 = [m for m in autodeps if m!='ptrace']
+		ut.lmake( *(f'test.{m}' for m in methods_32) , done=2*len(methods_32) , new=0 , rc=0 ) # ptrace is not supported in 32 bits
+		ut.lmake( *(f'test.{m}' for m in methods_32)                                         ) # ensure nothing needs to be remade

@@ -54,8 +54,8 @@ namespace Engine {
 
 namespace Engine {
 	namespace Persistent { using RuleStr     = Vector::Simple<RuleStrIdx,char      ,StoreMrkr> ; }
-	/**/                   using DepsBase    = Vector::Simple<NodeIdx   ,GenericDep,StoreMrkr> ;
-	/**/                   using TargetsBase = Vector::Simple<NodeIdx   ,Target    ,StoreMrkr> ;
+	/**/                   using DepsBase    = Vector::Simple<DepsIdx   ,GenericDep,StoreMrkr> ;
+	/**/                   using TargetsBase = Vector::Simple<TargetsIdx,Target    ,StoreMrkr> ;
 }
 
 #endif
@@ -225,13 +225,13 @@ namespace Engine::Persistent {
 }
 
 namespace Engine {
-	using Name        = Persistent::Name                        ;
-	using JobBase     = Persistent::JobBase                     ;
-	using JobTgtsBase = Vector::Crunch<JobIdx,JobTgt,StoreMrkr> ;
-	using NodeBase    = Persistent::NodeBase                    ;
-	using RuleBase    = Persistent::RuleBase                    ;
-	using RuleTgts    = Persistent::RuleTgts                    ;
-	using DataBase    = Persistent::DataBase                    ;
+	using Name        = Persistent::Name                            ;
+	using JobBase     = Persistent::JobBase                         ;
+	using JobTgtsBase = Vector::Crunch<JobTgtsIdx,JobTgt,StoreMrkr> ;
+	using NodeBase    = Persistent::NodeBase                        ;
+	using RuleBase    = Persistent::RuleBase                        ;
+	using RuleTgts    = Persistent::RuleTgts                        ;
+	using DataBase    = Persistent::DataBase                        ;
 }
 
 #endif
@@ -316,11 +316,11 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 	//
-	bool/*invalidate*/ new_srcs        ( ::vmap_s<FileTag>&& srcs , ::vector_s&& src_dirs_s , bool dynamic ) ;
-	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                             , bool dynamic ) ;
-	void               invalidate_match(                                                                   ) ;
-	void               invalidate_exec ( bool cmd_ok                                                       ) ;
-	void               repair          ( ::string const& from_dir_s                                        ) ;
+	bool/*invalidate*/ new_srcs        ( ::pair<::vmap_s<FileTag>/*files*/,::vector_s/*dirs_s*/>&& srcs , bool dynamic ) ;
+	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                                         , bool dynamic ) ;
+	void               invalidate_match(                                                                               ) ;
+	void               invalidate_exec ( bool cmd_ok                                                                   ) ;
+	void               repair          ( ::string const& from_dir_s                                                    ) ;
 	//
 	NodeFile::Lst  node_lst() ;
 	JobFile ::Lst  job_lst () ;
@@ -495,7 +495,7 @@ namespace Engine::Persistent {
 	inline RuleStr         RuleBase::_str     () const { SWEAR(!is_shared()) ; return _rule_file.c_at(Rule(*this))     ; }
 	// services
 	inline void RuleBase::save() const {
-		_rule_file.at(*this) = _rule_str_file.assign(_str(),::string(**this)) ;
+		_rule_file.at(*this) = _rule_str_file.assign(_str(),serialize(**this)) ;
 	}
 
 	//

@@ -35,12 +35,14 @@ uint64_t                                               Record::_s_id           =
 bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                     // no file is simple (not documented, but used in practice)
 	if (!file[0]     ) return true  ;                                     // empty file is simple
-	if ( file[0]!='/') return false ;                                     // relative files are complex, in particular we dont even know relative to hat (the dirfd arg is not passed in)
+	if ( file[0]!='/') return false ;                                     // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
 	size_t top_sz = 0 ;
 	switch (file[1]) {                                                    // recognize simple and frequent top level system directories
 		case 'b' : if (strncmp(file+1,"bin/" ,4)==0) top_sz = 5 ; break ;
 		case 'd' : if (strncmp(file+1,"dev/" ,4)==0) top_sz = 5 ; break ;
 		case 'e' : if (strncmp(file+1,"etc/" ,4)==0) top_sz = 5 ; break ;
+		case 'o' : if (strncmp(file+1,"opt/" ,4)==0) top_sz = 5 ; break ; // used to install 3rd party software, not a data dir
+		case 'r' : if (strncmp(file+1,"run/" ,4)==0) top_sz = 5 ; break ;
 		case 's' : if (strncmp(file+1,"sbin/",5)==0) top_sz = 6 ;
 		/**/       if (strncmp(file+1,"sys/" ,4)==0) top_sz = 5 ; break ;
 		case 'u' : if (strncmp(file+1,"usr/" ,4)==0) top_sz = 5 ; break ;
@@ -57,8 +59,7 @@ bool Record::s_is_simple(const char* file) {
 			if ( strncmp(file+6,"self/",5)==0 ) break ;           // not in /proc/self => not simple
 			top_sz = 6 ;                                          // else              => simple
 		break ;
-		default  : ;
-	}
+	DN}
 	if (!top_sz) return false ;
 	int depth = 0 ;
 	for ( const char* p=file+top_sz ; *p ; p++ ) {                // ensure we do not escape from top level dir
@@ -93,7 +94,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 
 bool/*sent*/ Record::report_async_access( JobExecRpcReq&& jerr , bool force ) const {
 	SWEAR( jerr.proc==Proc::Access || jerr.proc==Proc::DepVerbose , jerr.proc ) ;
-	if ( !force && disabled ) return false/*sent*/ ;                                       // dont update cache as report is not actually done
+	if ( !force && !enable ) return false/*sent*/ ;                                        // dont update cache as report is not actually done
 	if (!jerr.sync) {
 		bool miss = false ;
 		for( auto const& [f,dd] : jerr.files ) {
@@ -130,9 +131,9 @@ JobExecRpcReply Record::report_sync_direct( JobExecRpcReq&& jerr , bool force ) 
 }
 
 JobExecRpcReply Record::report_sync_access( JobExecRpcReq&& jerr , bool force ) const {
+	jerr.sync = true ;
 	bool sent = report_async_access(::move(jerr),force) ;
-	if (!jerr.sync) return {}           ;
-	if (sent      ) return _get_reply() ;
+	if (sent) return _get_reply() ;
 	// not under lmake, try to mimic server as much as possible, but of course no real info available
 	// XXX : for Encode/Decode, we should interrogate the server or explore association file directly so as to allow jobs to run with reasonable data
 	switch (jerr.proc) {
@@ -144,7 +145,7 @@ JobExecRpcReply Record::report_sync_access( JobExecRpcReq&& jerr , bool force ) 
 Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
 	SWEAR(!accesses) ;                                                                                                                     // no access to last component when no_follow
 	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                           // in case of overlay, create dir in the view
-	r._report_guard( file_loc , ::move(real_write()) , ::move(c) ) ;
+	r.report_guard( file_loc , ::move(real_write()) , ::move(c) ) ;
 }
 int Record::Chdir::operator()( Record& r , int rc ) {
 	if (rc==0) r.chdir() ;
@@ -179,8 +180,8 @@ Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , ::str
 }
 
 Record::Mkdir::Mkdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	r._report_dep  ( file_loc , ::copy(real) , accesses|Access::Stat , ::copy(c) ) ;                                                       // fails if file exists, hence sensitive to existence
-	r._report_guard( file_loc , ::move(real) ,                         ::move(c) ) ;
+	r._report_dep ( file_loc , ::copy(real) , accesses|Access::Stat , ::copy(c) ) ;                                                        // fails if file exists, hence sensitive to existence
+	r.report_guard( file_loc , ::move(real) ,                         ::move(c) ) ;
 }
 
 Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , ::string&& c ) :
@@ -197,28 +198,28 @@ Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , ::string&& c ) :
 // - if it is an official target, it is not a dep, whether you declare reading it or not
 // - else, we do not compute a CRC on it and its actual content is not guaranteed. What is important in this case is that the execution of the job does not see the content.
 //
-static bool _ignore   (int flags) { return (flags&O_PATH) && Record::s_autodep_env().ignore_stat              ; }
-static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
-static bool _do_stat  (int flags) { return  flags&O_PATH      || ( (flags&O_CREAT) && (flags&O_EXCL) )        ; }
-static bool _do_read  (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC) ; }
-static bool _do_write (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY                     ; }
-static bool _do_create(int flags) { return   flags&O_CREAT                                                    ; }
+static bool _ignore   (int flags) { return (flags&O_PATH) && Record::s_autodep_env().ignore_stat                                                              ; }
+static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )                                                        ; }
+static bool _do_stat  (int flags) { return (flags&O_PATH)     || ( (flags&O_CREAT) && (flags&O_EXCL) ) || ( !(flags&O_CREAT) && (flags&O_ACCMODE)!=O_RDONLY ) ; }
+static bool _do_read  (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC)                                                 ; }
+static bool _do_write (int flags) { return !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY                                                                     ; }
+static bool _do_create(int flags) { return   flags&O_CREAT                                                                                                    ; }
 //
 Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
 	Solve{ r , !_ignore(flags)?::move(path):Path() , _no_follow(flags) , _do_read(flags) , _do_create(flags) , c }
 {
-	if ( !file || !file[0]             ) return ;                                                        // includes ignore_stat cases
-	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                        // we already solved, this is enough
-	if ( file_loc>FileLoc::Dep         ) return ;                                                        // fast path
+	if ( !file || !file[0]             ) return ;                                                                   // includes ignore_stat cases
+	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                   // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep         ) return ;                                                                   // fast path
 	//
 	bool do_stat  = _do_stat (flags) ;
 	bool do_read  = _do_read (flags) ;
 	bool do_write = _do_write(flags) ;
 	//
-	c << '.' << flags << '.' ;
-	if (do_stat ) { c += 'S' ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, user can access all info with a further fstat, which is not piggy-backed
-	if (do_read ) { c += 'R' ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
-	if (do_write)   c += 'W' ;
+	if (_no_follow(flags))   c += ".NF" ;
+	if (do_stat          ) { c += ".S"  ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, there may be a further fstat, which is not piggy-backed
+	if (do_read          ) { c += ".R"  ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
+	if (do_write         )   c += ".W"  ;
 	//
 	if      ( do_write           ) id = r._report_update( file_loc , ::move(real) , ::move(real0) , accesses , ::move(c) ) ;
 	else if ( do_read || do_stat )      r._report_dep   ( file_loc , ::move(real) ,                 accesses , ::move(c) ) ;
@@ -240,55 +241,60 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 }
 
 // flags is not used if exchange is not supported
-Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange_ , bool no_replace , ::string&& c ) :
-	//                         no_follow read       create
-	src     { r , ::move(src_) , true  , true      , false , c+".src" }
-,	dst     { r , ::move(dst_) , true  , exchange_ , true  , c+".dst" }
-,	exchange{ exchange_                                               }
-{
-	if (src.real==dst.real) return ;    // posix says in this case, it is nop
-	if (exchange          ) c += "<>" ;
-	// rename has not occurred yet so for each dir :
-	// - files are read and unlinked
-	// - their coresponding files in the other dir are written
-	// also scatter files into 3 categories :
-	// - files that are unlinked         (typically all files in src  dir, but not necesssarily all of them)
-	// - files that are written          (          all files in dst  dir                                  )
-	// - files that are read and written (              files in both dirs in case of exchange             )
-	// in case of exchange, both dirs are both src and dst
+Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , bool no_replace , ::string&& c ) {
+	if (src_==dst_) return ;                                                                                       // posix says in this case, it is nop
+	if (exchange  ) c += "<>" ;
+	// rename has not occurred yet so :
+	// - files are read and unlinked in the source dir
+	// - their coresponding files in the destination dir are written
 	::vector_s reads  ;
-	::uset_s   unlnks ;
+	::vector_s stats  ;
+	::uset_s   unlnks ;                                                                                            // files listed here are read and unlinked
 	::vector_s writes ;
-	if ( src.file_loc<=FileLoc::Dep || dst.file_loc==FileLoc::Repo ) {
-		::vector_s sfxs = walk(s_root_fd(),src.real) ;                                                                                                                    // list only accessible files
-		if ( src.file_loc<=FileLoc::Dep  && +src.real0 )                                               for( ::string const& s : sfxs ) unlnks.insert   ( src.real + s ) ;   // overlaid files are kept
-		if ( src.file_loc<=FileLoc::Dep  && !src.real0 ) { reads .reserve(reads .size()+sfxs.size()) ; for( ::string const& s : sfxs ) reads .push_back( src.real + s ) ; } // .
-		if ( dst.file_loc==FileLoc::Repo               ) { writes.reserve(writes.size()+sfxs.size()) ; for( ::string const& d : sfxs ) writes.push_back( dst.real + d ) ; }
-	}
-	if ( exchange && ( dst.file_loc<=FileLoc::Dep || src.file_loc==FileLoc::Repo ) ) {
-		::vector_s sfxs = walk(s_root_fd(),dst.real) ;                                                                                                                    // list only accessible files
-		if ( dst.file_loc<=FileLoc::Dep  && +dst.real0 )                                               for( ::string const& s : sfxs ) unlnks.insert   ( dst.real + s ) ;   // overlaid files are kept
-		if ( dst.file_loc<=FileLoc::Dep  && !dst.real0 ) { reads .reserve(reads .size()+sfxs.size()) ; for( ::string const& s : sfxs ) reads .push_back( dst.real + s ) ; } // .
-		if ( src.file_loc==FileLoc::Repo               ) { writes.reserve(writes.size()+sfxs.size()) ; for( ::string const& d : sfxs ) writes.push_back( src.real + d ) ; }
-	}
+	auto do1 = [&]( Path const& src , Path const& dst )->void {
+		for( ::string const& f : walk(src.at,src.file) ) {
+			//                                no_follow read   create
+			Solve s { r , {src.at,src.file+f} , true  , true  , false , c+".src" } ;
+			Solve d { r , {dst.at,dst.file+f} , true  , false , true  , c+".dst" } ;
+			if (+s.real0) {
+				if      (s.file_loc0<=FileLoc::Repo) unlnks.insert   (s.real0+f) ;
+				if      (s.file_loc <=FileLoc::Dep ) reads .push_back(s.real +f) ;
+			} else {
+				if      (s.file_loc <=FileLoc::Repo) unlnks.insert   (s.real +f) ;
+				else if (s.file_loc <=FileLoc::Dep ) reads .push_back(s.real +f) ;
+			}
+			if (no_replace) stats.push_back(d.real+f) ;                                                            // probe existence of destination
+			if (+d.real0) {
+				if      (d.file_loc0<=FileLoc::Repo) writes.push_back(d.real0+f) ;
+			} else {
+				if      (d.file_loc <=FileLoc::Repo) writes.push_back(d.real +f) ;
+			}
+		}
+	} ;
+	/**/          do1(src_,dst_) ;
+	if (exchange) do1(dst_,src_) ;
 	for( ::string const& w : writes ) {
 		auto it = unlnks.find(w) ;
 		if (it==unlnks.end()) continue ;
-		reads.push_back(w) ;
-		unlnks.erase(it) ;
+		reads.push_back(w) ;                                                                                       // if a file is read, unlinked and written, it is actually not unlinked
+		unlnks.erase(it) ;                                                                                         // .
 	}
-	//                                                                                                 unlnk
-	if (+reads    )            r._report_deps   (                 ::move   (reads   ) , DataAccesses , false , c+".src"   ) ; // file_loc's already handled
-	if (+unlnks   ) unlnk_id = r._report_deps   (                 mk_vector(unlnks  ) , DataAccesses , true  , c+".unlnk" ) ; // .
-	if (no_replace)            r._report_dep    ( dst.file_loc  , ::copy   (dst.real) , Access::Stat ,         c+".probe" ) ;
-	if (+writes   ) write_id = r._report_targets(                 ::move   (writes  ) ,                        c+".dst"   ) ; // .
-	/**/                       r._report_guard  ( src.file_loc  , ::move   (src.real) ,                        c+".src"   ) ; // only necessary if renamed dirs, perf is low prio as not that frequent
-	/**/                       r._report_guard  ( dst.file_loc  , ::move   (dst.real) ,                        c+".dst"   ) ;
+	::uset_s guards ;
+	for( ::string const& w : writes ) guards.insert(dir_name_s(w)) ;
+	for( ::string const& u : unlnks ) guards.insert(dir_name_s(u)) ;
+	guards.erase(""s) ;
+	for( ::string const& g : guards ) r.report_guard( no_slash(g) , c+".guard" ) ;
+	//                                                                               write
+	if (+reads    )            r._report_deps   ( ::move   (reads ) , DataAccesses , No    , c+".src"   ) ;
+	if (+stats    )            r._report_deps   ( ::move   (stats ) , Access::Stat , No    , c+".probe" ) ;
+	if (+unlnks   ) unlnk_id = r._report_deps   ( mk_vector(unlnks) , DataAccesses , Maybe , c+".unlnk" ) ;        // to be confirmed after actual access
+	if (+writes   ) write_id = r._report_targets( ::move   (writes) ,                        c+".dst"   ) ;        // .
 }
 
 Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , ::string&& c ) :
 	Solve{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , false/*create*/ , c }
 {
+	if (no_follow) c += ".NF" ;
 	if (!s_autodep_env().ignore_stat) r._report_dep( file_loc , ::move(real) , accesses|a , ::move(c) ) ;
 }
 
@@ -297,6 +303,6 @@ Record::Symlink::Symlink( Record& r , Path&& p , ::string&& c ) : Solve{r,::move
 }
 
 Record::Unlnk::Unlnk( Record& r , Path&& p , bool remove_dir , ::string&& c ) : Solve{r,::move(p),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	if (remove_dir) {      r._report_guard( file_loc , ::move(real_write()) , ::move(c) ) ; file_loc = FileLoc::Ext ; }
-	else              id = r._report_unlnk( file_loc , ::move(real_write()) , ::move(c) ) ;
+	if (remove_dir) {      r.report_guard  ( file_loc , ::move(real_write()) , ::move(c) ) ; file_loc = FileLoc::Ext ; }
+	else              id = r._report_target( file_loc , ::move(real_write()) , ::move(c) ) ;
 }

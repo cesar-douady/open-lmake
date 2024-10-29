@@ -42,10 +42,11 @@ namespace Engine {
 			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                               }
 			catch (...) { exit(Rc::System,"cannot create symlink ",last," to ",lcl_log_file) ; }
 			data.start_ddate = file_date(log_file) ;                                             // use log_file as a date marker
-			data.start_pdate = New                 ;                                             // use log_file as a date marker
+			data.start_pdate = New                 ;
 			break ;
 		}
 		//
+		data.eta          = data.start_pdate   ;
 		data.idx_by_start = s_n_reqs()         ;
 		data.idx_by_eta   = s_n_reqs()         ;                                                 // initially, eta is far future
 		data.jobs .dflt   = JobReqInfo (*this) ;
@@ -56,6 +57,7 @@ namespace Engine {
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
 		//
+		Trace trace("Rmake",*this,s_n_reqs(),data.start_ddate,data.start_pdate) ;
 		try {
 			JobIdx n_jobs = from_string<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
 			if (ecr.as_job()) data.job = ecr.job()                                                                            ;
@@ -66,7 +68,7 @@ namespace Engine {
 			close() ;
 			throw ;
 		}
-		Trace trace("make",*this,s_n_reqs(),data.start_ddate,data.start_pdate,data.job) ;
+		trace("job",data.job) ;
 		//
 		Job::ReqInfo& jri = data.job->req_info(*this) ;
 		jri.live_out = (*this)->options.flags[ReqFlag::LiveOut] ;
@@ -111,50 +113,35 @@ namespace Engine {
 		}
 	}
 
-	void Req::inc_rule_exec_time( Rule rule , Delay delta , Tokens1 tokens1 ) {
-			auto it = (*this)->ete_n_rules.find(rule) ;
-			if (it==(*this)->ete_n_rules.end()) return ;
-			(*this)->ete += delta * it->second * (tokens1+1) / rule->n_tokens ; // adjust req ete's that are computed after this exec_time, accounting for parallel execution
-			_adjust_eta() ;
-	}
-	void Req::new_exec_time( JobData const& job , bool remove_old , bool add_new , Delay old_exec_time ) {
-		SWEAR( !job.rule->is_special() , job.rule->special ) ;
-		if ( !remove_old && !add_new ) return ;                                                                                        // nothing to do
-		Delay delta ;
-		Rule  rule  = job.rule ;
-		if (remove_old) {                                                                                                              // use old info
-			if (+old_exec_time) { delta -= old_exec_time   ;                                                                         }
-			else                { delta -= rule->exec_time ; SWEAR((*this)->ete_n_rules[rule]>0) ; (*this)->ete_n_rules[rule] -= 1 ; }
-		}
-		if (add_new) {                                                                                                                 // use new info
-			if (+job.exec_time) { delta += job.exec_time ;                                     }
-			else                { delta += rule->exec_time ; (*this)->ete_n_rules[rule] += 1 ; }
-		}
-		(*this)->ete += delta * (job.tokens1+1) / rule->n_tokens ;                                                                     // account for parallel execution when computing ete
+	void Req::new_eta() {
+		Pdate new_eta   = Backend::s_submitted_eta(*this) + (*this)->stats.waiting_cost ;
+		Pdate old_eta   = (*this)->eta                                                  ;
+		Delay old_ete   = old_eta-Pdate(New)                                            ;
+		Delay delta_ete = new_eta>old_eta ? new_eta-old_eta : old_eta-new_eta           ; // cant use ::abs(new_eta-old_eta) because of signedness
+		//
+		if ( delta_ete.val() <= (old_ete.val()>>4) ) return ;                             // eta did not change significatively
+		(*this)->eta = new_eta ;
 		_adjust_eta() ;
+		Backend::s_new_req_etas() ;                                                       // tell backends that etas changed significatively
 	}
+
 	void Req::_adjust_eta(bool push_self) {
-			Pdate now = New ;
-			Trace trace("_adjust_eta",now,(*this)->ete) ;
+			Trace trace("_adjust_eta",(*this)->eta) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
-			bool changed = false ;
-			{	Lock lock       { s_reqs_mutex }      ;
-				Idx  idx_by_eta = (*this)->idx_by_eta ;
-				(*this)->eta = now + (*this)->ete ;
-				if (push_self) _s_reqs_by_eta.push_back(*this) ;
-				while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>(*this)->eta ) {                                             // if eta is decreased
-					( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ;                       // swap w/ prev entry
-					( _s_reqs_by_eta[idx_by_eta-1] = *this                        )->idx_by_eta = idx_by_eta-1 ;                       // .
-					changed = true ;
-				}
-				if (!changed)
-					while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->eta<(*this)->eta ) {                              // if eta is increased
-						( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ;                   // swap w/ next entry
-						( _s_reqs_by_eta[idx_by_eta+1] = *this                        )->idx_by_eta = idx_by_eta+1 ;                   // .
-						changed = true ;
-					}
+			bool changed    = false               ;
+			Lock lock       { s_reqs_mutex }      ;
+			Idx  idx_by_eta = (*this)->idx_by_eta ;
+			if (push_self) _s_reqs_by_eta.push_back(*this) ;
+			while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>(*this)->eta ) {                       // if eta is decreased
+				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
+				( _s_reqs_by_eta[idx_by_eta-1] = *this                        )->idx_by_eta = idx_by_eta-1 ; // .
+				changed = true ;
 			}
-			if (changed) Backend::s_new_req_eta(+*this) ;                                                                              // tell backends that req priority order has changed
+			if (changed) return ;
+			while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->eta<(*this)->eta ) {            // if eta is increased
+				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ; // swap w/ next entry
+				( _s_reqs_by_eta[idx_by_eta+1] = *this                        )->idx_by_eta = idx_by_eta+1 ; // .
+			}
 	}
 
 	void Req::_report_cycle(Node node) {
@@ -199,31 +186,37 @@ namespace Engine {
 			(*this)->audit_node( Color::Note , prefix,cycle[i] , 1 ) ;
 		}
 		if ( +to_forget || +to_raise ) {
-			(*this)->audit_info( Color::Note , "consider :\n" ) ;
-			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget - d" , n                            , 1 ) ;
+			(*this)->audit_info( Color::Note , "consider some of :\n" ) ;
+			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget -d" , n                             , 1 ) ;
 			if (+to_raise)            (*this)->audit_info( Color::Note , "add to Lmakefile.py :"                      , 1 ) ;
 			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , r->name+".prio = "+::to_string(r->prio)+"+1" , 2 ) ;
+			/**/                      (*this)->audit_info( Color::Note , "for t in (<cycle above>) :"                 , 2 ) ;
+			/**/                      (*this)->audit_info( Color::Note , "class MyAntiRule(AntiRule) :"               , 3 ) ;
+			/**/                      (*this)->audit_info( Color::Note , "target = t"                                 , 4 ) ;
 		}
 	}
 
 	bool/*overflow*/ Req::_report_err( Dep const& dep , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
-		if (dep.dflags[Dflag::IgnoreError]) return false ;
-		if (seen_nodes.contains(dep)      ) return false ;
+		if (dep.dflags[Dflag::IgnoreError]) return false/*overflow*/ ;
+		if (seen_nodes.contains(dep)      ) return false/*overflow*/ ;
 		seen_nodes.insert(dep) ;
 		NodeReqInfo const& cri = dep->c_req_info(*this) ;
 		const char*        err = nullptr                ;
 		switch (dep->status()) {
-			case NodeStatus::Multi     :                                  err = "multi"                                            ; break ;
-			case NodeStatus::Transient :                                  err = "missing transient sub-file"                       ; break ;
-			case NodeStatus::Uphill    : if (dep.dflags[Dflag::Required]) err = "missing required sub-file"                        ; break ;
-			case NodeStatus::Src       : if (dep->crc==Crc::None        ) err = dep.frozen() ? "missing frozen" : "missing source" ; break ;
-			case NodeStatus::SrcDir    : if (dep.dflags[Dflag::Required]) err = "missing required"                                 ; break ;
+			case NodeStatus::Multi     :                                  err = "multi"                                        ; break ;
+			case NodeStatus::Transient :                                  err = "missing transient sub-file"                   ; break ;
+			case NodeStatus::Uphill    : if (dep.dflags[Dflag::Required]) err = "missing required sub-file"                    ; break ;
+			case NodeStatus::Src       : if (dep->crc==Crc::None        ) err = dep.frozen()?"missing frozen":"missing source" ; break ;
+			case NodeStatus::SrcDir    : if (dep.dflags[Dflag::Required]) err = "missing required"                             ; break ;
 			case NodeStatus::Plain :
-				if      (+cri.overwritten           ) err = "overwritten" ;
-				else if (!dep->conform_job_tgts(cri)) err = "not built"   ; // if no better explanation found
+				if (+cri.overwritten)
+					err = "overwritten" ;
+				else if (+dep->conform_job_tgts(cri))
+					for( Job job : dep->conform_job_tgts(cri) ) {
+						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true/*overflow*/ ;
+					}
 				else
-					for( Job job : dep->conform_job_tgts(cri) )
-						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
+					err = "not built" ; // if no better explanation found
 			break ;
 			case NodeStatus::None :
 				if      (dep->manual()>=Manual::Changed) err = "dangling" ;
@@ -231,32 +224,38 @@ namespace Engine {
 			break ;
 		DF}
 		if (err) return (*this)->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
-		else     return false                                                                         ;
+		else     return false/*overflow*/                                                             ;
 	}
 
 	bool/*overflow*/ Req::_report_err( Job job , Node target , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
-		if (seen_jobs.contains(job)) return false ;
+		if (seen_jobs.contains(job)) return false/*overflow*/ ;
 		seen_jobs.insert(job) ;
 		JobReqInfo const& jri = job->c_req_info(*this) ;
-		if (!jri.done()) return false ;
-		if (!job->err()) return false ;
+		if (!jri.done()) return false/*overflow*/ ;
+		if (!job->err()) return false/*overflow*/ ;
 		//
-		bool intermediate = job->run_status==RunStatus::DepErr                                                                      ;
-		bool overflow     = (*this)->_send_err( intermediate , job->rule->name , +target?target->name():job->name() , n_err , lvl ) ;
-		if (overflow) return true ;
+		bool intermediate = job->run_status==RunStatus::DepErr ;
+		if ( (*this)->_send_err( intermediate , job->rule->name , +target?target->name():job->name() , n_err , lvl ) ) return true/*overflow*/ ;
 		//
-		if ( !seen_stderr && job->run_status==RunStatus::Ok && !job->rule->is_special() ) { // show first stderr
-			Rule::SimpleMatch match          ;
-			JobInfo           job_info       = job.job_info()                                                 ;
-			EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,job_info.start.rsrcs) ;
-			//
-			if (!job_info.end.end.proc) (*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-			else                        seen_stderr = (*this)->audit_stderr( job , job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
-		}
+		if ( !seen_stderr && job->run_status==RunStatus::Ok ) // show first stderr
+			switch (job->rule->special) {
+				case Special::Infinite :
+					(*this)->audit_info( Color::None , job->special_stderr() , lvl+1 ) ;
+					seen_stderr = true ;
+				break ;
+				case Special::Plain : {
+					Rule::SimpleMatch match          ;
+					JobInfo           job_info       = job.job_info()                                                       ;
+					EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval( job , match , job_info.start.rsrcs ) ;
+					//
+					if (!job_info.end.end.proc) (*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
+					else                        seen_stderr = (*this)->audit_stderr( job , job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
+				} break ;
+			DN}
 		if (intermediate)
 			for( Dep const& d : job->deps )
-				if ( _report_err( d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true ;
-		return false ;
+				if ( _report_err( d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true/*overflow*/ ;
+		return false/*overflow*/ ;
 	}
 
 	void Req::chk_end() {
@@ -363,7 +362,7 @@ namespace Engine {
 	}
 
 	void ReqData::audit_summary(bool err) const {
-		bool warning = +frozen_jobs || +no_triggers || +clash_nodes || +long_names ;
+		bool warning = +frozen_jobs || +no_triggers || +clash_nodes ;
 		audit_info( err ? Color::Err : warning ? Color::Warning : Color::Note ,
 			"+---------+\n"
 			"| SUMMARY |\n"
@@ -384,8 +383,7 @@ namespace Engine {
 					case JobReport::Lost    : c = Color::Warning ; break ;
 					case JobReport::Steady  :
 					case JobReport::Done    : c = Color::Ok      ; break ;
-					default : ;
-				}
+				DN}
 				::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ""s ;
 				audit_info( c , fmt_string(::setw(wk),snake(jr)," time : ",::setw(Delay::ShortStrSz),t," (",::right,::setw(wn),stats.ended[+jr]," jobs)") ) ;
 			}
@@ -393,47 +391,38 @@ namespace Engine {
 		if (+options.startup_dir_s           ) audit_info( Color::Note , fmt_string(::setw(wk),"startup"," dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (+up_to_dates) {
-			static ::string src_msg   = "file is a source"       ;
-			static ::string anti_msg  = "file is anti"           ;
-			static ::string plain_msg = "was already up to date" ;
+			static ::string src_msg       = "file is a source"       ;
+			static ::string anti_msg      = "file is anti"           ;
+			static ::string plain_ok_msg  = "was already up to date" ;
+			static ::string plain_err_msg = "was already in error"   ;
 			size_t w = 0 ;
 			for( Node n : up_to_dates )
-				if      (n->is_src_anti()                ) w = ::max(w,(is_target(n->name())?src_msg:anti_msg).size()) ;
-				else if (n->status()<=NodeStatus::Makable) w = ::max(w,plain_msg                              .size()) ;
+				if      (n->is_src_anti()                ) w = ::max(w,(is_target(n->name())?src_msg     :anti_msg     ).size()) ;
+				else if (n->status()<=NodeStatus::Makable) w = ::max(w,(n->ok()!=No         ?plain_ok_msg:plain_err_msg).size()) ;
 			for( Node n : up_to_dates )
-				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , fmt_string(::setw(w),is_target(n->name())?src_msg:anti_msg," :") , n ) ;
-				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , fmt_string(::setw(w),plain_msg                            ," :") , n ) ;
-		}
-		if (+long_names) {
-			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
-			size_t               pm          = 0                   ;
-			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                    // sort in discovery order
-			for( auto [n,_] :                 long_names_                                        ) pm = ::max( pm , n->name().size() ) ;
-			for( auto [n,_] : ::c_vector_view(long_names_,0,g_config->n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
-			if ( g_config->errs_overflow(long_names_.size())                                      ) audit_info( Color::Warning , "..."               ) ;
-			SWEAR(pm>g_config->path_max) ;
-			audit_info( Color::Note , "consider adding in Lmakefile.py : lmake.config.path_max = "s+pm ) ;
+				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , fmt_string(::setw(w),is_target(n->name())?src_msg     :anti_msg     ," :") , n ) ;
+				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , fmt_string(::setw(w),n->ok()!=No         ?plain_ok_msg:plain_err_msg," :") , n ) ;
 		}
 		if (+frozen_jobs) {
-			::vmap<Job,JobIdx> frozen_jobs_ = mk_vmap(frozen_jobs) ;
-			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ;                       // sort in discovery order
+			::vmap<Job,JobIdx/*order*/> frozen_jobs_ = mk_vmap(frozen_jobs) ;
+			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx/*order*/> const& a , ::pair<Job,JobIdx/*order*/> b ) { return a.second<b.second ; } ) ;      // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
 			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , fmt_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
 		}
 		if (+frozen_nodes) {
-			::vmap<Node,NodeIdx> frozen_nodes_ = mk_vmap(frozen_nodes) ;
-			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                  // sort in discovery order
+			::vmap<Node,NodeIdx/*order*/> frozen_nodes_ = mk_vmap(frozen_nodes) ;
+			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			for( auto [n,_] : frozen_nodes_ ) audit_node( Color::Warning , "frozen " , n ) ;
 		}
 		if (+no_triggers) {
-			::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
-			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                   // sort in discovery order
+			::vmap<Node,NodeIdx/*order*/> no_triggers_ = mk_vmap(no_triggers) ;
+			::sort( no_triggers_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ;  // sort in discovery order
 			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no trigger" , n ) ;
 		}
 		if (+clash_nodes) {
-			::vmap<Node,NodeIdx> clash_nodes_ = mk_vmap(clash_nodes) ;
-			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;                   // sort in discovery order
+			::vmap<Node,NodeIdx/*order*/> clash_nodes_ = mk_vmap(clash_nodes) ;
+			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ;  // sort in discovery order
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
 			if (job->rule->special!=Special::Req) {
@@ -453,7 +442,7 @@ namespace Engine {
 		/**/                                          msg <<      ::setw(StepSz                   )<<step                                  ;
 		/**/                                          msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule_name                             ;
 		if (g_config->console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"") ;
-		audit( audit_fd , log_stream , options , c , msg.str()+' '+mk_file(job_name) ) ;
+		audit( audit_fd , log_stream , options , c , ::move(msg).str()+' '+mk_file(job_name) ) ;
 		last_info = {} ;
 	}
 
@@ -487,6 +476,7 @@ namespace Engine {
 				+	                                                      " running:"s +  stats.cur(JobStep::Exec  )
 				+	( stats.cur(JobStep::Queued)                        ? " queued:"s  +  stats.cur(JobStep::Queued)                        : ""s )
 				+	( stats.cur(JobStep::Dep   )>1                      ? " waiting:"s + (stats.cur(JobStep::Dep   )-1                )     : ""s ) // suppress job representing Req itself
+				+	( g_config->console.show_eta                        ? " - ETA:"s   +  eta.str(0/*prec*/,true/*in_day*/)                 : ""s )
 				)
 			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;

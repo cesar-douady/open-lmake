@@ -3,37 +3,21 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+'lmake.config source file (as named in lmake.config.__file__) is thoroughly commented, please refer to it.'
+
 import sys     as _sys
 import os      as _os
 import os.path as _osp
 
-if _sys.version_info.major<3 : from clmake2 import * # if not in an lmake repo, root_dir is not set to current dir
-else                         : from clmake  import * # .
+try :
+	if _sys.version_info.major<3 : from clmake2 import * # if not in an lmake repo, root_dir is not set to current dir
+	else                         : from clmake  import * # .
+	_has_clmake = True
+except :
+	_has_clmake = False
+	from py_clmake import *
 
 from .utils import *
-
-version = ('24.09',0)
-
-def check_version(major,minor=0) :
-	'''check version'''
-	if major!=version[0] or minor>version[1] : raise RuntimeError('required version '+str((major,minor))+' is incompatible with native version '+str(version))
-
-# Lmakefile must :
-# - update variable lmake.config : the server configuration, default is a reasonable configuration
-# - define rules :
-#	- either by defining classes inheriting from one of the base rule classes : lmake.Rule, lmake.Antirule, lmake.PyRule, etc.
-#	- or set lmake.config.rules_module to specify a module that does the same thing when imported
-# - define sources :
-#	- do nothing : default is to list files in Manifest or by searching git (including sub-modules)
-#	- define variable lmake.manifest as a list or a tuple that lists sources
-#	- set lmake.config.sources_module to specify a module that does the same thing when imported
-
-manifest = []
-_rules   = []
-
-#
-# config
-#
 
 _mem = _os.sysconf('SC_PHYS_PAGES') * _os.sysconf('SC_PAGE_SIZE')
 _tmp = _os.statvfs('.').f_bfree*_os.statvfs('.').f_bsize
@@ -60,25 +44,23 @@ config = pdict(
 #	                                    # - forced true if only local backend is used
 #	                                    # - set   true  for ceph
 #	                                    # - leave false for NFS
-#,	rules_module        = 'rules'       # module to import to define rules  . By default, rules are directly defined in Lmakefile.py
-#,	sources_module      = 'sources'     # module to import to define sources. By default, 'lmake.auto_sources' which lists files in Manifest or searches git (recursively) if lmake.sources is not set
 ,	sub_prio_boost      = 1             # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 ,	console = pdict(                    # tailor output lines
 		date_precision = None           # number of second decimals in the timestamp field
-	,	host_length    = None           # length of the host field (lines will be misaligned if a host is longer)
 	,	has_exec_time  = True           # if True, output the exec_time field
+	,	host_length    = None           # length of the host field (lines will be misaligned if a host is longer)
+	,	show_eta       = True           # if True, the title includes the ETA of the lmake command
 	)
-,	n_tokens_tab = pdict()              # table of number of tokens referenced by rules. This indirection allows dynamic update of this value while rules cannot be dynamically updated
-,	backends = pdict(                   # PER_BACKEND : provide a default configuration for each backend
-		precisions = pdict(             # precision of resources allocated for jobs, one entry for each standard resource (for all backends).
-			cpu = 8                     # encodes the highest number with full granularity, 8 is a reasonable value
-		,	mem = 8                     # 8 means possible values are 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, ...
-		,	tmp = 8                     # 4 would mean possible values are 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, ...
+,	backends = pdict(                                       # PER_BACKEND : provide a default configuration for each backend
+		precisions = pdict(                                 # precision of resources allocated for jobs, one entry for each standard resource (for all backends).
+			cpu = 8                                         # encodes the highest number with full granularity, 8 is a reasonable value
+		,	mem = 8                                         # 8 means possible values are 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, ...
+		,	tmp = 8                                         # 4 would mean possible values are 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, ...
 		)
-	,	local = pdict(                  # entries mention the total availability of resources
-			cpu =     _cpu              # total number of cpus available for the process, and hence for all jobs launched locally
-		,	mem = str(_mem>>20)+'M'     # total available memory in MBytes, defaults to all available memory
-		,	tmp = str(_tmp>>20)+'M'     # total available temporary disk space in MBytes, defaults to free space in current filesystem
+	,	local = pdict(                                      # entries mention the total availability of resources
+			cpu =     _cpu                                  # total number of cpus available for the process, and hence for all jobs launched locally
+		,	mem = str(_mem>>20)+'M'                         # total available memory in MBytes, defaults to all available memory
+		,	tmp = str(_tmp>>20)+'M'                         # total available temporary disk space in MBytes, defaults to free space in current filesystem
 		)
 	#,	sge = pdict(
 	#		interface         = _interface                  # address at which lmake can be contacted from jobs launched by this backend, can be :
@@ -140,17 +122,3 @@ config = pdict(
 #	,	channels = ('backend','default')                    # channels traced in lmakeserver trace
 	)
 )
-
-class Autodep :
-	"""context version of the set_autodep function (applies to this process and all processes started in the protected core)
-usage :
-	with Autodep(enable) :
-		<code with autodep activate(enable=True) or deactivated (enable=False)>
-	"""
-	def __init__(self,enable) :
-		self.cur  = enable
-	def __enter__(self) :
-		self.prev = get_autodep()
-		set_autodep(self.cur)
-	def __exit__(self,*args) :
-		set_autodep(self.prev)

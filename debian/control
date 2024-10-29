@@ -7,9 +7,14 @@ Build-Depends:
  ed,
  texinfo,
  python3,
+ python3-dev,
+ strace,
+# not strictly necessary but recommended
+ git,
  libslurm-dev,
  libseccomp-dev,
- libpcre2-dev
+ libpcre2-dev,
+ libpcre2-8-0
 Standards-Version: 4.6.2
 Homepage: https://github.com/cesar-douady/open-lmake
 
@@ -19,8 +24,13 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
  python3,
+ python3-dev,
+# necessary if mentioned at build time, suppress if suppressed at build time
+ git,
+ libseccomp-dev,
  libpcre2-8-0
-Recommends: libslurm37 | libslurm38 | libslurm39 | libslurm40
+Recommends:
+ libslurm37 | libslurm38 | libslurm39 | libslurm40 | libslurm40t64
 Description: pythonic workflow management system
  Build systems like GNU Make are frequently used to create complicated
  workflows. This project aims to reduce the complexity of creating workflows

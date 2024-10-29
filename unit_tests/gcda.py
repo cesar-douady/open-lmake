@@ -5,12 +5,15 @@
 
 if __name__!='__main__' :
 
-	import os
+	import os.path as osp
+	import shutil
 
 	import lmake
 	from lmake.rules import Rule,PyRule
 
-	gxx = lmake.user_environ.get('CXX','g++')
+	gxx             = lmake.user_environ.get('CXX') or 'g++'
+	gxx_dir         = osp.dirname(shutil.which(gxx))
+	ld_library_path = lmake.find_cc_ld_library_path(gxx)
 
 	depth = len(lmake.root_dir.split('/')) - 1
 
@@ -27,7 +30,8 @@ if __name__!='__main__' :
 	class Compile(Rule) :
 		targets = { 'OBJ' : r'{File:.*}.o' }
 		deps    = { 'SRC' :  '{File}.c'    }
-		cmd     = '{gxx} -fprofile-arcs -c -O0 -fPIC -o {OBJ} -xc {SRC}'
+		autodep = 'ld_preload'                                                                # clang seems to be hostile to ld_audit
+		cmd     = 'PATH={gxx_dir}:$PATH {gxx} -fprofile-arcs -c -O0 -fPIC -o {OBJ} -xc {SRC}'
 
 	class Link(Rule) :
 		targets = { 'EXE' :'hello_world' }
@@ -35,7 +39,8 @@ if __name__!='__main__' :
 			'MAIN' : 'hello_world.o'
 		,	'SO'   : 'hello_world.so'
 		}
-		cmd = "{gxx} -fprofile-arcs -o {EXE} {' '.join((f'./{f}' for k,f in deps.items()))}"
+		autodep = 'ld_preload'                                                                                    # clang seems to be hostile to ld_audit
+		cmd = "PATH={gxx_dir}:$PATH {gxx} -fprofile-arcs -o {EXE} {' '.join((f'./{f}' for k,f in deps.items()))}"
 
 	class So(Rule) :
 		targets = { 'SO' : 'hello_world.so' }
@@ -43,12 +48,13 @@ if __name__!='__main__' :
 			'H'  : 'hello.o'
 		,	'W'  : 'world.o'
 		}
-		cmd = "{gxx} -fprofile-arcs -o {SO} -shared {' '.join((f for k,f in deps.items()))}"
+		cmd = "PATH={gxx_dir}:$PATH {gxx} -fprofile-arcs -o {SO} -shared {' '.join((f for k,f in deps.items()))}"
 
 	class Dut(Rule) :
-		targets = { 'DUT':'dut' , 'GCDA':'gcda_dir/{File*:.*}' }
-		deps    = { 'EXE':'hello_world'                        }
-		cmd     = 'GCOV_PREFIX=gcda_dir GCOV_PREFIX_STRIP={depth} ./{EXE} >{DUT}'
+		targets     = { 'DUT':'dut' , 'GCDA':r'gcda_dir/{File*:.*}' }
+		deps        = { 'EXE':'hello_world'                         }
+		environ_cmd = { 'LD_LIBRARY_PATH' : ld_library_path         }
+		cmd         = 'GCOV_PREFIX=gcda_dir GCOV_PREFIX_STRIP={depth} ./{EXE} >{DUT}'
 
 	class Test(Rule) :
 		target = 'test'

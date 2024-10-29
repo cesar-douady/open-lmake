@@ -6,20 +6,70 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello'
 	)
 
-	class Cat(Rule) :
-		targets      = { 'DST'     :  'hello.cpy'                            }
-		side_targets = { 'SCRATCH' : ('hello'    ,'incremental','source_ok') }
-		cmd = '''
-			echo 2nd line >> hello
-			cat hello > {DST}
+	class Bad(Rule) :
+		target = 'bad_dep'
+		cmd    = 'exit 1'
+
+	class Scratch(Rule) :
+		targets      = { 'DST'     :  'dut_scratch'                            }
+		side_targets = { 'SCRATCH' : ('scratch'    ,'incremental','source_ok') }
+		cmd = '''                                                                # check hello does not become a dep
+			echo 2nd line >> scratch
+			cat scratch > {DST}
 		'''
+
+	class SideTarget(Rule) :
+		target       = 'dut_side_target'
+		side_targets = { 'BAD' : ('bad_target','ignore') }
+		allow_stderr = True
+		cmd          = 'cat >bad_target'
+
+	class DynTargetSh(Rule) :
+		target       = 'dut_dyn_target_sh'
+		allow_stderr = True
+		cmd = '''
+			ltarget --ignore bad_target
+			cat >bad_target
+		'''
+
+	class DynTargetPy(PyRule) :
+		target       = 'dut_dyn_target_py'
+		allow_stderr = True
+		def cmd() :
+			lmake.target('bad_target',ignore=True)
+			open('bad_target','w')
+
+	class SideDep(Rule) :
+		target       = 'dut_side_dep'
+		side_deps    = { 'BAD' : ('bad_dep','ignore') }
+		allow_stderr = True
+		cmd          = '! cat bad_dep' # cat must fail as bad_dep must not be produced
+
+	class DynDepSh(Rule) :
+		target       = 'dut_dyn_dep_sh'
+		allow_stderr = True
+		cmd = '''
+			ldepend --ignore bad_dep
+			! cat bad_dep            # cat must fail as bad_dep must not be produced
+		'''
+
+	class DynDepPy(PyRule) :
+		target       = 'dut_dyn_dep_py'
+		allow_stderr = True
+		def cmd() :
+			lmake.depend('bad_dep',ignore=True)
+			try :
+				open('bad_dep')
+				return 'bad_dep' # open must fail as bad_dep must not be produced
+			except :
+				return None  # ok
 
 else :
 
@@ -27,4 +77,4 @@ else :
 
 	print('hello',file=open('hello','w'))
 
-	ut.lmake( 'hello.cpy' , done=1 ) # check no dependency on hello
+	ut.lmake( 'dut_scratch' , 'dut_side_target' , 'dut_dyn_target_sh' , 'dut_dyn_target_py' , 'dut_side_dep' , 'dut_dyn_dep_sh' , 'dut_dyn_dep_py' , done=7 )

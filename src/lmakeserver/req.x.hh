@@ -13,9 +13,11 @@ ENUM( JobReport
 ,	Speculative
 ,	Steady
 ,	Failed
-,	Done      // <=Done means job was run and reported a status
+,	SubmitLoop
+,	Done       // <=Done means job was run and reported a status
 ,	Completed
 ,	Killed
+,	Retry
 ,	Lost
 ,	LostErr
 ,	Resubmit
@@ -53,6 +55,7 @@ namespace Engine {
 		static Idx               s_n_reqs     () {                           return s_reqs_by_start.size() ; }
 		static ::vector<Req>     s_reqs_by_eta() { Lock lock{s_reqs_mutex} ; return _s_reqs_by_eta         ; }
 		static ::vmap<Req,Pdate> s_etas       () ;
+		static void              s_new_etas   () ;
 		// static data
 		static SmallIds<ReqIdx,true/*ThreadSafe*/> s_small_ids     ;
 		static ::vector<Req>                       s_reqs_by_start ;                                       // INVARIANT : ordered by item->start
@@ -82,9 +85,8 @@ namespace Engine {
 		void chk_end(                       ) ;
 		void alloc  (                       ) ;
 		void dealloc(                       ) ;
+		void new_eta(                       ) ;
 		//
-		void inc_rule_exec_time( Rule ,                                            Delay delta     , Tokens1 ) ;
-		void new_exec_time     ( JobData const& , bool remove_old , bool add_new , Delay old_exec_time       ) ;
 	private :
 		void _adjust_eta(bool push_self=false) ;
 		//
@@ -92,9 +94,9 @@ namespace Engine {
 		/**/                 ::string _color_pfx(Color ) const ;
 		/**/                 ::string _color_sfx(Color ) const ;
 		//
-		bool/*overflow*/ _report_err    ( Dep const& , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
-		bool/*overflow*/ _report_err    ( Job , Node , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
-		void             _report_cycle  ( Node                                                                                                                ) ;
+		bool/*overflow*/ _report_err  ( Dep const& , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
+		bool/*overflow*/ _report_err  ( Job , Node , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
+		void             _report_cycle( Node                                                                                                                ) ;
 	} ;
 
 	struct ReqStats {
@@ -103,8 +105,8 @@ namespace Engine {
 		static size_t s_mk_idx   (JobStep i) { SWEAR(s_valid_cur(i)) ; return +i-+JobStep::MinCurStats                            ; }
 		//services
 	public :
-		JobIdx const& cur(JobStep i) const { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
-		JobIdx      & cur(JobStep i)       { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
+		JobIdx const& cur(JobStep i) const { SWEAR( s_valid_cur(i) ) ; return _cur[s_mk_idx(i)] ; }
+		JobIdx      & cur(JobStep i)       { SWEAR( s_valid_cur(i) ) ; return _cur[s_mk_idx(i)] ; }
 		//
 		JobIdx cur () const { JobIdx res = 0 ; for( JobStep   i  : All<JobStep  > ) if (s_valid_cur(i)     ) res+=cur  (i)   ; return res ; }
 		JobIdx done() const { JobIdx res = 0 ; for( JobReport jr : All<JobReport> ) if (jr<=JobReport::Done) res+=ended[+jr] ; return res ; }
@@ -116,8 +118,9 @@ namespace Engine {
 			add(to  ,exec_time) ;
 		}
 		// data
-		Time::Delay jobs_time[N<JobReport>] ;
-		JobIdx      ended    [N<JobReport>] = {} ;
+		Delay  jobs_time[N<JobReport>] ;
+		JobIdx ended    [N<JobReport>] = {} ;
+		Delay  waiting_cost            ;      // cost of all waiting jobs
 	private :
 		JobIdx _cur[+JobStep::MaxCurStats1-+JobStep::MinCurStats] = {} ;
 	} ;
@@ -234,10 +237,11 @@ namespace Engine {
 	public :
 		void clear() ;
 		// accesses
-		bool   operator+() const { return +job                                                ; }
-		bool   operator!() const { return !+*this                                             ; }
-		bool   is_open  () const { return idx_by_start!=Idx(-1)                               ; }
-		JobIdx n_running() const { return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
+		bool   operator+() const {                    return +job                                                ; }
+		bool   operator!() const {                    return !+*this                                             ; }
+		bool   is_open  () const {                    return idx_by_start!=Idx(-1)                               ; }
+		JobIdx n_running() const {                    return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
+		Req    req      () const { SWEAR(is_open()) ; return Req::s_reqs_by_start[idx_by_start]                  ; }
 		// services
 		void audit_summary(bool err) const ;
 		//
@@ -278,17 +282,15 @@ namespace Engine {
 		ReqOptions           options        ;
 		Pdate                start_pdate    ;
 		Ddate                start_ddate    ;
-		Delay                ete            ;           // Estimated Time Enroute
 		Pdate                eta            ;           // Estimated Time of Arrival
 		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
 		bool                 has_backend    = false   ;
 		// summary
-		::vector<Node>        up_to_dates  ;            // asked nodes already done when starting
-		::umap<Job ,JobIdx  > frozen_jobs  ;            // frozen     jobs                                   (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx > frozen_nodes ;            // frozen     nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx > long_names   ;            // nodes with name too long                          (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx > no_triggers  ;            // no-trigger nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx > clash_nodes  ;            // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		::vector<Node>                up_to_dates  ;    // asked nodes already done when starting
+		::umap<Job ,JobIdx /*order*/> frozen_jobs  ;    // frozen     jobs                                   (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> frozen_nodes ;    // frozen     nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> no_triggers  ;    // no-trigger nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> clash_nodes  ;    // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }
@@ -310,6 +312,10 @@ namespace Engine {
 		::vmap<Req,Pdate> res  ;
 		for ( Req r : _s_reqs_by_eta ) res.emplace_back(r,r->eta) ;
 		return res ;
+	}
+
+	inline void Req::s_new_etas() {
+		for( Req r : s_reqs_by_start ) r.new_eta() ;
 	}
 
 	inline void Req::alloc() {

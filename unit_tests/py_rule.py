@@ -28,14 +28,9 @@ if __name__!='__main__' :
 
 else :
 
-	autodeps = []
-	if lmake.has_ptrace     : autodeps.append('ptrace'    )
-	if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
-	if lmake.has_ld_preload : autodeps.append('ld_preload')
-
 	import ut
 
 	print('a=1',file=open('hello.py','w'))
 	print('b=2',file=open('world.py','w'))
 
-	ut.lmake(*(f'import.{ad}.{w}' for ad in autodeps for w in (1,2,3)),done=3*len(autodeps),new=2)
+	ut.lmake(*(f'import.{ad}.{w}' for ad in lmake.autodeps for w in (1,2,3)),done=3*len(lmake.autodeps),new=2)

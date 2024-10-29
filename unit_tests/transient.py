@@ -11,11 +11,11 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Rc(Rule) :
-		target = '{File:[^/]*}.{Rc:\d+}'
+		target = r'{File:[^/]*}.{Rc:\d+}'
 		cmd    = 'exit {Rc}'
 
 	class Ko(PyRule) :
-		target = '{File:[^/]*}.ko'
+		target = r'{File:[^/]*}.ko'
 		def cmd() :
 			try     : print(open(f'{File}.0').read())
 			except  : print(open(f'{File}.1').read())

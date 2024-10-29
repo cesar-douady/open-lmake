@@ -189,6 +189,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					trace("req",rrr) ;
 					switch (rrr.proc) {
 						case ReqProc::Make : {
+							SWEAR(!_g_read_only) ;
 							Req r{New} ;
 							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
@@ -200,7 +201,9 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						case ReqProc::Debug  : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 						case ReqProc::Forget :
 						case ReqProc::Mark   :
-						case ReqProc::Show   :
+							SWEAR(!_g_read_only) ;
+						[[fallthrough]] ;
+						case ReqProc::Show :
 							epoll.del(fd) ; trace("del_fd",rrr.proc,fd) ;                   // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							in_tab.erase(fd) ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -359,6 +362,7 @@ bool/*interrupted*/ engine_loop() {
 				EngineClosureJob& ecj = closure.ecj  ;
 				JobExec         & je  = ecj.job_exec ;
 				trace("job",ecj.proc,je) ;
+				Req::s_new_etas() ;                                                              // regularly adjust queued job priorities if necessary
 				switch (ecj.proc) {
 					//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					case JobRpcProc::Start       : je.started     ( ::move(ecj.start.start) ,ecj.start.report , ecj.start.report_unlnks , ecj.start.txt , ecj.start.msg ) ; break ;
@@ -395,8 +399,11 @@ bool/*interrupted*/ engine_loop() {
 }
 
 int main( int argc , char** argv ) {
+	set_env("GMON_OUT_PREFIX","gmon.out.lmakeserver") ;                                       // in case profiling is used, ensure unique gmon.out
 	Trace::s_backup_trace = true ;
-	_g_read_only = app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ; // server is always launched at root
+	_g_read_only = app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                      // server is always launched at root
+	if (Record::s_is_simple(g_root_dir_s->c_str()))
+		exit(Rc::Usage,"cannot use lmake inside system directory "+no_slash(*g_root_dir_s)) ; // all local files would be seen as simple, defeating autodep
 	Py::init(*g_lmake_dir_s) ;
 	AutodepEnv ade ;
 	ade.root_dir_s = *g_root_dir_s ;
@@ -429,8 +436,8 @@ int main( int argc , char** argv ) {
 	if (g_startup_dir_s) SWEAR( is_dirname(*g_startup_dir_s) , *g_startup_dir_s ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;         // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
-	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;           // must be done before app_init so that all threads block the signal
+	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ; // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
+	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;   // must be done before any thread is launched so that all threads block the signal
 	//          vvvvvvvvvvvvvvvvvvvvvvvv
 	Persistent::writable = !_g_read_only ;
 	Codec     ::writable = !_g_read_only ;
@@ -465,8 +472,9 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s) ; }             // cleanup
-	catch (::string const& e) { exit(Rc::System,e) ;                       }
+	if (!_g_read_only)
+		try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s) ; }         // cleanup
+		catch (::string const& e) { exit(Rc::System,e) ;                       }
 	//
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;

@@ -1,0 +1,19 @@
+define(`Comment')
+Comment(
+	This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+	Copyright (c) 2023 Doliam
+	This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+)
+
+define(`About',`define(`Name',``$1'')')
+
+define(`B',`\fB`$1'\fR')
+define(`C',`B(`$1')(ifelse(`$2',,1,``$2''))')
+define(`I',`\fI`$1'\fR')
+define(`Bullet',`.IP \[bu]
+')
+define(`Item',`.TP
+`$*'
+')
+define(`System',`syscmd(echo -n $(`$1'))')

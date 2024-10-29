@@ -5,11 +5,6 @@
 
 import lmake
 
-autodeps = []
-if lmake.has_ptrace     : autodeps.append('ptrace'    )
-if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
-if lmake.has_ld_preload : autodeps.append('ld_preload')
-
 if __name__!='__main__' :
 
 	from lmake       import multi_strip
@@ -20,10 +15,10 @@ if __name__!='__main__' :
 	,	'hello'
 	)
 
-	for ad in autodeps :
+	for ad in lmake.autodeps :
 		class Cat(Rule) :
 			name    = f'cat {ad}'
-			target  = f'{{File:.*}}.{ad}'
+			target  = fr'{{File:.*}}.{ad}'
 			dep     = '{File}'
 			autodep = ad
 			cmd = multi_strip('''
@@ -38,4 +33,4 @@ else :
 
 	print('hello',file=open('hello','w'))
 
-	ut.lmake( *(f'hello.{ad}' for ad in autodeps) , done=len(autodeps) , new=1 ) # check scratchpad does not prevent job from running normally
+	ut.lmake( *(f'hello.{ad}' for ad in lmake.autodeps) , done=len(lmake.autodeps) , new=1 ) # check scratchpad does not prevent job from running normally

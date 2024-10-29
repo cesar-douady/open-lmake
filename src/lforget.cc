@@ -8,6 +8,7 @@
 #include "rpc_client.hh"
 
 int main( int argc , char* argv[] ) {
+	set_env("GMON_OUT_PREFIX","gmon.out.lforget") ; // in case profiling is used, ensure unique gmon.out
 	app_init(false/*read_only_ok*/) ;
 	Trace trace("main") ;
 	//
@@ -24,8 +25,7 @@ int main( int argc , char* argv[] ) {
 	switch (cmd_line.key) {
 		case ReqKey::Error     : if (+cmd_line.args) syntax.usage("must not have targets when forgetting resources") ; break ;
 		case ReqKey::Resources : if (+cmd_line.args) syntax.usage("must not have targets when forgetting errors"   ) ; break ;
-		default : ;
-	}
+	DN}
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Forget , false/*read_only*/ , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
 	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

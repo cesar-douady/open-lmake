@@ -192,23 +192,24 @@ using Execp = AuditAction<_Execp,0/*NP*/> ;
 struct Fopen : AuditAction<Record::Open> {
 	using Base = AuditAction<Record::Open> ;
 	static int mk_flags(const char* mode) {
-		bool a = false ;
-		bool c = false ;
-		bool p = false ;
 		bool r = false ;
 		bool w = false ;
-		for( const char* m=mode ; *m && *m!=',' ; m++ )                                       // after a ',', there is a css=xxx which we do not care about
+		bool a = false ;
+		bool p = false ;
+		for( const char* m=mode ; *m && *m!=',' ; m++ )                                                // after a ',', there is a css=xxx which we do not care about
 			switch (*m) {
-				case 'a' : a = true ; break ;
-				case 'c' : c = true ; break ;
-				case '+' : p = true ; break ;
 				case 'r' : r = true ; break ;
 				case 'w' : w = true ; break ;
-				default : ;
-			}
-		if (a+r+w!=1) return O_PATH ;                                                         // error case   , no access
-		if (c       ) return O_PATH ;                                                         // gnu extension, no access
-		/**/          return ( p ? O_RDWR : r ? O_RDONLY : O_WRONLY ) | ( w ? O_TRUNC : 0 ) ; // normal posix
+				case 'a' : a = true ; break ;
+				case '+' : p = true ; break ;
+				case 'c' :            return O_PATH ;                                                  // gnu extension, no access
+			DN}
+		if (a+r+w!=1) return O_PATH ;                                                                  // error case   , no access
+		int flags = p ? O_RDWR : r ? O_RDONLY : O_WRONLY ;
+		if (!r) flags |= O_CREAT  ;
+		if (w ) flags |= O_TRUNC  ;
+		if (a ) flags |= O_APPEND ;
+		return flags ;
 	}
 	Fopen( Record::Path&& pth , const char* mode , ::string const& comment ) : Base{ ::move(pth) , mk_flags(mode) , comment+'.'+mode } {}
 	FILE* operator()(FILE* fp) {
@@ -551,8 +552,8 @@ struct Mkstemp : WSolve {
 	int symlinkat(CC* t,int d,CC* p) NE { HEADER1(symlinkat,false,p,(t,d,p)) ; Symlink r{{d,p},"symlinkat"} ; return r(orig(t,d,p)) ; }
 
 	// truncate                                          is_stat
-	int truncate  (CC* p,off_t l) NE { HEADER1(truncate  ,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate"  } ; return r(orig(p,l)) ; }
-	int truncate64(CC* p,off_t l) NE { HEADER1(truncate64,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(p,l)) ; }
+	int truncate  (CC* p,off_t   l) NE { HEADER1(truncate  ,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate"  } ; return r(orig(p,l)) ; }
+	int truncate64(CC* p,off64_t l) NE { HEADER1(truncate64,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(p,l)) ; }
 
 	// unlink                                            is_stat
 	int unlink  (      CC* p      ) NE { HEADER1(unlink  ,false,p,(  p  )) ; Unlnk r{   p ,false/*rmdir*/      ,"unlink"  } ; return r(orig(  p  )) ; }
@@ -566,8 +567,8 @@ struct Mkstemp : WSolve {
 	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HEADER1(utimensat,false,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,false,"utimensat"} ; return r(orig(d,p,t,f)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
-	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses() )
-	//                                                            is_stat                           no_follow accesses
+	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses(Access::Stat) )
+	//                                                           is_stat                           no_follow accesses
 	int access   (      CC* p,int m      ) NE { HEADER1(access   ,true ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),"access"   } ; return r(orig(  p,m  )) ; }
 	int faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,true ,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),"faccessat"} ; return r(orig(d,p,m,f)) ; }
 	#undef ACCESSES
@@ -638,7 +639,7 @@ struct Mkstemp : WSolve {
 			args[5] = va_arg(lst,uint64_t) ;
 			va_end(lst) ;
 		}
-		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab()                                     ;
+		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab                                       ;
 		SyscallDescr      const& descr = n>=0&&n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
 		HEADER(
 			syscall

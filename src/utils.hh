@@ -15,6 +15,7 @@
 #include <atomic>
 #include <array>
 #include <charconv> // from_chars_result
+#include <chrono>
 #include <concepts>
 #include <fstream>
 #include <functional>
@@ -71,9 +72,9 @@ template<class T> using AsChar = ::conditional_t<IsChar<T>,T,char> ;            
 template<class D,class B> concept IsA       = ::is_same_v<remove_const_t<B>,remove_const_t<D>> || ::is_base_of_v<remove_const_t<B>,remove_const_t<D>> ;
 template<class T        > concept IsNotVoid = !::is_void_v<T>                                                                                         ;
 
-template<class T> constexpr T        copy    (T const& x) { return x ; }
-template<class T> constexpr T      & ref     (T     && x) { return x ; }
-template<class T> constexpr T const& constify(T const& x) { return x ; }
+template<class T> constexpr T        copy    (T const& x) { return   x ; }
+template<class T> constexpr T      & ref     (T     && x) { return *&x ; }
+template<class T> constexpr T const& constify(T const& x) { return   x ; }
 
 template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
 
@@ -223,9 +224,10 @@ inline void sanitize(::ostream& os) {
 struct OFStream : ::ofstream {
 	using Base = ::ofstream ;
 	// cxtors & casts
-	OFStream(                                                                     ) : Base{           } { sanitize(*this) ;                         }
-	OFStream( ::string const& f , ::ios_base::openmode om=::ios::out|::ios::trunc ) : Base{f,om       } { sanitize(*this) ; _set_cloexec(rdbuf()) ; }
-	OFStream( OFStream&& ofs                                                      ) : Base{::move(ofs)} {                                           }
+	OFStream (                                                                     ) : Base{           } { sanitize(*this) ;                         }
+	OFStream ( ::string const& f , ::ios_base::openmode om=::ios::out|::ios::trunc ) : Base{f,om       } { sanitize(*this) ; _set_cloexec(rdbuf()) ; }
+	OFStream ( OFStream&& ofs                                                      ) : Base{::move(ofs)} {                                           }
+	~OFStream(                                                                     )                     {                                           }
 	//
 	OFStream& operator=(OFStream&& ofs) { Base::operator=(::move(ofs)) ; return *this ; }
 	// services
@@ -279,7 +281,7 @@ namespace std {
 template<class... A> ::string fmt_string(A const&... args) {
 	OStringStream res ;
 	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
-	return res.str() ;
+	return ::move(res).str() ;
 }
 
 template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const& txt , bool empty_ok=false , bool hex=false ) {
@@ -451,7 +453,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 			if (t_thread_key!='?') ::cerr <<':'<< t_thread_key      ;
 			/**/                   ::cerr <<" :"                    ;
 		}
-		[[maybe_unused]] bool _[] ={false,(::cerr<<' '<<args,false)...} ;
+		[[maybe_unused]] bool _[] = {false,(::cerr<<' '<<args,false)...} ;
 		::cerr << '\n' ;
 		set_sig_handler(sig,SIG_DFL) ;
 		write_backtrace(::cerr,hide_cnt+1) ; // rather than merely calling abort, this works even if crash_handler is not installed
@@ -461,17 +463,19 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 	::abort() ;
 }
 
-[[noreturn]] inline void unreachable() {
-	#ifdef __has_builtin
-		#if __has_builtin(__builtin_unreachable)
-			__builtin_unreachable() ;
+#if !HAS_UNREACHABLE                         // defined in <utility> in c++23, use 202100 as g++-12 generates 202100 when -std=c++23
+	[[noreturn]] inline void unreachable() {
+		#ifdef __has_builtin
+			#if __has_builtin(__builtin_unreachable)
+				__builtin_unreachable() ;
+			#else
+				::abort() ;
+			#endif
 		#else
 			::abort() ;
 		#endif
-	#else
-		::abort() ;
-	#endif
-}
+	}
+#endif
 
 template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
@@ -508,6 +512,7 @@ template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
 #define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
 
 #define DF default : FAIL() ; // for use at end of switch statements
+#define DN default :        ; // .
 
 inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
 	swear_prod(pid>1,"killing process",pid) ;                                   // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
@@ -661,8 +666,8 @@ namespace std {
 //
 
 // fine trick to count arguments with cpp
-#define _ENUM_N(...) _ENUM_N_(__VA_ARGS__, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
-#define _ENUM_N_(                         _30,_29,_28,_27,_26,_25,_24,_23,_22,_21,_20,_19,_18,_17,_16,_15,_14,_13,_12,_11,_10,_9,_8,_7,_6,_5,_4,_3,_2,_1, n,...) n
+#define _ENUM_N(...) _ENUM_N_(__VA_ARGS__, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#define _ENUM_N_(                         _39,_38,_37,_36,_35,_34,_33,_32,_31,_30,_29,_28,_27,_26,_25,_24,_23,_22,_21,_20,_19,_18,_17,_16,_15,_14,_13,_12,_11,_10,_9,_8,_7,_6,_5,_4,_3,_2,_1, n,...) n
 
 template<size_t Sz> constexpr ::array<char,Sz> _enum_split0(const char* comma_sep) {
 	::array<char,Sz> res {} ;
@@ -941,14 +946,15 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 )
 
 extern thread_local MutexLvl t_mutex_lvl ;
-template<MutexLvl Lvl_,class M=void,bool S=false/*shared*/> struct Mutex : ::conditional_t<::is_void_v<M>,::conditional_t<S,::shared_mutex,::mutex>,M> {
-	using Base =                                                           ::conditional_t<::is_void_v<M>,::conditional_t<S,::shared_mutex,::mutex>,M> ;
-	static constexpr MutexLvl Lvl = Lvl_ ;
+template<MutexLvl Lvl_,bool S=false/*shared*/> struct _Mutex : ::conditional_t<S,::shared_timed_mutex,::timed_mutex> {
+	using Base =                                               ::conditional_t<S,::shared_timed_mutex,::timed_mutex> ;
+	static constexpr MutexLvl           Lvl     = Lvl_ ;
+	static constexpr ::chrono::duration Timeout = 30s  ; // crash on dead-lock by setting a comfortable timeout on locks (regression passes with 35ms, so 30s should be very comfortable)
 	// services
-	void lock         (MutexLvl& lvl)             { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; Base::lock         () ; }
-	void unlock       (MutexLvl  lvl)             { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ;                     t_mutex_lvl = lvl ; Base::unlock       () ; }
-	void lock_shared  (MutexLvl& lvl) requires(S) { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; Base::lock_shared  () ; }
-	void unlock_shared(MutexLvl  lvl) requires(S) { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ;                     t_mutex_lvl = lvl ; Base::unlock_shared() ; }
+	void lock         (MutexLvl& lvl)             { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; swear_prod(Base::try_lock_for       (Timeout),"dead-lock") ; }
+	void lock_shared  (MutexLvl& lvl) requires(S) { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; swear_prod(Base::try_lock_shared_for(Timeout),"dead-lock") ; }
+	void unlock       (MutexLvl  lvl)             { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ; t_mutex_lvl = lvl ;                                Base::unlock             (       )              ; }
+	void unlock_shared(MutexLvl  lvl) requires(S) { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ; t_mutex_lvl = lvl ;                                Base::unlock_shared      (       )              ; }
 	#ifndef NDEBUG
 		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock       ()) ; }
 		void swear_locked_shared() requires(S) { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock_shared()) ; }
@@ -957,7 +963,8 @@ template<MutexLvl Lvl_,class M=void,bool S=false/*shared*/> struct Mutex : ::con
 		void swear_locked_shared() requires(S) {}
 	#endif
 } ;
-template<MutexLvl Lvl,class M=void,bool S=true/*shared*/> using SharedMutex = Mutex<Lvl,M,S> ;
+template<MutexLvl Lvl> using Mutex       = _Mutex<Lvl,false/*shared*/> ;
+template<MutexLvl Lvl> using SharedMutex = _Mutex<Lvl,true /*shared*/> ;
 
 template<class M,bool S=false/*shared*/> struct Lock {
 	// cxtors & casts
@@ -1007,8 +1014,6 @@ inline void del_env(::string const& name) {
 	swear_prod(rc==0,"cannot unsetenv",name) ;
 }
 
-::string beautify_filename(::string const&) ;
-
 template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 	struct NoMutex {
 		void lock  () {}
@@ -1018,8 +1023,10 @@ template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 		NoLock(NoMutex) {}
 	} ;
 private :
-	using _Mutex = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
-	using _Lock  = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
+	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
+	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
+	using _AtomicT = ::conditional_t< ThreadSafe , ::atomic<T>              , T       > ;
+	// services
 public :
 	T acquire() {
 		 T    res  ;
@@ -1028,25 +1035,26 @@ public :
 			res = n_allocated ;
 			if (n_allocated==::numeric_limits<T>::max()) throw "cannot allocate id"s ;
 			n_allocated++ ;
-			SWEAR(n_allocated) ;        // ensure no overflow
 		} else {
 			res = *free_ids.begin() ;
 			free_ids.erase(res) ;
 		}
+		n_acquired++ ;                                  // protected by _mutex
+		SWEAR(n_acquired!=::numeric_limits<T>::min()) ; // ensure no overflow
 		return res ;
 	}
 	void release(T id) {
-		if (!id) return ;               // id 0 has not been acquired
+		if (!id) return ;                               // id 0 has not been acquired
 		_Lock lock { _mutex } ;
-		SWEAR(!free_ids.contains(id)) ; // else, double release
+		SWEAR(!free_ids.contains(id)) ;                 // else, double release
 		free_ids.insert(id) ;
+		n_acquired-- ;                                  // protected by _mutex
+		SWEAR(n_acquired!=::numeric_limits<T>::max()) ; // ensure no underflow
 	}
 	// data
-	T n_acquired() const {
-		return n_allocated - 1 - free_ids.size() ;
-	}
-	set<T> free_ids    ;
-	T      n_allocated = 1 ;            // dont use id 0 so that it is free to mean "no id"
+	set<T>   free_ids    ;
+	T        n_allocated = 1 ;                          // dont use id 0 so that it is free to mean "no id"
+	_AtomicT n_acquired  = 0 ;                          // can be freely read by any thread if ThreadSafe
 private :
 	_Mutex _mutex ;
 } ;
@@ -1135,8 +1143,13 @@ template<char Delimiter> ::string mk_printable(::string const& s) { // encode s 
 			case '\v' : res += "\\v"  ; break ;
 			case '\\' : res += "\\\\" ; break ;
 			default   :
-				if ( is_printable(c) && c!=Delimiter ) res +=                                                                     c    ;
-				else                                   res += fmt_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(uint8_t(c))) ;
+				if ( is_printable(c) && c!=Delimiter ) {
+					res += c ;
+				} else {
+					res += "\\x"                                                ;
+					res += char( (c>>4 )>=10 ? 'a'+((c>>4 )-10) : '0'+(c>>4 ) ) ;
+					res += char( (c&0xf)>=10 ? 'a'+((c&0xf)-10) : '0'+(c&0xf) ) ;
+				}
 		}
 	}
 	return res ;
@@ -1163,10 +1176,11 @@ template<char Delimiter> ::string parse_printable( ::string const& s , size_t& p
 				case 'v'  : res += '\v'       ; break/*switch*/ ;
 				case '\\' : res += '\\'       ; break/*switch*/ ;
 				//
-				case 'x' :
-					res += char(from_string<uint8_t>(::string_view(s_c+pos+1,2),false/*empty_ok*/,true/*hex*/)) ;
-					pos += 2                                                                                    ;
-				break/*switch*/ ;
+				case 'x' : {
+					char x = 0 ; if ( char d=s_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
+					x <<= 4    ; if ( char d=s_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
+					res += x ;
+				} break/*switch*/ ;
 				//
 				default : throw "illegal code \\"s+s_c[pos] ;
 			}

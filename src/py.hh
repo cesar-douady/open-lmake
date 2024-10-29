@@ -92,8 +92,9 @@ namespace Py {
 		return nullptr ;
 	}
 
-	Ptr<Object> py_eval(::string const&) ;
-	Ptr<Dict  > py_run (::string const&) ;
+	Ptr<Object> py_eval( ::string const& expr             ) ;
+	void        py_run ( ::string const& text , Dict& env ) ;
+	Ptr<Dict>   py_run ( ::string const& text             ) ;
 
 	//
 	// Object
@@ -455,6 +456,7 @@ namespace Py {
 			Py_ssize_t p   = _pos    ;
 			PyObject*  key = nullptr ;
 			PyObject*  val = nullptr ;
+			SWEAR(_iterable) ;
 			PyDict_Next( _iterable->to_py() , &p , &key , &val ) ;
 			return { *from_py(key) , *from_py(val) } ;
 		}

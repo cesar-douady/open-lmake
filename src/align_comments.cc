@@ -151,6 +151,7 @@ void optimize( ::vector<Line>& lines) {
 }
 
 int main( int argc , char* argv[] ) {
+	set_env("GMON_OUT_PREFIX","gmon.out.align_comment") ;                                                       // in case profiling is used, ensure unique gmon.out
 	if ( argc<4 || argc>5 ) exit(Rc::Usage,"usage : ",argv[0]," tab_width max_line_size comment_sign [file]") ;
 	g_tab_width    = from_string<size_t>(argv[1]) ;
 	g_max_line_sz  = from_string<size_t>(argv[2]) ;

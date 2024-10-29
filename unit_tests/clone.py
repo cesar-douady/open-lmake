@@ -6,11 +6,15 @@
 if __name__!='__main__' :
 
 	import os
+	import os.path as osp
+	import shutil
 
 	import lmake
 	from lmake.rules import Rule
 
-	gxx = lmake.user_environ.get('CXX','g++')
+	gxx             = lmake.user_environ.get('CXX') or 'g++'
+	gxx_dir         = osp.dirname(shutil.which(gxx))
+	ld_library_path = lmake.find_cc_ld_library_path(gxx)
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -21,12 +25,14 @@ if __name__!='__main__' :
 	class Compile(Rule) :
 		targets = { 'EXE' : r'{File:.*}.exe' }
 		deps    = { 'SRC' :  '{File}.cc'     }
-		cmd     = '{gxx} -O0 -fdiagnostics-color=always -std=c++20 -pthread -o {EXE} {SRC}'
+		autodep = 'ld_preload'                                                                                   # clang seems to be hostile to ld_audit
+		cmd     = 'PATH={gxx_dir}:$PATH {gxx} -O0 -fdiagnostics-color=always -std=c++20 -pthread -o {EXE} {SRC}'
 
 	class Dut(Rule) :
-		target = r'{File:.*}.out'
-		deps   = { 'EXE':'{File}.exe' }
-		cmd    = './{EXE}'
+		target      = r'{File:.*}.out'
+		deps        = { 'EXE':'{File}.exe'                  }
+		environ_cmd = { 'LD_LIBRARY_PATH' : ld_library_path }
+		cmd         = './{EXE}'
 
 else :
 

@@ -3,11 +3,30 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+'this module contains classes and functions that are of general use, not directly linked to lmake'
+
 class pdict(dict) :
-	'This class is a dict whose items can also be accessed as attributes.'
-	'This greatly improves readability of configurations'
+	'''
+		This class is a dict whose items can also be accessed as attributes.
+		This greatly improves readability of configurations.
+		Usage :
+		d = pdict(a=1,b=2)
+		d                  --> {'a':1,'b':2}
+		d['a']             --> 2
+		d.a                --> 2
+		d.c = 3
+		d.c                --> 3
+	'''
 	@staticmethod
 	def mk_deep(x) :
+		'''
+			This is a factory function that deeply transform a dict into a pdict.
+			Deeply means that values are recursively tranformed and that list/tuple are also traversed.
+			Usage :
+			d = { 'a':1 , 'b':({'x':2},{'y':3}) }
+			dd = pdict.mk_deep(d)
+			dd.b[0].x                             --> 2 # dd.b[0] is a pdict, like dd
+		'''
 		if isinstance(x,dict ) : return pdict({ k : pdict.mk_deep(v) for k,v in x.items() })
 		if isinstance(x,tuple) : return tuple(      pdict.mk_deep(v) for   v in x         )
 		if isinstance(x,list ) : return [           pdict.mk_deep(v) for   v in x         ]
@@ -23,7 +42,16 @@ class pdict(dict) :
 		except KeyError : raise AttributeError(attr)
 
 def multi_strip(txt) :
-	'in addition to stripping its input, this function also suppresses the common blank prefix of all lines'
+	r"""
+		multi_strip(txt) looks like txt.strip(), but in addition, the common blank prefix on each line is also suppressed.
+		This allows to easily define multi-line text that have no reason to be indented in an indented context while keeping a nice looking code.
+		Usage :
+		gen_c = multi_strip(r'''
+			int main() {    	                   // this is the first line, not indented
+				printf("this is nice looking\n") ; // this is indented once
+			}       	                           // this is the last line (no ending newline), not indented
+		''')
+	"""
 	ls = txt.split('\n')
 	while ls and ( not ls[ 0] or ls[ 0].isspace() ) : ls = ls[1:  ]
 	while ls and ( not ls[-1] or ls[-1].isspace() ) : ls = ls[ :-1]

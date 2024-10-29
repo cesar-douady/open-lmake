@@ -1,0 +1,120 @@
+#!/bin/python3
+# This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Copyright (c) 2023 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+##########################################################################
+# this file is meant to be visualized with 200 columns and tabstop as 4. #
+##########################################################################
+
+import os
+import subprocess as sp
+
+try :
+	# ut contains the unit test helper functions used during the lmake build process
+	# it checks the number of lines of each kind generate during said run
+	from ut import lmake
+except :
+	# replace with simple function for interactive experiment by user (non check)
+	import subprocess as sp
+	def lmake(*cmd_line,**kwds) :
+		sp.run( ('lmake',)+cmd_line , stdin=None )
+
+# first, run a full build, the mentioned counts here assumes starting from a clean repository
+lmake( 'hello_world.ok' , new=7 , done=16 , may_rerun=2 , steady=1 )
+# Note the may_rerun status on some lines :
+# This means that new deps have been discovered and they were out-of-date.
+# So, this run missed the point.
+# However, we may be lucky and it could be that when built, the deps do not change their content.
+# In that case, the job will not be rerun (bu t this is not the case here when run from a virgin repository).
+
+print('\n* touch hello.c without modification')
+# this may happen if you edit a file and finally decide to roll back
+os.utime('hello.c')
+lmake( 'hello_world.ok' , steady=1 ) # hello is recognized as steady and nothing is rebuilt
+
+print('\n* modify hello.c without semantic impact')
+# typically you may want to improve readability with better comments or improved layout
+sz = os.stat('hello.c').st_size                  # note size to further undo modifications
+print(file=open('hello.c','a'))                  # add a blank line
+lmake( 'hello_world.ok' , changed=1 , steady=1 ) # hello is recompiled, but object is identical, nothing more happen
+os.truncate('hello.c',sz)                        # roll back
+lmake( 'hello_world.ok' , changed=1 , steady=1 )
+
+print('\n* modify hello.c with a semantic impact')
+# typically you may want to improve readability with better comments or improved layout
+sz = os.stat('hello.c').st_size                           # note size to further undo modifications
+print('int new_var=0 ;',file=open('hello.c','a'))         # add somthing that modify the object
+lmake( 'hello_world.ok' , changed=1 , done=2 , steady=2 ) # hello is recompiled, hello_world is re-linked, tests are rerun but their output is unchanged
+os.truncate('hello.c',sz)                                 # roll back
+lmake( 'hello_world.ok' , changed=1 , done=2 , steady=2 )
+
+print('\n* modify hello.h without semantic impact')
+sz = os.stat('hello.h').st_size                  # note size to further undo modifications
+print(file=open('hello.h','a'))                  # add a blank line
+lmake( 'hello_world.ok' , changed=1 , steady=2 ) # hello and hello_world are recompiled are both include hello.h
+os.truncate('hello.h',sz)                        # roll back
+lmake( 'hello_world.ok' , changed=1 , steady=2 )
+
+print('\n* touch Lmakefile.py')
+os.utime('Lmakefile.py')
+lmake( 'hello_world.ok' ) # Lmakefile is re-read, but nothing changed
+
+print('\n* add a rule that do not apply in our flow')
+# typically if you work on an unrelated subject
+sz = os.stat('Lmakefile.py').st_size # note size to further undo modifications
+print('''
+class Inop(Rule) :
+	target = 'unused'
+	cmd    = ''
+''',file=open('Lmakefile.py','a'))
+lmake( 'hello_world.ok' )
+# because of the new rule, lmake must thoroughly check its internal state to see what impact this may have
+# and finally decide that nothing needs to be rebuilt
+# in case of a large repository, this may take some time (a few seconds), though
+os.truncate('Lmakefile.py',sz)       # roll back
+lmake( 'hello_world.ok' )
+
+print('\n* change compilation rule')
+sz = os.stat('Lmakefile.py').st_size          # note size to further undo modifications
+print('''
+Compile.flags = '-O1'
+''',file=open('Lmakefile.py','a'))
+# note that rules are compiled once Lmakefile.py is fully read, so the new value of Compile.flags will be taken into account
+lmake( 'hello_world.ok' , done=4 , steady=2 ) # application is fully recompiled, then re-linked, and tests are rerun, but their output does not change
+os.truncate('Lmakefile.py',sz)                # roll back
+lmake( 'hello_world.ok' , done=4 , steady=2 )
+
+print('\n* remove intermediate file')
+os.unlink('hello.o')
+lmake(        'hello_world.ok'            )               # no need for hello.o as nothing needs to be rebuilt
+lmake( '-a' , 'hello_world.ok' , steady=1 )               # the -a flags ask for all intermediate flags, so hello.o needs to be rebuilt
+#
+os.unlink('hello.o')
+sz = os.stat('world.c').st_size                           # note size to further undo modifications
+print('int new_var=0 ;',file=open('world.c','a'))         # add somthing that modify the object
+lmake( 'hello_world.ok' , changed=1 , done=2 , steady=3 ) # because of the modification of world.c, hello_world needs to be re-linked, which means hello.o must be available
+os.truncate('world.c',sz)                                 # roll back
+lmake( 'hello_world.ok' , changed=1 , done=2 , steady=2 )
+
+print('\n* add a test')
+sz = os.stat('hello_world.regr').st_size                            # note size to further undo modifications
+print('duke : duke : hello duke',file=open('hello_world.regr','a'))
+lmake( 'hello_world.ok' , changed=1 , done=7 , may_rerun=1 , steady=1 )
+# new test is inserted in regression
+# because of the critical flag on the regression list, the regression list is rebuilt before tests are run, hence the may_rerun
+# this is to ensure an old test, possibly time consuming, is run to finally decide that it was useless
+#
+# suppress the new test
+os.truncate('hello_world.regr',sz)                                  # roll back
+lmake( 'hello_world.ok' , changed=1 , done=3 , steady=1 )           # the test list is rebuilt and nothing new needs to be done
+
+print('\n* lshow')
+# lshow can show you a lot of information
+sp.run(('lshow','-h'))                     # see what is available, all commands have a -h or --help flag
+# the most useful flags are -i (show info about the run) and -d (show deps)
+sp.run(('lshow','-i' ,'hello.o'         )) # you can see a lot of useful info
+sp.run(('lshow','-d' ,'hello.o'         )) # you can see that hello.h was included
+sp.run(('lshow','-dv','hello.o'         )) # you can see that there are more deps than you think
+sp.run(('lshow','-t' ,'hello_world.tlst')) # you can see the generated targets

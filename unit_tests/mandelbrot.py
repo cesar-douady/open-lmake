@@ -3,13 +3,19 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import os
+
 if __name__!='__main__' :
+
+	from step import rustup_home
+	os.environ['RUSTUP_HOME'] = rustup_home # set before importing lmake.rules so RustRule is correctly configured
 
 	import lmake
 	from lmake.rules import Rule,RustRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
+	,	'step.py'
 	,	'mandelbrot.zip'
 	)
 
@@ -25,7 +31,7 @@ if __name__!='__main__' :
 		,	'COMPILE' : r'target/{*:.*}'
 		}
 		side_targets = {
-			'SCRATCH' : ( '.cargo/{*:.*}' , 'Top' )
+			'SCRATCH' : ( r'.cargo/{*:.*}' , 'Top' )
 		}
 		deps         = { 'MAIN' : 'src/main.rs' }
 		allow_stderr = True
@@ -43,17 +49,20 @@ if __name__!='__main__' :
 
 else :
 
-	import os
+	import os.path as osp
+	import shutil
 	import subprocess as sp
 	import sys
 
 	import ut
 
-	try :
-		sp.check_output('cargo') # dont test rust if rust is not installed
-	except :
+	cargo = shutil.which('cargo')
+	if not cargo :
 		print('cargo not available',file=open('skipped','w'))
 		exit()
+
+	rustup_home = osp.dirname(osp.dirname(osp.dirname(cargo)))+'/.rustup'
+	print(f'rustup_home={rustup_home!r}',file=open('step.py','w'))
 
 	os.symlink('../mandelbrot.zip','mandelbrot.zip')
 	ut.lmake( 'ok' , done=3 , new=1 )

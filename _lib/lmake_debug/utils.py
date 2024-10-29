@@ -111,7 +111,7 @@ class Job :
 		''')
 
 	def starter(self,*args,enter=False,**kwds) :
-		autodep  = f'{osp.dirname(osp.dirname(osp.dirname(__file__)))}/bin/autodep'
+		autodep  = f'{osp.dirname(osp.dirname(osp.dirname(__file__)))}/bin/lautodep'
 		#
 		preamble = ''
 		if enter        : preamble +=  'export LMAKE_HOME="$HOME"\n'                             # use specified value in job, but original one in entered shell
@@ -196,7 +196,7 @@ class Job :
 
 	def gen_start_line(self,**kwds) :
 		preamble,line = self.starter( *(mk_shell_str(c) for c in self.interpreter) , mk_shell_str(self.cmd_file()) , **kwds )
-		return preamble+line+'\n'                                                                                             # do not use exec to launch autodep so as to keep stdin & stdout open
+		return preamble+line+'\n'                                                                                             # do not use exec to launch lautodep so as to keep stdin & stdout open
 
 	def gen_lmake_env(self,enter=False,**kwds) :
 		res = ''

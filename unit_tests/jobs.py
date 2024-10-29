@@ -21,7 +21,7 @@ if __name__!='__main__' :
 	lmake.config.backends.local.mem = n_jobs*2
 
 	class GenFile(PyRule) :
-		target    = 'file_{:\d+}'
+		target    = r'file_{:\d+}'
 		deps      = {'TRIG':'trig'}
 		resources = {'mem':1}
 		def cmd() :
@@ -29,10 +29,10 @@ if __name__!='__main__' :
 			assert int(os.environ['SMALL_ID'])<=n_jobs , f"small id is {os.environ['SMALL_ID']} > {n_jobs}"
 
 	class Trig(PyRule) :
-		target    = 'out_{N:\d+}'
+		target    = r'out_{N:\d+}'
 		resources = {'mem':1}
 		def cmd() :
-			lmake.depend([f'file_{x}' for x in range(int(N))])
+			lmake.depend(*(f'file_{x}' for x in range(int(N))))
 
 else :
 

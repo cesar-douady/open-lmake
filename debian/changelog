@@ -1,5 +1,0 @@
-open-lmake (24.09.1-1) UNRELEASED; urgency=low
-
-  * support Linux namespaces
-
- -- Cesar Douady <cesar.douady@doliam.fr>  Tue, 03 Sep 2024 15:56:35 +0200

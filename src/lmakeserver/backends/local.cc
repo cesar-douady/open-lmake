@@ -112,10 +112,6 @@ namespace Backends::Local {
 
 		// services
 
-		virtual ::vmap_s<size_t> n_tokenss() const {
-			return capacity() ;
-		}
-
 		virtual void sub_config( ::vmap_ss const& dct , bool dynamic ) {
 			Trace trace(BeChnl,"Local::config",STR(dynamic),dct) ;
 			if (dynamic) {
@@ -155,9 +151,9 @@ namespace Backends::Local {
 			return ::move(rsrcs) ;
 		}
 		//
-		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const& rsa                   ) const { return rsa. fit_in(         capacity_)     ; }
-		virtual ::vmap_ss    export_       ( RsrcsData    const& rs                    ) const { return rs.mk_vmap(rsrc_keys)               ; }
-		virtual RsrcsDataAsk import_       ( ::vmap_ss        && rsa , ReqIdx , JobIdx ) const { return RsrcsDataAsk(::move(rsa),rsrc_idxs) ; }
+		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const& rsa             ) const { return rsa. fit_in(         capacity_)     ; }
+		virtual ::vmap_ss    export_       ( RsrcsData    const& rs              ) const { return rs.mk_vmap(rsrc_keys)               ; }
+		virtual RsrcsDataAsk import_       ( ::vmap_ss        && rsa , Req , Job ) const { return RsrcsDataAsk(::move(rsa),rsrc_idxs) ; }
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			return rsa->fit_in(occupied,capacity_) ;
 		}
@@ -172,26 +168,26 @@ namespace Backends::Local {
 			Trace trace(BeChnl,"occupied_rsrcs",rs,'-',occupied) ;
 		}
 		//
-		virtual ::string start_job( JobIdx , SpawnedEntry const& e ) const {
+		virtual ::string start_job( Job , SpawnedEntry const& e ) const {
 			return "pid:"s+e.id.load() ;
 		}
-		virtual ::pair_s<bool/*retry*/> end_job( JobIdx , SpawnedEntry const& se , Status ) const {
+		virtual ::pair_s<bool/*retry*/> end_job( Job , SpawnedEntry const& se , Status ) const {
 			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
 			return {{},true/*retry*/} ;                                                                             // retry if garbage
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx , SpawnedEntry const& se ) const {            // called after job_exec has had time to start
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {               // called after job_exec has had time to start
 			SWEAR(se.id) ;
 			int wstatus = 0 ;
-			if      ( ::waitpid(se.id,&wstatus,WNOHANG)==0           ) return {{}/*msg*/,HeartbeatState::Alive} ;   // process is still alive
-			else if ( !WIFEXITED(wstatus) || WEXITSTATUS(wstatus)!=0 ) return {{}/*msg*/,HeartbeatState::Err  } ;   // process just died with an error
-			else                                                       return {{}/*msg*/,HeartbeatState::Lost } ;   // process died long before (already waited) or just died with no error
+			if      (::waitpid(se.id,&wstatus,WNOHANG)==0) return {{}/*msg*/,HeartbeatState::Alive} ;               // process is still alive
+			else if (!wstatus_ok(wstatus)                ) return {{}/*msg*/,HeartbeatState::Err  } ;               // process just died with an error
+			else                                           return {{}/*msg*/,HeartbeatState::Lost } ;               // process died long before (already waited) or just died with no error
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (se.zombie) return ;
+			if (!se.live) return ;
 			kill_process(se.id,SIGHUP) ;                                                                            // jobs killed here have not started yet, so we just want to kill job_exec
 			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
 		}
-		virtual pid_t launch_job( ::stop_token , JobIdx , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& , bool /*verbose*/ ) const {
+		virtual pid_t launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& , bool /*verbose*/ ) const {
 			Child child { .as_session=true , .cmd_line=cmd_line , .stdin_fd=Child::NoneFd , .stdout_fd=Child::NoneFd } ;
 			child.spawn() ;
 			pid_t pid = child.pid ;

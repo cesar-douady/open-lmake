@@ -11,7 +11,7 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Good(Rule) :
-		target = 'good{D:\d+}'
+		target = r'good{D:\d+}'
 		cmd    = ''
 
 	class Dut(Rule) :

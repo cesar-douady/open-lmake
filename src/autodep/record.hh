@@ -103,21 +103,26 @@ public:
 public :
 	Record(                                            ) = default ;
 	Record( NewType ,                      pid_t pid   ) : Record( New , Maybe , pid ) {}
-	Record( NewType , Bool3 enable=Maybe , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {
-		if (enable==Maybe) disabled = s_autodep_env().disabled ;
-		else               disabled = enable==No               ;
+	Record( NewType , Bool3 en=Maybe , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {
+		if (en==Maybe) enable = s_autodep_env().enable ;
+		else           enable = en==Yes                ;
 	}
 	// services
+	uint64_t/*id*/ report_access( ::string&& f , FileInfo fi , Accesses a , Bool3 write , ::string&& c={} , bool force=false ) const {
+		report_async_access( { Proc::Access , ++_s_id , {{::move(f),fi}} , {.write=write,.accesses=a} , ::move(c) } , force ) ;
+		return _s_id ;
+	}
+	uint64_t/*id*/ report_accesses( ::vmap_s<FileInfo>&& fs , Accesses a , Bool3 write , ::string&& c={} , bool force=false ) const {
+		report_async_access( { Proc::Access , ++_s_id , ::move(fs) , {.write=write,.accesses=a} , ::move(c) } , force ) ;
+		return _s_id ;
+	}
+	void report_guard( FileLoc fl , ::string&& f , ::string&& c={} ) const { if (fl<=FileLoc::Repo) report_direct({ Proc::Guard , ::move(f) , ::move(c) }) ; }
+	void report_guard(              ::string&& f , ::string&& c={} ) const {                        report_direct({ Proc::Guard , ::move(f) , ::move(c) }) ; }
 private :
 	void _static_report(JobExecRpcReq&& jerr) const ;
 	JobExecRpcReply _get_reply() const {
 		if (s_static_report) return {}                                                ;
 		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd()) ;
-	}
-	//
-	uint64_t/*id*/ report_access( ::string&& f , FileInfo fi , Accesses a , bool write , ::string&& c={} , bool force=false ) const {
-		report_async_access( { Proc::Access , ++_s_id , {{::move(f),fi}} , {.write=Maybe&write,.accesses=a} , ::move(c) } , force ) ;
-		return _s_id ;
 	}
 	// for modifying accesses (_report_update, _report_target, _report_unlnk, _report_targets) :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
@@ -128,15 +133,11 @@ private :
 	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
 	//
 	void _report_dep( FileLoc fl , ::string&& f , FileInfo fi , Accesses a , ::string&& c={} ) const {
-		if ( fl<=FileLoc::Dep && +a ) report_access( ::move(f) , fi , a  , false/*write*/ , ::move(c) ) ;
+		if ( fl<=FileLoc::Dep && +a ) report_access( ::move(f) , fi , a  , No/*write*/ , ::move(c) ) ;
 	}
-	uint64_t/*id*/ _report_target( FileLoc fl , ::string&& f ,                            ::string&& c={} ) const {
-		if (fl<=FileLoc::Repo) return report_access( ::move(f) , {} , {} , true/*write*/  , ::move(c) ) ;
-		else                   return 0                                                                 ;
-	}
-	uint64_t/*id*/ _report_unlnk( FileLoc fl , ::string&& f , ::string&& c={} ) const {
-		if (fl<=FileLoc::Repo) return report_access( ::move(f) , {} , {} , true/*write*/  , ::move(c) ) ;
-		else                   return 0                                                                 ;
+	uint64_t/*id*/ _report_target( FileLoc fl , ::string&& f , ::string&& c={} ) const {
+		if (fl<=FileLoc::Repo) return report_access( ::move(f) , {}/*file_info*/ , {}/*accesses*/ , Maybe/*write*/ , ::move(c) ) ;  // write=Maybe because we wait for confirmation
+		else                   return 0                                                                                          ;
 	}
 	//
 	void _report_dep( FileLoc fl , ::string&& f , Accesses a , ::string&& c={} ) const {
@@ -144,12 +145,12 @@ private :
 	}
 	//
 	uint64_t/*id*/ _report_update( FileLoc fl , ::string&& f , ::string&& f0 , FileInfo fi , Accesses a , ::string&& c={} ) const { // f0 is the file to which we write if non-empty
-		if (!f0) { //!                                                                       write
-			if      ( fl<=FileLoc::Repo       ) return report_access( ::move(f ) , fi , a  , true  , ::move(c) ) ;
-			else if ( fl<=FileLoc::Dep  && +a )        report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
+		if (!f0) { //!                                                                        write
+			if      ( fl<=FileLoc::Repo       ) return report_access( ::move(f ) , fi , a  , Maybe , ::move(c) ) ;                  // write=Maybe because we wait for confirmation
+			else if ( fl<=FileLoc::Dep  && +a )        report_access( ::move(f ) , fi , a  , No    , ::move(c) ) ;
 		} else {
-			if      ( fl<=FileLoc::Dep  && +a )        report_access( ::move(f ) , fi , a  , false , ::move(c) ) ;
-			if      ( fl<=FileLoc::Repo       ) return report_access( ::move(f0) , fi , {} , true  , ::move(c) ) ;
+			if      ( fl<=FileLoc::Dep  && +a )        report_access( ::move(f ) , fi , a  , No    , ::copy(c) ) ;
+			if      ( fl<=FileLoc::Repo       ) return report_access( ::move(f0) , fi , {} , Maybe , ::move(c) ) ;                  // write=Maybe because we wait for confirmation
 		}
 		return 0 ;
 	}
@@ -157,10 +158,10 @@ private :
 		return _report_update( fl , ::move(f) , ::move(f0) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ;
 	}
 	//
-	uint64_t/*id*/ _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
+	uint64_t/*id*/ _report_deps( ::vector_s const& fs , Accesses a , Bool3 unlnk , ::string&& c={} ) const {
 		::vmap_s<FileInfo> files ;
 		for( ::string const& f : fs ) files.emplace_back( f , FileInfo(s_root_fd(),f) ) ;
-		report_async_access({ Proc::Access , ++_s_id , ::move(files) , {.write=Maybe&u,.accesses=a} , ::move(c) }) ;
+		report_async_access({ Proc::Access , ++_s_id , ::move(files) , {.write=unlnk,.accesses=a} , ::move(c) }) ;
 		return _s_id ;
 	}
 	uint64_t/*id*/ _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
@@ -177,18 +178,11 @@ private :
 	void _report_confirm( uint64_t id , bool ok ) const {
 		if (id) report_direct({ Proc::Confirm , id , ok }) ;
 	}
-	void _report_guard( FileLoc fl , ::string&& f , ::string&& c={} ) const {
-		if (fl<=FileLoc::Repo) report_direct({ Proc::Guard , ::move(f) , ::move(c) }) ;
-	}
 public :
 	bool/*sent*/ report_direct( JobExecRpcReq&& jerr , bool force=false ) const {
-		if ( !force && disabled ) {
-			return false/*sent*/ ;
-		}
-		if (s_static_report) {
-			_static_report(::move(jerr)) ;
-			return true/*sent*/ ;
-		}
+		//!                                                              sent
+		if ( !force && !enable )                                  return false ;
+		if ( s_static_report   ) { _static_report(::move(jerr)) ; return true  ; }
 		if ( Fd fd=s_report_fd() ; +fd ) {
 			try                       { OMsgBuf().send(fd,jerr) ;                   }
 			catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }                                 // this justifies panic, but we cannot report panic !
@@ -223,8 +217,11 @@ public :
 			p.allocated = false       ;                                                                               // we have clobbered allocation, so it is no more p's responsibility
 			return *this ;
 		}
-		//
 		~_Path() { _deallocate() ; }
+		// accesses
+		bool operator==(_Path const& p) const {
+			return at==p.at && ::strcmp(file,p.file)==0 ;
+		}
 		// services
 	private :
 		void _deallocate() { if (allocated) delete[] file ; }
@@ -237,12 +234,12 @@ public :
 		}
 		// data
 	public :
-		bool    allocated = false            ;                                                                        // if true <=> file has been allocated and must be freed upon destruction
-		Fd      at        = Fd::Cwd          ;                                                                        // at & file may be modified, but together, they always refer to the same file ...
-		Char*   file      = nullptr          ;                                                                        // ... except in the case of mkstemp (& al.) that modifies its arg in place
+		bool  allocated = false   ;                                                                                   // if true <=> file has been allocated and must be freed upon destruction
+		Fd    at        = Fd::Cwd ;                                                                                   // at & file may be modified, but together, they always refer to the same file ...
+		Char* file      = nullptr ;                                                                                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ; //!            Writable
-	using Path  = _Path<false > ;
-	using WPath = _Path<true  > ;
+	using Path  = _Path<false> ;
+	using WPath = _Path<true > ;
 	template<bool Writable=false,bool ChkSimple=false> struct _Solve : _Path<Writable> {
 		using Base = _Path<Writable> ;
 		using Base::at   ;
@@ -258,7 +255,7 @@ public :
 			auto report_dep = [&]( FileLoc fl , ::string&& file , Accesses a , bool store , const char* key )->void {
 				::string ck = c+'.'+key ;
 				for( auto const& [view,phys] : s_autodep_env().views ) {
-					if (!phys                                                                      ) continue ; // empty phys do not represent a view
+					if (!phys                                                                      ) continue ;       // empty phys do not represent a view
 					if (!( file.starts_with(view) && (is_dirname(view)||file.size()==view.size()) )) continue ;
 					for( size_t i=0 ; i<phys.size() ; i++ ) {
 						bool     last  = i==phys.size()-1                                 ;
@@ -411,16 +408,13 @@ public :
 		Rename( Record& , Path&& src , Path&& dst , bool exchange , bool no_replace , ::string&& comment ) ;
 		// services
 		int operator()( Record& r , int rc ) {
-			r._report_confirm( unlnk_id , rc>=0 ) ;
-			r._report_confirm( write_id , rc>=0 ) ;
+			if (unlnk_id) r._report_confirm( unlnk_id , rc>=0 ) ;
+			if (write_id) r._report_confirm( write_id , rc>=0 ) ;
 			return rc ;
 		}
 		// data
-		Solve    src      ;
-		Solve    dst      ;
-		uint64_t unlnk_id = 0/*garbage*/ ;
-		uint64_t write_id = 0/*garbage*/ ;
-		bool     exchange ;
+		uint64_t unlnk_id = 0 ;
+		uint64_t write_id = 0 ;
 	} ;
 	struct Stat : Solve {
 		// cxtors & casts
@@ -461,7 +455,7 @@ public :
 	}
 	// data
 	bool seen_chdir = false ;
-	bool disabled   = false ;
+	bool enable     = false ;
 private :
 	Disk::RealPath _real_path ;
 	mutable bool   _tmp_cache = false ;           // record that tmp usage has been reported, no need to report any further

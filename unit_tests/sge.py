@@ -23,7 +23,7 @@ if 'sge' in lmake.backends :
 		sge_bin_dir  = osp.dirname(shutil.which('qsub',path=lmake.user_environ['PATH']))
 		sge_root_dir = osp.dirname(osp.dirname(sge_bin_dir))
 		lmake.config.backends.sge = {
-			'interface'    : socket.gethostname()    # check that interface is interpreted w/o crash
+			'interface'    : socket.gethostname() # check that interface is interpreted w/o crash
 		,	'bin_dir'      : sge_bin_dir
 		,	'root_dir'     : sge_root_dir
 		#,	'cpu_resource' : 'cpu'

@@ -15,12 +15,12 @@ if __name__!='__main__' :
 	)
 
 	class Lnk(Rule) :
-		targets = { 'LNK' : '{File:.*}.lnk' }
-		deps    = { 'SRC' : '{File}'        }
+		targets = { 'LNK' : r'{File:.*}.lnk' }
+		deps    = { 'SRC' :  '{File}'        }
 		cmd     = 'ln -s {SRC} {LNK}'
 
 	class Cat(Rule) :
-		target = 'hello+{File:.*}'
+		target = r'hello+{File:.*}'
 		cmd    = 'cat hello.lnk {File}'
 
 	class Abc(Rule) :

@@ -18,23 +18,23 @@ if __name__!='__main__' :
 	)
 
 	class CpyLocal(Rule) :
-		target = '{File:.*}.cpy'
+		target = r'{File:.*}.cpy'
 		dep    = 'local/{File}.src'
 		cmd    = 'cat - local/{File}2.src'
 
 	class CpyExtRel(Rule) :
-		target = '{File:.*}.cpy'
+		target = r'{File:.*}.cpy'
 		dep    = '../srcs_rel/{File}.src'
 		cmd    = 'cat ../srcs_rel/../not_a_src - ../srcs_rel/{File}2.src'
 
 	class CpyExtAbs(Rule) :
-		target = '{File:.*}.cpy'
+		target = r'{File:.*}.cpy'
 		dep    = f"{osp.abspath('../srcs_abs')}/{{File}}.src"
 		cmd    = f"cat {osp.abspath('../srcs_abs')}/../not_a_src - {osp.abspath('../srcs_abs')}/{{File}}2.src"
 
 	class Dflt(Rule) :
 		prio   = -1
-		target = '{File:.*}.cpy'
+		target = r'{File:.*}.cpy'
 		cmd    = 'echo dflt'
 
 else :

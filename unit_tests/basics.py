@@ -32,9 +32,7 @@ if __name__!='__main__' :
 		target = '{File1}+{File2}_py'
 		def cmd() :
 			for fn in (FIRST,SECOND) :
-				f = open(fn)
-				print(f.read(),end='')
-				f.close()              # ensure no warnings with python3.12 -W...
+				with open(fn) as f : print(f.read(),end='')
 
 else :
 
@@ -51,8 +49,9 @@ else :
 	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         ) # check reconvergence
 
 	assert os.system('ldebug hello+world_sh'  )==0 # check no crash
-	assert os.system('chmod -w -R .'          )==0
-	assert os.system('lshow -i hello+world_sh')==0 # check we can interrogate a read-only repo
-	assert os.system('chmod u+w -R .'         )==0 # restore state
+
+	assert           os.system('chmod -w -R .'          )==0 # check we can interrogate a read-only repo
+	try     : assert os.system('lshow -i hello+world_sh')==0
+	finally : assert os.system('chmod u+w -R .'         )==0 # restore state
 
 	assert not osp.exists('LMAKE/server'),'server is still alive'

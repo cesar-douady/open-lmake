@@ -119,10 +119,14 @@ namespace Py {
 		return res ;
 	}
 
-	Ptr<Dict> py_run(::string const& text) {
-		Ptr<Dict  > env = _mk_env() ;
-		Ptr<Object> rc { PyRun_String( text.c_str() , Py_file_input , env->to_py() , env->to_py() ) } ;
+	void py_run( ::string const& text , Dict& env ) {
+		Ptr<Object> rc { PyRun_String( text.c_str() , Py_file_input , env.to_py() , env.to_py() ) } ;
 		if (!rc) throw py_err_str_clear() ;
+	}
+
+	Ptr<Dict> py_run (::string const& text) {
+		Ptr<Dict> env = _mk_env() ;
+		py_run(text,*env) ;
 		return env ;
 	}
 

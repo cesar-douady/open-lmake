@@ -13,7 +13,7 @@ using namespace Disk ;
 	/**/                 os <<','<< ade.service                          ;
 	if (ade.auto_mkdir ) os <<",auto_mkdir"                              ;
 	if (ade.ignore_stat) os <<",ignore_stat"                             ;
-	if (ade.disabled   ) os <<",disabled"                                ;
+	if (ade.enable     ) os <<",enable"                                  ;
 	return os <<')' ;
 }
 
@@ -31,7 +31,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	// options
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
-			case 'd' : disabled      = true             ; break ;
+			case 'd' : enable        = false            ; break ;
 			case 'i' : ignore_stat   = true             ; break ;
 			case 'm' : auto_mkdir    = true             ; break ;
 			case 'n' : lnk_support   = LnkSupport::None ; break ;
@@ -57,7 +57,7 @@ AutodepEnv::operator ::string() const {
 	::string res = service ;
 	// options
 	res << ':' ;
-	if (disabled     ) res << 'd' ;
+	if (!enable      ) res << 'd' ;
 	if (ignore_stat  ) res << 'i' ;
 	if (auto_mkdir   ) res << 'm' ;
 	if (reliable_dirs) res << 'r' ;

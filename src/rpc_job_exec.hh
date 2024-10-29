@@ -92,8 +92,7 @@ struct JobExecRpcReq {
 			case P::DepVerbose :                   ::serdes(s,digest      ) ; break ;
 			case P::Decode     : ::serdes(s,ctx) ;                            break ;
 			case P::Encode     : ::serdes(s,ctx) ; ::serdes(s,min_len)      ; break ;
-			default : ;
-		}
+		DN}
 		::serdes(s,txt) ;
 	}
 	// data

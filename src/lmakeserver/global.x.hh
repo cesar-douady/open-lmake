@@ -138,16 +138,16 @@ namespace Engine {
 		// services
 		bool operator==(ConfigStatic const&) const = default ;
 		// data
-		Time::Delay    date_prec      ;                                              // precision of dates on disk
-		Time::Delay    heartbeat      ;                                              // min time between successive heartbeat probes for any given job
-		Time::Delay    heartbeat_tick ;                                              // min time between successive heartbeat probes
-		DepDepth       max_dep_depth  = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
-		Time::Delay    network_delay  ;
-		size_t         path_max       = -1   ;                                       // if -1 <=> unlimited
-		::string       rules_module   ;
-		::string       srcs_module    ;
-		TraceConfig    trace          ;
-		::map_s<Cache> caches         ;
+		Time::Delay    date_prec       ;                                              // precision of dates on disk
+		Time::Delay    heartbeat       ;                                              // min time between successive heartbeat probes for any given job
+		Time::Delay    heartbeat_tick  ;                                              // min time between successive heartbeat probes
+		DepDepth       max_dep_depth   = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
+		Time::Delay    network_delay   ;
+		size_t         path_max        = -1   ;                                       // if -1 <=> unlimited
+		bool           has_split_rules ;                                              // if true <=> read independently of config
+		bool           has_split_srcs  ;                                              // .
+		TraceConfig    trace           ;
+		::map_s<Cache> caches          ;
 	} ;
 
 	// changing these can be made dynamically (i.e. while lmake is running)
@@ -177,6 +177,7 @@ namespace Engine {
 			uint8_t date_prec     = -1    ;                   // -1 means no date at all in console output
 			uint8_t host_len      = 0     ;                   //  0 means no host at all in console output
 			bool    has_exec_time = false ;
+			bool    show_eta      = false ;
 		} ;
 
 		// services
@@ -421,7 +422,10 @@ namespace Engine {
 
 	inline ::string reason_str(JobReason const& reason) {
 		::string res = reason.msg() ;
-		if (reason.node) res <<" : "<< Disk::mk_file(Node(reason.node)->name()) ;
+		if ( Node n{reason.node} ; +n ) {
+			/**/                                          res <<" : "               << Disk::mk_file(n->name()               )        ;
+			if (reason.tag==JobReasonTag::PollutedTarget) res <<" (polluting job : "<< Disk::mk_file(n->polluting_job->name()) <<" )" ;
+		}
 		return res ;
 	}
 

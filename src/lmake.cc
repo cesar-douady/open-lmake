@@ -19,16 +19,16 @@ using namespace Time ;
 static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 	t_thread_key = 'I' ;
 	Trace trace ;
-	::stop_callback stop_cb { stop , [&](){ kill_self(SIGINT) ; } } ;          // transform request_stop into an event we wait for
+	::stop_callback stop_cb { stop , [&](){ kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for
 	trace("start") ;
 	for(;;) {
 		using SigInfo = struct signalfd_siginfo ;
 		ssize_t cnt = ::read(int_fd,&::ref(SigInfo()),sizeof(SigInfo)) ;
 		SWEAR( cnt==sizeof(SigInfo) , cnt ) ;
-		if (stop.stop_requested()) break ;                                     // not an interrupt, just normal exit
+		if (stop.stop_requested()) break ;                            // not an interrupt, just normal exit
 		trace("send_int") ;
 		OMsgBuf().send(g_server_fds.out,ReqRpcReq(ReqProc::Kill)) ;
-		::cout << ::endl ;                                                     // output is nicer if ^C is on its own line
+		::cout << ::endl ;                                            // output is nicer if ^C is on its own line
 		g_seen_int = true ;
 	}
 	trace("done") ;
@@ -52,7 +52,7 @@ static void _handle_int(bool start) {
 	} ;
 	static ::jthread int_jt ;
 	if (start) {
-		if (is_blocked_sig(SIGINT)) return ; // nothing to handle if ^C is blocked
+		if (is_blocked_sig(SIGINT)) return ;          // nothing to handle if ^C is blocked
 		static Exit exit ;
 		int_jt = ::jthread( _int_thread_func , exit.int_fd ) ;
 	} else {
@@ -65,6 +65,7 @@ static void _handle_int(bool start) {
 }
 
 int main( int argc , char* argv[] ) {
+	set_env("GMON_OUT_PREFIX","gmon.out.lmake") ; // in case profiling is used, ensure unique gmon.out
 	Trace::s_backup_trace = true ;
 	app_init(false/*read_only_ok*/,Maybe/*chk_version*/) ;
 	//
@@ -74,6 +75,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of jobs"                          } }
 	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                     } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"           } }
+	,	{ ReqFlag::RetryOnError    , { .short_name='r' , .has_arg=true  , .doc="retry jobs in error"                         } }
 	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"             } }
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"            } }
 	,	{ ReqFlag::Verbose         , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"             } }
@@ -89,10 +91,11 @@ int main( int argc , char* argv[] ) {
 	/**/  trace("main",env_args                               ) ;
 	/**/  trace("main",args                                   ) ;
 	//
-	ReqCmdLine      cmd_line { syntax , int(args.size()) , args.data() } ;
-	::string const& n_jobs   = cmd_line.flag_args[+ReqFlag::Jobs]        ;
-	try                       { from_string<JobIdx>(n_jobs,true/*empty_ok*/) ;                           }
-	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+n_jobs) ; }
+	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
+	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                           }
+	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+cmd_line.flag_args[+ReqFlag::Jobs]) ; }
+	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::RetryOnError],true/*empty_ok*/) ;                    }
+	catch (::string const& e) { syntax.usage("cannot understand retry count ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ; }
 	// start interrupt handling thread once server is started
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Make , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;

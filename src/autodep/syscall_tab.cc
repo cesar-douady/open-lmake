@@ -19,7 +19,7 @@
 	for(;;) {
 		uint64_t offset = src%sizeof(long)                                               ;
 		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		if (errno) throw 0 ;
+		if (errno) throw errno ;
 		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
 		for( uint64_t len=0 ; len<sizeof(long)-offset ; len++ ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
 		/**/                                                                            res.append( buf+offset , sizeof(long)-offset ) ;
@@ -32,9 +32,9 @@
 	SWEAR(pid) ;
 	errno = 0 ;
 	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) { // invariant : copy src[i:sz] to dst
-		uint64_t offset = src%sizeof(long) ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		if (errno) throw 0 ;
+		size_t offset = src%sizeof(long) ;
+		long   word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
+		if (errno) throw errno ;
 		chunk = ::min( sizeof(long) - offset , sz ) ;
 		::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
 	}
@@ -45,22 +45,24 @@
 	SWEAR(pid) ;
 	errno = 0 ;
 	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                 // invariant : copy src[i:sz] to dst
-		uint64_t offset = dst%sizeof(long) ;
-		long     word   = 0/*garbage*/     ;
+		size_t offset = dst%sizeof(long) ;
+		long   word   = 0/*garbage*/     ;
 		chunk = ::min( sizeof(long) - offset , sz ) ;
 		if ( offset || offset+chunk<sizeof(long) ) {                                // partial word
 			word = ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;
-			if (errno) throw 0 ;
+			if (errno) throw errno ;
 		}
 		::memcpy( reinterpret_cast<char*>(&word)+offset , src , chunk ) ;
 		ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
-		if (errno) throw 0 ;
+		if (errno) throw errno ;
 	}
 }
 
 template<bool At> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args ) {
-	if (At) return { Fd(args[0]) , _get_str(pid,args[1]) } ;
-	else    return {               _get_str(pid,args[0]) } ;
+	::string arg = _get_str(pid,args[At]) ;
+	if (Record::s_is_simple(arg.c_str())) throw 0                      ;
+	if (At                              ) return { Fd(args[0]) , arg } ;
+	else                                  return {               arg } ;
 }
 
 static constexpr int FlagAlways = -1 ;
@@ -108,8 +110,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void* &
 [[maybe_unused]] static void _entry_creat( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		ctx = new Record::Open( r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , comment ) ;
-	}
-	catch (int) {}
+	} catch (int) {}
 }
 // use _exit_open as exit proc
 
@@ -123,8 +124,11 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void* 
 
 // hard link
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+	Record::Path old ;
+	try           { old = _path<At>(pid,args+0) ; }
+	catch (int e) { if (e) return ;               } // if e==0, old is simple, else there is an error and access will not be done
 	try {
-		ctx = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
+		ctx = new Record::Lnk( r , ::move(old) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
@@ -203,6 +207,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* 
 		#else
 			bool no_replace = false                                 ;
 		#endif
+		// renaming a simple file (either src or dst) is non-sense, non need to take precautions
 		ctx = new Record::Rename{ r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , comment } ;
 	} catch (int) {}
 }
@@ -279,13 +284,9 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & 
 #endif
 
 // XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)
-SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // /!\ this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
-	static Tab                         s_tab    = {}    ;
-	static ::atomic<bool>              s_inited = false ;              // set to true once s_tab is initialized
-	if (s_inited) return s_tab ;                                       // fast test not even taking the lock
-	static Mutex<MutexLvl::SyscallTab> s_mutex  ;
-	Lock lock{s_mutex} ;
-	if (s_inited) return s_tab ;                                       // repeat test now that we have the lock in case another thread while in the middle of initializing s_tab
+static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
+	constexpr long NSyscalls = SyscallDescr::NSyscalls ;
+	SyscallDescr::Tab s_tab = {} ;
 	//	/!\ prio must be non-zero as zero means entry is not allocated
 	//	entries marked NFS_GUARD are deemed data access as they touch their enclosing dir and hence must be guarded against strange NFS notion of coherence
 	//	entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
@@ -422,7 +423,8 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {                       // /!\ th
 	#if MAP_VFORK && defined(SYS_vfork)
 		static_assert(SYS_vfork            <NSyscalls) ; s_tab[SYS_vfork            ] = { nullptr                            , nullptr        ,0    , 2  , false , "Vfork"             } ;
 	#endif
-	fence() ;                                                          // ensure serialization
-	s_inited = true ;
 	return s_tab ;
 }
+
+constexpr SyscallDescr::Tab _syscall_descr_tab = _build_syscall_descr_tab() ;
+SyscallDescr::Tab const& SyscallDescr::s_tab = _syscall_descr_tab ;

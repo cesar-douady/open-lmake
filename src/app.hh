@@ -78,7 +78,7 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 } ;
 
 template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
-	size_t key_sz  = 0     ; for( Key  k : All<Key > ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , snake(k).size() ) ;
+	size_t key_sz  = 0     ; for( Key  k : All<Key > ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , snake(k).size() ) ; if (has_dflt_key) key_sz = ::max(key_sz,size_t(8)) ; // 8 for <no key>
 	size_t flag_sz = 0     ; for( Flag f : All<Flag> ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , snake(f).size() ) ;
 	bool   has_arg = false ; for( Flag e : All<Flag> )                           has_arg |= flags[+e].has_arg                  ;
 	//
@@ -92,18 +92,22 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	if (key_sz) {
 		if (has_dflt_key) ::cerr << "keys (at most 1) :\n" ;
 		else              ::cerr << "keys (exactly 1) :\n" ;
-		if (has_dflt_key)                                ::cerr << "<no key>"                            << setw(key_sz)<<""       <<" : "<< keys[0 ].doc <<'\n' ;
-		for( Key k : All<Key> ) if (keys[+k].short_name) ::cerr <<'-' << keys[+k].short_name << " or --" << setw(key_sz)<<snake(k) <<" : "<< keys[+k].doc <<'\n' ;
+		if (has_dflt_key) ::cerr << "<no key>" << setw(key_sz)<<"" <<" : "<< keys[0 ].doc <<'\n' ;
+		for( Key k : All<Key> ) if (keys[+k].short_name) {
+			::string option { snake(k) } ; for( char& c : option ) if (c=='_') c = '-' ;
+			::cerr <<'-' << keys[+k].short_name << " or --" << setw(key_sz)<<option <<" : "<< keys[+k].doc <<'\n' ;
+		}
 	}
 	//
 	if (flag_sz) {
 		::cerr << "flags (0 or more) :\n"  ;
 		for( Flag f : All<Flag> ) {
 			if (!flags[+f].short_name) continue ;
-			/**/                        ::cerr << '-'<<flags[+f].short_name<<" or --"<<setw(flag_sz)<<snake(f) ;
-			if      (flags[+f].has_arg) ::cerr << " <arg>"                                                     ;
-			else if (has_arg          ) ::cerr << "      "                                                     ;
-			/**/                        ::cerr << " : "<<flags[+f].doc<<'\n'                                   ;
+			::string flag { snake(f) } ; for( char& c : flag ) if (c=='_') c = '-' ;
+			/**/                        ::cerr << '-'<<flags[+f].short_name<<" or --"<<setw(flag_sz)<<flag ;
+			if      (flags[+f].has_arg) ::cerr << " <arg>"                                                 ;
+			else if (has_arg          ) ::cerr << "      "                                                 ;
+			/**/                        ::cerr << " : "<<flags[+f].doc<<'\n'                               ;
 		}
 	}
 	exit(Rc::Usage) ;
@@ -128,15 +132,19 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 			if (!arg[1]) throw "unexpected lonely -"s ;
 			if (arg[1]=='-') {
 				// long option
-				if (arg[2]==0) { force_args = true ; continue ; }                             // a lonely --, options are no more recognized
+				if (arg[2]==0) { force_args = true ; continue ; }                                                     // a lonely --, options are no more recognized
 				::string    option ;
 				const char* p      ;
-				for( p=arg+2 ; *p && *p!='=' ; p++ ) option.push_back( *p=='-' ? '_' : *p ) ; // make snake case to use mk_enum while usual convention for options is to use '-'
+				for( p=arg+2 ; *p && *p!='=' ; p++ ) switch (*p) {
+					case '_' :                         throw "unexpected option (use -, not _, to separate words)"s ;
+					case '-' : option.push_back('_') ; break                                                        ; // make snake case to use mk_enum while usual convention for options is to use '-'
+					default  : option.push_back(*p ) ;
+				}
 				if (can_mk_enum<Key>(option)) {
 					Key k = mk_enum<Key>(option) ;
 					if (syntax.keys[+k].short_name) {
-						if (has_key) throw "cannot specify both --"s+option+" and --"+snake(key) ;
-						if (*p     ) throw "unexpected value for option --"s+option              ;
+						if (has_key) throw "cannot specify both --"+option+" and --"+snake(key) ;
+						if (*p     ) throw "unexpected value for option --"+option              ;
 						key     = k    ;
 						has_key = true ;
 						continue ;

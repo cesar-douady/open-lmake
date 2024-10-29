@@ -39,8 +39,8 @@ struct PatternDict {
 		/**/                                                 return NotFound   ;
 	}
 	void add( bool star , ::string const& key , MatchFlags const& val ) {
-		if (star) patterns.emplace_back( RegExpr(key,true/*fast*/,true/*no_group*/) , val ) ;
-		else      knowns  .emplace     (         key                                , val ) ;
+		if (star) patterns.emplace_back( key , val ) ;
+		else      knowns  .emplace     ( key , val ) ;
 	}
 	// data
 	::umap_s<MatchFlags>       knowns   = {} ;
@@ -68,9 +68,9 @@ struct Digest {
 	::string               msg     ;
 } ;
 
-Digest analyze(Status status=Status::New) {                                                                                                       // status==New means job is not done
+Digest analyze(Status status=Status::New) {                                                                                                         // status==New means job is not done
 	Trace trace("analyze",status,g_gather.accesses.size()) ;
-	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                         // typically most of accesses are deps
+	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                           // typically most of accesses are deps
 	Pdate  prev_first_read ;
 	Pdate  relax           = Pdate(New)+g_start_info.network_delay ;
 	//
@@ -78,28 +78,29 @@ Digest analyze(Status status=Status::New) {                                     
 		MatchFlags    flags = g_match_dct.at(file) ;
 		AccessDigest& ad    = info.digest          ;
 		switch (flags.is_target) {
-			// if Ignore is in flags, it is there since the beginning
+			// manage ignore flag if mentioned in the rule
 			case Yes   : ad.tflags |= flags.tflags() ; ad.extra_tflags |= flags.extra_tflags() ; if (flags.extra_tflags()[ExtraTflag::Ignore]) { ad.accesses = {} ; ad.write = No ; } break ;
 			case No    : ad.dflags |= flags.dflags() ; ad.extra_dflags |= flags.extra_dflags() ; if (flags.extra_dflags()[ExtraDflag::Ignore])   ad.accesses = {} ;                   break ;
 			case Maybe :                                                                       ;                                                                                      break ;
 		DF}
 		//
-		if (ad.write==Yes)                                                                                                                        // ignore reads after earliest confirmed write
+		if (ad.write==Yes)                                                                                                                          // ignore reads after earliest confirmed write
 			for( Access a : All<Access> )
 				if (info.read[+a]>info.write) ad.accesses &= ~a ;
-		::pair<Pdate,Access> first_read = info.first_read()                                                                                     ;
-		bool                 is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && +ad.accesses && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning
+		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                     ;
+		bool                   is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && +ad.accesses && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
-			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                                   // fast path : no matching, no pollution, no washing => forget it
+			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                                            // fast path : no matching, no pollution, no washing => forget it
 			)
 		;
 		// handle deps
 		if (is_dep) {
 			DepDigest dd { ad.accesses , info.dep_info , ad.dflags } ;
 			//
-			if ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = ~Accesses() ;
+			if      ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = ~Accesses() ; // StatReadData transforms stat access into full access
+			else if ( ad.dflags[Dflag::Static]  && ad.dflags[Dflag::Required]                ) dd.accesses = ~Accesses() ; // required static deps are deemed to be fully accessed
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
 			dd.hot          = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.date_prec) ;
@@ -117,8 +118,8 @@ Digest analyze(Status status=Status::New) {                                     
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (dd.hot) trace("dep   ",dd,flags,info.dep_info,first_read,g_start_info.date_prec,file) ;
-			else        trace("dep   ",dd,flags,                                                file) ;
+			if (dd.hot) trace("dep hot",dd,flags,info.dep_info,first_read,g_start_info.date_prec,file) ;
+			else        trace("dep    ",dd,flags,                                                file) ;
 		}
 		if (status==Status::New) continue ;            // we are handling chk_deps and we only care about deps
 		// handle targets
@@ -160,15 +161,14 @@ Digest analyze(Status status=Status::New) {                                     
 			if ( is_dep && !unlnk ) {
 				trace("dep_and_target",ad,flags) ;
 				if (!reported) {                                    // if dep and unexpected target, prefer unexpected message rather than this one
-					const char* read ;
-					switch (first_read.second) {
-						case Access::Lnk  : read = "readlink" ; break ;
-						case Access::Stat : read = "stat"     ; break ;
-						default           : read = "read"     ;
-					}
-					res.msg << read<<" as dep before being known as a target : "<<mk_file(file)<<'\n' ;
+					const char* read = nullptr ;
+					if      (ad.dflags[Dflag::Static]       ) read = "a static dep" ;
+					if      (first_read.second[Access::Reg ]) read = "read"         ;
+					else if (first_read.second[Access::Lnk ]) read = "readlink'ed"  ;
+					else if (first_read.second[Access::Stat]) read = "stat'ed"      ;
+					SWEAR(read) ;
+					res.msg << "file was "<<read<<" and later declared as target : "<<mk_file(file)<<'\n' ;
 				}
-				ad.tflags |= Tflag::Incremental ;                   // file will have a predictible content, no reason to wash it
 			}
 			if (written) {
 				if      ( unlnk                                               )                  td.crc = Crc::None    ;
@@ -176,24 +176,27 @@ Digest analyze(Status status=Status::New) {                                     
 				else if ( +crc                                                ) { td.sig = sig ; td.crc = crc          ; } // we already have a crc
 					res.crcs.emplace_back(res.targets.size()) ;                                                            // record index in res.targets for deferred (parallel) crc computation
 			}
-			if ( td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] && unlnk ) {                                         // target was expected but not produced
-				if ( td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ) {
-					if (status==Status::Ok) res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;    // if job is not ok, this is quite normal, else warn
-				} else {
-					td.tflags &= ~Tflag::Target ; // if created then unlinked, this is not a target unless static and non-optional or phony
-				}
-			}
+			if (
+				td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] // target is expected
+			&&	unlnk                                                                                                                      // but not produced
+			&&	status==Status::Ok                                                                                                         // and there no more important reason
+			)
+				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                                // warn specifically
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("target",ad,td,STR(unlnk),file) ;
+			trace("target ",ad,td,STR(unlnk),file) ;
 		} else if (!is_dep) {
 			trace("ignore",ad,file) ;
 		}
 	}
 	for( ::string const& t : g_washed ) if (!g_gather.access_map.contains(t)) {
+		using ETF = ExtraTflag ;
 		trace("wash",t) ;
-		res.targets.emplace_back( t , TargetDigest{.extra_tflags=ExtraTflag::Wash,.crc=Crc::None} ) ;
+		MatchFlags flags = g_match_dct.at(t) ;
+		if      (flags.is_target!=Yes             ) res.targets.emplace_back( t , TargetDigest{                          .extra_tflags=                     ETF::Wash , .crc=Crc::None } ) ;
+		else if (flags.extra_tflags()[ETF::Ignore]) {}
+		else                                        res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ETF::Wash , .crc=Crc::None } ) ;
 	}
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
@@ -201,13 +204,18 @@ Digest analyze(Status status=Status::New) {                                     
 
 ::vmap_s<DepDigest> cur_deps_cb() { return analyze().deps ; }
 
+::string g_to_unlnk ;                                                                                            // XXX : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line() {
 	::vector_s cmd_line = ::move(g_start_info.interpreter) ;                                                     // avoid copying as interpreter is used only here
 	if ( g_start_info.use_script || (g_start_info.cmd.first.size()+g_start_info.cmd.second.size())>ARG_MAX/2 ) { // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
+		// XXX : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
+		// correct code :
+		// ::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
+		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;
 		OFStream(dir_guard(cmd_file)) << g_start_info.cmd.first << g_start_info.cmd.second ;
 		cmd_line.reserve(cmd_line.size()+1) ;
-		cmd_line.push_back(::move(cmd_file)) ;
+		cmd_line.push_back(mk_abs(cmd_file,*g_root_dir_s)) ;                                                     // provide absolute script so as to support cwd
+		g_to_unlnk = ::move(cmd_file) ;
 	} else {
 		cmd_line.reserve(cmd_line.size()+2) ;
 		cmd_line.push_back( "-c"                                             ) ;
@@ -219,8 +227,8 @@ Digest analyze(Status status=Status::New) {                                     
 void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex ) {
 	static ::atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
-	Trace trace("crc",targets->size(),crcs->size()) ;
-	NodeIdx cnt = 0 ;                                           // cnt is for trace only
+	Trace trace("crc_thread_func",targets->size(),crcs->size()) ;
+	NodeIdx cnt = 0 ;                                             // cnt is for trace only
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
 		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ci]] ;
 		Pdate                   before = New                     ;
@@ -251,6 +259,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 }
 
 int main( int argc , char* argv[] ) {
+	set_env("GMON_OUT_PREFIX","gmon.out.job_exec") ;  // in case profiling is used, ensure unique gmon.out
 	Pdate        start_overhead = Pdate(New) ;
 	ServerSockFd server_fd      { New }      ;        // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
@@ -271,8 +280,8 @@ int main( int argc , char* argv[] ) {
 		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_root_dir_s)<<'\n' ;
 		goto End ;
 	}
-	Trace::s_sz = 10<<20 ;                                                                            // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                           // necessary to capture it using signalfd
+	Trace::s_sz = 10<<20 ;                                                                                 // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                                // necessary to capture it using signalfd
 	app_init(false/*read_only_ok*/,No/*chk_version*/) ;
 	//
 	{	Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
@@ -282,23 +291,24 @@ int main( int argc , char* argv[] ) {
 		bool found_server = false ;
 		try {
 			ClientSockFd fd {g_service_start,NConnectionTrials} ;
-			found_server = true ;
+			fd.set_timeout(Delay(100)) ;                                                                   // ensure we dont stay stuck in case server is in the coma ...
+			found_server = true ;                                                                          //  ... 100 = 100 simultaneous connections, 10 jobs/s
 			//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			/**/           OMsgBuf().send                ( fd , JobRpcReq{JobRpcProc::Start,g_seq_id,g_job,server_fd.port()} ) ;
 			g_start_info = IMsgBuf().receive<JobRpcReply>( fd                                                                ) ;
 			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
-			trace("no_server",g_service_start,STR(found_server),e) ;
-			if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
-			else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
+			trace("no_start_info",g_service_start,STR(found_server),e) ;
+			if (found_server) exit(Rc::Fail                                                       ) ;      // this is typically a ^C
+			else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ;      // this may be a server config problem, better to report
 		}
 		trace("g_start_info",Pdate(New),g_start_info) ;
 		switch (g_start_info.proc) {
-			case JobRpcProc::None  : return 0 ;                                                       // server ask us to give up
-			case JobRpcProc::Start : break    ;                                                       // normal case
+			case JobRpcProc::None  : return 0 ;                                                            // server ask us to give up
+			case JobRpcProc::Start : break    ;                                                            // normal case
 		DF}
-		try                       { g_start_info.job_space.chk() ;   }
-		catch (::string const& e) { end_report.msg += e ; goto End ; }
+		try                       { g_start_info.job_space.mk_canon(g_phy_root_dir_s) ; }
+		catch (::string const& e) { end_report.msg += e ; goto End ;                    }
 		//
 		g_root_dir_s = new ::string{ +g_start_info.job_space.root_view_s ? g_start_info.job_space.root_view_s : g_phy_root_dir_s } ;
 		//
@@ -383,6 +393,8 @@ int main( int argc , char* argv[] ) {
 		//              ^^^^^^^^^^^^^^^^^^^^^
 		struct rusage rsrcs ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;
+		//
 		Digest digest = analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
@@ -394,8 +406,6 @@ int main( int argc , char* argv[] ) {
 			g_nfs_guard.close() ;
 		}
 		//
-		try                       { g_start_info.exit() ;               }
-		catch (::string const& e) { exit(Rc::Fail,"cannot exit : ",e) ; }
 		if (g_gather.seen_tmp) {
 			if (!cmd_env.contains("TMPDIR"))
 				digest.msg << "accessed "<<no_slash(g_gather.autodep_env.tmp_dir_s)<<" without dedicated tmp dir\n" ;
@@ -423,16 +433,19 @@ int main( int argc , char* argv[] ) {
 		} ;
 	}
 End :
-	Trace trace("end",end_report.digest.status) ;
-	try {
-		ClientSockFd fd           { g_service_end , NConnectionTrials } ;
-		Pdate        end_overhead = New                                 ;
-		end_report.digest.stats.total = end_overhead - start_overhead ;                                    // measure overhead as late as possible
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		OMsgBuf().send( fd , end_report ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		trace("done",end_overhead) ;
-	} catch (::string const& e) { exit(Rc::Fail,"after job execution : ",e) ; }
+	{	Trace trace("end",end_report.digest.status) ;
+		try {
+			ClientSockFd fd           { g_service_end , NConnectionTrials } ;
+			Pdate        end_overhead = New                                 ;
+			end_report.digest.stats.total = end_overhead - start_overhead ;                                // measure overhead as late as possible
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send( fd , end_report ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			trace("done",end_overhead) ;
+		} catch (::string const& e) { exit(Rc::Fail,"after job execution : ",e) ; }
+	}
+	try                       { g_start_info.exit() ;                             }
+	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }
 	//
 	return 0 ;
 }

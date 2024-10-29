@@ -3,7 +3,12 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import os
+
 if __name__!='__main__' :
+
+	from step import rustup_home
+	os.environ['RUSTUP_HOME'] = rustup_home # set before importing lmake.rules so RustRule is correctly configured
 
 	import lmake
 	from lmake.rules import Rule,HomelessRule,RustRule
@@ -20,8 +25,8 @@ if __name__!='__main__' :
 	)
 
 	class CompileRust(HomelessRule,RustRule) :
-		targets      = { 'EXE'        :   '{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'                   }
-		side_targets = { 'SCRATCHPAD' : ( '{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , 'Incremental' ) }
+		targets      = { 'EXE'        :   r'{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'                   }
+		side_targets = { 'SCRATCHPAD' : ( r'{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , 'Incremental' ) }
 		deps    = {
 			'PKG' : '{Dir}{Module}/Cargo.toml'
 		,	'SRC' : '{Dir}{Module}/src/main.rs'
@@ -33,12 +38,12 @@ if __name__!='__main__' :
 		cmd          = 'cd  {Dir}{Module} ; cargo build'
 
 	class RunRust(RustRule) :
-		targets = { 'OUT' : '{Dir:.+/|}{Module:[^/]+}.out'        }
-		deps    = { 'EXE' : '{Dir}{Module}/target/debug/{Module}' }
+		targets = { 'OUT' : r'{Dir:.+/|}{Module:[^/]+}.out'        }
+		deps    = { 'EXE' : r'{Dir}{Module}/target/debug/{Module}' }
 		cmd     = './{EXE}'
 
 	class Cmp(Rule) :
-		target = '{File:.*}.ok'
+		target = r'{File:.*}.ok'
 		deps   = {
 			'OUT' : '{File}.out'
 		,	'REF' : '{File}.ref'
@@ -47,23 +52,27 @@ if __name__!='__main__' :
 
 else :
 
-	import os
+	import os.path as osp
+	import shutil
 	import subprocess as sp
 	import sys
 
 	import ut
+
+	cargo = shutil.which('cargo')
+	if not cargo :
+		print('cargo not available',file=open('skipped','w'))
+		exit()
+
+	rustup_home = osp.dirname(osp.dirname(osp.dirname(cargo)))+'/.rustup'
+	print(f'rustup_home={rustup_home!r}',file=open('step.py','w'))
 
 	sav = os.environ.get('LD_PRELOAD')
 	os.environ['LD_PRELOAD'] = 'libjemalloc.so'
 	has_jemalloc             = not sp.run(('/usr/bin/echo',),check=True,stderr=sp.PIPE).stderr
 	if sav is None : del os.environ['LD_PRELOAD']
 	else           :     os.environ['LD_PRELOAD'] = sav
-
-	try :
-		sp.check_output('cargo') # dont test rust if rust is not installed
-	except :
-		print('cargo not available',file=open('skipped','w'))
-		exit()
+	print(f'has_jemalloc={has_jemalloc}',file=open('step.py','a'))
 
 	os.makedirs('hello/src',exist_ok=True)
 	toml = open('hello/Cargo.toml','w')
@@ -93,12 +102,12 @@ else :
 	print('hello world',file=open('hello.in' ,'w'))
 	print('hello world',file=open('hello.ref','w'))
 
-	print(f'step=1 ; has_jemalloc={has_jemalloc}',file=open('step.py','w'))
+	print(f'step=1',file=open('step.py','a'))
 	ut.lmake( 'hello.ok' , done=3 , new=4 )
 
 	print(file=open('hello/src/main.rs','a'))
 	ut.lmake( 'hello.ok' , steady=1 , changed=1 ) # check cargo can run twice with no problem
 
-	print(f'step=2 ; has_jemalloc={has_jemalloc}',file=open('step.py','w'))
+	print(f'step=2',file=open('step.py','a'))
 	os.system('rm -rf hello/target hello.ok') # force cargo to regenerate everything
 	ut.lmake( 'hello.ok' , steady=1 )         # check ptrace works with cargo

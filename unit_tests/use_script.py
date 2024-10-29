@@ -10,38 +10,27 @@ if __name__!='__main__' :
 
 	lmake.manifest = (
 		'Lmakefile.py'
-	,	'hello'
-	,	'world'
+	,	'step-0'
 	)
 
-	class Cat(Rule) :
-		stems = {
-			'File1' : r'.*'
-		,	'File2' : r'.*'
-		}
-		deps = {
-			'FIRST'  : '{File1}'
-		,	'SECOND' : '{File2}'
-		}
+	class Step(Rule) :
 		use_script = True
+		target     = r'step-{Step:\d+}'
+		dep        = 'step-{int(Step)-1}'
+		cmd        = 'echo {Step}'
 
-	class CatSh(Cat) :
-		target = '{File1}+{File2}_sh'
-		cmd    = 'cat {FIRST} {SECOND}'
-
-	class CatPy(Cat,PyRule) :
-		target = '{File1}+{File2}_py'
-		def cmd() :
-			print(open(FIRST ).read(),end='')
-			print(open(SECOND).read(),end='')
+	class Test(Rule) :
+		target = r'test-{Step:\d+}'
+		dep    = 'step-{Step}'
+		cmd    = '[ $(cat) = {Step} ]'
 
 else :
 
 	import ut
 
-	print('hello',file=open('hello','w'))
-	print('world',file=open('world','w'))
+	print('0',file=open('step-0','w'))
 
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 )           # check targets are out of date
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 )           # check targets are up to date
-	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         )           # check reconvergence
+	n = 10
+
+	ut.lmake( f'step-{n}'                         , done=n , new=1 )
+	ut.lmake( *(f'test-{i+1}' for i in range(n) ) , done=n         )

@@ -3,25 +3,28 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# build command : cd docker ; docker build -f rocky9.docker -t rocky9 .
+# build command from top level : sudo docker build -f docker/rocky9.docker -t rocky9 docker
 
 FROM rockylinux:9
 
 RUN dnf update -y
 RUN dnf clean all
 
-RUN dnf install -y ed
-RUN dnf install -y git
-RUN dnf install -y autoconf
-RUN dnf install -y automake
-RUN dnf install -y epel-release
-RUN dnf install -y gcc-toolset-12
-RUN dnf install -y python3
-RUN dnf install -y python3-devel
-RUN dnf install -y --enablerepo=crb texinfo-tex
-RUN dnf install -y libseccomp
+# build a maximal environment
 
-#RUN dnf install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel
+# compulsery
+RUN dnf install -y epel-release
+RUN dnf install -y gcc gcc-c++
+RUN dnf install -y gcc-toolset-12
+RUN dnf install -y python3 python3-devel
+RUN dnf install -y git
+RUN dnf install -y --enablerepo=crb texinfo-tex m4
+#optional
+RUN dnf install -y libseccomp
+RUN dnf install -y strace
+RUN dnf install -y glibc-devel.i686 libgcc.i686 gcc-toolset-12-libstdc++-devel.i686
+RUN dnf install -y pcre2 pcre2-devel
+# RUN dnf install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
 USER    1001:1001

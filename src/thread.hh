@@ -193,6 +193,7 @@ public :
 	void wakeup() {
 		if (_active) return ;
 		Lock<ThreadMutex> lock{_mutex} ;
+		if (_active) return ;                  // repeat test so as to be atomic with decision
 		_active = true ;
 		_cond.notify_one() ;
 	}
@@ -266,12 +267,12 @@ private :
 						try         { if (!slaves.at(efd).receive_step(efd,r)) { trace("partial") ; continue ; } }
 						catch (...) {                                            trace("bad_msg") ; continue ;   } // ignore malformed messages
 						//
-						epoll.del(efd) ;                                               // Func may trigger efd being closed by another thread, hence epoll.del must be done before
+						epoll.del(efd) ;                 // Func may trigger efd being closed by another thread, hence epoll.del must be done before
 						slaves.erase(efd) ;
 						SlaveSockFd ssfd { efd }            ;
 						bool        keep = false/*garbage*/ ;
 						keep=func(stop,::move(r),ssfd) ;
-						if (keep) ssfd.detach() ;                                      // dont close ssfd if requested to keep it
+						if (keep) ssfd.detach() ;        // dont close ssfd if requested to keep it
 						trace("called",STR(keep)) ;
 					} break ;
 				DF}
@@ -300,5 +301,5 @@ public :
 	ServerSockFd fd ;
 private :
 	::latch   _ready  { 1 } ;
-	::jthread _thread ;       // ensure _thread is last so other fields are constructed when it starts
+	::jthread _thread ;                                  // ensure _thread is last so other fields are constructed when it starts
 } ;

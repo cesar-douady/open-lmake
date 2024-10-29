@@ -21,12 +21,12 @@ if __name__!='__main__' :
 	)
 
 	class Good(PyRule) :
-		target = 'good{Digit:\d+}'
+		target = r'good{Digit:\d+}'
 		def cmd() :
 			if int(Digit)==0 : print(step)
 
 	class Bad(Rule) :
-		target = 'bad{:\d+}'
+		target = r'bad{:\d+}'
 		cmd    = 'exit {step}'
 
 	class Critical(PyRule) :

@@ -1,3 +1,8 @@
+# This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Copyright (c) 2023 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
 '''
 	Handle local modules such that :
 	-	we do not access dirs, only candidate files
@@ -59,7 +64,7 @@ if 'importer_done' not in sys.__dict__ :
 		here  = frame.f_code.co_filename
 		while frame :
 			fileName = frame.f_code.co_filename
-			if fileName!=here and not re.match('^<frozen importlib\\..*>$',fileName) :
+			if fileName!=here and not re.match(r'^<frozen importlib\..*>$',fileName) :
 				return not isLocal(fileName)
 			frame = frame.f_back
 		assert False,'spontaneous call to import'

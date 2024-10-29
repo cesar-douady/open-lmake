@@ -140,8 +140,8 @@ namespace Engine {
 			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
 			fields[0] = "path_max"            ; if (py_map.contains(fields[0])) path_max               = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs          =                           +py_map[fields[0]]                          ;
-			fields[0] = "rules_module"        ; if (py_map.contains(fields[0])) rules_module           =                            py_map[fields[0]].as_a<Str  >()            ;
-			fields[0] = "sources_module"      ; if (py_map.contains(fields[0])) srcs_module            =                            py_map[fields[0]].as_a<Str  >()            ;
+			fields[0] = "has_split_rules"     ; if (py_map.contains(fields[0])) has_split_rules        =                           +py_map[fields[0]]                          ;
+			fields[0] = "has_split_srcs"      ; if (py_map.contains(fields[0])) has_split_srcs         =                           +py_map[fields[0]]                          ;
 			//
 			fields[0] = "link_support" ;
 			if (py_map.contains(fields[0])) {
@@ -168,6 +168,8 @@ namespace Engine {
 				}
 				fields[1] = "has_exec_time" ;
 				if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
+				fields[1] = "show_eta" ;
+				if (py_console.contains(fields[1])) console.show_eta      = +py_console[fields[1]] ;
 				fields.pop_back() ;
 			}
 			//
@@ -296,8 +298,6 @@ namespace Engine {
 		/**/                             res << "\tnetwork_delay       : " << network_delay .short_str() <<'\n' ;
 		if (path_max!=size_t(-1)       ) res << "\tpath_max            : " << size_t(path_max     )      <<'\n' ;
 		else                             res << "\tpath_max            : " <<        "<unlimited>"       <<'\n' ;
-		if (+rules_module              ) res << "\trules_module        : " <<        rules_module        <<'\n' ;
-		if (+srcs_module               ) res << "\tsources_module      : " <<        srcs_module         <<'\n' ;
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;
@@ -320,6 +320,7 @@ namespace Engine {
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
 		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
 		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
+		/**/                                res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
 		//
 		bool has_digits = false ; for( StdRsrc r : All<StdRsrc> ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
 		if (has_digits) {
@@ -360,7 +361,7 @@ namespace Engine {
 			}
 		}
 		//
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 
 	void Config::open(bool dynamic) {

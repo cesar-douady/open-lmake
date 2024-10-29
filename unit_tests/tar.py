@@ -25,8 +25,8 @@ if __name__!='__main__' :
 		''')
 	class Untar(PyRule) :
 		targets = {
-			'TARGET' : '{File:.*}.tardir/{*:.*}'
-		,	'PROTO'  : '{File:.*}.proto'
+			'TARGET' : r'{File:.*}.tardir/{*:.*}'
+		,	'PROTO'  : r'{File:.*}.proto'
 		}
 		deps = { 'TAR' : '{File}.tar' }
 		def cmd() :

@@ -6,17 +6,27 @@ __pycache__
 
 # directories
 *.dir
+*.trial
 /bin/
 /lib/
 
+# binaries
+/_bin/align_comments
+/_bin/job_exec
+/_bin/ldump
+/_bin/ldump_job
+/_bin/lmakeserver
+
 # doc
+/doc/info.texi
 /doc/lmake.html
+/doc/man/man1/*.1
 
 #auto-configuration
-/trial/
 /sys_config.*
 /sys_config_env
 /version.hh
+/Manifest
 
 # compiled files
 *.i
@@ -29,8 +39,7 @@ __pycache__
 *.stamp
 */stamp
 *.inc_stamp
-!/_bin/ut_launch
-/_bin
+*.dbg
 
 # tests
 tok
@@ -55,4 +64,10 @@ tok
 /debian/*debhelper*
 /debian/*substvars
 /debian/files
+/debian/changelog
 /debian/*/
+/open-lmake_*.build
+/open-lmake_*.buildinfo
+/open-lmake_*.changes
+/open-lmake_*.deb
+/debian-repo/

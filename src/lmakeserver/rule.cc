@@ -29,18 +29,7 @@ namespace Engine {
 
 	using namespace Disk ;
 	using namespace Py   ;
-	using namespace Re   ;
 	using namespace Time ;
-
-	static const ::string _g_re_specials = "()[]{}?*+-|^$\\.&~# \t\n\r\v\f" ;
-	static ::string _re_escape(::string const& s) {
-		::string res ; res.reserve(s.size()+(s.size()>>4)) ;        // take a little margin for escapes
-		for( char c : s ) {
-			if (_g_re_specials.find(c)!=Npos) res.push_back('\\') ; // escape specials
-			/**/                              res.push_back(c   ) ;
-		}
-		return res ;
-	}
 
 	static const ::string _g_fstr_specials = "{}" ;
 	static ::string _fstr_escape(::string const& s) {
@@ -162,7 +151,7 @@ namespace Engine {
 			} else {
 				switch (escape) {
 					case Escape::None :                                                   break ;
-					case Escape::Re   : if (_g_re_specials  .find(c)!=Npos) res += '\\' ; break ; // escape specials
+					case Escape::Re   : if (Re::SpecialChars.find(c)!=Npos) res += '\\' ; break ; // escape specials
 					case Escape::Fstr : if (_g_fstr_specials.find(c)!=Npos) res += c    ; break ; // double specials
 				DF}
 				res += c ;
@@ -184,6 +173,10 @@ namespace Engine {
 				cb(i,stem) ;
 			}
 		}
+	}
+	// provide shortcut when pos is unused
+	static void _parse_target( ::string const& str , ::function<string(VarIdx)> const& cb ) {
+		_parse_target( str , [&](FileNameIdx,VarIdx s)->::string { return cb(s) ; } ) ;
 	}
 
 	template<class F,class EF> static void _mk_flags( ::string const& key , Sequence const& py_seq , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags ) {
@@ -223,21 +216,19 @@ namespace Engine {
 		switch (sz) {
 			case 1 :
 			case 2 : return false ;
-			case 6 :
+			case 5 :
 				SWEAR(py_src[2].is_a<Py::Str>()) ;        // glbs
 				SWEAR(py_src[3].is_a<Py::Str>()) ;        // code
-				SWEAR(py_src[4].is_a<Py::Str>()) ;        // lmake_dir_var_name
-				SWEAR(py_src[5].is_a<Py::Str>()) ;        // dbg_info
+				SWEAR(py_src[4].is_a<Py::Str>()) ;        // dbg_info
 				return +py_src[3] ;
 		DF}
 	}
 
 	DynamicDskBase::DynamicDskBase( Py::Tuple const& py_src , ::umap_s<CmdIdx> const& var_idxs ) :
-		is_dynamic        { s_is_dynamic(py_src)                                   }
-	,	glbs_str          { is_dynamic      ? ::string(py_src[2].as_a<Py::Str>()) : ""s }
-	,	code_str          { is_dynamic      ? ::string(py_src[3].as_a<Py::Str>()) : ""s }
-	,	lmake_dir_var_name{ py_src.size()>4 ? ::string(py_src[4].as_a<Py::Str>()) : ""s }
-	,	dbg_info          { py_src.size()>5 ? ::string(py_src[5].as_a<Py::Str>()) : ""s }
+		is_dynamic { s_is_dynamic(py_src)                                        }
+	,	glbs_str   { is_dynamic      ? ::string(py_src[2].as_a<Py::Str>()) : ""s }
+	,	code_str   { is_dynamic      ? ::string(py_src[3].as_a<Py::Str>()) : ""s }
+	,	dbg_info   { py_src.size()>4 ? ::string(py_src[4].as_a<Py::Str>()) : ""s }
 	{
 		Py::Gil::s_swear_locked() ;
 		if (py_src.size()<=1) return ;
@@ -288,13 +279,6 @@ namespace Engine {
 		/**/    os << "R(" ;
 		if (+r) os << +r   ;
 		return  os << ')'  ;
-	}
-
-	void Rule::new_job_exec_time( Delay exec_time , Tokens1 tokens1 ) {
-		if((*this)->stats_weight<RuleWeight) (*this)->stats_weight++ ;
-		Delay delta = (exec_time-(*this)->exec_time) / (*this)->stats_weight ;
-		(*this)->exec_time += delta ;
-		for( Req req : Req::s_reqs_by_start ) req.inc_rule_exec_time(*this,delta,tokens1) ;
 	}
 
 	//
@@ -404,8 +388,8 @@ namespace Engine {
 		::string        base    = full_dep.substr(dir_s.size())                   ;
 		//
 		auto bad = [&] [[noreturn]] (::string const& msg) {
-			if (kind==DepKind::Dep) throw "dep "+key +" (" +dep_for_msg+") "+msg ;
-			else                    throw snake(kind)+" ("s+dep_for_msg+") "+msg ;
+			if (kind==DepKind::Dep) throw "dep "+key     +" ("+dep_for_msg+") "+msg ;
+			else                    throw snake_str(kind)+" ("+dep_for_msg+") "+msg ;
 		} ;
 		//
 		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(dir_s+base)) ;
@@ -471,27 +455,25 @@ namespace Engine {
 		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , DepSpec{parse_fstr(ds.txt,match),ds.dflags,ds.extra_dflags} ) ;
 		//
 		if (is_dynamic) {
-			try {
-				Gil         gil    ;
-				Ptr<Object> py_obj = _eval_code(match) ;
-				//
-				::map_s<VarIdx> dep_idxs ;
-				for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
-				if (*py_obj!=Py::None) {
-					if (!py_obj->is_a<Py::Dict>()) throw "type error : "s+py_obj->ob_type->tp_name+" is not a dict" ;
-					for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
-						if (py_val==None) continue ;
-						::string key = py_key.as_a<Str>() ;
-						Dflags      df  { Dflag::Essential , Dflag::Static } ;
-						ExtraDflags edf ; SWEAR(!(edf&~ExtraDflag::Top)) ;                                                                             // or we must review side_deps
-						::string    dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
-						_qualify_dep( key , DepKind::Dep , dep ) ;
-						DepSpec ds { dep , df , edf } ;
-						if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          } // dep cannot be both static and dynamic
-						else                                                          res[dep_idxs.at(key)].second = ds ;   // if not full_dynamic, all deps must be listed in spec
-					}
+			Gil         gil    ;
+			Ptr<Object> py_obj = _eval_code(match) ;
+			//
+			::map_s<VarIdx> dep_idxs ;
+			for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
+			if (*py_obj!=Py::None) {
+				if (!py_obj->is_a<Py::Dict>()) throw "type error : "s+py_obj->ob_type->tp_name+" is not a dict" ;
+				for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
+					if (py_val==None) continue ;
+					::string key = py_key.as_a<Str>() ;
+					Dflags      df  { Dflag::Essential , Dflag::Static } ;
+					ExtraDflags edf ; SWEAR(!(edf&~ExtraDflag::Top)) ;                                                                             // or we must review side_deps
+					::string    dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
+					_qualify_dep( key , DepKind::Dep , dep ) ;
+					DepSpec ds { dep , df , edf } ;
+					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          } // dep cannot be both static and dynamic
+					else                                                          res[dep_idxs.at(key)].second = ds ;   // if not full_dynamic, all deps must be listed in spec
 				}
-			} catch (::string const& e) { throw ::pair_ss(e/*msg*/,{}/*err*/) ; }
+			}
 		}
 		//
 		return res  ;
@@ -522,6 +504,31 @@ namespace Engine {
 	// Cmd
 	//
 
+	::string RuleData::gen_py_line( Job j , Rule::SimpleMatch& m/*lazy*/ , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const {
+		if (vc!=VarCmd::StarMatch) return key+" = "+mk_py_str(val)+'\n' ;
+		//
+		Rule           r    = +m ? m.rule : j->rule ;
+		::vector_s     args ;
+		::uset<VarIdx> seen ;
+		::string   expr = _subst_target(
+			matches[i].second.pattern
+		,	[&](VarIdx s)->::string {
+				bool first = seen.insert(s).second ;
+				::string k = stems[s].first        ;
+				if ( k.front()=='<' and k.back()=='>' )   k = k.substr(1,k.size()-2) ;
+				if ( s>=r->n_static_stems             ) { if (first) args.push_back(k)        ; return '{'+k+'}'                ; }
+				else                                    { if (!m   ) m = Rule::SimpleMatch(j) ; return _fstr_escape(m.stems[s]) ; } // solve lazy m
+			}
+		,	Escape::Fstr
+		) ;
+		::string res   = "def "+key+'(' ;
+		First    first ;
+		for( ::string const& a : args ) res <<first("",",")<<' '<<a<<' ' ;
+		res<<") : return f"<<mk_py_str(expr)<<'\n'    ;
+		res<<key<<".regexpr = "<<mk_py_str(val)<<'\n' ;
+		return res ;
+	}
+
 	void Cmd::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		::string raw_cmd ;
 		Attrs::acquire_from_dct( raw_cmd , *py_src , "cmd" ) ;
@@ -547,47 +554,26 @@ namespace Engine {
 				Attrs::acquire( cmd , &py_obj->as_a<Str>() ) ;
 			}
 			return {{}/*preamble*/,::move(cmd)} ;
-		}
-		::string res ;
-		eval_ctx( match , rsrcs
-		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
-				if (vc!=VarCmd::StarMatch) {
-					res+=key+" = "+mk_py_str(val)+'\n' ;
-					return ;
+		} else {
+			::string res ;
+			eval_ctx( match , rsrcs
+			,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
+					res += r->gen_py_line( match , vc , i , key , val ) ;
 				}
-				::vector_s args ;
-				::string expr = _subst_target(
-					r->matches[i].second.pattern
-				,	[&](VarIdx s)->::string {
-						::string k = r->stems[s].first ;
-						if ( k.front()=='<' and k.back()=='>' ) k = k.substr(1,k.size()-2) ;
-						if ( s>=r->n_static_stems             ) { args.push_back(k) ; return '{'+k+'}'                    ; }
-						else                                                          return _fstr_escape(match.stems[s]) ;
+			,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) -> void {
+					res<<key<<" = {\n" ;
+					bool f = true ;
+					for( auto const& [k,v] : val ) {
+						if (!f) res += ',' ;
+						res<<'\t'<<mk_py_str(k)<<" : "<<mk_py_str(v)<<'\n' ;
+						f = false ;
 					}
-				,	Escape::Fstr
-				) ;
-				res<<"def "<<key<<'(' ;
-				const char* sep = "" ;
-				for( ::string const& a : args ) {
-					res<<sep<<' ' <<a<<' ' ;
-					sep = "," ;
+					res += "}\n" ;
 				}
-				res<<") : return f"<<mk_py_str(expr)<<'\n'     ;
-				res<<key<<".regexpr = "<<mk_py_str(val )<<'\n' ;
-			}
-		,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) -> void {
-				res<<key<<" = {\n" ;
-				bool f = true ;
-				for( auto const& [k,v] : val ) {
-					if (!f) res += ',' ;
-					res<<'\t'<<mk_py_str(k)<<" : "<<mk_py_str(v)<<'\n' ;
-					f = false ;
-				}
-				res += "}\n" ;
-			}
-		) ;
-		res <<set_nl<< spec.cmd ;
-		return {append_dbg_info(res)/*preamble*/,"cmd()"} ;
+			) ;
+			res <<set_nl<< spec.cmd ;
+			return {append_dbg_info(res)/*preamble*/,"cmd()"} ;
+		}
 	}
 
 	::ostream& operator<<( ::ostream& os , DbgEntry const& de ) {
@@ -600,6 +586,12 @@ namespace Engine {
 	//
 
 	size_t RuleData::s_name_sz = 0 ;
+
+	void RuleData::MatchEntry::set_pattern( ::string&& p , VarIdx n_stems ) {
+		pattern  = ::move(p)                 ;
+		ref_cnts = ::vector<VarIdx>(n_stems) ;
+		_parse_target( pattern , [&](VarIdx s)->::string { ref_cnts[s]++ ; return {} ; } ) ;
+	}
 
 	static void _append_stem( ::string& target , VarIdx stem_idx ) {
 		::string s ; s.resize(sizeof(VarIdx)) ;
@@ -624,10 +616,11 @@ namespace Engine {
 				n_static_targets              = 1            ;
 				n_statics                     = 1            ;
 				allow_ext                     = true         ;                                 // sources may lie outside repo
-				stems           .emplace_back("",".*"                ) ;
-				stem_mark_counts.push_back   (0                      ) ;
-				matches         .emplace_back("",MatchEntry{job_name}) ;
-				_compile() ;
+				stems         .emplace_back("",".*"                ) ;
+				stem_mark_cnts.push_back   (0                      ) ;
+				matches       .emplace_back("",MatchEntry{job_name}) ;
+				_set_crcs() ;
+				_compile () ;
 			break ;
 		DF}
 	}
@@ -693,7 +686,7 @@ namespace Engine {
 			field = "__special__" ;
 			if (dct.contains(field)) {
 				special = mk_enum<Special>(dct[field].as_a<Str>()) ;
-				if (special<=Special::Shared) throw "unexpected value for __special__ attribute : "+snake(special) ;
+				if (special<=Special::Shared) throw "unexpected value for __special__ attribute : "s+snake(special) ;
 			} else {
 				special = Special::Plain ;
 			}
@@ -794,7 +787,9 @@ namespace Engine {
 					Dflags          dflags             ;
 					ExtraTflags     extra_tflags       ;
 					ExtraDflags     extra_dflags       ;
-					//
+					// ignore side_targets and side_deps for source and anti-rules
+					// this is meaningless, but may be inherited for stems, typically as a PyRule
+					if ( !is_official_target && is_special() ) continue ;
 					// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 					if (target==job_name) {
 						if (job_name_is_star) is_star = true ;
@@ -810,7 +805,7 @@ namespace Engine {
 								}
 								auto it = stem_stars.find(k) ;
 								if ( it==stem_stars.end() || it->second==Yes )
-									throw stem_words(k,star,unnamed)+" appears in "+snake(kind)+" but not in "+job_name_msg+", consider using "+k+'*';
+									throw stem_words(k,star,unnamed)+" appears in "s+snake(kind)+" but not in "+job_name_msg+", consider using "+k+'*';
 								if (is_official_target)
 									missing_stems.erase(k) ;
 							}
@@ -822,16 +817,15 @@ namespace Engine {
 					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
 					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)                                ) throw snake(kind)+" must be relative to root dir : "s                    +target ;
-					if ( !is_lcl(target)                                               ) throw snake(kind)+" must be local : "s                                   +target ;
-					if ( !is_canon(target)                                             ) throw snake(kind)+" must be canonical : "s                               +target ;
+					if ( target.starts_with(root_dir_s)                                ) throw snake_str(kind)+" must be relative to root dir : "                 +target ;
+					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                                +target ;
+					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                            +target ;
 					if ( +missing_stems                                                ) throw "missing stems "+fmt_string(missing_stems)+" in "+snake(kind)+" : "+target ;
-					if ( !is_official_target                   && is_special()         ) throw "flags are meaningless for source and anti-rules"s                         ;
 					if (  is_star                              && is_special()         ) throw "star "s+snake(kind)+"s are meaningless for source and anti-rules"         ;
 					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                              ;
 					if ( tflags      [Tflag     ::Incremental] && is_stdout            ) throw "stdout cannot be directed to an incremental target"s                      ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && is_star              ) throw "star targets are natively optional"                                       ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony"                              ;
+					if ( extra_tflags[ExtraTflag::Optional   ] && is_star              ) throw "star targets are natively optional : "                            +target ;
+					if ( extra_tflags[ExtraTflag::Optional   ] && tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony : "                   +target ;
 					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;
@@ -853,8 +847,11 @@ namespace Engine {
 			for( bool star : {false,true} ) {                                                                            // keep only useful stems and order them : static first, then star
 				for( auto const& [k,v] : stem_stars ) {
 					if (v==(No|!star)) continue ;                                                                        // stems that are both static and start appear twice
+					::string const& s = stem_defs.at(k) ;
 					stem_idxs.emplace     ( k+" *"[star] , VarIdx(stems.size()) ) ;
-					stems    .emplace_back( k            , stem_defs.at(k)      ) ;
+					stems    .emplace_back( k            , s                    ) ;
+					try         { stem_mark_cnts.push_back(Re::RegExpr(s).mark_count()) ; }
+					catch (...) { throw "bad regexpr for stem "+k+" : "+s ;               }
 				}
 				if (!star) n_static_stems = stems.size() ;
 			}
@@ -879,11 +876,11 @@ namespace Engine {
 				MatchEntry& me = matches[mi].second ;
 				// avoid processing target if it is identical to job_name
 				// this is not an optimization, it is to ensure unnamed_star_idx's match
-				if (me.pattern==job_name) me.pattern = new_job_name ;
+				if (me.pattern==job_name) me.set_pattern(new_job_name,stems.size()) ;
 				else {
 					mk_tgt.clear() ;
 					_parse_py( me.pattern , &unnamed_star_idx , mk_fixed , mk_stem ) ;
-					me.pattern = ::move(mk_tgt) ;
+					me.set_pattern(::move(mk_tgt),stems.size()) ;
 				}
 				for( VarIdx mi2=0 ; mi2<mi ; mi2++ )
 					if ( _may_conflict( n_static_stems , me.pattern , matches[mi2].second.pattern ) ) { trace("conflict",mi,mi2) ; me.conflicts.push_back(mi2) ; }
@@ -900,7 +897,6 @@ namespace Engine {
 			field = "force"            ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field]              ) ;
 			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field]              ) ; else throw "not found"s ;
 			field = "max_submit_count" ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] , uint8_t(1) ) ;
-			field = "n_tokens"         ; if (dct.contains(field)) Attrs::acquire( n_tokens  , &dct[field]              ) ;
 			//
 			/**/                                          var_idxs["targets"        ] = { VarCmd::Targets                              , 0  } ;
 			for( VarIdx mi=0 ; mi<matches.size() ; mi++ ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
@@ -911,7 +907,6 @@ namespace Engine {
 			/**/                                                    var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
 			for( VarIdx d=0 ; d<deps_attrs.spec.deps.size() ; d++ ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
-			field = "create_none_attrs"  ; if (dct.contains(field)) create_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs } ;
 			field = "cache_none_attrs"   ; if (dct.contains(field)) cache_none_attrs   = { dct[field].as_a<Tuple>() , var_idxs } ;
 			field = "submit_rsrcs_attrs" ; if (dct.contains(field)) submit_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs } ;
 			field = "submit_none_attrs"  ; if (dct.contains(field)) submit_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs } ;
@@ -941,49 +936,62 @@ namespace Engine {
 		catch(::string const& e) { throw "while processing "+name+'.'+field+" :\n"+indent(e) ; }
 	}
 
-	TargetPattern RuleData::_mk_pattern( ::string const& target , bool for_name ) const {
+	TargetPattern RuleData::_mk_pattern( MatchEntry const& me , bool for_name ) const {
 		// Generate and compile Python pattern
 		// target has the same syntax as Python f-strings except expressions must be named as found in stems
 		// we transform that into a pattern by :
 		// - escape specials outside keys
 		// - transform f-string syntax into Python regexpr syntax
-		// for example "a{b}c.d" with stems["b"]==".*" becomes "a(?P<_0>.*)c\.d"
-		// remember that what is stored in targets is actually a stem idx, not a stem key
-		//
+		// for example "a{b}c.d" with stems["b"]==".*" becomes "a(.*)c\.d"
 		TargetPattern res       ;
 		VarIdx        cur_group = 1 ;
-		//
-		res.groups.resize(stems.size()) ;
-		res.txt = _subst_target(
-			target
+		res.groups = ::vector<uint32_t>(stems.size()) ;
+		res.txt    = _subst_target(
+			me.pattern
 		,	[&](VarIdx s)->::string {
 				if ( s>=n_static_stems && for_name ) {
 					::string const& k = stems[s].first ;
-					if (k.front()=='<'&&k.back()=='>' ) return _re_escape("{*}"     ) ; // when matching on job name, star stems are matched as they are reported to user
-					else                                return _re_escape('{'+k+"*}") ; // .
+					if (k.front()=='<'&&k.back()=='>' ) return Re::escape("{*}"     ) ; // when matching on job name, star stems are matched as they are reported to user
+					else                                return Re::escape('{'+k+"*}") ; // .
 				}
-				if (res.groups[s]) return "(?:\\"s+int(res.groups[s])+')' ;             // already seen, we must protect against following text potentially containing numbers
-				res.groups[s]  = cur_group             ;
-				cur_group     += 1+stem_mark_counts[s] ;
-				return '('+stems[s].second+')' ;
+				if (res.groups[s]) return "(?:\\"s+res.groups[s]+')' ;                  // already seen, we must protect against following text potentially containing numbers
+				bool capture = s<n_static_stems || me.ref_cnts[s]>1 ;                   // star stems are only captured if back referenced
+				if (capture) res.groups[s] = cur_group ;
+				cur_group += capture+stem_mark_cnts[s] ;
+				return (capture?"(":"(?:")+stems[s].second+')' ;
 			}
 		,	Escape::Re
 		) ;
-		res.re = RegExpr( res.txt , true/*fast*/ ) ;                                    // stem regexprs have been validated, normally there is no error here
+		res.re = res.txt ;                                                              // stem regexprs have been validated, normally there is no error here
 		return res ;
+	}
+
+	void RuleData::new_job_report( Delay exec_time , CoarseDelay cost , Tokens1 tokens1 ) const {
+		if (stats_weight<RuleWeight) stats_weight++ ;
+		//
+		Delay::Tick cost_per_token_delta = Delay(cost).val()/(tokens1+1) - cost_per_token.val() ;
+		Delay::Tick exec_time_delta      = exec_time  .val()             - exec_time     .val() ;
+		int64_t     tokens1_32_delta     = (uint64_t(tokens1)<<32)       - tokens1_32           ;
+		//
+		cost_per_token += Delay(New,cost_per_token_delta/stats_weight) ;
+		exec_time      += Delay(New,exec_time_delta     /stats_weight) ;
+		tokens1_32     +=           tokens1_32_delta    /stats_weight  ;
+	}
+
+	CoarseDelay RuleData::cost() const {                          // compute cost_per_tokens * tokens, but takes care of the details
+		uint64_t    t_16   = (tokens1_32>>16)+(uint64_t(1)<<16) ;
+		Delay::Tick cpt_16 = cost_per_token.val()>>16           ;
+		return Delay(New,t_16*cpt_16) ;
 	}
 
 	void RuleData::_compile() {
 		try {
-			for( auto const& [k,s] : stems )
-				try         { stem_mark_counts.push_back(RegExpr(s).mark_count()) ; }
-				catch (...) { throw "bad regexpr for stem "+k+" : "+s ;  }
 			// job_name & targets
-			/**/                                job_name_pattern = _mk_pattern(job_name  ,true /*for_name*/)  ;
-			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me.pattern,false/*for_name*/)) ;
-			_set_crcs() ;
+			MatchEntry job_name_match_entry ; job_name_match_entry.set_pattern(job_name,stems.size()) ;
+			job_name_pattern = _mk_pattern(job_name_match_entry,true /*for_name*/)  ;
+			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/ )) ;
+			//
 			deps_attrs        .compile() ;
-			create_none_attrs .compile() ;
 			cache_none_attrs  .compile() ;
 			submit_rsrcs_attrs.compile() ;
 			submit_none_attrs .compile() ;
@@ -1006,7 +1014,7 @@ namespace Engine {
 		for( auto const& [k,_] : m ) wk = ::max(wk,k.size()) ;
 		for( auto const& [k,v] : m ) if ( !uniq || keys.insert(k).second ) res << ::string(i,'\t') << ::setw(wk)<<k <<" : "<< v <<'\n' ;
 		//
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 
 	static ::string _pretty_views( size_t i , ::vmap_s<JobSpace::ViewDescr> const& m ) {
@@ -1025,7 +1033,7 @@ namespace Engine {
 			}
 			res <<'\n' ;
 		}
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty_fstr( ::string const& fstr , RuleData const& rd ) {
 			::string res ;
@@ -1138,7 +1146,7 @@ namespace Engine {
 				,'\n')
 			,	i+1
 			) ;
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty_sigs( ::vector<uint8_t> const& sigs ) {
 		::string        res  ;
@@ -1185,11 +1193,7 @@ namespace Engine {
 			else        res <<             patterns[k]          ;
 			/**/        res <<'\n' ;
 		}
-		return res.str() ;
-	}
-	static ::string _pretty( size_t i , CreateNoneAttrs const& sna ) {
-		if (sna.tokens1) return ::string(i,'\t')+"job_tokens : "+(sna.tokens1+1)+'\n' ;
-		else             return {}                                                    ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty( size_t i , CacheNoneAttrs const& cna ) {
 		if (+cna.key) return ::string(i,'\t')+"key : "+cna.key+'\n' ;
@@ -1220,7 +1224,7 @@ namespace Engine {
 			/**/                     res <<'\n'           ;
 		}
 		//
-		return indent(res.str(),i) ;
+		return indent(::move(res).str(),i) ;
 	}
 	static ::string _pretty( size_t i , StartCmdAttrs const& sca ) {
 		size_t        key_sz = 0 ;
@@ -1245,7 +1249,7 @@ namespace Engine {
 		}
 		if (+sca.job_space.views) res << indent("views :\n"  ,i) << _pretty_views( i+1 , sca.job_space.views ) ;
 		if (+sca.env            ) res << indent("environ :\n",i) << _pretty_env  ( i+1 , sca.env             ) ;
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {
 		if (!c.cmd      ) return {}                                          ;
@@ -1262,7 +1266,7 @@ namespace Engine {
 		#pragma GCC diagnostic pop
 		/**/              res << _pretty_vmap(i,entries)                                 ;
 		if (+sra.env    ) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env ) ;
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty( size_t i , StartNoneAttrs const& sna ) {
 		OStringStream res     ;
@@ -1272,7 +1276,7 @@ namespace Engine {
 		if (+sna.kill_sigs  ) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
 		/**/              res << _pretty_vmap(i,entries)                                     ;
 		if (+sna.env    ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env ) ;
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 	static ::string _pretty( size_t i , EndCmdAttrs const& eca ) {
 		::vmap_ss entries ;
@@ -1308,8 +1312,7 @@ namespace Engine {
 		switch (special) {
 			case Special::Anti       : res <<" AntiRule"   ; break ;
 			case Special::GenericSrc : res <<" SourceRule" ; break ;
-			default : ;
-		}
+		DN}
 		res << '\n' ;
 		if (prio  ) entries.emplace_back( "prio"     , ::to_string(prio)              ) ;
 		/**/        entries.emplace_back( "job_name" , _pretty_job_name(*this)        ) ;
@@ -1317,14 +1320,12 @@ namespace Engine {
 		if (!is_special()) {
 			if (force      ) entries.emplace_back( "force"            , fmt_string (force    ) ) ;
 			if (n_submits  ) entries.emplace_back( "max_submit_count" , ::to_string(n_submits) ) ;
-			if (n_tokens!=1) entries.emplace_back( "n_tokens"         , ::to_string(n_tokens ) ) ;
 		}
 		res << _pretty_vmap(1,entries) ;
 		if (+stems) res << indent("stems :\n",1) << _pretty_vmap   (      2,stems,true/*uniq*/) ;
 		/**/        res <<                          _pretty_matches(*this,1,matches           ) ;
 		if (!is_special()) {
 			res << _pretty_str(1,deps_attrs        ,*this) ;
-			res << _pretty_str(1,create_none_attrs       ) ;
 			res << _pretty_str(1,cache_none_attrs        ) ;
 			res << _pretty_str(1,submit_rsrcs_attrs      ) ;
 			res << _pretty_str(1,submit_none_attrs       ) ;
@@ -1336,7 +1337,7 @@ namespace Engine {
 			res << _pretty_str(1,end_none_attrs          ) ;
 		}
 		//
-		return res.str() ;
+		return ::move(res).str() ;
 	}
 
 	::vector_s RuleData::_list_ctx(::vector<CmdIdx> const& ctx) const {
@@ -1415,19 +1416,19 @@ namespace Engine {
 		}
 	}
 
-	Rule::SimpleMatch::SimpleMatch( Rule r , TargetPattern const& pattern , ::string const& name ) {
-		Trace trace("SimpleMatch",r,name) ;
-		Match m = pattern.match(name) ;
+	Rule::SimpleMatch::SimpleMatch( Rule r , TargetPattern const& pattern , ::string const& name , bool chk_psfx ) {
+		Trace trace("SimpleMatch",r,name,STR(chk_psfx)) ;
+		Re::Match m = pattern.match(name,chk_psfx) ;
 		if (!m) { trace("no_match") ; return ; }
 		rule = r ;
 		for( VarIdx s=0 ; s<r->n_static_stems ; s++ ) stems.push_back(::string(m[pattern.groups[s]])) ;
 		trace("stems",stems) ;
 	}
 
-	Rule::SimpleMatch::SimpleMatch( RuleTgt rt , ::string const& target ) : SimpleMatch{rt,rt.pattern(),target} {
+	Rule::SimpleMatch::SimpleMatch( RuleTgt rt , ::string const& target , bool chk_psfx ) : SimpleMatch{rt,rt.pattern(),target,chk_psfx} {
 		if (!*this) return ;
 		for( VarIdx t : rt->matches[rt.tgt_idx].second.conflicts ) {
-			if (!rt->patterns[t].match(target)) continue ;
+			if (!rt->patterns[t].match(target,true/*chk_psfx*/)) continue ;
 			rule .clear() ;
 			stems.clear() ;
 			Trace("SimpleMatch","conflict",rt.tgt_idx,t) ;
@@ -1459,13 +1460,18 @@ namespace Engine {
 	::vector_s Rule::SimpleMatch::star_patterns() const {
 		::vector_s res ; res.reserve(rule->matches.size()-rule->n_statics) ;
 		for( VarIdx t=rule->n_statics ; t<rule->matches.size() ; t++ ) {
-			::uset<VarIdx> seen ;
+			size_t                      cur_group = 1                       ;
+			::vector<uint32_t>          groups    (rule->stems.size())      ;   // used to set back references
+			RuleData::MatchEntry const& me        = rule->matches[t].second ;
 			res.push_back(_subst_target(
-				rule->matches[t].second.pattern
+				me.pattern
 			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return _re_escape(stems[s]) ;
-					if (seen.insert(s).second ) return '('     +rule->stems[s].second      +')' ;
-					else                        return "(?:\\"s+rule->patterns[t].groups[s]+')' ; // we must protect against following text potentially containing numbers
+					if (s<rule->n_static_stems) return Re::escape(stems[s])   ;
+					if (groups[s]             ) return "(?:\\"s+groups[s]+')' ; // enclose in () to protect against following text potentially containing numbers
+					bool capture = me.ref_cnts[s]>1 ;
+					if (capture) groups[s] = cur_group ;
+					cur_group += capture+rule->stem_mark_cnts[s] ;
+					return (capture?"(":"(?:")+rule->stems[s].second+')' ;
 				}
 			,	Escape::Re
 			)) ;
@@ -1480,7 +1486,7 @@ namespace Engine {
 			res.push_back(_subst_target(
 				rule->matches[mi].second.pattern
 			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return _re_escape(stems[s]) ;
+					if (s<rule->n_static_stems) return Re::escape(stems[s]) ;
 					::pair_ss const& stem = rule->stems[s] ;
 					if      ( !seen.insert(s).second                            ) return "(?P="+stem.first                +')' ;
 					else if ( stem.first.front()=='<' && stem.first.back()=='>' ) return '('   +               stem.second+')' ; // stem is unnamed

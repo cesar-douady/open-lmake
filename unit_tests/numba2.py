@@ -8,16 +8,24 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,_lmake_dir,root_dir
 
-	lmake.manifest = ('Lmakefile.py',)
+	from step import numba_home
 
-	lmake.config.backends.slurm = {
-		'n_max_queued_jobs' : 10
-	}
+	lmake.manifest = (
+		'Lmakefile.py'
+	,	'step.py'
+	)
+
+	if 'slurm' in lmake.backends :
+		lmake.config.backends.slurm = {
+			'n_max_queued_jobs' : 10
+		}
 
 	class TestNumba(Rule):
-		target  = 'dut'
-		autodep = 'ld_preload'
-		backend = 'slurm'
+		target      = 'dut'
+		autodep     = 'ld_preload'
+		environ_cmd = { 'PYTHONPATH' : numba_home+':...' } # ... stands for inherited value
+		if 'slurm' in lmake.backends :
+			backend = 'slurm'
 		resources = {
 			'cpu' : 1
 		,	'mem' : '256M'
@@ -33,10 +41,22 @@ if __name__!='__main__' :
 
 else :
 
+	import os
+	import os.path as osp
+	import sys
+
 	import ut
+
+	if 'VIRTUAL_ENV' in os.environ :                                                                                              # manage case where numba is installed in an activated virtual env
+		sys.path.append(f'{os.environ["VIRTUAL_ENV"]}/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')
 
 	try :
 		import numba
-		ut.lmake('dut',done=1)
 	except :
-		print('numba not available',open('skipped','w'))
+		print('numba not available',file=open('skipped','w'))
+		exit()
+
+	numba_home = osp.dirname(osp.dirname(numba.__file__))
+	print(f'numba_home={numba_home!r}',file=open('step.py','w'))
+
+	ut.lmake('dut',done=1)

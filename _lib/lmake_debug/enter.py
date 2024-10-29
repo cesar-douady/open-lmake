@@ -3,6 +3,17 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+'''
+	This module is meant to be used to generate debug scripts.
+	The generated script does not run jobs, but opens a shell in the same environment as the job.
+	This includes :
+	- environment variables
+	- chroot dir
+	- root_view mapping
+	- tmp_view mapping
+	- views mapping
+'''
+
 import os
 
 from .utils import Job,mk_shell_str

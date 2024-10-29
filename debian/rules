@@ -2,25 +2,29 @@
 # -*- makefile -*-
 
 # Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
+#export DH_VERBOSE = 1
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-%:
+% :
 	dh $@
 
-override_dh_auto_build:
+override_dh_auto_build :
 	make LMAKE
 
-override_dh_auto_install:
-	dh_auto_install -- prefix=/usr
+override_dh_auto_install :
+	dh_auto_install
 
-override_dh_strip:
+override_dh_strip :
 	dh_strip --no-automatic-dbgsym
 
-override_dh_makeshlibs:
-	dh_makeshlibs -X/usr/lib/open-lmake/_lib/ld_audit.so -X/usr/lib/open-lmake/_lib/ld_preload.so -X/usr/lib/open-lmake/lib/clmake.so
+# stupid debian does not understand debug symbol files, filter them out
+override_dh_shlibdeps :
+	dh_shlibdeps -X.dbg
 
-override_dh_dwz:
+override_dh_makeshlibs :
+# Do nothing
+
+override_dh_dwz :
 # Do nothing
 

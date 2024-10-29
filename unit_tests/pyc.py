@@ -19,6 +19,7 @@ if __name__!='__main__' :
 		target ='dut'
 		python = (sys.executable,'-B')
 		def cmd():
+			sys.path.append('.') # ensure mod can be founded even if executed with use_script=True
 			import mod
 
 else :

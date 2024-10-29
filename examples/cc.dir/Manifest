@@ -3,23 +3,15 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-if __name__!='__main__' :
+# in a real world, repository is managed by source version control tool such as git and this file is not necessary
 
-	import lmake
+Manifest     # Manifest itself is a source
+Lmakefile.py # as well as Lmakefile.py
 
-	from lmake.rules import Rule
-
-	lmake.manifest = ('Lmakefile.py',)
-
-	class PyEnv(Rule) :
-		targets = { 'DST' : 'py_env/{*:.*}' }
-		cmd = '''
-			python3 -m venv py_env
-			. py_env/bin/activate
-		'''
-
-else :
-
-	import ut
-
-	ut.lmake('py_env/pyvenv.cfg',done=1)
+hello.h
+hello.c
+world.h
+world.c
+hello_world.c
+hello_world.olst
+hello_world.regr

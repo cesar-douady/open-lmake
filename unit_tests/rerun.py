@@ -15,7 +15,7 @@ if __name__!='__main__' :
 		cmd    = 'echo dut'
 
 	class Cpy(Rule) :
-		target           = '{File:.*}.cpy'
+		target           = r'{File:.*}.cpy'
 		max_submit_count = 1
 		allow_stderr     = True
 		cmd              = ' cat {File} ; : '
@@ -29,4 +29,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'dut.ok' , may_rerun=1 , done=1 , submit_loop=1 , was_done=1 , rc=1 )
+	ut.lmake( 'dut.ok' , may_rerun=1 , done=1 , submit_loop=1 , rc=1 )

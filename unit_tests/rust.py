@@ -5,31 +5,37 @@
 
 if __name__!='__main__' :
 
+	import os
+
+	from step import rustup_home
+	os.environ['RUSTUP_HOME'] = rustup_home # set before importing lmake.rules so RustRule is correctly configured
+
 	import lmake
 	from lmake.rules import Rule,AntiRule,RustRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
+	,	'step.py'
 	,	'hello.rs'
 	,	'hello.in'
 	,	'hello.ref'
 	)
 
 	class CompileRust(RustRule) :
-		targets = { 'EXE' : '{File:.*}' }
-		deps    = { 'SRC' : '{File}.rs' }
-		cmd     = 'rustc -g -o {EXE} {SRC}'
+		targets = { 'EXE' : r'{File:.*}' }
+		deps    = { 'SRC' :  '{File}.rs' }
+		cmd     = 'rustc -g -o {EXE} {SRC}' # adequate path is set up by RustRule from $RUSTUP_HOME
 
 	class AntiRustRust(AntiRule) :
-		target = '{:.*}.rs.rs'
+		target = r'{:.*}.rs.rs'
 
 	class RunRust(RustRule) :
-		targets = { 'OUT' : '{File:.*}.out' }
-		deps    = { 'EXE' : '{File}'        }
+		targets = { 'OUT' : r'{File:.*}.out' }
+		deps    = { 'EXE' :  '{File}'        }
 		cmd     = './{EXE} {File}.in {OUT}'
 
 	class Cmp(Rule) :
-		target = '{File:.*}.ok'
+		target = r'{File:.*}.ok'
 		deps   = {
 			'OUT' : '{File}.out'
 		,	'REF' : '{File}.ref'
@@ -38,15 +44,20 @@ if __name__!='__main__' :
 
 else :
 
+	import os.path as osp
+	import shutil
 	import subprocess as sp
 	import sys
 
 	import ut
 
-	try    : sp.check_output('rustc') # dont test rust if rust in not installed
-	except :
+	rustc = shutil.which('rustc')
+	if not rustc :
 		print('rustc not available',file=open('skipped','w'))
 		exit()
+
+	rustup_home = osp.dirname(osp.dirname(osp.dirname(rustc)))+'/.rustup'
+	print(f'rustup_home={rustup_home!r}',file=open('step.py','w'))
 
 	print('''
 

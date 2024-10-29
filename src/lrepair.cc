@@ -14,6 +14,7 @@ using namespace Disk ;
 using namespace Engine ;
 
 int main( int argc , char* /*argv*/[] ) {
+	set_env("GMON_OUT_PREFIX","gmon.out.lrepair") ;                // in case profiling is used, ensure unique gmon.out
 	::string admin_dir_s = AdminDirS ;
 	//
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;

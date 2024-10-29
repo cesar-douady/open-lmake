@@ -5,11 +5,6 @@
 
 import lmake
 
-autodeps = []
-if lmake.has_ptrace     : autodeps.append('ptrace'    )
-if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
-if lmake.has_ld_preload : autodeps.append('ld_preload')
-
 if __name__!='__main__' :
 
 	import sys
@@ -37,7 +32,7 @@ if __name__!='__main__' :
 		dep    = 'dly'                                         # ensure hello construction does not start too early, so that we are sure that we have may_rerun messages, not rerun
 		cmd    = f'echo hello.{step.p>=2}.{step.link_support}'
 
-	for ad in autodeps :
+	for ad in lmake.autodeps :
 		class CpyShAcc(Base) :
 			name    = f'cpy-sh-acc-{ad}'
 			autodep = ad
@@ -69,7 +64,7 @@ else :
 
 	import ut
 
-	n_ads = len(autodeps)
+	n_ads = len(lmake.autodeps)
 
 	#
 	for ls in ('none','file','full') :
@@ -84,7 +79,7 @@ else :
 			print(f'p={p!r}\nlink_support={ls!r}',file=open('step.py','w'))
 			# rerun versus may_rerun is timing dependent, but the sum is predictible
 			cnts = ut.lmake(
-				*( f'hello.{interp}.{cmd}.{ad}.{ls}.cpy' for interp in ('sh','py') for cmd in ('acc','dep') for ad in autodeps )
+				*( f'hello.{interp}.{cmd}.{ad}.{ls}.cpy' for interp in ('sh','py') for cmd in ('acc','dep') for ad in lmake.autodeps )
 			,	may_rerun=... , rerun=... , done=... , steady=...
 			)
 			assert cnts.done+cnts.steady     == (p==0)+(p!=1)+(p!=1)*4*n_ads

@@ -46,8 +46,8 @@ int main( int argc , char* argv[]) {
 	//
 	bool         no_follow = !cmd_line.flags[Flag::FollowSymlinks] ;
 	bool         verbose   =  cmd_line.flags[Flag::Verbose       ] ;
-	AccessDigest ad        = { .accesses=~Accesses() }             ;
-	if ( cmd_line.flags[Flag::NoRead      ]) ad.accesses      = {}                       ;
+	AccessDigest ad        ;
+	if (!cmd_line.flags[Flag::NoRead      ]) ad.accesses      = ~Accesses()              ;
 	if ( cmd_line.flags[Flag::Critical    ]) ad.dflags       |= Dflag     ::Critical     ;
 	if ( cmd_line.flags[Flag::Essential   ]) ad.dflags       |= Dflag     ::Essential    ;
 	if ( cmd_line.flags[Flag::IgnoreError ]) ad.dflags       |= Dflag     ::IgnoreError  ;
@@ -55,7 +55,9 @@ int main( int argc , char* argv[]) {
 	if ( cmd_line.flags[Flag::Ignore      ]) ad.extra_dflags |= ExtraDflag::Ignore       ;
 	if ( cmd_line.flags[Flag::StatReadData]) ad.extra_dflags |= ExtraDflag::StatReadData ;
 	//
-	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose ) ;
+	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos ;
+	try                       { dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose ) ; }
+	catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                         }
 	//
 	if (!verbose) return 0 ;
 	//

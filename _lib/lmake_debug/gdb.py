@@ -3,6 +3,12 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+'''
+	This module is meant to be used to generate debug scripts.
+	The generated script runs jobs interpreter unde gdb control.
+	If stdin or stdout is redirected in the job, the macro r is redefined to run with adequate redirections.
+'''
+
 from .utils import Job,mk_shell_str
 
 class Job(Job) :
@@ -10,7 +16,7 @@ class Job(Job) :
 		self.write_cmd()
 		#
 		call_line  = [ '"$(type -p gdb)"' ]
-		call_line += ( '-ex' , '"set environment TMPDIR=$TMPDIR"' )                                              # gdb keeps the environment except TMPDIR
+		call_line += ( '-ex' , '"set environment TMPDIR $TMPDIR"' )                                              # gdb keeps the environment except TMPDIR
 		if self.stdin or self.stdout :
 			if self.stdin or self.stdout :                                                                       # in case of redirections, define alias r to run with adequate redirections
 				if True        : run  = 'run'

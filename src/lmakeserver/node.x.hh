@@ -10,7 +10,6 @@
 #ifdef STRUCT_DECL
 
 ENUM( Buildable
-,	LongName    //                                   name is longer than allowed in config
 ,	DynAnti     //                                   match dependent
 ,	Anti        //                                   match independent
 ,	SrcDir      //                                   match independent (much like star targets, i.e. only existing files are deemed buildable)
@@ -61,6 +60,15 @@ ENUM_1( NodeStatus
 ,	Uphill         // >=Uphill means node has a buildable uphill dir, node has a regular file as uphill dir
 ,	Transient      //                                                 node has a link         as uphill dir (and such a dep will certainly disappear when job is remade unless it is a static dep)
 ,	Unknown
+)
+
+ENUM_1( Polluted
+,	Dirty = Old  // >=Dirty means target is really polluted
+,	Clean        // must be first
+,	Busy
+,	Old
+,	PreExist
+,	Job
 )
 
 namespace Engine {
@@ -146,7 +154,7 @@ namespace Engine {
 		// services
 		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
 		// data
-		Tflags tflags   ;
+		Tflags tflags ;
 	} ;
 	static_assert(sizeof(Target)==8) ;
 
@@ -187,7 +195,7 @@ namespace Engine {
 	struct DepsIter {
 		struct Digest {
 			friend ::ostream& operator<<( ::ostream& , Digest const& ) ;
-			NodeIdx hdr     = 0 ;
+			DepsIdx hdr     = 0 ;
 			uint8_t i_chunk = 0 ;
 		} ;
 		// cxtors & casts
@@ -364,7 +372,8 @@ namespace Engine {
 		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;      // Req's are for reporting only
 		//
 		void full_refresh( bool report_no_file , ::vector<Req> const& reqs , ::string const& name ) {
-			set_buildable() ;
+			if (+reqs) set_buildable(reqs[0]) ;
+			else       set_buildable(       ) ;
 			if (is_src_anti()) refresh_src_anti(report_no_file,reqs,name) ;
 			else               manual_refresh  (Req()                   ) ;                    // no manual_steady diagnostic as this may be because of another job
 		}
@@ -404,7 +413,6 @@ namespace Engine {
 		bool is_src_anti() const {
 			SWEAR(match_ok()) ;
 			switch (buildable) {
-				case Buildable::LongName  :
 				case Buildable::DynAnti   :
 				case Buildable::Anti      :
 				case Buildable::SrcDir    :
@@ -442,8 +450,10 @@ namespace Engine {
 		::c_vector_view<JobTgt> conform_job_tgts  (                ) const ;
 		::c_vector_view<JobTgt> candidate_job_tgts(                ) const ;                   // all jobs above prio provided in conform_idx
 		//
-		void set_buildable( Req={}   , DepDepth lvl=0       ) ;                                // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
-		void set_pressure ( ReqInfo& , CoarseDelay pressure ) const ;
+		void set_buildable_throw( Req      , DepDepth lvl=0       ) ;                          // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
+		void set_buildable      ( Req      , DepDepth lvl=0       ) ;                          // set infinite if looping
+		void set_buildable      (                                 ) { set_buildable({}) ; }
+		void set_pressure       ( ReqInfo& , CoarseDelay pressure ) const ;
 		//
 		void propag_speculate( Req req , Bool3 speculate ) const {
 			/**/                          if (speculate==Yes         ) return ;                // fast path : nothing to propagate
@@ -496,25 +506,26 @@ namespace Engine {
 			Ddate       log_date ;                               // ~40   < 64 bits,         logical date to detect overwritten
 			Codec::Code code     ;                               //         32 bits,         offset in association file where the association line can be found
 		} ;
-		//Name   name   ;                                        //         32 bits, inherited
-		Watcher  asking ;                                        //         32 bits,         last watcher needing this node
-		Crc      crc    = Crc::None ;                            // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		//Name  name   ;                                         //         32 bits, inherited
+		Watcher asking ;                                         //         32 bits,         last watcher needing this node
+		Crc     crc    = Crc::None ;                             // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 	private :
 		union {
 			IfPlain  _if_plain  = {} ;                           //        256 bits
-			IfDecode _if_decode ;                                //         32 bits
-			IfEncode _if_encode ;                                //         32 bits
+			IfDecode _if_decode ;                                //         96 bits
+			IfEncode _if_encode ;                                //         96 bits
 		} ;
 	public :
+		Job       polluting_job           ;                      //         32 bits,          polluting job when polluted was last set to Polluted::Job
 		MatchGen  match_gen:NMatchGenBits = 0                  ; //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4             = Buildable::Unknown ; //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		bool      polluted :1             = false              ; //          1 bit ,          if true <= node was produced by a non-official job or badly produced by official job
+		Polluted  polluted :3             = Polluted::Clean    ; //          2 bits,          reason for pollution
 	private :
 		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		Tflags  _actual_tflags ;                                 //          8 bits,          tflags associated with actual_job
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(NodeData)==56) ;                        // check expected size
+	static_assert(sizeof(NodeData)==64) ;                        // check expected size
 
 }
 
@@ -592,8 +603,14 @@ namespace Engine {
 		else if (match_gen<Rule::s_match_gen) { SWEAR(buildable!=Buildable::Unknown) ; match_gen = Rule::s_match_gen ;                                  }
 	}
 
-	inline void NodeData::set_buildable( Req req , DepDepth lvl ) { // req is for error reporting only
-		if (!match_ok()) _do_set_buildable(req,lvl) ;               // if not already set
+	inline void NodeData::set_buildable_throw( Req req , DepDepth lvl ) { // req is for error reporting only
+		if (!match_ok()) _do_set_buildable(req,lvl) ;                     // if not already set
+		SWEAR(buildable!=Buildable::Unknown) ;
+	}
+
+	inline void NodeData::set_buildable( Req req , DepDepth lvl ) {        // req is for error reporting only
+		try                             { set_buildable_throw(req,lvl) ; }
+		catch (::vector<Node> const& e) { set_infinite(e) ;              }
 		SWEAR(buildable!=Buildable::Unknown) ;
 	}
 
@@ -604,7 +621,7 @@ namespace Engine {
 	}
 
 	inline void NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
-		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) ) return ; // fast path
+		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted ) return ; // fast path
 		_do_make(ri,ma,s) ;
 	}
 
@@ -637,7 +654,7 @@ namespace Engine {
 	inline DepsIter::DepsIter( Deps ds , Digest d ) : hdr{+ds?ds.items()+d.hdr:nullptr} , i_chunk{d.i_chunk} {}
 
 	inline DepsIter::Digest DepsIter::digest(Deps ds) const {
-		return { hdr?NodeIdx(hdr-ds.items()):0 , i_chunk } ;
+		return { hdr?DepsIdx(hdr-ds.items()):0 , i_chunk } ;
 	}
 }
 

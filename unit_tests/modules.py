@@ -3,19 +3,20 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-if __name__=='sources' :
+if __name__=='Lmakefile.sources' :
 
 	import lmake
 
 	lmake.manifest = (
-		'Lmakefile.py'
-	,	'rules.py'
-	,	'sources.py'
+		'Lmakefile/__init__.py'
+	,	'Lmakefile/config.py'
+	,	'Lmakefile/sources.py'
+	,	'Lmakefile/rules.py'
 	,	'hello'
 	,	'world'
 	)
 
-elif __name__=='rules' :
+elif __name__=='Lmakefile.rules' :
 
 	from lmake.rules import Rule,PyRule
 
@@ -39,24 +40,31 @@ elif __name__=='rules' :
 			print(open(FIRST ).read(),end='')
 			print(open(SECOND).read(),end='')
 
-elif __name__!='__main__' :
+elif __name__=='Lmakefile.config' :
 
 	from lmake import config
 
-	config.rules_module   = 'rules'
-	config.sources_module = 'sources'
+elif __name__=='__main__' :
 
-else :
+	import os
 
 	import ut
 
+	# transform Lmakefile.py into a package
 	txt = open('Lmakefile.py').read()
-	open('rules.py'  ,'w').write(txt)
-	open('sources.py','w').write(txt)
+	os.makedirs('Lmakefile',exist_ok=True)
+	open('Lmakefile/config.py'  ,'w').write(txt)
+	open('Lmakefile/rules.py'   ,'w').write(txt)
+	open('Lmakefile/sources.py' ,'w').write(txt)
+	open('Lmakefile/__init__.py','w').write('' )
+	os.unlink('Lmakefile.py')
 
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
 
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 )           # check targets are out of date
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 )           # check targets are up to date
-	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         )           # check reconvergence
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 ) # check targets are out of date
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 ) # check targets are up to date
+	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         ) # check reconvergence
+
+else :
+	raise RuntimeError(f'unexpected module name : {__name__}')

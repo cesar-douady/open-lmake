@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "utils.hh"
+#include "serialize.hh"
 
 #if HAS_PCRE
 	#define PCRE2_CODE_UNIT_WIDTH 8
@@ -14,38 +14,52 @@
 	#include <regex>
 #endif
 
+// /!\ this interface assumes that all variable parts are enclosed within () : this simpliies a lot prefix and suffix identification
+
+#if HAS_PCRE
+	ENUM( RegExprUse
+	,	Unused
+	,	Old
+	,	New
+	)
+#endif
+
 namespace Re {
 
 	struct Match   ;
 	struct RegExpr ;
 
-	#if HAS_PCRE
+	static const ::string SpecialChars = "()[.*+?|\\{^$" ;   // in decreasing frequency of occurrence, ...
+	inline ::string escape(::string const& s) {              // ... list from https://www.pcre.org/current/doc/html/pcre2pattern.html, under chapter CHARACTERS AND METACHARACTERS
+		::string res ; res.reserve(s.size()+(s.size()>>4)) ; // take a little margin for escapes
+		for( char c : s ) {
+			if (SpecialChars.find(c)!=Npos) res += '\\' ;    // escape specials
+			/**/                            res += c    ;
+		}
+		return res ;
+	}
 
-		inline uint8_t const* _cast_in (char const* p) { return reinterpret_cast<uint8_t const*>(p) ; }
-		inline uint8_t      * _cast_in (char      * p) { return reinterpret_cast<uint8_t      *>(p) ; }
+	#if HAS_PCRE
 
 		inline void swap( Match& a , Match& b ) ;
 		struct Match {
 			friend RegExpr ;
 			friend void swap( Match& a , Match& b ) ;
-			// statics
 		private :
-			pcre2_match_data* _s_mk_data(RegExpr const& re) ;
 			// cxtors & casts
 			Match() = default ;
 			//
-			Match( RegExpr const& re                     ) ;
-			Match( RegExpr const& re , ::string const& s ) ;
+			Match( RegExpr const& re , ::string const& s , bool chk_psfx ) ;
 		public :
 			~Match() {
-				pcre2_match_data_free(_data) ;
+				if (_data) pcre2_match_data_free(_data) ;
 			}
 			//
 			Match           (Match&& m) { swap(*this,m) ;                }
 			Match& operator=(Match&& m) { swap(*this,m) ; return *this ; }
 			// accesses
-			bool operator+() const { return pcre2_get_ovector_pointer(_data)[0]!=PCRE2_UNSET ; }
-			bool operator!() const { return !+*this                                          ; }
+			bool operator+() const { return _data && pcre2_get_ovector_pointer(_data)[0]!=PCRE2_UNSET ; }
+			bool operator!() const { return !+*this                                                   ; }
 			//
 			::string_view operator[](size_t i) const {
 				PCRE2_SIZE const* v = pcre2_get_ovector_pointer(_data) ;
@@ -65,62 +79,55 @@ namespace Re {
 		struct RegExpr {
 			friend Match ;
 			friend void swap( RegExpr& a , RegExpr& b ) ;
-			static constexpr size_t ErrMsgSz = 120 ; // per PCRE doc
+			using Use = RegExprUse ;
+			static constexpr size_t ErrMsgSz = 120 ;                                 // per PCRE doc
+			struct Cache {
+				// cxtors & casts
+				void serdes(::ostream&) const ;
+				void serdes(::istream&) ;
+				// accesses
+				bool _has_new() const { return _n_unused<0 ; }
+				// services
+				bool steady() const {
+					return !_n_unused ;
+				}
+				pcre2_code const* insert(::string const& infix) ;
+				// data
+			private :
+				::umap_s<::pair<pcre2_code const*,Use/*use*/>> _cache    ;
+				ssize_t                                        _n_unused = 0 ; // <0 if new codes
+			} ;
+			// statics
+		private :
+			static ::pcre2_code* _s_compile(::string const& infix) ;
+			// static data
+		public :
+			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr( ::string const& pattern , bool /*fast*/=false , bool /*no_groups*/=false ) {
-				int        err     = 0 ;
-				PCRE2_SIZE err_pos = 0 ;
-				_code = pcre2_compile(
-					_cast_in(pattern.c_str()) , pattern.size()
-				,	PCRE2_ANCHORED | PCRE2_DOTALL | PCRE2_ENDANCHORED
-				,	&err , &err_pos
-				,	nullptr/*context*/
-				) ;
-				if (!_code) {
-					char err_buf[ErrMsgSz] ;
-					pcre2_get_error_message(err,_cast_in(err_buf),sizeof(err_buf)) ;
-					throw ::string(err_buf) ;
-				}
-			}
-			~RegExpr() {
-				pcre2_code_free(_code) ;
-			}
+			RegExpr(::string const& pattern) ;
 			//
 			RegExpr           (RegExpr&& re) { swap(*this,re) ;                }
 			RegExpr& operator=(RegExpr&& re) { swap(*this,re) ; return *this ; }
 			// services
-			Match match    (::string const& subject) const { return { *this ,subject } ; }
-			bool  can_match(::string const& subject) const { return +match(subject)    ; }
+			Match match( ::string const& subject , bool chk_psfx=true ) const {
+				return { *this , subject , chk_psfx } ;
+			}
 			size_t mark_count() const {
 				uint32_t cnt ;
 				pcre2_pattern_info( _code , PCRE2_INFO_CAPTURECOUNT , &cnt ) ;
 				return cnt ;
 			}
 			// data
+			::string pfx ;                                                           // fixed prefix
+			::string sfx ;                                                           // fixed suffix
 		private :
-			pcre2_code* _code = nullptr ;
+			pcre2_code const* _code = nullptr ;                                      // only contains code for infix part, shared and stored in s_store
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b ) {
+			::swap(a.pfx  ,b.pfx  ) ;
+			::swap(a.sfx  ,b.sfx  ) ;
 			::swap(a._code,b._code) ;
-		}
-
-		inline pcre2_match_data* Match::_s_mk_data(RegExpr const& re) {
-			pcre2_match_data* res = pcre2_match_data_create_from_pattern(re._code,nullptr) ;
-			SWEAR(pcre2_get_ovector_count(res)>0) ;
-			pcre2_get_ovector_pointer(res)[0] = PCRE2_UNSET ;
-			return res ;
-		}
-
-		inline Match::Match( RegExpr const& re                     ) : _data{_s_mk_data(re)}               {}
-		inline Match::Match( RegExpr const& re , ::string const& s ) : _data{_s_mk_data(re)} , _subject{s} {
-			pcre2_match(
-				re._code
-			,	_cast_in(_subject.c_str()) , _subject.size() , 0/*start_offset*/
-			,	0/*options*/
-			,	_data
-			,	nullptr/*context*/
-			) ;
 		}
 
 	#else
@@ -129,38 +136,34 @@ namespace Re {
 			friend RegExpr ;
 			// cxtors & casts
 		private :
-			using smatch::smatch ;
+			using ::smatch::smatch ;
 			// accesses
 		public :
 			bool operator+() const { return !empty() ; }
 			bool operator!() const { return !+*this  ; }
 			//
 			::string_view operator[](size_t i) const {
-				::sub_match sm = smatch::operator[](i) ;
+				::sub_match sm = ::smatch::operator[](i) ;
 				return {sm.first,sm.second} ;
 			}
 		} ;
 
 		struct RegExpr : private ::regex {
 			friend Match ;
-			static constexpr ::regex_constants::syntax_option_type None { 0 } ;
+			static constexpr flag_type Flags = ECMAScript|optimize ;
+			struct Cache {                                           // there is no serialization facility and cache is not implemented, fake it
+				static constexpr bool steady() { return true ; }
+			} ;
+			// static data
+			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr( ::string const& pattern , bool fast=false , bool no_groups=false ) :
-				::regex{ pattern ,
-					/**/         ::regex::ECMAScript
-				|	(fast      ? ::regex::optimize   : None )
-				|	(no_groups ? ::regex::nosubs     : None )
-				}
-			{}
+			RegExpr(::string const& pattern) : ::regex{pattern,Flags} {}
 			// services
-			Match match(::string const& txt) const {
+			Match match( ::string const& subject , bool /*chk_psfx*/=true ) const {
 				Match res ;
-				::regex_match(txt,res,*this) ;
+				::regex_match(subject,res,*this) ;
 				return res ;
-			}
-			bool can_match(::string const& txt) const {
-				return +match(txt) ;
 			}
 			size_t mark_count() const {
 				return ::regex::mark_count() ;

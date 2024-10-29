@@ -5,11 +5,6 @@
 
 import lmake
 
-autodeps = []
-if lmake.has_ptrace     : autodeps.append('ptrace'    )
-if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
-if lmake.has_ld_preload : autodeps.append('ld_preload')
-
 if __name__!='__main__' :
 
 	import subprocess as sp
@@ -38,7 +33,7 @@ if __name__!='__main__' :
 		dep    = 'dly'                                         # ensure hello construction does not start too early, so that we are sure that we have may_rerun messages, not rerun
 		cmd    = f'echo hello.{step.p>=2}.{step.link_support}'
 
-	for ad in autodeps :
+	for ad in lmake.autodeps :
 		class CpySh(Base) :
 			name    = f'cpy-sh-{ad}'
 			target  = f'{{File}}.sh.{ad}.{step.link_support}.cpy'
@@ -61,12 +56,16 @@ if __name__!='__main__' :
 
 else :
 
+	if lmake.Autodep.IsFake :
+		print('clmake not available',file=open('skipped','w'))
+		exit()
+
 	import os
 	import shutil
 
 	import ut
 
-	n_ads = len(autodeps)
+	n_ads = len(lmake.autodeps)
 
 	for ls in ('none','file','full') :
 		try                      : shutil.rmtree('LMAKE')
@@ -77,7 +76,7 @@ else :
 		for p in range(3) :
 			print(f'p={p!r}\nlink_support={ls!r}',file=open('step.py','w'))
 			cnts = ut.lmake(
-				*( f'hello.{interp}.{ad}.{ls}.cpy' for interp in ('sh','py') for ad in autodeps )
+				*( f'hello.{interp}.{ad}.{ls}.cpy' for interp in ('sh','py') for ad in lmake.autodeps )
 			,	new=... , may_rerun=... , rerun=... , done=(p==0)+(p!=1)+(p!=1)*2*n_ads
 			)
 			assert cnts.may_rerun+cnts.rerun==(p==0)*2*n_ads

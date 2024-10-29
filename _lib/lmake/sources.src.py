@@ -3,22 +3,29 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+'''
+	This module provide functions to automatically list source files in various version control systems.
+	As of now, the following systems are supported :
+	- manual listing of sources in the file Manifest
+	- git, with sub-module support
+'''
+
 import os.path    as _osp
 import subprocess as _sp
 
-from clmake import root_dir # if not in an lmake repo, root_dir is not set to current dir
+from . import root_dir # if not in an lmake repo, root_dir is not set to current dir
 
 def manifest_sources(manifest='Manifest',**kwds) :
 	'''
 		read manifest, filtering out comments :
-		- comments start with                                                      #
-		- they must be separated from file with spaces
-		- files must start and end with non-space and cannot start with            #
-		- note that files can contain spaces (except first and last character) and # as long as they are not preceded by spaces
+		- comments start with # and must be separated from file with spaces
+		- files may be indented at will
+		- files must start with a non-space, non-# char and end with a non-space char
+		- files must not contain a space-# sequence
 		kwds are ignored which simplifies the usage of auto_sources
 	'''
 	import re
-	line_re = re.compile(r'\s*(?P<file>[^#\s](.*\S)?)?\s+(#.*)?\n?')
+	line_re = re.compile(r'\s*(?P<file>.*?)((^|\s)\s*#.*)?\n?')
 	try                      : stream = open(manifest)
 	except FileNotFoundError : raise NotImplementedError(f'cannot find {manifest}')
 	srcs = [ f for f in ( line_re.fullmatch(l).group('file') for l in stream ) if f ]
@@ -33,6 +40,7 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 		ignore missing submodules if ignore_missing_submodules is True
 		kwds are ignored which simplifies the usage of auto_sources
 	'''
+	if not _git : raise NotImplementedError('git is not installed')
 	def run( cmd , dir=None ) :
 		# old versions of git (e.g. 1.8) require an open stdin (although is is not used)
 		return _sp.run( cmd , cwd=dir , check=True , stdin=_sp.DEVNULL , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()

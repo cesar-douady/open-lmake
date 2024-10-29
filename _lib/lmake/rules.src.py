@@ -3,13 +3,16 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys    as _sys
-import os     as _os
-import pwd    as _pwd
-import signal as _signal
+'lmake.rules source file (as named in lmake.rules.__file__) is thoroughly commented, please refer to it.'
+
+import sys     as _sys
+import os      as _os
+import os.path as _osp
+import pwd     as _pwd
+import signal  as _signal
 
 import lmake
-from . import has_ld_audit,pdict,root_dir # if not in an lmake repo, root_dir is not set to current dir
+from . import autodeps,pdict,root_dir # if not in an lmake repo, root_dir is not set to current dir
 
 shell            = '$BASH'                       # substituted at installation time
 python2          = '$PYTHON2'                    # .
@@ -87,7 +90,6 @@ class Rule(_RuleBase) :
 #	keep_tmp         = False                           # keep tmp dir after job execution
 	kill_sigs        = (_signal.SIGKILL,)              # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
 	n_retries        = 1                               # number of retries in case of job lost. 1 is a reasonable value
-#	n_tokens         = 1                               # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 #	prio             = 0                               # in case of ambiguity, rules are selected with highest prio first
 	python           = (python,)                       # python used for callable cmd
 #	root_view        = '/repo'                         # absolute path under which the root directory of the repo is seen (if None, empty, or absent, no bind mount is done)
@@ -103,8 +105,8 @@ class Rule(_RuleBase) :
 	#                                                  # - else a tmpfs sized after the 'tmp' resource if specified (no tmpfs is created if value is 0)
 	#                                                  # - else a private sub-directory in the LMAKE directory
 #	use_script       = False                           # use a script to run job rather than calling interpreter with -c
-	if has_ld_audit : autodep = 'ld_audit'             # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
-	else            : autodep = 'ld_preload'           # .
+	if 'ld_audit' in autodeps : autodep = 'ld_audit'   # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
+	else                      : autodep = 'ld_preload' # .
 	resources = {                                      # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
 		'cpu' : 1                                      # number of cpu's to allocate to job
 #	,	'mem' : '100M'                                 # memory to allocate to job
@@ -162,13 +164,13 @@ class _PyRule(Rule) :
 	cmd.shell = ''                                                              # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
 class Py2Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
-	side_targets    = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }
-	py_rule         = 'Py2Rule'
-	python          = python2
+	side_targets = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }
+	py_rule      = 'Py2Rule'
+	python       = python2
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
-	side_targets     = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental'  ) }
-	py_rule         = 'Py3Rule'
+	side_targets = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental'  ) }
+	py_rule      = 'Py3Rule'
 
 PyRule = Py3Rule
 
@@ -178,4 +180,27 @@ class DynamicPyRule(Rule):
 
 class RustRule(Rule) :
 	'base rule for use by any code written in Rust (including cargo and rustc that are written in rust)'
-	autodep = 'ld_preload'                                                                               # rust use a dedicated loader that does not call auditing code when using ld_audit
+	autodep     = 'ld_preload'                                                                           # rust use a dedicated loader that does not call auditing code when using ld_audit
+	if 'RUSTUP_HOME' in _os.environ :
+		environ_cmd = {
+			'RUSTUP_HOME' : _os.environ['RUSTUP_HOME']                                                   # ensure var is passed to job
+		,	'PATH'        : _osp.dirname(_os.environ['RUSTUP_HOME'])+'/.cargo/bin:...'                   # ... stands for inherited value
+		}
+
+class DirRule(Rule) :
+	'''
+		Base rule to ensure the existence of a dir by generating a target within said dir.
+		The default marker is '...'.
+		Usage :
+			class MyDirRule(DirRule) : pass
+		or :
+			class MyDirRule(DirRule) : marker='my_marker'
+		Note : in case of conflict with other rules, you may have to adjust prio
+		Then to ensure that dir exists :
+			lmake.depend(dir+'/'+marker)
+	'''
+	virtual = True
+	marker  = '...'
+	target  = fr'{{Dir:.+}}/{marker}'
+	backend = 'local'                 # command is faster than any other backend overhead
+	cmd     = ''

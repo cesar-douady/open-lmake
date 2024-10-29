@@ -104,10 +104,10 @@ namespace Engine::Persistent {
 		catch (...) { g_config = new Config                                                                  ; }
 	}
 
-	// START_OF_VERSIONING
-
 	static void _init_srcs_rules(bool rescue) {
 		Trace trace("_init_srcs_rules",Pdate(New)) ;
+		//
+		// START_OF_VERSIONING
 		::string dir_s = g_config->local_admin_dir_s+"store/" ;
 		//
 		mk_dir_s(dir_s) ;
@@ -129,13 +129,25 @@ namespace Engine::Persistent {
 		// misc
 		if (writable) {
 			g_seq_id = &_job_file.hdr().seq_id ;
-			if (!*g_seq_id) *g_seq_id = 1 ;                                                                                 // avoid 0 (when store is brand new) to decrease possible confusion
+			if (!*g_seq_id) *g_seq_id = 1 ;                                                                                  // avoid 0 (when store is brand new) to decrease possible confusion
 		}
-		// memory
 		// Rule
 		if (!_rule_file) for( [[maybe_unused]] Special s : Special::Shared ) _rule_file.emplace() ;
 		RuleBase::s_match_gen = _rule_file.c_hdr() ;
+		// END_OF_VERSIONING
+		//
 		SWEAR(RuleBase::s_match_gen>0) ;
+		_job_file      .keep_open = true ; // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
+		_deps_file     .keep_open = true ; // .
+		_targets_file  .keep_open = true ; // .
+		_node_file     .keep_open = true ; // .
+		_job_tgts_file .keep_open = true ; // .
+		_rule_str_file .keep_open = true ; // .
+		_rule_file     .keep_open = true ; // .
+		_rule_tgts_file.keep_open = true ; // .
+		_sfxs_file     .keep_open = true ; // .
+		_pfxs_file     .keep_open = true ; // .
+		_name_file     .keep_open = true ; // .
 		_compile_srcs () ;
 		_compile_rules() ;
 		for( Job  j : _job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
@@ -147,8 +159,8 @@ namespace Engine::Persistent {
 		if (rescue) {
 			::cerr<<"previous crash detected, checking & rescueing"<<endl ;
 			try {
-				chk()              ;                                                                                        // first verify we have a coherent store
-				invalidate_match() ;                                                                                        // then rely only on essential data that should be crash-safe
+				chk()              ;       // first verify we have a coherent store
+				invalidate_match() ;       // then rely only on essential data that should be crash-safe
 				::cerr<<"seems ok"<<endl ;
 			} catch (::string const&) {
 				exit(Rc::Format,"failed to rescue, consider running lrepair") ;
@@ -156,7 +168,6 @@ namespace Engine::Persistent {
 		}
 	}
 
-	// END_OF_VERSIONING
 
 	void chk() {
 		// files
@@ -259,6 +270,7 @@ namespace Engine::Persistent {
 				}
 				// set job
 				Job job { {rule,::move(job_info.start.stems)} } ;
+				if (!job) goto NextJob ;
 				job->targets.assign(targets) ;
 				job->deps   .assign(deps   ) ;
 				job->status = job_info.end.end.digest.status ;
@@ -399,7 +411,7 @@ namespace Engine::Persistent {
 
 	static void _save_rules() {
 		_rule_str_file.clear() ;
-		for( Rule r : rule_lst() ) _rule_file.at(r) = _rule_str_file.emplace(::string(_rule_datas[+r])) ;
+		for( Rule r : rule_lst() ) _rule_file.at(r) = _rule_str_file.emplace(serialize(_rule_datas[+r])) ;
 	}
 
 	static void _set_exec_gen( RuleData& rd , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool dynamic=false ) { // called if at least resources changed
@@ -495,10 +507,11 @@ namespace Engine::Persistent {
 			} else {
 				old_r = it->second ;
 				old_rules.erase(it) ;
-				new_rd.cmd_gen      = old_r->cmd_gen      ;
-				new_rd.rsrcs_gen    = old_r->rsrcs_gen    ;
-				new_rd.exec_time    = old_r->exec_time    ;
-				new_rd.stats_weight = old_r->stats_weight ;
+				new_rd.cmd_gen        = old_r->cmd_gen        ;
+				new_rd.rsrcs_gen      = old_r->rsrcs_gen      ;
+				new_rd.cost_per_token = old_r->cost_per_token ;
+				new_rd.exec_time      = old_r->exec_time      ;
+				new_rd.stats_weight   = old_r->stats_weight   ;
 				SWEAR( +old_r<keep_cmd_gens.size() , old_r , keep_cmd_gens.size() ) ;
 				if (new_rd.rsrcs_crc!=old_r->rsrcs_crc) {
 					bool cmd_ok = new_rd.cmd_crc==old_r->cmd_crc ;
@@ -506,9 +519,9 @@ namespace Engine::Persistent {
 					trace("modified",new_rd,STR(cmd_ok),new_rd.cmd_gen,new_rd.rsrcs_gen) ;
 				}
 			}
-			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			RuleStr rs = _rule_str_file.emplace(::string(new_rd)) ;
-			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			RuleStr rs = _rule_str_file.emplace(serialize(new_rd)) ;
+			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (+old_r) _rule_file.at(old_r) = rs ;
 			else        _rule_file.emplace(rs) ;
 		}
@@ -551,42 +564,43 @@ namespace Engine::Persistent {
 		return res ;
 	}
 
-	bool/*invalidate*/ new_srcs( ::vmap_s<FileTag>&& src_names , ::vector_s&& src_dir_names_s , bool dynamic ) {
-		::map<Node,FileTag    > srcs         ;                                                                                                 // use ordered map/set to ensure stable execution
-		::map<Node,FileTag    > old_srcs     ;                                                                                                 // .
-		::map<Node,FileTag    > new_srcs_    ;                                                                                                 // .
-		::set<Node            > src_dirs     ;                                                                                                 // .
-		::set<Node            > old_src_dirs ;                                                                                                 // .
-		::set<Node            > new_src_dirs ;                                                                                                 // .
+	bool/*invalidate*/ new_srcs( ::pair<::vmap_s<FileTag>/*files*/,::vector_s/*dirs_s*/>&& src_names , bool dynamic ) {
+		::map<Node,FileTag    > srcs         ;                                                                                                  // use ordered map/set to ensure stable execution
+		::map<Node,FileTag    > old_srcs     ;                                                                                                  // .
+		::map<Node,FileTag    > new_srcs_    ;                                                                                                  // .
+		::set<Node            > src_dirs     ;                                                                                                  // .
+		::set<Node            > old_src_dirs ;                                                                                                  // .
+		::set<Node            > new_src_dirs ;                                                                                                  // .
 		Trace trace("new_srcs") ;
 		//
-		size_t    root_dir_depth      = 0       ; { for( char c : *g_root_dir_s ) root_dir_depth += c=='/' ; } root_dir_depth-- ;              // there is one more / than the actual depth
-		size_t    src_dirs_uphill_lvl = 0       ;
-		::string* highest             = nullptr ;
-		for( ::string& d_s : src_dir_names_s ) if (!is_abs_s(d_s))
-			if ( size_t ul=uphill_lvl_s(d_s) ; ul>src_dirs_uphill_lvl ) {
-				src_dirs_uphill_lvl = ul   ;
-				highest             = &d_s ;
-			}
+		size_t          root_dir_depth      = 0       ; { for( char c : *g_root_dir_s ) root_dir_depth += c=='/' ; } root_dir_depth-- ;         // there is one more / than the actual depth
+		size_t          src_dirs_uphill_lvl = 0       ;
+		::string const* highest             = nullptr ;
+		for( ::string const& d_s : src_names.second ) {
+			if (!is_abs_s(d_s))
+				if ( size_t ul=uphill_lvl_s(d_s) ; ul>src_dirs_uphill_lvl ) {
+					src_dirs_uphill_lvl = ul   ;
+					highest             = &d_s ;
+				}
+		}
 		if (root_dir_depth<=src_dirs_uphill_lvl) {
 			SWEAR(highest) ;
-			highest->pop_back() ;
-			throw "cannot access relative source dir "+*highest+" from repository "+no_slash(*g_root_dir_s) ;
+			throw "cannot access relative source dir "+no_slash(*highest)+" from repository "+no_slash(*g_root_dir_s) ;
 		}
 		// format inputs
-		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;               // dont care whether we delete a regular file or a link
+		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;                // dont care whether we delete a regular file or a link
 		//
-		for( auto const& [sn,t] : src_names       )                   srcs.emplace( Node(sn                      ) , t                   ) ;
-		for( ::string&    sn    : src_dir_names_s ) { sn.pop_back() ; srcs.emplace( Node(sn,!is_lcl(sn)/*no_dir*/) , FileTag::Dir/*dir*/ ) ; } // external src dirs need no uphill dir
+		for( auto const& [sn,t] : src_names.first  )                   srcs.emplace( Node(sn                      ) , t                   ) ;
+		for( ::string&    sn    : src_names.second ) { sn.pop_back() ; srcs.emplace( Node(sn,!is_lcl(sn)/*no_dir*/) , FileTag::Dir/*dir*/ ) ; } // external src dirs need no uphill dir
 		//
-		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;                    // non-local nodes have no dir
-		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;                    // .
+		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;                     // non-local nodes have no dir
+		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;                     // .
 		// check
 		for( auto [n,t] : srcs ) {
 			if (!src_dirs.contains(n)) continue ;
 			::string nn   = n->name() ;
 			::string nn_s = nn+'/'    ;
-			for( auto const& [sn,_] : src_names )
+			for( auto const& [sn,_] : src_names.first )
 				if ( sn.starts_with(nn_s) ) throw "source "s+(t==FileTag::Dir?"dir ":"")+nn+" is a dir of "+sn ;
 			FAIL(nn,"is a source dir of no source") ;
 		}
@@ -606,8 +620,8 @@ namespace Engine::Persistent {
 		//
 		if ( !old_srcs && !new_srcs_ ) return false ;
 		if (dynamic) {
-			if (+new_srcs_) throw "new source "    +new_srcs_.begin()->first->name() ;                                                         // XXX : accept new sources if unknown
-			if (+old_srcs ) throw "removed source "+old_srcs .begin()->first->name() ;                                                         // XXX : accept old sources if unknown
+			if (+new_srcs_) throw "new source "    +new_srcs_.begin()->first->name() ;                                                          // XXX : accept new sources if unknown
+			if (+old_srcs ) throw "removed source "+old_srcs .begin()->first->name() ;                                                          // XXX : accept old sources if unknown
 			FAIL() ;
 		}
 		//
@@ -615,8 +629,8 @@ namespace Engine::Persistent {
 		// commit
 		for( bool add : {false,true} ) {
 			::map<Node,FileTag> const& srcs = add ? new_srcs_ : old_srcs ;
-			::vector<Node>             ss   ; ss.reserve(srcs.size()) ;                                                                        // typically, there are very few src dirs
-			::vector<Node>             sds  ;                                                                                                  // .
+			::vector<Node>             ss   ; ss.reserve(srcs.size()) ;                                                                         // typically, there are very few src dirs
+			::vector<Node>             sds  ;                                                                                                   // .
 			for( auto [n,t] : srcs ) if (t==FileTag::Dir) sds.push_back(n) ; else ss.push_back(n) ;
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Node::s_srcs(false/*dirs*/,add,ss ) ;

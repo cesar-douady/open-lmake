@@ -24,10 +24,7 @@ if __name__!='__main__' :
 
 else :
 
-	autodeps = ['none']
-	if lmake.has_ptrace     : autodeps.append('ptrace'    )
-	if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
-	if lmake.has_ld_preload : autodeps.append('ld_preload')
+	autodeps = ('none',*lmake.autodeps)
 
 	import ut
 

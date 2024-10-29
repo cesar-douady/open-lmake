@@ -5,12 +5,10 @@
 
 #include "hash.hh"
 
-#include "re.hh"
-
 using namespace Hash ;
 
 int main( int argc , char* argv[] ) {
-
+	set_env("GMON_OUT_PREFIX","gmon.out.xxhsum") ; // in case profiling is used, ensure unique gmon.out
 	for( int i=1 ; i<argc ; i++ ) {
 		::cout << ::string(Crc(argv[i])) ;
 		if (argc>2) ::cout <<' '<< argv[i] ;

@@ -30,28 +30,26 @@ if __name__!='__main__' :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
+		python = (lmake.user_environ['PYTHON2'],)
 		def cmd() :
 			lmake.depend('a_dep')
 			sys.stdout.write(open(FIRST ).read())
 			sys.stdout.write(open(SECOND).read())
 
 else :
-	if osp.exists('../../lib/clmake2.so') :
-		for d in os.environ['PATH'].split(':') :
-			if osp.exists(osp.join(d,'python2')) :
 
-				import ut
-
-				open('hello','w').write('hello\n')
-				open('world','w').write('world\n')
-				open('a_dep','w').write('1\n'    )
-
-				ut.lmake( 'hello+world' , done=1   , new    =3 ) # check targets are out of date
-				open('a_dep','w').write('2\n')
-				ut.lmake( 'hello+world' , steady=1 , changed=1 ) # check target is sensitive to a_dep
-				ut.lmake( 'hello+world'                        ) # check targets are up to date
-				ut.lmake( 'world+world' , done=1               ) # check reconvergence
-
-				break
-	else :
+	if not os.environ['PYTHON2'] :
 		print('python2 not available',file=open('skipped','w'))
+		exit()
+
+	import ut
+
+	open('hello','w').write('hello\n')
+	open('world','w').write('world\n')
+	open('a_dep','w').write('1\n'    )
+
+	ut.lmake( 'hello+world' , done=1   , new    =3 ) # check targets are out of date
+	open('a_dep','w').write('2\n')
+	ut.lmake( 'hello+world' , steady=1 , changed=1 ) # check target is sensitive to a_dep
+	ut.lmake( 'hello+world'                        ) # check targets are up to date
+	ut.lmake( 'world+world' , done=1               ) # check reconvergence

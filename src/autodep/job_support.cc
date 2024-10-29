@@ -15,28 +15,30 @@ using Proc = JobExecProc ;
 
 namespace JobSupport {
 
+	static void _chk_files(::vector_s const& files) {
+		for( ::string const& f : files ) if (f.size()>PATH_MAX) throw "file name too long ("s+f.size()+" characters)" ;
+	}
+
 	::vector<pair<Bool3/*ok*/,Crc>> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool verbose ) {
 		::vmap_s<FileInfo> deps ;
+		_chk_files(files) ;
 		for( ::string& f : files ) {
+			if (f.size()>PATH_MAX) throw "file name too long ("s+f.size()+" characters)" ;
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(f),.no_follow=no_follow,.read=true,.write=false,.comment="depend"}) ;
 			if (sr.file_loc<=FileLoc::Dep) deps.emplace_back(::move(sr.real),sr.file_info) ;
 		}
-		ad.accesses = ~Accesses() ;
-		if (verbose) {
-			JobExecRpcReply reply = r.report_sync_access( JobExecRpcReq( Proc::DepVerbose , ::move(deps) , ad , true/*verbose*/ , "depend" ) ) ;
-			return reply.dep_infos ;
-		} else {
-			r.report_sync_access( JobExecRpcReq( Proc::Access , 0 , ::move(deps) , ad , false/*verbose*/ , "depend" ) ) ;
-			return {} ;
-		}
+		// use sync reports even when no reply is necessary to ensure correct ordering with following requests using a different report Fd
+		if (verbose) { JobExecRpcReply reply = r.report_sync_access( JobExecRpcReq( Proc::DepVerbose       , ::move(deps) , ad , "depend" ) ) ; return reply.dep_infos ; }
+		else         {                         r.report_sync_access( JobExecRpcReq( Proc::Access , 0/*id*/ , ::move(deps) , ad , "depend" ) ) ; return {}              ; }
 	}
 
-	void target( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow ) {
+	void target( Record const& r , ::vector_s&& files , AccessDigest ad ) {
 		::vmap_s<FileInfo> targets ;
+		_chk_files(files) ;
 		for( ::string& f : files ) {
-			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(f),.no_follow=no_follow,.read=false,.write=true,.create=true,.comment="target"}) ;
+			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(f),.no_follow=true,.read=false,.write=true,.create=true,.comment="target"}) ;
 			if (sr.file_loc<=FileLoc::Repo) targets.emplace_back(::move(sr.real),sr.file_info) ;
-			/**/                            ad.accesses |= sr.accesses ;                         // pessimistic but in practice, sr.accesses is identical for all files (empty if no_follow, else Lnk)
+			/**/                            ad.accesses |= sr.accesses ;                         // pessimistic but in practice, sr.accesses is empty for all files
 		}
 		r.report_async_access( JobExecRpcReq( Proc::Access , 0 , ::move(targets) , ad , "target" ) ) ;
 	}

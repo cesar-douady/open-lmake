@@ -148,18 +148,14 @@ namespace Disk {
 		using Stat = struct ::stat ;
 	private :
 		// statics
-		static Stat _s_stat( Fd at , const char* name ) {
-			Stat st ;
-			errno = 0 ;
-			::fstatat( at , name , &st , AT_EMPTY_PATH|AT_SYMLINK_NOFOLLOW ) ;
-			return st ;
-		}
+		static FileTag _s_tag(Stat const& st) ;
 		// cxtors & casts
 	public :
 		FileInfo(                                                    ) = default ;
 		FileInfo( Fd at                                              ) : FileInfo{at     ,{}            } {}
 		FileInfo(         ::string const& name , bool no_follow=true ) : FileInfo{Fd::Cwd,name,no_follow} {}
 		FileInfo( Fd at , ::string const& name , bool no_follow=true ) ;
+		FileInfo( Stat const&                                        ) ;
 		// accesses
 		bool    operator==(FileInfo const&) const = default ;
 		//
