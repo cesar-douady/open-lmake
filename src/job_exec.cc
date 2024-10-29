@@ -259,17 +259,16 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 }
 
 int main( int argc , char* argv[] ) {
-	set_env("GMON_OUT_PREFIX","gmon.out.job_exec") ;  // in case profiling is used, ensure unique gmon.out
 	Pdate        start_overhead = Pdate(New) ;
-	ServerSockFd server_fd      { New }      ;        // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
+	ServerSockFd server_fd      { New }      ;             // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
-	swear_prod(argc==8,argc) ;                        // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
+	swear_prod(argc==8,argc) ;                             // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
 	g_service_start  =                     argv[1]  ;
 	g_service_mngt   =                     argv[2]  ;
 	g_service_end    =                     argv[3]  ;
 	g_seq_id         = from_string<SeqId >(argv[4]) ;
 	g_job            = from_string<JobIdx>(argv[5]) ;
-	g_phy_root_dir_s = with_slash         (argv[6]) ; // passed early so we can chdir and trace early
+	g_phy_root_dir_s = with_slash         (argv[6]) ;      // passed early so we can chdir and trace early
 	g_trace_id       = from_string<SeqId >(argv[7]) ;
 	//
 	g_trace_file = new ::string{g_phy_root_dir_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;

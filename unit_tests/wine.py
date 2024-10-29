@@ -84,7 +84,7 @@ else :
 	autodeps = ('none',*lmake.autodeps)
 	ut.lmake( *(f'test64.{m}' for m in autodeps) , done=1+2*len(autodeps) , new=0 , rc=0 )
 	ut.lmake( *(f'test64.{m}' for m in autodeps)                                         )     # ensure nothing needs to be remade
-	if os.environ['HAS_32BITS'] and shutil.which('wine') :
+	if os.environ['HAS_32'] and shutil.which('wine') :
 		methods_32 = [m for m in autodeps if m!='ptrace']
 		ut.lmake( *(f'test.{m}' for m in methods_32) , done=2*len(methods_32) , new=0 , rc=0 ) # ptrace is not supported in 32 bits
 		ut.lmake( *(f'test.{m}' for m in methods_32)                                         ) # ensure nothing needs to be remade

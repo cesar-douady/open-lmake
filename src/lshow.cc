@@ -9,7 +9,6 @@
 #include "trace.hh"
 
 int main( int argc , char* argv[] ) {
-	set_env("GMON_OUT_PREFIX","gmon.out.lshow") ;     // in case profiling is used, ensure unique gmon.out
 	bool read_only = app_init(true/*read_only_ok*/) ;
 	Trace trace("main") ;
 	//

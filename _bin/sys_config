@@ -429,12 +429,15 @@ SLURM_INC_DIR      := $SLURM_INC_DIR
 LD_SO_LIB          := $LD_SO_LIB
 LD_SO_LIB_32       := $LD_SO_LIB_32
 #
+HAS_32             := ${HAS_32#0}
 HAS_FUSE           := ${HAS_FUSE#0}
 HAS_LD_AUDIT       := ${HAS_LD_AUDIT#0}
 HAS_PCRE           := ${HAS_PCRE#0}
 HAS_SECCOMP        := ${HAS_SECCOMP#0}
 HAS_SGE            := ${HAS_SGE#0}
 HAS_SLURM          := ${HAS_SLURM#0}
+HAS_STACKTRACE     := ${HAS_STACKTRACE#0}
+HAS_STACKTRACE_32  := ${HAS_STACKTRACE_32#0}
 #
 STD_PATH           := $STD_PATH
 EOF

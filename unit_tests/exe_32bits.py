@@ -49,7 +49,7 @@ else :
 	from lmake import multi_strip
 	import ut
 
-	if not os.environ['HAS_32BITS'] :
+	if not os.environ['HAS_32'] :
 		print('no 32 bits support',file=open('skipped','w'))
 		exit()
 

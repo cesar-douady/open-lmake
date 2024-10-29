@@ -72,6 +72,7 @@ static constexpr ReqIdx NReqs = ::numeric_limits<ReqIdx>::max() ;
 #define ADMIN_DIR_S            "LMAKE/"
 #define PRIVATE_ADMIN_SUBDIR_S "lmake/"
 #define PRIVATE_ADMIN_DIR_S    ADMIN_DIR_S PRIVATE_ADMIN_SUBDIR_S
+#define GMON_DIR_S             ADMIN_DIR_S "gmon.out/"
 static constexpr char AdminDirS       [] = ADMIN_DIR_S         ;
 static constexpr char PrivateAdminDirS[] = PRIVATE_ADMIN_DIR_S ;
 
