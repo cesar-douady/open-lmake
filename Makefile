@@ -20,7 +20,8 @@ FORCE : ;
 sys_config.env : FORCE
 	@if [ ! -f $@ ] ; then                   \
 		echo new $@ ;                        \
-		{	echo CXX=$$CXX                 ; \
+		{	echo PATH=$$PATH               ; \
+			echo CXX=$$CXX                 ; \
 			echo PYTHON2=$$PYTHON2         ; \
 			echo PYTHON=$$PYTHON           ; \
 			echo SLURM_ROOT=$$SLURM_ROOT   ; \
@@ -95,23 +96,21 @@ HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=
 # - ST      : -fsanitize threads
 # - P       : -pg
 # - C       : coverage (not operational yet)
-OPT_FLAGS    := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,-O3)
-OPT_FLAGS    := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(OPT_FLAGS))
-OPT_FLAGS    := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(OPT_FLAGS))
-OPT_FLAGS    := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0,$(OPT_FLAGS))
-HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
-HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
-EXTRA_FLAGS  := $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
+EXTRA_FLAGS  := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,-O3)
+EXTRA_FLAGS  := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(OPT_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(OPT_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(OPT_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0,$(OPT_FLAGS))
+EXTRA_FLAGS  += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
 EXTRA_FLAGS  += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
 EXTRA_FLAGS  += $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
+HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
+HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
 SAN_FLAGS    += $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
 COVERAGE     += $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
-#
-CXX_DIR := $(shell dirname $(CXX))
-OBJCOPY := $(CXX_DIR)/objcopy
 #
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
 LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath=%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath=%))
@@ -123,7 +122,7 @@ ifeq ($(CXX_FLAVOR),clang)
     WARNING_FLAGS += $(CLANG_WARNING_FLAGS)
 endif
 #
-USER_FLAGS := -std=$(CXX_STD) $(OPT_FLAGS) $(EXTRA_FLAGS)
+USER_FLAGS := -std=$(CXX_STD) $(EXTRA_FLAGS)
 COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
 LINT       := clang-tidy
 LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
