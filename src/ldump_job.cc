@@ -102,7 +102,6 @@ void print_end(JobRpcReq const& jrr) {
 }
 
 int main( int argc , char* argv[] ) {
-	set_env("GMON_OUT_PREFIX","gmon.out.ldump_job") ;       // in case profiling is used, ensure unique gmon.out
 	if (argc!=2) exit(Rc::Usage,"usage : ldump_job file") ;
 	app_init(true/*read_only_ok*/) ;
 	//

@@ -100,11 +100,12 @@ OPT_FLAGS    := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(OPT_FLAGS))
 OPT_FLAGS    := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(OPT_FLAGS))
 OPT_FLAGS    := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0,$(OPT_FLAGS))
 HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
+HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
 EXTRA_FLAGS  := $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
 EXTRA_FLAGS  += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
+EXTRA_FLAGS  += $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
 SAN_FLAGS    += $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
-SAN_FLAGS    += $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
 COVERAGE     += $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
@@ -113,9 +114,9 @@ CXX_DIR := $(shell dirname $(CXX))
 OBJCOPY := $(CXX_DIR)/objcopy
 #
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
-LINK_FLAGS           = $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath=%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath=%))
+LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath=%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath=%))
 LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) -pthread $(LINK_FLAGS)
-LINK_LIB             = -ldl $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
+LINK_LIB             = -ldl $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 #
 ifeq ($(CXX_FLAVOR),clang)
@@ -142,20 +143,23 @@ FUSE_CC_FLAGS  := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --cflags))
 FUSE_LIB       := $(if $(HAS_FUSE),$(shell pkg-config fuse3 --libs  ))
 PCRE_LIB       := $(if $(HAS_PCRE),-lpcre2-8)
 
-PY_CC_FLAGS   = $(if $(and $(PYTHON2)     ,$(findstring -py2,             $@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
-PY_LINK_FLAGS = $(if $(and $(PYTHON2)     ,$(findstring 2.so,             $@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
-PY_SO         = $(if $(and $(PYTHON2)     ,$(findstring 2.so,             $@)),-py2)
-MOD_SO        = $(if $(and $(LD_SO_LIB_32),$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
-MOD_O         = $(if $(and $(LD_SO_LIB_32),$(findstring -m32,             $@)),-m32)
+PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,             $@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
+PY_LINK_FLAGS = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
+PY_SO         = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),-py2)
+MOD_SO        = $(if $(and $(HAS_32) ,$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
+MOD_O         = $(if $(and $(HAS_32) ,$(findstring -m32,             $@)),-m32)
 
 COMPILE = $(COMPILE1) $(PY_CC_FLAGS) $(CPP_FLAGS)
 
+# XXX : use split debug info when stacktrace supports it
 SPLIT_DBG = \
-	( \
-		cd $(@D)                                                 ; \
-		$(OBJCOPY) --only-keep-debug             $(@F) $(@F).dbg ; \
-		$(OBJCOPY) --strip-debug                 $(@F)           ; \
-		$(OBJCOPY) --add-gnu-debuglink=$(@F).dbg $(@F)             \
+	$(if $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(HAS_STACKTRACE_32),$(HAS_STACKTRACE)) ,, \
+		( \
+			cd $(@D)                                                 ; \
+			$(OBJCOPY) --only-keep-debug             $(@F) $(@F).dbg ; \
+			$(OBJCOPY) --strip-debug                 $(@F)           ; \
+			$(OBJCOPY) --add-gnu-debuglink=$(@F).dbg $(@F)             \
+		) \
 	)
 
 #
@@ -213,15 +217,15 @@ LMAKE_SERVER_FILES := \
 
 LMAKE_REMOTE_SLIBS := $(if $(HAS_LD_AUDIT),ld_audit.so) ld_preload.so ld_preload_jemalloc.so
 LMAKE_REMOTE_FILES := \
-	$(if $(LD_SO_LIB_32),$(patsubst %,_d$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
-	$(patsubst %,_d$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                          \
-	$(if $(HAS_PY3_DYN),lib/clmake.so)                                            \
-	$(if $(HAS_PY2_DYN),lib/clmake2.so)                                           \
-	_bin/job_exec                                                                 \
-	bin/lcheck_deps                                                               \
-	bin/ldecode                                                                   \
-	bin/lencode                                                                   \
-	bin/ldepend                                                                   \
+	$(if $(HAS_32),$(patsubst %,_d$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
+	$(patsubst %,_d$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                    \
+	$(if $(HAS_PY3_DYN),lib/clmake.so)                                      \
+	$(if $(HAS_PY2_DYN),lib/clmake2.so)                                     \
+	_bin/job_exec                                                           \
+	bin/lcheck_deps                                                         \
+	bin/ldecode                                                             \
+	bin/lencode                                                             \
+	bin/ldepend                                                             \
 	bin/ltarget
 
 LMAKE_DOC_FILES := \
@@ -241,9 +245,10 @@ LMAKE_BASIC_OBJS_ := \
 LMAKE_BASIC_OBJS     := $(LMAKE_BASIC_OBJS_)               src/non_portable.o
 LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS_:%.o=%$(SAN).o) src/non_portable.o
 
-LMAKE_FILES     := $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
-LMAKE_BIN_FILES := $(filter bin/%,$(LMAKE_FILES))
-LMAKE_DBG_FILES :=                                # this variable is progressively completed
+LMAKE_FILES        := $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
+LMAKE_BIN_FILES    := $(filter bin/%,$(LMAKE_FILES))
+LMAKE_DBG_FILES    :=                                # this variable is progressively completed
+LMAKE_DBG_FILES_32 :=                                # .
 
 DOCKER_FILES := $(filter docker/%.docker,$(SRCS))
 
@@ -370,19 +375,23 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 # these files are generated and cannot be reliably discovered with gcc -M option
 AUTO_H := version.hh
 
-%.i     : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS) to $@ ; $(COMPILE) -E      -o $@ $<
-%-m32.i : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS) to $@ ; $(COMPILE) -E -m32 -o $@ $<
-%-py2.i : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS) to $@ ; $(COMPILE) -E      -o $@ $<
-%.s     : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS) to $@ ; $(COMPILE) -S      -o $@ $<
-%-m32.s : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS) to $@ ; $(COMPILE) -S -m32 -o $@ $<
-%-py2.s : %.cc $(AUTO_H) ; @echo $(CXX)  $(USER_FLAGS) to $@ ; $(COMPILE) -S      -o $@ $<
-%.chk   : %.cc $(AUTO_H) ; @echo $(LINT) $(USER_FLAGS) to $@ ; $(LINT)    $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CPP_FLAGS) >$@ ; [ ! -s $@ ]
+%.i     : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E              -o $@ $<
+%-m32.i : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E -m32         -o $@ $<
+%-py2.i : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E              -o $@ $<
+%-san.i : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -E $(SAN_FLAGS) -o $@ $<
+
+%.s     : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S              -o $@ $<
+%-m32.s : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -m32         -o $@ $<
+%-py2.s : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S              -o $@ $<
+%-san.s : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S $(SAN_FLAGS) -o $@ $<
 
 COMPILE_O = $(COMPILE) -c -frtti -fPIC
 %.o     : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
 %-m32.o : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O) -m32         -o $@ $<
 %-py2.o : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
 %-san.o : %.cc $(AUTO_H) ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O) $(SAN_FLAGS) -o $@ $<
+
+%.chk   : %.cc $(AUTO_H) ; @echo $(LINT) $(USER_FLAGS) to $@ ; $(LINT) $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CPP_FLAGS) >$@ ; [ ! -s $@ ]
 
 %.d : %.cc $(AUTO_H)
 	@$(COMPILE) \
@@ -585,8 +594,8 @@ bin/% :
 
 # remote libs generate errors when -fsanitize=thread // XXX fix these errors and use $(SAN)
 
-LMAKE_DBG_FILES +=                       $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    _d$(LD_SO_LIB)/ld_preload_jemalloc.so
-LMAKE_DBG_FILES += $(if $(LD_SO_LIB_32), $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so )
+LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    _d$(LD_SO_LIB)/ld_preload_jemalloc.so
+LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so
 _d$(LD_SO_LIB)/ld_audit.so               : $(AUTODEP_OBJS)             src/autodep/ld_audit.o
 _d$(LD_SO_LIB)/ld_preload.so             : $(AUTODEP_OBJS)             src/autodep/ld_preload.o
 _d$(LD_SO_LIB)/ld_preload_jemalloc.so    : $(AUTODEP_OBJS)             src/autodep/ld_preload_jemalloc.o
@@ -621,7 +630,7 @@ TEST_ENV = \
 	export PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib:$$PYTHONPATH ; \
 	export CXX=$(CXX)                                               ; \
 	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                            ; \
-	export HAS_32BITS=$(if $(LD_SO_LIB_32),1)                       ; \
+	export HAS_32=$(HAS_32)                                         ; \
 	export PYTHON2=$(PYTHON2)                                       ; \
 	exec </dev/null >$@.out 2>$@.err
 
@@ -719,13 +728,16 @@ DOCKER : $(DOCKER_FILES)
 # packaging
 #
 
+# as of now, stacktrace is incompatible with split debug info
+LMAKE_DBG_FILES_ALL := $(if $(HAS_STACKTRACE),,$(LMAKE_DBG_FILES)) $(if $(and $(HAS_32),$(HAS_STACKTRACE_32)),$(LMAKE_DBG_FILES_32))
+
 ARCHIVE_DIR := open-lmake-$(VERSION)
 lmake.tar.gz  : TAR_COMPRESS := z
 lmake.tar.bz2 : TAR_COMPRESS := j
 lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 	@rm -rf $(ARCHIVE_DIR)
 	@mkdir -p $(ARCHIVE_DIR)
-	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES:%=%.dbg) | tar -x -C$(ARCHIVE_DIR)
+	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES_ALL:%=%.dbg) | tar -x -C$(ARCHIVE_DIR)
 	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
 
 #
@@ -748,7 +760,7 @@ DEBIAN_DEPS :
 install : $(LMAKE_ALL_FILES) doc/lmake.html $(EXAMPLE_FILES)
 	for f in $(LMAKE_SERVER_BIN_FILES); do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
 	for f in $(LMAKE_REMOTE_FILES)    ; do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	for f in $(LMAKE_DBG_FILES)       ; do install -D -m 644     $$f.dbg $(DESTDIR)/usr/lib/open-lmake/$$f.dbg        ; done
+	for f in $(LMAKE_DBG_FILES_ALL)   ; do install -D -m 644     $$f.dbg $(DESTDIR)/usr/lib/open-lmake/$$f.dbg        ; done
 	for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644     $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
 	for f in lmake.html               ; do install -D -m 644 doc/$$f     $(DESTDIR)/usr/share/doc/open-lmake/html/$$f ; done
 	for f in $(EXAMPLE_FILES)         ; do install -D -m 644     $$f     $(DESTDIR)/usr/share/doc/open-lmake/$$f      ; done
@@ -757,19 +769,20 @@ DEBIAN : open-lmake_$(DEBIAN_VERSION).stamp
 
 DEBIAN_SRCS := $(filter-out unit_tests/%,$(filter-out lmake_env/%,$(SRCS)))
 
+# as of now, stacktrace is incompatible with split debug info
 open-lmake_$(DEBIAN_VERSION).stamp : $(DEBIAN_SRCS)
 	rm -rf debian-repo
 	mkdir debian-repo
 	echo LMAKE_FLAGS=O3Gt > debian-repo/sys_config.env
 	tar -c $(DEBIAN_SRCS) | tar -x -Cdebian-repo
 	sed \
-	   -e 's!\$$DEBIAN_VERSION!$(DEBIAN_VERSION)!' \
-	   -e 's!\$$DATE!'"$$(date -R)!" \
-	   debian/changelog.src >debian-repo/debian/changelog
-	{ for f in $(LMAKE_BIN_FILES) ; do echo /usr/lib/open-lmake/$$f     /usr/$$f                   ; done ; } > debian-repo/debian/open-lmake.links
-	{ for f in $(LMAKE_BIN_FILES) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>debian-repo/debian/open-lmake.links
-	{ for f in $(MAN_FILES)       ; do echo $$f                                                    ; done ; } > debian-repo/debian/open-lmake.manpages
-	{ for f in $(SRCS)            ; do echo $$f                                                    ; done ; } > debian-repo/Manifest
+		-e 's!\$$DEBIAN_VERSION!$(DEBIAN_VERSION)!' \
+		-e 's!\$$DATE!'"$$(date -R)!"               \
+		debian/changelog.src >debian-repo/debian/changelog
+	{ for f in                         $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f     /usr/$$f                   ; done ; } > debian-repo/debian/open-lmake.links
+	{ for f in $(if $(HAS_STACKTRACE),,$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>debian-repo/debian/open-lmake.links
+	{ for f in                         $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > debian-repo/debian/open-lmake.manpages
+	{ for f in                         $(SRCS)             ; do echo $$f                                                    ; done ; } > debian-repo/Manifest
 	# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX : find a way to filter out these lines more cleanly
 	cd debian-repo ; debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
 	touch $@

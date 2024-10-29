@@ -65,7 +65,6 @@ static void _handle_int(bool start) {
 }
 
 int main( int argc , char* argv[] ) {
-	set_env("GMON_OUT_PREFIX","gmon.out.lmake") ; // in case profiling is used, ensure unique gmon.out
 	Trace::s_backup_trace = true ;
 	app_init(false/*read_only_ok*/,Maybe/*chk_version*/) ;
 	//

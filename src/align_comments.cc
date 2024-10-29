@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "disk.hh"
+#include "lib.hh"
 
 using namespace Disk ;
 
@@ -151,7 +152,10 @@ void optimize( ::vector<Line>& lines) {
 }
 
 int main( int argc , char* argv[] ) {
-	set_env("GMON_OUT_PREFIX","gmon.out.align_comment") ;                                                       // in case profiling is used, ensure unique gmon.out
+	#if PROFILING
+		::string gmon_dir_s ; try { gmon_dir_s = search_root_dir_s().first+GMON_DIR_S ; } catch(...) {}
+		set_env( "GMON_OUT_PREFIX" , dir_guard(gmon_dir_s+"align_comment") ) ;                          // in case profiling is used, ensure unique gmon.out
+	#endif
 	if ( argc<4 || argc>5 ) exit(Rc::Usage,"usage : ",argv[0]," tab_width max_line_size comment_sign [file]") ;
 	g_tab_width    = from_string<size_t>(argv[1]) ;
 	g_max_line_sz  = from_string<size_t>(argv[2]) ;

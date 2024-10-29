@@ -10,8 +10,6 @@
 using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
-	set_env("GMON_OUT_PREFIX","gmon.out.lmark") ; // in case profiling is used, ensure unique gmon.out
-	//
 	app_init(false/*read_only_ok*/) ;
 	//
 	ReqSyntax syntax{{

@@ -399,7 +399,6 @@ bool/*interrupted*/ engine_loop() {
 }
 
 int main( int argc , char** argv ) {
-	set_env("GMON_OUT_PREFIX","gmon.out.lmakeserver") ;                                       // in case profiling is used, ensure unique gmon.out
 	Trace::s_backup_trace = true ;
 	_g_read_only = app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                      // server is always launched at root
 	if (Record::s_is_simple(g_root_dir_s->c_str()))
