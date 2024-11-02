@@ -606,6 +606,10 @@ namespace Engine {
 									case Manual::Empty   :
 									case Manual::Modif   : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;
 								DF}
+							if ( !reason && !has_actual_job(jt) && jt.produces(idx(),true/*actual*/) ) {                 // ensure we dont let go a node with the wrong job
+									if (has_actual_job())  reason = {JobReasonTag::PollutedTarget,+idx()} ;
+									else                   reason = {JobReasonTag::NoTarget      ,+idx()} ;
+							}
 						break ;
 					DF}
 					if (ri.live_out) jri.live_out = ri.live_out ;                                                        // transmit user request to job for last level live output
