@@ -5,10 +5,10 @@
 
 // doc : https://wiki.archlinux.org/title/Son_of_Grid_Engine
 
+#include "generic.hh" // /!\ must be first because Python.h must be first
+
 #include "disk.hh"
 #include "process.hh"
-
-#include "generic.hh"
 
 using namespace Disk ;
 
@@ -142,10 +142,10 @@ namespace Backends::Sge {
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
-			if (!sge_bin_dir_s ) throw "must specify bin_dir to configure SGE"s  ;
-			if (!sge_root_dir_s) throw "must specify root_dir to configure SGE"s ;
+			throw_unless( +sge_bin_dir_s  , "must specify bin_dir to configure SGE" ) ;
+			throw_unless( +sge_root_dir_s , "must specify root_dir to configure SGE") ;
 			if (!dynamic) {
-				daemon = sge_sense_daemon(*this) ;
+				daemon = sge_sense_daemon(self) ;
 				_s_sge_cancel_thread.open('C',sge_cancel) ;
 			}
 			trace("done") ;
@@ -311,7 +311,7 @@ namespace Backends::Sge {
 		size_t     i   ;
 		for( i=0 ; i<res.size() ; i++ ) {
 			::string const& v = res[i] ;
-			if (v[0]!='-') throw "bad option does not start with - : "+v ;
+			throw_unless( v[0]=='-' , "bad option does not start with - : ",v ) ;
 			switch (v[1]) {
 				case 'a' : if (v=="-a"      ) { i++ ;                                                   continue ; }
 				/**/       if (v=="-ac"     ) { i++ ;                                                   continue ; }
@@ -347,7 +347,7 @@ namespace Backends::Sge {
 			DN}
 			throw "unexpected option : "+v ;
 		}
-		if (i!=res.size()) throw "option "+res.back()+" expects an argument" ;
+		throw_unless( i==res.size() , "option ",res.back()," expects an argument" ) ;
 		return res ;
 	}
 	inline RsrcsData::RsrcsData(::vmap_ss&& m) {

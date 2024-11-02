@@ -63,7 +63,7 @@ struct Gather {                                                                 
 		// accesses
 		::pair<PD,Accesses> first_read() const {
 			::pair<PD,Access> res = {PD::Future,{}} ;                                                  // normally, initial Access is not used, but in case, choose the most ubiquitous access
-			for( Access a : All<Access> ) {
+			for( Access a : iota(All<Access>) ) {
 				if (!digest.accesses[a]) continue ;
 				if (read[+a]>res.first ) continue ;
 				if (read[+a]<res.first ) res = {read[+a],a} ;
@@ -87,7 +87,7 @@ struct Gather {                                                                 
 	} ;
 	// statics
 private :
-	static void _s_do_child( void* self , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self)->_do_child(report_fd,ready) ; }
+	static void _s_do_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_do_child(report_fd,ready) ; }
 	// services
 	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only

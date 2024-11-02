@@ -91,15 +91,15 @@ struct Child {
 	static constexpr Fd     NoneFd  { -1 }   ;
 	static constexpr Fd     PipeFd  { -2 }   ;
 	// statics
-	[[noreturn]] static int _s_do_child           (void* self) { reinterpret_cast<Child*>(self)->_do_child           () ; }
-	[[noreturn]] static int _s_do_child_trampoline(void* self) { reinterpret_cast<Child*>(self)->_do_child_trampoline() ; }
+	[[noreturn]] static int _s_do_child           (void* self_) { reinterpret_cast<Child*>(self_)->_do_child           () ; }
+	[[noreturn]] static int _s_do_child_trampoline(void* self_) { reinterpret_cast<Child*>(self_)->_do_child_trampoline() ; }
 	// cxtors & casts
 	~Child() {
 		swear_prod(pid==0,"bad pid",pid) ;
 	}
 	// accesses
-	bool operator+() const { return pid     ; }
-	bool operator!() const { return !+*this ; }
+	bool operator+() const { return pid    ; }
+	bool operator!() const { return !+self ; }
 	// services
 	void spawn() ;
 	void mk_daemon() {

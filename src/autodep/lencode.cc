@@ -35,7 +35,7 @@ int main( int argc , char* argv[]) {
 	try {
 		if (cmd_line.flags[Flag::MinLen]) {
 			min_len = from_string<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ;
-			if (min_len>MaxCodecBits) throw "min len ("s+min_len+") cannot be larger max allowed code bits ("+MaxCodecBits+')' ;
+			throw_unless( min_len<=MaxCodecBits , "min len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits,')' ) ;
 		}
 	} catch (::string const& e) {
 		syntax.usage("bad min len value : "+e) ;

@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
+#include "core.hh" // must be first to include Python.h first
 
 #include "codec.hh"
 
@@ -179,13 +179,13 @@ namespace Backends {
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_attrs,rsrcs) ;
 		//
 		if ( tag!=Tag::Local && _localize(tag,r) ) {
-			SWEAR(+tag<N<Tag>) ;                                                                // prevent compiler array bound warning in next statement
+			SWEAR(+tag<N<Tag>) ;                                                                       // prevent compiler array bound warning in next statement
 			if (!s_tab[+tag]) throw "open-lmake was compiled without "s+snake(tag)+" support" ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
 			tag   = Tag::Local                                                            ;
 			trace("local",rsrcs) ;
 		}
-		if (!s_ready(tag)) throw "local backend is not available"s ;
+		throw_unless( s_ready(tag) , "local backend is not available" ) ;
 		submit_attrs.tag = tag ;
 		_s_workload.submit(r,j) ;
 		s_tab[+tag]->submit(j,r,submit_attrs,::move(rsrcs)) ;
@@ -561,7 +561,7 @@ namespace Backends {
 		Trace trace(BeChnl,"s_kill_req",r) ;
 		::vmap<Job,pair<StartEntry::Conn,Pdate>> to_wakeup ;
 		{	Lock lock { _s_mutex } ;                                                                         // lock for minimal time
-			for( Tag t : All<Tag> ) if (s_ready(t))
+			for( Tag t : iota(All<Tag>) ) if (s_ready(t))
 				for( Job j : s_tab[+t]->kill_waiting_jobs(r) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( Proc::GiveUp , JobExec(j,New) , r , false/*report*/ ) ;
@@ -666,7 +666,7 @@ namespace Backends {
 			if (!g_config->heartbeat_tick.sleep_for(stop)) break ;                                                    // limit job checks
 			continue ;
 		WrapAround :
-			for( Tag t : All<Tag> ) if (s_ready(t)) {
+			for( Tag t : iota(All<Tag>) ) if (s_ready(t)) {
 				Lock lock { _s_mutex } ;
 				s_heartbeat(t) ;
 			}
@@ -691,7 +691,7 @@ namespace Backends {
 		if (!dynamic) _s_job_exec = *g_lmake_dir_s+"_bin/job_exec" ;
 		//
 		Lock lock{_s_mutex} ;
-		for( Tag t : All<Tag> ) if (+t) {
+		for( Tag t : iota(1,All<Tag>) ) {                                                                             // local backend is always available
 			Backend*               be  = s_tab [+t] ;
 			Config::Backend const& cfg = config[+t] ;
 			if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }

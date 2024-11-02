@@ -71,16 +71,16 @@ namespace Disk {
 	inline ::string dir_name_s(::string const& path) {
 		size_t sep = path.rfind('/',path.size()-2) ;
 		if (sep!=Npos) return path.substr(0,sep+1)    ;
-		if (!path    ) throw "no dir for empty path"s ;
-		if (path=="/") throw "no dir for /"s          ;
+		throw_unless( +path     , "no dir for empty path" ) ;
+		throw_unless( path!="/" , "no dir for /"          ) ;
 		/**/           return {}                      ;
 	}
 	inline ::string base_name(::string const& path) {
 		size_t sep = path.rfind('/',path.size()-2) ;
-		if (sep!=Npos) return path.substr(sep+1)       ;
-		if (!path    ) throw "no base for empty path"s ;
-		if (path=="/") throw "no base for /"s          ;
-		/**/           return path                     ;
+		if (sep!=Npos) return path.substr(sep+1) ;
+		throw_unless( +path     , "no base for empty path" ) ;
+		throw_unless( path!="/" , "no base for /"          ) ;
+		return path ;
 	}
 	inline bool is_dirname( ::string const& path                         ) { return !path || path.back()=='/'                                                         ; }
 	inline bool is_in_dir ( ::string const& path , ::string const& dir_s ) { return path.starts_with(dir_s) || (path.size()+1==dir_s.size()&&dir_s.starts_with(path)) ; }
@@ -160,7 +160,7 @@ namespace Disk {
 		bool    operator==(FileInfo const&) const = default ;
 		//
 		bool    operator+() const { return tag()>=FileTag::Target ; }
-		bool    operator!() const { return !+*this                ; } // i.e. sz & date are not present
+		bool    operator!() const { return !+self                 ; } // i.e. sz & date are not present
 		FileTag tag      () const { return date.tag()             ; }
 		FileSig sig      () const ;
 		// data
@@ -180,19 +180,19 @@ namespace Disk {
 		// accesses
 	public :
 		bool    operator==(FileSig const& fs) const {
-			if( !*this && !fs ) return true          ; // consider Dir and None as identical
+			if( !self && !fs ) return true          ; // consider Dir and None as identical
 			else                return _val==fs._val ;
 		}
 		//
 		bool    operator+() const { return tag()>=FileTag::Target                ; }
-		bool    operator!() const { return !+*this                               ; }
+		bool    operator!() const { return !+self                                ; }
 		FileTag tag      () const { return FileTag(_val&lsb_msk(NBits<FileTag>)) ; }
 		// data
 	private :
 		uint64_t _val = 0 ;                            // by default, no file
 	} ;
 
-	inline FileSig FileInfo::sig() const { return FileSig(*this) ; }
+	inline FileSig FileInfo::sig() const { return FileSig(self) ; }
 
 	struct SigDate {
 		friend ::ostream& operator<<( ::ostream& , SigDate const& ) ;
@@ -206,7 +206,7 @@ namespace Disk {
 		// accesses
 		bool operator==(SigDate const&) const = default ;
 		bool operator+ (              ) const { return +date || +sig ; }
-		bool operator! (              ) const { return !+*this       ; }
+		bool operator! (              ) const { return !+self        ; }
 		// data
 		FileSig sig  ;
 		Pdate   date ;
@@ -339,12 +339,12 @@ namespace Disk {
 		FileMap(                        ) = default ;
 		FileMap( Fd , ::string const&   ) ;
 		FileMap(      ::string const& f ) : FileMap{Fd::Cwd,f} {}
-		bool operator+() const { return _ok     ; }
-		bool operator!() const { return !+*this ; }
+		bool operator+() const { return _ok    ; }
+		bool operator!() const { return !+self ; }
 		// accesses
 		#define C const
-		template<class T> T C& get(size_t ofs=0) C { if (ofs+sizeof(T)>sz) throw "object @"s+ofs+"out of file of size "+sz ; return *reinterpret_cast<T C*>(data+ofs) ; }
-		template<class T> T  & get(size_t ofs=0)   { if (ofs+sizeof(T)>sz) throw "object @"s+ofs+"out of file of size "+sz ; return *reinterpret_cast<T  *>(data+ofs) ; }
+		template<class T> T C& get(size_t ofs=0) C { throw_unless( ofs+sizeof(T)<=sz , "object @",ofs,"out of file of size ",sz ) ; return *reinterpret_cast<T C*>(data+ofs) ; }
+		template<class T> T  & get(size_t ofs=0)   { throw_unless( ofs+sizeof(T)<=sz , "object @",ofs,"out of file of size ",sz ) ; return *reinterpret_cast<T  *>(data+ofs) ; }
 		#undef C
 		// data
 		const uint8_t* data = nullptr ;
@@ -379,22 +379,14 @@ namespace Disk {
 	private :
 		// helper class to help recognize when we are in repo or in tmp
 		struct _Dvg {
+			// cxtors & casts
 			_Dvg( ::string const& domain , ::string const& chk ) { update(domain,chk) ; }
-			bool operator +() const { return ok      ; }
-			bool operator !() const { return !+*this ; }
-			// udpate after domain & chk have been lengthened or shortened, but not modified internally
-			void update( ::string const& domain , ::string const& chk ) {
-				size_t start = dvg ;
-				ok  = domain.size() <= chk.size()     ;
-				dvg = ok ? domain.size() : chk.size() ;
-				for( size_t i : iota(start,dvg) )
-					if (domain[i]!=chk[i]) {
-						ok  = false ;
-						dvg = i     ;
-						return ;
-					}
-				if ( domain.size() < chk.size() ) ok = chk[domain.size()]=='/' ;
-			}
+			// accesses
+			bool operator +() const { return ok     ; }
+			bool operator !() const { return !+self ; }
+			// services
+			void update( ::string const& domain , ::string const& chk ) ; // udpate after domain & chk have been lengthened or shortened, but not modified internally
+			// data
 			bool   ok  = false ;
 			size_t dvg = 0     ;
 		} ;

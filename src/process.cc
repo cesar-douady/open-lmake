@@ -15,11 +15,11 @@ using namespace Disk ;
 [[noreturn]] void Child::_exit( Rc rc , const char* msg ) { // signal-safe
 	if (msg) {
 		bool ok = true ;
-		ok &= ::write(2,msg,strlen(msg))>=0 ;               // /!\ cannot use high level I/O because we are only allowed signal-safe functions. Msg contains terminating null
+		ok &= ::write(2,msg,::strlen(msg))>=0 ;             // /!\ cannot use high level I/O because we are only allowed signal-safe functions. Msg contains terminating null
 		if (_child_args) {
 			ok &= ::write(2," :",2)>=0 ;                                                   // .
 			for( const char* const* p=_child_args ; *p ; p++ ) {
-				size_t l = strlen(*p) ;
+				size_t l = ::strlen(*p) ;
 				ok &= ::write(2," ",1)>=0 ;                                                // .
 				if (l<=100)   ok &= ::write(2,*p ,l )>=0 ;                                 // .
 				else        { ok &= ::write(2,*p ,97)>=0 ; ok &= ::write(2,"...",3)>=0 ; } // .
@@ -146,7 +146,7 @@ void Child::spawn() {
 	//
 	if (pid==-1) {
 		waited() ;                                                                                                           // ensure we can be destructed
-		throw "cannot spawn process "+fmt_string(cmd_line)+" : "+strerror(errno) ;
+		throw "cannot spawn process "+fmt_string(cmd_line)+" : "+::strerror(errno) ;
 	}
 	//
 	if (stdin_fd ==PipeFd) { stdin  = _p2c .write ; _p2c .read .close() ; }

@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
+#include "core.hh" // must be first to include Python.h first
 
 namespace Engine {
 	using namespace Disk ;
@@ -207,14 +207,14 @@ namespace Engine {
 			_prev_prio = _cur_prio() ;
 			if (single) idx = node.job_tgts().size() ;
 			else        idx++ ;
-			return *this ;
+			return self ;
 		}
 		JobTgt        operator* () const { return node.job_tgts()[idx] ;                                  }
 		JobTgt const* operator->() const { return node.job_tgts().begin()+idx ;                           }
 		JobTgt      * operator->()       { return node.job_tgts().begin()+idx ;                           }
 		operator bool           () const { return idx<node.job_tgts().size() && _cur_prio()>=_prev_prio ; }
 	private :
-		Prio _cur_prio() const { return (**this)->rule()->prio ; }
+		Prio _cur_prio() const { return (*self)->rule()->prio ; }
 		// data
 	public :
 		NodeData& node   ;
@@ -532,10 +532,10 @@ namespace Engine {
 			ri.prio_idx = 0 ;
 		} else {
 			// check if we need to regenerate node
-			if ( ri.done(NodeGoal::Status) && _may_need_regenerate(*this,ri,make_action) ) goto Make   ;
-			if ( ri.done()                                                               ) goto Wakeup ;
+			if ( ri.done(NodeGoal::Status) && _may_need_regenerate(self,ri,make_action) ) goto Make   ;
+			if ( ri.done()                                                              ) goto Wakeup ;
 			// fast path : check jobs we were waiting for, lighter than full analysis
-			JobTgtIter it{*this,ri} ;
+			JobTgtIter it{self,ri} ;
 			for(; it ; it++ ) {
 				JobTgt jt   = *it                                                 ;
 				bool   done = jt->c_req_info(req).done(ri.goal>=NodeGoal::Status) ;
@@ -565,7 +565,7 @@ namespace Engine {
 					}
 				}
 				if (!ri.single) {                                                                         // fast path : cannot have several jobs if we consider only a single job
-					for( JobTgtIter it{*this,ri} ; it ; it++ ) {                                          // check if we obviously have several jobs, in which case make nothing
+					for( JobTgtIter it{self,ri} ; it ; it++ ) {                                           // check if we obviously have several jobs, in which case make nothing
 						JobTgt jt = *it ;
 						if      ( jt.sure()                 )   buildable = Buildable::Yes ;              // buildable is data independent & pessimistic (may be Maybe instead of Yes)
 						else if (!jt->c_req_info(req).done())   continue ;
@@ -576,7 +576,7 @@ namespace Engine {
 					prod_idx = NoIdx ;
 				}
 				// make eligible jobs
-				JobTgtIter it { *this , ri } ;
+				JobTgtIter it { self , ri } ;
 				{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                     // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
 					for(; it ; it++ ) {
 						JobTgt        jt     = *it                   ;
@@ -645,7 +645,7 @@ namespace Engine {
 				for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule()->name       ,2) ;
 			}
 			ri.done_ = ri.goal ;
-			if (!_may_need_regenerate(*this,ri,make_action)) break ;
+			if (!_may_need_regenerate(self,ri,make_action)) break ;
 			SWEAR(first) ;                                                                                            // avoid infinite loop : we should not need to regenerate more than once
 			prod_idx = NoIdx ;
 		}
@@ -758,12 +758,12 @@ namespace Engine {
 		return {Manual::Ok,true/*refreshed*/} ;                     // file is steady
 	}
 	Manual NodeData::manual_refresh( Req req , FileSig const& sig ) {
-		auto [m,refreshed] = _manual_refresh(*this,sig) ;
+		auto [m,refreshed] = _manual_refresh(self,sig) ;
 		if ( refreshed && +req ) req->audit_node(Color::Note,"manual_steady",idx()) ;
 		return m ;
 	}
 	Manual NodeData::manual_refresh( JobData const& j , FileSig const& sig ) {
-		auto [m,refreshed] = _manual_refresh(*this,sig) ;
+		auto [m,refreshed] = _manual_refresh(self,sig) ;
 		if (refreshed) for( Req r : j.reqs() ) r->audit_node(Color::Note,"manual_steady",idx()) ;
 		return m ;
 	}
@@ -790,13 +790,13 @@ namespace Engine {
 
 	::string Dep::accesses_str() const {
 		::string res ; res.reserve(N<Access>) ;
-		for( Access a : All<Access> ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX : for some reason, clang-tidy fires up here
+		for( Access a : iota(All<Access>) ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX : for some reason, clang-tidy fires up here
 		return res ;
 	}
 
 	::string Dep::dflags_str() const {
 		::string res ; res.reserve(N<Dflag>) ;
-		for( Dflag df : All<Dflag> ) res.push_back( dflags[df] ? DflagChars[+df].second : '-' ) ;
+		for( Dflag df : iota(All<Dflag>) ) res.push_back( dflags[df] ? DflagChars[+df].second : '-' ) ;
 		return res ;
 	}
 
@@ -859,7 +859,7 @@ namespace Engine {
 		size_t               hole = Npos ;
 		for( auto const& [d,df] : deps ) _append_dep( ds , {d,accesses,df,parallel} , hole ) ;
 		_fill_hole(ds,hole) ;
-		*this = {ds} ;
+		self = {ds} ;
 	}
 
 	Deps::Deps( ::vector<Node> const& deps , Accesses accesses , Dflags dflags , bool parallel ) {
@@ -867,7 +867,7 @@ namespace Engine {
 		size_t               hole = Npos ;
 		for( auto const& d : deps ) _append_dep( ds , {d,accesses,dflags,parallel} , hole ) ;
 		_fill_hole(ds,hole) ;
-		*this = {ds} ;
+		self = {ds} ;
 	}
 
 	void Deps::assign(::vector<Dep> const& deps) {

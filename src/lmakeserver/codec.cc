@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
+#include "core.hh" // must be first to include Python.h first
 
 #include "rpc_job.hh"
 #include "codec.hh"
@@ -209,7 +209,7 @@ namespace Codec {
 	}
 
 	JobMngtRpcReply Closure::decode() const {
-		Trace trace("decode",*this) ;
+		Trace trace("decode",self) ;
 		SWEAR(proc==JobMngtProc::Decode,proc) ;
 		Node decode_node { mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
 		bool refreshed = s_refresh( file , +decode_node , reqs ) ;
@@ -225,7 +225,7 @@ namespace Codec {
 	}
 
 	JobMngtRpcReply Closure::encode() const {
-		Trace trace("encode",*this) ;
+		Trace trace("encode",self) ;
 		SWEAR(proc==JobMngtProc::Encode,proc) ;
 		Node encode_node { mk_encode_node(file,ctx,txt) , true/*no_dir*/ } ;
 		if ( !s_refresh( file , +encode_node , reqs ) ) {

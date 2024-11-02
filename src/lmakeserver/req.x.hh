@@ -73,11 +73,11 @@ namespace Engine {
 		// accesses
 		ReqData const& operator* () const ;
 		ReqData      & operator* ()       ;
-		ReqData const* operator->() const { return &**this ; }
-		ReqData      * operator->()       { return &**this ; }
+		ReqData const* operator->() const { return &*self ; }
+		ReqData      * operator->()       { return &*self ; }
 		//
-		bool zombie(      ) const { return _s_zombie_tab[+*this] ;              }                          // req has been killed, waiting to be closed when all jobs are done
-		void zombie(bool z)       { SWEAR(+*this) ; _s_zombie_tab[+*this] = z ; }                          // ensure Req 0 is always zombie
+		bool zombie(      ) const { return _s_zombie_tab[+self] ;             }                            // req has been killed, waiting to be closed when all jobs are done
+		void zombie(bool z)       { SWEAR(+self) ; _s_zombie_tab[+self] = z ; }                            // ensure Req 0 is always zombie
 		// services
 		void make   (EngineClosureReq const&) ;
 		void kill   (                       ) ;
@@ -108,8 +108,8 @@ namespace Engine {
 		JobIdx const& cur(JobStep i) const { SWEAR( s_valid_cur(i) ) ; return _cur[s_mk_idx(i)] ; }
 		JobIdx      & cur(JobStep i)       { SWEAR( s_valid_cur(i) ) ; return _cur[s_mk_idx(i)] ; }
 		//
-		JobIdx cur () const { JobIdx res = 0 ; for( JobStep   i  : All<JobStep  > ) if (s_valid_cur(i)     ) res+=cur  (i)   ; return res ; }
-		JobIdx done() const { JobIdx res = 0 ; for( JobReport jr : All<JobReport> ) if (jr<=JobReport::Done) res+=ended[+jr] ; return res ; }
+		JobIdx cur () const { JobIdx res = 0 ; for( JobStep   i  : iota(All<JobStep  >  ) ) if (s_valid_cur(i)) res+=cur  (i)   ; return res ; }
+		JobIdx done() const { JobIdx res = 0 ; for( JobReport jr : iota(All<JobReport>+1) )                     res+=ended[+jr] ; return res ; }
 		//
 		void add( JobReport jr , Delay exec_time={} ) {                       ended[+jr] += 1 ; jobs_time[+jr] += exec_time ; }
 		void sub( JobReport jr , Delay exec_time={} ) { SWEAR(ended[+jr]>0) ; ended[+jr] -= 1 ; jobs_time[+jr] -= exec_time ; }
@@ -161,7 +161,7 @@ namespace Engine {
 		 	if (_n_watchers==VectorMrkr) delete _watchers_v ;
 			else                         _watchers_a.~array () ;
 		 }
-		ReqInfo(ReqInfo&& ri) { *this = ::move(ri) ; }
+		ReqInfo(ReqInfo&& ri) { self = ::move(ri) ; }
 		ReqInfo& operator=(ReqInfo&& ri) {
 			n_wait   = ri.n_wait   ;
 			live_out = ri.live_out ;
@@ -172,7 +172,7 @@ namespace Engine {
 			_n_watchers = ri._n_watchers ;
 			if (_n_watchers==VectorMrkr) _watchers_v = new ::vector<Watcher          >{::move(*ri._watchers_v)} ;
 			else                         new(&_watchers_a) ::array <Watcher,NWatchers>{::move( ri._watchers_a)} ;
-			return *this ;
+			return self ;
 		}
 		// acesses
 		void       inc_wait    ()       {                 n_wait++ ; SWEAR(n_wait) ;                       }
@@ -237,8 +237,8 @@ namespace Engine {
 	public :
 		void clear() ;
 		// accesses
-		bool   operator+() const {                    return +job                                                ; }
-		bool   operator!() const {                    return !+*this                                             ; }
+		bool   operator+() const {                    return +job                                               ; }
+		bool   operator!() const {                    return !+self                                             ; }
 		bool   is_open  () const {                    return idx_by_start!=Idx(-1)                               ; }
 		JobIdx n_running() const {                    return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
 		Req    req      () const { SWEAR(is_open()) ; return Req::s_reqs_by_start[idx_by_start]                  ; }
@@ -304,8 +304,8 @@ namespace Engine {
 	// Req
 	//
 
-	inline ReqData const& Req::operator*() const { return s_store[+*this] ; }
-	inline ReqData      & Req::operator*()       { return s_store[+*this] ; }
+	inline ReqData const& Req::operator*() const { return s_store[+self] ; }
+	inline ReqData      & Req::operator*()       { return s_store[+self] ; }
 
 	inline ::vmap<Req,Pdate> Req::s_etas() {
 		Lock              lock { s_reqs_mutex } ;
@@ -320,12 +320,12 @@ namespace Engine {
 
 	inline void Req::alloc() {
 		Lock lock{s_reqs_mutex} ;
-		grow(s_store,+*this) ;
+		grow(s_store,+self) ;
 	}
 
 	inline void Req::dealloc() {
-		s_small_ids.release(+*this) ;
-		(*this)->clear() ;
+		s_small_ids.release(+self) ;
+		self->clear() ;
 	}
 
 	//

@@ -142,8 +142,8 @@ struct _Exec : Record::Exec {
 		//
 		const char* const* llp = nullptr/*garbage*/ ;
 		for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
-		if (*llp) elf_deps( r , *this , *llp+LlpeSz , comment+".dep" ) ;               // pass value after the LD_LIBRARY_PATH= prefix
-		else      elf_deps( r , *this , nullptr     , comment+".dep" ) ;               // /!\ dont add LlpeSz to nullptr
+		if (*llp) elf_deps( r , self , *llp+LlpeSz , comment+".dep" ) ;                // pass value after the LD_LIBRARY_PATH= prefix
+		else      elf_deps( r , self , nullptr     , comment+".dep" ) ;                // /!\ dont add LlpeSz to nullptr
 	}
 } ;
 using Exec = AuditAction<_Exec> ;
@@ -155,13 +155,13 @@ struct _Execp : _Exec {
 	_Execp( Record& r , const char* file , bool /*no_follow*/ , const char* const envp[] , ::string&& comment ) {
 		if (!file) return ;
 		//
-		if (::strchr(file,'/')) {                                                              // if file contains a /, no search is performed
-			static_cast<Base&>(*this) = Base(r,file,false/*no_follow*/,envp,::move(comment)) ;
+		if (::strchr(file,'/')) {                                                             // if file contains a /, no search is performed
+			static_cast<Base&>(self) = Base(r,file,false/*no_follow*/,envp,::move(comment)) ;
 			return ;
 		}
 		//
 		::string p = get_env("PATH") ;
-		if (!p) {                                                                              // gather standard path if path not provided
+		if (!p) {                                                                             // gather standard path if path not provided
 			size_t n = ::confstr(_CS_PATH,nullptr,0) ;
 			p.resize(n) ;
 			::confstr(_CS_PATH,p.data(),n) ;
@@ -175,7 +175,7 @@ struct _Execp : _Exec {
 			::string full_file = len ? p.substr(pos,len)+'/'+file : file ;
 			Record::Read(r,full_file,false/*no_follow*/,true/*keep_real*/,::copy(comment)) ;
 			if (is_exe(full_file,false/*no_follow*/)) {
-				static_cast<Base&>(*this) = Base(r,full_file,false/*no_follow*/,envp,::move(comment)) ;
+				static_cast<Base&>(self) = Base(r,full_file,false/*no_follow*/,envp,::move(comment)) ;
 				return ;
 			}
 			if (end==Npos) return ;
@@ -196,15 +196,15 @@ struct Fopen : AuditAction<Record::Open> {
 		bool w = false ;
 		bool a = false ;
 		bool p = false ;
-		for( const char* m=mode ; *m && *m!=',' ; m++ )                                                // after a ',', there is a css=xxx which we do not care about
+		for( const char* m=mode ; *m && *m!=',' ; m++ )    // after a ',', there is a css=xxx which we do not care about
 			switch (*m) {
 				case 'r' : r = true ; break ;
 				case 'w' : w = true ; break ;
 				case 'a' : a = true ; break ;
 				case '+' : p = true ; break ;
-				case 'c' :            return O_PATH ;                                                  // gnu extension, no access
+				case 'c' :            return O_PATH ;      // gnu extension, no access
 			DN}
-		if (a+r+w!=1) return O_PATH ;                                                                  // error case   , no access
+		if (a+r+w!=1) return O_PATH ;                      // error case   , no access
 		int flags = p ? O_RDWR : r ? O_RDONLY : O_WRONLY ;
 		if (!r) flags |= O_CREAT  ;
 		if (w ) flags |= O_TRUNC  ;
@@ -228,7 +228,7 @@ struct Mkstemp : WSolve {
 	Mkstemp( char* t ,          ::string&& comment_ ) : Mkstemp(t,0,::move(comment_)) {}
 	int operator()(int fd) {
 		// in case of success, tmpl is modified to contain the file that was actually opened, and it was called with file instead of tmpl
-		if (file!=tmpl) ::memcpy( tmpl+strlen(tmpl)-sfx_len-6 , file+strlen(file)-sfx_len-6 , 6 ) ;
+		if (file!=tmpl) ::memcpy( tmpl+::strlen(tmpl)-sfx_len-6 , file+::strlen(file)-sfx_len-6 , 6 ) ;
 		if (fd>=0     ) Record::Open(auditor(),file,O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW,::move(comment))(auditor(),fd) ;
 		return Base::operator()(fd) ;
 	}

@@ -19,7 +19,7 @@ template<bool Multi,bool HasDataSz> struct TestData {
 	TestData(             )                 : sz(0) {                             }
 	TestData(int v        )                 : sz(1) { val[0] = v  ;               }
 	TestData(int v1,int v2) requires(Multi) : sz(2) { val[0] = v1 ; val[1] = v2 ; }
-	TestData& operator=(int v) { sz = 1 ; val[0] = v ; return *this ; }
+	TestData& operator=(int v) { sz = 1 ; val[0] = v ; return self ; }
 	size_t n_items() const requires(HasDataSz) { return sz ; }
 	size_t sz ;
 	int val[1] ;

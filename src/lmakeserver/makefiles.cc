@@ -3,14 +3,11 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
-
 #include <pwd.h>
 
+#include "core.hh" // must be first to include Python.h first
 #include "re.hh"
-
 #include "autodep/gather.hh"
-
 #include "makefiles.hh"
 
 using namespace Disk ;
@@ -28,7 +25,7 @@ namespace Engine::Makefiles {
 		::pair<vmap_s<FileTag>/*files*/,vector_s/*dirs_s*/> res       ;
 		for( Object const& py_src : py_srcs ) {
 			::string src = py_src.as_a<Str>() ;
-			if (!src) throw "found an empty source"s ;
+			throw_unless( +src , "found an empty source" ) ;
 			bool        is_dir_ = is_dirname(src)                     ;
 			const char* src_msg = is_dir_ ? "source dir " : "source " ;
 			if (!is_canon(src)) throw src_msg+src+" canonical form is "+mk_canon(src) ;
@@ -48,7 +45,7 @@ namespace Engine::Makefiles {
 				SWEAR(sr.real==src) ; // src is canonic and there are no links, what may justify real from being different ?
 			}
 			if (is_dir_) src.push_back('/') ;
-			if (+reason) throw src_msg + src + reason ;
+			throw_unless( !reason , src_msg,src,reason ) ;
 			if (is_dir_) res.second.push_back   (src         ) ;
 			else         res.first .emplace_back(src,fi.tag()) ;
 		}
@@ -268,10 +265,10 @@ namespace Engine::Makefiles {
 			{	OFStream env_stream { ADMIN_DIR_S "user_environ" } ;
 				First    first      ;
 				size_t   w          = 0 ;
-				for( char** e=environ ; *e ; e++ ) if ( const char* eq = strchr(*e,'=') ) w = ::max(w,size_t(eq-*e)) ;
+				for( char** e=environ ; *e ; e++ ) if ( const char* eq = ::strchr(*e,'=') ) w = ::max(w,size_t(eq-*e)) ;
 				env_stream << '{' ;
 				for( char** e=environ ; *e ; e++ )
-					if ( const char* eq = strchr(*e,'=') )
+					if ( const char* eq = ::strchr(*e,'=') )
 						env_stream << first("",",")<<'\t'<< ::setw(w)<<mk_py_str(::string_view(*e,eq-*e)) <<" : "<< mk_py_str(::string(eq+1)) << '\n' ;
 				env_stream << "}\n" ;
 			}

@@ -16,7 +16,7 @@
 
 template<class E,class T> static constexpr bool _chk_flags_tab(::array<::pair<E,T>,N<E>> tab) {
 	bool res = true ;
-	for( E e=E(0) ; e!=All<E> ; e++ ) res &= tab[+e].first==e ;
+	for( E e : iota(All<E>) ) res &= tab[+e].first==e ;
 	return res ;
 }
 

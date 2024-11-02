@@ -168,7 +168,7 @@ struct ReqRpcReply {
 	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Txt ) ; }
 	//
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) *this = {} ;
+		if (::is_base_of_v<::istream,T>) self = {} ;
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::None   :                   break ;

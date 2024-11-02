@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
+#include "core.hh" // must be first to include Python.h first
 
 using namespace Disk ;
 using namespace Hash ;
@@ -94,7 +94,7 @@ namespace Engine {
 		if (sc.max_err_lines       )                  os <<",EL" << sc.max_err_lines          ;
 		if (sc.path_max!=size_t(-1))                  os <<",PM" << sc.path_max               ;
 		if (+sc.caches             )                  os <<','   << sc.caches                 ;
-		for( BackendTag t : All<BackendTag> ) if (+t) os <<','   << t <<':'<< sc.backends[+t] ;
+		for( BackendTag t : iota(1,All<BackendTag>) ) os <<','   << t <<':'<< sc.backends[+t] ; // local backend is always present
 		return os<<')' ;
 	}
 
@@ -106,7 +106,7 @@ namespace Engine {
 			if (field=="tag") { tag = mk_enum<Tag>(py_v.as_a<Str>()) ; found_tag = true ; }
 			else                dct.emplace_back(field,*py_v.str()) ;
 		}
-		if (!found_tag) throw "tag not found"s ;
+		throw_unless( found_tag , "tag not found" ) ;
 	}
 
 	ConfigDynamic::Backend::Backend(Dict const& py_map) : configured{true} {
@@ -185,25 +185,25 @@ namespace Engine {
 			}
 			//
 			fields[0] = "backends" ;
-			if (!py_map.contains(fields[0])) throw "not found"s ;
+			throw_unless( py_map.contains(fields[0]) , "not found" ) ;
 			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;
 			fields.emplace_back() ;
 			fields[1] = "precisions" ;
 			if (py_backends.contains(fields[1])) {
 				Dict const&    py_precs = py_backends[fields[1]].as_a<Dict>() ;
 				fields.emplace_back() ;
-				for( StdRsrc r : All<StdRsrc> ) {
+				for( StdRsrc r : iota(All<StdRsrc>) ) {
 					fields[2] = snake(r) ;
 					if (!py_precs.contains(fields[2])) continue ;
-					unsigned long prec = py_precs[fields[2]].as_a<Int>() ;
+					ulong prec = py_precs[fields[2]].as_a<Int>() ;
 					if (prec==0                ) continue ;
-					if (!::has_single_bit(prec)) throw ""s+prec+" is not a power of 2" ;
-					if (prec==1                ) throw "must be 0 or at least 2"s      ;
+					throw_unless( ::has_single_bit(prec) , prec," is not a power of 2" ) ;
+					throw_unless( prec!=1                , "must be 0 or at least 2"   ) ;
 					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                                                     // number of kept digits
 				}
 				fields.pop_back() ;
 			}
-			for( BackendTag t : All<BackendTag> ) if (+t) {
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                     // local backend is always present
 				fields[1] = snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 				if (!bbe                            ) continue ;                                                                // not implemented
@@ -224,24 +224,24 @@ namespace Engine {
 			}
 			//
 			fields[0] = "colors" ;
-			if (!py_map.contains(fields[0])) throw "not found"s ;
+			throw_unless( py_map.contains(fields[0]) , "not found" ) ;
 			Dict const& py_colors = py_map[fields[0]].as_a<Dict>() ;
 			fields.emplace_back() ;
-			for( Color c{1} ; c<All<Color> ; c++ ) {
+			for( Color c : iota(1,All<Color>) ) {
 				fields[1] = snake(c) ;
-				if (!py_colors.contains(fields[1])) throw "not found"s ;
+				throw_unless( py_colors.contains(fields[1]) , "not found" ) ;
 				Sequence const& py_c1 = py_colors[fields[1]].as_a<Sequence>() ;
-				if (py_c1.size()!=2) throw "size is "s+py_c1.size()+"!=2" ;
+				throw_unless( py_c1.size()==2 , "size is ",py_c1.size(),"!=2" ) ;
 				fields.emplace_back() ;
 				for( bool r : {false,true} ) {
 					fields[2] = r?"reverse":"normal" ;
 					Sequence const& py_c2 = py_c1[r].as_a<Sequence>() ;
-					if (py_c2.size()!=3) throw "size is "s+py_c2.size()+"!=3" ;
+					throw_unless( py_c2.size()==3 , "size is ",py_c2.size(),"!=3" ) ;
 					fields.emplace_back() ;
 					for( size_t rgb : iota(3) ) {
 						fields[3] = ::string( &"rgb"[rgb] , 1 ) ;
 						size_t cc = py_c2[rgb].as_a<Int>() ;
-						if (cc>=256) throw "color is "s+cc+">=256" ;
+						throw_unless( cc<256 , "color is ",cc,">=256" ) ;
 						colors[+c][r][rgb] = py_c2[rgb].as_a<Int>() ;
 					}
 					fields.pop_back() ;
@@ -263,7 +263,7 @@ namespace Engine {
 				fields.pop_back() ;
 			}
 			// do some adjustments
-			for( BackendTag t : All<BackendTag> ) if (+t) {
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                     // local backend is not remote
 				if (!backends[+t].configured         ) continue        ;
 				if (!Backends::Backend::s_ready   (t)) continue        ;
 				if (!Backends::Backend::s_is_local(t)) goto SeenRemote ;
@@ -323,14 +323,14 @@ namespace Engine {
 		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		/**/                                res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
 		//
-		bool has_digits = false ; for( StdRsrc r : All<StdRsrc> ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
+		bool has_digits = false ; for( StdRsrc r : iota(All<StdRsrc>) ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
 		if (has_digits) {
 			res << "\tresource precisions :\n" ;
-			for( StdRsrc r : All<StdRsrc> ) if (rsrc_digits[+r]) res << "\t\t"<<snake(r)<<" : "<<(1<<rsrc_digits[+r])<<'\n' ;
+			for( StdRsrc r : iota(All<StdRsrc>) ) if (rsrc_digits[+r]) res << "\t\t"<<snake(r)<<" : "<<(1<<rsrc_digits[+r])<<'\n' ;
 		}
 		//
 		res << "\tbackends :\n" ;
-		for( BackendTag t : All<BackendTag> ) if (+t) {
+		for( BackendTag t : iota(1,All<BackendTag>) ) {                      // local backend is always present
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 			if (!bbe                          ) continue ;                   // not implemented
@@ -356,9 +356,9 @@ namespace Engine {
 			if (trace.sz      !=TraceConfig().sz      ) res << "\t\tsize     : " << trace.sz     << '\n' ;
 			if (trace.n_jobs  !=TraceConfig().n_jobs  ) res << "\t\tn_jobs   : " << trace.n_jobs << '\n' ;
 			if (trace.channels!=TraceConfig().channels) {
-				/**/                                                   res <<"\t\t"<< "channels :" ;
-				for( Channel c : All<Channel> ) if (trace.channels[c]) res <<' '   << snake(c)     ;
-				/**/                                                   res <<'\n'                  ;
+				/**/                                                         res <<"\t\t"<< "channels :" ;
+				for( Channel c : iota(All<Channel>) ) if (trace.channels[c]) res <<' '   << snake(c)     ;
+				/**/                                                         res <<'\n'                  ;
 			}
 		}
 		//
@@ -478,7 +478,7 @@ namespace Engine {
 			else                            err_str << _audit_indent(mk_rel(target,startup_dir_s),1) << '\n' ;
 		}
 		//
-		if (+err_str) throw "files are outside repo :\n"+err_str ;
+		throw_unless( !err_str , "files are outside repo :\n",err_str ) ;
 		return targets ;
 	}
 
@@ -486,8 +486,8 @@ namespace Engine {
 		SWEAR(as_job()) ;
 		if (options.flags[ReqFlag::Rule]) {
 			::string const& rule_name = options.flag_args[+ReqFlag::Rule] ;
-			auto            it        = Rule::s_by_name.find(rule_name)   ; if (it==Rule::s_by_name.end()) throw "cannot find rule "+rule_name                                              ;
-			Job             j         { it->second , files[0] }           ; if (!j                       ) throw "cannot find job "+mk_rel(files[0],startup_dir_s)+" using rule "+rule_name ;
+			auto            it        = Rule::s_by_name.find(rule_name)   ; throw_unless( it!=Rule::s_by_name.end() , "cannot find rule ",rule_name                                              ) ;
+			Job             j         { it->second , files[0] }           ; throw_unless( +j                        , "cannot find job ",mk_rel(files[0],startup_dir_s)," using rule ",rule_name ) ;
 			return j ;
 		}
 		::vector<Job> candidates ;

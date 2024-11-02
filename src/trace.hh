@@ -77,7 +77,7 @@ static constexpr Channels DfltChannels = ~Channels() ;
 	public :
 		/**/                  Trace( Channel channel                                       ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels.load()[channel]}                            {}
 		template<class... Ts> Trace( Channel channel , const char* tag , Ts const&... args ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels.load()[channel]} , _first{true} , _tag{tag} {
-			(*this)(args...) ;
+			self(args...) ;
 			_first = false ;
 		}
 		/**/                  Trace(                                     ) : Trace{Channel::Default            } {}

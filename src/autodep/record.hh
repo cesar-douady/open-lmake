@@ -207,7 +207,7 @@ public :
 		_Path(        ::string const& f ) :         file{f.c_str()} { _allocate(f.size()) ; }
 		_Path( Fd a , ::string const& f ) : at{a} , file{f.c_str()} { _allocate(f.size()) ; }
 		//
-		_Path(_Path && p) { *this = ::move(p) ; }
+		_Path(_Path && p) { self = ::move(p) ; }
 		_Path& operator=(_Path&& p) {
 			_deallocate() ;
 			at          = p.at        ;
@@ -215,7 +215,7 @@ public :
 			allocated   = p.allocated ;
 			p.file      = nullptr     ;                                                                               // safer to avoid dangling pointers
 			p.allocated = false       ;                                                                               // we have clobbered allocation, so it is no more p's responsibility
-			return *this ;
+			return self ;
 		}
 		~_Path() { _deallocate() ; }
 		// accesses

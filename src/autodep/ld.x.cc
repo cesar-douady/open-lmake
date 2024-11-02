@@ -58,7 +58,7 @@ struct Elf {
 		DynDigest( NewType ) {
 			void*       main = ::dlopen(nullptr,RTLD_NOW|RTLD_NOLOAD) ; if (!main                                ) return ;
 			::link_map* lm   = nullptr/*garbage*/                     ; if (::dlinfo(main,RTLD_DI_LINKMAP,&lm)!=0) return ;
-			*this = DynDigest(lm->l_ld) ;
+			self = DynDigest(lm->l_ld) ;
 		}
 		// data
 		::vector<const char*> neededs ;

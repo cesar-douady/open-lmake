@@ -55,11 +55,11 @@ namespace Re {
 				if (_data) pcre2_match_data_free(_data) ;
 			}
 			//
-			Match           (Match&& m) { swap(*this,m) ;                }
-			Match& operator=(Match&& m) { swap(*this,m) ; return *this ; }
+			Match           (Match&& m) { swap(self,m) ;               }
+			Match& operator=(Match&& m) { swap(self,m) ; return self ; }
 			// accesses
 			bool operator+() const { return _data && pcre2_get_ovector_pointer(_data)[0]!=PCRE2_UNSET ; }
-			bool operator!() const { return !+*this                                                   ; }
+			bool operator!() const { return !+self                                                    ; }
 			//
 			::string_view operator[](size_t i) const {
 				PCRE2_SIZE const* v = pcre2_get_ovector_pointer(_data) ;
@@ -80,7 +80,7 @@ namespace Re {
 			friend Match ;
 			friend void swap( RegExpr& a , RegExpr& b ) ;
 			using Use = RegExprUse ;
-			static constexpr size_t ErrMsgSz = 120 ;                                 // per PCRE doc
+			static constexpr size_t ErrMsgSz = 120 ;                           // per PCRE doc
 			struct Cache {
 				// cxtors & casts
 				void serdes(::ostream&) const ;
@@ -107,11 +107,11 @@ namespace Re {
 			RegExpr() = default ;
 			RegExpr(::string const& pattern) ;
 			//
-			RegExpr           (RegExpr&& re) { swap(*this,re) ;                }
-			RegExpr& operator=(RegExpr&& re) { swap(*this,re) ; return *this ; }
+			RegExpr           (RegExpr&& re) { swap(self,re) ;               }
+			RegExpr& operator=(RegExpr&& re) { swap(self,re) ; return self ; }
 			// services
 			Match match( ::string const& subject , bool chk_psfx=true ) const {
-				return { *this , subject , chk_psfx } ;
+				return { self , subject , chk_psfx } ;
 			}
 			size_t mark_count() const {
 				uint32_t cnt ;
@@ -119,10 +119,10 @@ namespace Re {
 				return cnt ;
 			}
 			// data
-			::string pfx ;                                                           // fixed prefix
-			::string sfx ;                                                           // fixed suffix
+			::string pfx ;                                                     // fixed prefix
+			::string sfx ;                                                     // fixed suffix
 		private :
-			pcre2_code const* _code = nullptr ;                                      // only contains code for infix part, shared and stored in s_store
+			pcre2_code const* _code = nullptr ;                                // only contains code for infix part, shared and stored in s_store
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b ) {
 			::swap(a.pfx  ,b.pfx  ) ;
@@ -140,7 +140,7 @@ namespace Re {
 			// accesses
 		public :
 			bool operator+() const { return !empty() ; }
-			bool operator!() const { return !+*this  ; }
+			bool operator!() const { return !+self   ; }
 			//
 			::string_view operator[](size_t i) const {
 				::sub_match sm = ::smatch::operator[](i) ;
@@ -162,7 +162,7 @@ namespace Re {
 			// services
 			Match match( ::string const& subject , bool /*chk_psfx*/=true ) const {
 				Match res ;
-				::regex_match(subject,res,*this) ;
+				::regex_match(subject,res,self) ;
 				return res ;
 			}
 			size_t mark_count() const {

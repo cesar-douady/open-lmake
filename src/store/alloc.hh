@@ -107,8 +107,8 @@ namespace Store {
 				// services
 				bool      operator==(Iterator const& other) const { return _self==other._self && _idx==other._idx ; }
 				Idx       operator* (                     ) const { return _idx ;                                   }
-				Iterator& operator++(                     )       { _advance() ; _legalize() ; return *this ;       }
-				Iterator  operator++(int                  )       { Iterator res = *this ; ++*this ; return res ;   }
+				Iterator& operator++(                     )       { _advance() ; _legalize() ; return self ;        }
+				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res ;     }
 			private :
 				void _advance() {
 					SWEAR(+_idx) ;
@@ -130,10 +130,10 @@ namespace Store {
 			// accesses
 			Sz size() const { return _self->size() ; }
 			// services
-			Iterator begin () const { return Iterator(*this,Idx(1)) ; }
-			Iterator cbegin() const { return Iterator(*this,Idx(1)) ; }
-			Iterator end   () const { return Iterator(*this,{}    ) ; }
-			Iterator cend  () const { return Iterator(*this,{}    ) ; }
+			Iterator begin () const { return Iterator(self,Idx(1)) ; }
+			Iterator cbegin() const { return Iterator(self,Idx(1)) ; }
+			Iterator end   () const { return Iterator(self,{}    ) ; }
+			Iterator cend  () const { return Iterator(self,{}    ) ; }
 			// data
 		private :
 			AllocFile const*    _self  ;
@@ -166,7 +166,7 @@ namespace Store {
 		Idx const& _free(Sz bucket) const requires(HasData) { return Base::hdr().free[bucket] ; }
 		Idx      & _free(Sz bucket)       requires(HasData) { return Base::hdr().free[bucket] ; }
 	public :
-		Lst lst() const requires( !Multi && HasData ) { return Lst(*this) ; }
+		Lst lst() const requires( !Multi && HasData ) { return Lst(self) ; }
 		// services
 		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi && !HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ;                   return res ; }
 		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi &&  HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ; _chk_sz(res,sz) ; return res ; }

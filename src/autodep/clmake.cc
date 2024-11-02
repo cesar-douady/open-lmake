@@ -25,7 +25,7 @@ using Proc = JobExecProc ;
 static Record _g_record ;
 
 static ::string _mk_str( Object const* o , ::string const& arg_name={} ) {
-	if (!o) throw "missing argument"s+(+arg_name?" ":"")+arg_name ;
+	throw_unless( o , "missing argument",(+arg_name?" ":""),arg_name ) ;
 	return *o->str() ;
 }
 
@@ -49,7 +49,7 @@ static ::vector_s _get_files(Tuple const& py_args) {
 	} else {
 		/**/                                                                                 res.reserve(py_args.size()) ; for( Object const& py : py_args ) push(py     ) ;
 	}
-	for( size_t i : iota(res.size()) ) if(!res[i]) throw "argument "s+(i+1)+" is empty" ;
+	for( size_t i : iota(res.size()) ) throw_unless( +res[i] , "argument ",i+1," is empty" ) ;
 	return res ;
 }
 
@@ -69,14 +69,14 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	bool         read      = true                        ;
 	AccessDigest ad        { .dflags=Dflag::Required }   ;
 	if (py_kwds) {
-		size_t n_kwds = py_kwds->size() ;
-		/**/                                    if ( const char* s="follow_symlinks" ;                                 py_kwds->contains(s) ) { n_kwds-- ; no_follow =             !(*py_kwds)[s]  ; }
-		/**/                                    if ( const char* s="verbose"         ;                                 py_kwds->contains(s) ) { n_kwds-- ; verbose   =             +(*py_kwds)[s]  ; }
-		/**/                                    if ( const char* s="read"            ;                                 py_kwds->contains(s) ) { n_kwds-- ; read      =             +(*py_kwds)[s]  ; }
-		for( Dflag      df  : Dflag::NDyn     ) if ( ::string    s=snake_str(df )    ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.dflags      .set(df ,+(*py_kwds)[s]) ; }
-		for( ExtraDflag edf : All<ExtraDflag> ) if ( ::string    s=snake_str(edf)    ; ExtraDflagChars[+edf].second && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_dflags.set(edf,+(*py_kwds)[s]) ; }
+		size_t n = py_kwds->size() ;
+		/**/                                          if ( const char* s="follow_symlinks" ;                                 py_kwds->contains(s) ) { n-- ; no_follow =             !(*py_kwds)[s]  ; }
+		/**/                                          if ( const char* s="verbose"         ;                                 py_kwds->contains(s) ) { n-- ; verbose   =             +(*py_kwds)[s]  ; }
+		/**/                                          if ( const char* s="read"            ;                                 py_kwds->contains(s) ) { n-- ; read      =             +(*py_kwds)[s]  ; }
+		for( Dflag      df  : iota(Dflag::NDyn    ) ) if ( ::string    s=snake_str(df )    ;                                 py_kwds->contains(s) ) { n-- ; ad.dflags      .set(df ,+(*py_kwds)[s]) ; }
+		for( ExtraDflag edf : iota(All<ExtraDflag>) ) if ( ::string    s=snake_str(edf)    ; ExtraDflagChars[+edf].second && py_kwds->contains(s) ) { n-- ; ad.extra_dflags.set(edf,+(*py_kwds)[s]) ; }
 		//
-		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
+		if (n) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	if (read) ad.accesses = ~Accesses() ;
 	::vector_s files ;
@@ -109,12 +109,12 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds)                    ;
 	AccessDigest ad      { .write=Yes , .extra_tflags=ExtraTflag::Allow } ;
 	if (py_kwds) {
-		size_t n_kwds = py_kwds->size() ;
-		/**/                                    if ( const char* s="write"        ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.write  = No |        +(*py_kwds)[s]  ; }
-		for( Tflag      tf  : Tflag::NDyn     ) if ( ::string    s=snake_str(tf ) ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.tflags      .set(tf ,+(*py_kwds)[s]) ; }
-		for( ExtraTflag etf : All<ExtraTflag> ) if ( ::string    s=snake_str(etf) ; ExtraTflagChars[+etf].second && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_tflags.set(etf,+(*py_kwds)[s]) ; }
+		size_t n = py_kwds->size() ;
+		/**/                                          if ( const char* s="write"        ;                                 py_kwds->contains(s) ) { n-- ; ad.write  = No |        +(*py_kwds)[s]  ; }
+		for( Tflag      tf  : iota(Tflag::NDyn    ) ) if ( ::string    s=snake_str(tf ) ;                                 py_kwds->contains(s) ) { n-- ; ad.tflags      .set(tf ,+(*py_kwds)[s]) ; }
+		for( ExtraTflag etf : iota(All<ExtraTflag>) ) if ( ::string    s=snake_str(etf) ; ExtraTflagChars[+etf].second && py_kwds->contains(s) ) { n-- ; ad.extra_tflags.set(etf,+(*py_kwds)[s]) ; }
 		//
-		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
+		if (n) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	::vector_s files ;
 	try                       { files = _get_files(py_args) ;                          }
@@ -143,17 +143,17 @@ static PyObject* check_deps( PyObject* /*null*/ , PyObject* args , PyObject* kwd
 static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args = *from_py<Tuple const>(args)   ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds)   ;
-	size_t       n_kwds  = py_kwds ? py_kwds->size() : 0 ;
+	size_t       n       = py_kwds ? py_kwds->size() : 0 ;
 	try {
-		::string file = _mk_str( _gather_arg( py_args , 0 , py_kwds , "file" , n_kwds ) , "file" ) ;
-		::string ctx  = _mk_str( _gather_arg( py_args , 1 , py_kwds , "ctx"  , n_kwds ) , "ctx"  ) ;
-		::string code = _mk_str( _gather_arg( py_args , 2 , py_kwds , "code" , n_kwds ) , "code" ) ;
+		::string file = _mk_str( _gather_arg( py_args , 0 , py_kwds , "file" , n ) , "file" ) ;
+		::string ctx  = _mk_str( _gather_arg( py_args , 1 , py_kwds , "ctx"  , n ) , "ctx"  ) ;
+		::string code = _mk_str( _gather_arg( py_args , 2 , py_kwds , "code" , n ) , "code" ) ;
 		//
-		if (n_kwds) throw "unexpected keyword arg"s ;
+		throw_unless( !n , "unexpected keyword arg" ) ;
 		//
 		::pair_s<bool/*ok*/> reply = JobSupport::decode( _g_record , ::move(file) , ::move(code) , ::move(ctx) ) ;
-		if (!reply.second) throw reply.first ;
-		else               return Ptr<Str>(reply.first)->to_py_boost() ;
+		throw_unless( reply.second , reply.first ) ;
+		return Ptr<Str>(reply.first)->to_py_boost() ;
 	} catch (::string const& e) {
 		return py_err_set(Exception::TypeErr,e) ;
 	}
@@ -162,18 +162,18 @@ static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args = *from_py<Tuple const>(args)   ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds)   ;
-	size_t       n_kwds  = py_kwds ? py_kwds->size() : 0 ;
+	size_t       n       = py_kwds ? py_kwds->size() : 0 ;
 	try {
-		::string file    = _mk_str  ( _gather_arg( py_args , 0 , py_kwds , "file"    , n_kwds ) ,     "file"    ) ;
-		::string ctx     = _mk_str  ( _gather_arg( py_args , 1 , py_kwds , "ctx"     , n_kwds ) ,     "ctx"     ) ;
-		::string val     = _mk_str  ( _gather_arg( py_args , 2 , py_kwds , "val"     , n_kwds ) ,     "val"     ) ;
-		uint8_t  min_len = _mk_uint8( _gather_arg( py_args , 3 , py_kwds , "min_len" , n_kwds ) , 1 , "min_len" ) ;
+		::string file    = _mk_str  ( _gather_arg( py_args , 0 , py_kwds , "file"    , n ) ,     "file"    ) ;
+		::string ctx     = _mk_str  ( _gather_arg( py_args , 1 , py_kwds , "ctx"     , n ) ,     "ctx"     ) ;
+		::string val     = _mk_str  ( _gather_arg( py_args , 2 , py_kwds , "val"     , n ) ,     "val"     ) ;
+		uint8_t  min_len = _mk_uint8( _gather_arg( py_args , 3 , py_kwds , "min_len" , n ) , 1 , "min_len" ) ;
 		//
-		if (n_kwds                ) throw "unexpected keyword arg"s                                                              ;
-		if (min_len>MaxCodecBits/4) throw "min_len ("s+min_len+") cannot be larger max allowed code bits ("+(MaxCodecBits/4)+')' ; // codes are output in hex, 4 bits/digit
+		throw_unless( !n                      , "unexpected keyword arg"                                                                 ) ;
+		throw_unless( min_len<=MaxCodecBits/4 , "min_len (",min_len,") cannot be larger than max allowed code bits (",MaxCodecBits/4,')' ) ; // codes are output in hex, 4 bits/digit
 		//
 		::pair_s<bool/*ok*/> reply = JobSupport::encode( _g_record , ::move(file) , ::move(val) , ::move(ctx) , min_len ) ;
-		if (!reply.second) throw reply.first ;
+		throw_unless( reply.second , reply.first ) ;
 		return Ptr<Str>(reply.first)->to_py_boost() ;
 	} catch (::string const& e) {
 		return py_err_set(Exception::TypeErr,e) ;
@@ -186,10 +186,10 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	if (py_args.size()>1) return py_err_set(Exception::TypeErr,"expect at most a single argument") ;
 	bool no_follow = false ;
 	if (py_kwds) {
-		ssize_t n_kwds = py_kwds->size() ;
-		if ( const char* s="follow_symlinks" ; py_kwds->contains(s) ) { n_kwds-- ; no_follow = !(*py_kwds)[s] ; }
+		ssize_t n = py_kwds->size() ;
+		if ( const char* s="follow_symlinks" ; py_kwds->contains(s) ) { n-- ; no_follow = !(*py_kwds)[s] ; }
 		//
-		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
+		if (n) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	::vector_s views = _get_files(py_args) ;
 	if (views.size()==0) views.push_back(no_slash(cwd_s())) ;

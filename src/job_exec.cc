@@ -85,7 +85,7 @@ Digest analyze(Status status=Status::New) {                                     
 		DF}
 		//
 		if (ad.write==Yes)                                                                                                                          // ignore reads after earliest confirmed write
-			for( Access a : All<Access> )
+			for( Access a : iota(All<Access>) )
 				if (info.read[+a]>info.write) ad.accesses &= ~a ;
 		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                     ;
 		bool                   is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && +ad.accesses && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning

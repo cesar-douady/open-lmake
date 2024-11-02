@@ -64,16 +64,16 @@ namespace Py {
 	// functions
 	//
 
-	template<class T       > T const* _chk   (T const * o) { if ( o && !o->qualify() ) throw "not a "s+o->type_name() ; return o   ; }
-	template<class T       > T      * _chk   (T       * o) { if ( o && !o->qualify() ) throw "not a "s+o->type_name() ; return o   ; }
-	template<class T=Object> T      * from_py(PyObject* o) { T* res = static_cast<T*>(o) ; _chk(res) ;                  return res ; }
+	template<class T       > T const* _chk   (T const * o) { if ( o && !o->qualify() ) throw "not a "+o->type_name() ; return o   ; }
+	template<class T       > T      * _chk   (T       * o) { if ( o && !o->qualify() ) throw "not a "+o->type_name() ; return o   ; }
+	template<class T=Object> T      * from_py(PyObject* o) { T* res = static_cast<T*>(o) ; _chk(res) ;                 return res ; }
 
 	inline void py_err_clear   () {        PyErr_Clear   () ; }
 	inline bool py_err_occurred() { return PyErr_Occurred() ; }
 	//
 	template<class T=Object> T& py_get_sys(::string const& name) {
 		PyObject* v = PySys_GetObject(const_cast<char*>(name.c_str())) ;
-		if (!v) throw "cannot find sys."+name ;
+		throw_unless( v , "cannot find sys.",name ) ;
 		return *from_py<T>(v) ;
 	}
 
@@ -120,7 +120,7 @@ namespace Py {
 			if (rc<0) throw py_err_str_clear() ;
 			return bool(rc) ;
 		}
-		bool operator!() const { return !+*this ; }
+		bool operator!() const { return !+self ; }
 		constexpr PyObject* to_py      ()       {           return                     this  ; }
 		constexpr PyObject* to_py      () const {           return const_cast<Object*>(this) ; }
 		PyObject*           to_py_boost()       { boost() ; return                     this  ; }
@@ -146,18 +146,18 @@ namespace Py {
 		//
 		~Ptr() { unboost() ; }
 		//
-		Ptr& operator=(Ptr const& p) { unboost() ; ptr = p.ptr ; boost()    ; return *this ; }
-		Ptr& operator=(Ptr     && p) { unboost() ; ptr = p.ptr ; p.detach() ; return *this ; }
+		Ptr& operator=(Ptr const& p) { unboost() ; ptr = p.ptr ; boost()    ; return self ; }
+		Ptr& operator=(Ptr     && p) { unboost() ; ptr = p.ptr ; p.detach() ; return self ; }
 		// accesses
 		bool operator+() const { return bool(ptr) ; }
-		bool operator!() const { return !+*this ;   }
+		bool operator!() const { return !+self    ; }
 		template<class T> operator T      *()       { return _chk(static_cast<T      *>(ptr)) ; }
 		template<class T> operator T const*() const { return _chk(static_cast<T const*>(ptr)) ; }
 		//
-		Object      & operator* ()       { return *ptr    ; }
-		Object const& operator* () const { return *ptr    ; }
-		Object      * operator->()       { return &**this ; }
-		Object const* operator->() const { return &**this ; }
+		Object      & operator* ()       { return *ptr   ; }
+		Object const& operator* () const { return *ptr   ; }
+		Object      * operator->()       { return &*self ; }
+		Object const* operator->() const { return &*self ; }
 		// services
 		void detach ()       { ptr = nullptr ; }
 		void boost  () const { if (ptr) ptr->boost  () ; }
@@ -183,15 +183,15 @@ namespace Py {
 		// accesses
 		T      & operator* ()       { SWEAR(ptr) ; return *static_cast<T      *>(ptr) ; }
 		T const& operator* () const { SWEAR(ptr) ; return *static_cast<T const*>(ptr) ; }
-		T      * operator->()       {              return &**this                     ; }
-		T const* operator->() const {              return &**this                     ; }
+		T      * operator->()       {              return &*self                      ; }
+		T const* operator->() const {              return &*self                      ; }
 		//
-		operator Object      *()                                            { return &**this ; }
-		operator Object const*() const                                      { return &**this ; }
-		operator TBase       *()       requires(!::is_same_v<Object,TBase>) { return &**this ; }
-		operator TBase  const*() const requires(!::is_same_v<Object,TBase>) { return &**this ; }
-		operator T           *()                                            { return &**this ; }
-		operator T      const*() const                                      { return &**this ; }
+		operator Object      *()                                            { return &*self ; }
+		operator Object const*() const                                      { return &*self ; }
+		operator TBase       *()       requires(!::is_same_v<Object,TBase>) { return &*self ; }
+		operator TBase  const*() const requires(!::is_same_v<Object,TBase>) { return &*self ; }
+		operator T           *()                                            { return &*self ; }
+		operator T      const*() const                                      { return &*self ; }
 	} ;
 
 	//
@@ -229,7 +229,7 @@ namespace Py {
 	struct Bool : Object {
 		using Base = Object ;
 		bool qualify () const { return PyBool_Check(to_py()) ; }
-		operator bool() const { return +*this                ; }
+		operator bool() const { return +self                 ; }
 		bool     val () const ;                                  // for debug
 	} ;
 	template<> struct Ptr<Bool> : PtrBase<Bool> {
@@ -250,14 +250,14 @@ namespace Py {
 		template<::integral T> operator T() const {
 			if (::is_signed_v<T>) {
 				long v = PyLong_AsLong( to_py() ) ;
-				if (py_err_occurred()           ) throw py_err_str_clear() ;
-				if (v<::numeric_limits<T>::min()) throw "underflow"s       ;
-				if (v>::numeric_limits<T>::max()) throw "overflow"s        ;
+				if (py_err_occurred()) throw py_err_str_clear() ;
+				throw_unless( v>=::numeric_limits<T>::min() , "underflow" ) ;
+				throw_unless( v<=::numeric_limits<T>::max() , "overflow"  ) ;
 				return T(v) ;
 			} else {
-				unsigned long v = PyLong_AsUnsignedLong( to_py() ) ;
-				if (py_err_occurred()           ) throw py_err_str_clear() ;
-				if (v>::numeric_limits<T>::max()) throw "overflow"s        ;
+				ulong v = PyLong_AsUnsignedLong( to_py() ) ;
+				if (py_err_occurred()) throw py_err_str_clear() ;
+				throw_unless( v<=::numeric_limits<T>::max() , "overflow" ) ;
 				return T(v) ;
 			}
 		}
@@ -267,7 +267,6 @@ namespace Py {
 	template<> struct Ptr<Int> : PtrBase<Int> {
 		using Base = PtrBase<Int> ;
 		using Base::Base ;
-		using ulong = unsigned long ;
 		template<::integral I> Ptr(I v) : Base{ ::is_signed_v<I> ? PyLong_FromLong(long(v)) : PyLong_FromUnsignedLong(ulong(v)) } {}
 	} ;
 
@@ -345,9 +344,9 @@ namespace Py {
 		// accesses
 		bool operator==(SequenceIter const&) const = default ;
 		// services
-		Item        & operator* (   ) const {                                  return **_item ; }
-		SequenceIter& operator++(   )       { _item++ ;                        return *this   ; }
-		SequenceIter  operator++(int)       { SequenceIter it = *this ; ++it ; return it      ; }
+		Item        & operator* (   ) const {                                 return **_item ; }
+		SequenceIter& operator++(   )       { _item++ ;                       return self    ; }
+		SequenceIter  operator++(int)       { SequenceIter it = self ; ++it ; return it      ; }
 		// data
 	private :
 		PtrItem* _item = nullptr ;
@@ -370,12 +369,12 @@ namespace Py {
 		}
 		// services
 	public :
-		SequenceIter<false> begin ()       { return {*this,false} ; }
-		SequenceIter<false> end   ()       { return {*this,true } ; }
-		SequenceIter<true > begin () const { return {*this,false} ; }
-		SequenceIter<true > end   () const { return {*this,true } ; }
-		SequenceIter<true > cbegin() const { return {*this,false} ; }
-		SequenceIter<true > cend  () const { return {*this,true } ; }
+		SequenceIter<false> begin ()       { return {self,false} ; }
+		SequenceIter<false> end   ()       { return {self,true } ; }
+		SequenceIter<true > begin () const { return {self,false} ; }
+		SequenceIter<true > end   () const { return {self,true } ; }
+		SequenceIter<true > cbegin() const { return {self,false} ; }
+		SequenceIter<true > cend  () const { return {self,true } ; }
 	} ;
 	template<> struct Ptr<Sequence> : PtrBase<Sequence> {
 		using Base = PtrBase<Sequence> ;
@@ -463,13 +462,13 @@ namespace Py {
 		DictIter& operator++() {
 			PyDict_Next( _iterable->to_py() , &_pos , nullptr , nullptr ) ;
 			_legalize() ;
-			return *this ;
+			return self ;
 		}
-		DictIter operator++(int) { DictIter it = *this ; ++it ; return it ; }
+		DictIter operator++(int) { DictIter it = self ; ++it ; return it ; }
 	private :
 		void _legalize() {
 			Py_ssize_t p = _pos ;
-			if (!PyDict_Next( _iterable->to_py() , &p , nullptr , nullptr )) *this = {} ;
+			if (!PyDict_Next( _iterable->to_py() , &p , nullptr , nullptr )) self = {} ;
 		}
 		// data
 		Iterable*  _iterable = nullptr ; // default value represents ended iterators
@@ -496,12 +495,12 @@ namespace Py {
 		Object const& operator[](::string const& key) const { return get_item(key) ; }
 		//
 	public :
-		DictIter<false> begin ()       { return *this ; }
-		DictIter<false> end   ()       { return {}    ; }
-		DictIter<true > begin () const { return *this ; }
-		DictIter<true > end   () const { return {}    ; }
-		DictIter<true > cbegin() const { return *this ; }
-		DictIter<true > cend  () const { return {}    ; }
+		DictIter<false> begin ()       { return self ; }
+		DictIter<false> end   ()       { return {}   ; }
+		DictIter<true > begin () const { return self ; }
+		DictIter<true > end   () const { return {}   ; }
+		DictIter<true > cbegin() const { return self ; }
+		DictIter<true > cend  () const { return {}   ; }
 	} ;
 	template<> struct Ptr<Dict> : PtrBase<Dict> {
 		using Base = PtrBase<Dict> ;
@@ -523,7 +522,7 @@ namespace Py {
 		using Base = PtrBase<Code> ;
 		using Base::Base ;
 		Ptr(::string const& v) : Base{Py_CompileString(v.c_str(),"<code>",Py_eval_input)} {
-			if (!*this) throw py_err_str_clear() ;
+			if (!self) throw py_err_str_clear() ;
 		}
 	} ;
 
@@ -542,7 +541,7 @@ namespace Py {
 	private :
 		static PyObject* _s_mk_mod( ::string const& name , PyMethodDef* funcs ) ;
 	public :
-		Ptr( ::string const& name , PyMethodDef* funcs ) : Base{_s_mk_mod(name,funcs)} { if (!*this) throw py_err_str_clear() ; }
+		Ptr( ::string const& name , PyMethodDef* funcs ) : Base{_s_mk_mod(name,funcs)} { if (!self) throw py_err_str_clear() ; }
 	} ;
 
 	//
@@ -596,7 +595,7 @@ namespace Py {
 		#else
 			Base{PyFloat_FromString(v.to_py()                  )}
 		#endif
-	{ if (!*this) throw "cannot convert to float"s ; }
+	{ throw_unless( +self , "cannot convert to float" ) ; }
 	inline Ptr<Float>::Ptr(::string const& v) : Ptr{*Ptr<Str>(v)} {}
 
 	//

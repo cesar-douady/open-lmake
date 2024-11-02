@@ -3,11 +3,11 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "lmakeserver/core.hh" // must be first to include Python.h first
+
 #include "app.hh"
 #include "disk.hh"
-
 #include "lmakeserver/makefiles.hh"
-#include "lmakeserver/core.hh"
 
 using namespace Disk ;
 
@@ -54,7 +54,7 @@ int main( int argc , char* /*argv*/[] ) {
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	//
 	Trace::s_new_trace_file( g_config->local_admin_dir_s + "trace/" + base_name(read_lnk("/proc/self/exe")) ) ;
-	for( AncillaryTag tag : All<AncillaryTag> ) dir_guard(Job().ancillary_file(tag)) ;
+	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
 	//
 	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	RepairDigest digest = Persistent::repair(backup_admin_dir_s+PRIVATE_ADMIN_SUBDIR_S+"local_admin/job_data") ;

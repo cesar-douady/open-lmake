@@ -32,13 +32,13 @@ public :
 	constexpr Idxed(     ) = default ;
 	constexpr Idxed(Idx i) : _idx{i} { _s_chk(i) ; } // ensure no index overflow
 	//
-	constexpr Idx  operator+() const { return  _idx&lsb_msk(NValBits) ; }
-	constexpr bool operator!() const { return !+*this                 ; }
+	constexpr Idx  operator+() const { return _idx&lsb_msk(NValBits) ; }
+	constexpr bool operator!() const { return !+self                 ; }
 	//
-	void clear() { *this = Idxed{} ; }
+	void clear() { self = Idxed{} ; }
 	// accesses
-	constexpr bool              operator== (Idxed other) const { return +*this== +other ; }
-	constexpr ::strong_ordering operator<=>(Idxed other) const { return +*this<=>+other ; }
+	constexpr bool              operator== (Idxed other) const { return +self== +other ; }
+	constexpr ::strong_ordering operator<=>(Idxed other) const { return +self<=>+other ; }
 	//
 	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) Idx  side(       ) const { return bits(_idx,W,LSB+NValBits    ) ; }
 	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) void side(Idx val)       { _idx = bits(_idx,W,LSB+NValBits,val) ; }
@@ -81,10 +81,10 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 		if (IsA<T>) return T(  _val  & lsb_msk(NValBits)) ;
 		else        return T((-_val) & lsb_msk(NValBits)) ;
 	}
-	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T const&() const { SWEAR(is_a<T>()) ; return reinterpret_cast<T const&>(*this) ; }
-	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T      &()       { SWEAR(is_a<T>()) ; return reinterpret_cast<T      &>(*this) ; }
+	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T const&() const { SWEAR(is_a<T>()) ; return reinterpret_cast<T const&>(self) ; }
+	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T      &()       { SWEAR(is_a<T>()) ; return reinterpret_cast<T      &>(self) ; }
 	//
-	void clear() { *this = Idxed2() ; }
+	void clear() { self = Idxed2() ; }
 	// accesses
 	template<class T> requires(IsAOrB<T>) bool is_a() const {
 		if (IsA<T>) return !bit( _val,NValBits-1) ;
@@ -92,10 +92,10 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	}
 	//
 	SIdx operator+() const { return _val<<NGuardBits>>NGuardBits ; }
-	bool operator!() const { return !+*this                      ; }
+	bool operator!() const { return !+self                       ; }
 	//
-	bool              operator== (Idxed2 other) const { return +*this== +other ; }
-	::strong_ordering operator<=>(Idxed2 other) const { return +*this<=>+other ; }
+	bool              operator== (Idxed2 other) const { return +self== +other ; }
+	::strong_ordering operator<=>(Idxed2 other) const { return +self<=>+other ; }
 	//
 	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) Idx  side(       ) const { return bits(_val,W,NValBits+LSB)     ; }
 	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) void side(Idx val)       { _val = bits(_val,W,NValBits+LSB,val) ; }
@@ -151,19 +151,19 @@ namespace Vector {
 		//
 		template<::convertible_to<Item> I> SimpleBase ( NewType , I               const& x ) : SimpleBase{::c_vector_view<I>(&x,1)} {} // New to disambiguate with cxtor from index defined in Base
 		template<::convertible_to<Item> I> SimpleBase (          ::vector_view<I> const& v ) : Base{F::file.emplace(v)}             {}
-		template<::convertible_to<Item> I> void assign(          ::vector_view<I> const& v ) { *this = F::file.assign(+*this,v) ; }
+		template<::convertible_to<Item> I> void assign(          ::vector_view<I> const& v ) { self = F::file.assign(+self,v) ; }
 		//
-		void pop   () { F::file.pop(+*this) ; forget() ; }
-		void clear () { pop() ;                          }
-		void forget() { Base::clear() ;                  }
+		void pop   () { F::file.pop(+self) ; forget() ; }
+		void clear () { pop() ;                         }
+		void forget() { Base::clear() ;                 }
 		// accesses
-		Sz          size () const { return ::constify(F::file).size (+*this) ; }
-		Item const* items() const { return ::constify(F::file).items(+*this) ; }
-		Item      * items()       { return            F::file .items(+*this) ; }
+		Sz          size () const { return ::constify(F::file).size (+self) ; }
+		Item const* items() const { return ::constify(F::file).items(+self) ; }
+		Item      * items()       { return            F::file .items(+self) ; }
 		// services
-		void shorten_by(Sz by) { *this = F::file.shorten_by(+*this,by) ; }
+		void shorten_by(Sz by) { self = F::file.shorten_by(+self,by) ; }
 		//
-		template<::convertible_to<Item> I> void append(::vector_view<I> const& v) { *this = F::file.append(+*this,v ) ; }
+		template<::convertible_to<Item> I> void append(::vector_view<I> const& v) { self = F::file.append(+self,v ) ; }
 	} ;
 	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> constexpr Idx SimpleBase<Idx,Item,Mrkr,NGuardBits>::EmptyIdx = ::constify(F::file).EmptyIdx ;
 
@@ -188,22 +188,22 @@ namespace Vector {
 		template<IsA<Item>              I> CrunchBase(           I                const& x ) = delete ;
 		template<::convertible_to<Item> I> CrunchBase( NewType , I                const& x ) : Base{Item(x)} {}
 		template<::convertible_to<Item> I> CrunchBase(           ::vector_view<I> const& v ) {
-			if (v.size()!=1) static_cast<Base&>(*this) = F::file.emplace(v) ;
-			else             static_cast<Base&>(*this) = v[0]               ;
+			if (v.size()!=1) static_cast<Base&>(self) = F::file.emplace(v) ;
+			else             static_cast<Base&>(self) = v[0]               ;
 		}
 		template<::convertible_to<Item> I> void assign(::vector_view<I> const& v) {
-			if      (!_multi()  )                        *this = CrunchBase(v)           ;
-			else if (v.size()!=1)                        *this = F::file.assign(*this,v) ;
-			else                  { F::file.pop(*this) ; *this = CrunchBase(New,v[0])    ; }
+			if      (!_multi()  )                       self = CrunchBase(v)          ;
+			else if (v.size()!=1)                       self = F::file.assign(self,v) ;
+			else                  { F::file.pop(self) ; self = CrunchBase(New,v[0])   ; }
 		}
 		//
-		void pop   () { if (_multi()) F::file.pop(*this) ; forget     () ; }
-		void clear () {                                    pop        () ; }
-		void forget() {                                    Base::clear() ; }
+		void pop   () { if (_multi()) F::file.pop(self) ; forget     () ; }
+		void clear () {                                   pop        () ; }
+		void forget() {                                   Base::clear() ; }
 		// accesses
-		auto        size () const -> Sz { if (_single()) return 1                                ; else return            F::file .size (*this) ; }
-		Item const* items() const       { if (_single()) return &static_cast<Item const&>(*this) ; else return ::constify(F::file).items(*this) ; }
-		Item      * items()             { if (_single()) return &static_cast<Item      &>(*this) ; else return            F::file .items(*this) ; }
+		auto        size () const -> Sz { if (_single()) return 1                               ; else return            F::file .size (self) ; }
+		Item const* items() const       { if (_single()) return &static_cast<Item const&>(self) ; else return ::constify(F::file).items(self) ; }
+		Item      * items()             { if (_single()) return &static_cast<Item      &>(self) ; else return            F::file .items(self) ; }
 	private :
 		bool _multi () const { return !this->template is_a<Item  >() ; } // 0 is both a Vector and an Item, so this way 0 is !_multi ()
 		bool _single() const { return !this->template is_a<Vector>() ; } // 0 is both a Vector and an Item, so this way 0 is !_single()
@@ -212,15 +212,15 @@ namespace Vector {
 		void shorten_by(Sz by) {
 			Sz sz = size() ;
 			SWEAR( by<=sz , by , sz ) ;
-			if      (!_multi()) { if (by==sz) forget() ;                                               }
-			else if (by!=sz-1 )   *this = F::file.shorten_by( *this , by ) ;
-			else                { Item save = (*this)[0] ; F::file.pop(Vector(*this)) ; *this = save ; }
+			if      (!_multi()) { if (by==sz) forget() ;                                            }
+			else if (by!=sz-1 )   self = F::file.shorten_by( self , by ) ;
+			else                { Item save = (self)[0] ; F::file.pop(Vector(self)) ; self = save ; }
 		}
 		//
 		template<::convertible_to<Item> I> void append(::vector_view<I> const& v) {
-			if      (!*this  ) assign(v) ;
-			else if (_multi()) *this = F::file.append (     *this ,v) ;
-			else if (+v      ) *this = F::file.emplace(Item(*this),v) ;
+			if      (!self  ) assign(v) ;
+			else if (_multi()) self = F::file.append (     self ,v) ;
+			else if (+v      ) self = F::file.emplace(Item(self),v) ;
 		}
 	} ;
 

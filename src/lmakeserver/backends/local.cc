@@ -6,7 +6,7 @@
 #include <sys/sysinfo.h>
 #include <sys/resource.h>
 
-#include "generic.hh"
+#include "generic.hh" // /!\ must be first because Python.h must be first
 
 // PER_BACKEND : there must be a file describing each backend (providing the sub-backend class, deriving from GenericBackend if possible (simpler), else Backend)
 
@@ -32,8 +32,8 @@ namespace Backends::Local {
 		RsrcsData( ::vmap_ss const& , ::umap_s<size_t> const& idxs ) ;
 		::vmap_ss mk_vmap(::vector_s const& keys) const ;
 		// services
-		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) (*this)[i] += rsrcs[i] ; return *this ; }
-		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) (*this)[i] -= rsrcs[i] ; return *this ; }
+		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] += rsrcs[i] ; return self ; }
+		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] -= rsrcs[i] ; return self ; }
 	} ;
 
 	struct RsrcsDataAsk : ::vector<RsrcAsk> {
@@ -41,19 +41,19 @@ namespace Backends::Local {
 		RsrcsDataAsk(                                             ) = default ;
 		RsrcsDataAsk( ::vmap_ss && , ::umap_s<size_t> const& idxs ) ;
 		// services
-		bool fit_in( RsrcsData const& occupied , RsrcsData const& capacity ) const {                          // true if all resources fit within capacity on top of occupied
-			for( size_t i : iota(size()) ) if ( occupied[i]+(*this)[i].min > capacity[i] ) return false ;
+		bool fit_in( RsrcsData const& occupied , RsrcsData const& capacity ) const {                   // true if all resources fit within capacity on top of occupied
+			for( size_t i : iota(size()) ) if ( occupied[i]+self[i].min > capacity[i] ) return false ;
 			return true ;
 		}
-		bool fit_in(RsrcsData const& capacity) const {                                                        // true if all resources fit within capacity
-			for( size_t i : iota(size()) ) if ( (*this)[i].min > capacity[i] ) return false ;
+		bool fit_in(RsrcsData const& capacity) const {                                                 // true if all resources fit within capacity
+			for( size_t i : iota(size()) ) if ( self[i].min > capacity[i] ) return false ;
 			return true ;
 		}
-		RsrcsData within( RsrcsData const& occupied , RsrcsData const& capacity ) const {                     // what fits within capacity on top of occupied
+		RsrcsData within( RsrcsData const& occupied , RsrcsData const& capacity ) const {              // what fits within capacity on top of occupied
 			RsrcsData res ; res.reserve(size()) ;
 			for( size_t i : iota(size()) ) {
-				SWEAR( occupied[i]+(*this)[i].min <= capacity[i] , *this , occupied , capacity ) ;
-				res.push_back(::min( (*this)[i].max , capacity[i]-occupied[i] )) ;
+				SWEAR( occupied[i]+self[i].min <= capacity[i] , self , occupied , capacity ) ;
+				res.push_back(::min( self[i].max , capacity[i]-occupied[i] )) ;
 			}
 			return res ;
 		}
@@ -94,8 +94,8 @@ namespace Backends::Local {
 		// init
 		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
-			LocalBackend& self = *new LocalBackend ;
-			s_register(MyTag,self) ;
+			LocalBackend& self_ = *new LocalBackend ;
+			s_register(MyTag,self_) ;
 		}
 
 		// statics
@@ -115,8 +115,8 @@ namespace Backends::Local {
 		virtual void sub_config( ::vmap_ss const& dct , bool dynamic ) {
 			Trace trace(BeChnl,"Local::config",STR(dynamic),dct) ;
 			if (dynamic) {
-				/**/                                     if (rsrc_keys.size()!=dct.size()) throw "cannot change resource names while lmake is running"s ;
-				for( size_t i : iota(rsrc_keys.size()) ) if (rsrc_keys[i]!=dct[i].first  ) throw "cannot change resource names while lmake is running"s ;
+				/**/                                     throw_unless( rsrc_keys.size()==dct.size() , "cannot change resource names while lmake is running" ) ;
+				for( size_t i : iota(rsrc_keys.size()) ) throw_unless( rsrc_keys[i]==dct[i].first   , "cannot change resource names while lmake is running" ) ;
 			} else {
 				rsrc_keys.reserve(dct.size()) ;
 				for( auto const& [k,v] : dct ) {
@@ -218,7 +218,7 @@ namespace Backends::Local {
 			auto it = idxs.find(k) ;
 			if (it==idxs.end()) throw "no resource "+k+" for backend "+snake(MyTag) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
-			try        { (*this)[it->second] = from_string_rsrc<Rsrc>(k,v) ;                          }
+			try        { self[it->second] = from_string_rsrc<Rsrc>(k,v) ;                          }
 			catch(...) { throw "cannot convert resource "+k+" from "+v+" to a "+typeid(Rsrc).name() ; }
 		}
 	}
@@ -229,7 +229,7 @@ namespace Backends::Local {
 			auto it = idxs.find(k) ;
 			if (it==idxs.end()) throw "no resource "+k+" for backend "+snake(MyTag) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
-			RsrcAsk& entry = (*this)[it->second] ;
+			RsrcAsk& entry = self[it->second] ;
 			try {
 				size_t pos = v.find('<') ;
 				if (pos==Npos) { entry.min = from_string_rsrc<Rsrc>(k,::move(v)      ) ; entry.max = entry.min                                 ; }
@@ -243,10 +243,10 @@ namespace Backends::Local {
 	::vmap_ss RsrcsData::mk_vmap(::vector_s const& keys) const {
 		::vmap_ss res ; res.reserve(keys.size()) ;
 		for( size_t i : iota(keys.size()) ) {
-			if (!(*this)[i]) continue ;
+			if (!self[i]) continue ;
 			::string const& key = keys[i] ;
-			if ( key=="mem" || key=="tmp" ) res.emplace_back( key , ::to_string((*this)[i])+'M' ) ;
-			else                            res.emplace_back( key , ::to_string((*this)[i])     ) ;
+			if ( key=="mem" || key=="tmp" ) res.emplace_back( key , ::to_string(self[i])+'M' ) ;
+			else                            res.emplace_back( key , ::to_string(self[i])     ) ;
 		}
 		return res ;
 	}

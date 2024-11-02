@@ -134,11 +134,11 @@ namespace Py {
 	// val methods (mostly for debug)
 	//
 
-	bool     Bool ::val () const { return bool    (*this) ; }
-	long     Int  ::val () const { return long    (*this) ; }
-	ulong    Int  ::uval() const { return ulong   (*this) ; }
-	double   Float::val () const { return double  (*this) ; }
-	::string Str  ::val () const { return ::string(*this) ; }
+	bool     Bool ::val () const { return bool    (self) ; }
+	long     Int  ::val () const { return long    (self) ; }
+	ulong    Int  ::uval() const { return ulong   (self) ; }
+	double   Float::val () const { return double  (self) ; }
+	::string Str  ::val () const { return ::string(self) ; }
 
 	//
 	// Object

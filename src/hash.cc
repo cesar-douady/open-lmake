@@ -21,13 +21,13 @@ namespace Hash {
 
 	Crc::Crc(::string const& filename) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
-		*this = None ;
+		self = None ;
 		if ( AutoCloseFd fd = ::open(filename.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
 			FileTag tag       = FileInfo(fd).tag() ;
 			char    buf[4096] ;
 			switch (tag) {
 				case FileTag::Empty :
-					*this = Empty ;
+					self = Empty ;
 				break ;
 				case FileTag::Reg :
 				case FileTag::Exe : {
@@ -42,18 +42,18 @@ namespace Hash {
 							default     : throw "I/O error while reading file "+filename ;
 						}
 					}
-					*this = ctx.digest() ;
+					self = ctx.digest() ;
 				} break ;
 			DN}
 		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
 			Xxh ctx{FileTag::Lnk} ;
 			ctx.update(lnk_target) ;
-			*this = ctx .digest() ;
+			self = ctx .digest() ;
 		}
 	}
 
 	Crc::operator ::string() const {
-		switch (CrcSpecial(*this)) {
+		switch (CrcSpecial(self)) {
 			case CrcSpecial::Unknown : return "unknown"   ;
 			case CrcSpecial::Lnk     : return "unknown-L" ;
 			case CrcSpecial::Reg     : return "unknown-R" ;
@@ -75,8 +75,8 @@ namespace Hash {
 	Accesses Crc::diff_accesses( Crc other ) const {
 		if ( valid() && other.valid() ) {            // if either does not represent a precise content, assume contents are different
 			uint64_t diff = _val ^ other._val ;
-			if (! diff                                       ) return {} ;                                                                // crc's are identical, cannot perceive difference
-			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near crc clash, must increase CRC size",*this,"versus",other) ;
+			if (! diff                                       ) return {} ;                                                               // crc's are identical, cannot perceive difference
+			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near crc clash, must increase CRC size",self,"versus",other) ;
 		}
 		// qualify the accesses that can perceive the difference
 		Accesses res = ~Accesses() ;
@@ -86,7 +86,7 @@ namespace Hash {
 		} else if (is_lnk()) {
 			if      (other.is_lnk()  ) res =  Access::Lnk ; // only readlink accesses see modifications of links
 			else if (other==Crc::None) res = ~Access::Reg ; // regular accesses cannot see the difference between no file and a link
-		} else if (*this==Crc::None) {
+		} else if (self==Crc::None) {
 			if      (other.is_reg()  ) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
 			else if (other.is_lnk()  ) res = ~Access::Reg ; // regular  accesses cannot see the difference between no file and a link
 		}

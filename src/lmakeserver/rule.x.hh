@@ -207,7 +207,7 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( key , py_dct , "key" ) ;
-			if ( +key && !Cache::s_tab.contains(key) ) throw "unexpected cache key "+key+" not found in config" ;
+			throw_unless( !key || Cache::s_tab.contains(key) , "unexpected cache key ",key," not found in config" ) ;
 		}
 		// data
 		// START_OF_VERSIONING
@@ -248,7 +248,7 @@ namespace Engine {
 	struct DbgEntry {
 		friend ::ostream& operator<<( ::ostream& , DbgEntry const& ) ;
 		bool operator +() const { return first_line_no1 ; }
-		bool operator !() const { return !+*this ;        }
+		bool operator !() const { return !+self ;         }
 		// START_OF_VERSIONING
 		::string module         ;
 		::string qual_name      ;
@@ -431,13 +431,13 @@ namespace Engine {
 			Base::operator=(src) ;
 			glbs = src.glbs ;
 			code = src.code ;
-			return *this ;
+			return self ;
 		}
 		Dynamic& operator=(Dynamic&& src) {                                                                                                              // .
 			Base::operator=(::move(src)) ;
 			glbs = ::move(src.glbs) ;
 			code = ::move(src.code) ;
-			return *this ;
+			return self ;
 		}
 		// services
 		void compile() ;
@@ -475,8 +475,8 @@ namespace Engine {
 		using Base::Base ;
 		DynamicDepsAttrs           (DynamicDepsAttrs const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
 		DynamicDepsAttrs           (DynamicDepsAttrs     && src) : Base           {::move(src)} {}                 // .
-		DynamicDepsAttrs& operator=(DynamicDepsAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
-		DynamicDepsAttrs& operator=(DynamicDepsAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
+		DynamicDepsAttrs& operator=(DynamicDepsAttrs const& src) { Base::operator=(       src ) ; return self ; } // .
+		DynamicDepsAttrs& operator=(DynamicDepsAttrs     && src) { Base::operator=(::move(src)) ; return self ; } // .
 		// services
 		::vmap_s<DepSpec> eval(Rule::SimpleMatch const&) const ;
 	} ;
@@ -487,8 +487,8 @@ namespace Engine {
 		using Base::Base ;
 		DynamicStartCmdAttrs           (DynamicStartCmdAttrs const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
 		DynamicStartCmdAttrs           (DynamicStartCmdAttrs     && src) : Base           {::move(src)} {}                 // .
-		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
-		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
+		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs const& src) { Base::operator=(       src ) ; return self ; } // .
+		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs     && src) { Base::operator=(::move(src)) ; return self ; } // .
 	} ;
 
 	struct DynamicCmd : Dynamic<Cmd> {
@@ -497,8 +497,8 @@ namespace Engine {
 		using Base::Base ;
 		DynamicCmd           (DynamicCmd const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
 		DynamicCmd           (DynamicCmd     && src) : Base           {::move(src)} {}                 // .
-		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return *this ; } // .
-		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return *this ; } // .
+		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return self ; } // .
+		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return self ; } // .
 		// services
 		::pair_ss/*script,call*/ eval( Rule::SimpleMatch const& , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
 	} ;
@@ -657,7 +657,7 @@ namespace Engine {
 		//
 		::vmap_s<DepSpec> const& deps() const {
 			if (!_has_deps) {
-				_deps = rule->deps_attrs.eval(*this) ;
+				_deps = rule->deps_attrs.eval(self) ;
 				_has_deps = true ;
 			}
 			return _deps ;
@@ -686,20 +686,20 @@ namespace Engine {
 		RuleTgt(                        ) = default ;
 		RuleTgt( RuleCrc rc , VarIdx ti ) : RuleCrc{rc} , tgt_idx{ti} {}
 		// accesses
-		Rep                operator+   (              ) const { return (+RuleCrc(*this)<<NBits<VarIdx>) | tgt_idx  ; }
+		Rep                operator+   (              ) const { return (+RuleCrc(self)<<NBits<VarIdx>) | tgt_idx  ; }
 		bool               operator==  (RuleTgt const&) const = default ;
 		::partial_ordering operator<=> (RuleTgt const&) const = default ;
 		//
-		::pair_s<RuleData::MatchEntry> const& key_matches () const { SWEAR(+(*this)->rule)          ; return (*this)->rule->matches [tgt_idx] ; }
-		TargetPattern                  const& pattern     () const { SWEAR(+(*this)->rule)          ; return (*this)->rule->patterns[tgt_idx] ; }
-		::string                       const& key         () const {                                  return key_matches().first              ; }
-		RuleData::MatchEntry           const& matches     () const {                                  return key_matches().second             ; }
-		::string                       const& target      () const { SWEAR(tflags()[Tflag::Target]) ; return matches().pattern                ; }
-		Tflags                                tflags      () const {                                  return matches().flags.tflags      ()   ; }
-		ExtraTflags                           extra_tflags() const {                                  return matches().flags.extra_tflags()   ; }
+		::pair_s<RuleData::MatchEntry> const& key_matches () const { SWEAR(+self->rule)             ; return self->rule->matches [tgt_idx]  ; }
+		TargetPattern                  const& pattern     () const { SWEAR(+self->rule)             ; return self->rule->patterns[tgt_idx]  ; }
+		::string                       const& key         () const {                                  return key_matches().first            ; }
+		RuleData::MatchEntry           const& matches     () const {                                  return key_matches().second           ; }
+		::string                       const& target      () const { SWEAR(tflags()[Tflag::Target]) ; return matches().pattern              ; }
+		Tflags                                tflags      () const {                                  return matches().flags.tflags      () ; }
+		ExtraTflags                           extra_tflags() const {                                  return matches().flags.extra_tflags() ; }
 		// services
 		bool sure() const {
-			Rule       r  = (*this)->rule   ; if (!r) return false ;
+			Rule       r  = self->rule      ; if (!r) return false ;
 			MatchFlags mf = matches().flags ;
 			return ( tgt_idx<r->n_static_targets && !mf.extra_tflags()[ExtraTflag::Optional] ) || mf.tflags()[Tflag::Phony] ;
 		}
@@ -721,36 +721,36 @@ namespace Engine {
 	namespace Attrs {
 
 		template<::integral I> bool/*updated*/ acquire( I& dst , Py::Object const* py_src , I min , I max ) {
-			if (!py_src          ) {           return false ; }
-			if (*py_src==Py::None) { dst = 0 ; return true  ; }
+			if (!py_src          ) {           return false/*updated*/ ; }
+			if (*py_src==Py::None) { dst = 0 ; return true /*updated*/ ; }
 			//
 			long v = py_src->as_a<Py::Int>() ;
-			if (::cmp_less   (v,min)) throw "underflow"s ;
-			if (::cmp_greater(v,max)) throw "overflow"s  ;
+			throw_if( ::cmp_less   (v,min) , "underflow" ) ;
+			throw_if( ::cmp_greater(v,max) , "overflow"  ) ;
 			dst = I(v) ;
 			return true ;
 		}
 
 		template<StdEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src ) {
-			if (!py_src          ) {                 return false ; }
-			if (*py_src==Py::None) { dst = E::Dflt ; return true  ; }
+			if (!py_src          ) {                 return false/*updated*/ ; }
+			if (*py_src==Py::None) { dst = E::Dflt ; return true /*updated*/ ; }
 			//
 			dst = mk_enum<E>(py_src->as_a<Py::Str>()) ;
 			return true ;
 		}
 
 		template<bool Env> bool/*updated*/ acquire( ::string& dst , Py::Object const* py_src ) {
-			if      ( !py_src                       )             return false ;
-			else if (  Env && *py_src==Py::None     )                            dst = EnvDynMrkr     ;   // special case environment variable to mark dynamic values
-			else if ( !Env && *py_src==Py::None     ) { if (!dst) return false ; dst = {}             ; }
-			else if ( !Env && *py_src==Py::Ellipsis )                            dst = "..."          ;
-			else                                                                 dst = *py_src->str() ;
+			if      ( !py_src                       )             return false/*updated*/ ;
+			else if (  Env && *py_src==Py::None     )                                       dst = EnvDynMrkr     ;   // special case environment variable to mark dynamic values
+			else if ( !Env && *py_src==Py::None     ) { if (!dst) return false/*updated*/ ; dst = {}             ; }
+			else if ( !Env && *py_src==Py::Ellipsis )                                       dst = "..."          ;
+			else                                                                            dst = *py_src->str() ;
 			return true ;
 		}
 
 		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) {
-			if (!py_src          )             return false ;
-			if (*py_src==Py::None) { if (!dst) return false ; dst = {} ; return true  ; }
+			if (!py_src          )             return false/*updated*/ ;
+			if (*py_src==Py::None) { if (!dst) return false/*updated*/ ; dst = {} ; return true/*update*/ ; }
 			//
 			bool   updated = false      ;
 			size_t n       = dst.size() ;
@@ -774,8 +774,8 @@ namespace Engine {
 		}
 
 		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , Py::Object const* py_src ) {
-			if (!py_src          )             return false ;
-			if (*py_src==Py::None) { if (!dst) return false ; dst = {} ; return true  ; }
+			if (!py_src          )             return false/*updated*/ ;
+			if (*py_src==Py::None) { if (!dst) return false/*updated*/ ; dst = {} ; return true/*updated*/ ; }
 			//
 			bool            updated = false                    ;
 			::map_s<T>      dst_map = mk_map(dst)              ;
@@ -899,7 +899,7 @@ namespace Engine {
 
 	// START_OF_VERSIONING
 	template<IsStream S> void RuleData::serdes(S& s) {
-		if (::is_base_of_v<::istream,S>) *this = {} ;
+		if (::is_base_of_v<::istream,S>) self = {} ;
 		::serdes(s,special         ) ;
 		::serdes(s,prio            ) ;
 		::serdes(s,name            ) ;

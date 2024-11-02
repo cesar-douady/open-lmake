@@ -201,6 +201,13 @@ Names are suffixed with \_ if needed to suppress ambiguities
 			) ;
 `
 
+## special words
+These special words deserv a dedicated syntax coloring in your prefered editor :
+- DF                        : `default : FAIL() ;`, used at the end of switch statements when all cases are suposed to be enumerated
+- DN                        : `default : ;`       , used at the end of switch statements to allow default as noop
+- throw_if and throw_unless :                       functions that take a condition as 1st arg and throw a string made after other args if condition is (is not) met
+- self                      : `(*this)`             fix c++ that should have defined this as a reference rather than a pointer, makes the code significantly lighter
+
 ## invariants are either
 - in swear/fail if reasonably fast to check
 - in a function `chk` (even if never called) when they can be expressed programatically

@@ -67,7 +67,7 @@ namespace Caches {
 		try                     { chk_version(true/*may_init*/,dir_s+AdminDirS) ;                    }
 		catch (::string const&) { throw "cache version mismatch, running without "+no_slash(dir_s) ; }
 		//
-		dir_fd = open_read(no_slash(dir_s)) ; dir_fd.no_std() ;                          // avoid poluting standard descriptors
+		dir_fd = open_read(no_slash(dir_s)) ; dir_fd.no_std() ;                                 // avoid poluting standard descriptors
 		if (!dir_fd) throw "cannot configure cache "+no_slash(dir_s)+" : no directory" ;
 		sz = from_string_with_units<size_t>(strip(read_content(dir_s+AdminDirS+"size"))) ;
 	}
@@ -94,7 +94,7 @@ namespace Caches {
 	// END_OF_VERSIONING
 
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz ) {
-		if (new_sz>sz) throw "cannot store entry of size "s+new_sz+" in cache of size "+sz ;
+		throw_unless( new_sz<=sz , "cannot store entry of size ",new_sz," in cache of size ",sz ) ;
 		//
 		::string   head_file       = _lru_file(HeadS) ;
 		::ifstream head_stream     { head_file }      ;
@@ -333,7 +333,7 @@ namespace Caches {
 				auto const& entry = digest.targets[ti] ;
 				trace("copy",entry.first,dfd,ti) ;
 				cpy( dfd , ::to_string(ti) , entry.first , false/*unlnk_dst*/ , true/*mk_read_only*/ ) ;
-				if (FileSig(entry.first)!=entry.second.sig) throw "unstable "+entry.first ;              // ensure cache entry is reliable by checking file *after* copy
+				throw_unless( FileSig(entry.first)==entry.second.sig , "unstable ",entry.first) ;        // ensure cache entry is reliable by checking file *after* copy
 			}
 		} catch (::string const& e) {
 			trace("failed",e) ;

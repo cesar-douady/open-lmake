@@ -201,9 +201,9 @@ namespace Engine {
 		Config(Py::Dict const& py_map) ;
 		// services
 		template<IsStream S> void serdes(S& s) {
-			::serdes(s,static_cast<ConfigClean  &>(*this)) ; // must always stay first field to ensure db_version is always understood
-			::serdes(s,static_cast<ConfigStatic &>(*this)) ;
-			::serdes(s,static_cast<ConfigDynamic&>(*this)) ;
+			::serdes(s,static_cast<ConfigClean  &>(self)) ;  // must always stay first field to ensure db_version is always understood
+			::serdes(s,static_cast<ConfigStatic &>(self)) ;
+			::serdes(s,static_cast<ConfigDynamic&>(self)) ;
 			if (::is_base_of_v<::istream,S>) booted = true ; // is config comes from disk, it is booted
 		}
 		::string pretty_str() const ;

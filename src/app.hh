@@ -78,9 +78,11 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 } ;
 
 template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
-	size_t key_sz  = 0     ; for( Key  k : All<Key > ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , snake(k).size() ) ; if (has_dflt_key) key_sz = ::max(key_sz,size_t(8)) ; // 8 for <no key>
-	size_t flag_sz = 0     ; for( Flag f : All<Flag> ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , snake(f).size() ) ;
-	bool   has_arg = false ; for( Flag e : All<Flag> )                           has_arg |= flags[+e].has_arg                  ;
+	static constexpr char   NoKey[] = "<no_key>"      ;                                                                                        // cannot use ::strlen which is not constexpr with clang
+    static constexpr size_t NoKeySz = sizeof(NoKey)-1 ;                                                                                        // account for terminating null
+	size_t key_sz  = 0     ; for( Key  k : iota(All<Key >) ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , snake(k).size() ) ; if (has_dflt_key) key_sz = ::max(key_sz,NoKeySz) ;
+	size_t flag_sz = 0     ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , snake(f).size() ) ;
+	bool   has_arg = false ; for( Flag e : iota(All<Flag>) )                           has_arg |= flags[+e].has_arg                  ;
 	//
 	::cerr << ::left ;
 	//
@@ -93,7 +95,7 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 		if (has_dflt_key) ::cerr << "keys (at most 1) :\n" ;
 		else              ::cerr << "keys (exactly 1) :\n" ;
 		if (has_dflt_key) ::cerr << "<no key>" << setw(key_sz)<<"" <<" : "<< keys[0 ].doc <<'\n' ;
-		for( Key k : All<Key> ) if (keys[+k].short_name) {
+		for( Key k : iota(All<Key>) ) if (keys[+k].short_name) {
 			::string option { snake(k) } ; for( char& c : option ) if (c=='_') c = '-' ;
 			::cerr <<'-' << keys[+k].short_name << " or --" << setw(key_sz)<<option <<" : "<< keys[+k].doc <<'\n' ;
 		}
@@ -101,7 +103,7 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	//
 	if (flag_sz) {
 		::cerr << "flags (0 or more) :\n"  ;
-		for( Flag f : All<Flag> ) {
+		for( Flag f : iota(All<Flag>) ) {
 			if (!flags[+f].short_name) continue ;
 			::string flag { snake(f) } ; for( char& c : flag ) if (c=='_') c = '-' ;
 			/**/                        ::cerr << '-'<<flags[+f].short_name<<" or --"<<setw(flag_sz)<<flag ;
@@ -117,8 +119,8 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 	SWEAR(argc>0) ;
 	//
 	int               a        = 0 ;
-	::umap<char,Key > key_map  ; for( Key  k : All<Key > ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
-	::umap<char,Flag> flag_map ; for( Flag f : All<Flag> ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
+	::umap<char,Key > key_map  ; for( Key  k : iota(All<Key >) ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
+	::umap<char,Flag> flag_map ; for( Flag f : iota(All<Flag>) ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
 	try {
 		bool has_key    = false ;
 		bool force_args = false ;
@@ -129,7 +131,7 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (!OptionsAnywhere) force_args = true ;
 				continue ;
 			}
-			if (!arg[1]) throw "unexpected lonely -"s ;
+			throw_unless( arg[1] , "unexpected lonely -" ) ;
 			if (arg[1]=='-') {
 				// long option
 				if (arg[2]==0) { force_args = true ; continue ; }                                                     // a lonely --, options are no more recognized
@@ -153,8 +155,8 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (can_mk_enum<Flag>(option)) {
 					Flag f = mk_enum<Flag>(option) ;
 					if (syntax.flags[+f].short_name) {
-						if (syntax.flags[+f].has_arg) { if (*p!='=') throw "no value for option --"        +option ; flag_args[+f] = p+1 ; } // skip = sign
-						else                          { if (*p     ) throw "unexpected value for option --"+option ;                       }
+						if (syntax.flags[+f].has_arg) { throw_unless( *p=='=' , "no value for option --"        ,option) ; flag_args[+f] = p+1 ; } // skip = sign
+						else                            throw_unless( !*p     , "unexpected value for option --",option) ;
 						flags |= f ;
 						continue ;
 					}
@@ -189,7 +191,7 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				}
 			}
 		}
-		if ( !has_key && !syntax.has_dflt_key ) throw "must specify a key"s ;
+		throw_unless( has_key || syntax.has_dflt_key , "must specify a key" ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	exe = argv[0] ;

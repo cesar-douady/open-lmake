@@ -117,10 +117,10 @@ namespace Engine {
 		JobTgt( RuleTgt rt , ::string const& t , bool chk_psfx=true , Req req={} , DepDepth lvl=0 ) ;
 		JobTgt( JobTgt const& jt                                                                  ) : Job(jt) { is_static_phony(jt.is_static_phony()) ; }
 		//
-		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; is_static_phony(jt.is_static_phony()) ; return *this ; }
+		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; is_static_phony(jt.is_static_phony()) ; return self ; }
 		//
-		bool is_static_phony(        ) const { return Job::side<1>() ;                          }
-		void is_static_phony(bool isp)       { { if (isp) SWEAR(+*this) ; } Job::side<1>(isp) ; }
+		bool is_static_phony(        ) const { return Job::side<1>() ;                         }
+		void is_static_phony(bool isp)       { { if (isp) SWEAR(+self) ; } Job::side<1>(isp) ; }
 		bool sure           (        ) const ;
 		// services
 		bool produces( Node , bool actual=false ) const ; // if actual, return if node was actually produced, in addition to being officially produced
@@ -277,8 +277,8 @@ namespace Engine {
 		void _reset_targets(                        ) { _reset_targets(simple_match()) ; }
 		// accesses
 	public :
-		Job      idx   () const { return Job::s_idx(*this) ; }
-		Rule     rule  () const { return rule_crc->rule    ; }
+		Job      idx   () const { return Job::s_idx(self) ; }
+		Rule     rule  () const { return rule_crc->rule   ; }
 		::string name  () const {
 			if ( Rule r=rule() ; +r )                               return full_name(r->job_sfx_len())             ;
 			else                      { ::string fn = full_name() ; return fn.substr(0,fn.find(RuleData::JobMrkr)) ; }   // heavier, but works without rule
@@ -409,27 +409,27 @@ namespace Engine {
 	inline JobTgt::JobTgt( RuleTgt rt , ::string const& t , bool chk_psfx , Req r , DepDepth lvl ) : JobTgt{ Job(rt,t,chk_psfx,r,lvl) , rt.sure() } {}
 
 	inline bool JobTgt::sure() const {
-		return is_static_phony() && (*this)->sure() ;
+		return is_static_phony() && self->sure() ;
 	}
 
 	inline bool JobTgt::produces(Node t,bool actual) const {
-		if ( (*this)->missing()                            ) return false                             ; // missing jobs produce nothing
-		if (  actual && (*this)->run_status!=RunStatus::Ok ) return false                             ; // jobs has not run, it has actually produced nothing
-		if ( !actual && (*this)->err()                     ) return true                              ; // jobs in error are deemed to produce all their potential targets
-		if ( !actual && sure()                             ) return true                              ;
-		if ( t->has_actual_job(*this)                      ) return t->actual_tflags()[Tflag::Target] ; // .
+		if ( self->missing()                            ) return false                             ; // missing jobs produce nothing
+		if (  actual && self->run_status!=RunStatus::Ok ) return false                             ; // jobs has not run, it has actually produced nothing
+		if ( !actual && self->err()                     ) return true                              ; // jobs in error are deemed to produce all their potential targets
+		if ( !actual && sure()                          ) return true                              ;
+		if ( t->has_actual_job(self)                    ) return t->actual_tflags()[Tflag::Target] ; // .
 		//
-		auto it = ::lower_bound( (*this)->targets , {t,{}} ) ;
-		return it!=(*this)->targets.end() && *it==t && it->tflags[Tflag::Target] ;
+		auto it = ::lower_bound( self->targets , {t,{}} ) ;
+		return it!=self->targets.end() && *it==t && it->tflags[Tflag::Target] ;
 	}
 
 	//
 	// JobData
 	//
 
-	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                            jd.targets.forget() ; jd.deps.forget() ;                }
-	inline JobData::~JobData          (            ) {                                                             targets.pop   () ;    deps.pop   () ;                }
-	inline JobData& JobData::operator=(JobData&& jd) { SWEAR(rule()==jd.rule(),rule(),jd.rule()) ; *this = jd ; jd.targets.forget() ; jd.deps.forget() ; return *this ; }
+	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                           jd.targets.forget() ; jd.deps.forget() ;               }
+	inline JobData::~JobData          (            ) {                                                            targets.pop   () ;    deps.pop   () ;               }
+	inline JobData& JobData::operator=(JobData&& jd) { SWEAR(rule()==jd.rule(),rule(),jd.rule()) ; self = jd ; jd.targets.forget() ; jd.deps.forget() ; return self ; }
 
 	inline ::string JobData::special_stderr   (                                 ) const { return special_stderr   (      {}) ; }
 	inline void     JobData::audit_end_special( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}) ; }
@@ -508,7 +508,7 @@ namespace Engine {
 		if (&cri==&Req::s_store[+cri.req].jobs.dflt) return req_info(cri.req)         ; // allocate
 		else                                         return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
 	}
-	inline ::vector<Req> JobData::reqs() const { return Req::s_reqs(*this) ; }
+	inline ::vector<Req> JobData::reqs() const { return Req::s_reqs(self) ; }
 
 	inline bool JobData::has_req(Req r) const {
 		return Req::s_store[+r].jobs.contains(idx()) ;

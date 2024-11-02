@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
+#include "core.hh" // must be first to include Python.h first
 
 // XXX : rework to maintain an ordered list of waiting_queues in ReqEntry to avoid walking through all rsrcs for each launched job
 
@@ -52,14 +52,14 @@ namespace Backends {
 			else               it->second--       ;                             // data is shared, just decrement refcount
 		}
 		//
-		Shared& operator=(Shared s) { swap(*this,s) ; return *this ; }
+		Shared& operator=(Shared s) { swap(self,s) ; return self ; }
 		//
 		bool operator==(Shared const&) const = default ;
 		// access
-		Data const& operator* () const { return *data   ; }
-		Data const* operator->() const { return &**this ; }
-		bool        operator+ () const { return data    ; }
-		bool        operator! () const { return !+*this ; }
+		Data const& operator* () const { return *data  ; }
+		Data const* operator->() const { return &*self ; }
+		bool        operator+ () const { return data   ; }
+		bool        operator! () const { return !+self ; }
 		// data
 		Data const* data = nullptr ;
 	} ;
@@ -156,9 +156,9 @@ namespace Backends {
 			const_iterator find(Job j) const { const_iterator res = Base::find(j) ; if ( res==Base::end() || !res->second.live ) return Base::end() ; else return res ; }
 			iterator       find(Job j)       { iterator       res = Base::find(j) ; if ( res==Base::end() || !res->second.live ) return Base::end() ; else return res ; }
 			//
-			bool   operator+() const { return _sz     ; }                    // cannot inherit from Base as zombies would be counted
-			bool   operator!() const { return !+*this ; }                    // .
-			size_t size     () const { return _sz     ; }                    // .
+			bool   operator+() const { return _sz    ; }                     // cannot inherit from Base as zombies would be counted
+			bool   operator!() const { return !+self ; }                     // .
+			size_t size     () const { return _sz    ; }                     // .
 			//
 			iterator create( GenericBackend const& be , Job j , RsrcsAsk const& rsrcs_ask ) {
 				Rsrcs    rsrcs = be.acquire_rsrcs(rsrcs_ask) ;
@@ -246,31 +246,31 @@ namespace Backends {
 		}
 		virtual void open_req( Req req , JobIdx n_jobs ) {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;
-			Lock lock     { Req::s_reqs_mutex }                                                              ;      // taking Req::s_reqs_mutex is compulsery to derefence req
+			Lock lock     { Req::s_reqs_mutex }                                                              ;     // taking Req::s_reqs_mutex is compulsery to derefence req
 			bool inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
-			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                          // check no overflow
+			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                         // check no overflow
 			SWEAR(inserted) ;
 		}
 		virtual void close_req(Req req) {
 			auto it = reqs.find(req) ;
 			Trace trace(BeChnl,"close_req",req,STR(it==reqs.end())) ;
-			if (it==reqs.end()) return ;                                                                            // req has been killed
+			if (it==reqs.end()) return ;                                                                           // req has been killed
 			ReqEntry const& re = it->second ;
 			SWEAR(!re.waiting_jobs,re.waiting_jobs) ;
-			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                       // check no underflow
+			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                      // check no underflow
 			reqs.erase(it) ;
 			if (!reqs) {
 				SWEAR(!waiting_jobs,waiting_jobs) ;
-				SWEAR(!spawned_jobs,spawned_jobs) ;                                                                 // there may be !live entries waiting for destruction
+				SWEAR(!spawned_jobs,spawned_jobs) ;                                                                // there may be !live entries waiting for destruction
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
 		virtual void submit( Job job , Req req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
-			RsrcsAsk rsa { New , import_(::move(rsrcs),req,job) } ;                                                 // compile rsrcs
+			RsrcsAsk rsa { New , import_(::move(rsrcs),req,job) } ;                                                // compile rsrcs
 			if (!fit_eventually(*rsa)) throw "not enough resources to launch job "+Job(job)->name() ;
 			ReqEntry& re = reqs.at(req) ;
-			SWEAR(!waiting_jobs   .contains(job)) ;                                                                 // job must be a new one
-			SWEAR(!re.waiting_jobs.contains(job)) ;                                                                 // in particular for this req
+			SWEAR(!waiting_jobs   .contains(job)) ;                                                                // job must be a new one
+			SWEAR(!re.waiting_jobs.contains(job)) ;                                                                // in particular for this req
 			CoarseDelay pressure = submit_attrs.pressure ;
 			Trace trace(BeChnl,"submit",rsa,pressure) ;
 			//
@@ -283,36 +283,36 @@ namespace Backends {
 			Trace trace(BeChnl,"add_pressure",job,req,submit_attrs) ;
 			ReqEntry& re  = reqs.at(req)           ;
 			auto      wit = waiting_jobs.find(job) ;
-			if (wit==waiting_jobs.end()) {                                                                          // job is not waiting anymore, mostly ignore
+			if (wit==waiting_jobs.end()) {                                                                         // job is not waiting anymore, mostly ignore
 				auto sit = spawned_jobs.find(job) ;
-				if (sit==spawned_jobs.end()) {                                                                      // job is already ended
+				if (sit==spawned_jobs.end()) {                                                                     // job is already ended
 					trace("ended") ;
 				} else {
-					SpawnedEntry& se = sit->second ;                                                                // if not waiting, it must be spawned if add_pressure is called
-					if (re.verbose ) se.verbose = true ;                                                            // mark it verbose, though
+					SpawnedEntry& se = sit->second ;                                                               // if not waiting, it must be spawned if add_pressure is called
+					if (re.verbose ) se.verbose = true ;                                                           // mark it verbose, though
 					trace("queued") ;
 				}
 				return ;
 			}
 			WaitingEntry& we = wit->second ;
-			SWEAR(!re.waiting_jobs.contains(job)) ;                                                                 // job must be new for this req
+			SWEAR(!re.waiting_jobs.contains(job)) ;                                                                // job must be new for this req
 			CoarseDelay pressure = submit_attrs.pressure ;
 			trace("adjusted_pressure",pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
-			re.waiting_queues[we.rsrcs_ask].insert({pressure,job}) ;                                                // job must be known
+			re.waiting_queues[we.rsrcs_ask].insert({pressure,job}) ;                                               // job must be known
 			we.submit_attrs |= submit_attrs ;
 			we.verbose      |= re.verbose   ;
 			we.n_reqs++ ;
 		}
 		virtual void set_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) {
-			ReqEntry& re = reqs.at(req)           ;                                                                 // req must be known to already know job
+			ReqEntry& re = reqs.at(req)           ;                                                                // req must be known to already know job
 			auto      it = waiting_jobs.find(job) ;
 			//
-			if (it==waiting_jobs.end()) return ;                                                                    // job is not waiting anymore, ignore
+			if (it==waiting_jobs.end()) return ;                                                                   // job is not waiting anymore, ignore
 			WaitingEntry        & we           = it->second                         ;
-			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job         ) ;                               // job must be known
-			::set<PressureEntry>& q            = re.waiting_queues.at(we.rsrcs_ask) ;                               // including for this req
+			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job         ) ;                              // job must be known
+			::set<PressureEntry>& q            = re.waiting_queues.at(we.rsrcs_ask) ;                              // including for this req
 			CoarseDelay           pressure     = submit_attrs.pressure              ;
 			Trace trace("set_pressure","pressure",pressure) ;
 			we.submit_attrs |= submit_attrs ;
@@ -322,50 +322,50 @@ namespace Backends {
 		}
 	protected :
 		virtual ::string start(Job job) {
-			auto          it = spawned_jobs.find(job) ; if (it==spawned_jobs.end()) return {} ;                     // job was killed in the mean time
+			auto          it = spawned_jobs.find(job) ; if (it==spawned_jobs.end()) return {} ;                    // job was killed in the mean time
 			SpawnedEntry& se = it->second             ;
 			if (!se.id) {
-				Lock lock{id_mutex} ;                                                                               // ensure se.id has been updated
+				Lock lock{id_mutex} ;                                                                              // ensure se.id has been updated
 				SWEAR(se.id,job) ;
 			}
 			//
-			spawned_jobs.start(*this,it) ;
+			spawned_jobs.start(self,it) ;
 			::string msg = start_job(job,se) ;
 			if (call_launch_after_start()) _launch_queue.wakeup() ;
 			return msg ;
 		}
 		virtual ::pair_s<bool/*retry*/> end( Job j , Status s ) {
-			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return {{},false/*retry*/} ;      // job was killed in the mean time
+			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return {{},false/*retry*/} ;     // job was killed in the mean time
 			SpawnedEntry& se = it->second           ; SWEAR(se.started) ;
-			SWEAR(se.id,j) ;                                                                                        // occurs after start, then se.id has been updated
+			SWEAR(se.id,j) ;                                                                                       // occurs after start, then se.id has been updated
 			::pair_s<bool/*retry*/> digest = end_job(j,se,s) ;
-			spawned_jobs.erase(*this,it) ;                                                                          // erase before calling launch so job is freed w.r.t. n_jobs
-			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                     // if we have a Req limited by n_jobs, we may have to launch a job
+			spawned_jobs.erase(self,it) ;                                                                          // erase before calling launch so job is freed w.r.t. n_jobs
+			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                    // if we have a Req limited by n_jobs, we may have to launch a job
 			return digest ;
 		}
 		virtual void heartbeat() {
-			if (_oldest_submitted_job.load()+g_config->heartbeat<Pdate(New)) launch() ;                             // prevent jobs from being accumulated for too long
+			if (_oldest_submitted_job.load()+g_config->heartbeat<Pdate(New)) launch() ;                            // prevent jobs from being accumulated for too long
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat(Job j) {                                                         // called on jobs that did not start after at least newwork_delay time
+		virtual ::pair_s<HeartbeatState> heartbeat(Job j) {                                                        // called on jobs that did not start after at least newwork_delay time
 			auto it = spawned_jobs.find(j) ;
 			if (it==spawned_jobs.end()) {
 				Trace trace(BeChnl,"heartbeat","not_found",j) ;
 				return {"job disappeared",HeartbeatState::Err} ;
 			}
 			SpawnedEntry& se = it->second ;
-			SWEAR(!se.started,j) ;                                                                                  // we should not be called on started jobs
+			SWEAR(!se.started,j) ;                                                                                 // we should not be called on started jobs
 			if (!se.id) {
-				Lock lock { id_mutex } ;                                                                            // ensure _launch is no more processing entry
-				if (!se.id) {                                                                                       // repeat test so test and decision are atomic
+				Lock lock { id_mutex } ;                                                                           // ensure _launch is no more processing entry
+				if (!se.id) {                                                                                      // repeat test so test and decision are atomic
 					Trace trace(BeChnl,"heartbeat","no_id",j) ;
 					if (se.failed) return {"could not launch job",HeartbeatState::Err  } ;
-					else           return {{}                    ,HeartbeatState::Alive} ;                          // book keeping is not updated yet
+					else           return {{}                    ,HeartbeatState::Alive} ;                         // book keeping is not updated yet
 				}
 			}
 			::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
 			if (digest.second!=HeartbeatState::Alive) {
 				Trace trace(BeChnl,"heartbeat",j,se.id,digest.second) ;
-				spawned_jobs.erase(*this,it) ;
+				spawned_jobs.erase(self,it) ;
 			}
 			return digest ;
 		}
@@ -374,14 +374,14 @@ namespace Backends {
 			::vector<Job> res ;
 			Trace trace(BeChnl,"kill_req",T,req,reqs.size()) ;
 			if ( !req || reqs.size()<=1 ) {
-				if (+req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;                 // ensure the last req is the right one
+				if (+req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;                // ensure the last req is the right one
 				// kill waiting jobs
 				res.reserve(waiting_jobs.size()) ;
 				for( auto const& [j,_] : waiting_jobs ) res.push_back(j) ;
 				waiting_jobs.clear() ;
 				for( auto& [_,re] : reqs ) re.clear() ;
 			} else {
-				auto      rit = reqs.find(req) ; SWEAR(rit!=reqs.end()) ;                                           // we should not kill a non-existent req
+				auto      rit = reqs.find(req) ; SWEAR(rit!=reqs.end()) ;                                          // we should not kill a non-existent req
 				ReqEntry& re  = rit->second    ;
 				// kill waiting jobs
 				res.reserve(re.waiting_jobs.size()) ;
@@ -397,10 +397,10 @@ namespace Backends {
 		}
 		virtual void kill_job(Job j) {
 			Trace trace(BeChnl,"kill_job",j) ;
-			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return ;                          // job was not actually spawned
-			SpawnedEntry& se = it->second           ; SWEAR(!se.started) ;                                          // if job is started, it is not our responsibility any more
-			if (se.id) {                                     kill_queued_job(se) ; spawned_jobs.erase(*this,it) ; }
-			else       { Lock lock { id_mutex } ; if (se.id) kill_queued_job(se) ; spawned_jobs.erase(*this,it) ; } // lock to ensure se.id is up to date and do same actions (erase while holding lock)
+			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return ;                         // job was not actually spawned
+			SpawnedEntry& se = it->second           ; SWEAR(!se.started) ;                                         // if job is started, it is not our responsibility any more
+			if (se.id) {                                     kill_queued_job(se) ; spawned_jobs.erase(self,it) ; }
+			else       { Lock lock { id_mutex } ; if (se.id) kill_queued_job(se) ; spawned_jobs.erase(self,it) ; } // lock to ensure se.id is up to date and do same actions (erase while holding lock)
 		}
 		virtual void launch() {
 			if (!_oldest_submitted_job.load()) return ;
@@ -414,7 +414,7 @@ namespace Backends {
 				Pdate              prio     ;
 				SpawnedEntry*      entry    = nullptr ;
 			} ;
-			for( auto [req,eta] : Req::s_etas() ) {                                                                 // /!\ it is forbidden to dereference req without taking Req::s_reqs_mutex first
+			for( auto [req,eta] : Req::s_etas() ) {                                                                // /!\ it is forbidden to dereference req without taking Req::s_reqs_mutex first
 				Trace trace(BeChnl,"launch",req) ;
 				::vmap<Job,LaunchDescr> launch_descrs ;
 				{	Lock lock { _s_mutex } ;
@@ -423,7 +423,7 @@ namespace Backends {
 					JobIdx                               n_jobs = rit->second.n_jobs         ;
 					::umap<RsrcsAsk,set<PressureEntry>>& queues = rit->second.waiting_queues ;
 					for(;;) {
-						if ( n_jobs && spawned_jobs.size()>=n_jobs ) break ;                                        // cannot have more than n_jobs running jobs because of this req, process next req
+						if ( n_jobs && spawned_jobs.size()>=n_jobs ) break ;                                       // cannot have more than n_jobs running jobs because of this req, process next req
 						auto candidate = queues.end() ;
 						for( auto it=queues.begin() ; it!=queues.end() ; it++ ) {
 							if ( candidate!=queues.end() && it->second.begin()->pressure<=candidate->second.begin()->pressure ) continue ;
@@ -431,12 +431,12 @@ namespace Backends {
 						}
 						if (candidate==queues.end()) break ;                                                                               // nothing for this req, process next req
 						//
-						::set<PressureEntry>& pressure_set = candidate->second                                     ;
-						auto                  pressure1    = pressure_set.begin()                                  ; SWEAR(pressure1!=pressure_set.end(),candidate->first) ; // a candidate ...
-						Pdate                 prio         = eta-pressure1->pressure                               ;                                                         // ... with no pressure ?
-						Job                   j            = pressure1->job                                        ;
-						auto                  wit          = waiting_jobs.find(j)                                  ;
-						SpawnedEntry&         se           = spawned_jobs.create(*this,j,candidate->first)->second ;
+						::set<PressureEntry>& pressure_set = candidate->second                                    ;
+						auto                  pressure1    = pressure_set.begin()                                 ; SWEAR(pressure1!=pressure_set.end(),candidate->first) ; // a candidate ...
+						Pdate                 prio         = eta-pressure1->pressure                              ;                                                         // ... with no pressure ?
+						Job                   j            = pressure1->job                                       ;
+						auto                  wit          = waiting_jobs.find(j)                                 ;
+						SpawnedEntry&         se           = spawned_jobs.create(self,j,candidate->first)->second ;
 						//
 						se.verbose = wit->second.verbose ;
 						::vector<ReqIdx> rs { +req } ;
@@ -481,8 +481,8 @@ namespace Backends {
 				{	Lock lock { _s_mutex } ;
 					for( auto const& [ji,_] : launch_descrs ) {
 						auto it=spawned_jobs.find(ji) ; if (it==spawned_jobs.end()) continue ;
-						if (it->second.failed) spawned_jobs.erase(*this,it) ;                  // job could not be launched, release resources
-						/**/                   spawned_jobs.flush(      it) ;                  // collect unused entry now that we hold _s_mutex
+						if (it->second.failed) spawned_jobs.erase(self,it) ;                   // job could not be launched, release resources
+						/**/                   spawned_jobs.flush(     it) ;                   // collect unused entry now that we hold _s_mutex
 					}
 					launch_descrs.clear() ;                                                    // destroy entries while holding the lock
 				}

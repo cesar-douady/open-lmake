@@ -53,8 +53,8 @@ namespace Store {
 				for( Sz i : iota(1,sz) ) new(items()+i) Item{v[i-1]} ;
 			}
 			//
-			Chunk (                  VecView const& v ) requires(IsTrivial) : Base{Sz(  v.size())} {                   memcpy( items()   , v.cbegin() , v.size()*sizeof(Item) ) ; }
-			Chunk ( Item const& x0 , VecView const& v ) requires(IsTrivial) : Base{Sz(1+v.size())} { items()[0] = x0 ; memcpy( items()+1 , v.cbegin() , v.size()*sizeof(Item) ) ; }
+			Chunk (                  VecView const& v ) requires(IsTrivial) : Base{Sz(  v.size())} {                   ::memcpy( items()   , v.cbegin() , v.size()*sizeof(Item) ) ; }
+			Chunk ( Item const& x0 , VecView const& v ) requires(IsTrivial) : Base{Sz(1+v.size())} { items()[0] = x0 ; ::memcpy( items()+1 , v.cbegin() , v.size()*sizeof(Item) ) ; }
 			//
 			~Chunk() requires(!IsTrivial) { for( Sz i : iota(sz) ) items()[i].~Item() ; }
 			~Chunk() requires( IsTrivial) {                                             }

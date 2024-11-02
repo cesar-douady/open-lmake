@@ -46,15 +46,15 @@ struct IMsgBuf : MsgBuf {
 	}
 	template<class T> bool/*complete*/ receive_step( Fd fd , T& res ) {
 		ssize_t cnt = ::read( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if      (cnt<0 ) throw "cannot receive over "      +fmt_string(fd)+" : "+strerror(errno) ;
-		else if (cnt==0) throw "peer closed connection on "+fmt_string(fd)                       ;
+		if      (cnt<0 ) throw "cannot receive over "      +fmt_string(fd)+" : "+::strerror(errno) ;
+		else if (cnt==0) throw "peer closed connection on "+fmt_string(fd)                         ;
 		_len += cnt ;
 		if (_len<_buf.size()) return false/*complete*/ ;                          // _buf is still partial
 		if (_data_pass) {
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res = deserialize<T>(IStringStream(::move(_buf))) ;
 			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			*this = {} ;
+			self = {} ;
 			return true/*complete*/ ;
 		} else {
 			SWEAR( _buf.size()==sizeof(Len) , _buf.size() ) ;
@@ -92,9 +92,9 @@ struct OMsgBuf : MsgBuf {
 	bool/*complete*/ send_step(Fd fd) {
 		SWEAR(_data_pass) ;
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) { int en=errno ; throw "cannot send over "+fmt_string(fd)+" : "+strerror(en) ; }
+		if (cnt<=0) { int en=errno ; throw "cannot send over "+fmt_string(fd)+" : "+::strerror(en) ; }
 		_len += cnt ;
-		if (_len<_buf.size()) {              return false/*complete*/ ; }               // _buf is still partial
-		else                  { *this = {} ; return true /*complete*/ ; }
+		if (_len<_buf.size()) {             return false/*complete*/ ; }                // _buf is still partial
+		else                  { self = {} ; return true /*complete*/ ; }
 	}
 } ;

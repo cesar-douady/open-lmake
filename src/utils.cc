@@ -6,11 +6,11 @@
 #include <execinfo.h> // backtrace
 #include <link.h>     // struct link_map
 
+#include "utils.hh"
+
 #if HAS_CLOSE_RANGE
     #include <linux/close_range.h>
 #endif
-
-#include "utils.hh"
 
 #if HAS_STACKTRACE        // must be after utils.hh so that HAS_STACKTRACE is defined
 	#include <stacktrace>
@@ -342,18 +342,18 @@ void set_sig_handler( int sig , void (*handler)(int) ) {
 		const char*      file           = *map->l_name ? map->l_name : exe ;
 		uintptr_t        offset         = (uintptr_t)addr - map->l_addr    ;
 		//
-		char             hex_offset[20] ; ::snprintf(hex_offset,sizeof(hex_offset),"0x%lx",(unsigned long)offset) ;
-		Pipe             c2p            { New } ;                                                                   // dont use Child as if called from signal handler, malloc is forbidden
+		char             hex_offset[20] ; ::snprintf(hex_offset,sizeof(hex_offset),"0x%lx",(ulong)offset) ;
+		Pipe             c2p            { New } ;                                                           // dont use Child as if called from signal handler, malloc is forbidden
 		int pid = ::fork() ;
-		if (!pid) {                                                                                                 // child
+		if (!pid) {                                                                                         // child
 			::close(c2p.read) ;
 			if (c2p.write!=Fd::Stdout) { ::dup2(c2p.write,Fd::Stdout) ; ::close(c2p.write) ; }
-			::close(Fd::Stdin) ;                                                                                    // no input
-			del_env("LD_PRELOAD") ;                                                                                 // ensure no recursive errors
-			del_env("LD_AUDIT"  ) ;                                                                                 // .
+			::close(Fd::Stdin) ;                                                                            // no input
+			del_env("LD_PRELOAD") ;                                                                         // ensure no recursive errors
+			del_env("LD_AUDIT"  ) ;                                                                         // .
 			const char* args[] = { ADDR2LINE , "-f" , "-i" , "-C" , "-e" , file , hex_offset , nullptr } ;
 			::execv( args[0] , const_cast<char**>(args) ) ;
-			exit(Rc::System) ;                                                                                      // in case exec fails
+			exit(Rc::System) ;                                                                              // in case exec fails
 		}
 		::close(c2p.write) ;
 		size_t n_sp ;

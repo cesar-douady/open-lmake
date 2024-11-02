@@ -3,14 +3,12 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh" // must be first to include Python.h first
-
 #include <sys/inotify.h>
 
+#include "core.hh" // must be first to include Python.h first
+
 #include "rpc_client.hh"
-
 #include "autodep/record.hh"
-
 #include "cmd.hh"
 #include "makefiles.hh"
 
@@ -453,7 +451,7 @@ int main( int argc , char** argv ) {
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                                  // once we have reported we have started, lmake will send us a message to kill us
 	//
-	for( AncillaryTag tag : All<AncillaryTag> ) dir_guard(Job().ancillary_file(tag)) ;
+	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
 	mk_dir_s(PrivateAdminDirS+"tmp/"s,true/*unlnk_ok*/) ;
 	//
 	Trace::s_channels = g_config->trace.channels ;

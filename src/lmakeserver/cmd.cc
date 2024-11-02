@@ -3,10 +3,10 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "cmd.hh"
-
 #include <linux/binfmts.h>
 #include <regex>
+
+#include "cmd.hh"
 
 using namespace Disk ;
 using namespace Py   ;
@@ -82,8 +82,7 @@ namespace Engine {
 					}
 				}
 			}
-			bool mod_nodes = +nodes ;
-			if ( mod_nodes && Req::s_n_reqs() ) throw "cannot "s+(add?"add":"remove")+" frozen files while running" ;
+			throw_if( +nodes && Req::s_n_reqs() , "cannot ",add?"add":"remove"," frozen files while running" ) ;
 			// do what is asked
 			if (+jobs) {
 				trace("jobs",jobs) ;
@@ -314,7 +313,7 @@ namespace Engine {
 			job = ecr.job() ;
 		} else {
 			::vector<Node> targets = ecr.targets() ;
-			if (targets.size()!=1) throw "can only debug a single target"s ;
+			throw_unless( targets.size()==1 , "can only debug a single target" ) ;
 			job = _job_from_target(fd,ro,ecr.targets()[0]) ;
 		}
 		if (!job                                  ) throw "no job found"s                 ;
@@ -327,7 +326,7 @@ namespace Engine {
 		}
 		//
 		::string const& key       = ro.flag_args[+ReqFlag::Key]                ;
-		auto            it        = g_config->dbg_tab.find(key)                ; if (it==g_config->dbg_tab.end()) throw "unknown debug method "+ro.flag_args[+ReqFlag::Key] ;
+		auto            it        = g_config->dbg_tab.find(key)                ; throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",ro.flag_args[+ReqFlag::Key] ) ;
 		::string const& runner    = it->second.c_str()                         ;
 		::string        dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
 		mk_dir_s(dbg_dir_s) ;
@@ -362,7 +361,7 @@ namespace Engine {
 			case ReqKey::None :
 				if (ecr.as_job()) {
 					Job j = ecr.job() ;
-					if (!j) throw "job not found"s ;
+					throw_unless( +j , "job not found" ) ;
 					ok = j->forget( ro.flags[ReqFlag::Targets] , ro.flags[ReqFlag::Deps] ) ;
 				} else {
 					for( Node t : ecr.targets() ) ok &= t->forget( ro.flags[ReqFlag::Targets] , ro.flags[ReqFlag::Deps] ) ;
@@ -758,9 +757,9 @@ namespace Engine {
 				for( auto const& [tn,td] : digest.targets ) {
 					Node t { tn } ;
 					::string flags_str ;
-					/**/                         flags_str += t->crc==Crc::None ? 'U' : +t->crc ? 'W' : '-' ;
-					/**/                         flags_str += ' '                                           ;
-					for( Tflag tf : All<Tflag> ) flags_str += td.tflags[tf] ? TflagChars[+tf].second : '-'  ;
+					/**/                               flags_str += t->crc==Crc::None ? 'U' : +t->crc ? 'W' : '-' ;
+					/**/                               flags_str += ' '                                           ;
+					for( Tflag tf : iota(All<Tflag>) ) flags_str += td.tflags[tf] ? TflagChars[+tf].second : '-'  ;
 					//
 					_send_node( fd , ro , verbose , Maybe|!td.tflags[Tflag::Target]/*hide*/ , flags_str , t , lvl ) ;
 				}

@@ -21,7 +21,7 @@ using namespace Time ;
 ::ostream& operator<<( ::ostream& os , Gather::AccessInfo const& ai ) {
 	bool  i  = false/*garbage*/ ;
 	Pdate rd = Pdate::Future    ;
-	for( Access a : All<Access> ) if ( rd>ai.read[+a] ) { rd = ai.read[+a] ; i = !ai.digest.accesses[a] ; }
+	for( Access a : iota(All<Access>) ) if ( rd>ai.read[+a] ) { rd = ai.read[+a] ; i = !ai.digest.accesses[a] ; }
 	/**/                                            os << "AccessInfo("                                         ;
 	if ( rd!=Pdate::Future                        ) os << "R:" <<rd<<(i?"~":"")                           <<',' ;
 	if ( ai.digest.extra_tflags[ExtraTflag::Allow]) os << "T:" <<ai.target                                <<',' ;
@@ -42,11 +42,11 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	bool dfi = tfi || digest.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
 	//
 	if (!dfi) {
-		for( Access a : All<Access> ) if (read[+a]<=pd) goto NotFirst ;
+		for( Access a : iota(All<Access>) ) if (read[+a]<=pd) goto NotFirst ;
 		dep_info = di ;
 	NotFirst :
-		for( Access a : All<Access> ) if ( PD& d=read[+a] ; ad.accesses[a]       && pd<d ) { digest.accesses |= a ; d = pd ; }
-		/**/                          if ( PD& d=seen     ; di.seen(ad.accesses) && pd<d )                          d = pd ;
+		for( Access a : iota(All<Access>) ) if ( PD& d=read[+a] ; ad.accesses[a]       && pd<d ) { digest.accesses |= a ; d = pd ; }
+		/**/                                if ( PD& d=seen     ; di.seen(ad.accesses) && pd<d )                          d = pd ;
 	}
 	if (!tfi) {
 		digest.write |= ad.write ;

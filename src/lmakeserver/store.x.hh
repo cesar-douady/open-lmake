@@ -135,8 +135,8 @@ namespace Engine::Persistent {
 		// accesses
 		JobData const& operator* () const ;
 		JobData      & operator* () ;
-		JobData const* operator->() const { return &**this ; }
-		JobData      * operator->()       { return &**this ; }
+		JobData const* operator->() const { return &*self ; }
+		JobData      * operator->()       { return &*self ; }
 		//
 		RuleIdx rule_idx () const ;
 		bool    frozen   () const ;
@@ -173,8 +173,8 @@ namespace Engine::Persistent {
 	public :
 		NodeData const& operator* () const ;
 		NodeData      & operator* () ;
-		NodeData const* operator->() const { return &**this ; }
-		NodeData      * operator->()       { return &**this ; }
+		NodeData const* operator->() const { return &*self ; }
+		NodeData      * operator->()       { return &*self ; }
 		bool            frozen    () const ;
 		bool            no_trigger() const ;
 		// services
@@ -184,7 +184,10 @@ namespace Engine::Persistent {
 	struct RuleBase
 	:	             Idxed<RuleIdx>
 	{	using Base = Idxed<RuleIdx> ;
-		static constexpr size_t NameSz = "no_rule"s.size() ;              // minimum size of the rule field : account for internally generated messages
+	private :
+		static constexpr char _Name[] = "no_rule" ;                       // cannot use ::strlen which not constexpr with clang
+	public :
+		static constexpr size_t NameSz = sizeof(_Name)-1 ;                // -1 to account for teminating null, minimum size of the rule field : account for internally generated messages
 		// statics
 		static void s_from_disk           (                    ) ;
 		static void s_from_vec_dynamic    (::vector<RuleData>&&) ;
@@ -211,9 +214,9 @@ namespace Engine::Persistent {
 		// accesses
 		RuleData      & data      ()       ;
 		RuleData const& operator* () const ;
-		RuleData const* operator->() const { return &**this ; }
+		RuleData const* operator->() const { return &*self ; }
 		//
-		constexpr bool is_shared() const { return +*this<+Special::NShared ; }
+		constexpr bool is_shared() const { return +self<+Special::NShared ; }
 		::string_view  str      () const ;
 		// services
 		void save() const ;
@@ -233,7 +236,7 @@ namespace Engine::Persistent {
 		// accesses
 		RuleCrcData      & data      ()       ;
 		RuleCrcData const& operator* () const ;
-		RuleCrcData const* operator->() const { return &**this ; }
+		RuleCrcData const* operator->() const { return &*self ; }
 	} ;
 
 	struct RuleTgts
@@ -302,13 +305,15 @@ namespace Engine {
 			Iterator(Rule r) : _cur(r) {}
 			// services
 			bool     operator==(Iterator const&) const = default ;
-			Rule     operator* (               ) const {                                  return _cur  ; }
-			Iterator operator++(               )       { _cur = +_cur+1 ;                 return *this ; }
-			Iterator operator++(int            )       { Iterator res = *this ; ++*this ; return res   ; }
+			Rule     operator* (               ) const {                                return _cur ; }
+			Iterator operator++(               )       { _cur = +_cur+1 ;               return self ; }
+			Iterator operator++(int            )       { Iterator res = self ; ++self ; return res  ; }
 		private :
 			// data
 			Rule _cur ;
 		} ;
+		// cxtors & casts
+		RuleLst(bool ws=false) : with_shared{ws} {}
 		// accesses
 		RuleIdx size() const { return Rule::s_n_rule_datas - (with_shared?1:+Special::NShared) ; }
 		// services
@@ -416,19 +421,19 @@ namespace Engine::Persistent {
 	// cxtors & casts
 	inline JobNode::JobNode(JobBase  j) : Base(+j) {}
 	inline JobNode::JobNode(NodeBase n) : Base(+n) {}
-	inline Job  JobNode::job () const { return +*this ; }
-	inline Node JobNode::node() const { return +*this ; }
+	inline Job  JobNode::job () const { return +self ; }
+	inline Node JobNode::node() const { return +self ; }
 
 	//
 	// Name
 	//
 	// cxtors & casts
-	inline void Name::pop() { Persistent::_name_file.pop(+*this) ; }
+	inline void Name::pop() { Persistent::_name_file.pop(+self) ; }
 	// accesses
-	inline ::string Name::str   (size_t sfx_sz) const { return Persistent::_name_file.str_key(+*this,sfx_sz) ; }
-	inline size_t   Name::str_sz(size_t sfx_sz) const { return Persistent::_name_file.key_sz (+*this,sfx_sz) ; }
+	inline ::string Name::str   (size_t sfx_sz) const { return Persistent::_name_file.str_key(+self,sfx_sz) ; }
+	inline size_t   Name::str_sz(size_t sfx_sz) const { return Persistent::_name_file.key_sz (+self,sfx_sz) ; }
 	// services
-	inline Name     Name::dir   (             ) const { return Persistent::_name_file.insert_dir(*this,'/')  ; }
+	inline Name     Name::dir   (             ) const { return Persistent::_name_file.insert_dir(self,'/')  ; }
 
 	//
 	// JobBase
@@ -443,37 +448,37 @@ namespace Engine::Persistent {
 	inline void          JobBase::s_clear_frozens(                                       ) {                       _job_file.hdr  ().frozens   .clear() ; _frozen_jobs   .clear() ; }
 	// cxtors & casts
 	template<class... A> JobBase::JobBase( NewType , A&&... args ) {                               // 1st arg is only used to disambiguate
-		*this = _job_file.emplace( Name() , ::forward<A>(args)... ) ;
+		self = _job_file.emplace( Name() , ::forward<A>(args)... ) ;
 	}
 	template<class... A> JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
 		Name name_ = _name_file.insert(name_sfx.first,name_sfx.second) ;
-		*this = _name_file.c_at(+name_).job() ;
-		if (+*this) {
-			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
+		self = _name_file.c_at(+name_).job() ;
+		if (+self) {
+			SWEAR( name_==self->_full_name , name_ , self->_full_name ) ;
 			if (!new_) return ;
-			**this = JobData( name_ , ::forward<A>(args)...) ;
+			*self = JobData( name_ , ::forward<A>(args)...) ;
 		} else {
-			_name_file.at(+name_) = *this = _job_file.emplace( name_ , ::forward<A>(args)... ) ;
+			_name_file.at(+name_) = self = _job_file.emplace( name_ , ::forward<A>(args)... ) ;
 		}
-		(*this)->_full_name = name_ ;
+		self->_full_name = name_ ;
 	}
 	inline void JobBase::pop() {
-		if (!*this) return ;
-		if (+(*this)->_full_name) (*this)->_full_name.pop() ;
-		_job_file.pop(+*this) ;
+		if (!self) return ;
+		if (+self->_full_name) self->_full_name.pop() ;
+		_job_file.pop(+self) ;
 		clear() ;
 	}
 	// accesses
-	inline bool JobBase::frozen() const { return _frozen_jobs.contains(Job(+*this)) ; }
+	inline bool JobBase::frozen() const { return _frozen_jobs.contains(Job(+self)) ; }
 	//
-	inline JobData const& JobBase::operator*() const { return _job_file.c_at(+*this) ; }
-	inline JobData      & JobBase::operator*()       { return _job_file.at  (+*this) ; }
+	inline JobData const& JobBase::operator*() const { return _job_file.c_at(+self) ; }
+	inline JobData      & JobBase::operator*()       { return _job_file.at  (+self) ; }
 	// services
 	inline void JobBase::chk() const {
-		Name fn = (*this)->_full_name ;
+		Name fn = self->_full_name ;
 		if (!fn) return ;
 		Job  j  = _name_file.c_at(fn).job() ;
-		SWEAR( *this==j , *this , fn , j ) ;
+		SWEAR( self==j , self , fn , j ) ;
 	}
 
 	//
@@ -501,50 +506,50 @@ namespace Engine::Persistent {
 	// cxtors & casts
 	inline NodeBase::NodeBase( Name name_ , bool no_dir , bool locked ) {
 		if (!name_) return ;
-		*this = _name_file.c_at(name_).node() ;
-		if (+*this) {                                                                                                                 // fast path : avoid taking lock
-			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name , _name_file.c_at((*this)->_full_name).node() ) ;
+		self = _name_file.c_at(name_).node() ;
+		if (+self) {                                                                                                        // fast path : avoid taking lock
+			SWEAR( name_==self->_full_name , self , name_ , self->_full_name , _name_file.c_at(self->_full_name).node() ) ;
 			return ;
 		}
 		// restart with lock
 		static Mutex<MutexLvl::Node> s_m ;                                                    // nodes can be created from several threads, ensure coherence between names and nodes
 		Lock lock = locked ? (s_m.swear_locked(),Lock<Mutex<MutexLvl::Node>>()) : Lock(s_m) ;
-		*this = _name_file.c_at(name_).node() ;
-		if (+*this) {
-			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name , _name_file.c_at((*this)->_full_name).node() ) ;
+		self = _name_file.c_at(name_).node() ;
+		if (+self) {
+			SWEAR( name_==self->_full_name , self , name_ , self->_full_name , _name_file.c_at(self->_full_name).node() ) ;
 		} else {
-			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir,true/*locked*/) ;  // if dir must be created, we already hold the lock
+			_name_file.at(name_) = self = _node_file.emplace(name_,no_dir,true/*locked*/) ;   // if dir must be created, we already hold the lock
 		}
 	}
 	inline NodeBase::NodeBase( ::string const& n , bool no_dir , bool locked ) {
-		*this = Node( _name_file.insert(n) , no_dir , locked ) ;
+		self = Node( _name_file.insert(n) , no_dir , locked ) ;
 	}
 	// accesses
-	inline bool NodeBase::frozen    () const { return _frozen_nodes.contains(Node(+*this)) ; }
-	inline bool NodeBase::no_trigger() const { return _no_triggers .contains(Node(+*this)) ; }
+	inline bool NodeBase::frozen    () const { return _frozen_nodes.contains(Node(+self)) ; }
+	inline bool NodeBase::no_trigger() const { return _no_triggers .contains(Node(+self)) ; }
 	//
-	inline NodeData const& NodeBase::operator*() const { return _node_file.c_at(+*this) ; }
-	inline NodeData      & NodeBase::operator*()       { return _node_file.at  (+*this) ; }
+	inline NodeData const& NodeBase::operator*() const { return _node_file.c_at(+self) ; }
+	inline NodeData      & NodeBase::operator*()       { return _node_file.at  (+self) ; }
 	// services
 	inline void NodeBase::chk() const {
-		Name fn = (*this)->_full_name ;
+		Name fn = self->_full_name ;
 		Node n  = _name_file.c_at(fn).node() ;
-		SWEAR( *this==n , *this , fn , n ) ;
+		SWEAR( self==n , self , fn , n ) ;
 	}
 
 	//
 	// RuleBase
 	//
 	inline void RuleBase::_s_set_rule_datas(bool ping) {
-		_s_rule_datas  = _s_rule_data_vecs[ping].data()-1 ;                                                                            // entry 0 is not stored in _s_rule_data_vecs
+		_s_rule_datas  = _s_rule_data_vecs[ping].data()-1 ;                                                                          // entry 0 is not stored in _s_rule_data_vecs
 		s_n_rule_datas = _s_rule_data_vecs[ping].size()+1 ;
 	}
 	inline RuleLst rule_lst(bool with_shared=false) { return RuleLst(with_shared) ; }
 	// accesses
-	inline RuleData      & RuleBase::data     ()       { SWEAR(+*this      ) ; return _s_rule_datas[+*this]                       ; }
-	inline RuleData const& RuleBase::operator*() const { SWEAR(+*this      ) ; return _s_rule_datas[+*this]                       ; }
-	inline ::string_view   RuleBase::str      () const {                       return _rule_str_file.str_view(+_str())            ; }
-	inline RuleStr         RuleBase::_str     () const { SWEAR(!is_shared()) ; return _rule_file.c_at(+*this-+Special::NShared+1) ; } // first rule (NShared) is mapped to 1
+	inline RuleData      & RuleBase::data     ()       { SWEAR(+self       ) ; return _s_rule_datas[+self]                       ; }
+	inline RuleData const& RuleBase::operator*() const { SWEAR(+self       ) ; return _s_rule_datas[+self]                       ; }
+	inline ::string_view   RuleBase::str      () const {                       return _rule_str_file.str_view(+_str())           ; }
+	inline RuleStr         RuleBase::_str     () const { SWEAR(!is_shared()) ; return _rule_file.c_at(+self-+Special::NShared+1) ; } // first rule (NShared) is mapped to 1
 
 	//
 	// RuleCrcBase
@@ -558,9 +563,9 @@ namespace Engine::Persistent {
 			for( RuleCrc rc : rule_crc_lst() ) s_by_rsrcs.try_emplace(rc->rsrcs,rc) ;
 		auto it_inserted = s_by_rsrcs.try_emplace(rsrcs) ;
 		if (it_inserted.second) {
-			*this = it_inserted.first->second = _rule_crc_file.emplace( match , cmd , rsrcs ) ;
+			self = it_inserted.first->second = _rule_crc_file.emplace( match , cmd , rsrcs ) ;
 		} else {
-			*this = it_inserted.first->second ;
+			self = it_inserted.first->second ;
 			RuleCrcData const& d = data() ;
 			SWEAR( match==d.match , match , d.match ) ;
 			SWEAR( cmd  ==d.cmd   , cmd   , d.cmd   ) ;
@@ -568,8 +573,8 @@ namespace Engine::Persistent {
 		}
 	}
 	// accesses
-	inline RuleCrcData      & RuleCrcBase::data     ()       { return _rule_crc_file.at(+*this) ; }
-	inline RuleCrcData const& RuleCrcBase::operator*() const { return _rule_crc_file.at(+*this) ; }
+	inline RuleCrcData      & RuleCrcBase::data     ()       { return _rule_crc_file.at(+self) ; }
+	inline RuleCrcData const& RuleCrcBase::operator*() const { return _rule_crc_file.at(+self) ; }
 
 	//
 	// RuleTgts
@@ -577,16 +582,16 @@ namespace Engine::Persistent {
 	inline RuleTgtsFile::Lst rule_tgts_lst() { return _rule_tgts_file.lst() ; }
 	// cxtors & casts
 	inline RuleTgts::RuleTgts(::c_vector_view<RuleTgt> const& gs) : Base{+gs?_rule_tgts_file.insert(gs):RuleTgts()} {}
-	inline void RuleTgts::pop() { _rule_tgts_file.pop(+*this) ; *this = RuleTgts() ; }
+	inline void RuleTgts::pop() { _rule_tgts_file.pop(+self) ; self = RuleTgts() ; }
 	//
-	inline RuleTgts& RuleTgts::operator=(::c_vector_view<RuleTgt> const& v) { *this = RuleTgts(v) ; return *this ; }
+	inline RuleTgts& RuleTgts::operator=(::c_vector_view<RuleTgt> const& v) { self = RuleTgts(v) ; return self ; }
 	// accesses
-	inline ::vector<RuleTgt> RuleTgts::view() const { return _rule_tgts_file.key(*this) ; }
+	inline ::vector<RuleTgt> RuleTgts::view() const { return _rule_tgts_file.key(self) ; }
 	// services
 	inline void RuleTgts::shorten_by(RuleIdx by) {
 		if (by==RuleIdx(-1)) { clear() ; return ; }
-		*this = _rule_tgts_file.insert_shorten_by( *this , by ) ;
-		if (_rule_tgts_file.empty(*this)) *this = RuleTgts() ;
+		self = _rule_tgts_file.insert_shorten_by( self , by ) ;
+		if (_rule_tgts_file.empty(self)) self = RuleTgts() ;
 	}
 
 }

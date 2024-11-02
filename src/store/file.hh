@@ -45,8 +45,8 @@ namespace Store {
 			_fd.close() ;
 		}
 		// accesses
-		bool operator+() const { return size    ; }
-		bool operator!() const { return !+*this ; }
+		bool operator+() const { return size   ; }
+		bool operator!() const { return !+self ; }
 		// services
 		void expand(size_t sz) {
 			if (sz<=size) return ;                              // fast path
@@ -74,13 +74,13 @@ namespace Store {
 		void _dealloc() {
 			SWEAR(base) ;
 			int rc = ::munmap( base , capacity ) ;
-			if (rc!=0) FAIL_PROD(rc,strerror(errno)) ;
+			if (rc!=0) FAIL_PROD(rc,::strerror(errno)) ;
 			base = nullptr ;
 		}
 		void _alloc() {
 			SWEAR(!base) ;
 			base = static_cast<char*>( ::mmap( nullptr , capacity , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1  , 0 ) ) ;
-			if (base==MAP_FAILED) FAIL_PROD(strerror(errno)) ;
+			if (base==MAP_FAILED) FAIL_PROD(::strerror(errno)) ;
 		}
 		void _map        (size_t old_size) ;
 		void _resize_file(size_t sz      ) ;
@@ -107,7 +107,7 @@ namespace Store {
 		writable  =        other.writable   ; other.writable  = false   ;
 		keep_open =        other.keep_open  ; other.keep_open = false   ;
 		_fd       = ::move(other._fd      ) ;
-		return *this ;
+		return self ;
 	}
 
 	template<bool AutoLock> void File<AutoLock>::init( ::string const& name_ , size_t capacity_ , bool writable_ ) {
@@ -146,7 +146,7 @@ namespace Store {
 		else          map_flags |= MAP_SHARED                  ;
 		//
 		void* actual = ::mmap( base+old_size , size-old_size , map_prot , MAP_FIXED|map_flags , _fd , old_size ) ;
-		if (actual!=base+old_size) FAIL_PROD(hex,size_t(base),size_t(actual),dec,old_size,size,strerror(errno)) ;
+		if (actual!=base+old_size) FAIL_PROD(hex,size_t(base),size_t(actual),dec,old_size,size,::strerror(errno)) ;
 	}
 
 	template<bool AutoLock> void File<AutoLock>::_resize_file(size_t sz) {
@@ -157,7 +157,7 @@ namespace Store {
 			//         vvvvvvvvvvvvvvvvvvvvv
 			int rc = ::ftruncate( _fd , sz ) ; // may increase file size
 			//         ^^^^^^^^^^^^^^^^^^^^^
-			if (rc!=0) FAIL_PROD(rc,strerror(errno)) ;
+			if (rc!=0) FAIL_PROD(rc,::strerror(errno)) ;
 		}
 		fence() ;                              // update state when it is legal to do so
 		size = sz ;

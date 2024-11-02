@@ -34,7 +34,7 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
 	/**/            extra_tflags |= other.extra_tflags ;
 	/**/            dflags       |= other.dflags       ;
 	/**/            extra_dflags |= other.extra_dflags ;
-	return *this ;
+	return self ;
 }
 
 //

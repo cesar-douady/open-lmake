@@ -20,12 +20,12 @@ struct AutodepEnv : Disk::RealPathEnv {
 	operator ::string() const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes(s,static_cast<RealPathEnv&>(*this)) ;
-		::serdes(s,auto_mkdir                      ) ;
-		::serdes(s,enable                          ) ;
-		::serdes(s,ignore_stat                     ) ;
-		::serdes(s,service                         ) ;
-		::serdes(s,views                           ) ;
+		::serdes(s,static_cast<RealPathEnv&>(self)) ;
+		::serdes(s,auto_mkdir                     ) ;
+		::serdes(s,enable                         ) ;
+		::serdes(s,ignore_stat                    ) ;
+		::serdes(s,service                        ) ;
+		::serdes(s,views                          ) ;
 	}
 	// data
 	bool                 auto_mkdir  = false ; // if true  <=> auto mkdir in case of chdir

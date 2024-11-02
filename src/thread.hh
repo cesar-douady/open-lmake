@@ -28,7 +28,7 @@ template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process 
 		Lock<ThreadMutex> lock{_mutex} ;
 		return !Q::empty() ;
 	}
-	bool operator!() const { return !+*this ;  }
+	bool operator!() const { return !+self ;  }
 	//
 	void lock        (MutexLvl lvl) const { _mutex.lock        (lvl) ; }
 	void unlock      (MutexLvl lvl) const { _mutex.unlock      (lvl) ; }
@@ -76,17 +76,17 @@ template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : pr
 	// statics
 private :
 	// XXX : why gcc refuses to call both functions _s_thread_func ?
-	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self , ::function<void(::stop_token,Val const&)> func ) requires(QueueAccess) {
+	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val const&)> func ) requires(QueueAccess) {
 		t_thread_key = key ;
 		Trace trace("QueueThread::_s_thread_func2") ;
-		while(self->pop(stop,self->_cur)) func(stop,self->_cur) ;
+		while(self_->pop(stop,self_->_cur)) func(stop,self_->_cur) ;
 		trace("done") ;
 	}
-	static void _s_thread_func2( ::stop_token stop , char key , QueueThread* self , ::function<void(::stop_token,Val&&)> func ) requires(!QueueAccess) {
+	static void _s_thread_func2( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val&&)> func ) requires(!QueueAccess) {
 		t_thread_key = key ;
 		Trace trace("QueueThread::_s_thread_func4") ;
 		for(;;) {
-			auto [popped,info] = self->pop(stop) ;
+			auto [popped,info] = self_->pop(stop) ;
 			if (!popped) break ;
 			func(stop,::move(info)) ;
 		}
@@ -129,11 +129,11 @@ template<class T,bool Flush=true> struct TimedDequeThread : ThreadDeque<::pair<T
 	using Base::key ;
 	// statics
 private :
-	static void _s_thread_func( ::stop_token stop , char key , TimedDequeThread* self , ::function<void(::stop_token,Val&&)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , TimedDequeThread* self_ , ::function<void(::stop_token,Val&&)> func ) {
 		t_thread_key = key ;
 		Trace trace("TimedDequeThread::_s_thread_func") ;
 		for(;;) {
-			auto [popped,info] = self->pop(stop) ;
+			auto [popped,info] = self_->pop(stop) ;
 			if (!popped                            ) break ;
 			if (!info.first.sleep_until(stop,Flush)) break ;
 			func(stop,::move(info.second)) ;
@@ -167,16 +167,16 @@ template<bool Flush=true> struct WakeupThread {
 	using ThreadMutex = Mutex<MutexLvl::Thread> ;
 	// statics
 private :
-	static void _s_thread_func( ::stop_token stop , char key , WakeupThread* self , ::function<void(::stop_token)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , WakeupThread* self_ , ::function<void(::stop_token)> func ) {
 		t_thread_key = key ;
 		Trace trace("WakeupThread::_s_thread_func") ;
 		for(;;) {
-			if ( Flush && self->_active ) {
-				self->_active = false ;
+			if ( Flush && self_->_active ) {
+				self_->_active = false ;
 			} else {
-				Lock<ThreadMutex> lock { self->_mutex } ;
-				if ( !self->_cond.wait( lock , stop , [&]()->bool { return self->_active ; } ) ) break ;
-				self->_active = false ;
+				Lock<ThreadMutex> lock { self_->_mutex } ;
+				if ( !self_->_cond.wait( lock , stop , [&]()->bool { return self_->_active ; } ) ) break ;
+				self_->_active = false ;
 			}
 			func(stop) ;
 		}
@@ -214,7 +214,7 @@ template<class Req,bool Flush=true> struct ServerThread {                       
 	using Delay = Time::Delay ;
 	using EventKind = ServerThreadEventKind ;
 private :
-	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self_ , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> func ) {
 		static constexpr uint64_t One = 1 ;
 		t_thread_key = key ;
 		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
@@ -229,10 +229,10 @@ private :
 			}
 		} ;
 		//
-		Trace trace("ServerThread::_s_thread_func",self->fd,self->fd.port(),stop_fd) ;
-		self->_ready.count_down() ;
+		Trace trace("ServerThread::_s_thread_func",self_->fd,self_->fd.port(),stop_fd) ;
+		self_->_ready.count_down() ;
 		//
-		epoll.add_read(self->fd,EventKind::Master) ;
+		epoll.add_read(self_->fd,EventKind::Master) ;
 		epoll.add_read(stop_fd ,EventKind::Stop  ) ;
 		for(;;) {
 			trace("wait") ;
@@ -244,9 +244,9 @@ private :
 				trace("waited",efd,kind) ;
 				switch (kind) {
 					case EventKind::Master : {
-						SWEAR(efd==self->fd) ;
+						SWEAR(efd==self_->fd) ;
 						try {
-							Fd slave_fd = self->fd.accept().detach() ;
+							Fd slave_fd = self_->fd.accept().detach() ;
 							trace("new_req",slave_fd) ;
 							epoll.add_read(slave_fd,EventKind::Slave) ;
 							slaves.try_emplace(slave_fd) ;

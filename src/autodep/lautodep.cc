@@ -3,9 +3,10 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "py.hh" // /!\ must be first because Python.h must be first
+
 #include "app.hh"
 #include "disk.hh"
-#include "py.hh"
 #include "time.hh"
 
 #include "gather.hh"
@@ -81,7 +82,7 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 		for( Object const&  py_k : py_keep_env->as_a<Sequence>() ) {
 			::string k = py_k.as_a<Str>() ;
 			if (has_env(k)) {
-				if (seen.contains(k)) throw "cannot keep "+k+" twice" ;
+				throw_if( seen.contains(k) , "cannot keep ",k," twice" ) ;
 				res.emplace_back(k,get_env(k)) ;
 				seen.insert(k) ;
 			}
@@ -91,7 +92,7 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 		Ptr<Object> py_env = py_eval(env) ;
 		for( auto const& [py_k,py_v] : py_env->as_a<Dict>() ) {
 			::string k = py_k.as_a<Str>() ;
-			if (seen.contains(k)) throw "cannot keep "+k+" and provide it" ;
+			throw_if( seen.contains(k) ,  "cannot keep ",k," and provide it" ) ;
 			res.emplace_back(k,py_v.as_a<Str>()) ;
 		}
 	}
@@ -106,8 +107,8 @@ int main( int argc , char* argv[] ) {
 	mk_dir_s(dbg_dir_s) ;
 	AutoCloseFd lock_fd = ::open(no_slash(dbg_dir_s).c_str(),O_RDONLY) ;
 	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                                // because we have no small_id, we can only run a single instance
-		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"          ) ;
-		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",strerror(errno)) ;
+		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"            ) ;
+		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",::strerror(errno)) ;
 	}
 	//
 	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax{{
@@ -138,10 +139,10 @@ int main( int argc , char* argv[] ) {
 	Gather      gather      ;
 	//
 	try {
-		if (!cmd_line.args                                                                          ) throw "no exe to launch"s                                                      ;
-		if ( cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) ) throw "chroot dir must be absolute : "+cmd_line.flag_args[+CmdFlag::ChrootDir] ;
-		if ( cmd_line.flags[CmdFlag::RootView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RootView ]) ) throw "root view must be absolute : " +cmd_line.flag_args[+CmdFlag::RootView ] ;
-		if ( cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) ) throw "tmp view must be absolute : "  +cmd_line.flag_args[+CmdFlag::TmpView  ] ;
+		throw_if( !cmd_line.args                                                                          , "no exe to launch"                                                       ) ;
+		throw_if(  cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::RootView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RootView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RootView ] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
 		//
 		if (cmd_line.flags[CmdFlag::Cwd          ]) start_info.cwd_s        = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;
 		/**/                                        start_info.keep_tmp     =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;

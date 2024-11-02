@@ -25,7 +25,6 @@
 #include <limits>
 #include <map>
 #include <mutex>
-#include <ranges>
 #include <set>
 #include <shared_mutex>
 #include <sstream>
@@ -39,8 +38,10 @@
 #include "sys_config.h"
 #include "non_portable.hh"
 
-using namespace std    ; // use std at top level so one write ::stuff instead of std::stuff
-using std::getline     ; // special case getline which also has a C version that hides std::getline
+using namespace std ; // use std at top level so one write ::stuff instead of std::stuff
+using std::getline  ; // special case getline which also has a C version that hides std::getline
+
+#define self (*this)
 
 //
 // meta programming
@@ -195,9 +196,6 @@ template<class T> T& grow( ::vector<T>& v , size_t i ) {
 	return v[i] ;
 }
 
-template<         class I > constexpr auto iota(            I  stop ) { return ::views::iota(I (     ),stop) ; }
-template<class I1,class I2> constexpr auto iota( I1 start , I2 stop ) { return ::views::iota(I2(start),stop) ; }
-
 //
 // streams
 //
@@ -228,12 +226,12 @@ inline void sanitize(::ostream& os) {
 struct OFStream : ::ofstream {
 	using Base = ::ofstream ;
 	// cxtors & casts
-	OFStream (                                                                     ) : Base{           } { sanitize(*this) ;                         }
-	OFStream ( ::string const& f , ::ios_base::openmode om=::ios::out|::ios::trunc ) : Base{f,om       } { sanitize(*this) ; _set_cloexec(rdbuf()) ; }
-	OFStream ( OFStream&& ofs                                                      ) : Base{::move(ofs)} {                                           }
-	~OFStream(                                                                     )                     {                                           }
+	OFStream (                                                                     ) : Base{           } { sanitize(self) ;                         }
+	OFStream ( ::string const& f , ::ios_base::openmode om=::ios::out|::ios::trunc ) : Base{f,om       } { sanitize(self) ; _set_cloexec(rdbuf()) ; }
+	OFStream ( OFStream&& ofs                                                      ) : Base{::move(ofs)} {                                          }
+	~OFStream(                                                                     )                     {                                          }
 	//
-	OFStream& operator=(OFStream&& ofs) { Base::operator=(::move(ofs)) ; return *this ; }
+	OFStream& operator=(OFStream&& ofs) { Base::operator=(::move(ofs)) ; return self ; }
 	// services
 	template<class... A> void open(A&&... args) { Base::open(::forward<A>(args)...) ; _set_cloexec(rdbuf()) ; }
 } ;
@@ -244,17 +242,141 @@ struct IFStream : ::ifstream {
 	IFStream( ::string const& f               ) : Base{f   } { exceptions(~goodbit) ; _set_cloexec(rdbuf()) ; }
 	IFStream( ::string const& f , openmode om ) : Base{f,om} { exceptions(~goodbit) ; _set_cloexec(rdbuf()) ; }
 	//
-	IFStream& operator=(IFStream&& ifs) { Base::operator=(::move(ifs)) ; return *this ; }
+	IFStream& operator=(IFStream&& ifs) { Base::operator=(::move(ifs)) ; return self ; }
 	// services
 	template<class... A> void open(A&&... args) { Base::open(::forward<A>(args)...) ; _set_cloexec(rdbuf()) ; }
 } ;
 
 struct OStringStream : ::ostringstream {
-	OStringStream() : ::ostringstream{} { sanitize(*this) ; }
+	OStringStream() : ::ostringstream{} { sanitize(self) ; }
 } ;
 struct IStringStream : ::istringstream {
 	IStringStream(::string const& s) : ::istringstream{s} { exceptions(~goodbit) ; }
 } ;
+
+//
+// assert
+//
+
+extern thread_local char t_thread_key ;
+
+void kill_self      ( int sig                        ) ;
+void set_sig_handler( int sig , void (*handler)(int) ) ;
+void write_backtrace( ::ostream& os , int hide_cnt   ) ;
+
+template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
+	static bool busy = false ;
+	if (!busy) {                             // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
+		busy = true ;
+		char    buf[PATH_MAX] ;
+		ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
+		if ( cnt>=0 || cnt<=PATH_MAX ) {
+			/**/                   ::cerr << ::string_view(buf,cnt) ;
+			if (t_thread_key!='?') ::cerr <<':'<< t_thread_key      ;
+			/**/                   ::cerr <<" :"                    ;
+		}
+		[[maybe_unused]] bool _[] = {false,(::cerr<<' '<<args,false)...} ;
+		::cerr << '\n' ;
+		set_sig_handler(sig,SIG_DFL) ;
+		write_backtrace(::cerr,hide_cnt+1) ; // rather than merely calling abort, this works even if crash_handler is not installed
+		kill_self(sig) ;
+	}
+	set_sig_handler(SIGABRT,SIG_DFL) ;
+	::abort() ;
+}
+
+#if !HAS_UNREACHABLE                         // defined in <utility> in c++23, use 202100 as g++-12 generates 202100 when -std=c++23
+	[[noreturn]] inline void unreachable() {
+		#ifdef __has_builtin
+			#if __has_builtin(__builtin_unreachable)
+				__builtin_unreachable() ;
+			#else
+				::abort() ;
+			#endif
+		#else
+			::abort() ;
+		#endif
+	}
+#endif
+
+template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] ) {
+	#ifndef NDEBUG
+		crash( 1 , SIGABRT , "fail @" , args... ) ;
+	#else
+		unreachable() ;
+	#endif
+}
+
+template<class... A> constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
+	#ifndef NDEBUG
+		if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
+	#else
+		if (!cond) unreachable() ;
+	#endif
+}
+
+template<class... A> [[noreturn]] void fail_prod( A const&... args ) {
+	crash( 1 , SIGABRT , "fail @ " , args... ) ;
+}
+
+template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
+	if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
+}
+
+#define _FAIL_STR2(x) #x
+#define _FAIL_STR(x) _FAIL_STR2(x)
+#define FAIL(           ...) fail      (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
+
+#define DF default : FAIL() ; // for use at end of switch statements
+#define DN default :        ; // .
+
+inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
+	swear_prod(pid>1,"killing process",pid) ;                                   // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
+	//
+	if (!as_group          ) return ::kill(pid,sig)==0 ;
+	if (::kill(-pid,sig)==0) return true               ;                        // fast path : group exists, nothing else to do
+	bool proc_killed  = ::kill( pid,sig)==0 ;                                   // else, there may be another possibility : the process to kill might not have had enough time to call setpgid(0,0) ...
+	bool group_killed = ::kill(-pid,sig)==0 ;                                   // ... that makes it be a group, so kill it as a process, and kill the group again in case it was created inbetween
+	return proc_killed || group_killed ;
+}
+
+inline void kill_self(int sig) {      // raise kills the thread, not the process
+	int rc = ::kill(::getpid(),sig) ; // dont use kill_process as we call kill ourselves even if we are process 1 (in a namespace)
+	SWEAR(rc==0) ;                    // killing outselves should always be ok
+}
+
+//
+// iota
+//
+
+template<class T> concept Iotable = ::is_integral_v<T>||::is_enum_v<T> ;
+template<bool WithStart,Iotable I> struct Iota {
+	struct Iterator {
+		constexpr Iterator(I c) : cur{c} {}
+		// services
+		constexpr bool      operator==(Iterator const&) const = default ;
+		constexpr I         operator* (               ) const {                                return cur   ; }
+		constexpr Iterator& operator++(               )       { cur++ ;                        return self  ; }
+		constexpr Iterator  operator++(int            )       { Iterator self_=self ; ++self ; return self_ ; }
+		// data
+		I cur = {} ;
+	} ;
+	// cxtors & casts
+	/**/               constexpr Iota(        I e ) requires(!WithStart) : bounds{  e} {}
+	template<class I1> constexpr Iota( I1 b , I e ) requires( WithStart) : bounds{b,e} {}
+	// services
+	constexpr Iterator begin() const { return Iterator(WithStart ? bounds[0] : I(0))          ; }
+	constexpr Iterator end  () const { return Iterator(bounds[WithStart]           )          ; }
+	constexpr size_t   size () const { return +bounds[WithStart] - +(WithStart?bounds[0]:I()) ; }
+	// data
+	I bounds[1+WithStart] = {} ;
+} ;
+
+template<           Iotable I > constexpr Iota<false/*with_start*/,I > iota(            I  end ) {                                    return {   end} ; }
+template<Iotable I1,Iotable I2> constexpr Iota<true /*with_start*/,I2> iota( I1 begin , I2 end ) { I2 b2=I2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
 
 //
 // string
@@ -299,7 +421,7 @@ template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const&
 	if ( rc.ec!=::errc{} ) throw ::make_error_code(rc.ec).message() ;
 	else                   return res ;
 }
-template<::integral I> I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
+template<::integral I> I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt,::strlen(txt)) , empty_ok , hex ) ; }
 //
 template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S const& txt , bool empty_ok=false ) {
 	if ( empty_ok && !txt ) return 0 ;
@@ -310,13 +432,13 @@ template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S 
 	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
 	else                 return res ;
 }
-template<::floating_point F> F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt,strlen(txt)) , empty_ok ) ; }
+template<::floating_point F> F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt,::strlen(txt)) , empty_ok ) ; }
 
 /**/   ::string mk_json_str (::string_view  ) ;
 /**/   ::string mk_shell_str(::string_view  ) ;
 /**/   ::string mk_py_str   (::string_view  ) ;
-inline ::string mk_py_str   (const char*   s) { return mk_py_str(::string_view(s,strlen(s))) ; }
-inline ::string mk_py_str   (bool          b) { return b ? "True" : "False"                  ; }
+inline ::string mk_py_str   (const char*   s) { return mk_py_str(::string_view(s,::strlen(s))) ; }
+inline ::string mk_py_str   (bool          b) { return b ? "True" : "False"                    ; }
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
 inline constexpr bool is_space(char c) {
@@ -436,102 +558,8 @@ template<char U,::integral I=size_t> ::string to_string_with_units  (I          
 template<       ::integral I=size_t> I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
 template<       ::integral I=size_t> ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
 
-//
-// assert
-//
-
-extern thread_local char t_thread_key ;
-
-void kill_self      ( int sig                        ) ;
-void set_sig_handler( int sig , void (*handler)(int) ) ;
-void write_backtrace( ::ostream& os , int hide_cnt   ) ;
-
-template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
-	static bool busy = false ;
-	if (!busy) {                             // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
-		busy = true ;
-		char    buf[PATH_MAX] ;
-		ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
-		if ( cnt>=0 || cnt<=PATH_MAX ) {
-			/**/                   ::cerr << ::string_view(buf,cnt) ;
-			if (t_thread_key!='?') ::cerr <<':'<< t_thread_key      ;
-			/**/                   ::cerr <<" :"                    ;
-		}
-		[[maybe_unused]] bool _[] = {false,(::cerr<<' '<<args,false)...} ;
-		::cerr << '\n' ;
-		set_sig_handler(sig,SIG_DFL) ;
-		write_backtrace(::cerr,hide_cnt+1) ; // rather than merely calling abort, this works even if crash_handler is not installed
-		kill_self(sig) ;
-	}
-	set_sig_handler(SIGABRT,SIG_DFL) ;
-	::abort() ;
-}
-
-#if !HAS_UNREACHABLE                         // defined in <utility> in c++23, use 202100 as g++-12 generates 202100 when -std=c++23
-	[[noreturn]] inline void unreachable() {
-		#ifdef __has_builtin
-			#if __has_builtin(__builtin_unreachable)
-				__builtin_unreachable() ;
-			#else
-				::abort() ;
-			#endif
-		#else
-			::abort() ;
-		#endif
-	}
-#endif
-
-template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] ) {
-	#ifndef NDEBUG
-		crash( 1 , SIGABRT , "fail @" , args... ) ;
-	#else
-		unreachable() ;
-	#endif
-}
-
 template<class... A> constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw fmt_string(args...) ; }
 template<class... A> constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw fmt_string(args...) ; }
-
-template<class... A> constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
-	#ifndef NDEBUG
-		if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
-	#else
-		if (!cond) unreachable() ;
-	#endif
-}
-
-template<class... A> [[noreturn]] void fail_prod( A const&... args ) {
-	crash( 1 , SIGABRT , "fail @ " , args... ) ;
-}
-
-template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
-	if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
-}
-
-#define _FAIL_STR2(x) #x
-#define _FAIL_STR(x) _FAIL_STR2(x)
-#define FAIL(           ...) fail      (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
-
-#define DF default : FAIL() ; // for use at end of switch statements
-#define DN default :        ; // .
-
-inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
-	swear_prod(pid>1,"killing process",pid) ;                                   // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
-	//
-	if (!as_group          ) return ::kill(pid,sig)==0 ;
-	if (::kill(-pid,sig)==0) return true               ;                        // fast path : group exists, nothing else to do
-	bool proc_killed  = ::kill( pid,sig)==0 ;                                   // else, there may be another possibility : the process to kill might not have had enough time to call setpgid(0,0) ...
-	bool group_killed = ::kill(-pid,sig)==0 ;                                   // ... that makes it be a group, so kill it as a process, and kill the group again in case it was created inbetween
-	return proc_killed || group_killed ;
-}
-
-inline void kill_self(int sig) {      // raise kills the thread, not the process
-	int rc = ::kill(::getpid(),sig) ; // dont use kill_process as we call kill ourselves even if we are process 1 (in a namespace)
-	SWEAR(rc==0) ;                    // killing outselves should always be ok
-}
 
 //
 // vector_view
@@ -565,12 +593,12 @@ template<class T> struct vector_view {
 	explicit operator Vector() const {
 		Vector res ;
 		res.reserve(size()) ;
-		for( T const& x : *this ) res.push_back(x) ;
+		for( T const& x : self ) res.push_back(x) ;
 		return res ;
 	}
 	// accesses
-	bool operator+() const { return _sz     ; }
-	bool operator!() const { return !+*this ; }
+	bool operator+() const { return _sz    ; }
+	bool operator!() const { return !+self ; }
 	//
 	T      * data      (        ) const { return _data        ; }
 	T      * begin     (        ) const { return _data        ; }
@@ -586,7 +614,7 @@ template<class T> struct vector_view {
 	ViewC subvec( size_t start , size_t sz=Npos ) const requires(!IsConst) { return ViewC( begin()+start , ::min(sz,_sz-start) ) ; }
 	View  subvec( size_t start , size_t sz=Npos )       requires(!IsConst) { return View ( begin()+start , ::min(sz,_sz-start) ) ; }
 	//
-	void clear() { *this = {} ; }
+	void clear() { self = {} ; }
 	// data
 protected :
 	T*     _data = nullptr ;
@@ -745,7 +773,7 @@ template<StdEnum E> const char*   snake_cstr(E e) { return          EnumSnakes<E
 
 template<StdEnum E> ::umap_s<E> _mk_enum_tab() {
 	::umap_s<E> res ;
-	for( E e : All<E> ) {
+	for( E e : iota(All<E>) ) {
 		res[camel_str(e)] = e ;
 		res[snake_str(e)] = e ;
 	}
@@ -764,11 +792,10 @@ template<StdEnum E> bool can_mk_enum(::string const& x) {
 
 template<StdEnum E> E mk_enum(::string const& x) {
 	::pair<E,bool/*ok*/> res = _mk_enum<E>(x) ;
-	if (!res.second) throw "cannot make enum "s+EnumName<E>+" from "+x ;
+	throw_unless( res.second , "cannot make enum ",EnumName<E>," from ",x ) ;
 	return res.first ;
 }
 
-// usage of iterator over E : for( E e : All<E> ) {...}
 #define ENUM(   E ,                               ... ) enum class E : uint8_t {__VA_ARGS__                    } ; _ENUM(E,__VA_ARGS__)
 #define ENUM_1( E , eq1 ,                         ... ) enum class E : uint8_t {__VA_ARGS__,eq1                } ; _ENUM(E,__VA_ARGS__)
 #define ENUM_2( E , eq1 , eq2 ,                   ... ) enum class E : uint8_t {__VA_ARGS__,eq1,eq2            } ; _ENUM(E,__VA_ARGS__)
@@ -832,16 +859,16 @@ template<StdEnum E> struct BitMap {
 	constexpr bool operator!() const { return !_val ; }
 	// services
 	constexpr bool    operator==( BitMap const&     ) const = default ;
-	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )    ;                   }
-	constexpr bool    operator>=( BitMap other      ) const { return !( ~_val &  other._val )    ;                   }
-	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(N<E>)&~_val) ;                   }
-	constexpr BitMap  operator& ( BitMap other      ) const { return BitMap(_val&other._val)     ;                   }
-	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)     ;                   }
-	constexpr BitMap& operator&=( BitMap other      )       { *this = *this&other ; return *this ;                   }
-	constexpr BitMap& operator|=( BitMap other      )       { *this = *this|other ; return *this ;                   }
-	constexpr bool    operator[]( E      bit_       ) const { return bit(_val,+bit_)             ;                   }
-	constexpr uint8_t popcount  (                   ) const { return ::popcount(_val)            ;                   }
-	constexpr void    set       ( E flag , bool val )       { if (val) *this |= flag ; else *this &= ~BitMap(flag) ; } // operator~(E) is not always recognized because of namespace's
+	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )    ;                 }
+	constexpr bool    operator>=( BitMap other      ) const { return !( ~_val &  other._val )    ;                 }
+	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(N<E>)&~_val) ;                 }
+	constexpr BitMap  operator& ( BitMap other      ) const { return BitMap(_val&other._val)     ;                 }
+	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)     ;                 }
+	constexpr BitMap& operator&=( BitMap other      )       { self = self&other ; return self    ;                 }
+	constexpr BitMap& operator|=( BitMap other      )       { self = self|other ; return self    ;                 }
+	constexpr bool    operator[]( E      bit_       ) const { return bit(_val,+bit_)             ;                 }
+	constexpr uint8_t popcount  (                   ) const { return ::popcount(_val)            ;                 }
+	constexpr void    set       ( E flag , bool val )       { if (val) self |= flag ; else self &= ~BitMap(flag) ; } // operator~(E) is not always recognized because of namespace's
 	// data
 private :
 	Val _val = 0 ;
@@ -855,25 +882,10 @@ template<StdEnum E> BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
 	return res ;
 }
 
-// enumerate
-template<StdEnum E> struct EnumIterator {
-	// cxtors & casts
-	EnumIterator(E e) : val(e) {}
-	// services
-	bool operator==(EnumIterator const&) const = default ;
-	void operator++()       { val++ ;      }
-	E    operator* () const { return val ; }
-	// data
-	E val ;
-} ;
-
-template<StdEnum E> constexpr EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; }
-template<StdEnum E> constexpr EnumIterator<E> end  (E e) { return EnumIterator<E>(e   ) ; }
-
 template<StdEnum E> ::ostream& operator<<( ::ostream& os , BitMap<E> const bm ) {
 	os <<'(' ;
 	bool first = true ;
-	for( E e : All<E> )
+	for( E e : iota(All<E>) )
 		if (bm[e]) {
 			if (first) { os <<      e ; first = false ; }
 			else       { os <<'|'<< e ;                 }
@@ -973,7 +985,7 @@ template<MutexLvl Lvl> using SharedMutex = _Mutex<Lvl,true /*shared*/> ;
 template<class M,bool S=false/*shared*/> struct Lock {
 	// cxtors & casts
 	Lock (                          ) = default ;
-	Lock ( Lock&& l                 )              { *this = ::move(l) ;     }
+	Lock ( Lock&& l                 )              { self = ::move(l) ;      }
 	Lock ( M& m , bool do_lock=true ) : _mutex{&m} { if (do_lock) lock  () ; }
 	~Lock(                          )              { if (_locked) unlock() ; }
 	Lock& operator=(Lock&& l) {
@@ -982,7 +994,7 @@ template<class M,bool S=false/*shared*/> struct Lock {
 		_lvl      = l._lvl    ;
 		_locked   = l._locked ;
 		l._locked = false     ;
-		return *this ;
+		return self ;
 	}
 	// services
 	void swear_locked() requires(!S) { _mutex->swear_locked       () ;                                   }
@@ -1037,7 +1049,7 @@ public :
 		_Lock lock { _mutex } ;
 		if (!free_ids) {
 			res = n_allocated ;
-			if (n_allocated==::numeric_limits<T>::max()) throw "cannot allocate id"s ;
+			throw_unless( n_allocated<::numeric_limits<T>::max() , "cannot allocate id" ) ;
 			n_allocated++ ;
 		} else {
 			res = *free_ids.begin() ;
@@ -1099,11 +1111,11 @@ template<class... A> [[noreturn]] void exit( Rc rc , A const&... args ) {
 struct First {
 	bool operator()() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }
 	//
-	template<class T> T operator()( T&& first , T&& other=T() ) { return (*this)() ? ::forward<T>(first) : ::forward<T>(other) ; }
+	template<class T> T operator()( T&& first , T&& other=T() ) { return self() ? ::forward<T>(first) : ::forward<T>(other) ; }
 	//
 	template<class T> T operator()( T&& first , T&& second , T&& other ) {
 		uint8_t v = _val ;
-		(*this)() ;
+		self() ;
 		switch (v) {
 			case 0 : return ::forward<T>(first ) ;
 			case 1 : return ::forward<T>(second) ;
@@ -1216,8 +1228,8 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 	const char*         s_end   = s_start+s.size()                ;
 	::from_chars_result fcr     = ::from_chars(s_start,s_end,val) ;
 	//
-	if (fcr.ec!=::errc()) throw "unrecognized value "        +s ;
-	if (fcr.ptr<s_end-1 ) throw "partially recognized value "+s ;
+	throw_unless( fcr.ec==::errc() , "unrecognized value "        ,s ) ;
+	throw_unless( fcr.ptr>=s_end-1 , "partially recognized value ",s ) ;
 	//
 	static constexpr int8_t B = _unit_val(U       ) ;
 	/**/             int8_t b = _unit_val(*fcr.ptr) ;
@@ -1227,16 +1239,16 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 			val = 0 ;
 		} else {
 			val >>= uint8_t(B-b) ;
-			if ( val > ::numeric_limits<I>::max() ) throw "overflow"s  ;
-			if ( val < ::numeric_limits<I>::min() ) throw "underflow"s ;
+			throw_unless( val<=::numeric_limits<I>::max() , "overflow"  ) ;
+			throw_unless( val>=::numeric_limits<I>::min() , "underflow" ) ;
 		}
 	} else {
 		if (uint8_t(b-B)>=NBits<I>) {
-			if ( val > 0 ) throw "overflow"s  ;
-			if ( val < 0 ) throw "underflow"s ;
+			throw_unless( val<=0 , "overflow"  ) ;
+			throw_unless( val>=0 , "underflow" ) ;
 		} else {
-			if ( val > I(::numeric_limits<I>::max()>>uint8_t(b-B)) ) throw "overflow"s  ;
-			if ( val < I(::numeric_limits<I>::min()>>uint8_t(b-B)) ) throw "underflow"s ;
+			throw_unless( val<=I(::numeric_limits<I>::max()>>uint8_t(b-B)) , "overflow"  ) ;
+			throw_unless( val>=I(::numeric_limits<I>::min()>>uint8_t(b-B)) , "underflow" ) ;
 			val <<= uint8_t(b-B) ;
 		}
 	}

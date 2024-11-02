@@ -40,7 +40,7 @@ namespace Store {
 				Idx val:NBits<Idx>-1 = 0 ;
 				Idx bit:           1 = 0 ;
 			} _subs[2] ;
-			static_assert( sizeof(_subs[0]) == sizeof(Idx) ) ;                 // ensure space is not wasted
+			static_assert( sizeof(_subs[0]) == sizeof(Idx) ) ; // ensure space is not wasted
 		public :
 			[[                 ]] Key          key  ;
 			[[no_unique_address]] NoVoid<Data> data ;
@@ -81,7 +81,7 @@ namespace Store {
 			Item const& _at(Idx idx) const { return Base::at(idx) ; }
 			Item      & _at(Idx idx)       { return Base::at(idx) ; }
 		public :
-			::vector<Idx> lst(Idx root) const {                                // XXX : implement iterator rather than vector
+			::vector<Idx> lst(Idx root) const {                                                           // XXX : implement iterator rather than vector
 				::vector<Idx> res ;
 				_append_lst(res,root) ;
 				return res ;
@@ -124,7 +124,7 @@ namespace Store {
 			uint8_t _chk( Idx root , Idx idx , bool chk_color=true ) const requires( BitIsKey) { SWEAR(_search(root,key(idx),bit(idx))==idx) ; return _chk(idx,     chk_color) ; }
 			uint8_t _chk( Idx root , Idx idx , bool chk_color=true ) const requires(!BitIsKey) { SWEAR(_search(root,key(idx)         )==idx) ; return _chk(idx,     chk_color) ; }
 			uint8_t _chk( Idx idx , ::uset<Idx>& seen , bool chk_color=true ) const ;
-			bool _is_black( Idx idx ) const {                                  // null items are deemed black
+			bool _is_black( Idx idx ) const {                                                                                               // null items are deemed black
 				return !idx || _at(idx).black() ;
 			}
 			// perform rotation, return new origin
@@ -142,7 +142,7 @@ namespace Store {
 				if (parent) {
 					_at(parent).subs( left , son ) ;
 				} else {
-					if (son) _at(son).black(true) ;                            // root is always black
+					if (son) _at(son).black(true) ;                                                                                         // root is always black
 					root = son ;
 				}
 			}
@@ -151,7 +151,7 @@ namespace Store {
 				else     _fix_parent( root , 0                 , false/*unused*/    , son ) ;
 			}
 			template<bool Record> Idx _search_path( ::vmap<Idx,bool/*left*/>& path/*out*/ , Idx root  , Key const& key , bool bit ) const ; // search a key starting at root
-			Idx _search( Idx const& root , Key const& key , bool bit ) const { // search a key starting at root, return 0 if not found
+			Idx _search( Idx const& root , Key const& key , bool bit ) const {                                                              // search a key starting at root, return 0 if not found
 				static ::vmap<Idx,bool/*left*/> _ ;
 				return _search_path<false/*record*/>(_,root,key,bit) ;
 			}
@@ -184,7 +184,7 @@ namespace Store {
 
 	template<class Hdr,class Idx,class Key,class Data,bool BitIsKey>
 		uint8_t MultiRedBlackFile<Hdr,Idx,Key,Data,BitIsKey>::_chk( Idx idx , ::uset<Idx>& seen , bool chk_color ) const {
-			if (!idx) return 1 ; // null are deemed black
+			if (!idx) return 1 ;                                                                                           // null are deemed black
 			SWEAR(idx<size()         ) ;
 			SWEAR(!seen.contains(idx)) ;
 			seen.insert(idx) ;
@@ -206,35 +206,35 @@ namespace Store {
 			if ( Idx res = _search(root,key,bit) ) return res ;
 			// well, we have to insert, do the job
 			_search_path<true/*record*/>(path,root,key,bit) ;
-			Idx res = Base::emplace(false,key,bit,::forward<A>(args)...) ;     // invalidate references as underlying mapping may move
+			Idx res = Base::emplace(false,key,bit,::forward<A>(args)...) ;                                                 // invalidate references as underlying mapping may move
 			_fix_parent( root , path , path.size() , res ) ;
 			// recolor/rotate
 			Idx xi = res ;
-			for( uint8_t lvl=path.size() ; lvl>=2 ; lvl-=2 ) {                 // we walk directly to grand-parent when we need to loop
-				uint8_t pl = lvl-1 ;                                           // level of parent
-				uint8_t gl = lvl-2 ;                                           // level of grand-parent
+			for( uint8_t lvl=path.size() ; lvl>=2 ; lvl-=2 ) {                                                             // we walk directly to grand-parent when we need to loop
+				uint8_t pl = lvl-1 ;                                                                                       // level of parent
+				uint8_t gl = lvl-2 ;                                                                                       // level of grand-parent
 				// think as if p was on the left of g, the other case is symetrical
 				bool left = path[gl].second ;
-				Idx  gi   = path[gl].first  ; Item& g = _at(gi) ;              // grand-parent
-				Idx  pi   = path[pl].first  ; Item& p = _at(pi) ;              // parent
-				Idx  ui   = g.subs(!left)   ;                                  // uncle
-				SWEAR(!_at(xi).black()) ;                                      // if x was black, we should not be here
-				if (p.black()) break ;                                         // invariant is ok
-				SWEAR(g.black()) ;                                             // because of invariant (red's parents cannot be red and p is red)
+				Idx  gi   = path[gl].first  ; Item& g = _at(gi) ;                                                          // grand-parent
+				Idx  pi   = path[pl].first  ; Item& p = _at(pi) ;                                                          // parent
+				Idx  ui   = g.subs(!left)   ;                                                                              // uncle
+				SWEAR(!_at(xi).black()) ;                                                                                  // if x was black, we should not be here
+				if (p.black()) break ;                                                                                     // invariant is ok
+				SWEAR(g.black()) ;                                                                                         // because of invariant (red's parents cannot be red and p is red)
 				if (_is_black(ui)) {
 					// case 1 : (. P .X.) g u -> .P. x .Gu
 					// case 2 : (.X. P .) g u -> .X. p .Gu
 					if (path[pl].second!=left) _rot( root ,    path[pl-1].first   ,    path[pl-1].second       , !left ) ; // case 1 : (. P .X.) g u -> (.P. X .) g u -> .P. X .gu
 					Idx bi =                   _rot( root , gl?path[gl-1].first:0 , gl?path[gl-1].second:false ,  left ) ; // case 2 : (.X. P .) g u -> .X. P .gu
-					g      .black(false) ;                                     // case 1 : .P. X .gu -> .P. X .Gu // case 2 :  .X. P .gu -> .X. P .Gu
-					_at(bi).black(true ) ;                                     // case 1 : .P. X .Gu -> .P. x .Gu // case 2 :  .X. P .Gu -> .X. p .Gu
+					g      .black(false) ;                                                                                 // case 1 : .P. X .gu -> .P. X .Gu // case 2 :  .X. P .gu -> .X. P .Gu
+					_at(bi).black(true ) ;                                                                                 // case 1 : .P. X .Gu -> .P. x .Gu // case 2 :  .X. P .Gu -> .X. p .Gu
 					break ;
 				}
 				// p is red, u is red, recoloring is enough but we need to walk up
-				g      .black(!gl ) ;                                          // if we are root then we can keep it black with no consequence and we need respect invariants
+				g      .black(!gl ) ; // if we are root then we can keep it black with no consequence and we need respect invariants
 				p      .black(true) ;
 				_at(ui).black(true) ;
-				xi = gi ;                                                      // walk to grand-parent as both x and p have been sorted out
+				xi = gi ;             // walk to grand-parent as both x and p have been sorted out
 			}
 			return res ;
 		}
@@ -247,7 +247,7 @@ namespace Store {
 			Item&   res         = _at(res_idx) ;
 			uint8_t res_lvl     = path.size()  ;
 			bool    extra_black ;
-			if ( Idx son_idx = res.subs(true/*left*/) ) {                      // if necessary, find predecessor (walk left, then always right) & put it lieu of res
+			if ( Idx son_idx = res.subs(true/*left*/) ) {         // if necessary, find predecessor (walk left, then always right) & put it lieu of res
 				// res has a left son :
 				// - find predecessor (called last as it terminal in the sens that it has a null son)
 				// - extend path
@@ -257,9 +257,9 @@ namespace Store {
 				path.emplace_back(res_idx,true/*left*/) ;
 				for( Idx i=son_idx ; i ; i=_at(i).subs(false/*left*/) )
 					path.emplace_back(last_idx=i,false/*left*/) ;
-				path.pop_back() ;                                              // last entry is in last_idx
+				path.pop_back() ;                                 // last entry is in last_idx
 				Item& last = _at(last_idx) ;
-				extra_black = last.black() ;                                   // gather suppressed color : because last inherits color from res, the actual suppressed color is last's one
+				extra_black = last.black() ;                      // gather suppressed color : because last inherits color from res, the actual suppressed color is last's one
 				// suppress last
 				uint8_t lvl = path.size() ;
 				_at(path[lvl-1].first).subs( path[lvl-1].second , last.subs(true/*left*/) ) ; // right son of last is null : this is what makes it last
@@ -267,10 +267,10 @@ namespace Store {
 				last.black(res.black()) ;
 				for( uint8_t left : iota<uint8_t>(2) ) last.subs( left , res.subs(left) ) ;
 				_fix_parent( root , path , res_lvl , last_idx ) ;
-				path[res_lvl].first = last_idx ;                               // fix path to reflect updated tree
+				path[res_lvl].first = last_idx ;                                              // fix path to reflect updated tree
 			} else {
-				extra_black = res.black() ;                                      // gather suppressed color
-				_fix_parent( root , path , res_lvl , res.subs(false/*left*/) ) ; // suppress res, left son is null or we would not be here
+				extra_black = res.black() ;                                                   // gather suppressed color
+				_fix_parent( root , path , res_lvl , res.subs(false/*left*/) ) ;              // suppress res, left son is null or we would not be here
 			}
 			// situation is the following :
 			// - we have suppressed the element past path whose color is held by extra_black
@@ -281,10 +281,10 @@ namespace Store {
 				// Initial situation (excluding colors) : "a b (cde f g)" if fully populated, or more precisely "abf" or "a b .f."
 				// which means that a, c, e and g may have unnamed sons.
 				Idx  pi    = lvl>1 ? path[lvl-2].first  : 0     ;
-				bool pleft = lvl>1 ? path[lvl-2].second : false ;              // if at root, pleft is unused
-				bool left  = path[lvl-1].second ;                              // trees are drawn as if left==true. If false, the tree order is reversed but algo is the same
+				bool pleft = lvl>1 ? path[lvl-2].second : false ;                             // if at root, pleft is unused
+				bool left  = path[lvl-1].second ;                                             // trees are drawn as if left==true. If false, the tree order is reversed but algo is the same
 				Idx  bi    = path[lvl-1].first  ; Item& b = _at(bi) ;
-				Idx  fi    = b.subs(!left)      ; Item& f = _at(fi) ;          // f is guaranteed to exist as there must be at least 1 black on the branch
+				Idx  fi    = b.subs(!left)      ; Item& f = _at(fi) ;                         // f is guaranteed to exist as there must be at least 1 black on the branch
 				Idx  di    = f.subs( left)      ;
 				Idx  gi    = f.subs(!left)      ;
 				extra_black = false ;
@@ -293,68 +293,68 @@ namespace Store {
 						if (_is_black(gi)) {
 							if (_is_black(di)) {
 								// a b f -> a b F and double black on b
-								f.black(false) ;                               // a b f -> a b F
-								extra_black = true ;                           // double black on b
+								f.black(false) ;                                              // a b f -> a b F
+								extra_black = true ;                                          // double black on b
 							} else {
 								// a b (.D. f .) -> ab. d .f.
-								_rot( root , bi , !left  ,  left ) ;           // a b (.D. f .) -> a b (. D .f.)
-								_rot( root , pi ,  pleft , !left ) ;           // a b (. D .f.) -> ab. D .f.
-								_at(di).black(true) ;                          // ab. D .f.     -> ab. d .f.
+								_rot( root , bi , !left  ,  left ) ;                          // a b (.D. f .) -> a b (. D .f.)
+								_rot( root , pi ,  pleft , !left ) ;                          // a b (. D .f.) -> ab. D .f.
+								_at(di).black(true) ;                                         // ab. D .f.     -> ab. d .f.
 							}
 						} else {
 							// a b .fG -> ab. f g
-							_rot( root , pi , pleft ,!left ) ;                 // a b .fG -> ab. f G
-							_at(gi).black(true) ;                              // ab. f G -> ab. f g
+							_rot( root , pi , pleft ,!left ) ;                                // a b .fG -> ab. f G
+							_at(gi).black(true) ;                                             // ab. f G -> ab. f g
 						}
 					} else {
-						Item& d = _at(di) ;                                    // there must be at least 1 black on the branch and it is not f, so d exists
-						Item& g = _at(gi) ;                                    // .
-						SWEAR( d.black() && g.black() ) ;                      // per invariant
+						Item& d = _at(di) ;                                                   // there must be at least 1 black on the branch and it is not f, so d exists
+						Item& g = _at(gi) ;                                                   // .
+						SWEAR( d.black() && g.black() ) ;                                     // per invariant
 						Idx ci = d.subs( left) ;
 						Idx ei = d.subs(!left) ;
 						if (_is_black(ei)) {
 							if (_is_black(ci)) {
 								// a b dFg -> abD f g
-								_rot( root , pi , pleft ,!left ) ;             // a b dFg -> abd F g
-								d.black(false) ;                               // abd F g -> abD F g
-								f.black(true ) ;                               // abD F g -> abD f g
+								_rot( root , pi , pleft ,!left ) ;                            // a b dFg -> abd F g
+								d.black(false) ;                                              // abd F g -> abD F g
+								f.black(true ) ;                                              // abD F g -> abD f g
 							} else {
 								// a b ((.C. d .) F g) -> (aB. c .D.) f g "." stands for black subnodes of c
-								_rot( root , pi ,  pleft , !left ) ;           // a b ((.C. d .) F g) -> (a b (.C. d .)) F g
-								_rot( root , bi , !left  ,  left ) ;           // (a b (.C. d .)) F g -> (a b (. C .d.)) F g
-								_rot( root , fi ,  left  , !left ) ;           // (a b (. C .d.)) F g -> (ab. C .d.)) F g
-								b      .black(false) ;                         // (ab. C .d.)) F g    -> (aB. C .d.)) F g
-								_at(ci).black(true ) ;                         // (aB. C .d.)) F g    -> (aB. c .d.)) F g
-								d      .black(false) ;                         // (aB. c .d.)) F g    -> (aB. c .D.)) F g
-								f      .black(true ) ;                         // (aB. c .D.)) F g    -> (aB. c .D.)) f g
+								_rot( root , pi ,  pleft , !left ) ;                          // a b ((.C. d .) F g) -> (a b (.C. d .)) F g
+								_rot( root , bi , !left  ,  left ) ;                          // (a b (.C. d .)) F g -> (a b (. C .d.)) F g
+								_rot( root , fi ,  left  , !left ) ;                          // (a b (. C .d.)) F g -> (ab. C .d.)) F g
+								b      .black(false) ;                                        // (ab. C .d.)) F g    -> (aB. C .d.)) F g
+								_at(ci).black(true ) ;                                        // (aB. C .d.)) F g    -> (aB. c .d.)) F g
+								d      .black(false) ;                                        // (aB. c .d.)) F g    -> (aB. c .D.)) F g
+								f      .black(true ) ;                                        // (aB. c .D.)) F g    -> (aB. c .D.)) f g
 							}
 						} else {
 							// a b (cdE F g) -> abc d eFg
-							_rot( root , bi , !left  ,  left ) ;               // a b (cdE F g) -> a b (c d EFg)
-							_rot( root , pi ,  pleft , !left ) ;               // a b (c d EFg) -> abc d EFg
-							_at(ei).black(true) ;                              // abc d EFg     -> abc d eFg
+							_rot( root , bi , !left  ,  left ) ;                              // a b (cdE F g) -> a b (c d EFg)
+							_rot( root , pi ,  pleft , !left ) ;                              // a b (c d EFg) -> abc d EFg
+							_at(ei).black(true) ;                                             // abc d EFg     -> abc d eFg
 						}
 					}
 				} else {
-					SWEAR(f.black()) ;                                         // per invariant
+					SWEAR(f.black()) ;                                                        // per invariant
 					if (_is_black(di)) {
 						if (_is_black(gi)) {
 							// a B f -> a b F
-							b.black(true ) ; // a B f -> a b f
-							f.black(false) ; // a b f -> a b F
+							b.black(true ) ;                                                  // a B f -> a b f
+							f.black(false) ;                                                  // a b f -> a b F
 						} else {
 							// a B .fg -> ab. F g
-							_rot( root , pi , pleft ,!left ) ;                 // a B .fG -> aB. f G
-							b      .black(true ) ;                             // aB. f G -> ab. f G
-							f      .black(false) ;                             // ab. f G -> ab. F G
-							_at(gi).black(true ) ;                             // ab. F G -> ab. F g
+							_rot( root , pi , pleft ,!left ) ;                                // a B .fG -> aB. f G
+							b      .black(true ) ;                                            // aB. f G -> ab. f G
+							f      .black(false) ;                                            // ab. f G -> ab. F G
+							_at(gi).black(true ) ;                                            // ab. F G -> ab. F g
 						}
 					} else {
 						// a B (.D. f .) -> aB. d .F.
-						_rot( root , bi , !left  ,  left ) ;                   // a B (.D. f .) -> a B (. D .f.)
-						_rot( root , pi ,  pleft , !left ) ;                   // a B (c D efg) -> aB. D .f.
-						_at(di).black(true ) ;                                 // aB. D .f.     -> aB. d .f.
-						f      .black(false) ;                                 // aB. d .f.     -> aB. d .F.
+						_rot( root , bi , !left  ,  left ) ;                                  // a B (.D. f .) -> a B (. D .f.)
+						_rot( root , pi ,  pleft , !left ) ;                                  // a B (c D efg) -> aB. D .f.
+						_at(di).black(true ) ;                                                // aB. D .f.     -> aB. d .f.
+						f      .black(false) ;                                                // aB. d .f.     -> aB. d .F.
 					}
 				}
 			}
@@ -398,15 +398,15 @@ namespace Store {
 			HdrNv const&  hdr() const requires(HasHdr) { return Base::hdr().hdr    ; }
 			HdrNv      &  hdr()       requires(HasHdr) { return Base::hdr().hdr    ; }
 		private :
-			Idx  _root(       ) const { return Base::hdr().root       ; }      // cannot provide a reference to root and use it to insert (which requires !lock) w/o taking the lock
-			void _root(Idx val)       {        Base::hdr().root = val ; }      // so provide a getter and a setter
-			struct _Root {                                                     // and an easy to use accessor
-				explicit _Root(SingleRedBlackFile* s) : self(s) , copy(s->_root()) {}
-				~_Root() { self->_root(copy) ; }
+			Idx  _root(       ) const { return Base::hdr().root       ; }              // cannot provide a reference to root and use it to insert (which requires !lock) w/o taking the lock
+			void _root(Idx val)       {        Base::hdr().root = val ; }              // so provide a getter and a setter
+			struct _Root {                                                             // and an easy to use accessor
+				explicit _Root(SingleRedBlackFile* s) : self_(s) , copy(s->_root()) {}
+				~_Root() { self_->_root(copy) ; }
 				operator Idx&() { return copy ; }
 				void operator=(Idx v) { copy = v ; }
-				SingleRedBlackFile* self ;
-				Idx                 copy ;
+				SingleRedBlackFile* self_ ;
+				Idx                 copy  ;
 			} ;
 			// services
 		public :

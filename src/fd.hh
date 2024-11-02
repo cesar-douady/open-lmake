@@ -26,9 +26,9 @@ struct Fd {
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	constexpr operator int  () const { return fd      ; }
-	constexpr bool operator+() const { return fd>=0   ; }
-	constexpr bool operator!() const { return !+*this ; }
+	constexpr operator int  () const { return fd     ; }
+	constexpr bool operator+() const { return fd>=0  ; }
+	constexpr bool operator!() const { return !+self ; }
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// services
@@ -41,15 +41,15 @@ struct Fd {
 			cnt += c ;
 		}
 	}
-	Fd             dup   () const { return ::dup(fd) ;                      }
-	constexpr Fd   detach()       { Fd res = *this ; fd = -1 ; return res ; }
+	Fd             dup   () const { return ::dup(fd) ;                     }
+	constexpr Fd   detach()       { Fd res = self ; fd = -1 ; return res ; }
 	constexpr void close () {
-		if (!*this        ) return ;
-		if (::close(fd)!=0) throw "cannot close file descriptor "+fmt_string(fd)+" : "+strerror(errno) ;
-		*this = {} ;
+		if (!self        ) return ;
+		if (::close(fd)<0) throw "cannot close file descriptor "+fmt_string(fd)+" : "+::strerror(errno) ;
+		self = {} ;
 	}
 	void no_std() {
-		if ( !*this || fd>Std.fd ) return ;
+		if ( !self || fd>Std.fd ) return ;
 		int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , Std.fd+1 ) ;
 		swear_prod(new_fd>Std.fd,"cannot duplicate",fd) ;
 		close() ;
@@ -80,9 +80,9 @@ struct AutoCloseFd : Fd {
 	//
 	~AutoCloseFd() { close() ; }
 	//
-	AutoCloseFd& operator=(int           fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return *this ; }
-	AutoCloseFd& operator=(Fd const&     fd_ ) { *this = fd_ .fd ;                     return *this ; }
-	AutoCloseFd& operator=(AutoCloseFd&& acfd) { swap(acfd) ;                          return *this ; }
+	AutoCloseFd& operator=(int           fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return self ; }
+	AutoCloseFd& operator=(Fd const&     fd_ ) { self = fd_ .fd ;                      return self ; }
+	AutoCloseFd& operator=(AutoCloseFd&& acfd) { swap(acfd) ;                          return self ; }
 } ;
 
 struct LockedFd : Fd {
@@ -94,7 +94,7 @@ struct LockedFd : Fd {
 	//
 	~LockedFd() { unlock() ; }
 	//
-	LockedFd& operator=(LockedFd&& lfd) { fd = lfd.fd ; lfd.detach() ; return *this ; }
+	LockedFd& operator=(LockedFd&& lfd) { fd = lfd.fd ; lfd.detach() ; return self ; }
 	//
 	void lock  (bool e) { if (fd>=0) flock(fd,e?LOCK_EX:LOCK_SH) ; }
 	void unlock(      ) { if (fd>=0) flock(fd,  LOCK_UN        ) ; }
@@ -134,7 +134,7 @@ struct SockFd : AutoCloseFd {
 private :
 	static size_t _s_col(::string const& service) {
 		size_t col = service.rfind(':') ;
-		if (col==Npos) throw "bad service : "+service ;
+		throw_unless(col!=Npos , "bad service : ",service ) ;
 		return col ;
 	}
 	// cxtors & casts
@@ -143,7 +143,7 @@ public :
 	SockFd(NewType) { init() ; }
 	//
 	void init() {
-		*this = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0 ) ;
+		self = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0 ) ;
 		no_std() ;
 	}
 	// services
@@ -184,10 +184,10 @@ struct ServerSockFd : SockFd {
 	ServerSockFd( NewType , int backlog=0 ) { listen(backlog) ; }
 	// services
 	void listen(int backlog=0) {
-		if (!*this  ) init() ;
+		if (!self   ) init() ;
 		if (!backlog) backlog = 100 ;
 		int rc = ::listen(fd,backlog) ;
-		swear_prod(rc==0,"cannot listen on",*this,"with backlog",backlog,'(',rc,')') ;
+		swear_prod(rc==0,"cannot listen on",self,"with backlog",backlog,'(',rc,')') ;
 	}
 	::string service(in_addr_t addr) const { return s_service(addr,port()) ; }
 	::string service(              ) const { return s_service(     port()) ; }
@@ -243,12 +243,12 @@ struct Epoll {
 		static_assert(sizeof(T)<=4) ;
 		epoll_event event { .events=write?EPOLLOUT:EPOLLIN , .data={.u64=(uint64_t(uint32_t(data))<<32)|uint32_t(fd_) } } ;
 		int rc = epoll_ctl( int(fd) , EPOLL_CTL_ADD , int(fd_) , &event ) ;
-		swear_prod(rc==0,"cannot add",fd_,"to epoll",fd,'(',strerror(errno),')') ;
+		swear_prod(rc==0,"cannot add",fd_,"to epoll",fd,'(',::strerror(errno),')') ;
 		cnt += wait ;
 	}
 	void del( Fd fd_ , bool wait=true ) {                                                                                                        // wait must be coherent with corresponding add
 		int rc = ::epoll_ctl( fd , EPOLL_CTL_DEL , fd_ , nullptr ) ;
-		swear_prod(rc==0,"cannot del",fd_,"from epoll",fd,'(',strerror(errno),')') ;
+		swear_prod(rc==0,"cannot del",fd_,"from epoll",fd,'(',::strerror(errno),')') ;
 		cnt -= wait ;
 	}
 	::vector<Event> wait(Time::Delay timeout=Time::Delay::Forever) const ;

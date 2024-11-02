@@ -161,7 +161,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 					if ( +descr && descr.entry ) {
 						info.idx = syscall ;
 						#if HAS_PTRACE_GET_SYSCALL_INFO                                           // use portable calls if implemented
-							// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unesigned long long
+							// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unsigned long long
 							static_assert( sizeof(entry_info.args[0])==sizeof(uint64_t) && ::is_unsigned_v<remove_reference_t<decltype(entry_info.args[0])>> ) ;
 							uint64_t* args = reinterpret_cast<uint64_t*>(entry_info.args) ;
 						#else

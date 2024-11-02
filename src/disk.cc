@@ -175,10 +175,10 @@ namespace Disk {
 		Fd dir_fd = at ;
 		if (dir_s=="/") dir_fd = ::openat( at , "/"                     , O_RDONLY|O_DIRECTORY ) ;
 		else            dir_fd = ::openat( at , no_slash(dir_s).c_str() , O_RDONLY|O_DIRECTORY ) ;
-		if (!dir_fd) throw "cannot open dir "+(at==Fd::Cwd?""s:"@"s+at.fd+':')+dir_s+" : "+strerror(errno) ;
+		if (!dir_fd) throw "cannot open dir "+(at==Fd::Cwd?""s:"@"s+at.fd+':')+dir_s+" : "+::strerror(errno) ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
-		if (!dir_fp) throw "cannot list dir "+(at==Fd::Cwd?""s:"@"s+at.fd+':')+dir_s+" : "+strerror(errno) ;
+		if (!dir_fp) throw "cannot list dir "+(at==Fd::Cwd?""s:"@"s+at.fd+':')+dir_s+" : "+::strerror(errno) ;
 		//
 		::vector_s res ;
 		while ( struct dirent* entry = ::readdir(dir_fp) ) {
@@ -204,12 +204,12 @@ namespace Disk {
 		if (!abs_ok) SWEAR( !file || is_lcl(file) , file           ) ;                            // unless certain, prevent accidental non-local unlinks
 		if (::unlinkat(at,file.c_str(),0)==0) return true /*done*/ ;
 		if (errno==ENOENT                   ) return false/*done*/ ;
-		if (!dir_ok                         ) throw "cannot unlink "     +file ;
-		if (errno!=EISDIR                   ) throw "cannot unlink file "+file ;
+		throw_unless( dir_ok        , "cannot unlink "     ,file ) ;
+		throw_unless( errno==EISDIR , "cannot unlink file ",file ) ;
 		//
 		unlnk_inside_s(at,with_slash(file),abs_ok,force) ;
 		//
-		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw "cannot unlink dir " +file ;
+		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)<0) throw "cannot unlink dir " +file ;
 		return true/*done*/ ;
 	}
 
@@ -396,7 +396,7 @@ namespace Disk {
 	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {
 		Stat st ;
 		if (::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|(no_follow?AT_SYMLINK_NOFOLLOW:0) )<0) return ;
-		*this = st ;
+		self = st ;
 	}
 
 	//
@@ -481,6 +481,20 @@ namespace Disk {
 				if ((is_abs_s(sd_s)?abs_real:lcl_real).starts_with(sd_s)) return FileLoc::SrcDir ;
 			return FileLoc::Ext ;
 		}
+	}
+
+	void RealPath::_Dvg::update( ::string const& domain , ::string const& chk ) {
+		size_t start = dvg ;
+		ok  = domain.size() <= chk.size()     ;
+		dvg = ok ? domain.size() : chk.size() ;
+		if (start<dvg)
+			for( size_t i : iota(start,dvg) )
+				if (domain[i]!=chk[i]) {
+					ok  = false ;
+					dvg = i     ;
+					return ;
+				}
+		if ( domain.size() < chk.size() ) ok = chk[domain.size()]=='/' ;
 	}
 
 	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) {

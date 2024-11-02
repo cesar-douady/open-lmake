@@ -11,7 +11,7 @@
 
 #include "ext/cxxopts.hpp"
 
-#include "generic.hh"
+#include "generic.hh" // /!\ must be first because Python.h must be first
 
 using namespace Disk ;
 
@@ -321,10 +321,10 @@ namespace Backends::Slurm {
 			size_t           p    = kn.find(':')                                           ;
 			::string         k    = p==Npos ? ::move(kn) :               kn.substr(0  ,p)  ;
 			uint32_t         n    = p==Npos ? 0  : from_string<uint32_t>(kn.substr(p+1  )) ;
-			RsrcsDataSingle& rsds = grow(*this,n)                                          ;
+			RsrcsDataSingle& rsds = grow(self,n)                                           ;
 			//
 			auto chk_first = [&]()->void {
-				if (n) throw k+" is only for 1st component of job, not component "+n ;
+				throw_unless( n==0 , k," is only for 1st component of job, not component ",n ) ;
 			} ;
 			switch (k[0]) {
 				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
@@ -345,18 +345,16 @@ namespace Backends::Slurm {
 				rsds.licenses += k+':'+v ;
 				continue ;
 			}
-			//
 			throw "no resource "+k+" for backend "+snake(MyTag) ;
-
 		}
-		if ( d.manage_mem && !(*this)[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule()->name+".resources={'mem':'1M'}" ;
+		if ( d.manage_mem && !self[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule()->name+".resources={'mem':'1M'}" ;
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
 		::vmap_ss res ;
 		// It may be interesting to know the number of cpu reserved to know how many thread to launch in some situation
-		/**/                              res.emplace_back( "cpu" , to_string_with_units     ((*this)[0].cpu) ) ;
-		/**/                              res.emplace_back( "mem" , to_string_with_units<'M'>((*this)[0].mem) ) ;
-		if ((*this)[0].tmp!=uint32_t(-1)) res.emplace_back( "tmp" , to_string_with_units<'M'>((*this)[0].tmp) ) ;
+		/**/                           res.emplace_back( "cpu" , to_string_with_units     (self[0].cpu) ) ;
+		/**/                           res.emplace_back( "mem" , to_string_with_units<'M'>(self[0].mem) ) ;
+		if (self[0].tmp!=uint32_t(-1)) res.emplace_back( "tmp" , to_string_with_units<'M'>(self[0].tmp) ) ;
 		return res ;
 	}
 

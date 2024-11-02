@@ -29,11 +29,11 @@ struct AccessDigest {                                                  // order 
 	friend ::ostream& operator<<( ::ostream& , AccessDigest const& ) ;
 	// accesses
 	bool operator+() const { return +accesses || write!=No ; }         // true if some access of some sort is done
-	bool operator!() const { return !+*this                ; }
+	bool operator!() const { return !+self                 ; }
 	// services
 	bool          operator==(AccessDigest const&      ) const = default ;
 	AccessDigest& operator|=(AccessDigest const&      ) ;
-	AccessDigest  operator| (AccessDigest const& other) const { return ::copy(*this)|= other ; }
+	AccessDigest  operator| (AccessDigest const& other) const { return ::copy(self)|= other ; }
 	// data
 	Bool3       write        = No ;                                    // if Maybe, write is not confirmed
 	Accesses    accesses     = {} ;
@@ -74,7 +74,7 @@ struct JobExecRpcReq {
 	#undef S
 	// services
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) *this = {} ;
+		if (::is_base_of_v<::istream,T>) self = {} ;
 		::serdes(s,proc) ;
 		::serdes(s,date) ;
 		::serdes(s,sync) ;
@@ -119,7 +119,7 @@ struct JobExecRpcReply {
 	JobExecRpcReply( Proc p , Bool3 o , ::string const&                        t  ) : proc{p} , ok{o} , txt      {t } { SWEAR( proc==Proc::Decode || proc==Proc::Encode      ) ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
-		if (::is_base_of_v<::istream,S>) *this = {} ;
+		if (::is_base_of_v<::istream,S>) self = {} ;
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::Access     :                         break ;

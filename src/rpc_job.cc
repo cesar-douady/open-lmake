@@ -123,20 +123,20 @@ using namespace Hash ;
 	return                os <<')'                                   ;
 }
 
-static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(no_slash(dir_s).c_str())!=0) throw "cannot chroot to "+no_slash(dir_s)+" : "+strerror(errno) ; }
-static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (no_slash(dir_s).c_str())!=0) throw "cannot chdir to " +no_slash(dir_s)+" : "+strerror(errno) ; }
+static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(no_slash(dir_s).c_str())!=0) throw "cannot chroot to "+no_slash(dir_s)+" : "+::strerror(errno) ; }
+static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (no_slash(dir_s).c_str())!=0) throw "cannot chdir to " +no_slash(dir_s)+" : "+::strerror(errno) ; }
 
 static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
 	Trace trace("_mount_bind",dst,src) ;
 	if (::mount( no_slash(src).c_str() , no_slash(dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
-		throw "cannot bind mount "+src+" onto "+dst+" : "+strerror(errno) ;
+		throw "cannot bind mount "+src+" onto "+dst+" : "+::strerror(errno) ;
 }
 
 static void _mount_tmp( ::string const& dst_s , size_t sz_mb ) {
 	SWEAR(sz_mb) ;
 	Trace trace("_mount_tmp",dst_s,sz_mb) ;
 	if (::mount( "" ,  no_slash(dst_s).c_str() , "tmpfs" , 0/*flags*/ , ("size="+::to_string(sz_mb)+"m").c_str() )!=0)
-		throw "cannot mount tmpfs of size "+to_string_with_units<'M'>(sz_mb)+"B onto "+no_slash(dst_s)+" : "+strerror(errno) ;
+		throw "cannot mount tmpfs of size "+to_string_with_units<'M'>(sz_mb)+"B onto "+no_slash(dst_s)+" : "+::strerror(errno) ;
 }
 
 static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
@@ -155,15 +155,15 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 	for( size_t i : iota(2,srcs_s.size()) ) data += ':'         +no_slash(srcs_s[i]) ;
 	/**/                                    data += ",workdir=" +no_slash(work_s   ) ;
 	if (::mount( nullptr ,  no_slash(dst_s).c_str() , "overlay" , 0 , data.c_str() )!=0)
-		throw "cannot overlay mount "+dst_s+" to "+data+" : "+strerror(errno) ;
+		throw "cannot overlay mount "+dst_s+" to "+data+" : "+::strerror(errno) ;
 }
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
 	AutoCloseFd fd = ::open(file.c_str(),O_WRONLY|O_TRUNC) ;
-	if (!fd) throw "cannot open "+file+" for writing" ;
+	throw_unless( +fd , "cannot open ",file," for writing" ) ;
 	ssize_t cnt = ::write( fd , data.c_str() , data.size() ) ;
-	if (cnt<0                  ) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : "+strerror(errno)           ;
+	if (cnt<0                  ) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : "+::strerror(errno)         ;
 	if (size_t(cnt)<data.size()) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : only "+cnt+" bytes written" ;
 }
 
@@ -200,14 +200,14 @@ bool/*entered*/ JobSpace::enter(
 ,	::string const&        work_dir_s
 ,	::vector_s const&      src_dirs_s
 ) {
-	Trace trace("JobSpace::enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s) ;
+	Trace trace("JobSpace::enter",self,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s) ;
 	//
-	if (!*this) return false/*entered*/ ;
+	if (!self) return false/*entered*/ ;
 	//
 	int uid = ::getuid() ;          // must be done before unshare that invents a new user
 	int gid = ::getgid() ;          // .
 	//
-	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw "cannot create namespace : "s+strerror(errno) ;
+	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw "cannot create namespace : "s+::strerror(errno) ;
 	//
 	size_t   src_dirs_uphill_lvl = 0 ;
 	::string highest             ;
@@ -481,7 +481,7 @@ bool/*entered*/ JobRpcReply::enter(
 	}
 	//
 	if ( auto it=cmd_env.find("TMPDIR") ; it!=cmd_env.end()   ) {
-		if (!is_abs(it->second)) throw "$TMPDIR must be absolute but is "+it->second ;
+		throw_unless( is_abs(it->second) , "$TMPDIR must be absolute but is ",it->second ) ;
 		phy_tmp_dir_s = with_slash(it->second)+key+'/'+small_id+'/' ;
 	} else if (tmp_sz_mb==Npos) {
 		phy_tmp_dir_s = phy_root_dir_s+PrivateAdminDirS+"tmp/"+small_id+'/' ;

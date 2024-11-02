@@ -151,7 +151,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 				char                   c      = 0/*garbage*/           ;
 				::vector<Epoll::Event> events = epoll.wait(Delay(0.5)) ;                        // normal reaction time is 20-50ms
 				SWEAR( events.size()<=1 , events.size() ) ;
-				if (!events.size()       ) throw "timeout"s ;                                   // there is a single fd, there may not be more than 1 event
+				throw_unless( events.size() , "timeout" ) ;                                     // there is a single fd, there may not be more than 1 event
 				SWEAR( events[0].fd()==in_fd , events[0].fd() , in_fd ) ;
 				if (::read(in_fd,&c,1)!=1) throw "cannot read reply"s ;                         // this is the only possible fd
 				if (c=='\a'              ) break                      ;
@@ -161,11 +161,11 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 			size_t   pfx_len = reqs[fg].find(';')+1       ;                                     // up to ;, including it
 			::string pfx     = reqs[fg].substr(0,pfx_len) ;
 			size_t   pos     = reply.find(pfx)            ;                                     // ignore leading char's that may be sent as echo of user input just before executing command
-			if (pos==Npos                          ) throw "no ; in reply"s ;                   // reply should have same format with ? substituted by actual values
-			if (reply.substr(pos  ,pfx_len)!=pfx   ) throw "bad prefix"s    ;                   // .
-			if (reply.substr(pos+pfx_len,4)!="rgb:") throw "no rgb:"s       ;                   // then rgb:
+			throw_unless( pos!=Npos                           , "no ; in reply" ) ;             // reply should have same format with ? substituted by actual values
+			throw_unless( reply.substr(pos  ,pfx_len)==pfx    , "bad prefix"    ) ;             // .
+			throw_unless( reply.substr(pos+pfx_len,4)=="rgb:" , "no rgb:"       ) ;             // then rgb:
 			::vector_s t = split(reply.substr(pos+pfx_len+4),'/') ;
-			if (t.size()!=3                        ) throw "bad format"s    ;
+			throw_unless( t.size()==3 , "bad format" ) ;
 			//
 			for( int i : iota(3) ) lum[fg] += from_string<uint32_t>(t[i],true/*empty_ok*/,16) ; // add all 3 components as a rough approximation of the luminance
 		}

@@ -254,9 +254,9 @@ namespace Fuse {
 
 	static void lo_ioctl(
 		fuse_req_t req , fuse_ino_t
-	,	unsigned int /*cmd*/ , void* /*arg*/
+	,	uint /*cmd*/ , void* /*arg*/
 	,	struct ::fuse_file_info*
-	,	unsigned /*flags*/ , const void* /*in_buf*/ , size_t /*in_sz*/ , size_t /*out_sz*/
+	,	uint /*flags*/ , const void* /*in_buf*/ , size_t /*in_sz*/ , size_t /*out_sz*/
 	) {
 		::fuse_reply_err(req,EINVAL) ;
 	}
@@ -459,7 +459,7 @@ namespace Fuse {
 		::fuse_reply_err(req,rc<0?errno:0) ;
 	}
 
-	static void lo_rename( fuse_req_t req , fuse_ino_t parent , const char* name , fuse_ino_t new_parent , const char* new_name , unsigned int flags ) {
+	static void lo_rename( fuse_req_t req , fuse_ino_t parent , const char* name , fuse_ino_t new_parent , const char* new_name , uint flags ) {
 		if (T) ::cerr<<t_thread_key<<" rename "<<parent<<" "<<name<<new_parent<<" "<<new_name<<" "<<flags<<endl ;
 		SWEAR(name    ) ;
 		SWEAR(new_name) ;

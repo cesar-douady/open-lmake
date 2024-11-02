@@ -27,7 +27,7 @@ namespace Time {
 		Tick          s   = sec      () ;
 		int32_t       ns  = nsec_in_s() ;
 		OStringStream out ;
-		if (*this<Delay()) { out<<"-" ; s = -s ; ns = -ns ; }
+		if (self<Delay()) { out<<"-" ; s = -s ; ns = -ns ; }
 		out << s ;
 		if (prec) {
 			for( [[maybe_unused]] int i : iota(prec,9) ) ns /= 10 ;
@@ -63,7 +63,7 @@ namespace Time {
 	::ostream& operator<<( ::ostream& os , Pdate    const  d ) { return os <<"PD:" << d.str(9)                 ; }
 
 	::string Date::str( uint8_t prec , bool in_day ) const {
-		if (!*this) return "None" ;
+		if (!self) return "None" ;
 		time_t        s   = sec      () ;
 		uint32_t      ns  = nsec_in_s() ;
 		OStringStream out ;
@@ -78,10 +78,10 @@ namespace Time {
 	}
 
 	Date::Date(::string_view const& s) {
-		{	struct tm   t    = {}                                                                                            ; // zero out all fields
-			const char* end  = ::strptime(s.data(),"%F %T",&t) ; if (!end            ) throw "cannot read date & time : "s+s ;
-			time_t      secs = ::mktime(&t)                    ; if (secs==time_t(-1)) throw "cannot read date & time : "s+s ;
-			*this = Date(secs) ;
+		{	struct tm   t    = {}                              ;                                                                    // zero out all fields
+			const char* end  = ::strptime(s.data(),"%F %T",&t) ; throw_unless(end              , "cannot read date & time : ",s ) ;
+			time_t      secs = ::mktime(&t)                    ; throw_unless(secs!=time_t(-1) , "cannot read date & time : ",s ) ;
+			self = Date(secs) ;
 			if (*end=='.') {
 				end++ ;
 				uint64_t ns = 0 ;

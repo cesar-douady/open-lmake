@@ -69,12 +69,12 @@ namespace Store {
 		template<class... A> void init( ::string const&   name   , bool   writable   , A&&... hdr_args ) requires( HasFile) {
 			Base::init( name , _s_offset(HasData?lsb_msk(NBits<Idx>):1) , writable ) ;
 			if (Base::operator+()) return                                   ;
-			if (!writable        ) throw "cannot init read-only file "+name ;
+			throw_unless( writable , "cannot init read-only file ",name ) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
 		// accesses
 		bool          operator+(                 ) const                   {           return size()>1                                              ; }
-		bool          operator!(                 ) const                   {           return !+*this                                               ; }
+		bool          operator!(                 ) const                   {           return !+self                                                ; }
 		Sz            size     (                 ) const requires(HasFile) {           return _struct_hdr().sz                                      ; }
 		HdrNv  const& hdr      (                 ) const requires(HasHdr ) {           return _struct_hdr().hdr                                     ; }
 		HdrNv       & hdr      (                 )       requires(HasHdr ) {           return _struct_hdr().hdr                                     ; }
@@ -108,7 +108,7 @@ namespace Store {
 			_size() = 1 ;
 		}
 		void _chk_writable(const char* msg) requires(HasData) {
-			if (!writable) throw "cannot "s+msg+" in read-only file "+name ;
+			throw_unless( writable , "cannot ",msg," in read-only file ",name ) ;
 		}
 	private :
 		void _chk_sz( Idx   idx   , Sz   sz   ) requires(   HasDataSz && Multi  ) { SWEAR( sz==Idx(_at(idx).n_items()) , sz , _at(idx).n_items() ) ; }

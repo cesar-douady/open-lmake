@@ -22,7 +22,7 @@ using namespace Time ;
 
 void crash_handler(int sig) {
 	if (sig==SIGABRT) crash(4,sig,"aborted"               ) ;
-	else              crash(2,sig,"caught ",strsignal(sig)) ;
+	else              crash(2,sig,"caught ",::strsignal(sig)) ;
 }
 
 bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_root ) {
@@ -69,7 +69,7 @@ void chk_version( bool may_init , ::string const& admin_dir_s ) {
 		if (stored.size()!=1u     ) throw "bad version file "+version_file     ;
 		if (stored[0]!=VersionMrkr) throw "version mismatch, "+git_clean_msg() ;
 	} else {
-		if (!may_init) throw "repo not initialized, consider : lmake"s ;
+		throw_unless( may_init , "repo not initialized, consider : lmake" ) ;
 		write_lines( dir_guard(version_file) , {VersionMrkr} ) ;
 	}
 }

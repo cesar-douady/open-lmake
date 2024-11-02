@@ -47,7 +47,7 @@ namespace Backdoor {
 	Solve::Reply Solve::process(Record& r) const {
 		Reply         res ;
 		Record::Solve s   { r , file , no_follow , read , create , comment } ;
-		if ( read && write && +s.real0 ) throw comment+" : cannot read from "+s.real+" and write to "+s.real0 ;
+		throw_if( read && write && +s.real0 , comment," : cannot read from ",s.real," and write to ",s.real0 ) ;
 		//
 		if      (read ) { res.real     = ::move(s.real        ) ; res.file_info = FileInfo(r.s_root_fd(),res.real) ; }
 		else if (write)   res.real     = ::move(s.real_write()) ;

@@ -207,13 +207,13 @@ namespace Engine {
 		DepsIter& operator=(DepsIter const& dit) {
 			hdr     = dit.hdr     ;
 			i_chunk = dit.i_chunk ;
-			return *this ;
+			return self ;
 		}
 		// accesses
 		bool operator==(DepsIter const& dit) const { return hdr==dit.hdr && i_chunk==dit.i_chunk ; }
 		Digest digest  (Deps               ) const ;
 		// services
-		Dep const* operator->() const { return &**this ; }
+		Dep const* operator->() const { return &*self ; }
 		Dep const& operator* () const {
 			// Node's in chunk are semanticly located before header so :
 			// - if i_chunk< hdr->sz : refer to dep with no crc, flags nor parallel
@@ -224,11 +224,11 @@ namespace Engine {
 			tmpl.accesses            = hdr->hdr.chunk_accesses ;
 			return tmpl ;
 		}
-		DepsIter& operator++(int) { return ++*this ; }
+		DepsIter& operator++(int) { return ++self ; }
 		DepsIter& operator++(   ) {
 			if (i_chunk<hdr->hdr.sz)   i_chunk++ ;                         // go to next item in chunk
 			else                     { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk
-			return *this ;
+			return self ;
 		}
 		// data
 		GenericDep const* hdr     = nullptr                    ;           // pointer to current chunk header
@@ -315,9 +315,9 @@ namespace Engine {
 			job_tgts().pop() ;
 		}
 		// accesses
-		Node     idx    () const { return Node::s_idx(*this) ; }
-		::string name   () const { return full_name()        ; }
-		size_t   name_sz() const { return full_name_sz()     ; }
+		Node     idx    () const { return Node::s_idx(self) ; }
+		::string name   () const { return full_name()       ; }
+		size_t   name_sz() const { return full_name_sz()    ; }
 		//
 		bool is_decode() const { return buildable==Buildable::Decode ; }
 		bool is_encode() const { return buildable==Buildable::Encode ; }
@@ -554,7 +554,7 @@ namespace Engine {
 		if (&cri==&Req::s_store[+cri.req].nodes.dflt) return req_info(cri.req)         ; // allocate
 		else                                          return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
 	}
-	inline ::vector<Req> NodeData::reqs() const { return Req::s_reqs(*this) ; }
+	inline ::vector<Req> NodeData::reqs() const { return Req::s_reqs(self) ; }
 
 	inline bool NodeData::waiting() const {
 		for( Req r : reqs() ) if (c_req_info(r).waiting()) return true ;
@@ -640,11 +640,11 @@ namespace Engine {
 	//
 
 	inline bool Dep::up_to_date(bool full) const {
-		return is_crc && crc().match( (*this)->crc , full?~Accesses():accesses ) ;
+		return is_crc && crc().match( self->crc , full?~Accesses():accesses ) ;
 	}
 
 	inline void Dep::acquire_crc() {
-		if ( !is_crc && (*this)->crc.valid() && (*this)->crc!=Crc::None && sig()==(*this)->date().sig ) crc((*this)->crc) ;
+		if ( !is_crc && self->crc.valid() && self->crc!=Crc::None && sig()==self->date().sig ) crc(self->crc) ;
 	}
 
 	//

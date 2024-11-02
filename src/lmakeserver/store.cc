@@ -3,10 +3,9 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
-
 #include <tuple>
 
+#include "core.hh"    // must be first to include Python.h first
 #include "rpc_job.hh"
 
 using Backends::Backend ;
@@ -39,11 +38,11 @@ namespace Engine::Persistent {
 	void RuleBase::_s_init_vec(bool ping) {
 		::vector<RuleData>& vec = _s_rule_data_vecs[ping] ;
 		SWEAR(!vec) ;
-		for( Special s : Special::NShared ) if (+s) {
+		for( Special s : iota(1,Special::NShared) ) { // Special::0 is not a special rule
 			RuleData     rd  { s }           ;
 			RuleCrcData& rcd = rd.crc.data() ;
 			if (!rcd.rule) {
-				rcd.rule  = +s               ; // special is the id of shared rules
+				rcd.rule  = +s               ;        // special is the id of shared rules
 				rcd.state = RuleCrcState::Ok ;
 			}
 			vec.emplace_back(::move(rd)) ;
@@ -280,9 +279,9 @@ namespace Engine::Persistent {
 
 	static void _diff_config( Config const& old_config , bool dynamic ) {
 		Trace trace("_diff_config",old_config) ;
-		for( BackendTag t : All<BackendTag> ) {
+		for( BackendTag t : iota(All<BackendTag>) ) {
 			if (g_config->backends[+t].ifce==old_config.backends[+t].ifce) continue ;
-			if (dynamic                                                  ) throw "cannot change server address while running"s ;
+			throw_if( dynamic , "cannot change server address while running" ) ;
 			break ;
 		}
 		//
@@ -290,27 +289,27 @@ namespace Engine::Persistent {
 	}
 
 	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
-		Trace trace("new_config",Pdate(New),STR(dynamic),STR(rescue)) ;
-		if ( !dynamic                                               ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
-		if ( !dynamic                                               ) _init_config() ;
-		else                                                          SWEAR(g_config->booted,*g_config) ; // we must update something
-		if (                                       g_config->booted ) config.key = g_config->key ;
+		Trace trace("new_config",Pdate(New),STR(dynamic),STR(rescue) ) ;
+		if ( !dynamic                                                ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
+		if ( !dynamic                                                ) _init_config() ;
+		else                                                           SWEAR(g_config->booted,*g_config) ; // we must update something
+		if (                                        g_config->booted ) config.key = g_config->key ;
 		//
-		/**/                                                          diff(*g_config,config) ;
+		/**/                                                           diff(*g_config,config) ;
 		//
-		/**/                                                         ConfigDiff d = config.booted ? g_config->diff(config) : ConfigDiff::None ;
-		if (              d>ConfigDiff::Static  && g_config->booted ) throw "repo must be clean"s  ;
-		if (  dynamic &&  d>ConfigDiff::Dynamic                     ) throw "repo must be steady"s ;
+		/**/                                                          ConfigDiff d = config.booted ? g_config->diff(config) : ConfigDiff::None ;
+		if (              d>ConfigDiff::Static  &&  g_config->booted ) throw "repo must be clean"s  ;
+		if (  dynamic &&  d>ConfigDiff::Dynamic                      ) throw "repo must be steady"s ;
 		//
-		if (  dynamic && !d                                         ) return ;                            // fast path, nothing to update
+		if (  dynamic && !d                                          ) return ;                            // fast path, nothing to update
 		//
-		/**/                                                          Config old_config = *g_config ;
-		if (             +d                                         ) *g_config = ::move(config) ;
-		if (!g_config->booted) throw "no config available"s ;
-		/**/                                                          g_config->open(dynamic)          ;
-		if (             +d                                         ) _save_config()                   ;
-		if ( !dynamic                                               ) _init_srcs_rules(rescue)         ;
-		if (             +d                                         ) _diff_config(old_config,dynamic) ;
+		/**/                                                           Config old_config = *g_config ;
+		if (             +d                                          ) *g_config = ::move(config) ;
+		if (                                       !g_config->booted ) throw "no config available"s ;
+		/**/                                                           g_config->open(dynamic)          ;
+		if (             +d                                          ) _save_config()                   ;
+		if ( !dynamic                                                ) _init_srcs_rules(rescue)         ;
+		if (             +d                                          ) _diff_config(old_config,dynamic) ;
 		trace("done",Pdate(New)) ;
 	}
 
@@ -511,16 +510,16 @@ namespace Engine::Persistent {
 			}
 		}
 		bool res = n_modified_prio || n_new_rules || n_old_rules ;
-		if (dynamic) {                                                    // check if compatible with dynamic update
-			if (n_new_rules     ) throw "new rules appeared"s           ;
-			if (n_old_rules     ) throw "old rules disappeared"s        ;
-			if (n_modified_prio ) throw "rule prio's were modified"s    ;
-			if (n_modified_cmd  ) throw "rule cmd's were modified"s     ;
-			if (n_modified_rsrcs) throw "rule resources were modified"s ;
+		if (dynamic) {                                                      // check if compatible with dynamic update
+			throw_if( n_new_rules      , "new rules appeared"           ) ;
+			throw_if( n_old_rules      , "old rules disappeared"        ) ;
+			throw_if( n_modified_prio  , "rule prio's were modified"    ) ;
+			throw_if( n_modified_cmd   , "rule cmd's were modified"     ) ;
+			throw_if( n_modified_rsrcs , "rule resources were modified" ) ;
 			RuleBase::s_from_vec_dynamic(::move(new_rules_)) ;
 		} else {
 			RuleBase::s_from_vec_not_dynamic(::move(new_rules_)) ;
-			if (res) _compile_psfxs() ;                                   // recompute matching
+			if (res) _compile_psfxs() ;                                     // recompute matching
 		}
 		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs)) ;
 		// trace
@@ -593,7 +592,7 @@ namespace Engine::Persistent {
 			::string nn   = n->name() ;
 			::string nn_s = nn+'/'    ;
 			for( auto const& [sn,_] : src_names.first )
-				if ( sn.starts_with(nn_s) ) throw "source "s+(t==FileTag::Dir?"dir ":"")+nn+" is a dir of "+sn ;
+				throw_if( sn.starts_with(nn_s) , "source ",t==FileTag::Dir?"dir ":"",nn," is a dir of ",sn ) ;
 			FAIL(nn,"is a source dir of no source") ;
 		}
 		// compute diff

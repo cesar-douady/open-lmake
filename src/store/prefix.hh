@@ -234,8 +234,8 @@ namespace Store {
 			void append_from( Item const& from , ChunkIdx sz ) {
 				ChunkIdx prev_sz = chunk_sz ;
 				chunk_sz += sz ;
-				fill_from( 0       , prev_sz , *this , sz ) ;         // reverse order,mv data as adjusting chunk_sz preserves end of chunk, not start of chunk
-				fill_from( prev_sz , sz      , from  , 0  ) ;         // copy over from item
+				fill_from( 0       , prev_sz , self , sz ) ;          // reverse order,mv data as adjusting chunk_sz preserves end of chunk, not start of chunk
+				fill_from( prev_sz , sz      , from , 0  ) ;          // copy over from item
 			}
 			~Item() { _del_data() ; }
 			// accesses
@@ -413,13 +413,13 @@ namespace Store {
 			using Base::used ;
 			// services
 			void save(Item_ const& from) {
-				static_cast<Base&>(*this) = from ;
+				static_cast<Base&>(self) = from ;
 				for( bool is_eq : Nxt(kind()) ) _nxt[is_eq] = from.nxt_if (is_eq) ;
 				if ( kind()==Kind::Split ) _cmp_val    = from.cmp_val(     ) ;
 				_save_data(from) ;
 			}
 			void restore(Item_& to) const {
-				static_cast<Base&>(to) = *this ;
+				static_cast<Base&>(to) = self ;
 				for( bool is_eq : Nxt(kind()) ) to.nxt_if (is_eq) = _nxt[is_eq] ;
 				if ( kind()==Kind::Split ) to.cmp_val(     ) = _cmp_val    ;
 				_restore_data(to) ;
@@ -527,8 +527,8 @@ namespace Store {
 			public :
 				bool      operator==(Iterator const& other) const { return _self==other._self && _idx==other._idx ; }
 				Idx       operator* (                     ) const { SWEAR(_item().used) ; return _idx ;             }
-				Iterator& operator++(                     )       { _advance() ; _legalize() ; return *this ;       }
-				Iterator  operator++(int                  )       { Iterator res = *this ; ++*this ; return res ;   }
+				Iterator& operator++(                     )       { _advance() ; _legalize() ; return self ;        }
+				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res ;     }
 			private :
 				void _advance() {
 					SWEAR(+_idx) ;
@@ -554,10 +554,10 @@ namespace Store {
 			// cxtors & casts
 			Lst( MultiPrefixFile const& s , Idx st ) : _self{&s} , _start{st} , _lock{s._mutex} {}
 			// services
-			Iterator begin () const { return Iterator(*this,_start) ; }
-			Iterator cbegin() const { return Iterator(*this,_start) ; }
-			Iterator end   () const { return Iterator(*this,{}    ) ; }
-			Iterator cend  () const { return Iterator(*this,{}    ) ; }
+			Iterator begin () const { return Iterator(self,_start) ; }
+			Iterator cbegin() const { return Iterator(self,_start) ; }
+			Iterator end   () const { return Iterator(self,{}    ) ; }
+			Iterator cend  () const { return Iterator(self,{}    ) ; }
 			// data
 		private :
 			MultiPrefixFile const* _self  ;
@@ -646,7 +646,7 @@ namespace Store {
 			return Base::emplace( Item::MinUsedSz , Item::MinUsedSz , Kind::Terminal ) ;
 		}
 		Lst lst(Idx root) const {
-			return Lst(*this,root) ;
+			return Lst(self,root) ;
 		}
 		void chk(Idx root) const {
 			Base::chk() ;
@@ -1240,15 +1240,15 @@ namespace Store {
 
 	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
 		Idx MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::search( Idx root , VecView const& name_ , VecView const& psfx ) const { // psfx is prefix (Reverse) / suffix (!Reverse)
-			SLock     lock{_mutex}                        ;
-			DvgDigest dvg { root , *this , name_ , psfx } ;
+			SLock     lock{_mutex}                       ;
+			DvgDigest dvg { root , self , name_ , psfx } ;
 			return dvg.is_match() ? dvg.idx : Idx() ;
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
 		Idx MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::insert( Idx root , VecView const& name_ , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
-			ULock     lock{_mutex}                        ;
-			DvgDigest dvg { root , *this , name_ , psfx } ;
+			ULock     lock{_mutex}                       ;
+			DvgDigest dvg { root , self , name_ , psfx } ;
 			if (dvg.is_match()) return dvg.idx ;
 			Idx res = _insert( dvg.idx , dvg.chunk_pos , name_ , psfx , dvg.name_pos ) ;
 			if constexpr (HasData) SWEAR(at(res)==DataNv()) ;
@@ -1257,8 +1257,8 @@ namespace Store {
 
 	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
 		Idx MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::erase( Idx root , VecView const& name_ , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
-			ULock     lock{_mutex}                        ;
-			DvgDigest dvg { root , *this , name_ , psfx } ;
+			ULock     lock{_mutex}                       ;
+			DvgDigest dvg { root , self , name_ , psfx } ;
 			if (!dvg.is_match()) return Idx() ;
 			_pop(dvg.idx) ;
 			return dvg.idx ;
@@ -1266,8 +1266,8 @@ namespace Store {
 
 	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
 		::pair<Idx,size_t/*size*/> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::longest( Idx root , VecView const& name_ , VecView const& psfx  ) const {
-			SLock     lock{_mutex}                        ;
-			DvgDigest dvg { root , *this , name_ , psfx } ;
+			SLock     lock{_mutex}                       ;
+			DvgDigest dvg { root , self , name_ , psfx } ;
 			return {dvg.used_idx,dvg.used_pos} ;
 		}
 
@@ -1412,7 +1412,7 @@ namespace Store {
 		}
 		template<class... A> void init( ::string const& name , bool writable , A&&... hdr_args ) {
 			Base::init( name , writable , ::forward<A>(hdr_args)... ) ;
-			if (!*this) _boot() ;
+			if (!self) _boot() ;
 		}
 	private :
 		void _boot() {

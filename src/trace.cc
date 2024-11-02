@@ -74,8 +74,8 @@ using namespace Time ;
 		_s_cur_sz = 4096                                                                                                       ;
 		_s_fd     = { ::open( tmp_trace_file.c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0666 ) , true/*no_std*/ } ;
 		//
-		if ( !_s_fd                                                        ) throw "cannot create temporary trace file "+tmp_trace_file+" : "+strerror(errno)             ;
-		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw "cannot create trace file "          +*g_trace_file +" : "+strerror(errno)             ;
+		if ( !_s_fd                                                        ) throw "cannot create temporary trace file "+tmp_trace_file+" : "+::strerror(errno)           ;
+		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw "cannot create trace file "          +*g_trace_file +" : "+::strerror(errno)           ;
 		if ( ::ftruncate(_s_fd,_s_cur_sz)!=0                               ) throw "cannot truncate trace file "        +*g_trace_file +" to its initial size "+_s_cur_sz ;
 		//
 		_s_pos  = 0                                                                                                    ;
