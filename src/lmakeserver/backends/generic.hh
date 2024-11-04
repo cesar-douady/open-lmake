@@ -59,7 +59,6 @@ namespace Backends {
 		Data const& operator* () const { return *data  ; }
 		Data const* operator->() const { return &*self ; }
 		bool        operator+ () const { return data   ; }
-		bool        operator! () const { return !+self ; }
 		// data
 		Data const* data = nullptr ;
 	} ;
@@ -156,9 +155,8 @@ namespace Backends {
 			const_iterator find(Job j) const { const_iterator res = Base::find(j) ; if ( res==Base::end() || !res->second.live ) return Base::end() ; else return res ; }
 			iterator       find(Job j)       { iterator       res = Base::find(j) ; if ( res==Base::end() || !res->second.live ) return Base::end() ; else return res ; }
 			//
-			bool   operator+() const { return _sz    ; }                     // cannot inherit from Base as zombies would be counted
-			bool   operator!() const { return !+self ; }                     // .
-			size_t size     () const { return _sz    ; }                     // .
+			bool   operator+() const { return _sz ; }                        // cannot inherit from Base as zombies would be counted
+			size_t size     () const { return _sz ; }                        // .
 			//
 			iterator create( GenericBackend const& be , Job j , RsrcsAsk const& rsrcs_ask ) {
 				Rsrcs    rsrcs = be.acquire_rsrcs(rsrcs_ask) ;

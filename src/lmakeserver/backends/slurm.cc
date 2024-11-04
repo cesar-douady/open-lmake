@@ -345,7 +345,7 @@ namespace Backends::Slurm {
 				rsds.licenses += k+':'+v ;
 				continue ;
 			}
-			throw "no resource "+k+" for backend "+snake(MyTag) ;
+			throw "no resource "+k+" for backend "+MyTag ;
 		}
 		if ( d.manage_mem && !self[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule()->name+".resources={'mem':'1M'}" ;
 	}

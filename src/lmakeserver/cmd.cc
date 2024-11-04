@@ -499,8 +499,8 @@ namespace Engine {
 						case ReqKey::Cmd    :
 						case ReqKey::Env    :
 						case ReqKey::Stdout :
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job                          , lvl   ) ;
-							audit    ( fd , ro , Color::Err , "no "s+snake(ro.key)+" available" , true/*as_is*/ , lvl+1 ) ;
+							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job                   , lvl   ) ;
+							audit    ( fd , ro , Color::Err , "no "s+ro.key+" available" , true/*as_is*/ , lvl+1 ) ;
 						break ;
 					DF}
 				} else {
@@ -765,7 +765,7 @@ namespace Engine {
 				}
 			} break ;
 			default :
-				throw "cannot show "s+snake(ro.key)+" for job "+mk_file(job->name()) ;
+				throw "cannot show "s+ro.key+" for job "+mk_file(job->name()) ;
 		}
 	}
 

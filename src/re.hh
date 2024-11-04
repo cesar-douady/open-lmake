@@ -59,7 +59,6 @@ namespace Re {
 			Match& operator=(Match&& m) { swap(self,m) ; return self ; }
 			// accesses
 			bool operator+() const { return _data && pcre2_get_ovector_pointer(_data)[0]!=PCRE2_UNSET ; }
-			bool operator!() const { return !+self                                                    ; }
 			//
 			::string_view operator[](size_t i) const {
 				PCRE2_SIZE const* v = pcre2_get_ovector_pointer(_data) ;
@@ -140,7 +139,6 @@ namespace Re {
 			// accesses
 		public :
 			bool operator+() const { return !empty() ; }
-			bool operator!() const { return !+self   ; }
 			//
 			::string_view operator[](size_t i) const {
 				::sub_match sm = ::smatch::operator[](i) ;

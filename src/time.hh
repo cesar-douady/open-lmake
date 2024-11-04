@@ -58,9 +58,8 @@ namespace Time {
 		constexpr explicit operator double  () const {                                                               return double(_val)/TicksPerSecond ; }
 		constexpr explicit operator float   () const {                                                               return float (_val)/TicksPerSecond ; }
 		// accesses
-		constexpr bool operator+() const { return  _val ; }
-		constexpr bool operator!() const { return !_val ; }
-		constexpr Tick val      () const { return  _val ; }
+		constexpr bool operator+() const { return _val ; }
+		constexpr Tick val      () const { return _val ; }
 		//
 		constexpr Tick   sec      () const {                       return _val       /TicksPerSecond ; }
 		constexpr Tick   msec     () const {                       return nsec     ()/1000'000       ; }
@@ -159,8 +158,7 @@ namespace Time {
 		constexpr explicit operator double() const { return double(Delay(self)) ; }
 		constexpr explicit operator float () const { return float (Delay(self)) ; }
 		// accesses
-		constexpr bool operator+() const { return _val   ; }
-		constexpr bool operator!() const { return !+self ; }
+		constexpr bool operator+() const { return _val ; }
 		//
 		constexpr Delay::Tick   sec      () const { return Delay(self).sec      () ; }
 		constexpr Delay::Tick   nsec     () const { return Delay(self).nsec     () ; }
@@ -261,7 +259,6 @@ namespace Time {
 		constexpr Ddate( struct ::stat const& st , FileTag tag               ) : Date{st.st_mtim} { _val &= ~_TagMsk ; _val |= +tag ; }
 		// accesses
 		constexpr bool    operator+() const { return _date()               ; }
-		constexpr bool    operator!() const { return !+self                ; }
 		constexpr FileTag tag      () const { return FileTag(_val&_TagMsk) ; }
 	private :
 		constexpr Tick _date() const { return _val&~_TagMsk ; }

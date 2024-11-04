@@ -229,7 +229,6 @@ namespace Engine {
 			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat" ) ;
 			Attrs::acquire_from_dct( job_space.root_view_s  , py_dct , "root_view"   ) ; if (+job_space.root_view_s ) job_space.root_view_s  = Disk::with_slash(job_space.root_view_s ) ;
 			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"    ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = Disk::with_slash(job_space.tmp_view_s  ) ;
-			Attrs::acquire_from_dct( use_script             , py_dct , "use_script"  ) ;
 			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"       ) ;
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
 			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
@@ -241,14 +240,12 @@ namespace Engine {
 		bool       ignore_stat = false ;
 		::vmap_ss  env         ;
 		JobSpace   job_space   ;
-		bool       use_script  = false ;
 		// END_OF_VERSIONING
 	} ;
 
 	struct DbgEntry {
 		friend ::ostream& operator<<( ::ostream& , DbgEntry const& ) ;
 		bool operator +() const { return first_line_no1 ; }
-		bool operator !() const { return !+self ;         }
 		// START_OF_VERSIONING
 		::string module         ;
 		::string qual_name      ;
@@ -278,18 +275,20 @@ namespace Engine {
 		static constexpr const char* Msg = "execution resources attributes" ;
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
-			Attrs::acquire_env     ( env     , py_dct , "env"                            ) ;
-			Attrs::acquire_from_dct( method  , py_dct , "autodep"                        ) ;
-			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
-			::sort(env) ;                                                                                                    // stabilize rsrcs crc
+			Attrs::acquire_env     ( env        , py_dct , "env"                               ) ;
+			Attrs::acquire_from_dct( method     , py_dct , "autodep"                           ) ;
+			Attrs::acquire_from_dct( timeout    , py_dct , "timeout"    , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( use_script , py_dct , "use_script"                        ) ;
+			::sort(env) ;                                                                                             // stabilize rsrcs crc
 			// check
-			if ( method==AutodepMethod::LdAudit && !HAS_LD_AUDIT ) throw snake(method)+" is not supported on this system"s ; // PER_AUTODEP_METHOD.
+			throw_if( !HAS_LD_AUDIT && method==AutodepMethod::LdAudit , method," is not supported on this system" ) ; // PER_AUTODEP_METHOD.
 		}
 		// data
 		// START_OF_VERSIONING
-		::vmap_ss     env     ;
-		AutodepMethod method  = {} ;
-		Time::Delay   timeout ;                                                                                              // if 0 <=> no timeout, maximum time allocated to job execution in s
+		::vmap_ss     env        ;
+		AutodepMethod method     = {} ;
+		Time::Delay   timeout    ;                                                                                       // if 0 <=> no timeout, maximum time allocated to job execution in s
+		bool          use_script = false ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -473,8 +472,8 @@ namespace Engine {
 		using Base = Dynamic<DepsAttrs> ;
 		// cxtors & casts
 		using Base::Base ;
-		DynamicDepsAttrs           (DynamicDepsAttrs const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
-		DynamicDepsAttrs           (DynamicDepsAttrs     && src) : Base           {::move(src)} {}                 // .
+		DynamicDepsAttrs           (DynamicDepsAttrs const& src) : Base           {       src } {}                // only copy disk backed-up part, in particular mutex is not copied
+		DynamicDepsAttrs           (DynamicDepsAttrs     && src) : Base           {::move(src)} {}                // .
 		DynamicDepsAttrs& operator=(DynamicDepsAttrs const& src) { Base::operator=(       src ) ; return self ; } // .
 		DynamicDepsAttrs& operator=(DynamicDepsAttrs     && src) { Base::operator=(::move(src)) ; return self ; } // .
 		// services
@@ -485,8 +484,8 @@ namespace Engine {
 		using Base = Dynamic<StartCmdAttrs> ;
 		// cxtors & casts
 		using Base::Base ;
-		DynamicStartCmdAttrs           (DynamicStartCmdAttrs const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
-		DynamicStartCmdAttrs           (DynamicStartCmdAttrs     && src) : Base           {::move(src)} {}                 // .
+		DynamicStartCmdAttrs           (DynamicStartCmdAttrs const& src) : Base           {       src } {}                // only copy disk backed-up part, in particular mutex is not copied
+		DynamicStartCmdAttrs           (DynamicStartCmdAttrs     && src) : Base           {::move(src)} {}                // .
 		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs const& src) { Base::operator=(       src ) ; return self ; } // .
 		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs     && src) { Base::operator=(::move(src)) ; return self ; } // .
 	} ;
@@ -495,8 +494,8 @@ namespace Engine {
 		using Base = Dynamic<Cmd> ;
 		// cxtors & casts
 		using Base::Base ;
-		DynamicCmd           (DynamicCmd const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
-		DynamicCmd           (DynamicCmd     && src) : Base           {::move(src)} {}                 // .
+		DynamicCmd           (DynamicCmd const& src) : Base           {       src } {}                // only copy disk backed-up part, in particular mutex is not copied
+		DynamicCmd           (DynamicCmd     && src) : Base           {::move(src)} {}                // .
 		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return self ; } // .
 		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return self ; } // .
 		// services
@@ -545,8 +544,6 @@ namespace Engine {
 	private :
 		void _acquire_py(Py::Dict const&) ;
 		void _compile   (               ) ;
-		//
-		template<class T,class... A> ::string _pretty_str( size_t i , Dynamic<T> const& d , A&&... args ) const ;
 	public :
 		::string pretty_str() const ;
 		// accesses
@@ -575,6 +572,12 @@ namespace Engine {
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx       ) const ;
 		void          _set_crcs  (                                   ) ;
 		TargetPattern _mk_pattern( MatchEntry const& , bool for_name ) const ;
+		//
+		/**/              ::string _pretty_fstr   (::string const& fstr) const ;
+		template<class T> ::string _pretty_dyn    (Dynamic<T> const&   ) const ;
+		/**/              ::string _pretty_matches(                    ) const ;
+		/**/              ::string _pretty_deps   (                    ) const ;
+		/**/              ::string _pretty_env    (                    ) const ;
 		// START_OF_VERSIONING
 		// user data
 	public :
@@ -649,7 +652,6 @@ namespace Engine {
 	public :
 		bool operator==(SimpleMatch const&) const = default ;
 		bool operator+ (                  ) const { return +rule ; }
-		bool operator! (                  ) const { return !rule ; }
 		// accesses
 		::vector_s star_patterns () const ;
 		::vector_s py_matches    () const ;

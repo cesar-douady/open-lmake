@@ -692,7 +692,7 @@ namespace Engine {
 			field = "__special__" ;
 			if (dct.contains(field)) {
 				special = mk_enum<Special>(dct[field].as_a<Str>()) ;
-				if (special<Special::NShared) throw "unexpected value for __special__ attribute : "s+snake(special) ;
+				throw_unless( special>=Special::NShared , "unexpected value for __special__ attribute : ",special ) ;
 			} else {
 				special = Special::Plain ;
 			}
@@ -752,7 +752,7 @@ namespace Engine {
 					) ;
 				} else if (!job_name_key) {
 					job_name_key =                     field ;
-					job_name_msg = ""s+snake(kind)+' '+field ;
+					job_name_msg = snake_str(kind)+' '+field ;
 				}
 			}
 			//
@@ -803,17 +803,15 @@ namespace Engine {
 						if (is_official_target) for( auto const& [k,s] : stem_stars ) if (s!=Yes) missing_stems.insert(k) ;
 						_parse_py( target , &unnamed_star_idx ,
 							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
-								if (!stem_defs.contains(k)) throw "found undefined "+stem_words(k,star,unnamed)+" in "+snake(kind) ;
+								if (!stem_defs.contains(k)) throw "found undefined "+stem_words(k,star,unnamed)+" in "+kind ;
 								//
 								if (star) {
 									is_star = true ;
 									return ;
 								}
 								auto it = stem_stars.find(k) ;
-								if ( it==stem_stars.end() || it->second==Yes )
-									throw stem_words(k,star,unnamed)+" appears in "s+snake(kind)+" but not in "+job_name_msg+", consider using "+k+'*';
-								if (is_official_target)
-									missing_stems.erase(k) ;
+								throw_unless( it!=stem_stars.end() && it->second!=Yes , stem_words(k,star,unnamed)," appears in ",kind," but not in ",job_name_msg,", consider using ",k,'*' ) ;
+								if (is_official_target) missing_stems.erase(k) ;
 							}
 						) ;
 					}
@@ -823,15 +821,15 @@ namespace Engine {
 					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
 					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)                                ) throw snake_str(kind)+" must be relative to root dir : "                 +target ;
-					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                                +target ;
-					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                            +target ;
-					if ( +missing_stems                                                ) throw "missing stems "+fmt_string(missing_stems)+" in "+snake(kind)+" : "+target ;
-					if (  is_star                              && is_special()         ) throw "star "s+snake(kind)+"s are meaningless for source and anti-rules"         ;
-					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                              ;
-					if ( tflags      [Tflag     ::Incremental] && is_stdout            ) throw "stdout cannot be directed to an incremental target"s                      ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && is_star              ) throw "star targets are natively optional : "                            +target ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony : "                   +target ;
+					if ( target.starts_with(root_dir_s)                                ) throw snake_str(kind)+" must be relative to root dir : "          +target ;
+					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                         +target ;
+					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                     +target ;
+					if ( +missing_stems                                                ) throw "missing stems "+fmt_string(missing_stems)+" in "+kind+" : "+target ;
+					if (  is_star                              && is_special()         ) throw "star "s+kind+"s are meaningless for source and anti-rules"         ;
+					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                       ;
+					if ( tflags      [Tflag     ::Incremental] && is_stdout            ) throw "stdout cannot be directed to an incremental target"s               ;
+					if ( extra_tflags[ExtraTflag::Optional   ] && is_star              ) throw "star targets are natively optional : "                     +target ;
+					if ( extra_tflags[ExtraTflag::Optional   ] && tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony : "            +target ;
 					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;
@@ -1012,36 +1010,68 @@ namespace Engine {
 		}
 	}
 
-	template<class T> static ::string _pretty_vmap( size_t i , ::vmap_s<T> const& m , bool uniq=false ) {
+	//
+	// pretty print RuleData
+	//
+
+	template<class T> static ::string _pretty_vmap( ::string const& title , ::vmap_s<T> const& m , bool uniq=false ) {
+		if (!m) return {} ;
 		OStringStream res  ;
-		size_t        wk   = 0 ;
+		size_t        wk   = 0 ; for( auto const& [k,_] : m ) wk = ::max(wk,k.size()) ;
 		::uset_s      keys ;
 		//
-		for( auto const& [k,_] : m ) wk = ::max(wk,k.size()) ;
-		for( auto const& [k,v] : m ) if ( !uniq || keys.insert(k).second ) res << ::string(i,'\t') << ::setw(wk)<<k <<" : "<< v <<'\n' ;
-		//
+		res << title <<'\n' ;
+		for( auto const& [k,v] : m ) if ( !uniq || keys.insert(k).second ) {
+			if (+v) res <<'\t'<< ::setw(wk)<<k <<" : "<< v <<'\n' ;
+			else    res <<'\t'<< ::setw(wk)<<k <<" :"      <<'\n' ;
+		}
 		return ::move(res).str() ;
 	}
 
-	static ::string _pretty_views( size_t i , ::vmap_s<JobSpace::ViewDescr> const& m ) {
+	::string RuleData::_pretty_env() const {
+		::vector<::array_s<3>> entries ;
+		size_t                 wh      = 0 ;
+		size_t                 wk      = 0 ;
+		for( auto const& [h,m] : ::vmap_s<::vmap_ss>({ {"cmd",start_cmd_attrs.spec.env} , {"resources",start_rsrcs_attrs.spec.env} , {"ancillary",start_none_attrs.spec.env} }) ) {
+			for( auto const& [k,v] : m ) {
+				wh = ::max(wh,h.size()) ;
+				wk = ::max(wk,k.size()) ;
+				if      (v==EnvPassMrkr) entries.push_back({h,k,"  ..."      }) ;
+				else if (v==EnvDynMrkr ) entries.push_back({h,k,"  <dynamic>"}) ;
+				else if (+v            ) entries.push_back({h,k,": "+v       }) ;
+				else                     entries.push_back({h,k,":"          }) ;
+			}
+		}
+		if (!entries) return {} ;
+		//
+		OStringStream res ;
+		res << "environ :\n" ;
+		for( auto const& [h,k,v] : entries ) res <<'\t'<< ::setw(wh)<<h <<' '<< ::setw(wk)<<k <<' '<< v <<'\n' ;
+		return ::move(res).str() ;
+	}
+
+	static ::string _pretty_views( ::string const& title , ::vmap_s<JobSpace::ViewDescr> const& m ) {
+		if (!m) return {} ;
 		OStringStream res  ;
+		res << title <<'\n' ;
 		for( auto const& [k,v] : m ) {
-			res << ::string(i,'\t') << k <<" :" ;
+			res <<'\t'<< k <<" :" ;
 			SWEAR(+v.phys) ;
 			if (v.phys.size()==1) {
 				SWEAR(!v.copy_up) ;
 				res <<' '<< v.phys[0] ;
 			} else {
 				size_t w = +v.copy_up ? 7 : 5 ;
-				/**/            res <<'\n'<< ::string(i+1,'\t') << ::setw(w)<<"upper"   <<" : "<< v.phys[0]                                 ;
-				/**/            res <<'\n'<< ::string(i+1,'\t') << ::setw(w)<<"lower"   <<" : "<< ::vector_view(&v.phys[1],v.phys.size()-1) ;
-				if (+v.copy_up) res <<'\n'<< ::string(i+1,'\t') << ::setw(w)<<"copy_up" <<" : "<< v.copy_up                                 ;
+				/**/            res <<"\n\t\t" << ::setw(w)<<"upper"   <<" : "<< v.phys[0]                                 ;
+				/**/            res <<"\n\t\t" << ::setw(w)<<"lower"   <<" : "<< ::vector_view(&v.phys[1],v.phys.size()-1) ;
+				if (+v.copy_up) res <<"\n\t\t" << ::setw(w)<<"copy_up" <<" : "<< v.copy_up                                 ;
 			}
 			res <<'\n' ;
 		}
 		return ::move(res).str() ;
 	}
-	static ::string _pretty_fstr( ::string const& fstr , RuleData const& rd ) {
+
+	::string RuleData::_pretty_fstr(::string const& fstr) const {
 			::string res ;
 			for( size_t ci=0 ; ci<fstr.size() ; ci++ ) { // /!\ not a iota
 				switch (fstr[ci]) {
@@ -1050,11 +1080,11 @@ namespace Engine {
 						VarIdx i  = decode_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
 						res += '{' ;
 						switch (vc) {
-							case VarCmd::Stem      : res += rd.stems                        [i].first ; break ;
+							case VarCmd::Stem      : res += stems                        [i].first ; break ;
 							case VarCmd::StarMatch :
-							case VarCmd::Match     : res += rd.matches                      [i].first ; break ;
-							case VarCmd::Dep       : res += rd.deps_attrs.spec.deps         [i].first ; break ;
-							case VarCmd::Rsrc      : res += rd.submit_rsrcs_attrs.spec.rsrcs[i].first ; break ;
+							case VarCmd::Match     : res += matches                      [i].first ; break ;
+							case VarCmd::Dep       : res += deps_attrs.spec.deps         [i].first ; break ;
+							case VarCmd::Rsrc      : res += submit_rsrcs_attrs.spec.rsrcs[i].first ; break ;
 						DF}
 						res += '}' ;
 					} break ;
@@ -1065,7 +1095,8 @@ namespace Engine {
 			}
 			return res ;
 	}
-	static ::string _pretty_matches( RuleData const& rd , size_t i , ::vmap_s<RuleData::MatchEntry> const& matches ) {
+
+	::string RuleData::_pretty_matches() const {
 		auto kind = [&](RuleData::MatchEntry const& me)->::string_view {
 			return snake(
 				me.flags.is_target==No           ? MatchKind::SideDeps
@@ -1073,25 +1104,25 @@ namespace Engine {
 			:	                                   MatchKind::SideTargets
 			) ;
 		} ;
-		size_t    w1       = 0 ;
-		size_t    w2       = 0 ;
-		size_t    w3       = 0 ;
-		::umap_ss patterns ;
+		size_t    w1        = 0 ;
+		size_t    w2        = 0 ;
+		size_t    w3        = 0 ;
+		::umap_ss patterns_ ;
 		//
 		for( auto const& [k,me] : matches ) {
 			::string p = _subst_target(
 				me.pattern
-			,	[&](VarIdx s)->::string { return '{' + rd.stems[s].first + (s<rd.n_static_stems?"":"*") + '}' ; }
+			,	[&](VarIdx s)->::string { return '{' + stems[s].first + (s<n_static_stems?"":"*") + '}' ; }
 			,	Escape::Fstr
 			) ;
-			w1          = ::max(w1,kind(me).size()) ;
-			w2          = ::max(w2,k       .size()) ;
-			w3          = ::max(w3,p       .size()) ;
-			patterns[k] = ::move(p)                 ;
+			w1           = ::max(w1,kind(me).size()) ;
+			w2           = ::max(w2,k       .size()) ;
+			w3           = ::max(w3,p       .size()) ;
+			patterns_[k] = ::move(p)                 ;
 		}
 		//
 		OStringStream res ;
-		res << indent("matches :\n",i) ;
+		res << "matches :\n" ;
 		//
 		for( VarIdx mi : iota<VarIdx>(matches.size()) ) {
 			::string             const& k     = matches[mi].first  ;
@@ -1102,23 +1133,23 @@ namespace Engine {
 			if (me.flags.is_target==No) {
 				for( Dflag df : iota(Dflag::NRule) ) {
 					if (!me.flags.dflags()[df]) continue ;
-					flags << (first?" : ":" , ") << snake(df) ;
+					flags << (first?" : ":" , ") << df ;
 					first = false ;
 				}
 				for( ExtraDflag edf : iota(ExtraDflag::NRule) ) {
 					if (!me.flags.extra_dflags()[edf]) continue ;
-					flags << (first?" : ":" , ") << snake(edf) ;
+					flags << (first?" : ":" , ") << edf ;
 					first = false ;
 				}
 			} else {
 				for( Tflag tf : iota(Tflag::NRule) ) {
 					if (!me.flags.tflags()[tf]) continue ;
-					flags << (first?" : ":" , ") << snake(tf) ;
+					flags << (first?" : ":" , ") << tf ;
 					first = false ;
 				}
 				for( ExtraTflag etf : iota(ExtraTflag::NRule) ) {
 					if (!me.flags.extra_tflags()[etf]) continue ;
-					flags << (first?" : ":" , ") << snake(etf) ;
+					flags << (first?" : ":" , ") << etf ;
 					first = false ;
 				}
 				if (me.flags.tflags()[Tflag::Target]) {
@@ -1136,213 +1167,147 @@ namespace Engine {
 					if (!first_conflict) flags << ']' ;
 				}
 			}
-			res << indent(fmt_string(::setw(w1),kind(me),' ',::setw(w2),k," : "),i+1) ;
+			res <<'\t'<< fmt_string(::setw(w1),kind(me),' ',::setw(w2),k," : ") ;
 			::string flags_str = ::move(flags).str() ;
-			if (+flags_str) res << ::setw(w3)<<patterns[k] << flags_str ;
-			else            res <<             patterns[k]              ;
+			if (+flags_str) res << ::setw(w3)<<patterns_[k] << flags_str ;
+			else            res <<             patterns_[k]              ;
 			res <<'\n' ;
 		}
-		res << indent("patterns :\n",i) ;
+		res << "patterns :\n" ;
 		for( size_t mi : iota(matches.size()) )
-			res << indent(
-				fmt_string(
-					/**/    ::setw(w1) , kind(matches[mi].second)
-				,	' '   , ::setw(w2) , matches[mi].first
-				,	" : " ,              rd.patterns[mi].txt
-				,'\n')
-			,	i+1
-			) ;
+			res <<'\t'<< fmt_string(
+				/**/    ::setw(w1) , kind(matches [mi].second)
+			,	' '   , ::setw(w2) ,      matches [mi].first
+			,	" : " ,                   patterns[mi].txt
+			,'\n') ;
 		return ::move(res).str() ;
 	}
-	static ::string _pretty_sigs( ::vector<uint8_t> const& sigs ) {
-		::string        res  ;
-		::uset<uint8_t> seen ;
-		const char*     sep  = "" ;
-		for( uint8_t sig : sigs ) {
-			if (sig) {
-				res << sep << int(sig) ;
-				if (!seen.contains(sig)) {
-					seen.insert(sig) ;
-					res << '('<<::strsignal(sig)<<')' ;
-				}
-			}
-			sep = " , " ;
-		}
-		return res ;
-	}
-	static ::string _pretty_job_name(RuleData const& rd) {
-		for( auto const& [k,me] : rd.matches ) if (rd.job_name==me.pattern) return "<targets."+k+'>' ;
-		/**/                                                                return rd.job_name       ;
-	}
 
-	static ::string _pretty( size_t i , DepsAttrs const& da , RuleData const& rd ) {
-		OStringStream res      ;
-		size_t        wk       = 0 ;
-		size_t        wd       = 0 ;
-		::umap_ss     patterns ;
+	::string RuleData::_pretty_deps() const {
+		size_t    wk       = 0 ;
+		size_t    wd       = 0 ;
+		::umap_ss patterns ;
 		//
-		for( auto const& [k,ds] : da.deps ) {
+		for( auto const& [k,ds] : deps_attrs.spec.deps ) {
 			if (!ds.txt) continue ;
-			::string p = _pretty_fstr(ds.txt,rd) ;
+			::string p = _pretty_fstr(ds.txt) ;
 			wk          = ::max(wk,k.size()) ;
 			wd          = ::max(wd,p.size()) ;
 			patterns[k] = ::move(p)          ;
 		}
-		for( auto const& [k,ds] : da.deps ) {
+		if (!patterns) return {} ;
+		//
+		OStringStream res ;
+		res << "deps :\n" ;
+		for( auto const& [k,ds] : deps_attrs.spec.deps ) {
 			if (!ds.txt) continue ;
 			::string flags ;
 			bool     first = true ;
-			for( Dflag      df  : iota(Dflag     ::NRule) ) if (ds.dflags      [df ]) { flags += first?" : ":" , " ; first = false ; flags += snake(df ) ; }
-			for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (ds.extra_dflags[edf]) { flags += first?" : ":" , " ; first = false ; flags += snake(edf) ; }
-			/**/        res << ::string(i,'\t') << ::setw(wk)<<k <<" : " ;
+			for( Dflag      df  : iota(Dflag     ::NRule) ) if (ds.dflags      [df ]) { flags += first?" : ":" , " ; first = false ; flags += df  ; }
+			for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (ds.extra_dflags[edf]) { flags += first?" : ":" , " ; first = false ; flags += edf ; }
+			/**/        res <<'\t'<< ::setw(wk)<<k <<" : "      ;
 			if (+flags) res << ::setw(wd)<<patterns[k] << flags ;
 			else        res <<             patterns[k]          ;
 			/**/        res <<'\n' ;
 		}
 		return ::move(res).str() ;
 	}
-	static ::string _pretty( size_t i , CacheNoneAttrs const& cna ) {
-		if (+cna.key) return ::string(i,'\t')+"key : "+cna.key+'\n' ;
-		else          return {}                                     ;
-	}
-	static ::string _pretty( size_t i , SubmitRsrcsAttrs const& sra ) {
-		::vmap_ss entries ;
-		/**/                                 if (sra.backend!=BackendTag::Local) entries.emplace_back( "<backend>" , snake(sra.backend) ) ;
-		for (auto const& [k,v] : sra.rsrcs ) if (+v                            ) entries.emplace_back( k           , v                  ) ;
-		return _pretty_vmap(i,entries) ;
-	}
-	static ::string _pretty( size_t i , SubmitNoneAttrs const& sna ) {
-		::vmap_ss entries ;
-		if (sna.n_retries!=0) entries.emplace_back( "n_retries" , ::to_string(sna.n_retries) ) ;
-		return _pretty_vmap(i,entries) ;
-	}
-	static ::string _pretty_env( size_t i , ::vmap_ss const& m ) {
-		OStringStream res ;
-		size_t        wk  = 0 ;
-		//
-		for( auto const& [k,v] : m ) wk = ::max(wk,k.size()) ;
-		for( auto const& [k,v] : m ) {
-			/**/                     res << ::setw(wk)<<k ;
-			if      (v==EnvPassMrkr) res <<"   ..."       ;
-			else if (v==EnvDynMrkr ) res <<"   <dynamic>" ;
-			else if (+v            ) res <<" : "<< v      ;
-			else                     res <<" :"           ;
-			/**/                     res <<'\n'           ;
-		}
-		//
-		return indent(::move(res).str(),i) ;
-	}
-	static ::string _pretty( size_t i , StartCmdAttrs const& sca ) {
-		size_t        key_sz = 0 ;
-		OStringStream res    ;
-		int           pass   ;
-		//
-		auto do_field = [&](::string const& key , ::string const& val )->void {
-			if (pass==1) key_sz = ::max(key_sz,key.size()) ;                                                      // during 1st pass, compute max key size ;
-			else         res << indent( fmt_string(::setw(key_sz),key," : ",val,'\n') , i ) ;
-		} ;
-		::string interpreter ;
-		bool     first       = true ;
-		for( ::string const& c : sca.interpreter ) { interpreter << (first?"":" ") << c ; first = false ; }
-		for( pass=1 ; pass<=2 ; pass++ ) {                                                                        // on 1st pass we compute key size, on 2nd pass we do the job
-			if (+interpreter               ) do_field( "interpreter" , interpreter                            ) ;
-			if ( sca.use_script            ) do_field( "use_script"  , fmt_string(sca.use_script            ) ) ;
-			if ( sca.auto_mkdir            ) do_field( "auto_mkdir"  , fmt_string(sca.auto_mkdir            ) ) ;
-			if ( sca.ignore_stat           ) do_field( "ignore_stat" , fmt_string(sca.ignore_stat           ) ) ;
-			if (+sca.job_space.chroot_dir_s) do_field( "chroot_dir"  , no_slash  (sca.job_space.chroot_dir_s) ) ;
-			if (+sca.job_space.root_view_s ) do_field( "root_view"   , no_slash  (sca.job_space.root_view_s ) ) ;
-			if (+sca.job_space.tmp_view_s  ) do_field( "tmp_view"    , no_slash  (sca.job_space.tmp_view_s  ) ) ;
-		}
-		if (+sca.job_space.views) res << indent("views :\n"  ,i) << _pretty_views( i+1 , sca.job_space.views ) ;
-		if (+sca.env            ) res << indent("environ :\n",i) << _pretty_env  ( i+1 , sca.env             ) ;
-		return ::move(res).str() ;
-	}
-	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {
-		if (!c.cmd      ) return {}                                          ;
-		if (rd.is_python) return indent(ensure_nl(rd.cmd.append_dbg_info(c.cmd)),i) ;
-		else              return indent(ensure_nl(_pretty_fstr(c.cmd,rd)       ),i) ;
-	}
-	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
-		OStringStream res     ;
-		::vmap_ss     entries ;
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Warray-bounds"                                 // gcc -O3 complains about array bounds with a completely incoherent message (looks like a bug)
-		/**/              entries.emplace_back( "autodep" , snake(sra.method)       ) ;
-		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
-		#pragma GCC diagnostic pop
-		/**/              res << _pretty_vmap(i,entries)                                 ;
-		if (+sra.env    ) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env ) ;
-		return ::move(res).str() ;
-	}
-	static ::string _pretty( size_t i , StartNoneAttrs const& sna ) {
-		OStringStream res     ;
-		::vmap_ss     entries ;
-		if ( sna.keep_tmp   ) entries.emplace_back( "keep_tmp"    , fmt_string  (sna.keep_tmp   )            ) ;
-		if (+sna.start_delay) entries.emplace_back( "start_delay" ,              sna.start_delay.short_str() ) ;
-		if (+sna.kill_sigs  ) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
-		/**/              res << _pretty_vmap(i,entries)                                     ;
-		if (+sna.env    ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env ) ;
-		return ::move(res).str() ;
-	}
-	static ::string _pretty( size_t i , EndCmdAttrs const& eca ) {
-		::vmap_ss entries ;
-		if  (eca.allow_stderr) entries.emplace_back( "allow_stderr" , fmt_string(eca.allow_stderr) ) ;
-		return _pretty_vmap(i,entries) ;
-	}
-	static ::string _pretty( size_t i , EndNoneAttrs const& ena ) {
-		::vmap_ss entries ;
-		if  (ena.max_stderr_len!=size_t(-1)) entries.emplace_back( "max_stderr_len" , ::to_string(ena.max_stderr_len) ) ;
-		return _pretty_vmap(i,entries) ;
-	}
 
-	template<class T,class... A> ::string RuleData::_pretty_str( size_t i , Dynamic<T> const& d , A&&... args ) const {
-		::string s = _pretty( i+1 , d.spec , ::forward<A>(args)... ) ;
-		if ( !s && !d.code_str ) return {} ;
-		//
+	template<class T> ::string RuleData::_pretty_dyn(Dynamic<T> const& d) const {
+		if (!d.code_str) return {} ;
 		::string res ;
-		/**/                                        res << indent(T::Msg+" :\n"s          ,i  )                                                         ;
-		if (+d.glbs_str)                            res << indent("<dynamic globals> :\n" ,i+1) << ensure_nl(indent(d.append_dbg_info(d.glbs_str),i+2)) ;
-		if (+d.ctx     )                            res << indent("<context> :"           ,i+1)                                                         ;
-		for( ::string const& k : _list_ctx(d.ctx) ) res << ' '<<k                                                                                       ;
-		if (+d.ctx     )                            res << '\n'                                                                                         ;
-		if (+s         )                            res << s                                                                                            ;
-		if (+d.code_str)                            res << indent("<dynamic code> :\n",i+1)     << ensure_nl(indent(d.code_str,i+2))                    ;
+		/**/                                        res << T::Msg <<" :\n"                                                                 ;
+		if (+d.glbs_str)                            res << "\t<dynamic globals> :\n" << ensure_nl(indent(d.append_dbg_info(d.glbs_str),2)) ;
+		if (+d.ctx     )                            res << "\t<context> :"                                                                 ;
+		for( ::string const& k : _list_ctx(d.ctx) ) res << ' '<<k                                                                          ;
+		if (+d.ctx     )                            res << '\n'                                                                            ;
+		if (+d.code_str)                            res << "\t<dynamic code> :\n" << ensure_nl(indent(d.code_str,2))                       ;
 		return res ;
 	}
 
 	::string RuleData::pretty_str() const {
-		OStringStream res     ;
-		::vmap_ss     entries ;
+		OStringStream res         ;
+		::string      title       ;
+		::vmap_ss     entries     ;
+		::string      job_name_   = job_name ;
+		::string      interpreter ;
+		::string      kill_sigs   ;
+		::string      cmd_        ;
 		//
-		res << name << " :" ;
-		switch (special) {
-			case Special::Anti       : res <<" AntiRule"   ; break ;
-			case Special::GenericSrc : res <<" SourceRule" ; break ;
-		DN}
-		res << '\n' ;
-		if (prio  ) entries.emplace_back( "prio"     , ::to_string(prio)              ) ;
-		/**/        entries.emplace_back( "job_name" , _pretty_job_name(self )        ) ;
-		if (+cwd_s) entries.emplace_back( "cwd"      , cwd_s.substr(0,cwd_s.size()-1) ) ;
-		if (!is_special()) {
-			if (force      ) entries.emplace_back( "force"            , fmt_string (force    ) ) ;
-			if (n_submits  ) entries.emplace_back( "max_submit_count" , ::to_string(n_submits) ) ;
+		{	title = name + " :" + (special==Special::Anti?" AntiRule":special==Special::GenericSrc?" SourceRule":"") ;
+			for( auto const& [k,me] : matches ) if (job_name_==me.pattern) { job_name_ = "<targets."+k+'>' ; break ; }
 		}
-		res << _pretty_vmap(1,entries) ;
-		if (+stems) res << indent("stems :\n",1) << _pretty_vmap   (     2,stems,true/*uniq*/) ;
-		/**/        res <<                          _pretty_matches(self,1,matches           ) ;
 		if (!is_special()) {
-			res << _pretty_str(1,deps_attrs        ,self) ;
-			res << _pretty_str(1,cache_none_attrs       ) ;
-			res << _pretty_str(1,submit_rsrcs_attrs     ) ;
-			res << _pretty_str(1,submit_none_attrs      ) ;
-			res << _pretty_str(1,cmd               ,self) ;
-			res << _pretty_str(1,start_cmd_attrs        ) ;
-			res << _pretty_str(1,start_rsrcs_attrs      ) ;
-			res << _pretty_str(1,start_none_attrs       ) ;
-			res << _pretty_str(1,end_cmd_attrs          ) ;
-			res << _pretty_str(1,end_none_attrs         ) ;
+			{	First first ;
+				for( ::string const& c : start_cmd_attrs.spec.interpreter ) interpreter<<first(""," ")<<c ;
+			}
+			{	First           first ;
+				::uset<uint8_t> seen  ;
+				for( uint8_t sig : start_none_attrs.spec.kill_sigs ) {
+					kill_sigs << first(""," , ") ;
+					if (!sig) continue ;
+					kill_sigs << int(sig) ;
+					if (seen.insert(sig).second) kill_sigs << '('<<::strsignal(sig)<<')' ;
+				}
+			}
+			if (+cmd.spec.cmd) cmd_ = is_python ? cmd.append_dbg_info(cmd.spec.cmd) : _pretty_fstr(cmd.spec.cmd) ;
 		}
 		//
+		// first simple static attrs
+		{	if ( prio                                              ) entries.emplace_back( "prio"             , ::to_string(prio                                           ) ) ;
+			/**/                                                     entries.emplace_back( "job_name"         ,             job_name_                                        ) ;
+			if (+cwd_s                                             ) entries.emplace_back( "cwd"              , no_slash   (cwd_s                                          ) ) ;
+		}
+		if (!is_special()) {
+			if ( force                                             ) entries.emplace_back( "force"            , fmt_string (force                                          ) ) ;
+			if ( n_submits                                         ) entries.emplace_back( "max_submit_count" , ::to_string(n_submits                                      ) ) ;
+			if (+cache_none_attrs  .spec.key                       ) entries.emplace_back( "key"              ,             cache_none_attrs  .spec.key                      ) ;
+			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"          , snake      (submit_rsrcs_attrs.spec.backend                ) ) ;
+			if ( submit_none_attrs .spec.n_retries                 ) entries.emplace_back( "n_retries"        , ::to_string(submit_none_attrs .spec.n_retries              ) ) ;
+			if (+interpreter                                       ) entries.emplace_back( "interpreter"      ,             interpreter                                      ) ;
+			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"       , fmt_string (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.chroot_dir_s    ) entries.emplace_back( "chroot_dir"       , no_slash   (start_cmd_attrs   .spec.job_space.chroot_dir_s ) ) ;
+			if ( start_cmd_attrs   .spec.ignore_stat               ) entries.emplace_back( "ignore_stat"      , fmt_string (start_cmd_attrs   .spec.ignore_stat            ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.root_view_s     ) entries.emplace_back( "root_view"        , no_slash   (start_cmd_attrs   .spec.job_space.root_view_s  ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"         , no_slash   (start_cmd_attrs   .spec.job_space.tmp_view_s   ) ) ;
+			/**/                                                     entries.emplace_back( "autodep"          , snake      (start_rsrcs_attrs .spec.method                 ) ) ;
+			if (+start_rsrcs_attrs .spec.timeout                   ) entries.emplace_back( "timeout"          ,             start_rsrcs_attrs .spec.timeout.short_str()      ) ;
+			if ( start_rsrcs_attrs .spec.use_script                ) entries.emplace_back( "use_script"       , fmt_string (start_rsrcs_attrs .spec.use_script             ) ) ;
+			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"         , fmt_string (start_none_attrs  .spec.keep_tmp               ) ) ;
+			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"      ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
+			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"        ,             kill_sigs                                        ) ;
+			if ( end_cmd_attrs     .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"     , fmt_string (end_cmd_attrs     .spec.allow_stderr           ) ) ;
+			if ( end_none_attrs    .spec.max_stderr_len!=size_t(-1)) entries.emplace_back( "max_stderr_len"   , ::to_string(end_none_attrs    .spec.max_stderr_len         ) ) ;
+		}
+		res << _pretty_vmap( title , entries ) ;
+		//
+		// then composite static attrs
+		{	res << indent( _pretty_vmap   ("stems :"  ,stems,true/*uniq*/                       ) , 1 ) ;
+			res << indent( _pretty_matches(                                                     ) , 1 ) ;
+		}
+		if (!is_special()) {
+			res << indent( _pretty_deps   (                                                     ) , 1 ) ;
+			res << indent( _pretty_vmap   ("resources :",submit_rsrcs_attrs.spec.rsrcs          ) , 1 ) ;
+			res << indent( _pretty_views  ("views :"    ,start_cmd_attrs   .spec.job_space.views) , 1 ) ;
+			res << indent( _pretty_env    (                                                     ) , 1 ) ;
+		}
+		// then dynamic part
+		if (!is_special()) {
+			res << indent( _pretty_dyn(deps_attrs        ) , 1 ) ;
+			res << indent( _pretty_dyn(cache_none_attrs  ) , 1 ) ;
+			res << indent( _pretty_dyn(submit_rsrcs_attrs) , 1 ) ;
+			res << indent( _pretty_dyn(submit_none_attrs ) , 1 ) ;
+			res << indent( _pretty_dyn(start_cmd_attrs   ) , 1 ) ;
+			res << indent( _pretty_dyn(start_rsrcs_attrs ) , 1 ) ;
+			res << indent( _pretty_dyn(start_none_attrs  ) , 1 ) ;
+			res << indent( _pretty_dyn(cmd               ) , 1 ) ;
+			res << indent( _pretty_dyn(end_cmd_attrs     ) , 1 ) ;
+			res << indent( _pretty_dyn(end_none_attrs    ) , 1 ) ;
+		}
+		// and finally the cmd
+		if (!is_special()) {
+			if (+cmd.spec.cmd) res << indent("cmd :\n",1) << indent(ensure_nl(cmd_),2) ;
+		}
 		return ::move(res).str() ;
 	}
 

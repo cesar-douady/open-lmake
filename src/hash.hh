@@ -82,7 +82,6 @@ namespace Hash {
 		constexpr bool              operator== (Crc const& other) const = default ;
 		constexpr ::strong_ordering operator<=>(Crc const& other) const = default ;
 		constexpr Val               operator+  (                ) const { return  _val                                           ; }
-		constexpr bool              operator!  (                ) const { return !+self                                          ; }
 		constexpr bool              valid      (                ) const { return _val>=+CrcSpecial::Valid                        ; }
 		constexpr bool              exists     (                ) const { return +self && self!=None                             ; }
 		/**/      void              clear      (                )       { self = {}                                              ; }

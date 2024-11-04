@@ -26,9 +26,8 @@ struct Fd {
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	constexpr operator int  () const { return fd     ; }
-	constexpr bool operator+() const { return fd>=0  ; }
-	constexpr bool operator!() const { return !+self ; }
+	constexpr operator int  () const { return fd    ; }
+	constexpr bool operator+() const { return fd>=0 ; }
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// services

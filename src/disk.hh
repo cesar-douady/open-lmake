@@ -159,8 +159,7 @@ namespace Disk {
 		// accesses
 		bool    operator==(FileInfo const&) const = default ;
 		//
-		bool    operator+() const { return tag()>=FileTag::Target ; }
-		bool    operator!() const { return !+self                 ; } // i.e. sz & date are not present
+		bool    operator+() const { return tag()>=FileTag::Target ; } // i.e. sz & date are present
 		FileTag tag      () const { return date.tag()             ; }
 		FileSig sig      () const ;
 		// data
@@ -185,7 +184,6 @@ namespace Disk {
 		}
 		//
 		bool    operator+() const { return tag()>=FileTag::Target                ; }
-		bool    operator!() const { return !+self                                ; }
 		FileTag tag      () const { return FileTag(_val&lsb_msk(NBits<FileTag>)) ; }
 		// data
 	private :
@@ -206,7 +204,6 @@ namespace Disk {
 		// accesses
 		bool operator==(SigDate const&) const = default ;
 		bool operator+ (              ) const { return +date || +sig ; }
-		bool operator! (              ) const { return !+self        ; }
 		// data
 		FileSig sig  ;
 		Pdate   date ;
@@ -339,8 +336,7 @@ namespace Disk {
 		FileMap(                        ) = default ;
 		FileMap( Fd , ::string const&   ) ;
 		FileMap(      ::string const& f ) : FileMap{Fd::Cwd,f} {}
-		bool operator+() const { return _ok    ; }
-		bool operator!() const { return !+self ; }
+		bool operator+() const { return _ok ; }
 		// accesses
 		#define C const
 		template<class T> T C& get(size_t ofs=0) C { throw_unless( ofs+sizeof(T)<=sz , "object @",ofs,"out of file of size ",sz ) ; return *reinterpret_cast<T C*>(data+ofs) ; }
@@ -382,8 +378,7 @@ namespace Disk {
 			// cxtors & casts
 			_Dvg( ::string const& domain , ::string const& chk ) { update(domain,chk) ; }
 			// accesses
-			bool operator +() const { return ok     ; }
-			bool operator !() const { return !+self ; }
+			bool operator +() const { return ok ; }
 			// services
 			void update( ::string const& domain , ::string const& chk ) ; // udpate after domain & chk have been lengthened or shortened, but not modified internally
 			// data

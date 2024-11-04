@@ -1108,7 +1108,7 @@ namespace Engine {
 				return res ;
 			}
 			default :
-				return snake(r->special)+" error\n"s ;
+				return r->special+" error\n"s ;
 		}
 	}
 

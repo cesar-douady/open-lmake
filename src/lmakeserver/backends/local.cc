@@ -216,7 +216,7 @@ namespace Backends::Local {
 		resize(idxs.size()) ;
 		for( auto const& [k,v] : m ) {
 			auto it = idxs.find(k) ;
-			if (it==idxs.end()) throw "no resource "+k+" for backend "+snake(MyTag) ;
+			throw_unless( it!=idxs.end() , "no resource ",k," for backend ",MyTag ) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
 			try        { self[it->second] = from_string_rsrc<Rsrc>(k,v) ;                          }
 			catch(...) { throw "cannot convert resource "+k+" from "+v+" to a "+typeid(Rsrc).name() ; }
@@ -227,7 +227,7 @@ namespace Backends::Local {
 		resize(idxs.size()) ;
 		for( auto&& [k,v] : ::move(m) ) {
 			auto it = idxs.find(k) ;
-			if (it==idxs.end()) throw "no resource "+k+" for backend "+snake(MyTag) ;
+			throw_unless( it!=idxs.end() , "no resource ",k," for backend ",MyTag ) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
 			RsrcAsk& entry = self[it->second] ;
 			try {

@@ -29,7 +29,6 @@ struct AccessDigest {                                                  // order 
 	friend ::ostream& operator<<( ::ostream& , AccessDigest const& ) ;
 	// accesses
 	bool operator+() const { return +accesses || write!=No ; }         // true if some access of some sort is done
-	bool operator!() const { return !+self                 ; }
 	// services
 	bool          operator==(AccessDigest const&      ) const = default ;
 	AccessDigest& operator|=(AccessDigest const&      ) ;

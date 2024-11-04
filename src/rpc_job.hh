@@ -308,7 +308,6 @@ struct JobReason {
 	JobReason( Tag t , NodeIdx n ) : tag{t} , node{n} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
 	// accesses
 	bool operator+() const { return +tag ; }
-	bool operator!() const { return !tag ; }
 	// services
 	JobReason operator|(JobReason jr) const {
 		if (JobReasonTagPrios[+tag]>=JobReasonTagPrios[+jr.tag]) return self ; // at equal level, prefer older reason
@@ -372,7 +371,6 @@ struct DepInfo {
 		DF}
 	}
 	bool     operator+() const {                                return kind!=Kind::Crc || +_crc             ; }
-	bool     operator!() const {                                return !+self                               ; }
 	Crc      crc      () const { SWEAR(kind==Kind::Crc ,kind) ; return _crc                                 ; }
 	FileSig  sig      () const { SWEAR(kind!=Kind::Crc ,kind) ; return kind==Kind::Sig ? _sig : _info.sig() ; }
 	FileInfo info     () const { SWEAR(kind==Kind::Info,kind) ; return _info                                ; }
@@ -554,7 +552,6 @@ struct MatchFlags {
 	MatchFlags( Dflags df , ExtraDflags edf={} ) : is_target{No } , _dflags{df} , _extra_dflags{edf} {}
 	// accesses
 	bool        operator+   () const {                              return is_target!=Maybe ; }
-	bool        operator!   () const {                              return !+self           ; }
 	Tflags      tflags      () const { SWEAR(is_target==Yes,self) ; return _tflags          ; }
 	Dflags      dflags      () const { SWEAR(is_target==No ,self) ; return _dflags          ; }
 	ExtraTflags extra_tflags() const { SWEAR(is_target==Yes,self) ; return _extra_tflags    ; }
@@ -574,8 +571,7 @@ struct JobSpace {
 	friend ::ostream& operator<<( ::ostream& , JobSpace const& ) ;
 	struct ViewDescr {
 		friend ::ostream& operator<<( ::ostream& , ViewDescr const& ) ;
-		bool operator+() const { return +phys  ; }
-		bool operator!() const { return !+self ; }
+		bool operator+() const { return +phys ; }
 		// data
 		// START_OF_VERSIONING
 		::vector_s phys    ;                  // (upper,lower...)
@@ -584,7 +580,6 @@ struct JobSpace {
 	} ;
 	// accesses
 	bool operator+() const { return +chroot_dir_s || +root_view_s || +tmp_view_s || +views ; }
-	bool operator!() const { return !+self                                                 ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,chroot_dir_s) ;
@@ -631,7 +626,6 @@ struct JobRpcReq {
 	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)} , msg{::move(m)} { SWEAR(p==P::End  ,p) ; }
 	// accesses
 	bool operator+() const { return +proc  ; }
-	bool operator!() const { return !+self ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) self = {} ;
@@ -891,7 +885,6 @@ struct JobInfoStart {
 	friend ::ostream& operator<<( ::ostream& , JobInfoStart const& ) ;
 	// accesses
 	bool operator+() const { return +pre_start ; }
-	bool operator!() const { return !+self     ; }
 	// data
 	// START_OF_VERSIONING
 	Hash::Crc   rule_cmd_crc = {}         ;
@@ -909,8 +902,7 @@ struct JobInfoStart {
 struct JobInfoEnd {
 	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
 	// accesses
-	bool operator+() const { return +end   ; }
-	bool operator!() const { return !+self ; }
+	bool operator+() const { return +end ; }
 	// data
 	// START_OF_VERSIONING
 	JobRpcReq end = {} ;

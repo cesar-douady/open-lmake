@@ -285,7 +285,7 @@ namespace Engine {
 		//
 		res << "clean :\n" ;
 		/**/                         res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		/**/                         res << "\tlink_support    : " << snake(lnk_support)                      <<'\n' ;
+		/**/                         res << "\tlink_support    : " << lnk_support                             <<'\n' ;
 		/**/                         res << "\tkey             : " << key                                     <<'\n' ;
 		if (+user_local_admin_dir_s) res << "\tlocal_admin_dir : " << no_slash(user_local_admin_dir_s)        <<'\n' ;
 		//
@@ -326,7 +326,7 @@ namespace Engine {
 		bool has_digits = false ; for( StdRsrc r : iota(All<StdRsrc>) ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
 		if (has_digits) {
 			res << "\tresource precisions :\n" ;
-			for( StdRsrc r : iota(All<StdRsrc>) ) if (rsrc_digits[+r]) res << "\t\t"<<snake(r)<<" : "<<(1<<rsrc_digits[+r])<<'\n' ;
+			for( StdRsrc r : iota(All<StdRsrc>) ) if (rsrc_digits[+r]) res << "\t\t"<<r<<" : "<<(1<<rsrc_digits[+r])<<'\n' ;
 		}
 		//
 		res << "\tbackends :\n" ;
@@ -336,10 +336,10 @@ namespace Engine {
 			if (!bbe                          ) continue ;                   // not implemented
 			if (!be.configured                ) continue ;                   // not configured
 			if (!Backends::Backend::s_ready(t)) {
-				res <<"\t\t"<< snake(t) <<" : "<< Backends::Backend::s_config_err(t) ;
+				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) ;
 				continue ;
 			}
-			res <<"\t\t"<< snake(t) <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
+			res <<"\t\t"<< t <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
 			::vmap_ss descr = bbe->descr()   ;
 			size_t    w     = 4/*len(addr)*/ ;
 			if ( !bbe->is_local() )           w = ::max(w,size_t(4)/*len(addr)*/) ;
@@ -357,7 +357,7 @@ namespace Engine {
 			if (trace.n_jobs  !=TraceConfig().n_jobs  ) res << "\t\tn_jobs   : " << trace.n_jobs << '\n' ;
 			if (trace.channels!=TraceConfig().channels) {
 				/**/                                                         res <<"\t\t"<< "channels :" ;
-				for( Channel c : iota(All<Channel>) ) if (trace.channels[c]) res <<' '   << snake(c)     ;
+				for( Channel c : iota(All<Channel>) ) if (trace.channels[c]) res <<' '   << c            ;
 				/**/                                                         res <<'\n'                  ;
 			}
 		}

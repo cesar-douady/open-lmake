@@ -150,27 +150,31 @@ class _PyRule(Rule) :
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file, so stat accesses must be deemed read accesses
 	side_deps   = { '__PY__'  : ( r'{*:(.+/)?}{*:\w+}.py'  , 'StatReadData' ) } # this is actually a noop as stat syscalls are deemed to access size, but this might change
 	environ_cmd = pdict( PYTHONPATH=':'.join((_lmake_dir+'/lib',root_dir)) )
-	py_rule     = None
-	def cmd() :                                                                 # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
-		import sys
-		if py_rule==None                                    : raise RuntimeError('cannot determine what kind of PyRule is used'                                          )
-		if py_rule=='Py2Rule' and sys.version_info.major!=2 : raise RuntimeError('cannot use %s with python%d.%d'%(py_rule,sys.version_info.major,sys.version_info.minor))
-		if py_rule=='Py3Rule' and sys.version_info.major!=3 : raise RuntimeError('cannot use %s with python%d.%d'%(py_rule,sys.version_info.major,sys.version_info.minor))
-		try : import lmake
-		except ImportError :
-			sys.path[0:0] = (_lmake_dir+'/lib',)
-		from lmake.import_machinery import fix_import
-		fix_import(py_rule)
-	cmd.shell = ''                                                              # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
 class Py2Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	side_targets = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }
-	py_rule      = 'Py2Rule'
 	python       = python2
+	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
+	def cmd() :
+		import sys
+		assert sys.version_info.major==2 , 'cannot use Py2Rule with python%d.%d'%(sys.version_info.major,sys.version_info.minor)
+		try                : import lmake
+		except ImportError : sys.path[0:0] = (_lmake_dir+'/lib',)
+		from lmake.import_machinery import fix_import
+		fix_import('Py2Rule')
+	cmd.shell = ''                                                              # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	side_targets = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental'  ) }
-	py_rule      = 'Py3Rule'
+	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
+	def cmd() :
+		import sys
+		assert sys.version_info.major==3 , 'cannot use Py3Rule with python%d.%d'%(sys.version_info.major,sys.version_info.minor)
+		try                : import lmake
+		except ImportError : sys.path[0:0] = (_lmake_dir+'/lib',)
+		from lmake.import_machinery import fix_import
+		fix_import('Py3Rule')
+	cmd.shell = ''                                                              # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
 
 PyRule = Py3Rule
 

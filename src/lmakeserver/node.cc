@@ -120,16 +120,23 @@ namespace Engine {
 	}
 
 	bool/*modified*/ NodeData::refresh_src_anti( bool report_no_file , ::vector<Req> const& reqs_ , ::string const& name_ ) { // reqss_ are for reporting only
-		bool        prev_ok   = crc.valid() && crc.exists() ;
-		bool        frozen    = idx().frozen()              ;
-		const char* msg       = frozen ? "frozen" : "src"   ;
-		NfsGuard    nfs_guard { g_config->reliable_dirs }   ;
-		FileInfo    fi        { nfs_guard.access(name_) }   ;
-		FileSig     sig       { fi  }                       ;
+		bool     prev_ok   = crc.valid() && crc.exists() ;
+		bool     frozen    = idx().frozen()              ;
+		::string msg       ;
+		NfsGuard nfs_guard { g_config->reliable_dirs }   ;
+		FileInfo fi        { nfs_guard.access(name_) }   ;
+		FileSig  sig       { fi  }                       ;
+		auto lazy_msg = [&]()->string const& {
+			if      (+msg        ) {                                                                                                }
+			else if (frozen      )                                                                         msg = "frozen"         ;
+			else if (+rule_tgts()) { ::vector<RuleTgt> v=rule_tgts().view() ; SWEAR(v.size()==1,idx(),v) ; msg = v[0]->rule->name ; }
+			else                                                                                           msg = "src"            ;
+			return msg ;
+		} ;
 		Trace trace("refresh_src_anti",STR(report_no_file),reqs_,sig) ;
 		if (frozen) for( Req r : reqs_  ) r->frozen_nodes.emplace(idx(),r->frozen_nodes.size()) ;
 		if (!fi) {
-			if (report_no_file) for( Req r : reqs_  ) r->audit_job( Color::Err , "missing" , msg , name_ ) ;
+			if (report_no_file) for( Req r : reqs_  ) r->audit_job( Color::Err , "missing" , lazy_msg() , name_ ) ;
 			if (crc==Crc::None) return false/*updated*/ ;
 			//vvvvvvvvvvvvvvvv
 			refresh(Crc::None) ;
@@ -137,15 +144,15 @@ namespace Engine {
 		} else {
 			if ( crc.valid() && sig==date().sig ) return false/*updated*/ ;
 			Crc crc_ = Crc::Reg ;
-			while ( crc_==Crc::Reg || crc_==Crc::Lnk ) crc_ = Crc(sig,name_) ;                                                // ensure file is stable when computing crc
+			while ( +crc_ && !crc_.valid() ) crc_ = Crc(sig,name_) ;                                                          // ensure file is stable when computing crc
 			Accesses mismatch = crc.diff_accesses(crc_) ;
 			//vvvvvvvvvvvvvvvvvvv
 			refresh( crc_ , sig ) ;
 			//^^^^^^^^^^^^^^^^^^^
 			const char* step = !prev_ok ? "new" : +mismatch ? "changed" : "steady" ;
 			Color       c    = frozen ? Color::Warning : Color::HiddenOk           ;
-			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_ddate              ) ri.overwritten |= mismatch ;             }
-			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(cri.goal|NodeGoal::Status)) r->audit_job( c , step , msg , name_ ) ; }
+			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_ddate              ) ri.overwritten |= mismatch ;                    }
+			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(cri.goal|NodeGoal::Status)) r->audit_job( c , step , lazy_msg() , name_ ) ; }
 			if (!mismatch) return false/*updated*/ ;
 		}
 		return true/*updated*/ ;

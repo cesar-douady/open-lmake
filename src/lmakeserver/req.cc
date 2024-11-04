@@ -385,7 +385,7 @@ namespace Engine {
 				case JobReport::Done    : c = Color::Ok      ; break ;
 			DN}
 			::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ""s ;
-			audit_info( c , fmt_string(::setw(wk),snake(jr)," time : ",::setw(Delay::ShortStrSz),t," (",::right,::setw(wn),stats.ended[+jr]," jobs)") ) ;
+			audit_info( c , fmt_string(::setw(wk),jr," time : ",::setw(Delay::ShortStrSz),t," (",::right,::setw(wn),stats.ended[+jr]," jobs)") ) ;
 		}
 		/**/                                   audit_info( Color::Note , fmt_string(::setw(wk),"elapsed"," time : " , (Pdate(New)-start_pdate)        .short_str()                  ) ) ;
 		if (+options.startup_dir_s           ) audit_info( Color::Note , fmt_string(::setw(wk),"startup"," dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;

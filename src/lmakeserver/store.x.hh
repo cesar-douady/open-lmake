@@ -250,7 +250,6 @@ namespace Engine::Persistent {
 		void pop() ;
 		// accesses
 		::vector<RuleTgt> view() const ;
-		size_t            size() const ;
 		// services
 		void shorten_by(RuleIdx by) ;
 	} ;

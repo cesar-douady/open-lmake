@@ -56,10 +56,6 @@ items :
 	- either known at that time
 	- or when it becomes a target if later
 * generate target/dep key everywhere it is pertinent
-* report Source/Anti rule name when appropriate
-* rework LMAKE/rules
-	- provide all static fields flat
-	- then add dynamic code at the end
 ? consider a package for option passing
 	? gnu argp
 	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf

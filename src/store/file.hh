@@ -45,8 +45,7 @@ namespace Store {
 			_fd.close() ;
 		}
 		// accesses
-		bool operator+() const { return size   ; }
-		bool operator!() const { return !+self ; }
+		bool operator+() const { return size ; }
 		// services
 		void expand(size_t sz) {
 			if (sz<=size) return ;                              // fast path

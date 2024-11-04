@@ -120,7 +120,6 @@ namespace Py {
 			if (rc<0) throw py_err_str_clear() ;
 			return bool(rc) ;
 		}
-		bool operator!() const { return !+self ; }
 		constexpr PyObject* to_py      ()       {           return                     this  ; }
 		constexpr PyObject* to_py      () const {           return const_cast<Object*>(this) ; }
 		PyObject*           to_py_boost()       { boost() ; return                     this  ; }
@@ -150,7 +149,6 @@ namespace Py {
 		Ptr& operator=(Ptr     && p) { unboost() ; ptr = p.ptr ; p.detach() ; return self ; }
 		// accesses
 		bool operator+() const { return bool(ptr) ; }
-		bool operator!() const { return !+self    ; }
 		template<class T> operator T      *()       { return _chk(static_cast<T      *>(ptr)) ; }
 		template<class T> operator T const*() const { return _chk(static_cast<T const*>(ptr)) ; }
 		//

@@ -238,7 +238,6 @@ namespace Engine {
 		void clear() ;
 		// accesses
 		bool   operator+() const {                    return +job                                               ; }
-		bool   operator!() const {                    return !+self                                             ; }
 		bool   is_open  () const {                    return idx_by_start!=Idx(-1)                               ; }
 		JobIdx n_running() const {                    return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
 		Req    req      () const { SWEAR(is_open()) ; return Req::s_reqs_by_start[idx_by_start]                  ; }

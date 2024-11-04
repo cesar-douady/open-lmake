@@ -74,7 +74,6 @@ namespace Store {
 		}
 		// accesses
 		bool          operator+(                 ) const                   {           return size()>1                                              ; }
-		bool          operator!(                 ) const                   {           return !+self                                                ; }
 		Sz            size     (                 ) const requires(HasFile) {           return _struct_hdr().sz                                      ; }
 		HdrNv  const& hdr      (                 ) const requires(HasHdr ) {           return _struct_hdr().hdr                                     ; }
 		HdrNv       & hdr      (                 )       requires(HasHdr ) {           return _struct_hdr().hdr                                     ; }

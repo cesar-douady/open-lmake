@@ -98,8 +98,7 @@ struct Child {
 		swear_prod(pid==0,"bad pid",pid) ;
 	}
 	// accesses
-	bool operator+() const { return pid    ; }
-	bool operator!() const { return !+self ; }
+	bool operator+() const { return pid ; }
 	// services
 	void spawn() ;
 	void mk_daemon() {

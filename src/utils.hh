@@ -43,6 +43,8 @@ using std::getline  ; // special case getline which also has a C version that hi
 
 #define self (*this)
 
+template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
+
 //
 // meta programming
 //
@@ -116,20 +118,15 @@ template<class K,class V         > using vmap     = ::vector<pair  <K     ,V>   
 template<        class V         > using vmap_s   = ::vmap         <string,V       > ;
 /**/                               using vmap_ss  = ::vmap_s       <       string  > ;
 
-template<class T,size_t N> constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
-template<class T,size_t N> constexpr bool operator!(::array <T,N> const& a) { return !+a                  ; }
-template<class T,class  U> constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
-template<class T,class  U> constexpr bool operator!(::pair  <T,U> const& p) { return !+p                  ; }
-template<class K,class  V> constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
-template<class K,class  V> constexpr bool operator!(::map   <K,V> const& m) { return !+m                  ; }
-template<class K,class  V> constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
-template<class K,class  V> constexpr bool operator!(::umap  <K,V> const& m) { return !+m                  ; }
-template<class K         > constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
-template<class K         > constexpr bool operator!(::set   <K  > const& s) { return !+s                  ; }
-template<class K         > constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
-template<class K         > constexpr bool operator!(::uset  <K  > const& s) { return !+s                  ; }
-template<class T         > constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
-template<class T         > constexpr bool operator!(::vector<T  > const& v) { return !+v                  ; }
+namespace std {                                                                                                   // must be defined in std or operator! does not recognize it
+	template<class T,size_t N> constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
+	template<class T,class  U> constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
+	template<class K,class  V> constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
+	template<class K,class  V> constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
+	template<class K         > constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
+	template<class K         > constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
+	template<class T         > constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
+}
 
 #define VT(T) typename T::value_type
 
@@ -384,14 +381,14 @@ template<Iotable I1,Iotable I2> constexpr Iota<true /*with_start*/,I2> iota( I1 
 
 static constexpr size_t Npos = ::string::npos ;
 
-inline bool operator+(::string      const& s) { return !s.empty() ; }
-inline bool operator!(::string      const& s) { return !+s        ; }
-inline bool operator+(::string_view const& s) { return !s.empty() ; }
-inline bool operator!(::string_view const& s) { return !+s        ; }
+namespace std {                                                           // must be defined in std or operator! does not recognize it
+	inline bool operator+(::string      const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
+	inline bool operator+(::string_view const& s) { return !s.empty() ; } // .
+}
 
 namespace std {
 	inline                                                ::string operator+( ::string          && a , ::string_view const& b ) { return ::move     (a)+::string   (b) ; } // XXX : suppress with c++26
-	inline                                                ::string operator+( ::string      const& a , ::string_view const& b ) { return             a +::string   (b) ; } // XXX : suppress with c++26
+	inline                                                ::string operator+( ::string      const& a , ::string_view const& b ) { return             a +::string   (b) ; } // .
 	inline                                                ::string operator+( ::string_view const& a , ::string      const& b ) { return ::string   (a)+            b  ; } // .
 	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( ::string          && a , I                    b ) { return ::move     (a)+::to_string(b) ; }
 	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( ::string      const& a , I                    b ) { return             a +::to_string(b) ; }
@@ -597,8 +594,7 @@ template<class T> struct vector_view {
 		return res ;
 	}
 	// accesses
-	bool operator+() const { return _sz    ; }
-	bool operator!() const { return !+self ; }
+	bool operator+() const { return _sz ; }
 	//
 	T      * data      (        ) const { return _data        ; }
 	T      * begin     (        ) const { return _data        ; }
@@ -759,17 +755,24 @@ template<StdEnum E> static constexpr ::array<::string_view,N<E>                >
 
 template<StdEnum E> static constexpr size_t NBits<E> = n_bits(N<E>) ;
 
-template<StdEnum E> ::ostream& operator<<( ::ostream& os , E e ) {
-	if (e<All<E>) return os << camel(e)        ;
-	else          return os << "N+"<<(+e-N<E>) ;
-}
-
 template<StdEnum E> ::string_view camel     (E e) { return          EnumCamels<E>[+e]        ; }
 template<StdEnum E> ::string_view snake     (E e) { return          EnumSnakes<E>[+e]        ; }
 template<StdEnum E> ::string      camel_str (E e) { return ::string(EnumCamels<E>[+e])       ; }
 template<StdEnum E> ::string      snake_str (E e) { return ::string(EnumSnakes<E>[+e])       ; }
 template<StdEnum E> const char*   camel_cstr(E e) { return          EnumCamels<E>[+e].data() ; } // string_view's in this table have a terminating null
 template<StdEnum E> const char*   snake_cstr(E e) { return          EnumSnakes<E>[+e].data() ; } // .
+
+namespace std {
+	template<StdEnum E> ::string   operator+ ( ::string     && s  , E               e ) {                  return ::move(s)+snake(e) ; }
+	template<StdEnum E> ::string   operator+ ( ::string const& s  , E               e ) {                  return        s +snake(e) ; }
+	template<StdEnum E> ::string   operator+ ( E               e  , ::string const& s ) {                  return snake (e)+      s  ; }
+	template<StdEnum E> ::string & operator+=( ::string      & s  , E               e ) { s  += snake(e) ; return s                  ; }
+	//
+	template<StdEnum E> ::ostream& operator<<( ::ostream& os , E e ) {
+		if (e<All<E>) return os << snake(e)        ;
+		else          return os << "N+"<<(+e-N<E>) ;
+	}
+}
 
 template<StdEnum E> ::umap_s<E> _mk_enum_tab() {
 	::umap_s<E> res ;
@@ -815,7 +818,6 @@ template<StdEnum E> using EnumUint = underlying_type_t<E>         ;
 template<StdEnum E> using EnumInt  = ::make_signed_t<EnumUint<E>> ;
 
 template<StdEnum E> constexpr EnumUint<E> operator+(E e) { return EnumUint<E>(e) ; }
-template<StdEnum E> constexpr bool        operator!(E e) { return !+e            ; }
 //
 template<StdEnum E> constexpr E          operator+ (E  e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
 template<StdEnum E> constexpr E&         operator+=(E& e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
@@ -854,9 +856,8 @@ template<StdEnum E> struct BitMap {
 	constexpr BitMap(E e1,E e2,E e3,E e4,E e5,E e6,E e7,E e8           ) : _val{Val((1<<+e1)|(1<<+e2)|(1<<+e3)|(1<<+e4)|(1<<+e5)|(1<<+e6)|(1<<+e7)|(1<<+e8)                   )} {}
 	constexpr BitMap(E e1,E e2,E e3,E e4,E e5,E e6,E e7,E e8,E e9      ) : _val{Val((1<<+e1)|(1<<+e2)|(1<<+e3)|(1<<+e4)|(1<<+e5)|(1<<+e6)|(1<<+e7)|(1<<+e8)|(1<<+e9)          )} {}
 	constexpr BitMap(E e1,E e2,E e3,E e4,E e5,E e6,E e7,E e8,E e9,E e10) : _val{Val((1<<+e1)|(1<<+e2)|(1<<+e3)|(1<<+e4)|(1<<+e5)|(1<<+e6)|(1<<+e7)|(1<<+e8)|(1<<+e9)|(1<<+e10))} {}
-	//
-	constexpr Val  operator+() const { return  _val ; }
-	constexpr bool operator!() const { return !_val ; }
+	// accesses
+	constexpr Val operator+() const { return _val ; }
 	// services
 	constexpr bool    operator==( BitMap const&     ) const = default ;
 	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )    ;                 }
@@ -908,18 +909,17 @@ ENUM(Bool3
 static constexpr Bool3 No    = Bool3::No    ;
 static constexpr Bool3 Maybe = Bool3::Maybe ;
 static constexpr Bool3 Yes   = Bool3::Yes   ;
-inline Bool3  operator~  ( Bool3  b             ) {                return Bool3(+Yes-+b)                                                      ; }
-inline Bool3  operator!  ( Bool3  b             ) {                return ~b                                                                  ; }
-inline Bool3  operator|  ( Bool3  b1 , bool  b2 ) {                return  b2 ? Yes : b1                                                      ; }
-inline Bool3  operator&  ( Bool3  b1 , bool  b2 ) {                return !b2 ? No  : b1                                                      ; }
-inline Bool3  operator|  ( bool   b1 , Bool3 b2 ) {                return  b1 ? Yes : b2                                                      ; }
-inline Bool3  operator&  ( bool   b1 , Bool3 b2 ) {                return !b1 ? No  : b2                                                      ; }
-inline Bool3& operator|= ( Bool3& b1 , bool  b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
-inline Bool3& operator&= ( Bool3& b1 , bool  b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
-inline Bool3  common     ( Bool3  b1 , Bool3 b2 ) {                return b1==Yes ? (b2==Yes?Yes:Maybe) : b1==No ? ( b2==No?No:Maybe) : Maybe ; }
-inline Bool3  common     ( Bool3  b1 , bool  b2 ) {                return b2      ? (b1==Yes?Yes:Maybe) :          ( b1==No?No:Maybe)         ; }
-inline Bool3  common     ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
-inline Bool3  common     ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
+inline Bool3  operator~ ( Bool3  b             ) {                return Bool3(+Yes-+b)                                                      ; }
+inline Bool3  operator| ( Bool3  b1 , bool  b2 ) {                return  b2 ? Yes : b1                                                      ; }
+inline Bool3  operator& ( Bool3  b1 , bool  b2 ) {                return !b2 ? No  : b1                                                      ; }
+inline Bool3  operator| ( bool   b1 , Bool3 b2 ) {                return  b1 ? Yes : b2                                                      ; }
+inline Bool3  operator& ( bool   b1 , Bool3 b2 ) {                return !b1 ? No  : b2                                                      ; }
+inline Bool3& operator|=( Bool3& b1 , bool  b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
+inline Bool3& operator&=( Bool3& b1 , bool  b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
+inline Bool3  common    ( Bool3  b1 , Bool3 b2 ) {                return b1==Yes ? (b2==Yes?Yes:Maybe) : b1==No ? ( b2==No?No:Maybe) : Maybe ; }
+inline Bool3  common    ( Bool3  b1 , bool  b2 ) {                return b2      ? (b1==Yes?Yes:Maybe) :          ( b1==No?No:Maybe)         ; }
+inline Bool3  common    ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
+inline Bool3  common    ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
 
 //
 // mutexes

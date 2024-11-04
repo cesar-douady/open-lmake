@@ -32,8 +32,7 @@ public :
 	constexpr Idxed(     ) = default ;
 	constexpr Idxed(Idx i) : _idx{i} { _s_chk(i) ; } // ensure no index overflow
 	//
-	constexpr Idx  operator+() const { return _idx&lsb_msk(NValBits) ; }
-	constexpr bool operator!() const { return !+self                 ; }
+	constexpr Idx operator+() const { return _idx&lsb_msk(NValBits) ; }
 	//
 	void clear() { self = Idxed{} ; }
 	// accesses
@@ -92,7 +91,6 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	}
 	//
 	SIdx operator+() const { return _val<<NGuardBits>>NGuardBits ; }
-	bool operator!() const { return !+self                       ; }
 	//
 	bool              operator== (Idxed2 other) const { return +self== +other ; }
 	::strong_ordering operator<=>(Idxed2 other) const { return +self<=>+other ; }
@@ -176,12 +174,13 @@ namespace Vector {
 	template<class Idx_,class Item_,class Mrkr_,uint8_t NGuardBits> struct CrunchBase
 	:	               Idxed2< Item_ , Idxed<Idx_,NGuardBits> >
 	{	using Base   = Idxed2< Item_ , Idxed<Idx_,NGuardBits> > ;
+		using Item   =         Item_                            ;
 		using Vector =                 Idxed<Idx_,NGuardBits>   ;
 		using Idx    = Idx_                        ;
-		using Item   = Item_                       ;
 		using Mrkr   = Mrkr_                       ;
 		using Sz     = Idx                         ;
 		using F      = File<Crunch<Idx,Item,Mrkr>> ;
+		//
 		// cxtors & casts
 		using Base::Base ;
 		//
@@ -205,8 +204,8 @@ namespace Vector {
 		Item const* items() const       { if (_single()) return &static_cast<Item const&>(self) ; else return ::constify(F::file).items(self) ; }
 		Item      * items()             { if (_single()) return &static_cast<Item      &>(self) ; else return            F::file .items(self) ; }
 	private :
-		bool _multi () const { return !this->template is_a<Item  >() ; } // 0 is both a Vector and an Item, so this way 0 is !_multi ()
-		bool _single() const { return !this->template is_a<Vector>() ; } // 0 is both a Vector and an Item, so this way 0 is !_single()
+		bool _multi () const { return !self.template is_a<Item  >() ; } // 0 is both a Vector and an Item, so this way 0 is !_multi ()
+		bool _single() const { return !self.template is_a<Vector>() ; } // 0 is both a Vector and an Item, so this way 0 is !_single()
 		// services
 	public :
 		void shorten_by(Sz by) {

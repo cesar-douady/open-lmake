@@ -179,8 +179,8 @@ namespace Backends {
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_attrs,rsrcs) ;
 		//
 		if ( tag!=Tag::Local && _localize(tag,r) ) {
-			SWEAR(+tag<N<Tag>) ;                                                                       // prevent compiler array bound warning in next statement
-			if (!s_tab[+tag]) throw "open-lmake was compiled without "s+snake(tag)+" support" ;
+			SWEAR(+tag<N<Tag>) ;                                                              // prevent compiler array bound warning in next statement
+			throw_unless( s_tab[+tag] , "open-lmake was compiled without ",tag," support" ) ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
 			tag   = Tag::Local                                                            ;
 			trace("local",rsrcs) ;
@@ -333,8 +333,9 @@ namespace Backends {
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
 			[[fallthrough]] ;
 			case 3 :
-				reply.method  = start_rsrcs_attrs.method  ;
-				reply.timeout = start_rsrcs_attrs.timeout ;
+				reply.method     = start_rsrcs_attrs.method     ;
+				reply.timeout    = start_rsrcs_attrs.timeout    ;
+				reply.use_script = start_rsrcs_attrs.use_script ;
 				//
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) { env_keys.insert(kv.first) ; reply.env.push_back(::move(kv)) ; }
 			[[fallthrough]] ;
@@ -343,7 +344,6 @@ namespace Backends {
 				reply.autodep_env.auto_mkdir  =        start_cmd_attrs.auto_mkdir   ;
 				reply.autodep_env.ignore_stat =        start_cmd_attrs.ignore_stat  ;
 				reply.job_space               = ::move(start_cmd_attrs.job_space  ) ;
-				reply.use_script              =        start_cmd_attrs.use_script   ;
 				//
 				for( ::pair_ss& kv : start_cmd_attrs.env )
 					if (env_keys.insert(kv.first).second) {
@@ -704,7 +704,7 @@ namespace Backends {
 						Ptr<Dict> glbs = py_run(cfg.ifce) ;
 						ifce = (*glbs)["interface"].as_a<Str>() ;
 					} catch (::string const& e) {
-						throw "bad interface for "s+snake(t)+'\n'+indent(e,1) ;
+						throw "bad interface for "s+t+'\n'+indent(e,1) ;
 					}
 				} else {
 					ifce = host() ;

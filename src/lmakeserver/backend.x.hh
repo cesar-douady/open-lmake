@@ -89,7 +89,6 @@ namespace Backends {
 				friend ::ostream& operator<<( ::ostream& , Conn const& ) ;
 				// accesses
 				bool operator+() const { return seq_id ; }
-				bool operator!() const { return !+self ; }
 				// data
 				in_addr_t host     = NoSockAddr ;
 				in_port_t port     = 0          ;
@@ -99,8 +98,7 @@ namespace Backends {
 			// cxtors & casts
 			StartEntry() = default ;
 			// accesses
-			bool operator+() const { return +conn  ; }
-			bool operator!() const { return !+self ; }
+			bool operator+() const { return +conn ; }
 			// services
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data

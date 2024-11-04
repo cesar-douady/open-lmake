@@ -28,7 +28,6 @@ template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process 
 		Lock<ThreadMutex> lock{_mutex} ;
 		return !Q::empty() ;
 	}
-	bool operator!() const { return !+self ;  }
 	//
 	void lock        (MutexLvl lvl) const { _mutex.lock        (lvl) ; }
 	void unlock      (MutexLvl lvl) const { _mutex.unlock      (lvl) ; }
