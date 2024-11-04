@@ -127,10 +127,13 @@ namespace Engine {
 		FileInfo fi        { nfs_guard.access(name_) }   ;
 		FileSig  sig       { fi  }                       ;
 		auto lazy_msg = [&]()->string const& {
-			if      (+msg        ) {                                                                                                }
-			else if (frozen      )                                                                         msg = "frozen"         ;
-			else if (+rule_tgts()) { ::vector<RuleTgt> v=rule_tgts().view() ; SWEAR(v.size()==1,idx(),v) ; msg = v[0]->rule->name ; }
-			else                                                                                           msg = "src"            ;
+			if      (+msg                        ) {}
+			else if (frozen                      ) msg = "frozen" ;
+			else if (buildable!=Buildable::DynSrc) msg = "src"    ;
+			else {
+				::vector<RuleTgt> v = rule_tgts().view() ; SWEAR(v.size()==1,idx(),v,status()) ;
+				msg = v[0]->rule->name ;
+			}
 			return msg ;
 		} ;
 		Trace trace("refresh_src_anti",STR(report_no_file),reqs_,sig) ;

@@ -37,6 +37,10 @@ version = ('$VERSION',0) # substituted at build time
 def check_version(major,minor=0) :
 	if major!=version[0] or minor>version[1] : raise RuntimeError('required version '+str((major,minor))+' is incompatible with native version '+str(version))
 
+def maybe_local(file) :
+	'fast check for local files, avoiding full absolute path generation'
+	return not file or file[0]!='/' or file.startswith(root_dir)
+
 manifest = []
 _rules   = []
 
