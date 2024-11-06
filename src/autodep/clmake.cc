@@ -85,7 +85,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	//
 	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
 	try                       { dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ; }
-	catch (::string const& e) { py_err_set(Exception::ValueErr,e) ;                                                      }
+	catch (::string const& e) { return py_err_set(Exception::ValueErr,e) ;                                               }
 	//
 	if (!verbose) return None.to_py_boost() ;
 	//
