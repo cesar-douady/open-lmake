@@ -62,7 +62,7 @@ struct Gather {                                                                 
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
 		::pair<PD,Accesses> first_read() const {
-			::pair<PD,Access> res = {PD::Future,{}} ;                                                  // normally, initial Access is not used, but in case, choose the most ubiquitous access
+			::pair<PD,Access> res = {PD::Future,{}} ;                                                           // normally, initial Access is not used, but in case, choose the most ubiquitous access
 			for( Access a : iota(All<Access>) ) {
 				if (!digest.accesses[a]) continue ;
 				if (read[+a]>res.first ) continue ;
@@ -84,6 +84,7 @@ struct Gather {                                                                 
 		PD           seen            = PD::Future                             ;                                 // first date at which file has been seen existing
 		DI           dep_info        ;                                                                          // state when first read
 		AccessDigest digest          ;
+		bool         digest_seen     = false                                  ;                                 // if true <=> not ignored when seen existing
 	} ;
 	// statics
 private :

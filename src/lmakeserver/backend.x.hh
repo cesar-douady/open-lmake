@@ -56,14 +56,14 @@ namespace Backends {
 			// all delays and dates are rounded to ms to avoid rounding errors
 			friend ::ostream& operator<<( ::ostream& , Workload const& ) ;
 			using Val    = uint64_t                  ;
-			using Tokens = Uint<sizeof(Tokens1)*8+1> ;               // +1 to allow adding 1 without overflow
+			using Tokens = Uint<sizeof(Tokens1)*8+1> ;                             // +1 to allow adding 1 without overflow
 		private :
 			//services
 		public :
-			void submit( Req r                   , Job j ) ;         // anticipate job execution
-			void kill  ( Req r                   , Job j ) ;         // finally decide not to execute it
-			Val  start ( ::vector<ReqIdx> const& , Job   ) ;         // start an anticipated job
-			Val  end   ( ::vector<ReqIdx> const& , Job   ) ;         // end a started job
+			void submit( Req r                   , Job j ) ;                       // anticipate job execution
+			void kill  ( Req r                   , Job j ) ;                       // finally decide not to execute it
+			Val  start ( ::vector<ReqIdx> const& , Job   ) ;                       // start an anticipated job
+			Val  end   ( ::vector<ReqIdx> const& , Job   ) ;                       // end a started job
 			//
 			void  open_req     ( Req r                                       )       { _submitted_cost[+r] = 0 ; }
 			void  close_req    ( Req                                         )       {                           }
@@ -72,15 +72,15 @@ namespace Backends {
 		private :
 			void _refresh() ;
 			// data
-			Val                      _ref_workload        = 0 ;      // total workload at ref_date
-			Pdate                    _ref_date            ;          // later than any job start date and end date, always rounded to ms
-			::umap<Job,Pdate>        _eta_tab             ;          // jobs whose eta is post ref_date
-			::set<::pair<Pdate,Job>> _eta_set             ;          // same info, but ordered by dates
-			Val                      _reasonable_workload = 0 ;      // sum of (eta-_ref_date) in _eta_tab
-			JobIdx                   _running_tokens      = 0 ;      // sum of tokens for all running jobs
-			JobIdx                   _reasonable_tokens   = 0 ;      // sum ok tokens in _eta_tab
+			Val                      _ref_workload        = 0 ;                    // total workload at ref_date
+			Pdate                    _ref_date            ;                        // later than any job start date and end date, always rounded to ms
+			::umap<Job,Pdate>        _eta_tab             ;                        // jobs whose eta is post ref_date
+			::set<::pair<Pdate,Job>> _eta_set             ;                        // same info, but ordered by dates
+			Val                      _reasonable_workload = 0 ;                    // sum of (eta-_ref_date) in _eta_tab
+			JobIdx                   _running_tokens      = 0 ;                    // sum of tokens for all running jobs
+			JobIdx                   _reasonable_tokens   = 0 ;                    // sum ok tokens in _eta_tab
 			//
-			::array<::atomic<Delay::Tick>,NReqs+1> _submitted_cost ; // use plain integer so as to use atomic increment/decrement instructions because schedule/cancel are called w/o lock
+			::array<::atomic<Delay::Tick>,size_t(1)<<NReqIdxBits> _submitted_cost ; // use plain integer so as to use atomic inc/dec instructions because schedule/cancel are called w/o lock
 		} ;
 
 		struct StartEntry {

@@ -104,8 +104,8 @@ namespace Engine::Persistent {
 		JobNodeData(      ) = default ;
 		JobNodeData(Name n) : _full_name{n} { fence() ; } // ensure when you reach item by name, its name is the expected one
 		// accesses
-		::string full_name   (FileNameIdx sfx_sz=0) const { return _full_name.str   (sfx_sz) ; }
-		size_t   full_name_sz(FileNameIdx sfx_sz=0) const { return _full_name.str_sz(sfx_sz) ; }
+		::string full_name   (Disk::FileNameIdx sfx_sz=0) const { return _full_name.str   (sfx_sz) ; }
+		size_t   full_name_sz(Disk::FileNameIdx sfx_sz=0) const { return _full_name.str_sz(sfx_sz) ; }
 	protected :
 		Name _dir_name() const { return _full_name.dir() ; }
 		// data
@@ -342,23 +342,23 @@ namespace Engine::Persistent {
 		Targets no_triggers ; // these nodes do not trigger rebuild
 	} ;
 
-	//                                          autolock  header              index             key       data          misc
+	//                                          autolock  header              index             n_index_bits       key       data          misc
 	// jobs
-	using JobFile      = Store::AllocFile       < false , JobHdr            , Job             ,           JobData                        > ;
-	using DepsFile     = Store::VectorFile      < false , void              , Deps            ,           GenericDep  , NodeIdx , 4      > ; // Deps are compressed when Crc==None
-	using TargetsFile  = Store::VectorFile      < false , void              , Targets         ,           Target                         > ;
+	using JobFile      = Store::AllocFile       < false , JobHdr            , Job             , NJobIdxBits      ,           JobData                        > ;
+	using DepsFile     = Store::VectorFile      < false , void              , Deps            , NDepsIdxBits     ,           GenericDep  , NodeIdx , 4      > ; // Deps are compressed when Crc==None
+	using TargetsFile  = Store::VectorFile      < false , void              , Targets         , NTargetsIdxBits  ,           Target                         > ;
 	// nodes
-	using NodeFile     = Store::AllocFile       < false , NodeHdr           , Node            ,           NodeData                       > ;
-	using JobTgtsFile  = Store::VectorFile      < false , void              , JobTgts::Vector ,           JobTgt      , RuleIdx          > ;
+	using NodeFile     = Store::AllocFile       < false , NodeHdr           , Node            , NNodeIdxBits     ,           NodeData                       > ;
+	using JobTgtsFile  = Store::VectorFile      < false , void              , JobTgts::Vector , NJobTgtsIdxBits  ,           JobTgt      , RuleIdx          > ;
 	// rules
-	using RuleFile     = Store::StructFile      < false , MatchGen          , RuleIdx         ,           RuleStr                        > ;
-	using RuleCrcFile  = Store::AllocFile       < false , void              , RuleCrc         ,           RuleCrcData                    > ;
-	using RuleStrFile  = Store::VectorFile      < false , size_t/*name_sz*/ , RuleStr         ,           char        , uint32_t         > ;
-	using RuleTgtsFile = Store::SinglePrefixFile< false , void              , RuleTgts        , RuleTgt , void        , true /*Reverse*/ > ;
-	using SfxFile      = Store::SinglePrefixFile< false , void              , PsfxIdx         , char    , PsfxIdx     , true /*Reverse*/ > ; // map sfxes to root of pfxes, no lock : static
-	using PfxFile      = Store::MultiPrefixFile < false , void              , PsfxIdx         , char    , RuleTgts    , false/*Reverse*/ > ;
+	using RuleFile     = Store::StructFile      < false , MatchGen          , RuleIdx         , NRuleIdxBits     ,           RuleStr                        > ;
+	using RuleCrcFile  = Store::AllocFile       < false , void              , RuleCrc         , NRuleCrcIdxBits  ,           RuleCrcData                    > ;
+	using RuleStrFile  = Store::VectorFile      < false , size_t/*name_sz*/ , RuleStr         , NRuleStrIdxBits  ,           char        , uint32_t         > ;
+	using RuleTgtsFile = Store::SinglePrefixFile< false , void              , RuleTgts        , NRuleTgtsIdxBits , RuleTgt , void        , true /*Reverse*/ > ;
+	using SfxFile      = Store::SinglePrefixFile< false , void              , PsfxIdx         , NPsfxIdxBits     , char    , PsfxIdx     , true /*Reverse*/ > ; // map sfxes to root of pfxes
+	using PfxFile      = Store::MultiPrefixFile < false , void              , PsfxIdx         , NPsfxIdxBits     , char    , RuleTgts    , false/*Reverse*/ > ;
 	// commons
-	using NameFile     = Store::SinglePrefixFile< true  , void              , Name            , char    , JobNode                        > ; // for Job's & Node's
+	using NameFile     = Store::SinglePrefixFile< true  , void              , Name            , NNameIdxBits     , char    , JobNode                        > ; // for Job's & Node's
 
 	static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
 

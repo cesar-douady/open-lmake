@@ -19,7 +19,7 @@ The precise way the job is launched is controled by the configuration B(lmake.co
 This module must contain a (gen_script) function taking a description of the job provided as keyword arguments and returning the script to execute.
 Several such scripts exist in I(lib/lmake_debug) in the installation directory and can serv as examples to start with.
 .LP
-When B(ldebug) is run, the debug script is generated in a file within the I(LMAKE) directory and, unless the B(-n) option is given, it is executed.
+When B(ldebug) is run, the debug script is generated in a file within the I(LMAKE) directory and, unless I(--no-exec), it is executed.
 
 ClientGeneralities()
 

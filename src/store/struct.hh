@@ -9,12 +9,34 @@
 
 namespace Store {
 
-	//
-	// StructFile
-	//
+	namespace Struct {
 
-	template<bool AutoLock,class Hdr_,IsIdx Idx_,class Data_,bool Multi=false> struct StructFile : File<false/*AutoLock*/> { // we manage the mutex
-		using Base   = File<false/*AutoLock*/> ;
+		template<class Hdr_,class Idx,class Data> struct Hdr {
+			using HdrNv  = NoVoid<Hdr_> ;
+			using Sz     = IntIdx<Idx>  ;
+			using DataNv = NoVoid<Data> ;
+			// cxtors & casts
+			template<class... A> Hdr(A&&... args) : hdr{::forward<A>(args)...} {}
+			// data
+			// we need to force alignment for subsequent data
+			// ideally we would like to put the alignas constraints on the type, but this does not seem to be allowed (and does not work)
+			// also, putting a constraint less than the natural constraint is undefined behavior
+			// so the idea is to put the alignment constraint on the first item (minimal room lost) and to also put the natural alignment at as constraint
+			[[no_unique_address]] alignas(DataNv) alignas(HdrNv) HdrNv hdr ;     // no need to allocate space if header is empty
+			[[                 ]]                                Sz    sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0
+		} ;
+
+		template<class Hdr_,class Idx,class Data> static constexpr size_t _offset(size_t idx) {
+			using DataNv =NoVoid<Data> ;
+			constexpr size_t Offset0 = sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(DataNv) ; // unsigned types handle negative values modulo 2^n, which is ok
+			return Offset0 + sizeof(DataNv)*idx ;
+		}
+
+	}
+
+	template<bool AutoLock,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Data_,bool Multi=false> struct StructFile
+	:	               File<false/*AutoLock*/,Struct::_offset<Hdr_,Idx_,Data_>(size_t(1)<<NIdxBits)>              // we manage the mutex
+	{	using Base   = File<false/*AutoLock*/,Struct::_offset<Hdr_,Idx_,Data_>(size_t(1)<<NIdxBits)> ;
 		using Hdr    = Hdr_                    ;
 		using Idx    = Idx_                    ;
 		using Data   = Data_                   ;
@@ -29,31 +51,23 @@ namespace Store {
 		static constexpr bool HasDataSz = ::Store::HasDataSz<Data> ;
 		static constexpr bool HasFile   = HasHdr || HasData        ;
 		//
-		static_assert( !Multi || HasData ) ;
+		static_assert( !Multi || HasData         ) ;
+		static_assert( HasData == bool(NIdxBits) ) ;
 		//
-		struct StructHdr {
-			// cxtors & casts
-			template<class... A> StructHdr(A&&... args) : hdr(::forward<A>(args)...) {}
-			// data
-			// we need to force alignment for subsequent data
-			// ideally we would like to put the alignas constraints on the type, but this does not seem to be allowed (and does not work)
-			// also, putting a constraint less than the natural constraint is undefined behavior
-			// so the idea is to put the alignment constraint on the first item (minimal room lost) and to also put the natural alignment at as constraint
-			[[no_unique_address]] alignas(DataNv) alignas(HdrNv) HdrNv hdr ;                                                 // no need to allocate space if header is empty
-			[[                 ]]                                Sz    sz  = 1 ;                                             // logical size, i.e. first non-allocated idx ==> account for unused idx 0
-
-		} ;
+		using StructHdr = Struct::Hdr<Hdr,Idx,Data> ;
 		void expand(size_t) = delete ;
 		//
 		using Base::base     ;
+		using Base::name     ;
 		using Base::writable ;
+		using Base::_mutex   ;
 		// statics
 	private :
-		static constexpr size_t _Offset0 = sizeof(StructHdr)-sizeof(DataNv) ;                                               // unsigned types handle negative values modulo 2^n, which is ok
-		static constexpr size_t _s_offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return _Offset0 + sizeof(DataNv)*idx ; }
+		static constexpr size_t _Offset0 = Struct::_offset<Hdr,Idx,Data>(0) ;
+		static constexpr size_t _s_offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return Struct::_offset<Hdr,Idx,Data>(idx) ; }
 		// cxtors & casts
 		template<class... A> void _alloc_hdr(A&&... hdr_args) requires(HasFile) {
-			Base::expand(_s_offset(1)) ;                                                                                    // 1 is the first used idx
+			Base::expand(_s_offset(1)) ;                                                                          // 1 is the first used idx
 			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
 		}
 	public :
@@ -67,7 +81,7 @@ namespace Store {
 		template<class... A> void init( NewType                                      , A&&... hdr_args ) requires( HasFile) { init( "" , true , ::forward<A>(hdr_args)... ) ; }
 		/**/                 void init( ::string const& /*name*/ , bool /*writable*/                   ) requires(!HasFile) {}
 		template<class... A> void init( ::string const&   name   , bool   writable   , A&&... hdr_args ) requires( HasFile) {
-			Base::init( name , _s_offset(HasData?lsb_msk(NBits<Idx>):1) , writable ) ;
+			Base::init( name , writable ) ;
 			if (Base::operator+()) return                                   ;
 			throw_unless( writable , "cannot init read-only file ",name ) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
@@ -120,10 +134,10 @@ namespace Store {
 			{	ULock lock{_mutex} ;
 				old_sz = size()      ;
 				new_sz = old_sz + sz ;
-				swear( new_sz>=old_sz && new_sz<=lsb_msk(NBits<Idx>) ,"index overflow on ",name) ;                          // ensure no arithmetic overflow before checking capacity
+				swear( new_sz>=old_sz && new_sz<(size_t(1)<<NIdxBits) ,"index overflow on ",name) ;               // ensure no arithmetic overflow before checking capacity
 				Base::expand(_s_offset(new_sz)) ;
-				fence() ;                                                                                                   // update state when it is legal to do so
-				_size() = new_sz ;                                                                                          // once allocation is done, no reason to maintain lock
+				fence() ;                                                                                         // update state when it is legal to do so
+				_size() = new_sz ;                                                                                // once allocation is done, no reason to maintain lock
 			}
 			Idx res{old_sz} ;
 			new(&at(res)) Data(::forward<A>(args)...) ;

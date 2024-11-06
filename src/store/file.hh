@@ -23,13 +23,13 @@ namespace Store {
 	template<bool AutoLock> using UniqueLock = ::conditional_t<AutoLock,::Lock      <SharedMutex<MutexLvl::File>>,NoLock<SharedMutex<MutexLvl::File>>> ;
 	template<bool AutoLock> using SharedLock = ::conditional_t<AutoLock,::SharedLock<SharedMutex<MutexLvl::File>>,NoLock<SharedMutex<MutexLvl::File>>> ;
 
-	template<bool AutoLock> struct File {
+	template<bool AutoLock,size_t Capacity> struct File {
 		using ULock = UniqueLock<AutoLock> ;
 		using SLock = SharedLock<AutoLock> ;
 		// cxtors & casts
 		File () = default ;
-		File ( NewType               , size_t capacity_                  ) { init(New  ,capacity_          ) ; }
-		File ( ::string const& name_ , size_t capacity_ , bool writable_ ) { init(name_,capacity_,writable_) ; }
+		File ( NewType                                ) { init(New            ) ; }
+		File ( ::string const& name_ , bool writable_ ) { init(name_,writable_) ; }
 		~File() {
 			if      (keep_open) _fd.detach() ;
 			else if (base     ) close()      ;
@@ -37,8 +37,8 @@ namespace Store {
 		//
 		File& operator=(File&& other) ;
 		//
-		void init( ::string const& name_ , size_t capacity_ , bool writable_ ) ;
-		void init( NewType               , size_t capacity_                  ) { init("",capacity_,true/*writable_*/) ; }
+		void init( ::string const& name_ , bool writable_ ) ;
+		void init( NewType                                ) { init("",true/*writable_*/) ; }
 		void close() {
 			ULock lock{_mutex} ;
 			_dealloc() ;
@@ -72,13 +72,13 @@ namespace Store {
 	private :
 		void _dealloc() {
 			SWEAR(base) ;
-			int rc = ::munmap( base , capacity ) ;
+			int rc = ::munmap( base , Capacity ) ;
 			if (rc!=0) FAIL_PROD(rc,::strerror(errno)) ;
 			base = nullptr ;
 		}
 		void _alloc() {
 			SWEAR(!base) ;
-			base = static_cast<char*>( ::mmap( nullptr , capacity , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1  , 0 ) ) ;
+			base = static_cast<char*>( ::mmap( nullptr , Capacity , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1  , 0 ) ) ;
 			if (base==MAP_FAILED) FAIL_PROD(::strerror(errno)) ;
 		}
 		void _map        (size_t old_size) ;
@@ -88,7 +88,6 @@ namespace Store {
 		::string         name      ;
 		char*            base      = nullptr ;                   // address of mapped file
 		::atomic<size_t> size      = 0       ;                   // underlying file size (fake if no file)
-		size_t           capacity  = 0       ;                   // max size that can ever be allocated
 		bool             writable  = false   ;
 		bool             keep_open = false   ;
 	protected :
@@ -97,23 +96,21 @@ namespace Store {
 		AutoCloseFd _fd ;
 	} ;
 
-	template<bool AutoLock> File<AutoLock>& File<AutoLock>::operator=(File&& other) {
+	template<bool AutoLock,size_t Capacity> File<AutoLock,Capacity>& File<AutoLock,Capacity>::operator=(File&& other) {
 		close() ;
 		name      = ::move(other.name     ) ;
 		base      =        other.base       ; other.base      = nullptr ;
 		size      =        other.size       ; other.size      = 0       ;
-		capacity  =        other.capacity   ; other.capacity  = 0       ;
 		writable  =        other.writable   ; other.writable  = false   ;
 		keep_open =        other.keep_open  ; other.keep_open = false   ;
 		_fd       = ::move(other._fd      ) ;
 		return self ;
 	}
 
-	template<bool AutoLock> void File<AutoLock>::init( ::string const& name_ , size_t capacity_ , bool writable_ ) {
+	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::init( ::string const& name_ , bool writable_ ) {
 		name      = name_      ;
 		writable  = writable_  ;
 		if (!g_page) g_page = ::sysconf(_SC_PAGESIZE) ;
-		capacity = round_up( capacity_ , g_page ) ;
 		//
 		ULock lock{_mutex} ;
 		if (!name) {
@@ -134,7 +131,7 @@ namespace Store {
 		_map(0) ;
 	}
 
-	template<bool AutoLock> void File<AutoLock>::_map(size_t old_size) {
+	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::_map(size_t old_size) {
 		SWEAR(size>=old_size) ;
 		if (size==old_size) return ;
 		//
@@ -148,9 +145,13 @@ namespace Store {
 		if (actual!=base+old_size) FAIL_PROD(hex,size_t(base),size_t(actual),dec,old_size,size,::strerror(errno)) ;
 	}
 
-	template<bool AutoLock> void File<AutoLock>::_resize_file(size_t sz) {
+	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::_resize_file(size_t sz) {
 		swear_prod( writable , name , "is read-only" ) ;
-		SWEAR     ( sz<=capacity , sz , capacity     ) ;
+		if (sz>Capacity) {
+			::cerr<<"file "<<name<<" capacity has been under-dimensioned at "<<Capacity<<" bytes"             <<endl ;
+			::cerr<<"consider to recompile open-lmake with increased corresponding parameter in src/config.hh"<<endl ;
+			exit(Rc::Param) ;
+		}
 		sz = round_up(sz,g_page) ;
 		if (+_fd) {
 			//         vvvvvvvvvvvvvvvvvvvvv

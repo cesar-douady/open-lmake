@@ -85,7 +85,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	//
 	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
 	try                       { dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ; }
-	catch (::string const& e) { py_err_set(Exception::ValueErr,e) ;                                                      }
+	catch (::string const& e) { return py_err_set(Exception::ValueErr,e) ;                                               }
 	//
 	if (!verbose) return None.to_py_boost() ;
 	//
@@ -169,8 +169,8 @@ static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		::string val     = _mk_str  ( _gather_arg( py_args , 2 , py_kwds , "val"     , n ) ,     "val"     ) ;
 		uint8_t  min_len = _mk_uint8( _gather_arg( py_args , 3 , py_kwds , "min_len" , n ) , 1 , "min_len" ) ;
 		//
-		throw_unless( !n                      , "unexpected keyword arg"                                                                 ) ;
-		throw_unless( min_len<=MaxCodecBits/4 , "min_len (",min_len,") cannot be larger than max allowed code bits (",MaxCodecBits/4,')' ) ; // codes are output in hex, 4 bits/digit
+		throw_unless( !n                     , "unexpected keyword arg"                                                     ) ;
+		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") cannot be larger than crc length (",sizeof(Crc)*2,')' ) ; // codes are output in hex, 4 bits/digit
 		//
 		::pair_s<bool/*ok*/> reply = JobSupport::encode( _g_record , ::move(file) , ::move(val) , ::move(ctx) , min_len ) ;
 		throw_unless( reply.second , reply.first ) ;

@@ -9,7 +9,7 @@ Header(lshow,show various information about jobs in the OpenLmake build system)
 
 .SH DESCRIPTION
 .LP
-Unless the B(-J) option is given, arguments are files and information are provided about the official jobs generating these as targets, if any.
+Unless the I(--job) option is given, arguments are files and information are provided about the official jobs generating these as targets, if any.
 Else, information about the job that actually produced the job (a.k.a the polluting job) are provided.
 
 ClientGeneralities(color)
@@ -20,15 +20,18 @@ SubCommands
 
 Item(B(-b),B(--bom))
 Output the list of all source files necessary to build the arguments.
-If the B(-v) option is provided, some intermediate files are shown in gray, enough to justify why all listed source files.
+If I(--verbose) option is provided, some intermediate files are shown in gray, enough to justify why all listed source files.
 
 Item(B(-c),B(--cmd))
 Output the B(cmd) used to execute the job. If dynamic, it shows it as specialized for this job.
 
 Item(B(-d),B(--deps))
 Output the list of all the deps of the jobs.
-Unless the verbose flag is specified, only existing deps are shown.
-Each line is composed of 6 fields  separated by spaces :
+Unless I(--verbose), only existing deps are shown.
+.IP
+If I(--quiet), the raw list of deps is output, with no header nor decoration.
+.IP
+Unless I(--quiet), each line is composed of 5 fields separated by spaces :
 	.RS
 	Bullet Flags : each flag is either a letter if set, or a B(-) if not :
 		.RS
@@ -56,7 +59,7 @@ Each line is composed of 6 fields  separated by spaces :
 	Bullet Ascii art showing parallel deps (deps coming from a single call to B(ldepend) (1) or B(lmake.depend) are considered parallel).
 	Bullet Name of the dep.
 	.RE
-.LP
+.IP
 If a dep does not exist, it is deemed secondary information and is shown in gray.
 
 Item(B(-D),B(--inv-deps))
@@ -70,19 +73,24 @@ Show various self-reading info about jobs, such as reason to be launched, why it
 
 Item(B(-r),B(--running))
 Show the list of jobs currently running to build the arguments.
-If verbose (option B(-v)), some waiting jobs are shown in gray, enough to justify why all running jobs are running.
+If I(--verbose), some waiting jobs are shown in gray, enough to justify why all running jobs are running.
 Queued jobs are shown in blue, actively running jobs are uncolored.
 
 Item(B(-e),B(--stderr))
 Show the stderr of the jobs.
+Unless I(--quiet), output is preceded by a description of the job which it relates to.
 
 Item(B(-o),B(--stdout))
 Show the stdout of the jobs.
+Unless I(--quiet), output is preceded by a description of the job which it relates to.
 
 Item(B(-t),B(--targets))
 Show the targets of the jobs.
-Unless the verbose flag is specified, only existing targets are shown.
-Each line is composed of 3 fields  separated by spaces :
+Unless I(--verbose), only existing targets are shown.
+.IP
+If I(--quiet), the raw list of targets is output, with no header nor decoration.
+.IP
+Unless I(--quiet), each line is composed of 3 fields  separated by spaces :
 	.RS
 	Bullet Info : composed of 1 characters : B(W) if target was written, B(U) if target was unlinked, else B(-).
 	Bullet Flags : each flag is either a letter if set, or a B(-) if not :
@@ -104,15 +112,16 @@ Each line is composed of 3 fields  separated by spaces :
 		.RE
 	Bullet The name of the target.
 	.RE
-.LP
+.IP
 If a target does not exist, it is deemed secondary information and is shown in gray.
 
 Item(B(-T),B(--inv-targets))
 Show jobs that produce targets either officially (listed in B(targets) attribute) or not (listed in B(side_targets) attribute or not)
+Unless I(--quiet), output is preceded by a description of the job which it relates to.
 
 SpecificOptions
 Item(B(-p),B(--porcelaine))
-In porcelaine mode, information is provided as an easy-to-parse python B(dict).
+In porcelaine mode, information shown with I(--info) is provided as an easy-to-parse python B(dict).
 Also,reported files are relative to the root of the repository, not the current workind directory.
 
 .SH ENVIRONMENT

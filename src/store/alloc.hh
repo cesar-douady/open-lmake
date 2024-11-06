@@ -67,11 +67,11 @@ namespace Store {
 		} ;
 
 	}
-	template<bool AutoLock,class Hdr_,class Idx_,class Data_,uint8_t Mantissa=0> struct AllocFile
-	:	                 StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ >   // if !Mantissa, Multi is useless ...
-	{	using Base     = StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ > ; // ... but easier to code
-		using BaseHdr  =                                 Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> ;
-		using BaseData =                                                                                          Alloc::Data<Idx_,Data_> ;
+	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0> struct AllocFile
+	:	                 StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true/*Multi*/ >   // if !Mantissa, Multi is ...
+	{	using Base     = StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true/*Multi*/ > ; // ... useless but easier ...
+		using BaseHdr  =                                 Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> ;                                                               // ... to code
+		using BaseData =                                                                                                     Alloc::Data<Idx_,Data_> ;
 		//
 		using Hdr    = Hdr_                 ;
 		using Idx    = Idx_                 ;
@@ -243,7 +243,7 @@ namespace Store {
 			free = idx ;
 		}
 	} ;
-	template<bool AutoLock,class Hdr,class Idx,class Data,uint8_t Mantissa> void AllocFile<AutoLock,Hdr,Idx,Data,Mantissa>::chk() const requires(!is_void_v<Data>) {
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa> void AllocFile<AutoLock,Hdr,Idx,NIdxBits,Data,Mantissa>::chk() const requires(!is_void_v<Data>) {
 		Base::chk() ;
 		::vector<bool> free_map ;
 		free_map.resize(size()) ;

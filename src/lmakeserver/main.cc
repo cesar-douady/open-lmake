@@ -187,7 +187,16 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					switch (rrr.proc) {
 						case ReqProc::Make : {
 							SWEAR(g_writable) ;
-							Req r{New} ;
+							Req r ;
+							try {
+								r = {New} ;
+							} catch (::string const& e) {
+								audit( ofd , rrr.options , Color::None , e , true/*as_is*/ ) ;
+								OMsgBuf().send( ofd , ReqRpcReply(ReqRpcReplyProc::Status,false/*ok*/) ) ;
+								if (ofd!=fd) ::close   (ofd        ) ;
+								else         ::shutdown(ofd,SHUT_WR) ;
+								break ;
+							}
 							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

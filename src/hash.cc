@@ -54,22 +54,23 @@ namespace Hash {
 
 	Crc::operator ::string() const {
 		switch (CrcSpecial(self)) {
-			case CrcSpecial::Unknown : return "unknown"   ;
-			case CrcSpecial::Lnk     : return "unknown-L" ;
-			case CrcSpecial::Reg     : return "unknown-R" ;
-			case CrcSpecial::None    : return "none"      ;
-			case CrcSpecial::Empty   : return "empty-R"   ;
-			case CrcSpecial::Plain   : {
-				::string res ; res.reserve(sizeof(_val)*2+2) ;
-				for( size_t i : iota(sizeof(_val)) ) {
-					uint8_t b = _val>>(i*8) ;
-					{ uint8_t d = b>>4  ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
-					{ uint8_t d = b&0xf ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
-				}
-				res += is_lnk()?"-L":"-R" ;
-				return res ;
-			} break ;
+			case CrcSpecial::Unknown : return "unknown"                  ;
+			case CrcSpecial::Lnk     : return "unknown-L"                ;
+			case CrcSpecial::Reg     : return "unknown-R"                ;
+			case CrcSpecial::None    : return "none"                     ;
+			case CrcSpecial::Empty   : return "empty-R"                  ;
+			case CrcSpecial::Plain   : return hex()+(is_lnk()?"-L":"-R") ;
 		DF}
+	}
+
+	::string Crc::hex() const {
+		::string res ; res.reserve(sizeof(_val)*2+2) ; // +2 to allow suffix addition
+		for( size_t i : iota(sizeof(_val)) ) {
+			uint8_t b = _val>>(i*8) ;
+			{ uint8_t d = b>>4  ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
+			{ uint8_t d = b&0xf ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
+		}
+		return res ;
 	}
 
 	Accesses Crc::diff_accesses( Crc other ) const {

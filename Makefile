@@ -606,20 +606,21 @@ lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/clmake-py
 # Unit tests
 #
 
-UT_BASE := $(filter unit_tests/base/%,$(SRCS))
+UT_BASE := $(filter     unit_tests/base/%,$(SRCS))
+UT_SRCS := $(filter-out unit_tests/base/%,$(SRCS))
 
 UNIT_TESTS : \
-	$(patsubst %.py,%.dir/tok,        $(filter unit_tests/%.py,      $(SRCS))) \
-	$(patsubst %.script,%.dir/tok,    $(filter unit_tests/%.script  ,$(SRCS))) \
-	$(patsubst %.dir/run.py,%.dir/tok,$(filter examples/%.dir/run.py,$(SRCS)))
+	$(patsubst %.py,%.dir/tok,        $(filter unit_tests/%.py,      $(UT_SRCS))) \
+	$(patsubst %.script,%.dir/tok,    $(filter unit_tests/%.script  ,$(UT_SRCS))) \
+	$(patsubst %.dir/run.py,%.dir/tok,$(filter examples/%.dir/run.py,$(UT_SRCS)))
 
 TEST_ENV = \
-	export PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH             ; \
-	export PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib:$$PYTHONPATH ; \
-	export CXX=$(CXX)                                               ; \
-	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                            ; \
-	export HAS_32=$(HAS_32)                                         ; \
-	export PYTHON2=$(PYTHON2)                                       ; \
+	export PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH                                         ; \
+	export PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib:$(ROOT_DIR)/unit_tests/base:$$PYTHONPATH ; \
+	export CXX=$(CXX)                                                                           ; \
+	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                        ; \
+	export HAS_32=$(HAS_32)                                                                     ; \
+	export PYTHON2=$(PYTHON2)                                                                   ; \
 	exec </dev/null >$@.out 2>$@.err
 
 # keep $(@D) to ease debugging, ignore git rc as old versions work but generate errors

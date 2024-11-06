@@ -17,8 +17,6 @@ template<class T> concept HasSerdeser = !HasSerdes<T> && requires( T x , ::istre
 template<class T> concept Serializable = HasSerdes<T> || HasSerdeser<T> ;
 
 // serdes method should be const when serializing but is not because C++ does not let constness be template arg dependent
-inline                                                             void serdes( ::ostream&                                                    ) {                                       }
-inline                                                             void serdes( ::istream&                                                    ) {                                       }
 template<HasSerdes     T                                         > void serdes( ::ostream& os , T  const& x                                   ) { const_cast<T&>(x).serdes(os) ;        }
 template<HasSerdes     T                                         > void serdes( ::istream& is , T       & x                                   ) {                x .serdes(is) ;        }
 template<HasSerdeser   T                                         > void serdes( ::ostream& os , T  const& x                                   ) { Serdeser<T>::s_serdes(os,x)  ;        }

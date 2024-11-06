@@ -462,10 +462,10 @@ namespace Store {
 	// MultiPrefixFile
 	//
 
-	template<bool AutoLock,class Hdr_,class Idx_,class Char_=char,class Data_=void,bool Reverse_=false> struct MultiPrefixFile
-	:	              AllocFile< false/*AutoLock*/ , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz >
-	{	using Base  = AllocFile< false/*AutoLock*/ , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz > ;
-		using Item  =                                                                                     Prefix::Item<Idx_,Char_,Data_,Reverse_>                                           ;
+	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct MultiPrefixFile
+	:	              AllocFile< false/*AutoLock*/ , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz >
+	{	using Base  = AllocFile< false/*AutoLock*/ , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz > ;
+		using Item  =                                                                                                Prefix::Item<Idx_,Char_,Data_,Reverse_>                                           ;
 		//
 		using Hdr   = Hdr_                 ;
 		using Idx   = Idx_                 ;
@@ -1117,8 +1117,8 @@ namespace Store {
 
 	} ;
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		void MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_append_lst( ::vector<Idx>& idx_lst/*out*/ , Idx idx ) const {
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		void MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_append_lst( ::vector<Idx>& idx_lst/*out*/ , Idx idx ) const {
 			Item const& item = _at(idx) ;
 			if (item.used) idx_lst.push_back(idx) ;
 			switch (item.kind()) {
@@ -1133,9 +1133,9 @@ namespace Store {
 		}
 
 	// compute both name & suffix in a single pass
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
-		template<bool S> ::pair<Prefix::VecStr<S,Char>,Prefix::VecStr<S,Char>> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_key_psfx( Idx idx , size_t psfx_sz ) const {
+		template<bool S> ::pair<Prefix::VecStr<S,Char>,Prefix::VecStr<S,Char>> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_psfx( Idx idx , size_t psfx_sz ) const {
 			VecStr<S> name ;
 			VecStr<S> psfx ;
 			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> name_path ; // when !Reverse, we must walk from root to idx but we gather pathes from idx back to root
@@ -1170,17 +1170,17 @@ namespace Store {
 			return { name , psfx } ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
-		size_t MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_key_sz( Idx idx , size_t psfx_sz ) const {
+		size_t MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_sz( Idx idx , size_t psfx_sz ) const {
 			size_t res = 0 ;
 			for(; +idx ; idx=_at(idx).prev ) res += _at(idx).chunk_sz ;
 			return res-psfx_sz ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
-		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_key( Idx idx , size_t psfx_sz ) const {
+		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key( Idx idx , size_t psfx_sz ) const {
 			VecStr<S> res ;
 			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ; // when !Reverse, we must walk from root to idx but we gather path from idx back to root
 			for(; +idx ; idx = _at(idx).prev ) {
@@ -1203,9 +1203,9 @@ namespace Store {
 			return res ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to get
-		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
+		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
 			VecStr<S>                                res  ;
 			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ; // when !Reverse, we must walk from root to idx but we gather path from idx back to root
 			for(; +idx ; idx = _at(idx).prev ) {
@@ -1226,8 +1226,8 @@ namespace Store {
 			return res ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		::vector<Idx> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::path(Idx idx) const {
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		::vector<Idx> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::path(Idx idx) const {
 			::vector<Idx> res ;
 			SLock         lock{_mutex} ;
 			while (idx) {
@@ -1238,15 +1238,15 @@ namespace Store {
 			return res ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::search( Idx root , VecView const& name_ , VecView const& psfx ) const { // psfx is prefix (Reverse) / suffix (!Reverse)
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::search( Idx root , VecView const& name_ , VecView const& psfx ) const { // psfx is prefix (Reverse) / suffix (!Reverse)
 			SLock     lock{_mutex}                       ;
 			DvgDigest dvg { root , self , name_ , psfx } ;
 			return dvg.is_match() ? dvg.idx : Idx() ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::insert( Idx root , VecView const& name_ , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert( Idx root , VecView const& name_ , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
 			ULock     lock{_mutex}                       ;
 			DvgDigest dvg { root , self , name_ , psfx } ;
 			if (dvg.is_match()) return dvg.idx ;
@@ -1255,8 +1255,8 @@ namespace Store {
 			return res ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::erase( Idx root , VecView const& name_ , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::erase( Idx root , VecView const& name_ , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
 			ULock     lock{_mutex}                       ;
 			DvgDigest dvg { root , self , name_ , psfx } ;
 			if (!dvg.is_match()) return Idx() ;
@@ -1264,21 +1264,21 @@ namespace Store {
 			return dvg.idx ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		::pair<Idx,size_t/*size*/> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::longest( Idx root , VecView const& name_ , VecView const& psfx  ) const {
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		::pair<Idx,size_t/*size*/> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::longest( Idx root , VecView const& name_ , VecView const& psfx  ) const {
 			SLock     lock{_mutex}                       ;
 			DvgDigest dvg { root , self , name_ , psfx } ;
 			return {dvg.used_idx,dvg.used_pos} ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		void MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::pop(Idx idx) {
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		void MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::pop(Idx idx) {
 			ULock lock{_mutex} ;
 			_pop(idx) ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::insert_shorten_by( Idx idx , size_t by ) {
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_shorten_by( Idx idx , size_t by ) {
 			ULock lock{_mutex} ;
 			for(; +idx ; idx = _at(idx).prev ) {
 				Item const& item = _at(idx) ;
@@ -1294,8 +1294,8 @@ namespace Store {
 			return Idx() ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::insert_dir( Idx idx , Char sep ) {
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_dir( Idx idx , Char sep ) {
 			ULock lock{_mutex}           ;
 			int   pos = -1/*not_found*/ ;              // ChunkIdx is unsigned and we need a signed type to simplify arithmetic
 			for(; +idx ; idx = _at(idx).prev ) {
@@ -1312,81 +1312,85 @@ namespace Store {
 			return Idx() ;                             // sep not found
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
-		typename MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::IdxSz MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_chk( Idx idx , bool recurse_backward , bool recurse_forward ) const {
-			throw_unless(+idx      ,"idx ",idx," is null"                     ) ;
-			throw_unless(idx<size(),"idx ",idx," is out of range (",size(),')') ;
-			Item const& item = _at(idx)  ;
-			IdxSz       res  = item.used ;
-			// root may not be minimized as it must stay prepared to hold its info w/o moving
-			if (+item.prev) throw_unless(item.sz()==item.min_sz()  ,"item has size",item.sz(),"not minimum (",item.min_sz()  ,')') ;
-			else            throw_unless(item.sz()==Item::MinUsedSz,"root has size",item.sz(),"!="           ,Item::MinUsedSz    ) ;
-			if (!item.prev) throw_unless(!item.chunk_sz            ,"root must not have an empty chunk"                          ) ;
-			for( bool is_eq : Nxt(item.kind()) ) {
-				Idx         nxt      = item.nxt_if(is_eq) ;
-				Item const& nxt_item = _at(nxt) ;
-				throw_unless(+nxt                      ,"item(",idx,").nxt(",is_eq,") is null"                          ) ;
-				throw_unless(nxt<size()                ,"item(",idx,").nxt(",is_eq,") is out of range (",size(),')'     ) ;
-				throw_unless(nxt_item.prev==idx        ,"item(",idx,").nxt(",is_eq,").prev is "     ,nxt_item.prev      ) ;
-				throw_unless(nxt_item.prev_is_eq==is_eq,"item(",idx,").nxt(",is_eq,").prev_is_eq is",nxt_item.prev_is_eq) ;
-				if (item.kind()==Kind::Split) {
-					CharUint nxt_first ;
-					if ( nxt_item.kind()==Kind::Split && !nxt_item.chunk_sz ) {
-						throw_unless(item.cmp_bit<nxt_item.cmp_bit,"item(",idx,").cmp_bit (",item.cmp_bit,") is not lower than .nxt(",is_eq,").cmp_bit (",nxt_item.cmp_bit,')') ;
-						nxt_first = nxt_item.cmp_val() ;
-					} else {
-						nxt_first = Prefix::rep(nxt_item.chunk(0)) ;
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		typename MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::IdxSz
+			MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_chk( Idx idx , bool recurse_backward , bool recurse_forward ) const {
+				throw_unless(+idx      ,"idx ",idx," is null"                     ) ;
+				throw_unless(idx<size(),"idx ",idx," is out of range (",size(),')') ;
+				Item const& item = _at(idx)  ;
+				IdxSz       res  = item.used ;
+				// root may not be minimized as it must stay prepared to hold its info w/o moving
+				if (+item.prev) throw_unless(item.sz()==item.min_sz()  ,"item has size",item.sz(),"not minimum (",item.min_sz()  ,')') ;
+				else            throw_unless(item.sz()==Item::MinUsedSz,"root has size",item.sz(),"!="           ,Item::MinUsedSz    ) ;
+				if (!item.prev) throw_unless(!item.chunk_sz            ,"root must not have an empty chunk"                          ) ;
+				for( bool is_eq : Nxt(item.kind()) ) {
+					Idx         nxt      = item.nxt_if(is_eq) ;
+					Item const& nxt_item = _at(nxt) ;
+					throw_unless(+nxt                      ,"item(",idx,").nxt(",is_eq,") is null"                          ) ;
+					throw_unless(nxt<size()                ,"item(",idx,").nxt(",is_eq,") is out of range (",size(),')'     ) ;
+					throw_unless(nxt_item.prev==idx        ,"item(",idx,").nxt(",is_eq,").prev is "     ,nxt_item.prev      ) ;
+					throw_unless(nxt_item.prev_is_eq==is_eq,"item(",idx,").nxt(",is_eq,").prev_is_eq is",nxt_item.prev_is_eq) ;
+					if (item.kind()==Kind::Split) {
+						CharUint nxt_first ;
+						if ( nxt_item.kind()==Kind::Split && !nxt_item.chunk_sz ) {
+							throw_unless(item.cmp_bit<nxt_item.cmp_bit,"item(",idx,").cmp_bit (",item.cmp_bit,") is not lower than .nxt(",is_eq,").cmp_bit (",nxt_item.cmp_bit,')') ;
+							nxt_first = nxt_item.cmp_val() ;
+						} else {
+							nxt_first = Prefix::rep(nxt_item.chunk(0)) ;
+						}
+						if (is_eq) throw_unless(Item::s_cmp_bit(item.cmp_val(),nxt_first)> item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(true).chunk(0) (",nxt_first,')') ;
+						else       throw_unless(Item::s_cmp_bit(item.cmp_val(),nxt_first)==item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(true).chunk(0) (",nxt_first,')') ;
 					}
-					if (is_eq) throw_unless(Item::s_cmp_bit(item.cmp_val(),nxt_first)> item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(true).chunk(0) (",nxt_first,')') ;
-					else       throw_unless(Item::s_cmp_bit(item.cmp_val(),nxt_first)==item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(true).chunk(0) (",nxt_first,')') ;
+					if (recurse_forward) res += _chk(nxt,false/*recurse_backward*/,true/*recurse_forward*/) ;
 				}
-				if (recurse_forward) res += _chk(nxt,false/*recurse_backward*/,true/*recurse_forward*/) ;
-			}
-			if (+item.prev) {
-				Idx         prev      = item.prev ;
-				Item const& prev_item = _at(prev) ;
-				throw_unless(prev_item.nxt_if(item.prev_is_eq)==idx,"item(",idx,").prev.nxt(",item.prev_is_eq,") is ",prev_item.nxt_if(item.prev_is_eq)) ;
-				CharUint first = Prefix::rep(item.chunk(0)) ;
-				switch (item.kind()) {
-					case Kind::Terminal :
-						throw_unless(item.used    ,"item(",idx,") is Terminal and not used"    ) ; // unused Terminal is only accepted to represent an empty tree
-						throw_unless(item.chunk_sz,"item(",idx,") is Terminal with empty chunk") ; // empty Terminal is only accepted to represent empty string at root as only element
-					break ;
-					case Kind::Prefix :
-						throw_unless(item.chunk_sz,"item(",idx,") is Prefix with empty chunk") ;   // empty Prefix is only accepted at root
-						if (!item.used) {
-							Item const& nxt = _at(item.nxt()) ;
-							// should have been compressed, (as not root)
-							throw_unless( item.chunk_sz+nxt.chunk_sz>nxt.max_chunk_sz() ,"item(",idx,").chunk_sz (",item.chunk_sz,") makes it mergeable with .nxt.chunk_sz (",nxt.max_chunk_sz(),')' ) ;
-						}
-					break ;
-					case Kind::Split :
-						if (!item.chunk_sz) {
-							Item const& prev_item = _at(prev) ;
-							first = item.cmp_val() ;
-							if (prev_item.kind()==Kind::Split)
-								throw_unless(prev_item.cmp_bit<item.cmp_bit,"item(",idx,").prev.cmp_bit (",prev_item.cmp_bit,") is not lower than .cmp_bit (",item.cmp_bit,')') ;
-						}
-					break ;
-				DF}
-				if (prev_item.kind()==Kind::Split) {
-					if (item.prev_is_eq) throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)> prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
-					else                 throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)==prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
+				if (+item.prev) {
+					Idx         prev      = item.prev ;
+					Item const& prev_item = _at(prev) ;
+					throw_unless(prev_item.nxt_if(item.prev_is_eq)==idx,"item(",idx,").prev.nxt(",item.prev_is_eq,") is ",prev_item.nxt_if(item.prev_is_eq)) ;
+					CharUint first = Prefix::rep(item.chunk(0)) ;
+					switch (item.kind()) {
+						case Kind::Terminal :
+							throw_unless(item.used    ,"item(",idx,") is Terminal and not used"    ) ; // unused Terminal is only accepted to represent an empty tree
+							throw_unless(item.chunk_sz,"item(",idx,") is Terminal with empty chunk") ; // empty Terminal is only accepted to represent empty string at root as only element
+						break ;
+						case Kind::Prefix :
+							throw_unless(item.chunk_sz,"item(",idx,") is Prefix with empty chunk") ;   // empty Prefix is only accepted at root
+							if (!item.used) {
+								Item const& nxt = _at(item.nxt()) ;
+								// should have been compressed, (as not root)
+								throw_unless(
+									item.chunk_sz+nxt.chunk_sz>nxt.max_chunk_sz()
+								,	"item(",idx,").chunk_sz (",item.chunk_sz,") makes it mergeable with .nxt.chunk_sz (",nxt.max_chunk_sz(),')'
+								) ;
+							}
+						break ;
+						case Kind::Split :
+							if (!item.chunk_sz) {
+								Item const& prev_item = _at(prev) ;
+								first = item.cmp_val() ;
+								if (prev_item.kind()==Kind::Split)
+									throw_unless(prev_item.cmp_bit<item.cmp_bit,"item(",idx,").prev.cmp_bit (",prev_item.cmp_bit,") is not lower than .cmp_bit (",item.cmp_bit,')') ;
+							}
+						break ;
+					DF}
+					if (prev_item.kind()==Kind::Split) {
+						if (item.prev_is_eq) throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)> prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
+						else                 throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)==prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
+					}
+					if (recurse_backward) res += _chk(prev,true/*recurse_backward*/,false/*recurse_forward*/) ;
+				} else {
+					throw_unless(item.prev_is_eq,"item(",idx,") is root with !prev_is_eq") ;
 				}
-				if (recurse_backward) res += _chk(prev,true/*recurse_backward*/,false/*recurse_forward*/) ;
-			} else {
-				throw_unless(item.prev_is_eq,"item(",idx,") is root with !prev_is_eq") ;
+				return res ;
 			}
-			return res ;
-		}
 
 	//
 	// SinglePrefixFile
 	//
 
-	template<bool AutoLock,class Hdr_,class Idx_,class Char_=char,class Data_=void,bool Reverse_=false> struct SinglePrefixFile
-	:	             MultiPrefixFile< AutoLock , Hdr_ , Idx_ , Char_ , Data_ , Reverse_ >
-	{	using Base = MultiPrefixFile< AutoLock , Hdr_ , Idx_ , Char_ , Data_ , Reverse_ > ;
+	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct SinglePrefixFile
+	:	             MultiPrefixFile< AutoLock , Hdr_ , Idx_ , NIdxBits , Char_ , Data_ , Reverse_ >
+	{	using Base = MultiPrefixFile< AutoLock , Hdr_ , Idx_ , NIdxBits , Char_ , Data_ , Reverse_ > ;
 		using Hdr     = Hdr_                   ;
 		using Idx     = typename Base::Idx     ;
 		using Char    = typename Base::Char    ;

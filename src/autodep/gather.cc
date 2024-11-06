@@ -38,21 +38,17 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	digest.dflags       |= ad.dflags       ;
 	digest.extra_dflags |= ad.extra_dflags ;
 	//
-	bool tfi =        digest.extra_tflags[ExtraTflag::Ignore] ;
-	bool dfi = tfi || digest.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
+	bool tfi =        ad.extra_tflags[ExtraTflag::Ignore] ;
+	bool dfi = tfi || ad.extra_dflags[ExtraDflag::Ignore] ;                                                            // tfi also prevents reads from being visible
 	//
-	if (!dfi) {
-		for( Access a : iota(All<Access>) ) if (read[+a]<=pd) goto NotFirst ;
-		dep_info = di ;
-	NotFirst :
-		for( Access a : iota(All<Access>) ) if ( PD& d=read[+a] ; ad.accesses[a]       && pd<d ) { digest.accesses |= a ; d = pd ; }
-		/**/                                if ( PD& d=seen     ; di.seen(ad.accesses) && pd<d )                          d = pd ;
-	}
-	if (!tfi) {
-		digest.write |= ad.write ;
-		if ( PD& d=write  ; ad.write==Yes                      && pd<d ) d = pd ;
-		if ( PD& d=target ; ad.extra_tflags[ExtraTflag::Allow] && pd<d ) d = pd ;
-	}
+	// if ignore, record empty info (which will mask further info)
+	for( Access a : iota(All<Access>) ) if (read[+a]<=pd) goto NotFirst ;
+	dep_info = dfi ? DI() : di ;
+NotFirst :
+	/**/                                if ( PD& d=seen     ; pd<d && (dfi||di.seen(ad.accesses))        ) { d = pd ; digest_seen  = !dfi            ; }
+	for( Access a : iota(All<Access>) ) if ( PD& d=read[+a] ; pd<d && (dfi||ad.accesses[a]      )        ) { d = pd ; digest.accesses.set(a,!dfi)    ; }
+	/**/                                if ( PD& d=write    ; pd<d && (tfi||ad.write!=No        )        ) { d = pd ; digest.write = (!tfi)&ad.write ; }
+	/**/                                if ( PD& d=target   ; pd<d && ad.extra_tflags[ExtraTflag::Allow] )   d = pd ;
 	//
 }
 

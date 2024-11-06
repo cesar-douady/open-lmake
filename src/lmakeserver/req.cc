@@ -437,11 +437,11 @@ namespace Engine {
 
 	void ReqData::audit_job( Color c , Pdate date , ::string const& step , ::string const& rule_name , ::string const& job_name , in_addr_t host , Delay exec_time ) const {
 		::OStringStream msg ;
-		if (g_config->console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config->console.date_prec,true/*in_day*/)     <<' '           ;
-		if (g_config->console.host_len              ) msg <<      ::setw(g_config->console.host_len)<<SockFd::s_host(host) <<' '           ;
-		/**/                                          msg <<      ::setw(StepSz                   )<<step                                  ;
-		/**/                                          msg <<' '<< ::setw(Rule::s_name_sz          )<<rule_name                             ;
-		if (g_config->console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"") ;
+		if (g_config->console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config->console.date_prec,true/*in_day*/)     <<' '            ;
+		if (g_config->console.host_len              ) msg <<      ::setw(g_config->console.host_len)<<SockFd::s_host(host) <<' '            ;
+		/**/                                          msg <<      ::setw(StepSz                    )<<step                                  ;
+		/**/                                          msg <<' '<< ::setw(Rule::s_name_sz           )<<rule_name                             ;
+		if (g_config->console.has_exec_time         ) msg <<' '<< ::setw(6                         )<<(+exec_time?exec_time.short_str():"") ;
 		audit( audit_fd , log_stream , options , c , ::move(msg).str()+' '+mk_file(job_name) ) ;
 		last_info = {} ;
 	}

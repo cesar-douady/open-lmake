@@ -483,6 +483,10 @@ namespace Engine::Persistent {
 
 	bool/*invalidate*/ new_rules( ::vector<RuleData>&& new_rules_ , bool dynamic ) {
 		Trace trace("new_rules",new_rules_.size()) ;
+		// check number of rules before doing any action
+		//                                      vv must fit in rule file vv   vvvvvvvv idx must fit within type vvvvvvvv
+		static constexpr size_t NRules = ::min( (size_t(1)<<NRuleIdxBits)-1 , (size_t(1)<<NBits<Rule>)-+Special::NShared ) ;
+		throw_unless( new_rules_.size()<=NRules , "too many rules (",new_rules_.size(),"), max is ",NRules ) ;
 		//
 		::umap<Crc,RuleData const*> old_rds ; for( Rule      r  : rule_lst() ) old_rds.try_emplace(r->crc->match,&*r) ;
 		::umap<Crc,RuleData      *> new_rds ; for( RuleData& rd : new_rules_ ) new_rds.try_emplace(rd.crc->match,&rd) ;
@@ -510,7 +514,7 @@ namespace Engine::Persistent {
 			}
 		}
 		bool res = n_modified_prio || n_new_rules || n_old_rules ;
-		if (dynamic) {                                                      // check if compatible with dynamic update
+		if (dynamic) {                                                                                          // check if compatible with dynamic update
 			throw_if( n_new_rules      , "new rules appeared"           ) ;
 			throw_if( n_old_rules      , "old rules disappeared"        ) ;
 			throw_if( n_modified_prio  , "rule prio's were modified"    ) ;
@@ -519,7 +523,7 @@ namespace Engine::Persistent {
 			RuleBase::s_from_vec_dynamic(::move(new_rules_)) ;
 		} else {
 			RuleBase::s_from_vec_not_dynamic(::move(new_rules_)) ;
-			if (res) _compile_psfxs() ;                                     // recompute matching
+			if (res) _compile_psfxs() ;                                                                         // recompute matching
 		}
 		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs)) ;
 		// trace
@@ -646,9 +650,8 @@ namespace Engine::Persistent {
 	void invalidate_match() {
 		MatchGen& match_gen = _rule_file.hdr() ;
 		Trace trace("invalidate_match","old gen",match_gen) ;
-		if (match_gen<NMatchGen) {
-			match_gen++ ;                                                                                           // increase generation, which automatically makes all nodes !match_ok()
-		} else {
+		match_gen++ ;                                                                                               // increase generation, which automatically makes all nodes !match_ok()
+		if (match_gen==0) {                                                                                         // unless we wrapped around
 			trace("reset") ;
 			::cerr << "collecting nodes ..." ; for( Node n : node_lst() ) n->mk_old() ; ::cerr << " done" << endl ; // physically reset node match_gen's
 			match_gen = 1 ;

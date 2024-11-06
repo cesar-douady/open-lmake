@@ -30,7 +30,7 @@ OpenLmake does not handle permission bits (read and write permissions), but the 
 .LP
 Directories and other awkward files (i.e. neither a regular file or a symbolic link) are handled as if they did not exist.
 .LP
-A checksum is a 16-hex digit number followed by B(-R) for regular files and B(-L) for symbolic links (e.g. 1234567890123456-R).
+A checksum is a 16-hex digit number followed by B(-R) for regular files or B(-L) for symbolic links (e.g. 1234567890123456-R).
 The following special cases produce dedicated outputs :
 Bullet file does not exist                         : output is B(none)
 Bullet file is a non-executable regular empty file : output is B(empty-R)

@@ -64,8 +64,6 @@ namespace Engine {
 	struct JobData    ;
 	struct JobReqInfo ;
 
-	static constexpr uint8_t JobNGuardBits = 2 ; // one to define JobTgt, the other to put it in a CrunchVector
-
 }
 
 #endif
@@ -107,7 +105,7 @@ namespace Engine {
 	} ;
 
 	struct JobTgt : Job {
-		static_assert(Job::NGuardBits>=1) ;
+		static_assert(Job::NGuardBits>=1) ;                                                                                                               // need 1 bit to store is_static_phony bit
 		static constexpr uint8_t NGuardBits = Job::NGuardBits-1       ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::ostream& operator<<( ::ostream& , JobTgt ) ;
@@ -359,23 +357,23 @@ namespace Engine {
 		// data
 		// START_OF_VERSIONING
 	public :
-		//Name           name                     ;      //     32 bits, inherited
-		Node             asking                   ;      //     32 bits,        last target needing this job
-		Targets          targets                  ;      //     32 bits, owned, for plain jobs
-		Deps             deps                     ;      // 31<=32 bits, owned
-		RuleCrc          rule_crc                 ;      //     32 bits
-		CoarseDelay      exec_time                ;      //     16 bits,        for plain jobs
-		CoarseDelay      cost                     ;      //     16 bits,        exec_time / average number of parallel jobs during execution
-		Tokens1          tokens1                  = 0  ; //      8 bits,        for plain jobs, number of tokens - 1 for eta estimation
-		mutable MatchGen match_gen :NMatchGenBits = 0  ; //      8 bits,        if <Rule::s_match_gen => deemed !sure
-		RunStatus        run_status:3             = {} ; //      3 bits
-		Status           status    :4             = {} ; //      4 bits
+		//Name           name         ;              //     32 bits, inherited
+		Node             asking       ;              //     32 bits,        last target needing this job
+		Targets          targets      ;              //     32 bits, owned, for plain jobs
+		Deps             deps         ;              // 31<=32 bits, owned
+		RuleCrc          rule_crc     ;              //     32 bits
+		CoarseDelay      exec_time    ;              //     16 bits,        for plain jobs
+		CoarseDelay      cost         ;              //     16 bits,        exec_time / average number of parallel jobs during execution
+		Tokens1          tokens1      = 0  ;         //      8 bits,        for plain jobs, number of tokens - 1 for eta estimation
+		mutable MatchGen match_gen    = 0  ;         //      8 bits,        if <Rule::s_match_gen => deemed !sure
+		RunStatus        run_status:3 = {} ;         //      3 bits
+		Status           status    :4 = {} ;         //      4 bits
 	private :
-		bool             _reliable_stats:1 = false ;     //      1 bit ,        if true, cost has been observed from previous execution
-		mutable bool     _sure          :1 = false ;     //      1 bit
+		bool             _reliable_stats:1 = false ; //      1 bit ,        if true, cost has been observed from previous execution
+		mutable bool     _sure          :1 = false ; //      1 bit
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(JobData)==28) ;                 // check expected size
+	static_assert(sizeof(JobData)==28) ;             // check expected size
 
 }
 

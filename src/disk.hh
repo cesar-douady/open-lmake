@@ -51,8 +51,9 @@ ENUM(FileDisplay
 )
 
 namespace Disk {
-	using Ddate  = Time::Ddate ;
-	using DiskSz = uint64_t    ;
+	using Ddate       = Time::Ddate              ;
+	using DiskSz      = uint64_t                 ;
+	using FileNameIdx = Uint<n_bits(PATH_MAX+1)> ; // file names are limited to PATH_MAX
 
 	//
 	// path name library

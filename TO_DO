@@ -28,11 +28,10 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* make side_deps and side_targets dynamic
 * transport pdict as pdict rather than as dict
 * generate meaningful message in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
-! before erasing a dir, check for phony targets, not only files on disk
+? before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
@@ -78,10 +77,6 @@ items :
 * isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
 	- or write such functions in C, so that malloc are necessary visible
-* support 64-bits id
-	- configure with NBits rather than types
-	- in store/file.hh, reserve address space after NBits instead of type
-	- first candidate would be deps, by far the most demanding
 * add a warning when ids reach 15/16 of their limits
 ? use the Path struct instead of at/file
 	- everywhere applicable

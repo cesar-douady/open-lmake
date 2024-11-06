@@ -80,11 +80,8 @@ namespace Engine {
 	struct Target  ;
 	using Targets = TargetsBase ;
 
-
 	struct Dep  ;
 	struct Deps ;
-
-	static constexpr uint8_t NodeNGuardBits = 1 ; // to be able to make Target
 
 }
 
@@ -142,7 +139,7 @@ namespace Engine {
 	//
 
 	struct Target : Node {
-		static_assert(Node::NGuardBits>=1) ;
+		static_assert(Node::NGuardBits>=1) ;                            // need 1 bit to store static_phony state
 		static constexpr uint8_t NGuardBits = Node::NGuardBits-1      ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::ostream& operator<<( ::ostream& , Target const ) ;
@@ -492,40 +489,40 @@ namespace Engine {
 		// START_OF_VERSIONING
 	public :
 		struct IfPlain {
-			SigDate  date       ;                                // ~40+40<128 bits,         p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
-			Node     dir        ;                                //  31   < 32 bits, shared
-			JobTgts  job_tgts   ;                                //         32 bits, owned , ordered by prio, valid if match_ok
-			RuleTgts rule_tgts  ;                                // ~20   < 32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-			Job      actual_job ;                                //  31   < 32 bits, shared, job that generated node
+			SigDate  date       ;                        // ~40+40<128 bits,         p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
+			Node     dir        ;                        //  31   < 32 bits, shared
+			JobTgts  job_tgts   ;                        //         32 bits, owned , ordered by prio, valid if match_ok
+			RuleTgts rule_tgts  ;                        // ~20   < 32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+			Job      actual_job ;                        //  31   < 32 bits, shared, job that generated node
 		} ;
 		struct IfDecode {
-			Ddate      log_date ;                                // ~40   < 64 bits,         logical date to detect overwritten
-			Codec::Val val      ;                                //         32 bits,         offset in association file where the association line can be found
+			Ddate      log_date ;                        // ~40   < 64 bits,         logical date to detect overwritten
+			Codec::Val val      ;                        //         32 bits,         offset in association file where the association line can be found
 		} ;
 		struct IfEncode {
-			Ddate       log_date ;                               // ~40   < 64 bits,         logical date to detect overwritten
-			Codec::Code code     ;                               //         32 bits,         offset in association file where the association line can be found
+			Ddate       log_date ;                       // ~40   < 64 bits,         logical date to detect overwritten
+			Codec::Code code     ;                       //         32 bits,         offset in association file where the association line can be found
 		} ;
-		//Name  name   ;                                         //         32 bits, inherited
-		Watcher asking ;                                         //         32 bits,         last watcher needing this node
-		Crc     crc    = Crc::None ;                             // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		//Name  name   ;                                 //         32 bits, inherited
+		Watcher asking ;                                 //         32 bits,         last watcher needing this node
+		Crc     crc    = Crc::None ;                     // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 	private :
 		union {
-			IfPlain  _if_plain  = {} ;                           //        256 bits
-			IfDecode _if_decode ;                                //         96 bits
-			IfEncode _if_encode ;                                //         96 bits
+			IfPlain  _if_plain  = {} ;                   //        256 bits
+			IfDecode _if_decode ;                        //         96 bits
+			IfEncode _if_encode ;                        //         96 bits
 		} ;
 	public :
-		Job       polluting_job           ;                      //         32 bits,          polluting job when polluted was last set to Polluted::Job
-		MatchGen  match_gen:NMatchGenBits = 0                  ; //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
-		Buildable buildable:4             = Buildable::Unknown ; //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		Polluted  polluted :3             = Polluted::Clean    ; //          2 bits,          reason for pollution
+		Job       polluting_job ;                        //         32 bits,          polluting job when polluted was last set to Polluted::Job
+		MatchGen  match_gen     = 0                  ;   //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
+		Buildable buildable:4   = Buildable::Unknown ;   //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
+		Polluted  polluted :3   = Polluted::Clean    ;   //          3 bits,          reason for pollution
 	private :
-		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
-		Tflags  _actual_tflags ;                                 //          8 bits,          tflags associated with actual_job
+		RuleIdx _conform_idx   = -+NodeStatus::Unknown ; //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		Tflags  _actual_tflags ;                         //          8 bits,          tflags associated with actual_job
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(NodeData)==64) ;                        // check expected size
+	static_assert(sizeof(NodeData)==64) ;                // check expected size
 
 }
 

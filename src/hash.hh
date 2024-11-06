@@ -76,9 +76,11 @@ namespace Hash {
 		constexpr Crc( CrcSpecial special ) : _val{+special} {}
 		//
 		constexpr operator CrcSpecial() const { return _val>=+CrcSpecial::Plain ? CrcSpecial::Plain : CrcSpecial(_val) ; }
+		// accesses
 	public :
 		explicit operator ::string() const ;
-		// accesses
+		::string hex              () const ;
+		//
 		constexpr bool              operator== (Crc const& other) const = default ;
 		constexpr ::strong_ordering operator<=>(Crc const& other) const = default ;
 		constexpr Val               operator+  (                ) const { return  _val                                           ; }

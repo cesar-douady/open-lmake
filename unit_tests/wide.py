@@ -5,22 +5,27 @@
 
 if __name__!='__main__' :
 
+	import os.path as osp
+	import socket
+
 	import lmake
 	from lmake.rules import PyRule
+
+	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
+		lmake.config.backends.slurm = {
+			'interface'         : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
+		,	'use_nice'          : True
+		,	'n_max_queued_jobs' : 10
+		}
+		backend = 'slurm'
+	else :
+		backend = 'local'
+
 
 	lmake.manifest = ('Lmakefile.py',)
 
 	lmake.config.backends.local.cpu = 10
 	lmake.config.trace.n_jobs       = 10000
-
-	if 'slurm' in lmake.backends :
-		backend = 'slurm'
-		lmake.config.backends.slurm = {
-			'use_nice'          : True
-		,	'n_max_queued_jobs' : 10
-		}
-	else :
-		backend = 'local'
 
 	class GenFile(PyRule) :
 		target    = r'file_{:\d+}'

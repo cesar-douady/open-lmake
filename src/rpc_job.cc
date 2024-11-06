@@ -629,7 +629,7 @@ namespace Codec {
 	}
 
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
-		return CodecPfx+mk_printable<'.'>(file)+".cdir/"+mk_printable<'.'>(ctx)+".edir/"+::string(Xxh(val).digest()) ;
+		return CodecPfx+mk_printable<'.'>(file)+".cdir/"+mk_printable<'.'>(ctx)+".edir/"+Xxh(val).digest().hex() ;
 	}
 
 	::string mk_file(::string const& node) {

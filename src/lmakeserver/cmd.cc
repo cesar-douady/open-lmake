@@ -136,7 +136,10 @@ namespace Engine {
 		else if ( !node->has_actual_job() && !is_target(node->name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
 		else if ( node->ok()==No                                      ) color =            Color::Err                     ;
 		//
-		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , pfx+' '+mk_file(node->name()) , false/*as_is*/ , lvl ) ;
+		if ( always || color!=Color::HiddenNote ) {
+			if (ro.flags[ReqFlag::Quiet]) audit( fd , ro , color ,         mk_file(node->name()) , false/*as_is*/ , 0   ) ; // if quiet, no header, no reason to indent
+			else                          audit( fd , ro , color , pfx+' '+mk_file(node->name()) , false/*as_is*/ , lvl ) ;
+		}
 	}
 
 	static void _send_job( Fd fd , ReqOptions const& ro , Bool3 show_deps , bool hide , Job job , DepDepth lvl=0 ) {
@@ -146,7 +149,7 @@ namespace Engine {
 		else if (job->status==Status::Ok) color = Color::Ok         ;
 		else if (job.frozen()           ) color = Color::Warning    ;
 		else                              color = Color::Err        ;
-		audit( fd , ro , color , rule->name+' '+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
+		if (!ro.flags[ReqFlag::Quiet]) audit( fd , ro , color , rule->name+' '+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
 		if (show_deps==No) return ;
 		size_t    w       = 0 ;
 		::umap_ss rev_map ;

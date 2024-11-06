@@ -1100,6 +1100,7 @@ ENUM( Rc
 ,	Perm
 ,	Usage
 ,	Format
+,	Param
 ,	System
 )
 

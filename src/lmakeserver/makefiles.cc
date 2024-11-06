@@ -330,7 +330,8 @@ namespace Engine::Makefiles {
 				invalidate_rule = Persistent::new_rules( ::move(rules) , dynamic ) ;
 			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// if rules_digest is empty, rules were in config
-				throw "cannot dynamically read rules (because " + (+rules_digest.first?rules_digest.first:config_digest.first) + ") : " + e ;
+				if (dynamic) throw "cannot dynamically read rules (because " + (+rules_digest.first?rules_digest.first:config_digest.first) + ") : " + e ;
+				else         throw "cannot read rules : "                                                                                            + e ;
 			}
 		}
 		if ( invalidate_src || invalidate_rule ) Persistent::invalidate_match() ;

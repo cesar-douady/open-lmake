@@ -18,7 +18,7 @@ from . import root_dir # if not in an lmake repo, root_dir is not set to current
 def manifest_sources(manifest='Manifest',**kwds) :
 	'''
 		read manifest, filtering out comments :
-		- comments start with # and must be separated from file with spaces
+		- comments start with                   # and must be separated from file with spaces
 		- files may be indented at will
 		- files must start with a non-space, non-# char and end with a non-space char
 		- files must not contain a space-# sequence
@@ -65,32 +65,31 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 		# old versions of git (e.g. 1.8) do not support submodule command when not launched from top nor $displaypath
 		submodules = run( (_git,'submodule','--quiet','foreach','--recursive','echo $toplevel/$sm_path') , abs_git_repo ) # less file accesses than git submodule status
 		submodules = [ sm[len(root_dir_s):] for sm in submodules if _osp.join(sm,'').startswith(root_dir_s) ]
+		# sometimes, git ls-files duplicates some files, ensure we filter out such duplicates
 		try :
-			srcs = run((_git,'ls-files','--recurse-submodules'))
+			srcs = set(run((_git,'ls-files','--recurse-submodules')))
 			for sm in submodules :
 				sm_admin = _osp.join(sm,'.git')
-				if   _osp.isfile(sm_admin)         : srcs.append(sm_admin)
+				if   _osp.isfile(sm_admin)         : srcs.add(sm_admin)
 				elif not ignore_missing_submodules : raise FileNotFoundError(f'cannot find {sm_admin}')
 		except _sp.CalledProcessError :
-			srcs = run((_git,'ls-files'))    # old versions of git ls-files (e.g. 1.8) do not support the --recurse-submodules option
-			srcs_set = set(srcs)
-			for sm in submodules :           # proceed top-down so that srcs_set includes its sub-modules
-				srcs_set.remove(sm)
+			srcs = set(run((_git,'ls-files'))) # old versions of git ls-files (e.g. 1.8) do not support the --recurse-submodules option
+			for sm in submodules :             # proceed top-down so that srcs includes its sub-modules
+				srcs.remove(sm)
 				try :
 					sub_srcs = run( (_git,'ls-files') , root_dir_s+sm  )
 					sm_s     = _osp.join(sm,'')
-					srcs_set.update( sm_s+f for f in sub_srcs )
-					srcs_set.add   ( sm_s+'.git'              )
+					srcs.update( sm_s+f for f in sub_srcs )
+					srcs.add   ( sm_s+'.git'              )
 				except _sp.CalledProcessError :
 					if not ignore_missing_submodules : raise
-			srcs = list(srcs_set)
-			srcs.sort()                      # avoid random order
 	else :
-		srcs = run((_git,'ls-files'))
+		srcs = set(run((_git,'ls-files')))
+	srcs = sorted(srcs)                        # avoid random order
 	#
 	#  update source_dirs
 	#
-	dot_git = _osp.join(abs_git_repo,'.git') # dot_git may be the git directory or a file containing the name of the git directory
+	dot_git = _osp.join(abs_git_repo,'.git')   # dot_git may be the git directory or a file containing the name of the git directory
 	if _osp.isdir(dot_git) :
 		rel_git_dir_s = rel_git_repo_s + '.git/'
 	else :

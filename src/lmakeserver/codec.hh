@@ -107,8 +107,8 @@ namespace Codec {
 
 namespace Codec::Persistent {
 
-	using ValFile  = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , char , uint32_t , 64/*MinSz*/ > ;
-	using CodeFile = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , char , uint32_t ,  4/*MinSz*/ > ;
+	using ValFile  = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , NCodecIdxBits , char , uint32_t , 64/*MinSz*/ > ;
+	using CodeFile = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , NCodecIdxBits , char , uint32_t ,  4/*MinSz*/ > ;
 
 	extern ValFile  val_file  ;
 	extern CodeFile code_file ;

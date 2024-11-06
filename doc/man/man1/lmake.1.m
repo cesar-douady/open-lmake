@@ -60,7 +60,7 @@ and the stderr of the first error. Intermediate targets are deemed of secondary 
 .LP
 Before processing arguments, B(lmake) prepends the content of B($LMAKE_ARGS), separated by spaces.
 This eases the management of user preferences.
-For example, a user may like to systematically pass the B(-a) and B(-t) options, in which case they can set B(LMAKE_ARGS)=B(-a -t).
+For example, a user may like to systematically pass the I(--archive) and I(--keep-tmp) options, in which case they can set B(LMAKE_ARGS)=B(-a -t).
 
 ClientGeneralities(color)
 

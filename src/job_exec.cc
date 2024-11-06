@@ -107,13 +107,13 @@ Digest analyze(Status status=Status::New) {                                     
 			dd.parallel     = +first_read.first && first_read.first==prev_first_read                                                                ;
 			prev_first_read = first_read.first                                                                                                      ;
 			//
-			if ( +dd.accesses && !dd.is_crc ) {                                                                   // try to transform date into crc as far as possible
-				if      ( info.seen==Pdate::Future||info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false ; } // job has been executed without seeing the file (before possibly writing to it)
-				else if ( !dd.sig()                                      )   dd.crc({}       ) ; // file was not present initially but was seen, it is incoherent even if not present finally
-				else if ( ad.write!=No                                   )   {}                  // cannot check stability as we wrote to it, clash will be detected in server if any
-				else if ( FileSig sig{file} ; sig!=dd.sig()              )   dd.crc({}       ) ; // file dates are incoherent from first access to end of job, dont know what has been read
-				else if ( !sig                                           )   dd.crc({}       ) ; // file is awkward
-				else if ( !Crc::s_sense(dd.accesses,sig.tag())           )   dd.crc(sig.tag()) ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			if ( +dd.accesses && !dd.is_crc ) {                                                              // try to transform date into crc as far as possible
+				if      ( !info.digest_seen || info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false ; } // job has been executed without seeing the file (before possibly writing to it)
+				else if ( !dd.sig()                                 )   dd.crc({}       ) ; // file was not present initially but was seen, it is incoherent even if not present finally
+				else if ( ad.write!=No                              )   {}                  // cannot check stability as we wrote to it, clash will be detected in server if any
+				else if ( FileSig sig{file} ; sig!=dd.sig()         )   dd.crc({}       ) ; // file dates are incoherent from first access to end of job, dont know what has been read
+				else if ( !sig                                      )   dd.crc({}       ) ; // file is awkward
+				else if ( !Crc::s_sense(dd.accesses,sig.tag())      )   dd.crc(sig.tag()) ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			}
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
@@ -260,15 +260,15 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 
 int main( int argc , char* argv[] ) {
 	Pdate        start_overhead = Pdate(New) ;
-	ServerSockFd server_fd      { New }      ;             // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
+	ServerSockFd server_fd      { New }      ;        // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
-	swear_prod(argc==8,argc) ;                             // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
+	swear_prod(argc==8,argc) ;                        // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
 	g_service_start  =                     argv[1]  ;
 	g_service_mngt   =                     argv[2]  ;
 	g_service_end    =                     argv[3]  ;
 	g_seq_id         = from_string<SeqId >(argv[4]) ;
 	g_job            = from_string<JobIdx>(argv[5]) ;
-	g_phy_root_dir_s = with_slash         (argv[6]) ;      // passed early so we can chdir and trace early
+	g_phy_root_dir_s = with_slash         (argv[6]) ; // passed early so we can chdir and trace early
 	g_trace_id       = from_string<SeqId >(argv[7]) ;
 	//
 	g_trace_file = new ::string{g_phy_root_dir_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;

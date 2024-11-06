@@ -5,6 +5,7 @@
 
 #include "app.hh"
 #include "disk.hh"
+#include "hash.hh"
 
 #include "rpc_job.hh"
 
@@ -12,6 +13,7 @@
 #include "record.hh"
 
 using namespace Disk ;
+using namespace Hash ;
 
 ENUM(Key,None)
 ENUM(Flag
@@ -35,7 +37,7 @@ int main( int argc , char* argv[]) {
 	try {
 		if (cmd_line.flags[Flag::MinLen]) {
 			min_len = from_string<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ;
-			throw_unless( min_len<=MaxCodecBits , "min len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits,')' ) ;
+			throw_unless( min_len<=sizeof(Crc)*2 , "min len (",min_len,") cannot be larger than crc length (",sizeof(Crc)*2,')' ) ; // codes are output in hex, 4 bits/digit
 		}
 	} catch (::string const& e) {
 		syntax.usage("bad min len value : "+e) ;

@@ -51,114 +51,113 @@ namespace Store {
 	// MultiRedBlackFile
 	//
 
-	template<class Hdr_,class Idx_,class Key_,class Data_=void,bool BitIsKey_=false>
-		struct MultiRedBlackFile
-		:	             AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , RedBlack::Item<Idx_,Key_,Data_> >   // we need idx 0 for left/right management
-		{	using Base = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , RedBlack::Item<Idx_,Key_,Data_> > ;
-			using Item =                          RedBlack::Item<Idx_,Key_,Data_>   ;
-			using Hdr    = Hdr_         ;
-			using Idx    = Idx_         ;
-			using Key    = Key_         ;
-			using Data   = Data_        ;
-			static_assert(!is_void_v<Key>) ;
-			static constexpr bool BitIsKey = BitIsKey_          ;
-			static constexpr bool HasData  = !::is_void_v<Data> ;
-			using DataNv = NoVoid<Data> ;
-			//
-			using Base::size  ;
-			using Base::clear ;
-			// cxtors
-			using Base::Base ;
-			// accesses
-			Key    const& key  ( Idx idx          ) const                     { return Base::at(idx).key           ; }
-			DataNv const& at   ( Idx idx          ) const requires(HasData  ) { return Base::at(idx).data          ; }
-			DataNv      & at   ( Idx idx          )       requires(HasData  ) { return Base::at(idx).data          ; }
-			DataNv const& c_at ( Idx idx          ) const requires(HasData  ) { return Base::at(idx).data          ; }
-			bool          bit  ( Idx idx          ) const                     { return Base::at(idx).bit( )        ; }
-			void          bit  ( Idx idx , bool b )       requires(!BitIsKey) {        Base::at(idx).bit(b)        ; }
-			void          clear( Idx idx          )       requires(HasData  ) {        Base::at(idx).data = Data() ; }
-		private :
-			Item const& _at(Idx idx) const { return Base::at(idx) ; }
-			Item      & _at(Idx idx)       { return Base::at(idx) ; }
-		public :
-			::vector<Idx> lst(Idx root) const {                                                           // XXX : implement iterator rather than vector
-				::vector<Idx> res ;
-				_append_lst(res,root) ;
-				return res ;
+	template<class Hdr_,class Idx_,uint8_t NIdxBits,class Key_,class Data_=void,bool BitIsKey_=false> struct MultiRedBlackFile
+	:	             AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , RedBlack::Item<Idx_,Key_,Data_> >   // we need idx 0 for left/right management
+	{	using Base = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , RedBlack::Item<Idx_,Key_,Data_> > ;
+		using Item =                          RedBlack::Item<Idx_,Key_,Data_>   ;
+		using Hdr    = Hdr_         ;
+		using Idx    = Idx_         ;
+		using Key    = Key_         ;
+		using Data   = Data_        ;
+		static_assert(!is_void_v<Key>) ;
+		static constexpr bool BitIsKey = BitIsKey_          ;
+		static constexpr bool HasData  = !::is_void_v<Data> ;
+		using DataNv = NoVoid<Data> ;
+		//
+		using Base::size  ;
+		using Base::clear ;
+		// cxtors
+		using Base::Base ;
+		// accesses
+		Key    const& key  ( Idx idx          ) const                     { return Base::at(idx).key           ; }
+		DataNv const& at   ( Idx idx          ) const requires(HasData  ) { return Base::at(idx).data          ; }
+		DataNv      & at   ( Idx idx          )       requires(HasData  ) { return Base::at(idx).data          ; }
+		DataNv const& c_at ( Idx idx          ) const requires(HasData  ) { return Base::at(idx).data          ; }
+		bool          bit  ( Idx idx          ) const                     { return Base::at(idx).bit( )        ; }
+		void          bit  ( Idx idx , bool b )       requires(!BitIsKey) {        Base::at(idx).bit(b)        ; }
+		void          clear( Idx idx          )       requires(HasData  ) {        Base::at(idx).data = Data() ; }
+	private :
+		Item const& _at(Idx idx) const { return Base::at(idx) ; }
+		Item      & _at(Idx idx)       { return Base::at(idx) ; }
+	public :
+		::vector<Idx> lst(Idx root) const {                                                           // XXX : implement iterator rather than vector
+			::vector<Idx> res ;
+			_append_lst(res,root) ;
+			return res ;
+		}
+	private :
+		void _append_lst( ::vector<Idx>& idx_lst/*out*/ , Idx idx ) const {
+			if (!idx) return ;
+			Item const& item = _at(idx) ;
+			_append_lst( idx_lst/*out*/ , item.subs(true /*left*/) ) ;
+			idx_lst.push_back(idx) ;
+			_append_lst( idx_lst/*out*/ , item.subs(false/*left*/) ) ;
+		}
+		// services
+		// cannot provide insert_data as insert requires unlocked while data requires locked
+	public :
+		template<class... A> Idx emplace(             Key const& key , bool bit , A&&... args ) requires( BitIsKey) { return Base::emplace(true,key,bit  ,::forward<A>(args)...) ; } // root
+		template<class... A> Idx emplace(             Key const& key ,            A&&... args ) requires(!BitIsKey) { return Base::emplace(true,key,false,::forward<A>(args)...) ; } // root
+		template<class... A> Idx insert ( Idx& root , Key const& key , bool bit , A&&... args ) requires( BitIsKey) { return _insert      (root,key,bit  ,::forward<A>(args)...) ; }
+		template<class... A> Idx insert ( Idx& root , Key const& key ,            A&&... args ) requires(!BitIsKey) { return _insert      (root,key,false,::forward<A>(args)...) ; }
+		//
+		Idx           search   ( Idx  root , Key const& key , bool bit ) const requires(  BitIsKey            ) { return      _search(root,key,bit  )  ; }
+		Idx           search   ( Idx  root , Key const& key            ) const requires( !BitIsKey            ) { return      _search(root,key,false)  ; }
+		DataNv const* search_at( Idx  root , Key const& key , bool bit ) const requires(  BitIsKey && HasData ) { if(Idx idx= _search(root,key,bit  )) return &at(idx) ; else return nullptr ; }
+		DataNv const* search_at( Idx  root , Key const& key            ) const requires( !BitIsKey && HasData ) { if(Idx idx= _search(root,key,false)) return &at(idx) ; else return nullptr ; }
+		DataNv      * search_at( Idx  root , Key const& key , bool bit )       requires(  BitIsKey && HasData ) { if(Idx idx= _search(root,key,bit  )) return &at(idx) ; else return nullptr ; }
+		DataNv      * search_at( Idx  root , Key const& key            )       requires( !BitIsKey && HasData ) { if(Idx idx= _search(root,key,false)) return &at(idx) ; else return nullptr ; }
+		void          pop      ( Idx  root                             )                                        {        Base::pop   (root                  ) ; }
+		void          pop      ( Idx  root , Idx idx                   )       requires(  BitIsKey            ) {             _erase (root,key(idx),bit(idx)) ; }
+		void          pop      ( Idx  root , Idx idx                   )       requires( !BitIsKey            ) {             _erase (root,key(idx),false   ) ; }
+		Idx           erase    ( Idx& root , Key const& key , bool bit )       requires(  BitIsKey            ) { return      _erase (root,key     ,bit     ) ; }
+		Idx           erase    ( Idx& root , Key const& key            )       requires( !BitIsKey            ) { return      _erase (root,key     ,false   ) ; }
+		//
+		void chk(Idx root) const {
+			Base::chk() ;
+			throw_unless(_is_black(root),"root ",root," is not black") ;
+			_chk(root) ;
+		}
+	private :
+		uint8_t _chk(            Idx idx , bool chk_color=true ) const                     { ::uset<Idx> seen ;                            return _chk(idx,seen,chk_color) ; }
+		uint8_t _chk( Idx root , Idx idx , bool chk_color=true ) const requires( BitIsKey) { SWEAR(_search(root,key(idx),bit(idx))==idx) ; return _chk(idx,     chk_color) ; }
+		uint8_t _chk( Idx root , Idx idx , bool chk_color=true ) const requires(!BitIsKey) { SWEAR(_search(root,key(idx)         )==idx) ; return _chk(idx,     chk_color) ; }
+		uint8_t _chk( Idx idx , ::uset<Idx>& seen , bool chk_color=true ) const ;
+		bool _is_black( Idx idx ) const {                                                                                               // null items are deemed black
+			return !idx || _at(idx).black() ;
+		}
+		// perform rotation, return new origin
+		Idx _rot( Idx& root , Idx idx , bool left1 , bool left2 ) {
+			Idx   idx1  =  idx ? _at(idx).subs(left1) : root ;
+			Item& item1 = _at(idx1) ;
+			Idx   idx2  = item1.subs(left2) ;
+			Item& item2 = _at(idx2) ;
+			item1.subs(  left2 , item2.subs(!left2) ) ;
+			item2.subs( !left2 , idx1               ) ;
+			_fix_parent( root , idx , left1 , idx2 ) ;
+			return idx2 ;
+		}
+		void _fix_parent( Idx& root , Idx parent , bool left , Idx son ) {
+			if (parent) {
+				_at(parent).subs( left , son ) ;
+			} else {
+				if (son) _at(son).black(true) ;                                                                                         // root is always black
+				root = son ;
 			}
-		private :
-			void _append_lst( ::vector<Idx>& idx_lst/*out*/ , Idx idx ) const {
-				if (!idx) return ;
-				Item const& item = _at(idx) ;
-				_append_lst( idx_lst/*out*/ , item.subs(true /*left*/) ) ;
-				idx_lst.push_back(idx) ;
-				_append_lst( idx_lst/*out*/ , item.subs(false/*left*/) ) ;
-			}
-			// services
-			// cannot provide insert_data as insert requires unlocked while data requires locked
-		public :
-			template<class... A> Idx emplace(             Key const& key , bool bit , A&&... args ) requires( BitIsKey) { return Base::emplace(true,key,bit  ,::forward<A>(args)...) ; } // root
-			template<class... A> Idx emplace(             Key const& key ,            A&&... args ) requires(!BitIsKey) { return Base::emplace(true,key,false,::forward<A>(args)...) ; } // root
-			template<class... A> Idx insert ( Idx& root , Key const& key , bool bit , A&&... args ) requires( BitIsKey) { return _insert      (root,key,bit  ,::forward<A>(args)...) ; }
-			template<class... A> Idx insert ( Idx& root , Key const& key ,            A&&... args ) requires(!BitIsKey) { return _insert      (root,key,false,::forward<A>(args)...) ; }
-			//
-			Idx           search   ( Idx  root , Key const& key , bool bit ) const requires(  BitIsKey            ) { return      _search(root,key,bit  )  ; }
-			Idx           search   ( Idx  root , Key const& key            ) const requires( !BitIsKey            ) { return      _search(root,key,false)  ; }
-			DataNv const* search_at( Idx  root , Key const& key , bool bit ) const requires(  BitIsKey && HasData ) { if(Idx idx= _search(root,key,bit  )) return &at(idx) ; else return nullptr ; }
-			DataNv const* search_at( Idx  root , Key const& key            ) const requires( !BitIsKey && HasData ) { if(Idx idx= _search(root,key,false)) return &at(idx) ; else return nullptr ; }
-			DataNv      * search_at( Idx  root , Key const& key , bool bit )       requires(  BitIsKey && HasData ) { if(Idx idx= _search(root,key,bit  )) return &at(idx) ; else return nullptr ; }
-			DataNv      * search_at( Idx  root , Key const& key            )       requires( !BitIsKey && HasData ) { if(Idx idx= _search(root,key,false)) return &at(idx) ; else return nullptr ; }
-			void          pop      ( Idx  root                             )                                        {        Base::pop   (root                  ) ; }
-			void          pop      ( Idx  root , Idx idx                   )       requires(  BitIsKey            ) {             _erase (root,key(idx),bit(idx)) ; }
-			void          pop      ( Idx  root , Idx idx                   )       requires( !BitIsKey            ) {             _erase (root,key(idx),false   ) ; }
-			Idx           erase    ( Idx& root , Key const& key , bool bit )       requires(  BitIsKey            ) { return      _erase (root,key     ,bit     ) ; }
-			Idx           erase    ( Idx& root , Key const& key            )       requires( !BitIsKey            ) { return      _erase (root,key     ,false   ) ; }
-			//
-			void chk(Idx root) const {
-				Base::chk() ;
-				throw_unless(_is_black(root),"root ",root," is not black") ;
-				_chk(root) ;
-			}
-		private :
-			uint8_t _chk(            Idx idx , bool chk_color=true ) const                     { ::uset<Idx> seen ;                            return _chk(idx,seen,chk_color) ; }
-			uint8_t _chk( Idx root , Idx idx , bool chk_color=true ) const requires( BitIsKey) { SWEAR(_search(root,key(idx),bit(idx))==idx) ; return _chk(idx,     chk_color) ; }
-			uint8_t _chk( Idx root , Idx idx , bool chk_color=true ) const requires(!BitIsKey) { SWEAR(_search(root,key(idx)         )==idx) ; return _chk(idx,     chk_color) ; }
-			uint8_t _chk( Idx idx , ::uset<Idx>& seen , bool chk_color=true ) const ;
-			bool _is_black( Idx idx ) const {                                                                                               // null items are deemed black
-				return !idx || _at(idx).black() ;
-			}
-			// perform rotation, return new origin
-			Idx _rot( Idx& root , Idx idx , bool left1 , bool left2 ) {
-				Idx   idx1  =  idx ? _at(idx).subs(left1) : root ;
-				Item& item1 = _at(idx1) ;
-				Idx   idx2  = item1.subs(left2) ;
-				Item& item2 = _at(idx2) ;
-				item1.subs(  left2 , item2.subs(!left2) ) ;
-				item2.subs( !left2 , idx1               ) ;
-				_fix_parent( root , idx , left1 , idx2 ) ;
-				return idx2 ;
-			}
-			void _fix_parent( Idx& root , Idx parent , bool left , Idx son ) {
-				if (parent) {
-					_at(parent).subs( left , son ) ;
-				} else {
-					if (son) _at(son).black(true) ;                                                                                         // root is always black
-					root = son ;
-				}
-			}
-			void _fix_parent( Idx& root , ::vmap<Idx,bool/*left*/> const& path , uint8_t lvl , Idx son ) {
-				if (lvl) _fix_parent( root , path[lvl-1].first , path[lvl-1].second , son ) ;
-				else     _fix_parent( root , 0                 , false/*unused*/    , son ) ;
-			}
-			template<bool Record> Idx _search_path( ::vmap<Idx,bool/*left*/>& path/*out*/ , Idx root  , Key const& key , bool bit ) const ; // search a key starting at root
-			Idx _search( Idx const& root , Key const& key , bool bit ) const {                                                              // search a key starting at root, return 0 if not found
-				static ::vmap<Idx,bool/*left*/> _ ;
-				return _search_path<false/*record*/>(_,root,key,bit) ;
-			}
-			template<class... A> Idx _emplace(             Key const& key , bool bit , A&&... args ) { return Base::emplace(key,bit,::forward<A>(args)...) ; }
-			template<class... A> Idx _insert ( Idx& root , Key const& key , bool bit , A&&... args ) ; // search a key starting at root, insert if not found (which may modify root)
-			/**/                 Idx _erase  ( Idx& root , Key const& key , bool bit               ) ; // search a key starting at root, erase  if     found (which may modify root)
-		} ;
+		}
+		void _fix_parent( Idx& root , ::vmap<Idx,bool/*left*/> const& path , uint8_t lvl , Idx son ) {
+			if (lvl) _fix_parent( root , path[lvl-1].first , path[lvl-1].second , son ) ;
+			else     _fix_parent( root , 0                 , false/*unused*/    , son ) ;
+		}
+		template<bool Record> Idx _search_path( ::vmap<Idx,bool/*left*/>& path/*out*/ , Idx root  , Key const& key , bool bit ) const ; // search a key starting at root
+		Idx _search( Idx const& root , Key const& key , bool bit ) const {                                                              // search a key starting at root, return 0 if not found
+			static ::vmap<Idx,bool/*left*/> _ ;
+			return _search_path<false/*record*/>(_,root,key,bit) ;
+		}
+		template<class... A> Idx _emplace(             Key const& key , bool bit , A&&... args ) { return Base::emplace(key,bit,::forward<A>(args)...) ; }
+		template<class... A> Idx _insert ( Idx& root , Key const& key , bool bit , A&&... args ) ; // search a key starting at root, insert if not found (which may modify root)
+		/**/                 Idx _erase  ( Idx& root , Key const& key , bool bit               ) ; // search a key starting at root, erase  if     found (which may modify root)
+	} ;
 
 	// search item and output path to it in path
 	template<class Hdr,class Idx,class Key,class Data,bool BitIsKey>
@@ -372,11 +371,11 @@ namespace Store {
 		} ;
 	}
 
-	template<class Hdr_,class Idx_,class Key_,class Data_=void,bool BitIsKey_=false>
+	template<class Hdr_,class Idx_,uint8_t NIdxBits,class Key_,class Data_=void,bool BitIsKey_=false>
 		struct SingleRedBlackFile
-		:	                MultiRedBlackFile< RedBlack::SingleHdr<Hdr_,Idx_> , Idx_ , Key_ , Data_ , BitIsKey_ >
-		{	using Base    = MultiRedBlackFile< RedBlack::SingleHdr<Hdr_,Idx_> , Idx_ , Key_ , Data_ , BitIsKey_ > ;
-			using BaseHdr =                    RedBlack::SingleHdr<Hdr_,Idx_>                                     ;
+		:	                MultiRedBlackFile< RedBlack::SingleHdr<Hdr_,Idx_> , Idx_ , NIdxBits , Key_ , Data_ , BitIsKey_ >
+		{	using Base    = MultiRedBlackFile< RedBlack::SingleHdr<Hdr_,Idx_> , Idx_ , NIdxBits , Key_ , Data_ , BitIsKey_ > ;
+			using BaseHdr =                    RedBlack::SingleHdr<Hdr_,Idx_>                                                ;
 			using Hdr     = Hdr_         ;
 			using Idx     = Idx_         ;
 			using Key     = Key_         ;

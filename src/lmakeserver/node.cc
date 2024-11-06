@@ -179,7 +179,7 @@ namespace Engine {
 
 	::c_vector_view<JobTgt> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
 		if (prio_idx==NoIdx) return {} ;
-		JobTgts const& jts = job_tgts() ; // /!\ jts is a CrunchVector, so if single element, a subvec would point to it, so it *must* be a ref
+		JobTgts const& jts = job_tgts() ; // /!\ jts is a Crunch vector, so if single element, a subvec would point to it, so it *must* be a ref
 		if (prio_idx>=jts.size()) {
 			SWEAR( prio_idx==jts.size() , prio_idx , jts.size() ) ;
 			return {} ;
@@ -199,7 +199,7 @@ namespace Engine {
 	::c_vector_view<JobTgt> NodeData::candidate_job_tgts() const {
 		RuleIdx ci = conform_idx() ;
 		if (ci==NoIdx) return {} ;
-		JobTgts const& jts  = job_tgts()            ; // /!\ jts is a CrunchVector, so if single element, a subvec would point to it, so it *must* be a ref
+		JobTgts const& jts  = job_tgts()            ; // /!\ jts is a Crunch vector, so if single element, a subvec would point to it, so it *must* be a ref
 		Prio           prio = jts[ci]->rule()->prio ;
 		RuleIdx        idx  = ci                    ;
 		for( JobTgt jt : jts.subvec(ci) ) {

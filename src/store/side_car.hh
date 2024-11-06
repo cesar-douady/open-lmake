@@ -9,9 +9,9 @@
 
 namespace Store {
 
-	template< bool AutoLock , class Hdr_ , IsIdx Idx_ , class Data_ , class SideCar_ , size_t LinearSz=0 > struct SideCarFile
-	:	             AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NoVoid<Data_,SideCar_> , LinearSz >
-	{	using Base = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NoVoid<Data_,SideCar_> , LinearSz > ;
+	template< bool AutoLock , class Hdr_ , IsIdx Idx_ , uint8_t NIdxBits, class Data_ , class SideCar_ , size_t LinearSz=0 > struct SideCarFile
+	:	             AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , NoVoid<Data_,SideCar_> , LinearSz >
+	{	using Base = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , NoVoid<Data_,SideCar_> , LinearSz > ;
 		//
 		using Hdr       = Hdr_                 ;
 		using Idx       = Idx_                 ;
@@ -95,7 +95,7 @@ namespace Store {
 		Idx  _cxt_side_car(         Idx idx )       requires(HasBoth) { if (_at_end(idx)) _side_car.emplace_back(  ) ; else _side_car.emplace(idx) ; return idx ;    }
 		Idx  _dxt_side_car(         Idx idx )       requires(HasBoth) { SWEAR(!_at_end(idx)) ;                              _side_car.pop    (idx) ; return idx ;    }
 		// data
-		StructFile< false/*AutoLock*/ , void , Idx , ::conditional_t<HasBoth,SideCar,void> , (HasBoth?Multi:false) > _side_car ;
+		StructFile< false/*AutoLock*/ , void , Idx , NIdxBits , ::conditional_t<HasBoth,SideCar,void> , (HasBoth?Multi:false) > _side_car ;
 	} ;
 
 }

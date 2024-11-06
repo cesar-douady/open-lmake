@@ -553,9 +553,9 @@ namespace Engine {
 		//
 		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
 		//
-		FileNameIdx job_sfx_len(                ) const ;
-		::string    job_sfx    (                ) const ;
-		void        validate   (::string job_sfx) const ;
+		Disk::FileNameIdx job_sfx_len(                ) const ;
+		::string          job_sfx    (                ) const ;
+		void              validate   (::string job_sfx) const ;
 		// services
 		::string add_cwd( ::string&& file , bool top=false ) const {
 			if ( !top && +cwd_s ) return Disk::mk_glb(file,cwd_s) ;
@@ -940,11 +940,11 @@ namespace Engine {
 			_compile() ;
 		}
 	}
-	inline FileNameIdx RuleData::job_sfx_len() const {
+	inline Disk::FileNameIdx RuleData::job_sfx_len() const {
 		return
-			1                                      // JobMrkr to disambiguate w/ Node names
-		+	n_static_stems * sizeof(FileNameIdx)*2 // pos+len for each stem
-		+	sizeof(Crc::Val)                       // Rule
+			1                                            // JobMrkr to disambiguate w/ Node names
+		+	n_static_stems * sizeof(Disk::FileNameIdx)*2 // pos+len for each stem
+		+	sizeof(Crc::Val)                             // Rule
 		;
 	}
 	inline ::string RuleData::job_sfx() const {
