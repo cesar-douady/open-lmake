@@ -127,8 +127,9 @@ namespace Py {
 		void                boost      () const { Py_INCREF(this) ;                            }
 		void                unboost    () const { Py_DECREF(this) ;                            }
 		// services
-		Ptr<Str> str() const ;
+		Ptr<Str> str      () const ;
 		::string type_name() const { return ob_type->tp_name ; }
+		ssize_t  ref_cnt  () const { return ob_refcnt        ; }
 		//
 		template<class T=Object> Ptr<T> get_attr( ::string const& attr                     ) const ;
 		/**/                     void   set_attr( ::string const& attr , Object const& val ) ;

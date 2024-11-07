@@ -156,19 +156,22 @@ namespace Py {
 	//
 
 	PyObject* Ptr<Module>::_s_mk_mod( ::string const& name , PyMethodDef* funcs ) {
+		::string*    nm  = new ::string(name)   ;                                                                    // keep name alive
+		size_t       nf1 = 1                    ; for( PyMethodDef* f=funcs ; f->ml_name ; f++ ) nf1++             ; // start at 1 to account for terminating sentinel
+		PyMethodDef* fns = new PyMethodDef[nf1] ; for( size_t i : iota(nf1)                    ) fns[i] = funcs[i] ; // keep funcs alive
 		#if PY_MAJOR_VERSION<3
-			return Py_InitModule( name.c_str() , funcs ) ;
+			return Py_InitModule( nm->c_str() , fns ) ;
 		#else
-			PyModuleDef* def = new PyModuleDef { // must have the lifetime of the module
+			PyModuleDef* def = new PyModuleDef {                                                                     // must have the lifetime of the module
 				PyModuleDef_HEAD_INIT
-			,	name.c_str()                     // m_name
-			,	nullptr                          // m_doc
-			,	-1                               // m_size
-			,	funcs                            // m_methods
-			,	nullptr                          // m_slots
-			,	nullptr                          // m_traverse
-			,	nullptr                          // m_clear
-			,	nullptr                          // m_free
+			,	nm->c_str()                                                                                          // m_name
+			,	nullptr                                                                                              // m_doc
+			,	-1                                                                                                   // m_size
+			,	fns                                                                                                  // m_methods
+			,	nullptr                                                                                              // m_slots
+			,	nullptr                                                                                              // m_traverse
+			,	nullptr                                                                                              // m_clear
+			,	nullptr                                                                                              // m_free
 			} ;
 			return PyModule_Create(def) ;
 		#endif
