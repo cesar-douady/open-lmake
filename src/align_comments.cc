@@ -92,7 +92,7 @@ struct Tab {
 	// cxtors & casts
 	Tab( size_t h_ , size_t w_ , size_t nl ) : h{h_} , w{w_} , tab{h*w,Info(true/*ko*/,nl)} {}
 	// accesses
-	::vector_view<Info> operator[](size_t l) { return { &tab[l*w] , w } ; }
+	::span<Info> operator[](size_t l) { return { &tab[l*w] , w } ; }
 	// data
 	size_t         h   ;
 	size_t         w   ;
@@ -109,9 +109,9 @@ void optimize( ::vector<Line>& lines) {
 	size_t py         = Npos ;
 	size_t break_lvl1 = 0    ;                                                                      // minimum indentation level of line separating comments, 0 is reserved to mean blank line
 	for( size_t y : iota(tab.h) ) {
-		Line const&         l  =            lines[y ]                           ;
-		::vector_view<Info> t  =            tab  [y ]                           ;
-		::vector_view<Info> pt = py!=Npos ? tab  [py] : ::vector_view<Info>(t0) ;
+		Line const&  l  =            lines[y ]                    ;
+		::span<Info> t  =            tab  [y ]                    ;
+		::span<Info> pt = py!=Npos ? tab  [py] : ::span<Info>(t0) ;
 		if (!l .comment) {
 			if (l.kind==LineKind::Blank) break_lvl1 = 0                         ;
 			else                         break_lvl1 = ::min(break_lvl1,l.lvl+1) ;
@@ -137,8 +137,8 @@ void optimize( ::vector<Line>& lines) {
 		}
 	}
 	if (py==Npos) return ;                                                                          // nothing to optimize
-	size_t              min_x  = 0       ;
-	::vector_view<Info> last_t = tab[py] ;
+	size_t       min_x  = 0       ;
+	::span<Info> last_t = tab[py] ;
 	for( size_t x : iota(1,last_t.size()) )
 		if (last_t[x]<last_t[min_x]) min_x = x ;
 	SWEAR(!last_t[min_x].ko) ;

@@ -26,15 +26,14 @@ namespace Store {
 
 	namespace Prefix {
 
-		template<       class Char> using Vec      = ::vector           <       Char >         ;
-		template<       class Char> using VecView  = ::c_vector_view    <       Char >         ;
+		template<       class Char> using Vec      = ::vector           <       Char      >    ;
+		template<       class Char> using VecView  = ::span             <       Char const>    ;
 		template<       class Char> using Str      = ::basic_string     <AsChar<Char>>         ;
-		template<       class Char> using StrView  = ::basic_string_view<AsChar<Char>>         ;
 		template<bool S,class Char> using VecStr   = ::conditional_t<S,Str   <Char>,Vec<Char>> ;
 		template<bool S,class Char> using ItemChar = ::conditional_t<S,AsChar<Char>,    Char > ;
 		//
-		template<class Char> void append( ::vector             <Char> & res , Char const* from , size_t sz ) { for( Char const& c : ::c_vector_view<Char>(from,sz) ) res.push_back(c) ; }
-		template<class Char> void append( ::basic_string<AsChar<Char>>& res , Char const* from , size_t sz ) { res.append(from,sz) ;                                                    }
+		template<class Char> void append( ::vector             <Char> & res , Char const* from , size_t sz ) { for( Char const& c : VecView<Char>(from,sz) ) res.push_back(c) ; }
+		template<class Char> void append( ::basic_string<AsChar<Char>>& res , Char const* from , size_t sz ) { res.append(from,sz) ;                                            }
 
 		template<bool Reverse,class Char> Char const& char_at( VecView<Char> const& name , size_t pos ) {
 			return name[ Reverse ? name.size()-1-pos : pos ] ;
@@ -496,7 +495,6 @@ namespace Store {
 		using Vec     = Prefix::Vec    <Char> ;
 		using VecView = Prefix::VecView<Char> ;
 		using Str     = Prefix::Str    <Char> ;
-		using StrView = Prefix::StrView<Char> ;
 		//
 		template<bool S> using VecStr   = Prefix::VecStr  <S,Char> ;
 		template<bool S> using ItemChar = Prefix::ItemChar<S,Char> ;
@@ -659,20 +657,13 @@ namespace Store {
 		// cannot provide insert_data as insert requires unlocked while data requires locked
 	public :
 		Idx           search   ( Idx root , VecView const& n , VecView const& psfx={} ) const ;
-		DataNv      * search_at( Idx root , VecView const& n , VecView const& psfx={} )       requires( HasData          ) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
-		DataNv const* search_at( Idx root , VecView const& n , VecView const& psfx={} ) const requires( HasData          ) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
+		DataNv      * search_at( Idx root , VecView const& n , VecView const& psfx={} )       requires(HasData) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
+		DataNv const* search_at( Idx root , VecView const& n , VecView const& psfx={} ) const requires(HasData) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
 		Idx           insert   ( Idx root , VecView const& n , VecView const& psfx={} ) ;
-		DataNv      & insert_at( Idx root , VecView const& n , VecView const& psfx={} )                                    { return at(insert(root,n,psfx)) ; }
+		DataNv      & insert_at( Idx root , VecView const& n , VecView const& psfx={} )                         { return at(insert(root,n,psfx)) ; }
 		Idx           erase    ( Idx root , VecView const& n , VecView const& psfx={} ) ;
-		Idx           search   ( Idx root , StrView const& n , StrView const& psfx={} ) const requires(            IsStr ) { return search   ( root , VecView(n) , VecView(psfx) ) ; }
-		DataNv      * search_at( Idx root , StrView const& n , StrView const& psfx={} )       requires( HasData && IsStr ) { return search_at( root , VecView(n) , VecView(psfx) ) ; }
-		DataNv const* search_at( Idx root , StrView const& n , StrView const& psfx={} ) const requires( HasData && IsStr ) { return search_at( root , VecView(n) , VecView(psfx) ) ; }
-		Idx           insert   ( Idx root , StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return insert   ( root , VecView(n) , VecView(psfx) ) ; }
-		DataNv      & insert_at( Idx root , StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return insert_at( root , VecView(n) , VecView(psfx) ) ; }
-		Idx           erase    ( Idx root , StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return erase    ( root , VecView(n) , VecView(psfx) ) ; }
 		//
 		::pair<Idx,size_t/*pos*/> longest( Idx root , VecView const& n , VecView const& psfx={} ) const ; // longest existing prefix(!Reverse) / suffix(Reverse)
-		::pair<Idx,size_t/*pos*/> longest( Idx root , StrView const& n , StrView const& psfx={} ) const requires(IsStr) { return longest( root , VecView(n) , VecView(psfx) ) ; }
 		//
 		::vector<Idx> path             ( Idx              ) const ;                                       // path of existing items
 		void          pop              ( Idx              ) ;
@@ -1396,7 +1387,6 @@ namespace Store {
 		using Char    = typename Base::Char    ;
 		using DataNv  = typename Base::DataNv  ;
 		using VecView = typename Base::VecView ;
-		using StrView = typename Base::StrView ;
 		using ULock   = typename Base::ULock   ;
 		using HdrNv   = NoVoid<Hdr>            ;
 		using Base::HasData ;
@@ -1430,20 +1420,13 @@ namespace Store {
 		typename Base::Lst lst  () const { return Base::lst(Root) ;        }
 		void               chk  () const {        Base::chk(Root) ;        }
 		//
-		Idx                       search   ( VecView const& n , VecView const& psfx={} ) const                              { return Base::search   ( Root , n , psfx ) ; }
-		DataNv      *             search_at( VecView const& n , VecView const& psfx={} )       requires( HasData          ) { return Base::search_at( Root , n , psfx ) ; }
-		DataNv const*             search_at( VecView const& n , VecView const& psfx={} ) const requires( HasData          ) { return Base::search_at( Root , n , psfx ) ; }
-		Idx                       insert   ( VecView const& n , VecView const& psfx={} )                                    { return Base::insert   ( Root , n , psfx ) ; }
-		DataNv      &             insert_at( VecView const& n , VecView const& psfx={} )                                    { return Base::insert_at( Root , n , psfx ) ; }
-		Idx                       erase    ( VecView const& n , VecView const& psfx={} )                                    { return Base::erase    ( Root , n , psfx ) ; }
-		Idx                       search   ( StrView const& n , StrView const& psfx={} ) const requires(            IsStr ) { return Base::search   ( Root , n , psfx ) ; }
-		DataNv      *             search_at( StrView const& n , StrView const& psfx={} )       requires( HasData && IsStr ) { return Base::search_at( Root , n , psfx ) ; }
-		DataNv const*             search_at( StrView const& n , StrView const& psfx={} ) const requires( HasData && IsStr ) { return Base::search_at( Root , n , psfx ) ; }
-		Idx                       insert   ( StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return Base::insert   ( Root , n , psfx ) ; }
-		DataNv      &             insert_at( StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return Base::insert_at( Root , n , psfx ) ; }
-		Idx                       erase    ( StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return Base::erase    ( Root , n , psfx ) ; }
-		::pair<Idx,size_t/*pos*/> longest  ( VecView const& n , VecView const& psfx={} ) const                              { return Base::longest  ( Root , n , psfx ) ; }
-		::pair<Idx,size_t/*pos*/> longest  ( StrView const& n , StrView const& psfx={} ) const requires(            IsStr ) { return Base::longest  ( Root , n , psfx ) ; }
+		Idx                       search   ( VecView const& n , VecView const& psfx={} ) const                   { return Base::search   ( Root , n , psfx ) ; }
+		DataNv      *             search_at( VecView const& n , VecView const& psfx={} )       requires(HasData) { return Base::search_at( Root , n , psfx ) ; }
+		DataNv const*             search_at( VecView const& n , VecView const& psfx={} ) const requires(HasData) { return Base::search_at( Root , n , psfx ) ; }
+		Idx                       insert   ( VecView const& n , VecView const& psfx={} )                         { return Base::insert   ( Root , n , psfx ) ; }
+		DataNv      &             insert_at( VecView const& n , VecView const& psfx={} )                         { return Base::insert_at( Root , n , psfx ) ; }
+		Idx                       erase    ( VecView const& n , VecView const& psfx={} )                         { return Base::erase    ( Root , n , psfx ) ; }
+		::pair<Idx,size_t/*pos*/> longest  ( VecView const& n , VecView const& psfx={} ) const                   { return Base::longest  ( Root , n , psfx ) ; }
 	protected :
 		void _clear() { Base::_clear() ; _boot() ; }
 	} ;

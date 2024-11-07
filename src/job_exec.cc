@@ -283,7 +283,7 @@ int main( int argc , char* argv[] ) {
 	block_sigs({SIGCHLD}) ;                                                                                // necessary to capture it using signalfd
 	app_init(false/*read_only_ok*/,No/*chk_version*/) ;
 	//
-	{	Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
+	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//

@@ -86,9 +86,9 @@ int main( int argc , char* argv[] ) {
 	::vector<const char*> args     = {argv[0]} ; args.reserve(env_args.size()+argc) ;
 	for( ::string const& a : env_args     ) args.push_back(a.c_str()) ;
 	for( int             i : iota(1,argc) ) args.push_back(argv[i]  ) ;
-	Trace trace("main",::c_vector_view<const char*>(argv,argc)) ;
-	/**/  trace("main",env_args                               ) ;
-	/**/  trace("main",args                                   ) ;
+	Trace trace("main",::span<char*>(argv,argc)) ;
+	/**/  trace("main",env_args                ) ;
+	/**/  trace("main",args                    ) ;
 	//
 	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
 	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                           }

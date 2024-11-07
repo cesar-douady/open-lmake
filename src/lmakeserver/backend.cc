@@ -390,7 +390,7 @@ namespace Backends {
 		}
 		bool deps_done = false ;                             // true if all deps are done for at least a non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {
-			for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )
+			for( auto const& [dn,dd] : ::span(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )
 				if (!Node(dn)->done(r,NodeGoal::Status)) goto NextReq ;
 			deps_done = true ;
 			break ;

@@ -177,26 +177,26 @@ namespace Engine {
 		_set_match_gen(true/*ok*/) ;
 	}
 
-	::c_vector_view<JobTgt> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
+	::span<JobTgt const> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
 		if (prio_idx==NoIdx) return {} ;
 		JobTgts const& jts = job_tgts() ; // /!\ jts is a Crunch vector, so if single element, a subvec would point to it, so it *must* be a ref
 		if (prio_idx>=jts.size()) {
 			SWEAR( prio_idx==jts.size() , prio_idx , jts.size() ) ;
 			return {} ;
 		}
-		RuleIdx                 sz   = 0                    ;
-		::c_vector_view<JobTgt> sjts = jts.subvec(prio_idx) ;
-		Prio                    prio = -Infinity            ;
+		RuleIdx              sz   = 0                    ;
+		::span<JobTgt const> sjts = jts.subvec(prio_idx) ;
+		Prio                 prio = -Infinity            ;
 		for( JobTgt jt : sjts ) {
 			Prio new_prio = jt->rule()->prio ;
 			if (new_prio<prio) break ;
 			prio = new_prio ;
 			sz++ ;
 		}
-		return sjts.subvec(0,sz) ;
+		return sjts.subspan(0,sz) ;
 	}
 
-	::c_vector_view<JobTgt> NodeData::candidate_job_tgts() const {
+	::span<JobTgt const> NodeData::candidate_job_tgts() const {
 		RuleIdx ci = conform_idx() ;
 		if (ci==NoIdx) return {} ;
 		JobTgts const& jts  = job_tgts()            ; // /!\ jts is a Crunch vector, so if single element, a subvec would point to it, so it *must* be a ref
@@ -904,11 +904,11 @@ namespace Engine {
 		// splice it
 		NodeIdx tail_sz = items()+DepsBase::size()-cur_dep ;
 		if (ds.size()<=tail_sz) {
-			for( GenericDep const& d : ds ) *cur_dep++ = d ;                               // copy all
-			shorten_by(tail_sz-ds.size()) ;                                                // and shorten
+			for( GenericDep const& d : ds ) *cur_dep++ = d ;                        // copy all
+			shorten_by(tail_sz-ds.size()) ;                                         // and shorten
 		} else {
-			for( GenericDep const& d : ::vector_view(ds.data(),tail_sz) ) *cur_dep++ = d ; // copy what can be fitted
-			append(::vector_view( &ds[tail_sz] , ds.size()-tail_sz ) ) ;                   // and append for the remaining
+			for( GenericDep const& d : ::span(ds.data(),tail_sz) ) *cur_dep++ = d ; // copy what can be fitted
+			append(::span( &ds[tail_sz] , ds.size()-tail_sz ) ) ;                   // and append for the remaining
 		}
 	}
 

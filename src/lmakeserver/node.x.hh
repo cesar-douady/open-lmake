@@ -442,10 +442,10 @@ namespace Engine {
 		void mk_src   (FileTag                 ) ;
 		void mk_no_src(                        ) ;
 		//
-		::c_vector_view<JobTgt> prio_job_tgts     (RuleIdx prio_idx) const ;
-		::c_vector_view<JobTgt> conform_job_tgts  (ReqInfo const&  ) const ;
-		::c_vector_view<JobTgt> conform_job_tgts  (                ) const ;
-		::c_vector_view<JobTgt> candidate_job_tgts(                ) const ;                   // all jobs above prio provided in conform_idx
+		::span<JobTgt const> prio_job_tgts     (RuleIdx prio_idx) const ;
+		::span<JobTgt const> conform_job_tgts  (ReqInfo const&  ) const ;
+		::span<JobTgt const> conform_job_tgts  (                ) const ;
+		::span<JobTgt const> candidate_job_tgts(                ) const ;                      // all jobs above prio provided in conform_idx
 		//
 		void set_buildable_throw( Req      , DepDepth lvl=0       ) ;                          // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_buildable      ( Req      , DepDepth lvl=0       ) ;                          // set infinite if looping
@@ -580,8 +580,8 @@ namespace Engine {
 		return res ;
 	}
 
-	inline ::c_vector_view<JobTgt> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
-	inline ::c_vector_view<JobTgt> NodeData::conform_job_tgts(                  ) const {
+	inline ::span<JobTgt const> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
+	inline ::span<JobTgt const> NodeData::conform_job_tgts(                  ) const {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		if (status()!=NodeStatus::Plain) return {} ;
 		RuleIdx prio_idx = conform_idx() ;

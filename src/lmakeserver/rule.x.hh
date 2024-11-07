@@ -550,7 +550,7 @@ namespace Engine {
 		bool   user_defined(         ) const { return !allow_ext                                           ; }                                    // used to decide to print in LMAKE/rules
 		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags() ; }
 		//
-		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
+		::span<::pair_ss const> static_stems() const { return ::span<::pair_ss const>(stems).subspan(0,n_static_stems) ; }
 		//
 		Disk::FileNameIdx job_sfx_len(                ) const ;
 		::string          job_sfx    (                ) const ;

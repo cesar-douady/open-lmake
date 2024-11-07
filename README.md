@@ -153,7 +153,7 @@ Once you have understood what is going on with `hello_world`, you can repeat the
 - `g_`  : global
 - `t_`  : thread local
 - `np_` : non-portable
-- `::`  : standard library or a few exceptions defined in `src/utils.hh` which, in my mind, should have been part of the STL, e.g. `::vector_view` (analogous to `::string_view`)
+- `::`  : standard library or a few exceptions defined in `src/utils.hh` which, in my mind, should have been part of the STL, e.g. `::vmap` (a vector of pairs)
 
 Names are suffixed with \_ if needed to suppress ambiguities
 

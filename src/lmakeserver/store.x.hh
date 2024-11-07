@@ -245,8 +245,8 @@ namespace Engine::Persistent {
 		// statics
 		// cxtors & casts
 		using Base::Base ;
-		RuleTgts           (::c_vector_view<RuleTgt> const&  ) ;
-		RuleTgts& operator=(::c_vector_view<RuleTgt> const& v) ;
+		RuleTgts           (::span<RuleTgt const> const&  ) ;
+		RuleTgts& operator=(::span<RuleTgt const> const& v) ;
 		void pop() ;
 		// accesses
 		::vector<RuleTgt> view() const ;
@@ -580,10 +580,10 @@ namespace Engine::Persistent {
 	//
 	inline RuleTgtsFile::Lst rule_tgts_lst() { return _rule_tgts_file.lst() ; }
 	// cxtors & casts
-	inline RuleTgts::RuleTgts(::c_vector_view<RuleTgt> const& gs) : Base{+gs?_rule_tgts_file.insert(gs):RuleTgts()} {}
+	inline RuleTgts::RuleTgts(::span<RuleTgt const> const& gs) : Base{+gs?_rule_tgts_file.insert(gs):RuleTgts()} {}
 	inline void RuleTgts::pop() { _rule_tgts_file.pop(+self) ; self = RuleTgts() ; }
 	//
-	inline RuleTgts& RuleTgts::operator=(::c_vector_view<RuleTgt> const& v) { self = RuleTgts(v) ; return self ; }
+	inline RuleTgts& RuleTgts::operator=(::span<RuleTgt const> const& v) { self = RuleTgts(v) ; return self ; }
 	// accesses
 	inline ::vector<RuleTgt> RuleTgts::view() const { return _rule_tgts_file.key(self) ; }
 	// services

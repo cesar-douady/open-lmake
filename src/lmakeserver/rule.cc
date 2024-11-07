@@ -1062,9 +1062,9 @@ namespace Engine {
 				res <<' '<< v.phys[0] ;
 			} else {
 				size_t w = +v.copy_up ? 7 : 5 ;
-				/**/            res <<"\n\t\t" << ::setw(w)<<"upper"   <<" : "<< v.phys[0]                                 ;
-				/**/            res <<"\n\t\t" << ::setw(w)<<"lower"   <<" : "<< ::vector_view(&v.phys[1],v.phys.size()-1) ;
-				if (+v.copy_up) res <<"\n\t\t" << ::setw(w)<<"copy_up" <<" : "<< v.copy_up                                 ;
+				/**/            res <<"\n\t\t" << ::setw(w)<<"upper"   <<" : "<< v.phys[0]                          ;
+				/**/            res <<"\n\t\t" << ::setw(w)<<"lower"   <<" : "<< ::span(&v.phys[1],v.phys.size()-1) ;
+				if (+v.copy_up) res <<"\n\t\t" << ::setw(w)<<"copy_up" <<" : "<< v.copy_up                          ;
 			}
 			res <<'\n' ;
 		}

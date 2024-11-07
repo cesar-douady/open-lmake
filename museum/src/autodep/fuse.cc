@@ -200,7 +200,7 @@ namespace Fuse {
 	static void lo_forget_multi( fuse_req_t req , size_t cnt , ::fuse_forget_data* forgets ) {
 		if (T) ::cerr<<t_thread_key<<" forget_multi "<<cnt<<endl ;
 		Mount& self = mk_self(req) ;
-		for ( ::fuse_forget_data const& e : ::vector_view(forgets,cnt) ) self.fds.dec_ref( e.ino , e.nlookup ) ;
+		for ( ::fuse_forget_data const& e : ::span(forgets,cnt) ) self.fds.dec_ref( e.ino , e.nlookup ) ;
 		::fuse_reply_none(req) ;
 	}
 

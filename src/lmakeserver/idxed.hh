@@ -147,9 +147,9 @@ namespace Vector {
 		// cxtors & casts
 		using Base::Base ;
 		//
-		template<::convertible_to<Item> I> SimpleBase ( NewType , I               const& x ) : SimpleBase{::c_vector_view<I>(&x,1)} {} // New to disambiguate with cxtor from index defined in Base
-		template<::convertible_to<Item> I> SimpleBase (          ::vector_view<I> const& v ) : Base{F::file.emplace(v)}             {}
-		template<::convertible_to<Item> I> void assign(          ::vector_view<I> const& v ) { self = F::file.assign(+self,v) ; }
+		template<::convertible_to<Item> I> SimpleBase ( NewType , I        const& x ) : SimpleBase{::span<I const>(&x,1)} {} // New to disambiguate with cxtor from index defined in Base
+		template<::convertible_to<Item> I> SimpleBase (          ::span<I> const& v ) : Base{F::file.emplace(v)}          {}
+		template<::convertible_to<Item> I> void assign(          ::span<I> const& v ) { self = F::file.assign(+self,v) ; }
 		//
 		void pop   () { F::file.pop(+self) ; forget() ; }
 		void clear () { pop() ;                         }
@@ -161,7 +161,7 @@ namespace Vector {
 		// services
 		void shorten_by(Sz by) { self = F::file.shorten_by(+self,by) ; }
 		//
-		template<::convertible_to<Item> I> void append(::vector_view<I> const& v) { self = F::file.append(+self,v ) ; }
+		template<::convertible_to<Item> I> void append(::span<I> const& v) { self = F::file.append(+self,v ) ; }
 	} ;
 	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> constexpr Idx SimpleBase<Idx,Item,Mrkr,NGuardBits>::EmptyIdx = ::constify(F::file).EmptyIdx ;
 
@@ -184,13 +184,13 @@ namespace Vector {
 		// cxtors & casts
 		using Base::Base ;
 		//
-		template<IsA<Item>              I> CrunchBase(           I                const& x ) = delete ;
-		template<::convertible_to<Item> I> CrunchBase( NewType , I                const& x ) : Base{Item(x)} {}
-		template<::convertible_to<Item> I> CrunchBase(           ::vector_view<I> const& v ) {
+		template<IsA<Item>              I> CrunchBase(           I         const& x ) = delete ;
+		template<::convertible_to<Item> I> CrunchBase( NewType , I         const& x ) : Base{Item(x)} {}
+		template<::convertible_to<Item> I> CrunchBase(           ::span<I> const& v ) {
 			if (v.size()!=1) static_cast<Base&>(self) = F::file.emplace(v) ;
 			else             static_cast<Base&>(self) = v[0]               ;
 		}
-		template<::convertible_to<Item> I> void assign(::vector_view<I> const& v) {
+		template<::convertible_to<Item> I> void assign(::span<I> const& v) {
 			if      (!_multi()  )                       self = CrunchBase(v)          ;
 			else if (v.size()!=1)                       self = F::file.assign(self,v) ;
 			else                  { F::file.pop(self) ; self = CrunchBase(New,v[0])   ; }
@@ -216,7 +216,7 @@ namespace Vector {
 			else                { Item save = (self)[0] ; F::file.pop(Vector(self)) ; self = save ; }
 		}
 		//
-		template<::convertible_to<Item> I> void append(::vector_view<I> const& v) {
+		template<::convertible_to<Item> I> void append(::span<I> const& v) {
 			if      (!self  ) assign(v) ;
 			else if (_multi()) self = F::file.append (     self ,v) ;
 			else if (+v      ) self = F::file.emplace(Item(self),v) ;
@@ -243,24 +243,24 @@ namespace Vector {
 		// cxtors & casts
 		using Base::Base ;
 		//
-		template<::convertible_to<Item> I> requires( ::is_const_v<I>) Generic(::vector           <::remove_const_t<I>> const& v) : Base{c_vector_view<I>(v)} {}
-		template<::convertible_to<Item> I> requires(!::is_const_v<I>) Generic(::vector           <                 I > const& v) : Base{c_vector_view<I>(v)} {}
-		template<::convertible_to<Item> I> requires(IsStr           ) Generic(::basic_string_view<                 I > const& s) : Base{c_vector_view<I>(s)} {}
-		template<::convertible_to<Item> I> requires(IsStr           ) Generic(::basic_string     <                 I > const& s) : Base{c_vector_view<I>(s)} {}
+		template<::convertible_to<Item> I> requires( ::is_const_v<I>) Generic(::vector           <::remove_const_t<I>> const& v) : Base{::span<I const>(v)} {}
+		template<::convertible_to<Item> I> requires(!::is_const_v<I>) Generic(::vector           <                 I > const& v) : Base{::span<I const>(v)} {}
+		template<::convertible_to<Item> I> requires(IsStr           ) Generic(::basic_string_view<                 I > const& s) : Base{::span<I const>(s)} {}
+		template<::convertible_to<Item> I> requires(IsStr           ) Generic(::basic_string     <                 I > const& s) : Base{::span<I const>(s)} {}
 		//
-		template<::convertible_to<Item> I>                            void assign(::vector_view      <                 I > const& v) { Base::assign(                 v ) ; }
-		template<::convertible_to<Item> I> requires( ::is_const_v<I>) void assign(::vector           <::remove_const_t<I>> const& v) { Base::assign(c_vector_view<I>(v)) ; }
-		template<::convertible_to<Item> I> requires(!::is_const_v<I>) void assign(::vector           <                 I > const& v) { Base::assign(c_vector_view<I>(v)) ; }
-		template<::convertible_to<Item> I> requires(IsStr           ) void assign(::basic_string_view<                 I > const& s) { Base::assign(c_vector_view<I>(s)) ; }
-		template<::convertible_to<Item> I> requires(IsStr           ) void assign(::basic_string     <                 I > const& s) { Base::assign(c_vector_view<I>(s)) ; }
+		template<::convertible_to<Item> I>                            void assign(::span             <                 I > const& v) { Base::assign(                v ) ; }
+		template<::convertible_to<Item> I> requires( ::is_const_v<I>) void assign(::vector           <::remove_const_t<I>> const& v) { Base::assign(::span<I const>(v)) ; }
+		template<::convertible_to<Item> I> requires(!::is_const_v<I>) void assign(::vector           <                 I > const& v) { Base::assign(::span<I const>(v)) ; }
+		template<::convertible_to<Item> I> requires(IsStr           ) void assign(::basic_string_view<                 I > const& s) { Base::assign(::span<I const>(s)) ; }
+		template<::convertible_to<Item> I> requires(IsStr           ) void assign(::basic_string     <                 I > const& s) { Base::assign(::span<I const>(s)) ; }
 		//
-		operator ::c_vector_view    <Item>() const                 { return view    () ; }
-		operator ::vector_view      <Item>()                       { return view    () ; }
-		operator ::basic_string_view<Item>() const requires(IsStr) { return str_view() ; }
+		operator ::span             <Item const>() const                 { return view    () ; }
+		operator ::span             <Item      >()                       { return view    () ; }
+		operator ::basic_string_view<Item      >() const requires(IsStr) { return str_view() ; }
 		// accesses
-		::c_vector_view    <Item> view    () const                 { return { items() , size() } ; }
-		::vector_view      <Item> view    ()                       { return { items() , size() } ; }
-		::basic_string_view<Item> str_view() const requires(IsStr) { return { items() , size() } ; }
+		::span      <Item const> view    () const                 { return { items() , size() } ; }
+		::span      <Item      > view    ()                       { return { items() , size() } ; }
+		::basic_string_view<Item      > str_view() const requires(IsStr) { return { items() , size() } ; }
 		//
 		Item const* begin     (        ) const { return items()           ; } // mimic vector
 		Item      * begin     (        )       { return items()           ; } // .
@@ -275,15 +275,15 @@ namespace Vector {
 		Item const& operator[](size_t i) const { return items()[i       ] ; } // .
 		Item      & operator[](size_t i)       { return items()[i       ] ; } // .
 		//
-		::c_vector_view    <Item> const subvec( size_t start , size_t sz=Npos ) const { return ::c_vector_view    ( begin()+start , ::min(sz,size()-start) ) ; }
-		::vector_view      <Item>       subvec( size_t start , size_t sz=Npos )       { return ::vector_view      ( begin()+start , ::min(sz,size()-start) ) ; }
-		::basic_string_view<Item> const substr( size_t start , size_t sz=Npos ) const { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
-		::basic_string_view<Item>       substr( size_t start , size_t sz=Npos )       { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
+		::span             <Item const> const subvec( size_t start , size_t sz=Npos ) const { return ::span<Item const> ( begin()+start , ::min(sz,size()-start) ) ; }
+		::span             <Item      >       subvec( size_t start , size_t sz=Npos )       { return ::span<Item      > ( begin()+start , ::min(sz,size()-start) ) ; }
+		::basic_string_view<Item      > const substr( size_t start , size_t sz=Npos ) const { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
+		::basic_string_view<Item      >       substr( size_t start , size_t sz=Npos )       { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
 		// services
-		template<::convertible_to<Item> I> void append(::vector_view      <I> const& v) { return Base::append(                v ) ; }
-		template<::convertible_to<Item> I> void append(::vector           <I> const& v) { return       append(::c_vector_view(v)) ; }
-		template<::convertible_to<Item> I> void append(::basic_string_view<I> const& s) { return       append(::c_vector_view(s)) ; }
-		template<::convertible_to<Item> I> void append(::basic_string     <I> const& s) { return       append(::c_vector_view(s)) ; }
+		template<::convertible_to<Item> I> void append(::span             <I> const& v) { Base::append(                       v ) ; }
+		template<::convertible_to<Item> I> void append(::vector           <I> const& v) {       append(::span<I const>(v)) ; }
+		template<::convertible_to<Item> I> void append(::basic_string_view<I> const& s) {       append(::span<I const>(s)) ; }
+		template<::convertible_to<Item> I> void append(::basic_string     <I> const& s) {       append(::span<I const>(s)) ; }
 	} ;
 	template<class V> ::ostream& operator<<( ::ostream& os , Generic<V> const& gv ) {
 		bool first = true ;

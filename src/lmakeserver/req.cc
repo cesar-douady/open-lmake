@@ -328,7 +328,7 @@ namespace Engine {
 			watchers = ::move(*_watchers_v) ;
 			delete _watchers_v ;                                                    // transform vector into array as there is no watchers any more
 		} else {
-			watchers = mk_vector(::vector_view(_watchers_a.data(),_n_watchers)) ;
+			watchers = mk_vector(::span(_watchers_a.data(),_n_watchers)) ;
 		}
 		_n_watchers = 0 ;
 		// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
@@ -339,7 +339,7 @@ namespace Engine {
 	}
 
 	Job ReqInfo::asking() const {
-		::c_vector_view<Watcher> watchers{
+		::span<Watcher const> watchers{
 			_n_watchers==VectorMrkr ? _watchers_v->data() : _watchers_a.data()
 		,	_n_watchers==VectorMrkr ? _watchers_v->size() : _n_watchers
 		} ;

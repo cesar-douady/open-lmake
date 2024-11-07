@@ -27,6 +27,7 @@
 #include <mutex>
 #include <set>
 #include <shared_mutex>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -131,23 +132,23 @@ namespace std {                                                                 
 #define VT(T) typename T::value_type
 
 // easy transformation of a container into another
-template<class K,        class V> ::set   <K                                                   > mk_set   (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<class K,        class V> ::uset  <K                                                   > mk_uset  (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<        class T,class V> ::vector<                                  T                 > mk_vector(V const& v) { return ::vector<T>( v.cbegin() , v.cend() ) ; }
-template<class K,class T,class V> ::map   <K                                ,T                 > mk_map   (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<class K,class T,class V> ::umap  <K                                ,T                 > mk_umap  (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<class K,class T,class V> ::vmap  <K                                ,T                 > mk_vmap  (V const& v) { return { v.cbegin() , v.cend() } ; }
+template<class K,        class V> ::set   <K                                                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,        class V> ::uset  <K                                                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> ::vector<                                  T                 > mk_vector(V const& v) { return ::vector<T>( v.begin() , v.end() ) ; }
+template<class K,class T,class V> ::map   <K                                ,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,class T,class V> ::umap  <K                                ,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,class T,class V> ::vmap  <K                                ,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
 // with implicit key type
-template<        class T,class V> ::map   <remove_const_t<VT(V)::first_type>,T                 > mk_map   (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<        class T,class V> ::umap  <remove_const_t<VT(V)::first_type>,T                 > mk_umap  (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<        class T,class V> ::vmap  <remove_const_t<VT(V)::first_type>,T                 > mk_vmap  (V const& v) { return { v.cbegin() , v.cend() } ; }
+template<        class T,class V> ::map   <remove_const_t<VT(V)::first_type>,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> ::umap  <remove_const_t<VT(V)::first_type>,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> ::vmap  <remove_const_t<VT(V)::first_type>,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
 // with implicit item type
-template<                class V> ::set   <remove_const_t<VT(V)            >                   > mk_set   (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<                class V> ::uset  <remove_const_t<VT(V)            >                   > mk_uset  (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<                class V> ::vector<                                  VT(V)             > mk_vector(V const& v) { return { v.cbegin() , v.cend() } ; }
-template<                class V> ::map   <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_map   (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<                class V> ::umap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_umap  (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<                class V> ::vmap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_vmap  (V const& v) { return { v.cbegin() , v.cend() } ; }
+template<                class V> ::set   <remove_const_t<VT(V)            >                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::uset  <remove_const_t<VT(V)            >                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::vector<                                  VT(V)             > mk_vector(V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::map   <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::umap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::vmap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
 
 // keys & vals
 template<class K,class M> ::set   <K> const mk_key_set   (M const& m) { ::set   <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
@@ -381,9 +382,31 @@ template<Iotable I1,Iotable I2> constexpr Iota<true /*with_start*/,I2> iota( I1 
 
 static constexpr size_t Npos = ::string::npos ;
 
-namespace std {                                                           // must be defined in std or operator! does not recognize it
-	inline bool operator+(::string      const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
-	inline bool operator+(::string_view const& s) { return !s.empty() ; } // .
+struct First {
+	bool operator()() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }
+	//
+	template<class T> T operator()( T&& first , T&& other=T() ) { return self() ? ::forward<T>(first) : ::forward<T>(other) ; }
+	//
+	template<class T> T operator()( T&& first , T&& second , T&& other ) {
+		uint8_t v = _val ;
+		self() ;
+		switch (v) {
+			case 0 : return ::forward<T>(first ) ;
+			case 1 : return ::forward<T>(second) ;
+			case 2 : return ::forward<T>(other ) ;
+		DF}
+	}
+	//
+	const char* operator()( const char* first ,                      const char* other="" ) { return operator()<const char*&>(first,       other) ; }
+	const char* operator()( const char* first , const char* second , const char* other    ) { return operator()<const char*&>(first,second,other) ; }
+private :
+	uint8_t _val=0 ;
+} ;
+
+namespace std {                                                                      // must be defined in std or operator! does not recognize it
+	inline            bool operator+(::string      const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
+	inline            bool operator+(::string_view const& s) { return !s.empty() ; } // .
+	template<class T> bool operator+(::span<T>     const& v) { return !v.empty() ; } // .
 }
 
 namespace std {
@@ -559,83 +582,10 @@ template<class... A> constexpr void throw_if    ( bool cond , A const&... args )
 template<class... A> constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw fmt_string(args...) ; }
 
 //
-// vector_view
-// mimic string_view with ::vector's instead of ::string's
+// span
 //
 
-template<class T> struct vector_view {
-	static constexpr bool IsConst = ::is_const_v<T> ;
-	using TNC        = ::remove_const_t<T>              ;
-	using View       = vector_view                      ;
-	using ViewC      = vector_view<const T>             ;
-	using Vector     = ::vector<TNC>                    ;
-	using String     = ::basic_string_view<AsChar<TNC>> ;
-	using value_type = TNC                              ;
-	using Iter       = ::conditional_t<IsConst,typename Vector::const_iterator,typename Vector::iterator> ;
-	// cxtors & casts
-	vector_view(                         ) = default ;
-	vector_view( T*   begin , size_t sz  ) : _data{             begin } , _sz{sz       } {}
-	vector_view( Iter begin , size_t sz  ) : _data{::to_address(begin)} , _sz{sz       } {}
-	vector_view( T*   begin , T*     end ) : _data{             begin } , _sz{end-begin} {}
-	vector_view( Iter begin , Iter   end ) : _data{::to_address(begin)} , _sz{end-begin} {}
-	//
-	vector_view& operator=(vector_view const&) = default ;
-	//
-	vector_view( vector_view const& v , size_t start=0 , size_t sz=-1 )                                   : _data(v.data()+start) , _sz(::min(sz,v.size()-start)) { SWEAR(start<=v.size()) ; }
-	vector_view( Vector      const& v , size_t start=0 , size_t sz=-1 ) requires(  IsConst              ) : _data(v.data()+start) , _sz(::min(sz,v.size()-start)) { SWEAR(start<=v.size()) ; }
-	vector_view( Vector           & v , size_t start=0 , size_t sz=-1 ) requires( !IsConst              ) : _data(v.data()+start) , _sz(::min(sz,v.size()-start)) { SWEAR(start<=v.size()) ; }
-	vector_view( String      const& s                                 ) requires(  IsConst && IsChar<T> ) : _data(s.data()      ) , _sz(         s.size()       ) {                          }
-	vector_view( String           & s                                 ) requires( !IsConst && IsChar<T> ) : _data(s.data()      ) , _sz(         s.size()       ) {                          }
-	//
-	explicit operator Vector() const {
-		Vector res ;
-		res.reserve(size()) ;
-		for( T const& x : self ) res.push_back(x) ;
-		return res ;
-	}
-	// accesses
-	bool operator+() const { return _sz ; }
-	//
-	T      * data      (        ) const { return _data        ; }
-	T      * begin     (        ) const { return _data        ; }
-	T const* cbegin    (        ) const { return _data        ; }
-	T      * end       (        ) const { return _data+_sz    ; }
-	T const* cend      (        ) const { return _data+_sz    ; }
-	T      & front     (        ) const { return _data[0    ] ; }
-	T      & back      (        ) const { return _data[_sz-1] ; }
-	T      & operator[](size_t i) const { return _data[i    ] ; }
-	size_t   size      (        ) const { return  _sz         ; }
-	// services
-	View  subvec( size_t start , size_t sz=Npos ) const requires( IsConst) { return View ( begin()+start , ::min(sz,_sz-start) ) ; }
-	ViewC subvec( size_t start , size_t sz=Npos ) const requires(!IsConst) { return ViewC( begin()+start , ::min(sz,_sz-start) ) ; }
-	View  subvec( size_t start , size_t sz=Npos )       requires(!IsConst) { return View ( begin()+start , ::min(sz,_sz-start) ) ; }
-	//
-	void clear() { self = {} ; }
-	// data
-protected :
-	T*     _data = nullptr ;
-	size_t _sz   = 0       ;
-} ;
-template<class T> struct c_vector_view : vector_view<T const> {
-	using Base = vector_view<T const> ;
-	using Base::begin ;
-	using Base::_sz   ;
-	// cxtors & casts
-	using Base::Base ;
-	c_vector_view( T const* begin                        , size_t sz    ) : Base{begin  ,sz} {}
-	c_vector_view( ::vector<T> const& v , size_t start=0 , size_t sz=-1 ) : Base{v,start,sz} {}
-	// services
-	c_vector_view subvec( size_t start , size_t sz=Npos ) const { return c_vector_view( begin()+start , ::min(sz,_sz-start) ) ; }
-} ;
-
-using vector_view_s = vector_view<::string> ;
-template<class K,class V> using vmap_view    = vector_view<::pair<K,V>> ;
-template<        class V> using vmap_view_s  = vmap_view  <::string,V > ;
-/**/                      using vmap_view_ss = vmap_view_s<::string   > ;
-using c_vector_view_s = c_vector_view<::string> ;
-template<class K,class V> using vmap_view_c    = c_vector_view<::pair<K,V>> ;
-template<        class V> using vmap_view_c_s  = vmap_view_c  <::string,V > ;
-/**/                      using vmap_view_c_ss = vmap_view_c_s<::string   > ;
+using span_s = ::span<::string> ;
 
 //
 // math
@@ -672,20 +622,20 @@ static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
 
 namespace std {
 
-	#define OP(...) inline ::ostream& operator<<( ::ostream& os , __VA_ARGS__ )
-	template<class T,size_t N> OP(             T    const  a[N] ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : a ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
-	template<class T,size_t N> OP( array      <T,N> const& a    ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : a ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
-	template<class T         > OP( vector     <T  > const& v    ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : v ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
-	template<class T         > OP( vector_view<T  > const& v    ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : v ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
-	template<class K         > OP( uset       <K  > const& s    ) { os <<'{' ; const char* sep="" ; for( K    const&  k    : s ) { os<<sep<<k         ; sep="," ; } return os <<'}' ; }
-	template<class K         > OP( set        <K  > const& s    ) { os <<'{' ; const char* sep="" ; for( K    const&  k    : s ) { os<<sep<<k         ; sep="," ; } return os <<'}' ; }
-	template<class K,class V > OP( umap       <K,V> const& m    ) { os <<'{' ; const char* sep="" ; for( auto const& [k,v] : m ) { os<<sep<<k<<':'<<v ; sep="," ; } return os <<'}' ; }
-	template<class K,class V > OP( map        <K,V> const& m    ) { os <<'{' ; const char* sep="" ; for( auto const& [k,v] : m ) { os<<sep<<k<<':'<<v ; sep="," ; } return os <<'}' ; }
-	template<class A,class B > OP( pair       <A,B> const& p    ) { return os <<'('<< p.first <<','<< p.second <<')' ;                                                                }
+	#define OP(...) ::ostream& operator<<( ::ostream& os , __VA_ARGS__ )
+	template<class T,size_t N> OP(          T    const  a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class T,size_t N> OP( ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class T         > OP( ::vector<T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class T         > OP( ::span  <T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class K         > OP( ::uset  <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+	template<class K         > OP( ::set   <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+	template<class K,class V > OP( ::umap  <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+	template<class K,class V > OP( ::map   <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+	//
+	template<class A,class B > OP( ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
+	inline                     OP( uint8_t     const  i ) { return os << uint32_t(i)                         ; } // avoid output a char when actually a int
+	inline                     OP( int8_t      const  i ) { return os << int32_t (i)                         ; } // .
 	#undef OP
-
-	inline ::ostream& operator<<( ::ostream& os , uint8_t const i ) { return os<<uint32_t(i) ; } // avoid output a char when actually a int
-	inline ::ostream& operator<<( ::ostream& os , int8_t  const i ) { return os<<int32_t (i) ; } // .
 
 }
 
@@ -1108,27 +1058,6 @@ template<class... A> [[noreturn]] void exit( Rc rc , A const&... args ) {
 	::cerr << ensure_nl(fmt_string(args...)) ;
 	::std::exit(+rc) ;
 }
-
-struct First {
-	bool operator()() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }
-	//
-	template<class T> T operator()( T&& first , T&& other=T() ) { return self() ? ::forward<T>(first) : ::forward<T>(other) ; }
-	//
-	template<class T> T operator()( T&& first , T&& second , T&& other ) {
-		uint8_t v = _val ;
-		self() ;
-		switch (v) {
-			case 0 : return ::forward<T>(first ) ;
-			case 1 : return ::forward<T>(second) ;
-			case 2 : return ::forward<T>(other ) ;
-		DF}
-	}
-	//
-	const char* operator()( const char* first ,                      const char* other="" ) { return operator()<const char*&>(first,       other) ; }
-	const char* operator()( const char* first , const char* second , const char* other    ) { return operator()<const char*&>(first,second,other) ; }
-private :
-	uint8_t _val=0 ;
-} ;
 
 //
 // Implementation
