@@ -537,9 +537,9 @@ namespace Py {
 		using Base = PtrBase<Module> ;
 		using Base::Base ;
 	private :
-		static PyObject* _s_mk_mod( ::string const& name , PyMethodDef* funcs ) ;
+		static PyObject* _s_mk_mod( ::string const& name , PyMethodDef* funcs=nullptr ) ;
 	public :
-		Ptr( ::string const& name , PyMethodDef* funcs ) : Base{_s_mk_mod(name,funcs)} { if (!self) throw py_err_str_clear() ; }
+		Ptr( ::string const& name , PyMethodDef* funcs=nullptr ) : Base{_s_mk_mod(name,funcs)} { if (!self) throw py_err_str_clear() ; }
 	} ;
 
 	//

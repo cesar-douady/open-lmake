@@ -197,14 +197,14 @@ namespace Engine {
 	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {
 		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
 		// cxtors & casts
-		Config(                      ) : booted{false} {}    // if config comes from nowhere, it is not booted
+		Config(                      ) : booted{false} {}   // if config comes from nowhere, it is not booted
 		Config(Py::Dict const& py_map) ;
 		// services
 		template<IsStream S> void serdes(S& s) {
-			::serdes(s,static_cast<ConfigClean  &>(self)) ;  // must always stay first field to ensure db_version is always understood
+			::serdes(s,static_cast<ConfigClean  &>(self)) ; // must always stay first field to ensure db_version is always understood
 			::serdes(s,static_cast<ConfigStatic &>(self)) ;
 			::serdes(s,static_cast<ConfigDynamic&>(self)) ;
-			if (::is_base_of_v<::istream,S>) booted = true ; // is config comes from disk, it is booted
+			if (IsIStream<S>) booted = true ;               // is config comes from disk, it is booted
 		}
 		::string pretty_str() const ;
 		void open(bool dynamic) ;
@@ -215,7 +215,7 @@ namespace Engine {
 			else                                     return ConfigDiff::None    ;
 		}
 		// data (derived info not saved on disk)
-		bool     booted            = false ;                 // a marker to distinguish clean repository
+		bool     booted            = false ;                // a marker to distinguish clean repository
 		::string local_admin_dir_s ;
 	} ;
 

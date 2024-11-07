@@ -628,7 +628,6 @@ struct JobRpcReq {
 	bool operator+() const { return +proc  ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) self = {} ;
 		::serdes(s,proc  ) ;
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
@@ -668,7 +667,6 @@ struct JobRpcReply {
 	JobRpcReply(Proc p) : proc{p} {}
 	// services
 	template<IsStream S> void serdes(S& s) {
-		if (is_base_of_v<::istream,S>) self = {} ;
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::None :
@@ -767,7 +765,6 @@ struct JobMngtRpcReq {
 	#undef S
 	// services
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) self = {} ;
 		::serdes(s,proc  ) ;
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
@@ -816,7 +813,6 @@ struct JobMngtRpcReply {
 	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::string const& t  , Crc c , Bool3 o      ) : proc{p},seq_id{si},fd{fd_},ok{o},txt{t},crc{c} { SWEAR(p==Proc::Decode||proc==Proc::Encode,p) ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
-		if (is_base_of_v<::istream,S>) self = {} ;
 		::serdes(s,proc  ) ;
 		::serdes(s,seq_id) ;
 		switch (proc) {

@@ -531,9 +531,8 @@ namespace Engine {
 		// cxtors & casts
 		RuleData(                                        ) = default ;
 		RuleData( Special , ::string const& src_dir_s={} ) ;           // src_dir in case Special is SrcDir
-		RuleData(::string_view const& str) {
-			IStringStream is{::string(str)} ;
-			serdes(is) ;
+		RuleData(::string_view str) {
+			serdes(str) ;
 		}
 		RuleData(Py::Dict const& dct) {
 			_acquire_py(dct) ;
@@ -901,7 +900,6 @@ namespace Engine {
 
 	// START_OF_VERSIONING
 	template<IsStream S> void RuleData::serdes(S& s) {
-		if (::is_base_of_v<::istream,S>) self = {} ;
 		::serdes(s,special         ) ;
 		::serdes(s,prio            ) ;
 		::serdes(s,name            ) ;
@@ -935,7 +933,7 @@ namespace Engine {
 			::serdes(s,exec_time         ) ;
 			::serdes(s,stats_weight      ) ;
 		}
-		if (is_base_of_v<::istream,S>) {
+		if (IsIStream<S>) {
 			Py::Gil gil ;
 			_compile() ;
 		}

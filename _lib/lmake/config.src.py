@@ -9,15 +9,7 @@ import sys     as _sys
 import os      as _os
 import os.path as _osp
 
-try :
-	if _sys.version_info.major<3 : from clmake2 import * # if not in an lmake repo, root_dir is not set to current dir
-	else                         : from clmake  import * # .
-	_has_clmake = True
-except :
-	_has_clmake = False
-	from py_clmake import *
-
-from .utils import *
+from . import pdict
 
 _mem = _os.sysconf('SC_PHYS_PAGES') * _os.sysconf('SC_PAGE_SIZE')
 _tmp = _os.statvfs('.').f_bfree*_os.statvfs('.').f_bsize

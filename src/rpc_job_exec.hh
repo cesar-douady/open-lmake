@@ -74,7 +74,6 @@ struct JobExecRpcReq {
 	#undef JERR
 	// services
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) self = {} ;
 		::serdes(s,proc) ;
 		::serdes(s,date) ;
 		::serdes(s,sync) ;
@@ -119,7 +118,6 @@ struct JobExecRpcReply {
 	JobExecRpcReply( Proc p , Bool3 o , ::string const&                        t  ) : proc{p} , ok{o} , txt      {t } { SWEAR( proc==Proc::Decode || proc==Proc::Encode      ) ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
-		if (::is_base_of_v<::istream,S>) self = {} ;
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::Access     :                         break ;

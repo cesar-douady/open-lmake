@@ -31,10 +31,9 @@ inline ::ostream& operator<<( ::ostream& os , MsgBuf const& mb ) { return os<<"M
 struct IMsgBuf : MsgBuf {
 	// statics
 	template<class T> static T s_receive(const char* str) {
-		Len len = s_sz(str) ;
-		//     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		return deserialize<T>(IStringStream(::string( str+sizeof(Len) , len ))) ; // XXX : avoid copy (use string_view in C++26)
-		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		return deserialize<T>(::string_view( str+sizeof(Len) , s_sz(str) )) ;
+		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 	// cxtors & casts
 	IMsgBuf() { _buf.resize(sizeof(Len)) ; }                                      // prepare to receive len
@@ -51,9 +50,9 @@ struct IMsgBuf : MsgBuf {
 		_len += cnt ;
 		if (_len<_buf.size()) return false/*complete*/ ;                          // _buf is still partial
 		if (_data_pass) {
-			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			res = deserialize<T>(IStringStream(::move(_buf))) ;
-			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//    vvvvvvvvvvvvvvvvvvvv
+			res = deserialize<T>(_buf) ;
+			//    ^^^^^^^^^^^^^^^^^^^^
 			self = {} ;
 			return true/*complete*/ ;
 		} else {
