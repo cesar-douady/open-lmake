@@ -72,10 +72,10 @@ using namespace Disk ;
 		for(;;) {
 			int   wstatus   ;
 			pid_t child_pid = ::wait(&wstatus) ;
-			if (child_pid==pid) {
-				if (WIFEXITED  (wstatus))   ::_exit(WEXITSTATUS(wstatus)) ;                                        // exit as transparently as possible
-				if (WIFSIGNALED(wstatus)) { ::raise(WTERMSIG   (wstatus)) ; raise(SIGABRT) ; }                     // .
-				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) ) ;                                            // ensure we have not forgotten a case
+			if (child_pid==pid) {                                                                                  // XXX : find a way to simulate a caught signal rather than exit 128+sig
+				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                                      // exit as transparently as possible
+				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                                      // cannot kill self to be transparent as we are process 1, mimic bash
+				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                                  // ensure we have not forgotten a case
 			}
 		}
 	} else {

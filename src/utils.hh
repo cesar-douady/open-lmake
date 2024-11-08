@@ -521,7 +521,7 @@ inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
 
 inline void kill_self(int sig) {      // raise kills the thread, not the process
 	int rc = ::kill(::getpid(),sig) ; // dont use kill_process as we call kill ourselves even if we are process 1 (in a namespace)
-	SWEAR(rc==0) ;                    // killing outselves should always be ok
+	SWEAR(rc==0,sig) ;                // killing outselves should always be ok
 }
 
 //

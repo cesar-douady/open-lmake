@@ -173,6 +173,7 @@ src/trace.hh
 src/utils.cc
 src/utils.hh
 src/xxhsum.cc
+unit_tests/abort.py
 unit_tests/admin.py
 unit_tests/base/Lmakefile.py
 unit_tests/base/hello.py
