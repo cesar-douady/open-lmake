@@ -112,7 +112,7 @@ namespace Engine {
 	struct ConfigStatic {
 
 		struct Cache {
-			friend ::ostream& operator<<( ::ostream& , Backend const& ) ;
+			friend ::string& operator+=( ::string& , Backend const& ) ;
 			using Tag = CacheTag ;
 			// cxtors & casts
 			Cache() = default ;
@@ -154,7 +154,7 @@ namespace Engine {
 	struct ConfigDynamic {
 
 		struct Backend {
-			friend ::ostream& operator<<( ::ostream& , Backend const& ) ;
+			friend ::string& operator+=( ::string& , Backend const& ) ;
 			using Tag = BackendTag ;
 			// cxtors & casts
 			Backend() = default ;
@@ -195,7 +195,7 @@ namespace Engine {
 	} ;
 
 	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {
-		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
+		friend ::string& operator+=( ::string& , Config const& ) ;
 		// cxtors & casts
 		Config(                      ) : booted{false} {}   // if config comes from nowhere, it is not booted
 		Config(Py::Dict const& py_map) ;
@@ -220,21 +220,18 @@ namespace Engine {
 	} ;
 
 	// sep is put before the last indent level, useful for porcelaine output
-	/**/   void _audit( Fd out , ::ostream* log , ReqOptions const&    , Color   , ::string const&   , bool as_is   , DepDepth     , char sep   ) ;
-	inline void audit ( Fd out , ::ostream& log , ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,&log   ,ro,c          ,t,a,l,sep) ; }
-	inline void audit ( Fd out ,                  ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,nullptr,ro,c          ,t,a,l,sep) ; }
-	inline void audit ( Fd out , ::ostream& log , ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,&log   ,ro,Color::None,t,a,l,sep) ; }
-	inline void audit ( Fd out ,                  ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,nullptr,ro,Color::None,t,a,l,sep) ; }
+	/**/   void audit( Fd out , Fd log , ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) ;
+	inline void audit( Fd out ,          ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { audit(out,{} ,ro,c          ,t,a,l,sep) ; }
+	inline void audit( Fd out , Fd log , ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { audit(out,log,ro,Color::None,t,a,l,sep) ; }
+	inline void audit( Fd out ,          ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { audit(out,{} ,ro,Color::None,t,a,l,sep) ; }
 	//
 	/**/   void audit_file( Fd out , ::string&& f ) ;
 	//
-	/**/   void _audit_status( Fd out , ::ostream* log , ReqOptions const&    , bool    ) ;
-	inline void audit_status ( Fd out , ::ostream& log , ReqOptions const& ro , bool ok ) { _audit_status(out,&log   ,ro,ok) ; }
-	inline void audit_status ( Fd out ,                  ReqOptions const& ro , bool ok ) { _audit_status(out,nullptr,ro,ok) ; }
+	/**/   void audit_status( Fd out , Fd log , ReqOptions const& ro , bool ok ) ;
+	inline void audit_status( Fd out ,          ReqOptions const& ro , bool ok ) { audit_status(out,{},ro,ok) ; }
 	//
-	/**/   void _audit_ctrl_c( Fd out , ::ostream* log , ReqOptions const&    ) ;
-	inline void audit_ctrl_c ( Fd out , ::ostream& log , ReqOptions const& ro ) { _audit_ctrl_c(out,&log   ,ro) ; }
-	inline void audit_ctrl_c ( Fd out ,                  ReqOptions const& ro ) { _audit_ctrl_c(out,nullptr,ro) ; }
+	/**/   void audit_ctrl_c( Fd out , Fd log , ReqOptions const& ro ) ;
+	inline void audit_ctrl_c( Fd out ,          ReqOptions const& ro ) { audit_ctrl_c(out,{},ro) ; }
 
 	inline ::string title    ( ReqOptions const& , ::string const& ) ;
 	inline ::string color_pfx( ReqOptions const& , Color           ) ;
@@ -252,7 +249,7 @@ namespace Engine {
 	} ;
 
 	struct EngineClosureReq {
-		friend ::ostream& operator<<( ::ostream& , EngineClosureReq const& ) ;
+		friend ::string& operator+=( ::string& , EngineClosureReq const& ) ;
 		// accesses
 		bool as_job() const {
 			if (options.flags[ReqFlag::Job]) { SWEAR(files.size()==1,files) ; return true  ; }
@@ -271,7 +268,7 @@ namespace Engine {
 	} ;
 
 	struct EngineClosureJobStart {
-		friend ::ostream& operator<<( ::ostream& , EngineClosureJobStart const& ) ;
+		friend ::string& operator+=( ::string& , EngineClosureJobStart const& ) ;
 		JobInfoStart               start         = {}    ;
 		bool                       report        = false ;
 		::vmap<Node,FileActionTag> report_unlnks = {}    ;
@@ -280,19 +277,19 @@ namespace Engine {
 	} ;
 
 	struct EngineClosureJobEtc {
-		friend ::ostream& operator<<( ::ostream& , EngineClosureJobEtc const& ) ;
+		friend ::string& operator+=( ::string& , EngineClosureJobEtc const& ) ;
 		bool report = false ;
 		Req  req    = {}    ;
 	} ;
 
 	struct EngineClosureJobEnd {
-		friend ::ostream& operator<<( ::ostream& , EngineClosureJobEnd const& ) ;
+		friend ::string& operator+=( ::string& , EngineClosureJobEnd const& ) ;
 		::vmap_ss  rsrcs = {} ;
 		JobInfoEnd end   = {} ;
 	} ;
 
 	struct EngineClosureJob {
-		friend ::ostream& operator<<( ::ostream& , EngineClosureJob const& ) ;
+		friend ::string& operator+=( ::string& , EngineClosureJob const& ) ;
 		// cxtors & casts
 		EngineClosureJob( JobRpcProc p , JobExec const& je , EngineClosureJobStart&& ecjs ) : proc{p} , job_exec{je} , start{ecjs} {}
 		EngineClosureJob( JobRpcProc p , JobExec const& je , EngineClosureJobEtc  && ecje ) : proc{p} , job_exec{je} , etc  {ecje} {}
@@ -327,7 +324,7 @@ namespace Engine {
 	} ;
 
 	struct EngineClosureJobMngt {
-		friend ::ostream& operator<<( ::ostream& , EngineClosureJobMngt const& ) ;
+		friend ::string& operator+=( ::string& , EngineClosureJobMngt const& ) ;
 		JobMngtProc         proc     = {} ;
 		JobExec             job_exec = {} ;
 		Fd                  fd       = {} ;
@@ -336,7 +333,7 @@ namespace Engine {
 	} ;
 
 	struct EngineClosure {
-		friend ::ostream& operator<<( ::ostream& , EngineClosure const& ) ;
+		friend ::string& operator+=( ::string& , EngineClosure const& ) ;
 		//
 		using Kind = EngineClosureKind     ;
 		using ECG  = EngineClosureGlobal   ;

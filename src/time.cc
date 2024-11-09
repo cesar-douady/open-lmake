@@ -36,12 +36,12 @@ namespace Time {
 	// Delay
 	//
 
-	::ostream& operator<<( ::ostream& os , Delay const d ) {
+	::string& operator+=( ::string& os , Delay const d ) {
 		int64_t  s  =       d.sec      ()  ;
 		uint32_t ns = ::abs(d.nsec_in_s()) ;
 		/**/                  os << "D:"                                                  ;
 		if ( !s && d._val<0 ) os << '-'                                                   ;
-		return                os << fmt_string(s,'.',::setfill('0'),::setw(9),::right,ns) ;
+		return                os << cat(s,'.',widen(cat(ns),9,true/*right*/,'0'/*fill*/)) ;
 	}
 
 	::string Delay::str(uint8_t prec) const {
@@ -57,28 +57,28 @@ namespace Time {
 	::string Delay::short_str() const {
 		Tick        v    = msec()     ;
 		const char* sign = v<0?"-":"" ;
-		if (v<0) v = -v ;
-		/**/      if (v< 10*1000) return fmt_string(sign,::right,::setw(1),v/1000,'.',::setfill('0'),::setw(3),v%1000,'s') ;
-		v /= 10 ; if (v< 60* 100) return fmt_string(sign,::right,::setw(2),v/ 100,'.',::setfill('0'),::setw(2),v% 100,'s') ;
-		v /=100 ; if (v< 60*  60) return fmt_string(sign,::right,::setw(2),v/  60,'m',::setfill('0'),::setw(2),v%  60,'s') ;
-		v /= 60 ; if (v<100*  60) return fmt_string(sign,::right,::setw(2),v/  60,'h',::setfill('0'),::setw(2),v%  60,'m') ;
-		v /= 60 ; if (v<100'000 ) return fmt_string(sign,::right,::setw(5),v     ,'h'                                    ) ;
-		v /= 24 ; if (v<100'000 ) return fmt_string(sign,::right,::setw(5),v     ,'j'                                    ) ;
-		/**/                      return "forevr"                                                                          ; // ensure  size is 6
+		if (v<0) v = -v ; //!                                    right                         right fill
+		/**/      if (v< 10*1000) return sign+      cat(v/1000)        +'.'+widen(cat(v%1000),3,true,'0')+'s' ;
+		v /= 10 ; if (v< 60* 100) return sign+widen(cat(v/ 100),2,true)+'.'+widen(cat(v% 100),2,true,'0')+'s' ;
+		v /=100 ; if (v< 60*  60) return sign+widen(cat(v/  60),2,true)+'m'+widen(cat(v%  60),2,true,'0')+'s' ;
+		v /= 60 ; if (v<100*  60) return sign+widen(cat(v/  60),2,true)+'h'+widen(cat(v%  60),2,true,'0')+'m' ;
+		v /= 60 ; if (v<100'000 ) return sign+widen(cat(v     ),5,true)+'h'                                   ;
+		v /= 24 ; if (v<100'000 ) return sign+widen(cat(v     ),5,true)+'j'                                   ;
+		/**/                      return "forevr"                                                             ; // ensure  size is 6
 	}
 
 	//
 	// CoarseDelay
 	//
 
-	::ostream& operator<<( ::ostream& os , CoarseDelay const cd ) { return os<<Delay(cd) ; }
+	::string& operator+=( ::string& os , CoarseDelay const cd ) { return os<<Delay(cd) ; }
 
 	//
 	// Date
 	//
 
-	::ostream& operator<<( ::ostream& os , Ddate    const  d ) { return os <<"DD:" << d.str(9) <<':'<< d.tag() ; }
-	::ostream& operator<<( ::ostream& os , Pdate    const  d ) { return os <<"PD:" << d.str(9)                 ; }
+	::string& operator+=( ::string& os , Ddate    const  d ) { return os <<"DD:" << d.str(9) <<':'<< d.tag() ; }
+	::string& operator+=( ::string& os , Pdate    const  d ) { return os <<"PD:" << d.str(9)                 ; }
 
 	::string Date::str( uint8_t prec , bool in_day ) const {
 		if (!self) return "None" ;

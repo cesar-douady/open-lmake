@@ -26,7 +26,7 @@ ENUM_1( JobExecProc
 )
 
 struct AccessDigest {                                                  // order is first read, first write, last write, unlink
-	friend ::ostream& operator<<( ::ostream& , AccessDigest const& ) ;
+	friend ::string& operator+=( ::string& , AccessDigest const& ) ;
 	// accesses
 	bool operator+() const { return +accesses || write!=No ; }         // true if some access of some sort is done
 	// services
@@ -43,7 +43,7 @@ struct AccessDigest {                                                  // order 
 } ;
 
 struct JobExecRpcReq {
-	friend ::ostream& operator<<( ::ostream& , JobExecRpcReq const& ) ;
+	friend ::string& operator+=( ::string& , JobExecRpcReq const& ) ;
 	// make short lines
 	using Pdate = Time::Pdate    ;
 	using FI    = Disk::FileInfo ;
@@ -107,7 +107,7 @@ struct JobExecRpcReq {
 } ;
 
 struct JobExecRpcReply {
-	friend ::ostream& operator<<( ::ostream& , JobExecRpcReply const& ) ;
+	friend ::string& operator+=( ::string& , JobExecRpcReply const& ) ;
 	using Proc = JobExecProc ;
 	using Crc  = Hash::Crc   ;
 	// cxtors & casts

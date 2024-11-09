@@ -9,12 +9,12 @@
 
 template<class T> struct Serdeser ;
 
-template<class S> concept IsOStream = ::is_base_of_v<::ostream,S> || ::is_base_of_v<::string     ,S> ;
-template<class S> concept IsIStream = ::is_base_of_v<::istream,S> || ::is_base_of_v<::string_view,S> ;
-template<class S> concept IsStream  = IsIStream<S>                || IsOStream<S>                    ;
+template<class S> concept IsOStream = ::is_base_of_v<::string     ,S> ;
+template<class S> concept IsIStream = ::is_base_of_v<::string_view,S> ;
+template<class S> concept IsStream  = IsIStream<S> || IsOStream<S>    ;
 //
-template<class T> concept HasSerdes   =                  requires( T x , ::ostream& os , ::istream& is ) { x.serdes             (os  ) ;  x.serdes             (is  ) ; } ;
-template<class T> concept HasSerdeser = !HasSerdes<T> && requires( T x , ::ostream& os , ::istream& is ) { Serdeser<T>::s_serdes(os,x) ;  Serdeser<T>::s_serdes(is,x) ; } ;
+template<class T> concept HasSerdes   =                  requires( T x , ::string& os , ::string_view& is ) { x.serdes             (os  ) ;  x.serdes             (is  ) ; } ;
+template<class T> concept HasSerdeser = !HasSerdes<T> && requires( T x , ::string& os , ::string_view& is ) { Serdeser<T>::s_serdes(os,x) ;  Serdeser<T>::s_serdes(is,x) ; } ;
 
 template<class T> concept Serializable = HasSerdes<T> || HasSerdeser<T> ;
 
@@ -27,7 +27,7 @@ template< IsIStream S , HasSerdeser T > void serdes( S& is , T       & x        
 template< IsOStream S , Serializable T1 , Serializable T2 , Serializable... Ts > void serdes( S& os , T1 const& x1 , T2 const& x2 , Ts const&... xs ) { serdes(os,x1) ; serdes(os,x2,xs...) ; }
 template< IsIStream S , Serializable T1 , Serializable T2 , Serializable... Ts > void serdes( S& is , T1      & x1 , T2      & x2 , Ts      &... xs ) { serdes(is,x1) ; serdes(is,x2,xs...) ; }
 //
-template< Serializable T , IsOStream S > void     serialize  ( S& os , T const& x ) {                serdes(os ,x  ) ; os.flush() ; }
+template< Serializable T , IsOStream S > void     serialize  ( S& os , T const& x ) {                serdes(os ,x  ) ;              }
 template< Serializable T               > ::string serialize  (         T const& x ) { ::string res ; serdes(res,x  ) ; return res ; }
 template< Serializable T , IsIStream S > void     deserialize( S& is , T      & x ) { x = {}       ; serdes(is ,x  ) ;              }
 template< Serializable T , IsIStream S > T        deserialize( S& is              ) { T        res ; serdes(is ,res) ; return res ; }
@@ -36,8 +36,9 @@ template< Serializable T , IsOStream S > void serialize  ( S            && os , 
 template< Serializable T , IsIStream S > void deserialize( S            && is , T      & x ) {        deserialize<T>(is              ,x) ; }
 template< Serializable T , IsIStream S > T    deserialize( S            && is              ) { return deserialize<T>(is                ) ; }
 template< Serializable T               > T    deserialize( ::string const& s               ) { return deserialize<T>(::string_view(s)  ) ; }
+template< Serializable T               > void deserialize( ::string const& s  , T      & x ) {        deserialize<T>(::string_view(s),x) ; }
 
-// make objects hashable as soon as they define serdes(::ostream) &&  serdes(::istream)
+// make objects hashable as soon as they define serdes
 // as soon as a class T is serializable, you can simply use ::set<T>, ::uset<T>, ::map<T,...> or ::umap<T,...>
 // /!\ : not ideal in terms of performances, but easy to use.
 // suppress calls to FAIL when necessary
@@ -66,9 +67,7 @@ template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T>
 } ;
 
 template<class T> requires(::is_trivially_copyable_v<T>) struct Serdeser<T> {
-	static void s_serdes( ::ostream    & os , T const& x ) { os.write           ( reinterpret_cast<char const*>(&x) , sizeof(x) ) ; }
 	static void s_serdes( ::string     & os , T const& x ) { os += ::string_view( reinterpret_cast<char const*>(&x) , sizeof(x) ) ; }
-	static void s_serdes( ::istream    & is , T      & x ) { is.read            ( reinterpret_cast<char      *>(&x) , sizeof(x) ) ; }
 	static void s_serdes( ::string_view& is , T      & x ) {
 		SWEAR(is.size()>=sizeof(x),is.size(),sizeof(x)) ;
 		::memcpy( reinterpret_cast<char*>(&x) , is.data() , sizeof(x) ) ;
@@ -83,9 +82,7 @@ template<class T> static uint32_t _sz32(T const& v) {
 }
 
 template<> struct Serdeser<::string> {
-	static void s_serdes( ::ostream    & os , ::string const& s ) { uint32_t sz=_sz32(s) ; serdes(os,sz) ;                os.write(s.data(),sz) ; }
-	static void s_serdes( ::string     & os , ::string const& s ) { uint32_t sz=_sz32(s) ; serdes(os,sz) ;                os += s               ; }
-	static void s_serdes( ::istream    & is , ::string      & s ) { uint32_t sz          ; serdes(is,sz) ; s.resize(sz) ; is.read (s.data(),sz) ; }
+	static void s_serdes( ::string     & os , ::string const& s ) { uint32_t sz=_sz32(s) ; serdes(os,sz) ; os += s ; }
 	static void s_serdes( ::string_view& is , ::string      & s ) {
 		uint32_t sz ; serdes(is,sz) ;
 		SWEAR(is.size()>=sz,is.size(),sz) ;

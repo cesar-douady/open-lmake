@@ -72,7 +72,7 @@ namespace Engine {
 namespace Engine {
 
 	struct Job : JobBase {
-		friend ::ostream& operator<<( ::ostream& , Job const ) ;
+		friend ::string& operator+=( ::string& , Job const ) ;
 		friend struct JobData ;
 		//
 		using JobBase::side ;
@@ -108,7 +108,7 @@ namespace Engine {
 		static_assert(Job::NGuardBits>=1) ;                                                                                                               // need 1 bit to store is_static_phony bit
 		static constexpr uint8_t NGuardBits = Job::NGuardBits-1       ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
-		friend ::ostream& operator<<( ::ostream& , JobTgt ) ;
+		friend ::string& operator+=( ::string& , JobTgt ) ;
 		// cxtors & casts
 		JobTgt(                                                                                   ) = default ;
 		JobTgt( Job j , bool isp=false                                                            ) : Job(j ) { if (+j) is_static_phony(isp)          ; } // if no job, ensure JobTgt appears as false
@@ -125,13 +125,13 @@ namespace Engine {
 	} ;
 
 	struct JobTgts : JobTgtsBase {
-		friend ::ostream& operator<<( ::ostream& , JobTgts ) ;
+		friend ::string& operator+=( ::string& , JobTgts ) ;
 		// cxtors & casts
 		using JobTgtsBase::JobTgtsBase ;
 	} ;
 
 	struct JobExec : Job {
-		friend ::ostream& operator<<( ::ostream& , JobExec const& ) ;
+		friend ::string& operator+=( ::string& , JobExec const& ) ;
 		// cxtors & casts
 	public :
 		JobExec(                                         ) = default ;
@@ -175,7 +175,7 @@ namespace Engine {
 namespace Engine {
 
 	struct JobReqInfo : ReqInfo {                                        // watchers of Job's are Node's
-		friend ::ostream& operator<<( ::ostream& , JobReqInfo const& ) ;
+		friend ::string& operator+=( ::string& , JobReqInfo const& ) ;
 		using Step       = JobStep       ;
 		using MakeAction = JobMakeAction ;
 		// cxtors & casts
@@ -213,7 +213,7 @@ namespace Engine {
 		}
 		// data
 		struct State {
-			friend ::ostream& operator<<( ::ostream& , State const& ) ;
+			friend ::string& operator+=( ::string& , State const& ) ;
 			JobReason reason          = {}    ;                          //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
 			bool      missing_dsk  :1 = false ;                          //          1 bit , if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
 			RunStatus stamped_err  :2 = {}    ;                          //          2 bits, errors seen in dep until iter before    last parallel chunk

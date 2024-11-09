@@ -93,7 +93,7 @@ namespace Store {
 	protected :
 		SharedMutex<MutexLvl::File> mutable _mutex ;
 	private :
-		AutoCloseFd _fd ;
+		AcFd _fd ;
 	} ;
 
 	template<bool AutoLock,size_t Capacity> File<AutoLock,Capacity>& File<AutoLock,Capacity>::operator=(File&& other) {
@@ -142,15 +142,16 @@ namespace Store {
 		else          map_flags |= MAP_SHARED                  ;
 		//
 		void* actual = ::mmap( base+old_size , size-old_size , map_prot , MAP_FIXED|map_flags , _fd , old_size ) ;
-		if (actual!=base+old_size) FAIL_PROD(hex,size_t(base),size_t(actual),dec,old_size,size,::strerror(errno)) ;
+		if (actual!=base+old_size) FAIL_PROD(to_hex(size_t(base)),to_hex(size_t(actual)),old_size,size,::strerror(errno)) ;
 	}
 
 	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::_resize_file(size_t sz) {
 		swear_prod( writable , name , "is read-only" ) ;
 		if (sz>Capacity) {
-			::cerr<<"file "<<name<<" capacity has been under-dimensioned at "<<Capacity<<" bytes"             <<endl ;
-			::cerr<<"consider to recompile open-lmake with increased corresponding parameter in src/config.hh"<<endl ;
-			exit(Rc::Param) ;
+			::string err_msg ;
+			err_msg<<"file "<<name<<" capacity has been under-dimensioned at "<<Capacity<<" bytes\n"              ;
+			err_msg<<"consider to recompile open-lmake with increased corresponding parameter in src/config.hh\n" ;
+			exit(Rc::Param,err_msg) ;
 		}
 		sz = round_up(sz,g_page) ;
 		if (+_fd) {

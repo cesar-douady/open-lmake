@@ -216,7 +216,7 @@ private :
 	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self_ , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> func ) {
 		static constexpr uint64_t One = 1 ;
 		t_thread_key = key ;
-		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
+		AcFd               stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
 		Epoll              epoll   { New }                  ;
 		::umap<Fd,IMsgBuf> slaves  ;
 		::stop_callback    stop_cb {                                                       // transform request_stop into an event Epoll can wait for

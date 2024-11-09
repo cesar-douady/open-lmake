@@ -29,9 +29,9 @@ using namespace Time ;
 	size_t                 Trace::_s_cur_sz    = 0       ;
 	Mutex<MutexLvl::Trace> Trace::_s_mutex     ;
 
-	thread_local int            Trace::_t_lvl  = 0       ;
-	thread_local bool           Trace::_t_hide = false   ;
-	thread_local OStringStream* Trace::_t_buf  = nullptr ;
+	thread_local int       Trace::_t_lvl  = 0       ;
+	thread_local bool      Trace::_t_hide = false   ;
+	thread_local ::string* Trace::_t_buf  = nullptr ;
 
 	void Trace::s_start() {
 		if ( !g_trace_file || !*g_trace_file ) return ;
@@ -72,7 +72,7 @@ using namespace Time ;
 		mk_dir_s(trace_dir_s) ;
 		//
 		_s_cur_sz = 4096                                                                                                       ;
-		_s_fd     = { ::open( tmp_trace_file.c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0666 ) , true/*no_std*/ } ;
+		_s_fd     = { ::open( tmp_trace_file.c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0644 ) , true/*no_std*/ } ;
 		//
 		if ( !_s_fd                                                        ) throw "cannot create temporary trace file "+tmp_trace_file+" : "+::strerror(errno)           ;
 		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw "cannot create trace file "          +*g_trace_file +" : "+::strerror(errno)           ;
@@ -87,18 +87,8 @@ using namespace Time ;
 
 	void Trace::_t_commit() {
 		//
-		static constexpr char Giant[] = "<giant record>\n" ;
-		#if HAS_OSTRINGSTREAM_VIEW
-			::string_view buf_view = _t_buf->view() ;
-			if (buf_view.size()>(s_sz>>4)) {                                                      // avoid trace pollution with giant records (above 1/16th of the overall trace size)
-				buf_view = { Giant , sizeof(Giant)-1 } ;                                          // -1 to account for terminating null
-			}
-		#else
-			::string buf_view = _t_buf->str() ;
-			if (buf_view.size()>(s_sz>>4)) {                                                      // avoid trace pollution with giant records (above 1/16th of the overall trace size)
-				buf_view = Giant ;
-			}
-		#endif
+		static ::string s_giant = "<giant record>\n" ;
+		::string const& buf_view = _t_buf->size()<=(s_sz>>4) ? *_t_buf : s_giant ;
 		//
 		{	Lock   lock    { _s_mutex }             ;
 			size_t new_pos = _s_pos+buf_view.size() ;
@@ -117,7 +107,7 @@ using namespace Time ;
 			::memmove( _s_data+_s_pos , buf_view.data() , buf_view.size() ) ;
 			_s_pos = new_pos ;
 		}
-		_t_buf->str({}) ;
+		_t_buf->clear() ;
 	}
 
 #endif

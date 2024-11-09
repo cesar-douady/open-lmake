@@ -18,7 +18,7 @@ using namespace Hash ;
 // FileAction
 //
 
-::ostream& operator<<( ::ostream& os , FileAction const& fa ) {
+::string& operator+=( ::string& os , FileAction const& fa ) {
 	/**/                                os << "FileAction(" << fa.tag ;
 	if (fa.tag<=FileActionTag::HasFile) os <<','<< fa.sig             ;
 	return                              os <<')'                      ;
@@ -85,7 +85,7 @@ using namespace Hash ;
 // JobReason
 //
 
-::ostream& operator<<( ::ostream& os , JobReason const& jr ) {
+::string& operator+=( ::string& os , JobReason const& jr ) {
 	os << "JobReason(" << jr.tag ;
 	if (jr.tag>=JobReasonTag::HasNode) os << ',' << jr.node ;
 	return os << ')' ;
@@ -95,7 +95,7 @@ using namespace Hash ;
 // DepInfo
 //
 
-::ostream& operator<<( ::ostream& os , DepInfo const& di ) {
+::string& operator+=( ::string& os , DepInfo const& di ) {
 	switch (di.kind) {
 		case DepInfoKind::Crc  : return os <<'('<< di.crc () <<')' ;
 		case DepInfoKind::Sig  : return os <<'('<< di.sig () <<')' ;
@@ -107,13 +107,13 @@ using namespace Hash ;
 // JobSpace
 //
 
-::ostream& operator<<( ::ostream& os , JobSpace::ViewDescr const& vd ) {
+::string& operator+=( ::string& os , JobSpace::ViewDescr const& vd ) {
 	/**/             os <<"ViewDescr("<< vd.phys ;
 	if (+vd.copy_up) os <<"CU:"<< vd.copy_up     ;
 	return           os <<')'                    ;
 }
 
-::ostream& operator<<( ::ostream& os , JobSpace const& js ) {
+::string& operator+=( ::string& os , JobSpace const& js ) {
 	First first ;
 	/**/                  os <<"JobSpace("                           ;
 	if (+js.chroot_dir_s) os <<first("",",")<<"C:"<< js.chroot_dir_s ;
@@ -146,7 +146,7 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
 	for( size_t i : iota(1,srcs_s.size()) )
 		if (srcs_s[i].find(':')!=Npos)
-			throw "cannot overlay mount "+dst_s+" to "+fmt_string(srcs_s)+"with embedded columns (:)" ;
+			throw cat("cannot overlay mount ",dst_s," to ",srcs_s,"with embedded columns (:)") ;
 	mk_dir_s(work_s) ;
 	//
 	::string                                data  = "userxattr"                      ;
@@ -160,7 +160,7 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
-	AutoCloseFd fd = ::open(file.c_str(),O_WRONLY|O_TRUNC) ;
+	AcFd fd { file , Fd::Write } ;
 	throw_unless( +fd , "cannot open ",file," for writing" ) ;
 	ssize_t cnt = ::write( fd , data.c_str() , data.size() ) ;
 	if (cnt<0                  ) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : "+::strerror(errno)         ;
@@ -186,7 +186,7 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 		if ((dst_ok=+cpy(dst,src))) deps.emplace_back(dst,MountAction::Write) ;
 		else                        dst_ok = false ;
 	} else {
-		AutoCloseFd fd = ::open(dir_guard(dst).c_str(),O_WRONLY|O_CREAT,0644) ;
+		AcFd fd { dir_guard(dst) , Fd::Write } ;
 		if ((dst_ok=+fd)) deps.emplace_back(dst,MountAction::Write) ;
 	}
 	return dst_ok ;
@@ -270,7 +270,7 @@ bool/*entered*/ JobSpace::enter(
 			switch (FileInfo(src_f).tag()) {                                                                                   // exclude weird files
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : OFStream{           private_f                 } ; _mount_bind(private_f,src_f) ; break ; // create file
+				case FileTag::Exe   : AcFd    (        private_f    ,Fd::Write      ) ; _mount_bind(private_f,src_f) ; break ; // create file
 				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                ) ; _mount_bind(private_f,src_f) ; break ; // create dir
 				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)) ;                                break ; // copy symlink
 			DN}
@@ -391,7 +391,7 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 // JobRpcReq
 //
 
-::ostream& operator<<( ::ostream& os , TargetDigest const& td ) {
+::string& operator+=( ::string& os , TargetDigest const& td ) {
 	const char* sep = "" ;
 	/**/                    os << "TargetDigest("      ;
 	if ( td.pre_exist   ) { os <<      "pre_exist"     ; sep = "," ; }
@@ -402,11 +402,11 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 	return                  os <<')'                   ;
 }
 
-::ostream& operator<<( ::ostream& os , JobDigest const& jd ) {
+::string& operator+=( ::string& os , JobDigest const& jd ) {
 	return os << "JobDigest(" << jd.wstatus<<':'<<jd.status <<','<< jd.targets <<','<< jd.deps << ')' ;
 }
 
-::ostream& operator<<( ::ostream& os , JobRpcReq const& jrr ) {
+::string& operator+=( ::string& os , JobRpcReq const& jrr ) {
 	/**/                      os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
 	switch (jrr.proc) {
 		case JobRpcProc::Start : os <<','<< jrr.port                                                     ; break ;
@@ -420,7 +420,7 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 // JobRpcReply
 //
 
-::ostream& operator<<( ::ostream& os , MatchFlags const& mf ) {
+::string& operator+=( ::string& os , MatchFlags const& mf ) {
 	/**/             os << "MatchFlags(" ;
 	switch (mf.is_target) {
 		case Yes   : os << "target" ; if (+mf.tflags()) os<<','<<mf.tflags() ; if (+mf.extra_tflags()) os<<','<<mf.extra_tflags() ; break ;
@@ -430,33 +430,33 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 	return           os << ')' ;
 }
 
-::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
+::string& operator+=( ::string& os , JobRpcReply const& jrr ) {
 	os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
 		case JobRpcProc::Start :
-			/**/                           os <<','  << hex<<jrr.addr<<dec                ;
-			/**/                           os <<','  << jrr.autodep_env                   ;
-			if      (+jrr.job_space      ) os <<','  << jrr.job_space                     ;
-			if      ( jrr.keep_tmp       ) os <<','  << "keep"                            ;
-			if      ( jrr.tmp_sz_mb==Npos) os <<",T:"<< "..."                             ;
-			else                           os <<",T:"<< jrr.tmp_sz_mb                     ;
-			if      (+jrr.cwd_s          ) os <<','  << jrr.cwd_s                         ;
-			if      (+jrr.date_prec      ) os <<','  << jrr.date_prec                     ;
-			/**/                           os <<','  << mk_printable(fmt_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
-			/**/                           os <<','  << jrr.interpreter                   ;
-			/**/                           os <<','  << jrr.kill_sigs                     ;
-			if      (jrr.live_out        ) os <<','  << "live_out"                        ;
-			/**/                           os <<','  << jrr.method                        ;
-			if      (+jrr.network_delay  ) os <<','  << jrr.network_delay                 ;
-			if      (+jrr.pre_actions    ) os <<','  << jrr.pre_actions                   ;
-			/**/                           os <<','  << jrr.small_id                      ;
-			if      (+jrr.star_matches   ) os <<','  << jrr.star_matches                  ;
-			if      (+jrr.deps           ) os <<'<'  << jrr.deps                          ;
-			if      (+jrr.static_matches ) os <<'>'  << jrr.static_matches                ;
-			if      (+jrr.stdin          ) os <<'<'  << jrr.stdin                         ;
-			if      (+jrr.stdout         ) os <<'>'  << jrr.stdout                        ;
-			if      (+jrr.timeout        ) os <<','  << jrr.timeout                       ;
-			/**/                           os <<','  << jrr.cmd                           ; // last as it is most probably multi-line
+			/**/                           os <<','  << to_hex(jrr.addr)           ;
+			/**/                           os <<','  << jrr.autodep_env            ;
+			if      (+jrr.job_space      ) os <<','  << jrr.job_space              ;
+			if      ( jrr.keep_tmp       ) os <<','  << "keep"                     ;
+			if      ( jrr.tmp_sz_mb==Npos) os <<",T:"<< "..."                      ;
+			else                           os <<",T:"<< jrr.tmp_sz_mb              ;
+			if      (+jrr.cwd_s          ) os <<','  << jrr.cwd_s                  ;
+			if      (+jrr.date_prec      ) os <<','  << jrr.date_prec              ;
+			/**/                           os <<','  << mk_printable(cat(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+			/**/                           os <<','  << jrr.interpreter            ;
+			/**/                           os <<','  << jrr.kill_sigs              ;
+			if      (jrr.live_out        ) os <<','  << "live_out"                 ;
+			/**/                           os <<','  << jrr.method                 ;
+			if      (+jrr.network_delay  ) os <<','  << jrr.network_delay          ;
+			if      (+jrr.pre_actions    ) os <<','  << jrr.pre_actions            ;
+			/**/                           os <<','  << jrr.small_id               ;
+			if      (+jrr.star_matches   ) os <<','  << jrr.star_matches           ;
+			if      (+jrr.deps           ) os <<'<'  << jrr.deps                   ;
+			if      (+jrr.static_matches ) os <<'>'  << jrr.static_matches         ;
+			if      (+jrr.stdin          ) os <<'<'  << jrr.stdin                  ;
+			if      (+jrr.stdout         ) os <<'>'  << jrr.stdout                 ;
+			if      (+jrr.timeout        ) os <<','  << jrr.timeout                ;
+			/**/                           os <<','  << jrr.cmd                    ; // last as it is most probably multi-line
 			;
 		break ;
 	DN}
@@ -548,7 +548,7 @@ void JobRpcReply::exit() {
 // JobMngtRpcReq
 //
 
-::ostream& operator<<( ::ostream& os , JobMngtRpcReq const& jmrr ) {
+::string& operator+=( ::string& os , JobMngtRpcReq const& jmrr ) {
 	/**/                               os << "JobMngtRpcReq(" << jmrr.proc <<','<< jmrr.seq_id <<','<< jmrr.job <<','<< jmrr.fd ;
 	switch (jmrr.proc) {
 		case JobMngtProc::LiveOut    : os <<','<< jmrr.txt.size() ;                             break ;
@@ -565,7 +565,7 @@ void JobRpcReply::exit() {
 // JobMngtRpcReply
 //
 
-::ostream& operator<<( ::ostream& os , JobMngtRpcReply const& jmrr ) {
+::string& operator+=( ::string& os , JobMngtRpcReply const& jmrr ) {
 	/**/                               os << "JobMngtRpcReply(" << jmrr.proc ;
 	switch (jmrr.proc) {
 		case JobMngtProc::ChkDeps    : os <<','<< jmrr.fd <<','<<                                   jmrr.ok ; break ;
@@ -580,7 +580,7 @@ void JobRpcReply::exit() {
 // SubmitAttrs
 //
 
-::ostream& operator<<( ::ostream& os , SubmitAttrs const& sa ) {
+::string& operator+=( ::string& os , SubmitAttrs const& sa ) {
 	const char* sep = "" ;
 	/**/                 os << "SubmitAttrs("          ;
 	if (+sa.tag      ) { os <<      sa.tag       <<',' ; sep = "," ; }
@@ -596,26 +596,29 @@ void JobRpcReply::exit() {
 // JobInfo
 //
 
-::ostream& operator<<( ::ostream& os , JobInfoStart const& jis ) {
+::string& operator+=( ::string& os , JobInfoStart const& jis ) {
 	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
 }
 
-::ostream& operator<<( ::ostream& os , JobInfoEnd const& jie ) {
+::string& operator+=( ::string& os , JobInfoEnd const& jie ) {
 	return os << "JobInfoEnd(" << jie.end <<')' ;
 }
 
 JobInfo::JobInfo(::string const& filename) {
 	try {
-		IFStream job_stream { filename } ;
-		deserialize(job_stream,start) ;
-		deserialize(job_stream,end  ) ;
-	} catch (...) {}                    // we get what we get
+		::string      job_info = AcFd(filename).read() ;
+		::string_view jis      = job_info              ;
+		deserialize(jis,start) ;
+		deserialize(jis,end  ) ;
+	} catch (...) {}             // we get what we get
 }
 
 void JobInfo::write(::string const& filename) const {
-	OFStream os{dir_guard(filename)} ;
-	serialize(os,start) ;
-	serialize(os,end  ) ;
+	AcFd os { dir_guard(filename) , Fd::Write } ;
+	os.write(
+		serialize(start)
+	+	serialize(end  )
+	) ;
 }
 //
 // codec

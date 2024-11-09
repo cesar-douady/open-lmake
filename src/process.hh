@@ -81,9 +81,17 @@ inline bool wstatus_ok(int wstatus) {
 }
 
 inline ::string wstatus_str(int wstatus) {
-	if (WIFEXITED  (wstatus)) return WEXITSTATUS(wstatus) ? "exit "s+WEXITSTATUS(wstatus)  : "ok"s   ;
-	if (WIFSIGNALED(wstatus)) return "signal "s+WTERMSIG(wstatus)+'-'+::strsignal(WTERMSIG(wstatus)) ;
-	else                      return "??"                                                            ;
+	if (WIFEXITED(wstatus)) {
+		int rc = WEXITSTATUS(wstatus) ;
+		if ( rc==0                               ) return "ok"                                                        ;
+		if ( int sig=rc-128 ; sig>=0 && sig<NSIG ) return "exit "s+rc+" (could be signal "+sig+'-'+strsignal(sig)+')' ;
+		/**/                                       return "exit "s+rc                                                 ;
+	}
+	if (WIFSIGNALED(wstatus)) {
+		int sig = WTERMSIG(wstatus) ;
+		return "signal "s+sig+'-'+::strsignal(sig) ;
+	}
+	return "??"                                                            ;
 }
 
 struct Child {
@@ -140,10 +148,10 @@ public :
 	int/*rc*/       (*pre_exec)(void*) = nullptr    ;                // if no cmd_line, this is the entire function exected as child returning the exit status
 	void*           pre_exec_arg       = nullptr    ;
 	// child info
-	pid_t       pid    = 0  ;
-	AutoCloseFd stdin  = {} ;
-	AutoCloseFd stdout = {} ;
-	AutoCloseFd stderr = {} ;
+	pid_t pid    = 0  ;
+	AcFd  stdin  = {} ;
+	AcFd  stdout = {} ;
+	AcFd  stderr = {} ;
 	// private (cannot really declare private or it would not be an aggregate any more)
 	Pipe         _p2c             = {}      ;
 	Pipe         _c2po            = {}      ;

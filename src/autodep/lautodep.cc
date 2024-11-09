@@ -105,7 +105,7 @@ int main( int argc , char* argv[] ) {
 	Py::init(*g_lmake_dir_s) ;
 	::string dbg_dir_s = *g_root_dir_s+AdminDirS+"debug/" ;
 	mk_dir_s(dbg_dir_s) ;
-	AutoCloseFd lock_fd = ::open(no_slash(dbg_dir_s).c_str(),O_RDONLY) ;
+	AcFd lock_fd { no_slash(dbg_dir_s) } ;
 	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                                // because we have no small_id, we can only run a single instance
 		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"            ) ;
 		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",::strerror(errno)) ;
@@ -182,34 +182,27 @@ int main( int argc , char* argv[] ) {
 		//       ^^^^^^^^^^^^^^^^^^^
 	} catch (::string const& e) { exit(Rc::System,e) ; }
 	//
-	::ostream* ds       ;
-	OFStream   user_out ;
-	try {
-		if (cmd_line.flags[CmdFlag::Out]) { user_out.open(cmd_line.flag_args[+CmdFlag::Out]) ; ds = &user_out ; }
-		else                              {                                                    ds = &::cerr   ; }
-        start_info.exit() ;
-	} catch (::string const& e) {
-		exit(Rc::System,e) ;
+	try                       { start_info.exit() ;  }
+	catch (::string const& e) { exit(Rc::System,e) ; }
+	//
+	::string deps = "targets :\n" ;
+	for( auto const& [target,ai] : gather.accesses ) switch(ai.digest.write) {
+		case No    :                               break ;
+		case Maybe : deps <<"? "<< target <<'\n' ; break ;
+		case Yes   : deps <<"  "<< target <<'\n' ; break ;
 	}
-	::ostream& deps_stream = *ds ;
-	deps_stream << "targets :\n" ;
-	for( auto const& [target,ai] : gather.accesses ) {
-		if (ai.digest.write==No) continue ;
-		deps_stream << ( ai.digest.write==Maybe? "? " : "  " ) ;
-		deps_stream << target << '\n'                          ;
-	}
-	deps_stream << "deps :\n" ;
+	deps += "deps :\n" ;
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	Pdate    prev_first_read  ;
 	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                                         // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
-			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;
-			else if ( !prev_parallel &&  parallel ) deps_stream << "/ "  ;
-			else if (  prev_parallel &&  parallel ) deps_stream << "| "  ;
-			else                                    deps_stream << "\\ " ;
-			deps_stream << prev_dep << '\n' ;
+			if      ( !prev_parallel && !parallel ) deps += "  "  ;
+			else if ( !prev_parallel &&  parallel ) deps += "/ "  ;
+			else if (  prev_parallel &&  parallel ) deps += "| "  ;
+			else                                    deps += "\\ " ;
+			deps << prev_dep << '\n' ;
 		}
 		prev_first_read = first_read ;
 		prev_parallel   = parallel   ;
@@ -217,5 +210,8 @@ int main( int argc , char* argv[] ) {
 	} ;
 	for( auto const& [dep,ai] : gather.accesses ) if (ai.digest.write==No) send(dep,ai.first_read().first) ;
 	/**/                                                                   send(                         ) ;                  // send last
+	//
+	if (cmd_line.flags[CmdFlag::Out]) Fd(cmd_line.flag_args[+CmdFlag::Out],Fd::Write).write(deps) ;
+	else                              Fd::Stdout                                     .write(deps) ;
 	return status!=Status::Ok ;
 }

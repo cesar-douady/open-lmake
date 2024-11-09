@@ -13,7 +13,7 @@ namespace Hash {
 	// Crc
 	//
 
-	::ostream& operator<<( ::ostream& os , Crc const crc ) {
+	::string& operator+=( ::string& os , Crc const crc ) {
 		CrcSpecial special{crc} ;
 		if (special==CrcSpecial::Plain) return os << "Crc("<<::string(crc)<<')' ;
 		else                            return os << "Crc("<<special      <<')' ;
@@ -22,7 +22,7 @@ namespace Hash {
 	Crc::Crc(::string const& filename) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 		self = None ;
-		if ( AutoCloseFd fd = ::open(filename.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
+		if ( AcFd fd = ::open(filename.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
 			FileTag tag       = FileInfo(fd).tag() ;
 			char    buf[4096] ;
 			switch (tag) {

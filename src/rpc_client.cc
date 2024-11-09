@@ -5,7 +5,7 @@
 
 #include "rpc_client.hh"
 
-::ostream& operator<<( ::ostream& os , ReqOptions const& ro ) {
+::string& operator+=( ::string& os , ReqOptions const& ro ) {
 	const char* sep = "" ;
 	/**/                          os << "ReqOptions("         ;
 	if (+ro.startup_dir_s     ) { os <<      ro.startup_dir_s ; sep = "," ; }
@@ -16,13 +16,13 @@
 	return                        os <<')'                    ;
 }
 
-::ostream& operator<<( ::ostream& os , ReqRpcReq const& rrr ) {
+::string& operator+=( ::string& os , ReqRpcReq const& rrr ) {
 	/**/                            os << "ReqRpcReq(" << rrr.proc           ;
 	if (rrr.proc>=ReqProc::HasArgs) os <<','<< rrr.files <<','<< rrr.options ;
 	return                          os <<')'                                 ;
 }
 
-::ostream& operator<<( ::ostream& os , ReqRpcReply const& rrr ) {
+::string& operator+=( ::string& os , ReqRpcReply const& rrr ) {
 	using Proc = ReqRpcReplyProc ;
 	os << "ReqRpcReply("<<rrr.proc ;
 	switch (rrr.proc) {

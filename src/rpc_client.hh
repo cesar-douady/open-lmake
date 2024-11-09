@@ -104,7 +104,7 @@ using ReqCmdLine = CmdLine<ReqKey,ReqFlag> ;
 static constexpr char ServerMrkr[] = ADMIN_DIR_S "server" ;
 
 struct ReqOptions {
-	friend ::ostream& operator<<( ::ostream& , ReqOptions const& ) ;
+	friend ::string& operator+=( ::string& , ReqOptions const& ) ;
 	// cxtors & casts
 	ReqOptions() = default ;
 	//
@@ -139,7 +139,7 @@ struct ReqOptions {
 } ;
 
 struct ReqRpcReq {
-	friend ::ostream& operator<<( ::ostream& , ReqRpcReq const& ) ;
+	friend ::string& operator+=( ::string& , ReqRpcReq const& ) ;
 	using Proc = ReqProc ;
 	// cxtors & casts
 	ReqRpcReq() = default ;
@@ -160,7 +160,7 @@ struct ReqRpcReq {
 } ;
 
 struct ReqRpcReply {
-	friend ::ostream& operator<<( ::ostream& , ReqRpcReply const& ) ;
+	friend ::string& operator+=( ::string& , ReqRpcReply const& ) ;
 	using Proc = ReqRpcReplyProc ;
 	// cxtors & casts
 	ReqRpcReply(                          ) = default ;

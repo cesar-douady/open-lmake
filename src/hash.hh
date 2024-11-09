@@ -37,7 +37,7 @@ namespace Hash {
 	//
 
 	struct Crc {
-		friend ::ostream& operator<<( ::ostream& , Crc const ) ;
+		friend ::string& operator+=( ::string& , Crc const ) ;
 		using Val = uint64_t ;
 		static constexpr uint8_t NChkBits = 8 ;                       // as Crc may be used w/o protection against collision, ensure we have some margin
 		//

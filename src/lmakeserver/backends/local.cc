@@ -18,7 +18,7 @@ namespace Backends::Local {
 
 	using Rsrc = uint32_t ;
 	struct RsrcAsk {
-		friend ::ostream& operator<<( ::ostream& , RsrcAsk const& ) ;
+		friend ::string& operator+=( ::string& , RsrcAsk const& ) ;
 		bool operator==(RsrcAsk const&) const = default ;             // XXX : why is this necessary ?
 		// data
 		Rsrc min = 0/*garbage*/ ;
@@ -208,7 +208,7 @@ namespace Backends::Local {
 
 	bool _inited = (LocalBackend::s_init(),true) ;
 
-	::ostream& operator<<( ::ostream& os , RsrcAsk const& ra ) {
+	::string& operator+=( ::string& os , RsrcAsk const& ra ) {
 		return os << ra.min <<'<'<< ra.max ;
 	}
 

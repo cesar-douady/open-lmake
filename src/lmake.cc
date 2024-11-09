@@ -28,7 +28,7 @@ static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 		if (stop.stop_requested()) break ;                            // not an interrupt, just normal exit
 		trace("send_int") ;
 		OMsgBuf().send(g_server_fds.out,ReqRpcReq(ReqProc::Kill)) ;
-		::cout << ::endl ;                                            // output is nicer if ^C is on its own line
+		Fd::Stdout.write("\n") ;                                      // output is nicer if ^C is on its own line
 		g_seen_int = true ;
 	}
 	trace("done") ;

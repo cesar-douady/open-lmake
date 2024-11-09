@@ -365,6 +365,11 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 	- all `Trace` objects created while this one is alive will be indented, thus reproducing the call graph in the trace
 	- booleans cannot be traced as this is mostly unreadable. Instead use the `STR` macro to transform the boolean into a string. `STR(foo)` will be `foo` if foo is true, else `!foo`.
 
+## streams
+open-lmake does not use stream at all.
+The reason is that there are problems with streams when using statically linked libstdc++ (required to be robust to all installations) when python modules refer to it dynamically.
+By the way, the execution is lighter and code is not heavier.
+
 # modification
 
 * before pushing any modification:

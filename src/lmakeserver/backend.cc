@@ -35,7 +35,7 @@ namespace Backends {
 	// Backend::*
 	//
 
-	::ostream& operator<<( ::ostream& os , Backend::Workload const& wl ) {
+	::string& operator+=( ::string& os , Backend::Workload const& wl ) {
 		/**/   os << "Workload("                                                      ;
 		/**/   os <<      wl._ref_workload       /1000. <<'@'<< wl._ref_date          ;
 		/**/   os <<','<< wl._reasonable_workload/1000. <<'/'<< wl._reasonable_tokens ;
@@ -44,15 +44,15 @@ namespace Backends {
 		return os <<')'                                                               ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Backend::StartEntry const& ste ) {
+	::string& operator+=( ::string& os , Backend::StartEntry const& ste ) {
 		return os << "StartEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs <<','<< ste.submit_attrs << ')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Backend::StartEntry::Conn const& c ) {
+	::string& operator+=( ::string& os , Backend::StartEntry::Conn const& c ) {
 		return os << "Conn(" << SockFd::s_addr_str(c.host) <<':'<< c.port <<','<< c.seq_id <<','<< c.small_id << ')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Backend::DeferredEntry const& de ) {
+	::string& operator+=( ::string& os , Backend::DeferredEntry const& de ) {
 		return os << "DeferredEntry(" << de.seq_id <<','<< de.job_exec << ')' ;
 	}
 

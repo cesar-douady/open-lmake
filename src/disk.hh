@@ -86,21 +86,6 @@ namespace Disk {
 	inline bool is_dirname( ::string const& path                         ) { return !path || path.back()=='/'                                                         ; }
 	inline bool is_in_dir ( ::string const& path , ::string const& dir_s ) { return path.starts_with(dir_s) || (path.size()+1==dir_s.size()&&dir_s.starts_with(path)) ; }
 
-	inline ::string with_slash(::string&& path) {
-		if (!is_dirname(path)) {
-			if (path==".") return {} ;
-			path += '/' ;
-		}
-		return ::move(path) ;
-	}
-	inline ::string no_slash(::string&& path) {
-		if ( !path                              ) return "." ;
-		if ( path.back()=='/' && path.size()!=1 ) path.pop_back() ; // special case '/' as this is the usual convention : no / at the end of dirs, except for /
-		return ::move(path) ;
-	}
-	inline ::string with_slash(::string const& file) { return with_slash(::copy(file)) ; }
-	inline ::string no_slash  (::string const& file) { return no_slash  (::copy(file)) ; }
-
 	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
 	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
 	//
@@ -145,7 +130,7 @@ namespace Disk {
 	struct FileSig ;
 
 	struct FileInfo {
-		friend ::ostream& operator<<( ::ostream& , FileInfo const& ) ;
+		friend ::string& operator+=( ::string& , FileInfo const& ) ;
 		using Stat = struct ::stat ;
 	private :
 		// statics
@@ -169,7 +154,7 @@ namespace Disk {
 	} ;
 
 	struct FileSig {
-		friend ::ostream& operator<<( ::ostream& , FileSig const& ) ;
+		friend ::string& operator+=( ::string& , FileSig const& ) ;
 		// cxtors & casts
 	public :
 		FileSig(                                                    ) = default ;
@@ -194,7 +179,7 @@ namespace Disk {
 	inline FileSig FileInfo::sig() const { return FileSig(self) ; }
 
 	struct SigDate {
-		friend ::ostream& operator<<( ::ostream& , SigDate const& ) ;
+		friend ::string& operator+=( ::string& , SigDate const& ) ;
 		using Pdate = Time::Pdate ;
 		// cxtors & casts
 		SigDate(                     ) = default ;
@@ -250,11 +235,6 @@ namespace Disk {
 		bool     reliable_dirs = false/*garbage*/ ;
 	} ;
 
-	::vector_s read_lines   ( ::string const& file                       ) ;
-	::string   read_content ( ::string const& file                       ) ;
-	void       write_lines  ( ::string const& file , ::vector_s const&   ) ;
-	void       write_content( ::string const& file , ::string   const&   ) ;
-
 	// list files within dir with prefix in front of each entry
 	::vector_s lst_dir_s( Fd at , ::string const& dir_s={} , ::string const& prefix={} ) ;
 	// deep list files within dir with prefix in front of each entry, return a single entry {prefix} if file is not a dir (including if file does not exist)
@@ -274,15 +254,6 @@ namespace Disk {
 			::string at_str = at==Fd::Cwd ? ""s : "<"s+at.fd+">/" ;
 			throw "cannot create symlink from "+at_str+file+" to "+target ;
 		}
-	}
-
-	inline Fd open_read( Fd at , ::string const& filename ) {
-		return ::openat( at , filename.c_str() , O_RDONLY|O_CLOEXEC , 0666 ) ;
-	}
-
-	inline Fd open_write( Fd at , ::string const& filename , bool append=false , bool exe=false , bool read_only=false ) {
-		dir_guard(at,filename) ;
-		return ::openat( at , filename.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC|(append?O_APPEND:O_TRUNC) , 0777 & ~(exe?0000:0111) & ~(read_only?0222:0000) ) ;
 	}
 
 	inline ::string read_lnk( Fd at , ::string const& file ) {
@@ -309,8 +280,6 @@ namespace Disk {
 	inline bool/*done*/    uniquify      ( ::string const& file                                                              ) { return uniquify      (Fd::Cwd,file                      ) ; }
 	inline void            rmdir_s       ( ::string const& dir_s                                                             ) {        rmdir_s       (Fd::Cwd,dir_s                     ) ; }
 	inline void            lnk           ( ::string const& file  , ::string const& target                                    ) {        lnk           (Fd::Cwd,file ,target              ) ; }
-	inline Fd              open_read     ( ::string const& file                                                              ) { return open_read     (Fd::Cwd,file                      ) ; }
-	inline Fd              open_write    ( ::string const& file  , bool append=false , bool exe=false , bool read_only=false ) { return open_write    (Fd::Cwd,file ,append,exe,read_only) ; }
 	inline ::string        read_lnk      ( ::string const& file                                                              ) { return read_lnk      (Fd::Cwd,file                      ) ; }
 	inline bool            is_dir        ( ::string const& file  , bool no_follow=true                                       ) { return is_dir        (Fd::Cwd,file ,no_follow           ) ; }
 	inline bool            is_target     ( ::string const& file  , bool no_follow=true                                       ) { return is_target     (Fd::Cwd,file ,no_follow           ) ; }
@@ -347,12 +316,12 @@ namespace Disk {
 		const uint8_t* data = nullptr ;
 		size_t         sz   = 0       ;
 	private :
-		AutoCloseFd _fd ;
-		bool        _ok = false ;
+		AcFd _fd ;
+		bool _ok = false ;
 	} ;
 
 	struct RealPathEnv {
-		friend ::ostream& operator<<( ::ostream& , RealPathEnv const& ) ;
+		friend ::string& operator+=( ::string& , RealPathEnv const& ) ;
 		// services
 		FileLoc file_loc(::string const& file) const ;
 		// data
@@ -364,9 +333,9 @@ namespace Disk {
 	} ;
 
 	struct RealPath {
-		friend ::ostream& operator<<( ::ostream& , RealPath const& ) ;
+		friend ::string& operator+=( ::string& , RealPath const& ) ;
 		struct SolveReport {
-			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;
+			friend ::string& operator+=( ::string& , SolveReport const& ) ;
 			// data
 			::string   real          = {}           ; // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir, else empty
 			::vector_s lnks          = {}           ; // links followed to get to real
@@ -430,6 +399,6 @@ namespace Disk {
 		::string           _cwd            ;
 		pid_t              _cwd_pid        = 0 ;                                                                                      // pid for which _cwd is valid if pid==0
 	} ;
-	::ostream& operator<<( ::ostream& , RealPath::SolveReport const& ) ;
+	::string& operator+=( ::string& , RealPath::SolveReport const& ) ;
 
 }

@@ -221,16 +221,6 @@ EOF
 HAS_MEMFD=$(ok cc -Werror -o memfd -xc memfd.c)
 
 #
-# HAS_OSTRINGSTREAM_VIEW
-# test whether std::ostringstream has method view()
-#
-cat <<"EOF" > ostringstream_view.cc
-	#include <sstream>
-	std::string_view ossv = std::ostringstream().view() ;
-EOF
-HAS_OSTRINGSTREAM_VIEW=$(ok cc -c -std=$CXX_STD -o ostringstream_view.o ostringstream_view.cc )
-
-#
 # HAS_PCRE
 #
 cat <<"EOF" > pcre.cc
@@ -462,7 +452,6 @@ cat >$H_FILE <<EOF
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD
-	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP

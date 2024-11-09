@@ -119,7 +119,7 @@ namespace Engine {
 	// JobTgts
 	//
 
-	::ostream& operator<<( ::ostream& os , JobTgts jts ) {
+	::string& operator+=( ::string& os , JobTgts jts ) {
 		return os<<jts.view() ;
 	}
 
@@ -127,7 +127,7 @@ namespace Engine {
 	// JobReqInfo
 	//
 
-	::ostream& operator<<( ::ostream& os , JobReqInfo::State const& ris ) {
+	::string& operator+=( ::string& os , JobReqInfo::State const& ris ) {
 		const char* sep = "" ;
 		/**/                                            os <<'('                                                  ;
 		if (+ris.reason                             ) { os <<            ris.reason                               ; sep = "," ; }
@@ -136,7 +136,7 @@ namespace Engine {
 		return                                          os <<')'                                                  ;
 	}
 
-	::ostream& operator<<( ::ostream& os , JobReqInfo const& ri ) {
+	::string& operator+=( ::string& os , JobReqInfo const& ri ) {
 		/**/                  os << "JRI(" << ri.req                  ;
 		/**/                  os <<','  << (ri.full?"full":"makable") ;
 		if (ri.speculate!=No) os <<",S:"<< ri.speculate               ;
@@ -163,19 +163,19 @@ namespace Engine {
 
 	DequeThread<::pair<Job,JobInfo>,true/*Flush*/,true/*QueueAccess*/> Job::_s_record_thread ;
 
-	::ostream& operator<<( ::ostream& os , Job j ) {
+	::string& operator+=( ::string& os , Job j ) {
 		/**/    os << "J(" ;
 		if (+j) os << +j   ;
 		return  os << ')'  ;
 	}
-	::ostream& operator<<( ::ostream& os , JobTgt jt ) {
+	::string& operator+=( ::string& os , JobTgt jt ) {
 		if (!jt) return           os << "(J())"        ;
 		/**/                      os << "(" << Job(jt) ;
 		if (jt.is_static_phony()) os << ",static"      ;
 		else                      os << ",star"        ;
 		return                    os << ')'            ;
 	}
-	::ostream& operator<<( ::ostream& os , JobExec const& je ) {
+	::string& operator+=( ::string& os , JobExec const& je ) {
 		if (!je) return os << "JE()" ;
 		//
 		/**/                     os <<'('<< Job(je)                     ;
@@ -255,8 +255,8 @@ namespace Engine {
 		for( auto const& jji : _s_record_thread ) do_entry(jji                   ) ; // linear searching is not fast, but this is rather exceptional and this queue is small (actually mostly empty)
 		Trace trace("job_info",STR(need_start),STR(need_end),STR(found_start),STR(found_end)) ;
 		if (!found_start) try {                                                                                                                // ignore errors, we get what exists
-			::string jaf = ancillary_file() ;
-			IFStream jas { jaf }            ;
+			::string      jaf = AcFd(ancillary_file()).read() ;
+			::string_view jas { jaf }                         ;
 			trace("ancillary_file",jaf) ;
 			/**/                          try { deserialize( jas , res.start ) ; trace("start_from_file") ; } catch (...) { res.start = {} ; } // even if we do not need start, we need to skip it
 			if ( need_end && !found_end ) try { deserialize( jas , res.end   ) ; trace("end_from_file"  ) ; } catch (...) { res.end   = {} ; }
@@ -266,9 +266,10 @@ namespace Engine {
 
 	void Job::record(JobInfo const& ji) const {
 		Trace trace("record",self,STR(+ji.start),STR(+ji.end)) ;
-		OFStream jas { ancillary_file() , +ji.start ? ::ios::out|::ios::trunc : ::ios::app } ; // start event write to file, end event append to it
-		if (+ji.start) serialize( jas , ji.start ) ;
-		if (+ji.end  ) serialize( jas , ji.end   ) ;
+		::string jaf ;
+		if (+ji.start) serialize( jaf , ji.start ) ;
+		if (+ji.end  ) serialize( jaf , ji.end   ) ;
+		AcFd( ancillary_file() , +ji.start?Fd::Write:Fd::Append ).write(jaf) ; // start event write to file, end event append to it
 	}
 
 	//

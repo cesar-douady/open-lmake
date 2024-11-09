@@ -17,18 +17,15 @@
 #include <charconv> // from_chars_result
 #include <chrono>
 #include <concepts>
-#include <fstream>
 #include <functional>
 #include <iomanip>
 #include <ios>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <mutex>
 #include <set>
 #include <shared_mutex>
 #include <span>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -45,6 +42,8 @@ using std::getline  ; // special case getline which also has a C version that hi
 #define self (*this)
 
 template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
+
+static constexpr size_t Npos = ::string::npos ;
 
 //
 // meta programming
@@ -195,93 +194,18 @@ template<class T> T& grow( ::vector<T>& v , size_t i ) {
 }
 
 //
-// streams
-//
-
-template<class Stream> struct FakeStream : Stream {
-	struct Buf : ::streambuf {
-		int underflow(   ) { return EOF ; }
-		int overflow (int) { return EOF ; }
-		int sync     (   ) { return 0   ; }
-	} ;
-	// cxtors & casts
-	FakeStream() : Stream{&_buf} {}
-	// data
-protected :
-	Buf _buf ;
-} ;
-using OFakeStream = FakeStream<::ostream> ;
-using IFakeStream = FakeStream<::istream> ;
-
-inline void _set_cloexec(::filebuf* fb) {
-	int fd = np_get_fd(*fb) ;
-	if (fd>=0) ::fcntl(fd,F_SETFD,FD_CLOEXEC) ;
-}
-inline void sanitize(::ostream& os) {
-	os.exceptions(~os.goodbit) ;
-	os<<::left<<::boolalpha ;
-}
-struct OFStream : ::ofstream {
-	using Base = ::ofstream ;
-	// cxtors & casts
-	OFStream (                                                                     ) : Base{           } { sanitize(self) ;                         }
-	OFStream ( ::string const& f , ::ios_base::openmode om=::ios::out|::ios::trunc ) : Base{f,om       } { sanitize(self) ; _set_cloexec(rdbuf()) ; }
-	OFStream ( OFStream&& ofs                                                      ) : Base{::move(ofs)} {                                          }
-	~OFStream(                                                                     )                     {                                          }
-	//
-	OFStream& operator=(OFStream&& ofs) { Base::operator=(::move(ofs)) ; return self ; }
-	// services
-	template<class... A> void open(A&&... args) { Base::open(::forward<A>(args)...) ; _set_cloexec(rdbuf()) ; }
-} ;
-struct IFStream : ::ifstream {
-	using Base = ::ifstream ;
-	// cxtors & casts
-	IFStream(                                 ) : Base{    } { exceptions(~goodbit) ; _set_cloexec(rdbuf()) ; }
-	IFStream( ::string const& f               ) : Base{f   } { exceptions(~goodbit) ; _set_cloexec(rdbuf()) ; }
-	IFStream( ::string const& f , openmode om ) : Base{f,om} { exceptions(~goodbit) ; _set_cloexec(rdbuf()) ; }
-	//
-	IFStream& operator=(IFStream&& ifs) { Base::operator=(::move(ifs)) ; return self ; }
-	// services
-	template<class... A> void open(A&&... args) { Base::open(::forward<A>(args)...) ; _set_cloexec(rdbuf()) ; }
-} ;
-
-struct OStringStream : ::ostringstream {
-	OStringStream() : ::ostringstream{} { sanitize(self) ; }
-} ;
-struct IStringStream : ::istringstream {
-	IStringStream(::string const& s) : ::istringstream{s} { exceptions(~goodbit) ; }
-} ;
-
-//
 // assert
 //
+
+struct Fd ;
 
 extern thread_local char t_thread_key ;
 
 void kill_self      ( int sig                        ) ;
 void set_sig_handler( int sig , void (*handler)(int) ) ;
-void write_backtrace( ::ostream& os , int hide_cnt   ) ;
+void write_backtrace( Fd      , int hide_cnt         ) ;
 
-template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
-	static bool busy = false ;
-	if (!busy) {                             // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
-		busy = true ;
-		char    buf[PATH_MAX] ;
-		ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
-		if ( cnt>=0 || cnt<=PATH_MAX ) {
-			/**/                   ::cerr << ::string_view(buf,cnt) ;
-			if (t_thread_key!='?') ::cerr <<':'<< t_thread_key      ;
-			/**/                   ::cerr <<" :"                    ;
-		}
-		[[maybe_unused]] bool _[] = {false,(::cerr<<' '<<args,false)...} ;
-		::cerr << '\n' ;
-		set_sig_handler(sig,SIG_DFL) ;
-		write_backtrace(::cerr,hide_cnt+1) ; // rather than merely calling abort, this works even if crash_handler is not installed
-		kill_self(sig) ;
-	}
-	set_sig_handler(SIGABRT,SIG_DFL) ;
-	::abort() ;
-}
+template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) ;
 
 #if !HAS_UNREACHABLE                         // defined in <utility> in c++23, use 202100 as g++-12 generates 202100 when -std=c++23
 	[[noreturn]] inline void unreachable() {
@@ -343,7 +267,7 @@ inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
 
 inline void kill_self(int sig) {      // raise kills the thread, not the process
 	int rc = ::kill(::getpid(),sig) ; // dont use kill_process as we call kill ourselves even if we are process 1 (in a namespace)
-	SWEAR(rc==0) ;                    // killing outselves should always be ok
+	SWEAR(rc==0,sig) ;                // killing outselves should always be ok
 }
 
 //
@@ -380,7 +304,17 @@ template<Iotable I1,Iotable I2> constexpr Iota<true /*with_start*/,I2> iota( I1 
 // string
 //
 
-static constexpr size_t Npos = ::string::npos ;
+template<::unsigned_integral I> ::string to_hex( I v , uint8_t width=sizeof(I)*2 ) {
+	::string res ( width , '0' ) ;
+	for( uint8_t i : iota(width) ) {
+		uint8_t d = v%16 ;
+		res[width-1-i] = d<10 ? '0'+d : 'a'+d-10 ;
+		v >>= 4 ;
+		if (!v) break ;
+	}
+	SWEAR(!v,v,res) ;
+	return res ;
+}
 
 struct First {
 	bool operator()() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }
@@ -410,24 +344,70 @@ namespace std {                                                                 
 }
 
 namespace std {
-	inline                                                ::string operator+( ::string          && a , ::string_view const& b ) { return ::move     (a)+::string   (b) ; } // XXX : suppress with c++26
-	inline                                                ::string operator+( ::string      const& a , ::string_view const& b ) { return             a +::string   (b) ; } // .
-	inline                                                ::string operator+( ::string_view const& a , ::string      const& b ) { return ::string   (a)+            b  ; } // .
-	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( ::string          && a , I                    b ) { return ::move     (a)+::to_string(b) ; }
-	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( ::string      const& a , I                    b ) { return             a +::to_string(b) ; }
-	template<::integral I> requires(!::is_same_v<I,char>) ::string operator+( I                    a , ::string const&      b ) { return ::to_string(a)+            b  ; }
+	template<class F> concept _CanDoFunc    = requires(::string s,F* f) { f(s) ; }              ;
+	template<class T> concept _CanAdd       = requires(::string s,T  x) { s+=x ; }              ;
+	template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>     ;
+	template<class T> concept _CanDoToHex   = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
+	template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ;                // use a template to avoid having to high a priority when compiler selects an overload
+	#if __cplusplus<202600L
+		inline ::string  operator+ ( ::string          && s , ::string_view const& v ) { return ::move     (s) +  ::string(v) ; }
+		inline ::string  operator+ ( ::string      const& s , ::string_view const& v ) { return             s  +  ::string(v) ; }
+		inline ::string  operator+ ( ::string_view const& v , ::string      const& s ) { return ::string   (v) +           s  ; }
+		inline ::string& operator+=( ::string           & s , ::string_view const& v ) { return             s  += ::string(v) ; }
+	#endif
+	inline ::string  operator+ ( ::string     && s , nullptr_t         ) { return ::move(s       ) +  "(null)" ; }
+	inline ::string  operator+ ( ::string const& s , nullptr_t         ) { return        s         +  "(null)" ; }
+	inline ::string  operator+ ( nullptr_t         , ::string const& s ) { return        "(null)"  +   s       ; }
+	inline ::string& operator+=( ::string      & s , nullptr_t         ) { return        s         += "(null)" ; }
 	//
-	inline                                                ::string& operator+=( ::string& a , ::string_view const& b ) { a += ::string   (b) ; return a ; }                // XXX : suppress with c++26
-	template<::integral I> requires(!::is_same_v<I,char>) ::string& operator+=( ::string& a , I                    b ) { a += ::to_string(b) ; return a ; }
-	// work around stupid += righ associativity
-	template<class T> requires requires { ::ref(::string())+=::decay_t<T>() ; } ::string& operator<<( ::string& s , T&&                         v ) { s += ::forward<T>(v) ; return s ; }
-	inline                                                                      ::string& operator<<( ::string& s , ::function<void(::string&)> f ) { f(s) ;                 return s ; }
+	template<_CanDoBool B> inline ::string  operator+ ( ::string     && s , B               b ) { return ::move(s               ) +  (b?"true":"false") ; }
+	template<_CanDoBool B> inline ::string  operator+ ( ::string const& s , B               b ) { return        s                 +  (b?"true":"false") ; }
+	template<_CanDoBool B> inline ::string  operator+ ( B               b , ::string const& s ) { return       (b?"true":"false") +   s                 ; }
+	template<_CanDoBool B> inline ::string& operator+=( ::string      & s , B               b ) { return        s                 +=  b?"true":"false"  ; }
+	//
+	template<_CanDoToHex T> ::string _ptr_to_hex(T* p) {
+		if (p) return "0x"+to_hex(reinterpret_cast<uintptr_t>(p)) ;
+		else   return "(null)"                                    ;
+	}
+	template<_CanDoToHex T> inline ::string  operator+ ( ::string     && s , T*              p ) { return ::move     (s) +  _ptr_to_hex(p) ; }
+	template<_CanDoToHex T> inline ::string  operator+ ( ::string const& s , T*              p ) { return             s  +  _ptr_to_hex(p) ; }
+	template<_CanDoToHex T> inline ::string  operator+ ( T*              p , ::string const& s ) { return _ptr_to_hex(p) +              s  ; }
+	template<_CanDoToHex T> inline ::string& operator+=( ::string      & s , T*              p ) { return             s  += _ptr_to_hex(p) ; }
+	//
+	template<_CanDoToChars N> inline ::string _to_string_append(N n) {
+		::string res ( 30 , 0 ) ;
+		::to_chars_result rc = ::to_chars( res.data() , res.data()+res.size() , n ) ; SWEAR(rc.ec==::errc()) ;
+		res.resize(rc.ptr-res.data()) ;
+		return res ;
+	}
+	template<_CanDoToChars N> inline ::string  operator+ ( ::string     && s , N               n ) { return ::move           (s) +  _to_string_append(n) ; }
+	template<_CanDoToChars N> inline ::string  operator+ ( ::string const& s , N               n ) { return                   s  +  _to_string_append(n) ; }
+	template<_CanDoToChars N> inline ::string  operator+ ( N               n , ::string const& s ) { return _to_string_append(n) +                    s  ; }
+	template<_CanDoToChars N> inline ::string& operator+=( ::string      & s , N               n ) { return                   s  += _to_string_append(n) ; }
+	//
+	template<_CanDoFunc F> inline ::string& operator+=( ::string& s , F*                 f ) { f(s)          ; return s ; }
+	template<_CanAdd    T> inline ::string& operator+=( ::string& s , ::atomic<T> const& x ) { s += x.load() ; return s ; }
+	//
+	template<_CanAdd T> inline ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; } // work around += right associativity
 }
 
-template<class... A> ::string fmt_string(A const&... args) {
-	OStringStream res ;
-	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
-	return ::move(res).str() ;
+inline ::string widen( ::string && s , size_t sz , bool right=false , char fill=' ' ) {
+	if (s.size()>=sz) return ::move(s)   ;
+	::string f ( sz-s.size() , fill ) ;
+	if (right       ) return ::move(f)+s ;
+	/**/              return ::move(s)+f ;
+}
+inline ::string widen( ::string const& s , size_t sz , bool right=false , char fill=' ' ) {
+	if (s.size()>=sz) return        s    ;
+	::string f ( sz-s.size() , fill ) ;
+	if (right       ) return ::move(f)+s ;
+	/**/              return        s +f ;
+}
+
+template<class... A> ::string cat(A&&... args) {
+	::string res ;
+	[[maybe_unused]] bool _[] = { false , (res+=args,false)... } ;
+	return res ;
 }
 
 template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const& txt , bool empty_ok=false , bool hex=false ) {
@@ -578,8 +558,8 @@ template<char U,::integral I=size_t> ::string to_string_with_units  (I          
 template<       ::integral I=size_t> I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
 template<       ::integral I=size_t> ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
 
-template<class... A> constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw fmt_string(args...) ; }
-template<class... A> constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw fmt_string(args...) ; }
+template<class... A> constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw cat(args...) ; }
+template<class... A> constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw cat(args...) ; }
 
 //
 // span
@@ -617,12 +597,12 @@ static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
 
 //
-// stream formatting
+// string formatting
 //
 
 namespace std {
 
-	#define OP(...) ::ostream& operator<<( ::ostream& os , __VA_ARGS__ )
+	#define OP(...) ::string& operator+=( ::string& os , __VA_ARGS__ )
 	template<class T,size_t N> OP(          T    const  a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
 	template<class T,size_t N> OP( ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
 	template<class T         > OP( ::vector<T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
@@ -713,15 +693,10 @@ template<StdEnum E> const char*   camel_cstr(E e) { return          EnumCamels<E
 template<StdEnum E> const char*   snake_cstr(E e) { return          EnumSnakes<E>[+e].data() ; } // .
 
 namespace std {
-	template<StdEnum E> ::string   operator+ ( ::string     && s  , E               e ) {                  return ::move(s)+snake(e) ; }
-	template<StdEnum E> ::string   operator+ ( ::string const& s  , E               e ) {                  return        s +snake(e) ; }
-	template<StdEnum E> ::string   operator+ ( E               e  , ::string const& s ) {                  return snake (e)+      s  ; }
-	template<StdEnum E> ::string & operator+=( ::string      & s  , E               e ) { s  += snake(e) ; return s                  ; }
-	//
-	template<StdEnum E> ::ostream& operator<<( ::ostream& os , E e ) {
-		if (e<All<E>) return os << snake(e)        ;
-		else          return os << "N+"<<(+e-N<E>) ;
-	}
+	template<StdEnum E> ::string  operator+ ( ::string     && s , E               e ) { return ::move(s)+snake(e)                          ; }
+	template<StdEnum E> ::string  operator+ ( ::string const& s , E               e ) { return        s +snake(e)                          ; }
+	template<StdEnum E> ::string  operator+ ( E               e , ::string const& s ) { return snake (e)+      s                           ; }
+	template<StdEnum E> ::string& operator+=( ::string      & s , E               e ) { return e<All<E> ? s<<snake(e) : s<<"N+"<<(+e-N<E>) ; }
 }
 
 template<StdEnum E> ::umap_s<E> _mk_enum_tab() {
@@ -788,7 +763,7 @@ template<StdEnum E> E    decode_enum( const char* p ) { return E(decode_int<Enum
 template<StdEnum E> void encode_enum( char* p , E e ) { encode_int(p,+e) ;                     }
 
 template<StdEnum E> struct BitMap {
-	template<StdEnum> friend ::ostream& operator<<( ::ostream& , BitMap const ) ;
+	template<StdEnum> friend ::string& operator+=( ::string& , BitMap const ) ;
 	using Elem =       E    ;
 	using Val  = Uint<N<E>> ;
 	// cxtors & casts
@@ -833,7 +808,7 @@ template<StdEnum E> BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
 	return res ;
 }
 
-template<StdEnum E> ::ostream& operator<<( ::ostream& os , BitMap<E> const bm ) {
+template<StdEnum E> ::string& operator+=( ::string& os , BitMap<E> const bm ) {
 	os <<'(' ;
 	bool first = true ;
 	for( E e : iota(All<E>) )
@@ -870,6 +845,96 @@ inline Bool3  common    ( Bool3  b1 , Bool3 b2 ) {                return b1==Yes
 inline Bool3  common    ( Bool3  b1 , bool  b2 ) {                return b2      ? (b1==Yes?Yes:Maybe) :          ( b1==No?No:Maybe)         ; }
 inline Bool3  common    ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
 inline Bool3  common    ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
+
+//
+// Fd
+// necessary here in utils.hh, so cannot be put in higher level include such as fd.hh
+//
+
+inline ::string with_slash(::string&& path) {
+	if (!path           ) return "/"          ;
+	if (path=="."       ) return {}           ;
+	if (path.back()!='/') path += '/'         ;
+	/**/                  return ::move(path) ;
+}
+inline ::string no_slash(::string&& path) {
+	if ( !path                              ) return "."          ;
+	if ( path.back()=='/' && path.size()!=1 ) path.pop_back()     ; // special case '/' as this is the usual convention : no / at the end of dirs, except for /
+	/**/                                      return ::move(path) ;
+}
+inline ::string with_slash(::string const& path) {
+	if (!path           ) return "/"      ;
+	if (path=="."       ) return {}       ;
+	if (path.back()!='/') return path+'/' ;
+	/**/                  return path     ;
+}
+inline ::string no_slash(::string const& path) {
+	if ( !path                              ) return "."                          ;
+	if ( path.back()=='/' && path.size()!=1 ) return path.substr(0,path.size()-1) ; // special case '/' as this is the usual convention : no / at the end of dirs, except for /
+	/**/                                      return path                         ;
+}
+
+ENUM( FdAction
+,	Read
+,	Write
+,	Append
+,	Dir
+)
+struct Fd {
+	friend ::string& operator+=( ::string& , Fd const& ) ;
+	static const Fd Cwd    ;
+	static const Fd Stdin  ;
+	static const Fd Stdout ;
+	static const Fd Stderr ;
+	static const Fd Std    ;                                                                            // the highest standard fd
+	static constexpr FdAction Read   = FdAction::Read   ;
+	static constexpr FdAction Write  = FdAction::Write  ;
+	static constexpr FdAction Append = FdAction::Append ;
+	static constexpr FdAction Dir    = FdAction::Dir    ;
+	// cxtors & casts
+	constexpr Fd(                        ) = default ;
+	constexpr Fd( int fd_                ) : fd{fd_} {                         }
+	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
+	//
+	Fd(         ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ Cwd , file , action , no_std_ } {}
+	Fd( Fd at , ::string const& file , FdAction action=Read , bool no_std_=false ) :
+		Fd{
+			::openat(
+				at , action==Dir&&file!="/" ? no_slash(file).c_str() : file.c_str()
+			,		action==Read   ? O_RDONLY                      | O_CLOEXEC
+				:	action==Write  ? O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC
+				:	action==Append ? O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC
+				:	action==Dir    ? O_RDONLY | O_DIRECTORY        | O_CLOEXEC
+				:	                 0                                                                  // force error
+			,	0644
+			)
+		,	no_std_
+		}
+	{}
+	//
+	constexpr operator int  () const { return fd    ; }
+	constexpr bool operator+() const { return fd>=0 ; }
+	//
+	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
+	// services
+	/**/      bool              operator== ( Fd const&                              ) const = default ;
+	/**/      ::strong_ordering operator<=>( Fd const&                              ) const = default ;
+	/**/      void              write      ( ::string_view data                     ) const ;           // writing does not modify the Fd object
+	/**/      ::string          read       ( bool no_file_ok=false , size_t sz=Npos ) const ;           // read sz bytes or to eof
+	/**/      ::vector_s        read_lines ( bool no_file_ok=false                  ) const ;
+	/**/      Fd                dup        (                                        ) const { return ::dup(fd) ;                     }
+	constexpr Fd                detach     (                                        )       { Fd res = self ; fd = -1 ; return res ; }
+	constexpr void              close      (                                        ) ;
+	/**/      void              no_std     (                                        ) ;
+	/**/      void              cloexec    (bool set=true                           ) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
+	// data
+	int fd = -1 ;
+} ;
+constexpr Fd Fd::Cwd   {int(AT_FDCWD)} ;
+constexpr Fd Fd::Stdin {0            } ;
+constexpr Fd Fd::Stdout{1            } ;
+constexpr Fd Fd::Stderr{2            } ;
+constexpr Fd Fd::Std   {2            } ;
 
 //
 // mutexes
@@ -1054,14 +1119,66 @@ ENUM( Rc
 ,	System
 )
 
-template<class... A> [[noreturn]] void exit( Rc rc , A const&... args ) {
-	::cerr << ensure_nl(fmt_string(args...)) ;
+template<class... As> [[noreturn]] void exit( Rc rc , As const&... args ) {
+	Fd::Stderr.write(ensure_nl(cat(args...))) ;
 	::std::exit(+rc) ;
+}
+
+template<class... As> inline void dbg( ::string const& title , As const&... args ) {
+	::string              msg = title                                 ;
+	[[maybe_unused]] bool _[] = { false , (msg<<' '<<args,false)... } ;
+	msg += '\n' ;
+	Fd::Stderr.write(msg) ;
 }
 
 //
 // Implementation
 //
+
+//
+// Fd
+//
+
+inline constexpr void Fd::close() {
+	if (!self        ) return ;
+	if (::close(fd)<0) throw "cannot close fd "s+fd+" : "+::strerror(errno) ;
+	self = {} ;
+}
+
+inline void Fd::no_std() {
+	if ( !self || fd>Std.fd ) return ;
+	int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , Std.fd+1 ) ;
+	swear_prod(new_fd>Std.fd,"cannot duplicate",fd) ;
+	close() ;
+	fd = new_fd ;
+}
+
+//
+// assert
+//
+
+template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
+	static bool busy = false ;
+	if (!busy) {                                 // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
+		busy = true ;
+		char     buf[PATH_MAX] ;
+		ssize_t  cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
+		::string err_msg       ;
+		if ( cnt>=0 || cnt<=PATH_MAX ) {
+			/**/                   err_msg << ::string_view(buf,cnt) ;
+			if (t_thread_key!='?') err_msg <<':'<< t_thread_key      ;
+			/**/                   err_msg <<" :"                    ;
+		}
+		[[maybe_unused]] bool _[] = {false,(err_msg<<' '<<args,false)...} ;
+		err_msg << '\n' ;
+		Fd::Stderr.write(err_msg) ;
+		set_sig_handler(sig,SIG_DFL) ;
+		write_backtrace(Fd::Stderr,hide_cnt+1) ;
+		kill_self(sig) ;                         // rather than merely calling abort, this works even if crash_handler is not installed
+	}
+	set_sig_handler(SIGABRT,SIG_DFL) ;
+	::abort() ;
+}
 
 //
 // string

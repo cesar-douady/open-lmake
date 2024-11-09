@@ -36,13 +36,13 @@ namespace Caches {
 	} ;
 
 	void DirCache::chk(ssize_t delta_sz) const {
-		::ifstream head_stream     { _lru_file(HeadS) } ;
-		Lru        head            ;                      if (head_stream) deserialize(head_stream,head) ;
-		::uset_s   seen            ;
-		::string   expected_prev_s = HeadS              ;
-		size_t     total_sz        = 0                  ;
+		AcFd     head_fd         { _lru_file(HeadS) } ;
+		Lru      head            ;                      if (+head_fd) deserialize(head_fd.read(),head) ;
+		::uset_s seen            ;
+		::string expected_prev_s = HeadS              ;
+		size_t   total_sz        = 0                  ;
 		for( ::string entry_s=head.next_s ; entry_s!=HeadS ;) {
-			auto here = deserialize<Lru>(IFStream(_lru_file(entry_s))) ;
+			auto here = deserialize<Lru>(AcFd(_lru_file(entry_s)).read()) ;
 			//
 			SWEAR(seen.insert(entry_s).second ,entry_s) ;
 			SWEAR(here.prev_s==expected_prev_s,entry_s) ;
@@ -67,9 +67,9 @@ namespace Caches {
 		try                     { chk_version(true/*may_init*/,dir_s+AdminDirS) ;                    }
 		catch (::string const&) { throw "cache version mismatch, running without "+no_slash(dir_s) ; }
 		//
-		dir_fd = open_read(no_slash(dir_s)) ; dir_fd.no_std() ;                                 // avoid poluting standard descriptors
+		dir_fd = { dir_s , Fd::Dir , true/*no_std*/ } ;                                  // avoid poluting standard descriptors
 		if (!dir_fd) throw "cannot configure cache "+no_slash(dir_s)+" : no directory" ;
-		sz = from_string_with_units<size_t>(strip(read_content(dir_s+AdminDirS+"size"))) ;
+		sz = from_string_with_units<size_t>(strip(AcFd(dir_s+AdminDirS+"size").read())) ;
 	}
 
 	// START_OF_VERSIONING
@@ -96,17 +96,17 @@ namespace Caches {
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz ) {
 		throw_unless( new_sz<=sz , "cannot store entry of size ",new_sz," in cache of size ",sz ) ;
 		//
-		::string   head_file       = _lru_file(HeadS) ;
-		::ifstream head_stream     { head_file }      ;
-		Lru        head            ;                    if (head_stream) deserialize(head_stream,head) ;
-		bool       some_removed    = false            ;
-		::string   expected_next_s = HeadS            ;                             // for assertion only
+		::string head_file       = _lru_file(HeadS) ;
+		AcFd     head_fd         { head_file }      ;
+		Lru      head            ;                    if (+head_fd) deserialize(head_fd.read(),head) ;
+		bool     some_removed    = false            ;
+		::string expected_next_s = HeadS            ;                               // for assertion only
 		//
 		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                               // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>sz) {
 			SWEAR(head.prev_s!=HeadS) ;                                             // else this would mean an empty cache and we know an empty cache can accept new_sz
-			auto here = deserialize<Lru>(IFStream(_lru_file(head.prev_s))) ;
+			auto here = deserialize<Lru>(AcFd(_lru_file(head.prev_s)).read()) ;
 			SWEAR( here.next_s==expected_next_s , here.next_s , expected_next_s ) ;
 			SWEAR( head.sz    >=here.sz         , head.sz     , here.sz         ) ; // total size contains this entry
 			unlnk(dir_fd,no_slash(head.prev_s),true/*dir_ok*/) ;
@@ -122,39 +122,39 @@ namespace Caches {
 			if (head.prev_s==HeadS) {
 				head.next_s = HeadS ;
 			} else {
-				::string last_file = _lru_file(head.prev_s)                ;
-				auto     last      = deserialize<Lru>(IFStream(last_file)) ;
+				::string last_file = _lru_file(head.prev_s)                   ;
+				auto     last      = deserialize<Lru>(AcFd(last_file).read()) ;
 				last.next_s = HeadS ;
-				serialize(OFStream(last_file),last) ;
+				AcFd(last_file,Fd::Write).write(serialize(last)) ;
 			}
 		}
-		serialize( OFStream(dir_guard(head_file)) , head ) ;
+		AcFd(dir_guard(head_file),Fd::Write).write(serialize(head)) ;
 	}
 
 	DirCache::Sz DirCache::_lru_remove(::string const& entry_s) {
 		SWEAR(entry_s!=HeadS) ;
 		//
-		::ifstream here_stream { _lru_file(entry_s) }          ; if (!here_stream) return 0 ; // nothing to remove
-		auto       here        = deserialize<Lru>(here_stream) ;
+		AcFd here_fd { _lru_file(entry_s) }             ; if (!here_fd) return 0 ; // nothing to remove
+		auto here    = deserialize<Lru>(here_fd.read()) ;
 		if (here.prev_s==here.next_s) {
-			::string pn_file = _lru_file(here.prev_s)              ;
-			auto     pn      = deserialize<Lru>(IFStream(pn_file)) ;
+			::string pn_file = _lru_file(here.prev_s)                 ;
+			auto     pn      = deserialize<Lru>(AcFd(pn_file).read()) ;
 			//
 			pn.next_s = here.next_s ;
 			pn.prev_s = here.prev_s ;
 			//
-			serialize(OFStream(pn_file),pn) ;
+			AcFd(pn_file,Fd::Write).write(serialize(pn)) ;
 		} else {
-			::string   prev_file   = _lru_file(here.prev_s)                ;
-			::string   next_file   = _lru_file(here.next_s)                ;
-			auto       prev        = deserialize<Lru>(IFStream(prev_file)) ;
-			auto       next        = deserialize<Lru>(IFStream(next_file)) ;
+			::string prev_file = _lru_file(here.prev_s)                   ;
+			::string next_file = _lru_file(here.next_s)                   ;
+			auto     prev      = deserialize<Lru>(AcFd(prev_file).read()) ;
+			auto     next      = deserialize<Lru>(AcFd(next_file).read()) ;
 			//
 			prev.next_s = here.next_s ;
 			next.prev_s = here.prev_s ;
 			//
-			serialize(OFStream(prev_file),prev) ;
-			serialize(OFStream(next_file),next) ;
+			AcFd(prev_file,Fd::Write).write(serialize(prev)) ;
+			AcFd(next_file,Fd::Write).write(serialize(next)) ;
 		}
 		return here.sz ;
 	}
@@ -162,37 +162,37 @@ namespace Caches {
 	void DirCache::_lru_first( ::string const& entry_s , Sz sz_ ) {
 		SWEAR(entry_s!=HeadS) ;
 		//
-		::string head_file  = _lru_file(HeadS)                       ;
-		auto     head       = deserialize<Lru>(IFStream(head_file))  ;
-		::string here_file  = _lru_file(entry_s)                     ;
-		Lru      here       { .next_s=head.next_s , .sz=sz_ }        ;
+		::string head_file  = _lru_file(HeadS)                         ;
+		auto     head       = deserialize<Lru>(AcFd(head_file).read()) ;
+		::string here_file  = _lru_file(entry_s)                       ;
+		Lru      here       { .next_s=head.next_s , .sz=sz_ }          ;
 		if (head.next_s==HeadS) {
 			head.next_s = entry_s ;
 			head.prev_s = entry_s ;
 		} else {
-			::string first_file = _lru_file(head.next_s)                 ;
-			auto     first      = deserialize<Lru>(IFStream(first_file)) ;
+			::string first_file = _lru_file(head.next_s)                    ;
+			auto     first      = deserialize<Lru>(AcFd(first_file).read()) ;
 			head .next_s = entry_s ;
 			first.prev_s = entry_s ;
-			serialize(OFStream(first_file),first) ;
+			AcFd(first_file,Fd::Write).write(serialize(first)) ;
 		}
-		serialize(OFStream(head_file),head) ;
-		serialize(OFStream(here_file),here) ;
+		AcFd(head_file,Fd::Write).write(serialize(head)) ;
+		AcFd(here_file,Fd::Write).write(serialize(here)) ;
 	}
 
 	Cache::Match DirCache::match( Job job , Req req ) {
 		Trace trace("DirCache::match",job,req) ;
-		::string     jn_s     = _unique_name_s(job)               ;
+		::string     jn_s     = _unique_name_s(job)        ;
 		::uset<Node> new_deps ;
-		AutoCloseFd  dfd      =  open_read(dir_fd,no_slash(jn_s)) ;
-		LockedFd     lock     { dfd    , false/*exclusive*/ }     ;
-		bool         found    = false                             ;
+		AcFd         dfd      { dir_fd , jn_s , Fd::Dir }  ;
+		LockedFd     lock     { dfd , false/*exclusive*/ } ;
+		bool         found    = false                      ;
 		//
 		try {
 			for( ::string const& r : lst_dir_s(dfd) ) {
 				::uset<Node> nds      ;
-				auto         deps     = deserialize<::vmap_s<DepDigest>>(IFStream(dir_s+jn_s+r+"/deps")) ;
-				bool         critical = false                                                            ;
+				auto         deps     = deserialize<::vmap_s<DepDigest>>(AcFd(dir_s+jn_s+r+"/deps").read()) ;
+				bool         critical = false                                                               ;
 				//
 				for( auto const& [dn,dd] : deps ) {
 					if ( critical && !dd.parallel ) break ;           // if a critical dep needs reconstruction, do not proceed past parallel deps
@@ -238,10 +238,10 @@ namespace Caches {
 	}
 
 	JobInfo DirCache::download( Job job , Id const& id , JobReason const& reason , NfsGuard& nfs_guard ) {
-		::string    jn     = _unique_name_s(job)+id ;
-		::string    jn_s   = jn+'/'                 ;
-		AutoCloseFd dfd    = open_read(dir_fd,jn)   ;
-		::vector_s  copied ;
+		::string   jn     = _unique_name_s(job)+id                                           ;
+		::string   jn_s   = jn+'/'                                                           ;
+		AcFd       dfd    { dir_fd , jn , Fd::Dir } ;
+		::vector_s copied ;
 		Trace trace("DirCache::download",job,id,jn) ;
 		try {
 			JobInfo job_info ;
@@ -304,7 +304,7 @@ namespace Caches {
 		for( auto const& [dn,dd] : job_info.end.end.digest.deps ) if (!dd.is_crc) return false/*ok*/ ;
 		//
 		mk_dir_s(dir_fd,jn_s) ;
-		AutoCloseFd dfd = open_read(dir_fd,no_slash(jn_s)) ;
+		AcFd dfd { dir_fd , jn_s , Fd::Dir } ;
 		//
 		// upload is the only one to take several locks and it starts with the global lock
 		// this way, we are sure to avoid deadlocks
@@ -322,7 +322,7 @@ namespace Caches {
 			::string deps_file = dir_s+jn_s+"deps" ;
 			//
 			job_info.write(data_file) ;
-			serialize(OFStream(deps_file),job_info.end.end.digest.deps) ;                                // store deps in a compact format so that matching is fast
+			AcFd(deps_file,Fd::Write).write(serialize(job_info.end.end.digest.deps)) ;                   // store deps in a compact format so that matching is fast
 			//
 			/**/                                       new_sz += FileInfo(data_file           ).sz ;
 			/**/                                       new_sz += FileInfo(deps_file           ).sz ;

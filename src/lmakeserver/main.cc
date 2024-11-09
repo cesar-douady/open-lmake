@@ -34,14 +34,14 @@ static bool           _g_server_running = false  ;
 static ::string       _g_host           = host() ;
 
 static ::pair_s<int> _get_mrkr_host_pid() {
-	::ifstream server_mrkr_stream { ServerMrkr } ;
-	::string   service            ;
-	::string   server_pid         ;
-	if (!server_mrkr_stream                      ) { return { {}                      , 0                              } ; }
-	if (!::getline(server_mrkr_stream,service   )) { return { {}                      , 0                              } ; }
-	if (!::getline(server_mrkr_stream,server_pid)) { return { {}                      , 0                              } ; }
-	try                                            { return { SockFd::s_host(service) , from_string<pid_t>(server_pid) } ; }
-	catch (::string const&)                        { return { {}                      , 0                              } ; }
+	try {
+		::vector_s lines = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
+		::string const& service    = lines[0] ;
+		::string const& server_pid = lines[1] ;
+		return { SockFd::s_host(service) , from_string<pid_t>(server_pid) } ; }
+	catch (::string const&) {
+		return {{},0} ;
+	}
 }
 
 static void _server_cleanup() {
@@ -84,10 +84,10 @@ static bool/*crashed*/ _start_server() {
 	} else {
 		_g_server_fd.listen() ;
 		::string tmp = ""s+ServerMrkr+'.'+_g_host+'.'+pid ;
-		OFStream(tmp)
-			<< _g_server_fd.service() << '\n'
-			<< getpid()               << '\n'
-		;
+		AcFd(tmp,Fd::Write).write(
+			_g_server_fd.service() + '\n'
+		+	getpid()               + '\n'
+		) ;
 		//vvvvvvvvvvvvvvvvvvvvvv
 		::atexit(_server_cleanup) ;
 		//^^^^^^^^^^^^^^^^^^^^^^
@@ -104,20 +104,15 @@ static bool/*crashed*/ _start_server() {
 }
 
 void record_targets(Job job) {
-	::string   targets_file  = AdminDirS+"targets"s ;
-	::vector_s known_targets ;
-	{	::ifstream targets_stream { targets_file } ;
-		::string   target         ;
-		while (::getline(targets_stream,target)) known_targets.push_back(target) ;
-	}
+	::string   targets_file  = AdminDirS+"targets"s                              ;
+	::vector_s known_targets = AcFd(targets_file).read_lines(true/*no_file_ok*/) ;
 	for( Node t : job->deps ) {
 		::string tn = t->name() ;
 		for( ::string& ktn : known_targets ) if (ktn==tn) ktn.clear() ;
 		known_targets.push_back(tn) ;
 	}
-	{	OFStream targets_stream { targets_file } ;
-		for( ::string tn : known_targets ) if (+tn) targets_stream << tn << '\n' ;
-	}
+	::string content ; for( ::string tn : known_targets ) if (+tn) content << tn <<'\n' ;
+	AcFd(targets_file,Fd::Write).write(content) ;
 }
 
 void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
@@ -456,7 +451,7 @@ int main( int argc , char** argv ) {
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvv
 		::string msg = Makefiles::refresh(crashed,refresh_) ;
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^
-		if (+msg  ) ::cerr << ensure_nl(msg) ;
+		if (+msg  ) Fd::Stderr.write(ensure_nl(msg)) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                                  // once we have reported we have started, lmake will send us a message to kill us
 	//

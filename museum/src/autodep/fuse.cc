@@ -351,8 +351,8 @@ namespace Fuse {
 	static void lo_opendir( fuse_req_t req , fuse_ino_t ino , struct ::fuse_file_info* fi ) {
 		if (T) ::cerr<<t_thread_key<<" opendir "<<ino<<endl ;
 		try {
-			AutoCloseFd fd = ::openat( mk_self(req).fds.fd(ino) , "." , O_RDONLY ) ; if (!fd) throw errno  ;
-			DirEntry*   de = new DirEntry                                          ;
+			AcFd      fd = ::openat( mk_self(req).fds.fd(ino) , "." , O_RDONLY ) ; if (!fd) throw errno  ;
+			DirEntry* de = new DirEntry                                          ;
 			//
 			de->dir           = ::fdopendir(fd) ; if (!de->dir) { delete de ; throw errno ; }
 			dir_entry(fi)     = de              ;

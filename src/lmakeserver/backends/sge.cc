@@ -21,7 +21,7 @@ namespace Backends::Sge {
 	//
 
 	struct Daemon {
-		friend ::ostream& operator<<( ::ostream& , Daemon const& ) ;
+		friend ::string& operator+=( ::string& , Daemon const& ) ;
 		// data
 		::map_s<size_t> licenses ; // licenses sampled from daemon
 	} ;
@@ -31,7 +31,7 @@ namespace Backends::Sge {
 	//
 
 	struct RsrcsData {
-		friend ::ostream& operator<<( ::ostream& , RsrcsData const& ) ;
+		friend ::string& operator+=( ::string& , RsrcsData const& ) ;
 		// cxtors & casts
 		RsrcsData(           ) = default ;
 		RsrcsData(::vmap_ss&&) ;
@@ -287,7 +287,7 @@ namespace Backends::Sge {
 	// Daemon
 	//
 
-	::ostream& operator<<( ::ostream& os , Daemon const& d ) {
+	::string& operator+=( ::string& os , Daemon const& d ) {
 		return os << "Daemon(" << d.licenses <<')' ;
 	}
 
@@ -295,7 +295,7 @@ namespace Backends::Sge {
 	// RsrcsData
 	//
 
-	::ostream& operator<<( ::ostream& os , RsrcsData const& rsd ) {
+	::string& operator+=( ::string& os , RsrcsData const& rsd ) {
 		/**/                                  os <<"(cpu="<<       rsd.cpu       ;
 		if (rsd.mem              )            os <<",mem="<<       rsd.mem<<"MB" ;
 		if (rsd.tmp!=uint32_t(-1))            os <<",tmp="<<       rsd.tmp<<"MB" ;

@@ -21,7 +21,7 @@ namespace Backends {
 
 	// share actual resources data as we typically have a lot of jobs with the same resources
 	template< class Data , ::unsigned_integral RefCnt > struct Shared {
-		friend ostream& operator<<( ostream& os , Shared const& s ) {
+		friend string& operator+=( string& os , Shared const& s ) {
 			/**/           os << "Shared" ;
 			if (+s) return os << *s       ;
 			else    return os << "()"     ;
@@ -102,7 +102,7 @@ namespace Backends {
 		SubmitAttrs submit_attrs ;
 		bool        verbose      = false ;
 	} ;
-	template<class RsrcsAsk > ::ostream& operator<<( ::ostream& os , _WaitingEntry<RsrcsAsk> const& we ) {
+	template<class RsrcsAsk > ::string& operator+=( ::string& os , _WaitingEntry<RsrcsAsk> const& we ) {
 		/**/            os << "WaitingEntry(" << we.rsrcs_ask <<','<< we.n_reqs <<','<< we.submit_attrs ;
 		if (we.verbose) os << ",verbose"                                                                ;
 		return          os << ')'                                                                       ;
@@ -126,7 +126,7 @@ namespace Backends {
 		bool              verbose = false ;
 		::atomic<bool   > live    = false ; // if false <=> entry waiting for suppression
 	} ;
-	template< class SpawnId , class Rsrcs > ::ostream& operator<<( ::ostream& os , _SpawnedEntry<SpawnId,Rsrcs> const& se ) {
+	template< class SpawnId , class Rsrcs > ::string& operator+=( ::string& os , _SpawnedEntry<SpawnId,Rsrcs> const& se ) {
 		os << "SpawnedEntry(" ;
 		if (se.live) {
 			/**/            os <<      se.rsrcs ;

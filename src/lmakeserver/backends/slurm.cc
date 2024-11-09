@@ -25,7 +25,7 @@ namespace Backends::Slurm {
 	//
 
 	struct Daemon {
-		friend ::ostream& operator<<( ::ostream& , Daemon const& ) ;
+		friend ::string& operator+=( ::string& , Daemon const& ) ;
 		// data
 		Pdate           time_origin { "2023-01-01 00:00:00" } ; // this leaves room til 2091
 		float           nice_factor { 1                     } ; // conversion factor in the form of number of nice points per second
@@ -38,7 +38,7 @@ namespace Backends::Slurm {
 	//
 
 	struct RsrcsDataSingle {
-		friend ::ostream& operator<<( ::ostream& , RsrcsDataSingle const& ) ;
+		friend ::string& operator+=( ::string& , RsrcsDataSingle const& ) ;
 		// accesses
 		bool operator==(RsrcsDataSingle const&) const = default ;
 		// data
@@ -284,7 +284,7 @@ namespace Backends::Slurm {
 	// Daemon
 	//
 
-	::ostream& operator<<( ::ostream& os , Daemon const& d ) {
+	::string& operator+=( ::string& os , Daemon const& d ) {
 		return os << "Daemon(" << d.time_origin <<','<< d.nice_factor <<','<< d.licenses <<')' ;
 	}
 
@@ -292,7 +292,7 @@ namespace Backends::Slurm {
 	// RsrcsData
 	//
 
-	::ostream& operator<<( ::ostream& os , RsrcsDataSingle const& rsds ) {
+	::string& operator+=( ::string& os , RsrcsDataSingle const& rsds ) {
 		/**/                         os <<'('<< rsds.cpu       ;
 		if ( rsds.mem              ) os <<','<< rsds.mem<<"MB" ;
 		if ( rsds.tmp!=uint32_t(-1)) os <<','<< rsds.tmp<<"MB" ;
@@ -429,7 +429,7 @@ namespace Backends::Slurm {
 		if ( pid_t child_pid=::fork() ; !child_pid ) {
 			// in child
 			::atexit(_exit1) ;                                                // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
-			Fd dev_null_fd = ::open("/dev/null",O_WRONLY,0) ;                 // this is just a probe, we want nothing on stderr
+			Fd dev_null_fd { "/dev/null" , Fd::Write } ;                      // this is just a probe, we want nothing on stderr
 			::dup2(dev_null_fd,2) ;                                           // so redirect to /dev/null
 			SlurmApi::init(config_file) ;                                     // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
 			::_exit(0) ;                                                      // if we are here, everything went smoothly
@@ -575,7 +575,7 @@ namespace Backends::Slurm {
 					/**/                                      msg << ')'                                                                                                 ;
 					ok = No ;
 					goto Done ;
-				default : FAIL("Slurm : wrong job state return for job (",slurm_id,") : ",js) ;
+				default : FAIL("Slurm : wrong job state return for job (",slurm_id,") : ") ;
 			}
 		}
 	Done :
@@ -592,7 +592,7 @@ namespace Backends::Slurm {
 		Trace trace(BeChnl,"Slurm::read_stderr",job) ;
 		::string stderr_file = _get_stderr_file(job) ;
 		try {
-			::string res = read_content(stderr_file) ;
+			::string res = AcFd(stderr_file).read() ;
 			if (!res) return {}                                    ;
 			else      return "stderr from : "+stderr_file+'\n'+res ;
 		} catch (::string const&) {

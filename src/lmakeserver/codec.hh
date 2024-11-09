@@ -17,7 +17,7 @@ namespace Codec {
 	bool/*ok*/ refresh( NodeIdx , ReqIdx ) ;
 
 	struct Closure {
-		friend ::ostream& operator<<( ::ostream& , Closure const& ) ;
+		friend ::string& operator+=( ::string& , Closure const& ) ;
 		using Proc = JobMngtProc ;
 		struct Entry {
 			// log_date is the semantic date, i.e. :

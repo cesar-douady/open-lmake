@@ -52,9 +52,9 @@ namespace Fuse {
 				bool operator+() { return +fd     ; }
 				bool operator!() { return !+*this ; }
 				// data
-				::string    name    ;
-				AutoCloseFd fd      ;
-				RefCnt      ref_cnt = 0 ;
+				::string name    ;
+				AcFd     fd      ;
+				RefCnt   ref_cnt = 0 ;
 			} ;
 			struct FdTab : private ::umap<fuse_ino_t,FdEntry> {
 				using Base = ::umap<fuse_ino_t,FdEntry> ;

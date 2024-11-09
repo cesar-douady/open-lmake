@@ -32,8 +32,8 @@ size_t   g_max_line_sz  = 0/*garbage*/ ;
 	::vector<Line> res   ;
 	::vector_s     lines ;
 	//
-	if (file) lines = read_lines(file) ;
-	else      for( ::string l ; ::getline(::cin,l) ;) lines.push_back(l) ;
+	if (file) lines = AcFd(file).read_lines() ;
+	else      lines = Fd::Stdin .read_lines() ;
 	//
 	for( ::string const& l : lines ) {
 		size_t   lvl   = 0               ;
@@ -165,10 +165,11 @@ int main( int argc , char* argv[] ) {
 	//
 	optimize(lines) ;
 	//
-	::cout << ::left ;
+	::string out ;
 	for( Line const& l : lines ) {
-		if (+l.comment) ::cout << l.pfx << ::setw(l.comment_pos-g_tab_width*l.lvl) << l.code << l.comment <<'\n' ;
-		else            ::cout << l.pfx <<                                            l.code <<             '\n' ;
+		if (+l.comment) out << l.pfx << widen(l.code,l.comment_pos-g_tab_width*l.lvl) << l.comment <<'\n' ;
+		else            out << l.pfx <<       l.code                                  <<             '\n' ;
 	}
+	Fd::Stdout.write(out) ;
 	return 0 ;
 }

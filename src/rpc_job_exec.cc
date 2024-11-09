@@ -15,7 +15,7 @@ using namespace Hash ;
 // AccessDigest
 //
 
-::ostream& operator<<( ::ostream& os , AccessDigest const& ad ) {
+::string& operator+=( ::string& os , AccessDigest const& ad ) {
 	const char* sep = "" ;
 	/**/                         os << "AccessDigest("                          ;
 	if      (+ad.accesses    ) { os <<      ad.accesses                         ; sep = "," ; }
@@ -41,7 +41,7 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
 // JobExecRpcReq
 //
 
-::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
+::string& operator+=( ::string& os , JobExecRpcReq const& jerr ) {
 	/**/           os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
 	if (jerr.sync) os << ",sync"                                         ;
 	/**/           os <<',' << jerr.digest                               ;
@@ -57,7 +57,7 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
 // JobExecRpcReply
 //
 
-::ostream& operator<<( ::ostream& os , JobExecRpcReply const& jerr ) {
+::string& operator+=( ::string& os , JobExecRpcReply const& jerr ) {
 	os << "JobExecRpcReply(" << jerr.proc ;
 	switch (jerr.proc) {
 		case JobExecProc::None       :                                     ; break ;

@@ -7,7 +7,7 @@
 
 using namespace Disk ;
 
-::ostream& operator<<( ::ostream& os , AutodepEnv const& ade ) {
+::string& operator+=( ::string& os , AutodepEnv const& ade ) {
 	os << "AutodepEnv(" ;
 	/**/                 os <<      static_cast<RealPathEnv const&>(ade) ;
 	/**/                 os <<','<< ade.service                          ;

@@ -36,8 +36,8 @@ namespace Engine {
 				Job ::s_clear_frozens() ;
 				Node::s_clear_frozens() ;
 			}
-			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , fmt_string(::setw(w),j->rule()->name,' ',mk_file(j->name()              )) ) ;
-			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , fmt_string(::setw(w),                ' ',mk_file(n->name(),Yes/*exists*/)) ) ;
+			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()              ) ) ;
+			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(""             ,w)+' '+mk_file(n->name(),Yes/*exists*/) ) ;
 			return true ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
@@ -89,7 +89,7 @@ namespace Engine {
 				Job::s_frozens(add,jobs) ;
 				for( Job j : jobs ) {
 					if (!add) j->status = Status::New ;
-					audit( fd , ro , add?Color::Warning:Color::Note , fmt_string(::setw(w),j->rule()->name,' ',mk_file(j->name())) ) ;
+					audit( fd , ro , add?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()) ) ;
 				}
 			}
 			if (+nodes) {
@@ -160,10 +160,10 @@ namespace Engine {
 		::vector<bool> parallel ;     for( Dep const& d : job->deps ) parallel.push_back(d.parallel) ; // first pass to count deps as they are compressed and size is not known upfront
 		NodeIdx        d        = 0 ;
 		for( Dep const& dep : job->deps ) {
-			bool       cdp     = d  >0               && parallel[d  ]                                          ;
-			bool       ndp     = d+1<parallel.size() && parallel[d+1]                                          ;
-			::string   dep_key = dep.dflags[Dflag::Static] ? rev_map.at(dep->name()) : ""s                     ;
-			::string   pfx     = fmt_string(dep.dflags_str(),' ',dep.accesses_str(),' ',::setw(w),dep_key,' ') ;
+			bool       cdp     = d  >0               && parallel[d  ]                             ;
+			bool       ndp     = d+1<parallel.size() && parallel[d+1]                             ;
+			::string   dep_key = dep.dflags[Dflag::Static] ? rev_map.at(dep->name()) : ""s        ;
+			::string   pfx     = dep.dflags_str()+' '+dep.accesses_str()+' '+widen(dep_key,w)+' ' ;
 			if      ( !cdp && !ndp ) pfx.push_back(' ' ) ;
 			else if ( !cdp &&  ndp ) pfx.push_back('/' ) ;
 			else if (  cdp &&  ndp ) pfx.push_back('|' ) ;
@@ -291,6 +291,7 @@ namespace Engine {
 
 	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
 		JobTgt job = target->actual_job() ;
+		if (!job) goto NoJob ;
 		if (job->rule().is_shared()) {
 			/**/                              if (target->status()>NodeStatus::Makable) goto NoJob ;
 			job = target->conform_job_tgt() ; if (job->rule().is_shared()             ) goto NoJob ;
@@ -336,7 +337,7 @@ namespace Engine {
 		//
 		::string script_file     = dbg_dir_s+"script"       ;
 		::string gen_script_file = dbg_dir_s+"gen_script"   ;
-		{	OFStream gen_script { gen_script_file } ;
+		{	::string gen_script ;
 			gen_script << "#!" PYTHON "\n"                                                  ;
 			gen_script << "import sys\n"                                                    ;
 			gen_script << "import os\n"                                                     ;
@@ -345,6 +346,7 @@ namespace Engine {
 			gen_script << _mk_gen_script_line(job,ro,job_info,dbg_dir_s,key)                ;
 			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n" ;
 			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                  ;
+			AcFd(gen_script_file,Fd::Write).write(gen_script) ;
 		}                                                                                     // ensure gen_script is closed before launching it
 		::chmod(gen_script_file.c_str(),0755) ;
 		Child child ;
@@ -520,8 +522,8 @@ namespace Engine {
 							size_t                                      w   = 0                 ;
 							for( auto     const& [k,v] : env.first  ) w = ::max(w,k.size()) ;
 							for( ::string const&  k    : env.second ) w = ::max(w,k.size()) ;
-							for( auto     const& [k,v] : env.first  ) audit( fd , ro , fmt_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
-							for( ::string const&  k    : env.second ) audit( fd , ro , fmt_string(::setw(w),k," ..." ) , true/*as_is*/ , lvl ) ;
+							for( auto     const& [k,v] : env.first  ) audit( fd , ro , widen(k,w)+" : "+v , true/*as_is*/ , lvl ) ;
+							for( ::string const&  k    : env.second ) audit( fd , ro , widen(k,w)+" ..."  , true/*as_is*/ , lvl ) ;
 						} break ;
 						case ReqKey::Cmd : //!                                                              as_is
 							if (!has_start) audit( fd , ro , Color::Err , "no info available"              , true , lvl ) ;
@@ -658,7 +660,7 @@ namespace Engine {
 										if      ( !protect                                    ) v_str = v                                              ;
 										else if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = ::to_string(from_string_with_units<size_t>(v)) ;
 										else                                                    v_str = mk_py_str(v)                                   ;
-										audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)," : ",v_str) , true/*as_is*/ , lvl+2 , sep ) ;
+										audit( fd , ro , widen(mk_py_str(k),w)+" : "+v_str , true/*as_is*/ , lvl+2 , sep ) ;
 										sep = ',' ;
 									}
 									audit( fd , ro , "}" , true/*as_is*/ , lvl+1 ) ;
@@ -689,9 +691,9 @@ namespace Engine {
 										vd_str <<" }" ;
 									}
 									views[v] = vd_str ;
-								} //!                                                                                                                          as_is
-								/**/                           audit( fd , ro , fmt_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)                   ) , true , lvl+1 , '{' ) ;
-								for( auto const& [k,e] : tab ) audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)    ," : ",e.protect?mk_py_str(e.txt):e.txt) , true , lvl+1 , ',' ) ;
+								} //!                                                                                                               as_is
+								/**/                           audit( fd , ro , widen(mk_py_str("job"),w)+" : "+           mk_py_str(jn   )        , true , lvl+1 , '{' ) ;
+								for( auto const& [k,e] : tab ) audit( fd , ro , widen(mk_py_str(k    ),w)+" : "+(e.protect?mk_py_str(e.txt):e.txt) , true , lvl+1 , ',' ) ;
 								/**/                           audit_map( "views"               , views           , false/*protect*/ , false/*allocated*/ ) ;
 								/**/                           audit_map( "required resources"  , required_rsrcs  , true /*protect*/ , false/*allocated*/ ) ;
 								/**/                           audit_map( "allocated resources" , allocated_rsrcs , true /*protect*/ , true /*allocated*/ ) ;
@@ -700,9 +702,9 @@ namespace Engine {
 								size_t w  = 0 ; for( auto const& [k,e ] : tab                   ) if (e.txt.find('\n')==Npos) w  = ::max(w ,k.size()) ;
 								size_t w2 = 0 ; for( auto const& [v,vd] : start.job_space.views ) if (+vd                   ) w2 = ::max(w2,v.size()) ;
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-								for( auto const& [k,e] : tab ) //!                                                                as_is
-									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , fmt_string(::setw(w),k," : ",e.txt) , true , lvl+1 ) ;
-									else                        { audit( fd , ro , e.color ,                      k+" :"         , true , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
+								for( auto const& [k,e] : tab ) //!                                                   as_is
+									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , widen(k,w)+" : "+e.txt , true , lvl+1 ) ;
+									else                        { audit( fd , ro , e.color ,       k   +" :"        , true , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
 								if (w2) {
 									audit( fd , ro , "views :" , true/*as_is*/ , lvl+1 ) ;
 									for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
@@ -721,7 +723,7 @@ namespace Engine {
 												for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << cu ;
 											}
 										}
-										audit( fd , ro , fmt_string(::setw(w2),mk_file(v)," : ",vd_str) , false/*as_is*/ , lvl+2 ) ;
+										audit( fd , ro , widen(mk_file(v),w2)+" : "+vd_str , false/*as_is*/ , lvl+2 ) ;
 									}
 								}
 								if ( +required_rsrcs || +allocated_rsrcs ) {
@@ -731,20 +733,20 @@ namespace Engine {
 									::string hdr = "resources :" ;
 									if      (!+allocated_rsrcs) hdr = "required " +hdr ;
 									else if (!+required_rsrcs ) hdr = "allocated "+hdr ;
-									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                                    as_is
-									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
-									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
-									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
+									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                       as_is
+									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
+									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
+									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
 									else {
-										for( auto const& [k,rv] : required_rsrcs ) { //!                                                          as_is
-											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , fmt_string(::setw(w2),k,"(required )"," : ",rv) , true , lvl+2 ) ; continue ; }
+										for( auto const& [k,rv] : required_rsrcs ) { //!                                             as_is
+											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , widen(k,w2)+"(required )"+" : "+rv , true , lvl+2 ) ; continue ; }
 											::string const& av = allocated_rsrcs.at(k) ;
-											if (rv==av                      ) { audit( fd , ro , fmt_string(::setw(w2),k,"           "," : ",rv) , true , lvl+2 ) ; continue ; }
-											/**/                                audit( fd , ro , fmt_string(::setw(w2),k,"(required )"," : ",rv) , true , lvl+2 ) ;
-											/**/                                audit( fd , ro , fmt_string(::setw(w2),k,"(allocated)"," : ",av) , true , lvl+2 ) ;
+											if (rv==av                      ) { audit( fd , ro , widen(k,w2)+"           "+" : "+rv , true , lvl+2 ) ; continue ; }
+											/**/                                audit( fd , ro , widen(k,w2)+"(required )"+" : "+rv , true , lvl+2 ) ;
+											/**/                                audit( fd , ro , widen(k,w2)+"(allocated)"+" : "+av , true , lvl+2 ) ;
 										}
 										for( auto const& [k,av] : allocated_rsrcs )
-											if (!required_rsrcs.contains(k))    audit( fd , ro , fmt_string(::setw(w2),k,"(allocated)"," : ",av) , true , lvl+2 ) ;
+											if (!required_rsrcs.contains(k))    audit( fd , ro , widen(k,w2)+"(allocated)"+" : "+av , true , lvl+2 ) ;
 									}
 								}
 							}
@@ -826,9 +828,9 @@ namespace Engine {
 						}
 						for( Job j : target->conform_job_tgts() ) if (j!=job) {
 							Rule r = j->rule() ;
-							if      (!seen_candidate) audit( fd , ro , Color::Note , fmt_string("official job " ,::setw(w),r->name," : ",mk_file(j->name())) ) ; // no need to align
-							else if (j==cj          ) audit( fd , ro , Color::Note , fmt_string("official job  ",::setw(w),r->name," : ",mk_file(j->name())) ) ; // align
-							else                      audit( fd , ro , Color::Note , fmt_string("job candidate ",::setw(w),r->name," : ",mk_file(j->name())) ) ;
+							if      (!seen_candidate) audit( fd , ro , Color::Note , "official job " +widen(r->name,w)+" : "+mk_file(j->name()) ) ; // no need to align
+							else if (j==cj          ) audit( fd , ro , Color::Note , "official job  "+widen(r->name,w)+" : "+mk_file(j->name()) ) ; // align
+							else                      audit( fd , ro , Color::Note , "job candidate "+widen(r->name,w)+" : "+mk_file(j->name()) ) ;
 						}
 					}
 					if (!job) {

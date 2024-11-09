@@ -41,7 +41,7 @@ namespace Engine {
 	struct Req
 	:	             Idxed<ReqIdx>
 	{	using Base = Idxed<ReqIdx> ;
-		friend ::ostream& operator<<( ::ostream& , Req const ) ;
+		friend ::string& operator+=( ::string& , Req const ) ;
 		using ErrReport = ::vmap<Node,DepDepth/*lvl*/> ;
 		// init
 		static void s_init() {}
@@ -129,7 +129,7 @@ namespace Engine {
 	} ;
 
 	struct JobAudit {
-		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
+		friend ::string& operator+=( ::string& os , JobAudit const& ) ;
 		// data
 		JobReport report      = {} /*garbage*/ ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
 		::string  backend_msg ;
@@ -146,7 +146,7 @@ namespace Engine {
 
 	struct ReqInfo {
 		friend Req ;
-		friend ::ostream& operator<<( ::ostream& , ReqInfo const& ) ;
+		friend ::string& operator+=( ::string& , ReqInfo const& ) ;
 		using Idx    = ReqIdx    ;
 		static constexpr uint8_t NWatchers  = sizeof(::vector<Watcher>*)/sizeof(Watcher) ; // size of array that fits within the layout of a pointer
 		static constexpr uint8_t VectorMrkr = NWatchers+1                                ; // special value to mean that watchers are in vector
@@ -248,10 +248,10 @@ namespace Engine {
 		void audit_summary(bool err) const ;
 		//
 		#define SC ::string const
-		//                                                                                                                                                          as_is
-		void audit_info      ( Color c , SC& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t+' '+Disk::mk_file(lt) , false , l ) ; }
-		void audit_info      ( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t                       , false , l ) ; }
-		void audit_info_as_is( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t                       , true  , l ) ; }
+		//                                                                                                                                                      as_is
+		void audit_info      ( Color c , SC& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t+' '+Disk::mk_file(lt) , false , l ) ; }
+		void audit_info      ( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , false , l ) ; }
+		void audit_info_as_is( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , true  , l ) ; }
 		void audit_node      ( Color c , SC& p , Node n             , DepDepth l=0 ) const ;
 		//
 		void audit_job( Color , Pdate , SC& step , SC& rule_name , SC& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
@@ -279,8 +279,8 @@ namespace Engine {
 		::umap<Job,JobAudit> missing_audits ;
 		ReqStats             stats          ;
 		Fd                   audit_fd       ;           // to report to user
-		OFStream mutable     log_stream     ;           // saved output
-		Job      mutable     last_info      ;           // used to identify last message to generate an info line in case of ambiguity
+		AcFd                 log_fd         ;           // saved output
+		Job mutable          last_info      ;           // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
 		Pdate                start_pdate    ;
 		Ddate                start_ddate    ;

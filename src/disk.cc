@@ -172,9 +172,7 @@ namespace Disk {
 	//
 
 	vector_s lst_dir_s( Fd at , ::string const& dir_s , ::string const& prefix ) {
-		Fd dir_fd = at ;
-		if (dir_s=="/") dir_fd = ::openat( at , "/"                     , O_RDONLY|O_DIRECTORY ) ;
-		else            dir_fd = ::openat( at , no_slash(dir_s).c_str() , O_RDONLY|O_DIRECTORY ) ;
+		Fd dir_fd { at , dir_s , Fd::Dir } ;
 		if (!dir_fd) throw "cannot open dir "+(at==Fd::Cwd?""s:"@"s+at.fd+':')+dir_s+" : "+::strerror(errno) ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
@@ -228,9 +226,9 @@ namespace Disk {
 			struct ::stat st  ;
 			int           src = ::fstatat(at,f,&st,AT_SYMLINK_NOFOLLOW)            ; if (src!=0        )                                     return false/*done*/ ;
 			/**/                                                                     if (st.st_nlink<=1)                                     return false/*done*/ ;
-			AutoCloseFd   rfd = ::openat  (at,f,O_RDONLY|O_NOFOLLOW)               ; if (!rfd          ) { msg = "cannot open for reading" ; goto Bad             ; }
+			AcFd          rfd = ::openat  (at,f,O_RDONLY|O_NOFOLLOW)               ; if (!rfd          ) { msg = "cannot open for reading" ; goto Bad             ; }
 			int           urc = ::unlinkat(at,f,0)                                 ; if (urc!=0        ) { msg = "cannot unlink"           ; goto Bad             ; }
-			AutoCloseFd   wfd = ::openat  (at,f,O_WRONLY|O_CREAT,st.st_mode&07777) ; if (!wfd          ) { msg = "cannot open for writing" ; goto Bad             ; }
+			AcFd          wfd = ::openat  (at,f,O_WRONLY|O_CREAT,st.st_mode&07777) ; if (!wfd          ) { msg = "cannot open for writing" ; goto Bad             ; }
 			//
 			for(;;) {
 				char    buf[4096] ;
@@ -251,39 +249,6 @@ namespace Disk {
 
 	void rmdir_s( Fd at , ::string const& dir_s ) {
 		if (::unlinkat(at,no_slash(dir_s).c_str(),AT_REMOVEDIR)!=0) throw "cannot rmdir "+dir_s ;
-	}
-
-	::vector_s read_lines(::string const& filename) {
-		::ifstream file_stream{filename} ;
-		if (!file_stream) return {} ;
-		//
-		::vector_s res            ;
-		char       line[PATH_MAX] ;
-		while (file_stream.getline(line,sizeof(line))) res.push_back(line) ;
-		return res ;
-	}
-
-	::string read_content(::string const& file) {
-		AutoCloseFd fd = ::open( file.c_str() , O_RDONLY ) ;
-		if (!fd) throw "file not found : "+file ;
-		::string res ;
-		ssize_t  cnt ;
-		::string buf ( 4096 , 0 ) ;
-		while ((cnt=::read(fd,buf.data(),buf.size()))>0) res += buf.substr(0,cnt) ;
-		if (cnt<0) throw "error while reading "+file ;
-		return res ;
-	}
-
-	void write_lines( ::string const& file , ::vector_s const& lines ) {
-		OFStream file_stream{file} ;
-		if (+lines) SWEAR_PROD(bool(file_stream)) ;
-		for( ::string const& l : lines ) file_stream << l << '\n' ;
-	}
-
-	void write_content( ::string const& file , ::string const& content ) {
-		OFStream file_stream{file} ;
-		if (+content) SWEAR_PROD(bool(file_stream)) ;
-		file_stream << content ;
 	}
 
 	static void _walk( ::vector_s& res , Fd at , ::string const& file , ::string const& prefix ) {
@@ -351,8 +316,9 @@ namespace Disk {
 			case FileTag::None : break ;
 			case FileTag::Reg  :
 			case FileTag::Exe  : {
-				AutoCloseFd rfd = ::openat  ( src_at , src_file.c_str() , O_RDONLY                                           ) ;
-				AutoCloseFd wfd = open_write( dst_at , dst_file         , false/*append*/ , tag==FileTag::Exe , mk_read_only ) ;
+				dir_guard(dst_at,dst_file) ;
+				AcFd rfd {             src_at , src_file }                                                                                                                             ;
+				AcFd wfd { ::openat( dst_at , dst_file.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0777 & ~(tag==FileTag::Exe?0000:0111) & ~(mk_read_only?0222:0000) ) } ;
 				::sendfile( wfd , rfd , nullptr , fi.sz ) ;
 			}
 			break ;
@@ -370,7 +336,7 @@ namespace Disk {
 	// FileInfo
 	//
 
-	::ostream& operator<<( ::ostream& os , FileInfo const& fi ) {
+	::string& operator+=( ::string& os , FileInfo const& fi ) {
 		/**/     os << "FileInfo("           ;
 		if (+fi) os << fi.sz <<','<< fi.date ;
 		return   os << ')'                   ;
@@ -403,8 +369,8 @@ namespace Disk {
 	// FileSig
 	//
 
-	::ostream& operator<<( ::ostream& os , FileSig const& sig ) {
-		return os<< "FileSig(" << ::hex<<(sig._val>>NBits<FileTag>)<<::dec <<':'<< sig.tag() <<')' ;
+	::string& operator+=( ::string& os , FileSig const& sig ) {
+		return os<< "FileSig(" << to_hex(sig._val>>NBits<FileTag>) <<':'<< sig.tag() <<')' ;
 	}
 
 	FileSig::FileSig( FileInfo const& fi ) {
@@ -420,14 +386,14 @@ namespace Disk {
 	// SigDate
 	//
 
-	::ostream& operator<<( ::ostream& os , SigDate const& sd ) { return os <<'('<< sd.sig <<','<< sd.date <<')' ; }
+	::string& operator+=( ::string& os , SigDate const& sd ) { return os <<'('<< sd.sig <<','<< sd.date <<')' ; }
 
 	//
 	// FileMap
 	//
 
 	FileMap::FileMap( Fd at , ::string const& filename ) {
-		_fd = open_read(at,filename) ;
+		_fd = Fd(at,filename) ;
 		if (!_fd) return ;
 		sz = FileInfo(_fd,{},false/*no_follow*/).sz ;
 		if (sz) {
@@ -445,7 +411,7 @@ namespace Disk {
 	// RealPath
 	//
 
-	::ostream& operator<<( ::ostream& os , RealPathEnv const& rpe ) {
+	::string& operator+=( ::string& os , RealPathEnv const& rpe ) {
 		/**/                    os << "RealPathEnv(" << rpe.lnk_support ;
 		if ( rpe.reliable_dirs) os << ",reliable_dirs"                  ;
 		/**/                    os <<','<< rpe.root_dir_s               ;
@@ -454,11 +420,11 @@ namespace Disk {
 		return                  os <<')'                                ;
 	}
 
-	::ostream& operator<<( ::ostream& os , RealPath::SolveReport const& sr ) {
+	::string& operator+=( ::string& os , RealPath::SolveReport const& sr ) {
 		return os << "SolveReport(" << sr.real <<','<< sr.file_loc <<','<< sr.lnks <<')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , RealPath const& rp ) {
+	::string& operator+=( ::string& os , RealPath const& rp ) {
 		/**/                     os << "RealPath("             ;
 		if (+rp.pid            ) os << rp.pid <<','            ;
 		/**/                     os <<      rp._cwd            ;
@@ -591,10 +557,7 @@ namespace Disk {
 			if ( !in_repo          ) continue       ;
 			//
 			if ( !last && !_env->reliable_dirs )                                                        // at last level, dirs are rare and NFS does the coherence job
-				if ( Fd dfd = ::open(real.c_str(),O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_NOATIME) ; +dfd ) { // sym links are rare, so this has no significant perf impact ...
-					::close(dfd) ;                                                                      // ... and protects against NFS strange notion of coherence
-					continue ;
-				}
+				if ( +AcFd(::open(real.c_str(),O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_NOATIME)) ) continue ; // sym links are rare, so this has no significant perf impact ...
 			//
 			switch (_env->lnk_support) {
 				case LnkSupport::None :                                 continue ;
@@ -657,28 +620,21 @@ namespace Disk {
 
 	::vmap_s<Accesses> RealPath::exec(SolveReport& sr) {
 		::vmap_s<Accesses> res         ;
-		::string           interpreter ; interpreter.reserve(256) ;
 		// from tmp, we can go back to repo
-		for( int i=0 ; i<=4 ; i++ ) {                                                             // interpret #!<interpreter> recursively (4 levels as per man execve)
+		for( int i=0 ; i<=4 ; i++ ) {                                                        // interpret #!<interpreter> recursively (4 levels as per man execve)
 			for( ::string& l : sr.lnks ) res.emplace_back(::move(l),Accesses(Access::Lnk)) ;
 			//
-			if (sr.file_loc>FileLoc::Dep && sr.file_loc!=FileLoc::Tmp) break ;                    // if we escaped from the repo, there is no more deps to gather
+			if (sr.file_loc>FileLoc::Dep && sr.file_loc!=FileLoc::Tmp) break ;               // if we escaped from the repo, there is no more deps to gather
 			//
-			::ifstream real_stream { mk_abs(sr.real,_env->root_dir_s) } ;
-			Accesses   a           = Access::Reg                  ; if (sr.file_accessed==Yes) a |= Access::Lnk ;
+			Accesses a = Access::Reg ; if (sr.file_accessed==Yes) a |= Access::Lnk ;
 			if (sr.file_loc<=FileLoc::Dep) res.emplace_back(sr.real,a) ;
 			//
-			char hdr[2] ;
-			if (!real_stream.read(hdr,sizeof(hdr))) break ;
-			if (strncmp(hdr,"#!",2)!=0            ) break ;
-			interpreter.resize(256) ;
-			real_stream.getline(interpreter.data(),interpreter.size()) ;                          // man execve specifies that data beyond 255 chars are ignored
-			if (!real_stream.gcount()) break ;
-			interpreter.resize(real_stream.gcount()) ;
-			if      ( size_t pos = interpreter.find(' ' ) ; pos!=Npos ) interpreter.resize(pos) ; // interpreter is the first word
-			else if ( size_t pos = interpreter.find('\0') ; pos!=Npos ) interpreter.resize(pos) ; // interpreter is the entire line (or the first \0 delimited word)
+			AcFd     hdr_fd { mk_abs(sr.real,_env->root_dir_s) }   ; if (!hdr_fd               ) break ;
+			::string hdr    = hdr_fd.read(false/*no_file_ok*/,256) ; if (!hdr.starts_with("#!")) break ;
+			size_t   pos    = hdr.find('\n')                       ; if (pos!=Npos             ) hdr.resize(pos) ;
+			/**/     pos    = hdr.find(' ' )                       ; if (pos==0                ) break ;
 			// recurse
-			sr = solve(interpreter,false/*no_follow*/) ;
+			sr = solve( hdr.substr(2,pos-2) , false/*no_follow*/ ) ;                         // interpreter starts after #! until first space or end of line
 		}
 		return res ;
 	}

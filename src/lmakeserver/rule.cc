@@ -274,7 +274,7 @@ namespace Engine {
 	// Rule
 	//
 
-	::ostream& operator<<( ::ostream& os , Rule const r ) {
+	::string& operator+=( ::string& os , Rule const r ) {
 		/**/    os << "R(" ;
 		if (+r) os << +r   ;
 		return  os << ')'  ;
@@ -284,7 +284,7 @@ namespace Engine {
 	// RuleCrc
 	//
 
-	::ostream& operator<<( ::ostream& os , RuleCrc const r ) {
+	::string& operator+=( ::string& os , RuleCrc const r ) {
 		/**/    os << "RC(" ;
 		if (+r) os << +r   ;
 		return  os << ')'  ;
@@ -294,7 +294,7 @@ namespace Engine {
 	// RuleTgt
 	//
 
-	::ostream& operator<<( ::ostream& os , RuleTgt const rt ) {
+	::string& operator+=( ::string& os , RuleTgt const rt ) {
 		return os << "RT(" << RuleCrc(rt) <<':'<< int(rt.tgt_idx) << ')' ;
 	}
 
@@ -585,7 +585,7 @@ namespace Engine {
 		}
 	}
 
-	::ostream& operator<<( ::ostream& os , DbgEntry const& de ) {
+	::string& operator+=( ::string& os , DbgEntry const& de ) {
 		if (+de) return os<<"( "<<de.module<<" , "<<de.qual_name<<" , "<<de.filename<<" , "<<de.first_line_no1<<" )" ;
 		else     return os<<"()"                                                                                     ;
 	}
@@ -631,7 +631,7 @@ namespace Engine {
 		_set_crcs() ;
 	}
 
-	::ostream& operator<<( ::ostream& os , RuleData const& rd ) {
+	::string& operator+=( ::string& os , RuleData const& rd ) {
 		return os << "RD(" << rd.name << ')' ;
 	}
 
@@ -821,15 +821,15 @@ namespace Engine {
 					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
 					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)                                ) throw snake_str(kind)+" must be relative to root dir : "          +target ;
-					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                         +target ;
-					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                     +target ;
-					if ( +missing_stems                                                ) throw "missing stems "+fmt_string(missing_stems)+" in "+kind+" : "+target ;
-					if (  is_star                              && is_special()         ) throw "star "s+kind+"s are meaningless for source and anti-rules"         ;
-					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                       ;
-					if ( tflags      [Tflag     ::Incremental] && is_stdout            ) throw "stdout cannot be directed to an incremental target"s               ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && is_star              ) throw "star targets are natively optional : "                     +target ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony : "            +target ;
+					if ( target.starts_with(root_dir_s)                                ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
+					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                         +target  ;
+					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                     +target  ;
+					if ( +missing_stems                                                ) throw cat("missing stems ",missing_stems," in ",kind," : "        ,target) ;
+					if (  is_star                              && is_special()         ) throw "star "s+kind+"s are meaningless for source and anti-rules"          ;
+					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                        ;
+					if ( tflags      [Tflag     ::Incremental] && is_stdout            ) throw "stdout cannot be directed to an incremental target"s                ;
+					if ( extra_tflags[ExtraTflag::Optional   ] && is_star              ) throw "star targets are natively optional : "                     +target  ;
+					if ( extra_tflags[ExtraTflag::Optional   ] && tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony : "            +target  ;
 					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;
@@ -1016,16 +1016,16 @@ namespace Engine {
 
 	template<class T> static ::string _pretty_vmap( ::string const& title , ::vmap_s<T> const& m , bool uniq=false ) {
 		if (!m) return {} ;
-		OStringStream res  ;
-		size_t        wk   = 0 ; for( auto const& [k,_] : m ) wk = ::max(wk,k.size()) ;
-		::uset_s      keys ;
+		::string res  ;
+		size_t   wk   = 0 ; for( auto const& [k,_] : m ) wk = ::max(wk,k.size()) ;
+		::uset_s keys ;
 		//
 		res << title <<'\n' ;
 		for( auto const& [k,v] : m ) if ( !uniq || keys.insert(k).second ) {
-			if (+v) res <<'\t'<< ::setw(wk)<<k <<" : "<< v <<'\n' ;
-			else    res <<'\t'<< ::setw(wk)<<k <<" :"      <<'\n' ;
+			if (+v) res <<'\t'<< widen(k,wk) <<" : "<< v <<'\n' ;
+			else    res <<'\t'<< widen(k,wk) <<" :"      <<'\n' ;
 		}
-		return ::move(res).str() ;
+		return res ;
 	}
 
 	::string RuleData::_pretty_env() const {
@@ -1044,15 +1044,14 @@ namespace Engine {
 		}
 		if (!entries) return {} ;
 		//
-		OStringStream res ;
-		res << "environ :\n" ;
-		for( auto const& [h,k,v] : entries ) res <<'\t'<< ::setw(wh)<<h <<' '<< ::setw(wk)<<k <<' '<< v <<'\n' ;
-		return ::move(res).str() ;
+		::string res = "environ :\n" ;
+		for( auto const& [h,k,v] : entries ) res <<'\t'<< widen(h,wh) <<' '<< widen(k,wk) <<' '<< v <<'\n' ;
+		return res ;
 	}
 
 	static ::string _pretty_views( ::string const& title , ::vmap_s<JobSpace::ViewDescr> const& m ) {
 		if (!m) return {} ;
-		OStringStream res  ;
+		::string res  ;
 		res << title <<'\n' ;
 		for( auto const& [k,v] : m ) {
 			res <<'\t'<< k <<" :" ;
@@ -1062,13 +1061,13 @@ namespace Engine {
 				res <<' '<< v.phys[0] ;
 			} else {
 				size_t w = +v.copy_up ? 7 : 5 ;
-				/**/            res <<"\n\t\t" << ::setw(w)<<"upper"   <<" : "<< v.phys[0]                          ;
-				/**/            res <<"\n\t\t" << ::setw(w)<<"lower"   <<" : "<< ::span(&v.phys[1],v.phys.size()-1) ;
-				if (+v.copy_up) res <<"\n\t\t" << ::setw(w)<<"copy_up" <<" : "<< v.copy_up                          ;
+				/**/            res <<"\n\t\t" << widen("upper"  ,w) <<" : "<< v.phys[0]                          ;
+				/**/            res <<"\n\t\t" << widen("lower"  ,w) <<" : "<< ::span(&v.phys[1],v.phys.size()-1) ;
+				if (+v.copy_up) res <<"\n\t\t" << widen("copy_up",w) <<" : "<< v.copy_up                          ;
 			}
 			res <<'\n' ;
 		}
-		return ::move(res).str() ;
+		return res ;
 	}
 
 	::string RuleData::_pretty_fstr(::string const& fstr) const {
@@ -1121,13 +1120,12 @@ namespace Engine {
 			patterns_[k] = ::move(p)                 ;
 		}
 		//
-		OStringStream res ;
-		res << "matches :\n" ;
+		::string res = "matches :\n" ;
 		//
 		for( VarIdx mi : iota<VarIdx>(matches.size()) ) {
 			::string             const& k     = matches[mi].first  ;
 			RuleData::MatchEntry const& me    = matches[mi].second ;
-			OStringStream               flags ;
+			::string                    flags ;
 			//
 			bool first = true ;
 			if (me.flags.is_target==No) {
@@ -1167,20 +1165,19 @@ namespace Engine {
 					if (!first_conflict) flags << ']' ;
 				}
 			}
-			res <<'\t'<< fmt_string(::setw(w1),kind(me),' ',::setw(w2),k," : ") ;
-			::string flags_str = ::move(flags).str() ;
-			if (+flags_str) res << ::setw(w3)<<patterns_[k] << flags_str ;
-			else            res <<             patterns_[k]              ;
+			res <<'\t'<< widen(cat(kind(me)),w1)<<' '<<widen(k,w2)<<" : " ;
+			if (+flags) res << widen(patterns_[k],w3) << flags ;
+			else        res <<       patterns_[k]              ;
 			res <<'\n' ;
 		}
 		res << "patterns :\n" ;
 		for( size_t mi : iota(matches.size()) )
-			res <<'\t'<< fmt_string(
-				/**/    ::setw(w1) , kind(matches [mi].second)
-			,	' '   , ::setw(w2) ,      matches [mi].first
-			,	" : " ,                   patterns[mi].txt
-			,'\n') ;
-		return ::move(res).str() ;
+			res <<'\t'<<
+				/**/     widen(cat(kind(matches [mi].second)),w1)
+			<<	' '   << widen(         matches [mi].first   ,w2)
+			<<	" : " <<       patterns[mi].txt
+			<<'\n' ;
+		return res ;
 	}
 
 	::string RuleData::_pretty_deps() const {
@@ -1197,20 +1194,19 @@ namespace Engine {
 		}
 		if (!patterns) return {} ;
 		//
-		OStringStream res ;
-		res << "deps :\n" ;
+		::string res = "deps :\n" ;
 		for( auto const& [k,ds] : deps_attrs.spec.deps ) {
 			if (!ds.txt) continue ;
 			::string flags ;
 			bool     first = true ;
 			for( Dflag      df  : iota(Dflag     ::NRule) ) if (ds.dflags      [df ]) { flags += first?" : ":" , " ; first = false ; flags += df  ; }
 			for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (ds.extra_dflags[edf]) { flags += first?" : ":" , " ; first = false ; flags += edf ; }
-			/**/        res <<'\t'<< ::setw(wk)<<k <<" : "      ;
-			if (+flags) res << ::setw(wd)<<patterns[k] << flags ;
-			else        res <<             patterns[k]          ;
+			/**/        res <<'\t'<< widen(k,wk) <<" : "      ;
+			if (+flags) res << widen(patterns[k],wd) << flags ;
+			else        res <<       patterns[k]              ;
 			/**/        res <<'\n' ;
 		}
-		return ::move(res).str() ;
+		return res ;
 	}
 
 	template<class T> ::string RuleData::_pretty_dyn(Dynamic<T> const& d) const {
@@ -1226,13 +1222,12 @@ namespace Engine {
 	}
 
 	::string RuleData::pretty_str() const {
-		OStringStream res         ;
-		::string      title       ;
-		::vmap_ss     entries     ;
-		::string      job_name_   = job_name ;
-		::string      interpreter ;
-		::string      kill_sigs   ;
-		::string      cmd_        ;
+		::string  title       ;
+		::vmap_ss entries     ;
+		::string  job_name_   = job_name ;
+		::string  interpreter ;
+		::string  kill_sigs   ;
+		::string  cmd_        ;
 		//
 		{	title = name + " :" + (special==Special::Anti?" AntiRule":special==Special::GenericSrc?" SourceRule":"") ;
 			for( auto const& [k,me] : matches ) if (job_name_==me.pattern) { job_name_ = "<targets."+k+'>' ; break ; }
@@ -1259,27 +1254,27 @@ namespace Engine {
 			if (+cwd_s                                             ) entries.emplace_back( "cwd"              , no_slash   (cwd_s                                          ) ) ;
 		}
 		if (!is_special()) {
-			if ( force                                             ) entries.emplace_back( "force"            , fmt_string (force                                          ) ) ;
+			if ( force                                             ) entries.emplace_back( "force"            , cat        (force                                          ) ) ;
 			if ( n_submits                                         ) entries.emplace_back( "max_submit_count" , ::to_string(n_submits                                      ) ) ;
 			if (+cache_none_attrs  .spec.key                       ) entries.emplace_back( "key"              ,             cache_none_attrs  .spec.key                      ) ;
 			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"          , snake      (submit_rsrcs_attrs.spec.backend                ) ) ;
 			if ( submit_none_attrs .spec.n_retries                 ) entries.emplace_back( "n_retries"        , ::to_string(submit_none_attrs .spec.n_retries              ) ) ;
 			if (+interpreter                                       ) entries.emplace_back( "interpreter"      ,             interpreter                                      ) ;
-			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"       , fmt_string (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
+			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"       , cat        (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
 			if (+start_cmd_attrs   .spec.job_space.chroot_dir_s    ) entries.emplace_back( "chroot_dir"       , no_slash   (start_cmd_attrs   .spec.job_space.chroot_dir_s ) ) ;
-			if ( start_cmd_attrs   .spec.ignore_stat               ) entries.emplace_back( "ignore_stat"      , fmt_string (start_cmd_attrs   .spec.ignore_stat            ) ) ;
+			if ( start_cmd_attrs   .spec.ignore_stat               ) entries.emplace_back( "ignore_stat"      , cat        (start_cmd_attrs   .spec.ignore_stat            ) ) ;
 			if (+start_cmd_attrs   .spec.job_space.root_view_s     ) entries.emplace_back( "root_view"        , no_slash   (start_cmd_attrs   .spec.job_space.root_view_s  ) ) ;
 			if (+start_cmd_attrs   .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"         , no_slash   (start_cmd_attrs   .spec.job_space.tmp_view_s   ) ) ;
 			/**/                                                     entries.emplace_back( "autodep"          , snake      (start_rsrcs_attrs .spec.method                 ) ) ;
 			if (+start_rsrcs_attrs .spec.timeout                   ) entries.emplace_back( "timeout"          ,             start_rsrcs_attrs .spec.timeout.short_str()      ) ;
-			if ( start_rsrcs_attrs .spec.use_script                ) entries.emplace_back( "use_script"       , fmt_string (start_rsrcs_attrs .spec.use_script             ) ) ;
-			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"         , fmt_string (start_none_attrs  .spec.keep_tmp               ) ) ;
+			if ( start_rsrcs_attrs .spec.use_script                ) entries.emplace_back( "use_script"       , cat        (start_rsrcs_attrs .spec.use_script             ) ) ;
+			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"         , cat        (start_none_attrs  .spec.keep_tmp               ) ) ;
 			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"      ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
 			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"        ,             kill_sigs                                        ) ;
-			if ( end_cmd_attrs     .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"     , fmt_string (end_cmd_attrs     .spec.allow_stderr           ) ) ;
+			if ( end_cmd_attrs     .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"     , cat        (end_cmd_attrs     .spec.allow_stderr           ) ) ;
 			if ( end_none_attrs    .spec.max_stderr_len!=size_t(-1)) entries.emplace_back( "max_stderr_len"   , ::to_string(end_none_attrs    .spec.max_stderr_len         ) ) ;
 		}
-		res << _pretty_vmap( title , entries ) ;
+		::string res = _pretty_vmap( title , entries ) ;
 		//
 		// then composite static attrs
 		{	res << indent( _pretty_vmap   ("stems :"  ,stems,true/*uniq*/                       ) , 1 ) ;
@@ -1308,7 +1303,7 @@ namespace Engine {
 		if (!is_special()) {
 			if (+cmd.spec.cmd) res << indent("cmd :\n",1) << indent(ensure_nl(cmd_),2) ;
 		}
-		return ::move(res).str() ;
+		return res ;
 	}
 
 	::vector_s RuleData::_list_ctx(::vector<CmdIdx> const& ctx) const {
@@ -1377,7 +1372,7 @@ namespace Engine {
 	// RuleCrcData
 	//
 
-	::ostream& operator<<( ::ostream& os , RuleCrcData const& rcd ) {
+	::string& operator+=( ::string& os , RuleCrcData const& rcd ) {
 		return os << "RCD(" << rcd.rule <<','<< rcd.state <<','<< rcd.match <<','<< rcd.cmd <<','<< rcd.rsrcs << ')' ;
 	}
 
@@ -1418,7 +1413,7 @@ namespace Engine {
 		}
 	}
 
-	::ostream& operator<<( ::ostream& os , Rule::SimpleMatch const& m ) {
+	::string& operator+=( ::string& os , Rule::SimpleMatch const& m ) {
 		os << "RSM(" << m.rule << ',' << m.stems << ')' ;
 		return os ;
 	}

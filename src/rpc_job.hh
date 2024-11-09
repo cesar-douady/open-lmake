@@ -276,7 +276,7 @@ static const ::string EnvDynMrkr  = {'\0','d'} ; // special illegal value to mar
 static constexpr char QuarantineDirS[] = ADMIN_DIR_S "quarantine/" ;
 
 struct FileAction {
-	friend ::ostream& operator<<( ::ostream& , FileAction const& ) ;
+	friend ::string& operator+=( ::string& , FileAction const& ) ;
 	// cxtors & casts
 	FileAction(FileActionTag t={} , Hash::Crc c={} , Disk::FileSig s={} ) : tag{t} , crc{c} , sig{s}  {} // should be automatic but clang lacks some automatic conversions in some cases
 	// data
@@ -300,7 +300,7 @@ struct AccDflags {
 } ;
 
 struct JobReason {
-	friend ::ostream& operator<<( ::ostream& , JobReason const& ) ;
+	friend ::string& operator+=( ::string& , JobReason const& ) ;
 	using Tag = JobReasonTag ;
 	// cxtors & casts
 	JobReason(                   ) = default ;
@@ -345,7 +345,7 @@ ENUM( DepInfoKind
 ,	Info
 )
 struct DepInfo {
-	friend ::ostream& operator<<( ::ostream& , DepInfo const& ) ;
+	friend ::string& operator+=( ::string& , DepInfo const& ) ;
 	using Crc      = Hash::Crc      ;
 	using FileSig  = Disk::FileSig  ;
 	using FileInfo = Disk::FileInfo ;
@@ -406,9 +406,9 @@ private :
 // for Dep recording in book-keeping, we want to derive from Node
 // but if we derive from Node and have a field DepDigest, it is impossible to have a compact layout because of alignment constraints
 // hence this solution : derive from a template argument
-template<class B> ::ostream& operator<<( ::ostream& , DepDigestBase<B> const& ) ;
+template<class B> ::string& operator+=( ::string& , DepDigestBase<B> const& ) ;
 template<class B> struct DepDigestBase : NoVoid<B> {
-	friend ::ostream& operator<< <>( ::ostream& , DepDigestBase const& ) ;
+	friend ::string& operator+= <>( ::string& , DepDigestBase const& ) ;
 	using Base = NoVoid<B> ;
 	static constexpr bool    HasBase = !::is_same_v<B,void> ;
 	//
@@ -500,7 +500,7 @@ private :
 	} ;
 	// END_OF_VERSIONING
 } ;
-template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
+template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& dd ) {
 	const char* sep = "" ;
 	/**/                                          os << "D("                           ;
 	if constexpr ( !::is_void_v<B>            ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
@@ -517,7 +517,7 @@ using DepDigest = DepDigestBase<void> ;
 static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, we do not have to bother about union member cxtor/dxtor
 
 struct TargetDigest {
-	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
+	friend ::string& operator+=( ::string& , TargetDigest const& ) ;
 	using Crc = Hash::Crc ;
 	// data
 	// START_OF_VERSIONING
@@ -530,7 +530,7 @@ struct TargetDigest {
 } ;
 
 struct JobDigest {
-	friend ::ostream& operator<<( ::ostream& , JobDigest const& ) ;
+	friend ::string& operator+=( ::string& , JobDigest const& ) ;
 	// data
 	// START_OF_VERSIONING
 	Status                 status   = Status::New ;
@@ -545,7 +545,7 @@ struct JobDigest {
 } ;
 
 struct MatchFlags {
-	friend ::ostream& operator<<( ::ostream& , MatchFlags const& ) ;
+	friend ::string& operator+=( ::string& , MatchFlags const& ) ;
 	// cxtors & casts
 	MatchFlags(                                ) = default ;
 	MatchFlags( Tflags tf , ExtraTflags etf={} ) : is_target{Yes} , _tflags{tf} , _extra_tflags{etf} {}
@@ -568,9 +568,9 @@ private :
 } ;
 
 struct JobSpace {
-	friend ::ostream& operator<<( ::ostream& , JobSpace const& ) ;
+	friend ::string& operator+=( ::string& , JobSpace const& ) ;
 	struct ViewDescr {
-		friend ::ostream& operator<<( ::ostream& , ViewDescr const& ) ;
+		friend ::string& operator+=( ::string& , ViewDescr const& ) ;
 		bool operator+() const { return +phys ; }
 		// data
 		// START_OF_VERSIONING
@@ -618,7 +618,7 @@ struct JobRpcReq {
 	using SI  = SeqId               ;
 	using JI  = JobIdx              ;
 	using MDD = ::vmap_s<DepDigest> ;
-	friend ::ostream& operator<<( ::ostream& , JobRpcReq const& ) ;
+	friend ::string& operator+=( ::string& , JobRpcReq const& ) ;
 	// cxtors & casts
 	JobRpcReq() = default ;
 	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                      { SWEAR(p==P::None ,p) ; }
@@ -659,7 +659,7 @@ struct JobRpcReq {
 } ;
 
 struct JobRpcReply {
-	friend ::ostream& operator<<( ::ostream& , JobRpcReply const& ) ;
+	friend ::string& operator+=( ::string& , JobRpcReply const& ) ;
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
 	// cxtors & casts
@@ -748,7 +748,7 @@ struct JobMngtRpcReq {
 	using SI   = SeqId               ;
 	using JI   = JobIdx              ;
 	using MDD  = ::vmap_s<DepDigest> ;
-	friend ::ostream& operator<<( ::ostream& , JobMngtRpcReq const& ) ;
+	friend ::string& operator+=( ::string& , JobMngtRpcReq const& ) ;
 	// statics
 	// cxtors & casts
 	#define S ::string
@@ -800,7 +800,7 @@ struct JobMngtRpcReq {
 } ;
 
 struct JobMngtRpcReply {
-	friend ::ostream& operator<<( ::ostream& , JobMngtRpcReply const& ) ;
+	friend ::string& operator+=( ::string& , JobMngtRpcReply const& ) ;
 	using Crc  = Hash::Crc   ;
 	using Proc = JobMngtProc ;
 	// cxtors & casts
@@ -847,7 +847,7 @@ struct JobMngtRpcReply {
 } ;
 
 struct SubmitAttrs {
-	friend ::ostream& operator<<( ::ostream& , SubmitAttrs const& ) ;
+	friend ::string& operator+=( ::string& , SubmitAttrs const& ) ;
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		// tag, deps and n_retries are independent of req but may not always be present
@@ -878,7 +878,7 @@ struct SubmitAttrs {
 } ;
 
 struct JobInfoStart {
-	friend ::ostream& operator<<( ::ostream& , JobInfoStart const& ) ;
+	friend ::string& operator+=( ::string& , JobInfoStart const& ) ;
 	// accesses
 	bool operator+() const { return +pre_start ; }
 	// data
@@ -896,7 +896,7 @@ struct JobInfoStart {
 } ;
 
 struct JobInfoEnd {
-	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
+	friend ::string& operator+=( ::string& , JobInfoEnd const& ) ;
 	// accesses
 	bool operator+() const { return +end ; }
 	// data

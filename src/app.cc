@@ -26,9 +26,6 @@ void crash_handler(int sig) {
 }
 
 bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_root ) {
-	sanitize(::cout) ;
-	sanitize(::cerr) ;
-	//
 	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler(sig,crash_handler) ; // catch all synchronous signals so as to generate a backtrace
 	//
 	if (!g_startup_dir_s) g_startup_dir_s = new ::string ;
@@ -44,7 +41,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 	if (!g_trace_file) g_trace_file  = new ::string{PrivateAdminDirS+"trace/"s+*g_exe_name} ;
 	/**/               g_lmake_dir_s = new ::string{dir_name_s(dir_name_s(exe))           } ;
 	#if PROFILING
-		set_env( "GMON_OUT_PREFIX" , dir_guard(*g_root_dir_s+GMON_DIR_S+*g_exe_name) ) ;           // ensure unique gmon data file in a non-intrusive (wrt autodep) place
+		set_env( "GMON_OUT_PREFIX" , dir_guard(*g_root_dir_s+GMON_DIR_S+*g_exe_name) ) ;     // ensure unique gmon data file in a non-intrusive (wrt autodep) place
 	#endif
 	//
 	bool read_only = ::access(no_slash(*g_root_dir_s).c_str(),W_OK) ;
@@ -54,7 +51,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 		try                       { chk_version( !read_only && chk_version_==Maybe ) ; }
 		catch (::string const& e) { exit(Rc::Format,e) ;                               }
 	//
-    t_thread_key = '=' ;                                                                           // we are the main thread
+    t_thread_key = '=' ;                                                                     // we are the main thread
 	if (!read_only)
 		try                       { Trace::s_start() ; }
 		catch (::string const& e) { exit(Rc::Perm,e) ; }
@@ -63,13 +60,15 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 }
 
 void chk_version( bool may_init , ::string const& admin_dir_s ) {
-	::string   version_file = admin_dir_s+"version"    ;
-	::vector_s stored       = read_lines(version_file) ;
-	if (+stored) {
-		if (stored.size()!=1u     ) throw "bad version file "+version_file     ;
-		if (stored[0]!=VersionMrkr) throw "version mismatch, "+git_clean_msg() ;
-	} else {
+	::string version_file = admin_dir_s+"version" ;
+	AcFd     version_fd   { version_file }        ;
+	if (!version_fd) {
 		throw_unless( may_init , "repo not initialized, consider : lmake" ) ;
-		write_lines( dir_guard(version_file) , {VersionMrkr} ) ;
+		AcFd(dir_guard(version_file),Fd::Write).write(cat(VersionMrkr,'\n')) ;
+	} else {
+		::string stored = version_fd.read() ;
+		throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
+		stored.pop_back() ;
+		if (stored!=VersionMrkr) throw "version mismatch, "+git_clean_msg() ;
 	}
 }

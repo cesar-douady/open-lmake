@@ -13,7 +13,7 @@
 //
 
 struct MsgBuf {
-	friend ::ostream& operator<<( ::ostream& , MsgBuf const& ) ;
+	friend ::string& operator+=( ::string& , MsgBuf const& ) ;
 	using Len = uint32_t ;                                       // /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
 	// statics
 	static Len s_sz(const char* str) {
@@ -26,7 +26,7 @@ protected :
 	::string _buf       ;                                        // reading : sized after expected size, but actuall filled up only with len char's    // writing : contains len+data to be sent
 	bool     _data_pass = false ;                                // reading : if true <=> buf contains partial data, else it contains partial data len // writing : if true <=> buf contains data
 } ;
-inline ::ostream& operator<<( ::ostream& os , MsgBuf const& mb ) { return os<<"MsgBuf("<<mb._len<<','<<mb._data_pass<<')' ; }
+inline ::string& operator+=( ::string& os , MsgBuf const& mb ) { return os<<"MsgBuf("<<mb._len<<','<<mb._data_pass<<')' ; }
 
 struct IMsgBuf : MsgBuf {
 	// statics
@@ -36,7 +36,7 @@ struct IMsgBuf : MsgBuf {
 		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 	// cxtors & casts
-	IMsgBuf() { _buf.resize(sizeof(Len)) ; }                                      // prepare to receive len
+	IMsgBuf() { _buf.resize(sizeof(Len)) ; }             // prepare to receive len
 	// services
 	template<class T> T receive(Fd fd) {
 		T res ;
@@ -45,10 +45,10 @@ struct IMsgBuf : MsgBuf {
 	}
 	template<class T> bool/*complete*/ receive_step( Fd fd , T& res ) {
 		ssize_t cnt = ::read( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if      (cnt<0 ) throw "cannot receive over "      +fmt_string(fd)+" : "+::strerror(errno) ;
-		else if (cnt==0) throw "peer closed connection on "+fmt_string(fd)                         ;
+		if      (cnt<0 ) throw "cannot receive over "      +cat(fd)+" : "+::strerror(errno) ;
+		else if (cnt==0) throw "peer closed connection on "+cat(fd)                         ;
 		_len += cnt ;
-		if (_len<_buf.size()) return false/*complete*/ ;                          // _buf is still partial
+		if (_len<_buf.size()) return false/*complete*/ ; // _buf is still partial
 		if (_data_pass) {
 			//    vvvvvvvvvvvvvvvvvvvv
 			res = deserialize<T>(_buf) ;
@@ -71,10 +71,10 @@ struct IMsgBuf : MsgBuf {
 struct OMsgBuf : MsgBuf {
 	// statics
 	template<class T> static ::string s_send(T const& x) {
-		::string res = serialize(::pair<Len,T>(0,x)) ; SWEAR(res.size()>=sizeof(Len)) ; // directly serialize in res to avoid copy : serialize a pair with length+data
-		size_t   len_ = res.size()-sizeof(Len)       ;
-		Len      len  = len_                         ; SWEAR(len==len_,len_)          ; // ensure truncation is harmless
-		::memcpy( res.data() , &len , sizeof(Len) ) ;                                   // overwrite len
+		::string res  = serialize(::pair<Len,T>(0,x)) ; SWEAR(res.size()>=sizeof(Len)) ; // directly serialize in res to avoid copy : serialize a pair with length+data
+		size_t   len_ = res.size()-sizeof(Len)        ;
+		Len      len  = len_                          ; SWEAR(len==len_,len_)          ; // ensure truncation is harmless
+		::memcpy( res.data() , &len , sizeof(Len) ) ;                                    // overwrite len
 		return res ;
 	}
 	// services
@@ -91,9 +91,9 @@ struct OMsgBuf : MsgBuf {
 	bool/*complete*/ send_step(Fd fd) {
 		SWEAR(_data_pass) ;
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) { int en=errno ; throw "cannot send over "+fmt_string(fd)+" : "+::strerror(en) ; }
+		if (cnt<=0) { int en=errno ; throw "cannot send over "+cat(fd)+" : "+::strerror(en) ; }
 		_len += cnt ;
-		if (_len<_buf.size()) {             return false/*complete*/ ; }                // _buf is still partial
+		if (_len<_buf.size()) {             return false/*complete*/ ; }                 // _buf is still partial
 		else                  { self = {} ; return true /*complete*/ ; }
 	}
 } ;

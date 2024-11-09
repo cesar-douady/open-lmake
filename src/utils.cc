@@ -29,6 +29,40 @@ using namespace Disk ;
 thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 
 //
+// Fd
+//
+
+void Fd::write(::string_view data) const {
+	for( size_t cnt=0 ; cnt<data.size() ;) {
+		ssize_t c = ::write( fd , data.data()+cnt , data.size()-cnt ) ;
+		if (c<=0) throw "cannot write to fd "s+fd ;
+		cnt += c ;
+	}
+}
+
+::string Fd::read( bool no_file_ok , size_t sz ) const {
+	if ( no_file_ok && !self ) return {} ;
+	::string res ; res.reserve(::min(sz,size_t(4096))) ;
+	while (res.size()<sz) {
+		size_t old_sz = res.size()                    ;
+		size_t rd_sz  = ::min(sz-old_sz,size_t(4096)) ;
+		res.resize( old_sz + rd_sz ) ;
+		ssize_t c = ::read( fd , &res[old_sz] , rd_sz ) ;
+		if (c<0 ) throw "cannot read from fd "s+fd ;
+		res.resize( old_sz + c ) ;
+		if (c==0) break ;
+	}
+	return res ;
+}
+
+::vector_s Fd::read_lines(bool no_file_ok) const {
+	::string content = read(no_file_ok) ;
+	if (!content            ) return {} ;
+	if (content.back()=='\n') content.pop_back() ;
+	return split(content,'\n') ;
+}
+
+//
 // string
 //
 
@@ -46,8 +80,8 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 			case '\\' : res += "\\\\" ; break ;                   // .
 			case '\'' : res += "\\'"  ; break ;                   // .
 			default :
-				if (is_printable(c)) res +=                                                             c   ;
-				else                 res += fmt_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
+				if (is_printable(c)) res << c                                               ;
+				else                 res << "\\x"<<('0'+uint8_t(c)/16)<<('0'+uint8_t(c)%16) ;
 		}
 	}
 	res += '\'' ;
@@ -66,8 +100,8 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 			case '\\' : res += "\\\\" ; break ;                  // .
 			case '"'  : res += "\\\"" ; break ;                  // .
 			default :
-				if (is_printable(c)) res +=                                                             c   ;
-				else                 res += fmt_string("\\u",::right,::setfill('0'),::hex,::setw(4),int(c)) ;
+				if (is_printable(c)) res << c                                               ;
+				else                 res << "\\x"<<('0'+uint8_t(c)/16)<<('0'+uint8_t(c)%16) ;
 		}
 	}
 	res += '"' ;
@@ -256,22 +290,24 @@ void set_sig_handler( int sig , void (*handler)(int) ) {
 #if HAS_STACKTRACE
 
 	// /!\ if called from signal handler, we should not use malloc, but stupid ::stacktrace does not provide customized allocators, so hope or the best
-	void write_backtrace( ::ostream& os , int hide_cnt ) {
+	void write_backtrace( Fd fd , int hide_cnt ) {
 		::stacktrace stack = ::stacktrace::current() ;
 		//
 		auto begin_frame = stack.begin() ; for  ( int i=0 ; i<=hide_cnt ; i++                                ) begin_frame++ ; // hide_cnt+1 to account for this very function
 		auto end_frame   = begin_frame   ; while( end_frame!=stack.end() && end_frame->description()!="main" ) end_frame  ++ ; // dont trace above main
 		/**/                               if   ( end_frame!=stack.end()                                     ) end_frame  ++ ; // but include main
 		//
-		size_t wf = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) wf = ::max( wf , mk_canon (it->source_file()).size() ) ;
-		size_t wl = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) wl = ::max( wl , to_string(it->source_line()).size() ) ;
+		size_t   wf = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) wf = ::max( wf , mk_canon (it->source_file()).size() ) ;
+		size_t   wl = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) wl = ::max( wl , to_string(it->source_line()).size() ) ;
+		::string bt ;
 		for( auto it=begin_frame ; it!=end_frame ; it++ ) {
-			/**/                              os <<         ::setw(wf)<< mk_canon(it->source_file()) ;
-			if ( size_t l=it->source_line() ) os <<':'   << ::setw(wl)<< ::right<<l<<::left          ;
-			else                              os <<' '   << ::setw(wl)<< ""                          ;
-			/**/                              os <<" : " << ::setw(0 )<< it->description()           ;
-			/**/                              os <<::endl                                            ;
+			/**/                              bt <<         widen(mk_canon(it->source_file()),wf              ) ;
+			if ( size_t l=it->source_line() ) bt <<':'   << widen(""s+l                      ,wl,true/*right*/) ;
+			else                              bt <<' '   << widen(""                         ,wl              ) ;
+			/**/                              bt <<" : " <<       it->description()                             ;
+			/**/                              bt <<'\n'                                                         ;
 		}
+		fd.write(bt) ;
 	}
 
 #else
@@ -386,7 +422,7 @@ void set_sig_handler( int sig , void (*handler)(int) ) {
 		return n_sp ;
 	}
 
-	void write_backtrace( ::ostream& os , int hide_cnt ) {
+	void write_backtrace( Fd fd , int hide_cnt ) {
 		static constexpr size_t StackSize = 100 ;
 		//
 		static void*    stack         [StackSize] ;     // avoid big allocation on stack
@@ -405,14 +441,15 @@ void set_sig_handler( int sig , void (*handler)(int) ) {
 			wf = ::max( wf , strnlen(symbolic_stack[i].file,PATH_MAX) ) ;
 			wl = ::max( wl , w                                        ) ;
 		}
-		os << "approximately" << endl ;
+		::string bt = "approximately\n" ;
 		for( int i : iota(stack_sz) ) {
-			/**/                        os <<         ::setw(wf)<<          symbolic_stack[i].file         ;
-			if (symbolic_stack[i].line) os <<':'   << ::setw(wl)<< ::right<<symbolic_stack[i].line<<::left ;
-			else                        os <<' '   << ::setw(wl)<< ""                                      ;
-			/**/                        os <<" : " << ::setw(0 )<<          symbolic_stack[i].func         ;
-			/**/                        os <<::endl ;
+			/**/                        bt <<         widen(    symbolic_stack[i].file ,wf              ) ;
+			if (symbolic_stack[i].line) bt <<':'   << widen(cat(symbolic_stack[i].line),wl,true/*right*/) ;
+			else                        bt <<' '   << widen(""                         ,wl              ) ;
+			/**/                        bt <<" : " <<           symbolic_stack[i].func                    ;
+			/**/                        bt <<'\n' ;
 		}
+		fd.write(bt) ;
 	}
 
 #endif

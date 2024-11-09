@@ -187,8 +187,8 @@ namespace Engine::Persistent {
 	}
 
 	static void _init_config() {
-		try         { g_config = new Config{deserialize<Config>(IFStream(PrivateAdminDirS+"config_store"s))} ; }
-		catch (...) { g_config = new Config                                                                  ; }
+		try         { g_config = new Config{deserialize<Config>(AcFd(PrivateAdminDirS+"config_store"s).read())} ; }
+		catch (...) { g_config = new Config                                                                     ; }
 	}
 
 	static void _init_srcs_rules(bool rescue) {
@@ -217,25 +217,25 @@ namespace Engine::Persistent {
 		// misc
 		if (g_writable) {
 			g_seq_id = &_job_file.hdr().seq_id ;
-			if (!*g_seq_id) *g_seq_id = 1 ;                                                                                      // avoid 0 (when store is brand new) to decrease possible confusion
+			if (!*g_seq_id) *g_seq_id = 1 ;      // avoid 0 (when store is brand new) to decrease possible confusion
 		}
 		// Rule
 		RuleBase::s_match_gen = _rule_file.c_hdr() ;
 		// END_OF_VERSIONING
 		//
 		SWEAR(RuleBase::s_match_gen>0) ;
-		_job_file      .keep_open = true ; // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
-		_deps_file     .keep_open = true ; // .
-		_targets_file  .keep_open = true ; // .
-		_node_file     .keep_open = true ; // .
-		_job_tgts_file .keep_open = true ; // .
-		_rule_file     .keep_open = true ; // .
-		_rule_crc_file .keep_open = true ; // .
-		_rule_str_file .keep_open = true ; // .
-		_rule_tgts_file.keep_open = true ; // .
-		_sfxs_file     .keep_open = true ; // .
-		_pfxs_file     .keep_open = true ; // .
-		_name_file     .keep_open = true ; // .
+		_job_file      .keep_open = true ;       // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
+		_deps_file     .keep_open = true ;       // .
+		_targets_file  .keep_open = true ;       // .
+		_node_file     .keep_open = true ;       // .
+		_job_tgts_file .keep_open = true ;       // .
+		_rule_file     .keep_open = true ;       // .
+		_rule_crc_file .keep_open = true ;       // .
+		_rule_str_file .keep_open = true ;       // .
+		_rule_tgts_file.keep_open = true ;       // .
+		_sfxs_file     .keep_open = true ;       // .
+		_pfxs_file     .keep_open = true ;       // .
+		_name_file     .keep_open = true ;       // .
 		_compile_srcs () ;
 		Rule::s_from_disk() ;
 		for( Job  j : _job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
@@ -245,11 +245,11 @@ namespace Engine::Persistent {
 		trace("done",Pdate(New)) ;
 		//
 		if (rescue) {
-			::cerr<<"previous crash detected, checking & rescueing"<<endl ;
+			Fd::Stderr.write("previous crash detected, checking & rescueing\n") ;
 			try {
-				chk()              ;       // first verify we have a coherent store
-				invalidate_match() ;       // then rely only on essential data that should be crash-safe
-				::cerr<<"seems ok"<<endl ;
+				chk()              ;             // first verify we have a coherent store
+				invalidate_match() ;             // then rely only on essential data that should be crash-safe
+				Fd::Stderr.write("seems ok\n") ;
 			} catch (::string const&) {
 				exit(Rc::Format,"failed to rescue, consider running lrepair") ;
 			}
@@ -273,8 +273,8 @@ namespace Engine::Persistent {
 	}
 
 	static void _save_config() {
-		serialize( OFStream(PrivateAdminDirS+"config_store"s) , *g_config ) ;
-		OFStream(AdminDirS+"config"s) << g_config->pretty_str() ;
+		AcFd( PrivateAdminDirS+"config_store"s , Fd::Write ).write(serialize(*g_config)  ) ;
+		AcFd( AdminDirS+"config"s              , Fd::Write ).write(g_config->pretty_str()) ;
 	}
 
 	static void _diff_config( Config const& old_config , bool dynamic ) {
@@ -514,7 +514,7 @@ namespace Engine::Persistent {
 			}
 		}
 		bool res = n_modified_prio || n_new_rules || n_old_rules ;
-		if (dynamic) {                                                                                          // check if compatible with dynamic update
+		if (dynamic) {                                                      // check if compatible with dynamic update
 			throw_if( n_new_rules      , "new rules appeared"           ) ;
 			throw_if( n_old_rules      , "old rules disappeared"        ) ;
 			throw_if( n_modified_prio  , "rule prio's were modified"    ) ;
@@ -523,7 +523,7 @@ namespace Engine::Persistent {
 			RuleBase::s_from_vec_dynamic(::move(new_rules_)) ;
 		} else {
 			RuleBase::s_from_vec_not_dynamic(::move(new_rules_)) ;
-			if (res) _compile_psfxs() ;                                                                         // recompute matching
+			if (res) _compile_psfxs() ;                                     // recompute matching
 		}
 		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs)) ;
 		// trace
@@ -542,19 +542,16 @@ namespace Engine::Persistent {
 			}
 		}
 		// user report
-		{	OFStream rules_stream{AdminDirS+"rules"s} ;
-			::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
+		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
 			::sort( rules , [](Rule a,Rule b){
 				if (a->prio!=b->prio) return a->prio > b->prio ;
 				else                  return a->name < b->name ;
 			} ) ;
-			bool first = true ;
-			for( Rule rule : rules ) {
-				if (!rule->user_defined()) continue ;
-				if (first) first = false ;
-				else       rules_stream << '\n' ;
-				rules_stream<<rule->pretty_str() ;
-			}
+			First    first   ;
+			::string content ;
+			for( Rule rule : rules ) if (rule->user_defined())
+				content <<first("","\n")<< rule->pretty_str() ;
+			AcFd( AdminDirS+"rules"s , Fd::Write ).write(content) ;
 		}
 		return res ;
 	}
@@ -640,8 +637,9 @@ namespace Engine::Persistent {
 		}
 		_compile_srcs() ;
 		// user report
-		{	OFStream srcs_stream{AdminDirS+"manifest"s} ;
-			for( auto [n,t] : srcs ) srcs_stream << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
+		{	::string content ;
+			for( auto [n,t] : srcs ) content << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
+			AcFd( AdminDirS+"manifest"s , Fd::Write ).write(content) ;
 		}
 		trace("done",srcs.size(),"srcs") ;
 		return true ;
@@ -650,10 +648,10 @@ namespace Engine::Persistent {
 	void invalidate_match() {
 		MatchGen& match_gen = _rule_file.hdr() ;
 		Trace trace("invalidate_match","old gen",match_gen) ;
-		match_gen++ ;                                                                                               // increase generation, which automatically makes all nodes !match_ok()
-		if (match_gen==0) {                                                                                         // unless we wrapped around
+		match_gen++ ;                                                                                                         // increase generation, which automatically makes all nodes !match_ok()
+		if (match_gen==0) {                                                                                                   // unless we wrapped around
 			trace("reset") ;
-			::cerr << "collecting nodes ..." ; for( Node n : node_lst() ) n->mk_old() ; ::cerr << " done" << endl ; // physically reset node match_gen's
+			Fd::Stderr.write("collecting nodes ...") ; for( Node n : node_lst() ) n->mk_old() ; Fd::Stderr.write(" done\n") ; // physically reset node match_gen's
 			match_gen = 1 ;
 		}
 		Rule::s_match_gen = match_gen ;

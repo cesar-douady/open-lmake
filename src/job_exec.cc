@@ -212,7 +212,7 @@ Digest analyze(Status status=Status::New) {                                     
 		// correct code :
 		// ::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
 		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;
-		OFStream(dir_guard(cmd_file)) << g_start_info.cmd.first << g_start_info.cmd.second ;
+		AcFd( dir_guard(cmd_file) , Fd::Write ).write(g_start_info.cmd.first+g_start_info.cmd.second) ;
 		cmd_line.reserve(cmd_line.size()+1) ;
 		cmd_line.push_back(mk_abs(cmd_file,*g_root_dir_s)) ;                                                     // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
@@ -375,14 +375,14 @@ int main( int argc , char* argv[] ) {
 			if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] )
 				g_gather.new_unlnk(start_overhead,t) ;                                                     // always report non-optional static targets
 		//
-		if (+g_start_info.stdin) g_gather.child_stdin = open_read(g_start_info.stdin) ;
-		else                     g_gather.child_stdin = open_read("/dev/null"       ) ;
+		if (+g_start_info.stdin) g_gather.child_stdin = Fd(g_start_info.stdin) ;
+		else                     g_gather.child_stdin = Fd("/dev/null"       ) ;
 		g_gather.child_stdin.no_std() ;
 		g_gather.child_stderr = Child::PipeFd ;
 		if (!g_start_info.stdout) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
-			g_gather.child_stdout = open_write(g_start_info.stdout) ;
+			g_gather.child_stdout = Fd(dir_guard(g_start_info.stdout),Fd::Write) ;
 			g_gather.new_target( start_overhead , g_start_info.stdout , "<stdout>" ) ;
 			g_gather.child_stdout.no_std() ;
 		}

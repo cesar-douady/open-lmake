@@ -13,7 +13,7 @@ namespace Engine {
 	// NodeReqInfo
 	//
 
-	::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) {
+	::string& operator+=( ::string& os , NodeReqInfo const& ri ) {
 		/**/                          os << "NRI(" << ri.req <<','<< ri.goal <<',' ;
 		if (ri.prio_idx==Node::NoIdx) os << "NoIdx"                                ;
 		else                          os <<                  ri.prio_idx           ;
@@ -30,7 +30,7 @@ namespace Engine {
 
 	Hash::Crc Node::_s_src_dirs_crc ;
 
-	::ostream& operator<<( ::ostream& os , Node const n ) {
+	::string& operator+=( ::string& os , Node const n ) {
 		/**/    os << "N(" ;
 		if (+n) os << +n   ;
 		return  os << ')'  ;
@@ -51,7 +51,7 @@ namespace Engine {
 
 	Mutex<MutexLvl::NodeCrcDate> NodeData::s_crc_date_mutex ;
 
-	::ostream& operator<<( ::ostream& os , NodeData const& nd ) {
+	::string& operator+=( ::string& os , NodeData const& nd ) {
 		/**/                    os <<'('<< nd.crc ;
 		if (nd.is_plain()) {
 			/**/                os <<',' << nd.date()       ;
@@ -782,7 +782,7 @@ namespace Engine {
 	// Target
 	//
 
-	::ostream& operator<<( ::ostream& os , Target const t ) {
+	::string& operator+=( ::string& os , Target const t ) {
 		/**/           os << "T("         ;
 		if (+t       ) os << +t           ;
 		if (+t.tflags) os <<','<<t.tflags ;
@@ -794,7 +794,7 @@ namespace Engine {
 	// Dep
 	//
 
-	::ostream& operator<<( ::ostream& os , Dep const& d ) {
+	::string& operator+=( ::string& os , Dep const& d ) {
 		return os << static_cast<DepDigestBase<Node> const&>(d) ;
 	}
 
@@ -814,7 +814,7 @@ namespace Engine {
 	// Deps
 	//
 
-	::ostream& operator<<( ::ostream& os , DepsIter::Digest const& did ) {
+	::string& operator+=( ::string& os , DepsIter::Digest const& did ) {
 		return os <<'('<< did.hdr <<','<< did.i_chunk <<')'  ;
 	}
 

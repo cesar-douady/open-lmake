@@ -17,9 +17,9 @@ using namespace Py   ;
 ::string keys() {
 	Gil gil ;
 	try {
-		Ptr<Object> py_cfg_data = py_eval(read_content(ADMIN_DIR_S "lmake/config_data.py")) ;
-		Object&     py_cfg      = py_cfg_data->as_a<Dict>().get_item("config")              ;
-		Object&     py_dbgs     = py_cfg     . as_a<Dict>().get_item("debug" )              ;
+		Ptr<Object> py_cfg_data = py_eval(AcFd(ADMIN_DIR_S "lmake/config_data.py").read()) ;
+		Object&     py_cfg      = py_cfg_data->as_a<Dict>().get_item("config")             ;
+		Object&     py_dbgs     = py_cfg     . as_a<Dict>().get_item("debug" )             ;
 		::string res   = "(" ;
 		First    first ;
 		for( auto const& [py_k,py_v] : py_dbgs.as_a<Dict>() ) res <<first("",",")<< ::string(py_k.as_a<Str>()) ;
@@ -59,9 +59,9 @@ int main( int argc , char* argv[] ) {
 	char* exec_args[] = { script_file.data() , nullptr } ;
 	//
 	if (cmd_line.flags[ReqFlag::NoExec]) {
-		::cout << "script file : " << script_file << endl ;
+		Fd::Stdout.write("script file : "s+script_file+'\n') ;
 	} else {
-		::cerr << "executing : " << script_file << endl ;
+		Fd::Stderr.write("executing : "s+script_file+'\n') ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		::execv(script_file.c_str(),exec_args) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

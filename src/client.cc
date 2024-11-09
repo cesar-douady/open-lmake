@@ -37,17 +37,16 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 		trace("try_old",i) ;
 		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
 			// try to connect to an existing server
-			::ifstream server_mrkr_stream { ServerMrkr } ;
-			::string   pid_str            ;
-			if (!server_mrkr_stream                          ) { trace("no_marker"  ) ; goto LaunchServer ; }
-			if (!::getline(server_mrkr_stream,server_service)) { trace("bad_marker1") ; goto LaunchServer ; }
-			if (!::getline(server_mrkr_stream,pid_str       )) { trace("bad_marker2") ; goto LaunchServer ; }
+			AcFd            server_mrkr_fd     { ServerMrkr }                ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
+			::vector_s      lines              = server_mrkr_fd.read_lines() ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
+			::string const& server_service_str = lines[0]                    ;
+			::string const& pid_str            = lines[1]                    ;
 			server_pid = from_string<pid_t>(pid_str) ;
 			trace("server",server_pid) ;
 			try {
-				if (host()==SockFd::s_host(server_service)) {
-					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service) ) ; // dont use network if not necessary
-					server_is_local = true                                                                                           ;
+				if (host()==SockFd::s_host(server_service_str)) {
+					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service_str) ) ; // dont use network if not necessary
+					server_is_local = true                                                                                               ;
 				}
 				ClientSockFd req_fd { server_service , 3/*n_trials*/ , Delay(3)/*timeout*/ } ;
 				if (_server_ok(req_fd,"old")) {
@@ -55,7 +54,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 					if (sync) exit(Rc::Format,"server already exists") ;
 					return 0 ;
 				}
-			} catch(::string const&) { trace("cannot_connect",server_service) ; }
+			} catch(::string const&) { trace("cannot_connect",server_service_str,server_service) ; }
 			//
 		}
 	LaunchServer :
@@ -213,7 +212,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool 
 				case Proc::None   : trace("done"                 ) ;                                               goto Return ;
 				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           goto Return ; // XXX : why is it necessary to goto Return here ? ...
 				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ; // ... we should receive None when server closes stream
-				case Proc::Txt    :                                  ::cout << report.txt << flush ;               break       ;
+				case Proc::Txt    :                                  Fd::Stdout.write(report.txt) ;                break       ;
 			DF}
 		}
 	} catch(...) {

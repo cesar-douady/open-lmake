@@ -29,7 +29,7 @@ namespace Codec {
 
 	void codec_thread_func(Closure const& cc) ;
 
-	::ostream& operator<<( ::ostream& os , Closure const& cc ) {
+	::string& operator+=( ::string& os , Closure const& cc ) {
 		/**/                              os << "Closure(" << cc.proc                                              ;
 		if (cc.proc==JobMngtProc::Encode) os <<','<< cc.min_len()                                                  ;
 		return                            os <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<','<< cc.reqs <<')' ;
@@ -97,13 +97,12 @@ namespace Codec {
 	}
 
 	void Closure::_s_canonicalize( ::string const& file , ::vector<ReqIdx> const& reqs ) {
-		bool                              is_canonic = true             ;
 		::map_s<umap_ss>/*ctx->val->code*/ encode_tab ;
-		bool                              first      = true             ;
-		::string                          prev_ctx   ;
-		::string                          prev_code  ;
-		::vector<Node>                    nodes      ;
-		::vector_s                        lines      = read_lines(file) ;
+		::string                           prev_ctx   ;
+		::string                           prev_code  ;
+		::vector<Node>                     nodes      ;
+		bool                               is_canonic = true                                      ;
+		::vector_s                         lines      = AcFd(file).read_lines(true/*no_file_ok*/) ;
 		//
 		auto process_node = [&]( ::string const& ctx , ::string const& code , ::string const& val )->void {
 			Node dn { mk_decode_node(file,ctx,code) , true/*no_dir*/ } ; nodes.emplace_back(dn) ;
@@ -112,6 +111,7 @@ namespace Codec {
 		} ;
 		Trace trace("_s_canonicalize",file,lines.size()) ;
 		//
+		bool first = true ;
 		for( ::string const& line : lines ) {
 			{	size_t pos = 0 ;
 				/**/                                             if (line[pos++]!=' ') { trace("no_space_0") ; is_canonic=false ; continue ; }
@@ -121,22 +121,22 @@ namespace Codec {
 				//
 				if (is_canonic) {
 					// use same order as in decode_tab below when rewriting file and ensure standard line formatting
-					if      ( !first && ::pair(prev_ctx,prev_code)>=::pair(ctx,code)          ) { trace("wrong_order",prev_ctx,prev_code,ctx,code) ; is_canonic = false ; }
-					else if ( ::string l=_codec_line(ctx,code,val,false/*with_nl*/) ; line!=l ) { trace("fancy_line" ,'"'+line+'"',"!=",'"'+l+'"') ; is_canonic = false ; }
+					if      ( !first && ::pair(prev_ctx,prev_code)>=::pair(ctx,code)          ) { trace("wrong_order",prev_ctx,prev_code,ctx,code) ; is_canonic=false ; }
+					else if ( ::string l=_codec_line(ctx,code,val,false/*with_nl*/) ; line!=l ) { trace("fancy_line" ,'"'+line+'"',"!=",'"'+l+'"') ; is_canonic=false ; }
 				}
 				//
 				auto [it,inserted] = encode_tab[ctx].try_emplace(val,code) ;
 				if (inserted) {
 					prev_ctx  = ::move(ctx ) ;
 					prev_code = ::move(code) ;
-					first       = false      ;
+					first     = false        ;
 				} else {
 					is_canonic = false ;
 					if (it->second==code) {
 						trace("duplicate",line) ;
 					} else {
 						::string crc = Xxh(val).digest().hex() ;
-						if (_code_prio(code,crc)>_code_prio(it->second,crc)) it->second = code ;            // keep best code
+						if (_code_prio(code,crc)>_code_prio(it->second,crc)) it->second = code ; // keep best code
 						trace("val_conflict",prev_code,code,it->second) ;
 					}
 				}
@@ -161,10 +161,11 @@ namespace Codec {
 					}
 				}
 			}
-			OFStream os { file } ;
+			::string lines ;
 			for( auto const& [ctx,d_entry] : decode_tab )
 				for( auto const& [code,val] : d_entry )
-					os << _codec_line(ctx,code,val,true/*with_nl*/) ;
+					lines << _codec_line(ctx,code,val,true/*with_nl*/) ;
+			AcFd(file,Fd::Write).write(lines) ;
 			for( ReqIdx r : reqs ) Req(r)->audit_node(Color::Note,"refresh",Node(file)) ;
 		}
 		for( auto const& [ctx,e_entry] : encode_tab )
@@ -251,7 +252,7 @@ namespace Codec {
 		return { JobMngtProc::Encode , {}/*seq_id*/ , {}/*fd*/ , "crc clash" , {} , No } ;             // this is a true full crc clash, seq_id and fd will be filled in later
 	NewCode :
 		trace("new_code",code) ;
-		OFStream(file,::ios::app) << _codec_line(ctx,code,txt,true/*with_nl*/) ;
+		AcFd(file,Fd::Append).write(_codec_line(ctx,code,txt,true/*with_nl*/)) ;                       // Maybe means append
 		Entry& entry = s_tab.at(file) ;
 		Pdate  now   { New }          ;
 		_create_pair( file , decode_node , txt , encode_node , code ) ;

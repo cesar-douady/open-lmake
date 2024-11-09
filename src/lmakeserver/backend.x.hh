@@ -54,7 +54,7 @@ namespace Backends {
 			// a job stops being reasonable when it has already run longer than its last known exec_time
 			// a workload is a sum of weighted exec times in ms, i.e. with 3 jobs for 4 tokens in parallel workload advances by 4 each ms
 			// all delays and dates are rounded to ms to avoid rounding errors
-			friend ::ostream& operator<<( ::ostream& , Workload const& ) ;
+			friend ::string& operator+=( ::string& , Workload const& ) ;
 			using Val    = uint64_t                  ;
 			using Tokens = Uint<sizeof(Tokens1)*8+1> ;                             // +1 to allow adding 1 without overflow
 		private :
@@ -84,9 +84,9 @@ namespace Backends {
 		} ;
 
 		struct StartEntry {
-			friend ::ostream& operator<<( ::ostream& , StartEntry const& ) ;
+			friend ::string& operator+=( ::string& , StartEntry const& ) ;
 			struct Conn {
-				friend ::ostream& operator<<( ::ostream& , Conn const& ) ;
+				friend ::string& operator+=( ::string& , Conn const& ) ;
 				// accesses
 				bool operator+() const { return seq_id ; }
 				// data
@@ -114,7 +114,7 @@ namespace Backends {
 		} ;
 
 		struct DeferredEntry {
-			friend ::ostream& operator<<( ::ostream& , DeferredEntry const& ) ;
+			friend ::string& operator+=( ::string& , DeferredEntry const& ) ;
 			// cxtors & casts
 			DeferredEntry( SeqId si=0 , JobExec je={} ) : seq_id{si} , job_exec{je} {}
 			// data

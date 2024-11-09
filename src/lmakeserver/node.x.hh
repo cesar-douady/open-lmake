@@ -119,7 +119,7 @@ namespace Engine {
 	//
 
 	struct Node : NodeBase {
-		friend ::ostream& operator<<( ::ostream& , Node const ) ;
+		friend ::string& operator+=( ::string& , Node const ) ;
 		using MakeAction = NodeMakeAction ;
 		using ReqInfo    = NodeReqInfo    ;
 		//
@@ -142,7 +142,7 @@ namespace Engine {
 		static_assert(Node::NGuardBits>=1) ;                            // need 1 bit to store static_phony state
 		static constexpr uint8_t NGuardBits = Node::NGuardBits-1      ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
-		friend ::ostream& operator<<( ::ostream& , Target const ) ;
+		friend ::string& operator+=( ::string& , Target const ) ;
 		// cxtors & casts
 		Target(                       ) = default ;
 		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} {}
@@ -160,7 +160,7 @@ namespace Engine {
 	//
 
 	struct Dep : DepDigestBase<Node> {
-		friend ::ostream& operator<<( ::ostream& , Dep const& ) ;
+		friend ::string& operator+=( ::string& , Dep const& ) ;
 		using Base = DepDigestBase<Node> ;
 		// cxtors & casts
 		using Base::Base ;
@@ -191,7 +191,7 @@ namespace Engine {
 
 	struct DepsIter {
 		struct Digest {
-			friend ::ostream& operator<<( ::ostream& , Digest const& ) ;
+			friend ::string& operator+=( ::string& , Digest const& ) ;
 			DepsIdx hdr     = 0 ;
 			uint8_t i_chunk = 0 ;
 		} ;
@@ -260,8 +260,8 @@ namespace Engine {
 
 namespace Engine {
 
-	struct NodeReqInfo : ReqInfo {                                              // watchers of Node's are Job's
-		friend ::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) ;
+	struct NodeReqInfo : ReqInfo {                                            // watchers of Node's are Job's
+		friend ::string& operator+=( ::string& os , NodeReqInfo const& ri ) ;
 		//
 		using MakeAction = NodeMakeAction ;
 		//
@@ -276,15 +276,15 @@ namespace Engine {
 		void reset(NodeGoal ng=NodeGoal::None) { done_ &= ng ; }
 		// data
 	public :
-		RuleIdx  prio_idx    = NoIdx           ;                                //    16 bits, index to the first job of the current prio being or having been analyzed
-		bool     single      = false           ;                                // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
-		Accesses overwritten ;                                                  // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
-		Manual   manual      = Manual::Unknown ;                                // 3<= 8 bits, info is available as soon as done_=Dsk
-		Bool3    speculate   = Yes             ;                                // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
-		NodeGoal goal        = NodeGoal::None  ;                                // 2<= 8 bits, asked level
-		NodeGoal done_       = NodeGoal::None  ;                                // 2<= 8 bits, done level
+		RuleIdx  prio_idx    = NoIdx           ;                              //    16 bits, index to the first job of the current prio being or having been analyzed
+		bool     single      = false           ;                              // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
+		Accesses overwritten ;                                                // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
+		Manual   manual      = Manual::Unknown ;                              // 3<= 8 bits, info is available as soon as done_=Dsk
+		Bool3    speculate   = Yes             ;                              // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
+		NodeGoal goal        = NodeGoal::None  ;                              // 2<= 8 bits, asked level
+		NodeGoal done_       = NodeGoal::None  ;                              // 2<= 8 bits, done level
 	} ;
-	static_assert(sizeof(NodeReqInfo)==24) ;                                    // check expected size
+	static_assert(sizeof(NodeReqInfo)==24) ;                                  // check expected size
 
 }
 

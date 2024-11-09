@@ -79,11 +79,11 @@ namespace Engine::Makefiles {
 	static ::string _chk_deps( ::string const& action , ::string const& startup_dir_s , NfsGuard& nfs_guard ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
-		::string   deps_file   = AdminDirS+action+"_deps" ;
-		Ddate      deps_date   = file_date(deps_file)     ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
-		::ifstream deps_stream { deps_file }              ;
-		::string   reason      ;
-		for( ::string line ; ::getline(deps_stream,line) ;) {
+		::string   deps_file = AdminDirS+action+"_deps"                       ;
+		Ddate      deps_date = file_date(deps_file)                           ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
+		::vector_s deps      = AcFd(deps_file).read_lines(true/*no_file_ok*/) ;
+		::string   reason    ;
+		for( ::string const& line : deps ) {
 			bool exists = false/*garbage*/ ;
 			switch (line[0]) {
 				case '+' : exists = true  ; break ;
@@ -108,8 +108,8 @@ namespace Engine::Makefiles {
 	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {                 // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
-		::ifstream deps_stream { _deps_file(action,new_) } ;
-		for( ::string line ; ::getline(deps_stream,line) ;) {
+		::vector_s deps = AcFd(_deps_file(action,new_)).read_lines(true/*no_file_ok*/) ;
+		for( ::string const& line : deps ) {
 			switch (line[0]) {
 				case '+' : break ;
 				case '!' : continue ;
@@ -130,7 +130,7 @@ namespace Engine::Makefiles {
 		for( ::string const& sd_s : *g_src_dirs_s )
 			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_root_dir_s),is_abs_s(sd_s)) ;
 		//
-		{	OFStream os { new_deps_file } ;               // ensure os is closed, or at least it must be flushed before calling _chk_dangling
+		{	::string content ;
 			for( ::string d : deps ) {
 				SWEAR(+d) ;
 				FileInfo fi{d} ;
@@ -141,10 +141,11 @@ namespace Engine::Makefiles {
 						break ;
 					}
 				}
-				os << (+fi?'+':'!') << d <<'\n' ;
+				content << (+fi?'+':'!') << d <<'\n' ;
 			}
+			AcFd(new_deps_file,Fd::Write).write(content) ;
 		}
-		_chk_dangling(action,true/*new*/,startup_dir_s) ; // ensure deps have been pushed to disk (stream closed or flushed)
+		_chk_dangling(action,true/*new*/,startup_dir_s) ;
 	}
 
 	static void _stamp_deps(::string const& action) {
@@ -177,8 +178,8 @@ namespace Engine::Makefiles {
 		//
 		if (status!=Status::Ok) throw "cannot read " + action + (+gather.msg?" : ":"") + localize(gather.msg) ;
 		//
-		::string   content = read_content(data) ;
-		::vector_s deps    ; deps.reserve(gather.accesses.size()) ;
+		::string   content = AcFd(data).read() ;
+		::vector_s deps    ;                     deps.reserve(gather.accesses.size()) ;
 		::uset_s   dep_set ;
 		for( auto const& [d,ai] : gather.accesses ) {
 			if (ai.digest.write!=No) continue ;
@@ -262,15 +263,16 @@ namespace Engine::Makefiles {
 		Ptr<Dict>  py_info     ;
 		//
 		if (!dynamic) {
-			{	OFStream env_stream { ADMIN_DIR_S "user_environ" } ;
-				First    first      ;
-				size_t   w          = 0 ;
+			{	::string content ;
+				First    first   ;
+				size_t   w       = 0 ;
 				for( char** e=environ ; *e ; e++ ) if ( const char* eq = ::strchr(*e,'=') ) w = ::max(w,size_t(eq-*e)) ;
-				env_stream << '{' ;
+				content << '{' ;
 				for( char** e=environ ; *e ; e++ )
 					if ( const char* eq = ::strchr(*e,'=') )
-						env_stream << first("",",")<<'\t'<< ::setw(w)<<mk_py_str(::string_view(*e,eq-*e)) <<" : "<< mk_py_str(::string(eq+1)) << '\n' ;
-				env_stream << "}\n" ;
+						content << first("",",")<<'\t'<< widen(mk_py_str(::string_view(*e,eq-*e)),w) <<" : "<< mk_py_str(::string(eq+1)) << '\n' ;
+				content << "}\n" ;
+				AcFd( ADMIN_DIR_S "user_environ" , Fd::Write ).write(content) ;
 			}
 			/**/                          _g_env["HOME"           ] = no_slash(*g_root_dir_s)       ;
 			/**/                          _g_env["PATH"           ] = STD_PATH                      ;
@@ -356,17 +358,17 @@ namespace Engine::Makefiles {
 
 	::string/*msg*/ refresh( bool rescue , bool refresh_ ) {
 		::string reg_exprs_file = PRIVATE_ADMIN_DIR_S "regexpr_cache" ;
-		try         { deserialize( IFStream(reg_exprs_file) , RegExpr::s_cache ) ; }              // load from persistent cache
-		catch (...) {                                                              }              // perf only, dont care of errors (e.g. first time)
+		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }         // load from persistent cache
+		catch (...) {                                                                                }         // perf only, dont care of errors (e.g. first time)
 		//
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
-		pyc_re = new RegExpr{R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)"s} ;     // dir_s is \1, module is \2, matches both python 2 & 3
+		pyc_re = new RegExpr{R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)"s} ;                  // dir_s is \1, module is \2, matches both python 2 & 3
 		//
 		::string res = _refresh( rescue , refresh_ , false/*dynamic*/ , *g_startup_dir_s ) ;
 		//
 		if (!RegExpr::s_cache.steady()) {
-			try         { serialize( OFStream(dir_guard(reg_exprs_file)) , RegExpr::s_cache ) ; } // update persistent cache
-			catch (...) {                                                                       } // perf only, dont care of errors (e.g. we are read-only)
+			try         { AcFd( dir_guard(reg_exprs_file) , Fd::Write ).write(serialize(RegExpr::s_cache)) ; } // update persistent cache
+			catch (...) {                                                                                    } // perf only, dont care of errors (e.g. we are read-only)
 		}
 		return res ;
 	}

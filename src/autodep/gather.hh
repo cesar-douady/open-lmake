@@ -47,7 +47,7 @@ ENUM( KillStep
 )
 
 struct Gather {                                                                                                 // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
-	friend ::ostream& operator<<( ::ostream& , Gather const& ) ;
+	friend ::string& operator+=( ::string& , Gather const& ) ;
 	using Kind = GatherKind    ;
 	using Proc = JobExecProc   ;
 	using Jerr = JobExecRpcReq ;
@@ -55,7 +55,7 @@ struct Gather {                                                                 
 	using PD   = Time::Pdate   ;
 	using DI   = DepInfo       ;
 	struct AccessInfo {
-		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
+		friend ::string& operator+=( ::string& , AccessInfo const& ) ;
 		// cxtors & casts
 		AccessInfo() = default ;
 		//

@@ -20,7 +20,7 @@ inline bool/*read_only*/ app_init( bool read_only_ok ,                          
 
 void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS ) ;
 inline ::string git_clean_msg() {
-	::string d ; if (+*g_startup_dir_s) d = ' '+Disk::no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;
+	::string d ; if (+*g_startup_dir_s) d = ' '+no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;
 	return "consider : git clean -ffdx"+d ;
 }
 
@@ -84,35 +84,33 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	size_t flag_sz = 0     ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , snake(f).size() ) ;
 	bool   has_arg = false ; for( Flag e : iota(All<Flag>) )                           has_arg |= flags[+e].has_arg                  ;
 	//
-	::cerr << ::left ;
-	//
-	if (+msg           ) ::cerr << msg <<'\n' ;
-	/**/                 ::cerr << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
-	if (OptionsAnywhere) ::cerr << "options may be interleaved with args\n"                                                                                                               ;
-	/**/                 ::cerr << "-h or --help : print this help\n"                                                                                                                     ;
+	::string err_msg = ensure_nl(msg) ;
+	/**/                 err_msg << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
+	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                                                               ;
+	/**/                 err_msg << "-h or --help : print this help\n"                                                                                                                     ;
 	//
 	if (key_sz) {
-		if (has_dflt_key) ::cerr << "keys (at most 1) :\n" ;
-		else              ::cerr << "keys (exactly 1) :\n" ;
-		if (has_dflt_key) ::cerr << "<no key>" << setw(key_sz)<<"" <<" : "<< keys[0 ].doc <<'\n' ;
+		if (has_dflt_key) err_msg << "keys (at most 1) :\n" ;
+		else              err_msg << "keys (exactly 1) :\n" ;
+		if (has_dflt_key) err_msg << "<no key>" << widen("",key_sz) <<" : "<< keys[0].doc <<'\n' ;
 		for( Key k : iota(All<Key>) ) if (keys[+k].short_name) {
 			::string option { snake(k) } ; for( char& c : option ) if (c=='_') c = '-' ;
-			::cerr <<'-' << keys[+k].short_name << " or --" << setw(key_sz)<<option <<" : "<< keys[+k].doc <<'\n' ;
+			err_msg << '-' << keys[+k].short_name << " or --" << widen(option,key_sz) <<" : "<< keys[+k].doc <<'\n' ;
 		}
 	}
 	//
 	if (flag_sz) {
-		::cerr << "flags (0 or more) :\n"  ;
+		err_msg << "flags (0 or more) :\n"  ;
 		for( Flag f : iota(All<Flag>) ) {
 			if (!flags[+f].short_name) continue ;
 			::string flag { snake(f) } ; for( char& c : flag ) if (c=='_') c = '-' ;
-			/**/                        ::cerr << '-'<<flags[+f].short_name<<" or --"<<setw(flag_sz)<<flag ;
-			if      (flags[+f].has_arg) ::cerr << " <arg>"                                                 ;
-			else if (has_arg          ) ::cerr << "      "                                                 ;
-			/**/                        ::cerr << " : "<<flags[+f].doc<<'\n'                               ;
+			/**/                        err_msg << '-'<<flags[+f].short_name<<" or --"<<widen(flag,flag_sz) ;
+			if      (flags[+f].has_arg) err_msg << " <arg>"                                                 ;
+			else if (has_arg          ) err_msg << "      "                                                 ;
+			/**/                        err_msg << " : "<<flags[+f].doc<<'\n'                               ;
 		}
 	}
-	exit(Rc::Usage) ;
+	exit(Rc::Usage,err_msg) ;
 }
 
 template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag,OptionsAnywhere> const& syntax , int argc , const char* const* argv ) {

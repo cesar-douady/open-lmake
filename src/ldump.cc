@@ -10,7 +10,7 @@
 using namespace Engine ;
 
 static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
-	::cout << ::setw(13)<<jn <<" : "<< ::setw(13)<<r  <<" : "<< mk_printable(n) <<'\n' ; // suppress useless " around n
+	Fd::Stdout.write( widen(jn,13) +" : "+ widen(r,13) +" : "+ mk_printable(n) +'\n' ) ;
 }
 
 int main( int argc , char* /*argv*/[] ) {
@@ -21,8 +21,8 @@ int main( int argc , char* /*argv*/[] ) {
 	try                       { Persistent::new_config({}/*config*/,false/*dynamic*/) ; }
 	catch (::string const& e) { exit(Rc::Format,e) ;                                    }
 	//
-	for( const Rule r : Persistent::rule_lst() )             _out( {}            , fmt_string(r        ) , r->name   ) ;
-	for( const Job  j : Persistent::job_lst () ) { j.chk() ; _out( fmt_string(j) , fmt_string(j->rule()) , j->name() ) ; }
+	for( const Rule r : Persistent::rule_lst() )             _out( {}     , cat(r        ) , r->name   ) ;
+	for( const Job  j : Persistent::job_lst () ) { j.chk() ; _out( cat(j) , cat(j->rule()) , j->name() ) ; }
 	for( const Node n : Persistent::node_lst() ) {
 		n.chk() ;
 		switch (n->buildable) {
@@ -35,11 +35,11 @@ int main( int argc , char* /*argv*/[] ) {
 			case Buildable::Decode    :
 			case Buildable::Encode    :
 			case Buildable::SubSrc    :
-			case Buildable::Loop      : _out( fmt_string(n) , snake_str(n->buildable)     , n->name() ) ; break ;
+			case Buildable::Loop      : _out( cat(n) , snake_str(n->buildable) , n->name() ) ; break ;
 			case Buildable::Maybe     :
 			case Buildable::Yes       :
 			case Buildable::DynSrc    :
-			case Buildable::Unknown   : _out( fmt_string(n) , fmt_string(n->actual_job()) , n->name() ) ; break ;
+			case Buildable::Unknown   : _out( cat(n) , cat(n->actual_job())    , n->name() ) ; break ;
 		}
 	}
 	//

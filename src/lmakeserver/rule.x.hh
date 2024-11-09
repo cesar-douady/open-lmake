@@ -83,7 +83,7 @@ namespace Engine {
 	} ;
 
 	struct Rule : RuleBase {
-		friend ::ostream& operator<<( ::ostream& , Rule const ) ;
+		friend ::string& operator+=( ::string& , Rule const ) ;
 		static constexpr char   StarMrkr =  0 ;                   // signal a star stem in job_name
 		static constexpr char   StemMrkr =  0 ;                   // signal a stem in job_name & targets & deps & cmd
 		static constexpr VarIdx NoVar    = -1 ;
@@ -95,7 +95,7 @@ namespace Engine {
 	} ;
 
 	struct RuleCrc : RuleCrcBase {
-		friend ::ostream& operator<<( ::ostream& , RuleCrc const ) ;
+		friend ::string& operator+=( ::string& , RuleCrc const ) ;
 		// cxtors & casts
 		using RuleCrcBase::RuleCrcBase ;
 	} ;
@@ -224,11 +224,11 @@ namespace Engine {
 			using namespace Attrs ;
 			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter" ) ;
 			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"  ) ;
-			Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir"  ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = Disk::with_slash(job_space.chroot_dir_s) ;
+			Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir"  ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = with_slash(job_space.chroot_dir_s) ;
 			Attrs::acquire_env     ( env                    , py_dct , "env"         ) ;
 			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat" ) ;
-			Attrs::acquire_from_dct( job_space.root_view_s  , py_dct , "root_view"   ) ; if (+job_space.root_view_s ) job_space.root_view_s  = Disk::with_slash(job_space.root_view_s ) ;
-			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"    ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = Disk::with_slash(job_space.tmp_view_s  ) ;
+			Attrs::acquire_from_dct( job_space.root_view_s  , py_dct , "root_view"   ) ; if (+job_space.root_view_s ) job_space.root_view_s  = with_slash(job_space.root_view_s ) ;
+			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"    ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
 			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"       ) ;
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
 			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
@@ -244,7 +244,7 @@ namespace Engine {
 	} ;
 
 	struct DbgEntry {
-		friend ::ostream& operator<<( ::ostream& , DbgEntry const& ) ;
+		friend ::string& operator+=( ::string& , DbgEntry const& ) ;
 		bool operator +() const { return first_line_no1 ; }
 		// START_OF_VERSIONING
 		::string module         ;
@@ -512,7 +512,7 @@ namespace Engine {
 	} ;
 
 	struct RuleData {
-		friend ::ostream& operator<<( ::ostream& , RuleData const& ) ;
+		friend ::string& operator+=( ::string& , RuleData const& ) ;
 		friend Rule ;
 		static constexpr char   JobMrkr =  0          ;                // ensure no ambiguity between job names and node names
 		static constexpr VarIdx NoVar   = Rule::NoVar ;
@@ -623,7 +623,7 @@ namespace Engine {
 	} ;
 
 	struct RuleCrcData {
-		friend ::ostream& operator<<( ::ostream& , RuleCrcData const& ) ;
+		friend ::string& operator+=( ::string& , RuleCrcData const& ) ;
 		using State = RuleCrcState ;
 		// data
 		// START_OF_VERSIONING
@@ -638,7 +638,7 @@ namespace Engine {
 
 	// SimpleMatch does not call Python and only provides services that can be served with this constraint
 	struct Rule::SimpleMatch {
-		friend ::ostream& operator<<( ::ostream& , SimpleMatch const& ) ;
+		friend ::string& operator+=( ::string& , SimpleMatch const& ) ;
 		// cxtors & casts
 	public :
 		SimpleMatch(                                        ) = default ;
@@ -681,7 +681,7 @@ namespace Engine {
 	} ;
 
 	struct RuleTgt : RuleCrc {
-		friend ::ostream& operator<<( ::ostream& , RuleTgt const ) ;
+		friend ::string& operator+=( ::string& , RuleTgt const ) ;
 		using Rep = Uint< NBits<RuleCrc> + NBits<VarIdx> > ;
 		//cxtors & casts
 		RuleTgt(                        ) = default ;

@@ -44,9 +44,9 @@ int main( int argc , char* argv[]) {
 	}
 	//
 	try {
-		auto&                fa    = cmd_line.flag_args                                                                                                                      ;
-		::pair_s<bool/*ok*/> reply = JobSupport::encode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , fmt_string(::cin.rdbuf()) , ::move(fa[+Flag::Context]) , min_len ) ;
-		if (reply.second) { ::cout<<reply.first<<'\n' ; return 0 ; }
-		else              { ::cerr<<reply.first       ; return 1 ; }
+		auto&                fa    = cmd_line.flag_args                                                                                                             ;
+		::pair_s<bool/*ok*/> reply = JobSupport::encode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , Fd::Stdin.read() , ::move(fa[+Flag::Context]) , min_len ) ;
+		if (reply.second) { Fd::Stdout.write(::move(reply.first)+'\n') ; return 0 ; }
+		else              { Fd::Stderr.write(       reply.first      ) ; return 1 ; }
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 }

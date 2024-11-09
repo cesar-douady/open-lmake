@@ -77,7 +77,7 @@ namespace Time {
 
 	struct Delay : TimeBase<int64_t> {
 		using Base = TimeBase<int64_t> ;
-		friend ::ostream& operator<<( ::ostream& , Delay const ) ;
+		friend ::string& operator+=( ::string& , Delay const ) ;
 		friend Date  ;
 		friend Ddate ;
 		friend Pdate ;
@@ -130,7 +130,7 @@ namespace Time {
 	// when exp<=0, representation is linear after TicksPerSecond
 	// else       , it is floating point
 	struct CoarseDelay {
-		friend ::ostream& operator<<( ::ostream& , CoarseDelay const ) ;
+		friend ::string& operator+=( ::string& , CoarseDelay const ) ;
 		using Val = uint16_t ;
 		static constexpr int64_t  TicksPerSecond = 1000                 ; // this may be freely modified
 		static constexpr uint8_t  Mantissa       = 11                   ; // .
@@ -187,7 +187,7 @@ namespace Time {
 
 	struct Date : TimeBase<uint64_t> {
 		using Base = TimeBase<uint64_t> ;
-		friend ::ostream& operator<<( ::ostream& , Date const ) ;
+		friend ::string& operator+=( ::string& , Date const ) ;
 		friend Delay ;
 		friend Ddate ;
 		friend Pdate ;
@@ -217,7 +217,7 @@ namespace Time {
 	//
 
 	struct Pdate : Date {
-		friend ::ostream& operator<<( ::ostream& , Pdate const ) ;
+		friend ::string& operator+=( ::string& , Pdate const ) ;
 		friend Delay ;
 		static const Pdate Future ;
 		// cxtors & casts
@@ -247,7 +247,7 @@ namespace Time {
 	// DDate represents the date of a file, together with its tag (as the lsb's of _val)
 	// we lose a few bits of precision, but real disk dates have around ms precision anyway, so we have around 20 bits of margin
 	struct Ddate : Date {
-		friend ::ostream& operator<<( ::ostream& , Ddate const ) ;
+		friend ::string& operator+=( ::string& , Ddate const ) ;
 		friend Delay ;
 		static const Ddate Future ;
 	private :

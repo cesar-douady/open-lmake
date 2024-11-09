@@ -62,14 +62,16 @@ int main( int argc , char* argv[]) {
 	if (!verbose) return 0 ;
 	//
 	SWEAR( dep_infos.size()==cmd_line.args.size() , dep_infos.size() , cmd_line.args.size() ) ;
-	int rc = 0 ;
+	int      rc  = 0 ;
+	::string out ;
 	for( size_t i : iota(dep_infos.size()) ) {
 		switch (dep_infos[i].first) {
-			case Yes   : ::cout << "ok  " ;          break ;
-			case Maybe : ::cout << "??? " ; rc = 1 ; break ;
-			case No    : ::cout << "err " ; rc = 1 ; break ;
+			case Yes   : out += "ok  " ;          break ;
+			case Maybe : out += "??? " ; rc = 1 ; break ;
+			case No    : out += "err " ; rc = 1 ; break ;
 		DF}
-		::cout << ::string(dep_infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
+		out << ::string(dep_infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
 	}
+	Fd::Stdout.write(out) ;
 	return rc ;
 }

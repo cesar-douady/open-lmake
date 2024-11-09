@@ -46,7 +46,7 @@ private :
 	Idx _idx = 0 ;
 } ;
 template<class T> concept IsIdxed = T::IsIdxed && sizeof(T)==sizeof(typename T::Idx) ;
-template<IsIdxed I> ::ostream& operator<<( ::ostream& os , I const i ) { return os<<+i ; }
+template<IsIdxed I> ::string& operator+=( ::string& os , I const i ) { return os<<+i ; }
 
 namespace std {
 	template<IsIdxed I> struct hash<I> { size_t operator()(I i) const { return +i ; } } ;
@@ -102,7 +102,7 @@ private :
 	SIdx _val = 0 ;
 } ;
 template<class T> concept IsIdxed2 = T::IsIdxed2 && sizeof(T)==sizeof(typename T::Idx) ;
-template<IsIdxed2 I2> ::ostream& operator<<( ::ostream& os , I2 const i2 ) {
+template<IsIdxed2 I2> ::string& operator+=( ::string& os , I2 const i2 ) {
 	using A = typename I2::A ;
 	using B = typename I2::B ;
 	if      (!i2                  ) return os << '0'   ;
@@ -227,9 +227,9 @@ namespace Vector {
 	// Generic
 	//
 
-	template<class V> ::ostream& operator<<( ::ostream& , Generic<V> const& ) ;
+	template<class V> ::string& operator+=( ::string& , Generic<V> const& ) ;
 	template<class V> struct Generic : V {
-		friend ::ostream& operator<< <>( ::ostream& , Generic const& ) ;
+		friend ::string& operator+= <>( ::string& , Generic const& ) ;
 		using Base           = V                   ;
 		using Idx            = typename Base::Idx  ;
 		using Item           = typename Base::Item ;
@@ -285,7 +285,7 @@ namespace Vector {
 		template<::convertible_to<Item> I> void append(::basic_string_view<I> const& s) {       append(::span<I const>(s)) ; }
 		template<::convertible_to<Item> I> void append(::basic_string     <I> const& s) {       append(::span<I const>(s)) ; }
 	} ;
-	template<class V> ::ostream& operator<<( ::ostream& os , Generic<V> const& gv ) {
+	template<class V> ::string& operator+=( ::string& os , Generic<V> const& gv ) {
 		bool first = true ;
 		/**/                                                                  os <<'[' ;
 		for( typename V::Item const& x : gv ) { if (first) first=false ; else os <<',' ; os << x ; }

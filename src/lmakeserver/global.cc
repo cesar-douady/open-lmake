@@ -25,7 +25,7 @@ namespace Engine {
 		return res ;
 	}
 
-	void _audit( Fd out_fd , ::ostream* log , ReqOptions const& ro , Color c , ::string const& txt , bool as_is , DepDepth lvl , char sep ) {
+	void audit( Fd out , Fd log , ReqOptions const& ro , Color c , ::string const& txt , bool as_is , DepDepth lvl , char sep ) {
 		if (!txt) return ;
 		//
 		::string   report_txt  = color_pfx(ro,c)                              ;
@@ -34,37 +34,37 @@ namespace Engine {
 		/**/       report_txt += color_sfx(ro,c)                              ;
 		/**/       report_txt += '\n'                                         ;
 		//
-		try                       { OMsgBuf().send( out_fd , ReqRpcReply(ReqRpcReplyProc::Txt,_audit_indent(::move(report_txt),lvl,sep)) ) ; } // if we lose connection, there is nothing much we ...
-		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                                         } // ... can do about it (hoping that we can still trace)
-		if (log)
-			try                       { *log << _audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep) << ::flush ; }                    // .
-			catch (::string const& e) { Trace("audit","lost_log",e) ;                                                     }
+		try                       { OMsgBuf().send( out , ReqRpcReply(ReqRpcReplyProc::Txt,_audit_indent(::move(report_txt),lvl,sep)) ) ; } // if we lose connection, there is nothing much we ...
+		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                                      } // ... can do about it (hoping that we can still trace)
+		if (+log)
+			try                       { log.write(_audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep)) ; }                         // .
+			catch (::string const& e) { Trace("audit","lost_log",e) ;                                             }
 	}
 
-	void audit_file( Fd out_fd , ::string&& file ) {
-		try                       { OMsgBuf().send( out_fd , ReqRpcReply(ReqRpcReplyProc::File,::move(file)) ) ; } // if we lose connection, there is nothing much we ...
-		catch (::string const& e) { Trace("audit_file","lost_client",e) ;                                        } // ... can do about it (hoping that we can still trace)
+	void audit_file( Fd out , ::string&& file ) {
+		try                       { OMsgBuf().send( out , ReqRpcReply(ReqRpcReplyProc::File,::move(file)) ) ; } // if we lose connection, there is nothing much we ...
+		catch (::string const& e) { Trace("audit_file","lost_client",e) ;                                     } // ... can do about it (hoping that we can still trace)
 	}
 
-	void _audit_status( Fd out_fd , ::ostream* log , ReqOptions const& , bool ok ) {
-		try                       { OMsgBuf().send( out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ; } // if we lose connection, there is nothing much we ...
-		catch (::string const& e) { Trace("audit_status","lost_client",e) ;                              } // ... can do about it (hoping that we can still trace)
-		if (log)
-			try                       { *log << "status : " << (ok?"ok":"failed") <<'\n'<< ::flush ; }     // .
-			catch (::string const& e) { Trace("audit_status","lost_log",e) ;                         }
+	void audit_status( Fd out , Fd log , ReqOptions const& , bool ok ) {
+		try                       { OMsgBuf().send( out , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ; } // if we lose connection, there is nothing much we ...
+		catch (::string const& e) { Trace("audit_status","lost_client",e) ;                           } // ... can do about it (hoping that we can still trace)
+		if (+log)
+			try                       { log.write("status : "s+(ok?"ok":"failed")+'\n') ; }             // .
+			catch (::string const& e) { Trace("audit_status","lost_log",e) ;              }
 	}
 
-	void _audit_ctrl_c( Fd out_fd , ::ostream* log , ReqOptions const& ro ) {
+	void audit_ctrl_c( Fd out, Fd log , ReqOptions const& ro ) {
 		// lmake echos a \n as soon as it sees ^C (and it does that much faster than we could), no need to do it here
 		::string msg ;
 		if (g_config->console.date_prec!=uint8_t(-1)) msg << Pdate(New).str(g_config->console.date_prec,true/*in_day*/) <<' ' ;
 		/**/                                          msg << "kill"                                                           ;
 		::string report_txt  = color_pfx(ro,Color::Note) + msg + color_sfx(ro,Color::Note) +'\n' ;
 		//
-		try                       { OMsgBuf().send( out_fd , ReqRpcReply(ReqRpcReplyProc::Txt,::move(report_txt)) ) ; } // if we lose connection, there is nothing much we ...
+		try                       { OMsgBuf().send( out, ReqRpcReply(ReqRpcReplyProc::Txt,::move(report_txt)) ) ; }     // if we lose connection, there is nothing much we ...
 		catch (::string const& e) { Trace("audit_ctrl_c","lost_client",e) ;                                           } // ... can do about it (hoping that we can still trace)
-		if (log)
-			try                       { *log << "^C\n" << msg << ::endl ;    }                                          // .
+		if (+log)
+			try                       { log.write("^C\n"+msg+'\n') ;         }                                          // .
 			catch (::string const& e) { Trace("audit_ctrl_c","lost_log",e) ; }
 	}
 
@@ -72,7 +72,7 @@ namespace Engine {
 	// Config
 	//
 
-	::ostream& operator<<( ::ostream& os , Config::Backend const& be ) {
+	::string& operator+=( ::string& os , Config::Backend const& be ) {
 		os << "Backend(" ;
 		if (be.configured) {
 			if (+be.ifce) os << be.ifce <<',' ;
@@ -81,11 +81,11 @@ namespace Engine {
 		return os <<')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , ConfigStatic::Cache const& c ) {
+	::string& operator+=( ::string& os , ConfigStatic::Cache const& c ) {
 		return os << "Cache(" << c.tag <<','<< c.dct << ')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Config const& sc ) {
+	::string& operator+=( ::string& os , Config const& sc ) {
 		os << "Config("
 			/**/ << sc.db_version.major <<'.'<< sc.db_version.minor
 			<<','<< sc.lnk_support
@@ -123,12 +123,12 @@ namespace Engine {
 		}
 	}
 
-	Config::Config(Dict const& py_map) : booted{true} {                                                                         // if config is read from makefiles, it is booted
-		db_version = Version::Db ;                                                                                              // record current version
+	Config::Config(Dict const& py_map) : booted{true} {                                                                               // if config is read from makefiles, it is booted
+		db_version = Version::Db ;                                                                                                    // record current version
 		// generate a random key
-		char     buf_char[8] ; IFStream("/dev/urandom").read(buf_char,sizeof(buf_char)) ;
-		uint64_t buf_int     ; ::memcpy( &buf_int , buf_char , sizeof(buf_int) )        ;
-		key = fmt_string( ::hex , ::setfill('0') , ::setw(sizeof(buf_int)*2) , buf_int ) ;
+		::string buf_char = Fd("/dev/urandom").read(false/*no_file_ok*/,sizeof(uint64_t)) ;
+		uint64_t buf_int  ;                                                                 ::memcpy( &buf_int , buf_char.data() , sizeof(buf_int) ) ;
+		key = to_hex(buf_int) ;
 		//
 		::vector_s fields = {{}} ;
 		try {
@@ -199,17 +199,17 @@ namespace Engine {
 					if (prec==0                ) continue ;
 					throw_unless( ::has_single_bit(prec) , prec," is not a power of 2" ) ;
 					throw_unless( prec!=1                , "must be 0 or at least 2"   ) ;
-					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                                                     // number of kept digits
+					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                                                           // number of kept digits
 				}
 				fields.pop_back() ;
 			}
-			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                     // local backend is always present
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                           // local backend is always present
 				fields[1] = snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
-				if (!bbe                            ) continue ;                                                                // not implemented
-				if (!py_backends.contains(fields[1])) continue ;                                                                // not configured
-				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                   }
-				catch (::string const& e) { ::cerr<<"Warning : backend "<<fields[1]<<" could not be configured : "<<e<<endl ; }
+				if (!bbe                            ) continue ;                                                                      // not implemented
+				if (!py_backends.contains(fields[1])) continue ;                                                                      // not configured
+				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
+				catch (::string const& e) { Fd::Stderr.write("Warning : backend "+fields[1]+" could not be configured : "+e+'\n') ; }
 			}
 			fields.pop_back() ;
 			//
@@ -263,13 +263,13 @@ namespace Engine {
 				fields.pop_back() ;
 			}
 			// do some adjustments
-			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                     // local backend is not remote
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                           // local backend is not remote
 				if (!backends[+t].configured         ) continue        ;
 				if (!Backends::Backend::s_ready   (t)) continue        ;
 				if (!Backends::Backend::s_is_local(t)) goto SeenRemote ;
 			}
-			reliable_dirs    = true ;                                                                                           // all backends are local, dirs are necessarily reliable
-			console.host_len = 0    ;                                                                                           // host has no interest if all jobs are local
+			reliable_dirs    = true ;                                                                                                 // all backends are local, dirs are necessarily reliable
+			console.host_len = 0    ;                                                                                                 // host has no interest if all jobs are local
 		SeenRemote : ;
 		} catch(::string& e) {
 			::string field = "config" ; for( ::string const& f : fields ) field<<'.'<<f ;
@@ -279,7 +279,7 @@ namespace Engine {
 	}
 
 	::string Config::pretty_str() const {
-		OStringStream res ;
+		::string res ;
 		//
 		// clean
 		//
@@ -306,8 +306,8 @@ namespace Engine {
 				size_t w = 3 ;                                               // room for tag
 				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
 				res <<"\t\t"<< key <<" :\n" ;
-				/**/                                 res <<"\t\t\t"<< ::setw(w)<<"tag" <<" : "<< cache.tag <<'\n' ;
-				for( auto const& [k,v] : cache.dct ) res <<"\t\t\t"<< ::setw(w)<<k     <<" : "<< v         <<'\n' ;
+				/**/                                 res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
+				for( auto const& [k,v] : cache.dct ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v         <<'\n' ;
 			}
 		}
 		//
@@ -345,10 +345,10 @@ namespace Engine {
 			if ( !bbe->is_local() )           w = ::max(w,size_t(4)/*len(addr)*/) ;
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()              ) ;
 			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()              ) ;
-			if ( !bbe->is_local() )           res <<"\t\t\t"<< ::setw(w)<<"addr" <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
-			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k      <<" : "<< v                             <<'\n' ;
-			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< ::setw(w)<<k      <<" : "<< v                             <<'\n' ;
-			if (+be.ifce)                     res <<indent<'\t'>(be.ifce,3)                                              <<'\n' ;
+			if ( !bbe->is_local() )           res <<"\t\t\t"<< widen("addr",w) <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k     ,w) <<" : "<< v                             <<'\n' ;
+			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k     ,w) <<" : "<< v                             <<'\n' ;
+			if (+be.ifce)                     res <<indent<'\t'>(be.ifce,3)                                            <<'\n' ;
 		}
 		//
 		if (trace!=TraceConfig()) {
@@ -362,7 +362,7 @@ namespace Engine {
 			}
 		}
 		//
-		return ::move(res).str() ;
+		return res ;
 	}
 
 	void Config::open(bool dynamic) {
@@ -394,11 +394,11 @@ namespace Engine {
 	// EngineClosure
 	//
 
-	::ostream& operator<<( ::ostream& os , EngineClosureGlobal const& ecg ) {
+	::string& operator+=( ::string& os , EngineClosureGlobal const& ecg ) {
 		return os << "Glb(" << ecg.proc <<')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , EngineClosureReq const& ecr ) {
+	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) {
 		/**/                       os << "Ecr(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
 			case ReqProc::Debug  : // PER_CMD : format for tracing
@@ -412,7 +412,7 @@ namespace Engine {
 		return                     os <<')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , EngineClosureJobStart const& ecjs ) {
+	::string& operator+=( ::string& os , EngineClosureJobStart const& ecjs ) {
 		/**/                     os << "Ecjs(" << ecjs.start   ;
 		if (ecjs.report        ) os <<",report"                ;
 		if (+ecjs.report_unlnks) os <<','<< ecjs.report_unlnks ;
@@ -421,7 +421,7 @@ namespace Engine {
 		return                   os <<')'                      ;
 	}
 
-	::ostream& operator<<( ::ostream& os , EngineClosureJobEtc const& ecje ) {
+	::string& operator+=( ::string& os , EngineClosureJobEtc const& ecje ) {
 		const char* sep = "" ;
 		/**/                os << "Ecje("       ;
 		if ( ecje.report) { os <<      "report" ; sep = "," ; }
@@ -429,12 +429,12 @@ namespace Engine {
 		return              os <<')'            ;
 	}
 
-	::ostream& operator<<( ::ostream& os , EngineClosureJobEnd const& ecje ) {
+	::string& operator+=( ::string& os , EngineClosureJobEnd const& ecje ) {
 		/**/   os << "Ecje("        ;
 		return os << ecje.end <<')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , EngineClosureJob const& ecj ) {
+	::string& operator+=( ::string& os , EngineClosureJob const& ecj ) {
 		/**/                               os << "(" << ecj.proc <<','<< ecj.job_exec ;
 		switch (ecj.proc) {
 			case JobRpcProc::Start       : os << ecj.start ; break ;
@@ -445,7 +445,7 @@ namespace Engine {
 		return                             os <<')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , EngineClosureJobMngt const& ecjm ) {
+	::string& operator+=( ::string& os , EngineClosureJobMngt const& ecjm ) {
 		/**/                               os << "JobMngt(" << ecjm.proc <<','<< ecjm.job_exec ;
 		switch (ecjm.proc) {
 			case JobMngtProc::LiveOut    : os <<','<< ecjm.txt.size() ; break ;
@@ -455,7 +455,7 @@ namespace Engine {
 		return                             os << ')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , EngineClosure const& ec ) {
+	::string& operator+=( ::string& os , EngineClosure const& ec ) {
 		/**/                                    os << "EngineClosure(" << ec.kind <<',' ;
 		switch (ec.kind) {
 			case EngineClosure::Kind::Global  : os << ec.ecg  ; break ;

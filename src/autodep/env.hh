@@ -9,7 +9,7 @@
 #include "serialize.hh"
 
 struct AutodepEnv : Disk::RealPathEnv {
-	friend ::ostream& operator<<( ::ostream& , AutodepEnv const& ) ;
+	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
 	// env format : server:port:options:source_dirs:tmp_dir_s:root_dir_s

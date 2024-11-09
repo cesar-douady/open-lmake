@@ -23,7 +23,7 @@ namespace Engine {
 	::vector<Req>                               Req::_s_reqs_by_eta  ;
 	::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> Req::_s_zombie_tab   = { true } ; // Req 0 is zombie, all other ones are not
 
-	::ostream& operator<<( ::ostream& os , Req const r ) {
+	::string& operator+=( ::string& os , Req const r ) {
 		return os << "Rq(" << int(+r) << ')' ;
 	}
 
@@ -38,7 +38,7 @@ namespace Engine {
 			//
 			::string last = AdminDirS+"last_output"s ;
 			//
-			data.log_stream.open(log_file) ;
+			data.log_fd = Fd( log_file , Fd::Write ) ;
 			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                               }
 			catch (...) { exit(Rc::System,"cannot create symlink ",last," to ",lcl_log_file) ; }
 			data.start_ddate = file_date(log_file) ;                                             // use log_file as a date marker
@@ -87,8 +87,8 @@ namespace Engine {
 
 	void Req::kill() {
 		Trace trace("kill",self) ;
-		SWEAR(zombie()) ;                                                   // zombie has already been set
-		audit_ctrl_c( self->audit_fd , self->log_stream , self->options ) ;
+		SWEAR(zombie()) ;                                               // zombie has already been set
+		audit_ctrl_c( self->audit_fd , self->log_fd , self->options ) ;
 		Backend::s_kill_req(+self) ;
 	}
 
@@ -298,7 +298,7 @@ namespace Engine {
 	// ReqInfo
 	//
 
-	::ostream& operator<<( ::ostream& os , ReqInfo const& ri ) {
+	::string& operator+=( ::string& os , ReqInfo const& ri ) {
 		return os<<"ReqInfo("<<ri.req<<",W:"<<ri.n_wait<<"->"<<ri.n_watchers()<<')' ;
 	}
 
@@ -384,11 +384,11 @@ namespace Engine {
 				case JobReport::Steady  :
 				case JobReport::Done    : c = Color::Ok      ; break ;
 			DN}
-			::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ""s ;
-			audit_info( c , fmt_string(::setw(wk),jr," time : ",::setw(Delay::ShortStrSz),t," (",::right,::setw(wn),stats.ended[+jr]," jobs)") ) ;
+			::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ::string(Delay::ShortStrSz,' ') ;
+			audit_info( c , widen(cat(jr),wk)+" time : "+t+" ("+widen(cat(stats.ended[+jr]),wn,true/*right*/)+" jobs)" ) ;
 		}
-		/**/                                   audit_info( Color::Note , fmt_string(::setw(wk),"elapsed"," time : " , (Pdate(New)-start_pdate)        .short_str()                  ) ) ;
-		if (+options.startup_dir_s           ) audit_info( Color::Note , fmt_string(::setw(wk),"startup"," dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
+		/**/                                   audit_info( Color::Note , widen("elapsed",wk)+" time : " + (Pdate(New)-start_pdate)        .short_str()                   ) ;
+		if (+options.startup_dir_s           ) audit_info( Color::Note , widen("startup",wk)+" dir  : " + options.startup_dir_s.substr(0,options.startup_dir_s.size()-1) ) ;
 		//
 		if (+up_to_dates) {
 			static ::string src_msg       = "file is a source"       ;
@@ -400,15 +400,15 @@ namespace Engine {
 				if      (n->is_src_anti()                ) w = ::max(w,(is_target(n->name())?src_msg     :anti_msg     ).size()) ;
 				else if (n->status()<=NodeStatus::Makable) w = ::max(w,(n->ok()!=No         ?plain_ok_msg:plain_err_msg).size()) ;
 			for( Node n : up_to_dates )
-				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , fmt_string(::setw(w),is_target(n->name())?src_msg     :anti_msg     ," :") , n ) ;
-				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , fmt_string(::setw(w),n->ok()!=No         ?plain_ok_msg:plain_err_msg," :") , n ) ;
+				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , widen(is_target(n->name())?src_msg     :anti_msg     ,w)+" :" , n ) ;
+				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , widen(n->ok()!=No         ?plain_ok_msg:plain_err_msg,w)+" :" , n ) ;
 		}
 		if (+frozen_jobs) {
 			::vmap<Job,JobIdx/*order*/> frozen_jobs_ = mk_vmap(frozen_jobs) ;
 			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx/*order*/> const& a , ::pair<Job,JobIdx/*order*/> b ) { return a.second<b.second ; } ) ;      // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule()->name.size() ) ;
-			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , fmt_string("frozen ",::setw(w),j->rule()->name) , j->name() ) ;
+			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , "frozen "+widen(j->rule()->name,w) , j->name() ) ;
 		}
 		if (+frozen_nodes) {
 			::vmap<Node,NodeIdx/*order*/> frozen_nodes_ = mk_vmap(frozen_nodes) ;
@@ -436,18 +436,19 @@ namespace Engine {
 	}
 
 	void ReqData::audit_job( Color c , Pdate date , ::string const& step , ::string const& rule_name , ::string const& job_name , in_addr_t host , Delay exec_time ) const {
-		::OStringStream msg ;
-		if (g_config->console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config->console.date_prec,true/*in_day*/)     <<' '            ;
-		if (g_config->console.host_len              ) msg <<      ::setw(g_config->console.host_len)<<SockFd::s_host(host) <<' '            ;
-		/**/                                          msg <<      ::setw(StepSz                    )<<step                                  ;
-		/**/                                          msg <<' '<< ::setw(Rule::s_name_sz           )<<rule_name                             ;
-		if (g_config->console.has_exec_time         ) msg <<' '<< ::setw(6                         )<<(+exec_time?exec_time.short_str():"") ;
-		audit( audit_fd , log_stream , options , c , ::move(msg).str()+' '+mk_file(job_name) ) ;
+		::string msg ;
+		if (g_config->console.date_prec!=uint8_t(-1)) msg <<            date.str(g_config->console.date_prec,true/*in_day*/)                             <<' ' ;
+		if (g_config->console.host_len              ) msg <<      widen(SockFd::s_host(host)                                ,g_config->console.host_len) <<' ' ;
+		/**/                                          msg <<      widen(step                                                ,StepSz                    )       ;
+		/**/                                          msg <<' '<< widen(rule_name                                           ,Rule::s_name_sz           )       ;
+		if (g_config->console.has_exec_time         ) msg <<' '<< widen((+exec_time?exec_time.short_str():"")               ,6                         )       ;
+		/**/                                          msg <<' '<<       mk_file(job_name)                                                                      ;
+		audit( audit_fd , log_fd , options , c , msg ) ;
 		last_info = {} ;
 	}
 
-	static void          _audit_status( Fd out_fd, ::ostream& log , ReqOptions const& ro , bool ok )       { audit_status (out_fd  ,log       ,ro     ,ok) ; } // allow access to global function ...
-	/**/   void ReqData::audit_status (                                                    bool ok ) const { _audit_status(audit_fd,log_stream,options,ok) ; } // ... w/o naming namespace
+	static void          _audit_status( Fd out , Fd log , ReqOptions const& ro , bool ok )       { audit_status (out     ,log   ,ro     ,ok) ; } // allow access to global function ...
+	/**/   void ReqData::audit_status (                                          bool ok ) const { _audit_status(audit_fd,log_fd,options,ok) ; } // ... w/o naming namespace
 
 	bool/*seen*/ ReqData::audit_stderr( Job j , ::string const& msg , ::string const& stderr , size_t max_stderr_len , DepDepth lvl ) const {
 		if (+msg                      ) audit_info( Color::Note , msg , lvl ) ;
@@ -486,8 +487,8 @@ namespace Engine {
 	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , ::string const& target , size_t& n_err , DepDepth lvl ) {
 		if (!n_err) return true/*overflow*/ ;
 		n_err-- ;
-		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , fmt_string(::setw(::max(size_t(8)/*dangling*/,Rule::s_name_sz)),pfx) , target , lvl ) ;
-		else       audit_info( Color::Warning                            , "..."                                                                               ) ;
+		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , widen(pfx,::max(size_t(8)/*dangling*/,Rule::s_name_sz)) , target , lvl ) ;
+		else       audit_info( Color::Warning                            , "..."                                                                  ) ;
 		return !n_err/*overflow*/ ;
 	}
 
@@ -566,7 +567,7 @@ namespace Engine {
 	// JobAudit
 	//
 
-	::ostream& operator<<( ::ostream& os , JobAudit const& ja ) {
+	::string& operator+=( ::string& os , JobAudit const& ja ) {
 		/**/                 os << "JobAudit(" << ja.report ;
 		if (+ja.backend_msg) os <<','<< ja.backend_msg      ;
 		return               os <<')'                       ;

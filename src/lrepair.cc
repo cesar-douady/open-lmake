@@ -17,7 +17,6 @@ int main( int argc , char* /*argv*/[] ) {
 	::string admin_dir_s = AdminDirS ;
 	//
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
-	bool has_admin_dir = is_dir(no_slash(admin_dir_s)) ;
 	g_trace_file = new ::string() ;                                // no trace as we are repairing admin_dir_s in which traces are made
 	block_sigs({SIGCHLD}) ;
 	app_init(false/*read_only_ok*/) ;
@@ -29,20 +28,22 @@ int main( int argc , char* /*argv*/[] ) {
 	if (is_target(ServerMrkr)) exit(Rc::Format,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
 	//
 	::string backup_admin_dir_s = no_slash(admin_dir_s)+".bck/"s ; // rename in same dir to be sure not to break sym links that can be inside (e.g. lmake/local_admin_dir and lmake/remote_admin_dir)
-	::string repair_mrkr      = AdminDirS+"repairing"s         ;
+	::string repair_mrkr      = admin_dir_s+"repairing"          ;
 	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(no_slash(admin_dir_s),true/*dir_ok*/) ;        // if last lrepair was interrupted, admin_dir_s contains no useful information
 	if (is_dir(no_slash(backup_admin_dir_s))) {
-		if      (has_admin_dir                                                                  ) exit(Rc::Format,"backup already exists, consider : rm -r ",no_slash(backup_admin_dir_s)) ;
+		if      (is_dir(no_slash(admin_dir_s))                                                  ) exit(Rc::Format,"backup already exists, consider : rm -r ",no_slash(backup_admin_dir_s)) ;
 	} else {
 		if      (!is_dir(PrivateAdminDirS+"local_admin/job_data"s)                              ) exit(Rc::Fail  ,"nothing to repair"                                                    ) ;
 		else if (::rename(no_slash(admin_dir_s).c_str(),no_slash(backup_admin_dir_s).c_str())!=0) exit(Rc::System,"backup failed to ",no_slash(backup_admin_dir_s)                       ) ;
 	}
-	if ( AutoCloseFd fd=open_write(repair_mrkr) ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
+	if ( AcFd fd { dir_guard(repair_mrkr) , Fd::Write } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
-	::cout << "the repair process is starting, if something goes wrong :" << endl ;
-	::cout << "to restore old state,                    consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << endl ;
-	::cout << "to restart the repair process,           consider : lrepair"                                                                                           << endl ;
-	::cout << "to continue with what has been repaired, consider : rm "<<repair_mrkr<<" ; rm -r "<<no_slash(backup_admin_dir_s)                                       << endl ;
+	::string msg ;
+	msg << "the repair process is starting, if something goes wrong :"                                                                                             << '\n' ;
+	msg << "to restore old state,                    consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << '\n' ;
+	msg << "to restart the repair process,           consider : lrepair"                                                                                           << '\n' ;
+	msg << "to continue with what has been repaired, consider : rm "<<repair_mrkr<<" ; rm -r "<<no_slash(backup_admin_dir_s)                                       << '\n' ;
+	Fd::Stdout.write(msg) ;
 	try                       { chk_version( false/*may_init*/ , backup_admin_dir_s ) ; }
 	catch (::string const& e) { exit(Rc::Format,e) ;                                    }
 	//
@@ -50,7 +51,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	try {
 		::string msg = Makefiles::refresh(false/*crashed*/,true/*refresh*/) ;
-		if (+msg) ::cerr << ensure_nl(msg) ;
+		if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	//
 	Trace::s_new_trace_file( g_config->local_admin_dir_s + "trace/" + base_name(read_lnk("/proc/self/exe")) ) ;
@@ -61,9 +62,11 @@ int main( int argc , char* /*argv*/[] ) {
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	chk_version(true/*may_init*/) ;
 	unlnk(repair_mrkr) ;
-	::cout << "repo has been satisfactorily repaired "<<digest.n_repaired<<'/'<<digest.n_processed<<" jobs" << endl ;
-	::cout << "to clean up after having ensured everything runs smoothly, consider : rm -r "<<no_slash(backup_admin_dir_s)                                                              << endl ;
-	::cout << "to restore old state,                                      consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << endl ;
-	::cout << "to restart the repair process,                             consider : rm -r "<<no_slash(admin_dir_s)<<" ; lrepair"                                                       << endl ;
+	msg.clear() ;
+	msg << "repo has been satisfactorily repaired "<<digest.n_repaired<<'/'<<digest.n_processed<<" jobs"                                                                             << '\n' ;
+	msg << "to clean up after having ensured everything runs smoothly, consider : rm -r "<<no_slash(backup_admin_dir_s)                                                              << '\n' ;
+	msg << "to restore old state,                                      consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << '\n' ;
+	msg << "to restart the repair process,                             consider : rm -r "<<no_slash(admin_dir_s)<<" ; lrepair"                                                       << '\n' ;
+	Fd::Stdout.write(msg) ;
 	return 0 ;
 }
