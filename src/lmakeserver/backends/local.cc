@@ -17,13 +17,6 @@ namespace Backends::Local {
 	//
 
 	using Rsrc = uint32_t ;
-	struct RsrcAsk {
-		friend ::string& operator+=( ::string& , RsrcAsk const& ) ;
-		bool operator==(RsrcAsk const&) const = default ;             // XXX : why is this necessary ?
-		// data
-		Rsrc min = 0/*garbage*/ ;
-		Rsrc max = 0/*garbage*/ ;
-	} ;
 
 	struct RsrcsData : ::vector<Rsrc> {
 		// cxtors & casts
@@ -34,28 +27,13 @@ namespace Backends::Local {
 		// services
 		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] += rsrcs[i] ; return self ; }
 		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] -= rsrcs[i] ; return self ; }
-	} ;
-
-	struct RsrcsDataAsk : ::vector<RsrcAsk> {
-		// cxtors & casts
-		RsrcsDataAsk(                                             ) = default ;
-		RsrcsDataAsk( ::vmap_ss && , ::umap_s<size_t> const& idxs ) ;
-		// services
-		bool fit_in( RsrcsData const& occupied , RsrcsData const& capacity ) const {                   // true if all resources fit within capacity on top of occupied
-			for( size_t i : iota(size()) ) if ( occupied[i]+self[i].min > capacity[i] ) return false ;
+		bool fit_in( RsrcsData const& capacity , RsrcsData const& occupied ) const {                   // true if all resources fit within capacity on top of occupied
+			for( size_t i : iota(size()) ) if ( occupied[i]+self[i] > capacity[i] ) return false ;
 			return true ;
 		}
 		bool fit_in(RsrcsData const& capacity) const {                                                 // true if all resources fit within capacity
-			for( size_t i : iota(size()) ) if ( self[i].min > capacity[i] ) return false ;
+			for( size_t i : iota(size()) ) if ( self[i] > capacity[i] ) return false ;
 			return true ;
-		}
-		RsrcsData within( RsrcsData const& occupied , RsrcsData const& capacity ) const {              // what fits within capacity on top of occupied
-			RsrcsData res ; res.reserve(size()) ;
-			for( size_t i : iota(size()) ) {
-				SWEAR( occupied[i]+self[i].min <= capacity[i] , self , occupied , capacity ) ;
-				res.push_back(::min( self[i].max , capacity[i]-occupied[i] )) ;
-			}
-			return res ;
 		}
 	} ;
 
@@ -69,16 +47,6 @@ namespace std {
 			return +h.digest() ;
 		}
 	} ;
-	template<> struct hash<Backends::Local::RsrcsDataAsk> {
-		size_t operator()(Backends::Local::RsrcsDataAsk const& rsa) const {
-			Hash::Xxh h{rsa.size()} ;
-			for( auto ra : rsa ) {
-				h.update(ra.min) ;
-				h.update(ra.max) ;
-			}
-			return +h.digest() ;
-		}
-	} ;
 }
 
 //
@@ -89,7 +57,7 @@ namespace Backends::Local {
 
 	constexpr Tag MyTag = Tag::Local ;
 
-	struct LocalBackend : GenericBackend<MyTag,pid_t,RsrcsData,RsrcsDataAsk,true/*IsLocal*/> {
+	struct LocalBackend : GenericBackend<MyTag,pid_t,RsrcsData,true/*IsLocal*/> {
 
 		// init
 		static void s_init() {
@@ -151,17 +119,15 @@ namespace Backends::Local {
 			return ::move(rsrcs) ;
 		}
 		//
-		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const& rsa             ) const { return rsa. fit_in(         capacity_)     ; }
-		virtual ::vmap_ss    export_       ( RsrcsData    const& rs              ) const { return rs.mk_vmap(rsrc_keys)               ; }
-		virtual RsrcsDataAsk import_       ( ::vmap_ss        && rsa , Req , Job ) const { return RsrcsDataAsk(::move(rsa),rsrc_idxs) ; }
-		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
-			return rsa->fit_in(occupied,capacity_) ;
+		virtual bool/*ok*/ fit_eventually( RsrcsData const& rs             ) const { return rs.fit_in(capacity_)            ; }
+		virtual ::vmap_ss  export_       ( RsrcsData const& rs             ) const { return rs.mk_vmap(rsrc_keys)           ; }
+		virtual RsrcsData  import_       ( ::vmap_ss     && rs , Req , Job ) const { return RsrcsData(::move(rs),rsrc_idxs) ; }
+		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
+			return rs->fit_in(capacity_,occupied) ;
 		}
-		virtual Rsrcs acquire_rsrcs(RsrcsAsk const& rsa) const {
-			RsrcsData rsd = rsa->within(occupied,capacity_) ;
-			occupied += rsd ;
-			Trace trace(BeChnl,"occupied_rsrcs",rsd,'+',occupied) ;
-			return {New,rsd} ;
+		virtual void acquire_rsrcs(Rsrcs const& rs) const {
+			occupied += *rs ;
+			Trace trace(BeChnl,"occupied_rsrcs",rs,'+',occupied) ;
 		}
 		virtual void end_rsrcs(Rsrcs const& rs) const {
 			occupied -= *rs ;
@@ -208,35 +174,14 @@ namespace Backends::Local {
 
 	bool _inited = (LocalBackend::s_init(),true) ;
 
-	::string& operator+=( ::string& os , RsrcAsk const& ra ) {
-		return os << ra.min <<'<'<< ra.max ;
-	}
-
 	inline RsrcsData::RsrcsData( ::vmap_ss const& m , ::umap_s<size_t> const& idxs ) {
 		resize(idxs.size()) ;
 		for( auto const& [k,v] : m ) {
 			auto it = idxs.find(k) ;
 			throw_unless( it!=idxs.end() , "no resource ",k," for backend ",MyTag ) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
-			try        { self[it->second] = from_string_rsrc<Rsrc>(k,v) ;                          }
-			catch(...) { throw "cannot convert resource "+k+" from "+v+" to a "+typeid(Rsrc).name() ; }
-		}
-	}
-
-	inline RsrcsDataAsk::RsrcsDataAsk( ::vmap_ss && m , ::umap_s<size_t> const& idxs ) {
-		resize(idxs.size()) ;
-		for( auto&& [k,v] : ::move(m) ) {
-			auto it = idxs.find(k) ;
-			throw_unless( it!=idxs.end() , "no resource ",k," for backend ",MyTag ) ;
-			SWEAR( it->second<size() , it->second , size() ) ;
-			RsrcAsk& entry = self[it->second] ;
-			try {
-				size_t pos = v.find('<') ;
-				if (pos==Npos) { entry.min = from_string_rsrc<Rsrc>(k,::move(v)      ) ; entry.max = entry.min                                 ; }
-				else           { entry.min = from_string_rsrc<Rsrc>(k,v.substr(0,pos)) ; entry.max = from_string_rsrc<Rsrc>(k,v.substr(pos+1)) ; }
-			} catch(...) {
-				throw "cannot convert "+v+" to a "+typeid(Rsrc).name()+" nor a min/max pair separated by <" ;
-			}
+			try        { self[it->second] = from_string_rsrc<Rsrc>(k,v) ;            }
+			catch(...) { throw "cannot convert resource "+k+" from "+v+" to a int" ; }
 		}
 	}
 

@@ -29,7 +29,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	::string backup_admin_dir_s = no_slash(admin_dir_s)+".bck/"s ; // rename in same dir to be sure not to break sym links that can be inside (e.g. lmake/local_admin_dir and lmake/remote_admin_dir)
 	::string repair_mrkr      = admin_dir_s+"repairing"          ;
-	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(no_slash(admin_dir_s),true/*dir_ok*/) ;        // if last lrepair was interrupted, admin_dir_s contains no useful information
+	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(no_slash(admin_dir_s),true/*dir_ok*/) ;                // if last lrepair was interrupted, admin_dir_s contains no useful information
 	if (is_dir(no_slash(backup_admin_dir_s))) {
 		if      (is_dir(no_slash(admin_dir_s))                                                  ) exit(Rc::Format,"backup already exists, consider : rm -r ",no_slash(backup_admin_dir_s)) ;
 	} else {

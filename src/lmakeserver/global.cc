@@ -336,7 +336,7 @@ namespace Engine {
 			if (!bbe                          ) continue ;                   // not implemented
 			if (!be.configured                ) continue ;                   // not configured
 			if (!Backends::Backend::s_ready(t)) {
-				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) ;
+				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) << '\n' ;
 				continue ;
 			}
 			res <<"\t\t"<< t <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;

@@ -480,17 +480,16 @@ bool/*entered*/ JobRpcReply::enter(
 		else if (has_env(k)    ) { ::string v = get_env(k) ; dynamic_env.emplace_back(k,v) ; cmd_env[k] = ::move(v) ; } // if special illegal value, use value from environment (typically from slurm)
 	}
 	//
-	if ( auto it=cmd_env.find("TMPDIR") ; it!=cmd_env.end()   ) {
+	if ( auto it=cmd_env.find("TMPDIR") ; it!=cmd_env.end() ) {
 		throw_unless( is_abs(it->second) , "$TMPDIR must be absolute but is ",it->second ) ;
 		phy_tmp_dir_s = with_slash(it->second)+key+'/'+small_id+'/' ;
-	} else if (tmp_sz_mb==Npos) {
+	} else if ( tmp_sz_mb==Npos || !job_space.tmp_view_s ) {
 		phy_tmp_dir_s = phy_root_dir_s+PrivateAdminDirS+"tmp/"+small_id+'/' ;
 	} else {
 		phy_tmp_dir_s = {} ;
 	}
-	if      ( !phy_tmp_dir_s && tmp_sz_mb && !job_space.tmp_view_s ) throw "cannot create tmpfs of size "s+to_string_with_units<'M'>(tmp_sz_mb)+"B without tmp_view" ;
-	if      ( keep_tmp                                             ) phy_tmp_dir_s = phy_root_dir_s+AdminDirS+"tmp/"+job+'/' ;
-	else if ( +phy_tmp_dir_s                                       ) _tmp_dir_s_to_cleanup = phy_tmp_dir_s ;
+	if      (keep_tmp      ) phy_tmp_dir_s         = phy_root_dir_s+AdminDirS+"tmp/"+job+'/' ;
+	else if (+phy_tmp_dir_s) _tmp_dir_s_to_cleanup = phy_tmp_dir_s                           ;
 	autodep_env.root_dir_s = +job_space.root_view_s ? job_space.root_view_s : phy_root_dir_s ;
 	autodep_env.tmp_dir_s  = +job_space.tmp_view_s  ? job_space.tmp_view_s  : phy_tmp_dir_s  ;
 	//

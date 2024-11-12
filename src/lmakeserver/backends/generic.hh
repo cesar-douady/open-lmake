@@ -93,19 +93,19 @@ namespace Backends {
 	// GenericBackend
 	//
 
-	template<class RsrcsAsk> struct _WaitingEntry {
+	template<class Rsrcs> struct _WaitingEntry {
 		_WaitingEntry() = default ;
-		_WaitingEntry( RsrcsAsk const& rsa , SubmitAttrs const& sa , bool v ) : rsrcs_ask{rsa} , n_reqs{1} , submit_attrs{sa} , verbose{v} {}
+		_WaitingEntry( Rsrcs const& rs , SubmitAttrs const& sa , bool v ) : rsrcs{rs} , n_reqs{1} , submit_attrs{sa} , verbose{v} {}
 		// data
-		RsrcsAsk    rsrcs_ask    ;
+		Rsrcs       rsrcs        ;
 		ReqIdx      n_reqs       = 0     ; // number of reqs waiting for this job
 		SubmitAttrs submit_attrs ;
 		bool        verbose      = false ;
 	} ;
-	template<class RsrcsAsk > ::string& operator+=( ::string& os , _WaitingEntry<RsrcsAsk> const& we ) {
-		/**/            os << "WaitingEntry(" << we.rsrcs_ask <<','<< we.n_reqs <<','<< we.submit_attrs ;
-		if (we.verbose) os << ",verbose"                                                                ;
-		return          os << ')'                                                                       ;
+	template<class Rsrcs> ::string& operator+=( ::string& os , _WaitingEntry<Rsrcs> const& we ) {
+		/**/            os << "WaitingEntry(" << we.rsrcs <<','<< we.n_reqs <<','<< we.submit_attrs ;
+		if (we.verbose) os << ",verbose"                                                            ;
+		return          os << ')'                                                                   ;
 	}
 
 	template< class SpawnId , class Rsrcs > struct _SpawnedEntry {
@@ -139,12 +139,11 @@ namespace Backends {
 
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_etas to reorder them upon need
 	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all
-	template< Tag T , class SpawnId , class RsrcsData , class RsrcsDataAsk , bool IsLocal > struct GenericBackend : Backend {
+	template< Tag T , class SpawnId , class RsrcsData , bool IsLocal > struct GenericBackend : Backend {
 
-		using Rsrcs    = Shared<RsrcsData   ,JobIdx> ;
-		using RsrcsAsk = Shared<RsrcsDataAsk,JobIdx> ;
+		using Rsrcs = Shared<RsrcsData,JobIdx> ;
 
-		using WaitingEntry = _WaitingEntry<RsrcsAsk>      ;
+		using WaitingEntry = _WaitingEntry<Rsrcs>         ;
 		using SpawnedEntry = _SpawnedEntry<SpawnId,Rsrcs> ;
 
 		struct SpawnedTab : ::umap<Job,SpawnedEntry> {
@@ -158,9 +157,9 @@ namespace Backends {
 			bool   operator+() const { return _sz ; }                        // cannot inherit from Base as zombies would be counted
 			size_t size     () const { return _sz ; }                        // .
 			//
-			iterator create( GenericBackend const& be , Job j , RsrcsAsk const& rsrcs_ask ) {
-				Rsrcs    rsrcs = be.acquire_rsrcs(rsrcs_ask) ;
-				iterator res   = Base::try_emplace(j).first  ;
+			iterator create( GenericBackend const& be , Job j , Rsrcs const& rsrcs ) {
+				be.acquire_rsrcs(rsrcs) ;
+				iterator res = Base::try_emplace(j).first  ;
 				SWEAR(!res->second.live) ;
 				res->second.create(rsrcs) ;
 				_sz++ ;
@@ -207,10 +206,10 @@ namespace Backends {
 				waiting_jobs  .clear() ;
 			}
 			// data
-			::umap<RsrcsAsk,set<PressureEntry>> waiting_queues ;
-			::umap<Job,CoarseDelay            > waiting_jobs   ;
-			JobIdx                              n_jobs         = 0     ; // manage -j option (if >0 no more than n_jobs can be launched on behalf of this req)
-			bool                                verbose        = false ;
+			::umap<Rsrcs,set<PressureEntry>> waiting_queues ;
+			::umap<Job,CoarseDelay         > waiting_jobs   ;
+			JobIdx                           n_jobs         = 0     ; // manage -j option (if >0 no more than n_jobs can be launched on behalf of this req)
+			bool                             verbose        = false ;
 		} ;
 
 		// specialization
@@ -219,13 +218,13 @@ namespace Backends {
 		virtual bool call_launch_after_start() const { return false ; }
 		virtual bool call_launch_after_end  () const { return false ; }
 		//
-		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const&             ) const { return true ; } // true if job with such resources can be spawned eventually
-		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const&             ) const = 0 ;             // true if job with such resources can be spawned now
-		virtual Rsrcs        acquire_rsrcs ( RsrcsAsk     const&             ) const = 0 ;             // acquire maximum possible asked resources
-		virtual void         start_rsrcs   ( Rsrcs        const&             ) const {}                // handle resources at start of job
-		virtual void         end_rsrcs     ( Rsrcs        const&             ) const {}                // handle resources at end   of job
-		virtual ::vmap_ss    export_       ( RsrcsData    const&             ) const = 0 ;             // export resources in   a publicly manageable form
-		virtual RsrcsDataAsk import_       ( ::vmap_ss        && , Req , Job ) const = 0 ;             // import resources from a publicly manageable form
+		virtual void       acquire_rsrcs ( Rsrcs     const&             ) const = 0 ;             // acquire asked resources
+		virtual bool/*ok*/ fit_eventually( RsrcsData const&             ) const { return true ; } // true if job with such resources can be spawned eventually
+		virtual bool/*ok*/ fit_now       ( Rsrcs     const&             ) const = 0 ;             // true if job with such resources can be spawned now
+		virtual void       start_rsrcs   ( Rsrcs     const&             ) const {}                // handle resources at start of job
+		virtual void       end_rsrcs     ( Rsrcs     const&             ) const {}                // handle resources at end   of job
+		virtual ::vmap_ss  export_       ( RsrcsData const&             ) const = 0 ;             // export resources in   a publicly manageable form
+		virtual RsrcsData  import_       ( ::vmap_ss     && , Req , Job ) const = 0 ;             // import resources from a publicly manageable form
 		//
 		virtual ::string                 start_job           ( Job , SpawnedEntry const&          ) const { return  {}                        ; }
 		virtual ::pair_s<bool/*retry*/>  end_job             ( Job , SpawnedEntry const& , Status ) const { return {{},false/*retry*/       } ; }
@@ -244,37 +243,55 @@ namespace Backends {
 		}
 		virtual void open_req( Req req , JobIdx n_jobs ) {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;
-			Lock lock     { Req::s_reqs_mutex }                                                              ;     // taking Req::s_reqs_mutex is compulsery to derefence req
+			Lock lock     { Req::s_reqs_mutex }                                                              ; // taking Req::s_reqs_mutex is compulsery to derefence req
 			bool inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
-			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                         // check no overflow
+			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                     // check no overflow
 			SWEAR(inserted) ;
 		}
 		virtual void close_req(Req req) {
 			auto it = reqs.find(req) ;
 			Trace trace(BeChnl,"close_req",req,STR(it==reqs.end())) ;
-			if (it==reqs.end()) return ;                                                                           // req has been killed
+			if (it==reqs.end()) return ;                                                                       // req has been killed
 			ReqEntry const& re = it->second ;
 			SWEAR(!re.waiting_jobs,re.waiting_jobs) ;
-			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                      // check no underflow
+			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                  // check no underflow
 			reqs.erase(it) ;
 			if (!reqs) {
 				SWEAR(!waiting_jobs,waiting_jobs) ;
-				SWEAR(!spawned_jobs,spawned_jobs) ;                                                                // there may be !live entries waiting for destruction
+				SWEAR(!spawned_jobs,spawned_jobs) ;                                                            // there may be !live entries waiting for destruction
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
 		virtual void submit( Job job , Req req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
-			RsrcsAsk rsa { New , import_(::move(rsrcs),req,job) } ;                                                // compile rsrcs
-			if (!fit_eventually(*rsa)) throw "not enough resources to launch job "+Job(job)->name() ;
+			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
+			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
+			::vmap_ss rsrcs_rounded = rsrcs ;
+			for ( auto& [k,v] : rsrcs_rounded ) {
+				/**/                                 if (!can_mk_enum<StdRsrc>(k)) continue ;                      // resource is not standard
+				StdRsrc  r   = mk_enum<StdRsrc>(k) ; if (k!=snake(r)             ) continue ;                      // .
+				uint64_t val = 0 /*garbage*/       ;
+				try                     { val = from_string_with_units<uint64_t>(v) ; }
+				catch (::string const&) { continue ;                                  }                            // value is not recognized
+				//
+				if ( g_config->rsrc_digits[+r] && val ) {
+					uint8_t sw = bit_width(val) ; if (sw>4) sw -= 4 ; else sw = 0 ;                                // compute necessary shift for rounding.
+					val = (((val-1)>>sw)+1)<<sw ;                                                                  // quantify by rounding up
+				}
+				//
+				v = to_string_with_units(val) ;
+			}
+			Rsrcs rs_rounded { New , import_(::move(rsrcs_rounded),req,job) } ;                                    // compile
+			Rsrcs rs         { New , import_(::move(rsrcs        ),req,job) } ;                                    // .
+			if (!fit_eventually(*rs)) throw "not enough resources to launch job "+Job(job)->name() ;
 			ReqEntry& re = reqs.at(req) ;
 			SWEAR(!waiting_jobs   .contains(job)) ;                                                                // job must be a new one
 			SWEAR(!re.waiting_jobs.contains(job)) ;                                                                // in particular for this req
 			CoarseDelay pressure = submit_attrs.pressure ;
-			Trace trace(BeChnl,"submit",rsa,pressure) ;
+			Trace trace(BeChnl,"submit",rs,pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
-			waiting_jobs.emplace( job , WaitingEntry(rsa,submit_attrs,re.verbose) ) ;
-			re.waiting_queues[rsa].insert({pressure,job}) ;
+			waiting_jobs.emplace( job , WaitingEntry(rs,submit_attrs,re.verbose) ) ;
+			re.waiting_queues[rs_rounded].insert({pressure,job}) ;
 			if (!_oldest_submitted_job.load()) _oldest_submitted_job = New ;
 		}
 		virtual void add_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) {
@@ -298,7 +315,7 @@ namespace Backends {
 			trace("adjusted_pressure",pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
-			re.waiting_queues[we.rsrcs_ask].insert({pressure,job}) ;                                               // job must be known
+			re.waiting_queues[we.rsrcs].insert({pressure,job}) ;                                                   // job must be known
 			we.submit_attrs |= submit_attrs ;
 			we.verbose      |= re.verbose   ;
 			we.n_reqs++ ;
@@ -308,10 +325,10 @@ namespace Backends {
 			auto      it = waiting_jobs.find(job) ;
 			//
 			if (it==waiting_jobs.end()) return ;                                                                   // job is not waiting anymore, ignore
-			WaitingEntry        & we           = it->second                         ;
-			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job         ) ;                              // job must be known
-			::set<PressureEntry>& q            = re.waiting_queues.at(we.rsrcs_ask) ;                              // including for this req
-			CoarseDelay           pressure     = submit_attrs.pressure              ;
+			WaitingEntry        & we           = it->second                     ;
+			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job     ) ;                                  // job must be known
+			::set<PressureEntry>& q            = re.waiting_queues.at(we.rsrcs) ;                                  // including for this req
+			CoarseDelay           pressure     = submit_attrs.pressure          ;
 			Trace trace("set_pressure","pressure",pressure) ;
 			we.submit_attrs |= submit_attrs ;
 			q.erase ({old_pressure,job}) ;
@@ -418,8 +435,8 @@ namespace Backends {
 				{	Lock lock { _s_mutex } ;
 					auto rit = reqs.find(+req) ;
 					if (rit==reqs.end()) continue ;
-					JobIdx                               n_jobs = rit->second.n_jobs         ;
-					::umap<RsrcsAsk,set<PressureEntry>>& queues = rit->second.waiting_queues ;
+					JobIdx                            n_jobs = rit->second.n_jobs         ;
+					::umap<Rsrcs,set<PressureEntry>>& queues = rit->second.waiting_queues ;
 					for(;;) {
 						if ( n_jobs && spawned_jobs.size()>=n_jobs ) break ;                                       // cannot have more than n_jobs running jobs because of this req, process next req
 						auto candidate = queues.end() ;
@@ -429,12 +446,12 @@ namespace Backends {
 						}
 						if (candidate==queues.end()) break ;                                                                               // nothing for this req, process next req
 						//
-						::set<PressureEntry>& pressure_set = candidate->second                                    ;
-						auto                  pressure1    = pressure_set.begin()                                 ; SWEAR(pressure1!=pressure_set.end(),candidate->first) ; // a candidate ...
-						Pdate                 prio         = eta-pressure1->pressure                              ;                                                         // ... with no pressure ?
-						Job                   j            = pressure1->job                                       ;
-						auto                  wit          = waiting_jobs.find(j)                                 ;
-						SpawnedEntry&         se           = spawned_jobs.create(self,j,candidate->first)->second ;
+						::set<PressureEntry>& pressure_set = candidate->second                                     ;
+						auto                  pressure1    = pressure_set.begin()                                  ; SWEAR(pressure1!=pressure_set.end(),candidate->first) ; // a candidate ...
+						Pdate                 prio         = eta-pressure1->pressure                               ;                                                         // ... with no pressure ?
+						Job                   j            = pressure1->job                                        ;
+						auto                  wit          = waiting_jobs.find(j)                                  ;
+						SpawnedEntry&         se           = spawned_jobs.create(self,j,wit->second.rsrcs)->second ;
 						//
 						se.verbose = wit->second.verbose ;
 						::vector<ReqIdx> rs { +req } ;

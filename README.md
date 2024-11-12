@@ -193,12 +193,12 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	- expressions are either compact (no space or minimum), spaced (a space between each operators and sub-expressions) or multi-line (with sub-expressions indented)
 	- example:
 `
-			a = make_a(
-				my_first_coef [  0] * my_first_data  // note alignment makes expression structure appearing immediately
-			+	my_second_coef[i  ] * my_second_data // note + at identation level 3, subexrpession at indentation level 4
-			+	my_third_coef [i*2] * my_third_data  // note following comment means this one is repeated
-			+	my_foorth_coef[i*3] * my_foorth_data // .
-			) ;
+		a = make_a(
+			my_first_coef [  0] * my_first_data  // note alignment makes expression structure appearing immediately
+		+	my_second_coef[i  ] * my_second_data // note + at identation level 2, subexrpession at indentation level 3
+		+	my_third_coef [i*2] * my_third_data  // note following comment means this one is repeated
+		+	my_foorth_coef[i*3] * my_foorth_data // .
+		) ;
 `
 
 ## special words

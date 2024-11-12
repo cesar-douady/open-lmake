@@ -109,8 +109,8 @@ namespace Backends::Slurm {
 	constexpr Tag MyTag = Tag::Slurm ;
 
 	struct SlurmBackend
-	:	             GenericBackend<MyTag,SlurmId,RsrcsData,RsrcsData,false/*IsLocal*/>
-	{	using Base = GenericBackend<MyTag,SlurmId,RsrcsData,RsrcsData,false/*IsLocal*/> ;
+	:	             GenericBackend<MyTag,SlurmId,RsrcsData,false/*IsLocal*/>
+	{	using Base = GenericBackend<MyTag,SlurmId,RsrcsData,false/*IsLocal*/> ;
 
 		struct SpawnedMap : ::umap<Rsrcs,JobIdx> {
 			// count number of jobs spawned but not started yet
@@ -203,13 +203,12 @@ namespace Backends::Slurm {
 		virtual ::vmap_ss export_( RsrcsData const& rs                    ) const { return rs.mk_vmap()                                       ; }
 		virtual RsrcsData import_( ::vmap_ss     && rsa , Req req , Job j ) const { return blend( {::move(rsa),daemon,+j} ,req_forces[+req] ) ; }
 		//
-		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
-			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
+		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
+			bool res = spawned_rsrcs.n_spawned(rs) < n_max_queued_jobs ;
 			return res ;
 		}
-		virtual Rsrcs acquire_rsrcs(RsrcsAsk const& rsa) const {
-			spawned_rsrcs.inc(rsa) ;
-			return rsa ;
+		virtual void acquire_rsrcs(Rsrcs const& rs) const {
+			spawned_rsrcs.inc(rs) ;
 		}
 		virtual void start_rsrcs(Rsrcs const& rs) const {
 			spawned_rsrcs.dec(rs) ;

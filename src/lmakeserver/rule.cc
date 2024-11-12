@@ -489,27 +489,6 @@ namespace Engine {
 	}
 
 	//
-	// SubmitRsrcsAttrs
-	//
-
-	void SubmitRsrcsAttrs::s_canon(::vmap_ss& rsrcs) {
-		for ( auto& [k,v] : rsrcs ) {
-			/**/                                 if (!can_mk_enum<StdRsrc>(k)) continue ;  // resource is not standard
-			StdRsrc  r   = mk_enum<StdRsrc>(k) ; if (k!=snake(r)             ) continue ;  // .
-			uint64_t val = 0 /*garbage*/       ;
-			try                     { val = from_string_with_units<uint64_t>(v) ; }
-			catch (::string const&) { continue ;                                  }        // value is not recognized
-			//
-			if ( g_config->rsrc_digits[+r] && val ) {
-				uint8_t sw = ::max(0,int(bit_width(val))-int(g_config->rsrc_digits[+r])) ; // compute necessary shift for rounding, /!\ beware of signness with unsigned arithmetic
-				val = (((val-1)>>sw)+1)<<sw ;                                              // quantify by rounding up
-			}
-			//
-			v = to_string_with_units(val) ;
-		}
-	}
-
-	//
 	// Cmd
 	//
 

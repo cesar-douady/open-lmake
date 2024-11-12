@@ -86,8 +86,8 @@ namespace Backends::Sge {
 	constexpr Tag MyTag = Tag::Sge ;
 
 	struct SgeBackend
-	:	             GenericBackend<MyTag,SgeId,RsrcsData,RsrcsData,false/*IsLocal*/>
-	{	using Base = GenericBackend<MyTag,SgeId,RsrcsData,RsrcsData,false/*IsLocal*/> ;
+	:	             GenericBackend<MyTag,SgeId,RsrcsData,false/*IsLocal*/>
+	{	using Base = GenericBackend<MyTag,SgeId,RsrcsData,false/*IsLocal*/> ;
 
 		struct SpawnedMap : ::umap<Rsrcs,JobIdx> {
 			// count number of jobs spawned but not started yet
@@ -156,15 +156,10 @@ namespace Backends::Sge {
 		}
 
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
-			bool             single = false             ;
-			::umap_s<size_t> capa   = mk_umap(capacity) ;
-			::umap_s<size_t> rs     ;
-			for( auto&& [k,v] : rsrcs ) {
-				if (capa.contains(k)) { size_t s = from_string_rsrc<size_t>(k,v) ; rs[::move(k)] = s ; } // capacities of local backend are only integer information
-			}
-			::vmap_ss res ;
-			if (single) for( auto&& [k,v] : rs ) { ::string s = to_string_rsrc(k,        capa[k] ) ; res.emplace_back( ::move(k) , ::move(s) ) ; }
-			else        for( auto&& [k,v] : rs ) { ::string s = to_string_rsrc(k,::min(v,capa[k])) ; res.emplace_back( ::move(k) , ::move(s) ) ; }
+			::uset_s  capa = mk_key_uset(capacity) ;
+			::vmap_ss res  ;
+			for( pair_ss& kv : rsrcs )
+				if (capa.contains(kv.first)) res.emplace_back(::move(kv)) ;
 			return res ;
 		}
 
@@ -182,13 +177,12 @@ namespace Backends::Sge {
 		virtual ::vmap_ss export_( RsrcsData const& rs              ) const { return rs.mk_vmap()  ; }
 		virtual RsrcsData import_( ::vmap_ss     && rsa , Req , Job ) const { return {::move(rsa)} ; }
 		//
-		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
-			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
+		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
+			bool res = spawned_rsrcs.n_spawned(rs) < n_max_queued_jobs ;
 			return res ;
 		}
-		virtual Rsrcs acquire_rsrcs(RsrcsAsk const& rsa) const {
-			spawned_rsrcs.inc(rsa) ;
-			return rsa ;
+		virtual void acquire_rsrcs(Rsrcs const& rs) const {
+			spawned_rsrcs.inc(rs) ;
 		}
 		virtual void start_rsrcs(Rsrcs const& rs) const {
 			spawned_rsrcs.dec(rs) ;

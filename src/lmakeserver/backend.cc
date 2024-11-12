@@ -723,8 +723,6 @@ namespace Backends {
 		Trace trace(BeChnl,"acquire_cmd_line",tag,job,reqs,rsrcs,submit_attrs) ;
 		_s_mutex.swear_locked() ;
 		//
-		SubmitRsrcsAttrs::s_canon(rsrcs) ;
-		//
 		auto        [it,fresh] = _s_start_tab.emplace(job,StartEntry()) ;                                                    // create entry
 		StartEntry& entry      = it->second                             ;
 		if (fresh)                                                            entry.submit_attrs = submit_attrs          ;

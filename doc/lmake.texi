@@ -882,13 +882,6 @@ Each color is a triplet RGB of values between 0 and 255.
 @tab This attribute is a @code{pdict} with one entry for each backend
 (cf @pxref{backends} for an explanation of what is the purpose of backends, and see the backends section for a description of the attributes).
 Each entry is a pdict providing resources. Such resources are backend specific.
-@*
-In addition the @code{precisions} can be set to a @code{dict} with one entry for each standard resource (@code{cpu}, @code{mem} and @code{tmp}).
-This attribute must be @code{0} or a power of 2 not less than 2.
-@*
-If set to a positive value, it represent a number under which full precision is retained when specified in a rule.
-Above it, the relative precision is retained, rounding up.
-For example, if set to 4, values 1, 2, 3, 4 are retained, but 5 is rounded to 6, 7 to 8, 9 to 12 etc (cf @pxref{resource-buckets}).
 
 @item @code{caches}
 @tab

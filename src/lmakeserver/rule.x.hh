@@ -84,8 +84,8 @@ namespace Engine {
 
 	struct Rule : RuleBase {
 		friend ::string& operator+=( ::string& , Rule const ) ;
-		static constexpr char   StarMrkr =  0 ;                   // signal a star stem in job_name
-		static constexpr char   StemMrkr =  0 ;                   // signal a stem in job_name & targets & deps & cmd
+		static constexpr char   StarMrkr =  0 ;                 // signal a star stem in job_name
+		static constexpr char   StemMrkr =  0 ;                 // signal a stem in job_name & targets & deps & cmd
 		static constexpr VarIdx NoVar    = -1 ;
 		//
 		struct SimpleMatch ;
@@ -163,15 +163,11 @@ namespace Engine {
 	// used at submit time, participate in resources
 	struct SubmitRsrcsAttrs {
 		static constexpr const char* Msg = "submit resources attributes" ;
-		static void s_canon(::vmap_ss& rsrcs) ;                                                                                                         // round and cannonicalize standard resources
 		// services
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
-			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) {
-				::sort(rsrcs) ;                                                                                                                         // stabilize rsrcs crc
-				s_canon(rsrcs) ;
-			}
+			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) ::sort(rsrcs) ;                                                                  // stabilize rsrcs crc
 		}
 		Tokens1 tokens1() const {
 			for(auto const& [k,v] : rsrcs) if (k=="cpu")
@@ -287,7 +283,7 @@ namespace Engine {
 		// START_OF_VERSIONING
 		::vmap_ss     env        ;
 		AutodepMethod method     = {} ;
-		Time::Delay   timeout    ;                                                                                       // if 0 <=> no timeout, maximum time allocated to job execution in s
+		Time::Delay   timeout    ;                                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
 		bool          use_script = false ;
 		// END_OF_VERSIONING
 	} ;

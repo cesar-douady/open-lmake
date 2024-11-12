@@ -164,9 +164,6 @@ items :
 	- share views in submit_attrs as there is very few variability
 * evaluate dynamic deps only if static deps match
 	- at least for those deps placed before
-* when rounding resources using config.backends.precisions
-	- round to prioritize jobs
-	- do not round for actual allocation
 * handle dir hierarchy in store
 	- provide a primitive to insert all dirs of a node at once
 	- much more efficient
@@ -196,10 +193,6 @@ items :
 	- SubmitRsrcsAttrs + SubmitNoneAttrs
 	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
 	- EndCmdAttrs + EndNoneAttrs
-? record dep crcs crc in Job rather than all crcs in Dep
-	- store crc just before dep error parallel chunk
-	- dont store deps after first dep error parallel chunk as they are useless
-	- this way we can severely reduce the Deps size (4x if we can manage accesses)
 ? avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str
