@@ -41,6 +41,14 @@ namespace Backends::Slurm {
 		friend ::string& operator+=( ::string& , RsrcsDataSingle const& ) ;
 		// accesses
 		bool operator==(RsrcsDataSingle const&) const = default ;
+		// services
+		RsrcsDataSingle round() const {
+			RsrcsDataSingle res = self ;
+			res.cpu = round_rsrc(res.cpu) ;
+			res.mem = round_rsrc(res.mem) ;
+			res.tmp = round_rsrc(res.tmp) ;
+			return res ;
+		}
 		// data
 		uint16_t cpu      = 0  ; // number of logical cpu  (sbatch    --cpus-per-task option)
 		uint32_t mem      = 0  ; // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is compulsery)
@@ -48,11 +56,11 @@ namespace Backends::Slurm {
 		::string excludes ;      // list of excludes nodes (sbatch -x,--exclude       option)
 		::string feature  ;      // feature/contraint      (sbatch -C,--constraint    option)
 		::string gres     ;      // generic resources      (sbatch    --gres          option)
-		::string licenses ;      // licenses               (sbtach -L,--licenses      option)
+		::string licenses ;      // licenses               (sbatch -L,--licenses      option)
 		::string nodes    ;      // list of required nodes (sbatch -w,--nodelist      option)
 		::string part     ;      // partition name         (sbatch -p,--partition     option)
-		::string qos      ;      // quality of service     (sbtach -q,--qos           option)
-		::string reserv   ;      // reservation            (sbtach -r,--reservation   option)
+		::string qos      ;      // quality of service     (sbatch -q,--qos           option)
+		::string reserv   ;      // reservation            (sbatch -r,--reservation   option)
 	} ;
 
 	struct RsrcsData : ::vector<RsrcsDataSingle> {
@@ -62,6 +70,11 @@ namespace Backends::Slurm {
 		RsrcsData( ::vmap_ss&& , Daemon , JobIdx ) ;
 		// services
 		::vmap_ss mk_vmap(void) const ;
+		RsrcsData round() const {
+			RsrcsData res ;
+			for( RsrcsDataSingle rds : self ) res.push_back(rds.round()) ;
+			return res ;
+		}
 	} ;
 
 	RsrcsData blend( RsrcsData&& rsrcs , RsrcsData const& force ) ;

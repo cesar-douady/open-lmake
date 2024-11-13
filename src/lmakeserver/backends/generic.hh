@@ -89,6 +89,13 @@ namespace Backends {
 		else                        return to_string_with_units     (v) ;
 	}
 
+	template<::unsigned_integral I> I round_rsrc(I i) {
+		static constexpr uint8_t NMsb = 3 ;
+		if (i<=(1<<NMsb)) return i ;
+		uint8_t sw = ::bit_width(i)-NMsb ; // compute necessary shift for rounding.
+		return (((i-1)>>sw)+1)<<sw ;       // quantify by rounding up
+	}
+
 	//
 	// GenericBackend
 	//
@@ -243,45 +250,31 @@ namespace Backends {
 		}
 		virtual void open_req( Req req , JobIdx n_jobs ) {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;
-			Lock lock     { Req::s_reqs_mutex }                                                              ; // taking Req::s_reqs_mutex is compulsery to derefence req
+			Lock lock     { Req::s_reqs_mutex }                                                              ;     // taking Req::s_reqs_mutex is compulsery to derefence req
 			bool inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
-			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                     // check no overflow
+			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                         // check no overflow
 			SWEAR(inserted) ;
 		}
 		virtual void close_req(Req req) {
 			auto it = reqs.find(req) ;
 			Trace trace(BeChnl,"close_req",req,STR(it==reqs.end())) ;
-			if (it==reqs.end()) return ;                                                                       // req has been killed
+			if (it==reqs.end()) return ;                                                                           // req has been killed
 			ReqEntry const& re = it->second ;
 			SWEAR(!re.waiting_jobs,re.waiting_jobs) ;
-			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                  // check no underflow
+			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                      // check no underflow
 			reqs.erase(it) ;
 			if (!reqs) {
 				SWEAR(!waiting_jobs,waiting_jobs) ;
-				SWEAR(!spawned_jobs,spawned_jobs) ;                                                            // there may be !live entries waiting for destruction
+				SWEAR(!spawned_jobs,spawned_jobs) ;                                                                // there may be !live entries waiting for destruction
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
 		virtual void submit( Job job , Req req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
 			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
-			::vmap_ss rsrcs_rounded = rsrcs ;
-			for ( auto& [k,v] : rsrcs_rounded ) {
-				/**/                                 if (!can_mk_enum<StdRsrc>(k)) continue ;                      // resource is not standard
-				StdRsrc  r   = mk_enum<StdRsrc>(k) ; if (k!=snake(r)             ) continue ;                      // .
-				uint64_t val = 0 /*garbage*/       ;
-				try                     { val = from_string_with_units<uint64_t>(v) ; }
-				catch (::string const&) { continue ;                                  }                            // value is not recognized
-				//
-				if ( g_config->rsrc_digits[+r] && val ) {
-					uint8_t sw = bit_width(val) ; if (sw>4) sw -= 4 ; else sw = 0 ;                                // compute necessary shift for rounding.
-					val = (((val-1)>>sw)+1)<<sw ;                                                                  // quantify by rounding up
-				}
-				//
-				v = to_string_with_units(val) ;
-			}
-			Rsrcs rs_rounded { New , import_(::move(rsrcs_rounded),req,job) } ;                                    // compile
-			Rsrcs rs         { New , import_(::move(rsrcs        ),req,job) } ;                                    // .
+			RsrcsData rd         = import_(::move(rsrcs),req,job) ;
+			Rsrcs     rs         { New , rd         }             ;
+			Rsrcs     rs_rounded { New , rd.round() }             ;
 			if (!fit_eventually(*rs)) throw "not enough resources to launch job "+Job(job)->name() ;
 			ReqEntry& re = reqs.at(req) ;
 			SWEAR(!waiting_jobs   .contains(job)) ;                                                                // job must be a new one
@@ -315,7 +308,7 @@ namespace Backends {
 			trace("adjusted_pressure",pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
-			re.waiting_queues[we.rsrcs].insert({pressure,job}) ;                                                   // job must be known
+			re.waiting_queues[{New,we.rsrcs->round()}].insert({pressure,job}) ;
 			we.submit_attrs |= submit_attrs ;
 			we.verbose      |= re.verbose   ;
 			we.n_reqs++ ;
@@ -325,10 +318,10 @@ namespace Backends {
 			auto      it = waiting_jobs.find(job) ;
 			//
 			if (it==waiting_jobs.end()) return ;                                                                   // job is not waiting anymore, ignore
-			WaitingEntry        & we           = it->second                     ;
-			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job     ) ;                                  // job must be known
-			::set<PressureEntry>& q            = re.waiting_queues.at(we.rsrcs) ;                                  // including for this req
-			CoarseDelay           pressure     = submit_attrs.pressure          ;
+			WaitingEntry        & we           = it->second                                    ;
+			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job                    ) ;                   // job must be known
+			::set<PressureEntry>& q            = re.waiting_queues.at({New,we.rsrcs->round()}) ;                   // including for this req
+			CoarseDelay           pressure     = submit_attrs.pressure                         ;
 			Trace trace("set_pressure","pressure",pressure) ;
 			we.submit_attrs |= submit_attrs ;
 			q.erase ({old_pressure,job}) ;

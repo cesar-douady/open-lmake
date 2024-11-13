@@ -37,14 +37,27 @@ namespace Backends::Sge {
 		RsrcsData(::vmap_ss&&) ;
 		// accesses
 		bool operator==(RsrcsData const&) const = default ;
+		// services
+		RsrcsData round() const {
+			// rounding is only used to avoid too many waiting queues, only criteria to take into account are those that decide launch/not launch
+			RsrcsData res ;
+			//                         prio is not significant for launching/not launching, not pertinent
+			/**/                       res.cpu  = round_rsrc(cpu) ;
+			/**/                       res.mem  = round_rsrc(mem) ;
+			/**/                       res.tmp  = round_rsrc(tmp) ;
+			/**/                       res.hard = hard            ; // cannot round as syntax is not managed
+			//                         soft are not signficant for launching/not launching, not pertinent
+			for( auto const& [k,t] : tokens ) res.tokens.emplace_back(k,round_rsrc(t)) ;
+			return res ;
+		}
 		// data
 		int16_t            prio   = 0  ; // priority              : qsub -p <prio>     (prio comes from lmake -b               )
 		uint16_t           cpu    = 0  ; // number of logical cpu : qsub -l <cpu_rsrc> (cpu_rsrc comes from config, always hard)
 		uint32_t           mem    = 0  ; // memory   in MB        : qsub -l <mem_rsrc> (mem_rsrc comes from config, always hard)
 		uint32_t           tmp    = -1 ; // tmp disk in MB        : qsub -l <tmp_rsrc> (tmp_rsrc comes from config, always hard) default : dont manage tmp size (provide infinite storage, reserve none)
-		::vmap_s<uint64_t> tokens ;      // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
 		::vector_s         hard   ;      // hard options          : qsub -hard <val>
 		::vector_s         soft   ;      // soft options          : qsub -soft <val>
+		::vmap_s<uint64_t> tokens ;      // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
 		// services
 		::vmap_ss mk_vmap(void) const ;
 	} ;

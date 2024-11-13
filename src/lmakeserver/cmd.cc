@@ -130,45 +130,60 @@ namespace Engine {
 		return true ;
 	}
 
-	static void _send_node( Fd fd , ReqOptions const& ro , bool always , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
+	static void _audit_node( Fd fd , ReqOptions const& ro , bool verbose , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
 		Color color = Color::None ;
 		if      ( hide==Yes                                           ) color =                         Color::HiddenNote ;
 		else if ( !node->has_actual_job() && !is_target(node->name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
 		else if ( node->ok()==No                                      ) color =            Color::Err                     ;
 		//
-		if ( always || color!=Color::HiddenNote ) {
+		if ( verbose || color!=Color::HiddenNote ) {
 			if (ro.flags[ReqFlag::Quiet]) audit( fd , ro , color ,         mk_file(node->name()) , false/*as_is*/ , 0   ) ; // if quiet, no header, no reason to indent
 			else                          audit( fd , ro , color , pfx+' '+mk_file(node->name()) , false/*as_is*/ , lvl ) ;
 		}
 	}
 
-	static void _send_job( Fd fd , ReqOptions const& ro , Bool3 show_deps , bool hide , Job job , DepDepth lvl=0 ) {
+	static void _audit_job( Fd fd , ReqOptions const& ro , bool show_deps , bool hide , Job job , DepDepth lvl=0 ) {
 		Color color = Color::None ;
 		Rule  rule  = job->rule() ;
 		if      (hide                   ) color = Color::HiddenNote ;
 		else if (job->status==Status::Ok) color = Color::Ok         ;
 		else if (job.frozen()           ) color = Color::Warning    ;
 		else                              color = Color::Err        ;
-		if (!ro.flags[ReqFlag::Quiet]) audit( fd , ro , color , rule->name+' '+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
-		if (show_deps==No) return ;
-		size_t    w       = 0 ;
-		::umap_ss rev_map ;
-		for( auto const& [k,d] : rule->deps_attrs.eval(job->simple_match()) ) {
-			w              = ::max( w , k.size() ) ;
-			rev_map[d.txt] = k                     ;
+		::string rn ; if (+rule) rn = rule->name+' ' ;
+		if (!ro.flags[ReqFlag::Quiet]) audit( fd , ro , color , rn+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
+		if (!show_deps) return ;
+		size_t                w       = 0 ;
+		::umap_ss             rev_map ;
+		::vmap_s<Re::RegExpr> res     ;
+		if (+rule) {
+			Rule::SimpleMatch m = job->simple_match() ;
+			VarIdx            i = rule->n_statics     ;
+			for( auto const& [k,d] : rule->deps_attrs.eval(m) ) {
+				w              = ::max( w , k.size() ) ;
+				rev_map[d.txt] = k                     ;
+			}
+			for( ::string const& p : m.star_patterns() ) {
+				::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
+				if (me.second.flags.is_target!=No) continue ;
+				w = ::max( w , me.first.size() ) ;
+				res.emplace_back( me.first , Re::RegExpr(p,false/*cache*/) ) ;
+			}
 		}
 		::vector<bool> parallel ;     for( Dep const& d : job->deps ) parallel.push_back(d.parallel) ; // first pass to count deps as they are compressed and size is not known upfront
 		NodeIdx        d        = 0 ;
 		for( Dep const& dep : job->deps ) {
-			bool       cdp     = d  >0               && parallel[d  ]                             ;
-			bool       ndp     = d+1<parallel.size() && parallel[d+1]                             ;
-			::string   dep_key = dep.dflags[Dflag::Static] ? rev_map.at(dep->name()) : ""s        ;
-			::string   pfx     = dep.dflags_str()+' '+dep.accesses_str()+' '+widen(dep_key,w)+' ' ;
+			bool       cdp     = d  >0               && parallel[d  ]                                  ;
+			bool       ndp     = d+1<parallel.size() && parallel[d+1]                                  ;
+			auto       it      = dep.dflags[Dflag::Static] ? rev_map.find(dep->name()) : rev_map.end() ;
+			::string   dep_key ;
+			if (it!=rev_map.end())                                                              dep_key = it->second ;
+			else                   for ( auto const& [k,e] : res ) if (+e.match(dep->name())) { dep_key = k          ; break ; }
+			::string pfx = dep.dflags_str()+' '+dep.accesses_str()+' '+widen(dep_key,w)+' ' ;
 			if      ( !cdp && !ndp ) pfx.push_back(' ' ) ;
 			else if ( !cdp &&  ndp ) pfx.push_back('/' ) ;
 			else if (  cdp &&  ndp ) pfx.push_back('|' ) ;
 			else                     pfx.push_back('\\') ;
-			_send_node( fd , ro , show_deps==Yes , (Maybe&!dep.dflags[Dflag::Required])|hide , pfx , dep , lvl+1 ) ;
+			_audit_node( fd , ro , ro.flags[ReqFlag::Verbose] , (Maybe&!dep.dflags[Dflag::Required])|hide , pfx , dep , lvl+1 ) ;
 			d++ ;
 		}
 	}
@@ -494,18 +509,18 @@ namespace Engine {
 			case ReqKey::Info   :
 			case ReqKey::Stderr :
 			case ReqKey::Stdout : {
-				if (rule->is_special()) {
+				if ( +rule && rule->is_special() ) {
 					switch (ro.key) {
 						case ReqKey::Info   :
 						case ReqKey::Stderr : {
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job  , lvl   ) ;
-							audit    ( fd , ro , job->special_stderr() , false/*as_is*/ , lvl+1 ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
+							audit     ( fd , ro , job->special_stderr() , false/*as_is*/   , lvl+1 ) ;
 						} break ;
 						case ReqKey::Cmd    :
 						case ReqKey::Env    :
 						case ReqKey::Stdout :
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job                   , lvl   ) ;
-							audit    ( fd , ro , Color::Err , "no "s+ro.key+" available" , true/*as_is*/ , lvl+1 ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job                , lvl   ) ;
+							audit     ( fd , ro , Color::Err , "no "s+ro.key+" available" , true/*as_is*/ , lvl+1 ) ;
 						break ;
 					DF}
 				} else {
@@ -531,12 +546,12 @@ namespace Engine {
 						break ;
 						case ReqKey::Stdout :
 							if (!has_end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
-							audit    ( fd , ro , digest.stdout                         , lvl+1 ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
+							audit     ( fd , ro , digest.stdout                            , lvl+1 ) ;
 						break ;
 						case ReqKey::Stderr :
 							if (!has_end && !(has_start&&verbose) ) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 							if (has_start) {
 								if (verbose) audit( fd , ro , Color::Note , pre_start.msg  , false/*as_is*/  , lvl+1 ) ;
 							}
@@ -694,14 +709,15 @@ namespace Engine {
 								} //!                                                                                                               as_is
 								/**/                           audit( fd , ro , widen(mk_py_str("job"),w)+" : "+           mk_py_str(jn   )        , true , lvl+1 , '{' ) ;
 								for( auto const& [k,e] : tab ) audit( fd , ro , widen(mk_py_str(k    ),w)+" : "+(e.protect?mk_py_str(e.txt):e.txt) , true , lvl+1 , ',' ) ;
-								/**/                           audit_map( "views"               , views           , false/*protect*/ , false/*allocated*/ ) ;
-								/**/                           audit_map( "required resources"  , required_rsrcs  , true /*protect*/ , false/*allocated*/ ) ;
-								/**/                           audit_map( "allocated resources" , allocated_rsrcs , true /*protect*/ , true /*allocated*/ ) ;
-								/**/                           audit( fd , ro , "}"                                                                           , true , lvl         ) ;
+								//                                                                                 protect allocated
+								/**/                           audit_map( "views"               , views           , false , false  ) ;
+								/**/                           audit_map( "required resources"  , required_rsrcs  , true  , false  ) ;
+								/**/                           audit_map( "allocated resources" , allocated_rsrcs , true  , true   ) ;
+								/**/                           audit( fd , ro , "}"                                                                , true , lvl         ) ;
 							} else {
 								size_t w  = 0 ; for( auto const& [k,e ] : tab                   ) if (e.txt.find('\n')==Npos) w  = ::max(w ,k.size()) ;
 								size_t w2 = 0 ; for( auto const& [v,vd] : start.job_space.views ) if (+vd                   ) w2 = ::max(w2,v.size()) ;
-								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
+								_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 								for( auto const& [k,e] : tab ) //!                                                   as_is
 									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , widen(k,w)+" : "+e.txt , true , lvl+1 ) ;
 									else                        { audit( fd , ro , e.color ,       k   +" :"        , true , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
@@ -754,19 +770,42 @@ namespace Engine {
 					DF}
 				}
 			} break ;
-			case ReqKey::Bom     : ShowBom    (fd,ro,lvl).show_job(job) ;                             break ;
-			case ReqKey::Running : ShowRunning(fd,ro,lvl).show_job(job) ;                             break ;
-			case ReqKey::Deps    : _send_job( fd , ro , Maybe|verbose , false/*hide*/ , job , lvl ) ; break ;
+			case ReqKey::Bom     : ShowBom    (fd,ro,lvl).show_job(job) ;                                  break ;
+			case ReqKey::Running : ShowRunning(fd,ro,lvl).show_job(job) ;                                  break ;
+			case ReqKey::Deps    : _audit_job( fd , ro , true/*show_deps*/ , false/*hide*/ , job , lvl ) ; break ;
 			case ReqKey::Targets : {
-				Rule::SimpleMatch match = job->simple_match() ;
-				for( auto const& [tn,td] : digest.targets ) {
-					Node t { tn } ;
-					::string flags_str ;
-					/**/                               flags_str += t->crc==Crc::None ? 'U' : +t->crc ? 'W' : '-' ;
-					/**/                               flags_str += ' '                                           ;
-					for( Tflag tf : iota(All<Tflag>) ) flags_str += td.tflags[tf] ? TflagChars[+tf].second : '-'  ;
+				size_t                w       = 0 ;
+				::umap_ss             rev_map ;
+				::vmap_s<Re::RegExpr> res     ;
+				if (+rule) {
+					Rule::SimpleMatch m = job->simple_match() ;
+					VarIdx            i = 0                   ;
+					for( ::string const& t : m.static_matches() ) {
+						::string const& k = rule->matches[i++].first ;
+						w          = ::max(w,k.size()) ;
+						rev_map[t] = k                 ;
+					}
+					SWEAR(i==rule->n_statics) ;
+					for( ::string const& p : m.star_patterns() ) {
+						::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
+						if (me.second.flags.is_target!=Yes) continue ;
+						w = ::max( w , me.first.size() ) ;
+						res.emplace_back( me.first , Re::RegExpr(p,false/*cache*/) ) ;
+					}
+				}
+				for( Target t : job->targets ) {
+					::string pfx ;
+					::string tk  ;
+					auto     it  = rev_map.find(t->name()) ;
+					if (it!=rev_map.end())                                                            tk = it->second ;
+					else                   for ( auto const& [k,e] : res ) if (+e.match(t->name())) { tk = k          ; break ; }
 					//
-					_send_node( fd , ro , verbose , Maybe|!td.tflags[Tflag::Target]/*hide*/ , flags_str , t , lvl ) ;
+					bool exists = t->crc==Crc::None ;
+					/**/                               pfx <<      (exists?'U':+t->crc?'W':'-')              <<' ' ;
+					for( Tflag tf : iota(All<Tflag>) ) pfx <<      (t.tflags[tf]?TflagChars[+tf].second:'-')       ;
+					if (+rule)                         pfx <<' '<< widen(tk,w)                                     ;
+					//
+					_audit_node( fd , ro , verbose , Maybe|!(exists&&t.tflags[Tflag::Target])/*hide*/ , pfx , t , lvl ) ;
 				}
 			} break ;
 			default :
@@ -794,8 +833,8 @@ namespace Engine {
 		for( Node target : targets ) {
 			trace("target",target) ;
 			DepDepth lvl = 1 ;
-			if      (porcelaine      ) audit     ( fd , ro , ""s+sep+' '+mk_py_str(target->name())+" :" , true/*as_is*/ ) ;
-			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target               ) ;
+			if      (porcelaine      ) audit      ( fd , ro , ""s+sep+' '+mk_py_str(target->name())+" :" , true/*as_is*/ ) ;
+			else if (targets.size()>1) _audit_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target               ) ;
 			else                       lvl-- ;
 			sep = ',' ;
 			bool for_job = true ;
@@ -844,29 +883,38 @@ namespace Engine {
 					}
 					_show_job(fd,ro,job,lvl) ;
 				break ;
-				case ReqKey::Deps    : {
-					bool     always      = ro.flags[ReqFlag::Verbose] ;
-					bool     seen_actual = false                      ;
-					if ( target->is_plain() && +target->dir() ) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
+				case ReqKey::Deps : {
+					bool verbose     = ro.flags[ReqFlag::Verbose] ;
+					bool quiet       = ro.flags[ReqFlag::Quiet  ] ;
+					bool seen_actual = false                      ;
+					if ( target->is_plain() && +target->dir() ) _audit_node( fd , ro , verbose , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
 					for( JobTgt jt : target->conform_job_tgts() ) {
-						bool hide = !jt.produces(target) ;
-						seen_actual |= !hide && jt==job ;
-						if      (always) _send_job( fd , ro , Yes   , hide          , jt , lvl ) ;
-						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , jt , lvl ) ;
+						bool hide      = !jt.produces(target) ;
+						bool is_actual = !hide && jt==job     ;
+						seen_actual |= is_actual ;
+						if ( !quiet && is_actual ) audit     ( fd , ro , Color::Note , "generated by : " , lvl ) ;
+						if ( verbose || !hide    ) _audit_job( fd , ro , true/*show_deps*/ , hide , jt   , lvl ) ;
 					}
-					if ( !seen_actual && +job ) _send_job( fd , ro , always?Yes:Maybe , false/*hide*/ , job ) ; // actual job is output last as this is what user views first
+					if (!seen_actual) {
+						if (+job) {
+							if (!quiet) audit     ( fd , ro , Color::Note , "polluted by : "          , lvl ) ;
+							/**/        _audit_job( fd , ro , true/*show_deps*/ , false/*hide*/ , job , lvl ) ;
+						} else {
+							/**/        audit     ( fd , ro , Color::Note , "no job found"            , lvl ) ;
+						}
+					}
 				} break ;
 				case ReqKey::InvDeps :
 					for( Job j : Persistent::job_lst() )
 						for( Dep const& d : j->deps ) if (d==target) {
-							_send_job( fd , ro , No , false/*hide*/ , j , lvl ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , j , lvl ) ;
 							break ;
 						}
 				break ;
 				case ReqKey::InvTargets :
 					for( Job j : Persistent::job_lst() )
 						for( Target const& t : j->targets ) if (t==target) {
-							_send_job( fd , ro , No , false/*hide*/ , j , lvl ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , j , lvl ) ;
 							break ;
 						}
 				break ;

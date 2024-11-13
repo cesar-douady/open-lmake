@@ -72,7 +72,7 @@ namespace Re {
 			return entry.first ;
 		}
 
-		RegExpr::RegExpr(::string const& pattern) {
+		RegExpr::RegExpr( ::string const& pattern , bool cache ) : _own{!cache} {
 			const char* start_pat = pattern.c_str()          ;
 			const char* end_pat   = start_pat+pattern.size() ;
 			const char* start     = nullptr/*garbage*/       ;
@@ -90,7 +90,8 @@ namespace Re {
 				else if (*p==')' ) { sfx.clear() ; sz = p+1-start ; continue ; } // /!\ variable parts are assumed to be enclosed within ()
 				sfx += *p ;
 			}
-			_code = s_cache.insert({start,sz}) ;
+			if (cache) _code = s_cache.insert({start,sz}) ;
+			else       _code = _s_compile    ({start,sz}) ;
 		}
 
 	#endif

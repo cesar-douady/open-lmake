@@ -54,7 +54,6 @@ items :
 * generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
-* generate target/dep key everywhere it is pertinent
 ? consider a package for option passing
 	? gnu argp
 	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf

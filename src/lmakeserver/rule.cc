@@ -1417,7 +1417,7 @@ namespace Engine {
 		::vector_s res ; res.reserve(rule->matches.size()-rule->n_statics) ;
 		for( VarIdx t : iota<VarIdx>( rule->n_statics , rule->matches.size() ) ) {
 			size_t                      cur_group = 1                       ;
-			::vector<uint32_t>          groups    (rule->stems.size())      ;   // used to set back references
+			::vector<uint32_t>          groups    ( rule->stems.size() )    ;   // used to set back references
 			RuleData::MatchEntry const& me        = rule->matches[t].second ;
 			res.push_back(_subst_target(
 				me.pattern

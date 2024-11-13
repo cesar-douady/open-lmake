@@ -167,10 +167,12 @@ namespace Re {
 			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr(::string const& pattern) ;
+			RegExpr( ::string const& pattern , bool cache=true ) ;
 			//
 			RegExpr           (RegExpr&& re) { swap(self,re) ;               }
 			RegExpr& operator=(RegExpr&& re) { swap(self,re) ; return self ; }
+			//
+			~RegExpr() { if (_own) ::pcre2_code_free(const_cast<pcre2_code*>(_code)) ; }
 			// services
 			Match match( ::string const& subject , bool chk_psfx=true ) const {
 				return { self , subject , chk_psfx } ;
@@ -185,6 +187,7 @@ namespace Re {
 			::string sfx ;                      // fixed suffix
 		private :
 			pcre2_code const* _code = nullptr ; // only contains code for infix part, shared and stored in s_store
+			bool              _own  = false   ; // if true <=> _code is private and must be freed in dxtor
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b ) {
 			::swap(a.pfx  ,b.pfx  ) ;
@@ -219,7 +222,7 @@ namespace Re {
 			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr(::string const& pattern) : ::regex{pattern,Flags} {}
+			RegExpr( ::string const& pattern , bool /*cache*/=true ) : ::regex{pattern,Flags} {} // cache is ignored as no cache is implemented
 			// services
 			Match match( ::string const& subject , bool /*chk_psfx*/=true ) const {
 				Match res ;

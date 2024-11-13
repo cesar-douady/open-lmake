@@ -27,13 +27,18 @@ namespace Backends::Local {
 		// services
 		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] += rsrcs[i] ; return self ; }
 		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] -= rsrcs[i] ; return self ; }
-		bool fit_in( RsrcsData const& capacity , RsrcsData const& occupied ) const {                   // true if all resources fit within capacity on top of occupied
+		bool fit_in( RsrcsData const& capacity , RsrcsData const& occupied ) const {               // true if all resources fit within capacity on top of occupied
 			for( size_t i : iota(size()) ) if ( occupied[i]+self[i] > capacity[i] ) return false ;
 			return true ;
 		}
-		bool fit_in(RsrcsData const& capacity) const {                                                 // true if all resources fit within capacity
+		bool fit_in(RsrcsData const& capacity) const {                                             // true if all resources fit within capacity
 			for( size_t i : iota(size()) ) if ( self[i] > capacity[i] ) return false ;
 			return true ;
+		}
+		RsrcsData round() const {
+			RsrcsData res ; res.reserve(size()) ;
+			for( Rsrc v : self ) res.push_back(round_rsrc(v)) ;
+			return res ;
 		}
 	} ;
 
@@ -41,9 +46,9 @@ namespace Backends::Local {
 
 namespace std {
 	template<> struct hash<Backends::Local::RsrcsData> {
-		size_t operator()(Backends::Local::RsrcsData const& rs) const {
-			Hash::Xxh h{rs.size()} ;
-			for( auto r : rs ) h.update(r) ;
+		size_t operator()(Backends::Local::RsrcsData const& rd) const {
+			Hash::Xxh h { rd.size() } ;
+			for( auto r : rd ) h.update(r) ;
 			return +h.digest() ;
 		}
 	} ;
