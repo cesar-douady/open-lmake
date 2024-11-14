@@ -22,7 +22,7 @@ if __name__!='__main__' :
 		cmd     = '[ {File} != ok ] || echo 1 > {DST}'
 
 	class Opt2(Rule) :
-		prio = -1
+		prio    = -1
 		targets = { 'DST' : r'{File:.*}.opt' }
 		cmd     = 'echo 2 > {DST}'
 
@@ -45,7 +45,7 @@ if __name__!='__main__' :
 			'DUT' : '{File}'
 		,	'REF' : '{File}.ref'
 		}
-		cmd = 'diff {REF} {DUT}'
+		cmd = 'diff {REF} {DUT}>&2'
 
 else :
 

@@ -512,6 +512,17 @@ namespace Engine {
 		friend Rule ;
 		static constexpr char   JobMrkr =  0          ;                // ensure no ambiguity between job names and node names
 		static constexpr VarIdx NoVar   = Rule::NoVar ;
+		struct Prio {
+			friend ::string& operator+=( ::string& , Prio const& ) ;
+			// accesses
+			constexpr bool               operator== (Prio const&) const = default ;
+			constexpr ::partial_ordering operator<=>(Prio const&) const = default ;
+			// data
+			// START_OF_VERSIONING
+			Disk::FileNameIdx depth = 0 ;                              // used to manage sub-repo (deeper has higher priority), 0 means after any user rule
+			double            order = 0 ;                              // provided by user
+			// END_OF_VERSIONING
+		} ;
 		struct MatchEntry {
 			// services
 			void set_pattern( ::string&&        , VarIdx n_stems ) ;
@@ -577,7 +588,8 @@ namespace Engine {
 		// user data
 	public :
 		Special              special    = Special::None ;
-		Prio                 prio       = 0             ;                          // the priority of the rule
+		Prio                 user_prio  = {}            ;                          // the priority of the rule as specified by user
+		RuleIdx              prio       = 0             ;                          // the relative priority of the rule
 		::string             name       ;                                          // the short message associated with the rule
 		::vmap_ss            stems      ;                                          // stems are ordered : statics then stars, stems used as both static and star appear twice
 		::string             cwd_s      ;                                          // cwd in which to interpret targets & deps and execute cmd (with ending /)
@@ -897,6 +909,7 @@ namespace Engine {
 	// START_OF_VERSIONING
 	template<IsStream S> void RuleData::serdes(S& s) {
 		::serdes(s,special         ) ;
+		::serdes(s,user_prio       ) ;
 		::serdes(s,prio            ) ;
 		::serdes(s,name            ) ;
 		::serdes(s,stems           ) ;

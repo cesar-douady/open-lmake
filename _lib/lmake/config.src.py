@@ -36,7 +36,6 @@ config = pdict(
 #	                                    # - forced true if only local backend is used
 #	                                    # - set   true  for ceph
 #	                                    # - leave false for NFS
-,	sub_prio_boost      = 1             # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 ,	console = pdict(                    # tailor output lines
 		date_precision = None           # number of second decimals in the timestamp field
 	,	has_exec_time  = True           # if True, output the exec_time field
@@ -44,12 +43,7 @@ config = pdict(
 	,	show_eta       = True           # if True, the title includes the ETA of the lmake command
 	)
 ,	backends = pdict(                                       # PER_BACKEND : provide a default configuration for each backend
-		precisions = pdict(                                 # precision of resources allocated for jobs, one entry for each standard resource (for all backends).
-			cpu = 8                                         # encodes the highest number with full granularity, 8 is a reasonable value
-		,	mem = 8                                         # 8 means possible values are 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, ...
-		,	tmp = 8                                         # 4 would mean possible values are 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, ...
-		)
-	,	local = pdict(                                      # entries mention the total availability of resources
+		local = pdict(                                      # entries mention the total availability of resources
 			cpu =     _cpu                                  # total number of cpus available for the process, and hence for all jobs launched locally
 		,	mem = str(_mem>>20)+'M'                         # total available memory in MBytes, defaults to all available memory
 		,	tmp = str(_tmp>>20)+'M'                         # total available temporary disk space in MBytes, defaults to free space in current filesystem

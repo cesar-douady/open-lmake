@@ -81,14 +81,14 @@ namespace Hash {
 		explicit operator ::string() const ;
 		::string hex              () const ;
 		//
-		constexpr bool              operator== (Crc const& other) const = default ;
-		constexpr ::strong_ordering operator<=>(Crc const& other) const = default ;
-		constexpr Val               operator+  (                ) const { return  _val                                           ; }
-		constexpr bool              valid      (                ) const { return _val>=+CrcSpecial::Valid                        ; }
-		constexpr bool              exists     (                ) const { return +self && self!=None                             ; }
-		/**/      void              clear      (                )       { self = {}                                              ; }
-		constexpr bool              is_lnk     (                ) const { return _plain() ?   _val&0x1  : self==Lnk              ; }
-		constexpr bool              is_reg     (                ) const { return _plain() ? !(_val&0x1) : self==Reg||self==Empty ; }
+		constexpr bool              operator== (Crc const&) const = default ;
+		constexpr ::strong_ordering operator<=>(Crc const&) const = default ;
+		constexpr Val               operator+  (          ) const { return  _val                                           ; }
+		constexpr bool              valid      (          ) const { return _val>=+CrcSpecial::Valid                        ; }
+		constexpr bool              exists     (          ) const { return +self && self!=None                             ; }
+		/**/      void              clear      (          )       { self = {}                                              ; }
+		constexpr bool              is_lnk     (          ) const { return _plain() ?   _val&0x1  : self==Lnk              ; }
+		constexpr bool              is_reg     (          ) const { return _plain() ? !(_val&0x1) : self==Reg||self==Empty ; }
 	private :
 		constexpr bool _plain() const { return _val>=N<CrcSpecial> ; }
 		// services

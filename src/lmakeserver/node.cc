@@ -186,9 +186,9 @@ namespace Engine {
 		}
 		RuleIdx              sz   = 0                    ;
 		::span<JobTgt const> sjts = jts.subvec(prio_idx) ;
-		Prio                 prio = -Infinity            ;
+		RuleIdx              prio = 0                    ;
 		for( JobTgt jt : sjts ) {
-			Prio new_prio = jt->rule()->prio ;
+			RuleIdx new_prio = jt->rule()->prio ;
 			if (new_prio<prio) break ;
 			prio = new_prio ;
 			sz++ ;
@@ -200,7 +200,7 @@ namespace Engine {
 		RuleIdx ci = conform_idx() ;
 		if (ci==NoIdx) return {} ;
 		JobTgts const& jts  = job_tgts()            ; // /!\ jts is a Crunch vector, so if single element, a subvec would point to it, so it *must* be a ref
-		Prio           prio = jts[ci]->rule()->prio ;
+		RuleIdx        prio = jts[ci]->rule()->prio ;
 		RuleIdx        idx  = ci                    ;
 		for( JobTgt jt : jts.subvec(ci) ) {
 			if (jt->rule()->prio<prio) break ;
@@ -224,14 +224,14 @@ namespace Engine {
 		JobTgt      * operator->()       { return node.job_tgts().begin()+idx ;                           }
 		operator bool           () const { return idx<node.job_tgts().size() && _cur_prio()>=_prev_prio ; }
 	private :
-		Prio _cur_prio() const { return (*self)->rule()->prio ; }
+		RuleIdx _cur_prio() const { return (*self)->rule()->prio ; }
 		// data
 	public :
 		NodeData& node   ;
 		RuleIdx   idx    = 0    /*garbage*/ ;
 		bool      single = false/*garbage*/ ;
 	private :
-		Prio _prev_prio = -Infinity ;
+		RuleIdx _prev_prio = 0 ;
 	} ;
 
 	// check rule_tgts special rules and set rule_tgts accordingly
@@ -258,7 +258,7 @@ namespace Engine {
 	// - if a sure job is found, then all rule_tgts are consumed as there will be no further match
 	Buildable NodeData::_gather_prio_job_tgts( ::string const& name_ , Req req , DepDepth lvl ) {
 		//
-		Prio              prio       = -Infinity          ;                    // initially, we are ready to accept any rule
+		RuleIdx           prio       = 0                  ;                    // initially, we are ready to accept any rule
 		RuleIdx           n          = 0                  ;
 		Buildable         buildable  = Buildable::No      ;                    // return val if we find no job candidate
 		::vector<RuleTgt> rule_tgts_ = rule_tgts().view() ;
@@ -684,11 +684,11 @@ namespace Engine {
 		Trace trace("Nforget",idx(),STR(targets),STR(deps),STR(waiting()),conform_job_tgts()) ;
 		if (waiting()) return false ;
 		//
-		bool    res  = true      ;
-		RuleIdx k    = 0         ;
-		Prio    prio = -Infinity ;
+		bool    res  = true ;
+		RuleIdx k    = 0    ;
+		RuleIdx prio = 0    ;
 		for( Job j : job_tgts() ) {
-			Prio p = j->rule()->prio ;
+			RuleIdx p = j->rule()->prio ;
 			if (p<prio) break ;              // all jobs above or besides conform job(s)
 			res &= j->forget(targets,deps) ;
 			if (k==conform_idx()) prio = p ;

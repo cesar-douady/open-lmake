@@ -67,10 +67,6 @@ using SeqId   = uint64_t ; // used to distinguish old report when a job is relau
 // can be tailored to fit neeeds
 using DepDepth = uint16_t ;
 
-// rule matching priority
-// can be tailored to fit neeeds
-using Prio = double ;
-
 // job tokens
 // can be tailored to fit neeeds
 using Tokens1 = uint8_t ; // store number of tokens-1 (so tokens can go from 1 to 256)

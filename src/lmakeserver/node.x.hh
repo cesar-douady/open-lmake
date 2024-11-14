@@ -584,8 +584,8 @@ namespace Engine {
 	inline ::span<JobTgt const> NodeData::conform_job_tgts(                  ) const {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		if (status()!=NodeStatus::Plain) return {} ;
-		RuleIdx prio_idx = conform_idx() ;
-		Prio prio = job_tgts()[prio_idx]->rule()->prio ;
+		RuleIdx prio_idx = conform_idx()                      ;
+		RuleIdx prio     = job_tgts()[prio_idx]->rule()->prio ;
 		while ( prio_idx && job_tgts()[prio_idx-1]->rule()->prio==prio ) prio_idx-- ; // rewind to first job within prio level
 		return prio_job_tgts(prio_idx) ;
 	}

@@ -15,13 +15,12 @@ items :
 * missing some deps when reading elf
 	- it seems that libc.so is missing at least in some occasions
 * reimplement hierarchical repositories
-	- add a sub_repositories entry to config
-	- map priorities to RuleIdx
-	- ensure total prio of sub-rules
-		- add an AntiRule for files in sub-repo with prio between repo and sub-repo
-		- so as to ensure the sub-repo behaves as an autonomous repo
+	- handle them as soon as sub Lmakefile's are imported from englobing Lmakefile (recursively)
 	- handle cwd of rules
 	- devise a sound mechanism to read what must be read when reading makefiles
+	? ensure total prio of sub-rules
+		- add an AntiRule for files in sub-repo with prio between repo and sub-repo
+		- so as to ensure the sub-repo behaves as an autonomous repo
 ! fix compilation with LMAKE_FLAGS=ST
 
 ****************************************************************************************************
@@ -29,7 +28,7 @@ items :
 ****************************************************************************************************
 
 * transport pdict as pdict rather than as dict
-* generate meaningful message in case of I/O error such as disk full
+! generate meaningful message in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
@@ -51,7 +50,7 @@ items :
 	- e.g. no TmpDisk mentioned in config and job needs it
 	- an error message is generated on stderr by slurm_submit_batch_job
 	- error code give no info
-* generate an error when calling depend on a target
+? generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
 ? consider a package for option passing
@@ -67,7 +66,7 @@ items :
 
 * rework dep analysis in JobData::make
 	- to ensure SWEAR(!ri.state.missing_dsk) does not fire
-* fix store to be compliant with strict aliasing rules
+! fix store to be compliant with strict aliasing rules
 
 ****************************************************************************************************
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
@@ -89,12 +88,13 @@ items :
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
-* provide a mechansim to prevent writing non-targets
+
+? provide a mechansim to prevent writing non-targets
 	- mount an overlay over the repo
 	- at the end, transport targets to their real location
 	- drop other written files
 	- generate an error or not if any such files, depending on user declaration
-* implement cache v2 (copy & link) :
+? implement cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
 		- for disk level

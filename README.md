@@ -133,6 +133,20 @@ Once you have understood what is going on with `hello_world`, you can repeat the
 
 # coding rules
 
+## directory layout
+- `_bin`       : contains scripts mostly used for building lmake
+- `debian`     : contains files necessary to build a debian package
+- `doc`        : contains documentation
+- `docker`     : contains the docker files used to validate lmake
+- `examples`   : contains abundantly commented examples
+- `ext`        : contains all code coming from external sources
+- `_lib`       : contains all python code
+- `lmake_env`  : contains an lmake repo that allow to build lmake (not fully functional) under lmake (used as an example/unit test)
+- `museum`     : contains dead code that could come back to life in a near or far future
+- `src`        : contains all C++ source files
+- `src/engine` : contains all C++ source files that are specific to lmakeserver
+- `unit_tests` : contains unit tests
+
 ## statics & globals
 
 - variables with executable cxtor/dxtor are never put (or with much care) in statics or globals
@@ -181,7 +195,7 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	<tr> <td> wrt      </td> <td> with respect to        </td> </tr>
 	</table>
 
-## layout
+## file layout
 - lines are limited to 200 characters (as is this document)
 - functions are limited to 100 lines:
 	- there are few exceptions, though, where it was impossible to cut without making too artificial a sub-function

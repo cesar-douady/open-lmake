@@ -481,21 +481,33 @@ namespace Engine::Persistent {
 		}
 	}
 
+	//                                      vv must fit in rule file vv   vvvvvvvv idx must fit within type vvvvvvvv
+	static constexpr size_t NRules = ::min( (size_t(1)<<NRuleIdxBits)-1 , (size_t(1)<<NBits<Rule>)-+Special::NShared ) ; // reserv 0 and full 1 to manage prio
+
+	static void _compute_prios( ::vector<RuleData>& rules ) {
+		::map<RuleData::Prio,RuleIdx> prio_map ;                                             // mapping from user_prio to prio
+		for( RuleData const& rd    : rules    ) prio_map[rd.user_prio] ;                     // create entries
+		RuleIdx p = 1 ;                                                                      // reserv 0 for "after all user rules"
+		for( auto&           [k,v] : prio_map ) { SWEAR( 0<p && p<NRules , p ) ; v = p++ ; } // and full 1 for "before all user rules"
+		for( RuleData&       rd    : rules    ) rd.prio = prio_map.at(rd.user_prio) ;
+	}
+
 	bool/*invalidate*/ new_rules( ::vector<RuleData>&& new_rules_ , bool dynamic ) {
 		Trace trace("new_rules",new_rules_.size()) ;
 		// check number of rules before doing any action
-		//                                      vv must fit in rule file vv   vvvvvvvv idx must fit within type vvvvvvvv
-		static constexpr size_t NRules = ::min( (size_t(1)<<NRuleIdxBits)-1 , (size_t(1)<<NBits<Rule>)-+Special::NShared ) ;
-		throw_unless( new_rules_.size()<=NRules , "too many rules (",new_rules_.size(),"), max is ",NRules ) ;
+		throw_unless( new_rules_.size()<NRules , "too many rules (",new_rules_.size(),"), max is ",NRules-1 ) ;
+		//
+		_compute_prios(new_rules_) ;
 		//
 		::umap<Crc,RuleData const*> old_rds ; for( Rule      r  : rule_lst() ) old_rds.try_emplace(r->crc->match,&*r) ;
 		::umap<Crc,RuleData      *> new_rds ; for( RuleData& rd : new_rules_ ) new_rds.try_emplace(rd.crc->match,&rd) ;
 		//
-		RuleIdx n_old_rules      = old_rds.size() ;
-		RuleIdx n_new_rules      = 0              ;
-		RuleIdx n_modified_prio  = 0              ;
-		RuleIdx n_modified_cmd   = 0              ;
-		RuleIdx n_modified_rsrcs = 0              ;
+		RuleIdx n_old_rules         = old_rds.size() ;
+		RuleIdx n_new_rules         = 0              ;
+		RuleIdx n_modified_prio     = 0              ;
+		RuleIdx n_modified_cmd      = 0              ;
+		RuleIdx n_modified_rsrcs    = 0              ;
+		bool    modified_rule_order = false          ;                         // only checked on common rules (old & new)
 		// evaluate diff
 		for( auto& [match_crc,new_rd] : new_rds ) {
 			auto it = old_rds.find(match_crc) ;
@@ -504,28 +516,29 @@ namespace Engine::Persistent {
 			} else {
 				n_old_rules-- ;
 				RuleData const& old_rd = *it->second ;
-				n_modified_prio  += new_rd->prio      !=old_rd.prio       ;
-				n_modified_cmd   += new_rd->crc->cmd  !=old_rd.crc->cmd   ;
-				n_modified_rsrcs += new_rd->crc->rsrcs!=old_rd.crc->rsrcs ;
+				n_modified_prio     += new_rd->user_prio !=old_rd.user_prio  ;
+				n_modified_cmd      += new_rd->crc->cmd  !=old_rd.crc->cmd   ;
+				n_modified_rsrcs    += new_rd->crc->rsrcs!=old_rd.crc->rsrcs ;
+				modified_rule_order |= new_rd->prio      !=old_rd.prio       ;
 				//
 				new_rd->cost_per_token = old_rd.cost_per_token ;
 				new_rd->exec_time      = old_rd.exec_time      ;
 				new_rd->stats_weight   = old_rd.stats_weight   ;
 			}
 		}
-		bool res = n_modified_prio || n_new_rules || n_old_rules ;
-		if (dynamic) {                                                      // check if compatible with dynamic update
-			throw_if( n_new_rules      , "new rules appeared"           ) ;
-			throw_if( n_old_rules      , "old rules disappeared"        ) ;
-			throw_if( n_modified_prio  , "rule prio's were modified"    ) ;
-			throw_if( n_modified_cmd   , "rule cmd's were modified"     ) ;
-			throw_if( n_modified_rsrcs , "rule resources were modified" ) ;
+		bool res = n_new_rules || n_old_rules || modified_rule_order ;
+		if (dynamic) {                                                         // check if compatible with dynamic update
+			throw_if( n_new_rules         , "new rules appeared"           ) ;
+			throw_if( n_old_rules         , "old rules disappeared"        ) ;
+			throw_if( n_modified_cmd      , "rule cmd's were modified"     ) ;
+			throw_if( n_modified_rsrcs    , "rule resources were modified" ) ;
+			throw_if( modified_rule_order , "rule prio's were modified"    ) ;
 			RuleBase::s_from_vec_dynamic(::move(new_rules_)) ;
 		} else {
 			RuleBase::s_from_vec_not_dynamic(::move(new_rules_)) ;
-			if (res) _compile_psfxs() ;                                     // recompute matching
+			if (res) _compile_psfxs() ;                                        // recompute matching
 		}
-		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs)) ;
+		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs),STR(modified_rule_order)) ;
 		// trace
 		Trace trace2 ;
 		for( PsfxIdx sfx_idx : _sfxs_file.lst() ) {
@@ -538,14 +551,14 @@ namespace Engine::Persistent {
 				if (single) { SWEAR(!pfx,pfx) ; trace2(         sfx.substr(1) , ':' ) ; }
 				else        {                   trace2( pfx+'*'+sfx           , ':' ) ; }
 				Trace trace3 ;
-				for( RuleTgt rt : rts.view() ) trace3( rt->rule , ':' , rt->rule->prio , rt->rule->name , rt.key() ) ;
+				for( RuleTgt rt : rts.view() ) trace3( rt->rule , ':' , rt->rule->user_prio , rt->rule->prio , rt->rule->name , rt.key() ) ;
 			}
 		}
 		// user report
 		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
 			::sort( rules , [](Rule a,Rule b){
-				if (a->prio!=b->prio) return a->prio > b->prio ;
-				else                  return a->name < b->name ;
+				if (a->user_prio!=b->user_prio) return a->user_prio > b->user_prio ;
+				else                            return a->name      < b->name      ;
 			} ) ;
 			First    first   ;
 			::string content ;

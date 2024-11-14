@@ -166,11 +166,9 @@ def handle_inheritance(rule) :
 		if k in StdAttrs :
 			if v is None : continue                                         # None is not transported
 			typ,dyn = StdAttrs[k]
-			# special cases
-			if k=='cmd' :
+			if k=='cmd' :                                                   # special cases
 				attrs[k] = v
-			# generic cases
-			else :
+			else :                                                          # generic cases
 				if typ and not ( dyn and callable(v) ) :
 					try :
 						if   callable(v)                                            : pass
@@ -309,8 +307,7 @@ class Handle :
 		self.rule     = rule
 		self.attrs    = attrs
 		self.glbs     = (attrs,module.__dict__)
-		self.rule_rep = pdict( { k:attrs[k] for k in ('name','stems') } )
-		if 'prio' in attrs : self.rule_rep.prio = attrs.prio
+		self.rule_rep = pdict( name=attrs.name , stems=attrs.get('stems') , prio=(1,attrs.get('prio',0)) ) # XXX : handle sub-repo
 
 	def _init(self) :
 		self.static_val  = pdict()
@@ -532,10 +529,10 @@ class Handle :
 			)
 			if multi :
 				cmd += 'def cmd() :\n'
-				x = avoid_ctx('x',serialize_ctx)                                                                                  # find a non-conflicting name
+				x = avoid_ctx('x',serialize_ctx)                                                                                       # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					if c.__defaults__ : n_dflts = len(c.__defaults__)
-					else              : n_dflts = 0                                                                               # stupid c.__defaults__ is None when no defaults, not ()
+					else              : n_dflts = 0                                                                                    # stupid c.__defaults__ is None when no defaults, not ()
 					if   c.__code__.co_argcount> n_dflts+1 : raise "cmd cannot have more than a single arg without default value"
 					if   c.__code__.co_argcount<=n_dflts   : a = ''
 					elif i==0                              : a = 'None'
@@ -547,11 +544,11 @@ class Handle :
 						a1 = '' if not b1 else x
 						if b1 : cmd += f'\t{a1} = { c.__name__}({a})\n'
 						else  : cmd += f'\t{        c.__name__}({a})\n'
-			for_this_python = False                                                                                               # be conservative
+			for_this_python = False                                                                                                    # be conservative
 			try :
-				interpreter = self.rule_rep.start_cmd_attrs[0].interpreter[0]                                                     # code can be made simpler if we know we run the same python
-				if not maybe_local(interpreter) : for_this_python = osp.realpath(interpreter)==self.ThisPython                    # but we do not want to create a dep inside the repo
-			except : pass                                                                                                         # if no interpreter (e.g. it may be dynamic), be conservative
+				interpreter = self.rule_rep.start_cmd_attrs[0].interpreter[0]                                                          # code can be made simpler if we know we run the same python
+				if not maybe_local(interpreter) : for_this_python = osp.realpath(interpreter)==self.ThisPython                         # but we do not want to create a dep inside the repo
+			except : pass                                                                                                              # if no interpreter (e.g. it may be dynamic), be conservative
 			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , mk_dbg_info(dbg,serialize_ctx,for_this_python) )
 			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                                             )
 		else :

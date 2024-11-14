@@ -2749,7 +2749,7 @@ To support this situation, @lmake allow you to simply import these @Lmakefile an
 @item Targets only match within the sub-repo (and escape is possibly by setting the @code{top} flag to the target to provide global rules).
 @item The same applies to deps.
 @item @code{cmd} is run from this sub-repository, i.e. its cwd is set accordingly.
-@item The priority of the rule is boosted by adding to it the directory depth of the sub-repository times @code{lmake.config.sub_prio_boost}.
+@item The priority of deeper rules are matched first, so that builds in a sub-repo is not pertubated by rules of englobing repo.
 @end itemize
 }
 
@@ -2957,7 +2957,7 @@ An exemple is shown here :
 class Mrkr(lmake.Rule) :
 	prio   = float('inf')      # in case of clash with another rule the other rule is perfect, as long as mrkr is not a directory
 	target = '@{__dir__@}mrkr'
-	cmd    = ''                # target is open as its stdout, this is enough, we have nothing to put in the target
+	cmd    = ''                # target is open as stdout, this is enough, we have nothing to put in the target
 class Gcc(lmake.Rule) :
 	targets = @{ 'OBJ' : '@{File:.+@}.o' @}
 	deps    = @{ 'SRC' : '@{File:.+@}.c' @}

@@ -171,7 +171,6 @@ LMAKE_SERVER_PY_FILES := \
 	lib/lmake/__init__.py               \
 	lib/lmake/auto_sources.py           \
 	lib/lmake/config.py                 \
-	lib/lmake/custom_importer.py        \
 	lib/lmake/import_machinery.py       \
 	lib/lmake/py_clmake.py              \
 	lib/lmake/rules.py                  \

@@ -187,12 +187,12 @@ namespace Engine {
 		}
 		if ( +to_forget || +to_raise ) {
 			self->audit_info( Color::Note , "consider some of :\n" ) ;
-			for( Node n : to_forget ) self->audit_node( Color::Note , "lforget -d" , n                             , 1 ) ;
-			if (+to_raise)            self->audit_info( Color::Note , "add to Lmakefile.py :"                      , 1 ) ;
-			for( Rule r : to_raise  ) self->audit_info( Color::Note , r->name+".prio = "+::to_string(r->prio)+"+1" , 2 ) ;
-			/**/                      self->audit_info( Color::Note , "for t in (<cycle above>) :"                 , 2 ) ;
-			/**/                      self->audit_info( Color::Note , "class MyAntiRule(AntiRule) :"               , 3 ) ;
-			/**/                      self->audit_info( Color::Note , "target = t"                                 , 4 ) ;
+			for( Node n : to_forget ) self->audit_node( Color::Note , "lforget -d" , n                                        , 1 ) ;
+			if (+to_raise)            self->audit_info( Color::Note , "add to Lmakefile.py :"                                 , 1 ) ;
+			for( Rule r : to_raise  ) self->audit_info( Color::Note , r->name+".prio = "+::to_string(r->user_prio.order)+"+1" , 2 ) ;
+			/**/                      self->audit_info( Color::Note , "for t in (<cycle above>) :"                            , 2 ) ;
+			/**/                      self->audit_info( Color::Note , "class MyAntiRule(AntiRule) :"                          , 3 ) ;
+			/**/                      self->audit_info( Color::Note , "target = t"                                            , 4 ) ;
 		}
 	}
 
