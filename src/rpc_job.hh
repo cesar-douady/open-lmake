@@ -351,10 +351,10 @@ struct DepInfo {
 	using FileInfo = Disk::FileInfo ;
 	using Kind     = DepInfoKind    ;
 	//cxtors & casts
-	DepInfo(           ) :                    _crc {  } {}
-	DepInfo(Crc      c ) : kind{Kind::Crc } , _crc {c } {}
-	DepInfo(FileSig  s ) : kind{Kind::Sig } , _sig {s } {}
-	DepInfo(FileInfo fi) : kind{Kind::Info} , _info{fi} {}
+	constexpr DepInfo(           ) :                    _crc {  } {}
+	constexpr DepInfo(Crc      c ) : kind{Kind::Crc } , _crc {c } {}
+	constexpr DepInfo(FileSig  s ) : kind{Kind::Sig } , _sig {s } {}
+	constexpr DepInfo(FileInfo fi) : kind{Kind::Info} , _info{fi} {}
 	//
 	template<class B> DepInfo(DepDigestBase<B> const& ddb) {
 		if      (!ddb.accesses) self = Crc()     ;
@@ -362,8 +362,11 @@ struct DepInfo {
 		else                    self = ddb.sig() ;
 	}
 	// accesses
-	bool operator==(DepInfo const& di) const {
-		if (kind!=di.kind) return false ;
+	bool operator==(DepInfo const& di) const {                                          // if true => self and di are idential (but there may be false negative if one is a Crc)
+		if (kind!=di.kind) {
+			if ( kind==Kind::Crc || di.kind==Kind::Crc ) return exists()==di.exists() ; // this is all we can check with one Crc (and not the other)
+			else                                         return sig   ()==di.sig   () ; // one is Sig, the other is Info, convert Info into Sig
+		}
 		switch (kind) {
 			case Kind::Crc  : return crc ()==di.crc () ;
 			case Kind::Sig  : return sig ()==di.sig () ;
@@ -375,7 +378,7 @@ struct DepInfo {
 	FileSig  sig      () const { SWEAR(kind!=Kind::Crc ,kind) ; return kind==Kind::Sig ? _sig : _info.sig() ; }
 	FileInfo info     () const { SWEAR(kind==Kind::Info,kind) ; return _info                                ; }
 	//
-	bool seen(Accesses a) const { // return true if accesses could perceive the existence of file
+	bool seen(Accesses a) const {                                                       // return true if accesses could perceive the existence of file
 		if (!a) return false ;
 		SWEAR(+self,self,a) ;
 		switch (kind) {
@@ -396,9 +399,9 @@ struct DepInfo {
 	DepInfoKind kind = Kind::Crc ;
 private :
 	union {
-		Crc      _crc  ;          // ~46< 64 bits
-		FileSig  _sig  ;          //      64 bits
-		FileInfo _info ;          //     128 bits
+		Crc      _crc  ;                                                                // ~46< 64 bits
+		FileSig  _sig  ;                                                                //      64 bits
+		FileInfo _info ;                                                                //     128 bits
 	} ;
 	// END_OF_VERSIONING
 } ;

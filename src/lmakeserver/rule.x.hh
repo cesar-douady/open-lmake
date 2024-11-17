@@ -512,17 +512,9 @@ namespace Engine {
 		friend Rule ;
 		static constexpr char   JobMrkr =  0          ;                // ensure no ambiguity between job names and node names
 		static constexpr VarIdx NoVar   = Rule::NoVar ;
-		struct Prio {
-			friend ::string& operator+=( ::string& , Prio const& ) ;
-			// accesses
-			constexpr bool               operator== (Prio const&) const = default ;
-			constexpr ::partial_ordering operator<=>(Prio const&) const = default ;
-			// data
-			// START_OF_VERSIONING
-			Disk::FileNameIdx depth = 0 ;                              // used to manage sub-repo (deeper has higher priority), 0 means after any user rule
-			double            order = 0 ;                              // provided by user
-			// END_OF_VERSIONING
-		} ;
+		// START_OF_VERSIONING
+		using Prio = double ;
+		// END_OF_VERSIONING
 		struct MatchEntry {
 			// services
 			void set_pattern( ::string&&        , VarIdx n_stems ) ;
@@ -569,8 +561,8 @@ namespace Engine {
 		}
 		//
 		::string gen_py_line( Job , Rule::SimpleMatch      &/*lazy*/ , VarCmd    , VarIdx   , ::string const& key , ::string const& val ) const ;
-		::string gen_py_line(       Rule::SimpleMatch const& m       , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const {
-			return gen_py_line( {} , const_cast<Rule::SimpleMatch&>(m) , vc , i , key , val ) ;                                                   // cannot lazy evaluate w/o a job
+		::string gen_py_line(       Rule::SimpleMatch const& m       , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const { // cannot lazy evaluate w/o a job
+			return gen_py_line( {} , const_cast<Rule::SimpleMatch&>(m) , vc , i , key , val ) ;
 		}
 		void        new_job_report( Delay exec_time , CoarseDelay cost , Tokens1 tokens1 ) const ;
 		CoarseDelay cost          (                                                      ) const ;
@@ -588,7 +580,7 @@ namespace Engine {
 		// user data
 	public :
 		Special              special    = Special::None ;
-		Prio                 user_prio  = {}            ;                          // the priority of the rule as specified by user
+		Prio                 user_prio  = 0             ;                          // the priority of the rule as specified by user
 		RuleIdx              prio       = 0             ;                          // the relative priority of the rule
 		::string             name       ;                                          // the short message associated with the rule
 		::vmap_ss            stems      ;                                          // stems are ordered : statics then stars, stems used as both static and star appear twice

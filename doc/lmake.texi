@@ -824,6 +824,23 @@ And this applies recursively.
 This has a performance cost but no more performant method is known to the autor.
 And because of the performance cost, this option has been designed to avoid paying it for file systems that do not require such going through such a headache.
 
+@item @code{sub_repos}
+@tab @code{()}
+@tab Static
+@tab This attribute provide the list of sub-repositories.
+Sub repositories are sub-directories of the repository that are themselves repositories, i.e. they have a @Lmakefile.
+Inside such sub-repositories, the applied flow is the one described in it, namely :
+@itemize
+@item Sources are taken from the local @Lmakefile and sources listed in the global @Lmakefile that happen to be located in the sub-repository are ignored.
+@item Rules are taken from the local @Lmakefile, executed within it (by adjusting their @code{cwd} attributes) and rules from the global repository do not apply.
+@end itemize
+However, relative external source dirs (i.e. source dirs located outside the sub-repository) that happen to be located in the global repository are suppressed,
+i.e. the global flow applies to files located there, instead as being considered sources.
+This way, when the sub-repository is used standalone, it assumes its external environment is adequately prepared, and when used as a sub-repository, the global flow generates them.
+Global flow must be understood as the flow defined at the top-level and in any other sub-repositories.
+
+Sub-repositories are recursive, i.e. they can contain sub-sub-repositories and the same applies at each level recursively.
+
 @item @code{console.date_precision}
 @tab @code{None}
 @tab Dynamic

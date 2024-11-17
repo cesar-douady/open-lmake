@@ -242,15 +242,15 @@ namespace Engine {
 		RuleIdx  n_skip = 0 ;
 		for( RuleTgt const& rt : rule_tgts().view() ) {
 			Rule r = rt->rule ; if (!r) continue ;
-			if (r->special==Special::Plain                   ) { rule_tgts().shorten_by(n_skip) ; return Buildable::Maybe ; } // no special rule applies, avoid pattern matching
-			if (!rt.pattern().match(name_,false/*chk_psfx*/) ) { n_skip++                       ; continue                ; } // rule is pre-filtered, so no need to match prefix and suffix
+			if (r->special==Special::Plain                  ) { rule_tgts().shorten_by(n_skip) ; return Buildable::Maybe ; } // no special rule applies, avoid pattern matching
+			if (!rt.pattern().match(name_,false/*chk_psfx*/)) { n_skip++                       ; continue                ; } // rule is pre-filtered, so no need to match prefix and suffix
 			rule_tgts() = ::vector<RuleTgt>({rt}) ;
 			if (r->special==Special::Anti      ) return Buildable::DynAnti ;
 			if (r->special==Special::GenericSrc) return Buildable::DynSrc  ;
 			FAIL("unexpected special rule",r->name,r->special) ;
 		}
 		rule_tgts().clear() ;
-		return Buildable::Maybe ;                                                                                             // node may be buildable from dir
+		return Buildable::Maybe ;                                                                                            // node may be buildable from dir
 	}
 
 	// instantiate rule_tgts into job_tgts by taking the first iso-prio chunk and set rule_tgts accordingly

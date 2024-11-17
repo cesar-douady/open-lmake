@@ -94,6 +94,7 @@ namespace Engine {
 		if (sc.max_err_lines       )                  os <<",EL" << sc.max_err_lines          ;
 		if (sc.path_max!=size_t(-1))                  os <<",PM" << sc.path_max               ;
 		if (+sc.caches             )                  os <<','   << sc.caches                 ;
+		if (+sc.sub_repos          )                  os <<','   << sc.sub_repos              ;
 		for( BackendTag t : iota(1,All<BackendTag>) ) os <<','   << t <<':'<< sc.backends[+t] ; // local backend is always present
 		return os<<')' ;
 	}
@@ -141,8 +142,6 @@ namespace Engine {
 			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
 			fields[0] = "path_max"            ; if (py_map.contains(fields[0])) path_max               = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs          =                           +py_map[fields[0]]                          ;
-			fields[0] = "has_split_rules"     ; if (py_map.contains(fields[0])) has_split_rules        =                           +py_map[fields[0]]                          ;
-			fields[0] = "has_split_srcs"      ; if (py_map.contains(fields[0])) has_split_srcs         =                           +py_map[fields[0]]                          ;
 			//
 			fields[0] = "link_support" ;
 			if (py_map.contains(fields[0])) {
@@ -250,6 +249,11 @@ namespace Engine {
 			}
 			fields.pop_back() ;
 			//
+			fields[0] = "sub_repos" ;
+			if (py_map.contains(fields[0])) {
+				for( Object const& py_sr : py_map[fields[0]].as_a<Sequence>() ) sub_repos.push_back(py_sr.as_a<Str>()) ;
+			}
+			//
 			fields[0] = "trace" ;
 			if (py_map.contains(fields[0])) {
 				Dict const& py_trace = py_map[fields[0]].as_a<Dict>() ;
@@ -309,6 +313,10 @@ namespace Engine {
 				/**/                                 res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
 				for( auto const& [k,v] : cache.dct ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v         <<'\n' ;
 			}
+		}
+		if (+sub_repos) {
+			res << "\tsub_repos :\n" ;
+			for( ::string const& sr : sub_repos ) res <<"\t\t"<< sr <<'\n' ;
 		}
 		//
 		// dynamic
@@ -399,7 +407,7 @@ namespace Engine {
 	}
 
 	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) {
-		/**/                       os << "Ecr(" << ecr.proc <<',' ;
+		os << "Ecr(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
 			case ReqProc::Debug  : // PER_CMD : format for tracing
 			case ReqProc::Forget :
@@ -409,7 +417,7 @@ namespace Engine {
 			case ReqProc::Kill   : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
 			case ReqProc::Close  : os << ecr.req                                                                             ; break ;
 		DF}
-		return                     os <<')' ;
+		return os <<')' ;
 	}
 
 	::string& operator+=( ::string& os , EngineClosureJobStart const& ecjs ) {

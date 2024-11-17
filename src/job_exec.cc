@@ -106,15 +106,15 @@ Digest analyze(Status status=Status::New) {                                     
 			dd.hot          = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.date_prec) ;
 			dd.parallel     = +first_read.first && first_read.first==prev_first_read                                                                ;
 			prev_first_read = first_read.first                                                                                                      ;
-			//
-			if ( +dd.accesses && !dd.is_crc ) {                                                              // try to transform date into crc as far as possible
-				if      ( !info.digest_seen || info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false ; } // job has been executed without seeing the file (before possibly writing to it)
-				else if ( !dd.sig()                                 )   dd.crc({}       ) ; // file was not present initially but was seen, it is incoherent even if not present finally
-				else if ( ad.write!=No                              )   {}                  // cannot check stability as we wrote to it, clash will be detected in server if any
-				else if ( FileSig sig{file} ; sig!=dd.sig()         )   dd.crc({}       ) ; // file dates are incoherent from first access to end of job, dont know what has been read
-				else if ( !sig                                      )   dd.crc({}       ) ; // file is awkward
-				else if ( !Crc::s_sense(dd.accesses,sig.tag())      )   dd.crc(sig.tag()) ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
-			}
+			// try to transform date into crc as far as possible
+			if      ( dd.is_crc                                 )   {}                                   // already a crc => nothing to do
+			else if ( !dd.accesses                              )   {}                                   // no access     => nothing to do
+			else if ( !info.digest_seen || info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false ; } // job has been executed without seeing the file (before possibly writing to it)
+			else if ( !dd.sig()                                 )   dd.crc({}       ) ;                  // file was not present initially but was seen, it is incoherent even if not present finally
+			else if ( ad.write!=No                              )   {}                                   // cannot check stability as we wrote to it, clash will be detected in server if any
+			else if ( FileSig sig{file} ; sig!=dd.sig()         )   dd.crc({}       ) ;                  // file dates are incoherent from first access to end of job, dont know what has been read
+			else if ( !sig                                      )   dd.crc({}       ) ;                  // file is awkward
+			else if ( !Crc::s_sense(dd.accesses,sig.tag())      )   dd.crc(sig.tag()) ;                  // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^

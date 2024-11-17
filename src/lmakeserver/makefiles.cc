@@ -19,54 +19,15 @@ namespace Engine::Makefiles {
 
 	static ::map_ss _g_env ;
 
-	static ::pair<vmap_s<FileTag>/*files*/,vector_s/*dirs_s*/> _gather_srcs( Sequence const& py_srcs , LnkSupport lnk_support , NfsGuard& nfs_guard ) {
-		RealPathEnv                                         rpe       { .lnk_support=lnk_support , .root_dir_s=*g_root_dir_s } ;
-		RealPath                                            real_path { rpe                                                  } ;
-		::pair<vmap_s<FileTag>/*files*/,vector_s/*dirs_s*/> res       ;
-		for( Object const& py_src : py_srcs ) {
-			::string src = py_src.as_a<Str>() ;
-			throw_unless( +src , "found an empty source" ) ;
-			bool        is_dir_ = is_dirname(src)                     ;
-			const char* src_msg = is_dir_ ? "source dir " : "source " ;
-			if (!is_canon(src)) throw src_msg+src+" canonical form is "+mk_canon(src) ;
-			//
-			if (is_dir_) src.pop_back() ;
-			RealPath::SolveReport sr     = real_path.solve(src,true/*no_follow*/) ;
-			::string              reason ;
-			FileInfo              fi     { nfs_guard.access(src) }                ;
-			if (+sr.lnks) {
-				/**/                                                                reason = " has symbolic link "+sr.lnks[0]+" in its path"  ;
-			} else if (is_dir_) {
-				if      ( fi.tag()!=FileTag::Dir                                  ) reason = " is not a directory"                            ;
-			} else {
-				if      ( sr.file_loc!=FileLoc::Repo                              ) reason = " is not in repo"                                ;
-				else if ( !fi                                                     ) reason = " is not a regular file nor a symbolic link"     ;
-				else if ( lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk ) reason = " is a symbolic link and they are not supported" ;
-				SWEAR(sr.real==src) ; // src is canonic and there are no links, what may justify real from being different ?
-			}
-			if (is_dir_) src.push_back('/') ;
-			throw_unless( !reason , src_msg,src,reason ) ;
-			if (is_dir_) res.second.push_back   (src         ) ;
-			else         res.first .emplace_back(src,fi.tag()) ;
-		}
+	static ::vector_s _gather_srcs(Sequence const& py_srcs) {
+		::vector_s res ;
+		for( Object const& py_src : py_srcs ) res.push_back(py_src.as_a<Str>()) ;
 		return res ;
 	}
 
 	static ::vector<RuleData> _gather_rules(Sequence const& py_rules) {
-		::vector<RuleData>  res   ;
-		::umap<Crc,RuleIdx> crcs  ;
-		::uset_s            names ;
-		for( Object const& py_rule : py_rules ) {
-			RuleData rd  = py_rule.as_a<Dict>() ;
-			if ( auto it_inserted=names.insert(rd.name) ; !it_inserted.second ) {
-				auto it = crcs.find(rd.crc->match) ;
-				if ( it!=crcs.end() && res[it->second].crc==rd.crc ) throw "rule " + rd.name + " appears twice"      ;
-				else                                                 throw "two rules have the same name " + rd.name ;
-			}
-			if ( auto it_inserted=crcs.try_emplace(rd.crc->match,res.size()) ; !it_inserted.second )
-				throw "rule " + rd.name + " and rule " + res[it_inserted.first->second].name + " match identically and are redundant" ;
-			res.push_back(::move(rd)) ;
-		}
+		::vector<RuleData> res ;
+		for( Object const& py_rule : py_rules ) res.push_back(py_rule.as_a<Dict>()) ;
 		return res ;
 	}
 
@@ -76,9 +37,10 @@ namespace Engine::Makefiles {
 	// dep check is satisfied if each dep :
 	// - has a date before dep_file's date (if first char is +)
 	// - does not exist                    (if first char is !)
-	static ::string _chk_deps( ::string const& action , ::string const& startup_dir_s , NfsGuard& nfs_guard ) { // startup_dir_s for diagnostic purpose only
+	static ::string _chk_deps( ::string const& action , ::string const& startup_dir_s , bool reliable_dirs=false ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
+		NfsGuard   nfs_guard { reliable_dirs }                                ;
 		::string   deps_file = AdminDirS+action+"_deps"                       ;
 		Ddate      deps_date = file_date(deps_file)                           ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
 		::vector_s deps      = AcFd(deps_file).read_lines(true/*no_file_ok*/) ;
@@ -92,9 +54,9 @@ namespace Engine::Makefiles {
 			::string dep_name = line.substr(1)                 ;
 			FileInfo fi       { (nfs_guard.access(dep_name)) } ;
 			if      (  exists && !fi               ) reason = "removed"                                   ;
-			else if (  exists && fi.date>deps_date ) reason = "modified"                                  ;     // in case of equality, be optimistic as deps may be modified during the ...
-			else if ( !exists && +fi               ) reason = "created"                                   ;     // ... read process (typically .pyc files) and file resolution is such ...
-			if      ( +reason                      ) return mk_rel(dep_name,startup_dir_s)+" was "+reason ;     // ...  that such deps may very well end up with same date as deps_file
+			else if (  exists && fi.date>deps_date ) reason = "modified"                                  ;          // in case of equality, be optimistic as deps may be modified during the ...
+			else if ( !exists && +fi               ) reason = "created"                                   ;          // ... read process (typically .pyc files) and file resolution is such ...
+			if      ( +reason                      ) return mk_rel(dep_name,startup_dir_s)+" was "+reason ;          // ...  that such deps may very well end up with same date as deps_file
 		}
 		trace("ok") ;
 		return {} ;
@@ -154,16 +116,16 @@ namespace Engine::Makefiles {
 
 	static RegExpr const* pyc_re = nullptr ;
 
-	static ::pair<Ptr<Dict>,::vector_s/*deps*/> _read_makefile(::string const& action) {
+	static ::pair<Ptr<Dict>,::vector_s/*deps*/> _read_makefile( ::string const& action , ::string const& sub_repos ) {
 		Trace trace("_read_makefile",action,Pdate(New)) ;
 		//
 		::string data   = PrivateAdminDirS+action+"_data.py" ;
 		Gather   gather ;
-		gather.autodep_env.src_dirs_s = {"/"}                                                                ;
-		gather.autodep_env.root_dir_s = *g_root_dir_s                                                        ;
-		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , action } ;
-		gather.child_stdin            = Child::NoneFd                                                        ;
-		gather.env                    = &_g_env                                                              ;
+		gather.autodep_env.src_dirs_s = {"/"}                                                                            ;
+		gather.autodep_env.root_dir_s = *g_root_dir_s                                                                    ;
+		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , action , sub_repos } ;
+		gather.child_stdin            = Child::NoneFd                                                                    ;
+		gather.env                    = &_g_env                                                                          ;
 		//
 		::string sav_ld_library_path ;
 		if (PY_LD_LIBRARY_PATH[0]!=0) {
@@ -195,15 +157,17 @@ namespace Engine::Makefiles {
 		} catch (::string const& e) { FAIL( "error while reading makefile digest :\n" , e ) ; }
 	}
 
-	static ::pair_s<bool/*done*/> _refresh_config( Config& config , Ptr<Dict>& py_info , ::vector_s& deps , ::string const& startup_dir_s , NfsGuard& nfs_guard ) {
+	static ::pair_s<bool/*done*/> _refresh_config( Config& config , Ptr<Dict>& py_info , ::vector_s& deps , ::string const& startup_dir_s ) {
 		Trace trace("refresh_config") ;
-		::string reason = _chk_deps( "config" , startup_dir_s , nfs_guard ) ;
+		::string reason    = _chk_deps( "config" , startup_dir_s , false/*reliable_dirs*/ ) ; // until we have config info, protect against NFS
 		if (!reason) return {{},false/*done*/} ;
-		//                  vvvvvvvvvvvvvvvvvvvvvvvv
-		tie(py_info,deps) = _read_makefile("config") ;
-		//                  ^^^^^^^^^^^^^^^^^^^^^^^^
+		//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		tie(py_info,deps) = _read_makefile("config","..."/*sub_repos*/) ;                     // discover sub-repos while recursing into them
+		//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		try                      { config = (*py_info)["config"].as_a<Dict>() ;    }
 		catch(::string const& e) { throw "while processing config :\n"+indent(e) ; }
+		config.has_split_rules = !py_info->contains("rules"   ) ;
+		config.has_split_srcs  = !py_info->contains("manifest") ;
 		//
 		return { reason , true/*done*/ } ;
 	}
@@ -211,14 +175,13 @@ namespace Engine::Makefiles {
 	template<bool IsRules,class T> static ::pair_s<bool/*done*/> _refresh_rules_srcs(
 		T&              res
 	,	::vector_s&     deps
-	,	Bool3           changed                                                  // Maybe means new, Yes means existence of module/callable changed
+	,	Bool3           changed                                                                         // Maybe means new, Yes means existence of module/callable changed
 	,	Dict const*     py_info
 	,	::string const& startup_dir_s
-	,	NfsGuard&       nfs_guard
 	) {
 		bool has_split = IsRules ? g_config->has_split_rules : g_config->has_split_srcs ;
 		Trace trace("_refresh_rules_srcs",STR(IsRules),changed,STR(has_split)) ;
-		if ( !has_split && !py_info && changed==No ) return {{},false/*done*/} ; // sources has not been read
+		if ( !has_split && !py_info && changed==No ) return {{},false/*done*/} ;                        // sources has not been read
 		::string  reason      ;
 		Ptr<Dict> py_new_info ;
 		::string  kind        = IsRules ? "rules" : "sources" ;
@@ -227,18 +190,23 @@ namespace Engine::Makefiles {
 				case Yes   : reason = kind+" module/callable appeared"       ; break ;
 				case Maybe : reason = kind+" module/callable was never read" ; break ;
 				case No    :
-					reason = _chk_deps( kind , startup_dir_s , nfs_guard ) ;
+					reason = _chk_deps( kind , startup_dir_s , g_config->reliable_dirs ) ;
 					if (!reason) return {{},false/*done*/} ;
 				break ;
 			}
-			//                      vvvvvvvvvvvvvvvvvvvv
-			tie(py_new_info,deps) = _read_makefile(kind) ;
-			//                      ^^^^^^^^^^^^^^^^^^^^
+			::string sub_repos ;
+			First    first     ;
+			/**/                                            sub_repos << "("                          ;
+			for( ::string const& sr : g_config->sub_repos ) sub_repos <<first("",",")<< mk_py_str(sr) ; // use sub-repos list discovered during config
+			/**/                                            sub_repos <<first("",",","")<<')'         ; // singletons must have a terminating ','
+			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			tie(py_new_info,deps) = _read_makefile(kind,sub_repos) ;
+			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
 		try {
-			if constexpr (IsRules) res = _gather_rules((*py_info)["rules"s   ].as_a<Sequence>()                                     ) ;
-			else                   res = _gather_srcs ((*py_info)["manifest"s].as_a<Sequence>() , g_config->lnk_support , nfs_guard ) ;
+			if constexpr (IsRules) res = _gather_rules((*py_info)["rules"   ].as_a<Sequence>()) ;
+			else                   res = _gather_srcs ((*py_info)["manifest"].as_a<Sequence>()) ;
 		} catch(::string const& e) {
 			throw "while processing "+kind+" :\n"+indent(e) ;
 		}
@@ -255,7 +223,6 @@ namespace Engine::Makefiles {
 			return {} ;
 		}
 		Gil        gil         ;
-		NfsGuard   nfs_guard   { false/*reliable_dir*/ } ;                                         // until we have config info, protect against NFS
 		::vector_s config_deps ;
 		::vector_s rules_deps  ;
 		::vector_s srcs_deps   ;
@@ -281,7 +248,7 @@ namespace Engine::Makefiles {
 			if (PY_LD_LIBRARY_PATH[0]!=0) _g_env["LD_LIBRARY_PATH"] = PY_LD_LIBRARY_PATH            ;
 		}
 		//
-		::pair_s<bool/*done*/> config_digest = _refresh_config( config , py_info , config_deps , startup_dir_s , nfs_guard ) ;
+		::pair_s<bool/*done*/> config_digest = _refresh_config( config , py_info , config_deps , startup_dir_s ) ;
 		//
 		Bool3 changed_srcs  = No ;
 		Bool3 changed_rules = No ;
@@ -304,13 +271,12 @@ namespace Engine::Makefiles {
 		} catch (::string const& e) {
 			throw "cannot dynamically read config (because "+config_digest.first+") : "+e ;
 		}
-		nfs_guard.reliable_dirs = g_config->reliable_dirs ;                                        // now that config is loaded, we can optimize protection against NFS
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//
-		::pair<::vmap_s<FileTag>/*files*/,::vector_s/*dirs_s*/> srcs           ;
-		::pair_s<bool/*done*/>                                  srcs_digest    = _refresh_rules_srcs<false/*IsRules*/>( srcs , srcs_deps , changed_srcs , py_info , startup_dir_s , nfs_guard ) ;
-		bool                                                    invalidate_src = srcs_digest.second                                                                                             ;
+		::vector_s             srcs           ;
+		::pair_s<bool/*done*/> srcs_digest    = _refresh_rules_srcs<false/*IsRules*/>( srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;
+		bool                   invalidate_src = srcs_digest.second                                                                                 ;
 		if (invalidate_src) {
 			try {
 				NoGil no_gil { gil } ;
@@ -323,8 +289,8 @@ namespace Engine::Makefiles {
 		}
 		//
 		::vector<RuleData>     rules           ;
-		::pair_s<bool/*done*/> rules_digest    = _refresh_rules_srcs<true/*IsRules*/>( rules , rules_deps , changed_rules , py_info , startup_dir_s , nfs_guard ) ;
-		bool                   invalidate_rule = rules_digest.second                                                                                              ;
+		::pair_s<bool/*done*/> rules_digest    = _refresh_rules_srcs<true/*IsRules*/>( rules , rules_deps , changed_rules , py_info , startup_dir_s ) ;
+		bool                   invalidate_rule = rules_digest.second                                                                                  ;
 		if (invalidate_rule) {
 			try {
 				NoGil no_gil { gil } ;                                                             // release gil as new_rules acquires it when needed

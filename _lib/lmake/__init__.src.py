@@ -41,11 +41,19 @@ def maybe_local(file) :
 	'fast check for local files, avoiding full absolute path generation'
 	return not file or file[0]!='/' or file.startswith(root_dir)
 
-manifest = []
-_rules   = []
+def reset(with_config=True) :
+	global config
+	global manifest
+	global _rules
+	manifest = []
+	_rules   = []
+	if with_config :
+		from . import gen_config
+		config = gen_config.config()
+	else :
+		config = pdict()
 
-if _os.environ.get('LMAKE_ACTION') :
-	from .config import config
+reset(False)
 
 class Autodep :
 	"""

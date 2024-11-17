@@ -146,8 +146,11 @@ fi
 #
 # LD_SO_LIB & LD_SO_LIB32
 #
-cc      -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib    2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
-cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib_32 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
+show_lib() {
+	strace -E LD_PRELOAD='/>>>$LIB<<<' $1 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }'
+}
+cc      -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   show_lib ./ld_so_lib   )
+cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(show_lib ./ld_so_lib_32)
 if [ "$LD_SO_LIB" -a "$LD_SO_LIB_32" -a "$LD_SO_LIB" != "$LD_SO_LIB_32" ] ; then
 	HAS_32=1                                                                     # we have both 32 and 64 bits, use the ld.so $LIB feature
 else
@@ -362,6 +365,15 @@ esac
 [ -x "$OBJCOPY" ] || OBJCOPY=$(type -p objcopy)
 
 #
+# STD_LIBRARY_PATH & STD_LIBRARY_PATH_32
+#
+show_std_library_path() {
+	strace -E LD_PRELOAD='magic1234.so' -E LD_LIBRARY_PATH= $1 2>&1 | awk '/\/magic1234.so/ {sub(/[^"]*"/,"") ; sub(/\/magic1234.so.*/,"") ; printf("%s%s",sep,$0) ; sep=":" }'
+}
+cc      -o std_library_path    -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH=$(   show_std_library_path ./std_library_path   )
+cc -m32 -o std_library_path_32 -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH_32=$(show_std_library_path ./std_library_path_32)
+
+#
 # STD_PATH
 #
 STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
@@ -459,6 +471,8 @@ cat >$H_FILE <<EOF
 	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
 	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
+	#define LD_SO_LIB                   "$LD_SO_LIB"
+	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define MAP_VFORK                   $MAP_VFORK
@@ -466,6 +480,8 @@ cat >$H_FILE <<EOF
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
 	#define SLURM_SO                    "$SLURM_SO"
+	#define STD_LIBRARY_PATH            "$STD_LIBRARY_PATH"
+	#define STD_LIBRARY_PATH_32         "$STD_LIBRARY_PATH_32"
 	#define STD_PATH                    "$STD_PATH"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

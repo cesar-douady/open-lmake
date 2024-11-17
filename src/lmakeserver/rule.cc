@@ -579,10 +579,6 @@ namespace Engine {
 		_parse_target( pattern , [&](VarIdx s)->::string { ref_cnts[s]++ ; return {} ; } ) ;
 	}
 
-	::string& operator+=( ::string& os , RuleData::Prio const& p ) {
-		return os <<'('<< p.depth <<','<< p.order <<')' ;
-	}
-
 	static void _append_stem( ::string& target , VarIdx stem_idx ) {
 		::string s ; s.resize(sizeof(VarIdx)) ;
 		encode_int( s.data() , stem_idx ) ;
@@ -595,8 +591,8 @@ namespace Engine {
 		if (s<Special::NShared) SWEAR( !src_dir_s                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
 		else                    SWEAR( +src_dir_s && is_dirname(src_dir_s) , s , src_dir_s ) ; // ensure source dir ends with a /
 		switch (s) {
-			case Special::Req      : force           = true ;            break ;
-			case Special::Infinite : user_prio.depth = 0    ; prio = 0 ; break ;               // prio below any user rule : it can appear after other rules
+			case Special::Req      : force = true ; break ;
+			case Special::Infinite :                break ;
 			case Special::GenericSrc :
 				name             = "source dir" ;
 				job_name         = src_dir_s    ; _append_stem(job_name,0) ;
@@ -679,9 +675,9 @@ namespace Engine {
 			} else {
 				special = Special::Plain ;
 			}
-			field = "name" ; if (dct.contains(field)) name      = dct[field].as_a<Str>()                                                                  ; else throw "not found"s ;
-			field = "cwd"  ; if (dct.contains(field)) cwd_s     = dct[field].as_a<Str>()                                                                  ;
-			field = "prio" ; if (dct.contains(field)) user_prio = { dct[field].as_a<Tuple>()[0].as_a<Int>() , dct[field].as_a<Tuple>()[1].as_a<Float>() } ; else throw "not found"s ;
+			field = "name" ; if (dct.contains(field)) name      = dct[field].as_a<Str  >() ; else throw "not found"s ;
+			field = "cwd"  ; if (dct.contains(field)) cwd_s     = dct[field].as_a<Str  >() ;
+			field = "prio" ; if (dct.contains(field)) user_prio = dct[field].as_a<Float>() ;
 			if (+cwd_s) {
 				cwd_s = with_slash(cwd_s) ;
 				if (cwd_s.front()=='/') {
@@ -690,7 +686,7 @@ namespace Engine {
 				}
 			}
 			//
-			Trace trace("_acquire_py",name,user_prio) ;
+			Trace trace("_acquire_py",name,cwd_s,user_prio) ;
 			//
 			::umap_ss      stem_defs  ;
 			::map_s<Bool3> stem_stars ;                                                                // ordered so that stems are ordered, Maybe means stem is used both as static and star
@@ -1232,7 +1228,7 @@ namespace Engine {
 		}
 		//
 		// first simple static attrs
-		{	if ( user_prio!=Prio()                                 ) entries.emplace_back( "prio"             , cat        (user_prio                                      ) ) ;
+		{	if ( user_prio!=0                                      ) entries.emplace_back( "prio"             , cat        (user_prio                                      ) ) ;
 			/**/                                                     entries.emplace_back( "job_name"         ,             job_name_                                        ) ;
 			if (+cwd_s                                             ) entries.emplace_back( "cwd"              , no_slash   (cwd_s                                          ) ) ;
 		}

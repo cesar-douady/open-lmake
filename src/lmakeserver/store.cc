@@ -417,15 +417,15 @@ namespace std {
 
 namespace Engine::Persistent {
 
-	template<bool IsSfx> static void _propag_to_longer(::umap_s<uset<Rt>>& psfx_map) {
-		::vector_s psfxs = ::mk_key_vector(psfx_map) ;
-		::sort( psfxs , [](::string const& a,::string const& b){ return a.size()<b.size() ; } ) ;
-		for( ::string const& long_psfx : psfxs ) {
-			for( size_t l=1 ; l<=long_psfx.size() ; l++ ) {
-				::string short_psfx = long_psfx.substr( IsSfx?l:0 , long_psfx.size()-l ) ;
-				if (psfx_map.contains(short_psfx)) {
-					psfx_map.at(long_psfx).merge(::copy(psfx_map.at(short_psfx))) ; // copy arg as merge clobbers it
-					break ;                                                         // psfx's are sorted shortest first, so as soon as a short one is found, it is already merged with previous ones
+	template<bool IsSfx> static void _propag_to_longer(::map_s<uset<Rt>>& psfx_map) {
+		for( auto& [long_psfx,long_entry] : psfx_map ) {                              // entries order guarantees that if an entry is a prefix/suffix of another, it is processed first
+			if (!long_entry) continue ;                                               // empty entries represent sub-repo's, global rules do not propagate inside them
+			for( size_t shorten_by : iota(1,long_psfx.size()+1) ) {
+				::string short_psfx = long_psfx.substr( IsSfx?shorten_by:0 , long_psfx.size()-shorten_by ) ;
+				auto     short_it   = psfx_map.find(short_psfx)                                            ;
+				if (short_it!=psfx_map.end()) {
+					long_entry.merge(::copy(short_it->second)) ;                      // copy arg as merge clobbers it
+					break ;                                                           // psfx's are sorted shortest first, so as soon as a short one is found, it is already merged with previous ones
 				}
 			}
 		}
@@ -435,8 +435,9 @@ namespace Engine::Persistent {
 	static void _compile_psfxs() {
 		_sfxs_file.clear() ;
 		_pfxs_file.clear() ;
+		//
 		// first compute a suffix map
-		::umap_s<uset<Rt>> sfx_map ;
+		::map_s<uset<Rt>> sfx_map ;
 		for( Rule r : rule_lst() )
 			for( VarIdx ti : iota<VarIdx>(r->matches.size()) ) {
 				if ( r->matches[ti].second.flags.is_target!=Yes         ) continue ;
@@ -444,25 +445,27 @@ namespace Engine::Persistent {
 				Rt rt { r->crc , ti } ;
 				sfx_map[rt.sfx].insert(rt) ;
 			}
-		_propag_to_longer<true/*IsSfx*/>(sfx_map) ;          // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
+		_propag_to_longer<true/*IsSfx*/>(sfx_map) ; // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
 		//
 		// now, for each suffix, compute a prefix map
-		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {
-			::umap_s<uset<Rt>> pfx_map ;
-			if ( sfx.starts_with(StartMrkr) ) {
+		::map_s<uset<Rt>> empty_pfx_map ; for( ::string const& sr : g_config->sub_repos ) empty_pfx_map.try_emplace(sr) ; // create empty entries for all sub-repos as these are recognized ...
+		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {                                                                // ...  to prevent propagation of global rules inside sub-repo
+			::map_s<uset<Rt>> pfx_map = empty_pfx_map ;
+			if ( sfx.starts_with(StartMrkr) ) {                          // manage targets with no stems as a suffix made of the entire target and no prefix
 				::string_view sfx1 = ::string_view(sfx).substr(1) ;
 				for( Rt const& rt : sfx_rule_tgts )
 					if (sfx1.starts_with(rt.pfx)) pfx_map[""].insert(rt) ;
 			} else {
 				for( Rt const& rt : sfx_rule_tgts )
 					pfx_map[rt.pfx].insert(rt) ;
-				_propag_to_longer<false/*IsSfx*/>(pfx_map) ; // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
+				_propag_to_longer<false/*IsSfx*/>(pfx_map) ;             // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
 			}
 			//
 			// store proper rule_tgts (ordered by decreasing prio, giving priority to AntiRule within each prio) for each prefix/suffix
 			PsfxIdx pfx_root = _pfxs_file.emplace_root() ;
 			_sfxs_file.insert_at(sfx) = pfx_root ;
 			for( auto const& [pfx,pfx_rule_tgts] : pfx_map ) {
+				if (!pfx_rule_tgts) continue ;                           // this is a sub-repo marker, not a real entry
 				vector<Rt> pfx_rule_tgt_vec = mk_vector(pfx_rule_tgts) ;
 				::sort(
 					pfx_rule_tgt_vec
@@ -494,20 +497,29 @@ namespace Engine::Persistent {
 
 	bool/*invalidate*/ new_rules( ::vector<RuleData>&& new_rules_ , bool dynamic ) {
 		Trace trace("new_rules",new_rules_.size()) ;
-		// check number of rules before doing any action
-		throw_unless( new_rules_.size()<NRules , "too many rules (",new_rules_.size(),"), max is ",NRules-1 ) ;
+		//
+		throw_unless( new_rules_.size()<NRules , "too many rules (",new_rules_.size(),"), max is ",NRules-1 ) ; // ensure we can use RuleIdx as index
 		//
 		_compute_prios(new_rules_) ;
 		//
-		::umap<Crc,RuleData const*> old_rds ; for( Rule      r  : rule_lst() ) old_rds.try_emplace(r->crc->match,&*r) ;
-		::umap<Crc,RuleData      *> new_rds ; for( RuleData& rd : new_rules_ ) new_rds.try_emplace(rd.crc->match,&rd) ;
+		::umap<Crc,RuleData const*> old_rds   ;
+		::umap<Crc,RuleData*>       new_rds   ;
+		::set<::pair_ss>            new_names ;
+		for( Rule r : rule_lst() ) old_rds.try_emplace(r->crc->match,&*r) ;
+		for( RuleData& rd : new_rules_ ) {
+			auto [it,new_crc ] = new_rds.try_emplace(rd.crc->match,&rd)   ;
+			bool     new_name  = new_names.emplace(rd.cwd_s,rd.name).second ;
+			if ( !new_crc && !new_name ) throw "rule "+rd.name+" appears twice"                                                 ;
+			if ( !new_crc              ) throw "rules "+rd.name+" and "+it->second->name+" match identically and are redundant" ;
+			if (             !new_name ) throw "2 rules have the same name "+rd.name+" and cwd "+no_slash(rd.cwd_s)             ;
+		}
 		//
 		RuleIdx n_old_rules         = old_rds.size() ;
 		RuleIdx n_new_rules         = 0              ;
 		RuleIdx n_modified_prio     = 0              ;
 		RuleIdx n_modified_cmd      = 0              ;
 		RuleIdx n_modified_rsrcs    = 0              ;
-		bool    modified_rule_order = false          ;                         // only checked on common rules (old & new)
+		bool    modified_rule_order = false          ;                                                          // only checked on common rules (old & new)
 		// evaluate diff
 		for( auto& [match_crc,new_rd] : new_rds ) {
 			auto it = old_rds.find(match_crc) ;
@@ -527,7 +539,7 @@ namespace Engine::Persistent {
 			}
 		}
 		bool res = n_new_rules || n_old_rules || modified_rule_order ;
-		if (dynamic) {                                                         // check if compatible with dynamic update
+		if (dynamic) {                                                                                          // check if compatible with dynamic update
 			throw_if( n_new_rules         , "new rules appeared"           ) ;
 			throw_if( n_old_rules         , "old rules disappeared"        ) ;
 			throw_if( n_modified_cmd      , "rule cmd's were modified"     ) ;
@@ -536,7 +548,7 @@ namespace Engine::Persistent {
 			RuleBase::s_from_vec_dynamic(::move(new_rules_)) ;
 		} else {
 			RuleBase::s_from_vec_not_dynamic(::move(new_rules_)) ;
-			if (res) _compile_psfxs() ;                                        // recompute matching
+			if (res) _compile_psfxs() ;                                                                         // recompute matching
 		}
 		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs),STR(modified_rule_order)) ;
 		// trace
@@ -557,6 +569,7 @@ namespace Engine::Persistent {
 		// user report
 		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
 			::sort( rules , [](Rule a,Rule b){
+				if (a->cwd_s    !=b->cwd_s    ) return a->cwd_s     < b->cwd_s     ;
 				if (a->user_prio!=b->user_prio) return a->user_prio > b->user_prio ;
 				else                            return a->name      < b->name      ;
 			} ) ;
@@ -569,44 +582,54 @@ namespace Engine::Persistent {
 		return res ;
 	}
 
-	bool/*invalidate*/ new_srcs( ::pair<::vmap_s<FileTag>/*files*/,::vector_s/*dirs_s*/>&& src_names , bool dynamic ) {
-		::map<Node,FileTag    > srcs         ;                                                                                                  // use ordered map/set to ensure stable execution
-		::map<Node,FileTag    > old_srcs     ;                                                                                                  // .
-		::map<Node,FileTag    > new_srcs_    ;                                                                                                  // .
-		::set<Node            > src_dirs     ;                                                                                                  // .
-		::set<Node            > old_src_dirs ;                                                                                                  // .
-		::set<Node            > new_src_dirs ;                                                                                                  // .
+	bool/*invalidate*/ new_srcs( ::vector_s&& src_names , bool dynamic ) {
+		NfsGuard                nfs_guard    { g_config->reliable_dirs } ;
+		::map<Node,FileTag    > srcs         ;                                  // use ordered map/set to ensure stable execution
+		::map<Node,FileTag    > old_srcs     ;                                  // .
+		::map<Node,FileTag    > new_srcs_    ;                                  // .
+		::set<Node            > src_dirs     ;                                  // .
+		::set<Node            > old_src_dirs ;                                  // .
+		::set<Node            > new_src_dirs ;                                  // .
 		Trace trace("new_srcs") ;
-		//
-		size_t          root_dir_depth      = 0       ; { for( char c : *g_root_dir_s ) root_dir_depth += c=='/' ; } root_dir_depth-- ;         // there is one more / than the actual depth
-		size_t          src_dirs_uphill_lvl = 0       ;
-		::string const* highest             = nullptr ;
-		for( ::string const& d_s : src_names.second ) {
-			if (!is_abs_s(d_s))
-				if ( size_t ul=uphill_lvl_s(d_s) ; ul>src_dirs_uphill_lvl ) {
-					src_dirs_uphill_lvl = ul   ;
-					highest             = &d_s ;
-				}
+		// check and format new srcs
+		size_t      root_dir_depth = 0                                                                ; { for( char c : *g_root_dir_s ) root_dir_depth += c=='/' ; } root_dir_depth-- ;
+		RealPathEnv rpe            { .lnk_support=g_config->lnk_support , .root_dir_s=*g_root_dir_s } ;
+		RealPath    real_path      { rpe                                                            } ;
+		for( ::string& src : src_names ) {
+			throw_unless( +src , "found an empty source" ) ;
+			bool        is_dir_ = is_dirname(src)                   ;
+			const char* src_msg = is_dir_ ? "source dir" : "source" ;
+			if (!is_canon(src)) throw src_msg+src+" canonical form is "+mk_canon(src) ;
+			//
+			if (is_dir_) {
+				if ( !is_abs_s(src) && uphill_lvl_s(src)>=root_dir_depth ) throw "cannot access relative source dir "+no_slash(src)+" from repository "+no_slash(*g_root_dir_s) ;
+				src.pop_back() ;
+			}
+			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
+			FileInfo              fi { nfs_guard.access(src) }                ; // in case of dynamic config, we must ensure src is safely checked
+			if (+sr.lnks) {
+				throw                                                                             "source "+src+(is_dir_?"/":"")+" has symbolic link "+sr.lnks[0]+" in its path"    ;
+			} else if (is_dir_) {
+				throw_unless( fi.tag()==FileTag::Dir                                            , "source ",src," is not a directory"                                             ) ;
+			} else {
+				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                                 ) ;
+				throw_unless( +fi                                                               , "source ",src," is not a regular file nor a symbolic link"                      ) ;
+				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported"                  ) ;
+				SWEAR(src==sr.real,src,sr.real) ;                               // src is local, canonic and there are no links, what may justify real from being different ?
+			}
+			srcs.emplace( Node(src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ;       // external src dirs need no uphill dir
 		}
-		if (root_dir_depth<=src_dirs_uphill_lvl) {
-			SWEAR(highest) ;
-			throw "cannot access relative source dir "+no_slash(*highest)+" from repository "+no_slash(*g_root_dir_s) ;
-		}
-		// format inputs
-		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;                // dont care whether we delete a regular file or a link
+		// format old srcs
+		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ; // dont care whether we delete a regular file or a link
 		//
-		for( auto const& [sn,t] : src_names.first  )                   srcs.emplace( Node(sn                      ) , t                   ) ;
-		for( ::string&    sn    : src_names.second ) { sn.pop_back() ; srcs.emplace( Node(sn,!is_lcl(sn)/*no_dir*/) , FileTag::Dir/*dir*/ ) ; } // external src dirs need no uphill dir
-		//
-		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;                     // non-local nodes have no dir
-		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;                     // .
-		// check
+		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;      // non-local nodes have no dir
+		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;      // .
+		// further checks
 		for( auto [n,t] : srcs ) {
 			if (!src_dirs.contains(n)) continue ;
 			::string nn   = n->name() ;
 			::string nn_s = nn+'/'    ;
-			for( auto const& [sn,_] : src_names.first )
-				throw_if( sn.starts_with(nn_s) , "source ",t==FileTag::Dir?"dir ":"",nn," is a dir of ",sn ) ;
+			for( ::string const& sn : src_names ) throw_if( sn.starts_with(nn_s) , "source ",t==FileTag::Dir?"dir ":"",nn," is a dir of ",sn ) ;
 			FAIL(nn,"is a source dir of no source") ;
 		}
 		// compute diff
@@ -617,16 +640,16 @@ namespace Engine::Persistent {
 			else                    old_srcs .erase (it) ;
 		}
 		if (!fresh) {
-			for( auto [n,t] : new_srcs_ ) if (t==FileTag::Dir) throw "new source dir "+n->name()+' '+git_clean_msg() ;
-			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ;
+			for( auto [n,t] : new_srcs_ ) if (t==FileTag::Dir) throw "new source dir "+n->name()+' '+git_clean_msg() ; // we may not have recorded some deps to these, and this is unpredictable
+			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ; // XXX : this could be managed if necessary
 		}
 		//
 		for( Node d : src_dirs ) { if (old_src_dirs.contains(d)) old_src_dirs.erase(d) ; else new_src_dirs.insert(d) ; }
 		//
 		if ( !old_srcs && !new_srcs_ ) return false ;
 		if (dynamic) {
-			if (+new_srcs_) throw "new source "    +new_srcs_.begin()->first->name() ;                                                          // XXX : accept new sources if unknown
-			if (+old_srcs ) throw "removed source "+old_srcs .begin()->first->name() ;                                                          // XXX : accept old sources if unknown
+			if (+new_srcs_) throw "new source "    +new_srcs_.begin()->first->name() ;
+			if (+old_srcs ) throw "removed source "+old_srcs .begin()->first->name() ;
 			FAIL() ;
 		}
 		//
@@ -634,8 +657,8 @@ namespace Engine::Persistent {
 		// commit
 		for( bool add : {false,true} ) {
 			::map<Node,FileTag> const& srcs = add ? new_srcs_ : old_srcs ;
-			::vector<Node>             ss   ; ss.reserve(srcs.size()) ;                                                                         // typically, there are very few src dirs
-			::vector<Node>             sds  ;                                                                                                   // .
+			::vector<Node>             ss   ; ss.reserve(srcs.size()) ;                                                // typically, there are very few src dirs
+			::vector<Node>             sds  ;                                                                          // .
 			for( auto [n,t] : srcs ) if (t==FileTag::Dir) sds.push_back(n) ; else ss.push_back(n) ;
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Node::s_srcs(false/*dirs*/,add,ss ) ;

@@ -7,12 +7,6 @@
 
 #include "utils.hh"
 
-// XXX : to support Idx's above 32 bits, we must :
-// - define NXxxIdxes
-// - define XxxIdx=Uint<NXxxidxes> +/- guard bits (1 for Node, 2 for Job), reserved values (a few for Rule)
-// - allocate address space in store/file.hh after this number rather than from the index type
-// - ensure that all allocations check boundaries
-
 // must not be touched to fit needs
 static constexpr uint8_t JobNGuardBits  = 2 ; // one to define JobTgt, the other to put it in a Crunch vector
 static constexpr uint8_t NodeNGuardBits = 1 ; // to be able to make Target

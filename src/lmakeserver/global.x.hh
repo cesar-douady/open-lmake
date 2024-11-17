@@ -110,7 +110,7 @@ namespace Engine {
 
 	// changing these can only be done when lmake is not running
 	struct ConfigStatic {
-
+		//
 		struct Cache {
 			friend ::string& operator+=( ::string& , Backend const& ) ;
 			using Tag = CacheTag ;
@@ -127,14 +127,14 @@ namespace Engine {
 			Caches::Tag tag ;
 			::vmap_ss   dct ;
 		} ;
-
+		//
 		struct TraceConfig {
 			bool operator==(TraceConfig const&) const = default ;
 			size_t   sz       = 100<<20      ;
 			Channels channels = DfltChannels ;
 			JobIdx   n_jobs   = 1000         ;
 		} ;
-
+		//
 		// services
 		bool operator==(ConfigStatic const&) const = default ;
 		// data
@@ -143,16 +143,17 @@ namespace Engine {
 		Time::Delay    heartbeat_tick  ;                                              // min time between successive heartbeat probes
 		DepDepth       max_dep_depth   = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
 		Time::Delay    network_delay   ;
-		size_t         path_max        = -1   ;                                       // if -1 <=> unlimited
-		bool           has_split_rules ;                                              // if true <=> read independently of config
-		bool           has_split_srcs  ;                                              // .
+		size_t         path_max        = -1    ;                                      // if -1 <=> unlimited
+		::vector_s     sub_repos       ;
 		TraceConfig    trace           ;
 		::map_s<Cache> caches          ;
+		bool           has_split_rules = false ;                                      // if true <=> read independently of config
+		bool           has_split_srcs  = false ;                                      // .
 	} ;
 
 	// changing these can be made dynamically (i.e. while lmake is running)
 	struct ConfigDynamic {
-
+		//
 		struct Backend {
 			friend ::string& operator+=( ::string& , Backend const& ) ;
 			using Tag = BackendTag ;
@@ -171,7 +172,7 @@ namespace Engine {
 			::vmap_ss dct        ;
 			bool      configured = false ;
 		} ;
-
+		//
 		struct Console {
 			bool operator==(Console const&) const = default ;
 			uint8_t date_prec     = -1    ;                   // -1 means no date at all in console output
@@ -179,7 +180,7 @@ namespace Engine {
 			bool    has_exec_time = false ;
 			bool    show_eta      = false ;
 		} ;
-
+		//
 		// services
 		bool operator==(ConfigDynamic const&) const = default ;
 		bool   errs_overflow(size_t n) const { return n>max_err_lines ;                                       }

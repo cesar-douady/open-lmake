@@ -307,7 +307,9 @@ class Handle :
 		self.rule     = rule
 		self.attrs    = attrs
 		self.glbs     = (attrs,module.__dict__)
-		self.rule_rep = pdict( name=attrs.name , stems=attrs.get('stems') , prio=(1,attrs.get('prio',0)) ) # XXX : handle sub-repo
+		self.rule_rep = pdict(name=attrs.name)
+		if attrs.get('stems') : self.rule_rep.stems = attrs.stems
+		if attrs.get('prio' ) : self.rule_rep.prio  = attrs.prio
 
 	def _init(self) :
 		self.static_val  = pdict()
@@ -372,7 +374,9 @@ class Handle :
 		dynamic_val = self.dynamic_val
 		del self.static_val
 		del self.dynamic_val
-		if not dynamic_val : return (static_val,)
+		if not dynamic_val :
+			if not static_val : return None
+			else              : return (static_val,)
 		serialize_ctx = ( self.per_job , self.aggregate_per_job , *self.glbs )
 		code,ctx,names,dbg = serialize.get_expr(
 			dynamic_val
@@ -441,12 +445,13 @@ class Handle :
 		if 'deps' in self.dynamic_val : self.dynamic_val = self.dynamic_val['deps']
 		if 'deps' in self.static_val  : self.static_val  = self.static_val ['deps']
 		if callable(self.dynamic_val) :
-			assert not self.static_val                                                                                  # there must be no static val when deps are full dynamic
-			self.static_val  = None                                                                                     # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
+			assert not self.static_val                                                     # there must be no static val when deps are full dynamic
+			self.static_val  = None                                                        # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
 		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
-		if self.rule_rep.deps_attrs[0] : self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
+		if self.rule_rep.deps_attrs and self.rule_rep.deps_attrs[0] :
+			self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
 		self._init()

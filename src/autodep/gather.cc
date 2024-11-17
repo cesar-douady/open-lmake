@@ -437,7 +437,6 @@ Status Gather::exec_child() {
 					Proc proc  = jerr.proc ;                                                                                                 // capture essential info so as to be able to move jerr
 					bool sync_ = jerr.sync ;                                                                                                 // .
 					if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                                      // accesses are traced when processed
-					// XXX : we should process sync accesses once we are sure that all pending async accesses are processed
 					switch (proc) {
 						case Proc::Confirm : {
 							trace("confirm",jerr.id,jerr.digest.write) ;
