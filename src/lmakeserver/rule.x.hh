@@ -361,7 +361,7 @@ namespace Engine {
 			::serdes(s,ctx       ) ;
 			::serdes(s,dbg_info  ) ;
 		}
-		void update_hash(Hash::Xxh& h) const { // ignore debug info as these does not participate to the semantic
+		void update_hash(Hash::Xxh& h) const { // ignore debug info as these do not participate to the semantic
 			h.update(is_dynamic) ;
 			h.update(glbs_str  ) ;
 			h.update(code_str  ) ;
@@ -551,6 +551,11 @@ namespace Engine {
 		//
 		::span<::pair_ss const> static_stems() const { return ::span<::pair_ss const>(stems).subspan(0,n_static_stems) ; }
 		//
+		::string full_name() const {
+			::string res = name ;
+			if (+cwd_s) { res <<':'<< cwd_s ; res.pop_back() ; }
+			return res ;
+		}
 		Disk::FileNameIdx job_sfx_len(                ) const ;
 		::string          job_sfx    (                ) const ;
 		void              validate   (::string job_sfx) const ;
@@ -954,7 +959,7 @@ namespace Engine {
 	// END_OF_VERSIONING
 	inline void RuleData::validate(::string job_sfx) const {
 		Crc crc_ { decode_int<Crc::Val>(&job_sfx[job_sfx.size()-sizeof(Crc::Val)]) } ;
-		SWEAR( crc_==crc->match , name , crc_ , crc->match ) ;
+		SWEAR( crc_==crc->match , name , cwd_s , crc_ , crc->match ) ;
 	}
 
 }

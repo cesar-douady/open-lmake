@@ -127,9 +127,11 @@ namespace Engine {
 		FileInfo fi        { nfs_guard.access(name_) }   ;
 		FileSig  sig       { fi  }                       ;
 		auto lazy_msg = [&]()->string const& {
+			static ::string const Frozen = "frozen" ;
+			static ::string const Src    = "src"    ;
 			if      (+msg                        ) {}
-			else if (frozen                      ) msg = "frozen" ;
-			else if (buildable!=Buildable::DynSrc) msg = "src"    ;
+			else if (frozen                      ) msg = Frozen ;
+			else if (buildable!=Buildable::DynSrc) msg = Src    ;
 			else {
 				::vector<RuleTgt> v = rule_tgts().view() ; SWEAR(v.size()==1,idx(),v,status()) ;
 				msg = v[0]->rule->name ;
@@ -247,7 +249,7 @@ namespace Engine {
 			rule_tgts() = ::vector<RuleTgt>({rt}) ;
 			if (r->special==Special::Anti      ) return Buildable::DynAnti ;
 			if (r->special==Special::GenericSrc) return Buildable::DynSrc  ;
-			FAIL("unexpected special rule",r->name,r->special) ;
+			FAIL("unexpected special rule",r->full_name(),r->special) ;
 		}
 		rule_tgts().clear() ;
 		return Buildable::Maybe ;                                                                                            // node may be buildable from dir
@@ -652,7 +654,7 @@ namespace Engine {
 				trace("multi",ri,job_tgts().size(),conform_job_tgts(ri),jts) ;
 				/**/                   req->audit_node(Color::Err ,"multi",idx()            ) ;
 				/**/                   req->audit_info(Color::Note,"several rules match :",1) ;
-				for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule()->name       ,2) ;
+				for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule()->full_name(),2) ;
 			}
 			ri.done_ = ri.goal ;
 			if (!_may_need_regenerate(self,ri,make_action)) break ;

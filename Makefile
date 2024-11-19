@@ -170,7 +170,7 @@ LMAKE_SERVER_PY_FILES := \
 	_lib/serialize.py                   \
 	lib/lmake/__init__.py               \
 	lib/lmake/auto_sources.py           \
-	lib/lmake/gen_config.py             \
+	lib/lmake/config.py                 \
 	lib/lmake/import_machinery.py       \
 	lib/lmake/py_clmake.py              \
 	lib/lmake/rules.py                  \

@@ -28,16 +28,18 @@ if 'slurm' in lmake.backends :
 else :
 	backend = 'local'
 
+root_dir = os.getcwd()
+
 config.caches.dir = {
 	'tag'  : 'dir'
-,	'repo' : lmake.root_dir
-,	'dir'  : osp.dirname(lmake.root_dir)+'/lmake_env-cache'
+,	'repo' : root_dir
+,	'dir'  : osp.dirname(root_dir)+'/lmake_env-cache'
 }
 
 config.console.date_precision = 2
 config.console.show_eta       = True
 
-config.local_admin_dir = lmake.root_dir+'/LMAKE_LOCAL'
+config.local_admin_dir = root_dir+'/LMAKE_LOCAL'
 
 config.link_support = 'full'
 

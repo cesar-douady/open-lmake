@@ -180,41 +180,6 @@ static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	}
 }
 
-static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args = *from_py<Tuple const>(args) ;
-	Dict  const* py_kwds =  from_py<Dict  const>(kwds) ;
-	if (py_args.size()>1) return py_err_set(Exception::TypeErr,"expect at most a single argument") ;
-	bool no_follow = false ;
-	if (py_kwds) {
-		ssize_t n = py_kwds->size() ;
-		if ( const char* s="follow_symlinks" ; py_kwds->contains(s) ) { n-- ; no_follow = !(*py_kwds)[s] ; }
-		//
-		if (n) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
-	}
-	::vector_s views = _get_files(py_args) ;
-	if (views.size()==0) views.push_back(no_slash(cwd_s())) ;
-	SWEAR( views.size()==1 , views.size() ) ;
-	::string const& view = views[0] ;
-	if (!view) return Ptr<Str>(""s)->to_py_boost() ;
-	//
-	RealPath::SolveReport solve_report = RealPath(Record::s_autodep_env()).solve(view,no_follow) ;
-	//
-	switch (solve_report.file_loc) {
-		case FileLoc::Ext :
-			if (solve_report.real==no_slash(Record::s_autodep_env().root_dir_s)) return Ptr<Str>(""s)->to_py_boost() ;
-			break ;
-		case FileLoc::Repo :
-			try {
-				::string abs_path           = mk_abs(solve_report.real,Record::s_autodep_env().root_dir_s) ;
-				::string abs_sub_root_dir_s = search_root_dir_s(abs_path).first                              ;
-				return Ptr<Str>(abs_sub_root_dir_s.c_str()+Record::s_autodep_env().root_dir_s.size())->to_py_boost() ;
-			} catch (::string const&e) {
-				return py_err_set(Exception::ValueErr,e) ;
-			}
-	DN}
-	return py_err_set(Exception::ValueErr,"cannot find sub root dir in repository") ;
-}
-
 static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	size_t       n_args  = py_args.size()              ;
@@ -271,7 +236,6 @@ PyMODINIT_FUNC
 			",\tignore         =False # ignore deps, used to mask out further accesses\n"
 			",\tignore_error   =False # dont propagate error if dep is in error (Error instead of Err because name is visible from user)\n"
 			",\trequired       =True  # dep must be buildable\n"
-			",\tstat_read_data =False # make stat accesses as if deps contents were fully accessed\n"
 			")\n"
 			"Pretend parallel read of deps (unless read=False) and mark them with flags mentioned as True.\n"
 			"Flags accumulate and are never reset.\n"
@@ -287,10 +251,6 @@ PyMODINIT_FUNC
 	,	F( get_autodep ,
 			"get_autodep()\n"
 			"Return True if autodep is currenly activated (else False).\n"
-		)
-	,	F( search_sub_root_dir ,
-			"search_sub_root_dir(cwd=os.getcwd())\n"
-			"Return the nearest hierarchical root dir above cwd, relative to the top root dir.\n"
 		)
 	,	F( set_autodep ,
 			"set_autodep(active)\n"
@@ -321,10 +281,10 @@ PyMODINIT_FUNC
 	//
 	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3 } ;       // PER_AUTODEP_METHOD : add entries here
 	size_t i = 0 ;
-	if (HAS_LD_AUDIT) py_ads->set_item(i++,*Ptr<Str>("ld_audit"           )) ;
-	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload"         )) ;
-	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload_jemalloc")) ;
-	/**/              py_ads->set_item(i++,*Ptr<Str>("ptrace"             )) ;
+	if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
+	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
+	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
+	/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
 	SWEAR(i==py_ads->size(),i,py_ads->size()) ;
 	//
 	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM } ; // PER_BACKEND : add entries here
@@ -335,15 +295,15 @@ PyMODINIT_FUNC
 	SWEAR(i==py_bes->size(),i,py_bes->size()) ;
 	//
 	Ptr<Module> mod { PY_MAJOR_VERSION<3?"clmake2":"clmake" , _g_funcs } ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "root_dir"    , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
-	mod->set_attr( "backends"    , *py_bes                                                         ) ;
-	mod->set_attr( "autodeps"    , *py_ads                                                         ) ;
-	mod->set_attr( "no_crc"      , *Ptr<Int>(+Crc::Unknown)                                        ) ;
-	mod->set_attr( "crc_a_link"  , *Ptr<Int>(+Crc::Lnk    )                                        ) ;
-	mod->set_attr( "crc_a_reg"   , *Ptr<Int>(+Crc::Reg    )                                        ) ;
-	mod->set_attr( "crc_no_file" , *Ptr<Int>(+Crc::None   )                                        ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "top_root_dir" , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
+	mod->set_attr( "backends"     , *py_bes                                                         ) ;
+	mod->set_attr( "autodeps"     , *py_ads                                                         ) ;
+	mod->set_attr( "no_crc"       , *Ptr<Int>(+Crc::Unknown)                                        ) ;
+	mod->set_attr( "crc_a_link"   , *Ptr<Int>(+Crc::Lnk    )                                        ) ;
+	mod->set_attr( "crc_a_reg"    , *Ptr<Int>(+Crc::Reg    )                                        ) ;
+	mod->set_attr( "crc_no_file"  , *Ptr<Int>(+Crc::None   )                                        ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;

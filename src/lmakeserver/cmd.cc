@@ -335,8 +335,8 @@ namespace Engine {
 			throw_unless( targets.size()==1 , "can only debug a single target" ) ;
 			job = _job_from_target(fd,ro,ecr.targets()[0]) ;
 		}
-		if (!job                                  ) throw "no job found"s                 ;
-		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->name+" jobs" ;
+		if (!job                                  ) throw "no job found"s                        ;
+		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->full_name()+" jobs" ;
 		//
 		JobInfo job_info = job.job_info() ;
 		if (!job_info.start.start.proc) {
@@ -391,7 +391,7 @@ namespace Engine {
 				::uset<Rule> refreshed ;
 				for( RuleCrc rc : Persistent::rule_crc_lst() ) if ( RuleCrcData& rcd=rc.data() ; rcd.state==RuleCrcState::RsrcsOld) {
 					rcd.state = RuleCrcState::RsrcsForgotten ;
-					if (refreshed.insert(rcd.rule).second) audit( ecr.out_fd , ro , Color::Note , "refresh "+rcd.rule->name , true/*as_is*/ ) ;
+					if (refreshed.insert(rcd.rule).second) audit( ecr.out_fd , ro , Color::Note , "refresh "+rcd.rule->full_name() , true/*as_is*/ ) ;
 				}
 			} break ;
 		DF}

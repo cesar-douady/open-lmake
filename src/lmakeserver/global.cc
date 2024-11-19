@@ -94,7 +94,7 @@ namespace Engine {
 		if (sc.max_err_lines       )                  os <<",EL" << sc.max_err_lines          ;
 		if (sc.path_max!=size_t(-1))                  os <<",PM" << sc.path_max               ;
 		if (+sc.caches             )                  os <<','   << sc.caches                 ;
-		if (+sc.sub_repos          )                  os <<','   << sc.sub_repos              ;
+		if (+sc.sub_repos_s        )                  os <<','   << sc.sub_repos_s            ;
 		for( BackendTag t : iota(1,All<BackendTag>) ) os <<','   << t <<':'<< sc.backends[+t] ; // local backend is always present
 		return os<<')' ;
 	}
@@ -124,8 +124,8 @@ namespace Engine {
 		}
 	}
 
-	Config::Config(Dict const& py_map) : booted{true} {                                                                               // if config is read from makefiles, it is booted
-		db_version = Version::Db ;                                                                                                    // record current version
+	Config::Config(Dict const& py_map) : booted{true} {                                                                                // if config is read from makefiles, it is booted
+		db_version = Version::Db ;                                                                                                     // record current version
 		// generate a random key
 		::string buf_char = Fd("/dev/urandom").read(false/*no_file_ok*/,sizeof(uint64_t)) ;
 		uint64_t buf_int  ;                                                                 ::memcpy( &buf_int , buf_char.data() , sizeof(buf_int) ) ;
@@ -198,15 +198,15 @@ namespace Engine {
 					if (prec==0                ) continue ;
 					throw_unless( ::has_single_bit(prec) , prec," is not a power of 2" ) ;
 					throw_unless( prec!=1                , "must be 0 or at least 2"   ) ;
-					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                                                           // number of kept digits
+					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                                                            // number of kept digits
 				}
 				fields.pop_back() ;
 			}
-			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                           // local backend is always present
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                            // local backend is always present
 				fields[1] = snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
-				if (!bbe                            ) continue ;                                                                      // not implemented
-				if (!py_backends.contains(fields[1])) continue ;                                                                      // not configured
+				if (!bbe                            ) continue ;                                                                       // not implemented
+				if (!py_backends.contains(fields[1])) continue ;                                                                       // not configured
 				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
 				catch (::string const& e) { Fd::Stderr.write("Warning : backend "+fields[1]+" could not be configured : "+e+'\n') ; }
 			}
@@ -251,7 +251,8 @@ namespace Engine {
 			//
 			fields[0] = "sub_repos" ;
 			if (py_map.contains(fields[0])) {
-				for( Object const& py_sr : py_map[fields[0]].as_a<Sequence>() ) sub_repos.push_back(py_sr.as_a<Str>()) ;
+				for( Object const& py_sr : py_map[fields[0]].as_a<Sequence>() ) sub_repos_s.push_back(with_slash(py_sr.as_a<Str>())) ;
+				::sort(sub_repos_s) ;                                                                                                  // stabilize
 			}
 			//
 			fields[0] = "trace" ;
@@ -267,13 +268,13 @@ namespace Engine {
 				fields.pop_back() ;
 			}
 			// do some adjustments
-			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                           // local backend is not remote
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                            // local backend is not remote
 				if (!backends[+t].configured         ) continue        ;
 				if (!Backends::Backend::s_ready   (t)) continue        ;
 				if (!Backends::Backend::s_is_local(t)) goto SeenRemote ;
 			}
-			reliable_dirs    = true ;                                                                                                 // all backends are local, dirs are necessarily reliable
-			console.host_len = 0    ;                                                                                                 // host has no interest if all jobs are local
+			reliable_dirs    = true ;                                                                                                  // all backends are local, dirs are necessarily reliable
+			console.host_len = 0    ;                                                                                                  // host has no interest if all jobs are local
 		SeenRemote : ;
 		} catch(::string& e) {
 			::string field = "config" ; for( ::string const& f : fields ) field<<'.'<<f ;
@@ -314,9 +315,9 @@ namespace Engine {
 				for( auto const& [k,v] : cache.dct ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v         <<'\n' ;
 			}
 		}
-		if (+sub_repos) {
+		if (+sub_repos_s) {
 			res << "\tsub_repos :\n" ;
-			for( ::string const& sr : sub_repos ) res <<"\t\t"<< sr <<'\n' ;
+			for( ::string const& sr : sub_repos_s ) res <<"\t\t"<< no_slash(sr) <<'\n' ;
 		}
 		//
 		// dynamic
@@ -506,7 +507,7 @@ namespace Engine {
 		if (!candidates         ) throw "cannot find job "+mk_rel(files[0],startup_dir_s) ;
 		//
 		::string err_str = "several rules match, consider :\n" ;
-		for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule()->name)+" -J "+files[0] ,1) << '\n' ;
+		for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule()->full_name())+" -J "+files[0] ,1) << '\n' ;
 		throw err_str ;
 	}
 

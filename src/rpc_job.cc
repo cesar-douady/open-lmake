@@ -194,51 +194,56 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 
 bool/*entered*/ JobSpace::enter(
 	::vmap_s<MountAction>& report
-,	::string const&        phy_root_dir_s
-,	::string const&        phy_tmp_dir_s
+,	::string   const&      phy_root_dir_s
+,	::string   const&      phy_tmp_dir_s
+,	::string   const&      cwd_s
 ,	size_t                 tmp_sz_mb
-,	::string const&        work_dir_s
+,	::string   const&      work_dir_s
 ,	::vector_s const&      src_dirs_s
 ) {
 	Trace trace("JobSpace::enter",self,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s) ;
 	//
 	if (!self) return false/*entered*/ ;
 	//
-	int uid = ::getuid() ;          // must be done before unshare that invents a new user
-	int gid = ::getgid() ;          // .
+	int uid = ::getuid() ;                                                         // must be done before unshare that invents a new user
+	int gid = ::getgid() ;                                                         // .
 	//
 	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw "cannot create namespace : "s+::strerror(errno) ;
 	//
-	size_t   src_dirs_uphill_lvl = 0 ;
-	::string highest             ;
-	for( ::string const& d_s : src_dirs_s ) {
-		if (!is_abs_s(d_s))
-			if ( size_t ul=uphill_lvl_s(d_s) ; ul>src_dirs_uphill_lvl ) {
-				src_dirs_uphill_lvl = ul  ;
-				highest             = d_s ;
-			}
-	}
-	//
-	::string phy_super_root_dir_s ; // dir englobing all relative source dirs
-	::string super_root_view_s    ; // .
-	if (+root_view_s) {
-		phy_super_root_dir_s = phy_root_dir_s ; for( [[maybe_unused]] size_t i : iota(src_dirs_uphill_lvl) ) phy_super_root_dir_s = dir_name_s(phy_super_root_dir_s) ;
-		super_root_view_s    = root_view_s    ; for( [[maybe_unused]] size_t i : iota(src_dirs_uphill_lvl) ) super_root_view_s    = dir_name_s(super_root_view_s   ) ;
-		SWEAR(phy_super_root_dir_s!="/",phy_root_dir_s,src_dirs_uphill_lvl) ;                                                                      // this should have been checked earlier
-		if (!super_root_view_s) {
-			highest.pop_back() ;
-			throw
-				"cannot map repository dir to "+no_slash(root_view_s)+" with relative source dir "+highest
-			+	", "
-			+	"consider setting <rule>.root_view="+mk_py_str("/repo"+phy_root_dir_s.substr(phy_super_root_dir_s.size()-1))
-			;
+	size_t   uphill_lvl = 0 ;
+	::string highest_s  ;
+	for( ::string const& d_s : src_dirs_s ) if (!is_abs_s(d_s))
+		if ( size_t ul=uphill_lvl_s(d_s) ; ul>uphill_lvl ) {
+			uphill_lvl = ul  ;
+			highest_s  = d_s ;
 		}
+	//
+	::string phy_super_root_dir_s ;                                                // dir englobing all relative source dirs
+	::string super_root_view_s    ;                                                // .
+	::string top_root_view_s      ;
+	if (+root_view_s) {
+		if (!( root_view_s.ends_with(cwd_s) && root_view_s.size()>cwd_s.size()+1 )) // ensure root_view_s has at least one more level than cwd_s
+			throw
+				"cannot map local repository dir to "+no_slash(root_view_s)+" appearing as "+no_slash(cwd_s)+" in top-level repository"
+			+	", "
+			+	"consider setting <rule>.root_view="+mk_py_str("/repo/"+no_slash(cwd_s))
+			;
+		phy_super_root_dir_s = phy_root_dir_s ; for( [[maybe_unused]] size_t i : iota(uphill_lvl) ) phy_super_root_dir_s = dir_name_s(phy_super_root_dir_s) ;
+		super_root_view_s    = root_view_s    ; for( [[maybe_unused]] size_t i : iota(uphill_lvl) ) super_root_view_s    = dir_name_s(super_root_view_s   ) ;
+		SWEAR(phy_super_root_dir_s!="/",phy_root_dir_s,uphill_lvl) ;                                                                                          // this should have been checked earlier
+		if (!super_root_view_s)
+			throw
+				"cannot map repository dir to "+no_slash(root_view_s)+" with relative source dir "+no_slash(highest_s)
+			+	", "
+			+	"consider setting <rule>.root_view="+mk_py_str("/repo/"+no_slash(phy_root_dir_s.substr(phy_super_root_dir_s.size())+cwd_s))
+			;
 		if (root_view_s.substr(super_root_view_s.size())!=phy_root_dir_s.substr(phy_super_root_dir_s.size()))
 			throw
-				"last "s+src_dirs_uphill_lvl+" components do not match between physical root dir and root view"
+				"last "s+uphill_lvl+" components do not match between physical root dir and root view"
 			+	", "
-			+	"consider setting <rule>.root_view="+mk_py_str("/repo/"+phy_root_dir_s.substr(phy_super_root_dir_s.size()))
+			+	"consider setting <rule>.root_view="+mk_py_str("/repo/"+no_slash(phy_root_dir_s.substr(phy_super_root_dir_s.size())+cwd_s))
 			;
+		top_root_view_s = root_view_s.substr(0,root_view_s.size()-cwd_s.size()) ;
 	}
 	if ( +super_root_view_s && super_root_view_s.rfind('/',super_root_view_s.size()-2)!=0 ) throw "non top-level root_view not yet implemented"s ; // XXX : handle cases where dir is not top level
 	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
@@ -284,7 +289,7 @@ bool/*entered*/ JobSpace::enter(
 	_atomic_write( "/proc/self/uid_map"   , ""s+uid+' '+uid+" 1\n" ) ;
 	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
 	//
-	::string root_dir_s = +root_view_s ? root_view_s : phy_root_dir_s ;
+	::string root_dir_s = +root_view_s ? top_root_view_s : phy_root_dir_s ;
 	if (+root_view_s) _mount_bind( chroot_dir+super_root_view_s , phy_super_root_dir_s ) ;
 	if (+tmp_view_s ) {
 		if      (+phy_tmp_dir_s) _mount_bind( chroot_dir+tmp_view_s , phy_tmp_dir_s ) ;
@@ -500,10 +505,10 @@ bool/*entered*/ JobRpcReply::enter(
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
 	}
 	//
-	cmd_env["PWD"        ] = no_slash(autodep_env.root_dir_s+cwd_s) ;
-	cmd_env["ROOT_DIR"   ] = no_slash(autodep_env.root_dir_s      ) ;
-	cmd_env["SEQUENCE_ID"] = ::to_string(seq_id  )                  ;
-	cmd_env["SMALL_ID"   ] = ::to_string(small_id)                  ;
+	cmd_env["ROOT_DIR"    ] = no_slash(autodep_env.root_dir_s+cwd_s) ;
+	cmd_env["TOP_ROOT_DIR"] = no_slash(autodep_env.root_dir_s      ) ;
+	cmd_env["SEQUENCE_ID" ] = ::to_string(seq_id  )                  ;
+	cmd_env["SMALL_ID"    ] = ::to_string(small_id)                  ;
 	if (PY_LD_LIBRARY_PATH[0]!=0) {
 		auto [it,inserted] = cmd_env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
 		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
@@ -517,8 +522,8 @@ bool/*entered*/ JobRpcReply::enter(
 	}
 	if (!cmd_env.contains("HOME")) cmd_env["HOME"] = no_slash(autodep_env.tmp_dir_s) ; // by default, set HOME to tmp dir as this cannot be set from rule
 	//
-	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                            ;
-	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s ) ;
+	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                                    ;
+	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , cwd_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s ) ;
 	if (entered) {
 		// find a good starting pid
 		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common

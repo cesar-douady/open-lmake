@@ -13,6 +13,15 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* sub-repos
+	- ensure root_view points to root, not top_root
+		- ensure it ends with cwd so that real mount point is top_root
+* establish a cache crc
+	- mostly cmd crc
+	- less cwd_s
+	- plus root_view
+	- ignore root_dir as an opt-in or cache will not work at all
+	- generally everything that has an impact on job execution and not more
 ! fix compilation with LMAKE_FLAGS=ST
 M missing some deps when reading elf
 	- find a way to reproduce it

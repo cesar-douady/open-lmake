@@ -43,10 +43,10 @@ if __name__!='__main__' :
 		side_targets = { 'SIDE' : 'lnk_dut.tmp' }
 		# make a chain of links with all potential cases
 		cmd = multi_strip('''
-			ln -s /tmp/a lnk_dut.tmp             # link from repo to tmp
+			ln -s /tmp/a lnk_dut.tmp        # link from repo to tmp
 			cd /tmp
-			ln -s b             a                # relative link within tmp
-			ln -s /tmp/c        b                # absolute link within tmp
+			ln -s b             a           # relative link within tmp
+			ln -s /tmp/c        b           # absolute link within tmp
 			ln -s $ROOT_DIR/src c                # link from tmp to repo
 			readlink a b c $ROOT_DIR/lnk_dut.tmp
 			cd $ROOT_DIR
@@ -59,7 +59,7 @@ if __name__!='__main__' :
 		side_targets = { 'SIDE' : 'cp_dut.tmp' }
 		# make a chain of copies with all potential cases
 		cmd = multi_strip('''
-			cp $ROOT_DIR/src /tmp/c
+			cp src /tmp/c
 			cd /tmp
 			cp /tmp/c        b
 			cp b             a

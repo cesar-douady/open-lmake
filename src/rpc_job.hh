@@ -592,11 +592,12 @@ struct JobSpace {
 	}
 	bool/*entered*/ enter(
 		::vmap_s<MountAction>& deps           // out
-	,	::string        const& phy_root_dir_s // in
-	,	::string        const& phy_tmp_dir_s  // .
+	,	::string   const&      phy_root_dir_s // in
+	,	::string   const&      phy_tmp_dir_s  // .
+	,	::string   const&      cwd_s          // .
 	,	size_t                 tmp_sz_mb      // .
-	,	::string        const& work_dir_s     // .
-	,	::vector_s      const& src_dirs_s={}  // .
+	,	::string   const&      work_dir_s     // .
+	,	::vector_s const&      src_dirs_s={}  // .
 	) ;
 	void exit() {}
 	//

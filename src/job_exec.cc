@@ -92,15 +92,14 @@ Digest analyze(Status status=Status::New) {                                     
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
-			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                                            // fast path : no matching, no pollution, no washing => forget it
+			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                          // fast path : no matching, no pollution, no washing => forget it
 			)
 		;
 		// handle deps
 		if (is_dep) {
 			DepDigest dd { ad.accesses , info.dep_info , ad.dflags } ;
 			//
-			if      ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = ~Accesses() ; // StatReadData transforms stat access into full access
-			else if ( ad.dflags[Dflag::Static]  && ad.dflags[Dflag::Required]                ) dd.accesses = ~Accesses() ; // required static deps are deemed to be fully accessed
+			if ( ad.dflags[Dflag::Static] && ad.dflags[Dflag::Required] ) dd.accesses = ~Accesses() ;    // required static deps are deemed to be fully accessed
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
 			dd.hot          = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.date_prec) ;

@@ -21,8 +21,8 @@ int main( int argc , char* /*argv*/[] ) {
 	try                       { Persistent::new_config({}/*config*/,false/*dynamic*/) ; }
 	catch (::string const& e) { exit(Rc::Format,e) ;                                    }
 	//
-	for( const Rule r : Persistent::rule_lst() )             _out( {}     , cat(r        ) , r->name   ) ;
-	for( const Job  j : Persistent::job_lst () ) { j.chk() ; _out( cat(j) , cat(j->rule()) , j->name() ) ; }
+	for( const Rule r : Persistent::rule_lst() )             _out( {}     , cat(r        ) , r->full_name() ) ;
+	for( const Job  j : Persistent::job_lst () ) { j.chk() ; _out( cat(j) , cat(j->rule()) , j->name()      ) ; }
 	for( const Node n : Persistent::node_lst() ) {
 		n.chk() ;
 		switch (n->buildable) {

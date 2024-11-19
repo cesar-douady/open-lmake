@@ -12,7 +12,7 @@ import pwd     as _pwd
 import signal  as _signal
 
 import lmake
-from . import autodeps,pdict,root_dir # if not in an lmake repo, root_dir is not set to current dir
+from . import autodeps,pdict
 
 shell            = '$BASH'                       # substituted at installation time
 python2          = '$PYTHON2'                    # .
@@ -20,6 +20,7 @@ python           = '$PYTHON'                     # .
 _std_path        = '$STD_PATH'                   # .
 _ld_library_path = '$LD_LIBRARY_PATH'            # .
 _lmake_dir       = __file__.rsplit('/lib/',1)[0]
+_root_dir        = _os.getcwd()                  # local root in case of sub-repo
 
 class _RuleBase :
 	def __init_subclass__(cls) :
@@ -70,7 +71,7 @@ class Rule(_RuleBase) :
 #	chroot_dir       = '/'                             # chroot directory to execute cmd (if None, empty or absent, no chroot is not done)
 #	cache            = None                            # cache used to store results for this rule. None means no caching
 #	cmd                                                # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
-#	cwd              = ''                              # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
+	cwd              = ''                              # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
 #                                                      # defaults to the nearest root dir of the module in which the rule is defined
 	deps             = {}                              # patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {'SRC':'{File}.c'}
 	#                                                  # deps may have flags (use - to reset), e.g. {'TOOL':('tool','Critical','-Essential')}, flags may be :
@@ -111,7 +112,7 @@ class Rule(_RuleBase) :
 #	,	'tmp' : '1G'                                   # temporary disk space to allocate to job
 	}                                                  # follow the same syntax as deps
 	environ_cmd = pdict(                               # job execution environment, handled as part of cmd (trigger rebuild upon modification)
-		HOME = root_dir                                # favor repeatability by hiding use home dir some tools use at start up time
+		HOME = _root_dir                               # favor repeatability by hiding use home dir some tools use at start up time
 	,	PATH = ':'.join((_lmake_dir+'/bin',_std_path))
 	)
 	environ_resources = pdict()                        # job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)
@@ -130,8 +131,8 @@ class SourceRule(_RuleBase) :
 	prio        = float('inf')
 
 class HomelessRule(Rule) :
-	'base rule to redirect the HOME environment variable to TMPDIR'
-	environ_cmd = { 'HOME' : None }                                 # HOME is set by default to TMPDIR
+	'base rule to redirect the HOME environment variable to tmp'
+	environ_cmd = pdict(HOME=None)                               # HOME is set by default to TMPDIR to favor repeatability by hiding user home dir to some tools use it at start up time
 
 class TraceRule(Rule) :
 	'base rule to trace shell commands to stdout'
@@ -146,11 +147,11 @@ class DirtyRule(Rule) :
 
 class _PyRule(Rule) :
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file, so stat accesses must be deemed read accesses
-	side_deps   = { '__PY__'  : ( r'{*:(.+/)?}{*:\w+}.py'  , 'StatReadData' ) } # this is actually a noop as stat syscalls are deemed to access size, but this might change
-	environ_cmd = pdict( PYTHONPATH=':'.join((_lmake_dir+'/lib',root_dir)) )
+	side_deps   = { '__PY__'  : ( r'{*:(.+/)?}{*:\w+}.py' , 'top' ) }         # this is actually a noop as stat syscalls are deemed to access size, but this might change
+	environ_cmd = pdict( PYTHONPATH=':'.join((_lmake_dir+'/lib',_root_dir)) )
 class Py2Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
-	side_targets = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }
+	side_targets = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'incremental','top' ) }
 	python       = python2
 	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 	def cmd() :
@@ -160,10 +161,10 @@ class Py2Rule(_PyRule) :
 		except ImportError : sys.path[0:0] = (_lmake_dir+'/lib',)
 		from lmake.import_machinery import fix_import
 		fix_import('Py2Rule')
-	cmd.shell = ''                                                              # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
+	cmd.shell = ''                                                            # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
-	side_targets = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental'  ) }
+	side_targets = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'incremental','top'  ) }
 	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 	def cmd() :
 		import sys
@@ -172,7 +173,7 @@ class Py3Rule(_PyRule) :
 		except ImportError : sys.path[0:0] = (_lmake_dir+'/lib',)
 		from lmake.import_machinery import fix_import
 		fix_import('Py3Rule')
-	cmd.shell = ''                                                              # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
+	cmd.shell = ''                                                            # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
 
 PyRule = Py3Rule
 

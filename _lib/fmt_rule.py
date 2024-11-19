@@ -31,7 +31,6 @@ StdAttrs = {
 ,	'cache'             : ( str   , True  )
 ,	'chroot_dir'        : ( str   , True  )
 ,	'cmd'               : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
-,	'cwd'               : ( str   , True  )
 ,	'side_deps'         : ( dict  , True  )
 ,	'deps'              : ( dict  , True  )
 ,	'environ_cmd'       : ( dict  , True  )
@@ -375,7 +374,7 @@ class Handle :
 		del self.static_val
 		del self.dynamic_val
 		if not dynamic_val :
-			if not static_val : return None
+			if not static_val : return None          # entry is suppressed later in this case
 			else              : return (static_val,)
 		serialize_ctx = ( self.per_job , self.aggregate_per_job , *self.glbs )
 		code,ctx,names,dbg = serialize.get_expr(
@@ -425,7 +424,7 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		for attr in ('cwd','ete','force','max_submit_count') :
+		for attr in ('ete','force','max_submit_count') :
 			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
 
 	def handle_create_none(self) :
@@ -551,10 +550,13 @@ class Handle :
 						else  : cmd += f'\t{        c.__name__}({a})\n'
 			for_this_python = False                                                                                                    # be conservative
 			try :
-				interpreter = self.rule_rep.start_cmd_attrs[0].interpreter[0]                                                          # code can be made simpler if we know we run the same python
-				if not maybe_local(interpreter) : for_this_python = osp.realpath(interpreter)==self.ThisPython                         # but we do not want to create a dep inside the repo
-			except : pass                                                                                                              # if no interpreter (e.g. it may be dynamic), be conservative
-			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , mk_dbg_info(dbg,serialize_ctx,for_this_python) )
+				interpreter  = self.rule_rep.start_cmd_attrs[0].interpreter
+				if not interpreter : raise "need an interpreter to execute cmd"
+				interpreter0 = interpreter[0]
+				if not interpreter0 : raise "need an interpreter to execute cmd"
+				if not maybe_local(interpreter0) : for_this_python = osp.realpath(interpreter)==self.ThisPython                        # code can be made simpler if we know we run the same python ...
+			except : pass                                                                                                              # ... but we do not want to create a dep inside the repo if ...
+			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , mk_dbg_info(dbg,serialize_ctx,for_this_python) ) # ... no interpreter (e.g. it may be dynamic), be conservative
 			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                                             )
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)
@@ -596,6 +598,7 @@ def do_fmt_rule(rule) :
 	h.handle_end_cmd     ()
 	h.handle_end_none    ()
 	h.handle_cmd         ()
+	for k in [k for k,v in h.rule_rep.items() if v==None] : del h.rule_rep[k]                                        # functions above may generate holes
 	return h.rule_rep
 
 def fmt_rule(rule) :

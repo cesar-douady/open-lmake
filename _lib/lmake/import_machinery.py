@@ -10,7 +10,7 @@ from . import depend,Autodep
 
 module_suffixes = ('.so','.py','/__init__.py') # can be tailored to suit application needs, the lesser the better (less spurious dependencies)
 
-from . import root_dir,maybe_local
+from . import maybe_local
 
 def _mask_python_deps() :
 	'''replace __import__ by a semantically equivalent function (that actually calls the original one) to suppress python generated deps'''

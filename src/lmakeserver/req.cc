@@ -187,12 +187,12 @@ namespace Engine {
 		}
 		if ( +to_forget || +to_raise ) {
 			self->audit_info( Color::Note , "consider some of :\n" ) ;
-			for( Node n : to_forget ) self->audit_node( Color::Note , "lforget -d" , n                                  , 1 ) ;
-			if (+to_raise)            self->audit_info( Color::Note , "add to Lmakefile.py :"                           , 1 ) ;
-			for( Rule r : to_raise  ) self->audit_info( Color::Note , r->name+".prio = "+::to_string(r->user_prio)+"+1" , 2 ) ;
-			/**/                      self->audit_info( Color::Note , "for t in (<cycle above>) :"                      , 2 ) ;
-			/**/                      self->audit_info( Color::Note , "class MyAntiRule(AntiRule) :"                    , 3 ) ;
-			/**/                      self->audit_info( Color::Note , "target = t"                                      , 4 ) ;
+			for( Node n : to_forget ) self->audit_node( Color::Note , "lforget -d" , n                                         , 1 ) ;
+			if (+to_raise)            self->audit_info( Color::Note , "add to Lmakefile.py :"                                  , 1 ) ;
+			for( Rule r : to_raise  ) self->audit_info( Color::Note , r->full_name()+".prio = "+::to_string(r->user_prio)+"+1" , 2 ) ;
+			/**/                      self->audit_info( Color::Note , "for t in (<cycle above>) :"                             , 2 ) ;
+			/**/                      self->audit_info( Color::Note , "class MyAntiRule(AntiRule) :"                           , 3 ) ;
+			/**/                      self->audit_info( Color::Note , "target = t"                                             , 4 ) ;
 		}
 	}
 
@@ -426,7 +426,7 @@ namespace Engine {
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
 			if ( Rule r=job->rule() ; r->special!=Special::Req) {
-				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->name)+" -J "+mk_shell_str(job->name()) ) ;
+				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->full_name())+" -J "+mk_shell_str(job->name()) ) ;
 			} else {
 				::string dl ;
 				for( Dep const& d : job->deps ) dl<<' '<<mk_shell_str(d->name()) ;
@@ -457,7 +457,7 @@ namespace Engine {
 			::string_view shorten = first_lines(stderr,max_stderr_len) ;
 			if (shorten.size()<stderr.size()) {
 				audit_info_as_is( Color::None , ::string(shorten) , lvl ) ;
-				audit_info      ( Color::Note , "... (for full content : lshow -e -J "+mk_file(j->name(),FileDisplay::Shell)+" -R "+mk_shell_str(j->rule()->name)+" )" , lvl ) ;
+				audit_info      ( Color::Note , "... (for full content : lshow -e -R "+mk_shell_str(j->rule()->full_name())+" -J "+mk_file(j->name(),FileDisplay::Shell)+" )" , lvl ) ;
 				return true ;
 			}
 		}
@@ -554,13 +554,13 @@ namespace Engine {
 				reason = "misses static dep " + missing_key + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
 			}
 		Report :
-			if (+missing_dep) audit_node( Color::Note , "rule "+rt->rule->name+' '+reason+" :" , missing_dep , lvl+1 ) ;
-			else              audit_info( Color::Note , "rule "+rt->rule->name+' '+reason      ,               lvl+1 ) ;
+			if (+missing_dep) audit_node( Color::Note , "rule "+rt->rule->full_name()+' '+reason+" :" , missing_dep , lvl+1 ) ;
+			else              audit_info( Color::Note , "rule "+rt->rule->full_name()+' '+reason      ,               lvl+1 ) ;
 			//
 			if ( +missing_dep && n_missing==1 && (!g_config->max_err_lines||lvl<g_config->max_err_lines) ) _report_no_rule( missing_dep , nfs_guard , lvl+2 ) ;
 		}
 		//
-		if (+art) audit_info( Color::Note , "anti-rule "+art->rule->name+" matches" , lvl+1 ) ;
+		if (+art) audit_info( Color::Note , "anti-rule "+art->rule->full_name()+" matches" , lvl+1 ) ;
 	}
 
 	//

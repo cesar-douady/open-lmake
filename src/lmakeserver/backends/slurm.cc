@@ -359,7 +359,7 @@ namespace Backends::Slurm {
 			}
 			throw "no resource "+k+" for backend "+MyTag ;
 		}
-		if ( d.manage_mem && !self[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule()->name+".resources={'mem':'1M'}" ;
+		if ( d.manage_mem && !self[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule()->full_name()+".resources={'mem':'1M'}" ;
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
 		::vmap_ss res ;

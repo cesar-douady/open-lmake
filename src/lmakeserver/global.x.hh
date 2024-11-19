@@ -144,7 +144,7 @@ namespace Engine {
 		DepDepth       max_dep_depth   = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
 		Time::Delay    network_delay   ;
 		size_t         path_max        = -1    ;                                      // if -1 <=> unlimited
-		::vector_s     sub_repos       ;
+		::vector_s     sub_repos_s     ;
 		TraceConfig    trace           ;
 		::map_s<Cache> caches          ;
 		bool           has_split_rules = false ;                                      // if true <=> read independently of config

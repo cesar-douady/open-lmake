@@ -675,9 +675,9 @@ namespace Engine {
 			} else {
 				special = Special::Plain ;
 			}
-			field = "name" ; if (dct.contains(field)) name      = dct[field].as_a<Str  >() ; else throw "not found"s ;
-			field = "cwd"  ; if (dct.contains(field)) cwd_s     = dct[field].as_a<Str  >() ;
-			field = "prio" ; if (dct.contains(field)) user_prio = dct[field].as_a<Float>() ;
+			field = "name"  ; if (dct.contains(field)) name      = dct[field].as_a<Str  >() ; else throw "not found"s ;
+			field = "cwd_s" ; if (dct.contains(field)) cwd_s     = dct[field].as_a<Str  >() ;
+			field = "prio"  ; if (dct.contains(field)) user_prio = dct[field].as_a<Float>() ;
 			if (+cwd_s) {
 				cwd_s = with_slash(cwd_s) ;
 				if (cwd_s.front()=='/') {
@@ -916,7 +916,7 @@ namespace Engine {
 			}
 			deps_attrs.spec.add_interpreter(self) ;
 		}
-		catch(::string const& e) { throw "while processing "+name+'.'+field+" :\n"+indent(e) ; }
+		catch(::string const& e) { throw "while processing "+full_name()+'.'+field+" :\n"+indent(e) ; }
 	}
 
 	TargetPattern RuleData::_mk_pattern( MatchEntry const& me , bool for_name ) const {
@@ -985,7 +985,7 @@ namespace Engine {
 			end_cmd_attrs     .compile() ;
 			end_none_attrs    .compile() ;
 		} catch (::string const& e) {
-			throw "while processing "+name+" :\n"+indent(e) ;
+			throw "while processing "+full_name()+" :\n"+indent(e) ;
 		}
 	}
 
@@ -1144,10 +1144,21 @@ namespace Engine {
 					if (!first_conflict) flags << ']' ;
 				}
 			}
-			res <<'\t'<< widen(cat(kind(me)),w1)<<' '<<widen(k,w2)<<" : " ;
-			if (+flags) res << widen(patterns_[k],w3) << flags ;
-			else        res <<       patterns_[k]              ;
-			res <<'\n' ;
+			/**/        res <<'\t'<< widen(cat(kind(me)),w1)<<' '<<widen(k,w2)<<" : " ;
+			if (+flags) res << widen(patterns_[k],w3) << flags                        ;
+			else        res <<       patterns_[k]                                     ;
+			/**/        res <<'\n'                                                    ;
+		}
+		::vector_s excepts_s ;
+		for( ::string const& sr_s : g_config->sub_repos_s )
+			if ( sr_s.size()>cwd_s.size() && sr_s.starts_with(cwd_s) ) {
+				for( ::string const& e_s : excepts_s ) if (sr_s.starts_with(e_s)) goto Seen ;
+				excepts_s.push_back(sr_s) ;                                                   // XXX : do include exceptions if target prefixes guarantee that the rule cannot match inside sr_s
+			Seen : ;
+			}
+		if (+excepts_s) {
+			/**/                                  res << "except in sub-repos :\n"  ;
+			for( ::string const& e_s : excepts_s) res <<'\t'<< no_slash(e_s) <<'\n' ;
 		}
 		res << "patterns :\n" ;
 		for( size_t mi : iota(matches.size()) )
@@ -1208,7 +1219,7 @@ namespace Engine {
 		::string  kill_sigs   ;
 		::string  cmd_        ;
 		//
-		{	title = name + " :" + (special==Special::Anti?" AntiRule":special==Special::GenericSrc?" SourceRule":"") ;
+		{	title = full_name() + " :" + (special==Special::Anti?" AntiRule":special==Special::GenericSrc?" SourceRule":"") ;
 			for( auto const& [k,me] : matches ) if (job_name_==me.pattern) { job_name_ = "<targets."+k+'>' ; break ; }
 		}
 		if (!is_special()) {
@@ -1316,7 +1327,6 @@ namespace Engine {
 				targets.emplace_back(me.pattern,me.flags.extra_tflags()[ExtraTflag::Optional]) ; // keys and flags have no influence on matching, except Optional
 		h.update(special) ;
 		h.update(stems  ) ;
-		h.update(cwd_s  ) ;
 		h.update(targets) ;
 		if (is_special()) {
 			h.update(allow_ext) ;                                                                // only exists for special rules
@@ -1329,6 +1339,7 @@ namespace Engine {
 		if (is_special()) {
 			crc = {match} ;
 		} else {
+			h.update(cwd_s                 ) ;
 			h.update(Node::s_src_dirs_crc()) ;                                                   // src_dirs influences deps recording
 			h.update(matches               ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
 			h.update(force                 ) ;

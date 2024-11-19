@@ -17,29 +17,23 @@ assert sys.path[0]==lmake_lib_dir # normal python behavior : put script dir as f
 
 sys.path[0:0] = [lmake_dir+'/lib']
 
-if len(sys.argv)!=4 :
-	print('usage : python read_makefiles.py <out_file> [config|rules|srcs] sub_repos',file=sys.stderr)
+if len(sys.argv)!=5 :
+	print('usage : python read_makefiles.py <out_file> <environ_file> /[config/][rules/][sources/][top/] sub_repos_s',file=sys.stderr)
 	sys.exit(1)
 
-out_file  =      sys.argv[1]
-action    =      sys.argv[2]
-sub_repos = eval(sys.argv[3])
+out_file     =      sys.argv[1]
+environ_file =      sys.argv[2]
+actions      =      sys.argv[3]
+sub_repos_s  = eval(sys.argv[4])
 
-import lmake     # import before user code to be sure user did not play with sys.path
-import serialize
+import lmake
+import fmt_rule
 
-from fmt_rule import fmt_rule
-
-lmake.user_environ = eval(open('LMAKE/user_environ').read()) # make original user env available while reading config
+lmake.user_environ = eval(open(environ_file).read()) # make original user env available while reading config
 pdict              = lmake.pdict
 
 assert sys.path[1]== lmake_lib_dir
-sys.path[1:2] = []                 # suppress access to _lib : not for user usage
-
-import importlib
-
-def chdir(dir) :
-	os.chdir(dir)
+sys.path[1] = '.'                  # suppress access to _lib (not for user usage) and add access to repo (only for user usage)
 
 def max_link_support(*link_supports) :
 	for ls in ('full','Full','file','File','none','None',None) :
@@ -47,10 +41,9 @@ def max_link_support(*link_supports) :
 	raise ValueError(f'unexpected link_support values : {link_support}')
 
 def merge_config( config , sub_config , sub_dir_s ) :
-	config.link_support  = max_link_support( config.link_support , sub_config.link_support )
+	config.link_support = max_link_support( config.link_support , sub_config.link_support )
 	if sub_config.sub_repos :
-		if not all(sr for sr in sub_config.sub_repos) : raise ValueError(f'sub_repos cannot be empty in {sub_dir_s[:-1]}')
-		config.sub_repos += tuple( sub_dir_s+sr for sr in sub_config.sub_repos )
+		config.sub_repos += tuple(sub_dir_s+sr for sr in sub_config.sub_repos )
 
 def merge_manifest( manifest , sub_manifest , sub_dir_s ) :
 	manifest[:] = [ s for s in manifest if not s.startswith(sub_dir_s) ] # in sub-repo, sources are provided by sub-repo, not by top-level
@@ -65,76 +58,87 @@ def merge_manifest( manifest , sub_manifest , sub_dir_s ) :
 			if s.startswith('../') : manifest.append(sd_s+s)
 
 def merge_rules( rules , sub_rules , sub_dir_s ) :
-	sub_dir = sub_dir_s[:-1]
-	for r in sub_rules :
-		cwd = getattr(r,'cwd','')
-		if cwd : r.cwd = sub_dir_s+cwd
-		else   : r.cwd = sub_dir
+	for r in sub_rules : r.cwd_s = sub_dir_s+getattr(r,'cwd_s','')
 	rules += sub_rules
 
-def read_makefiles(dir_s,actions,sub_repos) :
-	lmake.reset()
-	sub_actions = actions
-	if dir_s :
-		cwd = os.getcwd()
-		os.chdir(dir_s[:-1])
-		del sys.modules['Lmakefile']                                   # ensure sub-Lmakefile is imported from disk
-		importlib.invalidate_caches()                                  # .
-	sys.path[0:0] = [ os.getcwd() ]                                    # cannot use '.' because of buggy importlib.invalidate_caches() before python3.12
-	import Lmakefile
-	sys.path[0:1] = []
-	for a in actions :
-		if a=='config' and not dir_s :                                 # at top level, extend actions if we are not a package
-			if lmake.manifest : sub_actions += ('sources',)
-			if lmake._rules   : sub_actions += ('rules'  ,)
+import Lmakefile
+
+is_top  = '/top/' in actions
+actions = actions.replace('/top/','/')
+
+config = pdict()
+if '/config/' in actions :
+	if callable(getattr(Lmakefile,'config',None)) :
+		Lmakefile.config()
+	else :
 		try :
-			getattr(Lmakefile,a)()
-		except :
-			try    : importlib.import_module('.'+a,'Lmakefile')
-			except : pass
-		if a=='sources' and not lmake.manifest :
-			from lmake import sources
-			lmake.manifest = sources.auto_sources()
-	config   = lmake.config
+			import Lmakefile.config
+		except ImportError as e :
+			if e.name!='Lmakefile.config' : raise
+	config = lmake.config
+	if not isinstance(config,pdict) : config = pdict.mk_deep(config)
+	if is_top :
+		if lmake.manifest : actions += 'sources/'
+		if lmake._rules   : actions += 'rules/'
+		for be in config.get('backends',{}).values() :
+			if 'interface' not in be : continue
+			import serialize
+			code,ctx,names,dbg = serialize.get_expr(
+				be['interface']
+			,	ctx            = (config.__dict__,)
+			,	call_callables = True
+			)
+			be['interface'] = ctx+'interface = '+code
+
+manifest = []
+if '/sources/' in actions :
+	try :
+		Lmakefile.sources()
+	except :
+		try :
+			import Lmakefile.sources
+		except ImportError as e :
+			if e.name!='Lmakefile.sources' : raise
+	if not lmake.manifest :
+		from lmake import sources
+		lmake.manifest = sources.auto_sources()
 	manifest = list(lmake.manifest)
-	rules    = lmake._rules
-	if sub_repos==... : sub_repos,sub_sub_repos = config.sub_repos,... # recurse if not provided explicitely
-	else              :           sub_sub_repos =                  ()
-	for sub_dir_s in sub_repos :
-		if not isinstance(sub_dir_s,str) : raise TypeError (f'sub-lmakefile must be a str, not {sub_dir_s}')
-		if not sub_dir_s                 : raise ValueError('empty sub-lmakefile'                          )
-		if sub_dir_s[-1]!='/'            : sub_dir_s += '/'
-		sub_config , sub_manifest , sub_rules = read_makefiles( sub_dir_s , sub_actions , sub_sub_repos )
-		if 'config'  in sub_actions : merge_config  ( config   , sub_config   , sub_dir_s )
-		if 'sources' in sub_actions : merge_manifest( manifest , sub_manifest , sub_dir_s )
-		if 'rules'   in sub_actions : merge_rules   ( rules    , sub_rules    , sub_dir_s )
-	if dir_s :
-		os.chdir(cwd)
-	return ( config , manifest , rules )
 
-config , manifest , rules = read_makefiles('',(action,),sub_repos)
-manifest = sorted(set(manifest))                                   # suppress duplicates if any (e.g. because of relative external sources of sub-repo's)
+rules = []
+if '/rules/' in actions :
+	try :
+		Lmakefile.rules()
+	except :
+		try :
+			import Lmakefile.rules
+		except ImportError as e :
+			if e.name!='Lmakefile.rules' : raise
+	fmt_rule.no_imports = { r.__module__ for r in lmake._rules } # transport by value all modules that contain a rule
+	for r in lmake._rules :
+		r2 = fmt_rule.fmt_rule(r)
+		if r2 : rules.append(r2)
 
-def handle_config(config) :
-	for be in config.get('backends',{}).values() :
-		if 'interface' not in be : continue
-		code,ctx,names,dbg = serialize.get_expr(
-			be['interface']
-		,	ctx            = (config.__dict__,)
-		,	call_callables = True
-		)
-		be['interface'] = ctx+'interface = '+code
+if sub_repos_s==... : sub_sub_repos_s,sub_repos_s = ...,(d+'/' for d in config.sub_repos) # recurse if not provided explicitely
+else                : sub_sub_repos_s             = ()
+
+if sub_repos_s : import subprocess as sp
+for sub_repo_s in sub_repos_s :
+	if not isinstance(sub_repo_s,str)                        : raise TypeError (f'in {os.getcwd()}, sub-repo ({sub_repo_s}) must be a str')
+	if any(w in '/'+sub_repo_s for w in ('//','/./','/../')) : raise ValueError(f'in {os.getcwd()}, sub-repo ({sub_repo_s}) must be local and canonical')
+	cwd = os.getcwd()
+	os.chdir(sub_repo_s[:-1])
+	sp.check_call((sys.executable,sys.argv[0],osp.join(cwd,out_file),osp.join(cwd,environ_file),actions,str(sub_sub_repos_s)))
+	os.chdir(cwd)
+	sub_infos = pdict.mk_deep(eval(open(out_file).read()))
+	if '/config/'  in actions : merge_config  ( config   , sub_infos.config   , sub_repo_s )
+	if '/sources/' in actions : merge_manifest( manifest , sub_infos.manifest , sub_repo_s )
+	if '/rules/'   in actions : merge_rules   ( rules    , sub_infos.rules    , sub_repo_s )
+
+manifest = sorted(set(manifest))                                   # suppress duplicates if any
 
 # generate output
 # could be a mere print, but it is easier to debug with a prettier output
 # XXX : write a true pretty printer
-
-def error(txt='') :
-	print(txt,file=sys.stderr)
-	exit(2)
-
-if action=='config' :
-	handle_config(lmake.config)
 
 lvl_stack = []
 def sep(l) :
@@ -150,31 +154,24 @@ def tuple_end(l) :                                                   # /!\ must 
 with open(out_file,'w') as out :
 	print('{',file=out)
 	#
-	if action=='config' :
-		print(f"{sep(0)}'config' : {{",file=out) ;
-		kl  = max((len(repr(k)) for k in config.keys()),default=0)
-		for k,v in config.items() :
-			print(f'{sep(1)}{k!r:{kl}} : {v!r}',file=out)
-		print('\t}',file=out)
+	if '/config/' in actions :
+		kl = max((len(repr(k)) for k in config.keys()),default=0)
+		if True                   : print(f"{sep(0)}'config' : {{"     ,file=out)
+		for k,v in config.items() : print(f'{sep(1)}{k!r:{kl}} : {v!r}',file=out)
+		if True                   : print('\t}'                        ,file=out)
 	#
-	if rules or action=='rules' :
-		import fmt_rule
-		fmt_rule.no_imports = { r.__module__ for r in rules } # transport by value all modules that contain a rule
+	if rules or '/rules/' in actions :
 		print(f"{sep(0)}'rules' : (",file=out)
 		for r in rules :
-			rule = fmt_rule.fmt_rule(r)
-			if not rule : continue
-			print(f'{sep(1)}{{',file=out)
-			kl = max((len(repr(k)) for k in rule.keys()),default=0)
-			for k,v in rule.items() :
-				if v!=None : print(f'{sep(2)}{k!r:{kl}} : {v!r}',file=out)
-			print('\t\t}',file=out)
+			kl = max((len(repr(k)) for k in r.keys()),default=0)
+			if True              : print(f'{sep(1)}{{'                ,file=out)
+			for k,v in r.items() : print(f'{sep(2)}{k!r:{kl}} : {v!r}',file=out)
+			if True              : print('\t\t}'                      ,file=out)
 		print(f'{tuple_end(1)})',file=out)
 	#
-	if manifest or action=='sources' :
-		print(f"{sep(0)}'manifest' : (",file=out)
-		for src in manifest :
-			print(f'{sep(1)}{src!r}',file=out)
-		print(f'{tuple_end(1)})',file=out)
+	if manifest or '/sources/' in actions :
+		if True             : print(f"{sep(0)}'manifest' : (",file=out)
+		for src in manifest : print(f'{sep(1)}{src!r}'       ,file=out)
+		if True             : print(f'{tuple_end(1)})'       ,file=out)
 	#
 	print('}',file=out)

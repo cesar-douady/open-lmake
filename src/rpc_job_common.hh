@@ -47,13 +47,11 @@ ENUM_1( ExtraDflag
 ,	NRule          // all flags allowed
 ,	Top
 ,	Ignore
-,	StatReadData
 )
 // END_OF_VERSIONING
 static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
-	{ ExtraDflag::Top          , 0   }
-,	{ ExtraDflag::Ignore       , 'I' }
-,	{ ExtraDflag::StatReadData , 'd' }
+	{ ExtraDflag::Top    , 0   }
+,	{ ExtraDflag::Ignore , 'I' }
 }} ;
 using ExtraDflags = BitMap<ExtraDflag> ;
 static_assert(_chk_flags_tab(ExtraDflagChars)) ;

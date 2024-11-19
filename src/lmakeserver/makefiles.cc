@@ -17,6 +17,8 @@ using namespace Py   ;
 
 namespace Engine::Makefiles {
 
+	static constexpr const char* EnvironFile = ADMIN_DIR_S "environ" ;
+
 	static ::map_ss _g_env ;
 
 	static ::vector_s _gather_srcs(Sequence const& py_srcs) {
@@ -121,11 +123,11 @@ namespace Engine::Makefiles {
 		//
 		::string data   = PrivateAdminDirS+action+"_data.py" ;
 		Gather   gather ;
-		gather.autodep_env.src_dirs_s = {"/"}                                                                            ;
-		gather.autodep_env.root_dir_s = *g_root_dir_s                                                                    ;
-		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , action , sub_repos } ;
-		gather.child_stdin            = Child::NoneFd                                                                    ;
-		gather.env                    = &_g_env                                                                          ;
+		gather.autodep_env.src_dirs_s = {"/"}                                                                                                      ;
+		gather.autodep_env.root_dir_s = *g_root_dir_s                                                                                              ;
+		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , EnvironFile , '/'+action+"/top/" , sub_repos } ;
+		gather.child_stdin            = Child::NoneFd                                                                                              ;
+		gather.env                    = &_g_env                                                                                                    ;
 		//
 		::string sav_ld_library_path ;
 		if (PY_LD_LIBRARY_PATH[0]!=0) {
@@ -175,13 +177,13 @@ namespace Engine::Makefiles {
 	template<bool IsRules,class T> static ::pair_s<bool/*done*/> _refresh_rules_srcs(
 		T&              res
 	,	::vector_s&     deps
-	,	Bool3           changed                                                                         // Maybe means new, Yes means existence of module/callable changed
+	,	Bool3           changed                                                                                 // Maybe means new, Yes means existence of module/callable changed
 	,	Dict const*     py_info
 	,	::string const& startup_dir_s
 	) {
 		bool has_split = IsRules ? g_config->has_split_rules : g_config->has_split_srcs ;
 		Trace trace("_refresh_rules_srcs",STR(IsRules),changed,STR(has_split)) ;
-		if ( !has_split && !py_info && changed==No ) return {{},false/*done*/} ;                        // sources has not been read
+		if ( !has_split && !py_info && changed==No ) return {{},false/*done*/} ;                                // sources has not been read
 		::string  reason      ;
 		Ptr<Dict> py_new_info ;
 		::string  kind        = IsRules ? "rules" : "sources" ;
@@ -194,14 +196,14 @@ namespace Engine::Makefiles {
 					if (!reason) return {{},false/*done*/} ;
 				break ;
 			}
-			::string sub_repos ;
-			First    first     ;
-			/**/                                            sub_repos << "("                          ;
-			for( ::string const& sr : g_config->sub_repos ) sub_repos <<first("",",")<< mk_py_str(sr) ; // use sub-repos list discovered during config
-			/**/                                            sub_repos <<first("",",","")<<')'         ; // singletons must have a terminating ','
-			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			tie(py_new_info,deps) = _read_makefile(kind,sub_repos) ;
-			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			::string sub_repos_s ;
+			First    first       ;
+			/**/                                                sub_repos_s << "("                            ;
+			for( ::string const& sr_s : g_config->sub_repos_s ) sub_repos_s <<first("",",")<< mk_py_str(sr_s) ; // use sub-repos list discovered during config
+			/**/                                                sub_repos_s <<first("",",","")<<')'           ; // singletons must have a terminating ','
+			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			tie(py_new_info,deps) = _read_makefile(kind,sub_repos_s) ;
+			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
 		try {
@@ -239,7 +241,7 @@ namespace Engine::Makefiles {
 					if ( const char* eq = ::strchr(*e,'=') )
 						content << first("",",")<<'\t'<< widen(mk_py_str(::string_view(*e,eq-*e)),w) <<" : "<< mk_py_str(::string(eq+1)) << '\n' ;
 				content << "}\n" ;
-				AcFd( ADMIN_DIR_S "user_environ" , Fd::Write ).write(content) ;
+				AcFd( EnvironFile , Fd::Write ).write(content) ;
 			}
 			/**/                          _g_env["HOME"           ] = no_slash(*g_root_dir_s)       ;
 			/**/                          _g_env["PATH"           ] = STD_PATH                      ;
@@ -250,18 +252,21 @@ namespace Engine::Makefiles {
 		//
 		::pair_s<bool/*done*/> config_digest = _refresh_config( config , py_info , config_deps , startup_dir_s ) ;
 		//
-		Bool3 changed_srcs  = No ;
-		Bool3 changed_rules = No ;
+		Bool3 changed_srcs      = No    ;
+		Bool3 changed_rules     = No    ;
+		bool  invalidate_config = false ;
 		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
 			if (!old.booted) {                                                                     // no old config means first time, all is new
-				changed_srcs  = Maybe ;                                                            // Maybe means new
-				changed_rules = Maybe ;                                                            // .
+				changed_srcs      = Maybe ;                                                        // Maybe means new
+				changed_rules     = Maybe ;                                                        // .
+				invalidate_config = true  ;
 				return ;
 			}
 			if (!new_.booted) return ;                                                             // no new config means we keep old config, no modification
 			//
-			changed_srcs  |= old.has_split_srcs !=new_.has_split_srcs  ;
-			changed_rules |= old.has_split_rules!=new_.has_split_rules ;
+			changed_srcs      |= old.has_split_srcs !=new_.has_split_srcs  ;
+			changed_rules     |= old.has_split_rules!=new_.has_split_rules ;
+			invalidate_config  = old.sub_repos_s!=new_.sub_repos_s         ;                       // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
 			NoGil no_gil { gil } ;                                                                 // release gil as new_config needs Backend which is of lower priority
@@ -269,7 +274,7 @@ namespace Engine::Makefiles {
 			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
-			throw "cannot dynamically read config (because "+config_digest.first+") : "+e ;
+			throw "cannot "s+(dynamic?"dynamically ":"")+"read config (because "+config_digest.first+") : "+e ;
 		}
 		//
 		// /!\ sources must be processed first as source dirs influence rules
@@ -302,7 +307,7 @@ namespace Engine::Makefiles {
 				else         throw "cannot read rules : "                                                                                            + e ;
 			}
 		}
-		if ( invalidate_src || invalidate_rule ) Persistent::invalidate_match() ;
+		if ( invalidate_config || invalidate_src || invalidate_rule ) Persistent::invalidate_match() ;
 		//
 		if      (config_digest.second) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
 		else if (srcs_digest  .second) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have become dangling

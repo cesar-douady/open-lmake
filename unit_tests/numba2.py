@@ -10,7 +10,7 @@ if __name__!='__main__' :
 	import socket
 
 	import lmake
-	from lmake.rules import Rule,_lmake_dir,root_dir
+	from lmake.rules import Rule,_lmake_dir
 
 	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
 		lmake.config.backends.slurm = {

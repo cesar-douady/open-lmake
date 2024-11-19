@@ -498,17 +498,17 @@ See previous section for more information.
 @section @code{def search_root_dir(cwd=os.getcwd())}
 Return the root dir as seen from passed @code{cwd} argument.
 
-Note that his may be different from the @code{root_dir} variable in case there is a @Lmakefile file in a subdir.
+Note that his may be different from the @code{top_root_dir} variable in case there is a @Lmakefile file in a subdir.
 
 @section constants
 
 The following constants are defined :
 @table @code
 @item root_dir
-The root directory of the repository as determined when the @lmake command was run.
+The root directory of the (sub-)repository.
+@item top_root_dir
+The root directory of the top-level repository as determined when the @lmake command was run.
 
-Recursive sub-repositories are ignored.
-Use the @code{search_root_dir} function if you want to get the nearest hierarchical root dir.
 @item autodeps
 The @code{tuple} of implemented autodep methods. @code{'ld_preload'} and @code{'ptrace'} are always present.
 @item backends
@@ -533,7 +533,7 @@ The correspondance is :
 @item @code{def check_deps()}
 @tab @code{lcheck_deps}
 @tab
-@item @code{def depend( *files , follow_symlinks=True , verbose=False , read=True , critical=False , essential=False , ignore_error=False , required=True , ignore=False , stat_read_data=False )}
+@item @code{def depend( *files , follow_symlinks=True , verbose=False , read=True , critical=False , essential=False , ignore_error=False , required=True , ignore=False )}
 @tab @code{ldepend}
 @tab @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
@@ -831,8 +831,15 @@ And because of the performance cost, this option has been designed to avoid payi
 Sub repositories are sub-directories of the repository that are themselves repositories, i.e. they have a @Lmakefile.
 Inside such sub-repositories, the applied flow is the one described in it, namely :
 @itemize
+@item Config is the one of the top-level, except for the @code{link_support} attribute which becomes the most conservative (@code{full}>@code{file}>@code{none}).
 @item Sources are taken from the local @Lmakefile and sources listed in the global @Lmakefile that happen to be located in the sub-repository are ignored.
 @item Rules are taken from the local @Lmakefile, executed within it (by adjusting their @code{cwd} attributes) and rules from the global repository do not apply.
+However there are 2 situations in which a global rule may apply in a sub-repo :
+@itemize
+@item if a target contains an explicite prefix within a sub-repo, then it is considered the user is willing to subrogate this principle.
+@item if a rule matches a job with 2 or more targets, with a target outside the sub-repo and another inside it and the target outside the sub-repo is needed,
+the job will be executed, generating a target within the sub-repo.@XXX{flag this case as an error rather than silently accepting it}
+@end itemize
 @end itemize
 However, relative external source dirs (i.e. source dirs located outside the sub-repository) that happen to be located in the global repository are suppressed,
 i.e. the global flow applies to files located there, instead as being considered sources.
@@ -1309,8 +1316,8 @@ All matching targets must have the same set of static stems (i.e. stems with no 
 Matching is done by first trying to match static targets (i.e. which are not star) then star targets.
 The first match will provide the associated stem definitions and flags.
 
-Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the target pattern in order to support hierarchical repository (cf @pxref{hierarchical-repositories}).
-
+Unless the @code{top} flag is set, the pattern is rooted to the sub-repo if the rule is defined in such a sub-repo.
+If the @code{top} flag is set, the pattern is always rooted at the top-level repo.
 
 @section @code{target}
 
@@ -1329,6 +1336,8 @@ This attribute defines an unnamed target.
 Its syntax is the same as any target entry except that it may not be @code{incremental}. Also, such a target may not be a @code{star} target.
 
 During execution, @code{cmd} stdout will be redirected to this (necessarily unique since it cannot be a @code{star}) target.
+
+The @code{top} flag cannot be used and the pattern is always rooted to the sub-repo if the rule is defined in such a sub-repo.
 
 @section @code{side_targets}
 
@@ -1385,7 +1394,6 @@ Flags may be arbitrarily nested into sub-@code{list}'s or sub-@code{tuple}'s.
 @item Critical           @tab critical        @tab No      @tab This dep is critial (cf @pxref{critical-deps}).
 @item IgnoreError        @tab ignore_error    @tab No      @tab This dep may be in error, job will be launched anyway.
 @item Required           @tab required        @tab No      @tab This dep is deemed to be read, even if not actually read by the job.
-@item StatReadData       @tab stat_read_data  @tab No      @tab If this dep is accessed with a stat-like access, it is deemed to have accessed its content, which may increase the number of rebuilds.
 @item Top                @tab top             @tab No      @tab dep pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
 @end multitable
 
@@ -1489,7 +1497,7 @@ It must be an absolute path not lying in the temporary directory (e.g. @code{'/r
 
 If @code{None} or @code{''}, no bind mount is performed.
 
-If performed, @code{$ROOT_DIR} will reflect this value.
+If performed, @code{$TOP_ROOT_DIR} will reflect this value.
 
 As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
 
@@ -1550,25 +1558,6 @@ Directories are recognized when they end with @code{/}.
 Such @code{copy_up} items are provided relative to the root of the view.
 @end itemize
 The mapping is done through bind mounts (cf @pxref {namespaces}).
-
-@section @code{cwd}
-
-@multitable @columnfractions 0.1 0.9
-@item Inheritance
-@tab Python
-@item Type
-@tab @code{str}
-@item Default
-@tab @code{''}
-@item Dynamic
-@tab No.
-@end multitable
-
-This attribute defines a directory in which jobs will @code{chdir} into before execution begins.
-It must be empty to specify the repository root.
-Else, it must be a relative path (to the repository root).
-
-This attribute is also prepended to targets and deps unless they have the @code{top} flag.
 
 @section @code{environ_cmd}
 
@@ -1730,8 +1719,8 @@ Whether @code{cmd} is a @code{str} or a @code{function}, the following environme
 @item @code{$LD_AUDIT}          : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_audit'} (cf @pxref{autodep}).
 @item @code{$LD_PRELOAD}        : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_preload'} or @code{'ld_preload_jemalloc'} (cf @pxref{autodep}).
 @item @code{$LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (cf @pxref{autodep}).
-@item @code{$PWD}               : The initial directory in which @code{cmd} is run, as provided by the @code{cwd} attribute (often the root of the repository).
-@item @code{$ROOT_DIR}          : The root of the repository.
+@item @code{$ROOT_DIR}          : The root of the (sub-)repository.
+@item @code{$TOP_ROOT_DIR}      : The root of the top-level repository.
 @item @code{$SEQUENCE_ID}       : A value which is unique for each run.
 It is @code{1} initially and is incremented each time a job is run.
 @item @code{$SMALL_ID}          : A value which is unique among running job at any given time.
@@ -2753,22 +2742,17 @@ And the succession of job would be :
 @anchor{hierarchical-repositories}
 @section Hierarchical repositories
 
-Hierarchical repositories are currently broken and will be fixed shortly.
-
-@XXX{fix hierarchical repositories
-
 Hierarchical repositories are repositories that contain repositories, i.e. some @Lmakefile are present in sub-directories.
 
 In that situation, it is reasonable to assume that the @Lmakefile are made to handle building files underneath it.
 
-To support this situation, @lmake allow you to simply import these @Lmakefile and the @code{cwd} attributes will automatically be set to the right value so that :
+To support this situation, @lmake allow you to simply mention such s
 @itemize
 @item Targets only match within the sub-repo (and escape is possibly by setting the @code{top} flag to the target to provide global rules).
 @item The same applies to deps.
 @item @code{cmd} is run from this sub-repository, i.e. its cwd is set accordingly.
 @item The priority of deeper rules are matched first, so that builds in a sub-repo is not pertubated by rules of englobing repo.
 @end itemize
-}
 
 @anchor{eta-estimation}
 @section ETA estimation

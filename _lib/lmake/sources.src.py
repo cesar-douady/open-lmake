@@ -10,10 +10,9 @@
 	- git, with sub-module support
 '''
 
+import os         as _os
 import os.path    as _osp
 import subprocess as _sp
-
-from . import root_dir # if not in an lmake repo, root_dir is not set to current dir
 
 def manifest_sources(manifest='Manifest',**kwds) :
 	'''
@@ -47,6 +46,7 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 	#
 	# compute directories
 	#
+	root_dir       = _os.getcwd()
 	abs_git_repo   = root_dir
 	rel_git_repo_s = ''
 	while abs_git_repo!='/' and not _osp.exists(_osp.join(abs_git_repo,'.git')) :

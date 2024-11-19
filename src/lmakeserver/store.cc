@@ -86,7 +86,7 @@ namespace Engine::Persistent {
 		_s_init_vec(s_ping) ;
 		for( Rule r=Special::NShared ; r<s_n_rule_datas ; r=+r+1 ) {
 			RuleData rd = r.str() ;
-			s_by_name[rd.name] = r ;
+			s_by_name[rd.full_name()] = r ;
 			_s_rule_data_vecs[s_ping].emplace_back(::move(rd)) ;
 		}
 		//
@@ -104,14 +104,14 @@ namespace Engine::Persistent {
 		_s_init_vec(pong) ;
 		for( Rule r : rule_lst() ) {
 			RuleData& rd = *rule_map.at(r->crc->match) ;
-			SWEAR(rd.crc==r->crc) ;                                // check match, cmd and rsrcs are all ok as we should not be here if it is not the case
-			s_by_name[rd.name] = r                               ;
-			s_name_sz          = ::max(s_name_sz,rd.name.size()) ;
+			SWEAR(rd.crc==r->crc) ;                                       // check match, cmd and rsrcs are all ok as we should not be here if it is not the case
+			s_by_name[rd.full_name()] = r                               ;
+			s_name_sz                 = ::max(s_name_sz,rd.name.size()) ;
 			_s_rule_data_vecs[pong].emplace_back(::move(rd)) ;
 		}
 		_rule_str_file.hdr() = s_name_sz ;
 		fence() ;
-		_s_set_rule_datas(pong) ;                                  // because update is dynamic, take care of atomicity
+		_s_set_rule_datas(pong) ;                                         // because update is dynamic, take care of atomicity
 		fence() ;
 		_s_rule_data_vecs[s_ping].clear() ;
 		s_ping = pong ;
@@ -126,8 +126,8 @@ namespace Engine::Persistent {
 		_s_rule_data_vecs[s_ping].clear() ;
 		_s_init_vec(s_ping) ;
 		for( RuleData& rd : new_rules ) {
-			s_by_name[rd.name] = _s_rule_data_vecs[s_ping].size() ;
-			s_name_sz          = ::max(s_name_sz,rd.name.size())  ;
+			s_by_name[rd.full_name()] = _s_rule_data_vecs[s_ping].size() ;
+			s_name_sz                 = ::max(s_name_sz,rd.name.size())  ;
 			_s_rule_data_vecs[s_ping].emplace_back(::move(rd)) ;
 		}
 		_rule_str_file.hdr() = s_name_sz ;
@@ -297,7 +297,7 @@ namespace Engine::Persistent {
 		//
 		/**/                                                           diff(*g_config,config) ;
 		//
-		/**/                                                          ConfigDiff d = config.booted ? g_config->diff(config) : ConfigDiff::None ;
+		/**/                                                           ConfigDiff d = config.booted ? g_config->diff(config) : ConfigDiff::None ;
 		if (              d>ConfigDiff::Static  &&  g_config->booted ) throw "repo must be clean"s  ;
 		if (  dynamic &&  d>ConfigDiff::Dynamic                      ) throw "repo must be steady"s ;
 		//
@@ -417,16 +417,16 @@ namespace std {
 
 namespace Engine::Persistent {
 
-	template<bool IsSfx> static void _propag_to_longer(::map_s<uset<Rt>>& psfx_map) {
-		for( auto& [long_psfx,long_entry] : psfx_map ) {                              // entries order guarantees that if an entry is a prefix/suffix of another, it is processed first
-			if (!long_entry) continue ;                                               // empty entries represent sub-repo's, global rules do not propagate inside them
+	template<bool IsSfx> static void _propag_to_longer( ::map_s<uset<Rt>>& psfx_map , ::uset_s const& sub_repos_s={} ) {
+		for( auto& [long_psfx,long_entry] : psfx_map ) {                // entries order guarantees that if an entry is a prefix/suffix of another, it is processed first
+			if ( !IsSfx && sub_repos_s.contains(long_psfx) ) continue ; // dont propagate through sub_repos boundaries
 			for( size_t shorten_by : iota(1,long_psfx.size()+1) ) {
 				::string short_psfx = long_psfx.substr( IsSfx?shorten_by:0 , long_psfx.size()-shorten_by ) ;
-				auto     short_it   = psfx_map.find(short_psfx)                                            ;
-				if (short_it!=psfx_map.end()) {
-					long_entry.merge(::copy(short_it->second)) ;                      // copy arg as merge clobbers it
-					break ;                                                           // psfx's are sorted shortest first, so as soon as a short one is found, it is already merged with previous ones
-				}
+				if ( !IsSfx && sub_repos_s.contains(short_psfx) ) break ;                                    // dont propagate through sub_repos boundaries
+				auto short_it = psfx_map.find(short_psfx) ;
+				if (short_it==psfx_map.end()) continue ;
+				long_entry.merge(::copy(short_it->second)) ; // copy arg as merge clobbers it
+				break ;                                      // psfx's are sorted shortest first, so as soon as a short one is found, it is already merged with previous ones
 			}
 		}
 	}
@@ -445,27 +445,27 @@ namespace Engine::Persistent {
 				Rt rt { r->crc , ti } ;
 				sfx_map[rt.sfx].insert(rt) ;
 			}
-		_propag_to_longer<true/*IsSfx*/>(sfx_map) ; // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
+		_propag_to_longer<true/*IsSfx*/>(sfx_map) ;                              // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
 		//
 		// now, for each suffix, compute a prefix map
-		::map_s<uset<Rt>> empty_pfx_map ; for( ::string const& sr : g_config->sub_repos ) empty_pfx_map.try_emplace(sr) ; // create empty entries for all sub-repos as these are recognized ...
-		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {                                                                // ...  to prevent propagation of global rules inside sub-repo
+		// create empty entries for all sub-repos so as markers to ensure prefixes are not propagated through sub-repo boundaries
+		::map_s<uset<Rt>> empty_pfx_map ;                                  for( ::string const& sr_s : g_config->sub_repos_s ) empty_pfx_map.try_emplace(sr_s) ;
+		::uset_s          sub_repos_s   = mk_uset(g_config->sub_repos_s) ;
+		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {
 			::map_s<uset<Rt>> pfx_map = empty_pfx_map ;
-			if ( sfx.starts_with(StartMrkr) ) {                          // manage targets with no stems as a suffix made of the entire target and no prefix
+			if ( sfx.starts_with(StartMrkr) ) {                                  // manage targets with no stems as a suffix made of the entire target and no prefix
 				::string_view sfx1 = ::string_view(sfx).substr(1) ;
-				for( Rt const& rt : sfx_rule_tgts )
-					if (sfx1.starts_with(rt.pfx)) pfx_map[""].insert(rt) ;
+				for( Rt const& rt : sfx_rule_tgts ) if (sfx1.starts_with(rt.pfx)) pfx_map[""].insert(rt) ;
 			} else {
-				for( Rt const& rt : sfx_rule_tgts )
-					pfx_map[rt.pfx].insert(rt) ;
-				_propag_to_longer<false/*IsSfx*/>(pfx_map) ;             // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
+				for( Rt const& rt : sfx_rule_tgts ) pfx_map[rt.pfx].insert(rt) ;
+				_propag_to_longer<false/*IsSfx*/>(pfx_map,sub_repos_s) ;         // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
 			}
 			//
 			// store proper rule_tgts (ordered by decreasing prio, giving priority to AntiRule within each prio) for each prefix/suffix
 			PsfxIdx pfx_root = _pfxs_file.emplace_root() ;
 			_sfxs_file.insert_at(sfx) = pfx_root ;
 			for( auto const& [pfx,pfx_rule_tgts] : pfx_map ) {
-				if (!pfx_rule_tgts) continue ;                           // this is a sub-repo marker, not a real entry
+				if (!pfx_rule_tgts) continue ;                                   // this is a sub-repo marker, not a real entry
 				vector<Rt> pfx_rule_tgt_vec = mk_vector(pfx_rule_tgts) ;
 				::sort(
 					pfx_rule_tgt_vec
@@ -474,8 +474,8 @@ namespace Engine::Persistent {
 						// optim      : put more specific rules before more generic ones to favor sharing RuleTgts in reversed PrefixFile
 						// finally    : any stable sort is fine, just to avoid random order
 						return
-							::tuple( a->rule->is_special() , a->rule->prio , a->rule->special , a.pfx.size()+a.sfx.size() , a->rule->name )
-						>	::tuple( b->rule->is_special() , b->rule->prio , b->rule->special , b.pfx.size()+b.sfx.size() , b->rule->name )
+							::tuple( a->rule->is_special() , a->rule->prio , a->rule->special , a.pfx.size()+a.sfx.size() , a->rule->name , a->rule->cwd_s )
+						>	::tuple( b->rule->is_special() , b->rule->prio , b->rule->special , b.pfx.size()+b.sfx.size() , b->rule->name , a->rule->cwd_s )
 						;
 					}
 				) ;
@@ -504,14 +504,14 @@ namespace Engine::Persistent {
 		//
 		::umap<Crc,RuleData const*> old_rds   ;
 		::umap<Crc,RuleData*>       new_rds   ;
-		::set<::pair_ss>            new_names ;
+		::uset_s                    new_names ;
 		for( Rule r : rule_lst() ) old_rds.try_emplace(r->crc->match,&*r) ;
 		for( RuleData& rd : new_rules_ ) {
-			auto [it,new_crc ] = new_rds.try_emplace(rd.crc->match,&rd)   ;
-			bool     new_name  = new_names.emplace(rd.cwd_s,rd.name).second ;
-			if ( !new_crc && !new_name ) throw "rule "+rd.name+" appears twice"                                                 ;
-			if ( !new_crc              ) throw "rules "+rd.name+" and "+it->second->name+" match identically and are redundant" ;
-			if (             !new_name ) throw "2 rules have the same name "+rd.name+" and cwd "+no_slash(rd.cwd_s)             ;
+			auto [it,new_crc ] = new_rds.try_emplace(rd.crc->match,&rd)  ;
+			bool     new_name  = new_names.insert(rd.full_name()).second ;
+			if ( !new_crc && !new_name ) throw "rule "+rd.full_name()+" appears twice"                                                        ;
+			if ( !new_crc              ) throw "rules "+rd.full_name()+" and "+it->second->full_name()+" match identically and are redundant" ;
+			if (             !new_name ) throw "2 rules have the same name "+rd.full_name()                                                   ;
 		}
 		//
 		RuleIdx n_old_rules         = old_rds.size() ;
@@ -563,7 +563,7 @@ namespace Engine::Persistent {
 				if (single) { SWEAR(!pfx,pfx) ; trace2(         sfx.substr(1) , ':' ) ; }
 				else        {                   trace2( pfx+'*'+sfx           , ':' ) ; }
 				Trace trace3 ;
-				for( RuleTgt rt : rts.view() ) trace3( rt->rule , ':' , rt->rule->user_prio , rt->rule->prio , rt->rule->name , rt.key() ) ;
+				for( RuleTgt rt : rts.view() ) trace3( rt->rule , ':' , rt->rule->user_prio , rt->rule->prio , rt->rule->full_name() , rt.key() ) ;
 			}
 		}
 		// user report
