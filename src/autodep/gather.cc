@@ -505,7 +505,7 @@ void Gather::reorder(bool at_end) {
 			return a.second.first_read().first < b.second.first_read().first ;
 		}
 	) ;
-	// 1st pass (backward) : note dirs of immediately following files
+	// 1st pass (backward) : note dirs immediately following files
 	::vmap_s<AccessInfo>::reverse_iterator last = accesses.rend() ;
 	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {                                                         // XXX : manage parallel deps
 		::string const& file   = it->first         ;

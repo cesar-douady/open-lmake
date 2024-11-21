@@ -165,7 +165,7 @@ namespace Disk {
 		// accesses
 	public :
 		bool    operator==(FileSig const& fs) const {
-			if( !self && !fs ) return true          ; // consider Dir and None as identical
+			if( !self && !fs ) return true          ;  // consider Dir and None as identical
 			else                return _val==fs._val ;
 		}
 		//
@@ -337,10 +337,10 @@ namespace Disk {
 		struct SolveReport {
 			friend ::string& operator+=( ::string& , SolveReport const& ) ;
 			// data
-			::string   real          = {}           ; // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir, else empty
-			::vector_s lnks          = {}           ; // links followed to get to real
-			Bool3      file_accessed = No           ; // if True, file was accessed as sym link, if Maybe file dir was accessed as sym link
-			FileLoc    file_loc      = FileLoc::Ext ; // do not process awkard files
+			::string   real          = {}           ;                     // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir, else empty
+			::vector_s lnks          = {}           ;                     // links followed to get to real
+			Bool3      file_accessed = No           ;                     // if True, file was accessed as sym link, if Maybe file dir was accessed as sym link
+			FileLoc    file_loc      = FileLoc::Ext ;                     // do not process awkard files
 		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp
@@ -374,16 +374,19 @@ namespace Disk {
 		// services
 		FileLoc file_loc( ::string const& real ) const { return _env->file_loc(real) ; }
 		//
-		SolveReport solve( Fd at , ::string const&      , bool no_follow=false ) ;
-		SolveReport solve( Fd at , const char*     file , bool no_follow=false ) { return solve(at     ,::string(file),no_follow) ; } // ensure proper types
-		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,         file ,no_follow) ; }
-		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve(at     ,         {}   ,no_follow) ; }
+		SolveReport solve( Fd at , ::string_view        , bool no_follow=false ) ;
+		SolveReport solve( Fd at , ::string const& file , bool no_follow=false ) { return solve( at      , ::string_view(file) , no_follow ) ; }
+		SolveReport solve( Fd at , const char*     file , bool no_follow=false ) { return solve( at      , ::string_view(file) , no_follow ) ; }
+		SolveReport solve(         ::string_view   file , bool no_follow=false ) { return solve( Fd::Cwd ,               file  , no_follow ) ; }
+		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve( Fd::Cwd ,               file  , no_follow ) ; }
+		SolveReport solve(         const char*     file , bool no_follow=false ) { return solve( Fd::Cwd ,               file  , no_follow ) ; }
+		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve( at      , ::string()          , no_follow ) ; }
 		//
-		vmap_s<Accesses> exec(SolveReport&) ;                                                                                         // arg is updated to reflect last interpreter
+		vmap_s<Accesses> exec(SolveReport&) ;             // arg is updated to reflect last interpreter
 		//
 		void chdir() ;
 		::string cwd() {
-			if ( !pid && ::getpid()!=_cwd_pid ) chdir() ;                                                                             // refresh _cwd if it was updated in the child part of a clone
+			if ( !pid && ::getpid()!=_cwd_pid ) chdir() ; // refresh _cwd if it was updated in the child part of a clone
 			return _cwd ;
 		}
 	private :
@@ -394,10 +397,10 @@ namespace Disk {
 	private :
 		RealPathEnv const* _env            ;
 		::string           _admin_dir      ;
-		::vector_s         _abs_src_dirs_s ;                                                                                          // this is an absolute version of src_dirs
+		::vector_s         _abs_src_dirs_s ;              // this is an absolute version of src_dirs
 		size_t             _root_dir_sz    ;
 		::string           _cwd            ;
-		pid_t              _cwd_pid        = 0 ;                                                                                      // pid for which _cwd is valid if pid==0
+		pid_t              _cwd_pid        = 0 ;          // pid for which _cwd is valid if pid==0
 	} ;
 	::string& operator+=( ::string& , RealPath::SolveReport const& ) ;
 

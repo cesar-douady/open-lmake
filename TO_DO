@@ -213,7 +213,7 @@ M manage HUGE pages in store
 
 * add a TU for scp
 * add a TU for dynamic config update
-* add a TU for sub-Lmakefile.py
+* add a more agressive TU for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...
 * add a unit_test to validate n_retries
@@ -227,16 +227,16 @@ M manage HUGE pages in store
 * TOOLS
 ****************************************************************************************************
 
-* consider gdb guis :
-	- apt install nemiver
-	- insight
-* consider serialization libs :
-	- https://github.com/alibaba/yalantinglibs
-		- https://alibaba.github.io/yalantinglibs/resource/A%20Faster%20Serialization%20Library%20Based%20on%20Compile-time%20Reflection%20and%20C++%2020.pdf
-* implement a file dump
-	- put a header in files so that format can be automatically recognized
-	- suitable for use in vim
 ! develop lmake under lmake
 	- autodep must support to be audited by autodep for unit tests
 	- provide a bootstrap script
+? consider serialization libs :
+	- https://github.com/alibaba/yalantinglibs
+		- https://alibaba.github.io/yalantinglibs/resource/A%20Faster%20Serialization%20Library%20Based%20on%20Compile-time%20Reflection%20and%20C++%2020.pdf
+? implement a file dump
+	- put a header in files so that format can be automatically recognized
+	- suitable for use in vim
 ? make a navigation tool based on Neo4J or a similarly complete tool
+? consider gdb guis :
+	- apt install nemiver
+	- insight

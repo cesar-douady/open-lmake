@@ -247,7 +247,7 @@ namespace Backends::Slurm {
 			}
 			info.first = "job is still alive" ;
 		JobDead :
-			if ( se.verbose && +info.first ) {                       // XXX : only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
+			if ( se.verbose && +info.first ) {                       // /!\ only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
 				if (+stderr) info.first <<set_nl<< stderr ;
 			}
@@ -257,7 +257,7 @@ namespace Backends::Slurm {
 			::pair_s<Bool3/*job_ok*/> info = slurm_job_state(se.id) ;
 			if (info.second==Maybe) return {{}/*msg*/,HeartbeatState::Alive} ;
 			//
-			if ( se.verbose && +info.first ) {                       // XXX : only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
+			if ( se.verbose && +info.first ) {                       // /!\ only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
 				if (+stderr) info.first <<set_nl<< stderr ;
 			}
