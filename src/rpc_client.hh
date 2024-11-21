@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "config.hh"
+#include "types.hh"
 
 #include "app.hh"
 #include "serialize.hh"

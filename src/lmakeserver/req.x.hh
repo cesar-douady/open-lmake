@@ -267,6 +267,8 @@ namespace Engine {
 		void         audit_stats (                                                                                                ) const ;
 		bool/*seen*/ audit_stderr( Job , ::string const& msg , ::string const& stderr , size_t max_stderr_len=-1 , DepDepth lvl=0 ) const ;
 	private :
+		void _open_log() ;
+		//
 		bool/*overflow*/ _send_err      ( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl=0 ) ;
 		void             _report_no_rule( Node , Disk::NfsGuard&                                                         , DepDepth lvl=0 ) ;
 		// data

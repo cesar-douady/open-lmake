@@ -790,6 +790,11 @@ The search stops if the depth of the search reaches the value of this attribute,
 followed by a line containing @code{...}.
 The purpose is to ease reading.
 
+@item @code{n_output_days}
+@tab @code{30}
+@tab Dynamic
+@tab Number of days during which output logs are kept in the @file{LMAKE/outputs} directory.
+
 @item @code{network_delay}
 @tab @code{1}
 @tab Static
@@ -2113,9 +2118,10 @@ Each line contains a file, preceded by a @code{+} if file exists or a @code{!} i
 If a callable or a sub-module has been set or if using the default behavior to list sources, this file contains a list of files that @lmake has read to process it.
 Each line contains a file, preceded by a @code{+} if file exists or a @code{!} if it does not.
 
-@section @file{LMAKE/outputs/<date>}
+@section @file{LMAKE/outputs/<date>/<time>}
 
-This file contains a transcript of the @lmake command that has been run at @file{<date>}.
+This file contains a transcript of the @lmake command that has been run at @file{<time>} on @file{<day>}.
+Such logs are kept for a number of days given in @code{lmake.config.n_output_days}.
 
 @section @file{LMAKE/last_output}
 

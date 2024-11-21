@@ -191,10 +191,11 @@ LMAKE_SERVER_PY_FILES := \
 	lib/lmake_debug/runtime/utils.py
 
 LMAKE_SERVER_BIN_FILES := \
-	_bin/lmakeserver            \
+	_bin/align_comments         \
 	_bin/ldump                  \
 	_bin/ldump_job              \
-	_bin/align_comments         \
+	_bin/lkpi                   \
+	_bin/lmakeserver            \
 	bin/lautodep                \
 	bin/find_cc_ld_library_path \
 	bin/ldebug                  \
@@ -346,7 +347,6 @@ STORE_TEST : src/store/unit_test.dir/tok src/store/big_test.dir/tok
 
 src/store/unit_test : \
 	$(LMAKE_BASIC_SAN_OBJS) \
-	src/store/file$(SAN).o  \
 	src/app$(SAN).o         \
 	src/trace$(SAN).o       \
 	src/store/unit_test$(SAN).o
@@ -435,12 +435,12 @@ SERVER_SAN_OBJS := \
 	src/autodep/ld_server$(SAN).o             \
 	src/autodep/record$(SAN).o                \
 	src/autodep/syscall_tab$(SAN).o           \
-	src/store/file$(SAN).o                    \
 	src/lmakeserver/backend$(SAN).o           \
 	src/lmakeserver/cache$(SAN).o             \
 	src/lmakeserver/caches/dir_cache$(SAN).o  \
 	src/lmakeserver/codec$(SAN).o             \
 	src/lmakeserver/global$(SAN).o            \
+	src/lmakeserver/config$(SAN).o            \
 	src/lmakeserver/job$(SAN).o               \
 	src/lmakeserver/node$(SAN).o              \
 	src/lmakeserver/req$(SAN).o               \
@@ -469,16 +469,19 @@ bin/lrepair : \
 	src/lrepair$(SAN).o
 
 _bin/ldump : \
-	$(SERVER_SAN_OBJS)   \
+	$(SERVER_SAN_OBJS) \
 	src/ldump$(SAN).o
 
-LMAKE_DBG_FILES += _bin/lmakeserver bin/lrepair _bin/ldump
-_bin/lmakeserver bin/lrepair _bin/ldump :
+_bin/lkpi : \
+	$(SERVER_SAN_OBJS) \
+	src/lkpi$(SAN).o
+
+LMAKE_DBG_FILES += _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi
+_bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
 	@$(SPLIT_DBG)
-
 
 bin/lmake   : $(CLIENT_SAN_OBJS)               src/lmake$(SAN).o
 bin/lshow   : $(CLIENT_SAN_OBJS)               src/lshow$(SAN).o

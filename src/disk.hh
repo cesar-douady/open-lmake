@@ -10,7 +10,7 @@
 #include <sys/stat.h>  // fstatat, fchmodat
 #include <sys/types.h>
 
-#include "config.hh"
+#include "types.hh"
 #include "fd.hh"
 #include "lib.hh"
 #include "time.hh"

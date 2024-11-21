@@ -174,18 +174,19 @@ namespace Engine {
 
 namespace Engine {
 
-	struct JobReqInfo : ReqInfo {                                        // watchers of Job's are Node's
+	struct JobReqInfo : ReqInfo {                                      // watchers of Job's are Node's
 		friend ::string& operator+=( ::string& , JobReqInfo const& ) ;
 		using Step       = JobStep       ;
 		using MakeAction = JobMakeAction ;
 		// cxtors & casts
 		using ReqInfo::ReqInfo ;
 		// accesses
-		bool running() const {
+		bool running(bool hit_ok=false) const {
 			switch (step()) {
 				case Step::Queued :
-				case Step::Exec   : return true  ;
-				default           : return false ;
+				case Step::Exec   : return true   ;
+				case Step::Hit    : return hit_ok ;
+				default           : return false  ;
 			}
 		}
 		bool done(bool is_full=false) const { return step()>=Step::Done && (!is_full||full) ; }
@@ -203,40 +204,40 @@ namespace Engine {
 		}
 		void chk() const {
 			switch (step()) {
-				case Step::None   : SWEAR(n_wait==0) ; break ;           // not started yet, cannot wait anything
-				case Step::Dep    : SWEAR(n_wait> 0) ; break ;           // we must be waiting something if analysing Dep
-				case Step::Queued :                                      // if running, we are waiting for job execution
-				case Step::Exec   : SWEAR(n_wait==1) ; break ;           // .
-				case Step::Done   :                                      // done, cannot wait anything anymore
+				case Step::None   : SWEAR(n_wait==0) ; break ;         // not started yet, cannot wait anything
+				case Step::Dep    : SWEAR(n_wait> 0) ; break ;         // we must be waiting something if analysing Dep
+				case Step::Queued :                                    // if running, we are waiting for job execution
+				case Step::Exec   : SWEAR(n_wait==1) ; break ;         // .
+				case Step::Done   :                                    // done, cannot wait anything anymore
 				case Step::Hit    : SWEAR(n_wait==0) ; break ;
 			DF}
 		}
 		// data
 		struct State {
 			friend ::string& operator+=( ::string& , State const& ) ;
-			JobReason reason          = {}    ;                          //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
-			bool      missing_dsk  :1 = false ;                          //          1 bit , if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
-			RunStatus stamped_err  :2 = {}    ;                          //          2 bits, errors seen in dep until iter before    last parallel chunk
-			RunStatus proto_err    :2 = {}    ;                          //          2 bits, errors seen in dep until iter including last parallel chunk
-			bool      stamped_modif:1 = false ;                          //          1 bit , modifs seen in dep until iter before    last parallel chunk
-			bool      proto_modif  :1 = false ;                          //          1 bit , modifs seen in dep until iter including last parallel chunk
+			JobReason reason          = {}    ;                        //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
+			bool      missing_dsk  :1 = false ;                        //          1 bit , if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
+			RunStatus stamped_err  :2 = {}    ;                        //          2 bits, errors seen in dep until iter before    last parallel chunk
+			RunStatus proto_err    :2 = {}    ;                        //          2 bits, errors seen in dep until iter including last parallel chunk
+			bool      stamped_modif:1 = false ;                        //          1 bit , modifs seen in dep until iter before    last parallel chunk
+			bool      proto_modif  :1 = false ;                        //          1 bit , modifs seen in dep until iter including last parallel chunk
 		} ;
-		DepsIter::Digest iter               ;                            // ~20+6<= 64 bits, deps up to this one statisfy required action
-		State            state              ;                            //  43  <= 96 bits, dep analysis state
-		JobReason        reason             ;                            //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
-		uint8_t          n_submits          = 0     ;                    //          8 bits, number of times job has been submitted to avoid infinite loop
-		bool             force           :1 = false ;                    //          1 bit , if true <=> job must run because reason
-		bool             full            :1 = false ;                    //          1 bit , if true <=>, job result is asked, else only makable
-		bool             start_reported  :1 = false ;                    //          1 bit , if true <=> start message has been reported to user
-		bool             speculative_wait:1 = false ;                    //          1 bit , if true <=> job is waiting for speculative deps only
-		Bool3            speculate       :2 = Yes   ;                    //          2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
-		bool             reported        :1 = false ;                    //          1 bit , used for delayed report when speculating
-		bool             modified        :1 = false ;                    //          1 bit , modified when last run
-		BackendTag       backend         :2 = {}    ;                    //          2 bits
+		DepsIter::Digest iter               ;                          // ~20+6<= 64 bits, deps up to this one statisfy required action
+		State            state              ;                          //  43  <= 96 bits, dep analysis state
+		JobReason        reason             ;                          //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
+		uint8_t          n_submits          = 0     ;                  //          8 bits, number of times job has been submitted to avoid infinite loop
+		bool             force           :1 = false ;                  //          1 bit , if true <=> job must run because reason
+		bool             full            :1 = false ;                  //          1 bit , if true <=>, job result is asked, else only makable
+		bool             start_reported  :1 = false ;                  //          1 bit , if true <=> start message has been reported to user
+		bool             speculative_wait:1 = false ;                  //          1 bit , if true <=> job is waiting for speculative deps only
+		Bool3            speculate       :2 = Yes   ;                  //          2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
+		bool             reported        :1 = false ;                  //          1 bit , used for delayed report when speculating
+		bool             modified        :1 = false ;                  //          1 bit , modified when last run
+		BackendTag       backend         :2 = {}    ;                  //          2 bits
 	private :
-		Step _step:3 = {} ;                                              //          3 bits
+		Step _step:3 = {} ;                                            //          3 bits
 	} ;
-	static_assert(sizeof(JobReqInfo)==48) ;                              // check expected size, XXX : optimize size, can be 32
+	static_assert(sizeof(JobReqInfo)==48) ;                            // check expected size, XXX : optimize size, can be 32
 
 }
 
@@ -282,12 +283,12 @@ namespace Engine {
 			else                      { ::string fn = full_name() ; return fn.substr(0,fn.find(RuleData::JobMrkr)) ; }   // heavier, but works without rule
 		}
 		//
-		ReqInfo const& c_req_info  (Req                   ) const ;
-		ReqInfo      & req_info    (Req                   ) const ;
-		ReqInfo      & req_info    (ReqInfo const&        ) const ;                                                      // make R/W while avoiding look up (unless allocation)
-		::vector<Req>  reqs        (                      ) const ;
-		::vector<Req>  running_reqs(bool with_zombies=true) const ;
-		bool           running     (bool with_zombies=true) const ;                                                      // fast implementation of +running_reqs(...)
+		ReqInfo const& c_req_info  ( Req                                        ) const ;
+		ReqInfo      & req_info    ( Req                                        ) const ;
+		ReqInfo      & req_info    ( ReqInfo const&                             ) const ;                                // make R/W while avoiding look up (unless allocation)
+		::vector<Req>  reqs        (                                            ) const ;
+		::vector<Req>  running_reqs( bool with_zombies=true , bool hit_ok=false ) const ;
+		bool           running     ( bool with_zombies=true , bool hit_ok=false ) const ;                                // fast implementation of +running_reqs(...)
 		//
 		bool cmd_ok    (   ) const { return                      rule_crc->state<RuleCrcState::CmdOld ; }
 		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || rule_crc->state==RuleCrcState::Ok    ; }                // dont care about rsrcs if job went ok

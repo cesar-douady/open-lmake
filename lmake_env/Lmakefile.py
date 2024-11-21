@@ -106,8 +106,8 @@ class Unpack(BaseRule) :
 # it is unacceptable to have a pack inside a pack, as this creates ambiguities
 class AntiPackPack(BaseRule,AntiRule) :
 	targets = {
-		'TAR' : '{Dir}..dir/{File}.tar.gz'
-	,	'ZIP' : '{Dir}..dir/{File}.zip'
+		'TAR' : '{Dir}.dir/{File}.tar.gz'
+	,	'ZIP' : '{Dir}.dir/{File}.zip'
 	}
 
 class Untar(Unpack,PyRule) :
@@ -427,7 +427,6 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
-	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'BE_LOCAL'   : 'src/lmakeserver/backends/local.o'
 	#,	'BE_SLURM'   : 'src/lmakeserver/backends/slurm.o' # XXX : add conditional compilation to compile slurm when it is available
@@ -436,6 +435,7 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'CMD'        : 'src/lmakeserver/cmd.o'
 	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
+	,	'CONFIG'     : 'src/lmakeserver/config.o'
 	,	'JOB'        : 'src/lmakeserver/job.o'
 	,	'MAKEFILES'  : 'src/lmakeserver/makefiles.o'
 	,	'NODE'       : 'src/lmakeserver/node.o'
@@ -457,12 +457,12 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
-	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'CACHE'      : 'src/lmakeserver/cache.o'
 	,	'DIR_CACHE'  : 'src/lmakeserver/caches/dir_cache.o'
 	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
+	,	'CONFIG'     : 'src/lmakeserver/config.o'
 	,	'JOB'        : 'src/lmakeserver/job.o'
 	,	'NODE'       : 'src/lmakeserver/node.o'
 	,	'REQ'        : 'src/lmakeserver/req.o'

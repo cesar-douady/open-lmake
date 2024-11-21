@@ -13,6 +13,76 @@ using namespace Disk ;
 
 using namespace Engine ;
 
+struct RepairDigest {
+	JobIdx n_repaired  = 0 ;
+	JobIdx n_processed = 0 ;
+} ;
+
+RepairDigest repair(::string const& from_dir_s) {
+	Trace trace("repair",from_dir_s) ;
+	RepairDigest     res      ;
+	::umap<Crc,Rule> rule_tab ; for( Rule r : Persistent::rule_lst() ) rule_tab[r->crc->cmd] = r ; SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
+	for( ::string const& jd : walk(no_slash(from_dir_s),no_slash(from_dir_s)) ) {
+		{	JobInfo job_info { jd } ;
+			// qualify report
+			if (job_info.start.pre_start.proc!=JobRpcProc::Start) { trace("no_pre_start",jd) ; goto NextJob ; }
+			if (job_info.start.start    .proc!=JobRpcProc::Start) { trace("no_start"    ,jd) ; goto NextJob ; }
+			if (job_info.end  .end      .proc!=JobRpcProc::End  ) { trace("no_end"      ,jd) ; goto NextJob ; }
+			if (job_info.end  .end.digest.status!=Status::Ok    ) { trace("not_ok"      ,jd) ; goto NextJob ; }         // repairing jobs in error is useless
+			// find rule
+			auto it = rule_tab.find(job_info.start.rule_cmd_crc) ;
+			if (it==rule_tab.end()) { trace("no_rule",jd) ; goto NextJob ; }                                            // no rule
+			Rule rule = it->second ;
+			// find targets
+			::vector<Target> targets ; targets.reserve(job_info.end.end.digest.targets.size()) ;
+			for( auto const& [tn,td] : job_info.end.end.digest.targets ) {
+				if ( td.crc==Crc::None && !static_phony(td.tflags) )                                   continue     ;   // this is not a target
+				if ( !td.crc.valid()                               ) { trace("invalid_target",jd,tn) ; goto NextJob ; } // XXX : handle this case
+				if ( td.sig!=FileSig(tn)                           ) { trace("disk_mismatch" ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
+				//
+				Node t{tn} ;
+				t->refresh( td.crc , {td.sig,{}} ) ;                                                                    // if file does not exist, the Epoch as a date is fine
+				targets.emplace_back( t , td.tflags ) ;
+			}
+			::sort(targets) ;                                                                              // ease search in targets
+			// find deps
+			::vector_s    src_dirs ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs.push_back(s->name()) ;
+			::vector<Dep> deps     ; deps.reserve(job_info.end.end.digest.deps.size()) ;
+			for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
+				if ( !is_canon(dn)) goto NextJob ;                                                         // this should never happen, there is a problem with this job
+				if (!is_lcl(dn)) {
+					for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ;            // this could be optimized by searching the longest match in the name prefix tree
+					goto NextJob ;                                                                         // this should never happen as src_dirs are part of cmd definition
+				KeepDep : ;
+				}
+				Dep dep { Node(dn) , dd } ;
+				if ( !dep.is_crc                         ) { trace("no_dep_crc" ,jd,dn) ; goto NextJob ; } // dep could not be identified when job ran, hum, better not to repair that
+				if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep",jd,dn) ; goto NextJob ; } // no valid crc, no interest to repair as job will rerun anyway
+				deps.emplace_back(dep) ;
+			}
+			// set job
+			Job job { {rule,::move(job_info.start.stems)} } ;
+			if (!job) goto NextJob ;
+			job->targets.assign(targets) ;
+			job->deps   .assign(deps   ) ;
+			job->status = job_info.end.end.digest.status ;
+			job->set_exec_ok() ;                                                                           // pretend job just ran
+			// set target actual_job's
+			for( Target t : targets ) {
+				t->actual_job   () = job      ;
+				t->actual_tflags() = t.tflags ;
+			}
+			// restore job_data
+			job.record(job_info) ;
+			trace("restored",jd,job->name()) ;
+		}
+		res.n_repaired++ ;
+	NextJob : ;
+		res.n_processed++ ;
+	}
+	return res ;
+}
+
 int main( int argc , char* /*argv*/[] ) {
 	::string admin_dir_s = AdminDirS ;
 	//
@@ -57,9 +127,9 @@ int main( int argc , char* /*argv*/[] ) {
 	Trace::s_new_trace_file( g_config->local_admin_dir_s + "trace/" + base_name(read_lnk("/proc/self/exe")) ) ;
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
 	//
-	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	RepairDigest digest = Persistent::repair(backup_admin_dir_s+PRIVATE_ADMIN_SUBDIR_S+"local_admin/job_data") ;
-	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	RepairDigest digest = repair(backup_admin_dir_s+PRIVATE_ADMIN_SUBDIR_S+"local_admin/job_data") ;
+	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	chk_version(true/*may_init*/) ;
 	unlnk(repair_mrkr) ;
 	msg.clear() ;

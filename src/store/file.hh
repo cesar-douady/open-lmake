@@ -18,8 +18,6 @@
 
 namespace Store {
 
-	extern size_t g_page ; // cannot initialize directly as this may occur after first call to cxtor
-
 	template<bool AutoLock> using UniqueLock = ::conditional_t<AutoLock,::Lock      <SharedMutex<MutexLvl::File>>,NoLock<SharedMutex<MutexLvl::File>>> ;
 	template<bool AutoLock> using SharedLock = ::conditional_t<AutoLock,::SharedLock<SharedMutex<MutexLvl::File>>,NoLock<SharedMutex<MutexLvl::File>>> ;
 
@@ -108,11 +106,10 @@ namespace Store {
 	}
 
 	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::init( ::string const& name_ , bool writable_ ) {
-		name      = name_      ;
-		writable  = writable_  ;
-		if (!g_page) g_page = ::sysconf(_SC_PAGESIZE) ;
+		name     = name_     ;
+		writable = writable_ ;
 		//
-		ULock lock{_mutex} ;
+		ULock lock { _mutex } ;
 		if (!name) {
 			size = 0 ;
 		} else {
@@ -146,14 +143,15 @@ namespace Store {
 	}
 
 	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::_resize_file(size_t sz) {
+		static size_t s_page = ::sysconf(_SC_PAGESIZE) ;
 		swear_prod( writable , name , "is read-only" ) ;
 		if (sz>Capacity) {
 			::string err_msg ;
-			err_msg<<"file "<<name<<" capacity has been under-dimensioned at "<<Capacity<<" bytes\n"              ;
-			err_msg<<"consider to recompile open-lmake with increased corresponding parameter in src/config.hh\n" ;
+			err_msg<<"file "<<name<<" capacity has been under-dimensioned at "<<Capacity<<" bytes\n"             ;
+			err_msg<<"consider to recompile open-lmake with increased corresponding parameter in src/types.hh\n" ;
 			exit(Rc::Param,err_msg) ;
 		}
-		sz = round_up(sz,g_page) ;
+		sz = round_up(sz,s_page) ;
 		if (+_fd) {
 			//         vvvvvvvvvvvvvvvvvvvvv
 			int rc = ::ftruncate( _fd , sz ) ; // may increase file size

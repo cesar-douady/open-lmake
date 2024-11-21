@@ -72,14 +72,6 @@ namespace Engine {
 
 #ifdef STRUCT_DEF
 
-namespace Engine {
-
-	struct RepairDigest {
-		JobIdx n_repaired  = 0 ;
-		JobIdx n_processed = 0 ;
-	} ;
-}
-
 namespace Engine::Persistent {
 
 	struct RuleTgts ;
@@ -399,7 +391,6 @@ namespace Engine::Persistent {
 	bool/*invalidate*/ new_rules       ( ::vector<RuleData>&& , bool dynamic ) ;
 	void               invalidate_match(                                     ) ;
 	void               invalidate_exec ( bool cmd_ok                         ) ;
-	RepairDigest       repair          ( ::string const& from_dir_s          ) ;
 	//
 	void chk() ;
 

@@ -91,6 +91,16 @@ namespace Time {
 		return res ;
 	}
 
+	::string Date::day_str() const {
+		if (!self) return "None" ;
+		time_t   s   = sec()    ;
+		::string res ( 10 , 0 ) ;                             // time in seconds : YYYY-MM-DD hh:mm:ss
+		::tm     t   ;
+		::localtime_r(&s,&t) ;
+		::strftime( res.data() , res.size()+1 , "%F" , &t ) ; // +1 to account for terminating null
+		return res ;
+	}
+
 	Date::Date(::string_view const& s) {
 		{	struct tm   t    = {}                              ;                                                                    // zero out all fields
 			const char* end  = ::strptime(s.data(),"%F %T",&t) ; throw_unless(end              , "cannot read date & time : ",s ) ;

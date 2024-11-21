@@ -212,7 +212,11 @@ namespace Engine {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			d->set_buildable_throw(req,lvl) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if ( d->buildable<=Buildable::No                    ) { trace("no_dep",d) ; return ; }
+			if (d->buildable<=Buildable::No) {
+				trace("no_dep",d) ;
+				g_kpi.n_aborted_job_creation++ ;
+				return ;
+			}
 			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , dn.dflags , true/*parallel*/ ) ;
 			else                                                  { deps[it->second].dflags |= dn.dflags ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
 		}
@@ -604,33 +608,36 @@ namespace Engine {
 			if (upload) _s_record_thread.emplace(self,JobInfoEnd{::copy(jrr)}) ;           // leave jrr intact so upload can be done later on
 			else        _s_record_thread.emplace(self,JobInfoEnd{::move(jrr)}) ;
 		} else {
-			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ;                         // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
+			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ;           // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
 			msg = ::move(jrr.msg) ;
 		}
 		//
-		if (ok==Yes) {                   // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
+		if (ok==Yes) {                                                       // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 			SWEAR(+digest.stats.total) ;
 			data.record_stats( digest.stats.total , cost , tokens1 ) ;
 		}
-		MakeAction  end_action    = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
-		bool        one_done      = false                                                        ;
-		for( Req req : running_reqs_ ) data.req_info(req).step(Step::End,self) ;                   // ensure no confusion with previous run
+		MakeAction end_action = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
+		bool       one_done   = false                                                        ;
+		for( Req req : data.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
+			ReqInfo& ri = data.req_info(req) ;
+			if (ri.running()) ri.step(Step::End,self) ;                      // ensure no confusion with previous run
+			/**/              ri.modified = modified ;
+		}
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = data.req_info(req) ;
-			trace("req_before",target_reason,status,ri) ;
-			req->missing_audits.erase(self) ;                                                      // old missing audit is obsolete as soon as we have rerun the job
-			ri.modified = modified ;
+			trace("req_before",target_reason,status,ri,STR(modified)) ;
+			req->missing_audits.erase(self) ;                                // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason job_err_reason = data.make( ri , end_action , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ;
 			//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			bool     full_report = ri.done() || !has_new_deps            ;                         // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = ri.done() || !has_new_deps            ;   // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_err_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
 				/**/         job_msg << msg                       <<set_nl ;
 				if (job_err) job_msg << reason_str(job_err_reason)<<'\n'   ;
-				else         job_msg << local_msg                 <<set_nl ;                       // report local_msg if no better message
+				else         job_msg << local_msg                 <<set_nl ; // report local_msg if no better message
 				/**/         job_msg << severe_msg                         ;
 			} else if (req->options.flags[ReqFlag::Verbose]) {
 				job_msg << reason_str(job_err_reason)<<'\n' ;
@@ -651,7 +658,7 @@ namespace Engine {
 			req.chk_end() ;
 		}
 		// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
-		if ( upload && one_done ) {                                                                // cache only successful results
+		if ( upload && one_done ) {                                          // cache only successful results
 			NfsGuard nfs_guard{g_config->reliable_dirs} ;
 			Cache::s_tab.at(cache_none_attrs.key)->upload( self , digest , nfs_guard ) ;
 		}
@@ -727,6 +734,8 @@ namespace Engine {
 
 	void JobData::_do_set_pressure(ReqInfo& ri , CoarseDelay pressure ) const {
 		Trace trace("set_pressure",idx(),ri,pressure) ;
+		g_kpi.n_job_set_pressure++ ;
+		//
 		Req         req          = ri.req                  ;
 		CoarseDelay dep_pressure = ri.pressure + exec_time ;
 		switch (ri.step()) { //!                                                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -836,6 +845,7 @@ namespace Engine {
 				}
 			}
 		}
+		g_kpi.n_job_make++ ;
 		SWEAR(ri.step()==Step::Dep) ;
 		{
 		RestartAnalysis :                                                                             // restart analysis here when it is discovered we need deps to run the job
@@ -849,7 +859,7 @@ namespace Engine {
 			//
 			ReqInfo::State state = ri.state ;
 			pre_reason = _mk_reason(status) ;
-			for ( DepsIter iter {deps,ri.iter} ;; iter++ ) {
+			for( DepsIter iter {deps,ri.iter} ;; iter++ ) {
 				//
 				bool       seen_all = iter==deps.end()            ;
 				Dep const& dep      = seen_all ? Sentinel : *iter ;                                   // use empty dep as sentinel
@@ -1348,14 +1358,14 @@ namespace Engine {
 		return true ;
 	}
 
-	bool JobData::running(bool with_zombies) const {
-		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running() ) return true ;
+	bool JobData::running( bool with_zombies , bool hit_ok ) const {
+		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running(hit_ok) ) return true ;
 		return false ;
 	}
 
-	::vector<Req> JobData::running_reqs(bool with_zombies) const {                                                           // sorted by start
-		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                                                                   // pessimistic, so no realloc
-		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running() ) res.push_back(r) ;
+	::vector<Req> JobData::running_reqs( bool with_zombies , bool hit_ok ) const {                                                 // sorted by start
+		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                                                                         // pessimistic, so no realloc
+		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running(hit_ok) ) res.push_back(r) ;
 		return res ;
 	}
 

@@ -1,0 +1,138 @@
+diff --git a/src/store/unit_test.cc b/src/store/unit_test.cc
+index 656cf32..867cf9d 100644
+--- a/src/store/unit_test.cc
++++ b/src/store/unit_test.cc
+@@ -6,7 +6,6 @@
+ #include "file.hh"
+ #include "struct.hh"
+ #include "side_car.hh"
+-#include "red_black.hh"
+ #include "prefix.hh"
+ 
+ using namespace Store ;
+@@ -238,117 +237,6 @@ void test_side_car() {
+ 	TestSideCar<true /*HasHdr*/,true /*HasData*/,true /*HasSideCar*/,true /*Multi*/,true /*HasDataSz*/>() ;
+ }
+ 
+-template<bool HasHdr,bool HasData,bool BitIsKey,bool MultiRoot> struct TestRedBlack {
+-	using Hdr  = ::conditional_t<HasHdr ,int,void> ;
+-	using Idx  = uint32_t                          ;
+-	using Key  = int                               ;
+-	using Data = ::conditional_t<HasData,int,void> ;
+-	using RedBlackFile = ::conditional_t< MultiRoot , MultiRedBlackFile<Hdr,Idx,Key,Data,BitIsKey> , SingleRedBlackFile<Hdr,Idx,Key,Data,BitIsKey> > ;
+-
+-	void chk    (                    ) requires(              !MultiRoot ) {        file.chk    (            ) ; }
+-	void chk    (                    ) requires(               MultiRoot ) {        file.chk    (root        ) ; }
+-	Idx  emplace(Key key,bool /*bit*/) requires( !BitIsKey && !MultiRoot ) { return file.insert (     key    ) ; }
+-	Idx  emplace(Key key,bool   bit  ) requires(  BitIsKey && !MultiRoot ) { return file.insert (     key,bit) ; }
+-	Idx  emplace(Key key,bool /*bit*/) requires( !BitIsKey &&  MultiRoot ) { return file.emplace(     key    ) ; }
+-	Idx  emplace(Key key,bool   bit  ) requires(  BitIsKey &&  MultiRoot ) { return file.emplace(     key,bit) ; }
+-	Idx  insert (Key key,bool /*bit*/) requires( !BitIsKey && !MultiRoot ) { return file.insert (     key    ) ; }
+-	Idx  insert (Key key,bool   bit  ) requires(  BitIsKey && !MultiRoot ) { return file.insert (     key,bit) ; }
+-	Idx  insert (Key key,bool /*bit*/) requires( !BitIsKey &&  MultiRoot ) { return file.insert (root,key    ) ; }
+-	Idx  insert (Key key,bool   bit  ) requires(  BitIsKey &&  MultiRoot ) { return file.insert (root,key,bit) ; }
+-	Idx  search (Key key,bool /*bit*/) requires( !BitIsKey && !MultiRoot ) { return file.search (     key    ) ; }
+-	Idx  search (Key key,bool   bit  ) requires(  BitIsKey && !MultiRoot ) { return file.search (     key,bit) ; }
+-	Idx  search (Key key,bool /*bit*/) requires( !BitIsKey &&  MultiRoot ) { return file.search (root,key    ) ; }
+-	Idx  search (Key key,bool   bit  ) requires(  BitIsKey &&  MultiRoot ) { return file.search (root,key,bit) ; }
+-	Idx  erase  (Key key,bool /*bit*/) requires( !BitIsKey && !MultiRoot ) { return file.erase  (     key    ) ; }
+-	Idx  erase  (Key key,bool   bit  ) requires(  BitIsKey && !MultiRoot ) { return file.erase  (     key,bit) ; }
+-	Idx  erase  (Key key,bool /*bit*/) requires( !BitIsKey &&  MultiRoot ) { return file.erase  (root,key    ) ; }
+-	Idx  erase  (Key key,bool   bit  ) requires(  BitIsKey &&  MultiRoot ) { return file.erase  (root,key,bit) ; }
+-
+-	void test_hdr() requires(!HasHdr) {}
+-	void test_hdr() requires( HasHdr) {
+-		file.hdr() = 3 ;
+-		SWEAR(file.hdr()==3) ;
+-	}
+-	void test_tree( ::vector<Key> const& keys ) {
+-		size_t n = keys.size() ;
+-		file.clear() ;
+-		::vector<Idx> idxs ;
+-		bool first = true ;
+-		for( Key k : keys ){
+-			if (first) idxs.push_back( root = emplace(k,false) ) ;
+-			else       idxs.push_back(        insert (k,false) ) ;
+-			first = false ;
+-		}
+-		chk() ;
+-		for( size_t i : iota(n) ) SWEAR(file.key(idxs[i])==keys[i]) ;
+-		::vector<Idx> chk_idxs ;
+-		for( size_t i : iota(n) ) chk_idxs.push_back(search(keys[i],false)) ;
+-		SWEAR(chk_idxs==idxs) ;
+-	}
+-	void test_tree() {
+-		for( Key a : iota<Key>(16,19) )
+-			for( Key b : iota<Key>(16,19) )
+-				for( Key c : iota<Key>(16,19) )
+-					if (::set({a,b,c}).size()==3)
+-						test_tree({a,b,c}) ;
+-	}
+-	void test_data() requires( !HasData ||  BitIsKey || !MultiRoot ) {}
+-	void test_data() requires(  HasData && !BitIsKey &&  MultiRoot ) {
+-		file.at(file.insert(root,14)) = 24 ;
+-		chk() ;
+-		Idx idx2 = file.insert(root,15,25) ;
+-		chk() ;
+-		SWEAR(file.at(idx2)==25) ;
+-		int val  = *file.search_at(root,14) ;
+-		SWEAR(val==24) ;
+-	}
+-	void test_erase() {
+-		Idx idx1 = insert(16,false) ;
+-		erase(12,false) ;
+-		chk() ;
+-		Idx idx2 = erase(16,false) ;
+-		chk() ;
+-		SWEAR(idx1==idx2) ;
+-	}
+-	TestRedBlack() : file(g_dir+"red_black"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(BitIsKey?"_bit":"")+(MultiRoot?"_multi":""),true/*writable*/) {
+-		::string out = "check red_black" ;
+-		if (HasHdr    ) out<<" with header"     ;
+-		if (HasData   ) out<<" with data"       ;
+-		if (BitIsKey  ) out<<" with bit is key" ;
+-		if (MultiRoot ) out<<" with multi-root" ;
+-		out<<" ..." ;
+-		Fd::Stdout.write(out) ;
+-		root = emplace(0,false) ;
+-		test_hdr() ;
+-		test_tree() ;
+-		test_data() ;
+-		test_erase() ;
+-		Fd::Stdout.write(" ok\n") ;
+-	}
+-
+-	// data
+-	RedBlackFile file ;
+-	Idx          root ;
+-} ;
+-void test_red_black() {
+-	TestRedBlack<false/*HasHdr*/,false/*HasData*/,false/*BitIsKey*/,true /*MultiRoot*/>() ;
+-	TestRedBlack<true /*HasHdr*/,false/*HasData*/,false/*BitIsKey*/,true /*MultiRoot*/>() ;
+-	TestRedBlack<false/*HasHdr*/,true /*HasData*/,false/*BitIsKey*/,true /*MultiRoot*/>() ;
+-	TestRedBlack<true /*HasHdr*/,true /*HasData*/,false/*BitIsKey*/,true /*MultiRoot*/>() ;
+-	TestRedBlack<false/*HasHdr*/,false/*HasData*/,true /*BitIsKey*/,true /*MultiRoot*/>() ;
+-	TestRedBlack<true /*HasHdr*/,false/*HasData*/,true /*BitIsKey*/,true /*MultiRoot*/>() ;
+-	TestRedBlack<false/*HasHdr*/,true /*HasData*/,true /*BitIsKey*/,true /*MultiRoot*/>() ;
+-	TestRedBlack<true /*HasHdr*/,true /*HasData*/,true /*BitIsKey*/,true /*MultiRoot*/>() ;
+-	TestRedBlack<false/*HasHdr*/,false/*HasData*/,false/*BitIsKey*/,false/*MultiRoot*/>() ;
+-	TestRedBlack<true /*HasHdr*/,false/*HasData*/,false/*BitIsKey*/,false/*MultiRoot*/>() ;
+-	TestRedBlack<false/*HasHdr*/,true /*HasData*/,false/*BitIsKey*/,false/*MultiRoot*/>() ;
+-	TestRedBlack<true /*HasHdr*/,true /*HasData*/,false/*BitIsKey*/,false/*MultiRoot*/>() ;
+-	TestRedBlack<false/*HasHdr*/,false/*HasData*/,true /*BitIsKey*/,false/*MultiRoot*/>() ;
+-	TestRedBlack<true /*HasHdr*/,false/*HasData*/,true /*BitIsKey*/,false/*MultiRoot*/>() ;
+-	TestRedBlack<false/*HasHdr*/,true /*HasData*/,true /*BitIsKey*/,false/*MultiRoot*/>() ;
+-	TestRedBlack<true /*HasHdr*/,true /*HasData*/,true /*BitIsKey*/,false/*MultiRoot*/>() ;
+-}
+-
+ template<bool HasHdr,bool HasData,bool Reverse> struct TestPrefix {
+ 	using Hdr  = ::conditional_t<HasHdr ,int,void> ;
+ 	using Idx  = uint32_t                          ;
+@@ -426,7 +314,6 @@ int main( int argc , char const* argv[] ) {
+ 	test_file    () ;
+ 	test_struct  () ;
+ 	test_side_car() ;
+-	test_red_black() ;
+ 	test_prefix  () ;
+ 	test_lmake   () ;
+ 	return 0 ;

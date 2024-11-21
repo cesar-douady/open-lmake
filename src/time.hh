@@ -201,8 +201,9 @@ namespace Time {
 		constexpr Date& operator+=(Delay other)       { self = self+other ; return self                      ; }
 		constexpr Date& operator-=(Delay other)       { self = self-other ; return self                      ; }
 		//
-		::string str ( uint8_t prec=0 , bool in_day=false ) const ;
-		size_t   hash(                                    ) const { return _val ; }
+		::string str    ( uint8_t prec=0 , bool in_day=false ) const ;
+		::string day_str(                                    ) const ;
+		size_t   hash   (                                    ) const { return _val ; }
 	} ;
 
 	//

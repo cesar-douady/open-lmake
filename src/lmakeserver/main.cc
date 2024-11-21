@@ -32,6 +32,7 @@ static bool           _g_is_daemon      = true   ;
 static ::atomic<bool> _g_done           = false  ;
 static bool           _g_server_running = false  ;
 static ::string       _g_host           = host() ;
+static bool           _g_seen_make      = false  ;
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	try {
@@ -317,6 +318,7 @@ bool/*interrupted*/ engine_loop() {
 							//vvvvvvvvvvv
 							req.make(ecr) ;
 							//^^^^^^^^^^^
+							_g_seen_make = true ;
 						} catch(::string const& e) {
 							if (allocated) req.dealloc() ;
 							audit       ( ecr.out_fd , ecr.options , Color::Err , e ) ;
@@ -469,9 +471,12 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	if (g_writable)
+	if (g_writable) {
 		try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s) ; }         // cleanup
 		catch (::string const& e) { exit(Rc::System,e) ;                       }
+		//
+		if (_g_seen_make) AcFd(PrivateAdminDirS+"kpi"s,Fd::Write).write(g_kpi.pretty_str()) ;
+	}
 	//
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;

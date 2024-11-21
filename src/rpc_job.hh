@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include "config.hh"
-
 #include "disk.hh"
 #include "hash.hh"
 #include "serialize.hh"

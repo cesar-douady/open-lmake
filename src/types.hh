@@ -13,6 +13,7 @@ static constexpr uint8_t NodeNGuardBits = 1 ; // to be able to make Target
 
 // START_OF_VERSIONING
 
+// NXxxBits are used to dimension address space, and hence max number of objects for each category.
 // can be tailored to fit neeeds
 static constexpr uint8_t NCodecIdxBits    = 32 ; // used to store code <-> value associations in lencode/ldecode
 static constexpr uint8_t NDepsIdxBits     = 32 ; // used to index deps
@@ -27,7 +28,6 @@ static constexpr uint8_t NRuleCrcIdxBits  = 32 ;
 static constexpr uint8_t NRuleStrIdxBits  = 32 ; // used to index serialized Rule description
 static constexpr uint8_t NRuleTgtsIdxBits = 32 ;
 static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets
-static constexpr uint8_t NVarIdxBits      =  8 ; // used to index stems, targets, deps & rsrcs within a Rule
 
 // END_OF_VERSIONING
 
@@ -48,9 +48,11 @@ using RuleStrIdx  = Uint<NRuleStrIdxBits                > ;
 using RuleCrcIdx  = Uint<NRuleCrcIdxBits                > ;
 using RuleTgtsIdx = Uint<NRuleTgtsIdxBits               > ;
 using TargetsIdx  = Uint<NTargetsIdxBits                > ;
-using VarIdx      = Uint<NVarIdxBits                    > ;
 
 // START_OF_VERSIONING
+
+// can be tailored to fit neeeds
+using VarIdx = uint8_t ; // used to index stems, targets, deps & rsrcs within a Rule
 
 // ids
 // can be tailored to fit neeeds
@@ -83,21 +85,26 @@ static constexpr uint8_t NCrcGuardBits = 8 ;
 
 // weight associated to rule when a job completes
 // the average value kept in rule is the weighted average between old average value and job value with weiths RuleWeight and 1
+// can be tailored to fit neeeds
 static constexpr size_t RuleWeight = 100 ;
 
 // number of job traces to keep (indexed by unique id)
+// can be tailored to fit neeeds
 static constexpr SeqId JobHistorySz = 1000 ;
 
 // backlog of incoming connections from remote jobs (i.e. number of pending connect calls before connections are refused)
+// can be tailored to fit neeeds
 static constexpr int JobExecBacklog = 4096 ; // max usual value as set in /proc/sys/net/core/somaxconn
 
 //
 // derived info
 //
 
+// must not be touched to fit needs
 #define PRIVATE_ADMIN_DIR_S    ADMIN_DIR_S PRIVATE_ADMIN_SUBDIR_S
 #define GMON_DIR_S             ADMIN_DIR_S GMON_SUBDIR_S
 static constexpr char AdminDirS       [] = ADMIN_DIR_S         ;
 static constexpr char PrivateAdminDirS[] = PRIVATE_ADMIN_DIR_S ;
 
+// must not be touched to fit needs
 using WatcherIdx = Largest<JobIdx,NodeIdx> ;

@@ -116,6 +116,7 @@ namespace Engine {
 	}
 
 	void NodeData::_do_set_pressure( ReqInfo& ri ) const {
+		g_kpi.n_node_set_pressure++ ;
 		for( Job j : conform_job_tgts(ri) ) j->set_pressure(j->req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
 	}
 
@@ -560,6 +561,7 @@ namespace Engine {
 			else           ri.prio_idx = it.idx ;                                                         // else go on with next prio
 		}
 	Make :
+		g_kpi.n_node_make++ ;
 		SWEAR(prod_idx==NoIdx,prod_idx) ;
 		for(;; first=false ) {
 			for (;;) {

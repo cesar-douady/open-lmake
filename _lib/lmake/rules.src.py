@@ -25,6 +25,7 @@ _root_dir        = _os.getcwd()                  # local root in case of sub-rep
 class _RuleBase :
 	def __init_subclass__(cls) :
 		lmake._rules.append(cls) # list of rules
+	__special__ = None
 	# combined attributes are aggregated, combine is itself combined but not listed here as it is dealt with separately
 	# for dict, a value of None   discards the entry, sequences are mapped to dict with value True and non sequence is like a singleton
 	# for set , a key   of -<key> discards <key>    , sequences are mapped to set                  and non sequence is like a singleton
@@ -64,7 +65,6 @@ class _RuleBase :
 	order        = []            # explicit matching order of keys in targets, side_targets and side_deps. If partial, other keys are put after specified ones
 
 class Rule(_RuleBase) :
-	__special__      = None                            # plain Rule
 #	allow_stderr     = False                           # if set, writing to stderr is not an error but a warning
 #	auto_mkdir       = False                           # auto mkdir directory in case of chdir
 	backend          = 'local'                         # may be set anywhere in the inheritance hierarchy if execution must be remote

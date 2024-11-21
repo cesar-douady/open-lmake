@@ -62,4 +62,4 @@ else :
 	os.system('find CACHE -type f -ls')
 
 	print('hello2',file=open('hello','w'))
-	ut.lmake( 'hello+auto1.hide' , done=1 , hit_steady=2 , new=1 ) # check cache hit on common part, and miss when we depend on hello
+	ut.lmake( 'hello+auto1.hide' , done=1 , hit_done=2 , new=1 ) # check cache hit on common part, and miss when we depend on hello

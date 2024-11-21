@@ -7,7 +7,7 @@
 
 #include "py.hh" // /!\ must be first as Python.h must be first
 
-#include "config.hh"
+#include "types.hh"
 
 #include "disk.hh"
 #include "hash.hh"
