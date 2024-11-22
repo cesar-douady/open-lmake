@@ -25,6 +25,12 @@ out_file     =      sys.argv[1]
 environ_file =      sys.argv[2]
 actions      =      sys.argv[3]
 sub_repos_s  = eval(sys.argv[4])
+is_top       = '/top/' in actions
+actions      = actions.replace('/top/','/')
+cwd          = os.getcwd()
+
+if is_top : os.environ['TOP_ROOT_DIR'] = cwd
+if True   : os.environ['ROOT_DIR'    ] = cwd
 
 import lmake
 import fmt_rule
@@ -63,12 +69,9 @@ def merge_rules( rules , sub_rules , sub_dir_s ) :
 
 import Lmakefile
 
-is_top  = '/top/' in actions
-actions = actions.replace('/top/','/')
-
 config = pdict()
 if '/config/' in actions :
-	if callable(getattr(Lmakefile,'config',None)) :
+	if callable(getattr(Lmakefile,'config',None)) : # /!\ dont use try/except to ensure errors inside Lmakefile.config() are correctly caught
 		Lmakefile.config()
 	else :
 		try :
@@ -92,9 +95,9 @@ if '/config/' in actions :
 
 manifest = []
 if '/sources/' in actions :
-	try :
+	if callable(getattr(Lmakefile,'sources',None)) : # /!\ dont use try/except to ensure errors inside Lmakefile.sources() are correctly caught
 		Lmakefile.sources()
-	except :
+	else :
 		try :
 			import Lmakefile.sources
 		except ImportError as e :
@@ -106,9 +109,9 @@ if '/sources/' in actions :
 
 rules = []
 if '/rules/' in actions :
-	try :
+	if callable(getattr(Lmakefile,'rules',None)) :               # /!\ dont use try/except to ensure errors inside Lmakefile.rules() are correctly caught
 		Lmakefile.rules()
-	except :
+	else :
 		try :
 			import Lmakefile.rules
 		except ImportError as e :
@@ -118,23 +121,27 @@ if '/rules/' in actions :
 		r2 = fmt_rule.fmt_rule(r)
 		if r2 : rules.append(r2)
 
+#
+# manage sub-repos
+#
+
 if sub_repos_s==... : sub_sub_repos_s,sub_repos_s = ...,(d+'/' for d in config.sub_repos) # recurse if not provided explicitely
 else                : sub_sub_repos_s             = ()
 
 if sub_repos_s : import subprocess as sp
 for sub_repo_s in sub_repos_s :
-	if not isinstance(sub_repo_s,str)                        : raise TypeError (f'in {os.getcwd()}, sub-repo ({sub_repo_s}) must be a str')
-	if any(w in '/'+sub_repo_s for w in ('//','/./','/../')) : raise ValueError(f'in {os.getcwd()}, sub-repo ({sub_repo_s}) must be local and canonical')
-	cwd = os.getcwd()
+	if not isinstance(sub_repo_s,str)                        : raise TypeError (f'in {cwd}, sub-repo ({sub_repo_s}) must be a str')
+	if any(w in '/'+sub_repo_s for w in ('//','/./','/../')) : raise ValueError(f'in {cwd}, sub-repo ({sub_repo_s}) must be local and canonical')
 	os.chdir(sub_repo_s[:-1])
-	sp.check_call((sys.executable,sys.argv[0],osp.join(cwd,out_file),osp.join(cwd,environ_file),actions,str(sub_sub_repos_s)))
+	rc = sp.run(( sys.executable , sys.argv[0] , osp.join(cwd,out_file) , osp.join(cwd,environ_file) , actions , str(sub_sub_repos_s) )).returncode
+	if rc : sys.exit(rc)
 	os.chdir(cwd)
 	sub_infos = pdict.mk_deep(eval(open(out_file).read()))
 	if '/config/'  in actions : merge_config  ( config   , sub_infos.config   , sub_repo_s )
 	if '/sources/' in actions : merge_manifest( manifest , sub_infos.manifest , sub_repo_s )
 	if '/rules/'   in actions : merge_rules   ( rules    , sub_infos.rules    , sub_repo_s )
 
-manifest = sorted(set(manifest))                                   # suppress duplicates if any
+manifest = sorted(set(manifest)) # suppress duplicates if any
 
 # generate output
 # could be a mere print, but it is easier to debug with a prettier output

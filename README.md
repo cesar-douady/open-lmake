@@ -41,18 +41,18 @@ In other cases (e.g. you use CAD tools, you write embedded code, the complexity 
 Among them you may consider, with the described limitations (only major ones are listed) :
 
 - make
-	- unreliable          : E.g. make will fail to rebuild a target if the recipe is modified.
-	- fancy configuration : It is mostly impossible to write an easily readable makefile as soon as your flow is anything else than a straightforwar compile-link one.
-	- dependencies        : Managing dependencies is a nightmare, and even with dedicated helpers, it is always partial, fragile and complex.
-	  this is so true that most makefiles do not handle parallelism because of hidden dependencies (i.e. dependencies that are not explicite in the makefile).
-	- not scalable        : It will poorly perform above ~100 rules and 10k files
-	- too rigid           : The only genericity is through the use of a single wildcard (`%`). This is very far from enough when the flow contains anything but the simplest compile-link cases.
+	- Unreliable          : e.g. make will fail to rebuild a target if the recipe is modified.
+	- Fancy configuration : it is mostly impossible to write an easily readable makefile as soon as your flow is anything else than a straightforwar compile-link one.
+	- Dependencies        : managing dependencies is a nightmare, and even with dedicated helpers, it is always partial, fragile and complex.
+	  This is so true that most makefiles do not handle parallelism because of hidden dependencies (i.e. dependencies that are not explicite in the makefile).
+	- Not scalable        : it will poorly perform above ~100 rules and 10k files
+	- Too rigid           : the only genericity is through the use of a single wildcard (`%`). This is very far from enough when the flow contains anything but the simplest compile-link cases.
 - ninja
 	- ninja advertizes itself as a back-end only tool. It lacks a front-end tool to provide a user-usable tool.
 - bazel
 	- The flow is not complete in the sens that it is not meant to be fully maintained by the user.
 	  The documentation states it explicitely : "It is common for BUILD files to be generated or edited by tools".
-	- Dependencies must be manually handled with care. the documentation states it explictely :
+	- Dependencies must be manually handled with care. Again, the documentation states it explictely :
 		+ BUILD file writers must explicitly declare all of the actual direct dependencies for every rule to the build system, and no more.
 		+ Failure to observe this principle causes undefined behavior: the build may fail, but worse, the build may depend on some prior operations,
 		  or upon transitive declared dependencies the target happens to have.
@@ -74,7 +74,7 @@ Open-lmake does the following:
 	- Even dependencies to non-existing files are kept, in case they appear (e.g. include path when compiling C/C++ files, PYTHONPATH when importing with python, etc.).
 - It is extremely fast:
 	- Everything is cached, in particular dependencies so that the discovery process is fully run once, then dependencies are adjusted at each run.
-	- Up-to-date analysis is based on CRC's rather than on date, so that when a target is remade identically to its previous content, dependents jobs are not remade.
+	- Up-to-date analysis is based on CRC's rather than on date, so that when a target is remade identically to its previous content, dependent jobs are not remade.
 	- All the internal engine is based on id's, strings are only used to import (e.g. when tracking dependencies) and export (e.g. for reports or job execution).
 - It is extremely memory efficient:
 	- Keeping the state of all dependencies is inherently very expensive.
@@ -86,9 +86,9 @@ Open-lmake does the following:
 	- Each rule is a class.
 	- Can leverage loops, conditions, inheritance, ... all Python power.
 	- Job scripts can be either shell scripts or Python functions.
-	- very readable, no awkward automatic variables such as with `make`
+	- Very readable, no awkward automatic variables such as with `make`
 - Target matching is based on regular expressions:
-	- Rather than the very poor '%' of make.
+	- Rather than the very poor `%` of make.
 	- There can be several stems.
 	- Dependencies are generated using f-strings (or even any python function), very flexible.
 - Rules may have several targets:
@@ -119,8 +119,8 @@ Once you have understood what is going on with `hello_world`, you can repeat the
 
 # installation
 
-To install open-lmake, please refer to the INSTALL.md file.
+To install open-lmake, please refer to the `INSTALL.md` file.
 
 # developers
 
-If you want understand, read the code, edit it, implement a new feature or fix a bug, please refer to the DEVELOPERS.md file.
+If you want understand, read the code, edit it, implement a new feature or fix a bug, please refer to the `DEVELOPERS.md` file.

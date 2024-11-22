@@ -205,8 +205,8 @@ bool/*entered*/ JobSpace::enter(
 	//
 	if (!self) return false/*entered*/ ;
 	//
-	int uid = ::getuid() ;                                                         // must be done before unshare that invents a new user
-	int gid = ::getgid() ;                                                         // .
+	int uid = ::getuid() ;                                                          // must be done before unshare that invents a new user
+	int gid = ::getgid() ;                                                          // .
 	//
 	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw "cannot create namespace : "s+::strerror(errno) ;
 	//
@@ -218,8 +218,8 @@ bool/*entered*/ JobSpace::enter(
 			highest_s  = d_s ;
 		}
 	//
-	::string phy_super_root_dir_s ;                                                // dir englobing all relative source dirs
-	::string super_root_view_s    ;                                                // .
+	::string phy_super_root_dir_s ;                                                 // dir englobing all relative source dirs
+	::string super_root_view_s    ;                                                 // .
 	::string top_root_view_s      ;
 	if (+root_view_s) {
 		if (!( root_view_s.ends_with(cwd_s) && root_view_s.size()>cwd_s.size()+1 )) // ensure root_view_s has at least one more level than cwd_s
@@ -608,13 +608,28 @@ void JobRpcReply::exit() {
 	return os << "JobInfoEnd(" << jie.end <<')' ;
 }
 
-JobInfo::JobInfo(::string const& filename) {
+JobInfo::JobInfo(::string const& filename , Bool3 get_start , Bool3 get_end ) {
+	Trace trace("JobInfo",filename,get_start,get_end) ;
+	if ( get_start==No && get_end==No ) return ;                        // fast path : dont read filename
+	::string      job_info = AcFd(filename).read() ;
+	::string_view jis      = job_info              ;
 	try {
-		::string      job_info = AcFd(filename).read() ;
-		::string_view jis      = job_info              ;
-		deserialize(jis,start) ;
-		deserialize(jis,end  ) ;
-	} catch (...) {}             // we get what we get
+		if (get_start==No) deserialize( jis , ::ref(JobInfoStart()) ) ; // even if we do not need start, we need to skip it
+		else               deserialize( jis , start                 ) ;
+		trace("start") ;
+	} catch (...) {
+		if ( get_start!=No                  ) start = {} ;              // ensure start is either empty or full
+		if ( get_start==Yes || get_end==Yes ) throw ;                   // if we cannot skip start, we cannot get end
+		return ;                                                        // .
+	}
+	try {
+		if (get_end==No) return ;
+		deserialize( jis , end ) ;
+		trace("end") ;
+	} catch (...) {
+		end = {} ;                                                      // ensure end is either empty or full
+		if (get_end==Yes) throw ;
+	}
 }
 
 void JobInfo::write(::string const& filename) const {

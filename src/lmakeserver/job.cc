@@ -255,16 +255,15 @@ namespace Engine {
 				if (need_end) res.end   = ji.end ;
 			}
 		} ;
+		// first search queue
 		/**/                                      do_entry(_s_record_thread.cur()) ; // dont forget entry being processed (handle first as this is this the oldest entry)
 		for( auto const& jji : _s_record_thread ) do_entry(jji                   ) ; // linear searching is not fast, but this is rather exceptional and this queue is small (actually mostly empty)
-		Trace trace("job_info",STR(need_start),STR(need_end),STR(found_start),STR(found_end)) ;
-		if (!found_start) try {                                                                                                                // ignore errors, we get what exists
-			::string      jaf = AcFd(ancillary_file()).read() ;
-			::string_view jas { jaf }                         ;
-			trace("ancillary_file",jaf) ;
-			/**/                          try { deserialize( jas , res.start ) ; trace("start_from_file") ; } catch (...) { res.start = {} ; } // even if we do not need start, we need to skip it
-			if ( need_end && !found_end ) try { deserialize( jas , res.end   ) ; trace("end_from_file"  ) ; } catch (...) { res.end   = {} ; }
-		} catch (...) {}
+		Trace trace("job_info",self,STR(need_start),STR(need_end),STR(found_start),STR(found_end)) ;
+		// then search recorded info
+		if (!found_start) {                                                                                    // if found_start, recorded end is obsolete
+			if (found_end) res.start = JobInfo( ancillary_file() , Maybe&need_start , No             ).start ; // ignore errors, we get what exists
+			else           res       = JobInfo( ancillary_file() , Maybe&need_start , Maybe&need_end )       ; // ignore errors, we get what exists
+		}
 		return res ;
 	}
 
@@ -386,6 +385,7 @@ namespace Engine {
 
 	void JobExec::started( JobInfoStart&& jis , bool report , ::vmap<Node,FileActionTag> const& report_unlnks , ::string const& stderr , ::string const& msg ) {
 		Trace trace("started",self) ;
+		SWEAR(+jis) ;
 		SWEAR( !self->rule()->is_special() , self->rule()->special ) ;
 		_s_record_thread.emplace(self,::move(jis)) ;
 		report |= +report_unlnks || +stderr ;
@@ -416,6 +416,7 @@ namespace Engine {
 		EndCmdAttrs       end_cmd_attrs    ;
 		Rule::SimpleMatch match            ;
 		//
+		SWEAR(+jrr               ) ;
 		SWEAR(status!=Status::New) ;                                                                         // we just executed the job, it can be neither new, frozen or special
 		SWEAR(!frozen()          ) ;                                                                         // .
 		SWEAR(!rule->is_special()) ;                                                                         // .
@@ -608,11 +609,11 @@ namespace Engine {
 			if (upload) _s_record_thread.emplace(self,JobInfoEnd{::copy(jrr)}) ;           // leave jrr intact so upload can be done later on
 			else        _s_record_thread.emplace(self,JobInfoEnd{::move(jrr)}) ;
 		} else {
-			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ;           // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
+			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ;                         // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
 			msg = ::move(jrr.msg) ;
 		}
 		//
-		if (ok==Yes) {                                                       // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
+		if (ok==Yes) {                   // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 			SWEAR(+digest.stats.total) ;
 			data.record_stats( digest.stats.total , cost , tokens1 ) ;
 		}
@@ -620,24 +621,24 @@ namespace Engine {
 		bool       one_done   = false                                                        ;
 		for( Req req : data.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
 			ReqInfo& ri = data.req_info(req) ;
-			if (ri.running()) ri.step(Step::End,self) ;                      // ensure no confusion with previous run
-			/**/              ri.modified = modified ;
+			if (ri.running()) { SWEAR(ri.step()==Step::Exec) ; ri.step(Step::End,self) ; } // ensure no confusion with previous run
+			/**/                ri.modified = modified ;
 		}
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = data.req_info(req) ;
 			trace("req_before",target_reason,status,ri,STR(modified)) ;
-			req->missing_audits.erase(self) ;                                // old missing audit is obsolete as soon as we have rerun the job
+			req->missing_audits.erase(self) ;                                              // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason job_err_reason = data.make( ri , end_action , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ;
 			//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			bool     full_report = ri.done() || !has_new_deps            ;   // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = ri.done() || !has_new_deps            ;                 // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_err_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
 				/**/         job_msg << msg                       <<set_nl ;
 				if (job_err) job_msg << reason_str(job_err_reason)<<'\n'   ;
-				else         job_msg << local_msg                 <<set_nl ; // report local_msg if no better message
+				else         job_msg << local_msg                 <<set_nl ;               // report local_msg if no better message
 				/**/         job_msg << severe_msg                         ;
 			} else if (req->options.flags[ReqFlag::Verbose]) {
 				job_msg << reason_str(job_err_reason)<<'\n' ;
@@ -658,7 +659,7 @@ namespace Engine {
 			req.chk_end() ;
 		}
 		// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
-		if ( upload && one_done ) {                                          // cache only successful results
+		if ( upload && one_done ) {                                                        // cache only successful results
 			NfsGuard nfs_guard{g_config->reliable_dirs} ;
 			Cache::s_tab.at(cache_none_attrs.key)->upload( self , digest , nfs_guard ) ;
 		}

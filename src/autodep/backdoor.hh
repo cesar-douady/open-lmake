@@ -37,8 +37,8 @@ namespace Backdoor {
 	template<class T> ssize_t/*len*/ func( Record& r , ::string const& args_str , char* buf , size_t sz ) {
 		size_t   pos       = 0 ;
 		::string reply_str ;
-		try                     { reply_str = serialize(deserialize<T>(parse_printable(args_str,pos)).process(r)) ; throw_unless( pos==args_str.size() ) ; }
-		catch (::string const&) { errno = EIO ; return -1 ;                                                                                                }
+		try         { reply_str = serialize(deserialize<T>(parse_printable(args_str,pos)).process(r)) ; throw_unless(pos==args_str.size()) ; }
+		catch (...) { errno = EIO ; return -1 ;                                                                                              }
 		sz = ::min(reply_str.size(),sz) ;
 		::memcpy( buf , reply_str.data() , sz ) ;
 		return sz ;

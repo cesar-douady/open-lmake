@@ -11,10 +11,10 @@ import re
 
 import serialize
 
-from lmake import pdict
+import lmake
+pdict = lmake.pdict
 
-root_dir   = os.getcwd()
-no_imports = {}          # may be overridden by external code
+no_imports = set() # may be overridden by external code
 
 # helper constants
 StdAttrs = {
@@ -529,7 +529,7 @@ class Handle :
 			,	ctx        = serialize_ctx
 			,	no_imports = no_imports
 			,	force      = True
-			,	root_dir   = root_dir
+			,	root_dir   = lmake.root_dir
 			)
 			if multi :
 				cmd += 'def cmd() :\n'
@@ -607,8 +607,13 @@ def fmt_rule(rule) :
 	except Exception as e :
 		if hasattr(rule,'name') : name = f'({rule.name})'
 		else                    : name = ''
-		print(f'while processing {rule.__name__}{name} :',file=sys.stderr)
-		if hasattr(e,'field')                  : print(f'\tfor field {e.field}'      ,file=sys.stderr)
-		if hasattr(e,'base' ) and e.base!=rule : print(f'\tin base {e.base.__name__}',file=sys.stderr)
-		print(f'\t{e.__class__.__name__} : {e}',file=sys.stderr)
+		if lmake.root_dir==lmake.top_root_dir :
+			tab = ''
+		else :
+			print(f'in sub-repo {lmake.root_dir[len(lmake.top_root_dir)+1:]} :',file=sys.stderr)
+			tab = '\t'
+		print(f'{tab}while processing {rule.__name__}{name} :',file=sys.stderr)
+		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'      ,file=sys.stderr)
+		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}',file=sys.stderr)
+		print(f'{tab}\t{e.__class__.__name__} : {e}',file=sys.stderr)
 		sys.exit(2)

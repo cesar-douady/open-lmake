@@ -650,8 +650,8 @@ namespace Backends {
 				,	.submit_attrs = submit_attrs
 				,	.rsrcs        = rsrcs
 				,	.host         = conn.host
-				,	.pre_start    { Proc::None , conn.seq_id , +job }
-				,	.start        { Proc::None                      }
+				,	.pre_start    { Proc::Start , conn.seq_id , +job }
+				,	.start        { Proc::Start                      }
 				} ;
 				JobRpcReq jrr { Proc::End , conn.seq_id , +job , JobDigest{.status=status} , ::move(lost_report.first) } ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

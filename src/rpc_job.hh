@@ -909,11 +909,11 @@ struct JobInfoEnd {
 
 struct JobInfo {
 	// cxtors & casts
-	JobInfo(                                       ) = default ;
-	JobInfo( ::string const& ancillary_file        ) ;
-	JobInfo( JobInfoStart&& jis                    ) : start{::move(jis)}                    {}
-	JobInfo(                      JobInfoEnd&& jie ) :                      end{::move(jie)} {}
-	JobInfo( JobInfoStart&& jis , JobInfoEnd&& jie ) : start{::move(jis)} , end{::move(jie)} {}
+	JobInfo() = default ;
+	JobInfo( ::string const& ancillary_file , Bool3 get_start=Maybe , Bool3 get_end=Maybe ) ;
+	JobInfo( JobInfoStart&& jis                                                           ) : start{::move(jis)}                    {}
+	JobInfo(                      JobInfoEnd&& jie                                        ) :                      end{::move(jie)} {}
+	JobInfo( JobInfoStart&& jis , JobInfoEnd&& jie                                        ) : start{::move(jis)} , end{::move(jie)} {}
 	// services
 	void write(::string const& filename) const ;
 	// data

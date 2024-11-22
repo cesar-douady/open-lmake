@@ -51,25 +51,30 @@ namespace std {
 template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {
 	struct U { template<class X> operator X() const ; } ;                                               // a universal class that can be cast to anything
 	template<IsStream S> static void s_serdes( S& s , T& x ) {
-		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; }    // force compilation error to ensure we do not partially serialize a large class
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a,b,c,d,e,f,g,h,i,j,k] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a,b,c,d,e,f,g,h,i,j  ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j  ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a,b,c,d,e,f,g,h,i    ] = x ; serdes(s,a,b,c,d,e,f,g,h,i    ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U()                };}) { auto& [a,b,c,d,e,f,g,h      ] = x ; serdes(s,a,b,c,d,e,f,g,h      ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U()                    };}) { auto& [a,b,c,d,e,f,g        ] = x ; serdes(s,a,b,c,d,e,f,g        ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U()                        };}) { auto& [a,b,c,d,e,f          ] = x ; serdes(s,a,b,c,d,e,f          ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U()                            };}) { auto& [a,b,c,d,e            ] = x ; serdes(s,a,b,c,d,e            ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U()                                };}) { auto& [a,b,c,d              ] = x ; serdes(s,a,b,c,d              ) ; }
-		else if constexpr (requires{T{U(),U(),U()                                    };}) { auto& [a,b,c                ] = x ; serdes(s,a,b,c                ) ; }
-		else if constexpr (requires{T{U(),U()                                        };}) { auto& [a,b                  ] = x ; serdes(s,a,b                  ) ; }
-		else if constexpr (requires{T{U()                                            };}) { auto& [a                    ] = x ; serdes(s,a                    ) ; }
+		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure no partial serialization of large classes
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,n,o  ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o  ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,n    ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l,m,n    ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m      ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l,m      ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()                };}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l        ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l        ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()                    };}) { auto& [a,b,c,d,e,f,g,h,i,j,k          ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k          ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()                        };}) { auto& [a,b,c,d,e,f,g,h,i,j            ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j            ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()                            };}) { auto& [a,b,c,d,e,f,g,h,i              ] = x ; serdes(s,a,b,c,d,e,f,g,h,i              ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U()                                };}) { auto& [a,b,c,d,e,f,g,h                ] = x ; serdes(s,a,b,c,d,e,f,g,h                ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U()                                    };}) { auto& [a,b,c,d,e,f,g                  ] = x ; serdes(s,a,b,c,d,e,f,g                  ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U()                                        };}) { auto& [a,b,c,d,e,f                    ] = x ; serdes(s,a,b,c,d,e,f                    ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U()                                            };}) { auto& [a,b,c,d,e                      ] = x ; serdes(s,a,b,c,d,e                      ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U()                                                };}) { auto& [a,b,c,d                        ] = x ; serdes(s,a,b,c,d                        ) ; }
+		else if constexpr (requires{T{U(),U(),U()                                                    };}) { auto& [a,b,c                          ] = x ; serdes(s,a,b,c                          ) ; }
+		else if constexpr (requires{T{U(),U()                                                        };}) { auto& [a,b                            ] = x ; serdes(s,a,b                            ) ; }
+		else if constexpr (requires{T{U()                                                            };}) { auto& [a                              ] = x ; serdes(s,a                              ) ; }
 	}
 } ;
 
 template<class T> requires(::is_trivially_copyable_v<T>) struct Serdeser<T> {
 	static void s_serdes( ::string     & os , T const& x ) { os += ::string_view( reinterpret_cast<char const*>(&x) , sizeof(x) ) ; }
 	static void s_serdes( ::string_view& is , T      & x ) {
-		SWEAR(is.size()>=sizeof(x),is.size(),sizeof(x)) ;
+		if (is.size()<sizeof(x)) throw 0 ;
 		::memcpy( reinterpret_cast<char*>(&x) , is.data() , sizeof(x) ) ;
 		is = is.substr(sizeof(x)) ;
 	}
@@ -85,7 +90,7 @@ template<> struct Serdeser<::string> {
 	static void s_serdes( ::string     & os , ::string const& s ) { uint32_t sz=_sz32(s) ; serdes(os,sz) ; os += s ; }
 	static void s_serdes( ::string_view& is , ::string      & s ) {
 		uint32_t sz ; serdes(is,sz) ;
-		SWEAR(is.size()>=sz,is.size(),sz) ;
+		if (is.size()<sz) throw 0 ;
 		s  = is.substr(0 ,sz) ;
 		is = is.substr(sz   ) ;
 	}
