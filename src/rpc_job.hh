@@ -623,7 +623,7 @@ struct JobRpcReq {
 	friend ::string& operator+=( ::string& , JobRpcReq const& ) ;
 	// cxtors & casts
 	JobRpcReq() = default ;
-	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                      { SWEAR(p==P::None ,p) ; }
+	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                      {                        }
 	JobRpcReq( P p , SI si , JI j , in_port_t   pt , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , port  {pt       } , msg{::move(m)} { SWEAR(p==P::Start,p) ; }
 	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)} , msg{::move(m)} { SWEAR(p==P::End  ,p) ; }
 	// accesses
