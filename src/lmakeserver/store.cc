@@ -147,6 +147,30 @@ namespace Engine::Persistent {
 	// NodeBase
 	//
 
+	Mutex<MutexLvl::Node> NodeBase::_s_mutex ;
+
+	NodeBase::NodeBase( Name name_ , Node dir ) {
+		if (!name_) return ;
+		self = _name_file.c_at(name_).node() ;
+		if (!self) {                                                                                        // else fast path
+			Lock lock { _s_mutex } ;
+			/**/                                self = _name_file.c_at(name_).node() ;                      // repeat test with lock if not already locked
+			if (!self  ) _name_file.at(name_) = self = _node_file.emplace(name_,dir) ;                      // if dir must be created, we already hold the lock
+		}
+		SWEAR( name_==self->_full_name , name_ , self->_full_name ) ;
+	}
+
+	NodeBase::NodeBase( ::string const& name_ , bool no_dir ) {
+		::pair<Name/*top*/,::vector<Name>/*created*/> top_created = no_dir ?
+			::pair<Name/*top*/,::vector<Name>/*created*/>( {} , {_name_file.insert(name_)} )
+		:	_name_file.insert_chain(name_,'/')
+		;
+		Node n ; if (+top_created.first) n = _name_file.c_at(top_created.first).node() ;
+		for( Name nn : top_created.second ) n = Node( nn , n ) ;
+		SWEAR(+n,name_) ;
+		self = n ;
+	}
+
 	RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {
 		// first match on suffix
 		PsfxIdx sfx_idx = _sfxs_file.longest(target_name,::string{Persistent::StartMrkr}).first ; // StartMrkr is to match rules w/ no stems

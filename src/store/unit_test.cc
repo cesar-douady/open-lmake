@@ -10,7 +10,7 @@
 
 using namespace Store ;
 
-::string g_dir ;
+::string g_dir_s ;
 
 using TestHdr = int ;
 
@@ -31,15 +31,15 @@ template<bool Multi,bool HasDataSz> struct TestData {
 struct TestFile {
 	TestFile() {
 		Fd::Stdout.write("check file ...") ;
-		::string filename = g_dir+"file" ;
-		{	File<false> f(filename,10000,true/*writable*/) ;
+		::string filename = g_dir_s+"file" ;
+		{	File<false,10000> f(filename,true/*writable*/) ;
 			f.expand(1000) ;
 			f.base[100] = 'a' ;
 			f.expand(5000) ;
 			f.base[101] = 'b' ;
 			f.clear(1000) ;
 		}
-		{	File<false> f(filename,10000,false/*writable*/) ;
+		{	File<false,10000> f(filename,false/*writable*/) ;
 			SWEAR(f.base[100]=='a') ;
 			SWEAR(f.base[101]=='b') ;
 		}
@@ -84,7 +84,7 @@ template<bool HasHdr,bool HasData,bool Multi> struct TestStruct {
 		SWEAR(idx3==1) ;
 		SWEAR( file.at(idx3).val[0]==7 ) ;
 	}
-	TestStruct() : file(g_dir+"struct"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Multi?"_multi":""),true/*writable*/) {
+	TestStruct() : file(g_dir_s+"struct"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Multi?"_multi":""),true/*writable*/) {
 		::string out ;
 		out<<"check struct" ;
 		if (HasHdr   ) out<<" with header"   ;
@@ -98,7 +98,7 @@ template<bool HasHdr,bool HasData,bool Multi> struct TestStruct {
 	}
 
 	// data
-	StructFile<false,Hdr,Idx,Data,Multi> file ;
+	StructFile<false,Hdr,Idx,HasData?20:0,Data,Multi> file ;
 } ;
 void test_struct() {
 	TestStruct<false/*HasHdr*/,false/*HasData*/,false/*Multi*/>() ;
@@ -198,7 +198,7 @@ template<bool HasHdr,bool HasData,bool HasSideCar,bool Multi,bool HasDataSz> str
 		test_pop    <true>(idx.first) ;
 		test_shorten<true>(idx.second) ;
 	}
-	TestSideCar() : file(g_dir+"side_car"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Multi?"_multi":"")+(HasDataSz?"_datasz":"")+(HasSideCar?"_sidecar":""),true/*writable*/) {
+	TestSideCar() : file(g_dir_s+"side_car"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Multi?"_multi":"")+(HasDataSz?"_datasz":"")+(HasSideCar?"_sidecar":""),true/*writable*/) {
 		::string out = "check sidecar" ;
 		if (HasHdr    ) out<<" with header"   ;
 		if (HasData   ) out<<" with data"     ;
@@ -214,7 +214,7 @@ template<bool HasHdr,bool HasData,bool HasSideCar,bool Multi,bool HasDataSz> str
 	}
 
 	// data
-	SideCarFile< false , Hdr , Idx , Data , SideCar , Multi > file ;
+	SideCarFile< false , Hdr , Idx , 20 , Data , SideCar , Multi > file ;
 } ;
 void test_side_car() {
 	TestSideCar<false/*HasHdr*/,false/*HasData*/,false/*HasSideCar*/,false/*Multi*/,false/*HasDataSz*/>() ;
@@ -249,28 +249,28 @@ template<bool HasHdr,bool HasData,bool Reverse> struct TestPrefix {
 	}
 	void test_tree() {
 		::string f = Reverse ? "c" : "a" ;
-		Idx                idx1   = file.insert (f    ) ; SWEAR( idx1                                   ) ; file.chk() ;
-		Idx                idx2   = file.insert ("abc") ; SWEAR( idx2                                   ) ; file.chk() ;
-		Idx                idx3   = file.search (f    ) ; SWEAR( idx3==idx1                             ) ;
-		::string           n      = file.str_key(idx1 ) ; SWEAR( n==f                                   ) ;
-		Idx                idx4   = file.search ("abc") ; SWEAR( idx4==idx2                             ) ;
-		Idx                idx5   = file.search ("adc") ; SWEAR( !idx5                                  ) ;
-		::pair<Idx,size_t> idx_sz = file.longest("adc") ; SWEAR( idx_sz.first==idx1 && idx_sz.second==1 ) ;
+		Idx                idx1   = file.insert (f     ) ; SWEAR( idx1                                                   ) ; file.chk() ;
+		Idx                idx2   = file.insert ("abc"s) ; SWEAR( idx2                                                   ) ; file.chk() ;
+		Idx                idx3   = file.search (f     ) ; SWEAR( idx3==idx1                             , idx3   , idx1 ) ;
+		::string           n      = file.str_key(idx1  ) ; SWEAR( n==f                                   , n      , f    ) ;
+		Idx                idx4   = file.search ("abc"s) ; SWEAR( idx4==idx2                             , idx4   , idx2 ) ;
+		Idx                idx5   = file.search ("adc"s) ; SWEAR( !idx5                                  , idx5          ) ;
+		::pair<Idx,size_t> idx_sz = file.longest("adc"s) ; SWEAR( idx_sz.first==idx1 && idx_sz.second==1 , idx_sz , idx1 ) ;
 	}
 	void test_data() requires(!HasData) {}
 	void test_data() requires( HasData) {
 		::string f = Reverse ? "c" : "a" ;
-		Idx      idx1 = file.search    (f    )      ;
-		Idx      idx2 = file.insert    (f    )      ; SWEAR(idx2==idx1) ; file.chk() ;
-		/**/            file.at        (idx1 ) = 35 ;
-		Idx      idx3 = file.insert    ("adc")      ;                     file.chk() ;
-		/**/            file.at        (idx3 ) = 36 ;                     file.chk() ;
-		Idx      idx4 = file.search    (f    )      ; SWEAR(idx4==idx1) ;
-		int      v1   = file.at        (idx1 )      ; SWEAR(v1  ==35  ) ;
-		::string n1   = file.str_key   (idx1 )      ; SWEAR(n1  ==f   ) ;
-		int      v2   = *file.search_at("adc")      ; SWEAR(v2  ==36  ) ;
+		Idx      idx1 = file.search    (f     )      ;
+		Idx      idx2 = file.insert    (f     )      ; SWEAR(idx2==idx1) ; file.chk() ;
+		/**/            file.at        (idx1  ) = 35 ;
+		Idx      idx3 = file.insert    ("adc"s)      ;                     file.chk() ;
+		/**/            file.at        (idx3  ) = 36 ;                     file.chk() ;
+		Idx      idx4 = file.search    (f     )      ; SWEAR(idx4==idx1) ;
+		int      v1   = file.at        (idx1  )      ; SWEAR(v1  ==35  ) ;
+		::string n1   = file.str_key   (idx1  )      ; SWEAR(n1  ==f   ) ;
+		int      v2   = *file.search_at("adc"s)      ; SWEAR(v2  ==36  ) ;
 	}
-	TestPrefix() : file(g_dir+"prefix"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Reverse?"_reverse":""),true/*writable*/) {
+	TestPrefix() : file(g_dir_s+"prefix"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Reverse?"_reverse":""),true/*writable*/) {
 		::string out = "check prefix" ;
 		if (HasHdr    ) out<<" with header"  ;
 		if (HasData   ) out<<" with data"    ;
@@ -284,7 +284,7 @@ template<bool HasHdr,bool HasData,bool Reverse> struct TestPrefix {
 	}
 
 	// data
-	SinglePrefixFile<false,Hdr,Idx,Char,Data,Reverse> file ;
+	SinglePrefixFile<false,Hdr,Idx,20,Char,Data,Reverse> file ;
 } ;
 void test_prefix() {
 	TestPrefix<false/*HasHdr*/,false/*HasData*/,false/*Reverse*/>() ;
@@ -299,7 +299,7 @@ void test_prefix() {
 
 void test_lmake() {
 	Fd::Stdout.write("check lmake ...") ;
-	SinglePrefixFile<false,void,uint32_t> file(g_dir+"lmake",true/*writable*/) ;
+	SinglePrefixFile<false,void,uint32_t,20> file(g_dir_s+"lmake",true/*writable*/) ;
 	char key ;
 	key = (char)0x28 ; file.insert(::string(&key,1)) ;
 	key = (char)0xb1 ; file.insert(::string(&key,1)) ;
@@ -309,8 +309,8 @@ void test_lmake() {
 
 int main( int argc , char const* argv[] ) {
 	SWEAR(argc==2) ;
-	g_dir = argv[1] ; g_dir.push_back('/') ;
-	Fd::Stdout.write("chk dir : "s+g_dirs+'\n') ;
+	g_dir_s = with_slash(argv[1]) ;
+	Fd::Stdout.write("chk dir : "s+no_slash(g_dir_s)+'\n') ;
 	test_file    () ;
 	test_struct  () ;
 	test_side_car() ;

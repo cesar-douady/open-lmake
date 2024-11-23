@@ -297,17 +297,15 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                                                           // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                                              // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// static data
 		static Mutex<MutexLvl::NodeCrcDate> s_crc_date_mutex ;
 		// cxtors & casts
-		NodeData(                                          ) = delete ;                                               // if necessary, we must take care of the union
-		NodeData( Name n , bool no_dir , bool locked=false ) : JobNodeData{n} {
-			if (!no_dir) dir() = Node(_dir_name(),false/*no_dir*/,locked) ;
-		}
+		NodeData() = delete ;                                                                                                            // if necessary, we must take care of the union
+		NodeData( Name n , Node dir_ ) : JobNodeData{n} { dir() = dir_ ; }
 		~NodeData() {
 			job_tgts().pop() ;
 		}
@@ -347,7 +345,7 @@ namespace Engine {
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                   // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -361,12 +359,12 @@ namespace Engine {
 		//
 		Manual manual        (                  FileSig const& ) const ;
 		Manual manual        (                                 ) const { return manual(FileSig(name())) ; }
-		Manual manual_refresh( Req            , FileSig const& ) ;                                                    // refresh date if file was updated but steady
-		Manual manual_refresh( JobData const& , FileSig const& ) ;                                                    // .
+		Manual manual_refresh( Req            , FileSig const& ) ;                                                                       // refresh date if file was updated but steady
+		Manual manual_refresh( JobData const& , FileSig const& ) ;                                                                       // .
 		Manual manual_refresh( Req            r                )       { return manual_refresh(r,FileSig(name())) ; }
 		Manual manual_refresh( JobData const& j                )       { return manual_refresh(j,FileSig(name())) ; }
 		//
-		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;      // Req's are for reporting only
+		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;                         // Req's are for reporting only
 		//
 		void full_refresh( bool report_no_file , ::vector<Req> const& reqs , ::string const& name ) {
 			if (+reqs) set_buildable(reqs[0]) ;

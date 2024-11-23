@@ -43,7 +43,6 @@ int main( int argc , char* /*argv*/[] ) {
 		}
 	}
 	//
-	Persistent::chk() ;
-	//
-	return 0 ;
+	try                       { Persistent::chk() ; }
+	catch (::string const& e) { exit(Rc::Fail,e)  ; }
 }

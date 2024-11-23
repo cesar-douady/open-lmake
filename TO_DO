@@ -23,14 +23,14 @@ M missing some deps when reading elf
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* provide a protection mechanism to ensure jobs are not cached if they used absolute paths
+! transport pdict as pdict rather than as dict
+! generate meaningful message in case of I/O error such as disk full
+! manage 32 bits executables with ptrace
+? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
 	- emit a "dont cache" message
 	- unless root_view is used
 	- provide a warning to user if the case arises
-! transport pdict as pdict rather than as dict
-! generate meaningful message in case of I/O error such as disk full
-! manage 32 bits executables with ptrace
 ? before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
 ? improve hard link management
@@ -61,9 +61,9 @@ M missing some deps when reading elf
 * TECHNICAL DEBTH (coded poorly and needing to be reworked)
 ****************************************************************************************************
 
-* rework dep analysis in JobData::make
-	- to ensure SWEAR(!ri.state.missing_dsk) does not fire
 ! fix store to be compliant with strict aliasing rules
+? rework dep analysis in JobData::make
+	- to ensure SWEAR(!ri.state.missing_dsk) does not fire
 
 ****************************************************************************************************
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
@@ -149,11 +149,6 @@ M implement fuse as an autodep method
 	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs
 	- share views in submit_attrs as there is very few variability
-* handle dir hierarchy in store
-	- provide a primitive to insert all dirs of a node at once
-	- much more efficient
-	- not difficult to code
-	- return a vector of idxs
 ! no req_info for non-buildable nodes
 ? evaluate dynamic deps only if static deps match
 	- at least for those deps placed before

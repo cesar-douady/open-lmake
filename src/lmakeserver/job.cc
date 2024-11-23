@@ -988,7 +988,7 @@ namespace Engine {
 							} else if ( dep_modif && make_action==MakeAction::End && dep_missing_dsk ) { // dep out of date but we do not wait for it being rebuilt
 								dep_goal = NodeGoal::Dsk ;                                               // we must ensure disk integrity for detailed analysis
 								trace("restart_dep",dep) ;
-								goto RestartDep ;                                                        // BACKWARD
+								goto RestartDep/*BACKWARD*/ ;
 							}
 						break ;
 					DF}
@@ -1003,7 +1003,7 @@ namespace Engine {
 					SWEAR(!ri.reason,ri.reason) ;                    // we should have asked for dep on disk if we had a reason to run
 					ri.reason     = state.reason ;                   // record that we must ask for dep on disk
 					report_reason = {}           ;
-					goto RestartAnalysis ;                           // BACKWARD
+					goto RestartAnalysis/*BACKWARD*/ ;
 				}
 				SWEAR(!( +dep_err && modif && !is_static )) ;        // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
 				state.proto_err    = state.proto_err   | dep_err   ; // |= is forbidden for bit fields
@@ -1017,9 +1017,8 @@ namespace Engine {
 		}
 	Run :
 		trace("run",pre_reason,ri,run_status) ;
-		if ( query && !is_special() ) { report_reason = reason() ; goto Return          ; }        // ensure we have a reason to report that we would have run if not queried
-		if ( ri.state.missing_dsk   ) { ri.reset(idx())          ; goto RestartAnalysis ; }
-		SWEAR(!ri.state.missing_dsk) ;                                                             // cant run if we are missing some deps on disk
+		if ( query && !is_special() ) { report_reason = reason() ; goto Return                      ; } // ensure we have a reason to report that we would have run if not queried
+		if ( ri.state.missing_dsk   ) { ri.reset(idx())          ; goto RestartAnalysis/*BACKWARD*/ ; } // cant run if we are missing some deps on disk
 		if (r->n_submits) {
 			if (ri.n_submits>=r->n_submits) {
 				trace("submit_loop") ;
@@ -1029,17 +1028,17 @@ namespace Engine {
 			ri.n_submits++ ;
 		}
 		//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (is_special()) {      _submit_special( ri                           ) ; goto Done ; }   // special never report new deps
-		else              { if (!_submit_plain  ( ri , reason() , dep_pressure ))  goto Done ; }   // if no new deps, we cannot be waiting and we are done
+		if (is_special()) {      _submit_special( ri                           ) ; goto Done ; }        // special never report new deps
+		else              { if (!_submit_plain  ( ri , reason() , dep_pressure ))  goto Done ; }        // if no new deps, we cannot be waiting and we are done
 		//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (ri.waiting()) goto Wait ;
 		SWEAR(!ri.running()) ;
-		make_action = MakeAction::End  ;                                                           // restart analysis as if called by end() as in case of flash execution, submit has called end()
-		ri.inc_wait() ;                                                                            // .
-		asked_reason = {} ;                                                                        // .
-		ri.reason    = {} ;                                                                        // .
+		make_action = MakeAction::End  ;                                                                // restart analysis as if called by end() as in case of flash execution, submit has called end()
+		ri.inc_wait() ;                                                                                 // .
+		asked_reason = {} ;                                                                             // .
+		ri.reason    = {} ;                                                                             // .
 		trace("restart_analysis",ri) ;
-		goto RestartFullAnalysis ;                                                                 // BACKWARD
+		goto RestartFullAnalysis/*BACKWARD*/ ;
 	Done :
 		SWEAR( !ri.running() && !ri.waiting() , idx() , ri ) ;
 		ri.step(Step::Done,idx()) ;

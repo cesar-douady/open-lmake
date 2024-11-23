@@ -95,7 +95,7 @@ namespace Store {
 		Idx  _cxt_side_car(         Idx idx )       requires(HasBoth) { if (_at_end(idx)) _side_car.emplace_back(  ) ; else _side_car.emplace(idx) ; return idx ;    }
 		Idx  _dxt_side_car(         Idx idx )       requires(HasBoth) { SWEAR(!_at_end(idx)) ;                              _side_car.pop    (idx) ; return idx ;    }
 		// data
-		StructFile< false/*AutoLock*/ , void , Idx , NIdxBits , ::conditional_t<HasBoth,SideCar,void> , (HasBoth?Multi:false) > _side_car ;
+		StructFile< false/*AutoLock*/ , void , Idx , HasBoth?NIdxBits:0 , ::conditional_t<HasBoth,SideCar,void> , (HasBoth?Multi:false) > _side_car ;
 	} ;
 
 }

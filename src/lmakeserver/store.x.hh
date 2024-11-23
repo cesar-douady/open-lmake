@@ -86,7 +86,6 @@ namespace Engine::Persistent {
 		::string str   (size_t sfx_sz=0) const ;
 		size_t   str_sz(size_t sfx_sz=0) const ;
 		// services
-		Name dir() const ;
 	} ;
 
 	struct JobNodeData {                                  // the common part for JobData and NodeData
@@ -98,8 +97,6 @@ namespace Engine::Persistent {
 		// accesses
 		::string full_name   (Disk::FileNameIdx sfx_sz=0) const { return _full_name.str   (sfx_sz) ; }
 		size_t   full_name_sz(Disk::FileNameIdx sfx_sz=0) const { return _full_name.str_sz(sfx_sz) ; }
-	protected :
-		Name _dir_name() const { return _full_name.dir() ; }
 		// data
 	private :
 		Name _full_name ;
@@ -147,22 +144,25 @@ namespace Engine::Persistent {
 		static bool           s_has_srcs         (                                  ) ;
 		static ::vector<Node> s_frozens          (                                  ) ;
 		static ::vector<Node> s_no_triggers      (                                  ) ;
-		static void           s_frozens          ( bool add , ::vector<Node> const& ) ;     // erase (!add) or insert (add)
-		static void           s_no_triggers      ( bool add , ::vector<Node> const& ) ;     // .
+		static void           s_frozens          ( bool add , ::vector<Node> const& ) ;    // erase (!add) or insert (add)
+		static void           s_no_triggers      ( bool add , ::vector<Node> const& ) ;    // .
 		static void           s_clear_frozens    (                                  ) ;
 		static void           s_clear_no_triggers(                                  ) ;
 		static void           s_clear_srcs       (                                  ) ;
 		//
 		static Targets const s_srcs( bool dirs                                    ) ;
-		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ;       // erase (!add) or insert (add)
+		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ;      // erase (!add) or insert (add)
 		//
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
+		// static data
+	private :
+		static Mutex<MutexLvl::Node> _s_mutex ;                                            // nodes can be created from several threads, ensure coherence between names and nodes
 		// cxtors & casts
-		using Base::Base ;
-		/**/     NodeBase( ::string const& name , bool no_dir=false , bool locked=false ) ; // if locked, lock is already taken
-		explicit NodeBase( Name                 , bool no_dir=false , bool locked=false ) ; // .
-		// accesses
 	public :
+		using Base::Base ;
+		explicit NodeBase( Name                 , Node dir          ) ; // if locked, lock is already taken
+		/**/     NodeBase( ::string const& name , bool no_dir=false ) ; // .
+		// accesses
 		NodeData const& operator* () const ;
 		NodeData      & operator* () ;
 		NodeData const* operator->() const { return &*self ; }
@@ -422,8 +422,6 @@ namespace Engine::Persistent {
 	// accesses
 	inline ::string Name::str   (size_t sfx_sz) const { return Persistent::_name_file.str_key(+self,sfx_sz) ; }
 	inline size_t   Name::str_sz(size_t sfx_sz) const { return Persistent::_name_file.key_sz (+self,sfx_sz) ; }
-	// services
-	inline Name     Name::dir   (             ) const { return Persistent::_name_file.insert_dir(self,'/')  ; }
 
 	//
 	// JobBase
@@ -493,27 +491,6 @@ namespace Engine::Persistent {
 	inline Targets const NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = _node_file.c_hdr() ; return     dirs?nh.src_dirs:nh.srcs ;                 }
 	inline void          NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = _node_file.hdr  () ; _s_update( dirs?nh.src_dirs:nh.srcs , add , items ) ; }
 
-	// cxtors & casts
-	inline NodeBase::NodeBase( Name name_ , bool no_dir , bool locked ) {
-		if (!name_) return ;
-		self = _name_file.c_at(name_).node() ;
-		if (+self) {                                                                                                        // fast path : avoid taking lock
-			SWEAR( name_==self->_full_name , self , name_ , self->_full_name , _name_file.c_at(self->_full_name).node() ) ;
-			return ;
-		}
-		// restart with lock
-		static Mutex<MutexLvl::Node> s_m ;                                                    // nodes can be created from several threads, ensure coherence between names and nodes
-		Lock lock = locked ? (s_m.swear_locked(),Lock<Mutex<MutexLvl::Node>>()) : Lock(s_m) ;
-		self = _name_file.c_at(name_).node() ;
-		if (+self) {
-			SWEAR( name_==self->_full_name , self , name_ , self->_full_name , _name_file.c_at(self->_full_name).node() ) ;
-		} else {
-			_name_file.at(name_) = self = _node_file.emplace(name_,no_dir,true/*locked*/) ;   // if dir must be created, we already hold the lock
-		}
-	}
-	inline NodeBase::NodeBase( ::string const& n , bool no_dir , bool locked ) {
-		self = Node( _name_file.insert(n) , no_dir , locked ) ;
-	}
 	// accesses
 	inline bool NodeBase::frozen    () const { return _frozen_nodes.contains(Node(+self)) ; }
 	inline bool NodeBase::no_trigger() const { return _no_triggers .contains(Node(+self)) ; }
