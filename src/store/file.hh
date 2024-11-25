@@ -151,7 +151,7 @@ namespace Store {
 			err_msg<<"consider to recompile open-lmake with increased corresponding parameter in src/types.hh\n" ;
 			exit(Rc::Param,err_msg) ;
 		}
-		sz = round_up(sz,s_page) ;
+		sz += s_page-1 ; sz = sz-sz%s_page ; // round up
 		if (+_fd) {
 			//         vvvvvvvvvvvvvvvvvvvvv
 			int rc = ::ftruncate( _fd , sz ) ; // may increase file size

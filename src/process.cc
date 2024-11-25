@@ -74,7 +74,7 @@ using namespace Disk ;
 		{	char                     first_pid_buf[30] ;                                                // /!\ cannot use ::string as we are only allowed signal-safe functions
 			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1  )    ; // /!\ .
 			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , Fd::Write } ;
-			[[maybe_unused]] ssize_t wrc               = ::write(fd,first_pid_buf,first_pid_sz)       ; // dont care about errors, this is best effort
+			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)       ; // dont care about errors, this is best effort
 		}
 		pid_t pid = ::clone( _s_do_child , _child_stack_ptr , SIGCHLD , this ) ;
 		//

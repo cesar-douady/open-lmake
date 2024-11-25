@@ -38,11 +38,8 @@ namespace Store {
 			using Base::items ;
 			// statics
 			static constexpr IdxSz s_n_items(Sz sz_) {
-				return div_up(
-					sizeof(Base) - MinSz*sizeof(Item) + sz_*sizeof(Item)              // /!\ unsigned computation : take care of any subtraction
-				,	sizeof(Base)
-				) ;
-			}                                                                         // compute size before we have an object
+				return div_up<sizeof(Base)>( sizeof(Base) - MinSz*sizeof(Item) + sz_*sizeof(Item) ) ; // /!\ unsigned computation : take care of any subtraction
+			}                                                                                         // compute size before we have an object
 			// cxtors & casts
 			using Base::Base ;
 			template<::convertible_to<Item> I> Chunk(::span<I> const& v) : Base{Sz(v.size())} {
@@ -61,7 +58,7 @@ namespace Store {
 			//
 			operator VecView() const { return VecView(items(),sz) ; }
 			// accesses
-			IdxSz n_items() const { return s_n_items(sz) ; }                          // to inform AllocFile of the size of the item
+			IdxSz n_items() const { return s_n_items(sz) ; }                                          // to inform AllocFile of the size of the item
 			// services
 			void shorten_by(Sz by) {
 				SWEAR( by<sz , by , sz ) ;

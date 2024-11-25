@@ -39,8 +39,13 @@ public :
 	constexpr bool              operator== (Idxed other) const { return +self== +other ; }
 	constexpr ::strong_ordering operator<=>(Idxed other) const { return +self<=>+other ; }
 	//
-	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) Idx  side(       ) const { return bits(_idx,W,LSB+NValBits    ) ; }
-	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) void side(Idx val)       { _idx = bits(_idx,W,LSB+NValBits,val) ; }
+	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) Idx  side(       ) const { return Idx(_idx>>(LSB+NValBits))&lsb_msk<Idx>(W) ; }
+	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) void side(Idx val)       {
+		_idx =
+			Idx( _idx & ~(     lsb_msk<Idx>(W) <<(LSB+NValBits)) )
+		|	Idx(          (val&lsb_msk<Idx>(W))<<(LSB+NValBits)  )
+		;
+	}
 	// data
 private :
 	Idx _idx = 0 ;
@@ -86,8 +91,8 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	void clear() { self = Idxed2() ; }
 	// accesses
 	template<class T> requires(IsAOrB<T>) bool is_a() const {
-		if (IsA<T>) return !bit( _val,NValBits-1) ;
-		else        return !bit(-_val,NValBits-1) ;
+		if (IsA<T>) return !(  _val & (SIdx(1)<<SIdx(NValBits-1)) ) ;
+		else        return !( -_val & (SIdx(1)<<SIdx(NValBits-1)) ) ;
 	}
 	//
 	SIdx operator+() const { return _val<<NGuardBits>>NGuardBits ; }
@@ -95,8 +100,13 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	bool              operator== (Idxed2 other) const { return +self== +other ; }
 	::strong_ordering operator<=>(Idxed2 other) const { return +self<=>+other ; }
 	//
-	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) Idx  side(       ) const { return bits(_val,W,NValBits+LSB)     ; }
-	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) void side(Idx val)       { _val = bits(_val,W,NValBits+LSB,val) ; }
+	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) Idx  side(       ) const { return (_val>>(LSB+NValBits))&lsb_msk<SIdx>(W) ; }
+	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) void side(Idx val)       {
+		_val =
+			( _val & ~SIdx(     lsb_msk<Idx>(W) <<(LSB+NValBits)) )
+		|	          SIdx((val&lsb_msk<Idx>(W))<<(LSB+NValBits))
+		;
+	}
 private :
 	// data
 	SIdx _val = 0 ;

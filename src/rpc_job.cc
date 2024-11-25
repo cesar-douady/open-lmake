@@ -228,8 +228,8 @@ bool/*entered*/ JobSpace::enter(
 			+	", "
 			+	"consider setting <rule>.root_view="+mk_py_str("/repo/"+no_slash(cwd_s))
 			;
-		phy_super_root_dir_s = phy_root_dir_s ; for( [[maybe_unused]] size_t i : iota(uphill_lvl) ) phy_super_root_dir_s = dir_name_s(phy_super_root_dir_s) ;
-		super_root_view_s    = root_view_s    ; for( [[maybe_unused]] size_t i : iota(uphill_lvl) ) super_root_view_s    = dir_name_s(super_root_view_s   ) ;
+		phy_super_root_dir_s = phy_root_dir_s ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) phy_super_root_dir_s = dir_name_s(phy_super_root_dir_s) ;
+		super_root_view_s    = root_view_s    ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) super_root_view_s    = dir_name_s(super_root_view_s   ) ;
 		SWEAR(phy_super_root_dir_s!="/",phy_root_dir_s,uphill_lvl) ;                                                                                          // this should have been checked earlier
 		if (!super_root_view_s)
 			throw

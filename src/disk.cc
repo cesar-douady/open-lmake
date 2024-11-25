@@ -192,8 +192,8 @@ namespace Disk {
 	}
 
 	void unlnk_inside_s( Fd at , ::string const& dir_s , bool abs_ok , bool force ) {
-		if (!abs_ok) SWEAR( is_lcl_s(dir_s) , dir_s ) ;                                                                                   // unless certain, prevent accidental non-local unlinks
-		if (force) [[maybe_unused]] int rc = ::fchmodat( at , no_slash(dir_s).c_str() , S_IRWXU|S_IRWXG|S_IRWXO , AT_SYMLINK_NOFOLLOW ) ; // ignore return code as we cannot do much about it
+		if (!abs_ok) SWEAR( is_lcl_s(dir_s) , dir_s ) ;                                                                                  // unless certain, prevent accidental non-local unlinks
+		if (force) [[maybe_unused]] int _ = ::fchmodat( at , no_slash(dir_s).c_str() , S_IRWXU|S_IRWXG|S_IRWXO , AT_SYMLINK_NOFOLLOW ) ; // ignore return code as we cannot do much about it
 		for( ::string const& f : lst_dir_s(at,dir_s,dir_s) ) unlnk(at,f,true/*dir_ok*/,abs_ok,force) ;
 	}
 

@@ -178,8 +178,8 @@ namespace Engine {
 		// cxtors & casts
 		GenericDep(Dep const& d={}) : hdr{d} {}
 		// services
-		GenericDep const* next() const { return this+1+div_up(hdr.sz,GenericDep::NodesPerDep) ; }
-		GenericDep      * next()       { return this+1+div_up(hdr.sz,GenericDep::NodesPerDep) ; }
+		GenericDep const* next() const { return this+1+div_up<GenericDep::NodesPerDep>(hdr.sz) ; }
+		GenericDep      * next()       { return this+1+div_up<GenericDep::NodesPerDep>(hdr.sz) ; }
 		// data
 		Dep hdr                 = {} ;
 		Node chunk[NodesPerDep] ;

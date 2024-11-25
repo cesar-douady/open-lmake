@@ -97,25 +97,25 @@ HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=
 # - ST      : -fsanitize threads
 # - P       : -pg
 # - C       : coverage (not operational yet)
+COVERAGE     := $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
+PROFILE      := $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
 EXTRA_FLAGS  := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,-O3)
-EXTRA_FLAGS  := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(OPT_FLAGS))
-EXTRA_FLAGS  := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(OPT_FLAGS))
-EXTRA_FLAGS  := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(OPT_FLAGS))
-EXTRA_FLAGS  := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0 -fno-inline,$(OPT_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(EXTRA_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(EXTRA_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(EXTRA_FLAGS))
+EXTRA_FLAGS  := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0 -fno-inline,$(EXTRA_FLAGS))
 EXTRA_FLAGS  += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
 EXTRA_FLAGS  += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
-EXTRA_FLAGS  += $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
 HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
 HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
-SAN_FLAGS    += $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
+SAN_FLAGS    := $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
-COVERAGE     += $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
 LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath=%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath=%))
-LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) -pthread $(LINK_FLAGS)
+LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) $(PROFILE) -pthread $(LINK_FLAGS)
 LINK_LIB             = -ldl $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 #
@@ -123,8 +123,8 @@ ifeq ($(CXX_FLAVOR),clang)
     WARNING_FLAGS += $(CLANG_WARNING_FLAGS)
 endif
 #
-USER_FLAGS := -std=$(CXX_STD) $(EXTRA_FLAGS)
-COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
+USER_FLAGS := -std=$(CXX_STD) $(EXTRA_FLAGS) $(COVERAGE) $(PROFILE)
+COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
 LINT       := clang-tidy
 LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
 LINT_CHKS  := -checks=-clang-analyzer-optin.core.EnumCastOutOfRange

@@ -55,7 +55,7 @@ namespace Hash {
 		}
 		// cxtors & casts
 		constexpr Crc(                            ) = default ;
-		constexpr Crc( Val v , Bool3 is_lnk=Maybe ) : _val{is_lnk==Maybe?v:bit(v,0,is_lnk==Yes)} {}
+		constexpr Crc( Val v , Bool3 is_lnk=Maybe ) : _val{ is_lnk==Maybe ? v : (v&~Val(1))|Val(is_lnk==Yes) } {}
 		constexpr Crc(FileTag tag) {
 			switch (tag) {
 				case FileTag::None  :

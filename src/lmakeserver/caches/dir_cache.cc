@@ -83,7 +83,7 @@ namespace Caches {
 		res.push_back('/') ;
 		//
 		char* p = &full_name[user_sz+1] ;                                                                                           // start of suffix
-		for( [[maybe_unused]] VarIdx s : iota(rule->n_static_stems) ) {
+		for( [[maybe_unused]] VarIdx _ : iota(rule->n_static_stems) ) {
 			FileNameIdx pos = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			res << pos << '-' << sz << '+' ;

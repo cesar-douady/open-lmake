@@ -9,7 +9,10 @@
 
 #include <slurm/slurm.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // seems to be necessary for compiling with -fsanitize
 #include "ext/cxxopts.hpp"
+#pragma GCC diagnostic pop
 
 #include "generic.hh" // /!\ must be first because Python.h must be first
 

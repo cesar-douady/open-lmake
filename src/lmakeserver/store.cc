@@ -77,6 +77,7 @@ namespace Engine::Persistent {
 	}
 
 	void RuleBase::s_from_disk() {
+		Trace trace("s_from_disk") ;
 		// handle Rule's
 		s_n_rule_datas = +Special::NShared+_rule_file.size()-1 ;
 		s_name_sz      = _rule_str_file.hdr()                  ; // hdr is only composed of name_sz
@@ -91,6 +92,7 @@ namespace Engine::Persistent {
 		}
 		//
 		_s_set_rule_datas(s_ping) ;
+		trace("done") ;
 	}
 
 	void RuleBase::s_from_vec_dynamic(::vector<RuleData>&& new_rules) {
@@ -152,10 +154,10 @@ namespace Engine::Persistent {
 	NodeBase::NodeBase( Name name_ , Node dir ) {
 		if (!name_) return ;
 		self = _name_file.c_at(name_).node() ;
-		if (!self) {                                                                                        // else fast path
+		if (!self) {                                                                   // else fast path
 			Lock lock { _s_mutex } ;
-			/**/                                self = _name_file.c_at(name_).node() ;                      // repeat test with lock if not already locked
-			if (!self  ) _name_file.at(name_) = self = _node_file.emplace(name_,dir) ;                      // if dir must be created, we already hold the lock
+			/**/                                self = _name_file.c_at(name_).node() ; // repeat test with lock if not already locked
+			if (!self  ) _name_file.at(name_) = self = _node_file.emplace(name_,dir) ; // if dir must be created, we already hold the lock
 		}
 		SWEAR( name_==self->_full_name , name_ , self->_full_name ) ;
 	}
@@ -205,9 +207,11 @@ namespace Engine::Persistent {
 	::uset<Node>       _no_triggers  ;
 
 	static void _compile_srcs() {
+		Trace trace("_compile_srcs") ;
 		if (g_src_dirs_s) g_src_dirs_s->clear() ;
 		else              g_src_dirs_s = new ::vector_s ;
 		for( Node const n : Node::s_srcs(true/*dirs*/) ) g_src_dirs_s->push_back(n->name()+'/') ;
+		trace("done") ;
 	}
 
 	static void _init_config() {
@@ -216,7 +220,7 @@ namespace Engine::Persistent {
 	}
 
 	static void _init_srcs_rules(bool rescue) {
-		Trace trace("_init_srcs_rules",Pdate(New)) ;
+		Trace trace("_init_srcs_rules",STR(rescue)) ;
 		//
 		// START_OF_VERSIONING
 		::string dir_s = g_config->local_admin_dir_s+"store/" ;
@@ -260,15 +264,14 @@ namespace Engine::Persistent {
 		_sfxs_file     .keep_open = true ;       // .
 		_pfxs_file     .keep_open = true ;       // .
 		_name_file     .keep_open = true ;       // .
-		_compile_srcs () ;
+		_compile_srcs() ;
 		Rule::s_from_disk() ;
 		for( Job  j : _job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
 		for( Node n : _node_file.c_hdr().frozens    ) _frozen_nodes.insert(n) ;
 		for( Node n : _node_file.c_hdr().no_triggers) _no_triggers .insert(n) ;
 		//
-		trace("done",Pdate(New)) ;
-		//
 		if (rescue) {
+			trace("rescue") ;
 			Fd::Stderr.write("previous crash detected, checking & rescueing\n") ;
 			try {
 				chk()              ;             // first verify we have a coherent store
@@ -278,6 +281,8 @@ namespace Engine::Persistent {
 				exit(Rc::Format,"failed to rescue, consider running lrepair") ;
 			}
 		}
+		//
+		trace("done") ;
 	}
 
 	void chk() {
@@ -542,13 +547,13 @@ namespace Engine::Persistent {
 	}
 
 	bool/*invalidate*/ new_srcs( ::vector_s&& src_names , bool dynamic ) {
-		NfsGuard                nfs_guard    { g_config->reliable_dirs } ;
-		::map<Node,FileTag    > srcs         ;                                  // use ordered map/set to ensure stable execution
-		::map<Node,FileTag    > old_srcs     ;                                  // .
-		::map<Node,FileTag    > new_srcs_    ;                                  // .
-		::set<Node            > src_dirs     ;                                  // .
-		::set<Node            > old_src_dirs ;                                  // .
-		::set<Node            > new_src_dirs ;                                  // .
+		NfsGuard             nfs_guard    { g_config->reliable_dirs } ;
+		::vmap<Node,FileTag> srcs         ;
+		::umap<Node,FileTag> old_srcs     ;
+		::umap<Node,FileTag> new_srcs_    ;
+		::uset<Node        > src_dirs     ;
+		::uset<Node        > old_src_dirs ;
+		::uset<Node        > new_src_dirs ;
 		Trace trace("new_srcs") ;
 		// check and format new srcs
 		size_t      root_dir_depth = 0                                                                ; { for( char c : *g_root_dir_s ) root_dir_depth += c=='/' ; } root_dir_depth-- ;
@@ -564,8 +569,9 @@ namespace Engine::Persistent {
 				if ( !is_abs_s(src) && uphill_lvl_s(src)>=root_dir_depth ) throw "cannot access relative source dir "+no_slash(src)+" from repository "+no_slash(*g_root_dir_s) ;
 				src.pop_back() ;
 			}
+			if (dynamic) nfs_guard.access(src) ;
 			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
-			FileInfo              fi { nfs_guard.access(src) }                ; // in case of dynamic config, we must ensure src is safely checked
+			FileInfo              fi { src }                                  ;
 			if (+sr.lnks) {
 				throw                                                                             "source "+src+(is_dir_?"/":"")+" has symbolic link "+sr.lnks[0]+" in its path"    ;
 			} else if (is_dir_) {
@@ -574,9 +580,9 @@ namespace Engine::Persistent {
 				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                                 ) ;
 				throw_unless( +fi                                                               , "source ",src," is not a regular file nor a symbolic link"                      ) ;
 				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported"                  ) ;
-				SWEAR(src==sr.real,src,sr.real) ;                               // src is local, canonic and there are no links, what may justify real from being different ?
+				SWEAR(src==sr.real,src,sr.real) ;                         // src is local, canonic and there are no links, what may justify real from being different ?
 			}
-			srcs.emplace( Node(src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ;       // external src dirs need no uphill dir
+			srcs.emplace_back( Node(src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ; // external src dirs need no uphill dir
 		}
 		// format old srcs
 		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ; // dont care whether we delete a regular file or a link
@@ -603,7 +609,7 @@ namespace Engine::Persistent {
 			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ; // XXX : this could be managed if necessary
 		}
 		//
-		for( Node d : src_dirs ) { if (old_src_dirs.contains(d)) old_src_dirs.erase(d) ; else new_src_dirs.insert(d) ; }
+		for( Node d : src_dirs ) { if ( auto it=old_src_dirs.find(d) ; it!=old_src_dirs.end() ) old_src_dirs.erase(it) ; else new_src_dirs.insert(d) ; }
 		//
 		if ( !old_srcs && !new_srcs_ ) return false ;
 		if (dynamic) {
@@ -615,9 +621,9 @@ namespace Engine::Persistent {
 		trace("srcs",'-',old_srcs.size(),'+',new_srcs_.size()) ;
 		// commit
 		for( bool add : {false,true} ) {
-			::map<Node,FileTag> const& srcs = add ? new_srcs_ : old_srcs ;
-			::vector<Node>             ss   ; ss.reserve(srcs.size()) ;                                                // typically, there are very few src dirs
-			::vector<Node>             sds  ;                                                                          // .
+			::umap<Node,FileTag> const& srcs = add ? new_srcs_ : old_srcs ;
+			::vector<Node>              ss   ;                              ss.reserve(srcs.size()) ;                  // typically, there are very few src dirs
+			::vector<Node>              sds  ;                                                                         // .
 			for( auto [n,t] : srcs ) if (t==FileTag::Dir) sds.push_back(n) ; else ss.push_back(n) ;
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Node::s_srcs(false/*dirs*/,add,ss ) ;

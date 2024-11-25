@@ -480,12 +480,13 @@ inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::copy(t
 inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::copy(txt)) ;               }
 
 template<char C='\t',size_t N=1> ::string indent( ::string const& s , size_t i=1 ) {
-	::string res ; res.reserve(s.size()+N*(s.size()>>4)) ;                           // anticipate lines of size 16, this is a reasonable pessimistic guess (as overflow is expensive)
-	bool     sol = true ;
+	::string res ;                   res.reserve(s.size()+N*(s.size()>>4)) ;         // anticipate lines of size 16, this is a reasonable pessimistic guess (as overflow is expensive)
+	bool     sol = true            ;
+	::string pfx = ::string(i*N,C) ;
 	for( char c : s ) {
-		if (sol) for( [[maybe_unused]] size_t k : iota(i*N) ) res += C ;
-		res += c       ;
-		sol  = c=='\n' ;
+		if (sol) res += pfx     ;
+		/**/     res += c       ;
+		/**/     sol  = c=='\n' ;
 	}
 	return res ;
 }
@@ -522,8 +523,8 @@ inline ::vector_s split(::string_view const& txt) {
 inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=Npos ) {
 	::vector_s res ;
 	size_t     pos = 0 ;
-	for( [[maybe_unused]] size_t i : iota(n_sep) ) {
-		size_t   end    = txt.find(sep,pos) ;
+	for( [[maybe_unused]] size_t _ : iota(n_sep) ) {
+		size_t end = txt.find(sep,pos) ;
 		res.emplace_back( txt.substr(pos,end-pos) ) ;
 		if (end==Npos) return res ;                   // we have exhausted all sep's
 		pos = end+1 ;                                 // after the sep
@@ -534,7 +535,7 @@ inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=Npos
 
 inline ::string_view first_lines( ::string_view const& txt , size_t n_sep , char sep='\n' ) {
 	size_t pos = -1 ;
-	for( [[maybe_unused]] size_t i : iota(n_sep) ) {
+	for( [[maybe_unused]] size_t _ : iota(n_sep) ) {
 		pos = txt.find(sep,pos+1) ;
 		if (pos==Npos) return txt ;
 	}
@@ -573,25 +574,12 @@ using span_s = ::span<::string> ;
 
 constexpr inline uint8_t n_bits(size_t n) { return NBits<size_t>-::countl_zero(n-1) ; } // number of bits to store n states
 
-#define SCI static constexpr inline
-template<::integral T=size_t> SCI T    bit_msk ( bool x ,             uint8_t b            ) {                           return T(x)<<b                                     ; }
-template<::integral T=size_t> SCI T    bit_msk (                      uint8_t b            ) {                           return bit_msk<T>(true,b)                          ; }
-template<::integral T=size_t> SCI T    lsb_msk ( bool x ,             uint8_t b            ) {                           return (bit_msk<T>(b)-1) & -T(x)                   ; }
-template<::integral T=size_t> SCI T    lsb_msk (                      uint8_t b            ) {                           return lsb_msk<T>(true,b)                          ; }
-template<::integral T=size_t> SCI T    msb_msk ( bool x ,             uint8_t b            ) {                           return (-bit_msk<T>(b)) & -T(x)                    ; }
-template<::integral T=size_t> SCI T    msb_msk (                      uint8_t b            ) {                           return msb_msk<T>(true,b)                          ; }
-template<::integral T       > SCI bool bit     ( T    x ,             uint8_t b            ) {                           return x&(1<<b)                                    ; } // get bit
-template<::integral T       > SCI T    bit     ( T    x ,             uint8_t b   , bool v ) {                           return (x&~bit_msk<T>(b)) | bit_msk(v,b)           ; } // set bit
-template<::integral T       > SCI T    bits_msk( T    x , uint8_t w , uint8_t lsb          ) { SWEAR(!(x&~lsb_msk(w))) ; return x<<lsb                                      ; }
-template<::integral T=size_t> SCI T    bits_msk(          uint8_t w , uint8_t lsb          ) {                           return bits_msk<T>(lsb_msk(w),w,lsb)               ; }
-template<::integral T       > SCI T    bits    ( T    x , uint8_t w , uint8_t lsb          ) {                           return (x>>lsb)&lsb_msk<T>(w)                      ; } // get bits
-template<::integral T       > SCI T    bits    ( T    x , uint8_t w , uint8_t lsb , T    v ) {                           return (x&~bits_msk<T>(w,lsb)) | bits_msk(v,w,lsb) ; } // set bits
-#undef SCI
+template<::integral T=size_t> constexpr inline T lsb_msk (uint8_t b) { return  (T(1)<<b)-1 ; }
+template<::integral T=size_t> constexpr inline T msb_msk (uint8_t b) { return -(T(1)<<b)   ; }
 
-template<class N,class D> constexpr N round_down(N n,D d) { return n - n%d             ; }
-template<class N,class D> constexpr N div_down  (N n,D d) { return n/d                 ; }
-template<class N,class D> constexpr N round_up  (N n,D d) { return round_down(n+d-1,d) ; }
-template<class N,class D> constexpr N div_up    (N n,D d) { return div_down  (n+d-1,d) ; }
+template<size_t D,class N> constexpr inline N round_down(N n) { return n - n%D              ; }
+template<size_t D,class N> constexpr inline N round_up  (N n) { return round_down<D>(n+D-1) ; }
+template<size_t D,class N> constexpr inline N div_up    (N n) { return (n+D-1)/D            ; }
 
 static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
@@ -642,9 +630,9 @@ template<size_t Sz> constexpr ::array<char,Sz> _enum_split0(const char* comma_se
 }
 
 template<size_t Sz> constexpr ::array<char,Sz*2> _enum_snake0(::array<char,Sz> const& camel0) { // at worst, snake inserts a _ before all chars, doubling the size
-	::array<char,Sz*2> res   {}/*constexpr*/ ;
-	char*              q     = res.data()    ;
-	bool               first = true          ;
+	::array<char,Sz*2> res   {}           ;
+	char*              q     = res.data() ;
+	bool               first = true       ;
 	for( char c : camel0 ) {
 		if ( 'A'<=c && c<='Z' ) { { if (!first) *q++ = '_' ; } *q++ = 'a'+(c-'A') ; }
 		else                                                   *q++ =      c      ;
@@ -654,12 +642,15 @@ template<size_t Sz> constexpr ::array<char,Sz*2> _enum_snake0(::array<char,Sz> c
 }
 
 template<size_t Sz,size_t VSz> constexpr ::array<string_view,Sz> _enum_mk_tab(::array<char,VSz> const& vals) {
-	::array<string_view,Sz> res  {}/*constexpr*/ ;
-	const char*             item = vals.data()   ;
+	::array<string_view,Sz> res  {}            ;
+	const char*             item = vals.data() ;
 	for( size_t i : iota(Sz) ) {
 		size_t len = 0 ; while (item[len]) len++ ;
-		res[i]  = {item,len} ;
-		item   += len+1      ; // point to the start of the next one (it will not be dereferenced at the end)
+		res[i] = {item,len} ;
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wstringop-overread" // seems to be a gcc bug as even protecting last iteration is not enough
+		item += len+1 ;                                      // point to the start of the next one (not dereferenced at last iteration)
+		#pragma GCC diagnostic pop
 	}
 	return res ;
 }
@@ -792,7 +783,7 @@ template<StdEnum E> struct BitMap {
 	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)     ;                 }
 	constexpr BitMap& operator&=( BitMap other      )       { self = self&other ; return self    ;                 }
 	constexpr BitMap& operator|=( BitMap other      )       { self = self|other ; return self    ;                 }
-	constexpr bool    operator[]( E      bit_       ) const { return bit(_val,+bit_)             ;                 }
+	constexpr bool    operator[]( E      bit_       ) const { return (_val>>+bit_) & Val(1)      ;                 }
 	constexpr uint8_t popcount  (                   ) const { return ::popcount(_val)            ;                 }
 	constexpr void    set       ( E flag , bool val )       { if (val) self |= flag ; else self &= ~BitMap(flag) ; } // operator~(E) is not always recognized because of namespace's
 	// data
@@ -859,7 +850,7 @@ inline ::string with_slash(::string&& path) {
 }
 inline ::string no_slash(::string&& path) {
 	if ( !path                              ) return "."          ;
-	if ( path.back()=='/' && path.size()!=1 ) path.pop_back()     ; // special case '/' as this is the usual convention : no / at the end of dirs, except for /
+	if ( path.back()=='/' && path.size()!=1 ) path.pop_back()     ;                 // special case '/' as this is the usual convention : no / at the end of dirs, except for /
 	/**/                                      return ::move(path) ;
 }
 inline ::string with_slash(::string const& path) {

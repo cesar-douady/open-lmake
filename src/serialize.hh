@@ -113,22 +113,22 @@ template<class T> struct Serdeser<::vector<T>> {
 
 template<class T> struct Serdeser<::set<T>> {
 	template<IsOStream S> static void s_serdes( S& os , ::set<T> const& s ) { serdes(os,_sz32(s)) ; for( T const& x : s ) serdes(os,x)  ;                                         }
-	template<IsIStream S> static void s_serdes( S& is , ::set<T>      & s ) { for( [[maybe_unused]] size_t i : iota(deserialize<uint32_t>(is)) ) s.insert(deserialize<T>(is  )) ; }
+	template<IsIStream S> static void s_serdes( S& is , ::set<T>      & s ) { for( [[maybe_unused]] size_t _ : iota(deserialize<uint32_t>(is)) ) s.insert(deserialize<T>(is  )) ; }
 } ;
 
 template<class T> struct Serdeser<::uset<T>> {
 	template<IsOStream S> static void s_serdes( S& os , ::uset<T> const& s ) { serdes(os,_sz32(s)) ; for( T const& x : s ) serdes(os,x)  ;                                         }
-	template<IsIStream S> static void s_serdes( S& is , ::uset<T>      & s ) { for( [[maybe_unused]] size_t i : iota(deserialize<uint32_t>(is)) ) s.insert(deserialize<T>(is  )) ; }
+	template<IsIStream S> static void s_serdes( S& is , ::uset<T>      & s ) { for( [[maybe_unused]] size_t _ : iota(deserialize<uint32_t>(is)) ) s.insert(deserialize<T>(is  )) ; }
 } ;
 
 template<class K,class V> struct Serdeser<::map<K,V>> {
 	template<IsOStream S> static void s_serdes( S& os , ::map<K,V> const& m ) { serdes(os,_sz32(m)) ; for( ::pair<K const,V> const& p : m ) serdes(os,p)  ;                                   }
-	template<IsIStream S> static void s_serdes( S& is , ::map<K,V>      & m ) { for( [[maybe_unused]] size_t i : iota(deserialize<uint32_t>(is)) ) m.insert(deserialize<::pair<K,V>>(is  )) ; }
+	template<IsIStream S> static void s_serdes( S& is , ::map<K,V>      & m ) { for( [[maybe_unused]] size_t _ : iota(deserialize<uint32_t>(is)) ) m.insert(deserialize<::pair<K,V>>(is  )) ; }
 } ;
 
 template<class K,class V> struct Serdeser<::umap<K,V>> {
 	template<IsOStream S> static void s_serdes( S& os , ::umap<K,V> const& m ) { serdes(os,_sz32(m)) ; for( ::pair<K const,V> const& p : m ) serdes(os,p)  ;                                   }
-	template<IsIStream S> static void s_serdes( S& is , ::umap<K,V>      & m ) { for( [[maybe_unused]] size_t i : iota(deserialize<uint32_t>(is)) ) m.insert(deserialize<::pair<K,V>>(is  )) ; }
+	template<IsIStream S> static void s_serdes( S& is , ::umap<K,V>      & m ) { for( [[maybe_unused]] size_t _ : iota(deserialize<uint32_t>(is)) ) m.insert(deserialize<::pair<K,V>>(is  )) ; }
 } ;
 
 template<class T,class U> struct Serdeser<::pair<T,U>> {

@@ -7,16 +7,13 @@ import lmake
 
 if __name__!='__main__' :
 
-	import os.path as osp
-	import shutil
-
 	from lmake.rules import Rule,PyRule
 
-	gxx     = lmake.user_environ.get('CXX') or 'g++'
-	gxx_dir = osp.dirname(shutil.which(gxx))
+	import gxx
 
 	lmake.manifest = (
 		'Lmakefile.py'
+	,	'gxx.py'
 	,	'hello_world.c'
 	,	'ref'
 	)
@@ -24,8 +21,8 @@ if __name__!='__main__' :
 	class Compile(Rule) :
 		targets = { 'EXE' : r'{File:.*}-{Sz:32|64}' }
 		deps    = { 'SRC' :  '{File}.c'             }
-		autodep = 'ld_preload'                                                  # clang seems to be hostile to ld_audit
-		cmd     = 'PATH={gxx_dir}:$PATH {gxx} -m{Sz} -O0 -g -o {EXE} -xc {SRC}'
+		autodep = 'ld_preload'                                                          # clang seems to be hostile to ld_audit
+		cmd     = 'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -m{Sz} -O0 -g -o {EXE} -xc {SRC}'
 
 	class Dut(Rule) :
 		target  = r'dut-{Sz:32|64}.{Method:\w+}'
@@ -53,7 +50,7 @@ else :
 		print('no 32 bits support',file=open('skipped','w'))
 		exit()
 
-	gxx = os.environ.get('CXX') or 'g++'
+	ut.mk_gxx_module('gxx')
 
 	open('hello_world.c','w').write(multi_strip(r'''
 		#include <fcntl.h>

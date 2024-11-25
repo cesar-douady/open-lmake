@@ -1376,7 +1376,7 @@ namespace Engine {
 		rule->validate(name_) ;
 		//
 		char* p = &name_[name_.size()-rule->job_sfx_len()+1] ;          // start of suffix, after JobMrkr
-		for( [[maybe_unused]] VarIdx s : iota(rule->n_static_stems) ) {
+		for( [[maybe_unused]] VarIdx _ : iota(rule->n_static_stems) ) {
 			FileNameIdx pos = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			stems.push_back(name_.substr(pos,sz)) ;

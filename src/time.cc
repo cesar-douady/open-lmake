@@ -57,13 +57,17 @@ namespace Time {
 	::string Delay::short_str() const {
 		Tick        v    = msec()     ;
 		const char* sign = v<0?"-":"" ;
-		if (v<0) v = -v ; //!                                    right                         right fill
+		if (v<0) v = -v ;
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wrestrict" // seems to be a gcc bug in some versions
+		//                                                       right                         right fill
 		/**/      if (v< 10*1000) return sign+      cat(v/1000)        +'.'+widen(cat(v%1000),3,true,'0')+'s' ;
 		v /= 10 ; if (v< 60* 100) return sign+widen(cat(v/ 100),2,true)+'.'+widen(cat(v% 100),2,true,'0')+'s' ;
 		v /=100 ; if (v< 60*  60) return sign+widen(cat(v/  60),2,true)+'m'+widen(cat(v%  60),2,true,'0')+'s' ;
 		v /= 60 ; if (v<100*  60) return sign+widen(cat(v/  60),2,true)+'h'+widen(cat(v%  60),2,true,'0')+'m' ;
 		v /= 60 ; if (v<100'000 ) return sign+widen(cat(v     ),5,true)+'h'                                   ;
 		v /= 24 ; if (v<100'000 ) return sign+widen(cat(v     ),5,true)+'j'                                   ;
+		#pragma GCC diagnostic pop
 		/**/                      return "forevr"                                                             ; // ensure  size is 6
 	}
 

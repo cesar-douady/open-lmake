@@ -101,7 +101,7 @@ namespace Store {
 			static constexpr uint8_t  CharSizeOf    = sizeof(CharUint)                                              ;
 			static constexpr uint8_t  LogSizeOfChar = CharSizeOf==1 ? 0 : CharSizeOf==2 ? 1 : CharSizeOf<=4 ? 2 : 3 ;
 			static constexpr ChunkIdx MaxChunkSz    = lsb_msk(7-LogSizeOfChar)                                      ;
-			static constexpr ItemOfs  ChunkOfs      = round_up( round_up(sizeof(Idx),2)+2 , alignof(Char) )         ; // cannot find a way to rely on compiler
+			static constexpr ItemOfs  ChunkOfs      = round_up<alignof(Char)>(round_up<2>(sizeof(Idx))+2)           ; // cannot find a way to rely on compiler
 			static constexpr Sz       MaxSz         = 4                                                             ; // number of ItemSizeOf in the largest Item
 			// cxtors
 			ItemBase() = default ;
@@ -161,32 +161,31 @@ namespace Store {
 			using Base::chunk_sz   ;
 			using Base::kind       ;
 
-			static constexpr bool    HasData             = !is_void_v<Data>                                                  ;
-			static constexpr ItemOfs DataSizeOf          = HasData ? sizeof(DataNv) : 0                                      ;
-			static constexpr bool    BigData             = alignof(DataNv)>alignof(Idx)                                      ;
-			static constexpr ItemOfs MinSplitSizeOf      = round_up(ChunkOfs,alignof(CharUint)) + CharSizeOf + sizeof(Idx)*2 ;
-			static constexpr ItemOfs MinPrefixSizeOf     =          ChunkOfs                    + CharSizeOf + sizeof(Idx)   ; // Prefix items (unless root) must have >=1 Char
-			static constexpr ItemOfs MinUsedPrefixSizeOf = MinPrefixSizeOf + DataSizeOf                                      ; // used items must have >=1 Char
-			static constexpr ItemOfs MinUsedSplitSizeOf  = MinSplitSizeOf  + DataSizeOf + CharSizeOf                         ; // .
-			static constexpr ItemOfs ItemSizeOf =                                                                              // number of bytes in the smallest Item
-				round_up(
+			static constexpr bool    HasData             = !is_void_v<Data>                                                   ;
+			static constexpr ItemOfs DataSizeOf          = HasData ? sizeof(DataNv) : 0                                       ;
+			static constexpr bool    BigData             = alignof(DataNv)>alignof(Idx)                                       ;
+			static constexpr ItemOfs MinSplitSizeOf      = round_up<alignof(CharUint)>(ChunkOfs) + CharSizeOf + sizeof(Idx)*2 ;
+			static constexpr ItemOfs MinPrefixSizeOf     =                             ChunkOfs  + CharSizeOf + sizeof(Idx)   ; // Prefix items (unless root) must have >=1 Char
+			static constexpr ItemOfs MinUsedPrefixSizeOf = MinPrefixSizeOf + DataSizeOf                                       ; // used items must have >=1 Char
+			static constexpr ItemOfs MinUsedSplitSizeOf  = MinSplitSizeOf  + DataSizeOf + CharSizeOf                          ; // .
+			static constexpr ItemOfs ItemSizeOf =                                                                               // number of bytes in the smallest Item
+				round_up<::max({ alignof(Base) , alignof(Char) , alignof(CharUint) , alignof(Idx) , alignof(DataNv) })>(
 					::max({
-						ItemOfs(MinSplitSizeOf)                                                                                // empty Split items are typical small items
-					,	ItemOfs(sizeof(Idx)*4)                                                                                 // a reasonable value
-					,	div_up(MinUsedSplitSizeOf,MaxSz)                                                                       // ensure we have room to represent needed items in a maximum sized item
+						ItemOfs(MinSplitSizeOf)                                                                                 // empty Split items are typical small items
+					,	ItemOfs(sizeof(Idx)*4)                                                                                  // a reasonable value
+					,	div_up<MaxSz>(MinUsedSplitSizeOf)                                                                       // ensure we have room to represent needed items in a maximum sized item
 					})
-				,	::max({ alignof(Base) , alignof(Char) , alignof(CharUint) , alignof(Idx) , alignof(DataNv) })
 				)
 			;
-			static constexpr Sz   MinUsedSz = div_up( MinUsedSplitSizeOf  , ItemSizeOf )             ;                         // if used, we must be able to transform into a Split w/o moving
-			static constexpr bool NeedSzChk = ChunkOfs + MaxChunkSz*sizeof(Char) <  ItemSizeOf*MaxSz ;                         // largest Item is larger than max representable chunk
+			static constexpr Sz   MinUsedSz = div_up<ItemSizeOf>(MinUsedSplitSizeOf)                 ;                          // if used, we must be able to transform into a Split w/o moving
+			static constexpr bool NeedSzChk = ChunkOfs + MaxChunkSz*sizeof(Char) <  ItemSizeOf*MaxSz ;                          // largest Item is larger than max representable chunk
 
 			static_assert( ItemSizeOf>sizeof(Base) ) ; // this is not a constraint, it must always hold
 			static_assert( DataSizeOf<=(1<<31)     ) ; // this is pretty comfortable, else, we must define ItemOfs as uint64_t
 
-			static ChunkBit s_cmp_bit ( CharUint cmp_val , CharUint dvg_val )       { return ::countl_zero(CharUint(cmp_val^dvg_val))                              ; }
-			/**/   bool     dvg_before(                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) & (msb_msk(NBits<CharUint>-1-cmp_bit)<<1) ; }
-			/**/   bool     dvg_at    (                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) &  bit_msk(NBits<CharUint>-1-cmp_bit)     ; }
+			static ChunkBit s_cmp_bit ( CharUint cmp_val , CharUint dvg_val )       { return ::countl_zero(CharUint(cmp_val^dvg_val))                                ; }
+			/**/   bool     dvg_before(                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) & (msb_msk(NBits<CharUint>-1-cmp_bit)<<1)   ; }
+			/**/   bool     dvg_at    (                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) &  CharUint(1<<(NBits<CharUint>-1-cmp_bit)) ; }
 
 			// data
 		private :
@@ -292,20 +291,20 @@ namespace Store {
 				return _s_end_ofs(sz) -  sizeof(Idx)*2 + sizeof(Idx)*is_eq ;
 			}
 			static ItemOfs _s_cmp_val_ofs( Sz sz , bool u ) {
-				ItemOfs end_ofs = round_up( DataSizeOf*u + sizeof(Idx)*2 , CharSizeOf ) + CharSizeOf ;
-				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz ,end_ofs ) ;                                                           // check no overlap with metadata
-				return round_down( _s_end_ofs(sz) -  end_ofs , alignof(CharUint) ) ;
+				ItemOfs end_ofs = round_up<CharSizeOf>( DataSizeOf*u + sizeof(Idx)*2 ) + CharSizeOf ;
+				SWEAR( _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz , end_ofs ) ;                                                                      // check no overlap with metadata
+				return round_down<alignof(CharUint)>( _s_end_ofs(sz) - end_ofs ) ;
 			}
 			static constexpr ItemOfs _s_chunk_end_ofs( Sz sz , Kind k , bool u ) {
-				if (k==Kind::Split) return round_down( _s_cmp_val_ofs(sz,u) , alignof(Char) ) ;
+				if (k==Kind::Split) return round_down<alignof(Char)>(_s_cmp_val_ofs(sz,u)) ;
 				ItemOfs end_ofs = DataSizeOf*u + sizeof(Idx)*+k ;                                                                                   // space for data, nxt & cmp_val
 				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz , end_ofs ) ;                                                          // check no overlap with metadata
-				return round_down( _s_end_ofs(sz) -  end_ofs , alignof(Char) ) ;                                                                    // align
+				return round_down<alignof(Char)>( _s_end_ofs(sz) -  end_ofs ) ;                                                                     // align
 			}
 			static constexpr bool _s_large_enough_empty( Sz sz , Kind k , bool u ) {
 				if (!u) return true ;                                                                                                               // an unused Split fits in a minimal item
 				ItemOfs at_end = DataSizeOf + sizeof(Idx)*+k ;
-				if (k==Kind::Split) at_end  = round_up(at_end,CharSizeOf) + CharSizeOf ;
+				if (k==Kind::Split) at_end  = round_up<CharSizeOf>(at_end) + CharSizeOf ;
 				return _s_end_ofs(sz) >= ChunkOfs + sizeof(Char) + at_end ;                                                                         // used items must have a non-null chunk
 			}
 			size_t _data_ofs   () const { SWEAR(used                         ) ; return _s_data_ofs   (sz(),kind()     ) ; }
@@ -1131,28 +1130,35 @@ namespace Store {
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		template<bool S> ::pair<Prefix::VecStr<S,Char>,Prefix::VecStr<S,Char>> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_psfx( Idx idx , size_t psfx_sz ) const {
-			VecStr<S> name ;
-			VecStr<S> psfx ;
-			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> name_path ; // when !Reverse, we must walk from root to idx but we gather pathes from idx back to root
-			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> psfx_path ; // .
+			static size_t s_psfx_max_sz      = 0 ;
+			static size_t s_name_max_sz      = 0 ;
+			static size_t s_psfx_path_max_sz = 0 ;
+			static size_t s_name_path_max_sz = 0 ;
+			VecStr<S>                        psfx      ; psfx     .reserve(s_psfx_max_sz     ) ;
+			VecStr<S>                        name      ; name     .reserve(s_name_max_sz     ) ;
+			::vmap<Idx,ChunkIdx/*chunk_sz*/> psfx_path ; psfx_path.reserve(s_psfx_path_max_sz) ;  // .
+			::vmap<Idx,ChunkIdx/*chunk_sz*/> name_path ; name_path.reserve(s_name_path_max_sz) ;  // when !Reverse, we must walk from root to idx but we gather pathes from idx back to root
 			for(; +idx ; idx = _at(idx).prev ) {
-				Item     const& item     = _at(idx)      ;
-				ChunkIdx        chunk_sz = item.chunk_sz ;
+				Item const& item     = _at(idx)      ;
+				ChunkIdx    chunk_sz = item.chunk_sz ;
 				if (psfx_sz>=chunk_sz) {
-					if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , chunk_sz ) ;                    // both psfx & chunk are stored in reverse order
+					if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , chunk_sz ) ;    // both psfx & chunk are stored in reverse order
 					else         psfx_path.emplace_back(idx,chunk_sz) ;
 					psfx_sz -= chunk_sz ;
 				} else {
 					if (psfx_sz) {
-						if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , psfx_sz ) ;                 // both psfx & chunk are stored in reverse order
+						if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , psfx_sz ) ; // both psfx & chunk are stored in reverse order
 						else         psfx_path.emplace_back(idx,psfx_sz) ;
+						chunk_sz -= psfx_sz ;
 					}
-					if (Reverse) Prefix::append( name , &item.chunk(chunk_sz-1-psfx_sz) , chunk_sz-psfx_sz ) ;    // both name & chunk are stored in reverse order
-					else         name_path.emplace_back(idx,chunk_sz-psfx_sz) ;
+					if (Reverse) Prefix::append( name , &item.chunk(chunk_sz-1) , chunk_sz) ;     // both name & chunk are stored in reverse order
+					else         name_path.emplace_back(idx,chunk_sz) ;
 					psfx_sz = 0 ;
 				}
 			}
 			if (!Reverse) {
+				s_psfx_path_max_sz = ::max( s_psfx_path_max_sz , psfx_path.size() ) ;
+				s_name_path_max_sz = ::max( s_name_path_max_sz , name_path.size() ) ;
 				for( auto it=psfx_path.crbegin() ; it!=psfx_path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
 					for( ChunkIdx i : iota(it->second) ) psfx.push_back(item.chunk(item.chunk_sz-it->second+i)) ; // chunk is stored in reverse order
@@ -1162,11 +1168,13 @@ namespace Store {
 					for( ChunkIdx i : iota(it->second) ) name.push_back(item.chunk(i)) ;                          // chunk is stored in reverse order
 				}
 			}
+			s_psfx_max_sz = ::max( s_psfx_max_sz , psfx.size() ) ;
+			s_name_max_sz = ::max( s_name_max_sz , name.size() ) ;
 			return { name , psfx } ;
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
+		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		size_t MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_sz( Idx idx , size_t psfx_sz ) const {
 			size_t res = 0 ;
 			for(; +idx ; idx=_at(idx).prev ) res += _at(idx).chunk_sz ;
@@ -1174,62 +1182,85 @@ namespace Store {
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
+		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key( Idx idx , size_t psfx_sz ) const {
-			VecStr<S> res ;
-			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ; // when !Reverse, we must walk from root to idx but we gather path from idx back to root
-			for(; +idx ; idx = _at(idx).prev ) {
-				Item     const& item     = _at(idx)      ;
-				ChunkIdx        chunk_sz = item.chunk_sz ;
-				if (psfx_sz>=chunk_sz) {
-					psfx_sz -= chunk_sz ;
-				} else {
-					if (Reverse) Prefix::append( res , &item.chunk(item.chunk_sz-1-psfx_sz) , chunk_sz-psfx_sz ) ; // both res & chunk are stored in reverse order
-					else         path.emplace_back(idx,chunk_sz-psfx_sz) ;
-					psfx_sz = 0 ;
+			static size_t s_res_max_sz  = 0 ;
+			static size_t s_path_max_sz = 0 ;
+			VecStr<S>                        res  ; res .reserve(s_res_max_sz ) ;
+			::vmap<Idx,ChunkIdx/*chunk_sz*/> path ; path.reserve(s_path_max_sz) ;                    // when !Reverse, we must walk from root to idx but we gather path from idx back to root
+			if (!psfx_sz)                                                                            // fast path : avoid managing psfx_sz
+				while (+idx) {
+					Item const& item     = _at(idx)      ;
+					ChunkIdx    chunk_sz = item.chunk_sz ;
+					if (chunk_sz) {
+						if (Reverse) Prefix::append( res , &item.chunk(chunk_sz-1) , chunk_sz ) ;    // both res & chunk are stored in reverse order
+						else         path.emplace_back(idx,chunk_sz) ;
+					}
+					idx = item.prev ;
 				}
-			}
+			else
+				while (+idx) {
+					Item const& item     = _at(idx)      ;
+					ChunkIdx    chunk_sz = item.chunk_sz ;
+					if (psfx_sz>=chunk_sz) {
+						psfx_sz -= chunk_sz ;
+					} else {
+						chunk_sz -= psfx_sz ;
+						if (Reverse) Prefix::append( res , &item.chunk(chunk_sz-1) , chunk_sz ) ;    // both res & chunk are stored in reverse order
+						else         path.emplace_back(idx,chunk_sz) ;
+						psfx_sz = 0 ;
+					}
+					idx = item.prev ;
+				}
 			if (!Reverse) {
+				s_path_max_sz = ::max( s_path_max_sz , path.size() ) ;
 				for( auto it=path.crbegin() ; it!=path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
-					for( ChunkIdx i : iota(it->second) ) res.push_back(ItemChar<S>(item.chunk(i))) ;               // chunk is stored in reverse order
+					for( ChunkIdx i : iota(it->second) ) res.push_back(ItemChar<S>(item.chunk(i))) ; // chunk is stored in reverse order
 				}
 			}
+			s_res_max_sz = ::max( s_res_max_sz , res.size() ) ;
 			return res ;
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to get
+		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to get
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
-			VecStr<S>                                res  ;
-			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ; // when !Reverse, we must walk from root to idx but we gather path from idx back to root
+			static size_t s_res_max_sz  = 0 ;
+			static size_t s_path_max_sz = 0 ;
+			VecStr<S>                        res  ; res .reserve(s_res_max_sz ) ;
+			::vmap<Idx,ChunkIdx/*chunk_sz*/> path ; path.reserve(s_path_max_sz) ;             // when !Reverse, we must walk from root to idx but we gather path from idx back to root
 			for(; +idx ; idx = _at(idx).prev ) {
-				Item     const& item         = _at(idx)                        ;
-				ChunkIdx        chunk_sz     = item.chunk_sz                   ;
-				ChunkIdx        min_chunk_sz = ::min(size_t(chunk_sz),psfx_sz) ;
-				if (Reverse) Prefix::append( res , &item.chunk(chunk_sz-1) , min_chunk_sz ) ;                    // both res & chunk are stored in reverse order
+				Item const& item         = _at(idx)                        ;
+				ChunkIdx    chunk_sz     = item.chunk_sz                   ;
+				ChunkIdx    min_chunk_sz = ::min(size_t(chunk_sz),psfx_sz) ;
+				if (Reverse) Prefix::append( res , &item.chunk(chunk_sz-1) , min_chunk_sz ) ; // both res & chunk are stored in reverse order
 				else         path.emplace_back(idx,min_chunk_sz) ;
 				if (psfx_sz>chunk_sz) psfx_sz -= chunk_sz ;
 				else                  break ;
 			}
 			if (!Reverse) {
+				s_path_max_sz = ::max( s_path_max_sz , path.size() ) ;
 				for( auto it=path.crbegin() ; it!=path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
 					for( ChunkIdx i : iota(it->second) ) res.push_back(item.chunk(item.chunk_sz-it->second+i)) ; // chunk is stored in reverse order
 				}
 			}
+			s_res_max_sz = ::max( s_res_max_sz , res.size() ) ;
 			return res ;
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		::vector<Idx> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::path(Idx idx) const {
-			::vector<Idx> res ;
-			SLock         lock{_mutex} ;
+			static size_t s_res_max_sz  = 0 ;
+			::vector<Idx> res ;             res.reserve(s_res_max_sz ) ;
+			SLock         lock { _mutex } ;
 			while (idx) {
 				Item const& item = _at(idx) ;
 				if (item.used) res.push_back(idx) ;
 				idx = item.prev ;
 			}
+			s_res_max_sz = ::max( s_res_max_sz , res.size() ) ;
 			return res ;
 		}
 

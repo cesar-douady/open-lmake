@@ -111,8 +111,8 @@ namespace Engine {
 		JobIdx const& cur(JobStep i) const { SWEAR( s_valid_cur(i) ) ; return _cur[s_mk_idx(i)] ; }
 		JobIdx      & cur(JobStep i)       { SWEAR( s_valid_cur(i) ) ; return _cur[s_mk_idx(i)] ; }
 		//
-		JobIdx cur () const { JobIdx res = 0 ; for( JobStep   i  : iota(All<JobStep  >  ) ) if (s_valid_cur(i)) res+=cur  (i)   ; return res ; }
-		JobIdx done() const { JobIdx res = 0 ; for( JobReport jr : iota(All<JobReport>+1) )                     res+=ended[+jr] ; return res ; }
+		JobIdx cur () const { JobIdx res = 0 ; for( JobStep   i  : iota(All<JobStep>     ) ) if (s_valid_cur(i)) res+=cur  (i)   ; return res ; }
+		JobIdx done() const { JobIdx res = 0 ; for( JobReport jr : iota(JobReport::Done+1) )                     res+=ended[+jr] ; return res ; }
 		//
 		void add( JobReport jr , Delay exec_time={} ) {                       ended[+jr] += 1 ; jobs_time[+jr] += exec_time ; }
 		void sub( JobReport jr , Delay exec_time={} ) { SWEAR(ended[+jr]>0) ; ended[+jr] -= 1 ; jobs_time[+jr] -= exec_time ; }
