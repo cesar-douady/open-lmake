@@ -12,6 +12,8 @@
 
 namespace Backends::Local {
 
+	struct LocalBackend ;
+
 	//
 	// resources
 	//
@@ -23,6 +25,7 @@ namespace Backends::Local {
 		RsrcsData(                                                 ) = default ;
 		RsrcsData( size_t sz                                       ) : ::vector<Rsrc>(sz) {}
 		RsrcsData( ::vmap_ss const& , ::umap_s<size_t> const& idxs ) ;
+		//
 		::vmap_ss mk_vmap(::vector_s const& keys) const ;
 		// services
 		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] += rsrcs[i] ; return self ; }
@@ -32,14 +35,10 @@ namespace Backends::Local {
 			return true ;
 		}
 		bool fit_in(RsrcsData const& capacity) const {                                             // true if all resources fit within capacity
-			for( size_t i : iota(size()) ) if ( self[i] > capacity[i] ) return false ;
+			for( size_t i : iota(size()) ) if (self[i]>capacity[i]) return false ;
 			return true ;
 		}
-		RsrcsData round() const {
-			RsrcsData res ; res.reserve(size()) ;
-			for( Rsrc v : self ) res.push_back(round_rsrc(v)) ;
-			return res ;
-		}
+		RsrcsData round(Backend const& be) const ;
 	} ;
 
 }
@@ -190,13 +189,25 @@ namespace Backends::Local {
 		}
 	}
 
-	::vmap_ss RsrcsData::mk_vmap(::vector_s const& keys) const {
+	inline ::vmap_ss RsrcsData::mk_vmap(::vector_s const& keys) const {
 		::vmap_ss res ; res.reserve(keys.size()) ;
 		for( size_t i : iota(keys.size()) ) {
 			if (!self[i]) continue ;
 			::string const& key = keys[i] ;
 			if ( key=="mem" || key=="tmp" ) res.emplace_back( key , ::to_string(self[i])+'M' ) ;
 			else                            res.emplace_back( key , ::to_string(self[i])     ) ;
+		}
+		return res ;
+	}
+
+	inline RsrcsData RsrcsData::round(Backend const& be) const {
+		LocalBackend const& lbe = dynamic_cast<LocalBackend const&>(be) ;
+		RsrcsData const&    c   = lbe.capacity_                         ;
+		//
+		RsrcsData res ; res.reserve(size()) ;
+		for( size_t i : iota(size()) ) {
+			SWEAR( self[i]<=c[i] , lbe.rsrc_keys[i] , self[i] , c[i] ) ; // self must have been checked to fit within capacity
+			res.push_back( ::min(round_rsrc(self[i]),c[i]) ) ;           // round up, but not above capacity or job will never be launched
 		}
 		return res ;
 	}

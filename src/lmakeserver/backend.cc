@@ -610,7 +610,7 @@ namespace Backends {
 	void Backend::_s_heartbeat_thread_func(::stop_token stop) {
 		t_thread_key = 'H' ;
 		Trace trace(BeChnl,"_heartbeat_thread_func") ;
-		Pdate  last_wrap_around{New} ;
+		Pdate last_wrap_around { New } ;
 		//
 		StartEntry::Conn         conn         ;
 		::pair_s<HeartbeatState> lost_report  = {}/*garbage*/ ;

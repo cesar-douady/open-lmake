@@ -38,7 +38,7 @@ namespace Backends::Sge {
 		// accesses
 		bool operator==(RsrcsData const&) const = default ;
 		// services
-		RsrcsData round() const {
+		RsrcsData round(Backend const&) const {
 			// rounding is only used to avoid too many waiting queues, only criteria to take into account are those that decide launch/not launch
 			RsrcsData res ;
 			//                         prio is not significant for launching/not launching, not pertinent

@@ -308,6 +308,8 @@ HAS_STACKTRACE=$((   ${LIB_STACKTRACE:+   1}))
 HAS_STACKTRACE_32=$((${LIB_STACKTRACE_32:+1}))
 #
 [ $HAS_STACKTRACE = 1 ] || echo "no stacktrace support, fall back to (lower quality back trace in case of crash) addr2line" >>$SUM_FILE
+SPLIT_DBG=$((   1-$HAS_STACKTRACE   ))
+SPLIT_DBG_32=$((1-$HAS_STACKTRACE_32))
 
 #
 # MAX_PID
@@ -443,8 +445,9 @@ HAS_PCRE           := ${HAS_PCRE#0}
 HAS_SECCOMP        := ${HAS_SECCOMP#0}
 HAS_SGE            := ${HAS_SGE#0}
 HAS_SLURM          := ${HAS_SLURM#0}
-HAS_STACKTRACE     := ${HAS_STACKTRACE#0}
-HAS_STACKTRACE_32  := ${HAS_STACKTRACE_32#0}
+#
+SPLIT_DBG    := ${SPLIT_DBG#0}
+SPLIT_DBG_32 := ${SPLIT_DBG_32#0}
 EOF
 
 if [ "$LD_SO_LIB_32" ] ; then

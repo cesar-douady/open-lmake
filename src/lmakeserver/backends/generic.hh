@@ -273,9 +273,8 @@ namespace Backends {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
 			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
 			RsrcsData rd         = import_(::move(rsrcs),req,job) ;
-			Rsrcs     rs         { New , rd         }             ;
-			Rsrcs     rs_rounded { New , rd.round() }             ;
-			if (!fit_eventually(*rs)) throw "not enough resources to launch job "+Job(job)->name() ;
+			Rsrcs     rs         { New , rd             }         ; if (!fit_eventually(*rs)) throw "not enough resources to launch job "+Job(job)->name() ;
+			Rsrcs     rs_rounded { New , rd.round(self) }         ;
 			ReqEntry& re = reqs.at(req) ;
 			SWEAR(!waiting_jobs   .contains(job)) ;                                                                // job must be a new one
 			SWEAR(!re.waiting_jobs.contains(job)) ;                                                                // in particular for this req
@@ -308,7 +307,7 @@ namespace Backends {
 			trace("adjusted_pressure",pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
-			re.waiting_queues[{New,we.rsrcs->round()}].insert({pressure,job}) ;
+			re.waiting_queues[{New,we.rsrcs->round(self)}].insert({pressure,job}) ;
 			we.submit_attrs |= submit_attrs ;
 			we.verbose      |= re.verbose   ;
 			we.n_reqs++ ;
@@ -318,10 +317,10 @@ namespace Backends {
 			auto      it = waiting_jobs.find(job) ;
 			//
 			if (it==waiting_jobs.end()) return ;                                                                   // job is not waiting anymore, ignore
-			WaitingEntry        & we           = it->second                                    ;
-			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job                    ) ;                   // job must be known
-			::set<PressureEntry>& q            = re.waiting_queues.at({New,we.rsrcs->round()}) ;                   // including for this req
-			CoarseDelay           pressure     = submit_attrs.pressure                         ;
+			WaitingEntry        & we           = it->second                                        ;
+			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job                        ) ;               // job must be known
+			::set<PressureEntry>& q            = re.waiting_queues.at({New,we.rsrcs->round(self)}) ;               // including for this req
+			CoarseDelay           pressure     = submit_attrs.pressure                             ;
 			Trace trace("set_pressure","pressure",pressure) ;
 			we.submit_attrs |= submit_attrs ;
 			q.erase ({old_pressure,job}) ;
@@ -417,10 +416,10 @@ namespace Backends {
 		}
 		void _launch(::stop_token st) {
 			struct LaunchDescr {
-				::vector<ReqIdx>   reqs     ;
-				::vector_s         cmd_line ;
-				Pdate              prio     ;
-				SpawnedEntry*      entry    = nullptr ;
+				::vector<ReqIdx> reqs     ;
+				::vector_s       cmd_line ;
+				Pdate            prio     ;
+				SpawnedEntry*    entry    = nullptr ;
 			} ;
 			for( auto [req,eta] : Req::s_etas() ) {                                                                // /!\ it is forbidden to dereference req without taking Req::s_reqs_mutex first
 				Trace trace(BeChnl,"launch",req) ;

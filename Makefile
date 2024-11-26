@@ -3,7 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-VERSION := 24.09
+VERSION := 24.12
 
 #
 # user configurable
@@ -150,8 +150,8 @@ MOD_O         = $(if $(and $(HAS_32) ,$(findstring -m32,             $@)),-m32)
 COMPILE = $(COMPILE1) $(PY_CC_FLAGS) $(CPP_FLAGS)
 
 # XXX : use split debug info when stacktrace supports it
-SPLIT_DBG = \
-	$(if $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(HAS_STACKTRACE_32),$(HAS_STACKTRACE)) ,, \
+SPLIT_DBG_CMD = \
+	$(if $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(SPLIT_DBG_32),$(SPLIT_DBG)) , \
 		( \
 			cd $(@D)                                                 ; \
 			$(OBJCOPY) --only-keep-debug             $(@F) $(@F).dbg ; \
@@ -481,7 +481,7 @@ _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
-	@$(SPLIT_DBG)
+	@$(SPLIT_DBG_CMD)
 
 bin/lmake   : $(CLIENT_SAN_OBJS)               src/lmake$(SAN).o
 bin/lshow   : $(CLIENT_SAN_OBJS)               src/lshow$(SAN).o
@@ -494,14 +494,14 @@ bin/lmake bin/lshow bin/lforget bin/lmark :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
-	@$(SPLIT_DBG)
+	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldebug
 bin/ldebug : # XXX : why ldebug does not support sanitize thread ?
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
-	@$(SPLIT_DBG)
+	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/ldump_job
 _bin/ldump_job : \
@@ -514,7 +514,7 @@ _bin/ldump_job : \
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
-	@$(SPLIT_DBG)
+	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/align_comments
 _bin/align_comments : \
@@ -523,14 +523,14 @@ _bin/align_comments : \
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
-	@$(SPLIT_DBG)
+	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/xxhsum
 bin/xxhsum : $(LMAKE_BASIC_OBJS) src/xxhsum.o # XXX : why xxhsum does not support sanitize thread ?
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
-	@$(SPLIT_DBG)
+	@$(SPLIT_DBG_CMD)
 
 #
 # remote
@@ -567,7 +567,7 @@ _bin/job_exec bin/lautodep : # XXX : why job_exec and autodep do not support san
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
-	@$(SPLIT_DBG)
+	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps
 bin/ldecode     : $(REMOTE_OBJS) src/autodep/ldecode.o
@@ -580,7 +580,7 @@ bin/% :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) -o $@ $^ $(LINK_LIB)
-	@$(SPLIT_DBG)
+	@$(SPLIT_DBG_CMD)
 
 # remote libs generate errors when -fsanitize=thread // XXX fix these errors and use $(SAN)
 
@@ -602,7 +602,7 @@ lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/clmake-py
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) -shared -static-libstdc++ $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(LINK_LIB) # some user codes may have specific (and older) libs, avoid dependencies
-	@$(SPLIT_DBG)
+	@$(SPLIT_DBG_CMD)
 
 #
 # Unit tests
@@ -720,7 +720,7 @@ DOCKER : $(DOCKER_FILES)
 #
 
 # as of now, stacktrace is incompatible with split debug info
-LMAKE_DBG_FILES_ALL := $(if $(HAS_STACKTRACE),,$(LMAKE_DBG_FILES)) $(if $(and $(HAS_32),$(HAS_STACKTRACE_32)),$(LMAKE_DBG_FILES_32))
+LMAKE_DBG_FILES_ALL := $(if $(SPLIT_DBG),$(LMAKE_DBG_FILES)) $(if $(and $(HAS_32),$(SPLIT_DBG_32)),$(LMAKE_DBG_FILES_32))
 
 ARCHIVE_DIR := open-lmake-$(VERSION)
 lmake.tar.gz  : TAR_COMPRESS := z
@@ -749,12 +749,12 @@ DEBIAN_DEPS :
 # /!\ this rule is necessary for debian packaging to work, it is not primarily made to be executed by user
 #
 install : $(LMAKE_ALL_FILES) doc/lmake.html $(EXAMPLE_FILES)
-	for f in $(LMAKE_SERVER_BIN_FILES); do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	for f in $(LMAKE_REMOTE_FILES)    ; do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	for f in $(LMAKE_DBG_FILES_ALL)   ; do install -D -m 644     $$f.dbg $(DESTDIR)/usr/lib/open-lmake/$$f.dbg        ; done
-	for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644     $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	for f in lmake.html               ; do install -D -m 644 doc/$$f     $(DESTDIR)/usr/share/doc/open-lmake/html/$$f ; done
-	for f in $(EXAMPLE_FILES)         ; do install -D -m 644     $$f     $(DESTDIR)/usr/share/doc/open-lmake/$$f      ; done
+	set -e ; for f in $(LMAKE_SERVER_BIN_FILES); do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
+	set -e ; for f in $(LMAKE_REMOTE_FILES)    ; do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
+	set -e ; for f in $(LMAKE_DBG_FILES_ALL)   ; do install -D -m 644     $$f.dbg $(DESTDIR)/usr/lib/open-lmake/$$f.dbg        ; done
+	set -e ; for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644     $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
+	set -e ; for f in lmake.html               ; do install -D -m 644 doc/$$f     $(DESTDIR)/usr/share/doc/open-lmake/html/$$f ; done
+	set -e ; for f in $(EXAMPLE_FILES)         ; do install -D -m 644     $$f     $(DESTDIR)/usr/share/doc/open-lmake/$$f      ; done
 
 DEBIAN : open-lmake_$(DEBIAN_VERSION).stamp
 
@@ -770,10 +770,10 @@ open-lmake_$(DEBIAN_VERSION).stamp : $(DEBIAN_SRCS)
 		-e 's!\$$DEBIAN_VERSION!$(DEBIAN_VERSION)!' \
 		-e 's!\$$DATE!'"$$(date -R)!"               \
 		debian/changelog.src >debian-repo/debian/changelog
-	{ for f in                         $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f     /usr/$$f                   ; done ; } > debian-repo/debian/open-lmake.links
-	{ for f in $(if $(HAS_STACKTRACE),,$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>debian-repo/debian/open-lmake.links
-	{ for f in                         $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > debian-repo/debian/open-lmake.manpages
-	{ for f in                         $(SRCS)             ; do echo $$f                                                    ; done ; } > debian-repo/Manifest
+	{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f     /usr/$$f                   ; done ; } > debian-repo/debian/open-lmake.links
+	{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>debian-repo/debian/open-lmake.links
+	{ for f in                   $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > debian-repo/debian/open-lmake.manpages
+	{ for f in                   $(SRCS)             ; do echo $$f                                                    ; done ; } > debian-repo/Manifest
 	# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX : find a way to filter out these lines more cleanly
 	cd debian-repo ; debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
 	touch $@

@@ -73,7 +73,7 @@ namespace Backends::Slurm {
 		RsrcsData( ::vmap_ss&& , Daemon , JobIdx ) ;
 		// services
 		::vmap_ss mk_vmap(void) const ;
-		RsrcsData round() const {
+		RsrcsData round(Backend const&) const {
 			RsrcsData res ;
 			for( RsrcsDataSingle rds : self ) res.push_back(rds.round()) ;
 			return res ;

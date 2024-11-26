@@ -2379,24 +2379,27 @@ with no size limit (other than the physical disk size) but no reservation is mad
 @section Local backend
 
 The local backend launches jobs locally, on the host running the @lmake command.
-Also, there is no cooperation between backends from different repositories and the user has to ensure there is no global resource conflict.
+There is no cooperation between backends from different repositories and the user has to ensure there is no global resource conflict.
 
 This backend is configured by providing entries in the @code{lmake.config.backends.local} @code{dict}.
 The key identifies the resource and the value is a @code{int} that identifies a quantity.
 
-Then, each rule whose @code{backend} attribute is @code{'local'} provides a @code{resources} attribute such that :
+The local backend is used when either :
+@itemize @minus
+@item The @code{backend} attribute is @code{'local'} (which is the default value).
+@item @code{lmake} is launched with the the @code{--local} option.
+@item The required backend is not supported or not available.
+@end itemize
+In the two later cases, required resources are translated into local resources and if not possible (e.g. because a resource is not available locally), the job is forced to run alone.
+
+Each rule whose @code{backend} attribute is @code{'local'} provides a @code{resources} attribute such that :
 @itemize @minus
 @item The key identifies a resource (which must match a resource in the configuration).
-@item The value (possibly tailored by job through the use of the f-string syntax) is either
-@itemize @minus
-@item a @code{int} or a @code{str} that can be interpreted as  @code{int}
-@item or a @code{str} of the form @code{'a<b'} where @code{a} and @code{b} can be interpreted as @code{int}
-@end itemize
-This later form instruct the local backend that as much as @code{b} resources is preferable, but @code{a} is enough to run the job.
+@item The value (possibly tailored by job through the use of the f-string syntax) is a @code{int} or a @code{str} that can be interpreted as @code{int}.
 @end itemize
 The variable available to the job as global variables (python case) or environment variables (shell case) contains the actual quantity of resources allocated to this job.
 
-The local backend ensures that the sum of all the resources of the running jobs never overshoot the configured available quantity.
+The local backend ensures that the sum of all the resources of the running jobs never overshoots the configured available quantity.
 
 By default, the configuration contains the 2 generic resources : @code{cpu} and @code{mem} configured respectively as the overall number of available cpus and the overall available memory (in MB).
 @itemize @minus
