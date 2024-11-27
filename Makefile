@@ -20,7 +20,7 @@ FORCE : ;
 sys_config.env : FORCE
 	@if [ ! -f $@ ] ; then                   \
 		echo new $@ ;                        \
-		{	echo PATH=$$PATH               ; \
+		{	echo PATH=\"$$PATH\"           ; \
 			echo CXX=$$CXX                 ; \
 			echo PYTHON2=$$PYTHON2         ; \
 			echo PYTHON=$$PYTHON           ; \
