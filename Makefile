@@ -18,15 +18,15 @@ ROOT_DIR := $(abspath .)
 .PHONY : FORCE
 FORCE : ;
 sys_config.env : FORCE
-	@if [ ! -f $@ ] ; then                   \
-		echo new $@ ;                        \
-		{	echo PATH=\"$$PATH\"           ; \
-			echo CXX=$$CXX                 ; \
-			echo PYTHON2=$$PYTHON2         ; \
-			echo PYTHON=$$PYTHON           ; \
-			echo SLURM_ROOT=$$SLURM_ROOT   ; \
-			echo LMAKE_FLAGS=$$LMAKE_FLAGS ; \
-		} >$@ ;                              \
+	@if [ ! -f $@ ] ; then                                                          \
+		echo new $@                                                           ; \
+		{                                                                       \
+			for var in PATH CXX PYTHON2 PYTHON SLURM_ROOT LMAKE_FLAGS; do   \
+				printf "%s='" "$$var"                                 ; \
+				eval echo -n \$$$${var} | sed "s/'/\\\\'/g"           ; \
+				echo "'"                                              ; \
+			done                                                          ; \
+		} >$@                                                                 ; \
 	fi
 
 sys_config.log : _bin/sys_config sys_config.env
