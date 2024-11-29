@@ -30,14 +30,6 @@ namespace Backends::Local {
 		// services
 		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] += rsrcs[i] ; return self ; }
 		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] -= rsrcs[i] ; return self ; }
-		bool fit_in( RsrcsData const& capacity , RsrcsData const& occupied ) const {               // true if all resources fit within capacity on top of occupied
-			for( size_t i : iota(size()) ) if ( occupied[i]+self[i] > capacity[i] ) return false ;
-			return true ;
-		}
-		bool fit_in(RsrcsData const& capacity) const {                                             // true if all resources fit within capacity
-			for( size_t i : iota(size()) ) if (self[i]>capacity[i]) return false ;
-			return true ;
-		}
 		RsrcsData round(Backend const& be) const ;
 	} ;
 
@@ -85,18 +77,27 @@ namespace Backends::Local {
 		// services
 
 		virtual void sub_config( ::vmap_ss const& dct , bool dynamic ) {
+			// add an implicit resource <single> to manage jobs localized from remote backends
 			Trace trace(BeChnl,"Local::config",STR(dynamic),dct) ;
 			if (dynamic) {
-				/**/                                     throw_unless( rsrc_keys.size()==dct.size() , "cannot change resource names while lmake is running" ) ;
-				for( size_t i : iota(rsrc_keys.size()) ) throw_unless( rsrc_keys[i]==dct[i].first   , "cannot change resource names while lmake is running" ) ;
+				for( size_t i : iota(rsrc_keys.size()) ) {
+					if ( i==rsrc_keys.size()-1 && rsrc_keys[i]=="<single>" && i>=dct.size() ) continue ; // skip implicit <single> key
+					throw_unless( i<dct.size() && rsrc_keys[i]==dct[i].first , "cannot change resource names while lmake is running" ) ;
+				}
 			} else {
-				rsrc_keys.reserve(dct.size()) ;
+				rsrc_keys.reserve(dct.size()+1/*<single>*/) ;
+				bool seen_single = false ;
 				for( auto const& [k,v] : dct ) {
+					seen_single |= k=="<single>" ;
 					rsrc_idxs[k] = rsrc_keys.size() ;
 					rsrc_keys.push_back(k) ;
 				}
+				if (!seen_single) {
+					rsrc_idxs["<single>"] = rsrc_keys.size() ;
+					rsrc_keys.push_back("<single>") ;
+				}
 			}
-			capacity_ = RsrcsData( dct , rsrc_idxs  ) ;
+			capacity_ = RsrcsData( dct , rsrc_idxs  ) ; if (capacity_.size()>dct.size()) capacity_.back()/*<single>*/ = 1 ;
 			occupied  = RsrcsData( rsrc_keys.size() ) ;
 			//
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
@@ -119,15 +120,20 @@ namespace Backends::Local {
 		virtual ::vmap_s<size_t> const& capacity() const {
 			return public_capacity ;
 		}
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ ) const {
+		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const {
 			return ::move(rsrcs) ;
 		}
 		//
-		virtual bool/*ok*/ fit_eventually( RsrcsData const& rs             ) const { return rs.fit_in(capacity_)            ; }
-		virtual ::vmap_ss  export_       ( RsrcsData const& rs             ) const { return rs.mk_vmap(rsrc_keys)           ; }
-		virtual RsrcsData  import_       ( ::vmap_ss     && rs , Req , Job ) const { return RsrcsData(::move(rs),rsrc_idxs) ; }
+		virtual ::vmap_ss  export_   ( RsrcsData const& rs             ) const { return rs.mk_vmap(rsrc_keys)           ; }
+		virtual RsrcsData  import_   ( ::vmap_ss     && rs , Req , Job ) const { return RsrcsData(::move(rs),rsrc_idxs) ; }
+		virtual ::string lacking_rsrc( RsrcsData const& rs             ) const {
+			for( size_t i : iota(rs.size()) ) if (rs[i]>capacity_[i]) return "not enough resource "+rsrc_keys[i]+" (asked "+rs[i]+" but only "+capacity_[i]+" available)" ;
+			return {} ;
+		}
 		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
-			return rs->fit_in(capacity_,occupied) ;
+			RsrcsData const& rds = *rs ;
+			for( size_t i : iota(rds.size()) ) if ( occupied[i]+rds[i] > capacity_[i] ) return false ;
+			return true ;
 		}
 		virtual void acquire_rsrcs(Rsrcs const& rs) const {
 			occupied += *rs ;

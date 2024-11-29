@@ -79,7 +79,7 @@ namespace std {
 
 namespace Backends {
 
-	template<class I> I from_string_rsrc( ::string const& k , ::string const& v ) {
+	template<class I=size_t> I from_string_rsrc( ::string const& k , ::string const& v ) {
 		if ( k=="mem" || k=="tmp" ) return from_string_with_units<'M',I>(v) ;
 		else                        return from_string_with_units<    I>(v) ;
 	}
@@ -225,13 +225,13 @@ namespace Backends {
 		virtual bool call_launch_after_start() const { return false ; }
 		virtual bool call_launch_after_end  () const { return false ; }
 		//
-		virtual void       acquire_rsrcs ( Rsrcs     const&             ) const = 0 ;             // acquire asked resources
-		virtual bool/*ok*/ fit_eventually( RsrcsData const&             ) const { return true ; } // true if job with such resources can be spawned eventually
-		virtual bool/*ok*/ fit_now       ( Rsrcs     const&             ) const = 0 ;             // true if job with such resources can be spawned now
-		virtual void       start_rsrcs   ( Rsrcs     const&             ) const {}                // handle resources at start of job
-		virtual void       end_rsrcs     ( Rsrcs     const&             ) const {}                // handle resources at end   of job
-		virtual ::vmap_ss  export_       ( RsrcsData const&             ) const = 0 ;             // export resources in   a publicly manageable form
-		virtual RsrcsData  import_       ( ::vmap_ss     && , Req , Job ) const = 0 ;             // import resources from a publicly manageable form
+		virtual void       acquire_rsrcs( Rsrcs     const&             ) const = 0 ;           // acquire asked resources
+		virtual ::string   lacking_rsrc ( RsrcsData const&             ) const { return {} ; } // true if job with such resources can be spawned eventually
+		virtual bool/*ok*/ fit_now      ( Rsrcs     const&             ) const = 0 ;           // true if job with such resources can be spawned now
+		virtual void       start_rsrcs  ( Rsrcs     const&             ) const {}              // handle resources at start of job
+		virtual void       end_rsrcs    ( Rsrcs     const&             ) const {}              // handle resources at end   of job
+		virtual ::vmap_ss  export_      ( RsrcsData const&             ) const = 0 ;           // export resources in   a publicly manageable form
+		virtual RsrcsData  import_      ( ::vmap_ss     && , Req , Job ) const = 0 ;           // import resources from a publicly manageable form
 		//
 		virtual ::string                 start_job           ( Job , SpawnedEntry const&          ) const { return  {}                        ; }
 		virtual ::pair_s<bool/*retry*/>  end_job             ( Job , SpawnedEntry const& , Status ) const { return {{},false/*retry*/       } ; }
@@ -239,6 +239,21 @@ namespace Backends {
 		virtual void                     kill_queued_job     (       SpawnedEntry const&          ) const = 0 ;                                   // .
 		//
 		virtual SpawnId launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& , bool verbose ) const = 0 ;
+		//
+		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity , JobIdx ) const { // transform remote resources into local resources
+			::umap_s<size_t> capa   = mk_umap(capacity) ;
+			::vmap_ss        res    ;
+			bool             single = false             ;
+			for( auto&& [k,v] : rsrcs ) {
+				auto it = capa.find(k) ;
+				if (it==capa.end() ) { single = true ; continue ; }                                       // unrecognized resource : fall back to single job by reserving the full capacity
+				size_t v1 = from_string_rsrc<size_t>(k,v) ;
+				if (v1>it->second) { v1 = it->second ; single = true ; }
+				res.emplace_back( ::move(k) , to_string_rsrc(k,v1) ) ;                                    // recognized resource : allow local execution by limiting resource to capacity
+			}
+			if (single) res.emplace_back( "<single>" , "1" ) ;
+			return res ;
+		}
 
 		// services
 		virtual void config( vmap_ss const& dct , bool dynamic ) {
@@ -273,7 +288,7 @@ namespace Backends {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
 			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
 			RsrcsData rd         = import_(::move(rsrcs),req,job) ;
-			Rsrcs     rs         { New , rd             }         ; if (!fit_eventually(*rs)) throw "not enough resources to launch job "+Job(job)->name() ;
+			Rsrcs     rs         { New , rd             }         ; if ( ::string msg=lacking_rsrc(*rs) ; +msg ) throw msg+" to launch job "+Job(job)->name() ;
 			Rsrcs     rs_rounded { New , rd.round(self) }         ;
 			ReqEntry& re = reqs.at(req) ;
 			SWEAR(!waiting_jobs   .contains(job)) ;                                                                // job must be a new one

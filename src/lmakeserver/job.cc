@@ -35,7 +35,7 @@ namespace Engine {
 			//
 			if      ( t->crc==Crc::None           ) fat = FileActionTag::None           ; // nothing to wash
 			else if ( t->is_src_anti()            ) fat = FileActionTag::Src            ; // dont touch sources, not even integrity check
-			else if ( t->polluted>=Polluted::Dirty) fat = FileActionTag::UnlinkPolluted ; // wash pollution
+			else if (+t->polluted                 ) fat = FileActionTag::UnlinkPolluted ; // wash pollution
 			else if (!t.tflags[Tflag::Incremental]) fat = FileActionTag::Unlink         ;
 			else if ( t.tflags[Tflag::NoUniquify ]) fat = FileActionTag::NoUniquify     ;
 			else                                    fat = FileActionTag::Uniquify       ;
@@ -281,20 +281,22 @@ namespace Engine {
 
 	void JobExec::give_up( Req req , bool report ) {
 		Trace trace("give_up",self,req) ;
+		JobData& jd = *self ;
 		if (+req) {
-			ReqInfo& ri = (self)->req_info(req) ;
-			ri.step(Step::End,self) ;                                            // ensure no confusion with previous run
-			(self)->make( ri , MakeAction::GiveUp ) ;
-			if (report)
-				for( Req r : (self)->running_reqs(false/*with_zombies*/) ) {
-					SWEAR(r!=req) ;
-					req->audit_job(Color::Note,"continue",self,true/*at_end*/) ; // generate a continue line if some other req is still active
-					break ;
-				}
+			ReqInfo& ri = jd.req_info(req) ;
+			ri.step(Step::End,self) ;                                                    // ensure no confusion with previous run
+			jd.make( ri , MakeAction::GiveUp ) ;
+			for( Req r : jd.running_reqs(false/*with_zombies*/) ) {
+				SWEAR(r!=req) ;
+				if (report) req->audit_job(Color::Note,"continue",self,true/*at_end*/) ; // generate a continue line if some other req is still active
+				goto NotKilled ;
+			}
+			for( Node t : self->targets ) t->busy = false ;                              // if job does not continue, targets are no more busy
+		NotKilled :
 			req.chk_end() ;
 		} else {
-			for( Req r : self->running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                   ;
-			for( Req r : self->running_reqs(true/*with_zombies*/) ) FAIL(self->name(),"is still running for",r,"after kill all") ;
+			for( Req r : jd.running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                   ;
+			for( Req r : jd.running_reqs(true/*with_zombies*/) ) FAIL(jd.name(),"is still running for",r,"after kill all") ;
 		}
 	}
 
@@ -398,7 +400,7 @@ namespace Engine {
 	}
 
 	void JobExec::end( JobRpcReq&& jrr , bool sav_jrr , ::vmap_ss const& rsrcs ) {
-		JobData&          data             = *self                                                ;
+		JobData&          jd               = *self                                                ;
 		JobDigest&        digest           = jrr.digest                                           ;
 		Status            status           = digest.status                                        ;          // status will be modified, need to make a copy
 		Bool3             ok               = is_ok  (status)                                      ;
@@ -408,8 +410,8 @@ namespace Engine {
 		bool              modified         = false                                                ;
 		bool              fresh_deps       = status==Status::EarlyChkDeps || status>Status::Async ;          // if job did not go through, old deps are better than new ones
 		bool              seen_dep_date    = false                                                ;
-		Rule              rule             = data.rule()                                          ;
-		::vector<Req>     running_reqs_    = data.running_reqs(true/*with_zombies*/)              ;
+		Rule              rule             = jd.rule()                                            ;
+		::vector<Req>     running_reqs_    = jd.running_reqs(true/*with_zombies*/)                ;
 		::string          local_msg        ;                                                                 // to be reported if job was otherwise ok
 		::string          severe_msg       ;                                                                 // to be reported always
 		CacheNoneAttrs    cache_none_attrs ;
@@ -435,18 +437,18 @@ namespace Engine {
 		try                                  { end_cmd_attrs = rule->end_cmd_attrs.eval(self,match)  ;       }
 		catch (::pair_ss const& /*msg,err*/) { severe_msg << "cannot compute " << EndCmdAttrs::Msg << '\n' ; }
 		//
-		data.status = Status::New ;                                                                          // ensure we cannot appear up to date while working on data
+		jd.status = Status::New ;                    // ensure we cannot appear up to date while working on data
 		fence() ;
 		//
 		Trace trace("end",self,status) ;
 		//
 		// handle targets
 		//
-		for( Node t : data.targets ) if (t->polluted==Polluted::Busy) t->polluted = Polluted::Clean ;        // old targets are no more busy
+		for( Node t : jd.targets ) t->busy = false ; // old targets are no more busy
 		//
-		if ( !lost && status>Status::Early ) { // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
+		if ( !lost && status>Status::Early ) {       // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
 			//
-			for( Node t : data.targets ) if (t->has_actual_job(self)) t->actual_job() = {} ;   // ensure targets we no more generate do not keep pointing to us
+			for( Node t : jd.targets ) if (t->has_actual_job(self)) t->actual_job() = {} ;     // ensure targets we no more generate do not keep pointing to us
 			//
 			::vector<Target> targets ; targets.reserve(digest.targets.size()) ;
 			for( auto const& [tn,td] : digest.targets ) {
@@ -461,7 +463,7 @@ namespace Engine {
 				else if ( tflags[Tflag::Target]    )   target->polluted = Polluted::Clean    ;
 				else if ( +crc && crc!=target->crc ) { target->polluted = Polluted::Job      ; target->polluting_job = self ; } // we pollute the official job
 				//
-				if (target->polluted>=Polluted::Dirty) trace("polluted",target->polluted,target->polluting_job) ;
+				if (+target->polluted) trace("polluted",target->polluted,target->polluting_job) ;
 				//
 				if (+crc) {
 					// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
@@ -482,7 +484,7 @@ namespace Engine {
 							trace("critical_clash",start_date,target->date().date) ;                                                                 // ... but actually was not (if no execution, ...
 							for( Req r : target->reqs() ) {                                                                                          // ... there is no problem)
 								r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
-								target->req_info(r).reset() ;                          // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
+								target->req_info(r).done_ = NodeGoal::None ;           // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
 							}
 						}
 					}
@@ -534,9 +536,9 @@ namespace Engine {
 				}
 			}
 			::sort(targets) ;                                                          // ease search in targets
-			//vvvvvvvvvvvvvvvvvvvvvvvvvv
-			data.targets.assign(targets) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvv
+			jd.targets.assign(targets) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		//
 		// handle deps
@@ -545,7 +547,7 @@ namespace Engine {
 		if (fresh_deps) {
 			::uset<Node>  old_deps ;
 			::vector<Dep> deps     ; deps.reserve(digest.deps.size()) ;
-			for( Dep const& d : data.deps )
+			for( Dep const& d : jd.deps )
 				if (d->is_plain())
 					for( Node dd=d ; +dd ; dd=dd->dir() )
 						if (!old_deps.insert(dd).second) break ;                                                 // record old deps and all uphill dirs as these are implicit deps
@@ -571,9 +573,9 @@ namespace Engine {
 				deps.push_back(dep) ;
 				trace("dep",dep) ;
 			}
-			//vvvvvvvvvvvvvvvvvvvv
-			data.deps.assign(deps) ;
-			//^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvv
+			jd.deps.assign(deps) ;
+			//^^^^^^^^^^^^^^^^^^
 		}
 		//
 		// wrap up
@@ -591,18 +593,18 @@ namespace Engine {
 			stderr <<set_nl<< digest.stderr ;
 		}
 		//
-		data.set_exec_ok() ;                                                               // effect of old cmd has gone away with job execution
+		jd.set_exec_ok() ;                                                                 // effect of old cmd has gone away with job execution
 		fence() ;                                                                          // only update status once every other info is set in case of crash and avoid transforming garbage into Err
 		if      ( lost           && status<=Status::Early   ) status = Status::EarlyLost ;
 		else if ( lost                                      ) status = Status::LateLost  ;
 		else if ( +target_reason && status> Status::Garbage ) status = Status::BadTarget ;
-		//vvvvvvvvvvvvvvvvvv
-		data.status = status ;
-		//^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvv
+		jd.status = status ;
+		//^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
-		bool     upload = sav_jrr && data.run_status==RunStatus::Ok && ok==Yes  && +cache_none_attrs.key ;
+		bool     upload = sav_jrr && jd.run_status==RunStatus::Ok && ok==Yes  && +cache_none_attrs.key ;
 		::string msg    ;
-		trace("wrap_up",STR(sav_jrr),ok,cache_none_attrs.key,data.run_status,STR(upload)) ;
+		trace("wrap_up",STR(sav_jrr),ok,cache_none_attrs.key,jd.run_status,STR(upload)) ;
 		if (sav_jrr) {
 			msg = jrr.msg ;
 			jrr.msg <<set_nl<< local_msg << severe_msg ;
@@ -615,23 +617,23 @@ namespace Engine {
 		//
 		if (ok==Yes) {                   // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 			SWEAR(+digest.stats.total) ;
-			data.record_stats( digest.stats.total , cost , tokens1 ) ;
+			jd.record_stats( digest.stats.total , cost , tokens1 ) ;
 		}
 		MakeAction end_action = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
 		bool       one_done   = false                                                        ;
-		for( Req req : data.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
-			ReqInfo& ri = data.req_info(req) ;
+		for( Req req : jd.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
+			ReqInfo& ri = jd.req_info(req) ;
 			ri.modified = modified ;
 			if (ri.running()) { SWEAR(ri.step()==Step::Exec) ; ri.step(Step::End,self) ; } // ensure no confusion with previous run, all steps must be updated before any make() is called
 		}
 		for( Req req : running_reqs_ ) {
-			ReqInfo& ri = data.req_info(req) ;
+			ReqInfo& ri = jd.req_info(req) ;
 			trace("req_before",target_reason,status,ri,STR(modified)) ;
 			req->missing_audits.erase(self) ;                                              // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
-			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobReason job_err_reason = data.make( ri , end_action , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ;
-			//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobReason job_err_reason = jd.make( ri , end_action , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ;
+			//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			bool     full_report = ri.done() || !has_new_deps            ;                 // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_err_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
@@ -1298,7 +1300,7 @@ namespace Engine {
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Backend::s_submit( ri.backend , +idx() , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			for( Node t : targets ) if (t->polluted==Polluted::Clean) t->polluted = Polluted::Busy ;       // make targets busy once we are sure job is submitted
+			for( Node t : targets ) t->busy = true ;                                                       // make targets busy once we are sure job is submitted
 		} catch (::string const& e) {
 			ri.dec_wait() ;                                                                                // restore n_wait as we prepared to wait
 			ri.step(Step::None,idx()) ;

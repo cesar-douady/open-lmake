@@ -62,10 +62,8 @@ ENUM_1( NodeStatus
 ,	Unknown
 )
 
-ENUM_1( Polluted
-,	Dirty = Old  // >=Dirty means target is really polluted
+ENUM( Polluted
 ,	Clean        // must be first
-,	Busy
 ,	Old
 ,	PreExist
 ,	Job
@@ -272,8 +270,6 @@ namespace Engine {
 		// accesses
 		bool done(NodeGoal ng) const { return done_>=ng   ; }
 		bool done(           ) const { return done_>=goal ; }
-		// services
-		void reset(NodeGoal ng=NodeGoal::None) { done_ &= ng ; }
 		// data
 	public :
 		RuleIdx  prio_idx    = NoIdx           ;                              //    16 bits, index to the first job of the current prio being or having been analyzed
@@ -482,7 +478,7 @@ namespace Engine {
 			else              return _gather_prio_job_tgts( name() , r , lvl ) ;
 		}
 		//
-		void _set_match_gen(bool ok) ;
+		void _set_match_ok() ;
 		// data
 		// START_OF_VERSIONING
 	public :
@@ -514,7 +510,8 @@ namespace Engine {
 		Job       polluting_job ;                        //         32 bits,          polluting job when polluted was last set to Polluted::Job
 		MatchGen  match_gen     = 0                  ;   //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4   = Buildable::Unknown ;   //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		Polluted  polluted :3   = Polluted::Clean    ;   //          3 bits,          reason for pollution
+		Polluted  polluted :2   = Polluted::Clean    ;   //          2 bits,          reason for pollution
+		bool      busy     :1   = false              ;   //          1 bit ,          a job is running with this node as target
 	private :
 		RuleIdx _conform_idx   = -+NodeStatus::Unknown ; //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		Tflags  _actual_tflags ;                         //          8 bits,          tflags associated with actual_job
@@ -593,9 +590,10 @@ namespace Engine {
 		set_pressure(ri,pressure) ;
 	}
 
-	inline void NodeData::_set_match_gen(bool ok) {
-		if      (!ok                        ) { SWEAR(is_plain()                   ) ; match_gen = 0                 ; buildable = Buildable::Unknown ; }
-		else if (match_gen<Rule::s_match_gen) { SWEAR(buildable!=Buildable::Unknown) ; match_gen = Rule::s_match_gen ;                                  }
+	inline void NodeData::_set_match_ok() {
+		if (match_gen>=Rule::s_match_gen) return ; // already ok
+		SWEAR(buildable!=Buildable::Unknown) ;
+		match_gen = Rule::s_match_gen ;
 	}
 
 	inline void NodeData::set_buildable_throw( Req req , DepDepth lvl ) { // req is for error reporting only
@@ -616,7 +614,7 @@ namespace Engine {
 	}
 
 	inline void NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
-		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted ) return ; // fast path
+		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted && !busy ) return ; // fast path
 		_do_make(ri,ma,s) ;
 	}
 

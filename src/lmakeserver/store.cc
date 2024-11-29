@@ -245,25 +245,25 @@ namespace Engine::Persistent {
 		// misc
 		if (g_writable) {
 			g_seq_id = &_job_file.hdr().seq_id ;
-			if (!*g_seq_id) *g_seq_id = 1 ;      // avoid 0 (when store is brand new) to decrease possible confusion
+			if (!*g_seq_id) *g_seq_id = 1 ;                // avoid 0 (when store is brand new) to decrease possible confusion
 		}
 		// Rule
 		RuleBase::s_match_gen = _rule_file.c_hdr() ;
 		// END_OF_VERSIONING
 		//
 		SWEAR(RuleBase::s_match_gen>0) ;
-		_job_file      .keep_open = true ;       // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
-		_deps_file     .keep_open = true ;       // .
-		_targets_file  .keep_open = true ;       // .
-		_node_file     .keep_open = true ;       // .
-		_job_tgts_file .keep_open = true ;       // .
-		_rule_file     .keep_open = true ;       // .
-		_rule_crc_file .keep_open = true ;       // .
-		_rule_str_file .keep_open = true ;       // .
-		_rule_tgts_file.keep_open = true ;       // .
-		_sfxs_file     .keep_open = true ;       // .
-		_pfxs_file     .keep_open = true ;       // .
-		_name_file     .keep_open = true ;       // .
+		_job_file      .keep_open = true ;                 // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
+		_deps_file     .keep_open = true ;                 // .
+		_targets_file  .keep_open = true ;                 // .
+		_node_file     .keep_open = true ;                 // .
+		_job_tgts_file .keep_open = true ;                 // .
+		_rule_file     .keep_open = true ;                 // .
+		_rule_crc_file .keep_open = true ;                 // .
+		_rule_str_file .keep_open = true ;                 // .
+		_rule_tgts_file.keep_open = true ;                 // .
+		_sfxs_file     .keep_open = true ;                 // .
+		_pfxs_file     .keep_open = true ;                 // .
+		_name_file     .keep_open = true ;                 // .
 		_compile_srcs() ;
 		Rule::s_from_disk() ;
 		for( Job  j : _job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
@@ -274,8 +274,8 @@ namespace Engine::Persistent {
 			trace("rescue") ;
 			Fd::Stderr.write("previous crash detected, checking & rescueing\n") ;
 			try {
-				chk()              ;             // first verify we have a coherent store
-				invalidate_match() ;             // then rely only on essential data that should be crash-safe
+				chk()                                    ; // first verify we have a coherent store
+				invalidate_match(true/*force_physical*/) ; // then rely only on essential data that should be crash-safe
 				Fd::Stderr.write("seems ok\n") ;
 			} catch (::string const&) {
 				exit(Rc::Format,"failed to rescue, consider running lrepair") ;
@@ -580,7 +580,7 @@ namespace Engine::Persistent {
 				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                                 ) ;
 				throw_unless( +fi                                                               , "source ",src," is not a regular file nor a symbolic link"                      ) ;
 				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported"                  ) ;
-				SWEAR(src==sr.real,src,sr.real) ;                         // src is local, canonic and there are no links, what may justify real from being different ?
+				SWEAR(src==sr.real,src,sr.real) ;                              // src is local, canonic and there are no links, what may justify real from being different ?
 			}
 			srcs.emplace_back( Node(src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ; // external src dirs need no uphill dir
 		}
@@ -646,11 +646,11 @@ namespace Engine::Persistent {
 		return true ;
 	}
 
-	void invalidate_match() {
+	void invalidate_match(bool force_physical) {
 		MatchGen& match_gen = _rule_file.hdr() ;
 		Trace trace("invalidate_match","old gen",match_gen) ;
 		match_gen++ ;                                                                                                         // increase generation, which automatically makes all nodes !match_ok()
-		if (match_gen==0) {                                                                                                   // unless we wrapped around
+		if ( force_physical || match_gen==0 ) {                                                                               // unless we wrapped around
 			trace("reset") ;
 			Fd::Stderr.write("collecting nodes ...") ; for( Node n : node_lst() ) n->mk_old() ; Fd::Stderr.write(" done\n") ; // physically reset node match_gen's
 			match_gen = 1 ;

@@ -41,7 +41,7 @@ if __name__!='__main__' :
 
 	class CatPy(Cat,PyRule) :
 		target    = '{File1}+{File2}_py'
-		resources = {'gres':1}           # use a resource with no local translation, forcing a single job
+		resources = {'licenses':'no_lic'} # use a resource with no local translation, forcing a single job among those requiring unknown resources
 		def cmd() :
 			print(open(FIRST ).read(),end='')
 			print(open(SECOND).read(),end='')

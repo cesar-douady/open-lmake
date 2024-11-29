@@ -73,14 +73,14 @@ namespace Engine {
 	}
 
 	void Req::kill() {
-		Trace trace("kill",self) ;
+		Trace trace("Rkill",self) ;
 		SWEAR(zombie()) ;                                               // zombie has already been set
 		audit_ctrl_c( self->audit_fd , self->log_fd , self->options ) ;
 		Backend::s_kill_req(+self) ;
 	}
 
 	void Req::close() {
-		Trace trace("close",self) ;
+		Trace trace("Rclose",self) ;
 		SWEAR(  self->is_open  ()                     ) ;
 		SWEAR( !self->n_running() , self->n_running() ) ;
 		if (self->has_backend) Backend::s_close_req(+self) ;
@@ -113,7 +113,7 @@ namespace Engine {
 	}
 
 	void Req::_adjust_eta(bool push_self) {
-			Trace trace("_adjust_eta",self->eta) ;
+			Trace trace("R_adjust_eta",self->eta) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
 			bool changed    = false               ;
 			Lock lock       { s_reqs_mutex }      ;
@@ -188,7 +188,7 @@ namespace Engine {
 		if (seen_nodes.contains(dep)      ) return false/*overflow*/ ;
 		seen_nodes.insert(dep) ;
 		NodeReqInfo const& cri = dep->c_req_info(self) ;
-		const char*        err = nullptr                ;
+		const char*        err = nullptr               ;
 		switch (dep->status()) {
 			case NodeStatus::Multi     :                                  err = "multi"                                        ; break ;
 			case NodeStatus::Transient :                                  err = "missing transient sub-file"                   ; break ;
@@ -248,8 +248,8 @@ namespace Engine {
 
 	void Req::chk_end() {
 		if (self->n_running()) return ;
-		Job               job     = self->job              ;
-		JobReqInfo const& cri     = job->c_req_info(self)  ;
+		Job               job     = self->job               ;
+		JobReqInfo const& cri     = job->c_req_info(self)   ;
 		bool              job_err = job->status!=Status::Ok ;
 		Trace trace("chk_end",self,cri,job,job->status) ;
 		self->audit_stats() ;
@@ -267,10 +267,10 @@ namespace Engine {
 			::uset<Node> seen_nodes  ;
 			NfsGuard     nfs_guard   { g_config->reliable_dirs }                                      ;
 			if (job->rule()->special==Special::Req) {
-				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable) _report_err          (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
+				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable)       _report_err    (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
 				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) self->_report_no_rule(d,nfs_guard                                  ) ;
 			} else {
-				/**/                                                                  _report_err          (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
+				/**/                                                                        _report_err    (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
 			}
 		}
 	Done :

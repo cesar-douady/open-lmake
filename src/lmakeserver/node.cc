@@ -177,7 +177,7 @@ namespace Engine {
 		SWEAR(buildable_>Buildable::No) ;
 		if (buildable_>=Buildable::Yes) rule_tgts().clear() ;
 		buildable = buildable_ ;
-		_set_match_gen(true/*ok*/) ;
+		_set_match_ok() ;
 	}
 
 	::span<JobTgt const> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
@@ -348,13 +348,14 @@ namespace Engine {
 				//^^^^^^^^^^^^^^^^^^^^
 				goto Return ;
 			} catch (::vector<Node>& e) {
-				_set_match_gen(false/*ok*/) ;                                 // restore Unknown as we do not want to appear as having been analyzed
+				buildable = Buildable::Unknown ;                              // restore Unknown as we do not want to appear as having been analyzed
+				match_gen = 0                  ;
 				e.push_back(idx()) ;
 				throw ;
 			}
 		}
 	Return :
-		_set_match_gen(true/*ok*/) ;
+		_set_match_ok() ;
 		trace("done",buildable) ;
 		return ;
 	}
@@ -508,7 +509,7 @@ namespace Engine {
 		/**/                                if (make_action==NodeMakeAction::Wakeup               ) return false ;                 // do plain analysis
 		/**/                                if (!ri.done(NodeGoal::Status)                        ) return false ;                 // do plain analysis
 		JobTgt cjt = nd.conform_job_tgt() ; if (!( +cjt && cjt.produces(nd.idx(),true/*actual*/) )) return false ;                 // no hope to regenerate, proceed normally
-		/**/                                if (+nd.polluted                                      ) ri.done_ &= NodeGoal::Status ; // disk cannot be ok if node was polluted, ...
+		/**/                                if ( +nd.polluted || nd.busy                          ) ri.done_ &= NodeGoal::Status ; // disk cannot be ok if node was polluted or is busy, ...
 		/**/                                if (ri.done()                                         ) return false ;                 // ... does not change conform_job_tgt()
 		Trace trace("_may_need_regenerate",nd.idx(),ri,cjt,nd.polluted) ;
 		ri.prio_idx = nd.conform_idx() ;                                                                                           // ask to run only conform job
@@ -544,9 +545,8 @@ namespace Engine {
 			if (ri.done()   )                  goto Wakeup ;
 			ri.prio_idx = 0 ;
 		} else {
-			// check if we need to regenerate node
-			if ( ri.done(NodeGoal::Status) && _may_need_regenerate(self,ri,make_action) ) goto Make   ;
-			if ( ri.done()                                                              ) goto Wakeup ;
+			if ( _may_need_regenerate(self,ri,make_action) ) goto Make   ;
+			if ( ri.done()                                 ) goto Wakeup ;
 			// fast path : check jobs we were waiting for, lighter than full analysis
 			JobTgtIter it{self,ri} ;
 			for(; it ; it++ ) {
@@ -603,11 +603,12 @@ namespace Engine {
 							case NodeGoal::Makable : if (jt.sure()) ma = JobMakeAction::Makable ; break ; // if star, job must be run to know if we are generated
 							case NodeGoal::Status  :
 							case NodeGoal::Dsk     :
-								if (+polluted) {
-									if (crc==Crc::None)
-										/**/                    { reason = {JobReasonTag::NoTarget      ,+idx()} ; break ; }
-									else switch (polluted) {
-										case Polluted::Busy     : reason = {JobReasonTag::BusyTarget    ,+idx()} ; break ;
+								if (busy) {
+										/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
+								} else if (+polluted) {
+									if (crc==Crc::None) {
+										/**/                      reason = {JobReasonTag::NoTarget      ,+idx()} ;
+									} else switch (polluted) {
 										case Polluted::Old      : reason = {JobReasonTag::OldTarget     ,+idx()} ; break ;
 										case Polluted::PreExist : reason = {JobReasonTag::PrevTarget    ,+idx()} ; break ;
 										case Polluted::Job      : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;                          // polluting job is already set
@@ -633,7 +634,7 @@ namespace Engine {
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						jt->make( jri , ma , reason , ri.speculate ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						trace("job",ri,clean,ma,jt,STR(jri.waiting()),STR(jt.produces(idx())),polluted) ;
+						trace("job",ri,clean,ma,jt,STR(jri.waiting()),STR(jt.produces(idx())),polluted,STR(busy)) ;
 						if      (jri.waiting()     )   jt->add_watcher(jri,idx(),ri,ri.pressure) ;
 						else if (!jri.done()       ) { SWEAR(query) ; goto Wait ;                                   }
 						else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
@@ -698,18 +699,20 @@ namespace Engine {
 			if (k==conform_idx()) prio = p ;
 			k++ ;
 		}
-		_set_match_gen(false/*ok*/) ;
+		match_gen = 0 ;
 		return res ;
 	}
 
 	void NodeData::mk_old() {
 		Trace trace("mk_old",idx()) ;
-		_set_match_gen(false/*ok*/) ;
+		busy      = false ;           // possibly old
+		match_gen = 0     ;
 	}
 
 	void NodeData::mk_no_src() {
 		Trace trace("mk_no_src",idx()) ;
-		_set_match_gen(false/*ok*/) ;
+		buildable = Buildable::Unknown ;
+		match_gen = 0                  ;
 		fence() ;
 		rule_tgts ().clear() ;
 		job_tgts  ().clear() ;
@@ -724,7 +727,7 @@ namespace Engine {
 		rule_tgts ().clear() ;
 		job_tgts  ().clear() ;
 		actual_job().clear() ;
-		_set_match_gen(true/*ok*/) ;
+		_set_match_ok() ;
 	}
 
 	void NodeData::mk_src(FileTag tag) {
@@ -749,8 +752,8 @@ namespace Engine {
 		}
 		for( Req r : reqs() ) {
 			ReqInfo& ri = req_info(r) ;
-			if (modified) ri.reset(NodeGoal::Status) ; // target is not conform on disk any more
-			if (+sd     ) ri.manual = Manual::Ok ;     // if we passed a sig, we know the disk state, and we just updated our records
+			if (modified) ri.done_  &= NodeGoal::Status ; // target is not conform on disk any more
+			if (+sd     ) ri.manual  = Manual::Ok       ; // if we passed a sig, we know the disk state, and we just updated our records
 		}
 		return modified ;
 	}

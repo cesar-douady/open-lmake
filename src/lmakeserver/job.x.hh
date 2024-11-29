@@ -162,7 +162,7 @@ namespace Engine {
 		// data
 		in_addr_t   host       = NoSockAddr ;
 		CoarseDelay cost       ;                                                                        // exec time / average number of running job during execution
-		Tokens1     tokens1    ;
+		Tokens1     tokens1    = 0          ;
 		Pdate       start_date ;
 		Pdate       end_date   ;                                                                        // if no end_date, job is stil on going
 	} ;
@@ -319,9 +319,9 @@ namespace Engine {
 		::string special_stderr(                                   ) const ;                                             // cannot declare a default value for incomplete type Node
 		//
 		Rule::SimpleMatch simple_match  (                                              ) const ;                         // thread-safe
-		void              estimate_stats(                                              ) ;
-		void              estimate_stats(                                      Tokens1 ) ;
-		void              record_stats  ( Delay exec_time , CoarseDelay cost , Tokens1 ) ;
+		void              estimate_stats(                                              ) ;                               // may be called any time
+		void              estimate_stats(                                      Tokens1 ) ;                               // must not be called during job execution as cost must stay stable
+		void              record_stats  ( Delay exec_time , CoarseDelay cost , Tokens1 ) ;                               // .
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
@@ -364,14 +364,14 @@ namespace Engine {
 		Deps             deps         ;              // 31<=32 bits, owned
 		RuleCrc          rule_crc     ;              //     32 bits
 		CoarseDelay      exec_time    ;              //     16 bits,        for plain jobs
-		CoarseDelay      cost         ;              //     16 bits,        exec_time / average number of parallel jobs during execution
+		CoarseDelay      cost         ;              //     16 bits,        exec_time / average number of parallel jobs during execution, /!\ must be stable during job execution
 		Tokens1          tokens1      = 0  ;         //      8 bits,        for plain jobs, number of tokens - 1 for eta estimation
 		mutable MatchGen match_gen    = 0  ;         //      8 bits,        if <Rule::s_match_gen => deemed !sure
 		RunStatus        run_status:3 = {} ;         //      3 bits
 		Status           status    :4 = {} ;         //      4 bits
 	private :
-		bool             _reliable_stats:1 = false ; //      1 bit ,        if true, cost has been observed from previous execution
 		mutable bool     _sure          :1 = false ; //      1 bit
+		Bool3            _reliable_stats:2 = No    ; //      2 bits,        if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 		// END_OF_VERSIONING
 	} ;
 	static_assert(sizeof(JobData)==28) ;             // check expected size
@@ -443,24 +443,25 @@ namespace Engine {
 		return Rule::SimpleMatch(idx()) ;
 	}
 
-	inline void JobData::estimate_stats() {
-		if (_reliable_stats) return ;
+	inline void JobData::estimate_stats() {                                                        // can be called any time, but only record on first time, so cost stays stable during job execution
+		if (_reliable_stats!=No) return ;
 		Rule r = rule() ;
-		cost      = r->cost()    ;
-		exec_time = r->exec_time ;
+		cost            = r->cost()    ;
+		exec_time       = r->exec_time ;
+		_reliable_stats = Maybe        ;
 	}
-	inline void JobData::estimate_stats( Tokens1 tokens1 ) {
-		if (_reliable_stats) return ;
+	inline void JobData::estimate_stats( Tokens1 tokens1 ) {                                       // only called before submit, so cost stays stable during job execution
+		if (_reliable_stats==Yes) return ;
 		Rule r = rule() ;
-		cost      = r->cost_per_token * (tokens1+1) ;
-		exec_time = r->exec_time                    ;
+		cost            = r->cost_per_token * (tokens1+1) ;
+		exec_time       = r->exec_time                    ;
+		_reliable_stats = Maybe                           ;
 	}
-
-	inline void JobData::record_stats( Delay exec_time_ , CoarseDelay cost_ , Tokens1 tokens1_ ) {
+	inline void JobData::record_stats( Delay exec_time_ , CoarseDelay cost_ , Tokens1 tokens1_ ) { // only called in end, so cost stays stable during job execution
 		exec_time       = exec_time_ ;
 		cost            = cost_      ;
 		tokens1         = tokens1_   ;
-		_reliable_stats = true       ;
+		_reliable_stats = Yes        ;
 		rule()->new_job_report( exec_time_ , cost_ , tokens1_ ) ;
 	}
 

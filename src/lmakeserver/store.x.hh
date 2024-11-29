@@ -389,8 +389,7 @@ namespace Engine::Persistent {
 	//
 	bool/*invalidate*/ new_srcs        ( ::vector_s        && , bool dynamic ) ;
 	bool/*invalidate*/ new_rules       ( ::vector<RuleData>&& , bool dynamic ) ;
-	void               invalidate_match(                                     ) ;
-	void               invalidate_exec ( bool cmd_ok                         ) ;
+	void               invalidate_match( bool force_physical=false           ) ;
 	//
 	void chk() ;
 

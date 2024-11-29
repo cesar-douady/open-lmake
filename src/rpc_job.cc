@@ -610,24 +610,24 @@ void JobRpcReply::exit() {
 
 JobInfo::JobInfo(::string const& filename , Bool3 get_start , Bool3 get_end ) {
 	Trace trace("JobInfo",filename,get_start,get_end) ;
-	if ( get_start==No && get_end==No ) return ;                        // fast path : dont read filename
-	::string      job_info = AcFd(filename).read() ;
-	::string_view jis      = job_info              ;
+	if ( get_start==No && get_end==No ) return ;                                                              // fast path : dont read filename
+	::string      job_info ;            try { job_info = AcFd(filename).read() ; } catch (::string const&) {} // empty string in case of error, will processed later
+	::string_view jis      = job_info ;
 	try {
-		if (get_start==No) deserialize( jis , ::ref(JobInfoStart()) ) ; // even if we do not need start, we need to skip it
+		if (get_start==No) deserialize( jis , ::ref(JobInfoStart()) ) ;                                       // even if we do not need start, we need to skip it
 		else               deserialize( jis , start                 ) ;
 		trace("start") ;
 	} catch (...) {
-		if ( get_start!=No                  ) start = {} ;              // ensure start is either empty or full
-		if ( get_start==Yes || get_end==Yes ) throw ;                   // if we cannot skip start, we cannot get end
-		return ;                                                        // .
+		if ( get_start!=No                  ) start = {} ;                                                    // ensure start is either empty or full
+		if ( get_start==Yes || get_end==Yes ) throw ;                                                         // if we cannot skip start, we cannot get end
+		return ;                                                                                              // .
 	}
 	try {
 		if (get_end==No) return ;
 		deserialize( jis , end ) ;
 		trace("end") ;
 	} catch (...) {
-		end = {} ;                                                      // ensure end is either empty or full
+		end = {} ;                                                                                            // ensure end is either empty or full
 		if (get_end==Yes) throw ;
 	}
 }

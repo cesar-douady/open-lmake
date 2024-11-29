@@ -2390,7 +2390,8 @@ The local backend is used when either :
 @item @code{lmake} is launched with the the @code{--local} option.
 @item The required backend is not supported or not available.
 @end itemize
-In the two later cases, required resources are translated into local resources and if not possible (e.g. because a resource is not available locally), the job is forced to run alone.
+In the two later cases, required resources are translated into local resources (best effort)
+and if not possible (e.g. because a resource is not available locally or because special constraints cannot be translated), then only one such job can run at any given time.
 
 Each rule whose @code{backend} attribute is @code{'local'} provides a @code{resources} attribute such that :
 @itemize @minus
@@ -2516,10 +2517,10 @@ They have been implemented to have means to control interactions with jobs submi
 The @code{resources} rule attributes is composed of :
 @itemize @minus
 @item standard resources @code{cpu}, @code{mem} and @code{tmp}.
-@item @code{excludes} @code{feature}, @code{gres}, @code{licence}, @code{nodes}, @code{part}, @code{qos}, @code{reserv} : these are passed as is to the slurm daemon.
+@item @code{excludes} @code{features}, @code{gres}, @code{licence}, @code{nodes}, @code{part}, @code{qos}, @code{reserv} : these are passed as is to the slurm daemon.
 For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example @code{gres0}, @code{gres1}).
 The absence of index is equivalent to index 0.
-@item any other resource passed to the slurm daemon as licenses.
+@item any other resource passed to the slurm daemon as @code{licenses} if such licenses are declared in the slurm configuration, else as @code{gres}.
 @end itemize
 
 @anchor{autodep}
@@ -2535,6 +2536,8 @@ In all cases, @code{$LMAKE_AUTO_DEP_ENV} must remain in the environment untouche
 
 @subsection @code{'None'} or @code{'none'}
 
+This method is strongly discouraged and should be reserved for usages such as tests, comparisons or benchmarks.
+
 The job is not instrumented.
 The only intrusion is the presence of @code{$LMAKE_AUTODEP_ENV}.
 
@@ -2542,8 +2545,6 @@ The only way to report activity is through the use of @code{ldepend} / @code{lta
 
 The main advantage is that this method is not invasive (or marginally).
 The main inconvenient is that no automatic hidden dependencies are recorded, one has to explicitly call @code{ldepend} and experience shows it is very difficult not to forget some.
-
-This method is @strong{not} recommended.
 
 @subsection @code{'LdPreload'} or @code{'ld_preload'}
 

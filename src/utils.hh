@@ -201,9 +201,28 @@ struct Fd ;
 
 extern thread_local char t_thread_key ;
 
-void kill_self      ( int sig                        ) ;
-void set_sig_handler( int sig , void (*handler)(int) ) ;
-void write_backtrace( Fd      , int hide_cnt         ) ;
+void kill_self      ( int sig                ) ;
+void write_backtrace( Fd      , int hide_cnt ) ;
+
+template<void (*Handler)(int sig,void* addr)> void _sig_action( int sig , siginfo_t* si , void* ) {
+	Handler(sig,si->si_addr) ;
+}
+template<void (*Handler)(int sig,void* addr)> void set_sig_handler(int sig) {
+	sigset_t         empty  ;      ::sigemptyset(&empty) ;
+	struct sigaction action = {} ;
+	action.sa_sigaction = _sig_action<Handler>  ;
+	action.sa_mask      = empty                 ;
+	action.sa_flags     = SA_RESTART|SA_SIGINFO ;
+	::sigaction( sig , &action , nullptr ) ;
+}
+template<void (*Handler)(int sig)> void set_sig_handler(int sig) {
+	sigset_t         empty  ;      ::sigemptyset(&empty) ;
+	struct sigaction action = {} ;
+	action.sa_handler = Handler    ;
+	action.sa_mask    = empty      ;
+	action.sa_flags   = SA_RESTART ;
+	::sigaction( sig , &action , nullptr ) ;
+}
 
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) ;
 
@@ -810,6 +829,12 @@ template<StdEnum E> ::string& operator+=( ::string& os , BitMap<E> const bm ) {
 	return os <<')' ;
 }
 
+// used in static_assert when defining a table indexed by enum to fire if enum updates are not propagated to tab def
+template<StdEnum E,class T> constexpr bool chk_enum_tab(amap<E,T,N<E>> tab) {
+	for( E e : iota(All<E>) ) if (tab[+e].first!=e) return false/*ok*/ ;
+	/**/                                            return true /*ok*/ ;
+}
+
 // used to disambiguate some calls
 ENUM( NewType , New )
 static constexpr NewType New = NewType::New ;
@@ -1163,11 +1188,11 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 		[[maybe_unused]] bool _[] = {false,(err_msg<<' '<<args,false)...} ;
 		err_msg << '\n' ;
 		Fd::Stderr.write(err_msg) ;
-		set_sig_handler(sig,SIG_DFL) ;
+		set_sig_handler<SIG_DFL>(sig) ;
 		write_backtrace(Fd::Stderr,hide_cnt+1) ;
 		kill_self(sig) ;                         // rather than merely calling abort, this works even if crash_handler is not installed
 	}
-	set_sig_handler(SIGABRT,SIG_DFL) ;
+	set_sig_handler<SIG_DFL>(SIGABRT) ;
 	::abort() ;
 }
 

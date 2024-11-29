@@ -168,14 +168,6 @@ namespace Backends::Sge {
 			return {} ;
 		}
 
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
-			::uset_s  capa = mk_key_uset(capacity) ;
-			::vmap_ss res  ;
-			for( pair_ss& kv : rsrcs )
-				if (capa.contains(kv.first)) res.emplace_back(::move(kv)) ;
-			return res ;
-		}
-
 		virtual void open_req( Req req , JobIdx n_jobs ) {
 			Base::open_req(req,n_jobs) ;
 			::string const& prio = req->options.flag_args[+ReqFlag::Backend] ;

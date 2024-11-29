@@ -57,7 +57,7 @@ namespace Backends::Slurm {
 		uint32_t mem      = 0  ; // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is compulsery)
 		uint32_t tmp      = -1 ; // tmp disk in MB         (sbatch    --tmp           option) default : dont manage tmp size (provide infinite storage, reserv none)
 		::string excludes ;      // list of excludes nodes (sbatch -x,--exclude       option)
-		::string feature  ;      // feature/contraint      (sbatch -C,--constraint    option)
+		::string features ;      // features/contraint     (sbatch -C,--constraint    option)
 		::string gres     ;      // generic resources      (sbatch    --gres          option)
 		::string licenses ;      // licenses               (sbatch -L,--licenses      option)
 		::string nodes    ;      // list of required nodes (sbatch -w,--nodelist      option)
@@ -92,7 +92,7 @@ namespace std {
 				h.update(r.cpu     ) ;
 				h.update(r.mem     ) ;
 				h.update(r.tmp     ) ;
-				h.update(r.feature ) ;
+				h.update(r.features) ;
 				h.update(r.gres    ) ;
 				h.update(r.licenses) ;
 				h.update(r.part    ) ;
@@ -184,25 +184,44 @@ namespace Backends::Slurm {
 			trace("done") ;
 		}
 
+		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity , JobIdx ji ) const { // transform remote resources into local resources
+			Trace trace(BeChnl,"mk_lcl",rsrcs,ji) ;
+			::umap_s<size_t> capa   = mk_umap(capacity)             ;
+			RsrcsData        rd     { ::move(rsrcs) , daemon , ji } ;
+			::umap_s<size_t> lr     ;
+			::vmap_ss        res    ;
+			bool             single = false                         ;
+			for( RsrcsDataSingle const& rds : rd ) {
+				lr["cpu"] += rds.cpu ;
+				lr["mem"] += rds.mem ;
+				lr["tmp"] += rds.tmp ;
+				if (+rds.features) single = true ;
+				if (+rds.part    ) single = true ;
+				for( ::string const& r : {rds.gres,rds.licenses} )
+					if (+r)
+						for( ::string const& x : split(r,',') ) {
+							size_t   pos = x.rfind(':')    ;
+							::string k   = x.substr(0,pos) ;
+							if (pos==Npos)       lr[k] += 1                                   ;
+							else           try { lr[k] += from_string_rsrc(k,x.substr(pos+1)) ; } catch (::string const&) { single = true ; }
+						}
+			}
+			for( auto& [k,v] : lr ) {
+				auto it = capa.find(k) ;
+				if      (it==capa.end())   single = true ;
+				else if (v>it->second  ) { single = true ; res.emplace_back( ::move(k) , to_string_rsrc(k,it->second) ) ; }
+				else                                       res.emplace_back( ::move(k) , to_string_rsrc(k,v         ) ) ;
+			}
+			if (single) res.emplace_back( "<single>" , "1" ) ;
+			trace("done",res) ;
+			return res ;
+		}
+
 		virtual ::vmap_ss descr() const {
 			::vmap_ss res {
 				{ "manage memory" , daemon.manage_mem?"true":"false" }
 			} ;
 			for( auto const& [k,v] : daemon.licenses ) res.emplace_back(k,::to_string(v)) ;
-			return res ;
-		}
-
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
-			bool             single = false             ;
-			::umap_s<size_t> capa   = mk_umap(capacity) ;
-			::umap_s<size_t> rs     ;
-			for( auto&& [k,v] : rsrcs ) {
-				if      ( capa.contains(k)                     ) { size_t s = from_string_rsrc<size_t>(k,v) ; rs[::move(k)] = s ; } // capacities of local backend are only integer information
-				else if ( k=="gres" && !v.starts_with("shard") ) { single = true ;                                                }
-			}
-			::vmap_ss res ;
-			if (single) for( auto&& [k,v] : rs ) { ::string s = to_string_rsrc(k,        capa[k] ) ; res.emplace_back( ::move(k) , ::move(s) ) ; }
-			else        for( auto&& [k,v] : rs ) { ::string s = to_string_rsrc(k,::min(v,capa[k])) ; res.emplace_back( ::move(k) , ::move(s) ) ; }
 			return res ;
 		}
 
@@ -314,7 +333,7 @@ namespace Backends::Slurm {
 		if (+rsds.part             ) os <<','<< rsds.part      ;
 		if (+rsds.gres             ) os <<','<< rsds.gres      ;
 		if (+rsds.licenses         ) os <<','<< rsds.licenses  ;
-		if (+rsds.feature          ) os <<','<< rsds.feature   ;
+		if (+rsds.features         ) os <<','<< rsds.features  ;
 		if (+rsds.qos              ) os <<','<< rsds.qos       ;
 		if (+rsds.reserv           ) os <<','<< rsds.reserv    ;
 		if (+rsds.excludes         ) os <<','<< rsds.excludes  ;
@@ -333,10 +352,10 @@ namespace Backends::Slurm {
 	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d , JobIdx ji ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
 		sort(m) ;
 		for( auto&& [kn,v] : ::move(m) ) {
-			size_t           p    = kn.find(':')                                           ;
-			::string         k    = p==Npos ? ::move(kn) :               kn.substr(0  ,p)  ;
-			uint32_t         n    = p==Npos ? 0  : from_string<uint32_t>(kn.substr(p+1  )) ;
-			RsrcsDataSingle& rsds = grow(self,n)                                           ;
+			size_t           p    = kn.find(':')                                                   ;
+			::string         k    = p==Npos ? ::move(kn) :                       kn.substr(0  ,p)  ;
+			uint32_t         n    = p==Npos ? 0          : from_string<uint32_t>(kn.substr(p+1  )) ;
+			RsrcsDataSingle& rsds = grow(self,n)                                                   ;
 			//
 			auto chk_first = [&]()->void {
 				throw_unless( n==0 , k," is only for 1st component of job, not component ",n ) ;
@@ -346,7 +365,8 @@ namespace Backends::Slurm {
 				case 'm' : if (k=="mem"     ) { if (d.manage_mem)              rsds.mem      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ; // dont ask mem if not managed
 				case 't' : if (k=="tmp"     ) {                                rsds.tmp      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
 				case 'e' : if (k=="excludes") {                                rsds.excludes = ::move                              (v) ; continue ; } break ;
-				case 'f' : if (k=="feature" ) {                                rsds.feature  = ::move                              (v) ; continue ; } break ;
+				case 'f' : if (k=="features") {                                rsds.features = ::move                              (v) ; continue ; }
+				/**/       if (k=="feature" ) {                                rsds.features = ::move                              (v) ; continue ; } break ; // for backward compatibility
 				case 'g' : if (k=="gres"    ) {               _sort_entry(v) ; rsds.gres     = ::move                              (v) ; continue ; } break ; // normalize to favor resources sharing
 				case 'l' : if (k=="licenses") { chk_first() ; _sort_entry(v) ; rsds.licenses = ::move                              (v) ; continue ; } break ; // normalize to favor resources sharing
 				case 'n' : if (k=="nodes"   ) {                                rsds.nodes    = ::move                              (v) ; continue ; } break ;
@@ -354,14 +374,12 @@ namespace Backends::Slurm {
 				case 'q' : if (k=="qos"     ) {                                rsds.qos      = ::move                              (v) ; continue ; } break ;
 				case 'r' : if (k=="reserv"  ) {                                rsds.reserv   = ::move                              (v) ; continue ; } break ;
 			DN}
-			if ( auto it = d.licenses.find(k) ; it!=d.licenses.end() ) {
-				chk_first() ;
-				if (+rsds.licenses) rsds.licenses += ',' ;
-				rsds.licenses += k+':'+v ;
-				continue ;
-			}
-			throw "no resource "+k+" for backend "+MyTag ;
+			if ( auto it = d.licenses.find(k) ; it==d.licenses.end() ) {               { if ( +rsds.gres     && rsds.gres    .back()!=',' ) rsds.gres     += ',' ; } rsds.gres     += k+':'+v+',' ; }
+			else                                                       { chk_first() ; { if ( +rsds.licenses && rsds.licenses.back()!=',' ) rsds.licenses += ',' ; } rsds.licenses += k+':'+v+',' ; }
 		}
+		for( RsrcsDataSingle& rsds : self )    if ( +rsds.gres     && rsds.gres    .back()==',' ) rsds.gres    .pop_back() ;
+		/**/ RsrcsDataSingle& rsds = self[0] ; if ( +rsds.licenses && rsds.licenses.back()==',' ) rsds.licenses.pop_back() ;                                  // licenses are only for first job step
+		//
 		if ( d.manage_mem && !self[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule()->full_name()+".resources={'mem':'1M'}" ;
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
@@ -381,7 +399,7 @@ namespace Backends::Slurm {
 				if ( force1.mem              ) rsrcs[i].mem      = force1.mem      ;
 				if ( force1.tmp!=uint32_t(-1)) rsrcs[i].tmp      = force1.tmp      ;
 				if (+force1.excludes         ) rsrcs[i].excludes = force1.excludes ;
-				if (+force1.feature          ) rsrcs[i].feature  = force1.feature  ;
+				if (+force1.features         ) rsrcs[i].features = force1.features ;
 				if (+force1.gres             ) rsrcs[i].gres     = force1.gres     ;
 				if (+force1.licenses         ) rsrcs[i].licenses = force1.licenses ;
 				if (+force1.nodes            ) rsrcs[i].nodes    = force1.nodes    ;
@@ -506,7 +524,7 @@ namespace Backends::Slurm {
 				if (opts.count("cpus-per-task")) res1.cpu      = opts["cpus-per-task"].as<uint16_t>() ;
 				if (opts.count("mem"          )) res1.mem      = opts["mem"          ].as<uint32_t>() ;
 				if (opts.count("tmp"          )) res1.tmp      = opts["tmp"          ].as<uint32_t>() ;
-				if (opts.count("constraint"   )) res1.feature  = opts["constraint"   ].as<::string>() ;
+				if (opts.count("constraint"   )) res1.features = opts["constraint"   ].as<::string>() ;
 				if (opts.count("exclude"      )) res1.excludes = opts["exclude"      ].as<::string>() ;
 				if (opts.count("gres"         )) res1.gres     = opts["gres"         ].as<::string>() ;
 				if (opts.count("licenses"     )) res1.licenses = opts["licenses"     ].as<::string>() ;
@@ -659,7 +677,7 @@ namespace Backends::Slurm {
 			/**/                     j.work_dir        = wd.data()                                                     ;
 			//
 			if(+r.excludes) j.exc_nodes     = const_cast<char*>(r.excludes.data()) ;
-			if(+r.feature ) j.features      = const_cast<char*>(r.feature .data()) ;
+			if(+r.features) j.features      = const_cast<char*>(r.features.data()) ;
 			if(+r.licenses) j.licenses      = const_cast<char*>(r.licenses.data()) ;
 			if(+r.nodes   ) j.req_nodes     = const_cast<char*>(r.nodes   .data()) ;
 			if(+r.part    ) j.partition     = const_cast<char*>(r.part    .data()) ;

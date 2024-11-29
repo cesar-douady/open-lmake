@@ -278,15 +278,6 @@ Fail :
 
 thread_local char t_thread_key = '?' ;
 
-void set_sig_handler( int sig , void (*handler)(int) ) {
-	sigset_t         empty  ; ::sigemptyset(&empty) ;
-	struct sigaction action ;
-	action.sa_handler = handler    ;
-	action.sa_mask    = empty      ;
-	action.sa_flags   = SA_RESTART ;
-	::sigaction( sig , &action , nullptr ) ;
-}
-
 #if HAS_STACKTRACE
 
 	// /!\ if called from signal handler, we should not use malloc, but stupid ::stacktrace does not provide customized allocators, so hope or the best
