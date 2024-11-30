@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "config.hh"
+#include "types.hh"
 
 #include "app.hh"
 #include "serialize.hh"
@@ -31,7 +31,6 @@ ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other comma
 ,	Delete     // if proc==Mark
 ,	Deps       // if proc==Show
 ,	Env        // if proc==Show
-,	Error      // if proc==Forget, forget previous error, i.e. rerun targets in error that appear up-to-date
 ,	Info       // if proc==Show
 ,	InvDeps    // if proc==Show
 ,	InvTargets // if proc==Show
@@ -105,7 +104,7 @@ using ReqCmdLine = CmdLine<ReqKey,ReqFlag> ;
 static constexpr char ServerMrkr[] = ADMIN_DIR_S "server" ;
 
 struct ReqOptions {
-	friend ::ostream& operator<<( ::ostream& , ReqOptions const& ) ;
+	friend ::string& operator+=( ::string& , ReqOptions const& ) ;
 	// cxtors & casts
 	ReqOptions() = default ;
 	//
@@ -140,7 +139,7 @@ struct ReqOptions {
 } ;
 
 struct ReqRpcReq {
-	friend ::ostream& operator<<( ::ostream& , ReqRpcReq const& ) ;
+	friend ::string& operator+=( ::string& , ReqRpcReq const& ) ;
 	using Proc = ReqProc ;
 	// cxtors & casts
 	ReqRpcReq() = default ;
@@ -161,7 +160,7 @@ struct ReqRpcReq {
 } ;
 
 struct ReqRpcReply {
-	friend ::ostream& operator<<( ::ostream& , ReqRpcReply const& ) ;
+	friend ::string& operator+=( ::string& , ReqRpcReply const& ) ;
 	using Proc = ReqRpcReplyProc ;
 	// cxtors & casts
 	ReqRpcReply(                          ) = default ;
@@ -169,7 +168,6 @@ struct ReqRpcReply {
 	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Txt ) ; }
 	//
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) *this = {} ;
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::None   :                   break ;

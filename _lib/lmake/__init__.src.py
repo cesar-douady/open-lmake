@@ -23,7 +23,7 @@ import os      as _os
 import os.path as _osp
 
 try :
-	if _sys.version_info.major<3 : from clmake2 import * # if not in an lmake repo, root_dir is not set to current dir
+	if _sys.version_info.major<3 : from clmake2 import * # if not in an lmake repo, top_root_dir is not set to current dir
 	else                         : from clmake  import * # .
 	_has_clmake = True
 except :
@@ -32,16 +32,23 @@ except :
 
 from .utils import *
 
+root_dir     = _os.environ.get('ROOT_DIR'    )
+top_root_dir = _os.environ.get('TOP_ROOT_DIR')
+if root_dir    ==None : root_dir     = _os.getcwd() ; # fall back if not within a job
+if top_root_dir==None : top_root_dir = _os.getcwd() ; # .
+
 version = ('$VERSION',0) # substituted at build time
 
 def check_version(major,minor=0) :
 	if major!=version[0] or minor>version[1] : raise RuntimeError('required version '+str((major,minor))+' is incompatible with native version '+str(version))
 
+def maybe_local(file) :
+	'fast check for local files, avoiding full absolute path generation'
+	return not file or file[0]!='/' or file.startswith(top_root_dir)
+
+from .config import config
 manifest = []
 _rules   = []
-
-if _os.environ.get('LMAKE_ACTION') :
-	from .config import config
 
 class Autodep :
 	"""

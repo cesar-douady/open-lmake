@@ -46,13 +46,15 @@ else :
 
 	print('',file=open('codec_file','w'))
 
-	ut.lmake( 'codec_sh.ok' , 'codec_py.ok' , refresh=1   , new=1 , done=4 )
-	ut.lmake( 'codec_sh'    , 'codec_py.ok' , refresh=... , changed=...    ) # check nothing is remade, refresh & changed may be 0 or 1
+	ut.lmake      ( 'codec_sh.ok' , 'codec_py.ok' , refresh=1   , new=1 , done=4 )
+	cnt = ut.lmake( 'codec_sh'    , 'codec_py.ok' , refresh=... , changed=...    )
+	assert cnt.refresh in (0,1) and cnt.changed in (0,1)                           # depend on job order and crc details
 
 	os.unlink('codec_sh')
 	os.unlink('codec_py')
 
-	ut.lmake( 'codec_sh' , 'codec_py' , changed=... , steady=2 )
+	cnt = ut.lmake( 'codec_sh' , 'codec_py' , changed=... , steady=2 )
+	assert cnt.changed in (0,1)                                        # depend on previous job order and crc details
 
 	print(file=open('codec_file','a'))
 	ut.lmake( 'codec_sh' , 'codec_py' , refresh=1 , changed=1 )

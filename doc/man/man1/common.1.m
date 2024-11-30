@@ -60,7 +60,7 @@ define(`ClientOptions',`
 	Passed arguments are interpreted as job names rather than as file names.
 	Job names are the names that appear, for example, on start and done lines when B(lmake) executes a job.
 	Item(B(-R) I(rule),B(--rule)=I(rule))
-	When the B(-J) option is used, this options allows the specification of a rule, given by its name.
+	When the I(--job) option is used, this options allows the specification of a rule, given by its name.
 	This is necessary when the job name is ambiguous as several rules may lead to the same job name.
 	Item(B(-q),B(--quiet))
 	Do not generate user oriented messages.

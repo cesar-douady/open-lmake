@@ -37,56 +37,58 @@ namespace Hash {
 	//
 
 	struct Crc {
-		friend ::ostream& operator<<( ::ostream& , Crc const ) ;
-		static constexpr uint8_t NChkBits = 8 ;                  // as Crc may be used w/o protection against collision, ensure we have some margin
+		friend ::string& operator+=( ::string& , Crc const ) ;
+		using Val = uint64_t ;
+		static constexpr uint8_t NChkBits = 8 ;                       // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
-		static constexpr uint64_t ChkMsk = ~lsb_msk<uint64_t>(NChkBits) ;
-
+		static constexpr Val ChkMsk = ~lsb_msk<Val>(NChkBits) ;
+		//
 		static const Crc Unknown ;
 		static const Crc Lnk     ;
 		static const Crc Reg     ;
 		static const Crc None    ;
 		static const Crc Empty   ;
 		// statics
-		static bool s_sense( Accesses a , FileTag t ) {                // return whether accesses a can see the difference between files with tag t
+		static bool s_sense( Accesses a , FileTag t ) {               // return whether accesses a can see the difference between files with tag t
 			Crc crc{t} ;
 			return !crc.match(crc,a) ;
 		}
 		// cxtors & casts
-		constexpr Crc(                          ) = default ;
-		constexpr Crc( uint64_t v , bool is_lnk ) : _val{bit(v,0,is_lnk)} {}
+		constexpr Crc(                            ) = default ;
+		constexpr Crc( Val v , Bool3 is_lnk=Maybe ) : _val{ is_lnk==Maybe ? v : (v&~Val(1))|Val(is_lnk==Yes) } {}
 		constexpr Crc(FileTag tag) {
 			switch (tag) {
 				case FileTag::None  :
-				case FileTag::Dir   : *this = Crc::None  ; break ;
-				case FileTag::Lnk   : *this = Crc::Lnk   ; break ;
+				case FileTag::Dir   : self = Crc::None  ; break ;
+				case FileTag::Lnk   : self = Crc::Lnk   ; break ;
 				case FileTag::Reg   :
-				case FileTag::Exe   : *this = Crc::Reg   ; break ;
-				case FileTag::Empty : *this = Crc::Empty ; break ;
+				case FileTag::Exe   : self = Crc::Reg   ; break ;
+				case FileTag::Empty : self = Crc::Empty ; break ;
 			DF}
 		}
 		Crc(                             ::string const& filename ) ;
 		Crc( Disk::FileSig&/*out*/ sig , ::string const& filename ) {
-			sig   = Disk::FileSig(filename) ;
-			*this = Crc(filename)         ;
-			if (Disk::FileSig(filename)!=sig) *this = Crc(sig.tag()) ; // file was moving, association date<=>crc is not reliable
+			sig  = Disk::FileSig(filename) ;
+			self = Crc(filename)         ;
+			if (Disk::FileSig(filename)!=sig) self = Crc(sig.tag()) ; // file was moving, association date<=>crc is not reliable
 		}
 	private :
 		constexpr Crc( CrcSpecial special ) : _val{+special} {}
 		//
 		constexpr operator CrcSpecial() const { return _val>=+CrcSpecial::Plain ? CrcSpecial::Plain : CrcSpecial(_val) ; }
+		// accesses
 	public :
 		explicit operator ::string() const ;
-		// accesses
-		constexpr bool              operator== (Crc const& other) const = default ;
-		constexpr ::strong_ordering operator<=>(Crc const& other) const = default ;
-		constexpr uint64_t          operator+  (                ) const { return  _val                                             ; }
-		constexpr bool              operator!  (                ) const { return !+*this                                           ; }
-		constexpr bool              valid      (                ) const { return _val>=+CrcSpecial::Valid                          ; }
-		constexpr bool              exists     (                ) const { return +*this && *this!=None                             ; }
-		/**/      void              clear      (                )       { *this = {}                                               ; }
-		constexpr bool              is_lnk     (                ) const { return _plain() ?   _val&0x1  : *this==Lnk               ; }
-		constexpr bool              is_reg     (                ) const { return _plain() ? !(_val&0x1) : *this==Reg||*this==Empty ; }
+		::string hex              () const ;
+		//
+		constexpr bool              operator== (Crc const&) const = default ;
+		constexpr ::strong_ordering operator<=>(Crc const&) const = default ;
+		constexpr Val               operator+  (          ) const { return  _val                                           ; }
+		constexpr bool              valid      (          ) const { return _val>=+CrcSpecial::Valid                        ; }
+		constexpr bool              exists     (          ) const { return +self && self!=None                             ; }
+		/**/      void              clear      (          )       { self = {}                                              ; }
+		constexpr bool              is_lnk     (          ) const { return _plain() ?   _val&0x1  : self==Lnk              ; }
+		constexpr bool              is_reg     (          ) const { return _plain() ? !(_val&0x1) : self==Reg||self==Empty ; }
 	private :
 		constexpr bool _plain() const { return _val>=N<CrcSpecial> ; }
 		// services
@@ -95,7 +97,7 @@ namespace Hash {
 		Accesses diff_accesses( Crc other                          ) const ;
 		bool     never_match  (             Accesses a=~Accesses() ) const ;
 	private :
-		uint64_t _val = +CrcSpecial::Unknown ;
+		Val _val = +CrcSpecial::Unknown ;
 	} ;
 
 	template<class T        > struct IsUnstableIterableHelper ;                                                       // unable to generate hash of unordered containers
@@ -130,21 +132,21 @@ namespace Hash {
 		//
 		template<_SimpleUpdate T> Xxh& update( T const* p , size_t sz ) {
 			_update( p , sizeof(*p)*sz ) ;
-			return *this ;
+			return self ;
 		}
 		template<_SimpleUpdate T> Xxh& update(T const& x) {
 			::array<char,sizeof(x)> buf = ::bit_cast<array<char,sizeof(x)>>(x) ;
 			_update( &buf , sizeof(x) ) ;
-			return *this ;
+			return self ;
 		}
-		/**/                                                                      Xxh& update(::string const& s ) { update(s.size()) ; update(s.data(),s.size()) ; return *this ; }
-		template<class T> requires( !_SimpleUpdate<T> && !IsUnstableIterable<T> ) Xxh& update( T       const& x ) { update(serialize(x)) ;                         return *this ; }
+		/**/                                                                      Xxh& update(::string const& s ) { update(s.size()) ; update(s.data(),s.size()) ; return self ; }
+		template<class T> requires( !_SimpleUpdate<T> && !IsUnstableIterable<T> ) Xxh& update( T       const& x ) { update(serialize(x)) ;                         return self ; }
 		template<class T> requires(                       IsUnstableIterable<T> ) Xxh& update( T       const& x ) = delete ;
 	private :
 		void _update( const void* p , size_t sz ) ;
 		// data
 	public :
-		bool is_lnk = false ;
+		Bool3 is_lnk = Maybe ;
 	private :
 		XXH3_state_t _state ;
 	} ;
@@ -160,7 +162,7 @@ namespace Hash {
 	constexpr Crc Crc::Empty  {CrcSpecial::Empty  } ;
 
 	inline bool Crc::never_match(Accesses a) const {
-		switch (*this) {
+		switch (self) {
 			case Unknown : return +a              ;
 			case Lnk     : return  a[Access::Lnk] ;
 			case Reg     : return  a[Access::Reg] ;

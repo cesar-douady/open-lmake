@@ -58,7 +58,7 @@ struct Elf {
 		DynDigest( NewType ) {
 			void*       main = ::dlopen(nullptr,RTLD_NOW|RTLD_NOLOAD) ; if (!main                                ) return ;
 			::link_map* lm   = nullptr/*garbage*/                     ; if (::dlinfo(main,RTLD_DI_LINKMAP,&lm)!=0) return ;
-			*this = DynDigest(lm->l_ld) ;
+			self = DynDigest(lm->l_ld) ;
 		}
 		// data
 		::vector<const char*> neededs ;
@@ -71,7 +71,7 @@ struct Elf {
 	// cxtors & casts
 	Elf( Record& r_ , ::string const& exe , const char* llp , const char* rp=nullptr ) : r{&r_} , ld_library_path{s_expand(llp,exe)} , rpath{s_expand(rp,exe)} {
 		if (!llp) return ;
-		::string const& root_s = Record::s_autodep_env().root_dir_s ; SWEAR(+root_s) ; // root_s contains at least /
+		::string const& root_s = Record::s_autodep_env().root_dir_s ; SWEAR(+root_s) ;    // root_s contains at least /
 		size_t          sz     = root_s.size()-1 ;
 		bool start = true ;
 		for( const char* p=llp ; *p ; p++ ) {
@@ -91,9 +91,9 @@ struct Elf {
 	// data
 	Record*                   r               = nullptr/*garbage*/ ;
 	::string                  ld_library_path ;
-	::string                  rpath           ;                                                                    // DT_RPATH or DT_RUNPATH entry
+	::string                  rpath           ;                                           // DT_RPATH or DT_RUNPATH entry
 	::umap_s<Bool3/*exists*/> seen            = {}                 ;
-	bool                      simple_llp      = false              ;                                               // if true => ld_library_path contains no dir to the repo
+	bool                      simple_llp      = false              ;                      // if true => ld_library_path contains no dir to the repo
 } ;
 
 Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
@@ -106,7 +106,7 @@ Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
 	if ( ehdr.e_ident[EI_CLASS]              != (Is64Bits                       ?ELFCLASS64 :ELFCLASS32 ) ) throw 4 ; // bad word width : .
 	if ( ehdr.e_ident[EI_DATA ]              != (::endian::native==::endian::big?ELFDATA2MSB:ELFDATA2MSB) ) throw 5 ; // bad endianness : .
 	//
-	for( size_t i=0 ; i<ehdr.e_phnum ; i++ ) {
+	for( size_t i : iota(ehdr.e_phnum) ) {
 		size_t      phdr_offset = ehdr.e_phoff + i*ehdr.e_phentsize ;
 		Phdr const& phdr        = file_map.get<Phdr>(phdr_offset)   ;
 		if (phdr.p_type==PT_DYNAMIC) {
@@ -119,7 +119,7 @@ DoSection :
 	size_t string_shdr_offset = ehdr.e_shoff + ehdr.e_shstrndx*ehdr.e_shentsize  ;
 	size_t string_offset      = file_map.get<Shdr>(string_shdr_offset).sh_offset ;
 	//
-	for( size_t i=0 ; i<ehdr.e_shnum ; i++ ) {
+	for( size_t i : iota(ehdr.e_shnum) ) {
 		size_t      shdr_offset  = ehdr.e_shoff + i*ehdr.e_shentsize ;
 		Shdr const& shdr         = file_map.get<Shdr>(shdr_offset)   ;
 		size_t      shdr_name    = string_offset + shdr.sh_name      ;
@@ -134,7 +134,7 @@ DoSection :
 template<class T> T const& Elf::DynDigest::_s_vma_to_ref( size_t vma , FileMap const& file_map ) {
 	if (!file_map) return *reinterpret_cast<const T*>(vma) ;
 	Ehdr const& ehdr = file_map.get<Ehdr>() ;
-	for( size_t i=0 ; i<ehdr.e_phnum ; i++ ) {
+	for( size_t i : iota(ehdr.e_phnum) ) {
 		Phdr const& phdr = file_map.get<Phdr>( ehdr.e_phoff + i*ehdr.e_phentsize ) ;
 		if ( phdr.p_type!=PT_LOAD                                                  ) continue ;
 		if ( vma<(phdr.p_vaddr&-phdr.p_align) || vma>=(phdr.p_vaddr+phdr.p_filesz) ) continue ;
@@ -184,14 +184,16 @@ static ::string _mk_origin(::string const& exe) {
 	else      { static ::string abs_exe = read_lnk("/proc/self/exe")                     ; return no_slash(dir_name_s(abs_exe)) ; }
 } ;
 ::string Elf::s_expand( const char* txt , ::string const& exe ) {
+	static constexpr const char* LdSoLib   =                 LD_SO_LIB              ;
+	static constexpr const char* LdSoLib32 = LD_SO_LIB_32[0]?LD_SO_LIB_32:LD_SO_LIB ; // on 32 bits systems, there is only 32 bits apps and info is in LD_SO_LIB
 	if (!txt) return {} ;
 	const char* ptr = ::strchrnul(txt,'$') ;
 	::string    res { txt , ptr }          ;
-	while (*ptr) {                           // INVARIANT : *ptr=='$', result must be res+ptr if no further substitution
+	while (*ptr) {                                                                    // INVARIANT : *ptr=='$', result must be res+ptr if no further substitution
 		bool        brace = ptr[1]=='{' ;
 		const char* p1    = ptr+1+brace ;
 		if      ( ::memcmp(p1,"ORIGIN"  ,6)==0 && (!brace||p1[6]=='}') ) { res += _mk_origin(exe)                                         ; ptr = p1+6+brace ; }
-		else if ( ::memcmp(p1,"LIB"     ,3)==0 && (!brace||p1[3]=='}') ) { res += Is64Bits?"lib64":"lib"                                  ; ptr = p1+3+brace ; } // XXX : find reliable libs
+		else if ( ::memcmp(p1,"LIB"     ,3)==0 && (!brace||p1[3]=='}') ) { res += Is64Bits?LdSoLib:LdSoLib32                              ; ptr = p1+3+brace ; }
 		else if ( ::memcmp(p1,"PLATFORM",8)==0 && (!brace||p1[8]=='}') ) { res += reinterpret_cast<const char*>(::getauxval(AT_PLATFORM)) ; ptr = p1+8+brace ; }
 		else                                                             { res += *ptr                                                    ; ptr++            ; }
 		const char* new_ptr = ::strchrnul(ptr,'$') ;
@@ -212,10 +214,10 @@ Record::ReadCS Elf::search_elf( ::string const& file , ::string const& runpath ,
 	}
 	//
 	::string path ;
-	if (+rpath          ) path << rpath           << ':'            ;
-	if (+ld_library_path) path << ld_library_path << ':'            ;
-	if (+runpath        ) path << runpath         << ':'            ;
-	/**/                  path << "/lib:/usr/lib:/lib64:/usr/lib64" ;                                                      // XXX : find a reliable way to get default directories
+	if (+rpath          ) path << rpath           <<':'                           ;
+	if (+ld_library_path) path << ld_library_path <<':'                           ;
+	if (+runpath        ) path << runpath         <<':'                           ;
+	/**/                  path << (Is64Bits?STD_LIBRARY_PATH:STD_LIBRARY_PATH_32) ;
 	//
 	for( size_t pos=0 ;;) {
 		size_t end = path.find(':',pos) ;

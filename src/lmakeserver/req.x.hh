@@ -41,7 +41,7 @@ namespace Engine {
 	struct Req
 	:	             Idxed<ReqIdx>
 	{	using Base = Idxed<ReqIdx> ;
-		friend ::ostream& operator<<( ::ostream& , Req const ) ;
+		friend ::string& operator+=( ::string& , Req const ) ;
 		using ErrReport = ::vmap<Node,DepDepth/*lvl*/> ;
 		// init
 		static void s_init() {}
@@ -69,15 +69,18 @@ namespace Engine {
 		// cxtors & casts
 	public :
 		using Base::Base ;
-		Req(NewType) : Base{s_small_ids.acquire()} {}
+		Req(NewType) {
+			throw_unless( s_small_ids.n_acquired<(size_t(1)<<NReqIdxBits)-1 , "cannot run an additional command, already ",s_small_ids.n_acquired," are running" ) ;
+			*this = {s_small_ids.acquire()} ;
+		}
 		// accesses
 		ReqData const& operator* () const ;
 		ReqData      & operator* ()       ;
-		ReqData const* operator->() const { return &**this ; }
-		ReqData      * operator->()       { return &**this ; }
+		ReqData const* operator->() const { return &*self ; }
+		ReqData      * operator->()       { return &*self ; }
 		//
-		bool zombie(      ) const { return _s_zombie_tab[+*this] ;              }                          // req has been killed, waiting to be closed when all jobs are done
-		void zombie(bool z)       { SWEAR(+*this) ; _s_zombie_tab[+*this] = z ; }                          // ensure Req 0 is always zombie
+		bool zombie(      ) const { return _s_zombie_tab[+self] ;             }                            // req has been killed, waiting to be closed when all jobs are done
+		void zombie(bool z)       { SWEAR(+self) ; _s_zombie_tab[+self] = z ; }                            // ensure Req 0 is always zombie
 		// services
 		void make   (EngineClosureReq const&) ;
 		void kill   (                       ) ;
@@ -108,8 +111,8 @@ namespace Engine {
 		JobIdx const& cur(JobStep i) const { SWEAR( s_valid_cur(i) ) ; return _cur[s_mk_idx(i)] ; }
 		JobIdx      & cur(JobStep i)       { SWEAR( s_valid_cur(i) ) ; return _cur[s_mk_idx(i)] ; }
 		//
-		JobIdx cur () const { JobIdx res = 0 ; for( JobStep   i  : All<JobStep  > ) if (s_valid_cur(i)     ) res+=cur  (i)   ; return res ; }
-		JobIdx done() const { JobIdx res = 0 ; for( JobReport jr : All<JobReport> ) if (jr<=JobReport::Done) res+=ended[+jr] ; return res ; }
+		JobIdx cur () const { JobIdx res = 0 ; for( JobStep   i  : iota(All<JobStep>     ) ) if (s_valid_cur(i)) res+=cur  (i)   ; return res ; }
+		JobIdx done() const { JobIdx res = 0 ; for( JobReport jr : iota(JobReport::Done+1) )                     res+=ended[+jr] ; return res ; }
 		//
 		void add( JobReport jr , Delay exec_time={} ) {                       ended[+jr] += 1 ; jobs_time[+jr] += exec_time ; }
 		void sub( JobReport jr , Delay exec_time={} ) { SWEAR(ended[+jr]>0) ; ended[+jr] -= 1 ; jobs_time[+jr] -= exec_time ; }
@@ -126,7 +129,7 @@ namespace Engine {
 	} ;
 
 	struct JobAudit {
-		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
+		friend ::string& operator+=( ::string& os , JobAudit const& ) ;
 		// data
 		JobReport report      = {} /*garbage*/ ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
 		::string  backend_msg ;
@@ -143,7 +146,7 @@ namespace Engine {
 
 	struct ReqInfo {
 		friend Req ;
-		friend ::ostream& operator<<( ::ostream& , ReqInfo const& ) ;
+		friend ::string& operator+=( ::string& , ReqInfo const& ) ;
 		using Idx    = ReqIdx    ;
 		static constexpr uint8_t NWatchers  = sizeof(::vector<Watcher>*)/sizeof(Watcher) ; // size of array that fits within the layout of a pointer
 		static constexpr uint8_t VectorMrkr = NWatchers+1                                ; // special value to mean that watchers are in vector
@@ -161,7 +164,7 @@ namespace Engine {
 		 	if (_n_watchers==VectorMrkr) delete _watchers_v ;
 			else                         _watchers_a.~array () ;
 		 }
-		ReqInfo(ReqInfo&& ri) { *this = ::move(ri) ; }
+		ReqInfo(ReqInfo&& ri) { self = ::move(ri) ; }
 		ReqInfo& operator=(ReqInfo&& ri) {
 			n_wait   = ri.n_wait   ;
 			live_out = ri.live_out ;
@@ -172,7 +175,7 @@ namespace Engine {
 			_n_watchers = ri._n_watchers ;
 			if (_n_watchers==VectorMrkr) _watchers_v = new ::vector<Watcher          >{::move(*ri._watchers_v)} ;
 			else                         new(&_watchers_a) ::array <Watcher,NWatchers>{::move( ri._watchers_a)} ;
-			return *this ;
+			return self ;
 		}
 		// acesses
 		void       inc_wait    ()       {                 n_wait++ ; SWEAR(n_wait) ;                       }
@@ -237,8 +240,7 @@ namespace Engine {
 	public :
 		void clear() ;
 		// accesses
-		bool   operator+() const {                    return +job                                                ; }
-		bool   operator!() const {                    return !+*this                                             ; }
+		bool   operator+() const {                    return +job                                               ; }
 		bool   is_open  () const {                    return idx_by_start!=Idx(-1)                               ; }
 		JobIdx n_running() const {                    return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
 		Req    req      () const { SWEAR(is_open()) ; return Req::s_reqs_by_start[idx_by_start]                  ; }
@@ -246,10 +248,10 @@ namespace Engine {
 		void audit_summary(bool err) const ;
 		//
 		#define SC ::string const
-		//                                                                                                                                                          as_is
-		void audit_info      ( Color c , SC& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t+' '+Disk::mk_file(lt) , false , l ) ; }
-		void audit_info      ( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t                       , false , l ) ; }
-		void audit_info_as_is( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t                       , true  , l ) ; }
+		//                                                                                                                                                      as_is
+		void audit_info      ( Color c , SC& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t+' '+Disk::mk_file(lt) , false , l ) ; }
+		void audit_info      ( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , false , l ) ; }
+		void audit_info_as_is( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , true  , l ) ; }
 		void audit_node      ( Color c , SC& p , Node n             , DepDepth l=0 ) const ;
 		//
 		void audit_job( Color , Pdate , SC& step , SC& rule_name , SC& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
@@ -265,6 +267,8 @@ namespace Engine {
 		void         audit_stats (                                                                                                ) const ;
 		bool/*seen*/ audit_stderr( Job , ::string const& msg , ::string const& stderr , size_t max_stderr_len=-1 , DepDepth lvl=0 ) const ;
 	private :
+		void _open_log() ;
+		//
 		bool/*overflow*/ _send_err      ( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl=0 ) ;
 		void             _report_no_rule( Node , Disk::NfsGuard&                                                         , DepDepth lvl=0 ) ;
 		// data
@@ -277,8 +281,8 @@ namespace Engine {
 		::umap<Job,JobAudit> missing_audits ;
 		ReqStats             stats          ;
 		Fd                   audit_fd       ;           // to report to user
-		OFStream mutable     log_stream     ;           // saved output
-		Job      mutable     last_info      ;           // used to identify last message to generate an info line in case of ambiguity
+		AcFd                 log_fd         ;           // saved output
+		Job mutable          last_info      ;           // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
 		Pdate                start_pdate    ;
 		Ddate                start_ddate    ;
@@ -304,8 +308,8 @@ namespace Engine {
 	// Req
 	//
 
-	inline ReqData const& Req::operator*() const { return s_store[+*this] ; }
-	inline ReqData      & Req::operator*()       { return s_store[+*this] ; }
+	inline ReqData const& Req::operator*() const { return s_store[+self] ; }
+	inline ReqData      & Req::operator*()       { return s_store[+self] ; }
 
 	inline ::vmap<Req,Pdate> Req::s_etas() {
 		Lock              lock { s_reqs_mutex } ;
@@ -320,20 +324,20 @@ namespace Engine {
 
 	inline void Req::alloc() {
 		Lock lock{s_reqs_mutex} ;
-		grow(s_store,+*this) ;
+		grow(s_store,+self) ;
 	}
 
 	inline void Req::dealloc() {
-		s_small_ids.release(+*this) ;
-		(*this)->clear() ;
+		s_small_ids.release(+self) ;
+		self->clear() ;
 	}
 
 	//
 	// ReqData
 	//
 
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , in_addr_t h , Delay et ) const { audit_job( c , d , s , j->rule->name , j->name() , h       , et ) ; }
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je   , Delay et ) const { audit_job( c , d , s , je                        , je.host , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , in_addr_t h , Delay et ) const { audit_job( c , d , s , j->rule()->name , j->name() , h       , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je   , Delay et ) const { audit_job( c , d , s , je                          , je.host , et ) ; }
 
 	inline void ReqData::audit_node( Color c , ::string const& p , Node n , DepDepth l ) const { audit_info( c , p , +n?n->name():""s , l )  ; }
 

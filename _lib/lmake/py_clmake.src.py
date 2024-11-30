@@ -22,7 +22,7 @@ def _bin(f) : return _bin_dir_s+f
 #
 def depend(
 	*args
-,	critical=False , essential=False , ignore_error=False , required=True , ignore=False , stat_read_data=False
+,	critical=False , essential=False , ignore_error=False , required=True , ignore=False
 ,	follow_symlinks=False , read=True , verbose=False
 ) :
 	assert not verbose,'verbose is not supported without dynamic python librairy'
@@ -32,7 +32,6 @@ def depend(
 	if     ignore_error    : cmd_line.append('--ignore-error'   )
 	if not required        : cmd_line.append('--no-required'    )
 	if     ignore          : cmd_line.append('--ignore'         )
-	if     stat_read_data  : cmd_line.append('--stat-read-data' )
 	if     follow_symlinks : cmd_line.append('--follow-symlinks')
 	if not read            : cmd_line.append('--no-read'        )
 	cmd_line += args
@@ -63,17 +62,16 @@ def check_deps(                      ) :        _run((_bin('lcheck_deps'),      
 def get_autodep(      ) : return True                                                                                           # placeholder
 def set_autodep(enable) : pass                                                                                                  # .
 #
-if 'ROOT_DIR' in _os.environ :
-	root_dir = _os.environ['ROOT_DIR']
+if 'TOP_ROOT_DIR' in _os.environ :
+	top_root_dir = _os.environ['TOP_ROOT_DIR']
 else :
 	root_dir = _os.getcwd()
 	while root_dir!='/' and not _osp.exists(root_dir+'/Lmakefile.py') : root_dir = _osp.dirname(root_dir)                       # avoid searching Lmakefile.py to avoid new dependency
 	if not root_dir : del root_dir
 #
 autodeps = ()
-if "$HAS_FUSE"     : autodeps += ('fuse'    ,)
-if "$HAS_LD_AUDIT" : autodeps += ('ld_audit',)
-autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
+if "$HAS_LD_AUDIT" : autodeps += ('ld_audit',                                )
+if True            : autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
 #
 backends = ('local',)
 if "$HAS_SGE"   : backends += ('sge'  ,)

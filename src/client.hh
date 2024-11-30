@@ -18,8 +18,8 @@ struct AutoCloseFdPair {
 	//
 	AutoCloseFdPair& operator=(AutoCloseFdPair&&) = default ;
 	// data
-	Fd          in  ;                                                          // close only once
-	AutoCloseFd out ;
+	Fd   in  ; // close only once
+	AcFd out ;
 } ;
 
 extern AutoCloseFdPair g_server_fds ;

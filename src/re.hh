@@ -55,11 +55,10 @@ namespace Re {
 				if (_data) pcre2_match_data_free(_data) ;
 			}
 			//
-			Match           (Match&& m) { swap(*this,m) ;                }
-			Match& operator=(Match&& m) { swap(*this,m) ; return *this ; }
+			Match           (Match&& m) { swap(self,m) ;               }
+			Match& operator=(Match&& m) { swap(self,m) ; return self ; }
 			// accesses
 			bool operator+() const { return _data && pcre2_get_ovector_pointer(_data)[0]!=PCRE2_UNSET ; }
-			bool operator!() const { return !+*this                                                   ; }
 			//
 			::string_view operator[](size_t i) const {
 				PCRE2_SIZE const* v = pcre2_get_ovector_pointer(_data) ;
@@ -80,11 +79,66 @@ namespace Re {
 			friend Match ;
 			friend void swap( RegExpr& a , RegExpr& b ) ;
 			using Use = RegExprUse ;
-			static constexpr size_t ErrMsgSz = 120 ;                                 // per PCRE doc
+			static constexpr size_t ErrMsgSz = 120 ;                                               // per PCRE doc
 			struct Cache {
 				// cxtors & casts
-				void serdes(::ostream&) const ;
-				void serdes(::istream&) ;
+				template<IsOStream S> void serdes(S& os) const {
+					// START_OF_VERSIONING
+					::vector_s        keys  ;
+					::vector<uint8_t> bytes ;
+					// END_OF_VERSIONING
+					uint8_t*                    buf     = nullptr ;
+					PCRE2_SIZE                  cnt     = 0       ;
+					::vector<pcre2_code      *> created ;
+					::vector<pcre2_code const*> codes   ;           codes.reserve(_cache.size()) ; // include useless unused entries, not a big deal
+					/**/                                            keys .reserve(_cache.size()) ; // .
+					for( auto const& [k,v] : _cache ) {
+						switch (v.second) {
+							case Use::Unused :                            continue ; // dont save unused regexprs
+							case Use::New    : codes.push_back(v.first) ; break    ; // new regexprs are usable as is
+							case Use::Old    :
+								if (!_has_new()) {
+									codes.push_back(v.first) ;
+								} else {
+									created.push_back(_s_compile(k)) ;               // unless all are old, old regexprs must be recompiled because they use their own character tables ...
+									codes.push_back(created.back()) ;                // ... and we cannot serialize with different character tables
+								}
+							break ;
+						}
+						keys.push_back(k) ;
+					}
+					//
+					int32_t n_codes = ::pcre2_serialize_encode( codes.data() , codes.size() , &buf , &cnt , nullptr/*general_context*/ ) ; if (n_codes<0) throw _s_err_msg(n_codes) ;
+					SWEAR( size_t(n_codes)==keys.size() , n_codes , keys.size() ) ;
+					for( ::pcre2_code* c : created ) ::pcre2_code_free(c) ;          // free what has been created
+					//
+					bytes.resize(size_t(cnt)) ; ::memcpy(bytes.data(),buf,cnt) ;
+					// START_OF_VERSIONING
+					::serdes(os,keys ) ;
+					::serdes(os,bytes) ;
+					// END_OF_VERSIONING
+					//
+					::pcre2_serialize_free(buf) ;
+				}
+				template<IsIStream S> void serdes(S& is) {
+					// START_OF_VERSIONING
+					::vector_s        keys  ;
+					::vector<uint8_t> bytes ;
+					::serdes(is,keys ) ;
+					::serdes(is,bytes) ;
+					// END_OF_VERSIONING
+					::vector<pcre2_code*> codes ;
+					//
+					PCRE2_SIZE n_codes = ::pcre2_serialize_get_number_of_codes(bytes.data()) ; SWEAR( n_codes==keys.size() , n_codes , keys.size() ) ; if (n_codes<0) throw _s_err_msg(n_codes) ;
+					codes.resize(n_codes) ;
+					::pcre2_serialize_decode( codes.data() , n_codes , bytes.data() , nullptr/*general_context*/ ) ;
+					//
+					SWEAR(!_cache) ;
+					for( size_t i : iota(keys.size()) ) {
+						bool inserted = _cache.try_emplace(keys[i],codes[i],Use::Unused).second ; SWEAR(inserted,keys[i]) ;
+					}
+					_n_unused = keys.size() ;
+				}
 				// accesses
 				bool _has_new() const { return _n_unused<0 ; }
 				// services
@@ -95,23 +149,33 @@ namespace Re {
 				// data
 			private :
 				::umap_s<::pair<pcre2_code const*,Use/*use*/>> _cache    ;
-				ssize_t                                        _n_unused = 0 ; // <0 if new codes
+				ssize_t                                        _n_unused = 0 ;       // <0 if new codes
 			} ;
 			// statics
 		private :
 			static ::pcre2_code* _s_compile(::string const& infix) ;
+			static ::string _s_err_msg(int err_code) {
+				char err_buf[RegExpr::ErrMsgSz] ;
+				::pcre2_get_error_message(err_code,_s_cast_in(err_buf),sizeof(err_buf)) ;
+				return ::string(err_buf) ;
+			}
+			static uint8_t const* _s_cast_in(char const* p) { return reinterpret_cast<uint8_t const*>(p) ; }
+			static uint8_t      * _s_cast_in(char      * p) { return reinterpret_cast<uint8_t      *>(p) ; }
+
 			// static data
 		public :
 			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr(::string const& pattern) ;
+			RegExpr( ::string const& pattern , bool cache=true ) ;
 			//
-			RegExpr           (RegExpr&& re) { swap(*this,re) ;                }
-			RegExpr& operator=(RegExpr&& re) { swap(*this,re) ; return *this ; }
+			RegExpr           (RegExpr&& re) { swap(self,re) ;               }
+			RegExpr& operator=(RegExpr&& re) { swap(self,re) ; return self ; }
+			//
+			~RegExpr() { if (_own) ::pcre2_code_free(const_cast<pcre2_code*>(_code)) ; }
 			// services
 			Match match( ::string const& subject , bool chk_psfx=true ) const {
-				return { *this , subject , chk_psfx } ;
+				return { self , subject , chk_psfx } ;
 			}
 			size_t mark_count() const {
 				uint32_t cnt ;
@@ -119,10 +183,11 @@ namespace Re {
 				return cnt ;
 			}
 			// data
-			::string pfx ;                                                           // fixed prefix
-			::string sfx ;                                                           // fixed suffix
+			::string pfx ;                      // fixed prefix
+			::string sfx ;                      // fixed suffix
 		private :
-			pcre2_code const* _code = nullptr ;                                      // only contains code for infix part, shared and stored in s_store
+			pcre2_code const* _code = nullptr ; // only contains code for infix part, shared and stored in s_store
+			bool              _own  = false   ; // if true <=> _code is private and must be freed in dxtor
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b ) {
 			::swap(a.pfx  ,b.pfx  ) ;
@@ -140,7 +205,6 @@ namespace Re {
 			// accesses
 		public :
 			bool operator+() const { return !empty() ; }
-			bool operator!() const { return !+*this  ; }
 			//
 			::string_view operator[](size_t i) const {
 				::sub_match sm = ::smatch::operator[](i) ;
@@ -158,11 +222,11 @@ namespace Re {
 			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr(::string const& pattern) : ::regex{pattern,Flags} {}
+			RegExpr( ::string const& pattern , bool /*cache*/=true ) : ::regex{pattern,Flags} {} // cache is ignored as no cache is implemented
 			// services
 			Match match( ::string const& subject , bool /*chk_psfx*/=true ) const {
 				Match res ;
-				::regex_match(subject,res,*this) ;
+				::regex_match(subject,res,self) ;
 				return res ;
 			}
 			size_t mark_count() const {

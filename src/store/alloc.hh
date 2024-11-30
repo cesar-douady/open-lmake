@@ -47,23 +47,6 @@ namespace Store {
 			return mantissa<<exp ;
 		}
 
-		#if 0
-			// static check (enable to debug)
-			template<size_t Mantissa> constexpr bool chk() {
-				constexpr size_t N = 4<<Mantissa ;
-				/**/                                            if ( bucket<Mantissa>(1                ) != 0                     ) return false ;
-				for( size_t s=1 ; s<                 N  ; s++ ) if ( bucket<Mantissa>(s+1              ) <  bucket<Mantissa>(s)   ) return false ;
-				for( size_t s=1 ; s<                 N  ; s++ ) if ( bucket<Mantissa>(s+1              ) >  bucket<Mantissa>(s)+1 ) return false ;
-				for( size_t b=0 ; b<bucket<Mantissa>(N) ; b++ ) if ( bucket<Mantissa>(sz<Mantissa>(b)  ) != b                     ) return false ;
-				for( size_t b=0 ; b<bucket<Mantissa>(N) ; b++ ) if ( bucket<Mantissa>(sz<Mantissa>(b)+1) != b+1                   ) return false ;
-				return true ;
-			}
-			static_assert(chk<1>()) ;
-			static_assert(chk<2>()) ;
-			static_assert(chk<3>()) ;
-			static_assert(chk<4>()) ;
-		#endif
-
 		template<class H,class I,uint8_t Mantissa=0,bool HasData=true> struct Hdr {
 			static constexpr size_t NFree = bucket<Mantissa>(lsb_msk(8*sizeof(I)))+1 ; // number of necessary slot is highest possible index + 1
 			NoVoid<H>        hdr  ;
@@ -84,11 +67,11 @@ namespace Store {
 		} ;
 
 	}
-	template<bool AutoLock,class Hdr_,class Idx_,class Data_,uint8_t Mantissa=0> struct AllocFile
-	:	                 StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ >   // if !Mantissa, Multi is useless ...
-	{	using Base     = StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ > ; // ... but easier to code
-		using BaseHdr  =                                 Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> ;
-		using BaseData =                                                                                          Alloc::Data<Idx_,Data_> ;
+	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0> struct AllocFile
+	:	                 StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true/*Multi*/ >   // if !Mantissa, Multi is ...
+	{	using Base     = StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true/*Multi*/ > ; // ... useless but easier ...
+		using BaseHdr  =                                 Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> ;                                                               // ... to code
+		using BaseData =                                                                                                     Alloc::Data<Idx_,Data_> ;
 		//
 		using Hdr    = Hdr_                 ;
 		using Idx    = Idx_                 ;
@@ -105,14 +88,14 @@ namespace Store {
 		static constexpr bool Multi     = Mantissa && HasData      ;
 		//
 		template<class... A> Idx emplace_back( Idx n , A&&... args ) = delete ;
-		using Base::clear    ;
-		using Base::name     ;
-		using Base::size     ;
-		using Base::writable ;
-		using Base::_mutex   ;
+		using Base::clear         ;
+		using Base::name          ;
+		using Base::size          ;
+		using Base::writable      ;
+		using Base::_mutex        ;
+		using Base::_chk_writable ;
 
 		struct Lst {
-			using value_type = Idx ;
 			struct Iterator {
 				using iterator_categorie = ::input_iterator_tag ;
 				using value_type         = Idx                  ;
@@ -124,8 +107,8 @@ namespace Store {
 				// services
 				bool      operator==(Iterator const& other) const { return _self==other._self && _idx==other._idx ; }
 				Idx       operator* (                     ) const { return _idx ;                                   }
-				Iterator& operator++(                     )       { _advance() ; _legalize() ; return *this ;       }
-				Iterator  operator++(int                  )       { Iterator res = *this ; ++*this ; return res ;   }
+				Iterator& operator++(                     )       { _advance() ; _legalize() ; return self ;        }
+				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res ;     }
 			private :
 				void _advance() {
 					SWEAR(+_idx) ;
@@ -147,10 +130,10 @@ namespace Store {
 			// accesses
 			Sz size() const { return _self->size() ; }
 			// services
-			Iterator begin () const { return Iterator(*this,Idx(1)) ; }
-			Iterator cbegin() const { return Iterator(*this,Idx(1)) ; }
-			Iterator end   () const { return Iterator(*this,{}    ) ; }
-			Iterator cend  () const { return Iterator(*this,{}    ) ; }
+			Iterator begin () const { return Iterator(self,Idx(1)) ; }
+			Iterator cbegin() const { return Iterator(self,Idx(1)) ; }
+			Iterator end   () const { return Iterator(self,{}    ) ; }
+			Iterator cend  () const { return Iterator(self,{}    ) ; }
 			// data
 		private :
 			AllocFile const*    _self  ;
@@ -183,7 +166,7 @@ namespace Store {
 		Idx const& _free(Sz bucket) const requires(HasData) { return Base::hdr().free[bucket] ; }
 		Idx      & _free(Sz bucket)       requires(HasData) { return Base::hdr().free[bucket] ; }
 	public :
-		Lst lst() const requires( !Multi && HasData ) { return Lst(*this) ; }
+		Lst lst() const requires( !Multi && HasData ) { return Lst(self) ; }
 		// services
 		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi && !HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ;                   return res ; }
 		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi &&  HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ; _chk_sz(res,sz) ; return res ; }
@@ -209,7 +192,7 @@ namespace Store {
 		Sz   _n_items( Idx idx         ) requires(HasDataSz) { if (!idx) return 0 ; return at(idx).n_items() ;  }
 		void _chk_sz ( Idx idx , Sz sz ) requires(HasDataSz) { SWEAR(sz==Idx(_n_items(idx)),sz,_n_items(idx)) ; }
 		template<class... A> Idx _emplace( Sz sz , A&&... args ) requires(HasData) {
-			if (!writable) throw "cannot allocate item in read-only file "+name ;
+			_chk_writable("allocate item") ;
 			ULock lock   { _mutex }          ;
 			Sz    bucket = _s_bucket(sz    ) ;
 			Idx&  free   = _free    (bucket) ;
@@ -227,7 +210,7 @@ namespace Store {
 		void _shorten( Idx idx , Sz old_sz , Sz new_sz ) requires(Multi) {
 			if (!new_sz       ) { _pop(idx,old_sz) ; return ; }
 			if (new_sz==old_sz)                      return ;
-			if (!writable     ) throw "cannot shorten item in read-only file "+name ;
+			_chk_writable("shorten item") ;
 			SWEAR( new_sz<=old_sz , new_sz , old_sz ) ;
 			ULock lock{_mutex} ;
 			Sz old_bucket = _s_bucket(old_sz) ;
@@ -248,7 +231,7 @@ namespace Store {
 		}
 		void _pop( Idx idx , Sz sz ) requires( HasData) {
 			if (!idx) return ;
-			if (!writable) throw "cannot pop item in read-only file "+name ;
+			_chk_writable("pop item") ;
 			ULock lock{_mutex} ;
 			Base::pop(idx) ;
 			_dealloc(idx,_s_bucket(sz)) ;
@@ -260,15 +243,15 @@ namespace Store {
 			free = idx ;
 		}
 	} ;
-	template<bool AutoLock,class Hdr,class Idx,class Data,uint8_t Mantissa> void AllocFile<AutoLock,Hdr,Idx,Data,Mantissa>::chk() const requires(!is_void_v<Data>) {
+	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa> void AllocFile<AutoLock,Hdr,Idx,NIdxBits,Data,Mantissa>::chk() const requires(!is_void_v<Data>) {
 		Base::chk() ;
 		::vector<bool> free_map ;
 		free_map.resize(size()) ;
-		for( Sz bucket = 0 ; bucket<BaseHdr::NFree ; bucket++ ) {
+		for( Sz bucket  : iota<Sz>(BaseHdr::NFree) ) {
 			Sz sz = _s_sz(bucket) ;
 			for( Idx idx=_free(bucket) ; +idx ; idx=Base::at(idx).nxt ) {
 				throw_unless( static_cast<Sz>(+idx+_s_sz(bucket))<=size() , "free list out of range at ",idx ) ;
-				for( Sz i=0 ; i<sz ; i++ ) {
+				for( Sz i : iota(sz) ) {
 					SWEAR(!free_map[+idx+i]) ;
 					free_map[+idx+i] = true ;
 				}

@@ -10,7 +10,7 @@ from . import depend,Autodep
 
 module_suffixes = ('.so','.py','/__init__.py') # can be tailored to suit application needs, the lesser the better (less spurious dependencies)
 
-from . import root_dir
+from . import maybe_local
 
 def _mask_python_deps() :
 	'''replace __import__ by a semantically equivalent function (that actually calls the original one) to suppress python generated deps'''
@@ -40,17 +40,13 @@ def _mask_python_deps() :
 		raise RuntimeError('masking python deps during import is not available for python%d.%d'%_sys.version_info[:2])
 	builtins_dct['__import__'] = new_import                                                                            # wrap at the end to avoid wraping our own imports
 
-def _maybe_local(file) :
-	'fast check for local files, avoiding full absolute path generation'
-	return not file or file[0]!='/' or file.startswith(root_dir)
-
 def _depend_module(module_name,path=None) :
 	if path==None : path = _sys.path
 	tail = module_name.rsplit('.',1)[-1]
 	for dir in path :
 		if dir : dir += '/'
 		base = dir+tail
-		if _maybe_local(base) :
+		if maybe_local(base) :
 			for suffix in module_suffixes :
 				file = base+suffix
 				depend(file,required=False,read=True)

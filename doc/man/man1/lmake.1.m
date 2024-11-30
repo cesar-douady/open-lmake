@@ -60,7 +60,7 @@ and the stderr of the first error. Intermediate targets are deemed of secondary 
 .LP
 Before processing arguments, B(lmake) prepends the content of B($LMAKE_ARGS), separated by spaces.
 This eases the management of user preferences.
-For example, a user may like to systematically pass the B(-a) and B(-t) options, in which case they can set B(LMAKE_ARGS)=B(-a -t).
+For example, a user may like to systematically pass the I(--archive) and I(--keep-tmp) options, in which case they can set B(LMAKE_ARGS)=B(-a -t).
 
 ClientGeneralities(color)
 
@@ -135,7 +135,7 @@ The content of B($LMAKE_ARGS) is prepended to command line arguments.
 .LP
 The content of B($LMAKE_VIDEO) is processed as if provided with the B(--video) option.
 .LP
-Unless explicitely asked in I(Lmakefile.py), the environment is mostly ignored when B(lmake) is run, i.e. it is not passed to the jobs.
+Unless explicitly asked in I(Lmakefile.py), the environment is mostly ignored when B(lmake) is run, i.e. it is not passed to the jobs.
 The goal is to improve repeatability by protecting jobs from the variability environment variables may cause.
 In particular :
 Bullet

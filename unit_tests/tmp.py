@@ -19,7 +19,7 @@ if __name__!='__main__' :
 		target   = 'dut{N}'
 		targets  = { 'LNK' : 'lnk{N}' }
 		tmp_view = '/tmp'
-		cmd     = multi_strip('''
+		cmd = multi_strip('''
 			ln -s $TMPDIR/a       {LNK}
 			ln -s $ROOT_DIR/{LNK} $TMPDIR/b
 			cd $TMPDIR
@@ -54,7 +54,7 @@ if __name__!='__main__' :
 	class GenDir(Base) :
 		targets  = { 'DST' : r'{File:.*}.dir/{*:.*}' }
 		tmp_view = '/tmp'
-		cmd      = '''
+		cmd = '''
 			cd $TMPDIR
 			mkdir d
 			echo a >d/a

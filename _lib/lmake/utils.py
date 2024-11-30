@@ -33,13 +33,16 @@ class pdict(dict) :
 		return x
 	def __getattr__(self,attr) :
 		try             : return self[attr]
-		except KeyError : raise AttributeError(attr)
+		except KeyError : pass
+		raise AttributeError(attr)
 	def __setattr__(self,attr,val) :
-		try             : self[attr] = val
-		except KeyError : raise AttributeError(attr)
+		try             : self[attr] = val ; return
+		except KeyError : pass
+		raise AttributeError(attr)
 	def __delattr__(self,attr) :
-		try             : del self[attr]
-		except KeyError : raise AttributeError(attr)
+		try             : del self[attr] ; return
+		except KeyError : pass
+		raise AttributeError(attr)
 
 def multi_strip(txt) :
 	r"""

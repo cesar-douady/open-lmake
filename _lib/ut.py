@@ -4,7 +4,9 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 import re
+import os
 import os.path    as osp
+import shutil
 import subprocess as sp
 import sys
 import time
@@ -71,3 +73,10 @@ def lmake(*args,rc=0,summary=None,**kwds) :
 		raise
 	finally :
 		sys.stdout.flush()
+
+def mk_gxx_module(module) :
+	with open(f'{module}.py','w') as fp :
+		gxx     = os.environ.get('CXX') or 'g++'
+		gxx_dir = osp.dirname(shutil.which(gxx))
+		print(f"gxx     = {gxx!r}"    ,file=fp)
+		print(f"gxx_dir = {gxx_dir!r}",file=fp)

@@ -37,7 +37,7 @@ void* get_orig(const char* libcall) {
 			SWEAR(inserted,lc1,lc2) ;                                                         // ensure troncation does not produce ambguities
 		}
 		#undef LIBCALL_ENTRY
-		LibCallTab* prev_libcall_tab = nullptr                              ;
+		LibCallTab* prev_libcall_tab = nullptr ;
 		if (!s_libcall_tab.compare_exchange_strong( prev_libcall_tab , new_libcall_tab )) delete new_libcall_tab ;
 	}
 	if (!libcall) return nullptr ;                                                            // used to initialize s_libcall_tab

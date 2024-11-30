@@ -25,7 +25,7 @@ using Proc = JobExecProc ;
 static Record _g_record ;
 
 static ::string _mk_str( Object const* o , ::string const& arg_name={} ) {
-	if (!o) throw "missing argument"s+(+arg_name?" ":"")+arg_name ;
+	throw_unless( o , "missing argument",(+arg_name?" ":""),arg_name ) ;
 	return *o->str() ;
 }
 
@@ -49,7 +49,7 @@ static ::vector_s _get_files(Tuple const& py_args) {
 	} else {
 		/**/                                                                                 res.reserve(py_args.size()) ; for( Object const& py : py_args ) push(py     ) ;
 	}
-	for( size_t i=0 ; i<res.size() ; i++ ) if(!res[i]) throw "argument "s+(i+1)+" is empty" ;
+	for( size_t i : iota(res.size()) ) throw_unless( +res[i] , "argument ",i+1," is empty" ) ;
 	return res ;
 }
 
@@ -69,14 +69,14 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	bool         read      = true                        ;
 	AccessDigest ad        { .dflags=Dflag::Required }   ;
 	if (py_kwds) {
-		size_t n_kwds = py_kwds->size() ;
-		/**/                                    if ( const char* s="follow_symlinks" ;                                 py_kwds->contains(s) ) { n_kwds-- ; no_follow =             !(*py_kwds)[s]  ; }
-		/**/                                    if ( const char* s="verbose"         ;                                 py_kwds->contains(s) ) { n_kwds-- ; verbose   =             +(*py_kwds)[s]  ; }
-		/**/                                    if ( const char* s="read"            ;                                 py_kwds->contains(s) ) { n_kwds-- ; read      =             +(*py_kwds)[s]  ; }
-		for( Dflag      df  : Dflag::NDyn     ) if ( ::string    s=snake_str(df )    ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.dflags      .set(df ,+(*py_kwds)[s]) ; }
-		for( ExtraDflag edf : All<ExtraDflag> ) if ( ::string    s=snake_str(edf)    ; ExtraDflagChars[+edf].second && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_dflags.set(edf,+(*py_kwds)[s]) ; }
+		size_t n = py_kwds->size() ;
+		/**/                                          if ( const char* s="follow_symlinks" ;                                 py_kwds->contains(s) ) { n-- ; no_follow =             !(*py_kwds)[s]  ; }
+		/**/                                          if ( const char* s="verbose"         ;                                 py_kwds->contains(s) ) { n-- ; verbose   =             +(*py_kwds)[s]  ; }
+		/**/                                          if ( const char* s="read"            ;                                 py_kwds->contains(s) ) { n-- ; read      =             +(*py_kwds)[s]  ; }
+		for( Dflag      df  : iota(Dflag::NDyn    ) ) if ( ::string    s=snake_str(df )    ;                                 py_kwds->contains(s) ) { n-- ; ad.dflags      .set(df ,+(*py_kwds)[s]) ; }
+		for( ExtraDflag edf : iota(All<ExtraDflag>) ) if ( ::string    s=snake_str(edf)    ; ExtraDflagChars[+edf].second && py_kwds->contains(s) ) { n-- ; ad.extra_dflags.set(edf,+(*py_kwds)[s]) ; }
 		//
-		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
+		if (n) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	if (read) ad.accesses = ~Accesses() ;
 	::vector_s files ;
@@ -92,7 +92,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	Ptr<Dict> res { New } ;
 	//
 	SWEAR( dep_infos.size()==files.size() , dep_infos.size() , files.size() ) ;
-	for( size_t i=0 ; i<dep_infos.size() ; i++ ) {
+	for( size_t i : iota(dep_infos.size()) ) {
 		Object* py_ok = nullptr/*garbage*/ ;
 		switch (dep_infos[i].first) {
 			case Yes   : py_ok = &True  ; break ;
@@ -109,12 +109,12 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds)                    ;
 	AccessDigest ad      { .write=Yes , .extra_tflags=ExtraTflag::Allow } ;
 	if (py_kwds) {
-		size_t n_kwds = py_kwds->size() ;
-		/**/                                    if ( const char* s="write"        ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.write  = No |        +(*py_kwds)[s]  ; }
-		for( Tflag      tf  : Tflag::NDyn     ) if ( ::string    s=snake_str(tf ) ;                                 py_kwds->contains(s) ) { n_kwds-- ; ad.tflags      .set(tf ,+(*py_kwds)[s]) ; }
-		for( ExtraTflag etf : All<ExtraTflag> ) if ( ::string    s=snake_str(etf) ; ExtraTflagChars[+etf].second && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_tflags.set(etf,+(*py_kwds)[s]) ; }
+		size_t n = py_kwds->size() ;
+		/**/                                          if ( const char* s="write"        ;                                 py_kwds->contains(s) ) { n-- ; ad.write  = No |        +(*py_kwds)[s]  ; }
+		for( Tflag      tf  : iota(Tflag::NDyn    ) ) if ( ::string    s=snake_str(tf ) ;                                 py_kwds->contains(s) ) { n-- ; ad.tflags      .set(tf ,+(*py_kwds)[s]) ; }
+		for( ExtraTflag etf : iota(All<ExtraTflag>) ) if ( ::string    s=snake_str(etf) ; ExtraTflagChars[+etf].second && py_kwds->contains(s) ) { n-- ; ad.extra_tflags.set(etf,+(*py_kwds)[s]) ; }
 		//
-		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
+		if (n) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	::vector_s files ;
 	try                       { files = _get_files(py_args) ;                          }
@@ -143,17 +143,17 @@ static PyObject* check_deps( PyObject* /*null*/ , PyObject* args , PyObject* kwd
 static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args = *from_py<Tuple const>(args)   ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds)   ;
-	size_t       n_kwds  = py_kwds ? py_kwds->size() : 0 ;
+	size_t       n       = py_kwds ? py_kwds->size() : 0 ;
 	try {
-		::string file = _mk_str( _gather_arg( py_args , 0 , py_kwds , "file" , n_kwds ) , "file" ) ;
-		::string ctx  = _mk_str( _gather_arg( py_args , 1 , py_kwds , "ctx"  , n_kwds ) , "ctx"  ) ;
-		::string code = _mk_str( _gather_arg( py_args , 2 , py_kwds , "code" , n_kwds ) , "code" ) ;
+		::string file = _mk_str( _gather_arg( py_args , 0 , py_kwds , "file" , n ) , "file" ) ;
+		::string ctx  = _mk_str( _gather_arg( py_args , 1 , py_kwds , "ctx"  , n ) , "ctx"  ) ;
+		::string code = _mk_str( _gather_arg( py_args , 2 , py_kwds , "code" , n ) , "code" ) ;
 		//
-		if (n_kwds) throw "unexpected keyword arg"s ;
+		throw_unless( !n , "unexpected keyword arg" ) ;
 		//
 		::pair_s<bool/*ok*/> reply = JobSupport::decode( _g_record , ::move(file) , ::move(code) , ::move(ctx) ) ;
-		if (!reply.second) throw reply.first ;
-		else               return Ptr<Str>(reply.first)->to_py_boost() ;
+		throw_unless( reply.second , reply.first ) ;
+		return Ptr<Str>(reply.first)->to_py_boost() ;
 	} catch (::string const& e) {
 		return py_err_set(Exception::TypeErr,e) ;
 	}
@@ -162,57 +162,22 @@ static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args = *from_py<Tuple const>(args)   ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds)   ;
-	size_t       n_kwds  = py_kwds ? py_kwds->size() : 0 ;
+	size_t       n       = py_kwds ? py_kwds->size() : 0 ;
 	try {
-		::string file    = _mk_str  ( _gather_arg( py_args , 0 , py_kwds , "file"    , n_kwds ) ,     "file"    ) ;
-		::string ctx     = _mk_str  ( _gather_arg( py_args , 1 , py_kwds , "ctx"     , n_kwds ) ,     "ctx"     ) ;
-		::string val     = _mk_str  ( _gather_arg( py_args , 2 , py_kwds , "val"     , n_kwds ) ,     "val"     ) ;
-		uint8_t  min_len = _mk_uint8( _gather_arg( py_args , 3 , py_kwds , "min_len" , n_kwds ) , 1 , "min_len" ) ;
+		::string file    = _mk_str  ( _gather_arg( py_args , 0 , py_kwds , "file"    , n ) ,     "file"    ) ;
+		::string ctx     = _mk_str  ( _gather_arg( py_args , 1 , py_kwds , "ctx"     , n ) ,     "ctx"     ) ;
+		::string val     = _mk_str  ( _gather_arg( py_args , 2 , py_kwds , "val"     , n ) ,     "val"     ) ;
+		uint8_t  min_len = _mk_uint8( _gather_arg( py_args , 3 , py_kwds , "min_len" , n ) , 1 , "min_len" ) ;
 		//
-		if (n_kwds                ) throw "unexpected keyword arg"s                                                              ;
-		if (min_len>MaxCodecBits/4) throw "min_len ("s+min_len+") cannot be larger max allowed code bits ("+(MaxCodecBits/4)+')' ; // codes are output in hex, 4 bits/digit
+		throw_unless( !n                     , "unexpected keyword arg"                                                     ) ;
+		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") cannot be larger than crc length (",sizeof(Crc)*2,')' ) ; // codes are output in hex, 4 bits/digit
 		//
 		::pair_s<bool/*ok*/> reply = JobSupport::encode( _g_record , ::move(file) , ::move(val) , ::move(ctx) , min_len ) ;
-		if (!reply.second) throw reply.first ;
+		throw_unless( reply.second , reply.first ) ;
 		return Ptr<Str>(reply.first)->to_py_boost() ;
 	} catch (::string const& e) {
 		return py_err_set(Exception::TypeErr,e) ;
 	}
-}
-
-static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args = *from_py<Tuple const>(args) ;
-	Dict  const* py_kwds =  from_py<Dict  const>(kwds) ;
-	if (py_args.size()>1) return py_err_set(Exception::TypeErr,"expect at most a single argument") ;
-	bool no_follow = false ;
-	if (py_kwds) {
-		ssize_t n_kwds = py_kwds->size() ;
-		if ( const char* s="follow_symlinks" ; py_kwds->contains(s) ) { n_kwds-- ; no_follow = !(*py_kwds)[s] ; }
-		//
-		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
-	}
-	::vector_s views = _get_files(py_args) ;
-	if (views.size()==0) views.push_back(no_slash(cwd_s())) ;
-	SWEAR( views.size()==1 , views.size() ) ;
-	::string const& view = views[0] ;
-	if (!view) return Ptr<Str>(""s)->to_py_boost() ;
-	//
-	RealPath::SolveReport solve_report = RealPath(Record::s_autodep_env()).solve(view,no_follow) ;
-	//
-	switch (solve_report.file_loc) {
-		case FileLoc::Ext :
-			if (solve_report.real==no_slash(Record::s_autodep_env().root_dir_s)) return Ptr<Str>(""s)->to_py_boost() ;
-			break ;
-		case FileLoc::Repo :
-			try {
-				::string abs_path           = mk_abs(solve_report.real,Record::s_autodep_env().root_dir_s) ;
-				::string abs_sub_root_dir_s = search_root_dir_s(abs_path).first                              ;
-				return Ptr<Str>(abs_sub_root_dir_s.c_str()+Record::s_autodep_env().root_dir_s.size())->to_py_boost() ;
-			} catch (::string const&e) {
-				return py_err_set(Exception::ValueErr,e) ;
-			}
-	DN}
-	return py_err_set(Exception::ValueErr,"cannot find sub root dir in repository") ;
 }
 
 static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
@@ -237,76 +202,6 @@ static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	return None.to_py_boost() ;
 }
 
-#define F(name,descr) { #name , reinterpret_cast<PyCFunction>(name) , METH_VARARGS|METH_KEYWORDS , descr }
-static PyMethodDef funcs[] = {
-	F( check_deps ,
-		"check_deps(verbose=false)\n"
-		"Ensure that all previously seen deps are up-to-date.\n"
-		"Job will be killed in case some deps are not up-to-date.\n"
-		"If verbose, wait for server reply (it is unclear that this be useful in any way).\n"
-	)
-,	F( decode ,
-		"decode(file,ctx,code)\n"
-		"Return the associated (long) value passed by encode(file,ctx,val) when it returned (short) code.\n"
-		"This call to encode must have been done before calling decode.\n"
-	)
-,	F( depend ,
-		"depend(\n"
-		"\t*deps\n"
-		",\tfollow_symlinks=False\n"
-		",\tverbose        =False # return a report as a dict  dep:(ok,crc) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
-		",\tread           =True  # pretend deps are read in addition to setting flags\n"
-		"# flags :\n"
-		",\tcritical       =False # if modified, ignore following deps\n"
-		",\tessential      =False # show when generating user oriented graphs\n"
-		",\tignore         =False # ignore deps, used to mask out further accesses\n"
-		",\tignore_error   =False # dont propagate error if dep is in error (Error instead of Err because name is visible from user)\n"
-		",\trequired       =True  # dep must be buildable\n"
-		",\tstat_read_data =False # make stat accesses as if deps contents were fully accessed\n"
-		")\n"
-		"Pretend parallel read of deps (unless read=False) and mark them with flags mentioned as True.\n"
-		"Flags accumulate and are never reset.\n"
-	)
-,	F( encode ,
-		"encode(file,ctx,val,min_length=1)\n"
-		"Return a (short) code associated with (long) val. If necessary create such a code of\n"
-		"length at least min_length based on a checksum computed from value.\n"
-		"val can be retrieve from code using decode(file,ctx,code),\n"
-		"even from another job (as long as it is called after the call to encode).\n"
-		"This means that decode(file,ctx,encode(file,ctx,val,min_length)) always return val for any min_length.\n"
-	)
-,	F( get_autodep ,
-		"get_autodep()\n"
-		"Return True if autodep is currenly activated (else False).\n"
-	)
-,	F( search_sub_root_dir ,
-		"search_sub_root_dir(cwd=os.getcwd())\n"
-		"Return the nearest hierarchical root dir above cwd, relative to the top root dir.\n"
-	)
-,	F( set_autodep ,
-		"set_autodep(active)\n"
-		"Activate (if active) or deactivate (if not active) autodep recording.\n"
-	)
-,	F( target ,
-		"target(\n"
-		"\t*targets\n"
-		",\twrite      =True  # pretend targets are written in addition to setting flags\n"
-		"# flags :\n"
-		",\tallow      =True  # writing to this target is allowed\n"
-		",\tessential  =False # show when generating user oriented graphs\n"
-		",\tignore     =False # ignore targets, used to mask out further accesses\n"
-		",\tincremental=False # reads are allowed (before earliest write if any)\n"
-		",\tno_uniquify=False # target is uniquified if it has several links and is incremental\n"
-		",\tno_warning =False # warn if target is either uniquified or unlinked and generated by another rule\n"
-		",\tsource_ok  =False # ok to overwrite source files\n"
-		")\n"
-		"Pretend write to targets and mark them with flags mentioned as True.\n"
-		"Flags accumulate and are never reset.\n"
-	)
-,	{nullptr,nullptr,0,nullptr}/*sentinel*/
-} ;
-#undef F
-
 #pragma GCC visibility push(default)
 PyMODINIT_FUNC
 #if PY_MAJOR_VERSION<3
@@ -315,36 +210,104 @@ PyMODINIT_FUNC
 	PyInit_clmake()
 #endif
 {
+
+	#define F(name,descr) { #name , reinterpret_cast<PyCFunction>(name) , METH_VARARGS|METH_KEYWORDS , descr }
+	PyMethodDef _g_funcs[] = {
+		F( check_deps ,
+			"check_deps(verbose=false)\n"
+			"Ensure that all previously seen deps are up-to-date.\n"
+			"Job will be killed in case some deps are not up-to-date.\n"
+			"If verbose, wait for server reply (it is unclear that this be useful in any way).\n"
+		)
+	,	F( decode ,
+			"decode(file,ctx,code)\n"
+			"Return the associated (long) value passed by encode(file,ctx,val) when it returned (short) code.\n"
+			"This call to encode must have been done before calling decode.\n"
+		)
+	,	F( depend ,
+			"depend(\n"
+			"\t*deps\n"
+			",\tfollow_symlinks=False\n"
+			",\tverbose        =False # return a report as a dict  dep:(ok,crc) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
+			",\tread           =True  # pretend deps are read in addition to setting flags\n"
+			"# flags :\n"
+			",\tcritical       =False # if modified, ignore following deps\n"
+			",\tessential      =False # show when generating user oriented graphs\n"
+			",\tignore         =False # ignore deps, used to mask out further accesses\n"
+			",\tignore_error   =False # dont propagate error if dep is in error (Error instead of Err because name is visible from user)\n"
+			",\trequired       =True  # dep must be buildable\n"
+			")\n"
+			"Pretend parallel read of deps (unless read=False) and mark them with flags mentioned as True.\n"
+			"Flags accumulate and are never reset.\n"
+		)
+	,	F( encode ,
+			"encode(file,ctx,val,min_length=1)\n"
+			"Return a (short) code associated with (long) val. If necessary create such a code of\n"
+			"length at least min_length based on a checksum computed from value.\n"
+			"val can be retrieve from code using decode(file,ctx,code),\n"
+			"even from another job (as long as it is called after the call to encode).\n"
+			"This means that decode(file,ctx,encode(file,ctx,val,min_length)) always return val for any min_length.\n"
+		)
+	,	F( get_autodep ,
+			"get_autodep()\n"
+			"Return True if autodep is currenly activated (else False).\n"
+		)
+	,	F( set_autodep ,
+			"set_autodep(active)\n"
+			"Activate (if active) or deactivate (if not active) autodep recording.\n"
+		)
+	,	F( target ,
+			"target(\n"
+			"\t*targets\n"
+			",\twrite      =True  # pretend targets are written in addition to setting flags\n"
+			"# flags :\n"
+			",\tallow      =True  # writing to this target is allowed\n"
+			",\tessential  =False # show when generating user oriented graphs\n"
+			",\tignore     =False # ignore targets, used to mask out further accesses\n"
+			",\tincremental=False # reads are allowed (before earliest write if any)\n"
+			",\tno_uniquify=False # target is uniquified if it has several links and is incremental\n"
+			",\tno_warning =False # warn if target is either uniquified or unlinked and generated by another rule\n"
+			",\tsource_ok  =False # ok to overwrite source files\n"
+			")\n"
+			"Pretend write to targets and mark them with flags mentioned as True.\n"
+			"Flags accumulate and are never reset.\n"
+		)
+	,	{nullptr,nullptr,0,nullptr}/*sentinel*/
+	} ;
+	#undef F
+
 	_g_record = {New,Yes/*enabled*/} ;
 	//
-	Ptr<Module> mod    { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
-	Ptr<Tuple>  py_ads { HAS_FUSE+HAS_LD_AUDIT+3 }                       ; // PER_AUTODEP_METHOD : add entries here
-	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM     }                       ; // PER_BACKEND        : add entries here
 	//
+	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3 } ;       // PER_AUTODEP_METHOD : add entries here
 	size_t i = 0 ;
-	if (HAS_FUSE    ) py_ads->set_item(i++,*Ptr<Str>("fuse"               )) ;
-	if (HAS_LD_AUDIT) py_ads->set_item(i++,*Ptr<Str>("ld_audit"           )) ;
-	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload"         )) ;
-	/**/              py_ads->set_item(i++,*Ptr<Str>("ld_preload_jemalloc")) ;
-	/**/              py_ads->set_item(i++,*Ptr<Str>("ptrace"             )) ;
+	if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
+	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
+	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
+	/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
 	SWEAR(i==py_ads->size(),i,py_ads->size()) ;
+	//
+	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM } ; // PER_BACKEND : add entries here
 	i = 0 ;
-	/**/              py_bes->set_item(i++,*Ptr<Str>("local"              )) ;
-	if (HAS_SGE     ) py_bes->set_item(i++,*Ptr<Str>("sge"                )) ;
-	if (HAS_SLURM   ) py_bes->set_item(i++,*Ptr<Str>("slurm"              )) ;
+	/**/           py_bes->set_item(i++,*Ptr<Str>("local")) ;
+	if (HAS_SGE  ) py_bes->set_item(i++,*Ptr<Str>("sge"  )) ;
+	if (HAS_SLURM) py_bes->set_item(i++,*Ptr<Str>("slurm")) ;
 	SWEAR(i==py_bes->size(),i,py_bes->size()) ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "root_dir"    , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
-	mod->set_attr( "backends"    , *py_bes                                                         ) ;
-	mod->set_attr( "autodeps"    , *py_ads                                                         ) ;
-	mod->set_attr( "no_crc"      , *Ptr<Int>(+Crc::Unknown)                                        ) ;
-	mod->set_attr( "crc_a_link"  , *Ptr<Int>(+Crc::Lnk    )                                        ) ;
-	mod->set_attr( "crc_a_reg"   , *Ptr<Int>(+Crc::Reg    )                                        ) ;
-	mod->set_attr( "crc_no_file" , *Ptr<Int>(+Crc::None   )                                        ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//
+	Ptr<Module> mod { PY_MAJOR_VERSION<3?"clmake2":"clmake" , _g_funcs } ;
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "top_root_dir" , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
+	mod->set_attr( "backends"     , *py_bes                                                         ) ;
+	mod->set_attr( "autodeps"     , *py_ads                                                         ) ;
+	mod->set_attr( "no_crc"       , *Ptr<Int>(+Crc::Unknown)                                        ) ;
+	mod->set_attr( "crc_a_link"   , *Ptr<Int>(+Crc::Lnk    )                                        ) ;
+	mod->set_attr( "crc_a_reg"    , *Ptr<Int>(+Crc::Reg    )                                        ) ;
+	mod->set_attr( "crc_no_file"  , *Ptr<Int>(+Crc::None   )                                        ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;
 	#endif
+
 }
 #pragma GCC visibility pop

@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
+#include "core.hh" // must be first to include Python.h first
 
 namespace Engine {
 	using namespace Disk ;
@@ -13,7 +13,7 @@ namespace Engine {
 	// NodeReqInfo
 	//
 
-	::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) {
+	::string& operator+=( ::string& os , NodeReqInfo const& ri ) {
 		/**/                          os << "NRI(" << ri.req <<','<< ri.goal <<',' ;
 		if (ri.prio_idx==Node::NoIdx) os << "NoIdx"                                ;
 		else                          os <<                  ri.prio_idx           ;
@@ -30,7 +30,7 @@ namespace Engine {
 
 	Hash::Crc Node::_s_src_dirs_crc ;
 
-	::ostream& operator<<( ::ostream& os , Node const n ) {
+	::string& operator+=( ::string& os , Node const n ) {
 		/**/    os << "N(" ;
 		if (+n) os << +n   ;
 		return  os << ')'  ;
@@ -51,7 +51,7 @@ namespace Engine {
 
 	Mutex<MutexLvl::NodeCrcDate> NodeData::s_crc_date_mutex ;
 
-	::ostream& operator<<( ::ostream& os , NodeData const& nd ) {
+	::string& operator+=( ::string& os , NodeData const& nd ) {
 		/**/                    os <<'('<< nd.crc ;
 		if (nd.is_plain()) {
 			/**/                os <<',' << nd.date()       ;
@@ -116,20 +116,33 @@ namespace Engine {
 	}
 
 	void NodeData::_do_set_pressure( ReqInfo& ri ) const {
+		g_kpi.n_node_set_pressure++ ;
 		for( Job j : conform_job_tgts(ri) ) j->set_pressure(j->req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
 	}
 
 	bool/*modified*/ NodeData::refresh_src_anti( bool report_no_file , ::vector<Req> const& reqs_ , ::string const& name_ ) { // reqss_ are for reporting only
-		bool        prev_ok   = crc.valid() && crc.exists() ;
-		bool        frozen    = idx().frozen()              ;
-		const char* msg       = frozen ? "frozen" : "src"   ;
-		NfsGuard    nfs_guard { g_config->reliable_dirs }   ;
-		FileInfo    fi        { nfs_guard.access(name_) }   ;
-		FileSig     sig       { fi  }                       ;
+		bool     prev_ok   = crc.valid() && crc.exists() ;
+		bool     frozen    = idx().frozen()              ;
+		::string msg       ;
+		NfsGuard nfs_guard { g_config->reliable_dirs }   ;
+		FileInfo fi        { nfs_guard.access(name_) }   ;
+		FileSig  sig       { fi  }                       ;
+		auto lazy_msg = [&]()->string const& {
+			static ::string const Frozen = "frozen" ;
+			static ::string const Src    = "src"    ;
+			if      (+msg                        ) {}
+			else if (frozen                      ) msg = Frozen ;
+			else if (buildable!=Buildable::DynSrc) msg = Src    ;
+			else {
+				::vector<RuleTgt> v = rule_tgts().view() ; SWEAR(v.size()==1,idx(),v,status()) ;
+				msg = v[0]->rule->name ;
+			}
+			return msg ;
+		} ;
 		Trace trace("refresh_src_anti",STR(report_no_file),reqs_,sig) ;
 		if (frozen) for( Req r : reqs_  ) r->frozen_nodes.emplace(idx(),r->frozen_nodes.size()) ;
 		if (!fi) {
-			if (report_no_file) for( Req r : reqs_  ) r->audit_job( Color::Err , "missing" , msg , name_ ) ;
+			if (report_no_file) for( Req r : reqs_  ) r->audit_job( Color::Err , "missing" , lazy_msg() , name_ ) ;
 			if (crc==Crc::None) return false/*updated*/ ;
 			//vvvvvvvvvvvvvvvv
 			refresh(Crc::None) ;
@@ -137,15 +150,15 @@ namespace Engine {
 		} else {
 			if ( crc.valid() && sig==date().sig ) return false/*updated*/ ;
 			Crc crc_ = Crc::Reg ;
-			while ( crc_==Crc::Reg || crc_==Crc::Lnk ) crc_ = Crc(sig,name_) ;                                                // ensure file is stable when computing crc
+			while ( +crc_ && !crc_.valid() ) crc_ = Crc(sig,name_) ;                                                          // ensure file is stable when computing crc
 			Accesses mismatch = crc.diff_accesses(crc_) ;
 			//vvvvvvvvvvvvvvvvvvv
 			refresh( crc_ , sig ) ;
 			//^^^^^^^^^^^^^^^^^^^
 			const char* step = !prev_ok ? "new" : +mismatch ? "changed" : "steady" ;
 			Color       c    = frozen ? Color::Warning : Color::HiddenOk           ;
-			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_ddate              ) ri.overwritten |= mismatch ;             }
-			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(cri.goal|NodeGoal::Status)) r->audit_job( c , step , msg , name_ ) ; }
+			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_ddate              ) ri.overwritten |= mismatch ;                    }
+			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(cri.goal|NodeGoal::Status)) r->audit_job( c , step , lazy_msg() , name_ ) ; }
 			if (!mismatch) return false/*updated*/ ;
 		}
 		return true/*updated*/ ;
@@ -164,36 +177,36 @@ namespace Engine {
 		SWEAR(buildable_>Buildable::No) ;
 		if (buildable_>=Buildable::Yes) rule_tgts().clear() ;
 		buildable = buildable_ ;
-		_set_match_gen(true/*ok*/) ;
+		_set_match_ok() ;
 	}
 
-	::c_vector_view<JobTgt> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
+	::span<JobTgt const> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
 		if (prio_idx==NoIdx) return {} ;
-		JobTgts const& jts = job_tgts() ; // /!\ jts is a CrunchVector, so if single element, a subvec would point to it, so it *must* be a ref
+		JobTgts const& jts = job_tgts() ; // /!\ jts is a Crunch vector, so if single element, a subvec would point to it, so it *must* be a ref
 		if (prio_idx>=jts.size()) {
 			SWEAR( prio_idx==jts.size() , prio_idx , jts.size() ) ;
 			return {} ;
 		}
-		RuleIdx                 sz   = 0                    ;
-		::c_vector_view<JobTgt> sjts = jts.subvec(prio_idx) ;
-		Prio                    prio = -Infinity            ;
+		RuleIdx              sz   = 0                    ;
+		::span<JobTgt const> sjts = jts.subvec(prio_idx) ;
+		RuleIdx              prio = 0                    ;
 		for( JobTgt jt : sjts ) {
-			Prio new_prio = jt->rule->prio ;
+			RuleIdx new_prio = jt->rule()->prio ;
 			if (new_prio<prio) break ;
 			prio = new_prio ;
 			sz++ ;
 		}
-		return sjts.subvec(0,sz) ;
+		return sjts.subspan(0,sz) ;
 	}
 
-	::c_vector_view<JobTgt> NodeData::candidate_job_tgts() const {
+	::span<JobTgt const> NodeData::candidate_job_tgts() const {
 		RuleIdx ci = conform_idx() ;
 		if (ci==NoIdx) return {} ;
-		JobTgts const& jts  = job_tgts()          ; // /!\ jts is a CrunchVector, so if single element, a subvec would point to it, so it *must* be a ref
-		Prio           prio = jts[ci]->rule->prio ;
-		RuleIdx        idx  = ci                  ;
+		JobTgts const& jts  = job_tgts()            ; // /!\ jts is a Crunch vector, so if single element, a subvec would point to it, so it *must* be a ref
+		RuleIdx        prio = jts[ci]->rule()->prio ;
+		RuleIdx        idx  = ci                    ;
 		for( JobTgt jt : jts.subvec(ci) ) {
-			if (jt->rule->prio<prio) break ;
+			if (jt->rule()->prio<prio) break ;
 			idx++ ;
 		}
 		return jts.subvec(0,idx) ;
@@ -207,25 +220,21 @@ namespace Engine {
 			_prev_prio = _cur_prio() ;
 			if (single) idx = node.job_tgts().size() ;
 			else        idx++ ;
-			return *this ;
+			return self ;
 		}
-		JobTgt        operator* (   ) const { return node.job_tgts()[idx] ;                                  }
-		JobTgt const* operator->(   ) const { return node.job_tgts().begin()+idx ;                           }
-		JobTgt      * operator->(   )       { return node.job_tgts().begin()+idx ;                           }
-		operator bool           (   ) const { return idx<node.job_tgts().size() && _cur_prio()>=_prev_prio ; }
-		void reset(RuleIdx i=0) {
-			idx        = i         ;
-			_prev_prio = -Infinity ;
-		}
+		JobTgt        operator* () const { return node.job_tgts()[idx] ;                                  }
+		JobTgt const* operator->() const { return node.job_tgts().begin()+idx ;                           }
+		JobTgt      * operator->()       { return node.job_tgts().begin()+idx ;                           }
+		operator bool           () const { return idx<node.job_tgts().size() && _cur_prio()>=_prev_prio ; }
 	private :
-		Prio _cur_prio() const { return (**this)->rule->prio ; }
+		RuleIdx _cur_prio() const { return (*self)->rule()->prio ; }
 		// data
 	public :
 		NodeData& node   ;
 		RuleIdx   idx    = 0    /*garbage*/ ;
 		bool      single = false/*garbage*/ ;
 	private :
-		Prio _prev_prio = -Infinity ;
+		RuleIdx _prev_prio = 0 ;
 	} ;
 
 	// check rule_tgts special rules and set rule_tgts accordingly
@@ -235,15 +244,16 @@ namespace Engine {
 		//
 		RuleIdx  n_skip = 0 ;
 		for( RuleTgt const& rt : rule_tgts().view() ) {
-			if (rt->special==Special::Plain                  ) { rule_tgts().shorten_by(n_skip) ; return Buildable::Maybe ; } // no special rule applies, avoid pattern matching
-			if (!rt.pattern().match(name_,false/*chk_psfx*/) ) { n_skip++                       ; continue                ; } // rule is pre-filtered, so no need to match prefix and suffix
+			Rule r = rt->rule ; if (!r) continue ;
+			if (r->special==Special::Plain                  ) { rule_tgts().shorten_by(n_skip) ; return Buildable::Maybe ; } // no special rule applies, avoid pattern matching
+			if (!rt.pattern().match(name_,false/*chk_psfx*/)) { n_skip++                       ; continue                ; } // rule is pre-filtered, so no need to match prefix and suffix
 			rule_tgts() = ::vector<RuleTgt>({rt}) ;
-			if (rt->special==Special::Anti      ) return Buildable::DynAnti ;
-			if (rt->special==Special::GenericSrc) return Buildable::DynSrc  ;
-			FAIL("unexpected special rule",rt->name,rt->special) ;
+			if (r->special==Special::Anti      ) return Buildable::DynAnti ;
+			if (r->special==Special::GenericSrc) return Buildable::DynSrc  ;
+			FAIL("unexpected special rule",r->full_name(),r->special) ;
 		}
 		rule_tgts().clear() ;
-		return Buildable::Maybe ;                                                                                             // node may be buildable from dir
+		return Buildable::Maybe ;                                                                                            // node may be buildable from dir
 	}
 
 	// instantiate rule_tgts into job_tgts by taking the first iso-prio chunk and set rule_tgts accordingly
@@ -251,7 +261,7 @@ namespace Engine {
 	// - if a sure job is found, then all rule_tgts are consumed as there will be no further match
 	Buildable NodeData::_gather_prio_job_tgts( ::string const& name_ , Req req , DepDepth lvl ) {
 		//
-		Prio              prio       = -Infinity          ;                    // initially, we are ready to accept any rule
+		RuleIdx           prio       = 0                  ;                    // initially, we are ready to accept any rule
 		RuleIdx           n          = 0                  ;
 		Buildable         buildable  = Buildable::No      ;                    // return val if we find no job candidate
 		::vector<RuleTgt> rule_tgts_ = rule_tgts().view() ;
@@ -259,8 +269,9 @@ namespace Engine {
 		SWEAR(is_lcl(name_),name_) ;
 		::vector<JobTgt> jts ; jts.reserve(rule_tgts_.size()) ;                // typically, there is a single priority
 		for( RuleTgt const& rt : rule_tgts_ ) {
-			SWEAR(!rt->is_special()) ;
-			if (rt->prio<prio) goto Done ;
+			Rule r = rt->rule ; if (!r) continue ;
+			SWEAR(!r->is_special()) ;
+			if (r->prio<prio) goto Done ;
 			if (lvl>=g_config->max_dep_depth) throw ::vector<Node>() ;         // too deep, must be an infinite dep path
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobTgt jt = JobTgt(rt,name_,false/*chk_psfx*/,req,lvl+1) ;         // rule is pre-filtered, so no need to match prefix and suffix
@@ -269,7 +280,7 @@ namespace Engine {
 				if (jt.sure()) { buildable  = Buildable::Yes   ; n = NoIdx ; } // after a sure job, we can forget about rules at lower prio
 				else             buildable |= Buildable::Maybe ;
 				jts.push_back(jt) ;
-				prio = rt->prio ;
+				prio = r->prio ;
 			}
 			if (n!=NoIdx) n++ ;
 		}
@@ -337,13 +348,14 @@ namespace Engine {
 				//^^^^^^^^^^^^^^^^^^^^
 				goto Return ;
 			} catch (::vector<Node>& e) {
-				_set_match_gen(false/*ok*/) ;                                 // restore Unknown as we do not want to appear as having been analyzed
+				buildable = Buildable::Unknown ;                              // restore Unknown as we do not want to appear as having been analyzed
+				match_gen = 0                  ;
 				e.push_back(idx()) ;
 				throw ;
 			}
 		}
 	Return :
-		_set_match_gen(true/*ok*/) ;
+		_set_match_ok() ;
 		trace("done",buildable) ;
 		return ;
 	}
@@ -455,7 +467,7 @@ namespace Engine {
 	NoSrc :
 		{	if (ri.goal>=NodeGoal::Dsk) {
 				Manual manual = manual_wash(ri,query,true/*dangling*/) ;                                // always check manual if asking for disk
-				trace("no_src",ri.goal,crc,manual) ;
+				trace("no_src",ri.goal,crc,manual,actual_job()) ;
 				if (crc!=Crc::None) {
 					if (manual==Manual::Ok) {                                                           // if already unlinked, no need to unlink it again
 						SWEAR(is_lcl(lazy_name()),lazy_name()) ;
@@ -468,7 +480,7 @@ namespace Engine {
 				}
 				goto DoneDsk ;
 			} else {
-				trace("no_src",ri.goal,crc) ;
+				trace("no_src",ri.goal,crc,actual_job()) ;
 				if (crc!=Crc::None) {
 					refresh(Crc::None) ;                                                                // if not physically unlinked, node will be manual
 					if (+actual_job()) {
@@ -494,25 +506,24 @@ namespace Engine {
 	}
 
 	static bool _may_need_regenerate( NodeData const& nd , NodeReqInfo& ri , NodeMakeAction make_action ) {
-		/**/                                if (make_action==NodeMakeAction::Wakeup   ) return false ;                 // do plain analysis
-		/**/                                if (!ri.done(NodeGoal::Status)            ) return false ;                 // do plain analysis
-		JobTgt cjt = nd.conform_job_tgt() ; if (!cjt                                  ) return false ;                 // no hope to regenerate, proceed normally
-		/**/                                if (!cjt.produces(nd.idx(),true/*actual*/)) return false ;                 // no hope to regenerate if we did not generate
-		/**/                                if (+nd.polluted                          ) ri.done_ &= NodeGoal::Status ; // disk cannot be ok if node was polluted, does not change conform_job_tgt()
-		/**/                                if (ri.done()                             ) return false ;
+		/**/                                if (make_action==NodeMakeAction::Wakeup               ) return false ;                 // do plain analysis
+		/**/                                if (!ri.done(NodeGoal::Status)                        ) return false ;                 // do plain analysis
+		JobTgt cjt = nd.conform_job_tgt() ; if (!( +cjt && cjt.produces(nd.idx(),true/*actual*/) )) return false ;                 // no hope to regenerate, proceed normally
+		/**/                                if ( +nd.polluted || nd.busy                          ) ri.done_ &= NodeGoal::Status ; // disk cannot be ok if node was polluted or is busy, ...
+		/**/                                if (ri.done()                                         ) return false ;                 // ... does not change conform_job_tgt()
 		Trace trace("_may_need_regenerate",nd.idx(),ri,cjt,nd.polluted) ;
-		ri.prio_idx = nd.conform_idx() ;                                                                               // ask to run only conform job
-		ri.single   = true             ;                                                                               // .
+		ri.prio_idx = nd.conform_idx() ;                                                                                           // ask to run only conform job
+		ri.single   = true             ;                                                                                           // .
 		return true ;
 	}
 	void NodeData::_do_make( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
 		RuleIdx prod_idx       = NoIdx                              ;
 		Req     req            = ri.req                             ;
-		Bool3   clean          = Maybe                              ;                                    // lazy evaluate manual()==No
+		Bool3   clean          = Maybe                              ;                                     // lazy evaluate manual()==No
 		bool    multi          = false                              ;
 		bool    stop_speculate = speculate<ri.speculate && +ri.goal ;
 		bool    query          = make_action==MakeAction::Query     ;
-		bool    first          = true                               ;                                    // anti infinite loop : may only regenerate once
+		bool    first          = true                               ;                                     // anti infinite loop : may only regenerate once
 		Trace trace("Nmake",idx(),ri,make_action) ;
 		ri.speculate &= speculate ;
 		//vvvvvvvvvvvvvvvv
@@ -534,54 +545,53 @@ namespace Engine {
 			if (ri.done()   )                  goto Wakeup ;
 			ri.prio_idx = 0 ;
 		} else {
-			// check if we need to regenerate node
-			if ( ri.done(NodeGoal::Status) && _may_need_regenerate(*this,ri,make_action) ) goto Make   ;
-			if ( ri.done()                                                               ) goto Wakeup ;
+			if ( _may_need_regenerate(self,ri,make_action) ) goto Make   ;
+			if ( ri.done()                                 ) goto Wakeup ;
 			// fast path : check jobs we were waiting for, lighter than full analysis
-			JobTgtIter it{*this,ri} ;
+			JobTgtIter it{self,ri} ;
 			for(; it ; it++ ) {
 				JobTgt jt   = *it                                                 ;
 				bool   done = jt->c_req_info(req).done(ri.goal>=NodeGoal::Status) ;
 				trace("check",jt,jt->c_req_info(req)) ;
-				if (!done             ) { prod_idx = NoIdx ; goto Make ;                               } // we waited for it and it is not done, retry
-				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
+				if (!done             ) { prod_idx = NoIdx ; goto Make ;                               }  // we waited for it and it is not done, retry
+				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }  // jobs in error are deemed to produce all their potential targets
 			}
-			if (prod_idx!=NoIdx) goto DoWakeup ;                                                         // we have at least one done job, no need to investigate any further
-			if (ri.single) ri.single   = false  ;                                                        // if regenerating but job does not generate us, something strange happened, retry this prio
-			else           ri.prio_idx = it.idx ;                                                        // else go on with next prio
+			if (prod_idx!=NoIdx) goto DoWakeup ;                                                          // we have at least one done job, no need to investigate any further
+			if (ri.single) ri.single   = false  ;                                                         // if regenerating but job does not generate us, something strange happened, retry this prio
+			else           ri.prio_idx = it.idx ;                                                         // else go on with next prio
 		}
 	Make :
+		g_kpi.n_node_make++ ;
 		SWEAR(prod_idx==NoIdx,prod_idx) ;
 		for(;; first=false ) {
 			for (;;) {
 				SWEAR(ri.prio_idx!=NoIdx) ;
-				if (ri.prio_idx>=job_tgts().size()) {                                                    // gather new job_tgts from rule_tgts
-					SWEAR(!ri.single) ;                                                                  // we only regenerate using an existing job
+				if (ri.prio_idx>=job_tgts().size()) {                                                     // gather new job_tgts from rule_tgts
+					SWEAR(!ri.single) ;                                                                   // we only regenerate using an existing job
 					try {
 						//                      vvvvvvvvvvvvvvvvvvvvvvvvvv
 						buildable = buildable | _gather_prio_job_tgts(req) ;
 						//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
-						if (ri.prio_idx>=job_tgts().size()) break ;                                      // fast path
+						if (ri.prio_idx>=job_tgts().size()) break ;                                       // fast path
 					} catch (::vector<Node> const& e) {
 						set_infinite(e) ;
 						break ;
 					}
 				}
-				JobTgtIter it{*this,ri} ;
-				if (!ri.single) {                                                                        // fast path : cannot have several jobs if we consider only a single job
-					for(; it ; it++ ) {                                                                  // check if we obviously have several jobs, in which case make nothing
+				if (!ri.single) {                                                                         // fast path : cannot have several jobs if we consider only a single job
+					for( JobTgtIter it{self,ri} ; it ; it++ ) {                                           // check if we obviously have several jobs, in which case make nothing
 						JobTgt jt = *it ;
-						if      ( jt.sure()                 )   buildable = Buildable::Yes ;             // buildable is data independent & pessimistic (may be Maybe instead of Yes)
+						if      ( jt.sure()                 )   buildable = Buildable::Yes ;              // buildable is data independent & pessimistic (may be Maybe instead of Yes)
 						else if (!jt->c_req_info(req).done())   continue ;
 						else if (!jt.produces(idx())        )   continue ;
 						if      (prod_idx!=NoIdx            ) { multi = true ; goto DoWakeup ; }
 						prod_idx = it.idx ;
 					}
-					it.reset(ri.prio_idx) ;
 					prod_idx = NoIdx ;
 				}
 				// make eligible jobs
-				{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                    // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
+				JobTgtIter it { self , ri } ;
+				{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                     // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
 					for(; it ; it++ ) {
 						JobTgt        jt     = *it                   ;
 						JobMakeAction ma     = JobMakeAction::Status ;
@@ -590,22 +600,23 @@ namespace Engine {
 						if (query)
 							ma = JobMakeAction::Query ;
 						else switch (ri.goal) {
-							case NodeGoal::Makable : if (jt.sure()) ma = JobMakeAction::Makable ; break ;                  // if star, job must be run to know if we are generated
+							case NodeGoal::Makable : if (jt.sure()) ma = JobMakeAction::Makable ; break ; // if star, job must be run to know if we are generated
 							case NodeGoal::Status  :
 							case NodeGoal::Dsk     :
-								if (+polluted) {
-									if (crc==Crc::None)
+								if (busy) {
+										/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
+								} else if (+polluted) {
+									if (crc==Crc::None) {
 										/**/                      reason = {JobReasonTag::NoTarget      ,+idx()} ;
-									else switch (polluted) {
-										case Polluted::Busy     : reason = {JobReasonTag::BusyTarget    ,+idx()} ; break ;
+									} else switch (polluted) {
 										case Polluted::Old      : reason = {JobReasonTag::OldTarget     ,+idx()} ; break ;
 										case Polluted::PreExist : reason = {JobReasonTag::PrevTarget    ,+idx()} ; break ;
-										case Polluted::Job      : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;
+										case Polluted::Job      : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;                          // polluting job is already set
 									DF}
-								} else if (ri.goal!=NodeGoal::Status) {                                                    // dont check disk if asked for Status
-									if ( jt->running(true/*with_zombies*/) )
-										/**/                      reason =  JobReasonTag::Garbage                ;         // be pessimistic and dont check target as it is not manual ...
-									else switch (manual_wash(ri,false/*query*/,false/*dangling*/)) {                       // ... and checking may modify it
+								} else if (ri.goal!=NodeGoal::Status) {                                                                             // dont check disk if asked for Status
+									if (jt->running(true/*with_zombies*/))
+										/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
+									else switch (manual_wash(ri,false/*query*/,false/*dangling*/)) {
 										case Manual::Ok         :                                                  break ;
 										case Manual::Unlnked    : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
 										case Manual::Empty      :
@@ -618,15 +629,15 @@ namespace Engine {
 								}
 							break ;
 						DF}
-						if (ri.live_out) jri.live_out = ri.live_out ;                                                      // transmit user request to job for last level live output
+						if (ri.live_out) jri.live_out = ri.live_out ;                                                 // transmit user request to job for last level live output
 						jt->asking = idx() ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						jt->make( jri , ma , reason , ri.speculate ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						trace("job",ri,clean,ma,jt,STR(jri.waiting()),STR(jt.produces(idx())),polluted) ;
+						trace("job",ri,clean,ma,jt,STR(jri.waiting()),STR(jt.produces(idx())),polluted,STR(busy)) ;
 						if      (jri.waiting()     )   jt->add_watcher(jri,idx(),ri,ri.pressure) ;
 						else if (!jri.done()       ) { SWEAR(query) ; goto Wait ;                                   }
-						else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }      // jobs in error are deemed to produce all their potential targets
+						else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
 					}
 				}
 				if (ri.waiting()   ) goto Wait ;
@@ -635,7 +646,7 @@ namespace Engine {
 			}
 		DoWakeup :
 			if (prod_idx==NoIdx) {
-				if ( ri.goal==NodeGoal::Dsk && !query ) manual_wash(ri,false/*query*/,true/*dangling*/) ;                  // no producing job, check for dangling if asked to do so
+				if ( ri.goal==NodeGoal::Dsk && !query ) manual_wash(ri,false/*query*/,true/*dangling*/) ;             // no producing job, check for dangling if asked to do so
 				status(NodeStatus::None) ;
 			} else if (!multi) {
 				conform_idx(prod_idx) ;
@@ -646,11 +657,11 @@ namespace Engine {
 				trace("multi",ri,job_tgts().size(),conform_job_tgts(ri),jts) ;
 				/**/                   req->audit_node(Color::Err ,"multi",idx()            ) ;
 				/**/                   req->audit_info(Color::Note,"several rules match :",1) ;
-				for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule->name         ,2) ;
+				for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule()->full_name(),2) ;
 			}
 			ri.done_ = ri.goal ;
-			if (!_may_need_regenerate(*this,ri,make_action)) break ;
-			SWEAR(first) ;                                                                                                 // avoid infinite loop : we should not need to regenerate more than once
+			if (!_may_need_regenerate(self,ri,make_action)) break ;
+			SWEAR(first) ;                                                                                            // avoid infinite loop : we should not need to regenerate more than once
 			prod_idx = NoIdx ;
 		}
 	Wakeup :
@@ -678,31 +689,30 @@ namespace Engine {
 		Trace trace("Nforget",idx(),STR(targets),STR(deps),STR(waiting()),conform_job_tgts()) ;
 		if (waiting()) return false ;
 		//
-		bool    res  = true      ;
-		RuleIdx k    = 0         ;
-		Prio    prio = -Infinity ;
+		bool    res  = true ;
+		RuleIdx k    = 0    ;
+		RuleIdx prio = 0    ;
 		for( Job j : job_tgts() ) {
-			if (j->rule->prio<prio) break ;  // all jobs above or besides conform job(s)
+			RuleIdx p = j->rule()->prio ;
+			if (p<prio) break ;              // all jobs above or besides conform job(s)
 			res &= j->forget(targets,deps) ;
-			if (k==conform_idx()) prio = j->rule->prio ;
+			if (k==conform_idx()) prio = p ;
 			k++ ;
 		}
-		_set_match_gen(false/*ok*/) ;
+		match_gen = 0 ;
 		return res ;
 	}
 
 	void NodeData::mk_old() {
 		Trace trace("mk_old",idx()) ;
-		if ( +actual_job() && actual_job()->rule.old() ) {
-			actual_job() = {}            ;                 // old jobs may be collected, do not refer to them anymore
-			polluted     = Polluted::Old ;                 // although actual_job does not reflect it, job has been generated by a job which cannot be official any more
-		}
-		_set_match_gen(false/*ok*/) ;
+		busy      = false ;           // possibly old
+		match_gen = 0     ;
 	}
 
 	void NodeData::mk_no_src() {
 		Trace trace("mk_no_src",idx()) ;
-		_set_match_gen(false/*ok*/) ;
+		buildable = Buildable::Unknown ;
+		match_gen = 0                  ;
 		fence() ;
 		rule_tgts ().clear() ;
 		job_tgts  ().clear() ;
@@ -717,7 +727,7 @@ namespace Engine {
 		rule_tgts ().clear() ;
 		job_tgts  ().clear() ;
 		actual_job().clear() ;
-		_set_match_gen(true/*ok*/) ;
+		_set_match_ok() ;
 	}
 
 	void NodeData::mk_src(FileTag tag) {
@@ -742,8 +752,8 @@ namespace Engine {
 		}
 		for( Req r : reqs() ) {
 			ReqInfo& ri = req_info(r) ;
-			if (modified) ri.reset(NodeGoal::Status) ; // target is not conform on disk any more
-			if (+sd     ) ri.manual = Manual::Ok ;     // if we passed a sig, we know the disk state, and we just updated our records
+			if (modified) ri.done_  &= NodeGoal::Status ; // target is not conform on disk any more
+			if (+sd     ) ri.manual  = Manual::Ok       ; // if we passed a sig, we know the disk state, and we just updated our records
 		}
 		return modified ;
 	}
@@ -765,12 +775,12 @@ namespace Engine {
 		return {Manual::Ok,true/*refreshed*/} ;                     // file is steady
 	}
 	Manual NodeData::manual_refresh( Req req , FileSig const& sig ) {
-		auto [m,refreshed] = _manual_refresh(*this,sig) ;
+		auto [m,refreshed] = _manual_refresh(self,sig) ;
 		if ( refreshed && +req ) req->audit_node(Color::Note,"manual_steady",idx()) ;
 		return m ;
 	}
 	Manual NodeData::manual_refresh( JobData const& j , FileSig const& sig ) {
-		auto [m,refreshed] = _manual_refresh(*this,sig) ;
+		auto [m,refreshed] = _manual_refresh(self,sig) ;
 		if (refreshed) for( Req r : j.reqs() ) r->audit_node(Color::Note,"manual_steady",idx()) ;
 		return m ;
 	}
@@ -779,7 +789,7 @@ namespace Engine {
 	// Target
 	//
 
-	::ostream& operator<<( ::ostream& os , Target const t ) {
+	::string& operator+=( ::string& os , Target const t ) {
 		/**/           os << "T("         ;
 		if (+t       ) os << +t           ;
 		if (+t.tflags) os <<','<<t.tflags ;
@@ -791,19 +801,19 @@ namespace Engine {
 	// Dep
 	//
 
-	::ostream& operator<<( ::ostream& os , Dep const& d ) {
+	::string& operator+=( ::string& os , Dep const& d ) {
 		return os << static_cast<DepDigestBase<Node> const&>(d) ;
 	}
 
 	::string Dep::accesses_str() const {
 		::string res ; res.reserve(N<Access>) ;
-		for( Access a : All<Access> ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX : for some reason, clang-tidy fires up here
+		for( Access a : iota(All<Access>) ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX : for some reason, clang-tidy fires up here
 		return res ;
 	}
 
 	::string Dep::dflags_str() const {
 		::string res ; res.reserve(N<Dflag>) ;
-		for( Dflag df : All<Dflag> ) res.push_back( dflags[df] ? DflagChars[+df].second : '-' ) ;
+		for( Dflag df : iota(All<Dflag>) ) res.push_back( dflags[df] ? DflagChars[+df].second : '-' ) ;
 		return res ;
 	}
 
@@ -811,7 +821,7 @@ namespace Engine {
 	// Deps
 	//
 
-	::ostream& operator<<( ::ostream& os , DepsIter::Digest const& did ) {
+	::string& operator+=( ::string& os , DepsIter::Digest const& did ) {
 		return os <<'('<< did.hdr <<','<< did.i_chunk <<')'  ;
 	}
 
@@ -866,7 +876,7 @@ namespace Engine {
 		size_t               hole = Npos ;
 		for( auto const& [d,df] : deps ) _append_dep( ds , {d,accesses,df,parallel} , hole ) ;
 		_fill_hole(ds,hole) ;
-		*this = {ds} ;
+		self = {ds} ;
 	}
 
 	Deps::Deps( ::vector<Node> const& deps , Accesses accesses , Dflags dflags , bool parallel ) {
@@ -874,7 +884,7 @@ namespace Engine {
 		size_t               hole = Npos ;
 		for( auto const& d : deps ) _append_dep( ds , {d,accesses,dflags,parallel} , hole ) ;
 		_fill_hole(ds,hole) ;
-		*this = {ds} ;
+		self = {ds} ;
 	}
 
 	void Deps::assign(::vector<Dep> const& deps) {
@@ -901,11 +911,11 @@ namespace Engine {
 		// splice it
 		NodeIdx tail_sz = items()+DepsBase::size()-cur_dep ;
 		if (ds.size()<=tail_sz) {
-			for( GenericDep const& d : ds ) *cur_dep++ = d ;                               // copy all
-			shorten_by(tail_sz-ds.size()) ;                                                // and shorten
+			for( GenericDep const& d : ds ) *cur_dep++ = d ;                        // copy all
+			shorten_by(tail_sz-ds.size()) ;                                         // and shorten
 		} else {
-			for( GenericDep const& d : ::vector_view(ds.data(),tail_sz) ) *cur_dep++ = d ; // copy what can be fitted
-			append(::vector_view( &ds[tail_sz] , ds.size()-tail_sz ) ) ;                   // and append for the remaining
+			for( GenericDep const& d : ::span(ds.data(),tail_sz) ) *cur_dep++ = d ; // copy what can be fitted
+			append(::span( &ds[tail_sz] , ds.size()-tail_sz ) ) ;                   // and append for the remaining
 		}
 	}
 

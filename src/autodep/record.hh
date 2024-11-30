@@ -27,21 +27,20 @@ struct Record {
 		SWEAR(_s_autodep_env) ;
 		pid_t pid = ::getpid() ;
 		if (!(+_s_root_fd&&_s_root_pid==pid)) {
-			_s_root_fd = { Disk::open_read(Disk::no_slash(_s_autodep_env->root_dir_s)) , true/*no_std*/ } ;                       // avoid poluting standard descriptors
+			_s_root_fd = { _s_autodep_env->root_dir_s , Fd::Dir , true/*no_std*/ } ;                                           // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 			_s_root_pid = pid ;
 		}
 		return _s_root_fd ;
 	}
 	static Fd s_report_fd() {
-		pid_t pid = ::getpid() ;
-		if ( !(+_s_report_fd&&_s_report_pid==pid) && +_s_autodep_env->service ) {
-			// establish connection with server
-			::string const& service = _s_autodep_env->service ;
+		pid_t           pid     = ::getpid()              ;
+		::string const& service = _s_autodep_env->service ;
+		if ( !(+_s_report_fd&&_s_report_pid==pid) && +service ) {
 			try {
-				if (service.back()==':') _s_report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
-				else                     _s_report_fd = ClientSockFd(service).detach()                                          ;
-				_s_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
+				if (service.back()==':') _s_report_fd = { Disk::dir_guard(service.substr(0,service.size()-1)) , Fd::Append } ; // write to file
+				else                     _s_report_fd = ClientSockFd(service).detach()                                       ; // establish connection with server
+				_s_report_fd.no_std() ;                                                                                        // avoid poluting standard descriptors
 			} catch (::string const& e) {
 				fail_prod("while trying to report deps",e) ;
 			}
@@ -81,9 +80,9 @@ struct Record {
 		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
 		// use a random number as starting point for access id's, then it is incremented at each access
 		// this ensures reasonable uniqueness while avoiding heavy host/pid/local_id to ensure uniqueness
-		AutoCloseFd fd = ::open("/dev/urandom",O_RDONLY) ; SWEAR(+fd)                  ;                                          // getrandom is not available in CentOS7
-		ssize_t     rc = ::read(fd,&_s_id,sizeof(_s_id)) ; SWEAR(rc==sizeof(_s_id),rc) ;
-		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;                                                 // ensure we can confortably generate ids while never generating 0
+		AcFd    fd = {"/dev/urandom"}                ; SWEAR(+fd)                  ;                                           // getrandom is not available in CentOS7
+		ssize_t rc = ::read(fd,&_s_id,sizeof(_s_id)) ; SWEAR(rc==sizeof(_s_id),rc) ;
+		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;                                              // ensure we can confortably generate ids while never generating 0
 	}
 	// static data
 public :
@@ -207,7 +206,7 @@ public :
 		_Path(        ::string const& f ) :         file{f.c_str()} { _allocate(f.size()) ; }
 		_Path( Fd a , ::string const& f ) : at{a} , file{f.c_str()} { _allocate(f.size()) ; }
 		//
-		_Path(_Path && p) { *this = ::move(p) ; }
+		_Path(_Path && p) { self = ::move(p) ; }
 		_Path& operator=(_Path&& p) {
 			_deallocate() ;
 			at          = p.at        ;
@@ -215,7 +214,7 @@ public :
 			allocated   = p.allocated ;
 			p.file      = nullptr     ;                                                                               // safer to avoid dangling pointers
 			p.allocated = false       ;                                                                               // we have clobbered allocation, so it is no more p's responsibility
-			return *this ;
+			return self ;
 		}
 		~_Path() { _deallocate() ; }
 		// accesses
@@ -257,7 +256,7 @@ public :
 				for( auto const& [view,phys] : s_autodep_env().views ) {
 					if (!phys                                                                      ) continue ;       // empty phys do not represent a view
 					if (!( file.starts_with(view) && (is_dirname(view)||file.size()==view.size()) )) continue ;
-					for( size_t i=0 ; i<phys.size() ; i++ ) {
+					for( size_t i : iota(phys.size()) ) {
 						bool     last  = i==phys.size()-1                                 ;
 						::string f     = phys[i] + file.substr(view.size())               ;
 						FileInfo fi    = !last||+a ? FileInfo(s_root_fd(),f) : FileInfo() ;
@@ -461,7 +460,7 @@ private :
 	mutable bool   _tmp_cache = false ;           // record that tmp usage has been reported, no need to report any further
 } ;
 
-template<bool Writable=false> ::ostream& operator<<( ::ostream& os , Record::_Path<Writable> const& p ) {
+template<bool Writable=false> ::string& operator+=( ::string& os , Record::_Path<Writable> const& p ) {
 	const char* sep = "" ;
 	/**/                       os << "Path("     ;
 	if ( p.at!=Fd::Cwd     ) { os <<      p.at   ; sep = "," ; }

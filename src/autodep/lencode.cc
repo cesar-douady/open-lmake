@@ -5,6 +5,7 @@
 
 #include "app.hh"
 #include "disk.hh"
+#include "hash.hh"
 
 #include "rpc_job.hh"
 
@@ -12,6 +13,7 @@
 #include "record.hh"
 
 using namespace Disk ;
+using namespace Hash ;
 
 ENUM(Key,None)
 ENUM(Flag
@@ -35,16 +37,16 @@ int main( int argc , char* argv[]) {
 	try {
 		if (cmd_line.flags[Flag::MinLen]) {
 			min_len = from_string<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ;
-			if (min_len>MaxCodecBits) throw "min len ("s+min_len+") cannot be larger max allowed code bits ("+MaxCodecBits+')' ;
+			throw_unless( min_len<=sizeof(Crc)*2 , "min len (",min_len,") cannot be larger than crc length (",sizeof(Crc)*2,')' ) ; // codes are output in hex, 4 bits/digit
 		}
 	} catch (::string const& e) {
 		syntax.usage("bad min len value : "+e) ;
 	}
 	//
 	try {
-		auto&                fa    = cmd_line.flag_args                                                                                                                      ;
-		::pair_s<bool/*ok*/> reply = JobSupport::encode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , fmt_string(::cin.rdbuf()) , ::move(fa[+Flag::Context]) , min_len ) ;
-		if (reply.second) { ::cout<<reply.first<<'\n' ; return 0 ; }
-		else              { ::cerr<<reply.first       ; return 1 ; }
+		auto&                fa    = cmd_line.flag_args                                                                                                             ;
+		::pair_s<bool/*ok*/> reply = JobSupport::encode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , Fd::Stdin.read() , ::move(fa[+Flag::Context]) , min_len ) ;
+		if (reply.second) { Fd::Stdout.write(::move(reply.first)+'\n') ; return 0 ; }
+		else              { Fd::Stderr.write(       reply.first      ) ; return 1 ; }
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 }

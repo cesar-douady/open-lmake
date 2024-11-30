@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include "config.hh"
-
 #include "disk.hh"
 #include "hash.hh"
 #include "serialize.hh"
@@ -21,7 +19,6 @@ ENUM_2( AutodepMethod                     // PER_AUTODEP_METHOD : add entry here
 ,	Ld   = LdAudit                        // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 ,	Dflt = HAS_LD_AUDIT?LdAudit:LdPreload // by default, use  a compromize between speed an reliability
 ,	None
-,	Fuse
 ,	Ptrace
 ,	LdAudit
 ,	LdPreload
@@ -78,15 +75,15 @@ ENUM( JobRpcProc
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
-ENUM_3( JobReasonTag                                // see explanations in table below
-,	HasNode = BusyDep                               // if >=HasNode, a node is associated
+ENUM_3( JobReasonTag                                                                 // see explanations in table below
+,	HasNode = BusyDep                                                                // if >=HasNode, a node is associated
 ,	Err     = DepOverwritten
 ,	Missing = DepMissingStatic
 	//
 ,	None
 //	with reason
-,	Busy                                            // job is indeed running
-,	SomeBusyDep                                     // job is waiting for an unknown dep
+,	Busy                                                                             // job is indeed running
+,	SomeBusyDep                                                                      // job is waiting for an unknown dep
 ,	OldErr
 ,	Rsrcs
 ,	PollutedTargets
@@ -99,7 +96,7 @@ ENUM_3( JobReasonTag                                // see explanations in table
 ,	Lost
 ,	New
 //	with node
-,	BusyDep                                         // job is waiting for a known dep
+,	BusyDep                                                                          // job is waiting for a known dep
 ,	BusyTarget
 ,	NoTarget
 ,	OldTarget
@@ -115,88 +112,88 @@ ENUM_3( JobReasonTag                                // see explanations in table
 ,	DepOverwritten
 ,	DepDangling
 ,	DepErr
-,	DepMissingRequired                              // this is actually an error
+,	DepMissingRequired                                                               // this is actually an error
 // with missing
-,	DepMissingStatic                                // this prevents the job from being selected
+,	DepMissingStatic                                                                 // this prevents the job from being selected
 )
 // END_OF_VERSIONING
-static constexpr const char* JobReasonTagStrs[] = {
-	"no reason"                                     // None
+static constexpr amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagStrs = {{
+	{ JobReasonTag::None                , "no reason"                              }
 //	with reason
-,	"running"                                       // Busy
-,	"waiting deps"                                  // SomeBusyDep
-,	"job was in error"                              // OldErr
-,	"resources changed and job was in error"        // Rsrcs
-,	"polluted targets"                              // PollutedTargets
-,	"dep check requires rerun"                      // ChkDeps
-,	"command changed"                               // Cmd
-,	"job forced"                                    // Force
-,	"job ran with unstable data"                    // Garbage
-,	"job was killed"                                // Killed
-,	"job was in error"                              // Retry
-,	"job was lost"                                  // Lost
-,	"job was never run"                             // New
+,	{ JobReasonTag::Busy                , "running"                                }
+,	{ JobReasonTag::SomeBusyDep         , "waiting deps"                           }
+,	{ JobReasonTag::OldErr              , "job was in error"                       }
+,	{ JobReasonTag::Rsrcs               , "resources changed and job was in error" }
+,	{ JobReasonTag::PollutedTargets     , "polluted targets"                       }
+,	{ JobReasonTag::ChkDeps             , "dep check requires rerun"               }
+,	{ JobReasonTag::Cmd                 , "command changed"                        }
+,	{ JobReasonTag::Force               , "job forced"                             }
+,	{ JobReasonTag::Garbage             , "job ran with unstable data"             }
+,	{ JobReasonTag::Killed              , "job was killed"                         }
+,	{ JobReasonTag::Retry               , "job was in error"                       }
+,	{ JobReasonTag::Lost                , "job was lost"                           }
+,	{ JobReasonTag::New                 , "job was never run"                      }
 //	with node
-,	"waiting dep"                                   // BusyDep
-,	"busy target"                                   // BusyTarget
-,	"missing target"                                // NoTarget
-,	"target produced by an old job"                 // OldTarget
-,	"target previously existed"                     // PrevTarget
-,	"polluted target"                               // PollutedTarget (end of message generated by reason_str)
-,	"target manually polluted"                      // ManualTarget
-,	"multiple simultaneous writes"                  // ClashTarget
-,	"dep out of date"                               // DepOutOfDate
-,	"dep dir is a symbolic link"                    // DepTransient
-,	"dep not on disk"                               // DepUnlnked
-,	"dep changed during job execution"              // DepUnstable
+,	{ JobReasonTag::BusyDep             , "waiting dep"                            }
+,	{ JobReasonTag::BusyTarget          , "busy target"                            }
+,	{ JobReasonTag::NoTarget            , "missing target"                         }
+,	{ JobReasonTag::OldTarget           , "target produced by an old job"          }
+,	{ JobReasonTag::PrevTarget          , "target previously existed"              }
+,	{ JobReasonTag::PollutedTarget      , "polluted target"                        } // (end of message generated by reason_str)
+,	{ JobReasonTag::ManualTarget        , "target manually polluted"               }
+,	{ JobReasonTag::ClashTarget         , "multiple simultaneous writes"           }
+,	{ JobReasonTag::DepOutOfDate        , "dep out of date"                        }
+,	{ JobReasonTag::DepTransient        , "dep dir is a symbolic link"             }
+,	{ JobReasonTag::DepUnlnked          , "dep not on disk"                        }
+,	{ JobReasonTag::DepUnstable         , "dep changed during job execution"       }
 //	with error
-,	"dep has been overwritten"                      // DepOverwritten
-,	"dep is dangling"                               // DepDangling
-,	"dep in error"                                  // DepErr
-,	"required dep missing"                          // DepMissingRequired
+,	{ JobReasonTag::DepOverwritten      , "dep has been overwritten"               }
+,	{ JobReasonTag::DepDangling         , "dep is dangling"                        }
+,	{ JobReasonTag::DepErr              , "dep in error"                           }
+,	{ JobReasonTag::DepMissingRequired  , "required dep missing"                   }
 // with missing
-,	"static dep missing"                            // DepMissingStatic
-} ;
-static_assert(::size(JobReasonTagStrs)==N<JobReasonTag>) ;
-static constexpr uint8_t JobReasonTagPrios[] = {
+,	{ JobReasonTag::DepMissingStatic    , "static dep missing"                     }
+}} ;
+static_assert(chk_enum_tab(JobReasonTagStrs)) ;
+static constexpr amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios = {{
 //	no reason, must be 0
-	0                                               // None
+	{ JobReasonTag::None                ,   0 }
 //	with reason
-,	12                                              // Busy
-,	10                                              // SomeBusyDep
-,	20                                              // OldErr
-,	21                                              // Rsrcs
-,	22                                              // PollutedTargets
-,	40                                              // ChkDeps
-,	60                                              // Cmd
-,	61                                              // Force
-,	61                                              // Garbage
-,	61                                              // Killed
-,	61                                              // Retry
-,	61                                              // Lost
-,	62                                              // New
+,	{ JobReasonTag::Busy                ,  12 }
+,	{ JobReasonTag::SomeBusyDep         ,  10 }
+,	{ JobReasonTag::OldErr              ,  20 }
+,	{ JobReasonTag::Rsrcs               ,  21 }
+,	{ JobReasonTag::PollutedTargets     ,  22 }
+,	{ JobReasonTag::ChkDeps             ,  40 }
+,	{ JobReasonTag::Cmd                 ,  60 }
+,	{ JobReasonTag::Force               ,  61 }
+,	{ JobReasonTag::Garbage             ,  61 }
+,	{ JobReasonTag::Killed              ,  61 }
+,	{ JobReasonTag::Retry               ,  61 }
+,	{ JobReasonTag::Lost                ,  61 }
+,	{ JobReasonTag::New                 ,  62 }
 //	with node
-,	11                                              // BusyDep
-,	1                                               // BusyTarget     this should not occur as there is certainly another reason to be running
-,	30                                              // NoTarget
-,	31                                              // OldTarget
-,	32                                              // PrevTarget
-,	33                                              // PollutedTarget
-,	34                                              // ManualTarget
-,	35                                              // ClashTarget
-,	50                                              // DepOutOfDate
-,	51                                              // DepTransient
-,	51                                              // DepUnlnked
-,	51                                              // DepUnstable
+,	{ JobReasonTag::BusyDep             ,  11 }
+,	{ JobReasonTag::BusyTarget          ,   1 }                                      // this should not occur as there is certainly another reason to be running
+,	{ JobReasonTag::NoTarget            ,  30 }
+,	{ JobReasonTag::OldTarget           ,  31 }
+,	{ JobReasonTag::PrevTarget          ,  32 }
+,	{ JobReasonTag::PollutedTarget      ,  33 }
+,	{ JobReasonTag::ManualTarget        ,  34 }
+,	{ JobReasonTag::ClashTarget         ,  35 }
+,	{ JobReasonTag::DepOutOfDate        ,  50 }
+,	{ JobReasonTag::DepTransient        ,  51 }
+,	{ JobReasonTag::DepUnlnked          ,  51 }
+,	{ JobReasonTag::DepUnstable         ,  51 }
 //	with error, must be higher than ok reasons
-,	100                                             // DepOverwritten
-,	101                                             // DepDangling
-,	101                                             // DepErr
-,	101                                             // DepMissingRequired
+,	{ JobReasonTag::DepOverwritten      , 100 }
+,	{ JobReasonTag::DepDangling         , 101 }
+,	{ JobReasonTag::DepErr              , 101 }
+,	{ JobReasonTag::DepMissingRequired  , 101 }
 // with missing, must be higher than err reasons
-,	200                                             // DepMissingStatic
-} ;
-static_assert(::size(JobReasonTagPrios)==N<JobReasonTag>) ;
+,	{ JobReasonTag::DepMissingStatic    , 200 }
+}} ;
+static_assert(chk_enum_tab(JobReasonTagPrios)) ;
 
 // START_OF_VERSIONING
 ENUM( MatchKind
@@ -277,7 +274,7 @@ static const ::string EnvDynMrkr  = {'\0','d'} ; // special illegal value to mar
 static constexpr char QuarantineDirS[] = ADMIN_DIR_S "quarantine/" ;
 
 struct FileAction {
-	friend ::ostream& operator<<( ::ostream& , FileAction const& ) ;
+	friend ::string& operator+=( ::string& , FileAction const& ) ;
 	// cxtors & casts
 	FileAction(FileActionTag t={} , Hash::Crc c={} , Disk::FileSig s={} ) : tag{t} , crc{c} , sig{s}  {} // should be automatic but clang lacks some automatic conversions in some cases
 	// data
@@ -292,7 +289,7 @@ inline ::pair_s<bool/*ok*/> do_file_actions(                             ::vmap_
 struct AccDflags {
 	// services
 	AccDflags  operator| (AccDflags other) const { return { accesses|other.accesses , dflags|other.dflags } ; }
-	AccDflags& operator|=(AccDflags other)       { *this = *this | other ; return *this ;                     }
+	AccDflags& operator|=(AccDflags other)       { self = self | other ; return self ;                        }
 	// data
 	// START_OF_VERSIONING
 	Accesses accesses ;
@@ -301,7 +298,7 @@ struct AccDflags {
 } ;
 
 struct JobReason {
-	friend ::ostream& operator<<( ::ostream& , JobReason const& ) ;
+	friend ::string& operator+=( ::string& , JobReason const& ) ;
 	using Tag = JobReasonTag ;
 	// cxtors & casts
 	JobReason(                   ) = default ;
@@ -309,16 +306,15 @@ struct JobReason {
 	JobReason( Tag t , NodeIdx n ) : tag{t} , node{n} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
 	// accesses
 	bool operator+() const { return +tag ; }
-	bool operator!() const { return !tag ; }
 	// services
 	JobReason operator|(JobReason jr) const {
-		if (JobReasonTagPrios[+tag]>=JobReasonTagPrios[+jr.tag]) return *this ; // at equal level, prefer older reason
-		else                                                     return jr    ;
+		if (JobReasonTagPrios[+tag].second>=JobReasonTagPrios[+jr.tag].second) return self ; // at equal level, prefer older reason
+		else                                                                   return jr   ;
 	}
-	JobReason& operator|=(JobReason jr) { *this = *this | jr ; return *this ; }
+	JobReason& operator|=(JobReason jr) { self = self | jr ; return self ; }
 	::string msg() const {
 		if (tag<Tag::HasNode) SWEAR(node==0,tag,node) ;
-		return JobReasonTagStrs[+tag] ;
+		return JobReasonTagStrs[+tag].second ;
 	}
 	// data
 	// START_OF_VERSIONING
@@ -347,25 +343,28 @@ ENUM( DepInfoKind
 ,	Info
 )
 struct DepInfo {
-	friend ::ostream& operator<<( ::ostream& , DepInfo const& ) ;
+	friend ::string& operator+=( ::string& , DepInfo const& ) ;
 	using Crc      = Hash::Crc      ;
 	using FileSig  = Disk::FileSig  ;
 	using FileInfo = Disk::FileInfo ;
 	using Kind     = DepInfoKind    ;
 	//cxtors & casts
-	DepInfo(           ) :                    _crc {  } {}
-	DepInfo(Crc      c ) : kind{Kind::Crc } , _crc {c } {}
-	DepInfo(FileSig  s ) : kind{Kind::Sig } , _sig {s } {}
-	DepInfo(FileInfo fi) : kind{Kind::Info} , _info{fi} {}
+	constexpr DepInfo(           ) :                    _crc {  } {}
+	constexpr DepInfo(Crc      c ) : kind{Kind::Crc } , _crc {c } {}
+	constexpr DepInfo(FileSig  s ) : kind{Kind::Sig } , _sig {s } {}
+	constexpr DepInfo(FileInfo fi) : kind{Kind::Info} , _info{fi} {}
 	//
 	template<class B> DepInfo(DepDigestBase<B> const& ddb) {
-		if      (!ddb.accesses) *this = Crc()     ;
-		else if ( ddb.is_crc  ) *this = ddb.crc() ;
-		else                    *this = ddb.sig() ;
+		if      (!ddb.accesses) self = Crc()     ;
+		else if ( ddb.is_crc  ) self = ddb.crc() ;
+		else                    self = ddb.sig() ;
 	}
 	// accesses
-	bool operator==(DepInfo const& di) const {
-		if (kind!=di.kind) return false ;
+	bool operator==(DepInfo const& di) const {                                          // if true => self and di are idential (but there may be false negative if one is a Crc)
+		if (kind!=di.kind) {
+			if ( kind==Kind::Crc || di.kind==Kind::Crc ) return exists()==di.exists() ; // this is all we can check with one Crc (and not the other)
+			else                                         return sig   ()==di.sig   () ; // one is Sig, the other is Info, convert Info into Sig
+		}
 		switch (kind) {
 			case Kind::Crc  : return crc ()==di.crc () ;
 			case Kind::Sig  : return sig ()==di.sig () ;
@@ -373,14 +372,13 @@ struct DepInfo {
 		DF}
 	}
 	bool     operator+() const {                                return kind!=Kind::Crc || +_crc             ; }
-	bool     operator!() const {                                return !+*this                              ; }
 	Crc      crc      () const { SWEAR(kind==Kind::Crc ,kind) ; return _crc                                 ; }
 	FileSig  sig      () const { SWEAR(kind!=Kind::Crc ,kind) ; return kind==Kind::Sig ? _sig : _info.sig() ; }
 	FileInfo info     () const { SWEAR(kind==Kind::Info,kind) ; return _info                                ; }
 	//
-	bool seen(Accesses a) const { // return true if accesses could perceive the existence of file
+	bool seen(Accesses a) const {                                                       // return true if accesses could perceive the existence of file
 		if (!a) return false ;
-		SWEAR(+*this,*this,a) ;
+		SWEAR(+self,self,a) ;
 		switch (kind) {
 			case Kind::Crc  : return !Crc::None.match( _crc             , a ) ;
 			case Kind::Sig  : return !Crc::None.match( Crc(_sig .tag()) , a ) ;
@@ -399,9 +397,9 @@ struct DepInfo {
 	DepInfoKind kind = Kind::Crc ;
 private :
 	union {
-		Crc      _crc  ;          // ~46< 64 bits
-		FileSig  _sig  ;          //      64 bits
-		FileInfo _info ;          //     128 bits
+		Crc      _crc  ;                                                                // ~46< 64 bits
+		FileSig  _sig  ;                                                                //      64 bits
+		FileInfo _info ;                                                                //     128 bits
 	} ;
 	// END_OF_VERSIONING
 } ;
@@ -409,9 +407,9 @@ private :
 // for Dep recording in book-keeping, we want to derive from Node
 // but if we derive from Node and have a field DepDigest, it is impossible to have a compact layout because of alignment constraints
 // hence this solution : derive from a template argument
-template<class B> ::ostream& operator<<( ::ostream& , DepDigestBase<B> const& ) ;
+template<class B> ::string& operator+=( ::string& , DepDigestBase<B> const& ) ;
 template<class B> struct DepDigestBase : NoVoid<B> {
-	friend ::ostream& operator<< <>( ::ostream& , DepDigestBase const& ) ;
+	friend ::string& operator+= <>( ::string& , DepDigestBase const& ) ;
 	using Base = NoVoid<B> ;
 	static constexpr bool    HasBase = !::is_same_v<B,void> ;
 	//
@@ -461,7 +459,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	// services
 	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {              // assumes ddb has been accessed after us
-		if constexpr (HasBase) SWEAR(Base::operator==(ddb),*this,ddb) ;
+		if constexpr (HasBase) SWEAR(Base::operator==(ddb),self,ddb) ;
 		if (!accesses) {
 			crc_sig(ddb) ;
 			parallel = ddb.parallel ;
@@ -473,10 +471,10 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		}
 		dflags   |= ddb.dflags   ;
 		accesses |= ddb.accesses ;
-		return *this ;
+		return self ;
 	}
 	constexpr void tag(Tag tag) {
-		SWEAR(!is_crc,*this) ;
+		SWEAR(!is_crc,self) ;
 		if (!_sig) { crc(Crc::None) ; return ; }                                 // even if file appears, the whole job has been executed seeing the file as absent
 		switch (tag) {
 			case Tag::Reg  :
@@ -503,7 +501,7 @@ private :
 	} ;
 	// END_OF_VERSIONING
 } ;
-template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
+template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& dd ) {
 	const char* sep = "" ;
 	/**/                                          os << "D("                           ;
 	if constexpr ( !::is_void_v<B>            ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
@@ -520,7 +518,7 @@ using DepDigest = DepDigestBase<void> ;
 static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, we do not have to bother about union member cxtor/dxtor
 
 struct TargetDigest {
-	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
+	friend ::string& operator+=( ::string& , TargetDigest const& ) ;
 	using Crc = Hash::Crc ;
 	// data
 	// START_OF_VERSIONING
@@ -533,7 +531,7 @@ struct TargetDigest {
 } ;
 
 struct JobDigest {
-	friend ::ostream& operator<<( ::ostream& , JobDigest const& ) ;
+	friend ::string& operator+=( ::string& , JobDigest const& ) ;
 	// data
 	// START_OF_VERSIONING
 	Status                 status   = Status::New ;
@@ -548,18 +546,17 @@ struct JobDigest {
 } ;
 
 struct MatchFlags {
-	friend ::ostream& operator<<( ::ostream& , MatchFlags const& ) ;
+	friend ::string& operator+=( ::string& , MatchFlags const& ) ;
 	// cxtors & casts
 	MatchFlags(                                ) = default ;
 	MatchFlags( Tflags tf , ExtraTflags etf={} ) : is_target{Yes} , _tflags{tf} , _extra_tflags{etf} {}
 	MatchFlags( Dflags df , ExtraDflags edf={} ) : is_target{No } , _dflags{df} , _extra_dflags{edf} {}
 	// accesses
-	bool        operator+   () const {                               return is_target!=Maybe ; }
-	bool        operator!   () const {                               return !+*this          ; }
-	Tflags      tflags      () const { SWEAR(is_target==Yes,*this) ; return _tflags          ; }
-	Dflags      dflags      () const { SWEAR(is_target==No ,*this) ; return _dflags          ; }
-	ExtraTflags extra_tflags() const { SWEAR(is_target==Yes,*this) ; return _extra_tflags    ; }
-	ExtraDflags extra_dflags() const { SWEAR(is_target==No ,*this) ; return _extra_dflags    ; }
+	bool        operator+   () const {                              return is_target!=Maybe ; }
+	Tflags      tflags      () const { SWEAR(is_target==Yes,self) ; return _tflags          ; }
+	Dflags      dflags      () const { SWEAR(is_target==No ,self) ; return _dflags          ; }
+	ExtraTflags extra_tflags() const { SWEAR(is_target==Yes,self) ; return _extra_tflags    ; }
+	ExtraDflags extra_dflags() const { SWEAR(is_target==No ,self) ; return _extra_dflags    ; }
 	// data
 	// START_OF_VERSIONING
 	Bool3 is_target = Maybe ;
@@ -572,20 +569,18 @@ private :
 } ;
 
 struct JobSpace {
-	friend ::ostream& operator<<( ::ostream& , JobSpace const& ) ;
+	friend ::string& operator+=( ::string& , JobSpace const& ) ;
 	struct ViewDescr {
-		friend ::ostream& operator<<( ::ostream& , ViewDescr const& ) ;
-		bool operator+() const { return +phys   ; }
-		bool operator!() const { return !+*this ; }
+		friend ::string& operator+=( ::string& , ViewDescr const& ) ;
+		bool operator+() const { return +phys ; }
 		// data
 		// START_OF_VERSIONING
-		::vector_s phys    ;                      // (upper,lower...)
-		::vector_s copy_up ;                      // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
+		::vector_s phys    ;                  // (upper,lower...)
+		::vector_s copy_up ;                  // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
 	} ;
 	// accesses
 	bool operator+() const { return +chroot_dir_s || +root_view_s || +tmp_view_s || +views ; }
-	bool operator!() const { return !+*this                                                ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,chroot_dir_s) ;
@@ -594,17 +589,17 @@ struct JobSpace {
 		::serdes(s,views       ) ;
 	}
 	bool/*entered*/ enter(
-		::vmap_s<MountAction>& deps               // out
-	,	::string        const& phy_root_dir_s     // in
-	,	::string        const& phy_tmp_dir_s      // .
-	,	size_t                 tmp_sz_mb          // .
-	,	::string        const& work_dir_s         // .
-	,	::vector_s      const& src_dirs_s = {}    // .
-	,	bool                   use_fuse   = false // .
+		::vmap_s<MountAction>& deps           // out
+	,	::string   const&      phy_root_dir_s // in
+	,	::string   const&      phy_tmp_dir_s  // .
+	,	::string   const&      cwd_s          // .
+	,	size_t                 tmp_sz_mb      // .
+	,	::string   const&      work_dir_s     // .
+	,	::vector_s const&      src_dirs_s={}  // .
 	) ;
-	void exit() ;
+	void exit() {}
 	//
-	::vmap_s<::vector_s> flat_phys() const ;      // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	::vmap_s<::vector_s> flat_phys() const ;  // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
 	void mk_canon(::string const& phy_root_dir_s) ;
 private :
@@ -613,10 +608,10 @@ private :
 	// data
 public :
 	// START_OF_VERSIONING
-	::string            chroot_dir_s = {} ;       // absolute dir which job chroot's to before execution (empty if unused)
-	::string            root_view_s  = {} ;       // absolute dir under which job sees repo root dir     (empty if unused)
-	::string            tmp_view_s   = {} ;       // absolute dir under which job sees tmp dir           (empty if unused)
-	::vmap_s<ViewDescr> views        = {} ;       // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
+	::string            chroot_dir_s = {} ;   // absolute dir which job chroot's to before execution (empty if unused)
+	::string            root_view_s  = {} ;   // absolute dir under which job sees repo root dir     (empty if unused)
+	::string            tmp_view_s   = {} ;   // absolute dir under which job sees tmp dir           (empty if unused)
+	::vmap_s<ViewDescr> views        = {} ;   // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
 } ;
 
@@ -625,18 +620,16 @@ struct JobRpcReq {
 	using SI  = SeqId               ;
 	using JI  = JobIdx              ;
 	using MDD = ::vmap_s<DepDigest> ;
-	friend ::ostream& operator<<( ::ostream& , JobRpcReq const& ) ;
+	friend ::string& operator+=( ::string& , JobRpcReq const& ) ;
 	// cxtors & casts
 	JobRpcReq() = default ;
-	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                      { SWEAR(p==P::None ,p) ; }
+	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                      {                        }
 	JobRpcReq( P p , SI si , JI j , in_port_t   pt , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , port  {pt       } , msg{::move(m)} { SWEAR(p==P::Start,p) ; }
 	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)} , msg{::move(m)} { SWEAR(p==P::End  ,p) ; }
 	// accesses
-	bool operator+() const { return +proc   ; }
-	bool operator!() const { return !+*this ; }
+	bool operator+() const { return +proc  ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) *this = {} ;
 		::serdes(s,proc  ) ;
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
@@ -668,7 +661,7 @@ struct JobRpcReq {
 } ;
 
 struct JobRpcReply {
-	friend ::ostream& operator<<( ::ostream& , JobRpcReply const& ) ;
+	friend ::string& operator+=( ::string& , JobRpcReply const& ) ;
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
 	// cxtors & casts
@@ -676,7 +669,6 @@ struct JobRpcReply {
 	JobRpcReply(Proc p) : proc{p} {}
 	// services
 	template<IsStream S> void serdes(S& s) {
-		if (is_base_of_v<::istream,S>) *this = {} ;
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::None :
@@ -758,7 +750,7 @@ struct JobMngtRpcReq {
 	using SI   = SeqId               ;
 	using JI   = JobIdx              ;
 	using MDD  = ::vmap_s<DepDigest> ;
-	friend ::ostream& operator<<( ::ostream& , JobMngtRpcReq const& ) ;
+	friend ::string& operator+=( ::string& , JobMngtRpcReq const& ) ;
 	// statics
 	// cxtors & casts
 	#define S ::string
@@ -775,7 +767,6 @@ struct JobMngtRpcReq {
 	#undef S
 	// services
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) *this = {} ;
 		::serdes(s,proc  ) ;
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
@@ -811,7 +802,7 @@ struct JobMngtRpcReq {
 } ;
 
 struct JobMngtRpcReply {
-	friend ::ostream& operator<<( ::ostream& , JobMngtRpcReply const& ) ;
+	friend ::string& operator+=( ::string& , JobMngtRpcReply const& ) ;
 	using Crc  = Hash::Crc   ;
 	using Proc = JobMngtProc ;
 	// cxtors & casts
@@ -824,7 +815,6 @@ struct JobMngtRpcReply {
 	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::string const& t  , Crc c , Bool3 o      ) : proc{p},seq_id{si},fd{fd_},ok{o},txt{t},crc{c} { SWEAR(p==Proc::Decode||proc==Proc::Encode,p) ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
-		if (is_base_of_v<::istream,S>) *this = {} ;
 		::serdes(s,proc  ) ;
 		::serdes(s,seq_id) ;
 		switch (proc) {
@@ -859,7 +849,7 @@ struct JobMngtRpcReply {
 } ;
 
 struct SubmitAttrs {
-	friend ::ostream& operator<<( ::ostream& , SubmitAttrs const& ) ;
+	friend ::string& operator+=( ::string& , SubmitAttrs const& ) ;
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		// tag, deps and n_retries are independent of req but may not always be present
@@ -870,10 +860,10 @@ struct SubmitAttrs {
 		tokens1    = ::max(tokens1  ,other.tokens1  ) ;
 		live_out  |= other.live_out                   ;
 		reason    |= other.reason                     ;
-		return *this ;
+		return self ;
 	}
 	SubmitAttrs operator|(SubmitAttrs const& other) const {
-		SubmitAttrs res = *this ;
+		SubmitAttrs res = self ;
 		res |= other ;
 		return res ;
 	}
@@ -890,10 +880,9 @@ struct SubmitAttrs {
 } ;
 
 struct JobInfoStart {
-	friend ::ostream& operator<<( ::ostream& , JobInfoStart const& ) ;
+	friend ::string& operator+=( ::string& , JobInfoStart const& ) ;
 	// accesses
 	bool operator+() const { return +pre_start ; }
-	bool operator!() const { return !+*this    ; }
 	// data
 	// START_OF_VERSIONING
 	Hash::Crc   rule_cmd_crc = {}         ;
@@ -909,10 +898,9 @@ struct JobInfoStart {
 } ;
 
 struct JobInfoEnd {
-	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
+	friend ::string& operator+=( ::string& , JobInfoEnd const& ) ;
 	// accesses
-	bool operator+() const { return +end    ; }
-	bool operator!() const { return !+*this ; }
+	bool operator+() const { return +end ; }
 	// data
 	// START_OF_VERSIONING
 	JobRpcReq end = {} ;
@@ -921,11 +909,11 @@ struct JobInfoEnd {
 
 struct JobInfo {
 	// cxtors & casts
-	JobInfo(                                       ) = default ;
-	JobInfo( ::string const& ancillary_file        ) ;
-	JobInfo( JobInfoStart&& jis                    ) : start{::move(jis)}                    {}
-	JobInfo(                      JobInfoEnd&& jie ) :                      end{::move(jie)} {}
-	JobInfo( JobInfoStart&& jis , JobInfoEnd&& jie ) : start{::move(jis)} , end{::move(jie)} {}
+	JobInfo() = default ;
+	JobInfo( ::string const& ancillary_file , Bool3 get_start=Maybe , Bool3 get_end=Maybe ) ;
+	JobInfo( JobInfoStart&& jis                                                           ) : start{::move(jis)}                    {}
+	JobInfo(                      JobInfoEnd&& jie                                        ) :                      end{::move(jie)} {}
+	JobInfo( JobInfoStart&& jis , JobInfoEnd&& jie                                        ) : start{::move(jis)} , end{::move(jie)} {}
 	// services
 	void write(::string const& filename) const ;
 	// data

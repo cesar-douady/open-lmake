@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
+#include "core.hh" // must be first to include Python.h first
 
 #include "codec.hh"
 
@@ -35,31 +35,37 @@ namespace Backends {
 	// Backend::*
 	//
 
-	::ostream& operator<<( ::ostream& os , Backend::Workload const& wl ) {
-		/**/   os << "Workload("                                                      ;
-		/**/   os <<      wl._ref_workload       /1000. <<'@'<< wl._ref_date          ;
-		/**/   os <<','<< wl._reasonable_workload/1000. <<'/'<< wl._reasonable_tokens ;
-		/**/   os <<','<< wl._running_tokens                                          ;
-		/**/   os <<','<< wl._submitted_cost                                          ;
-		return os <<')'                                                               ;
+	::string& operator+=( ::string& os , Backend::Workload const& wl ) {
+		os << "Workload("                                                      ;
+		os <<      wl._ref_workload       /1000. <<'@'<< wl._ref_date          ;
+		os <<','<< wl._reasonable_workload/1000. <<'/'<< wl._reasonable_tokens ;
+		os <<','<< wl._running_tokens                                          ;
+		//
+		os <<",[" ;
+		First first ;
+		for( Req r : Req::s_reqs_by_start ) os <<first("",",")<< r <<':'<< wl._queued_cost[+r] ;
+		os <<']' ;
+		//
+		return os <<')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Backend::StartEntry const& ste ) {
+	::string& operator+=( ::string& os , Backend::StartEntry const& ste ) {
 		return os << "StartEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs <<','<< ste.submit_attrs << ')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Backend::StartEntry::Conn const& c ) {
+	::string& operator+=( ::string& os , Backend::StartEntry::Conn const& c ) {
 		return os << "Conn(" << SockFd::s_addr_str(c.host) <<':'<< c.port <<','<< c.seq_id <<','<< c.small_id << ')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Backend::DeferredEntry const& de ) {
+	::string& operator+=( ::string& os , Backend::DeferredEntry const& de ) {
 		return os << "DeferredEntry(" << de.seq_id <<','<< de.job_exec << ')' ;
 	}
 
 	void Backend::Workload::_refresh() {
-		Pdate now = Pdate(New).round_msec() ;                                             // avoid rounding errors
+		Pdate now = Pdate(New).round_msec() ;                                                   // avoid rounding errors
+		Trace trace(BeChnl,"Workload::_refresh",self,now) ;
 		//
-		for( auto it = _eta_set.begin() ; it!=_eta_set.end() && it->first<=now ;) {       // eta is passed, job is no more reasonable
+		for( auto it = _eta_set.begin() ; it!=_eta_set.end() && it->first<=now ;) {             // eta is passed, job is no more reasonable
 			auto   [eta,job]     = *it                           ;
 			Tokens tokens        = job->tokens1+1                ;
 			Val    left_workload = tokens*(eta-_ref_date).msec() ;
@@ -67,21 +73,27 @@ namespace Backends {
 			SWEAR(_reasonable_workload>=left_workload,_reasonable_workload,left_workload) ;
 			_reasonable_tokens   -= tokens        ;
 			_reasonable_workload -= left_workload ;
-			_eta_tab.erase(it->second) ;                                                  // erase _eta_tab while it is still valid
+			_eta_tab.erase(it->second) ;                                                        // erase _eta_tab while it is still valid
 			_eta_set.erase(it++      ) ;
 		}
 		//
 		Val delta_date     = (now-_ref_date).msec()        ;
 		Val delta_workload = delta_date*_reasonable_tokens ;
-		_ref_workload += delta_date*_running_tokens ;                                     // this is where there is a rounding error if we do not round now
-		_ref_date      = now                        ;                                     // _ref_date is always rounded on ms
-		SWEAR(_reasonable_workload>=delta_workload,_reasonable_workload,delta_workload) ;
+		_ref_workload += delta_date*_running_tokens ;                                           // this is where there is a rounding error if we do not round now
+		_ref_date      = now                        ;                                           // _ref_date is always rounded on ms
+		SWEAR( _reasonable_workload>=delta_workload , _reasonable_workload , delta_workload ) ;
 		_reasonable_workload -= delta_workload ;
-		if (!_reasonable_tokens) SWEAR(!_reasonable_workload,_reasonable_workload) ;      // check no reasonable workload if no reasonable jobs
+		if (!_reasonable_tokens) SWEAR(!_reasonable_workload,_reasonable_workload) ;            // check no reasonable workload if no reasonable jobs
+		trace("done",self) ;
 	}
 
 	Backend::Workload::Val Backend::Workload::start( ::vector<ReqIdx> const& reqs , Job j ) {
-		for( Req r : reqs ) _submitted_cost[+r] -= Delay(j->cost).val() ;
+		Delay::Tick dly = Delay(j->cost).val() ;
+		Trace trace(BeChnl,"Workload::start",self,reqs,j,j->tokens1,j->cost,j->exec_time,dly) ;
+		for( Req r : reqs ) {
+			SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , r , dly , j ) ;
+			_queued_cost[+r] -= dly ;
+		}
 		_refresh() ;
 		Tokens tokens = j->tokens1+1 ;
 		if ( Delay jet=Delay(j->exec_time).round_msec() ; +jet ) { // schedule job based on best estimate
@@ -92,24 +104,33 @@ namespace Backends {
 			_reasonable_workload += tokens*jet.msec() ;
 		}
 		_running_tokens += tokens ;
+		trace("done",self) ;
 		return _ref_workload ;
 	}
 
 	Backend::Workload::Val Backend::Workload::end( ::vector<ReqIdx> const& , Job j ) {
+		Trace trace(BeChnl,"Workload::end",self,j,j->tokens1) ;
 		_refresh() ;
 		Tokens tokens = j->tokens1+1 ;
-		if ( auto it=_eta_tab.find(j) ; it!=_eta_tab.end() ) {               // cancel scheduled time left to run
-			_reasonable_tokens   -= tokens                                 ;
-			_reasonable_workload -= tokens*((it->second-_ref_date).msec()) ;
-			_eta_set.erase({it->second,j}) ;                                 // erase _eta_set while it is still valid
+		if ( auto it=_eta_tab.find(j) ; it!=_eta_tab.end() ) {        // cancel scheduled time left to run
+			SWEAR( it->second>=_ref_date , it->second , _ref_date ) ;
+			Val left_workload = tokens*((it->second-_ref_date).msec()) ;
+			SWEAR(_reasonable_tokens  >=tokens       ,_reasonable_tokens  ,tokens       ) ;
+			SWEAR(_reasonable_workload>=left_workload,_reasonable_workload,left_workload) ;
+			_reasonable_tokens   -= tokens        ;
+			_reasonable_workload -= left_workload ;
+			_eta_set.erase({it->second,j}) ;                          // erase _eta_set while it is still valid
 			_eta_tab.erase(it            ) ;
 		}
+		SWEAR( _running_tokens>=tokens , _running_tokens , tokens ) ;
 		_running_tokens -= tokens ;
+		trace("done",self) ;
 		return _ref_workload ;
 	}
 
 	// cost is the share of exec_time that can be accumulated, i.e. multiplied by the fraction of what was running in parallel
 	Delay Backend::Workload::cost( Job job , Val start_workload , Pdate start_date ) const {
+		SWEAR( _ref_date>=start_date , _ref_date , start_date ) ;
 		uint64_t dly_ms   = (_ref_date-start_date).msec()                  ;
 		Val      workload = ::max( _ref_workload-start_workload , Val(1) ) ;
 		Tokens  tokens    = job->tokens1+1                                 ;
@@ -179,13 +200,13 @@ namespace Backends {
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_attrs,rsrcs) ;
 		//
 		if ( tag!=Tag::Local && _localize(tag,r) ) {
-			SWEAR(+tag<N<Tag>) ;                                                                // prevent compiler array bound warning in next statement
-			if (!s_tab[+tag]) throw "open-lmake was compiled without "s+snake(tag)+" support" ;
-			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
-			tag   = Tag::Local                                                            ;
+			SWEAR(+tag<N<Tag>) ;                                                              // prevent compiler array bound warning in next statement
+			throw_unless( s_tab[+tag] , "open-lmake was compiled without ",tag," support" ) ;
+			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() , +j ) ;
+			tag   = Tag::Local                                                                 ;
 			trace("local",rsrcs) ;
 		}
-		if (!s_ready(tag)) throw "local backend is not available"s ;
+		throw_unless( s_ready(tag) , "local backend is not available" ) ;
 		submit_attrs.tag = tag ;
 		_s_workload.submit(r,j) ;
 		s_tab[+tag]->submit(j,r,submit_attrs,::move(rsrcs)) ;
@@ -203,6 +224,7 @@ namespace Backends {
 			it->second.reqs.push_back(+r) ;     // note the new Req as we maintain the list of Req's associated to each job
 			it->second.submit_attrs |= sa ;     // and update submit_attrs in case job was not actually started
 		}
+		_s_workload.add(r,j) ;                  // if not started, we must account for job being queued for this new req
 	}
 
 	void Backend::s_set_pressure( Tag tag , Job j , Req r , SubmitAttrs const& sa ) {
@@ -254,7 +276,7 @@ namespace Backends {
 		DF}
 		Job                      job                 { jrr.job }           ;
 		JobExec                  job_exec            ;
-		Rule                     rule                = job->rule           ;
+		Rule                     rule                = job->rule()         ;
 		Rule::SimpleMatch        match               = job->simple_match() ;
 		JobRpcReply              reply               { Proc::Start }       ;
 		vmap<Node,FileAction>    pre_actions         ;
@@ -333,8 +355,9 @@ namespace Backends {
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
 			[[fallthrough]] ;
 			case 3 :
-				reply.method  = start_rsrcs_attrs.method  ;
-				reply.timeout = start_rsrcs_attrs.timeout ;
+				reply.method     = start_rsrcs_attrs.method     ;
+				reply.timeout    = start_rsrcs_attrs.timeout    ;
+				reply.use_script = start_rsrcs_attrs.use_script ;
 				//
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) { env_keys.insert(kv.first) ; reply.env.push_back(::move(kv)) ; }
 			[[fallthrough]] ;
@@ -343,7 +366,6 @@ namespace Backends {
 				reply.autodep_env.auto_mkdir  =        start_cmd_attrs.auto_mkdir   ;
 				reply.autodep_env.ignore_stat =        start_cmd_attrs.ignore_stat  ;
 				reply.job_space               = ::move(start_cmd_attrs.job_space  ) ;
-				reply.use_script              =        start_cmd_attrs.use_script   ;
 				//
 				for( ::pair_ss& kv : start_cmd_attrs.env )
 					if (env_keys.insert(kv.first).second) {
@@ -383,14 +405,14 @@ namespace Backends {
 		//
 		reply.deps = _mk_digest_deps(::move(deps_attrs)) ;
 		if (+deps) {
-			::umap_s<VarIdx> dep_idxes ; for( VarIdx i=0 ; i<reply.deps.size() ; i++ ) dep_idxes[reply.deps[i].first] = i ;
+			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )
 				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;   // update existing dep
 				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      } // create new dep
 		}
 		bool deps_done = false ;                             // true if all deps are done for at least a non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {
-			for( auto const& [dn,dd] : ::vector_view(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )
+			for( auto const& [dn,dd] : ::span(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )
 				if (!Node(dn)->done(r,NodeGoal::Status)) goto NextReq ;
 			deps_done = true ;
 			break ;
@@ -399,7 +421,7 @@ namespace Backends {
 		//
 		{	Lock lock { _s_mutex } ;                         // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
-			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
+			auto        it    = _s_start_tab.find(+job,jrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false/*keep_fd*/ ; }
 			StartEntry& entry = it->second                         ;
 			trace("entry2",entry) ;
 			for( Req r : entry.reqs ) if (!r.zombie()) goto Useful ;
@@ -457,7 +479,7 @@ namespace Backends {
 		}
 		in_addr_t reply_addr = reply.addr ;                                                                                      // save before move
 		JobInfoStart jis {
-			.rule_cmd_crc =        rule->cmd_crc
+			.rule_cmd_crc =        rule->crc->cmd
 		,	.stems        = ::move(match.stems         )
 		,	.eta          =        eta
 		,	.submit_attrs =        submit_attrs
@@ -491,19 +513,17 @@ namespace Backends {
 		Job job { jmrr.job } ;
 		Trace trace(BeChnl,"_s_handle_job_mngt",jmrr) ;
 		{	Lock lock { _s_mutex } ;                                      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
-			//                                                                                                                                            keep_fd
-			auto        it    = _s_start_tab.find(+job,jmrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false ; }
+			auto        it    = _s_start_tab.find(+job,jmrr.seq_id) ; if (it==_s_start_tab.end()) { trace("not_in_tab") ; return false/*keep_fd*/ ; }
 			StartEntry& entry = it->second                          ;
 			trace("entry",job,entry) ;
-			switch (jmrr.proc) { //!           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				case JobMngtProc::ChkDeps    :
+			switch (jmrr.proc) {
+				case JobMngtProc::ChkDeps    : //!vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				case JobMngtProc::DepVerbose : g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.date,New/*end*/) , jmrr.fd , ::move(jmrr.deps) ) ; break ;
 				case JobMngtProc::LiveOut    : g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.date,New/*end*/) ,           ::move(jmrr.txt)  ) ; break ;
 				//
 				case JobMngtProc::Decode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) ,                entry.reqs ) ; break ;
 				case JobMngtProc::Encode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len , entry.reqs ) ; break ;
-				//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			DF}
+			DF} //!                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		return false/*keep_fd*/ ;
 	}
@@ -561,7 +581,7 @@ namespace Backends {
 		Trace trace(BeChnl,"s_kill_req",r) ;
 		::vmap<Job,pair<StartEntry::Conn,Pdate>> to_wakeup ;
 		{	Lock lock { _s_mutex } ;                                                                         // lock for minimal time
-			for( Tag t : All<Tag> ) if (s_ready(t))
+			for( Tag t : iota(All<Tag>) ) if (s_ready(t))
 				for( Job j : s_tab[+t]->kill_waiting_jobs(r) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( Proc::GiveUp , JobExec(j,New) , r , false/*report*/ ) ;
@@ -610,7 +630,7 @@ namespace Backends {
 	void Backend::_s_heartbeat_thread_func(::stop_token stop) {
 		t_thread_key = 'H' ;
 		Trace trace(BeChnl,"_heartbeat_thread_func") ;
-		Pdate  last_wrap_around{New} ;
+		Pdate last_wrap_around { New } ;
 		//
 		StartEntry::Conn         conn         ;
 		::pair_s<HeartbeatState> lost_report  = {}/*garbage*/ ;
@@ -650,8 +670,8 @@ namespace Backends {
 				,	.submit_attrs = submit_attrs
 				,	.rsrcs        = rsrcs
 				,	.host         = conn.host
-				,	.pre_start    { Proc::None , conn.seq_id , +job }
-				,	.start        { Proc::None                      }
+				,	.pre_start    { Proc::Start , conn.seq_id , +job }
+				,	.start        { Proc::Start                      }
 				} ;
 				JobRpcReq jrr { Proc::End , conn.seq_id , +job , JobDigest{.status=status} , ::move(lost_report.first) } ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -666,7 +686,7 @@ namespace Backends {
 			if (!g_config->heartbeat_tick.sleep_for(stop)) break ;                                                    // limit job checks
 			continue ;
 		WrapAround :
-			for( Tag t : All<Tag> ) if (s_ready(t)) {
+			for( Tag t : iota(All<Tag>) ) if (s_ready(t)) {
 				Lock lock { _s_mutex } ;
 				s_heartbeat(t) ;
 			}
@@ -691,7 +711,7 @@ namespace Backends {
 		if (!dynamic) _s_job_exec = *g_lmake_dir_s+"_bin/job_exec" ;
 		//
 		Lock lock{_s_mutex} ;
-		for( Tag t : All<Tag> ) if (+t) {
+		for( Tag t : iota(1,All<Tag>) ) {                                                                             // local backend is always available
 			Backend*               be  = s_tab [+t] ;
 			Config::Backend const& cfg = config[+t] ;
 			if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }
@@ -704,7 +724,7 @@ namespace Backends {
 						Ptr<Dict> glbs = py_run(cfg.ifce) ;
 						ifce = (*glbs)["interface"].as_a<Str>() ;
 					} catch (::string const& e) {
-						throw "bad interface for "s+snake(t)+'\n'+indent(e,1) ;
+						throw "bad interface for "s+t+'\n'+indent(e,1) ;
 					}
 				} else {
 					ifce = host() ;
@@ -722,8 +742,6 @@ namespace Backends {
 	::vector_s Backend::acquire_cmd_line( Tag tag , Job job , ::vector<ReqIdx> const& reqs , ::vmap_ss&& rsrcs , SubmitAttrs const& submit_attrs ) {
 		Trace trace(BeChnl,"acquire_cmd_line",tag,job,reqs,rsrcs,submit_attrs) ;
 		_s_mutex.swear_locked() ;
-		//
-		SubmitRsrcsAttrs::s_canon(rsrcs) ;
 		//
 		auto        [it,fresh] = _s_start_tab.emplace(job,StartEntry()) ;                                                    // create entry
 		StartEntry& entry      = it->second                             ;

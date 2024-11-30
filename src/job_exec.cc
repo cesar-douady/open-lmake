@@ -85,36 +85,35 @@ Digest analyze(Status status=Status::New) {                                     
 		DF}
 		//
 		if (ad.write==Yes)                                                                                                                          // ignore reads after earliest confirmed write
-			for( Access a : All<Access> )
+			for( Access a : iota(All<Access>) )
 				if (info.read[+a]>info.write) ad.accesses &= ~a ;
 		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                     ;
 		bool                   is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && +ad.accesses && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
-			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                                            // fast path : no matching, no pollution, no washing => forget it
+			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                          // fast path : no matching, no pollution, no washing => forget it
 			)
 		;
 		// handle deps
 		if (is_dep) {
 			DepDigest dd { ad.accesses , info.dep_info , ad.dflags } ;
 			//
-			if      ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = ~Accesses() ; // StatReadData transforms stat access into full access
-			else if ( ad.dflags[Dflag::Static]  && ad.dflags[Dflag::Required]                ) dd.accesses = ~Accesses() ; // required static deps are deemed to be fully accessed
+			if ( ad.dflags[Dflag::Static] && ad.dflags[Dflag::Required] ) dd.accesses = ~Accesses() ;    // required static deps are deemed to be fully accessed
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
 			dd.hot          = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.date_prec) ;
 			dd.parallel     = +first_read.first && first_read.first==prev_first_read                                                                ;
 			prev_first_read = first_read.first                                                                                                      ;
-			//
-			if ( +dd.accesses && !dd.is_crc ) {                                                                   // try to transform date into crc as far as possible
-				if      ( info.seen==Pdate::Future||info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false ; } // job has been executed without seeing the file (before possibly writing to it)
-				else if ( !dd.sig()                                      )   dd.crc({}       ) ; // file was not present initially but was seen, it is incoherent even if not present finally
-				else if ( ad.write!=No                                   )   {}                  // cannot check stability as we wrote to it, clash will be detected in server if any
-				else if ( FileSig sig{file} ; sig!=dd.sig()              )   dd.crc({}       ) ; // file dates are incoherent from first access to end of job, dont know what has been read
-				else if ( !sig                                           )   dd.crc({}       ) ; // file is awkward
-				else if ( !Crc::s_sense(dd.accesses,sig.tag())           )   dd.crc(sig.tag()) ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
-			}
+			// try to transform date into crc as far as possible
+			if      ( dd.is_crc                                 )   {}                                   // already a crc => nothing to do
+			else if ( !dd.accesses                              )   {}                                   // no access     => nothing to do
+			else if ( !info.digest_seen || info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false ; } // job has been executed without seeing the file (before possibly writing to it)
+			else if ( !dd.sig()                                 )   dd.crc({}       ) ;                  // file was not present initially but was seen, it is incoherent even if not present finally
+			else if ( ad.write!=No                              )   {}                                   // cannot check stability as we wrote to it, clash will be detected in server if any
+			else if ( FileSig sig{file} ; sig!=dd.sig()         )   dd.crc({}       ) ;                  // file dates are incoherent from first access to end of job, dont know what has been read
+			else if ( !sig                                      )   dd.crc({}       ) ;                  // file is awkward
+			else if ( !Crc::s_sense(dd.accesses,sig.tag())      )   dd.crc(sig.tag()) ;                  // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -212,7 +211,7 @@ Digest analyze(Status status=Status::New) {                                     
 		// correct code :
 		// ::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
 		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;
-		OFStream(dir_guard(cmd_file)) << g_start_info.cmd.first << g_start_info.cmd.second ;
+		AcFd( dir_guard(cmd_file) , Fd::Write ).write(g_start_info.cmd.first+g_start_info.cmd.second) ;
 		cmd_line.reserve(cmd_line.size()+1) ;
 		cmd_line.push_back(mk_abs(cmd_file,*g_root_dir_s)) ;                                                     // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
@@ -252,7 +251,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	::string                 msg       ;
 	Mutex<MutexLvl::JobExec> msg_mutex ;
 	{	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
-		for( size_t i=0 ; i<n_threads ; i++ )
+		for( size_t i : iota(n_threads) )
 			crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex ) ; // just constructing and destructing the threads will execute & join them
 	}
 	return msg ;
@@ -260,15 +259,15 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 
 int main( int argc , char* argv[] ) {
 	Pdate        start_overhead = Pdate(New) ;
-	ServerSockFd server_fd      { New }      ;             // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
+	ServerSockFd server_fd      { New }      ;        // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
-	swear_prod(argc==8,argc) ;                             // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
+	swear_prod(argc==8,argc) ;                        // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
 	g_service_start  =                     argv[1]  ;
 	g_service_mngt   =                     argv[2]  ;
 	g_service_end    =                     argv[3]  ;
 	g_seq_id         = from_string<SeqId >(argv[4]) ;
 	g_job            = from_string<JobIdx>(argv[5]) ;
-	g_phy_root_dir_s = with_slash         (argv[6]) ;      // passed early so we can chdir and trace early
+	g_phy_root_dir_s = with_slash         (argv[6]) ; // passed early so we can chdir and trace early
 	g_trace_id       = from_string<SeqId >(argv[7]) ;
 	//
 	g_trace_file = new ::string{g_phy_root_dir_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
@@ -283,7 +282,7 @@ int main( int argc , char* argv[] ) {
 	block_sigs({SIGCHLD}) ;                                                                                // necessary to capture it using signalfd
 	app_init(false/*read_only_ok*/,No/*chk_version*/) ;
 	//
-	{	Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
+	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
@@ -375,14 +374,14 @@ int main( int argc , char* argv[] ) {
 			if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] )
 				g_gather.new_unlnk(start_overhead,t) ;                                                     // always report non-optional static targets
 		//
-		if (+g_start_info.stdin) g_gather.child_stdin = open_read(g_start_info.stdin) ;
-		else                     g_gather.child_stdin = open_read("/dev/null"       ) ;
+		if (+g_start_info.stdin) g_gather.child_stdin = Fd(g_start_info.stdin) ;
+		else                     g_gather.child_stdin = Fd("/dev/null"       ) ;
 		g_gather.child_stdin.no_std() ;
 		g_gather.child_stderr = Child::PipeFd ;
 		if (!g_start_info.stdout) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
-			g_gather.child_stdout = open_write(g_start_info.stdout) ;
+			g_gather.child_stdout = Fd(dir_guard(g_start_info.stdout),Fd::Write) ;
 			g_gather.new_target( start_overhead , g_start_info.stdout , "<stdout>" ) ;
 			g_gather.child_stdout.no_std() ;
 		}

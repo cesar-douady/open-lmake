@@ -498,17 +498,17 @@ See previous section for more information.
 @section @code{def search_root_dir(cwd=os.getcwd())}
 Return the root dir as seen from passed @code{cwd} argument.
 
-Note that his may be different from the @code{root_dir} variable in case there is a @Lmakefile file in a subdir.
+Note that his may be different from the @code{top_root_dir} variable in case there is a @Lmakefile file in a subdir.
 
 @section constants
 
 The following constants are defined :
 @table @code
 @item root_dir
-The root directory of the repository as determined when the @lmake command was run.
+The root directory of the (sub-)repository.
+@item top_root_dir
+The root directory of the top-level repository as determined when the @lmake command was run.
 
-Recursive sub-repositories are ignored.
-Use the @code{search_root_dir} function if you want to get the nearest hierarchical root dir.
 @item autodeps
 The @code{tuple} of implemented autodep methods. @code{'ld_preload'} and @code{'ptrace'} are always present.
 @item backends
@@ -533,7 +533,7 @@ The correspondance is :
 @item @code{def check_deps()}
 @tab @code{lcheck_deps}
 @tab
-@item @code{def depend( *files , follow_symlinks=True , verbose=False , read=True , critical=False , essential=False , ignore_error=False , required=True , ignore=False , stat_read_data=False )}
+@item @code{def depend( *files , follow_symlinks=True , verbose=False , read=True , critical=False , essential=False , ignore_error=False , required=True , ignore=False )}
 @tab @code{ldepend}
 @tab @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
@@ -790,6 +790,11 @@ The search stops if the depth of the search reaches the value of this attribute,
 followed by a line containing @code{...}.
 The purpose is to ease reading.
 
+@item @code{n_output_days}
+@tab @code{30}
+@tab Dynamic
+@tab Number of days during which output logs are kept in the @file{LMAKE/outputs} directory.
+
 @item @code{network_delay}
 @tab @code{1}
 @tab Static
@@ -823,6 +828,30 @@ And this applies recursively.
 @*
 This has a performance cost but no more performant method is known to the autor.
 And because of the performance cost, this option has been designed to avoid paying it for file systems that do not require such going through such a headache.
+
+@item @code{sub_repos}
+@tab @code{()}
+@tab Static
+@tab This attribute provide the list of sub-repositories.
+Sub repositories are sub-directories of the repository that are themselves repositories, i.e. they have a @Lmakefile.
+Inside such sub-repositories, the applied flow is the one described in it, namely :
+@itemize
+@item Config is the one of the top-level, except for the @code{link_support} attribute which becomes the most conservative (@code{full}>@code{file}>@code{none}).
+@item Sources are taken from the local @Lmakefile and sources listed in the global @Lmakefile that happen to be located in the sub-repository are ignored.
+@item Rules are taken from the local @Lmakefile, executed within it (by adjusting their @code{cwd} attributes) and rules from the global repository do not apply.
+However there are 2 situations in which a global rule may apply in a sub-repo :
+@itemize
+@item if a target contains an explicit prefix within a sub-repo, then it is considered the user is willing to subrogate this principle.
+@item if a rule matches a job with 2 or more targets, with a target outside the sub-repo and another inside it and the target outside the sub-repo is needed,
+the job will be executed, generating a target within the sub-repo.@XXX{flag this case as an error rather than silently accepting it}
+@end itemize
+@end itemize
+However, relative external source dirs (i.e. source dirs located outside the sub-repository) that happen to be located in the global repository are suppressed,
+i.e. the global flow applies to files located there, instead as being considered sources.
+This way, when the sub-repository is used standalone, it assumes its external environment is adequately prepared, and when used as a sub-repository, the global flow generates them.
+Global flow must be understood as the flow defined at the top-level and in any other sub-repositories.
+
+Sub-repositories are recursive, i.e. they can contain sub-sub-repositories and the same applies at each level recursively.
 
 @item @code{console.date_precision}
 @tab @code{None}
@@ -882,13 +911,6 @@ Each color is a triplet RGB of values between 0 and 255.
 @tab This attribute is a @code{pdict} with one entry for each backend
 (cf @pxref{backends} for an explanation of what is the purpose of backends, and see the backends section for a description of the attributes).
 Each entry is a pdict providing resources. Such resources are backend specific.
-@*
-In addition the @code{precisions} can be set to a @code{dict} with one entry for each standard resource (@code{cpu}, @code{mem} and @code{tmp}).
-This attribute must be @code{0} or a power of 2 not less than 2.
-@*
-If set to a positive value, it represent a number under which full precision is retained when specified in a rule.
-Above it, the relative precision is retained, rounding up.
-For example, if set to 4, values 1, 2, 3, 4 are retained, but 5 is rounded to 6, 7 to 8, 9 to 12 etc (cf @pxref{resource-buckets}).
 
 @item @code{caches}
 @tab
@@ -1299,8 +1321,8 @@ All matching targets must have the same set of static stems (i.e. stems with no 
 Matching is done by first trying to match static targets (i.e. which are not star) then star targets.
 The first match will provide the associated stem definitions and flags.
 
-Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the target pattern in order to support hierarchical repository (cf @pxref{hierarchical-repositories}).
-
+Unless the @code{top} flag is set, the pattern is rooted to the sub-repo if the rule is defined in such a sub-repo.
+If the @code{top} flag is set, the pattern is always rooted at the top-level repo.
 
 @section @code{target}
 
@@ -1319,6 +1341,8 @@ This attribute defines an unnamed target.
 Its syntax is the same as any target entry except that it may not be @code{incremental}. Also, such a target may not be a @code{star} target.
 
 During execution, @code{cmd} stdout will be redirected to this (necessarily unique since it cannot be a @code{star}) target.
+
+The @code{top} flag cannot be used and the pattern is always rooted to the sub-repo if the rule is defined in such a sub-repo.
 
 @section @code{side_targets}
 
@@ -1375,7 +1399,6 @@ Flags may be arbitrarily nested into sub-@code{list}'s or sub-@code{tuple}'s.
 @item Critical           @tab critical        @tab No      @tab This dep is critial (cf @pxref{critical-deps}).
 @item IgnoreError        @tab ignore_error    @tab No      @tab This dep may be in error, job will be launched anyway.
 @item Required           @tab required        @tab No      @tab This dep is deemed to be read, even if not actually read by the job.
-@item StatReadData       @tab stat_read_data  @tab No      @tab If this dep is accessed with a stat-like access, it is deemed to have accessed its content, which may increase the number of rebuilds.
 @item Top                @tab top             @tab No      @tab dep pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
 @end multitable
 
@@ -1479,7 +1502,9 @@ It must be an absolute path not lying in the temporary directory (e.g. @code{'/r
 
 If @code{None} or @code{''}, no bind mount is performed.
 
-If performed, @code{$ROOT_DIR} will reflect this value.
+If performed, @code{$TOP_ROOT_DIR} will reflect this value.
+
+As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
 
 As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
 
@@ -1538,25 +1563,6 @@ Directories are recognized when they end with @code{/}.
 Such @code{copy_up} items are provided relative to the root of the view.
 @end itemize
 The mapping is done through bind mounts (cf @pxref {namespaces}).
-
-@section @code{cwd}
-
-@multitable @columnfractions 0.1 0.9
-@item Inheritance
-@tab Python
-@item Type
-@tab @code{str}
-@item Default
-@tab @code{''}
-@item Dynamic
-@tab No.
-@end multitable
-
-This attribute defines a directory in which jobs will @code{chdir} into before execution begins.
-It must be empty to specify the repository root.
-Else, it must be a relative path (to the repository root).
-
-This attribute is also prepended to targets and deps unless they have the @code{top} flag.
 
 @section @code{environ_cmd}
 
@@ -1718,8 +1724,8 @@ Whether @code{cmd} is a @code{str} or a @code{function}, the following environme
 @item @code{$LD_AUDIT}          : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_audit'} (cf @pxref{autodep}).
 @item @code{$LD_PRELOAD}        : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_preload'} or @code{'ld_preload_jemalloc'} (cf @pxref{autodep}).
 @item @code{$LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (cf @pxref{autodep}).
-@item @code{$PWD}               : The initial directory in which @code{cmd} is run, as provided by the @code{cwd} attribute (often the root of the repository).
-@item @code{$ROOT_DIR}          : The root of the repository.
+@item @code{$ROOT_DIR}          : The root of the (sub-)repository.
+@item @code{$TOP_ROOT_DIR}      : The root of the top-level repository.
 @item @code{$SEQUENCE_ID}       : A value which is unique for each run.
 It is @code{1} initially and is incremented each time a job is run.
 @item @code{$SMALL_ID}          : A value which is unique among running job at any given time.
@@ -2112,9 +2118,10 @@ Each line contains a file, preceded by a @code{+} if file exists or a @code{!} i
 If a callable or a sub-module has been set or if using the default behavior to list sources, this file contains a list of files that @lmake has read to process it.
 Each line contains a file, preceded by a @code{+} if file exists or a @code{!} if it does not.
 
-@section @file{LMAKE/outputs/<date>}
+@section @file{LMAKE/outputs/<date>/<time>}
 
-This file contains a transcript of the @lmake command that has been run at @file{<date>}.
+This file contains a transcript of the @lmake command that has been run at @file{<time>} on @file{<day>}.
+Such logs are kept for a number of days given in @code{lmake.config.n_output_days}.
 
 @section @file{LMAKE/last_output}
 
@@ -2372,24 +2379,28 @@ with no size limit (other than the physical disk size) but no reservation is mad
 @section Local backend
 
 The local backend launches jobs locally, on the host running the @lmake command.
-Also, there is no cooperation between backends from different repositories and the user has to ensure there is no global resource conflict.
+There is no cooperation between backends from different repositories and the user has to ensure there is no global resource conflict.
 
 This backend is configured by providing entries in the @code{lmake.config.backends.local} @code{dict}.
 The key identifies the resource and the value is a @code{int} that identifies a quantity.
 
-Then, each rule whose @code{backend} attribute is @code{'local'} provides a @code{resources} attribute such that :
+The local backend is used when either :
+@itemize @minus
+@item The @code{backend} attribute is @code{'local'} (which is the default value).
+@item @code{lmake} is launched with the the @code{--local} option.
+@item The required backend is not supported or not available.
+@end itemize
+In the two later cases, required resources are translated into local resources (best effort)
+and if not possible (e.g. because a resource is not available locally or because special constraints cannot be translated), then only one such job can run at any given time.
+
+Each rule whose @code{backend} attribute is @code{'local'} provides a @code{resources} attribute such that :
 @itemize @minus
 @item The key identifies a resource (which must match a resource in the configuration).
-@item The value (possibly tailored by job through the use of the f-string syntax) is either
-@itemize @minus
-@item a @code{int} or a @code{str} that can be interpreted as  @code{int}
-@item or a @code{str} of the form @code{'a<b'} where @code{a} and @code{b} can be interpreted as @code{int}
-@end itemize
-This later form instruct the local backend that as much as @code{b} resources is preferable, but @code{a} is enough to run the job.
+@item The value (possibly tailored by job through the use of the f-string syntax) is a @code{int} or a @code{str} that can be interpreted as @code{int}.
 @end itemize
 The variable available to the job as global variables (python case) or environment variables (shell case) contains the actual quantity of resources allocated to this job.
 
-The local backend ensures that the sum of all the resources of the running jobs never overshoot the configured available quantity.
+The local backend ensures that the sum of all the resources of the running jobs never overshoots the configured available quantity.
 
 By default, the configuration contains the 2 generic resources : @code{cpu} and @code{mem} configured respectively as the overall number of available cpus and the overall available memory (in MB).
 @itemize @minus
@@ -2506,10 +2517,10 @@ They have been implemented to have means to control interactions with jobs submi
 The @code{resources} rule attributes is composed of :
 @itemize @minus
 @item standard resources @code{cpu}, @code{mem} and @code{tmp}.
-@item @code{excludes} @code{feature}, @code{gres}, @code{licence}, @code{nodes}, @code{part}, @code{qos}, @code{reserv} : these are passed as is to the slurm daemon.
+@item @code{excludes} @code{features}, @code{gres}, @code{licence}, @code{nodes}, @code{part}, @code{qos}, @code{reserv} : these are passed as is to the slurm daemon.
 For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example @code{gres0}, @code{gres1}).
 The absence of index is equivalent to index 0.
-@item any other resource passed to the slurm daemon as licenses.
+@item any other resource passed to the slurm daemon as @code{licenses} if such licenses are declared in the slurm configuration, else as @code{gres}.
 @end itemize
 
 @anchor{autodep}
@@ -2525,6 +2536,8 @@ In all cases, @code{$LMAKE_AUTO_DEP_ENV} must remain in the environment untouche
 
 @subsection @code{'None'} or @code{'none'}
 
+This method is strongly discouraged and should be reserved for usages such as tests, comparisons or benchmarks.
+
 The job is not instrumented.
 The only intrusion is the presence of @code{$LMAKE_AUTODEP_ENV}.
 
@@ -2532,8 +2545,6 @@ The only way to report activity is through the use of @code{ldepend} / @code{lta
 
 The main advantage is that this method is not invasive (or marginally).
 The main inconvenient is that no automatic hidden dependencies are recorded, one has to explicitly call @code{ldepend} and experience shows it is very difficult not to forget some.
-
-This method is @strong{not} recommended.
 
 @subsection @code{'LdPreload'} or @code{'ld_preload'}
 
@@ -2741,22 +2752,17 @@ And the succession of job would be :
 @anchor{hierarchical-repositories}
 @section Hierarchical repositories
 
-Hierarchical repositories are currently broken and will be fixed shortly.
-
-@XXX{fix hierarchical repositories
-
 Hierarchical repositories are repositories that contain repositories, i.e. some @Lmakefile are present in sub-directories.
 
 In that situation, it is reasonable to assume that the @Lmakefile are made to handle building files underneath it.
 
-To support this situation, @lmake allow you to simply import these @Lmakefile and the @code{cwd} attributes will automatically be set to the right value so that :
+To support this situation, @lmake allow you to simply mention such s
 @itemize
 @item Targets only match within the sub-repo (and escape is possibly by setting the @code{top} flag to the target to provide global rules).
 @item The same applies to deps.
 @item @code{cmd} is run from this sub-repository, i.e. its cwd is set accordingly.
-@item The priority of the rule is boosted by adding to it the directory depth of the sub-repository times @code{lmake.config.sub_prio_boost}.
+@item The priority of deeper rules are matched first, so that builds in a sub-repo is not pertubated by rules of englobing repo.
 @end itemize
-}
 
 @anchor{eta-estimation}
 @section ETA estimation
@@ -2962,7 +2968,7 @@ An exemple is shown here :
 class Mrkr(lmake.Rule) :
 	prio   = float('inf')      # in case of clash with another rule the other rule is perfect, as long as mrkr is not a directory
 	target = '@{__dir__@}mrkr'
-	cmd    = ''                # target is open as its stdout, this is enough, we have nothing to put in the target
+	cmd    = ''                # target is open as stdout, this is enough, we have nothing to put in the target
 class Gcc(lmake.Rule) :
 	targets = @{ 'OBJ' : '@{File:.+@}.o' @}
 	deps    = @{ 'SRC' : '@{File:.+@}.c' @}

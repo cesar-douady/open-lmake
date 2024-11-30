@@ -62,10 +62,8 @@ ENUM_1( NodeStatus
 ,	Unknown
 )
 
-ENUM_1( Polluted
-,	Dirty = Old  // >=Dirty means target is really polluted
+ENUM( Polluted
 ,	Clean        // must be first
-,	Busy
 ,	Old
 ,	PreExist
 ,	Job
@@ -80,11 +78,8 @@ namespace Engine {
 	struct Target  ;
 	using Targets = TargetsBase ;
 
-
 	struct Dep  ;
 	struct Deps ;
-
-	static constexpr uint8_t NodeNGuardBits = 1 ; // to be able to make Target
 
 }
 
@@ -122,7 +117,7 @@ namespace Engine {
 	//
 
 	struct Node : NodeBase {
-		friend ::ostream& operator<<( ::ostream& , Node const ) ;
+		friend ::string& operator+=( ::string& , Node const ) ;
 		using MakeAction = NodeMakeAction ;
 		using ReqInfo    = NodeReqInfo    ;
 		//
@@ -142,10 +137,10 @@ namespace Engine {
 	//
 
 	struct Target : Node {
-		static_assert(Node::NGuardBits>=1) ;
+		static_assert(Node::NGuardBits>=1) ;                            // need 1 bit to store static_phony state
 		static constexpr uint8_t NGuardBits = Node::NGuardBits-1      ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
-		friend ::ostream& operator<<( ::ostream& , Target const ) ;
+		friend ::string& operator+=( ::string& , Target const ) ;
 		// cxtors & casts
 		Target(                       ) = default ;
 		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} {}
@@ -163,7 +158,7 @@ namespace Engine {
 	//
 
 	struct Dep : DepDigestBase<Node> {
-		friend ::ostream& operator<<( ::ostream& , Dep const& ) ;
+		friend ::string& operator+=( ::string& , Dep const& ) ;
 		using Base = DepDigestBase<Node> ;
 		// cxtors & casts
 		using Base::Base ;
@@ -181,8 +176,8 @@ namespace Engine {
 		// cxtors & casts
 		GenericDep(Dep const& d={}) : hdr{d} {}
 		// services
-		GenericDep const* next() const { return this+1+div_up(hdr.sz,GenericDep::NodesPerDep) ; }
-		GenericDep      * next()       { return this+1+div_up(hdr.sz,GenericDep::NodesPerDep) ; }
+		GenericDep const* next() const { return this+1+div_up<GenericDep::NodesPerDep>(hdr.sz) ; }
+		GenericDep      * next()       { return this+1+div_up<GenericDep::NodesPerDep>(hdr.sz) ; }
 		// data
 		Dep hdr                 = {} ;
 		Node chunk[NodesPerDep] ;
@@ -194,7 +189,7 @@ namespace Engine {
 
 	struct DepsIter {
 		struct Digest {
-			friend ::ostream& operator<<( ::ostream& , Digest const& ) ;
+			friend ::string& operator+=( ::string& , Digest const& ) ;
 			DepsIdx hdr     = 0 ;
 			uint8_t i_chunk = 0 ;
 		} ;
@@ -207,13 +202,13 @@ namespace Engine {
 		DepsIter& operator=(DepsIter const& dit) {
 			hdr     = dit.hdr     ;
 			i_chunk = dit.i_chunk ;
-			return *this ;
+			return self ;
 		}
 		// accesses
 		bool operator==(DepsIter const& dit) const { return hdr==dit.hdr && i_chunk==dit.i_chunk ; }
 		Digest digest  (Deps               ) const ;
 		// services
-		Dep const* operator->() const { return &**this ; }
+		Dep const* operator->() const { return &*self ; }
 		Dep const& operator* () const {
 			// Node's in chunk are semanticly located before header so :
 			// - if i_chunk< hdr->sz : refer to dep with no crc, flags nor parallel
@@ -224,11 +219,11 @@ namespace Engine {
 			tmpl.accesses            = hdr->hdr.chunk_accesses ;
 			return tmpl ;
 		}
-		DepsIter& operator++(int) { return ++*this ; }
+		DepsIter& operator++(int) { return ++self ; }
 		DepsIter& operator++(   ) {
 			if (i_chunk<hdr->hdr.sz)   i_chunk++ ;                         // go to next item in chunk
 			else                     { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk
-			return *this ;
+			return self ;
 		}
 		// data
 		GenericDep const* hdr     = nullptr                    ;           // pointer to current chunk header
@@ -263,8 +258,8 @@ namespace Engine {
 
 namespace Engine {
 
-	struct NodeReqInfo : ReqInfo {                                              // watchers of Node's are Job's
-		friend ::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) ;
+	struct NodeReqInfo : ReqInfo {                                            // watchers of Node's are Job's
+		friend ::string& operator+=( ::string& os , NodeReqInfo const& ri ) ;
 		//
 		using MakeAction = NodeMakeAction ;
 		//
@@ -275,19 +270,17 @@ namespace Engine {
 		// accesses
 		bool done(NodeGoal ng) const { return done_>=ng   ; }
 		bool done(           ) const { return done_>=goal ; }
-		// services
-		void reset(NodeGoal ng=NodeGoal::None) { done_ &= ng ; }
 		// data
 	public :
-		RuleIdx  prio_idx    = NoIdx           ;                                //    16 bits, index to the first job of the current prio being or having been analyzed
-		bool     single      = false           ;                                // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
-		Accesses overwritten ;                                                  // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
-		Manual   manual      = Manual::Unknown ;                                // 3<= 8 bits, info is available as soon as done_=Dsk
-		Bool3    speculate   = Yes             ;                                // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
-		NodeGoal goal        = NodeGoal::None  ;                                // 2<= 8 bits, asked level
-		NodeGoal done_       = NodeGoal::None  ;                                // 2<= 8 bits, done level
+		RuleIdx  prio_idx    = NoIdx           ;                              //    16 bits, index to the first job of the current prio being or having been analyzed
+		bool     single      = false           ;                              // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
+		Accesses overwritten ;                                                // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
+		Manual   manual      = Manual::Unknown ;                              // 3<= 8 bits, info is available as soon as done_=Dsk
+		Bool3    speculate   = Yes             ;                              // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
+		NodeGoal goal        = NodeGoal::None  ;                              // 2<= 8 bits, asked level
+		NodeGoal done_       = NodeGoal::None  ;                              // 2<= 8 bits, done level
 	} ;
-	static_assert(sizeof(NodeReqInfo)==24) ;                                    // check expected size
+	static_assert(sizeof(NodeReqInfo)==24) ;                                  // check expected size
 
 }
 
@@ -296,28 +289,26 @@ namespace Engine {
 
 namespace Engine {
 
-	struct NodeData : DataBase {
+	struct NodeData : JobNodeData {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                                                           // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                                              // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// static data
 		static Mutex<MutexLvl::NodeCrcDate> s_crc_date_mutex ;
 		// cxtors & casts
-		NodeData(                                          ) = delete ;                                               // if necessary, we must take care of the union
-		NodeData( Name n , bool no_dir , bool locked=false ) : DataBase{n} {
-			if (!no_dir) dir() = Node(_dir_name(),false/*no_dir*/,locked) ;
-		}
+		NodeData() = delete ;                                                                                                            // if necessary, we must take care of the union
+		NodeData( Name n , Node dir_ ) : JobNodeData{n} { dir() = dir_ ; }
 		~NodeData() {
 			job_tgts().pop() ;
 		}
 		// accesses
-		Node     idx    () const { return Node::s_idx(*this) ; }
-		::string name   () const { return full_name()        ; }
-		size_t   name_sz() const { return full_name_sz()     ; }
+		Node     idx    () const { return Node::s_idx(self) ; }
+		::string name   () const { return full_name()       ; }
+		size_t   name_sz() const { return full_name_sz()    ; }
 		//
 		bool is_decode() const { return buildable==Buildable::Decode ; }
 		bool is_encode() const { return buildable==Buildable::Encode ; }
@@ -350,7 +341,7 @@ namespace Engine {
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                   // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -358,18 +349,18 @@ namespace Engine {
 		bool           done      ( Req            , NodeGoal ) const ;
 		bool           done      ( Req                       ) const ;
 		//
-		bool match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                             ; }
-		bool has_actual_job    (         ) const {                          return is_plain() && +actual_job() && !actual_job()->rule.old() ; }
-		bool has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return is_plain() && actual_job()==j                            ; }
+		bool match_ok      (     ) const {                     return match_gen>=Rule::s_match_gen                         ; }
+		bool has_actual_job(     ) const {                     return is_plain() && +actual_job() && +actual_job()->rule() ; }
+		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return is_plain() && actual_job()==j                        ; }
 		//
 		Manual manual        (                  FileSig const& ) const ;
 		Manual manual        (                                 ) const { return manual(FileSig(name())) ; }
-		Manual manual_refresh( Req            , FileSig const& ) ;                                                    // refresh date if file was updated but steady
-		Manual manual_refresh( JobData const& , FileSig const& ) ;                                                    // .
+		Manual manual_refresh( Req            , FileSig const& ) ;                                                                       // refresh date if file was updated but steady
+		Manual manual_refresh( JobData const& , FileSig const& ) ;                                                                       // .
 		Manual manual_refresh( Req            r                )       { return manual_refresh(r,FileSig(name())) ; }
 		Manual manual_refresh( JobData const& j                )       { return manual_refresh(j,FileSig(name())) ; }
 		//
-		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;      // Req's are for reporting only
+		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;                         // Req's are for reporting only
 		//
 		void full_refresh( bool report_no_file , ::vector<Req> const& reqs , ::string const& name ) {
 			if (+reqs) set_buildable(reqs[0]) ;
@@ -445,10 +436,10 @@ namespace Engine {
 		void mk_src   (FileTag                 ) ;
 		void mk_no_src(                        ) ;
 		//
-		::c_vector_view<JobTgt> prio_job_tgts     (RuleIdx prio_idx) const ;
-		::c_vector_view<JobTgt> conform_job_tgts  (ReqInfo const&  ) const ;
-		::c_vector_view<JobTgt> conform_job_tgts  (                ) const ;
-		::c_vector_view<JobTgt> candidate_job_tgts(                ) const ;                   // all jobs above prio provided in conform_idx
+		::span<JobTgt const> prio_job_tgts     (RuleIdx prio_idx) const ;
+		::span<JobTgt const> conform_job_tgts  (ReqInfo const&  ) const ;
+		::span<JobTgt const> conform_job_tgts  (                ) const ;
+		::span<JobTgt const> candidate_job_tgts(                ) const ;                      // all jobs above prio provided in conform_idx
 		//
 		void set_buildable_throw( Req      , DepDepth lvl=0       ) ;                          // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_buildable      ( Req      , DepDepth lvl=0       ) ;                          // set infinite if looping
@@ -487,45 +478,46 @@ namespace Engine {
 			else              return _gather_prio_job_tgts( name() , r , lvl ) ;
 		}
 		//
-		void _set_match_gen(bool ok) ;
+		void _set_match_ok() ;
 		// data
 		// START_OF_VERSIONING
 	public :
 		struct IfPlain {
-			SigDate  date       ;                                // ~40+40<128 bits,         p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
-			Node     dir        ;                                //  31   < 32 bits, shared
-			JobTgts  job_tgts   ;                                //         32 bits, owned , ordered by prio, valid if match_ok
-			RuleTgts rule_tgts  ;                                // ~20   < 32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-			Job      actual_job ;                                //  31   < 32 bits, shared, job that generated node
+			SigDate  date       ;                        // ~40+40<128 bits,         p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
+			Node     dir        ;                        //  31   < 32 bits, shared
+			JobTgts  job_tgts   ;                        //         32 bits, owned , ordered by prio, valid if match_ok
+			RuleTgts rule_tgts  ;                        // ~20   < 32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+			Job      actual_job ;                        //  31   < 32 bits, shared, job that generated node
 		} ;
 		struct IfDecode {
-			Ddate      log_date ;                                // ~40   < 64 bits,         logical date to detect overwritten
-			Codec::Val val      ;                                //         32 bits,         offset in association file where the association line can be found
+			Ddate      log_date ;                        // ~40   < 64 bits,         logical date to detect overwritten
+			Codec::Val val      ;                        //         32 bits,         offset in association file where the association line can be found
 		} ;
 		struct IfEncode {
-			Ddate       log_date ;                               // ~40   < 64 bits,         logical date to detect overwritten
-			Codec::Code code     ;                               //         32 bits,         offset in association file where the association line can be found
+			Ddate       log_date ;                       // ~40   < 64 bits,         logical date to detect overwritten
+			Codec::Code code     ;                       //         32 bits,         offset in association file where the association line can be found
 		} ;
-		//Name  name   ;                                         //         32 bits, inherited
-		Watcher asking ;                                         //         32 bits,         last watcher needing this node
-		Crc     crc    = Crc::None ;                             // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		//Name  name   ;                                 //         32 bits, inherited
+		Watcher asking ;                                 //         32 bits,         last watcher needing this node
+		Crc     crc    = Crc::None ;                     // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 	private :
 		union {
-			IfPlain  _if_plain  = {} ;                           //        256 bits
-			IfDecode _if_decode ;                                //         96 bits
-			IfEncode _if_encode ;                                //         96 bits
+			IfPlain  _if_plain  = {} ;                   //        256 bits
+			IfDecode _if_decode ;                        //         96 bits
+			IfEncode _if_encode ;                        //         96 bits
 		} ;
 	public :
-		Job       polluting_job           ;                      //         32 bits,          polluting job when polluted was last set to Polluted::Job
-		MatchGen  match_gen:NMatchGenBits = 0                  ; //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
-		Buildable buildable:4             = Buildable::Unknown ; //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		Polluted  polluted :3             = Polluted::Clean    ; //          2 bits,          reason for pollution
+		Job       polluting_job ;                        //         32 bits,          polluting job when polluted was last set to Polluted::Job
+		MatchGen  match_gen     = 0                  ;   //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
+		Buildable buildable:4   = Buildable::Unknown ;   //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
+		Polluted  polluted :2   = Polluted::Clean    ;   //          2 bits,          reason for pollution
+		bool      busy     :1   = false              ;   //          1 bit ,          a job is running with this node as target
 	private :
-		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
-		Tflags  _actual_tflags ;                                 //          8 bits,          tflags associated with actual_job
+		RuleIdx _conform_idx   = -+NodeStatus::Unknown ; //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		Tflags  _actual_tflags ;                         //          8 bits,          tflags associated with actual_job
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(NodeData)==64) ;                        // check expected size
+	static_assert(sizeof(NodeData)==64) ;                // check expected size
 
 }
 
@@ -554,7 +546,7 @@ namespace Engine {
 		if (&cri==&Req::s_store[+cri.req].nodes.dflt) return req_info(cri.req)         ; // allocate
 		else                                          return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
 	}
-	inline ::vector<Req> NodeData::reqs() const { return Req::s_reqs(*this) ; }
+	inline ::vector<Req> NodeData::reqs() const { return Req::s_reqs(self) ; }
 
 	inline bool NodeData::waiting() const {
 		for( Req r : reqs() ) if (c_req_info(r).waiting()) return true ;
@@ -583,13 +575,13 @@ namespace Engine {
 		return res ;
 	}
 
-	inline ::c_vector_view<JobTgt> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
-	inline ::c_vector_view<JobTgt> NodeData::conform_job_tgts(                  ) const {
+	inline ::span<JobTgt const> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
+	inline ::span<JobTgt const> NodeData::conform_job_tgts(                  ) const {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		if (status()!=NodeStatus::Plain) return {} ;
-		RuleIdx prio_idx = conform_idx() ;
-		Prio prio = job_tgts()[prio_idx]->rule->prio ;
-		while ( prio_idx && job_tgts()[prio_idx-1]->rule->prio==prio ) prio_idx-- ; // rewind to first job within prio level
+		RuleIdx prio_idx = conform_idx()                      ;
+		RuleIdx prio     = job_tgts()[prio_idx]->rule()->prio ;
+		while ( prio_idx && job_tgts()[prio_idx-1]->rule()->prio==prio ) prio_idx-- ; // rewind to first job within prio level
 		return prio_job_tgts(prio_idx) ;
 	}
 
@@ -598,9 +590,10 @@ namespace Engine {
 		set_pressure(ri,pressure) ;
 	}
 
-	inline void NodeData::_set_match_gen(bool ok) {
-		if      (!ok                        ) { SWEAR(is_plain()                   ) ; match_gen = 0                 ; buildable = Buildable::Unknown ; }
-		else if (match_gen<Rule::s_match_gen) { SWEAR(buildable!=Buildable::Unknown) ; match_gen = Rule::s_match_gen ;                                  }
+	inline void NodeData::_set_match_ok() {
+		if (match_gen>=Rule::s_match_gen) return ; // already ok
+		SWEAR(buildable!=Buildable::Unknown) ;
+		match_gen = Rule::s_match_gen ;
 	}
 
 	inline void NodeData::set_buildable_throw( Req req , DepDepth lvl ) { // req is for error reporting only
@@ -621,7 +614,7 @@ namespace Engine {
 	}
 
 	inline void NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
-		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted ) return ; // fast path
+		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted && !busy ) return ; // fast path
 		_do_make(ri,ma,s) ;
 	}
 
@@ -640,11 +633,11 @@ namespace Engine {
 	//
 
 	inline bool Dep::up_to_date(bool full) const {
-		return is_crc && crc().match( (*this)->crc , full?~Accesses():accesses ) ;
+		return is_crc && crc().match( self->crc , full?~Accesses():accesses ) ;
 	}
 
 	inline void Dep::acquire_crc() {
-		if ( !is_crc && (*this)->crc.valid() && (*this)->crc!=Crc::None && sig()==(*this)->date().sig ) crc((*this)->crc) ;
+		if ( !is_crc && self->crc.valid() && self->crc!=Crc::None && sig()==self->date().sig ) crc(self->crc) ;
 	}
 
 	//

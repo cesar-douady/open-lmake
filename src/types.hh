@@ -1,0 +1,110 @@
+// This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+// Copyright (c) 2023 Doliam
+// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+#pragma once
+
+#include "utils.hh"
+
+// must not be touched to fit needs
+static constexpr uint8_t JobNGuardBits  = 2 ; // one to define JobTgt, the other to put it in a Crunch vector
+static constexpr uint8_t NodeNGuardBits = 1 ; // to be able to make Target
+
+// START_OF_VERSIONING
+
+// NXxxBits are used to dimension address space, and hence max number of objects for each category.
+// can be tailored to fit neeeds
+static constexpr uint8_t NCodecIdxBits    = 32 ; // used to store code <-> value associations in lencode/ldecode
+static constexpr uint8_t NDepsIdxBits     = 32 ; // used to index deps
+static constexpr uint8_t NJobIdxBits      = 30 ; // 2 guard bits
+static constexpr uint8_t NJobTgtsIdxBits  = 32 ; // JobTgts are used to store job candidate for each Node, so this Idx is a little bit larget than NodeIdx
+static constexpr uint8_t NNameIdxBits     = 32 ; // used to index Rule & Job names
+static constexpr uint8_t NNodeIdxBits     = 31 ; // 1 guard bit, there are a few targets per job, so this idx is a little bit larger than JobIdx
+static constexpr uint8_t NPsfxIdxBits     = 32 ; // each rule appears in a few Psfx slots, so this idx is a little bit larger than ruleTgtsIdx
+static constexpr uint8_t NReqIdxBits      =  8 ;
+static constexpr uint8_t NRuleIdxBits     = 16 ;
+static constexpr uint8_t NRuleCrcIdxBits  = 32 ;
+static constexpr uint8_t NRuleStrIdxBits  = 32 ; // used to index serialized Rule description
+static constexpr uint8_t NRuleTgtsIdxBits = 32 ;
+static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets
+
+// END_OF_VERSIONING
+
+//
+// derived info
+//
+// must not be touched to fit needs
+using CodecIdx    = Uint<NCodecIdxBits                  > ;
+using DepsIdx     = Uint<NDepsIdxBits                   > ;
+using JobIdx      = Uint<NJobIdxBits     +JobNGuardBits > ;
+using JobTgtsIdx  = Uint<NJobTgtsIdxBits                > ;
+using NameIdx     = Uint<NNameIdxBits                   > ;
+using NodeIdx     = Uint<NNodeIdxBits    +NodeNGuardBits> ;
+using PsfxIdx     = Uint<NPsfxIdxBits                   > ;
+using ReqIdx      = Uint<NReqIdxBits                    > ;
+using RuleIdx     = Uint<NRuleIdxBits                   > ;
+using RuleStrIdx  = Uint<NRuleStrIdxBits                > ;
+using RuleCrcIdx  = Uint<NRuleCrcIdxBits                > ;
+using RuleTgtsIdx = Uint<NRuleTgtsIdxBits               > ;
+using TargetsIdx  = Uint<NTargetsIdxBits                > ;
+
+// START_OF_VERSIONING
+
+// can be tailored to fit neeeds
+using VarIdx = uint8_t ; // used to index stems, targets, deps & rsrcs within a Rule
+
+// ids
+// can be tailored to fit neeeds
+using SmallId = uint32_t ; // used to identify running jobs, could be uint16_t if we are sure that there cannot be more than 64k jobs running at once
+using SeqId   = uint64_t ; // used to distinguish old report when a job is relaunched, may overflow as long as 2 job executions have different values if the 1st is lost
+
+// type to hold the dep depth used to track dep loops
+// can be tailored to fit neeeds
+using DepDepth = uint16_t ;
+
+// job tokens
+// can be tailored to fit neeeds
+using Tokens1 = uint8_t ; // store number of tokens-1 (so tokens can go from 1 to 256)
+
+// maximum number of rule generation before a Job/Node clean up is necessary
+// can be tailored to fit neeeds
+using MatchGen = uint8_t ;
+
+// Directories
+// can be tailored to fit neeeds
+#define ADMIN_DIR_S            "LMAKE/"
+#define PRIVATE_ADMIN_SUBDIR_S "lmake/"
+#define GMON_SUBDIR_S          "gmon.out/"
+
+// END_OF_VERSIONING
+
+// if crc's differ on only by that many bits, then we are close to crc clashes. If that happen, we will have to increase CRC size.
+// can be tailored to fit neeeds
+static constexpr uint8_t NCrcGuardBits = 8 ;
+
+// weight associated to rule when a job completes
+// the average value kept in rule is the weighted average between old average value and job value with weiths RuleWeight and 1
+// can be tailored to fit neeeds
+static constexpr size_t RuleWeight = 100 ;
+
+// number of job traces to keep (indexed by unique id)
+// can be tailored to fit neeeds
+static constexpr SeqId JobHistorySz = 1000 ;
+
+// backlog of incoming connections from remote jobs (i.e. number of pending connect calls before connections are refused)
+// can be tailored to fit neeeds
+static constexpr int JobExecBacklog = 4096 ; // max usual value as set in /proc/sys/net/core/somaxconn
+
+//
+// derived info
+//
+
+// must not be touched to fit needs
+#define PRIVATE_ADMIN_DIR_S    ADMIN_DIR_S PRIVATE_ADMIN_SUBDIR_S
+#define GMON_DIR_S             ADMIN_DIR_S GMON_SUBDIR_S
+static constexpr char AdminDirS       [] = ADMIN_DIR_S         ;
+static constexpr char PrivateAdminDirS[] = PRIVATE_ADMIN_DIR_S ;
+
+// must not be touched to fit needs
+using WatcherIdx = Largest<JobIdx,NodeIdx> ;

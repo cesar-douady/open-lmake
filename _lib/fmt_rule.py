@@ -6,14 +6,15 @@
 import sys
 
 import os
+import os.path as osp
 import re
 
 import serialize
 
-from lmake import pdict
+import lmake
+pdict = lmake.pdict
 
-root_dir   = os.getcwd()
-no_imports = {}          # may be overridden by external code
+no_imports = set() # may be overridden by external code
 
 # helper constants
 StdAttrs = {
@@ -30,7 +31,6 @@ StdAttrs = {
 ,	'cache'             : ( str   , True  )
 ,	'chroot_dir'        : ( str   , True  )
 ,	'cmd'               : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
-,	'cwd'               : ( str   , True  )
 ,	'side_deps'         : ( dict  , True  )
 ,	'deps'              : ( dict  , True  )
 ,	'environ_cmd'       : ( dict  , True  )
@@ -165,11 +165,9 @@ def handle_inheritance(rule) :
 		if k in StdAttrs :
 			if v is None : continue                                         # None is not transported
 			typ,dyn = StdAttrs[k]
-			# special cases
-			if k=='cmd' :
+			if k=='cmd' :                                                   # special cases
 				attrs[k] = v
-			# generic cases
-			else :
+			else :                                                          # generic cases
 				if typ and not ( dyn and callable(v) ) :
 					try :
 						if   callable(v)                                            : pass
@@ -250,12 +248,9 @@ def mk_dbg_info( dbg , serialize_ctx , for_this_python ) :
 	if has_code_replace or not for_this_python :
 		if not single :
 			dbg_info += f"{tab1}def {sourcify}(func,module,qualname,filename,firstlineno) :\n"
-			dbg_info += f"{tab1}{tab2}try :\n"
-		dbg_info += f"{tab1}{tab2}{tab2}{func}.__code__     = {func}.__code__.replace( co_filename={filename} , co_firstlineno={firstlineno} )\n"
-		dbg_info += f"{tab1}{tab2}{tab2}{func}.__module__   = {module}\n"
-		dbg_info += f"{tab1}{tab2}{tab2}{func}.__qualname__ = {qualname}\n"
-		if not single :
-			dbg_info += f"{tab1}{tab2}except : pass\n"                  # this is purely cosmetic, if it does not work, no harm
+		dbg_info += f"{tab1}{tab2}{func}.__code__     = {func}.__code__.replace( co_filename={filename} , co_firstlineno={firstlineno} )\n"
+		dbg_info += f"{tab1}{tab2}{func}.__module__   = {module}\n"
+		dbg_info += f"{tab1}{tab2}{func}.__qualname__ = {qualname}\n"
 	if not for_this_python :
 		dbg_info += "except :\n"
 	if not has_code_replace or not for_this_python :
@@ -264,30 +259,20 @@ def mk_dbg_info( dbg , serialize_ctx , for_this_python ) :
 		else :
 			dbg_info += f"{tab1}def {sourcify}({func},{module},{qualname},{filename},{firstlineno}) :\n"
 			c         = 'c'
-		dbg_info += f"{tab1}{tab2}try :\n"
-		dbg_info += f"{tab1}{tab2}\t{c:4} = {func}.__code__\n"
-		dbg_info += f"{tab1}{tab2}\targs = [{c}.co_argcount]\n"
-		dbg_info += f"{tab1}{tab2}\tif hasattr({c},'co_posonlyargcount') : args.append({c}.co_posonlyargcount)\n"
-		dbg_info += f"{tab1}{tab2}\tif hasattr({c},'co_kwonlyargcount' ) : args.append({c}.co_kwonlyargcount )\n"
-		dbg_info += f"{tab1}{tab2}\targs += [\n"
-		dbg_info += f"{tab1}{tab2}\t\t{c}.co_nlocals\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_stacksize\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_flags\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_code\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_consts\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_names\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_varnames\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{filename}\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_name\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{firstlineno}\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_lnotab\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_freevars\n"
-		dbg_info += f"{tab1}{tab2}\t,\t{c}.co_cellvars\n"
-		dbg_info += f"{tab1}{tab2}\t]\n"
-		dbg_info += f"{tab1}{tab2}\t{func}.__code__     = {c}.__class__(*args)\n"
-		dbg_info += f"{tab1}{tab2}\t{func}.__module__   = {module}\n"
-		dbg_info += f"{tab1}{tab2}\t{func}.__qualname__ = {qualname}\n"
-		dbg_info += f"{tab1}{tab2}except : pass\n"                      # this is purely cosmetic, if it does not work, no harm
+		dbg_info += f"{tab1}{tab2}{c:4} = {func}.__code__\n"
+		dbg_info += f"{tab1}{tab2}args = [{c}.co_argcount]\n"
+		dbg_info += f"{tab1}{tab2}if hasattr({c},'co_posonlyargcount') : args.append({c}.co_posonlyargcount)\n"
+		dbg_info += f"{tab1}{tab2}if hasattr({c},'co_kwonlyargcount' ) : args.append({c}.co_kwonlyargcount )\n"
+		dbg_info += f"{tab1}{tab2}args += (\n"
+		dbg_info += f"{tab1}{tab2}\t{c}.co_nlocals,{c}.co_stacksize,{c}.co_flags,{c}.co_code,{c}.co_consts,{c}.co_names,{c}.co_varnames\n"
+		dbg_info += f"{tab1}{tab2},\t{filename}\n"
+		dbg_info += f"{tab1}{tab2},\t{c}.co_name\n"
+		dbg_info += f"{tab1}{tab2},\t{firstlineno}\n"
+		dbg_info += f"{tab1}{tab2},\t{c}.co_lnotab,{c}.co_freevars,{c}.co_cellvars\n"
+		dbg_info += f"{tab1}{tab2})\n"
+		dbg_info += f"{tab1}{tab2}{func}.__code__     = {c}.__class__(*args)\n"
+		dbg_info += f"{tab1}{tab2}{func}.__module__   = {module}\n"
+		dbg_info += f"{tab1}{tab2}{func}.__qualname__ = {qualname}\n"
 	if not single :
 		for func,(module,qualname,filename,firstlineno) in dbg.items() :
 			dbg_info += f'{sourcify}({func},{module!r},{qualname!r},{filename!r},{firstlineno})\n'
@@ -314,14 +299,16 @@ def avoid_ctx(name,ctxs) :
 	assert False,f'cannot find suffix to make {name} an available name'
 
 class Handle :
+	ThisPython = os.readlink('/proc/self/exe')
 	def __init__(self,rule) :
 		attrs         = handle_inheritance(rule)
 		module        = sys.modules[rule.__module__]
 		self.rule     = rule
 		self.attrs    = attrs
 		self.glbs     = (attrs,module.__dict__)
-		self.rule_rep = pdict( { k:attrs[k] for k in ('name','stems') } )
-		if 'prio' in attrs : self.rule_rep.prio = attrs.prio
+		self.rule_rep = pdict(name=attrs.name)
+		if attrs.get('stems') : self.rule_rep.stems = attrs.stems
+		if attrs.get('prio' ) : self.rule_rep.prio  = attrs.prio
 
 	def _init(self) :
 		self.static_val  = pdict()
@@ -386,7 +373,9 @@ class Handle :
 		dynamic_val = self.dynamic_val
 		del self.static_val
 		del self.dynamic_val
-		if not dynamic_val : return (static_val,)
+		if not dynamic_val :
+			if not static_val : return None          # entry is suppressed later in this case
+			else              : return (static_val,)
 		serialize_ctx = ( self.per_job , self.aggregate_per_job , *self.glbs )
 		code,ctx,names,dbg = serialize.get_expr(
 			dynamic_val
@@ -435,7 +424,7 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		for attr in ('cwd','ete','force','max_submit_count') :
+		for attr in ('ete','force','max_submit_count') :
 			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
 
 	def handle_create_none(self) :
@@ -455,12 +444,13 @@ class Handle :
 		if 'deps' in self.dynamic_val : self.dynamic_val = self.dynamic_val['deps']
 		if 'deps' in self.static_val  : self.static_val  = self.static_val ['deps']
 		if callable(self.dynamic_val) :
-			assert not self.static_val                                                                                  # there must be no static val when deps are full dynamic
-			self.static_val  = None                                                                                     # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
+			assert not self.static_val                                                     # there must be no static val when deps are full dynamic
+			self.static_val  = None                                                        # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
 		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
-		if self.rule_rep.deps_attrs[0] : self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
+		if self.rule_rep.deps_attrs and self.rule_rep.deps_attrs[0] :
+			self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
 		self._init()
@@ -487,15 +477,15 @@ class Handle :
 		self._handle_val('interpreter',rep_key=interpreter  )
 		self._handle_val('root_view'                        )
 		self._handle_val('tmp_view'                         )
-		self._handle_val('use_script'                       )
 		self._handle_val('views'                            )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
 		self._init()
-		self._handle_val('autodep'                            )
-		self._handle_val('env'    ,rep_key='environ_resources')
-		self._handle_val('timeout'                            )
+		self._handle_val('autodep'                               )
+		self._handle_val('env'       ,rep_key='environ_resources')
+		self._handle_val('timeout'                               )
+		self._handle_val('use_script'                            )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
 
 	def handle_start_none(self) :
@@ -539,14 +529,14 @@ class Handle :
 			,	ctx        = serialize_ctx
 			,	no_imports = no_imports
 			,	force      = True
-			,	root_dir   = root_dir
+			,	root_dir   = lmake.root_dir
 			)
 			if multi :
 				cmd += 'def cmd() :\n'
-				x = avoid_ctx('x',serialize_ctx)                                                                                  # find a non-conflicting name
+				x = avoid_ctx('x',serialize_ctx)                                                                                       # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					if c.__defaults__ : n_dflts = len(c.__defaults__)
-					else              : n_dflts = 0                                                                               # stupid c.__defaults__ is None when no defaults, not ()
+					else              : n_dflts = 0                                                                                    # stupid c.__defaults__ is None when no defaults, not ()
 					if   c.__code__.co_argcount> n_dflts+1 : raise "cmd cannot have more than a single arg without default value"
 					if   c.__code__.co_argcount<=n_dflts   : a = ''
 					elif i==0                              : a = 'None'
@@ -558,8 +548,16 @@ class Handle :
 						a1 = '' if not b1 else x
 						if b1 : cmd += f'\t{a1} = { c.__name__}({a})\n'
 						else  : cmd += f'\t{        c.__name__}({a})\n'
-			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , mk_dbg_info(dbg,serialize_ctx,False) )
-			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                                   )
+			for_this_python = False                                                                                                    # be conservative
+			try :
+				interpreter  = self.rule_rep.start_cmd_attrs[0].interpreter
+				if not interpreter : raise "need an interpreter to execute cmd"
+				interpreter0 = interpreter[0]
+				if not interpreter0 : raise "need an interpreter to execute cmd"
+				if not maybe_local(interpreter0) : for_this_python = osp.realpath(interpreter)==self.ThisPython                        # code can be made simpler if we know we run the same python ...
+			except : pass                                                                                                              # ... but we do not want to create a dep inside the repo if ...
+			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , mk_dbg_info(dbg,serialize_ctx,for_this_python) ) # ... no interpreter (e.g. it may be dynamic), be conservative
+			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                                             )
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)
 			self._init()
@@ -600,6 +598,7 @@ def do_fmt_rule(rule) :
 	h.handle_end_cmd     ()
 	h.handle_end_none    ()
 	h.handle_cmd         ()
+	for k in [k for k,v in h.rule_rep.items() if v==None] : del h.rule_rep[k]                                        # functions above may generate holes
 	return h.rule_rep
 
 def fmt_rule(rule) :
@@ -608,8 +607,13 @@ def fmt_rule(rule) :
 	except Exception as e :
 		if hasattr(rule,'name') : name = f'({rule.name})'
 		else                    : name = ''
-		print(f'while processing {rule.__name__}{name} :',file=sys.stderr)
-		if hasattr(e,'field')                  : print(f'\tfor field {e.field}'      ,file=sys.stderr)
-		if hasattr(e,'base' ) and e.base!=rule : print(f'\tin base {e.base.__name__}',file=sys.stderr)
-		print(f'\t{e.__class__.__name__} : {e}',file=sys.stderr)
+		if lmake.root_dir==lmake.top_root_dir :
+			tab = ''
+		else :
+			print(f'in sub-repo {lmake.root_dir[len(lmake.top_root_dir)+1:]} :',file=sys.stderr)
+			tab = '\t'
+		print(f'{tab}while processing {rule.__name__}{name} :',file=sys.stderr)
+		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'      ,file=sys.stderr)
+		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}',file=sys.stderr)
+		print(f'{tab}\t{e.__class__.__name__} : {e}',file=sys.stderr)
 		sys.exit(2)

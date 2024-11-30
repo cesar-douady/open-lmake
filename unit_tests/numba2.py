@@ -3,10 +3,22 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import os.path as osp
+
 if __name__!='__main__' :
 
+	import socket
+
 	import lmake
-	from lmake.rules import Rule,_lmake_dir,root_dir
+	from lmake.rules import Rule,_lmake_dir
+
+	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
+		lmake.config.backends.slurm = {
+			'interface' : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
+		}
+		backend = 'slurm'
+	else :
+		backend = 'local'
 
 	from step import numba_home
 
@@ -15,17 +27,11 @@ if __name__!='__main__' :
 	,	'step.py'
 	)
 
-	if 'slurm' in lmake.backends :
-		lmake.config.backends.slurm = {
-			'n_max_queued_jobs' : 10
-		}
-
 	class TestNumba(Rule):
 		target      = 'dut'
 		autodep     = 'ld_preload'
 		environ_cmd = { 'PYTHONPATH' : numba_home+':...' } # ... stands for inherited value
-		if 'slurm' in lmake.backends :
-			backend = 'slurm'
+		backend     = backend
 		resources = {
 			'cpu' : 1
 		,	'mem' : '256M'
@@ -42,7 +48,6 @@ if __name__!='__main__' :
 else :
 
 	import os
-	import os.path as osp
 	import sys
 
 	import ut

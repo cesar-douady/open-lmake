@@ -5,20 +5,12 @@
 
 #pragma once
 
-#include "config.hh"
-
 #include "disk.hh"
 #include "hash.hh"
 #include "serialize.hh"
 #include "time.hh"
 
 #include "autodep/env.hh"
-
-template<class E,class T> static constexpr bool _chk_flags_tab(::array<::pair<E,T>,N<E>> tab) {
-	bool res = true ;
-	for( E e=E(0) ; e!=All<E> ; e++ ) res &= tab[+e].first==e ;
-	return res ;
-}
 
 // START_OF_VERSIONING
 ENUM_2( Dflag        // flags for deps
@@ -40,23 +32,21 @@ static constexpr ::amap<Dflag,char,N<Dflag>> DflagChars {{
 ,	{ Dflag::Static      , 'S' }
 }} ;
 using Dflags = BitMap<Dflag> ;
-static_assert(_chk_flags_tab(DflagChars)) ;
+static_assert(chk_enum_tab(DflagChars)) ;
 
 // START_OF_VERSIONING
 ENUM_1( ExtraDflag
 ,	NRule          // all flags allowed
 ,	Top
 ,	Ignore
-,	StatReadData
 )
 // END_OF_VERSIONING
 static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
-	{ ExtraDflag::Top          , 0   }
-,	{ ExtraDflag::Ignore       , 'I' }
-,	{ ExtraDflag::StatReadData , 'd' }
+	{ ExtraDflag::Top    , 0   }
+,	{ ExtraDflag::Ignore , 'I' }
 }} ;
 using ExtraDflags = BitMap<ExtraDflag> ;
-static_assert(_chk_flags_tab(ExtraDflagChars)) ;
+static_assert(chk_enum_tab(ExtraDflagChars)) ;
 
 // START_OF_VERSIONING
 ENUM_2( Tflag      // flags for targets
@@ -81,7 +71,7 @@ static constexpr ::amap<Tflag,char,N<Tflag>> TflagChars {{
 ,	{ Tflag::Target      , 'T' }
 }} ;
 using Tflags = BitMap<Tflag> ;
-static_assert(_chk_flags_tab(TflagChars)) ;
+static_assert(chk_enum_tab(TflagChars)) ;
 inline bool static_phony(Tflags tf) {
 	return tf[Tflag::Target] && (tf[Tflag::Static]||tf[Tflag::Phony]) ;
 }
@@ -106,4 +96,4 @@ static constexpr ::amap<ExtraTflag,char,N<ExtraTflag>> ExtraTflagChars {{
 ,	{ ExtraTflag::Wash     , 0   }
 }} ;
 using ExtraTflags = BitMap<ExtraTflag> ;
-static_assert(_chk_flags_tab(ExtraTflagChars)) ;
+static_assert(chk_enum_tab(ExtraTflagChars)) ;

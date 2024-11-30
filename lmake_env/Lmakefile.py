@@ -28,16 +28,18 @@ if 'slurm' in lmake.backends :
 else :
 	backend = 'local'
 
+root_dir = os.getcwd()
+
 config.caches.dir = {
 	'tag'  : 'dir'
-,	'repo' : lmake.root_dir
-,	'dir'  : osp.dirname(lmake.root_dir)+'/lmake_env-cache'
+,	'repo' : root_dir
+,	'dir'  : osp.dirname(root_dir)+'/lmake_env-cache'
 }
 
 config.console.date_precision = 2
 config.console.show_eta       = True
 
-config.local_admin_dir = lmake.root_dir+'/LMAKE_LOCAL'
+config.local_admin_dir = root_dir+'/LMAKE_LOCAL'
 
 config.link_support = 'full'
 
@@ -104,8 +106,8 @@ class Unpack(BaseRule) :
 # it is unacceptable to have a pack inside a pack, as this creates ambiguities
 class AntiPackPack(BaseRule,AntiRule) :
 	targets = {
-		'TAR' : '{Dir}..dir/{File}.tar.gz'
-	,	'ZIP' : '{Dir}..dir/{File}.zip'
+		'TAR' : '{Dir}.dir/{File}.tar.gz'
+	,	'ZIP' : '{Dir}.dir/{File}.zip'
 	}
 
 class Untar(Unpack,PyRule) :
@@ -152,7 +154,7 @@ class ConfigH(BaseRule) :
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 
-class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
+class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
 	targets = {
 		'H'     : 'sys_config.h'
 	,	'TRIAL' : r'trial/{*:.*}'
@@ -164,13 +166,10 @@ class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
 		while read k e v ; do
 			case $k in
 				'#'*      ) ;;
-				*HAS_FUSE*) echo    > {MK('$k')} ;;
 				*HAS_PCRE*) echo    > {MK('$k')} ;;
 				*         ) echo $v > {MK('$k')} ;;
 			esac
 		done < $TMPDIR/mk
-		echo '#undef  HAS_FUSE'   >> {H}
-		echo '#define HAS_FUSE 0' >> {H}
 		echo '#undef  HAS_PCRE'   >> {H}
 		echo '#define HAS_PCRE 0' >> {H}
 		#echo > {MK('HAS_PCRE')}
@@ -249,16 +248,13 @@ class LinkRule(PathRule,PyRule) :
 	combine      = ('opts',)
 	opts         = []                                           # options before inputs & outputs
 	resources    = {'mem':'1G'}
-	need_fuse    = False
 	need_python  = False
 	need_seccomp = False
 	def cmd() :
-		nf  = need_fuse    and sys_config('HAS_FUSE'   )
 		ns  = need_seccomp and sys_config('HAS_SECCOMP')
 		lst = sys_config('LIB_STACKTRACE')
 		if True        : post_opts = ['-ldl']
 		if lst         : post_opts.append(f'-l{lst}')
-		if nf          : post_opts.append('-lfuse3')
 		if ns          : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists
 		if need_python :
 			post_opts.append(f"-L{sysconfig.get_config_var('LIBDIR')}")
@@ -269,7 +265,6 @@ class LinkRule(PathRule,PyRule) :
 		run_gxx( TARGET
 		,	*opts
 		,	*deps.values()
-		,	*( ('src/autodep/fuse.o',) if nf else () )
 		,	*post_opts
 		)
 
@@ -356,8 +351,6 @@ opt_tab.update({
 ,	r'src/.*'             : ( '-iquote'    , 'ext_lnk'                      )
 ,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     ,)
 ,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'          ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
-,	r'src/fuse'           : ( '-idirafter' , f'/usr/include/fuse3'          ) # in case fuse is available (else, does not hurt)
-,	r'src/rpc_job'        : ( '-idirafter' , f'/usr/include/fuse3'          ) # .
 })
 
 class Link(BaseRule) :
@@ -411,7 +404,6 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
 	,	'RPC_CLIENT'   : None
 	}
-	need_fuse    = True
 	need_seccomp = True
 
 class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
@@ -435,7 +427,6 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
-	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'BE_LOCAL'   : 'src/lmakeserver/backends/local.o'
 	#,	'BE_SLURM'   : 'src/lmakeserver/backends/slurm.o' # XXX : add conditional compilation to compile slurm when it is available
@@ -444,6 +435,7 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'CMD'        : 'src/lmakeserver/cmd.o'
 	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
+	,	'CONFIG'     : 'src/lmakeserver/config.o'
 	,	'JOB'        : 'src/lmakeserver/job.o'
 	,	'MAKEFILES'  : 'src/lmakeserver/makefiles.o'
 	,	'NODE'       : 'src/lmakeserver/node.o'
@@ -452,7 +444,6 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
-	need_fuse = True
 
 class LinkLrepairExe(LinkLmakeserverExe) :
 	targets = { 'TARGET' : 'bin/lrepair' }
@@ -466,12 +457,12 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
-	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'CACHE'      : 'src/lmakeserver/cache.o'
 	,	'DIR_CACHE'  : 'src/lmakeserver/caches/dir_cache.o'
 	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
+	,	'CONFIG'     : 'src/lmakeserver/config.o'
 	,	'JOB'        : 'src/lmakeserver/job.o'
 	,	'NODE'       : 'src/lmakeserver/node.o'
 	,	'REQ'        : 'src/lmakeserver/req.o'
@@ -479,7 +470,6 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/ldump.o'
 	}
-	need_fuse = True
 
 class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
@@ -487,7 +477,6 @@ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 		'RPC_JOB' : 'src/rpc_job.o'
 	,	'MAIN'    : 'src/ldump_job.o'
 	}
-	need_fuse = True
 
 for client in ('lforget','lmake','lmark','lshow') :
 	class LinkLmake(LinkClientAppExe) :

@@ -55,7 +55,7 @@ void AutodepPtrace::s_init(AutodepEnv const& ade) {
 		// prepare seccomp filter outside s_prepare_child as this might very well call malloc
 		bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ;                         // if full link support, we need to analyze uphill dirs
 		swear_prod( ::seccomp_attr_set( s_scmp , SCMP_FLTATR_CTL_OPTIMIZE , 2 )==0 ) ;
-		for( long syscall=0 ; syscall<SyscallDescr::NSyscalls ; syscall++ ) {
+		for( long syscall : iota(SyscallDescr::NSyscalls) ) {
 			SyscallDescr const& descr = s_tab[syscall] ;
 			if ( !descr || !descr.entry       ) continue ;                                                // descr is not allocated
 			if ( descr.is_stat && ignore_stat ) continue ;                                                // non stat-like access are always needed
@@ -161,7 +161,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 					if ( +descr && descr.entry ) {
 						info.idx = syscall ;
 						#if HAS_PTRACE_GET_SYSCALL_INFO                                           // use portable calls if implemented
-							// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unesigned long long
+							// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unsigned long long
 							static_assert( sizeof(entry_info.args[0])==sizeof(uint64_t) && ::is_unsigned_v<remove_reference_t<decltype(entry_info.args[0])>> ) ;
 							uint64_t* args = reinterpret_cast<uint64_t*>(entry_info.args) ;
 						#else

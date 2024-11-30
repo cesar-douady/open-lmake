@@ -25,19 +25,18 @@ if __name__!='__main__' :
 		cmd     = 'unzip {ZIP} ; mv mandelbrot/output.txt mandelbrot/output.ref'
 
 	class RunRust(RustRule) :
-		cwd = 'mandelbrot'
 		targets = {
-			'OUT'     : 'output.dut'
-		,	'COMPILE' : r'target/{*:.*}'
+			'OUT'     : 'mandelbrot/output.dut'
+		,	'COMPILE' : r'mandelbrot/target/{*:.*}'
 		}
 		side_targets = {
 			'SCRATCH' : ( r'.cargo/{*:.*}' , 'Top' )
 		}
-		deps         = { 'MAIN' : 'src/main.rs' }
+		deps         = { 'MAIN' : 'mandelbrot/src/main.rs' }
 		allow_stderr = True
 		autodep      = 'ld_preload_jemalloc'
 		environ_cmd  = { 'LD_PRELOAD' : 'libjemalloc.so' }
-		cmd          = 'cargo run --release ; mv output.txt {OUT}'
+		cmd          = 'cd mandelbrot ; cargo run --release ; mv output.txt output.dut'
 
 	class Cmp(Rule) :
 		target = 'ok'

@@ -9,7 +9,7 @@
 #include "serialize.hh"
 
 struct AutodepEnv : Disk::RealPathEnv {
-	friend ::ostream& operator<<( ::ostream& , AutodepEnv const& ) ;
+	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
 	// env format : server:port:options:source_dirs:tmp_dir_s:root_dir_s
@@ -20,12 +20,12 @@ struct AutodepEnv : Disk::RealPathEnv {
 	operator ::string() const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes(s,static_cast<RealPathEnv&>(*this)) ;
-		::serdes(s,auto_mkdir                      ) ;
-		::serdes(s,enable                          ) ;
-		::serdes(s,ignore_stat                     ) ;
-		::serdes(s,service                         ) ;
-		::serdes(s,views                           ) ;
+		::serdes(s,static_cast<RealPathEnv&>(self)) ;
+		::serdes(s,auto_mkdir                     ) ;
+		::serdes(s,enable                         ) ;
+		::serdes(s,ignore_stat                    ) ;
+		::serdes(s,service                        ) ;
+		::serdes(s,views                          ) ;
 	}
 	// data
 	bool                 auto_mkdir  = false ; // if true  <=> auto mkdir in case of chdir

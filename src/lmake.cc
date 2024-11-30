@@ -28,7 +28,7 @@ static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 		if (stop.stop_requested()) break ;                            // not an interrupt, just normal exit
 		trace("send_int") ;
 		OMsgBuf().send(g_server_fds.out,ReqRpcReq(ReqProc::Kill)) ;
-		::cout << ::endl ;                                            // output is nicer if ^C is on its own line
+		Fd::Stdout.write("\n") ;                                      // output is nicer if ^C is on its own line
 		g_seen_int = true ;
 	}
 	trace("done") ;
@@ -84,11 +84,11 @@ int main( int argc , char* argv[] ) {
 	SWEAR(argc>0) ;
 	::vector_s            env_args = split(get_env("LMAKE_ARGS"))                   ;
 	::vector<const char*> args     = {argv[0]} ; args.reserve(env_args.size()+argc) ;
-	for( ::string const& a : env_args ) args.push_back(a.c_str()) ;
-	for( int i=1 ; i<argc ; i++       ) args.push_back(argv[i]  ) ;
-	Trace trace("main",::c_vector_view<const char*>(argv,argc)) ;
-	/**/  trace("main",env_args                               ) ;
-	/**/  trace("main",args                                   ) ;
+	for( ::string const& a : env_args     ) args.push_back(a.c_str()) ;
+	for( int             i : iota(1,argc) ) args.push_back(argv[i]  ) ;
+	Trace trace("main",::span<char*>(argv,argc)) ;
+	/**/  trace("main",env_args                ) ;
+	/**/  trace("main",args                    ) ;
 	//
 	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
 	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                           }

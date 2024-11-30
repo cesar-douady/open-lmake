@@ -7,6 +7,7 @@
 
 #include "store.x.hh"
 #include "global.x.hh"
+#include "config.x.hh"
 #include "backend.x.hh"
 #include "cache.x.hh"
 #include "rule.x.hh"

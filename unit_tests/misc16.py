@@ -39,13 +39,13 @@ else :
 	import ut
 
 	ut.lmake( 'a1' , done=1 ) # create a1 & a2
-	os.unlink('a1')           # but suppress a1
+	os.unlink('a1')           # but suppress a1, a2 is left up-to-date
 
 	# when asking d, this is what happens :
 	# because d needs c, C (which does not depend on a1 yet) is run (1s)
 	# because d needs b which needs w, W is run (2s)
 	# C terminates and discovers its dep on a1
-	# a1 has been suppressed, hence A is run (10s)
+	# a1 has been suppressed, hence A is run (5s)
 	# W terminates and B is analyzed
 	# the goal of this test is to ensure that despite B has already analyzed a2 as up-to-date, it must wait because in the mean time, A has been launched because of a1
 	cnts = ut.lmake( 'd' , done=4 , may_rerun=... , steady=1 )

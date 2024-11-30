@@ -88,7 +88,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 		case Proc::Guard   :
 		case Proc::Tmp     :
 		case Proc::Trace   : break ;
-		default            : *s_deps_err<<"unexpected "<<snake(jerr.proc)<<'\n' ;
+		default            : *s_deps_err<<"unexpected "<<jerr.proc<<'\n' ;
 	}
 }
 

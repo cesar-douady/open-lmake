@@ -54,42 +54,42 @@ namespace Backends {
 			// a job stops being reasonable when it has already run longer than its last known exec_time
 			// a workload is a sum of weighted exec times in ms, i.e. with 3 jobs for 4 tokens in parallel workload advances by 4 each ms
 			// all delays and dates are rounded to ms to avoid rounding errors
-			friend ::ostream& operator<<( ::ostream& , Workload const& ) ;
+			friend ::string& operator+=( ::string& , Workload const& ) ;
 			using Val    = uint64_t                  ;
-			using Tokens = Uint<sizeof(Tokens1)*8+1> ;               // +1 to allow adding 1 without overflow
+			using Tokens = Uint<sizeof(Tokens1)*8+1> ;                           // +1 to allow adding 1 without overflow
 		private :
 			//services
 		public :
-			void submit( Req r                   , Job j ) ;         // anticipate job execution
-			void kill  ( Req r                   , Job j ) ;         // finally decide not to execute it
-			Val  start ( ::vector<ReqIdx> const& , Job   ) ;         // start an anticipated job
-			Val  end   ( ::vector<ReqIdx> const& , Job   ) ;         // end a started job
+			void submit( Req r                   , Job ) ;                       // anticipate job execution
+			void add   ( Req r                   , Job ) ;                       // queue job if not already started
+			void kill  ( Req r                   , Job ) ;                       // finally decide not to execute it
+			Val  start ( ::vector<ReqIdx> const& , Job ) ;                       // start an anticipated job
+			Val  end   ( ::vector<ReqIdx> const& , Job ) ;                       // end a started job
 			//
-			void  open_req     ( Req r                                       )       { _submitted_cost[+r] = 0 ; }
-			void  close_req    ( Req                                         )       {                           }
+			void  open_req     ( Req r                                       )       { _queued_cost[+r] = 0 ; }
+			void  close_req    ( Req                                         )       {                        }
 			Delay cost         ( Job , Val start_workload , Pdate start_date ) const ;
 			Pdate submitted_eta( Req                                         ) const ;
 		private :
 			void _refresh() ;
 			// data
-			Val                      _ref_workload        = 0 ;      // total workload at ref_date
-			Pdate                    _ref_date            ;          // later than any job start date and end date, always rounded to ms
-			::umap<Job,Pdate>        _eta_tab             ;          // jobs whose eta is post ref_date
-			::set<::pair<Pdate,Job>> _eta_set             ;          // same info, but ordered by dates
-			Val                      _reasonable_workload = 0 ;      // sum of (eta-_ref_date) in _eta_tab
-			JobIdx                   _running_tokens      = 0 ;      // sum of tokens for all running jobs
-			JobIdx                   _reasonable_tokens   = 0 ;      // sum ok tokens in _eta_tab
+			Val                      _ref_workload        = 0 ;                  // total workload at ref_date
+			Pdate                    _ref_date            ;                      // later than any job start date and end date, always rounded to ms
+			::umap<Job,Pdate>        _eta_tab             ;                      // jobs whose eta is post ref_date
+			::set<::pair<Pdate,Job>> _eta_set             ;                      // same info, but ordered by dates
+			Val                      _reasonable_workload = 0 ;                  // sum of (eta-_ref_date) in _eta_tab
+			JobIdx                   _running_tokens      = 0 ;                  // sum of tokens for all running jobs
+			JobIdx                   _reasonable_tokens   = 0 ;                  // sum ok tokens in _eta_tab
 			//
-			::array<::atomic<Delay::Tick>,NReqs+1> _submitted_cost ; // use plain integer so as to use atomic increment/decrement instructions because schedule/cancel are called w/o lock
+			::array<::atomic<Delay::Tick>,size_t(1)<<NReqIdxBits> _queued_cost ; // use plain integer so as to use atomic inc/dec instructions because schedule/cancel are called w/o lock
 		} ;
 
 		struct StartEntry {
-			friend ::ostream& operator<<( ::ostream& , StartEntry const& ) ;
+			friend ::string& operator+=( ::string& , StartEntry const& ) ;
 			struct Conn {
-				friend ::ostream& operator<<( ::ostream& , Conn const& ) ;
+				friend ::string& operator+=( ::string& , Conn const& ) ;
 				// accesses
-				bool operator+() const { return seq_id  ; }
-				bool operator!() const { return !+*this ; }
+				bool operator+() const { return seq_id ; }
 				// data
 				in_addr_t host     = NoSockAddr ;
 				in_port_t port     = 0          ;
@@ -99,8 +99,7 @@ namespace Backends {
 			// cxtors & casts
 			StartEntry() = default ;
 			// accesses
-			bool operator+() const { return +conn   ; }
-			bool operator!() const { return !+*this ; }
+			bool operator+() const { return +conn ; }
 			// services
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
@@ -116,7 +115,7 @@ namespace Backends {
 		} ;
 
 		struct DeferredEntry {
-			friend ::ostream& operator<<( ::ostream& , DeferredEntry const& ) ;
+			friend ::string& operator+=( ::string& , DeferredEntry const& ) ;
 			// cxtors & casts
 			DeferredEntry( SeqId si=0 , JobExec je={} ) : seq_id{si} , job_exec{je} {}
 			// data
@@ -220,12 +219,12 @@ namespace Backends {
 		virtual void                     heartbeat(          ) {                                     } // regularly called between launch and start
 		virtual ::pair_s<HeartbeatState> heartbeat(Job       ) { return {{},HeartbeatState::Alive} ; } // regularly called between launch and start, initially with enough delay for job to connect
 		//
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ ) const { return {} ; } // map resources for this backend to local resources knowing local capacity
+		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const { return {} ; } // map resources for this backend to local resources
 		//
 		virtual ::vmap_s<size_t> const& capacity() const { FAIL("only for local backend") ; }
 	protected :
-		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx> const& , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ;  // must be called once before job is launched, SubmitAttrs must be the ...
-		/**/                                                                                                           // ... operator| of the submit/add_pressure corresponding values for the job
+		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx> const& , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ; // must be called once before job is launched, SubmitAttrs must be the ...
+		/**/                                                                                                          // ... operator| of the submit/add_pressure corresponding values for the job
 		// data
 	public :
 		in_addr_t addr       = NoSockAddr ;
@@ -239,26 +238,30 @@ namespace Backends {
 
 namespace Backends {
 
-	inline void  Backend::Workload::submit( Req r , Job j ) { _submitted_cost[+r] += Delay(j->cost).val() ; } // anticipate job execution
-	inline void  Backend::Workload::kill  ( Req r , Job j ) { _submitted_cost[+r] -= Delay(j->cost).val() ; } // finally decide not to execute it
-	//
+	inline void  Backend::Workload::submit( Req r , Job j ) {                            _queued_cost[+r] += Delay(j->cost).val() ; }
+	inline void  Backend::Workload::add   ( Req r , Job j ) { if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost).val() ; }
+	inline void  Backend::Workload::kill( Req r , Job j ) {
+		Delay::Tick dly = Delay(j->cost).val() ;
+		SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , dly ) ;
+		_queued_cost[+r] -= dly ;
+	}
 	inline Pdate Backend::Workload::submitted_eta(Req r) const {
-		Pdate res = _ref_date + Delay(New,_submitted_cost[+r]) ;
-		if (_running_tokens) res += Delay(_reasonable_workload/1000./_running_tokens) ;                       // divide by 1000 to convert to seconds
+		Pdate res = _ref_date + Delay(New,_queued_cost[+r]) ;
+		if (_running_tokens) res += Delay(_reasonable_workload/1000./_running_tokens) ; // divide by 1000 to convert to seconds
 		return res ;
 	}
 
-	inline bool             Backend::s_is_local  (Tag t) { return                     s_tab[+t]->is_local()  ; }
-	inline bool             Backend::s_ready     (Tag t) { return +t && s_tab[+t] && !s_tab[+t]->config_err  ; }
-	inline ::string const&  Backend::s_config_err(Tag t) { return                     s_tab[+t]->config_err  ; }
+	inline bool            Backend::s_is_local  (Tag t) { return                     s_tab[+t]->is_local() ; }
+	inline bool            Backend::s_ready     (Tag t) { return +t && s_tab[+t] && !s_tab[+t]->config_err ; }
+	inline ::string const& Backend::s_config_err(Tag t) { return                     s_tab[+t]->config_err ; }
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
-	#define LCK Lock lock{_s_mutex}
-	inline void Backend::s_open_req (Req r,JobIdx nj) { LCK ; Trace trace(BeChnl,"s_open_req" ,r) ; _s_workload.open_req (r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->open_req (r,nj) ; }
-	inline void Backend::s_close_req(Req r          ) { LCK ; Trace trace(BeChnl,"s_close_req",r) ; _s_workload.close_req(r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->close_req(r   ) ; }
+	#define LCK(...) Lock lock{_s_mutex} ; Trace trace(BeChnl,__VA_ARGS__)
+	inline void Backend::s_open_req (Req r,JobIdx nj) { LCK("s_open_req" ,r) ; _s_workload.open_req (r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->open_req (r,nj) ; }
+	inline void Backend::s_close_req(Req r          ) { LCK("s_close_req",r) ; _s_workload.close_req(r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->close_req(r   ) ; }
 	//
-	inline void Backend::s_new_req_etas() { LCK ; Trace trace(BeChnl,"s_new_req_etas") ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->new_req_etas() ; }
-	inline void Backend::s_launch      () { LCK ; Trace trace(BeChnl,"s_launch"      ) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->launch      () ; }
+	inline void Backend::s_new_req_etas() { LCK("s_new_req_etas") ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->new_req_etas() ; }
+	inline void Backend::s_launch      () { LCK("s_launch"      ) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->launch      () ; }
 	#undef LOCK
 	//
 	inline ::string/*msg*/          Backend::s_start    ( Tag t , Job j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }

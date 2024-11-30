@@ -200,7 +200,7 @@ namespace Fuse {
 	static void lo_forget_multi( fuse_req_t req , size_t cnt , ::fuse_forget_data* forgets ) {
 		if (T) ::cerr<<t_thread_key<<" forget_multi "<<cnt<<endl ;
 		Mount& self = mk_self(req) ;
-		for ( ::fuse_forget_data const& e : ::vector_view(forgets,cnt) ) self.fds.dec_ref( e.ino , e.nlookup ) ;
+		for ( ::fuse_forget_data const& e : ::span(forgets,cnt) ) self.fds.dec_ref( e.ino , e.nlookup ) ;
 		::fuse_reply_none(req) ;
 	}
 
@@ -254,9 +254,9 @@ namespace Fuse {
 
 	static void lo_ioctl(
 		fuse_req_t req , fuse_ino_t
-	,	unsigned int /*cmd*/ , void* /*arg*/
+	,	uint /*cmd*/ , void* /*arg*/
 	,	struct ::fuse_file_info*
-	,	unsigned /*flags*/ , const void* /*in_buf*/ , size_t /*in_sz*/ , size_t /*out_sz*/
+	,	uint /*flags*/ , const void* /*in_buf*/ , size_t /*in_sz*/ , size_t /*out_sz*/
 	) {
 		::fuse_reply_err(req,EINVAL) ;
 	}
@@ -351,8 +351,8 @@ namespace Fuse {
 	static void lo_opendir( fuse_req_t req , fuse_ino_t ino , struct ::fuse_file_info* fi ) {
 		if (T) ::cerr<<t_thread_key<<" opendir "<<ino<<endl ;
 		try {
-			AutoCloseFd fd = ::openat( mk_self(req).fds.fd(ino) , "." , O_RDONLY ) ; if (!fd) throw errno  ;
-			DirEntry*   de = new DirEntry                                          ;
+			AcFd      fd = ::openat( mk_self(req).fds.fd(ino) , "." , O_RDONLY ) ; if (!fd) throw errno  ;
+			DirEntry* de = new DirEntry                                          ;
 			//
 			de->dir           = ::fdopendir(fd) ; if (!de->dir) { delete de ; throw errno ; }
 			dir_entry(fi)     = de              ;
@@ -459,7 +459,7 @@ namespace Fuse {
 		::fuse_reply_err(req,rc<0?errno:0) ;
 	}
 
-	static void lo_rename( fuse_req_t req , fuse_ino_t parent , const char* name , fuse_ino_t new_parent , const char* new_name , unsigned int flags ) {
+	static void lo_rename( fuse_req_t req , fuse_ino_t parent , const char* name , fuse_ino_t new_parent , const char* new_name , uint flags ) {
 		if (T) ::cerr<<t_thread_key<<" rename "<<parent<<" "<<name<<new_parent<<" "<<new_name<<" "<<flags<<endl ;
 		SWEAR(name    ) ;
 		SWEAR(new_name) ;

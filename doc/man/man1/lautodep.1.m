@@ -52,7 +52,7 @@ Mimic setting the rule attribute B(ignore_stat)=I(True).
 
 Item(B(-j) I(id),B(--job)=I(id))
 Pass a job id I(id).
-This is only required in association with the B(-T) option to name the tmp directory.
+This is only required in association with I(--keep-tmp) to name the tmp directory.
 
 Item(B(-k) I(list),B(--keep-env)=I(list))
 I(list) must be provided as a  tuple or list of str using the Python syntax (which most probably requires shell quoting).

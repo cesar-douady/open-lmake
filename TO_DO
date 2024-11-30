@@ -7,38 +7,32 @@ items :
 	* normal    item : ordered by implementation priority in each section
 	! difficult item : unclear how to implement it
 	? idea      item : unclear that it is desirable
+	M museum         : most probably obsolete, kept as long as not 100% sure
 
 ****************************************************************************************************
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* missing some deps when reading elf
-	- it seems that libc.so is missing at least in some occasions
-* reimplement hierarchical repositories
-	- add a sub_repositories entry to config
-	- map priorities to RuleIdx
-	- ensure total prio of sub-rules
-		- add an AntiRule for files in sub-repo with prio between repo and sub-repo
-		- so as to ensure the sub-repo behaves as an autonomous repo
-	- handle cwd of rules
-	- devise a sound mechanism to read what must be read when reading makefiles
 ! fix compilation with LMAKE_FLAGS=ST
+M missing some deps when reading elf
+	- find a way to reproduce it
+	- it seems that libc.so is missing at least in some occasions
+	- probably fixed by correct default library path code
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* make side_deps and side_targets dynamic
-* transport pdict as pdict rather than as dict
-* generate meaningful message in case of I/O error such as disk full
+! transport pdict as pdict rather than as dict
+! generate meaningful message in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
-! before erasing a dir, check for phony targets, not only files on disk
-	- then dir markers for gcc include dirs could be phony, which is more elegant
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
 	- emit a "dont cache" message
 	- unless root_view is used
 	- provide a warning to user if the case arises
+? before erasing a dir, check for phony targets, not only files on disk
+	- then dir markers for gcc include dirs could be phony, which is more elegant
 ? improve hard link management
 	- when ln a b
 	- followed by write to b
@@ -48,18 +42,14 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* add a warning when ids reach 15/16 of their limits
 * when slurm cannot submit job because resources do not exist :
 	- e.g. no TmpDisk mentioned in config and job needs it
 	- an error message is generated on stderr by slurm_submit_batch_job
 	- error code give no info
-* generate an error when calling depend on a target
+? generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
-* generate target/dep key everywhere it is pertinent
-* report Source/Anti rule name when appropriate
-* rework LMAKE/rules
-	- provide all static fields flat
-	- then add dynamic code at the end
 ? consider a package for option passing
 	? gnu argp
 	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf
@@ -71,27 +61,20 @@ items :
 * TECHNICAL DEBTH (coded poorly and needing to be reworked)
 ****************************************************************************************************
 
-* rework dep analysis in JobData::make
+! fix store to be compliant with strict aliasing rules
+? rework dep analysis in JobData::make
 	- to ensure SWEAR(!ri.state.missing_dsk) does not fire
-* fix store to be compliant with strict aliasing rules
 
 ****************************************************************************************************
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* isolate signal-safe functions in dedicated .o
+! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
 	- or write such functions in C, so that malloc are necessary visible
-* support 64-bits id
-	- configure with NBits rather than types
-	- in store/file.hh, reserve address space after NBits instead of type
-	- first candidate would be deps, by far the most demanding
-* add a warning when ids reach 15/16 of their limits
 ? use the Path struct instead of at/file
 	- everywhere applicable
-? implement noexcept/except everywhere pertinent
-? replace if (...) throw by throw_if or throw_unless
-	? or vice versa
+? implement noexcept everywhere pertinent
 ? if a job cannot connect to job_exec to report deps
 	- note fact in a marker file
 		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
@@ -101,16 +84,17 @@ items :
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
-* provide a mechansim to prevent writing non-targets
+
+? provide a mechansim to prevent writing non-targets
 	- mount an overlay over the repo
 	- at the end, transport targets to their real location
 	- drop other written files
 	- generate an error or not if any such files, depending on user declaration
-* implement cache v2 (copy & link) :
+? implement cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
 		- for disk level
-! support direct rebuild of deps
+? support direct rebuild of deps
 	- specify a target flag 'direct' for use by pattern
 	- specify a dep    flag 'direct' for dynamic use (through ldepend)
 	- pass known hidden deps to job_exec to avoid connection to server when known
@@ -120,8 +104,6 @@ items :
 		- while suspended, consider resources to be freed
 		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 		- then resume participates to allocation competition
-! implement fuse as an autodep method
-	- does not seem doable because read foo/bar first does a lookup(foo)
 ? provide more options to stderr management :
 	- redirect to stdout
 	- hide it (still accessible in lshow -e)
@@ -129,11 +111,6 @@ items :
 ? provide only visibility to system+repo+tmp to jobs
 	- how to identify system ?
 ? implement a ref/check mechanism
-				::umap_s      src_dirs = mk_umap(Node::s_srcs(true/*dirs*/)) ;
-				::vector<Dep> deps     ;                                       deps.reserve(job_info.end.end.digest.deps.size()) ;
-				for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
-					if ( !is_canon(dn)                         ) goto NextJob ; // this should never happen, there is a problem with this job
-					if ( !is_lcl(dn) && !src_dirs.contains(dn) ) continue     ; // this dep is a slag acquired when it was in a src dir, which is no longer the case, ignore
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
 	- implement "lref file crc" to record/update map
@@ -156,61 +133,39 @@ items :
 	? use autodep from within server
 		? it should be possible to link in such a way that only Python sees autodep, that would be ideal
 		? once this is done, we may record deps for rsrcs & forbid them for deps computation
-? find a way for resources to be anything
+? find a way for local resources to be anything
 	? int/float/str/bool/None/... or list/tuple/set/dict thereof
 ? add a new autodep mechanism based on syscall user dispatch
 	? cf man 2 prctl, PR_SET_SYSCALL_USER_DISPATCH
 	? seems to be highly architecture dependent, is it worth ?
+M implement fuse as an autodep method
+	- does not seem doable because read foo/bar first does a lookup(foo)
 
 ****************************************************************************************************
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* when links are accessed, it is instantaneous
-	- then record fileinfo or filesig
-	- and only consider file incoherent if it has been accessed with potentially different content
 * prepare namespace while waiting for server if possible
 	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs
 	- share views in submit_attrs as there is very few variability
-* evaluate dynamic deps only if static deps match
+! no req_info for non-buildable nodes
+? evaluate dynamic deps only if static deps match
 	- at least for those deps placed before
-* when rounding resources using config.backends.precisions
-	- round to prioritize jobs
-	- do not round for actual allocation
-* handle dir hierarchy in store
-	- provide a primitive to insert all dirs of a node at once
-	- much more efficient
-	- not difficult to code
-	- return a vector of idxs
-* generate KPI's
-	- useful/useless created jobs
-	- number of non buildable nodes
-	- max number of resources slots in backend
-	- total number of deps
-	- total number of pressure updates
-* no req_info for non-buildable nodes
-* there can be 1 backend thread per backend
+	- is it worth ?
+? there can be 1 backend thread per backend
 	- with one master socket
 	- and everything replicated per backend (including mutexes, tables, etc.)
 	- allow several backends of same type to distribute load
-! trap close in autodep
+? trap close in autodep
 	- so as to know when a dep was last accessed
 	- and avoid too many overwrites
 	- must be very careful, e.g. mmap can access file after close, dup'ed file descriptors can be created, etc.
-! manage HUGE pages in store
-	- does not work straight forward
-	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
-	- need to do some trials
 ? put all python expressions for a single phase in the same expression
 	- DepsAttrs
 	- SubmitRsrcsAttrs + SubmitNoneAttrs
 	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
 	- EndCmdAttrs + EndNoneAttrs
-? record dep crcs crc in Job rather than all crcs in Dep
-	- store crc just before dep error parallel chunk
-	- dont store deps after first dep error parallel chunk as they are useless
-	- this way we can severely reduce the Deps size (4x if we can manage accesses)
 ? avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str
@@ -237,6 +192,8 @@ items :
 ? improve rule updating
 	? when matching changes but command does not change, avoid to relaunch job
 	? compute cmd checksum on its code rather than on the source to resist to cosmetic changes such as comments modifs
+M manage HUGE pages in store
+	- requires privileges
 
 ****************************************************************************************************
 * DOC
@@ -251,7 +208,7 @@ items :
 
 * add a TU for scp
 * add a TU for dynamic config update
-* add a TU for sub-Lmakefile.py
+* add a more agressive TU for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...
 * add a unit_test to validate n_retries
@@ -265,16 +222,16 @@ items :
 * TOOLS
 ****************************************************************************************************
 
-* consider gdb guis :
-	- apt install nemiver
-	- insight
-* consider serialization libs :
-	- https://github.com/alibaba/yalantinglibs
-		- https://alibaba.github.io/yalantinglibs/resource/A%20Faster%20Serialization%20Library%20Based%20on%20Compile-time%20Reflection%20and%20C++%2020.pdf
-* implement a file dump
-	- put a header in files so that format can be automatically recognized
-	- suitable for use in vim
 ! develop lmake under lmake
 	- autodep must support to be audited by autodep for unit tests
 	- provide a bootstrap script
+? consider serialization libs :
+	- https://github.com/alibaba/yalantinglibs
+		- https://alibaba.github.io/yalantinglibs/resource/A%20Faster%20Serialization%20Library%20Based%20on%20Compile-time%20Reflection%20and%20C++%2020.pdf
+? implement a file dump
+	- put a header in files so that format can be automatically recognized
+	- suitable for use in vim
 ? make a navigation tool based on Neo4J or a similarly complete tool
+? consider gdb guis :
+	- apt install nemiver
+	- insight

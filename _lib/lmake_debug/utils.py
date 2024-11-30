@@ -28,7 +28,6 @@ def no_nl(s) :
 	if s and s[-1]=='\n' : return s[:-1]
 	else                 : return s
 
-# XXX : handle ROOT_DIR and TMPDIR in case of views
 class Job :
 
 	chroot_dir  = None
@@ -43,7 +42,6 @@ class Job :
 		self.env      = {}
 		self.keep_env = ()
 		for k,v in attrs.items() : setattr(self,k,v)
-		self.env['ROOT_DIR'   ] = mk_shell_str(lmake.root_dir)
 		self.env['SEQUENCE_ID'] = str(0)
 		self.env['SMALL_ID'   ] = str(0)
 		self.keep_env           = (*self.keep_env,'DISPLAY','LMAKE_HOME','LMAKE_SHLVL','XAUTHORITY','XDG_RUNTIME_DIR')
@@ -105,7 +103,7 @@ class Job :
 
 	def gen_tmp_dir(self) :
 		return multi_strip(f'''
-			export     TMPDIR={mk_shell_str(lmake.root_dir+'/'+self.debug_dir+'/tmp')}
+			export     TMPDIR={mk_shell_str(lmake.top_root_dir+'/'+self.debug_dir+'/tmp')}
 			rm -rf   "$TMPDIR"
 			mkdir -p "$TMPDIR"
 		''')
@@ -145,7 +143,7 @@ class Job :
 	def gen_init(self) :
 		res = multi_strip(f'''
 			#!/bin/bash
-			cd {mk_shell_str(lmake.root_dir)}
+			cd {mk_shell_str(lmake.top_root_dir)}
 		''')
 		return res
 

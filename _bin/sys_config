@@ -146,8 +146,11 @@ fi
 #
 # LD_SO_LIB & LD_SO_LIB32
 #
-cc      -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib    2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
-cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(strace -E LD_PRELOAD='/>>>$LIB<<<' ./ld_so_lib_32 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }')
+show_lib() {
+	strace -E LD_PRELOAD='/>>>$LIB<<<' $1 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }'
+}
+cc      -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   show_lib ./ld_so_lib   )
+cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(show_lib ./ld_so_lib_32)
 if [ "$LD_SO_LIB" -a "$LD_SO_LIB_32" -a "$LD_SO_LIB" != "$LD_SO_LIB_32" ] ; then
 	HAS_32=1                                                                     # we have both 32 and 64 bits, use the ld.so $LIB feature
 else
@@ -182,13 +185,6 @@ esac
 # test whether we can include linux/close_range.h
 #
 HAS_CLOSE_RANGE=$(ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
-
-#
-# HAS_FUSE
-#
-HAS_FUSE=0 # fuse does not work for now
-# HAS_FUSE=$(ok pkg-config fuse3)
-# [ $HAS_FUSE = 1 ] || echo no fuse support >>$SUM_FILE
 
 #
 # HAS_LD_AUDIT
@@ -226,16 +222,6 @@ cat <<"EOF" > memfd.c
 	int main() { memfd_create("trial",0) ; }
 EOF
 HAS_MEMFD=$(ok cc -Werror -o memfd -xc memfd.c)
-
-#
-# HAS_OSTRINGSTREAM_VIEW
-# test whether std::ostringstream has method view()
-#
-cat <<"EOF" > ostringstream_view.cc
-	#include <sstream>
-	std::string_view ossv = std::ostringstream().view() ;
-EOF
-HAS_OSTRINGSTREAM_VIEW=$(ok cc -c -std=$CXX_STD -o ostringstream_view.o ostringstream_view.cc )
 
 #
 # HAS_PCRE
@@ -322,6 +308,8 @@ HAS_STACKTRACE=$((   ${LIB_STACKTRACE:+   1}))
 HAS_STACKTRACE_32=$((${LIB_STACKTRACE_32:+1}))
 #
 [ $HAS_STACKTRACE = 1 ] || echo "no stacktrace support, fall back to (lower quality back trace in case of crash) addr2line" >>$SUM_FILE
+SPLIT_DBG=$((   1-$HAS_STACKTRACE   ))
+SPLIT_DBG_32=$((1-$HAS_STACKTRACE_32))
 
 #
 # MAX_PID
@@ -377,6 +365,15 @@ case $CXX_FLAVOR in
 	clang) OBJCOPY=$CXX_DIR/llvm-objcopy ;;
 esac
 [ -x "$OBJCOPY" ] || OBJCOPY=$(type -p objcopy)
+
+#
+# STD_LIBRARY_PATH & STD_LIBRARY_PATH_32
+#
+show_std_library_path() {
+	strace -E LD_PRELOAD='magic1234.so' -E LD_LIBRARY_PATH= $1 2>&1 | awk '/\/magic1234.so/ {sub(/[^"]*"/,"") ; sub(/\/magic1234.so.*/,"") ; printf("%s%s",sep,$0) ; sep=":" }'
+}
+cc      -o std_library_path    -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH=$(   show_std_library_path ./std_library_path   )
+cc -m32 -o std_library_path_32 -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH_32=$(show_std_library_path ./std_library_path_32)
 
 #
 # STD_PATH
@@ -443,14 +440,14 @@ STD_INC_DIRS       := $STD_INC_DIRS
 SLURM_INC_DIR      := $SLURM_INC_DIR
 #
 HAS_32             := ${HAS_32#0}
-HAS_FUSE           := ${HAS_FUSE#0}
 HAS_LD_AUDIT       := ${HAS_LD_AUDIT#0}
 HAS_PCRE           := ${HAS_PCRE#0}
 HAS_SECCOMP        := ${HAS_SECCOMP#0}
 HAS_SGE            := ${HAS_SGE#0}
 HAS_SLURM          := ${HAS_SLURM#0}
-HAS_STACKTRACE     := ${HAS_STACKTRACE#0}
-HAS_STACKTRACE_32  := ${HAS_STACKTRACE_32#0}
+#
+SPLIT_DBG    := ${SPLIT_DBG#0}
+SPLIT_DBG_32 := ${SPLIT_DBG_32#0}
 EOF
 
 if [ "$LD_SO_LIB_32" ] ; then
@@ -468,10 +465,8 @@ cat >$H_FILE <<EOF
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_32                      $HAS_32
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
-	#define HAS_FUSE                    $HAS_FUSE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD
-	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
@@ -479,6 +474,8 @@ cat >$H_FILE <<EOF
 	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
 	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
+	#define LD_SO_LIB                   "$LD_SO_LIB"
+	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define MAP_VFORK                   $MAP_VFORK
@@ -486,6 +483,8 @@ cat >$H_FILE <<EOF
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
 	#define SLURM_SO                    "$SLURM_SO"
+	#define STD_LIBRARY_PATH            "$STD_LIBRARY_PATH"
+	#define STD_LIBRARY_PATH_32         "$STD_LIBRARY_PATH_32"
 	#define STD_PATH                    "$STD_PATH"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

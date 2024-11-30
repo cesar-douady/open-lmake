@@ -3,8 +3,6 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import os.path as osp
-
 import lmake
 
 if __name__!='__main__' :
@@ -13,15 +11,15 @@ if __name__!='__main__' :
 
 	from lmake.rules import Rule,PyRule
 
+	lmake.config.backends.slurm = {
+		'interface' : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
+	}
+
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello'
 	,	'world'
 	)
-
-	lmake.config.backends.slurm = {        # check that interface is interpreted w/o crash
-		'interface' : socket.gethostname()
-	}
 
 	class Cat(Rule) :
 		stems = {
@@ -50,6 +48,8 @@ if __name__!='__main__' :
 			print(open(SECOND).read(),end='')
 
 else :
+
+	import os.path as osp
 
 	if 'slurm' not in lmake.backends :
 		print('slurm not compiled in',file=open('skipped','w'))

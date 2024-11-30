@@ -47,7 +47,7 @@ ENUM( KillStep
 )
 
 struct Gather {                                                                                                 // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
-	friend ::ostream& operator<<( ::ostream& , Gather const& ) ;
+	friend ::string& operator+=( ::string& , Gather const& ) ;
 	using Kind = GatherKind    ;
 	using Proc = JobExecProc   ;
 	using Jerr = JobExecRpcReq ;
@@ -55,15 +55,15 @@ struct Gather {                                                                 
 	using PD   = Time::Pdate   ;
 	using DI   = DepInfo       ;
 	struct AccessInfo {
-		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
+		friend ::string& operator+=( ::string& , AccessInfo const& ) ;
 		// cxtors & casts
 		AccessInfo() = default ;
 		//
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
 		::pair<PD,Accesses> first_read() const {
-			::pair<PD,Access> res = {PD::Future,{}} ;                                                  // normally, initial Access is not used, but in case, choose the most ubiquitous access
-			for( Access a : All<Access> ) {
+			::pair<PD,Access> res = {PD::Future,{}} ;                                                           // normally, initial Access is not used, but in case, choose the most ubiquitous access
+			for( Access a : iota(All<Access>) ) {
 				if (!digest.accesses[a]) continue ;
 				if (read[+a]>res.first ) continue ;
 				if (read[+a]<res.first ) res = {read[+a],a} ;
@@ -84,10 +84,11 @@ struct Gather {                                                                 
 		PD           seen            = PD::Future                             ;                                 // first date at which file has been seen existing
 		DI           dep_info        ;                                                                          // state when first read
 		AccessDigest digest          ;
+		bool         digest_seen     = false                                  ;                                 // if true <=> not ignored when seen existing
 	} ;
 	// statics
 private :
-	static void _s_do_child( void* self , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self)->_do_child(report_fd,ready) ; }
+	static void _s_do_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_do_child(report_fd,ready) ; }
 	// services
 	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only

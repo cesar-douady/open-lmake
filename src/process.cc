@@ -15,11 +15,11 @@ using namespace Disk ;
 [[noreturn]] void Child::_exit( Rc rc , const char* msg ) { // signal-safe
 	if (msg) {
 		bool ok = true ;
-		ok &= ::write(2,msg,strlen(msg))>=0 ;               // /!\ cannot use high level I/O because we are only allowed signal-safe functions. Msg contains terminating null
+		ok &= ::write(2,msg,::strlen(msg))>=0 ;             // /!\ cannot use high level I/O because we are only allowed signal-safe functions. Msg contains terminating null
 		if (_child_args) {
 			ok &= ::write(2," :",2)>=0 ;                                                   // .
 			for( const char* const* p=_child_args ; *p ; p++ ) {
-				size_t l = strlen(*p) ;
+				size_t l = ::strlen(*p) ;
 				ok &= ::write(2," ",1)>=0 ;                                                // .
 				if (l<=100)   ok &= ::write(2,*p ,l )>=0 ;                                 // .
 				else        { ok &= ::write(2,*p ,97)>=0 ; ok &= ::write(2,"...",3)>=0 ; } // .
@@ -61,7 +61,7 @@ using namespace Disk ;
 	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail,"cannot setup child") ; }
 	//
 	#if HAS_CLOSE_RANGE
-		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ; // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
+		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ; // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
 	#endif
 	//
 	if (first_pid) {
@@ -71,10 +71,10 @@ using namespace Disk ;
 			::perror("cannot mount /proc ") ;
 			_exit(Rc::System,"cannot mount /proc") ;
 		}
-		{	char                     first_pid_buf[30] ;                                                           // /!\ cannot use ::string as we are only allowed signal-safe functions
-			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1)                 ; // /!\ .
-			AutoCloseFd              fd                = ::open("/proc/sys/kernel/ns_last_pid",O_WRONLY|O_TRUNC) ;
-			[[maybe_unused]] ssize_t wrc               = ::write(fd,first_pid_buf,first_pid_sz)                  ; // dont care about errors, this is best effort
+		{	char                     first_pid_buf[30] ;                                                // /!\ cannot use ::string as we are only allowed signal-safe functions
+			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1  )    ; // /!\ .
+			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , Fd::Write } ;
+			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)       ; // dont care about errors, this is best effort
 		}
 		pid_t pid = ::clone( _s_do_child , _child_stack_ptr , SIGCHLD , this ) ;
 		//
@@ -82,10 +82,10 @@ using namespace Disk ;
 		for(;;) {
 			int   wstatus   ;
 			pid_t child_pid = ::wait(&wstatus) ;
-			if (child_pid==pid) {
-				if (WIFEXITED  (wstatus))   ::_exit(WEXITSTATUS(wstatus)) ;                                        // exit as transparently as possible
-				if (WIFSIGNALED(wstatus)) { ::raise(WTERMSIG   (wstatus)) ; raise(SIGABRT) ; }                     // .
-				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) ) ;                                            // ensure we have not forgotten a case
+			if (child_pid==pid) {                                                                       // XXX : find a way to simulate a caught signal rather than exit 128+sig
+				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                           // exit as transparently as possible
+				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                           // cannot kill self to be transparent as we are process 1, mimic bash
+				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                       // ensure we have not forgotten a case
 			}
 		}
 	} else {
@@ -146,7 +146,7 @@ void Child::spawn() {
 	//
 	if (pid==-1) {
 		waited() ;                                                                                                           // ensure we can be destructed
-		throw "cannot spawn process "+fmt_string(cmd_line)+" : "+strerror(errno) ;
+		throw cat("cannot spawn process ",cmd_line," : ",::strerror(errno)) ;
 	}
 	//
 	if (stdin_fd ==PipeFd) { stdin  = _p2c .write ; _p2c .read .close() ; }

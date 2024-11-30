@@ -20,7 +20,7 @@ inline bool/*read_only*/ app_init( bool read_only_ok ,                          
 
 void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS ) ;
 inline ::string git_clean_msg() {
-	::string d ; if (+*g_startup_dir_s) d = ' '+Disk::no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;
+	::string d ; if (+*g_startup_dir_s) d = ' '+no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;
 	return "consider : git clean -ffdx"+d ;
 }
 
@@ -78,47 +78,47 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 } ;
 
 template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
-	size_t key_sz  = 0     ; for( Key  k : All<Key > ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , snake(k).size() ) ; if (has_dflt_key) key_sz = ::max(key_sz,size_t(8)) ; // 8 for <no key>
-	size_t flag_sz = 0     ; for( Flag f : All<Flag> ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , snake(f).size() ) ;
-	bool   has_arg = false ; for( Flag e : All<Flag> )                           has_arg |= flags[+e].has_arg                  ;
+	static constexpr char   NoKey[] = "<no_key>"      ;                                                                                        // cannot use ::strlen which is not constexpr with clang
+    static constexpr size_t NoKeySz = sizeof(NoKey)-1 ;                                                                                        // account for terminating null
+	size_t key_sz  = 0     ; for( Key  k : iota(All<Key >) ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , snake(k).size() ) ; if (has_dflt_key) key_sz = ::max(key_sz,NoKeySz) ;
+	size_t flag_sz = 0     ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , snake(f).size() ) ;
+	bool   has_arg = false ; for( Flag e : iota(All<Flag>) )                           has_arg |= flags[+e].has_arg                  ;
 	//
-	::cerr << ::left ;
-	//
-	if (+msg           ) ::cerr << msg <<'\n' ;
-	/**/                 ::cerr << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
-	if (OptionsAnywhere) ::cerr << "options may be interleaved with args\n"                                                                                                               ;
-	/**/                 ::cerr << "-h or --help : print this help\n"                                                                                                                     ;
+	::string err_msg = ensure_nl(msg) ;
+	/**/                 err_msg << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
+	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                                                               ;
+	/**/                 err_msg << "-h or --help : print this help\n"                                                                                                                     ;
 	//
 	if (key_sz) {
-		if (has_dflt_key) ::cerr << "keys (at most 1) :\n" ;
-		else              ::cerr << "keys (exactly 1) :\n" ;
-		if (has_dflt_key) ::cerr << "<no key>" << setw(key_sz)<<"" <<" : "<< keys[0 ].doc <<'\n' ;
-		for( Key k : All<Key> ) if (keys[+k].short_name) {
+		if (has_dflt_key) err_msg << "keys (at most 1) :\n" ;
+		else              err_msg << "keys (exactly 1) :\n" ;
+		if (has_dflt_key) err_msg << "<no key>" << widen("",key_sz) <<" : "<< keys[0].doc <<'\n' ;
+		for( Key k : iota(All<Key>) ) if (keys[+k].short_name) {
 			::string option { snake(k) } ; for( char& c : option ) if (c=='_') c = '-' ;
-			::cerr <<'-' << keys[+k].short_name << " or --" << setw(key_sz)<<option <<" : "<< keys[+k].doc <<'\n' ;
+			err_msg << '-' << keys[+k].short_name << " or --" << widen(option,key_sz) <<" : "<< keys[+k].doc <<'\n' ;
 		}
 	}
 	//
 	if (flag_sz) {
-		::cerr << "flags (0 or more) :\n"  ;
-		for( Flag f : All<Flag> ) {
+		err_msg << "flags (0 or more) :\n"  ;
+		for( Flag f : iota(All<Flag>) ) {
 			if (!flags[+f].short_name) continue ;
 			::string flag { snake(f) } ; for( char& c : flag ) if (c=='_') c = '-' ;
-			/**/                        ::cerr << '-'<<flags[+f].short_name<<" or --"<<setw(flag_sz)<<flag ;
-			if      (flags[+f].has_arg) ::cerr << " <arg>"                                                 ;
-			else if (has_arg          ) ::cerr << "      "                                                 ;
-			/**/                        ::cerr << " : "<<flags[+f].doc<<'\n'                               ;
+			/**/                        err_msg << '-'<<flags[+f].short_name<<" or --"<<widen(flag,flag_sz) ;
+			if      (flags[+f].has_arg) err_msg << " <arg>"                                                 ;
+			else if (has_arg          ) err_msg << "      "                                                 ;
+			/**/                        err_msg << " : "<<flags[+f].doc<<'\n'                               ;
 		}
 	}
-	exit(Rc::Usage) ;
+	exit(Rc::Usage,err_msg) ;
 }
 
 template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag,OptionsAnywhere> const& syntax , int argc , const char* const* argv ) {
 	SWEAR(argc>0) ;
 	//
 	int               a        = 0 ;
-	::umap<char,Key > key_map  ; for( Key  k : All<Key > ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
-	::umap<char,Flag> flag_map ; for( Flag f : All<Flag> ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
+	::umap<char,Key > key_map  ; for( Key  k : iota(All<Key >) ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
+	::umap<char,Flag> flag_map ; for( Flag f : iota(All<Flag>) ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
 	try {
 		bool has_key    = false ;
 		bool force_args = false ;
@@ -129,7 +129,7 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (!OptionsAnywhere) force_args = true ;
 				continue ;
 			}
-			if (!arg[1]) throw "unexpected lonely -"s ;
+			throw_unless( arg[1] , "unexpected lonely -" ) ;
 			if (arg[1]=='-') {
 				// long option
 				if (arg[2]==0) { force_args = true ; continue ; }                                                     // a lonely --, options are no more recognized
@@ -143,8 +143,8 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (can_mk_enum<Key>(option)) {
 					Key k = mk_enum<Key>(option) ;
 					if (syntax.keys[+k].short_name) {
-						if (has_key) throw "cannot specify both --"+option+" and --"+snake(key) ;
-						if (*p     ) throw "unexpected value for option --"+option              ;
+						throw_if( has_key , "cannot specify both --",option," and --",key ) ;
+						throw_if( *p      , "unexpected value for option --",option       ) ;
 						key     = k    ;
 						has_key = true ;
 						continue ;
@@ -153,8 +153,8 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (can_mk_enum<Flag>(option)) {
 					Flag f = mk_enum<Flag>(option) ;
 					if (syntax.flags[+f].short_name) {
-						if (syntax.flags[+f].has_arg) { if (*p!='=') throw "no value for option --"        +option ; flag_args[+f] = p+1 ; } // skip = sign
-						else                          { if (*p     ) throw "unexpected value for option --"+option ;                       }
+						if (syntax.flags[+f].has_arg) { throw_unless( *p=='=' , "no value for option --"        ,option) ; flag_args[+f] = p+1 ; } // skip = sign
+						else                            throw_unless( !*p     , "unexpected value for option --",option) ;
 						flags |= f ;
 						continue ;
 					}
@@ -167,7 +167,7 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				for( p=arg+1 ; *p ; p++ ) {
 					if (key_map.contains(*p)) {
 						Key k = key_map.at(*p) ;
-						if (has_key) throw "cannot specify both --"+snake(k)+" and --"+snake(key) ;
+						throw_if( has_key , "cannot specify both --",k," and --",key ) ;
 						key     = k    ;
 						has_key = true ;
 					} else if (flag_map.contains(*p)) {
@@ -189,7 +189,7 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				}
 			}
 		}
-		if ( !has_key && !syntax.has_dflt_key ) throw "must specify a key"s ;
+		throw_unless( has_key || syntax.has_dflt_key , "must specify a key" ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	exe = argv[0] ;

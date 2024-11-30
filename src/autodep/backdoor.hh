@@ -37,15 +37,15 @@ namespace Backdoor {
 	template<class T> ssize_t/*len*/ func( Record& r , ::string const& args_str , char* buf , size_t sz ) {
 		size_t   pos       = 0 ;
 		::string reply_str ;
-		try                     { reply_str = serialize(deserialize<T>(parse_printable(args_str,pos)).process(r)) ; if (pos!=args_str.size()) throw ""s ; }
-		catch (::string const&) { errno = EIO ; return -1 ;                                                                                               }
+		try         { reply_str = serialize(deserialize<T>(parse_printable(args_str,pos)).process(r)) ; throw_unless(pos==args_str.size()) ; }
+		catch (...) { errno = EIO ; return -1 ;                                                                                              }
 		sz = ::min(reply_str.size(),sz) ;
 		::memcpy( buf , reply_str.data() , sz ) ;
 		return sz ;
 	}
 
 	struct Enable {
-		friend ::ostream& operator<<( ::ostream& , Enable const& ) ;
+		friend ::string& operator+=( ::string& , Enable const& ) ;
 		static constexpr char Cmd[] = "enable" ;
 		using Reply = bool/*enabled*/ ;
 		size_t reply_len(         ) const ;
@@ -55,22 +55,22 @@ namespace Backdoor {
 	} ;
 
 	struct Solve {
-		friend ::ostream& operator<<( ::ostream& , Solve const& ) ;
+		friend ::string& operator+=( ::string& , Solve const& ) ;
 		static constexpr char Cmd[] = "solve" ;
 		struct Reply {
-			friend ::ostream& operator<<( ::ostream& , Reply const& ) ;
-			::string real      ;                                        // if read : last file in case of overlay, if write : first file in case of overlay, if both : overlays not supported
+			friend ::string& operator+=( ::string& , Reply const& ) ;
+			::string real      ;                                      // if read : last file in case of overlay, if write : first file in case of overlay, if both : overlays not supported
 			FileInfo file_info ;
 			FileLoc  file_loc  = FileLoc::Ext ;
-			Accesses accesses  ;                                        // accesses to report on real
+			Accesses accesses  ;                                      // accesses to report on real
 		} ;
 		size_t reply_len(         ) const ;
 		Reply  process  (Record& r) const ;
 		// data
 		::string file      = {}      ;
 		bool     no_follow = false   ;
-		bool     read      = false   ;                                  // if both read & write, overlays are not supported
-		bool     write     = false   ;                                  // .
+		bool     read      = false   ;                                // if both read & write, overlays are not supported
+		bool     write     = false   ;                                // .
 		bool     create    = false   ;
 		::string comment   = "solve" ;
 	} ;

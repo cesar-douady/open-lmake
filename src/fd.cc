@@ -11,7 +11,7 @@
 
 using namespace Time ;
 
-ostream& operator<<( ostream& os , Epoll::Event const& e ) {
+string& operator+=( string& os , Epoll::Event const& e ) {
 	return os << "Event(" << e.fd() <<','<< e.data() <<')' ;
 }
 
@@ -57,12 +57,12 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 	}
 }
 
-::ostream& operator<<( ::ostream& os , Fd           const& fd ) { return os << "Fd("           << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , AutoCloseFd  const& fd ) { return os << "AutoCloseFd("  << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , SockFd       const& fd ) { return os << "SockFd("       << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , SlaveSockFd  const& fd ) { return os << "SlaveSockFd("  << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , ServerSockFd const& fd ) { return os << "ServerSockFd(" << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , ClientSockFd const& fd ) { return os << "ClientSockFd(" << fd.fd <<')' ; }
+::string& operator+=( ::string& os , Fd           const& fd ) { return os << "Fd("           << fd.fd <<')' ; }
+::string& operator+=( ::string& os , AcFd         const& fd ) { return os << "AcFd("         << fd.fd <<')' ; }
+::string& operator+=( ::string& os , SockFd       const& fd ) { return os << "SockFd("       << fd.fd <<')' ; }
+::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return os << "SlaveSockFd("  << fd.fd <<')' ; }
+::string& operator+=( ::string& os , ServerSockFd const& fd ) { return os << "ServerSockFd(" << fd.fd <<')' ; }
+::string& operator+=( ::string& os , ClientSockFd const& fd ) { return os << "ClientSockFd(" << fd.fd <<')' ; }
 
 ::string host() {
 	char buf[HOST_NAME_MAX+1] ;
@@ -91,12 +91,12 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 
 SlaveSockFd ServerSockFd::accept() {
 	SlaveSockFd slave_fd = ::accept( fd , nullptr , nullptr ) ;
-	swear_prod(+slave_fd,"cannot accept from",*this) ;
+	swear_prod(+slave_fd,"cannot accept from",self) ;
 	return slave_fd ;
 }
 
 void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , Delay timeout ) {
-	if (!*this) init() ;
+	if (!self) init() ;
 	swear_prod(fd>=0,"cannot create socket") ;
 	static_assert( sizeof(in_port_t)==2 && sizeof(in_addr_t)==4 ) ;                            // else use adequate htons/htonl according to the sizes
 	struct sockaddr_in sa       = s_sockaddr(server,port) ;
@@ -121,9 +121,9 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 	}
 	int en = errno ;                                                                           // catch errno before any other syscall
 	close() ;
-	if      (too_late  ) throw fmt_string("cannot connect to ",s_addr_str(server),':',port," : ",strerror(en)," after ",timeout.short_str()) ;
-	else if (n_trials>1) throw fmt_string("cannot connect to ",s_addr_str(server),':',port," : ",strerror(en)," after ",n_trials," trials" ) ;
-	else                 throw fmt_string("cannot connect to ",s_addr_str(server),':',port," : ",strerror(en)                              ) ;
+	if      (too_late  ) throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)+" after "+timeout.short_str() ;
+	else if (n_trials>1) throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)+" after "+n_trials+" trials"  ;
+	else                 throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)                               ;
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {

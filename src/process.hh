@@ -81,9 +81,17 @@ inline bool wstatus_ok(int wstatus) {
 }
 
 inline ::string wstatus_str(int wstatus) {
-	if (WIFEXITED  (wstatus)) return WEXITSTATUS(wstatus) ? "exit "s+WEXITSTATUS(wstatus)  : "ok"s   ;
-	if (WIFSIGNALED(wstatus)) return "signal "s+WTERMSIG(wstatus)+'-'+::strsignal(WTERMSIG(wstatus)) ;
-	else                      return "??"                                                            ;
+	if (WIFEXITED(wstatus)) {
+		int rc = WEXITSTATUS(wstatus) ;
+		if ( rc==0                               ) return "ok"                                                        ;
+		if ( int sig=rc-128 ; sig>=0 && sig<NSIG ) return "exit "s+rc+" (could be signal "+sig+'-'+strsignal(sig)+')' ;
+		/**/                                       return "exit "s+rc                                                 ;
+	}
+	if (WIFSIGNALED(wstatus)) {
+		int sig = WTERMSIG(wstatus) ;
+		return "signal "s+sig+'-'+::strsignal(sig) ;
+	}
+	return "??"                                                            ;
 }
 
 struct Child {
@@ -91,15 +99,14 @@ struct Child {
 	static constexpr Fd     NoneFd  { -1 }   ;
 	static constexpr Fd     PipeFd  { -2 }   ;
 	// statics
-	[[noreturn]] static int _s_do_child           (void* self) { reinterpret_cast<Child*>(self)->_do_child           () ; }
-	[[noreturn]] static int _s_do_child_trampoline(void* self) { reinterpret_cast<Child*>(self)->_do_child_trampoline() ; }
+	[[noreturn]] static int _s_do_child           (void* self_) { reinterpret_cast<Child*>(self_)->_do_child           () ; }
+	[[noreturn]] static int _s_do_child_trampoline(void* self_) { reinterpret_cast<Child*>(self_)->_do_child_trampoline() ; }
 	// cxtors & casts
 	~Child() {
 		swear_prod(pid==0,"bad pid",pid) ;
 	}
 	// accesses
-	bool operator+() const { return pid     ; }
-	bool operator!() const { return !+*this ; }
+	bool operator+() const { return pid ; }
 	// services
 	void spawn() ;
 	void mk_daemon() {
@@ -141,10 +148,10 @@ public :
 	int/*rc*/       (*pre_exec)(void*) = nullptr    ;                // if no cmd_line, this is the entire function exected as child returning the exit status
 	void*           pre_exec_arg       = nullptr    ;
 	// child info
-	pid_t       pid    = 0  ;
-	AutoCloseFd stdin  = {} ;
-	AutoCloseFd stdout = {} ;
-	AutoCloseFd stderr = {} ;
+	pid_t pid    = 0  ;
+	AcFd  stdin  = {} ;
+	AcFd  stdout = {} ;
+	AcFd  stderr = {} ;
 	// private (cannot really declare private or it would not be an aggregate any more)
 	Pipe         _p2c             = {}      ;
 	Pipe         _c2po            = {}      ;

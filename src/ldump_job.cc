@@ -9,69 +9,71 @@
 
 using namespace Disk ;
 
+::string g_out ;
+
 template<class V> void _print_map(::vmap_s<V> const& m) {
 	size_t w = 0 ;
 	for( auto const& [k,v] : m ) w = ::max(w,k.size()) ;
-	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<k <<" : "<< v <<'\n' ;
+	for( auto const& [k,v] : m ) g_out <<'\t'<< widen(k,w) <<" : "<< v <<'\n' ;
 }
 
 void _print_views(::vmap_s<JobSpace::ViewDescr> const& m) {
 	size_t w = 0 ;
 	for( auto const& [k,v] : m ) w = ::max(w,k.size()) ;
-	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<k <<" : "<< v.phys <<' '<< v.copy_up <<'\n' ;
+	for( auto const& [k,v] : m ) g_out <<'\t'<< widen(k,w) <<" : "<< v.phys <<' '<< v.copy_up <<'\n' ;
 }
 
 void print_submit_attrs(SubmitAttrs const& sa) {
-	::cout << "--submit attrs--\n" ;
+	g_out << "--submit attrs--\n" ;
 	//
-	::cout << "backend  : "  << snake(sa.tag)           <<'\n' ;
-	::cout << "pressure : "  << sa.pressure.short_str() <<'\n' ;
-	::cout << "live_out : "  << sa.live_out             <<'\n' ;
-	::cout << "reason   : "  << sa.reason               <<'\n' ;
+	g_out << "backend  : "  << sa.tag                  <<'\n' ;
+	g_out << "pressure : "  << sa.pressure.short_str() <<'\n' ;
+	g_out << "live_out : "  << sa.live_out             <<'\n' ;
+	g_out << "reason   : "  << sa.reason               <<'\n' ;
 }
 
 void print_pre_start(JobRpcReq const& jrr) {
 	SWEAR( jrr.proc==JobRpcProc::Start , jrr.proc ) ;
-	::cout << "--req--\n" ;
+	g_out << "--req--\n" ;
 	//
-	::cout << "seq_id : " << jrr.seq_id <<'\n' ;
-	::cout << "job    : " << jrr.job    <<'\n' ;
+	g_out << "seq_id : " << jrr.seq_id <<'\n' ;
+	g_out << "job    : " << jrr.job    <<'\n' ;
 	//
-	::cout << "backend_msg :\n" ; ::cout << ensure_nl(indent(jrr.msg)) ;
+	g_out << "backend_msg :\n" ; g_out << ensure_nl(indent(jrr.msg)) ;
 }
 
 void print_start(JobRpcReply const& jrr) {
 	SWEAR( jrr.proc==JobRpcProc::Start , jrr.proc ) ;
-	::cout << "--start--\n" ;
+	g_out << "--start--\n" ;
 	//
-	::cout << "addr         : "  << hex<<jrr.addr<<dec          <<'\n' ;
-	::cout << "auto_mkdir   : "  << jrr.autodep_env.auto_mkdir  <<'\n' ;
-	::cout << "chroot_dir_s : "  << jrr.job_space.chroot_dir_s  <<'\n' ;
-	::cout << "cwd_s        : "  << jrr.cwd_s                   <<'\n' ;
-	::cout << "date_prec    : "  << jrr.date_prec               <<'\n' ;
-	::cout << "ignore_stat  : "  << jrr.autodep_env.ignore_stat <<'\n' ;
-	::cout << "interpreter  : "  << jrr.interpreter             <<'\n' ;
-	::cout << "keep_tmp     : "  << jrr.keep_tmp                <<'\n' ;
-	::cout << "key          : "  << jrr.key                     <<'\n' ;
-	::cout << "kill_sigs    : "  << jrr.kill_sigs               <<'\n' ;
-	::cout << "live_out     : "  << jrr.live_out                <<'\n' ;
-	::cout << "method       : "  << jrr.method                  <<'\n' ;
-	::cout << "tmp_dir_s    : "  << jrr.autodep_env.tmp_dir_s   <<'\n' ; // tmp directory on disk
-	::cout << "root_view_s  : "  << jrr.job_space.root_view_s   <<'\n' ;
-	::cout << "small_id     : "  << jrr.small_id                <<'\n' ;
-	::cout << "stdin        : "  << jrr.stdin                   <<'\n' ;
-	::cout << "stdout       : "  << jrr.stdout                  <<'\n' ;
-	::cout << "timeout      : "  << jrr.timeout                 <<'\n' ;
-	::cout << "tmp_sz_mb    : "  << jrr.tmp_sz_mb               <<'\n' ;
-	::cout << "tmp_view_s   : "  << jrr.job_space.tmp_view_s    <<'\n' ;
-	::cout << "use_script   : "  << jrr.use_script              <<'\n' ;
+	g_out << "addr         : "  << to_hex(jrr.addr)            <<'\n' ;
+	g_out << "auto_mkdir   : "  << jrr.autodep_env.auto_mkdir  <<'\n' ;
+	g_out << "chroot_dir_s : "  << jrr.job_space.chroot_dir_s  <<'\n' ;
+	g_out << "cwd_s        : "  << jrr.cwd_s                   <<'\n' ;
+	g_out << "date_prec    : "  << jrr.date_prec               <<'\n' ;
+	g_out << "ignore_stat  : "  << jrr.autodep_env.ignore_stat <<'\n' ;
+	g_out << "interpreter  : "  << jrr.interpreter             <<'\n' ;
+	g_out << "keep_tmp     : "  << jrr.keep_tmp                <<'\n' ;
+	g_out << "key          : "  << jrr.key                     <<'\n' ;
+	g_out << "kill_sigs    : "  << jrr.kill_sigs               <<'\n' ;
+	g_out << "live_out     : "  << jrr.live_out                <<'\n' ;
+	g_out << "method       : "  << jrr.method                  <<'\n' ;
+	g_out << "tmp_dir_s    : "  << jrr.autodep_env.tmp_dir_s   <<'\n' ; // tmp directory on disk
+	g_out << "root_view_s  : "  << jrr.job_space.root_view_s   <<'\n' ;
+	g_out << "small_id     : "  << jrr.small_id                <<'\n' ;
+	g_out << "stdin        : "  << jrr.stdin                   <<'\n' ;
+	g_out << "stdout       : "  << jrr.stdout                  <<'\n' ;
+	g_out << "timeout      : "  << jrr.timeout                 <<'\n' ;
+	g_out << "tmp_sz_mb    : "  << jrr.tmp_sz_mb               <<'\n' ;
+	g_out << "tmp_view_s   : "  << jrr.job_space.tmp_view_s    <<'\n' ;
+	g_out << "use_script   : "  << jrr.use_script              <<'\n' ;
 	//
-	::cout << "deps :\n"           ; _print_map  (jrr.deps           )                         ;
-	::cout << "env :\n"            ; _print_map  (jrr.env            )                         ;
-	::cout << "star matches :\n"   ; _print_map  (jrr.star_matches   )                         ;
-	::cout << "static matches :\n" ; _print_map  (jrr.static_matches )                         ;
-	::cout << "views :\n"          ; _print_views(jrr.job_space.views)                         ;
-	::cout << "cmd :\n"            ; ::cout << ensure_nl(indent(jrr.cmd.first+jrr.cmd.second)) ;
+	g_out << "deps :\n"           ; _print_map  (jrr.deps           )                        ;
+	g_out << "env :\n"            ; _print_map  (jrr.env            )                        ;
+	g_out << "star matches :\n"   ; _print_map  (jrr.star_matches   )                        ;
+	g_out << "static matches :\n" ; _print_map  (jrr.static_matches )                        ;
+	g_out << "views :\n"          ; _print_views(jrr.job_space.views)                        ;
+	g_out << "cmd :\n"            ; g_out << ensure_nl(indent(jrr.cmd.first+jrr.cmd.second)) ;
 }
 
 void print_end(JobRpcReq const& jrr) {
@@ -79,26 +81,26 @@ void print_end(JobRpcReq const& jrr) {
 	JobStats  const& st = jd.stats   ;
 	SWEAR( jrr.proc==JobRpcProc::End , jrr.proc ) ;
 	//
-	::cout << "--end--\n" ;
+	g_out << "--end--\n" ;
 	//
-	::cout << "phy_dynamic_tmp_s  : " << jrr.phy_tmp_dir_s <<'\n' ;
+	g_out << "phy_dynamic_tmp_s  : " << jrr.phy_tmp_dir_s <<'\n' ;
 	//
-	::cout << "digest.status      : " << jd.status         <<'\n' ;
-	::cout << "digest.wstatus     : " << jd.wstatus        <<'\n' ;
-	::cout << "digest.end_date    : " << jd.end_date       <<'\n' ;
-	::cout << "digest.stats.cpu   : " << st.cpu            <<'\n' ;
-	::cout << "digest.stats.job   : " << st.job            <<'\n' ;
-	::cout << "digest.stats.total : " << st.total          <<'\n' ;
-	::cout << "digest.stats.mem   : " << st.mem            <<'\n' ;
+	g_out << "digest.status      : " << jd.status         <<'\n' ;
+	g_out << "digest.wstatus     : " << jd.wstatus        <<'\n' ;
+	g_out << "digest.end_date    : " << jd.end_date       <<'\n' ;
+	g_out << "digest.stats.cpu   : " << st.cpu            <<'\n' ;
+	g_out << "digest.stats.job   : " << st.job            <<'\n' ;
+	g_out << "digest.stats.total : " << st.total          <<'\n' ;
+	g_out << "digest.stats.mem   : " << st.mem            <<'\n' ;
 	//
-	::cout << "dynamic_env :\n"         ; _print_map(jrr.dynamic_env)            ;
+	g_out << "dynamic_env :\n"         ; _print_map(jrr.dynamic_env)           ;
 	//
-	::cout << "digest.targets :\n"      ; _print_map(jd.targets     )            ;
-	::cout << "digest.deps :\n"         ; _print_map(jd.deps        )            ;
-	::cout << "digest.stderr :\n"       ; ::cout << ensure_nl(indent(jd.stderr)) ;
-	::cout << "digest.stdout :\n"       ; ::cout << ensure_nl(indent(jd.stdout)) ;
+	g_out << "digest.targets :\n"      ; _print_map(jd.targets     )           ;
+	g_out << "digest.deps :\n"         ; _print_map(jd.deps        )           ;
+	g_out << "digest.stderr :\n"       ; g_out << ensure_nl(indent(jd.stderr)) ;
+	g_out << "digest.stdout :\n"       ; g_out << ensure_nl(indent(jd.stdout)) ;
 	//
-	::cout << "_msg :\n" ; ::cout << ensure_nl(indent(localize(jrr.msg))) ;
+	g_out << "_msg :\n" ; g_out << ensure_nl(indent(localize(jrr.msg))) ;
 }
 
 int main( int argc , char* argv[] ) {
@@ -107,14 +109,15 @@ int main( int argc , char* argv[] ) {
 	//
 	JobInfo job_info { argv[1] } ;
 	if (+job_info.start) {
-		::cout << "eta  : " << job_info.start.eta                  <<'\n' ;
-		::cout << "host : " << SockFd::s_host(job_info.start.host) <<'\n' ;
+		g_out << "eta  : " << job_info.start.eta                  <<'\n' ;
+		g_out << "host : " << SockFd::s_host(job_info.start.host) <<'\n' ;
 		print_submit_attrs(job_info.start.submit_attrs) ;
-		::cout << "rsrcs :\n" ; _print_map(job_info.start.rsrcs) ;
+		g_out << "rsrcs :\n" ; _print_map(job_info.start.rsrcs) ;
 		print_pre_start   (job_info.start.pre_start   ) ;
 		print_start       (job_info.start.start       ) ;
 	}
 	//
 	if (+job_info.end) print_end(job_info.end.end) ;
+	Fd::Stdout.write(g_out) ;
 	return 0 ;
 }

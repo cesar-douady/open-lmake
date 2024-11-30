@@ -10,7 +10,7 @@
 #include <sys/stat.h>  // fstatat, fchmodat
 #include <sys/types.h>
 
-#include "config.hh"
+#include "types.hh"
 #include "fd.hh"
 #include "lib.hh"
 #include "time.hh"
@@ -51,8 +51,9 @@ ENUM(FileDisplay
 )
 
 namespace Disk {
-	using Ddate  = Time::Ddate ;
-	using DiskSz = uint64_t    ;
+	using Ddate       = Time::Ddate              ;
+	using DiskSz      = uint64_t                 ;
+	using FileNameIdx = Uint<n_bits(PATH_MAX+1)> ; // file names are limited to PATH_MAX
 
 	//
 	// path name library
@@ -71,34 +72,19 @@ namespace Disk {
 	inline ::string dir_name_s(::string const& path) {
 		size_t sep = path.rfind('/',path.size()-2) ;
 		if (sep!=Npos) return path.substr(0,sep+1)    ;
-		if (!path    ) throw "no dir for empty path"s ;
-		if (path=="/") throw "no dir for /"s          ;
+		throw_unless( +path     , "no dir for empty path" ) ;
+		throw_unless( path!="/" , "no dir for /"          ) ;
 		/**/           return {}                      ;
 	}
 	inline ::string base_name(::string const& path) {
 		size_t sep = path.rfind('/',path.size()-2) ;
-		if (sep!=Npos) return path.substr(sep+1)       ;
-		if (!path    ) throw "no base for empty path"s ;
-		if (path=="/") throw "no base for /"s          ;
-		/**/           return path                     ;
+		if (sep!=Npos) return path.substr(sep+1) ;
+		throw_unless( +path     , "no base for empty path" ) ;
+		throw_unless( path!="/" , "no base for /"          ) ;
+		return path ;
 	}
 	inline bool is_dirname( ::string const& path                         ) { return !path || path.back()=='/'                                                         ; }
 	inline bool is_in_dir ( ::string const& path , ::string const& dir_s ) { return path.starts_with(dir_s) || (path.size()+1==dir_s.size()&&dir_s.starts_with(path)) ; }
-
-	inline ::string with_slash(::string&& path) {
-		if (!is_dirname(path)) {
-			if (path==".") return {} ;
-			path += '/' ;
-		}
-		return ::move(path) ;
-	}
-	inline ::string no_slash(::string&& path) {
-		if ( !path                              ) return "." ;
-		if ( path.back()=='/' && path.size()!=1 ) path.pop_back() ; // special case '/' as this is the usual convention : no / at the end of dirs, except for /
-		return ::move(path) ;
-	}
-	inline ::string with_slash(::string const& file) { return with_slash(::copy(file)) ; }
-	inline ::string no_slash  (::string const& file) { return no_slash  (::copy(file)) ; }
 
 	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
 	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
@@ -144,7 +130,7 @@ namespace Disk {
 	struct FileSig ;
 
 	struct FileInfo {
-		friend ::ostream& operator<<( ::ostream& , FileInfo const& ) ;
+		friend ::string& operator+=( ::string& , FileInfo const& ) ;
 		using Stat = struct ::stat ;
 	private :
 		// statics
@@ -159,8 +145,7 @@ namespace Disk {
 		// accesses
 		bool    operator==(FileInfo const&) const = default ;
 		//
-		bool    operator+() const { return tag()>=FileTag::Target ; }
-		bool    operator!() const { return !+*this                ; } // i.e. sz & date are not present
+		bool    operator+() const { return tag()>=FileTag::Target ; } // i.e. sz & date are present
 		FileTag tag      () const { return date.tag()             ; }
 		FileSig sig      () const ;
 		// data
@@ -169,7 +154,7 @@ namespace Disk {
 	} ;
 
 	struct FileSig {
-		friend ::ostream& operator<<( ::ostream& , FileSig const& ) ;
+		friend ::string& operator+=( ::string& , FileSig const& ) ;
 		// cxtors & casts
 	public :
 		FileSig(                                                    ) = default ;
@@ -180,22 +165,21 @@ namespace Disk {
 		// accesses
 	public :
 		bool    operator==(FileSig const& fs) const {
-			if( !*this && !fs ) return true          ; // consider Dir and None as identical
+			if( !self && !fs ) return true          ;  // consider Dir and None as identical
 			else                return _val==fs._val ;
 		}
 		//
 		bool    operator+() const { return tag()>=FileTag::Target                ; }
-		bool    operator!() const { return !+*this                               ; }
 		FileTag tag      () const { return FileTag(_val&lsb_msk(NBits<FileTag>)) ; }
 		// data
 	private :
 		uint64_t _val = 0 ;                            // by default, no file
 	} ;
 
-	inline FileSig FileInfo::sig() const { return FileSig(*this) ; }
+	inline FileSig FileInfo::sig() const { return FileSig(self) ; }
 
 	struct SigDate {
-		friend ::ostream& operator<<( ::ostream& , SigDate const& ) ;
+		friend ::string& operator+=( ::string& , SigDate const& ) ;
 		using Pdate = Time::Pdate ;
 		// cxtors & casts
 		SigDate(                     ) = default ;
@@ -206,7 +190,6 @@ namespace Disk {
 		// accesses
 		bool operator==(SigDate const&) const = default ;
 		bool operator+ (              ) const { return +date || +sig ; }
-		bool operator! (              ) const { return !+*this       ; }
 		// data
 		FileSig sig  ;
 		Pdate   date ;
@@ -252,11 +235,6 @@ namespace Disk {
 		bool     reliable_dirs = false/*garbage*/ ;
 	} ;
 
-	::vector_s read_lines   ( ::string const& file                       ) ;
-	::string   read_content ( ::string const& file                       ) ;
-	void       write_lines  ( ::string const& file , ::vector_s const&   ) ;
-	void       write_content( ::string const& file , ::string   const&   ) ;
-
 	// list files within dir with prefix in front of each entry
 	::vector_s lst_dir_s( Fd at , ::string const& dir_s={} , ::string const& prefix={} ) ;
 	// deep list files within dir with prefix in front of each entry, return a single entry {prefix} if file is not a dir (including if file does not exist)
@@ -276,15 +254,6 @@ namespace Disk {
 			::string at_str = at==Fd::Cwd ? ""s : "<"s+at.fd+">/" ;
 			throw "cannot create symlink from "+at_str+file+" to "+target ;
 		}
-	}
-
-	inline Fd open_read( Fd at , ::string const& filename ) {
-		return ::openat( at , filename.c_str() , O_RDONLY|O_CLOEXEC , 0666 ) ;
-	}
-
-	inline Fd open_write( Fd at , ::string const& filename , bool append=false , bool exe=false , bool read_only=false ) {
-		dir_guard(at,filename) ;
-		return ::openat( at , filename.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC|(append?O_APPEND:O_TRUNC) , 0777 & ~(exe?0000:0111) & ~(read_only?0222:0000) ) ;
 	}
 
 	inline ::string read_lnk( Fd at , ::string const& file ) {
@@ -311,8 +280,6 @@ namespace Disk {
 	inline bool/*done*/    uniquify      ( ::string const& file                                                              ) { return uniquify      (Fd::Cwd,file                      ) ; }
 	inline void            rmdir_s       ( ::string const& dir_s                                                             ) {        rmdir_s       (Fd::Cwd,dir_s                     ) ; }
 	inline void            lnk           ( ::string const& file  , ::string const& target                                    ) {        lnk           (Fd::Cwd,file ,target              ) ; }
-	inline Fd              open_read     ( ::string const& file                                                              ) { return open_read     (Fd::Cwd,file                      ) ; }
-	inline Fd              open_write    ( ::string const& file  , bool append=false , bool exe=false , bool read_only=false ) { return open_write    (Fd::Cwd,file ,append,exe,read_only) ; }
 	inline ::string        read_lnk      ( ::string const& file                                                              ) { return read_lnk      (Fd::Cwd,file                      ) ; }
 	inline bool            is_dir        ( ::string const& file  , bool no_follow=true                                       ) { return is_dir        (Fd::Cwd,file ,no_follow           ) ; }
 	inline bool            is_target     ( ::string const& file  , bool no_follow=true                                       ) { return is_target     (Fd::Cwd,file ,no_follow           ) ; }
@@ -339,23 +306,22 @@ namespace Disk {
 		FileMap(                        ) = default ;
 		FileMap( Fd , ::string const&   ) ;
 		FileMap(      ::string const& f ) : FileMap{Fd::Cwd,f} {}
-		bool operator+() const { return _ok     ; }
-		bool operator!() const { return !+*this ; }
+		bool operator+() const { return _ok ; }
 		// accesses
 		#define C const
-		template<class T> T C& get(size_t ofs=0) C { if (ofs+sizeof(T)>sz) throw "object @"s+ofs+"out of file of size "+sz ; return *reinterpret_cast<T C*>(data+ofs) ; }
-		template<class T> T  & get(size_t ofs=0)   { if (ofs+sizeof(T)>sz) throw "object @"s+ofs+"out of file of size "+sz ; return *reinterpret_cast<T  *>(data+ofs) ; }
+		template<class T> T C& get(size_t ofs=0) C { throw_unless( ofs+sizeof(T)<=sz , "object @",ofs,"out of file of size ",sz ) ; return *reinterpret_cast<T C*>(data+ofs) ; }
+		template<class T> T  & get(size_t ofs=0)   { throw_unless( ofs+sizeof(T)<=sz , "object @",ofs,"out of file of size ",sz ) ; return *reinterpret_cast<T  *>(data+ofs) ; }
 		#undef C
 		// data
 		const uint8_t* data = nullptr ;
 		size_t         sz   = 0       ;
 	private :
-		AutoCloseFd _fd ;
-		bool        _ok = false ;
+		AcFd _fd ;
+		bool _ok = false ;
 	} ;
 
 	struct RealPathEnv {
-		friend ::ostream& operator<<( ::ostream& , RealPathEnv const& ) ;
+		friend ::string& operator+=( ::string& , RealPathEnv const& ) ;
 		// services
 		FileLoc file_loc(::string const& file) const ;
 		// data
@@ -367,35 +333,25 @@ namespace Disk {
 	} ;
 
 	struct RealPath {
-		friend ::ostream& operator<<( ::ostream& , RealPath const& ) ;
+		friend ::string& operator+=( ::string& , RealPath const& ) ;
 		struct SolveReport {
-			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;
+			friend ::string& operator+=( ::string& , SolveReport const& ) ;
 			// data
-			::string   real          = {}           ; // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir, else empty
-			::vector_s lnks          = {}           ; // links followed to get to real
-			Bool3      file_accessed = No           ; // if True, file was accessed as sym link, if Maybe file dir was accessed as sym link
-			FileLoc    file_loc      = FileLoc::Ext ; // do not process awkard files
+			::string   real          = {}           ;                     // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir, else empty
+			::vector_s lnks          = {}           ;                     // links followed to get to real
+			Bool3      file_accessed = No           ;                     // if True, file was accessed as sym link, if Maybe file dir was accessed as sym link
+			FileLoc    file_loc      = FileLoc::Ext ;                     // do not process awkard files
 		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp
 		struct _Dvg {
+			// cxtors & casts
 			_Dvg( ::string const& domain , ::string const& chk ) { update(domain,chk) ; }
-			bool operator +() const { return ok      ; }
-			bool operator !() const { return !+*this ; }
-			// udpate after domain & chk have been lengthened or shortened, but not modified internally
-			void update( ::string const& domain , ::string const& chk ) {
-				size_t start = dvg ;
-				ok  = domain.size() <= chk.size()     ;
-				dvg = ok ? domain.size() : chk.size() ;
-				for( size_t i=start ; i<dvg ; i++ ) {
-					if (domain[i]!=chk[i]) {
-						ok  = false ;
-						dvg = i     ;
-						return ;
-					}
-				}
-				if ( domain.size() < chk.size() ) ok = chk[domain.size()]=='/' ;
-			}
+			// accesses
+			bool operator +() const { return ok ; }
+			// services
+			void update( ::string const& domain , ::string const& chk ) ; // udpate after domain & chk have been lengthened or shortened, but not modified internally
+			// data
 			bool   ok  = false ;
 			size_t dvg = 0     ;
 		} ;
@@ -418,16 +374,19 @@ namespace Disk {
 		// services
 		FileLoc file_loc( ::string const& real ) const { return _env->file_loc(real) ; }
 		//
-		SolveReport solve( Fd at , ::string const&      , bool no_follow=false ) ;
-		SolveReport solve( Fd at , const char*     file , bool no_follow=false ) { return solve(at     ,::string(file),no_follow) ; } // ensure proper types
-		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,         file ,no_follow) ; }
-		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve(at     ,         {}   ,no_follow) ; }
+		SolveReport solve( Fd at , ::string_view        , bool no_follow=false ) ;
+		SolveReport solve( Fd at , ::string const& file , bool no_follow=false ) { return solve( at      , ::string_view(file) , no_follow ) ; }
+		SolveReport solve( Fd at , const char*     file , bool no_follow=false ) { return solve( at      , ::string_view(file) , no_follow ) ; }
+		SolveReport solve(         ::string_view   file , bool no_follow=false ) { return solve( Fd::Cwd ,               file  , no_follow ) ; }
+		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve( Fd::Cwd ,               file  , no_follow ) ; }
+		SolveReport solve(         const char*     file , bool no_follow=false ) { return solve( Fd::Cwd ,               file  , no_follow ) ; }
+		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve( at      , ::string()          , no_follow ) ; }
 		//
-		vmap_s<Accesses> exec(SolveReport&) ;                                                                                         // arg is updated to reflect last interpreter
+		vmap_s<Accesses> exec(SolveReport&) ;             // arg is updated to reflect last interpreter
 		//
 		void chdir() ;
 		::string cwd() {
-			if ( !pid && ::getpid()!=_cwd_pid ) chdir() ;                                                                             // refresh _cwd if it was updated in the child part of a clone
+			if ( !pid && ::getpid()!=_cwd_pid ) chdir() ; // refresh _cwd if it was updated in the child part of a clone
 			return _cwd ;
 		}
 	private :
@@ -438,11 +397,11 @@ namespace Disk {
 	private :
 		RealPathEnv const* _env            ;
 		::string           _admin_dir      ;
-		::vector_s         _abs_src_dirs_s ;                                                                                          // this is an absolute version of src_dirs
+		::vector_s         _abs_src_dirs_s ;              // this is an absolute version of src_dirs
 		size_t             _root_dir_sz    ;
 		::string           _cwd            ;
-		pid_t              _cwd_pid        = 0 ;                                                                                      // pid for which _cwd is valid if pid==0
+		pid_t              _cwd_pid        = 0 ;          // pid for which _cwd is valid if pid==0
 	} ;
-	::ostream& operator<<( ::ostream& , RealPath::SolveReport const& ) ;
+	::string& operator+=( ::string& , RealPath::SolveReport const& ) ;
 
 }

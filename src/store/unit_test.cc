@@ -6,12 +6,11 @@
 #include "file.hh"
 #include "struct.hh"
 #include "side_car.hh"
-#include "red_black.hh"
 #include "prefix.hh"
 
 using namespace Store ;
 
-::string g_dir ;
+::string g_dir_s ;
 
 using TestHdr = int ;
 
@@ -19,7 +18,7 @@ template<bool Multi,bool HasDataSz> struct TestData {
 	TestData(             )                 : sz(0) {                             }
 	TestData(int v        )                 : sz(1) { val[0] = v  ;               }
 	TestData(int v1,int v2) requires(Multi) : sz(2) { val[0] = v1 ; val[1] = v2 ; }
-	TestData& operator=(int v) { sz = 1 ; val[0] = v ; return *this ; }
+	TestData& operator=(int v) { sz = 1 ; val[0] = v ; return self ; }
 	size_t n_items() const requires(HasDataSz) { return sz ; }
 	size_t sz ;
 	int val[1] ;
@@ -31,20 +30,20 @@ template<bool Multi,bool HasDataSz> struct TestData {
 
 struct TestFile {
 	TestFile() {
-		::cout<<"check file ..." ;
-		::string filename = g_dir+"file" ;
-		{	File<false> f(filename,10000,true/*writable*/) ;
+		Fd::Stdout.write("check file ...") ;
+		::string filename = g_dir_s+"file" ;
+		{	File<false,10000> f(filename,true/*writable*/) ;
 			f.expand(1000) ;
 			f.base[100] = 'a' ;
 			f.expand(5000) ;
 			f.base[101] = 'b' ;
 			f.clear(1000) ;
 		}
-		{	File<false> f(filename,10000,false/*writable*/) ;
+		{	File<false,10000> f(filename,false/*writable*/) ;
 			SWEAR(f.base[100]=='a') ;
 			SWEAR(f.base[101]=='b') ;
 		}
-		::cout<<" ok\n" ;
+		Fd::Stdout.write(" ok\n") ;
 	}
 } ;
 void test_file() {
@@ -85,19 +84,21 @@ template<bool HasHdr,bool HasData,bool Multi> struct TestStruct {
 		SWEAR(idx3==1) ;
 		SWEAR( file.at(idx3).val[0]==7 ) ;
 	}
-	TestStruct() : file(g_dir+"struct"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Multi?"_multi":""),true/*writable*/) {
-		::cout<<"check struct" ;
-		if (HasHdr   ) ::cout<<" with header"   ;
-		if (HasData  ) ::cout<<" with data"     ;
-		if (Multi    ) ::cout<<" with multi"    ;
-		::cout<<" ..." ;
+	TestStruct() : file(g_dir_s+"struct"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Multi?"_multi":""),true/*writable*/) {
+		::string out ;
+		out<<"check struct" ;
+		if (HasHdr   ) out<<" with header"   ;
+		if (HasData  ) out<<" with data"     ;
+		if (Multi    ) out<<" with multi"    ;
+		out<<" ..." ;
+		Fd::Stdout.write(out) ;
 		test_hdr() ;
 		test_data() ;
-		::cout<<" ok\n" ;
+		Fd::Stdout.write(" ok\n") ;
 	}
 
 	// data
-	StructFile<false,Hdr,Idx,Data,Multi> file ;
+	StructFile<false,Hdr,Idx,HasData?20:0,Data,Multi> file ;
 } ;
 void test_struct() {
 	TestStruct<false/*HasHdr*/,false/*HasData*/,false/*Multi*/>() ;
@@ -197,22 +198,23 @@ template<bool HasHdr,bool HasData,bool HasSideCar,bool Multi,bool HasDataSz> str
 		test_pop    <true>(idx.first) ;
 		test_shorten<true>(idx.second) ;
 	}
-	TestSideCar() : file(g_dir+"side_car"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Multi?"_multi":"")+(HasDataSz?"_datasz":"")+(HasSideCar?"_sidecar":""),true/*writable*/) {
-		::cout<<"check sidecar" ;
-		if (HasHdr    ) ::cout<<" with header"   ;
-		if (HasData   ) ::cout<<" with data"     ;
-		if (Multi     ) ::cout<<" with multi"    ;
-		if (HasDataSz ) ::cout<<" with datasize" ;
-		if (HasSideCar) ::cout<<" with sidecar"  ;
-		::cout<<" ..." ;
+	TestSideCar() : file(g_dir_s+"side_car"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Multi?"_multi":"")+(HasDataSz?"_datasz":"")+(HasSideCar?"_sidecar":""),true/*writable*/) {
+		::string out = "check sidecar" ;
+		if (HasHdr    ) out<<" with header"   ;
+		if (HasData   ) out<<" with data"     ;
+		if (Multi     ) out<<" with multi"    ;
+		if (HasDataSz ) out<<" with datasize" ;
+		if (HasSideCar) out<<" with sidecar"  ;
+		out<<" ..." ;
+		Fd::Stdout.write(out) ;
 		test_hdr() ;
 		test1_data() ;
 		test2_data() ;
-		::cout<<" ok\n" ;
+		Fd::Stdout.write(" ok\n") ;
 	}
 
 	// data
-	SideCarFile< false , Hdr , Idx , Data , SideCar , Multi > file ;
+	SideCarFile< false , Hdr , Idx , 20 , Data , SideCar , Multi > file ;
 } ;
 void test_side_car() {
 	TestSideCar<false/*HasHdr*/,false/*HasData*/,false/*HasSideCar*/,false/*Multi*/,false/*HasDataSz*/>() ;
@@ -235,117 +237,6 @@ void test_side_car() {
 	TestSideCar<true /*HasHdr*/,true /*HasData*/,true /*HasSideCar*/,true /*Multi*/,true /*HasDataSz*/>() ;
 }
 
-template<bool HasHdr,bool HasData,bool BitIsKey,bool MultiRoot> struct TestRedBlack {
-	using Hdr  = ::conditional_t<HasHdr ,int,void> ;
-	using Idx  = uint32_t                          ;
-	using Key  = int                               ;
-	using Data = ::conditional_t<HasData,int,void> ;
-	using RedBlackFile = ::conditional_t< MultiRoot , MultiRedBlackFile<Hdr,Idx,Key,Data,BitIsKey> , SingleRedBlackFile<Hdr,Idx,Key,Data,BitIsKey> > ;
-
-	void chk    (                    ) requires(              !MultiRoot ) {        file.chk    (            ) ; }
-	void chk    (                    ) requires(               MultiRoot ) {        file.chk    (root        ) ; }
-	Idx  emplace(Key key,bool /*bit*/) requires( !BitIsKey && !MultiRoot ) { return file.insert (     key    ) ; }
-	Idx  emplace(Key key,bool   bit  ) requires(  BitIsKey && !MultiRoot ) { return file.insert (     key,bit) ; }
-	Idx  emplace(Key key,bool /*bit*/) requires( !BitIsKey &&  MultiRoot ) { return file.emplace(     key    ) ; }
-	Idx  emplace(Key key,bool   bit  ) requires(  BitIsKey &&  MultiRoot ) { return file.emplace(     key,bit) ; }
-	Idx  insert (Key key,bool /*bit*/) requires( !BitIsKey && !MultiRoot ) { return file.insert (     key    ) ; }
-	Idx  insert (Key key,bool   bit  ) requires(  BitIsKey && !MultiRoot ) { return file.insert (     key,bit) ; }
-	Idx  insert (Key key,bool /*bit*/) requires( !BitIsKey &&  MultiRoot ) { return file.insert (root,key    ) ; }
-	Idx  insert (Key key,bool   bit  ) requires(  BitIsKey &&  MultiRoot ) { return file.insert (root,key,bit) ; }
-	Idx  search (Key key,bool /*bit*/) requires( !BitIsKey && !MultiRoot ) { return file.search (     key    ) ; }
-	Idx  search (Key key,bool   bit  ) requires(  BitIsKey && !MultiRoot ) { return file.search (     key,bit) ; }
-	Idx  search (Key key,bool /*bit*/) requires( !BitIsKey &&  MultiRoot ) { return file.search (root,key    ) ; }
-	Idx  search (Key key,bool   bit  ) requires(  BitIsKey &&  MultiRoot ) { return file.search (root,key,bit) ; }
-	Idx  erase  (Key key,bool /*bit*/) requires( !BitIsKey && !MultiRoot ) { return file.erase  (     key    ) ; }
-	Idx  erase  (Key key,bool   bit  ) requires(  BitIsKey && !MultiRoot ) { return file.erase  (     key,bit) ; }
-	Idx  erase  (Key key,bool /*bit*/) requires( !BitIsKey &&  MultiRoot ) { return file.erase  (root,key    ) ; }
-	Idx  erase  (Key key,bool   bit  ) requires(  BitIsKey &&  MultiRoot ) { return file.erase  (root,key,bit) ; }
-
-	void test_hdr() requires(!HasHdr) {}
-	void test_hdr() requires( HasHdr) {
-		file.hdr() = 3 ;
-		SWEAR(file.hdr()==3) ;
-	}
-	void test_tree( ::vector<Key> const& keys ) {
-		size_t n = keys.size() ;
-		file.clear() ;
-		::vector<Idx> idxs ;
-		bool first = true ;
-		for( Key k : keys ){
-			if (first) idxs.push_back( root = emplace(k,false) ) ;
-			else       idxs.push_back(        insert (k,false) ) ;
-			first = false ;
-		}
-		chk() ;
-		for( size_t i=0 ; i<n ; i++ ) SWEAR(file.key(idxs[i])==keys[i]) ;
-		::vector<Idx> chk_idxs ;
-		for( size_t i=0 ; i<n ; i++ ) chk_idxs.push_back(search(keys[i],false)) ;
-		SWEAR(chk_idxs==idxs) ;
-	}
-	void test_tree() {
-		for( Key a=16 ; a<19 ; a++ )
-		for( Key b=16 ; b<19 ; b++ )
-		for( Key c=16 ; c<19 ; c++ ) {
-			if (::set({a,b,c}).size()!=3) continue ;
-			test_tree({a,b,c}) ;
-		}
-	}
-	void test_data() requires( !HasData ||  BitIsKey || !MultiRoot ) {}
-	void test_data() requires(  HasData && !BitIsKey &&  MultiRoot ) {
-		file.at(file.insert(root,14)) = 24 ;
-		chk() ;
-		Idx idx2 = file.insert(root,15,25) ;
-		chk() ;
-		SWEAR(file.at(idx2)==25) ;
-		int val  = *file.search_at(root,14) ;
-		SWEAR(val==24) ;
-	}
-	void test_erase() {
-		Idx idx1 = insert(16,false) ;
-		erase(12,false) ;
-		chk() ;
-		Idx idx2 = erase(16,false) ;
-		chk() ;
-		SWEAR(idx1==idx2) ;
-	}
-	TestRedBlack() : file(g_dir+"red_black"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(BitIsKey?"_bit":"")+(MultiRoot?"_multi":""),true/*writable*/) {
-		::cout<<"check red_black" ;
-		if (HasHdr    ) ::cout<<" with header"     ;
-		if (HasData   ) ::cout<<" with data"       ;
-		if (BitIsKey  ) ::cout<<" with bit is key" ;
-		if (MultiRoot ) ::cout<<" with multi-root" ;
-		::cout<<" ..." ;
-		root = emplace(0,false) ;
-		test_hdr() ;
-		test_tree() ;
-		test_data() ;
-		test_erase() ;
-		::cout<<" ok\n" ;
-	}
-
-	// data
-	RedBlackFile file ;
-	Idx          root ;
-} ;
-void test_red_black() {
-	TestRedBlack<false/*HasHdr*/,false/*HasData*/,false/*BitIsKey*/,true /*MultiRoot*/>() ;
-	TestRedBlack<true /*HasHdr*/,false/*HasData*/,false/*BitIsKey*/,true /*MultiRoot*/>() ;
-	TestRedBlack<false/*HasHdr*/,true /*HasData*/,false/*BitIsKey*/,true /*MultiRoot*/>() ;
-	TestRedBlack<true /*HasHdr*/,true /*HasData*/,false/*BitIsKey*/,true /*MultiRoot*/>() ;
-	TestRedBlack<false/*HasHdr*/,false/*HasData*/,true /*BitIsKey*/,true /*MultiRoot*/>() ;
-	TestRedBlack<true /*HasHdr*/,false/*HasData*/,true /*BitIsKey*/,true /*MultiRoot*/>() ;
-	TestRedBlack<false/*HasHdr*/,true /*HasData*/,true /*BitIsKey*/,true /*MultiRoot*/>() ;
-	TestRedBlack<true /*HasHdr*/,true /*HasData*/,true /*BitIsKey*/,true /*MultiRoot*/>() ;
-	TestRedBlack<false/*HasHdr*/,false/*HasData*/,false/*BitIsKey*/,false/*MultiRoot*/>() ;
-	TestRedBlack<true /*HasHdr*/,false/*HasData*/,false/*BitIsKey*/,false/*MultiRoot*/>() ;
-	TestRedBlack<false/*HasHdr*/,true /*HasData*/,false/*BitIsKey*/,false/*MultiRoot*/>() ;
-	TestRedBlack<true /*HasHdr*/,true /*HasData*/,false/*BitIsKey*/,false/*MultiRoot*/>() ;
-	TestRedBlack<false/*HasHdr*/,false/*HasData*/,true /*BitIsKey*/,false/*MultiRoot*/>() ;
-	TestRedBlack<true /*HasHdr*/,false/*HasData*/,true /*BitIsKey*/,false/*MultiRoot*/>() ;
-	TestRedBlack<false/*HasHdr*/,true /*HasData*/,true /*BitIsKey*/,false/*MultiRoot*/>() ;
-	TestRedBlack<true /*HasHdr*/,true /*HasData*/,true /*BitIsKey*/,false/*MultiRoot*/>() ;
-}
-
 template<bool HasHdr,bool HasData,bool Reverse> struct TestPrefix {
 	using Hdr  = ::conditional_t<HasHdr ,int,void> ;
 	using Idx  = uint32_t                          ;
@@ -358,41 +249,42 @@ template<bool HasHdr,bool HasData,bool Reverse> struct TestPrefix {
 	}
 	void test_tree() {
 		::string f = Reverse ? "c" : "a" ;
-		Idx                idx1   = file.insert (f    ) ; SWEAR( idx1                                   ) ; file.chk() ;
-		Idx                idx2   = file.insert ("abc") ; SWEAR( idx2                                   ) ; file.chk() ;
-		Idx                idx3   = file.search (f    ) ; SWEAR( idx3==idx1                             ) ;
-		::string           n      = file.str_key(idx1 ) ; SWEAR( n==f                                   ) ;
-		Idx                idx4   = file.search ("abc") ; SWEAR( idx4==idx2                             ) ;
-		Idx                idx5   = file.search ("adc") ; SWEAR( !idx5                                  ) ;
-		::pair<Idx,size_t> idx_sz = file.longest("adc") ; SWEAR( idx_sz.first==idx1 && idx_sz.second==1 ) ;
+		Idx                idx1   = file.insert (f     ) ; SWEAR( idx1                                                   ) ; file.chk() ;
+		Idx                idx2   = file.insert ("abc"s) ; SWEAR( idx2                                                   ) ; file.chk() ;
+		Idx                idx3   = file.search (f     ) ; SWEAR( idx3==idx1                             , idx3   , idx1 ) ;
+		::string           n      = file.str_key(idx1  ) ; SWEAR( n==f                                   , n      , f    ) ;
+		Idx                idx4   = file.search ("abc"s) ; SWEAR( idx4==idx2                             , idx4   , idx2 ) ;
+		Idx                idx5   = file.search ("adc"s) ; SWEAR( !idx5                                  , idx5          ) ;
+		::pair<Idx,size_t> idx_sz = file.longest("adc"s) ; SWEAR( idx_sz.first==idx1 && idx_sz.second==1 , idx_sz , idx1 ) ;
 	}
 	void test_data() requires(!HasData) {}
 	void test_data() requires( HasData) {
 		::string f = Reverse ? "c" : "a" ;
-		Idx      idx1 = file.search    (f    )      ;
-		Idx      idx2 = file.insert    (f    )      ; SWEAR(idx2==idx1) ; file.chk() ;
-		/**/            file.at        (idx1 ) = 35 ;
-		Idx      idx3 = file.insert    ("adc")      ;                     file.chk() ;
-		/**/            file.at        (idx3 ) = 36 ;                     file.chk() ;
-		Idx      idx4 = file.search    (f    )      ; SWEAR(idx4==idx1) ;
-		int      v1   = file.at        (idx1 )      ; SWEAR(v1  ==35  ) ;
-		::string n1   = file.str_key   (idx1 )      ; SWEAR(n1  ==f   ) ;
-		int      v2   = *file.search_at("adc")      ; SWEAR(v2  ==36  ) ;
+		Idx      idx1 = file.search    (f     )      ;
+		Idx      idx2 = file.insert    (f     )      ; SWEAR(idx2==idx1) ; file.chk() ;
+		/**/            file.at        (idx1  ) = 35 ;
+		Idx      idx3 = file.insert    ("adc"s)      ;                     file.chk() ;
+		/**/            file.at        (idx3  ) = 36 ;                     file.chk() ;
+		Idx      idx4 = file.search    (f     )      ; SWEAR(idx4==idx1) ;
+		int      v1   = file.at        (idx1  )      ; SWEAR(v1  ==35  ) ;
+		::string n1   = file.str_key   (idx1  )      ; SWEAR(n1  ==f   ) ;
+		int      v2   = *file.search_at("adc"s)      ; SWEAR(v2  ==36  ) ;
 	}
-	TestPrefix() : file(g_dir+"prefix"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Reverse?"_reverse":""),true/*writable*/) {
-		::cout<<"check prefix" ;
-		if (HasHdr    ) ::cout<<" with header"  ;
-		if (HasData   ) ::cout<<" with data"    ;
-		if (Reverse   ) ::cout<<" with reverse" ;
-		::cout<<" ..." ;
+	TestPrefix() : file(g_dir_s+"prefix"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Reverse?"_reverse":""),true/*writable*/) {
+		::string out = "check prefix" ;
+		if (HasHdr    ) out<<" with header"  ;
+		if (HasData   ) out<<" with data"    ;
+		if (Reverse   ) out<<" with reverse" ;
+		out<<" ..." ;
+		Fd::Stdout.write(out) ;
 		test_hdr () ;
 		test_tree() ;
 		test_data() ;
-		::cout<<" ok\n" ;
+		Fd::Stdout.write(" ok\n") ;
 	}
 
 	// data
-	SinglePrefixFile<false,Hdr,Idx,Char,Data,Reverse> file ;
+	SinglePrefixFile<false,Hdr,Idx,20,Char,Data,Reverse> file ;
 } ;
 void test_prefix() {
 	TestPrefix<false/*HasHdr*/,false/*HasData*/,false/*Reverse*/>() ;
@@ -406,24 +298,23 @@ void test_prefix() {
 }
 
 void test_lmake() {
-	::cout<<"check lmake ..." ;
-	SinglePrefixFile<false,void,uint32_t> file(g_dir+"lmake",true/*writable*/) ;
+	Fd::Stdout.write("check lmake ...") ;
+	SinglePrefixFile<false,void,uint32_t,20> file(g_dir_s+"lmake",true/*writable*/) ;
 	char key ;
 	key = (char)0x28 ; file.insert(::string(&key,1)) ;
 	key = (char)0xb1 ; file.insert(::string(&key,1)) ;
 	key = (char)0xef ; file.insert(::string(&key,1)) ;
-	::cout<<" ok\n" ;
+	Fd::Stdout.write(" ok\n") ;
 }
 
 int main( int argc , char const* argv[] ) {
 	SWEAR(argc==2) ;
-	g_dir = argv[1] ; g_dir.push_back('/') ;
-	::cout<<"chk dir : "<<g_dir<<'\n' ;
-	test_file     () ;
-	test_struct   () ;
-	test_side_car () ;
-	test_red_black() ;
-	test_prefix   () ;
-	test_lmake    () ;
+	g_dir_s = with_slash(argv[1]) ;
+	Fd::Stdout.write("chk dir : "s+no_slash(g_dir_s)+'\n') ;
+	test_file    () ;
+	test_struct  () ;
+	test_side_car() ;
+	test_prefix  () ;
+	test_lmake   () ;
 	return 0 ;
 }

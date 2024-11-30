@@ -39,10 +39,10 @@ else :
 	print(         file=open('a'      ,'w'))
 	print(         file=open('b'      ,'w'))
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'cmd_light' , 'cmd_heavy' , 'rule_light' , 'rule_heavy' , 'dep_dut' , done=5 , new=1 )
+	ut.lmake( 'cmd_light' , 'cmd_heavy' , 'rule_light' , 'rule_heavy' , 'dep_light' , 'dep_heavy' , done=6 , new=1 )
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'cmd_light' , 'rule_light' , 'dep_dut' , done=3 , new=1 )
+	ut.lmake( 'cmd_light' , 'rule_light' , 'dep_light' , done=3 , new=1 )
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'cmd_light' , 'cmd_heavy' , 'rule_light' , 'rule_heavy' , 'dep_dut' , steady=2 , done=3 , new=1 ) # check heavy are not rebuild
+	ut.lmake( 'cmd_light' , 'cmd_heavy' , 'rule_light' , 'rule_heavy' , 'dep_light' , 'dep_heavy' , done=3 , new=1 ) # check light are rebuilt and heavy are not

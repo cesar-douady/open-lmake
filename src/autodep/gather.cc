@@ -6,7 +6,6 @@
 #include "app.hh"
 #include "thread.hh"
 
-#include "fuse.hh"
 #include "ptrace.hh"
 
 #include "gather.hh"
@@ -19,10 +18,10 @@ using namespace Time ;
 // Gather::AccessInfo
 //
 
-::ostream& operator<<( ::ostream& os , Gather::AccessInfo const& ai ) {
+::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) {
 	bool  i  = false/*garbage*/ ;
 	Pdate rd = Pdate::Future    ;
-	for( Access a : All<Access> ) if ( rd>ai.read[+a] ) { rd = ai.read[+a] ; i = !ai.digest.accesses[a] ; }
+	for( Access a : iota(All<Access>) ) if ( rd>ai.read[+a] ) { rd = ai.read[+a] ; i = !ai.digest.accesses[a] ; }
 	/**/                                            os << "AccessInfo("                                         ;
 	if ( rd!=Pdate::Future                        ) os << "R:" <<rd<<(i?"~":"")                           <<',' ;
 	if ( ai.digest.extra_tflags[ExtraTflag::Allow]) os << "T:" <<ai.target                                <<',' ;
@@ -39,21 +38,17 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	digest.dflags       |= ad.dflags       ;
 	digest.extra_dflags |= ad.extra_dflags ;
 	//
-	bool tfi =        digest.extra_tflags[ExtraTflag::Ignore] ;
-	bool dfi = tfi || digest.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
+	bool tfi =        ad.extra_tflags[ExtraTflag::Ignore] ;
+	bool dfi = tfi || ad.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
 	//
-	if (!dfi) {
-		for( Access a : All<Access> ) if (read[+a]<=pd) goto NotFirst ;
-		dep_info = di ;
-	NotFirst :
-		for( Access a : All<Access> ) if ( PD& d=read[+a] ; ad.accesses[a]       && pd<d ) { digest.accesses |= a ; d = pd ; }
-		/**/                          if ( PD& d=seen     ; di.seen(ad.accesses) && pd<d )                          d = pd ;
-	}
-	if (!tfi) {
-		digest.write |= ad.write ;
-		if ( PD& d=write  ; ad.write==Yes                      && pd<d ) d = pd ;
-		if ( PD& d=target ; ad.extra_tflags[ExtraTflag::Allow] && pd<d ) d = pd ;
-	}
+	// if ignore, record empty info (which will mask further info)
+	for( Access a : iota(All<Access>) ) if (read[+a]<=pd) goto NotFirst ;
+	dep_info = dfi ? DI() : di ;
+NotFirst :
+	/**/                                if ( PD& d=seen     ; pd<d && (dfi||di.seen(ad.accesses))        ) { d = pd ; digest_seen  = !dfi            ; }
+	for( Access a : iota(All<Access>) ) if ( PD& d=read[+a] ; pd<d && (dfi||ad.accesses[a]      )        ) { d = pd ; digest.accesses.set(a,!dfi)    ; }
+	/**/                                if ( PD& d=write    ; pd<d && (tfi||ad.write!=No        )        ) { d = pd ; digest.write = (!tfi)&ad.write ; }
+	/**/                                if ( PD& d=target   ; pd<d && ad.extra_tflags[ExtraTflag::Allow] )   d = pd ;
 	//
 }
 
@@ -61,7 +56,7 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 // Gather
 //
 
-::ostream& operator<<( ::ostream& os , Gather const& gd ) {
+::string& operator+=( ::string& os , Gather const& gd ) {
 	/**/             os << "Gather(" << gd.accesses ;
 	if (gd.seen_tmp) os <<",seen_tmp"               ;
 	return           os << ')'                      ;
@@ -191,9 +186,7 @@ Fd Gather::_spawn_child() {
 		child_fd  = pipe.read  ;
 		report_fd = pipe.write ;
 	} else {
-		if (method==AutodepMethod::Fuse) {                                                       // PER_AUTODEP_METHOD : handle case
-			Fuse::Mount::s_autodep_env(autodep_env) ;
-		} else if (method>=AutodepMethod::Ld) {                                                  // PER_AUTODEP_METHOD : handle case
+		if (method>=AutodepMethod::Ld) {                                                         // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
 			switch (method) {                                                                    // PER_AUTODEP_METHOD : handle case
 				#if HAS_32
@@ -241,7 +234,7 @@ Status Gather::exec_child() {
 	autodep_env.service = job_master_fd.service(addr) ;
 	trace("autodep_env",::string(autodep_env)) ;
 	//
-	AutoCloseFd                                          child_fd           ;
+	AcFd                                                 child_fd           ;
 	::jthread                                            wait_jt            ;                    // thread dedicated to wating child
 	Epoll                                                epoll              { New }       ;
 	Status                                               status             = Status::New ;
@@ -338,7 +331,6 @@ Status Gather::exec_child() {
 		for( Epoll::Event const& event : events ) {
 			Kind kind = event.data<Kind>() ;
 			Fd   fd   = event.fd()         ;
-			if (kind!=Kind::JobSlave) trace(kind,fd) ;
 			switch (kind) {
 				case Kind::Stdout :
 				case Kind::Stderr : {
@@ -346,6 +338,7 @@ Status Gather::exec_child() {
 					int           cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR( cnt>=0 , cnt ) ;
 					::string_view buf_view  { buf , size_t(cnt) }                                      ;
 					if (cnt) {
+						trace(kind,fd,cnt) ;
 						if (kind==Kind::Stderr) {
 							stderr.append(buf_view) ;
 						} else {
@@ -373,8 +366,8 @@ Status Gather::exec_child() {
 					struct signalfd_siginfo si  ;
 					int                     cnt = ::read( fd , &si , sizeof(si) ) ; SWEAR(cnt>0) ;
 					if (si.ssi_pid) ::waitpid(si.ssi_pid,&wstatus,0) ;                             // else  wstatus is already set
+					trace(kind,fd,si.ssi_pid,to_hex(uint(wstatus))) ;
 					if ( pid_t(si.ssi_pid)==_child.pid && !WIFSTOPPED(wstatus) ) {
-						if (method==AutodepMethod::Fuse) Fuse::Mount::s_close_report() ;           // close fuse reporting as no one else will tell it
 						end_date   = New                      ;
 						_end_child = end_date + network_delay ;                                    // wait at most network_delay for reporting & stdout & stderr to settle down
 						if      (WIFEXITED  (wstatus)) set_status(             WEXITSTATUS(wstatus)!=0 ? Status::Err : Status::Ok       ) ;
@@ -382,9 +375,9 @@ Status Gather::exec_child() {
 						else                           fail("unexpected wstatus : ",wstatus) ;
 						epoll.del(fd) ;
 						_wait &= ~Kind::ChildEnd ;
-						/**/                   epoll.cnt-- ;                                    // dont wait for new connections from job (but process those that come)
-						if (+server_master_fd) epoll.cnt-- ;                                    // idem for connections from server
-						trace("close",kind,si.ssi_pid,status,::hex,wstatus,::dec,"wait",_wait,epoll.cnt) ;
+						/**/                   epoll.cnt-- ;                               // dont wait for new connections from job (but process those that come)
+						if (+server_master_fd) epoll.cnt-- ;                               // idem for connections from server
+						trace("close",kind,status,"wait",_wait,epoll.cnt) ;
 					}
 				} break ;
 				case Kind::JobMaster    :
@@ -393,15 +386,15 @@ Status Gather::exec_child() {
 					Fd   slave  ;
 					if (is_job) { SWEAR( fd==job_master_fd    , fd , job_master_fd    ) ; slave = job_master_fd   .accept().detach() ; epoll.add_read(slave,Kind::JobSlave   ) ; }
 					else        { SWEAR( fd==server_master_fd , fd , server_master_fd ) ; slave = server_master_fd.accept().detach() ; epoll.add_read(slave,Kind::ServerSlave) ; }
-					trace("read_slave",STR(is_job),slave,"wait",_wait,epoll.cnt) ;
-					slaves[slave] ;                                                             // allocate entry
+					trace(kind,fd,"read_slave",STR(is_job),slave,"wait",_wait,epoll.cnt) ;
+					slaves[slave] ;                                                        // allocate entry
 				} break ;
 				case Kind::ServerSlave : {
 					JobMngtRpcReply jmrr        ;
 					auto&           slave_entry = slaves.at(fd) ;
-					try         { if (!slave_entry.first.receive_step(fd,jmrr)) continue ; }
-					catch (...) { trace("no_jmrr",jmrr) ; jmrr.proc = {} ;                 }                                                 // fd was closed, ensure no partially received jmrr
-					trace(kind,jmrr) ;
+					try         { if (!slave_entry.first.receive_step(fd,jmrr)) { trace(kind,fd,"...") ; continue ; } }
+					catch (...) { trace("no_jmrr",jmrr) ; jmrr.proc = {} ;                                            }                      // fd was closed, ensure no partially received jmrr
+					trace(kind,fd,jmrr) ;
 					Fd rfd = jmrr.fd ;                                                                                                       // capture before move
 					if (jmrr.seq_id==seq_id) {
 						switch (jmrr.proc) {
@@ -439,19 +432,18 @@ Status Gather::exec_child() {
 					Jerr jerr         ;
 					auto sit          = slaves.find(fd) ;
 					auto& slave_entry = sit->second     ;
-					try                       { if (!slave_entry.first.receive_step(fd,jerr)) continue ;   }
-					catch (::string const& e) { trace("no_jerr",kind,fd,jerr,e) ; jerr.proc = Proc::None ; }                        // fd was closed, ensure no partially received jerr
-					Proc proc  = jerr.proc ;                                                                                        // capture essential info so as to be able to move jerr
-					bool sync_ = jerr.sync ;                                                                                        // .
-					if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                             // there may be too many Access'es, only trace within _new_accesses
-					// XXX : we should process sync accesses once we are sure that all pending async accesses are processed
+					try                       { if (!slave_entry.first.receive_step(fd,jerr)) { trace(kind,fd,"...") ; continue ; } }
+					catch (::string const& e) { trace("no_jerr",kind,fd,jerr,e) ; jerr.proc = Proc::None ; }                                 // fd was closed, ensure no partially received jerr
+					Proc proc  = jerr.proc ;                                                                                                 // capture essential info so as to be able to move jerr
+					bool sync_ = jerr.sync ;                                                                                                 // .
+					if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                                      // accesses are traced when processed
 					switch (proc) {
 						case Proc::Confirm : {
 							trace("confirm",jerr.id,jerr.digest.write) ;
 							auto jit = slave_entry.second.find(jerr.id) ;
-							SWEAR(jit!=slave_entry.second.end()  ) ;                                                                // ensure we can find access to confirm
-							SWEAR(jit->second.digest.write==Maybe) ;                                                                // ensure confirmation is required
-							SWEAR(jerr       .digest.write!=Maybe) ;                                                                // ensure we confirm/infirm
+							SWEAR(jit!=slave_entry.second.end()  ) ;                                                                         // ensure we can find access to confirm
+							SWEAR(jit->second.digest.write==Maybe) ;                                                                         // ensure confirmation is required
+							SWEAR(jerr       .digest.write!=Maybe) ;                                                                         // ensure we confirm/infirm
 							jit->second.digest.write = jerr.digest.write ;
 							_new_accesses(fd,::move(jit->second)) ;
 							slave_entry.second.erase(jit) ;
@@ -459,22 +451,22 @@ Status Gather::exec_child() {
 						case Proc::None :
 							epoll.close(fd) ;
 							trace("close",kind,fd,"wait",_wait,epoll.cnt) ;
-							for( auto& [id,j] : slave_entry.second ) _new_accesses(fd,::move(j)) ;                                  // process deferred entries although with uncertain outcome
+							for( auto& [id,j] : slave_entry.second ) _new_accesses(fd,::move(j)) ;                                           // process deferred entries although with uncertain outcome
 							slaves.erase(sit) ;
 						break ;
 						case Proc::Access :
 							// for read accesses, trying is enough to trigger a dep, so confirm is useless
 							if      (jerr.digest.write!=Maybe                                    ) _new_accesses(fd,::move(jerr)) ;
-							else if (!slave_entry.second.try_emplace(jerr.id,::move(jerr)).second) FAIL()                         ; // check no id clash and defer until confirm resolution
+							else if (!slave_entry.second.try_emplace(jerr.id,::move(jerr)).second) FAIL()                         ;          // check no id clash and defer until confirm resolution
 						break ;
 						case Proc::Tmp        : seen_tmp = true ;                       break        ;
 						case Proc::Guard      : _new_guards(fd,::move(jerr)) ;          break        ;
 						case Proc::DepVerbose :
 						case Proc::Decode     :
 						case Proc::Encode     : _send_to_server(fd,::move(jerr)) ;      goto NoReply ;
-						case Proc::ChkDeps    : delayed_check_deps[fd] = ::move(jerr) ; goto NoReply ;                              // if sync, reply is delayed as well
+						case Proc::ChkDeps    : delayed_check_deps[fd] = ::move(jerr) ; goto NoReply ;                                       // if sync, reply is delayed as well
 						case Proc::Panic :
-							if (!panic_seen) {                                                                                      // report only first panic
+							if (!panic_seen) {                                                                                               // report only first panic
 								set_status(Status::Err,jerr.txt) ;
 								kill() ;
 								panic_seen = true ;
@@ -494,12 +486,12 @@ Return :
 	_child.waited() ;
 	trace("done",status) ;
 	SWEAR(status!=Status::New) ;
-	reorder(true/*at_end*/) ;                                                                                                       // ensure server sees a coherent view
+	reorder(true/*at_end*/) ;                                                                                                                // ensure server sees a coherent view
 	return status ;
 }
 
 // reorder accesses in chronological order and suppress implied dependencies :
-// - when a file is depended upon, its uphill directories are implicitely depended upon under the following conditions, no need to keep them and this significantly decreases the number of deps
+// - when a file is depended upon, its uphill directories are implicitly depended upon under the following conditions, no need to keep them and this significantly decreases the number of deps
 //   - either file exists
 //   - or dir is only accessed as link
 // - suppress dir when one of its sub-files appears before            (and condition above is satisfied)
@@ -513,7 +505,7 @@ void Gather::reorder(bool at_end) {
 			return a.second.first_read().first < b.second.first_read().first ;
 		}
 	) ;
-	// 1st pass (backward) : note dirs of immediately following files
+	// 1st pass (backward) : note dirs immediately following files
 	::vmap_s<AccessInfo>::reverse_iterator last = accesses.rend() ;
 	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {                                                         // XXX : manage parallel deps
 		::string const& file   = it->first         ;
@@ -560,5 +552,5 @@ void Gather::reorder(bool at_end) {
 		i_dst++ ;
 	}
 	accesses.resize(i_dst) ;
-	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map.at(accesses[i].first) = i ;                                     // always recompute access_map as accesses has been sorted
+	for( NodeIdx i : iota(accesses.size()) ) access_map.at(accesses[i].first) = i ;                                         // always recompute access_map as accesses has been sorted
 }

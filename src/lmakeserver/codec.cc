@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
+#include "core.hh" // must be first to include Python.h first
 
 #include "rpc_job.hh"
 #include "codec.hh"
@@ -23,15 +23,13 @@ namespace Codec::Persistent {
 
 namespace Codec {
 
-	bool writable = false ;
-
 	DequeThread<Codec::Closure>* g_codec_queue = nullptr ;
 
 	::umap_s<Closure::Entry> Closure::s_tab      ;
 
 	void codec_thread_func(Closure const& cc) ;
 
-	::ostream& operator<<( ::ostream& os , Closure const& cc ) {
+	::string& operator+=( ::string& os , Closure const& cc ) {
 		/**/                              os << "Closure(" << cc.proc                                              ;
 		if (cc.proc==JobMngtProc::Encode) os <<','<< cc.min_len()                                                  ;
 		return                            os <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<','<< cc.reqs <<')' ;
@@ -41,8 +39,8 @@ namespace Codec {
 		static DequeThread<Closure> s_queue{'D',Codec::codec_thread_func} ;
 		g_codec_queue = &s_queue ;
 		//
-		Persistent::val_file .init(CodecPfx+"/vals"s ,writable) ; // writing CodecPfx+"/vals"s triggers a warning with -O3, probably a gcc bug
-		Persistent::code_file.init(CodecPfx+"/codes"s,writable) ; // .
+		Persistent::val_file .init(CodecPfx+"/vals"s ,g_writable) ; // writing CodecPfx+"/vals"s triggers a warning with -O3, probably a gcc bug
+		Persistent::code_file.init(CodecPfx+"/codes"s,g_writable) ; // .
 	}
 
 	void _create_node( ::string const& file , Node node , Buildable buildable , ::string const& txt ) {
@@ -77,14 +75,34 @@ namespace Codec {
 		DF}
 	}
 
+	static FileNameIdx _code_prio( ::string const& code , ::string const& crc ) {
+		SWEAR( +code && code.size()<=PATH_MAX , code ) ;
+		::string_view code1 { code.data() , code.size()-1 } ;
+		char          last  = code.back()                   ;
+		uint8_t       lvl   = 3                             ;
+		if      ( crc.starts_with(code)                                                      ) lvl = 2 ; // an automatic code, not good as a user provided one
+		else if ( crc.starts_with(code1) && ((last>='0'&&last<='9')||(last>='a'&&last<='f')) ) lvl = 1 ; // an automatic replacement code in case of clash, the worst
+		return PATH_MAX*lvl-code.size() ;                                                                // prefer shorter codes
+	}
+
+	static ::string _mk_new_code( ::string const& code , ::string const& val , ::map_ss const& codes ) {
+		::string crc = Xxh(val).digest().hex() ;
+		uint8_t d ; for ( d=0 ; d<code.size() ; d++ ) if ( crc.starts_with(::string_view(&code[d],code.size()-d)) ) break ;
+		::string pfx = code.substr(0,d) ;
+		for( uint8_t i : iota(d+1,crc.size()) ) {
+			::string res = pfx+crc.substr(0,i) ;
+			if (!codes.contains(res)) return res ;
+		}
+		FAIL("codec crc clash for code",code,crc,val) ;
+	}
+
 	void Closure::_s_canonicalize( ::string const& file , ::vector<ReqIdx> const& reqs ) {
-		bool                              is_canonic = true             ;
-		::map_s<map_ss>/*ctx->val->code*/ encode_tab ;
-		bool                              first      = true             ;
-		::string                          prev_ctx   ;
-		::string                          prev_code  ;
-		::vector<Node>                    nodes      ;
-		::vector_s                        lines      = read_lines(file) ;
+		::map_s<umap_ss>/*ctx->val->code*/ encode_tab ;
+		::string                           prev_ctx   ;
+		::string                           prev_code  ;
+		::vector<Node>                     nodes      ;
+		bool                               is_canonic = true                                      ;
+		::vector_s                         lines      = AcFd(file).read_lines(true/*no_file_ok*/) ;
 		//
 		auto process_node = [&]( ::string const& ctx , ::string const& code , ::string const& val )->void {
 			Node dn { mk_decode_node(file,ctx,code) , true/*no_dir*/ } ; nodes.emplace_back(dn) ;
@@ -93,84 +111,66 @@ namespace Codec {
 		} ;
 		Trace trace("_s_canonicalize",file,lines.size()) ;
 		//
+		bool first = true ;
 		for( ::string const& line : lines ) {
-			size_t   pos  = 0 ;
-			::string ctx  ;
-			::string code ;
-			::string val  ;
-			/**/                                    if (line[pos++]!=' ') goto BadFormat ;
-			ctx  = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') goto BadFormat ;
-			code = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') goto BadFormat ;
-			val  = parse_printable     (line,pos) ; if (line[pos  ]!=0  ) goto BadFormat ;
-			//
-			is_canonic &= first || ::pair(prev_ctx,prev_code)<::pair(ctx,code) ;          // use same order as in decode_tab below when rewriting file
-			is_canonic &= line==_codec_line(ctx,code,val,false/*with_nl*/)     ;          // in case user encoded line in a non-canonical way, such as using \x0a for \n
-			//
-			{	auto [it,inserted] = encode_tab[ctx].try_emplace(val,code) ;
-				if (inserted        )                             goto Continue ;         // new entry
-				else                    is_canonic = false ;
-				if (it->second==code) { trace("duplicate",line) ; goto Continue ; }
-				::string const& prev_code = it->second          ;                         // 2 codes for the same val, keep best one (preference to user codes, then shorter)
-				::string        crc       = ::string(Xxh(val).digest()) ;
-				trace("val_conflict",prev_code,code) ;
-				if (                                                                      // keep best : user is better than auto then shorter is better than longer
-					pair( code     ==crc.substr(0,code     .size()) , code     .size() )
-				<	pair( prev_code==crc.substr(0,prev_code.size()) , prev_code.size() )
-				) it->second = code ;
-				trace("keep",it->second) ;
-				goto Continue ;
+			{	size_t pos = 0 ;
+				/**/                                             if (line[pos++]!=' ') { trace("no_space_0") ; is_canonic=false ; continue ; }
+				::string ctx  = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') { trace("no_space_1") ; is_canonic=false ; continue ; }
+				::string code = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') { trace("no_space_2") ; is_canonic=false ; continue ; }
+				::string val  = parse_printable     (line,pos) ; if (line[pos  ]!=0  ) { trace("no_end"    ) ; is_canonic=false ; continue ; }
+				//
+				if (is_canonic) {
+					// use same order as in decode_tab below when rewriting file and ensure standard line formatting
+					if      ( !first && ::pair(prev_ctx,prev_code)>=::pair(ctx,code)          ) { trace("wrong_order",prev_ctx,prev_code,ctx,code) ; is_canonic=false ; }
+					else if ( ::string l=_codec_line(ctx,code,val,false/*with_nl*/) ; line!=l ) { trace("fancy_line" ,'"'+line+'"',"!=",'"'+l+'"') ; is_canonic=false ; }
+				}
+				//
+				auto [it,inserted] = encode_tab[ctx].try_emplace(val,code) ;
+				if (inserted) {
+					prev_ctx  = ::move(ctx ) ;
+					prev_code = ::move(code) ;
+					first     = false        ;
+				} else {
+					is_canonic = false ;
+					if (it->second==code) {
+						trace("duplicate",line) ;
+					} else {
+						::string crc = Xxh(val).digest().hex() ;
+						if (_code_prio(code,crc)>_code_prio(it->second,crc)) it->second = code ; // keep best code
+						trace("val_conflict",prev_code,code,it->second) ;
+					}
+				}
 			}
-		BadFormat :
-			is_canonic = false ;
-			trace("bad_format",line) ;
-		Continue :
-			prev_ctx  = ::move(ctx ) ;
-			prev_code = ::move(code) ;
-			first       = false      ;
 		}
 		trace(STR(is_canonic)) ;
 		//
-		if (!is_canonic) {                                                                // if already canonic, nothing to do
-			// disambiguate in case the same code is used for the several values
-			OFStream                          os         { file } ;
+		if (!is_canonic) { // if already canonic, nothing to do, there may not be any code conflict as they are strictly increasing
+			// disambiguate in case the same code is used for the several vals
 			::map_s<map_ss>/*ctx->code->val*/ decode_tab ;
-			//
+			bool                              has_clash  = false ;
 			for( auto const& [ctx,e_entry] : encode_tab ) {
-				::uset_s codes   = mk_key_uset(e_entry) ;
-				::map_ss d_entry = decode_tab[ctx]      ;
-				for( auto const& [val,code] : e_entry ) {
-					if (d_entry.try_emplace(code,val).second) continue ;                  // 2 vals for the same code, need to disambiguate
-					::string crc      = ::string(Xxh(val).digest()) ;
-					::string new_code ;
-					if (code==crc.substr(0,code.size())) {
-						for( uint8_t i=code.size() ; i<=crc.size() ; i++ ) {
-							new_code = crc.substr(0,i) ;
-							if (!codes.contains(new_code)) goto NewCode ;
-						}
-						FAIL("codec crc clash for code",crc) ;
-					} else {
-						uint8_t d ; for ( d=code.size() ; d>=1 && '0'<=code[d-1] && code[d-1]<='9' ; d-- ) ;
-						for( size_t inc=1 ; inc<codes.size() ; inc++ ) {
-							new_code = code.substr(0,d) + (from_string<size_t>(code.substr(d),true/*empty_ok*/)+inc) ;
-							if (!codes.contains(new_code)) goto NewCode ;
-						}
-						FAIL("cannot find new code from",code) ;
+				::map_ss& d_entry = decode_tab[ctx] ;
+				for( auto const& [val,code] : e_entry ) has_clash |= d_entry.try_emplace(code,val).second ;
+			}
+			if (has_clash) {
+				for( auto const& [ctx,e_entry] : encode_tab ) {
+					::map_ss& d_entry = decode_tab.at(ctx) ;
+					for( auto const& [val,code] : e_entry ) if (d_entry.at(code)!=val) {
+						bool inserted = d_entry.try_emplace(_mk_new_code(code,val,d_entry),val).second ;
+						SWEAR(inserted) ;                                                                // purpose of new_code is to be unique
 					}
-				NewCode :
-					trace("code_conflict",code,"new",new_code,d_entry.at(code),val) ;
-					d_entry.try_emplace(new_code,val) ;
-					codes.insert(new_code) ;
-				}
-				for( auto const& [code,val] : d_entry ) {
-					os << _codec_line(ctx,code,val,true/*with_nl*/) ;
-					process_node(ctx,code,val) ;
 				}
 			}
+			::string lines ;
+			for( auto const& [ctx,d_entry] : decode_tab )
+				for( auto const& [code,val] : d_entry )
+					lines << _codec_line(ctx,code,val,true/*with_nl*/) ;
+			AcFd(file,Fd::Write).write(lines) ;
 			for( ReqIdx r : reqs ) Req(r)->audit_node(Color::Note,"refresh",Node(file)) ;
-		} else {                                                                          // file needs no update, but we must record file content into nodes
-			for( auto const& [ctx,e_entry] : encode_tab )
-				for( auto const& [val,code] : e_entry ) process_node(ctx,code,val) ;
 		}
+		for( auto const& [ctx,e_entry] : encode_tab )
+			for( auto const& [val,code] : e_entry )
+				process_node(ctx,code,val) ;
 		// wrap up
 		Ddate log_date = s_tab.at(file).log_date ;
 		for( Node n : nodes ) n->log_date() = log_date ;
@@ -211,7 +211,7 @@ namespace Codec {
 	}
 
 	JobMngtRpcReply Closure::decode() const {
-		Trace trace("decode",*this) ;
+		Trace trace("decode",self) ;
 		SWEAR(proc==JobMngtProc::Decode,proc) ;
 		Node decode_node { mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
 		bool refreshed = s_refresh( file , +decode_node , reqs ) ;
@@ -227,7 +227,7 @@ namespace Codec {
 	}
 
 	JobMngtRpcReply Closure::encode() const {
-		Trace trace("encode",*this) ;
+		Trace trace("encode",self) ;
 		SWEAR(proc==JobMngtProc::Encode,proc) ;
 		Node encode_node { mk_encode_node(file,ctx,txt) , true/*no_dir*/ } ;
 		if ( !s_refresh( file , +encode_node , reqs ) ) {
@@ -241,10 +241,10 @@ namespace Codec {
 			return { JobMngtProc::Encode , {}/*seq_id*/ , {}/*fd*/ , code , encode_node->crc , Yes } ; // seq_id and fd will be filled in later
 		}
 		//
-		::string full_code   = ::string(Xxh(txt).digest())   ;
-		::string code        = full_code.substr(0,min_len()) ;
+		::string crc         = Xxh(txt).digest().hex() ;
+		::string code        = crc.substr(0,min_len()) ;
 		Node     decode_node ;
-		for(; code.size()<=full_code.size() ; code=full_code.substr(0,code.size()+1) ) {
+		for(; code.size()<=crc.size() ; code=crc.substr(0,code.size()+1) ) {
 			decode_node = { mk_decode_node(file,ctx,code) , true/*no_dir*/ } ;
 			if (!_buildable_ok(file,decode_node)) goto NewCode ;
 		}
@@ -252,7 +252,7 @@ namespace Codec {
 		return { JobMngtProc::Encode , {}/*seq_id*/ , {}/*fd*/ , "crc clash" , {} , No } ;             // this is a true full crc clash, seq_id and fd will be filled in later
 	NewCode :
 		trace("new_code",code) ;
-		OFStream(file,::ios::app) << _codec_line(ctx,code,txt,true/*with_nl*/) ;
+		AcFd(file,Fd::Append).write(_codec_line(ctx,code,txt,true/*with_nl*/)) ;                       // Maybe means append
 		Entry& entry = s_tab.at(file) ;
 		Pdate  now   { New }          ;
 		_create_pair( file , decode_node , txt , encode_node , code ) ;

@@ -5,10 +5,10 @@
 
 // doc : https://wiki.archlinux.org/title/Son_of_Grid_Engine
 
+#include "generic.hh" // /!\ must be first because Python.h must be first
+
 #include "disk.hh"
 #include "process.hh"
-
-#include "generic.hh"
 
 using namespace Disk ;
 
@@ -21,7 +21,7 @@ namespace Backends::Sge {
 	//
 
 	struct Daemon {
-		friend ::ostream& operator<<( ::ostream& , Daemon const& ) ;
+		friend ::string& operator+=( ::string& , Daemon const& ) ;
 		// data
 		::map_s<size_t> licenses ; // licenses sampled from daemon
 	} ;
@@ -31,20 +31,33 @@ namespace Backends::Sge {
 	//
 
 	struct RsrcsData {
-		friend ::ostream& operator<<( ::ostream& , RsrcsData const& ) ;
+		friend ::string& operator+=( ::string& , RsrcsData const& ) ;
 		// cxtors & casts
 		RsrcsData(           ) = default ;
 		RsrcsData(::vmap_ss&&) ;
 		// accesses
 		bool operator==(RsrcsData const&) const = default ;
+		// services
+		RsrcsData round(Backend const&) const {
+			// rounding is only used to avoid too many waiting queues, only criteria to take into account are those that decide launch/not launch
+			RsrcsData res ;
+			//                         prio is not significant for launching/not launching, not pertinent
+			/**/                       res.cpu  = round_rsrc(cpu) ;
+			/**/                       res.mem  = round_rsrc(mem) ;
+			/**/                       res.tmp  = round_rsrc(tmp) ;
+			/**/                       res.hard = hard            ; // cannot round as syntax is not managed
+			//                         soft are not signficant for launching/not launching, not pertinent
+			for( auto const& [k,t] : tokens ) res.tokens.emplace_back(k,round_rsrc(t)) ;
+			return res ;
+		}
 		// data
 		int16_t            prio   = 0  ; // priority              : qsub -p <prio>     (prio comes from lmake -b               )
 		uint16_t           cpu    = 0  ; // number of logical cpu : qsub -l <cpu_rsrc> (cpu_rsrc comes from config, always hard)
 		uint32_t           mem    = 0  ; // memory   in MB        : qsub -l <mem_rsrc> (mem_rsrc comes from config, always hard)
 		uint32_t           tmp    = -1 ; // tmp disk in MB        : qsub -l <tmp_rsrc> (tmp_rsrc comes from config, always hard) default : dont manage tmp size (provide infinite storage, reserve none)
-		::vmap_s<uint64_t> tokens ;      // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
 		::vector_s         hard   ;      // hard options          : qsub -hard <val>
 		::vector_s         soft   ;      // soft options          : qsub -soft <val>
+		::vmap_s<uint64_t> tokens ;      // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
 		// services
 		::vmap_ss mk_vmap(void) const ;
 	} ;
@@ -86,8 +99,8 @@ namespace Backends::Sge {
 	constexpr Tag MyTag = Tag::Sge ;
 
 	struct SgeBackend
-	:	             GenericBackend<MyTag,SgeId,RsrcsData,RsrcsData,false/*IsLocal*/>
-	{	using Base = GenericBackend<MyTag,SgeId,RsrcsData,RsrcsData,false/*IsLocal*/> ;
+	:	             GenericBackend<MyTag,SgeId,RsrcsData,false/*IsLocal*/>
+	{	using Base = GenericBackend<MyTag,SgeId,RsrcsData,false/*IsLocal*/> ;
 
 		struct SpawnedMap : ::umap<Rsrcs,JobIdx> {
 			// count number of jobs spawned but not started yet
@@ -142,10 +155,10 @@ namespace Backends::Sge {
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
-			if (!sge_bin_dir_s ) throw "must specify bin_dir to configure SGE"s  ;
-			if (!sge_root_dir_s) throw "must specify root_dir to configure SGE"s ;
+			throw_unless( +sge_bin_dir_s  , "must specify bin_dir to configure SGE" ) ;
+			throw_unless( +sge_root_dir_s , "must specify root_dir to configure SGE") ;
 			if (!dynamic) {
-				daemon = sge_sense_daemon(*this) ;
+				daemon = sge_sense_daemon(self) ;
 				_s_sge_cancel_thread.open('C',sge_cancel) ;
 			}
 			trace("done") ;
@@ -153,19 +166,6 @@ namespace Backends::Sge {
 
 		virtual ::vmap_ss descr() const {
 			return {} ;
-		}
-
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
-			bool             single = false             ;
-			::umap_s<size_t> capa   = mk_umap(capacity) ;
-			::umap_s<size_t> rs     ;
-			for( auto&& [k,v] : rsrcs ) {
-				if (capa.contains(k)) { size_t s = from_string_rsrc<size_t>(k,v) ; rs[::move(k)] = s ; } // capacities of local backend are only integer information
-			}
-			::vmap_ss res ;
-			if (single) for( auto&& [k,v] : rs ) { ::string s = to_string_rsrc(k,        capa[k] ) ; res.emplace_back( ::move(k) , ::move(s) ) ; }
-			else        for( auto&& [k,v] : rs ) { ::string s = to_string_rsrc(k,::min(v,capa[k])) ; res.emplace_back( ::move(k) , ::move(s) ) ; }
-			return res ;
 		}
 
 		virtual void open_req( Req req , JobIdx n_jobs ) {
@@ -182,13 +182,12 @@ namespace Backends::Sge {
 		virtual ::vmap_ss export_( RsrcsData const& rs              ) const { return rs.mk_vmap()  ; }
 		virtual RsrcsData import_( ::vmap_ss     && rsa , Req , Job ) const { return {::move(rsa)} ; }
 		//
-		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
-			bool res = spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
+		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
+			bool res = spawned_rsrcs.n_spawned(rs) < n_max_queued_jobs ;
 			return res ;
 		}
-		virtual Rsrcs acquire_rsrcs(RsrcsAsk const& rsa) const {
-			spawned_rsrcs.inc(rsa) ;
-			return rsa ;
+		virtual void acquire_rsrcs(Rsrcs const& rs) const {
+			spawned_rsrcs.inc(rs) ;
 		}
 		virtual void start_rsrcs(Rsrcs const& rs) const {
 			spawned_rsrcs.dec(rs) ;
@@ -287,7 +286,7 @@ namespace Backends::Sge {
 	// Daemon
 	//
 
-	::ostream& operator<<( ::ostream& os , Daemon const& d ) {
+	::string& operator+=( ::string& os , Daemon const& d ) {
 		return os << "Daemon(" << d.licenses <<')' ;
 	}
 
@@ -295,7 +294,7 @@ namespace Backends::Sge {
 	// RsrcsData
 	//
 
-	::ostream& operator<<( ::ostream& os , RsrcsData const& rsd ) {
+	::string& operator+=( ::string& os , RsrcsData const& rsd ) {
 		/**/                                  os <<"(cpu="<<       rsd.cpu       ;
 		if (rsd.mem              )            os <<",mem="<<       rsd.mem<<"MB" ;
 		if (rsd.tmp!=uint32_t(-1))            os <<",tmp="<<       rsd.tmp<<"MB" ;
@@ -311,7 +310,7 @@ namespace Backends::Sge {
 		size_t     i   ;
 		for( i=0 ; i<res.size() ; i++ ) {
 			::string const& v = res[i] ;
-			if (v[0]!='-') throw "bad option does not start with - : "+v ;
+			throw_unless( v[0]=='-' , "bad option does not start with - : ",v ) ;
 			switch (v[1]) {
 				case 'a' : if (v=="-a"      ) { i++ ;                                                   continue ; }
 				/**/       if (v=="-ac"     ) { i++ ;                                                   continue ; }
@@ -347,7 +346,7 @@ namespace Backends::Sge {
 			DN}
 			throw "unexpected option : "+v ;
 		}
-		if (i!=res.size()) throw "option "+res.back()+" expects an argument" ;
+		throw_unless( i==res.size() , "option ",res.back()," expects an argument" ) ;
 		return res ;
 	}
 	inline RsrcsData::RsrcsData(::vmap_ss&& m) {
@@ -389,7 +388,7 @@ namespace Backends::Sge {
 	}
 
 	::string sge_mk_name(::string&& s) {
-		for( size_t i=0 ; i<s.size() ; i++ )
+		for( size_t i : iota(s.size()) )
 			switch (s[i]) {
 				case '/'  : s[i] = '|' ; break ; // this char is forbidden in SGE names (cf man 5 sge_types), replace with best approximation (for cosmetic only, ambiguities are acceptable)
 				case ':'  : s[i] = ';' ; break ;

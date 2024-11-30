@@ -13,7 +13,7 @@ namespace Hash {
 	// Crc
 	//
 
-	::ostream& operator<<( ::ostream& os , Crc const crc ) {
+	::string& operator+=( ::string& os , Crc const crc ) {
 		CrcSpecial special{crc} ;
 		if (special==CrcSpecial::Plain) return os << "Crc("<<::string(crc)<<')' ;
 		else                            return os << "Crc("<<special      <<')' ;
@@ -21,13 +21,13 @@ namespace Hash {
 
 	Crc::Crc(::string const& filename) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
-		*this = None ;
-		if ( AutoCloseFd fd = ::open(filename.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
+		self = None ;
+		if ( AcFd fd = ::open(filename.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
 			FileTag tag       = FileInfo(fd).tag() ;
 			char    buf[4096] ;
 			switch (tag) {
 				case FileTag::Empty :
-					*this = Empty ;
+					self = Empty ;
 				break ;
 				case FileTag::Reg :
 				case FileTag::Exe : {
@@ -42,41 +42,42 @@ namespace Hash {
 							default     : throw "I/O error while reading file "+filename ;
 						}
 					}
-					*this = ctx.digest() ;
+					self = ctx.digest() ;
 				} break ;
 			DN}
 		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
 			Xxh ctx{FileTag::Lnk} ;
 			ctx.update(lnk_target) ;
-			*this = ctx .digest() ;
+			self = ctx .digest() ;
 		}
 	}
 
 	Crc::operator ::string() const {
-		switch (CrcSpecial(*this)) {
-			case CrcSpecial::Unknown : return "unknown"   ;
-			case CrcSpecial::Lnk     : return "unknown-L" ;
-			case CrcSpecial::Reg     : return "unknown-R" ;
-			case CrcSpecial::None    : return "none"      ;
-			case CrcSpecial::Empty   : return "empty-R"   ;
-			case CrcSpecial::Plain   : {
-				::string res ; res.reserve(sizeof(_val)*2+2) ;
-				for( size_t i=0 ; i<sizeof(_val) ; i++ ) {
-					uint8_t b = _val>>(i*8) ;
-					{ uint8_t d = b>>4  ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
-					{ uint8_t d = b&0xf ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
-				}
-				res += is_lnk()?"-L":"-R" ;
-				return res ;
-			} break ;
+		switch (CrcSpecial(self)) {
+			case CrcSpecial::Unknown : return "unknown"                  ;
+			case CrcSpecial::Lnk     : return "unknown-L"                ;
+			case CrcSpecial::Reg     : return "unknown-R"                ;
+			case CrcSpecial::None    : return "none"                     ;
+			case CrcSpecial::Empty   : return "empty-R"                  ;
+			case CrcSpecial::Plain   : return hex()+(is_lnk()?"-L":"-R") ;
 		DF}
+	}
+
+	::string Crc::hex() const {
+		::string res ; res.reserve(sizeof(_val)*2+2) ; // +2 to allow suffix addition
+		for( size_t i : iota(sizeof(_val)) ) {
+			uint8_t b = _val>>(i*8) ;
+			{ uint8_t d = b>>4  ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
+			{ uint8_t d = b&0xf ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
+		}
+		return res ;
 	}
 
 	Accesses Crc::diff_accesses( Crc other ) const {
 		if ( valid() && other.valid() ) {            // if either does not represent a precise content, assume contents are different
 			uint64_t diff = _val ^ other._val ;
-			if (! diff                                       ) return {} ;                                                                // crc's are identical, cannot perceive difference
-			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near crc clash, must increase CRC size",*this,"versus",other) ;
+			if (! diff                                       ) return {} ;                                                               // crc's are identical, cannot perceive difference
+			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near crc clash, must increase CRC size",self,"versus",other) ;
 		}
 		// qualify the accesses that can perceive the difference
 		Accesses res = ~Accesses() ;
@@ -86,7 +87,7 @@ namespace Hash {
 		} else if (is_lnk()) {
 			if      (other.is_lnk()  ) res =  Access::Lnk ; // only readlink accesses see modifications of links
 			else if (other==Crc::None) res = ~Access::Reg ; // regular accesses cannot see the difference between no file and a link
-		} else if (*this==Crc::None) {
+		} else if (self==Crc::None) {
 			if      (other.is_reg()  ) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
 			else if (other.is_lnk()  ) res = ~Access::Reg ; // regular  accesses cannot see the difference between no file and a link
 		}
@@ -106,7 +107,7 @@ namespace Hash {
 		XXH3_INITSTATE   (&_state) ;
 		XXH3_64bits_reset(&_state) ;
 	}
-	Xxh::Xxh(FileTag tag) : is_lnk{tag==FileTag::Lnk} {
+	Xxh::Xxh(FileTag tag) : is_lnk{No|(tag==FileTag::Lnk)} {
 		XXH3_INITSTATE(&_state) ;
 		switch (tag) {
 			case FileTag::Reg :                  XXH3_64bits_reset           ( &_state                                         ) ; break ;
@@ -115,7 +116,7 @@ namespace Hash {
 		DF}
 	}
 
-	Crc  Xxh::digest  (                           ) const { return { XXH3_64bits_digest(&_state     ) , is_lnk } ; }
-	void Xxh::_update ( const void* p , size_t sz )       {          XXH3_64bits_update(&_state,p,sz) ;            }
+	Crc  Xxh::digest (                           ) const { return { XXH3_64bits_digest(&_state     ) , is_lnk } ; }
+	void Xxh::_update( const void* p , size_t sz )       {          XXH3_64bits_update(&_state,p,sz) ;            }
 
 }

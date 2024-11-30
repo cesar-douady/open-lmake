@@ -6,9 +6,9 @@
 #pragma once
 
 #include <sys/user.h>
+#include <unistd.h>
 
 #include <array>
-#include <fstream>
 
 using namespace std ;
 
@@ -20,8 +20,6 @@ static constexpr bool NpStackGrowsDownward = true               ; // XXX : find 
 #elif __i386__ || __arm__
 	static constexpr uint8_t NpWordSz = 32 ;
 #endif
-
-int np_get_fd(std::filebuf& fb) ;
 
 ::array<uint64_t,6> np_ptrace_get_args( pid_t pid ,               uint8_t word_sz ) ; // word_sz must be 32 or 64
 int64_t             np_ptrace_get_res ( pid_t pid ,               uint8_t word_sz ) ; // .

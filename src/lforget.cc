@@ -13,7 +13,6 @@ int main( int argc , char* argv[] ) {
 	//
 	ReqSyntax syntax{{
 		{ ReqKey::None      , { .short_name=0   , .doc="rerun files provided in arguments"                   } }
-	,	{ ReqKey::Error     , { .short_name='e' , .doc="rerun jobs in error, even if up to date"             } }
 	,	{ ReqKey::Resources , { .short_name='r' , .doc="rerun jobs with new resources, even if not in error" } }
 	},{
 		{ ReqFlag::Deps    , { .short_name='d' , .has_arg=false , .doc="forget about deps"    } }
@@ -21,10 +20,7 @@ int main( int argc , char* argv[] ) {
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	switch (cmd_line.key) {
-		case ReqKey::Error     : if (+cmd_line.args) syntax.usage("must not have targets when forgetting resources") ; break ;
-		case ReqKey::Resources : if (+cmd_line.args) syntax.usage("must not have targets when forgetting errors"   ) ; break ;
-	DN}
+	if ( cmd_line.key==ReqKey::Resources && +cmd_line.args ) syntax.usage("must not have targets when forgetting errors"   ) ;
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Forget , false/*read_only*/ , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
 	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

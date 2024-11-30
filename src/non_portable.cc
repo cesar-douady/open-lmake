@@ -15,11 +15,6 @@
 
 using namespace std ;
 
-int np_get_fd(::filebuf& fb) {
-	struct FileBuf : ::filebuf { int fd() { return _M_file.fd() ; } } ; // a hack to access file descriptor
-	return static_cast<FileBuf&>(fb).fd() ;
-}
-
 using UserRegsStruct = struct ::user_regs_struct ;
 using Iovec          = struct ::iovec            ;
 #if __x86_64__

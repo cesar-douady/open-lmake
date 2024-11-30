@@ -3,10 +3,10 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "cmd.hh"
-
 #include <linux/binfmts.h>
 #include <regex>
+
+#include "cmd.hh"
 
 using namespace Disk ;
 using namespace Py   ;
@@ -29,15 +29,15 @@ namespace Engine {
 		if (_is_mark_glb(ro.key)) {
 			::vector<Job > jobs  = Job ::s_frozens() ;
 			::vector<Node> nodes = Node::s_frozens() ;
-			size_t         w     = 0                 ; for( Job j : jobs ) w = ::max(w,j->rule->name.size()) ;
+			size_t         w     = 0                 ; for( Job j : jobs ) w = ::max(w,j->rule()->name.size()) ;
 			if (ro.key==ReqKey::Clear) {
 				for( Job  j : jobs  ) j->status = Status::New ;
 				for( Node n : nodes ) n->mk_no_src() ;
 				Job ::s_clear_frozens() ;
 				Node::s_clear_frozens() ;
 			}
-			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , fmt_string(::setw(w),j->rule->name,' ',mk_file(j->name()              )) ) ;
-			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , fmt_string(::setw(w),              ' ',mk_file(n->name(),Yes/*exists*/)) ) ;
+			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()              ) ) ;
+			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(""             ,w)+' '+mk_file(n->name(),Yes/*exists*/) ) ;
 			return true ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
@@ -48,16 +48,12 @@ namespace Engine {
 			::vector<Node> nodes ;
 			//
 			auto handle_job = [&](Job j)->void {
-				if (add) {
-					if (!j.active()) throw "job not found " +mk_file(j->name()) ;
-					if ( j.frozen()) throw "already frozen "+mk_file(j->name()) ;
-				} else {
-					if (!j.active()) throw "not frozen "+mk_file(j->name()) ;
-					if (!j.frozen()) throw "not frozen "+mk_file(j->name()) ;
-				}
-				if (j->running()) throw "job is running"+mk_file(j->name()) ;
+				/**/       if ( !j || j->rule().is_shared() ) throw "job not found " +mk_file(j->name()) ;
+				if (add) { if (  j.frozen  ()               ) throw "already frozen "+mk_file(j->name()) ; }
+				else     { if ( !j.frozen  ()               ) throw "not frozen "    +mk_file(j->name()) ; }
+				/**/       if (  j->running()               ) throw "job is running" +mk_file(j->name()) ;
 				//
-				w = ::max( w , j->rule->name.size() ) ;
+				w = ::max( w , j->rule()->name.size() ) ;
 				jobs.push_back(j) ;
 			} ;
 			auto handle_node = [&](Node n)->void {
@@ -74,26 +70,26 @@ namespace Engine {
 				for( Node t : ecr.targets() ) {
 					t->set_buildable() ;
 					Job j = t->actual_job() ;
-					if      ( add && !j.active()                                        ) handle_node(t) ;
+					if      ( add && (!j||j->rule().is_shared())                        ) handle_node(t) ;
 					else if ( t->is_src_anti()                                          ) handle_node(t) ;
 					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
 					else {
-						Job cj = t->conform_job_tgt() ;
+						Rule r  = j->rule()            ;
+						Job  cj = t->conform_job_tgt() ;
 						trace("fail",t->buildable,t->conform_idx(),t->status(),cj) ;
-						if (+cj) throw "target was produced by "+j->rule->name+" instead of "+cj->rule->name+" (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
-						else     throw "target was produced by "+j->rule->name+                              " (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
+						if (+cj) throw "target was produced by "+r->name+" instead of "+cj->rule()->name+" (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
+						else     throw "target was produced by "+r->name+                                " (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
 					}
 				}
 			}
-			bool mod_nodes = +nodes ;
-			if ( mod_nodes && Req::s_n_reqs() ) throw "cannot "s+(add?"add":"remove")+" frozen files while running" ;
+			throw_if( +nodes && Req::s_n_reqs() , "cannot ",add?"add":"remove"," frozen files while running" ) ;
 			// do what is asked
 			if (+jobs) {
 				trace("jobs",jobs) ;
 				Job::s_frozens(add,jobs) ;
 				for( Job j : jobs ) {
 					if (!add) j->status = Status::New ;
-					audit( fd , ro , add?Color::Warning:Color::Note , fmt_string(::setw(w),j->rule->name,' ',mk_file(j->name())) ) ;
+					audit( fd , ro , add?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()) ) ;
 				}
 			}
 			if (+nodes) {
@@ -134,42 +130,60 @@ namespace Engine {
 		return true ;
 	}
 
-	static void _send_node( Fd fd , ReqOptions const& ro , bool always , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
+	static void _audit_node( Fd fd , ReqOptions const& ro , bool verbose , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
 		Color color = Color::None ;
 		if      ( hide==Yes                                           ) color =                         Color::HiddenNote ;
 		else if ( !node->has_actual_job() && !is_target(node->name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
 		else if ( node->ok()==No                                      ) color =            Color::Err                     ;
 		//
-		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , pfx+' '+mk_file(node->name()) , false/*as_is*/ , lvl ) ;
+		if ( verbose || color!=Color::HiddenNote ) {
+			if (ro.flags[ReqFlag::Quiet]) audit( fd , ro , color ,         mk_file(node->name()) , false/*as_is*/ , 0   ) ; // if quiet, no header, no reason to indent
+			else                          audit( fd , ro , color , pfx+' '+mk_file(node->name()) , false/*as_is*/ , lvl ) ;
+		}
 	}
 
-	static void _send_job( Fd fd , ReqOptions const& ro , Bool3 show_deps , bool hide , Job job , DepDepth lvl=0 ) {
+	static void _audit_job( Fd fd , ReqOptions const& ro , bool show_deps , bool hide , Job job , DepDepth lvl=0 ) {
 		Color color = Color::None ;
-		Rule  rule  = job->rule   ;
+		Rule  rule  = job->rule() ;
 		if      (hide                   ) color = Color::HiddenNote ;
 		else if (job->status==Status::Ok) color = Color::Ok         ;
 		else if (job.frozen()           ) color = Color::Warning    ;
 		else                              color = Color::Err        ;
-		audit( fd , ro , color , rule->name+' '+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
-		if (show_deps==No) return ;
-		size_t    w       = 0 ;
-		::umap_ss rev_map ;
-		for( auto const& [k,d] : rule->deps_attrs.eval(job->simple_match()) ) {
-			w              = ::max( w , k.size() ) ;
-			rev_map[d.txt] = k                     ;
+		::string rn ; if (+rule) rn = rule->name+' ' ;
+		if (!ro.flags[ReqFlag::Quiet]) audit( fd , ro , color , rn+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
+		if (!show_deps) return ;
+		size_t                w       = 0 ;
+		::umap_ss             rev_map ;
+		::vmap_s<Re::RegExpr> res     ;
+		if (+rule) {
+			Rule::SimpleMatch m = job->simple_match() ;
+			VarIdx            i = rule->n_statics     ;
+			for( auto const& [k,d] : rule->deps_attrs.eval(m) ) {
+				w              = ::max( w , k.size() ) ;
+				rev_map[d.txt] = k                     ;
+			}
+			for( ::string const& p : m.star_patterns() ) {
+				::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
+				if (me.second.flags.is_target!=No) continue ;
+				w = ::max( w , me.first.size() ) ;
+				res.emplace_back( me.first , Re::RegExpr(p,false/*cache*/) ) ;
+			}
 		}
 		::vector<bool> parallel ;     for( Dep const& d : job->deps ) parallel.push_back(d.parallel) ; // first pass to count deps as they are compressed and size is not known upfront
 		NodeIdx        d        = 0 ;
 		for( Dep const& dep : job->deps ) {
-			bool       cdp     = d  >0               && parallel[d  ]                                          ;
-			bool       ndp     = d+1<parallel.size() && parallel[d+1]                                          ;
-			::string   dep_key = dep.dflags[Dflag::Static] ? rev_map.at(dep->name()) : ""s                     ;
-			::string   pfx     = fmt_string(dep.dflags_str(),' ',dep.accesses_str(),' ',::setw(w),dep_key,' ') ;
+			bool       cdp     = d  >0               && parallel[d  ]                                  ;
+			bool       ndp     = d+1<parallel.size() && parallel[d+1]                                  ;
+			auto       it      = dep.dflags[Dflag::Static] ? rev_map.find(dep->name()) : rev_map.end() ;
+			::string   dep_key ;
+			if (it!=rev_map.end())                                                              dep_key = it->second ;
+			else                   for ( auto const& [k,e] : res ) if (+e.match(dep->name())) { dep_key = k          ; break ; }
+			::string pfx = dep.dflags_str()+' '+dep.accesses_str()+' '+widen(dep_key,w)+' ' ;
 			if      ( !cdp && !ndp ) pfx.push_back(' ' ) ;
 			else if ( !cdp &&  ndp ) pfx.push_back('/' ) ;
 			else if (  cdp &&  ndp ) pfx.push_back('|' ) ;
 			else                     pfx.push_back('\\') ;
-			_send_node( fd , ro , show_deps==Yes , (Maybe&!dep.dflags[Dflag::Required])|hide , pfx , dep , lvl+1 ) ;
+			_audit_node( fd , ro , ro.flags[ReqFlag::Verbose] , (Maybe&!dep.dflags[Dflag::Required])|hide , pfx , dep , lvl+1 ) ;
 			d++ ;
 		}
 	}
@@ -200,7 +214,7 @@ namespace Engine {
 		if (+start.cwd_s                 ) res << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)                 ) << '\n' ;
 		/**/                               res << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                   ) << '\n' ;
 		/**/                               res << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat                       ) << '\n' ;
-		/**/                               res << ",\tis_python      = " << mk_py_str(j->rule->is_python                    ) << '\n' ;
+		/**/                               res << ",\tis_python      = " << mk_py_str(j->rule()->is_python                  ) << '\n' ;
 		if (ro.flags[ReqFlag::KeepTmp]   ) res << ",\tkeep_tmp       = " <<           "True"                                  << '\n' ;
 		/**/                               res << ",\tkey            = " << mk_py_str(key                                   ) << '\n' ;
 		/**/                               res << ",\tjob            = " <<           +j                                      << '\n' ;
@@ -271,7 +285,7 @@ namespace Engine {
 					}
 					{	res <<",\t"<< mk_py_str("lower") <<" : (" ;
 						First first2 ;
-						for( size_t i=1 ; i<descr.phys.size() ; i++ ) res << first2("",",") << mk_py_str(descr.phys[i]) ;
+						for( size_t i : iota(1,descr.phys.size()) ) res << first2("",",") << mk_py_str(descr.phys[i]) ;
 						res << first2("",",","") << ")\n\t\t" ;
 					}
 					if (+descr.copy_up) {
@@ -292,9 +306,10 @@ namespace Engine {
 
 	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
 		JobTgt job = target->actual_job() ;
-		if (!job.active()) {
+		if (!job) goto NoJob ;
+		if (job->rule().is_shared()) {
 			/**/                              if (target->status()>NodeStatus::Makable) goto NoJob ;
-			job = target->conform_job_tgt() ; if (!job.active()                       ) goto NoJob ;
+			job = target->conform_job_tgt() ; if (job->rule().is_shared()             ) goto NoJob ;
 		}
 		Trace("target",target,job) ;
 		return job ;
@@ -317,11 +332,11 @@ namespace Engine {
 			job = ecr.job() ;
 		} else {
 			::vector<Node> targets = ecr.targets() ;
-			if (targets.size()!=1) throw "can only debug a single target"s ;
+			throw_unless( targets.size()==1 , "can only debug a single target" ) ;
 			job = _job_from_target(fd,ro,ecr.targets()[0]) ;
 		}
-		if (!job                   ) throw "no job found"s                         ;
-		if (job->rule->is_special()) throw "cannot debug "+job->rule->name+" jobs" ;
+		if (!job                                  ) throw "no job found"s                        ;
+		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->full_name()+" jobs" ;
 		//
 		JobInfo job_info = job.job_info() ;
 		if (!job_info.start.start.proc) {
@@ -330,14 +345,14 @@ namespace Engine {
 		}
 		//
 		::string const& key       = ro.flag_args[+ReqFlag::Key]                ;
-		auto            it        = g_config->dbg_tab.find(key)                ; if (it==g_config->dbg_tab.end()) throw "unknown debug method "+ro.flag_args[+ReqFlag::Key] ;
+		auto            it        = g_config->dbg_tab.find(key)                ; throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",ro.flag_args[+ReqFlag::Key] ) ;
 		::string const& runner    = it->second.c_str()                         ;
 		::string        dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
 		mk_dir_s(dbg_dir_s) ;
 		//
 		::string script_file     = dbg_dir_s+"script"       ;
 		::string gen_script_file = dbg_dir_s+"gen_script"   ;
-		{	OFStream gen_script { gen_script_file } ;
+		{	::string gen_script ;
 			gen_script << "#!" PYTHON "\n"                                                  ;
 			gen_script << "import sys\n"                                                    ;
 			gen_script << "import os\n"                                                     ;
@@ -346,6 +361,7 @@ namespace Engine {
 			gen_script << _mk_gen_script_line(job,ro,job_info,dbg_dir_s,key)                ;
 			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n" ;
 			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                  ;
+			AcFd(gen_script_file,Fd::Write).write(gen_script) ;
 		}                                                                                     // ensure gen_script is closed before launching it
 		::chmod(gen_script_file.c_str(),0755) ;
 		Child child ;
@@ -365,23 +381,19 @@ namespace Engine {
 			case ReqKey::None :
 				if (ecr.as_job()) {
 					Job j = ecr.job() ;
-					if (!j) throw "job not found"s ;
+					throw_unless( +j , "job not found" ) ;
 					ok = j->forget( ro.flags[ReqFlag::Targets] , ro.flags[ReqFlag::Deps] ) ;
 				} else {
 					for( Node t : ecr.targets() ) ok &= t->forget( ro.flags[ReqFlag::Targets] , ro.flags[ReqFlag::Deps] ) ;
 				}
 			break ;
-			case ReqKey::Error :
-				Persistent::invalidate_exec(true/*cmd_ok*/) ;
-			break ;
-			case ReqKey::Resources :
-				for( Rule r : Rule::s_lst() ) {
-					if (r->cmd_gen==r->rsrcs_gen) continue ;
-					r.data().cmd_gen = r->rsrcs_gen ;
-					r.save() ;                                                                    // we have modified rule, we must record it to make modif persistent
-					audit( ecr.out_fd , ro , Color::Note , "refresh "+r->name , true/*as_is*/ ) ;
+			case ReqKey::Resources : {
+				::uset<Rule> refreshed ;
+				for( RuleCrc rc : Persistent::rule_crc_lst() ) if ( RuleCrcData& rcd=rc.data() ; rcd.state==RuleCrcState::RsrcsOld) {
+					rcd.state = RuleCrcState::RsrcsForgotten ;
+					if (refreshed.insert(rcd.rule).second) audit( ecr.out_fd , ro , Color::Note , "refresh "+rcd.rule->full_name() , true/*as_is*/ ) ;
 				}
-			break ;
+			} break ;
 		DF}
 		return ok ;
 	}
@@ -462,8 +474,8 @@ namespace Engine {
 				case JobStep::Exec   : {
 					SWEAR( lvl>=backlog.size() , lvl , backlog.size() ) ;
 					DepDepth l = lvl - backlog.size() ;
-					for( Job j : backlog ) audit( fd , *ro , Color::HiddenNote , ""s+'W'+' '+j  ->rule->name+' '+mk_file(j  ->name()) , false/*as_is*/ , l++ ) ;
-					/**/                   audit( fd , *ro , color             , ""s+hdr+' '+job->rule->name+' '+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
+					for( Job j : backlog ) audit( fd , *ro , Color::HiddenNote , ""s+'W'+' '+j  ->rule()->name+' '+mk_file(j  ->name()) , false/*as_is*/ , l++ ) ;
+					/**/                   audit( fd , *ro , color             , ""s+hdr+' '+job->rule()->name+' '+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
 					backlog = {} ;
 					return ;
 				}
@@ -485,7 +497,7 @@ namespace Engine {
 
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
-		Rule             rule         = job->rule                  ;
+		Rule             rule         = job->rule()                ;
 		JobInfo          job_info     = job.job_info()             ;
 		bool             has_start    = +job_info.start.start.proc ;
 		bool             has_end      = +job_info.end  .end  .proc ;
@@ -497,18 +509,18 @@ namespace Engine {
 			case ReqKey::Info   :
 			case ReqKey::Stderr :
 			case ReqKey::Stdout : {
-				if (rule->is_special()) {
+				if ( +rule && rule->is_special() ) {
 					switch (ro.key) {
 						case ReqKey::Info   :
 						case ReqKey::Stderr : {
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job  , lvl   ) ;
-							audit    ( fd , ro , job->special_stderr() , false/*as_is*/ , lvl+1 ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
+							audit     ( fd , ro , job->special_stderr() , false/*as_is*/   , lvl+1 ) ;
 						} break ;
 						case ReqKey::Cmd    :
 						case ReqKey::Env    :
 						case ReqKey::Stdout :
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job                          , lvl   ) ;
-							audit    ( fd , ro , Color::Err , "no "s+snake(ro.key)+" available" , true/*as_is*/ , lvl+1 ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job                , lvl   ) ;
+							audit     ( fd , ro , Color::Err , "no "s+ro.key+" available" , true/*as_is*/ , lvl+1 ) ;
 						break ;
 					DF}
 				} else {
@@ -525,8 +537,8 @@ namespace Engine {
 							size_t                                      w   = 0                 ;
 							for( auto     const& [k,v] : env.first  ) w = ::max(w,k.size()) ;
 							for( ::string const&  k    : env.second ) w = ::max(w,k.size()) ;
-							for( auto     const& [k,v] : env.first  ) audit( fd , ro , fmt_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
-							for( ::string const&  k    : env.second ) audit( fd , ro , fmt_string(::setw(w),k," ..." ) , true/*as_is*/ , lvl ) ;
+							for( auto     const& [k,v] : env.first  ) audit( fd , ro , widen(k,w)+" : "+v , true/*as_is*/ , lvl ) ;
+							for( ::string const&  k    : env.second ) audit( fd , ro , widen(k,w)+" ..."  , true/*as_is*/ , lvl ) ;
 						} break ;
 						case ReqKey::Cmd : //!                                                              as_is
 							if (!has_start) audit( fd , ro , Color::Err , "no info available"              , true , lvl ) ;
@@ -534,12 +546,12 @@ namespace Engine {
 						break ;
 						case ReqKey::Stdout :
 							if (!has_end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
-							audit    ( fd , ro , digest.stdout                         , lvl+1 ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
+							audit     ( fd , ro , digest.stdout                            , lvl+1 ) ;
 						break ;
 						case ReqKey::Stderr :
 							if (!has_end && !(has_start&&verbose) ) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 							if (has_start) {
 								if (verbose) audit( fd , ro , Color::Note , pre_start.msg  , false/*as_is*/  , lvl+1 ) ;
 							}
@@ -663,7 +675,7 @@ namespace Engine {
 										if      ( !protect                                    ) v_str = v                                              ;
 										else if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = ::to_string(from_string_with_units<size_t>(v)) ;
 										else                                                    v_str = mk_py_str(v)                                   ;
-										audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)," : ",v_str) , true/*as_is*/ , lvl+2 , sep ) ;
+										audit( fd , ro , widen(mk_py_str(k),w)+" : "+v_str , true/*as_is*/ , lvl+2 , sep ) ;
 										sep = ',' ;
 									}
 									audit( fd , ro , "}" , true/*as_is*/ , lvl+1 ) ;
@@ -681,7 +693,7 @@ namespace Engine {
 										{	vd_str <<" , "<< mk_py_str("lower") <<':' ;
 											First first ;
 											vd_str <<'(' ;
-											for( size_t i=1 ; i<vd.phys.size() ; i++ ) vd_str << first("",",") << mk_py_str(vd.phys[i]) ;
+											for( size_t i : iota(1,vd.phys.size()) ) vd_str << first("",",") << mk_py_str(vd.phys[i]) ;
 											vd_str << first("",",","") <<')' ;
 										}
 										if (+vd.copy_up) {
@@ -694,20 +706,21 @@ namespace Engine {
 										vd_str <<" }" ;
 									}
 									views[v] = vd_str ;
-								} //!                                                                                                                          as_is
-								/**/                           audit( fd , ro , fmt_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)                   ) , true , lvl+1 , '{' ) ;
-								for( auto const& [k,e] : tab ) audit( fd , ro , fmt_string(::setw(w),mk_py_str(k)    ," : ",e.protect?mk_py_str(e.txt):e.txt) , true , lvl+1 , ',' ) ;
-								/**/                           audit_map( "views"               , views           , false/*protect*/ , false/*allocated*/ ) ;
-								/**/                           audit_map( "required resources"  , required_rsrcs  , true /*protect*/ , false/*allocated*/ ) ;
-								/**/                           audit_map( "allocated resources" , allocated_rsrcs , true /*protect*/ , true /*allocated*/ ) ;
-								/**/                           audit( fd , ro , "}"                                                                           , true , lvl         ) ;
+								} //!                                                                                                               as_is
+								/**/                           audit( fd , ro , widen(mk_py_str("job"),w)+" : "+           mk_py_str(jn   )        , true , lvl+1 , '{' ) ;
+								for( auto const& [k,e] : tab ) audit( fd , ro , widen(mk_py_str(k    ),w)+" : "+(e.protect?mk_py_str(e.txt):e.txt) , true , lvl+1 , ',' ) ;
+								//                                                                                 protect allocated
+								/**/                           audit_map( "views"               , views           , false , false  ) ;
+								/**/                           audit_map( "required resources"  , required_rsrcs  , true  , false  ) ;
+								/**/                           audit_map( "allocated resources" , allocated_rsrcs , true  , true   ) ;
+								/**/                           audit( fd , ro , "}"                                                                , true , lvl         ) ;
 							} else {
 								size_t w  = 0 ; for( auto const& [k,e ] : tab                   ) if (e.txt.find('\n')==Npos) w  = ::max(w ,k.size()) ;
 								size_t w2 = 0 ; for( auto const& [v,vd] : start.job_space.views ) if (+vd                   ) w2 = ::max(w2,v.size()) ;
-								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-								for( auto const& [k,e] : tab ) //!                                                                as_is
-									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , fmt_string(::setw(w),k," : ",e.txt) , true , lvl+1 ) ;
-									else                        { audit( fd , ro , e.color ,                      k+" :"         , true , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
+								_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl ) ;
+								for( auto const& [k,e] : tab ) //!                                                   as_is
+									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , widen(k,w)+" : "+e.txt , true , lvl+1 ) ;
+									else                        { audit( fd , ro , e.color ,       k   +" :"        , true , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
 								if (w2) {
 									audit( fd , ro , "views :" , true/*as_is*/ , lvl+1 ) ;
 									for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
@@ -718,7 +731,7 @@ namespace Engine {
 											{	vd_str << "upper:" << mk_file(vd.phys[0]) ; }
 											{	vd_str <<" , "<< "lower" <<':' ;
 												First first ;
-												for( size_t i=1 ; i<vd.phys.size() ; i++ ) vd_str << first("",",") << mk_file(vd.phys[i]) ;
+												for( size_t i : iota(1,vd.phys.size()) ) vd_str << first("",",") << mk_file(vd.phys[i]) ;
 											}
 											if (+vd.copy_up) {
 												vd_str <<" , "<< "copy_up" <<':' ;
@@ -726,7 +739,7 @@ namespace Engine {
 												for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << cu ;
 											}
 										}
-										audit( fd , ro , fmt_string(::setw(w2),mk_file(v)," : ",vd_str) , false/*as_is*/ , lvl+2 ) ;
+										audit( fd , ro , widen(mk_file(v),w2)+" : "+vd_str , false/*as_is*/ , lvl+2 ) ;
 									}
 								}
 								if ( +required_rsrcs || +allocated_rsrcs ) {
@@ -736,20 +749,20 @@ namespace Engine {
 									::string hdr = "resources :" ;
 									if      (!+allocated_rsrcs) hdr = "required " +hdr ;
 									else if (!+required_rsrcs ) hdr = "allocated "+hdr ;
-									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                                    as_is
-									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
-									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
-									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , fmt_string(::setw(w2),k," : ",v) , true , lvl+2 ) ;
+									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                       as_is
+									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
+									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
+									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
 									else {
-										for( auto const& [k,rv] : required_rsrcs ) { //!                                                          as_is
-											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , fmt_string(::setw(w2),k,"(required )"," : ",rv) , true , lvl+2 ) ; continue ; }
+										for( auto const& [k,rv] : required_rsrcs ) { //!                                             as_is
+											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , widen(k,w2)+"(required )"+" : "+rv , true , lvl+2 ) ; continue ; }
 											::string const& av = allocated_rsrcs.at(k) ;
-											if (rv==av                      ) { audit( fd , ro , fmt_string(::setw(w2),k,"           "," : ",rv) , true , lvl+2 ) ; continue ; }
-											/**/                                audit( fd , ro , fmt_string(::setw(w2),k,"(required )"," : ",rv) , true , lvl+2 ) ;
-											/**/                                audit( fd , ro , fmt_string(::setw(w2),k,"(allocated)"," : ",av) , true , lvl+2 ) ;
+											if (rv==av                      ) { audit( fd , ro , widen(k,w2)+"           "+" : "+rv , true , lvl+2 ) ; continue ; }
+											/**/                                audit( fd , ro , widen(k,w2)+"(required )"+" : "+rv , true , lvl+2 ) ;
+											/**/                                audit( fd , ro , widen(k,w2)+"(allocated)"+" : "+av , true , lvl+2 ) ;
 										}
 										for( auto const& [k,av] : allocated_rsrcs )
-											if (!required_rsrcs.contains(k))    audit( fd , ro , fmt_string(::setw(w2),k,"(allocated)"," : ",av) , true , lvl+2 ) ;
+											if (!required_rsrcs.contains(k))    audit( fd , ro , widen(k,w2)+"(allocated)"+" : "+av , true , lvl+2 ) ;
 									}
 								}
 							}
@@ -757,23 +770,46 @@ namespace Engine {
 					DF}
 				}
 			} break ;
-			case ReqKey::Bom     : ShowBom    (fd,ro,lvl).show_job(job) ;                             break ;
-			case ReqKey::Running : ShowRunning(fd,ro,lvl).show_job(job) ;                             break ;
-			case ReqKey::Deps    : _send_job( fd , ro , Maybe|verbose , false/*hide*/ , job , lvl ) ; break ;
+			case ReqKey::Bom     : ShowBom    (fd,ro,lvl).show_job(job) ;                                  break ;
+			case ReqKey::Running : ShowRunning(fd,ro,lvl).show_job(job) ;                                  break ;
+			case ReqKey::Deps    : _audit_job( fd , ro , true/*show_deps*/ , false/*hide*/ , job , lvl ) ; break ;
 			case ReqKey::Targets : {
-				Rule::SimpleMatch match = job->simple_match() ;
-				for( auto const& [tn,td] : digest.targets ) {
-					Node t { tn } ;
-					::string flags_str ;
-					/**/                         flags_str += t->crc==Crc::None ? 'U' : +t->crc ? 'W' : '-' ;
-					/**/                         flags_str += ' '                                           ;
-					for( Tflag tf : All<Tflag> ) flags_str += td.tflags[tf] ? TflagChars[+tf].second : '-'  ;
+				size_t                w       = 0 ;
+				::umap_ss             rev_map ;
+				::vmap_s<Re::RegExpr> res     ;
+				if (+rule) {
+					Rule::SimpleMatch m = job->simple_match() ;
+					VarIdx            i = 0                   ;
+					for( ::string const& t : m.static_matches() ) {
+						::string const& k = rule->matches[i++].first ;
+						w          = ::max(w,k.size()) ;
+						rev_map[t] = k                 ;
+					}
+					SWEAR(i==rule->n_statics) ;
+					for( ::string const& p : m.star_patterns() ) {
+						::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
+						if (me.second.flags.is_target!=Yes) continue ;
+						w = ::max( w , me.first.size() ) ;
+						res.emplace_back( me.first , Re::RegExpr(p,false/*cache*/) ) ;
+					}
+				}
+				for( Target t : job->targets ) {
+					::string pfx ;
+					::string tk  ;
+					auto     it  = rev_map.find(t->name()) ;
+					if (it!=rev_map.end())                                                            tk = it->second ;
+					else                   for ( auto const& [k,e] : res ) if (+e.match(t->name())) { tk = k          ; break ; }
 					//
-					_send_node( fd , ro , verbose , Maybe|!td.tflags[Tflag::Target]/*hide*/ , flags_str , t , lvl ) ;
+					bool exists = t->crc==Crc::None ;
+					/**/                               pfx <<      (exists?'U':+t->crc?'W':'-')              <<' ' ;
+					for( Tflag tf : iota(All<Tflag>) ) pfx <<      (t.tflags[tf]?TflagChars[+tf].second:'-')       ;
+					if (+rule)                         pfx <<' '<< widen(tk,w)                                     ;
+					//
+					_audit_node( fd , ro , verbose , Maybe|!(exists&&t.tflags[Tflag::Target])/*hide*/ , pfx , t , lvl ) ;
 				}
 			} break ;
 			default :
-				throw "cannot show "s+snake(ro.key)+" for job "+mk_file(job->name()) ;
+				throw "cannot show "s+ro.key+" for job "+mk_file(job->name()) ;
 		}
 	}
 
@@ -797,8 +833,8 @@ namespace Engine {
 		for( Node target : targets ) {
 			trace("target",target) ;
 			DepDepth lvl = 1 ;
-			if      (porcelaine      ) audit     ( fd , ro , ""s+sep+' '+mk_py_str(target->name())+" :" , true/*as_is*/ ) ;
-			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target               ) ;
+			if      (porcelaine      ) audit      ( fd , ro , ""s+sep+' '+mk_py_str(target->name())+" :" , true/*as_is*/ ) ;
+			else if (targets.size()>1) _audit_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target               ) ;
 			else                       lvl-- ;
 			sep = ',' ;
 			bool for_job = true ;
@@ -826,14 +862,14 @@ namespace Engine {
 						size_t w              = 0                         ;
 						bool   seen_candidate = false                     ;
 						for( Job j : target->conform_job_tgts() ) {
-							w               = ::max(w,j->rule->name.size()) ;
-							seen_candidate |= j!=cj                         ;
+							w               = ::max(w,j->rule()->name.size()) ;
+							seen_candidate |= j!=cj                           ;
 						}
-						for( Job j : target->conform_job_tgts() ) {
-							if      (j==job         ) continue ;
-							if      (!seen_candidate) audit( fd , ro , Color::Note , fmt_string("official job " ,::setw(w),j->rule->name," : ",mk_file(j->name())) ) ; // no need to align
-							else if (j==cj          ) audit( fd , ro , Color::Note , fmt_string("official job  ",::setw(w),j->rule->name," : ",mk_file(j->name())) ) ; // align
-							else                      audit( fd , ro , Color::Note , fmt_string("job candidate ",::setw(w),j->rule->name," : ",mk_file(j->name())) ) ;
+						for( Job j : target->conform_job_tgts() ) if (j!=job) {
+							Rule r = j->rule() ;
+							if      (!seen_candidate) audit( fd , ro , Color::Note , "official job " +widen(r->name,w)+" : "+mk_file(j->name()) ) ; // no need to align
+							else if (j==cj          ) audit( fd , ro , Color::Note , "official job  "+widen(r->name,w)+" : "+mk_file(j->name()) ) ; // align
+							else                      audit( fd , ro , Color::Note , "job candidate "+widen(r->name,w)+" : "+mk_file(j->name()) ) ;
 						}
 					}
 					if (!job) {
@@ -847,28 +883,38 @@ namespace Engine {
 					}
 					_show_job(fd,ro,job,lvl) ;
 				break ;
-				case ReqKey::Deps    : {
-					bool     always = ro.flags[ReqFlag::Verbose] ;
-					double   prio   = -Infinity                  ;
-					if ( target->is_plain() && +target->dir() ) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
+				case ReqKey::Deps : {
+					bool verbose     = ro.flags[ReqFlag::Verbose] ;
+					bool quiet       = ro.flags[ReqFlag::Quiet  ] ;
+					bool seen_actual = false                      ;
+					if ( target->is_plain() && +target->dir() ) _audit_node( fd , ro , verbose , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
 					for( JobTgt jt : target->conform_job_tgts() ) {
-						bool hide = !jt.produces(target) ;
-						if      (always) _send_job( fd , ro , Yes   , hide          , jt , lvl ) ;
-						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , jt , lvl ) ;
+						bool hide      = !jt.produces(target) ;
+						bool is_actual = !hide && jt==job     ;
+						seen_actual |= is_actual ;
+						if ( !quiet && is_actual ) audit     ( fd , ro , Color::Note , "generated by : " , lvl ) ;
+						if ( verbose || !hide    ) _audit_job( fd , ro , true/*show_deps*/ , hide , jt   , lvl ) ;
 					}
-					if (prio!=-Infinity) _send_job( fd , ro , always?Yes:Maybe , false/*hide*/ , job ) ; // actual job is output last as this is what user views first
+					if (!seen_actual) {
+						if (+job) {
+							if (!quiet) audit     ( fd , ro , Color::Note , "polluted by : "          , lvl ) ;
+							/**/        _audit_job( fd , ro , true/*show_deps*/ , false/*hide*/ , job , lvl ) ;
+						} else {
+							/**/        audit     ( fd , ro , Color::Note , "no job found"            , lvl ) ;
+						}
+					}
 				} break ;
 				case ReqKey::InvDeps :
 					for( Job j : Persistent::job_lst() )
 						for( Dep const& d : j->deps ) if (d==target) {
-							_send_job( fd , ro , No , false/*hide*/ , j , lvl ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , j , lvl ) ;
 							break ;
 						}
 				break ;
 				case ReqKey::InvTargets :
 					for( Job j : Persistent::job_lst() )
 						for( Target const& t : j->targets ) if (t==target) {
-							_send_job( fd , ro , No , false/*hide*/ , j , lvl ) ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , j , lvl ) ;
 							break ;
 						}
 				break ;

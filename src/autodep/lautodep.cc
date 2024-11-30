@@ -3,9 +3,10 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "py.hh" // /!\ must be first because Python.h must be first
+
 #include "app.hh"
 #include "disk.hh"
-#include "py.hh"
 #include "time.hh"
 
 #include "gather.hh"
@@ -81,7 +82,7 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 		for( Object const&  py_k : py_keep_env->as_a<Sequence>() ) {
 			::string k = py_k.as_a<Str>() ;
 			if (has_env(k)) {
-				if (seen.contains(k)) throw "cannot keep "+k+" twice" ;
+				throw_if( seen.contains(k) , "cannot keep ",k," twice" ) ;
 				res.emplace_back(k,get_env(k)) ;
 				seen.insert(k) ;
 			}
@@ -91,7 +92,7 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 		Ptr<Object> py_env = py_eval(env) ;
 		for( auto const& [py_k,py_v] : py_env->as_a<Dict>() ) {
 			::string k = py_k.as_a<Str>() ;
-			if (seen.contains(k)) throw "cannot keep "+k+" and provide it" ;
+			throw_if( seen.contains(k) ,  "cannot keep ",k," and provide it" ) ;
 			res.emplace_back(k,py_v.as_a<Str>()) ;
 		}
 	}
@@ -104,10 +105,10 @@ int main( int argc , char* argv[] ) {
 	Py::init(*g_lmake_dir_s) ;
 	::string dbg_dir_s = *g_root_dir_s+AdminDirS+"debug/" ;
 	mk_dir_s(dbg_dir_s) ;
-	AutoCloseFd lock_fd = ::open(no_slash(dbg_dir_s).c_str(),O_RDONLY) ;
+	AcFd lock_fd { no_slash(dbg_dir_s) } ;
 	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                                // because we have no small_id, we can only run a single instance
-		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"          ) ;
-		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",strerror(errno)) ;
+		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"            ) ;
+		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",::strerror(errno)) ;
 	}
 	//
 	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax{{
@@ -120,7 +121,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Job           , { .short_name='j' , .has_arg=true  , .doc="job  index keep tmp dir if mentioned"                                                                      } }
 	,	{ CmdFlag::KeepEnv       , { .short_name='k' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
-	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, fuse, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                } }
+	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                      } }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
 	,	{ CmdFlag::RootView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
 	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                    } }
@@ -138,10 +139,10 @@ int main( int argc , char* argv[] ) {
 	Gather      gather      ;
 	//
 	try {
-		if (!cmd_line.args                                                                          ) throw "no exe to launch"s                                                      ;
-		if ( cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) ) throw "chroot dir must be absolute : "+cmd_line.flag_args[+CmdFlag::ChrootDir] ;
-		if ( cmd_line.flags[CmdFlag::RootView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RootView ]) ) throw "root view must be absolute : " +cmd_line.flag_args[+CmdFlag::RootView ] ;
-		if ( cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) ) throw "tmp view must be absolute : "  +cmd_line.flag_args[+CmdFlag::TmpView  ] ;
+		throw_if( !cmd_line.args                                                                          , "no exe to launch"                                                       ) ;
+		throw_if(  cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::RootView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RootView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RootView ] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
 		//
 		if (cmd_line.flags[CmdFlag::Cwd          ]) start_info.cwd_s        = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;
 		/**/                                        start_info.keep_tmp     =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
@@ -181,34 +182,27 @@ int main( int argc , char* argv[] ) {
 		//       ^^^^^^^^^^^^^^^^^^^
 	} catch (::string const& e) { exit(Rc::System,e) ; }
 	//
-	::ostream* ds       ;
-	OFStream   user_out ;
-	try {
-		if (cmd_line.flags[CmdFlag::Out]) { user_out.open(cmd_line.flag_args[+CmdFlag::Out]) ; ds = &user_out ; }
-		else                              {                                                    ds = &::cerr   ; }
-        start_info.exit() ;
-	} catch (::string const& e) {
-		exit(Rc::System,e) ;
+	try                       { start_info.exit() ;  }
+	catch (::string const& e) { exit(Rc::System,e) ; }
+	//
+	::string deps = "targets :\n" ;
+	for( auto const& [target,ai] : gather.accesses ) switch(ai.digest.write) {
+		case No    :                               break ;
+		case Maybe : deps <<"? "<< target <<'\n' ; break ;
+		case Yes   : deps <<"  "<< target <<'\n' ; break ;
 	}
-	::ostream& deps_stream = *ds ;
-	deps_stream << "targets :\n" ;
-	for( auto const& [target,ai] : gather.accesses ) {
-		if (ai.digest.write==No) continue ;
-		deps_stream << ( ai.digest.write==Maybe? "? " : "  " ) ;
-		deps_stream << target << '\n'                          ;
-	}
-	deps_stream << "deps :\n" ;
+	deps += "deps :\n" ;
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	Pdate    prev_first_read  ;
 	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                                         // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
-			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;
-			else if ( !prev_parallel &&  parallel ) deps_stream << "/ "  ;
-			else if (  prev_parallel &&  parallel ) deps_stream << "| "  ;
-			else                                    deps_stream << "\\ " ;
-			deps_stream << prev_dep << '\n' ;
+			if      ( !prev_parallel && !parallel ) deps += "  "  ;
+			else if ( !prev_parallel &&  parallel ) deps += "/ "  ;
+			else if (  prev_parallel &&  parallel ) deps += "| "  ;
+			else                                    deps += "\\ " ;
+			deps << prev_dep << '\n' ;
 		}
 		prev_first_read = first_read ;
 		prev_parallel   = parallel   ;
@@ -216,5 +210,8 @@ int main( int argc , char* argv[] ) {
 	} ;
 	for( auto const& [dep,ai] : gather.accesses ) if (ai.digest.write==No) send(dep,ai.first_read().first) ;
 	/**/                                                                   send(                         ) ;                  // send last
+	//
+	if (cmd_line.flags[CmdFlag::Out]) Fd(cmd_line.flag_args[+CmdFlag::Out],Fd::Write).write(deps) ;
+	else                              Fd::Stdout                                     .write(deps) ;
 	return status!=Status::Ok ;
 }

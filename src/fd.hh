@@ -14,79 +14,25 @@
 
 ::string host() ;
 
-struct Fd {
-	friend ::ostream& operator<<( ::ostream& , Fd const& ) ;
-	static const Fd Cwd    ;
-	static const Fd Stdin  ;
-	static const Fd Stdout ;
-	static const Fd Stderr ;
-	static const Fd Std    ; // the highest standard fd
+struct AcFd : Fd {
+	friend ::string& operator+=( ::string& , AcFd const& ) ;
 	// cxtors & casts
-	constexpr Fd(                        ) = default ;
-	constexpr Fd( int fd_                ) : fd{fd_} {                         }
-	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
+	AcFd(                                                                          ) = default ;
+	AcFd( Fd fd_                                                                   ) : Fd{fd_                            } {              }
+	AcFd( AcFd&& acfd                                                              )                                       { swap(acfd) ; }
+	AcFd( int fd_                                             , bool no_std_=false ) : Fd{fd_,no_std_                    } {              }
+	AcFd(         ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{       file , action , no_std_ } {              }
+	AcFd( Fd at , ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ at  , file , action , no_std_ } {              }
 	//
-	constexpr operator int  () const { return fd      ; }
-	constexpr bool operator+() const { return fd>=0   ; }
-	constexpr bool operator!() const { return !+*this ; }
+	~AcFd() { close() ; }
 	//
-	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
-	// services
-	bool              operator== (Fd const&) const = default ;
-	::strong_ordering operator<=>(Fd const&) const = default ;
-	void write(::string_view const& data) {
-		for( size_t cnt=0 ; cnt<data.size() ;) {
-			ssize_t c = ::write(fd,data.data(),data.size()) ;
-			if (c<=0) throw "cannot write to "+fmt_string(fd) ;
-			cnt += c ;
-		}
-	}
-	Fd             dup   () const { return ::dup(fd) ;                      }
-	constexpr Fd   detach()       { Fd res = *this ; fd = -1 ; return res ; }
-	constexpr void close () {
-		if (!*this        ) return ;
-		if (::close(fd)!=0) throw "cannot close file descriptor "+fmt_string(fd)+" : "+strerror(errno) ;
-		*this = {} ;
-	}
-	void no_std() {
-		if ( !*this || fd>Std.fd ) return ;
-		int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , Std.fd+1 ) ;
-		swear_prod(new_fd>Std.fd,"cannot duplicate",fd) ;
-		close() ;
-		fd = new_fd ;
-	}
-	void cloexec(bool set=true) {
-		::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ;
-	}
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,fd) ;
-	}
-	// data
-	int fd = -1 ;
-} ;
-constexpr Fd Fd::Cwd   {int(AT_FDCWD)} ;
-constexpr Fd Fd::Stdin {0            } ;
-constexpr Fd Fd::Stdout{1            } ;
-constexpr Fd Fd::Stderr{2            } ;
-constexpr Fd Fd::Std   {2            } ;
-
-struct AutoCloseFd : Fd {
-	friend ::ostream& operator<<( ::ostream& , AutoCloseFd const& ) ;
-	// cxtors & casts
-	AutoCloseFd(                              ) = default ;
-	AutoCloseFd( Fd fd_                       ) : Fd{fd_        } {              }
-	AutoCloseFd( AutoCloseFd&& acfd           )                   { swap(acfd) ; }
-	AutoCloseFd( int fd_ , bool no_std_=false ) : Fd{fd_,no_std_} {              }
-	//
-	~AutoCloseFd() { close() ; }
-	//
-	AutoCloseFd& operator=(int           fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return *this ; }
-	AutoCloseFd& operator=(Fd const&     fd_ ) { *this = fd_ .fd ;                     return *this ; }
-	AutoCloseFd& operator=(AutoCloseFd&& acfd) { swap(acfd) ;                          return *this ; }
+	AcFd& operator=(int       fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return self ; }
+	AcFd& operator=(Fd const& fd_ ) { self = fd_ .fd ;                      return self ; }
+	AcFd& operator=(AcFd   && acfd) { swap(acfd) ;                          return self ; }
 } ;
 
 struct LockedFd : Fd {
-	friend ::ostream& operator<<( ::ostream& , LockedFd const& ) ;
+	friend ::string& operator+=( ::string& , LockedFd const& ) ;
 	// cxtors & casts
 	LockedFd(                         ) = default ;
 	LockedFd( Fd fd_ , bool exclusive ) : Fd{fd_}         { lock(exclusive) ; }
@@ -94,15 +40,15 @@ struct LockedFd : Fd {
 	//
 	~LockedFd() { unlock() ; }
 	//
-	LockedFd& operator=(LockedFd&& lfd) { fd = lfd.fd ; lfd.detach() ; return *this ; }
+	LockedFd& operator=(LockedFd&& lfd) { fd = lfd.fd ; lfd.detach() ; return self ; }
 	//
 	void lock  (bool e) { if (fd>=0) flock(fd,e?LOCK_EX:LOCK_SH) ; }
 	void unlock(      ) { if (fd>=0) flock(fd,  LOCK_UN        ) ; }
 } ;
 
 static constexpr in_addr_t NoSockAddr = 0x7f000001 ;
-struct SockFd : AutoCloseFd {
-	friend ::ostream& operator<<( ::ostream& , SockFd const& ) ;
+struct SockFd : AcFd {
+	friend ::string& operator+=( ::string& , SockFd const& ) ;
 	static constexpr in_addr_t LoopBackAddr = NoSockAddr ;
 	// statics
 	static ::string s_addr_str(in_addr_t addr) {
@@ -134,16 +80,16 @@ struct SockFd : AutoCloseFd {
 private :
 	static size_t _s_col(::string const& service) {
 		size_t col = service.rfind(':') ;
-		if (col==Npos) throw "bad service : "+service ;
+		throw_unless(col!=Npos , "bad service : ",service ) ;
 		return col ;
 	}
 	// cxtors & casts
 public :
-	using AutoCloseFd::AutoCloseFd ;
+	using AcFd::AcFd ;
 	SockFd(NewType) { init() ; }
 	//
 	void init() {
-		*this = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0 ) ;
+		self = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0 ) ;
 		no_std() ;
 	}
 	// services
@@ -173,7 +119,7 @@ public :
 } ;
 
 struct SlaveSockFd : SockFd {
-	friend ::ostream& operator<<( ::ostream& , SlaveSockFd const& ) ;
+	friend ::string& operator+=( ::string& , SlaveSockFd const& ) ;
 	// cxtors & casts
 	using SockFd::SockFd ;
 } ;
@@ -184,10 +130,10 @@ struct ServerSockFd : SockFd {
 	ServerSockFd( NewType , int backlog=0 ) { listen(backlog) ; }
 	// services
 	void listen(int backlog=0) {
-		if (!*this  ) init() ;
+		if (!self   ) init() ;
 		if (!backlog) backlog = 100 ;
 		int rc = ::listen(fd,backlog) ;
-		swear_prod(rc==0,"cannot listen on",*this,"with backlog",backlog,'(',rc,')') ;
+		swear_prod(rc==0,"cannot listen on",self,"with backlog",backlog,'(',rc,')') ;
 	}
 	::string service(in_addr_t addr) const { return s_service(addr,port()) ; }
 	::string service(              ) const { return s_service(     port()) ; }
@@ -197,7 +143,9 @@ struct ServerSockFd : SockFd {
 struct ClientSockFd : SockFd {
 	// cxtors & casts
 	using SockFd::SockFd ;
-	template<class... A> ClientSockFd(A&&... args) { connect(::forward<A>(args)...) ; }
+	ClientSockFd( in_addr_t       server , in_port_t port , int n_trials=1 , Time::Delay timeout={} ) { connect(server,port,n_trials,timeout) ; }
+	ClientSockFd( ::string const& server , in_port_t port , int n_trials=1 , Time::Delay timeout={} ) { connect(server,port,n_trials,timeout) ; }
+	ClientSockFd( ::string const& service                 , int n_trials=1 , Time::Delay timeout={} ) { connect(service    ,n_trials,timeout) ; }
 	// services
 	void connect( in_addr_t       server , in_port_t port , int n_trials=1 , Time::Delay timeout={} ) ;
 	void connect( ::string const& server , in_port_t port , int n_trials=1 , Time::Delay timeout={} ) {
@@ -211,7 +159,7 @@ struct ClientSockFd : SockFd {
 
 namespace std {
 	template<> struct hash<Fd          > { size_t operator()(Fd           const& fd) const { return fd ; } } ;
-	template<> struct hash<AutoCloseFd > { size_t operator()(AutoCloseFd  const& fd) const { return fd ; } } ;
+	template<> struct hash<AcFd        > { size_t operator()(AcFd         const& fd) const { return fd ; } } ;
 	template<> struct hash<SockFd      > { size_t operator()(SockFd       const& fd) const { return fd ; } } ;
 	template<> struct hash<SlaveSockFd > { size_t operator()(SlaveSockFd  const& fd) const { return fd ; } } ;
 	template<> struct hash<ServerSockFd> { size_t operator()(ServerSockFd const& fd) const { return fd ; } } ;
@@ -224,7 +172,7 @@ namespace std {
 
 struct Epoll {
 	struct Event : epoll_event {
-		friend ::ostream& operator<<( ::ostream& , Event const& ) ;
+		friend ::string& operator+=( ::string& , Event const& ) ;
 		// cxtors & casts
 		using epoll_event::epoll_event ;
 		Event() { epoll_event::data.u64 = -1 ; }
@@ -237,18 +185,18 @@ struct Epoll {
 	Epoll (NewType) { init () ; }
 	// services
 	void init() {
-		fd = AutoCloseFd( ::epoll_create1(EPOLL_CLOEXEC) , true/*no_std*/ ) ;
+		fd = AcFd( ::epoll_create1(EPOLL_CLOEXEC) , true/*no_std*/ ) ;
 	}
 	template<class T> void add( bool write , Fd fd_ , T data , bool wait=true ) {
 		static_assert(sizeof(T)<=4) ;
 		epoll_event event { .events=write?EPOLLOUT:EPOLLIN , .data={.u64=(uint64_t(uint32_t(data))<<32)|uint32_t(fd_) } } ;
 		int rc = epoll_ctl( int(fd) , EPOLL_CTL_ADD , int(fd_) , &event ) ;
-		swear_prod(rc==0,"cannot add",fd_,"to epoll",fd,'(',strerror(errno),')') ;
+		swear_prod(rc==0,"cannot add",fd_,"to epoll",fd,'(',::strerror(errno),')') ;
 		cnt += wait ;
 	}
 	void del( Fd fd_ , bool wait=true ) {                                                                                                        // wait must be coherent with corresponding add
 		int rc = ::epoll_ctl( fd , EPOLL_CTL_DEL , fd_ , nullptr ) ;
-		swear_prod(rc==0,"cannot del",fd_,"from epoll",fd,'(',strerror(errno),')') ;
+		swear_prod(rc==0,"cannot del",fd_,"from epoll",fd,'(',::strerror(errno),')') ;
 		cnt -= wait ;
 	}
 	::vector<Event> wait(Time::Delay timeout=Time::Delay::Forever) const ;
@@ -259,7 +207,7 @@ struct Epoll {
 	/**/              void add_write(              Fd fd_ ,          bool wait=true ) {               add(true ,fd_,     wait) ;               }
 	/**/              void close    (              Fd fd_ ,          bool wait=true ) { SWEAR(+fd_) ; del(      fd_,     wait) ; fd_.close() ; } // wait must be coherent with corresponding add
 	// data
-	AutoCloseFd fd  ;
-	int         cnt = 0 ;
+	AcFd fd  ;
+	int  cnt = 0 ;
 } ;
-::ostream& operator<<( ::ostream& , Epoll::Event const& ) ;
+::string& operator+=( ::string& , Epoll::Event const& ) ;

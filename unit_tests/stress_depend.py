@@ -7,13 +7,18 @@ import lmake
 
 if __name__!='__main__' :
 
+	import socket
+
 	from lmake.rules import Rule,PyRule
 
 	lmake.config.backends.local.cpu = 1000 # a unreasonable but stressing value
-	lmake.config.backends.slurm = {
-		'use_nice'          : True
-	,	'n_max_queued_jobs' : 10
-	}
+
+	if 'slurm' in lmake.backends :
+		lmake.config.backends.slurm = {
+			'interface'         : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
+		,	'use_nice'          : True
+		,	'n_max_queued_jobs' : 10
+		}
 
 	lmake.manifest = ('Lmakefile.py',)
 
@@ -48,10 +53,15 @@ if __name__!='__main__' :
 
 else :
 
-	n = 100 # use a higher value, e.g. 10000, for a really stressing test
+	import os.path as osp
 
 	import ut
 
-	if 'slurm' in lmake.backends : ut.lmake( f'all_slurm_{n}'         , steady=n+1 , done=n , may_rerun=n+1 )
-	if True                      : ut.lmake( f'all_local_{n}'         , steady=n+1 , done=n , may_rerun=n+1 )
-	if not lmake.Autodep.IsFake  : ut.lmake( f'all_local_verbose_{n}' , steady=  1 , done=n , may_rerun=  1 )
+	n = 100 # use a higher value, e.g. 10000, for a really stressing test
+
+	backends = ['local']
+	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
+		backends.append('slurm')
+
+	for backend in backends     : ut.lmake( f'all_{backend}_{n}'     , steady=n+1 , done=n , may_rerun=n+1 )
+	if not lmake.Autodep.IsFake : ut.lmake( f'all_local_verbose_{n}' , steady=  1 , done=n , may_rerun=  1 )

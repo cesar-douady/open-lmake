@@ -14,12 +14,10 @@
 
 namespace Codec {
 
-	extern bool writable ;
-
 	bool/*ok*/ refresh( NodeIdx , ReqIdx ) ;
 
 	struct Closure {
-		friend ::ostream& operator<<( ::ostream& , Closure const& ) ;
+		friend ::string& operator+=( ::string& , Closure const& ) ;
 		using Proc = JobMngtProc ;
 		struct Entry {
 			// log_date is the semantic date, i.e. :
@@ -109,8 +107,8 @@ namespace Codec {
 
 namespace Codec::Persistent {
 
-	using ValFile  = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , char , uint32_t , 64/*MinSz*/ > ;
-	using CodeFile = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , char , uint32_t ,  4/*MinSz*/ > ;
+	using ValFile  = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , NCodecIdxBits , char , uint32_t , 64/*MinSz*/ > ;
+	using CodeFile = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , NCodecIdxBits , char , uint32_t ,  4/*MinSz*/ > ;
 
 	extern ValFile  val_file  ;
 	extern CodeFile code_file ;

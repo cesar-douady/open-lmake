@@ -32,15 +32,15 @@ size_t   g_max_line_sz  = 0/*garbage*/ ;
 	::vector<Line> res   ;
 	::vector_s     lines ;
 	//
-	if (file) lines = read_lines(file) ;
-	else      for( ::string l ; ::getline(::cin,l) ;) lines.push_back(l) ;
+	if (file) lines = AcFd(file).read_lines() ;
+	else      lines = Fd::Stdin .read_lines() ;
 	//
 	for( ::string const& l : lines ) {
 		size_t   lvl   = 0               ;
 		size_t   cnt   = 0               ;
 		size_t   start = 0               ;
 		LineKind kind  = LineKind::Blank ; for( char c : l ) if (!::isspace(c)) { kind = LineKind::Plain ; break ; }
-		for( size_t i=0 ; i<l.size() ; i++ ) {
+		for( size_t i : iota(l.size()) ) {
 			if (l[i]=='\t') {
 				lvl++ ;
 				cnt   = 0   ;
@@ -92,7 +92,7 @@ struct Tab {
 	// cxtors & casts
 	Tab( size_t h_ , size_t w_ , size_t nl ) : h{h_} , w{w_} , tab{h*w,Info(true/*ko*/,nl)} {}
 	// accesses
-	::vector_view<Info> operator[](size_t l) { return { &tab[l*w] , w } ; }
+	::span<Info> operator[](size_t l) { return { &tab[l*w] , w } ; }
 	// data
 	size_t         h   ;
 	size_t         w   ;
@@ -108,10 +108,10 @@ void optimize( ::vector<Line>& lines) {
 	//
 	size_t py         = Npos ;
 	size_t break_lvl1 = 0    ;                                                                      // minimum indentation level of line separating comments, 0 is reserved to mean blank line
-	for( size_t y=0 ; y<tab.h ; y++ ) {
-		Line const&         l  =            lines[y ]                           ;
-		::vector_view<Info> t  =            tab  [y ]                           ;
-		::vector_view<Info> pt = py!=Npos ? tab  [py] : ::vector_view<Info>(t0) ;
+	for( size_t y : iota(tab.h) ) {
+		Line const&  l  =            lines[y ]                    ;
+		::span<Info> t  =            tab  [y ]                    ;
+		::span<Info> pt = py!=Npos ? tab  [py] : ::span<Info>(t0) ;
 		if (!l .comment) {
 			if (l.kind==LineKind::Blank) break_lvl1 = 0                         ;
 			else                         break_lvl1 = ::min(break_lvl1,l.lvl+1) ;
@@ -120,7 +120,7 @@ void optimize( ::vector<Line>& lines) {
 		py = y ;
 		size_t px = 0     ;
 		Info   pi = pt[0] ;
-		for( size_t x=1 ; x<pt.size() ; x++ )
+		for( size_t x : iota(1,pt.size()) )
 			if (pt[x]<pi) { pi = pt[x] ; px = x ; }
 		if (break_lvl1) pi.breaks[break_lvl1-1]++ ;
 		break_lvl1 = n_lvls+1 ;
@@ -137,11 +137,10 @@ void optimize( ::vector<Line>& lines) {
 		}
 	}
 	if (py==Npos) return ;                                                                          // nothing to optimize
-	size_t              min_x  = 0       ;
-	::vector_view<Info> last_t = tab[py] ;
-	for( size_t x=1 ; x<last_t.size() ; x++ ) {
+	size_t       min_x  = 0       ;
+	::span<Info> last_t = tab[py] ;
+	for( size_t x : iota(1,last_t.size()) )
 		if (last_t[x]<last_t[min_x]) min_x = x ;
-	}
 	SWEAR(!last_t[min_x].ko) ;
 	for( size_t y1=tab.h ; y1>0 ; y1-- ) {
 		Line& l = lines[y1-1] ;
@@ -166,10 +165,11 @@ int main( int argc , char* argv[] ) {
 	//
 	optimize(lines) ;
 	//
-	::cout << ::left ;
+	::string out ;
 	for( Line const& l : lines ) {
-		if (+l.comment) ::cout << l.pfx << ::setw(l.comment_pos-g_tab_width*l.lvl) << l.code << l.comment <<'\n' ;
-		else            ::cout << l.pfx <<                                            l.code <<             '\n' ;
+		if (+l.comment) out << l.pfx << widen(l.code,l.comment_pos-g_tab_width*l.lvl) << l.comment <<'\n' ;
+		else            out << l.pfx <<       l.code                                  <<             '\n' ;
 	}
+	Fd::Stdout.write(out) ;
 	return 0 ;
 }

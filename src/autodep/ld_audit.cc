@@ -61,7 +61,7 @@ Qualify :
 	/**/                                                               return {true ,is_libc} ;
 }
 
-template<class Sym> uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
+template<class Sym> uintptr_t _la_symbind( Sym* sym , uint /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , uint* /*flags*/ , const char* sym_name ) {
 	//
 	auditor() ;                     // force Audit static init
 	if (g_force_orig) goto Ignore ; // avoid recursion loop
@@ -79,14 +79,14 @@ Ignore :
 #pragma GCC visibility push(default)
 extern "C" {
 
-	unsigned int la_version(unsigned int /*version*/) {
+	uint la_version(uint /*version*/) {
 		#define LIBCALL_ENTRY(libcall,is_stat) { #libcall , { reinterpret_cast<void*>(Audited::libcall) } }
 		_g_libcall_tab = new ::umap_s<SymbolEntry>{ ENUMERATE_LIBCALLS } ;
 		#undef LIBCALL_ENTRY
 		return LAV_CURRENT ;
 	}
 
-	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
+	uint la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
 		const char* nm = map->l_name ;
 		if ( !nm || !*nm ) {
 			*cookie = true/*not_std*/ ;
@@ -103,7 +103,7 @@ extern "C" {
 		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;
 	}
 
-	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , unsigned int flag ) {
+	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , uint flag ) {
 		switch (flag) {
 			case LA_SER_ORIG    : if (strrchr(name,'/')) ReadCS(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
 			case LA_SER_LIBPATH :
@@ -112,8 +112,8 @@ extern "C" {
 		return const_cast<char*>(name) ;
 	}
 
-	uintptr_t la_symbind64(Elf64_Sym* s,unsigned int n,uintptr_t* rc,uintptr_t* dc,unsigned int* f,const char* sn) { return _la_symbind(s,n,rc,dc,f,sn) ; }
-	uintptr_t la_symbind32(Elf32_Sym* s,unsigned int n,uintptr_t* rc,uintptr_t* dc,unsigned int* f,const char* sn) { return _la_symbind(s,n,rc,dc,f,sn) ; }
+	uintptr_t la_symbind64(Elf64_Sym* s,uint n,uintptr_t* rc,uintptr_t* dc,uint* f,const char* sn) { return _la_symbind(s,n,rc,dc,f,sn) ; }
+	uintptr_t la_symbind32(Elf32_Sym* s,uint n,uintptr_t* rc,uintptr_t* dc,uint* f,const char* sn) { return _la_symbind(s,n,rc,dc,f,sn) ; }
 
 }
 #pragma GCC visibility pop

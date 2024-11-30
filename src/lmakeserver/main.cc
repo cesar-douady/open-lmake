@@ -3,14 +3,12 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh" // must be first to include Python.h first
-
 #include <sys/inotify.h>
 
+#include "core.hh" // must be first to include Python.h first
+
 #include "rpc_client.hh"
-
 #include "autodep/record.hh"
-
 #include "cmd.hh"
 #include "makefiles.hh"
 
@@ -34,17 +32,17 @@ static bool           _g_is_daemon      = true   ;
 static ::atomic<bool> _g_done           = false  ;
 static bool           _g_server_running = false  ;
 static ::string       _g_host           = host() ;
-static bool           _g_read_only      = true   ;
+static bool           _g_seen_make      = false  ;
 
 static ::pair_s<int> _get_mrkr_host_pid() {
-	::ifstream server_mrkr_stream { ServerMrkr } ;
-	::string   service            ;
-	::string   server_pid         ;
-	if (!server_mrkr_stream                      ) { return { {}                      , 0                              } ; }
-	if (!::getline(server_mrkr_stream,service   )) { return { {}                      , 0                              } ; }
-	if (!::getline(server_mrkr_stream,server_pid)) { return { {}                      , 0                              } ; }
-	try                                            { return { SockFd::s_host(service) , from_string<pid_t>(server_pid) } ; }
-	catch (::string const&)                        { return { {}                      , 0                              } ; }
+	try {
+		::vector_s lines = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
+		::string const& service    = lines[0] ;
+		::string const& server_pid = lines[1] ;
+		return { SockFd::s_host(service) , from_string<pid_t>(server_pid) } ; }
+	catch (::string const&) {
+		return {{},0} ;
+	}
 }
 
 static void _server_cleanup() {
@@ -82,15 +80,15 @@ static bool/*crashed*/ _start_server() {
 		crashed = true ;
 		trace("vanished",mrkr) ;
 	}
-	if (_g_read_only) {
+	if (!g_writable) {
 		_g_server_running = true ;
 	} else {
 		_g_server_fd.listen() ;
 		::string tmp = ""s+ServerMrkr+'.'+_g_host+'.'+pid ;
-		OFStream(tmp)
-			<< _g_server_fd.service() << '\n'
-			<< getpid()               << '\n'
-		;
+		AcFd(tmp,Fd::Write).write(
+			_g_server_fd.service() + '\n'
+		+	getpid()               + '\n'
+		) ;
 		//vvvvvvvvvvvvvvvvvvvvvv
 		::atexit(_server_cleanup) ;
 		//^^^^^^^^^^^^^^^^^^^^^^
@@ -107,20 +105,15 @@ static bool/*crashed*/ _start_server() {
 }
 
 void record_targets(Job job) {
-	::string   targets_file  = AdminDirS+"targets"s ;
-	::vector_s known_targets ;
-	{	::ifstream targets_stream { targets_file } ;
-		::string   target         ;
-		while (::getline(targets_stream,target)) known_targets.push_back(target) ;
-	}
+	::string   targets_file  = AdminDirS+"targets"s                              ;
+	::vector_s known_targets = AcFd(targets_file).read_lines(true/*no_file_ok*/) ;
 	for( Node t : job->deps ) {
 		::string tn = t->name() ;
 		for( ::string& ktn : known_targets ) if (ktn==tn) ktn.clear() ;
 		known_targets.push_back(tn) ;
 	}
-	{	OFStream targets_stream { targets_file } ;
-		for( ::string tn : known_targets ) if (+tn) targets_stream << tn << '\n' ;
-	}
+	::string content ; for( ::string tn : known_targets ) if (+tn) content << tn <<'\n' ;
+	AcFd(targets_file,Fd::Write).write(content) ;
 }
 
 void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
@@ -131,8 +124,8 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	::umap<Fd,pair<IMsgBuf,Req>> in_tab  ;
 	Epoll                        epoll   { New }                                                 ;
 	//
-	if (!_g_read_only) { epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ; }         // if read-only, we do not expect additional connections
-	/**/               { epoll.add_read( _g_int_fd    , EventKind::Int    ) ; trace("read_int"   ,_g_int_fd   ) ; }
+	if (g_writable) { epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ; }            // if read-only, we do not expect additional connections
+	/**/            { epoll.add_read( _g_int_fd    , EventKind::Int    ) ; trace("read_int"   ,_g_int_fd   ) ; }
 	//
 	if ( +_g_watch_fd && ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 ) {
 		epoll.add_read( _g_watch_fd , EventKind::Watch ) ; trace("read_watch",_g_watch_fd) ;                                // if server marker is touched by user, we do as we received a ^C
@@ -189,8 +182,17 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					trace("req",rrr) ;
 					switch (rrr.proc) {
 						case ReqProc::Make : {
-							SWEAR(!_g_read_only) ;
-							Req r{New} ;
+							SWEAR(g_writable) ;
+							Req r ;
+							try {
+								r = {New} ;
+							} catch (::string const& e) {
+								audit( ofd , rrr.options , Color::None , e , true/*as_is*/ ) ;
+								OMsgBuf().send( ofd , ReqRpcReply(ReqRpcReplyProc::Status,false/*ok*/) ) ;
+								if (ofd!=fd) ::close   (ofd        ) ;
+								else         ::shutdown(ofd,SHUT_WR) ;
+								break ;
+							}
 							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -201,7 +203,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						case ReqProc::Debug  : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 						case ReqProc::Forget :
 						case ReqProc::Mark   :
-							SWEAR(!_g_read_only) ;
+							SWEAR(g_writable) ;
 						[[fallthrough]] ;
 						case ReqProc::Show :
 							epoll.del(fd) ; trace("del_fd",rrr.proc,fd) ;                   // must precede close(fd) which may occur as soon as we push to g_engine_queue
@@ -316,6 +318,7 @@ bool/*interrupted*/ engine_loop() {
 							//vvvvvvvvvvv
 							req.make(ecr) ;
 							//^^^^^^^^^^^
+							_g_seen_make = true ;
 						} catch(::string const& e) {
 							if (allocated) req.dealloc() ;
 							audit       ( ecr.out_fd , ecr.options , Color::Err , e ) ;
@@ -400,7 +403,7 @@ bool/*interrupted*/ engine_loop() {
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
-	_g_read_only = app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                      // server is always launched at root
+	g_writable = !app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                       // server is always launched at root
 	if (Record::s_is_simple(g_root_dir_s->c_str()))
 		exit(Rc::Usage,"cannot use lmake inside system directory "+no_slash(*g_root_dir_s)) ; // all local files would be seen as simple, defeating autodep
 	Py::init(*g_lmake_dir_s) ;
@@ -413,10 +416,10 @@ int main( int argc , char** argv ) {
 		FAIL("lmakeserver must be started from repo root, not from ",*g_startup_dir_s) ;
 	}
 	//
-	bool refresh_  = true      ;
+	bool refresh_ = true       ;
 	Fd   in_fd    = Fd::Stdin  ;
 	Fd   out_fd   = Fd::Stdout ;
-	for( int i=1 ; i<argc ; i++ ) {
+	for( int i : iota(1,argc) ) {
 		if (argv[i][0]!='-') goto Bad ;
 		switch (argv[i][1]) {
 			case 'c' : g_startup_dir_s = new ::string(argv[i]+2)     ;                               break ;
@@ -424,7 +427,7 @@ int main( int argc , char** argv ) {
 			case 'i' : in_fd           = from_string<int>(argv[i]+2) ;                               break ;
 			case 'o' : out_fd          = from_string<int>(argv[i]+2) ;                               break ;
 			case 'r' : refresh_        = false                       ; if (argv[i][2]!=0) goto Bad ; break ;
-			case 'R' : _g_read_only    = true                        ; if (argv[i][2]!=0) goto Bad ; break ;
+			case 'R' : g_writable      = false                       ; if (argv[i][2]!=0) goto Bad ; break ;
 			case '-' :                                                 if (argv[i][2]!=0) goto Bad ; break ;
 			default : exit(Rc::Usage,"unrecognized option : ",argv[i]) ;
 		}
@@ -437,12 +440,9 @@ int main( int argc , char** argv ) {
 	//
 	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ; // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
 	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;   // must be done before any thread is launched so that all threads block the signal
-	//          vvvvvvvvvvvvvvvvvvvvvvvv
-	Persistent::writable = !_g_read_only ;
-	Codec     ::writable = !_g_read_only ;
-	//          ^^^^^^^^^^^^^^^^^^^^^^^^
+	//
 	Trace trace("main",getpid(),*g_lmake_dir_s,*g_root_dir_s) ;
-	for( int i=0 ; i<argc ; i++ ) trace("arg",i,argv[i]) ;
+	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;
 	mk_dir_s(PrivateAdminDirS) ;
 	//             vvvvvvvvvvvvvvv
 	bool crashed = _start_server() ;
@@ -453,16 +453,16 @@ int main( int argc , char** argv ) {
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvv
 		::string msg = Makefiles::refresh(crashed,refresh_) ;
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^
-		if (+msg  ) ::cerr << ensure_nl(msg) ;
+		if (+msg  ) Fd::Stderr.write(ensure_nl(msg)) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                                  // once we have reported we have started, lmake will send us a message to kill us
 	//
-	for( AncillaryTag tag : All<AncillaryTag> ) dir_guard(Job().ancillary_file(tag)) ;
+	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
 	mk_dir_s(PrivateAdminDirS+"tmp/"s,true/*unlnk_ok*/) ;
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
-	if (!_g_read_only) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+base_name(read_lnk("/proc/self/exe")) ) ;
+	if (g_writable) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+base_name(read_lnk("/proc/self/exe")) ) ;
 	Codec::Closure::s_init() ;
 	Job           ::s_init() ;
 	//
@@ -471,9 +471,12 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	if (!_g_read_only)
+	if (g_writable) {
 		try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s) ; }         // cleanup
 		catch (::string const& e) { exit(Rc::System,e) ;                       }
+		//
+		if (_g_seen_make) AcFd(PrivateAdminDirS+"kpi"s,Fd::Write).write(g_kpi.pretty_str()) ;
+	}
 	//
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;
