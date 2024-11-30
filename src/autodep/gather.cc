@@ -491,7 +491,7 @@ Return :
 }
 
 // reorder accesses in chronological order and suppress implied dependencies :
-// - when a file is depended upon, its uphill directories are implicitely depended upon under the following conditions, no need to keep them and this significantly decreases the number of deps
+// - when a file is depended upon, its uphill directories are implicitly depended upon under the following conditions, no need to keep them and this significantly decreases the number of deps
 //   - either file exists
 //   - or dir is only accessed as link
 // - suppress dir when one of its sub-files appears before            (and condition above is satisfied)

@@ -135,7 +135,7 @@ The content of B($LMAKE_ARGS) is prepended to command line arguments.
 .LP
 The content of B($LMAKE_VIDEO) is processed as if provided with the B(--video) option.
 .LP
-Unless explicitely asked in I(Lmakefile.py), the environment is mostly ignored when B(lmake) is run, i.e. it is not passed to the jobs.
+Unless explicitly asked in I(Lmakefile.py), the environment is mostly ignored when B(lmake) is run, i.e. it is not passed to the jobs.
 The goal is to improve repeatability by protecting jobs from the variability environment variables may cause.
 In particular :
 Bullet

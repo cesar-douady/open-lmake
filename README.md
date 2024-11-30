@@ -35,7 +35,7 @@ Among them you may consider, with the described limitations (only major ones are
 	- Unreliable          : for example it will fail to rebuild a target if the recipe is modified.
 	- Fancy configuration : it is mostly impossible to write an easily readable makefile as soon as your flow is anything else than a straightforwar compile-link one.
 	- Dependencies        : managing dependencies is a nightmare, and even with dedicated helpers, it is always partial, fragile and complex.
-	  This is so true that most makefiles do not handle parallelism because of hidden dependencies (i.e. dependencies that are not explicite in the makefile).
+	  This is so true that most makefiles do not handle parallelism because of hidden dependencies (i.e. dependencies that are not explicit in the makefile).
 	- Not scalable        : it will poorly perform above ~100 rules and 10k files
 	- Too rigid           : the only genericity is through the use of a single wildcard (`%`). This is very far from enough when the flow contains anything but the simplest compile-link cases.
 - `ninja`
@@ -43,7 +43,7 @@ Among them you may consider, with the described limitations (only major ones are
 	- the most common front-ends, `cmake` and `meson`, lack genericity.
 - `bazel`
 	- The flow is not complete in the sens that it is not meant to be fully maintained by the user.
-	  The documentation states it explicitely : "It is common for BUILD files to be generated or edited by tools".
+	  The documentation states it explicitly : "It is common for BUILD files to be generated or edited by tools".
 	- Dependencies must be manually handled with care. Again, the documentation states it explictely :
 		+ BUILD file writers must explicitly declare all of the actual direct dependencies for every rule to the build system, and no more.
 		+ Failure to observe this principle causes undefined behavior: the build may fail, but worse, the build may depend on some prior operations,

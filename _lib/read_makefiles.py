@@ -125,7 +125,7 @@ if '/rules/' in actions :
 # manage sub-repos
 #
 
-if sub_repos_s==... : sub_sub_repos_s,sub_repos_s = ...,(d+'/' for d in config.sub_repos) # recurse if not provided explicitely
+if sub_repos_s==... : sub_sub_repos_s,sub_repos_s = ...,(d+'/' for d in config.sub_repos) # recurse if not provided explicitly
 else                : sub_sub_repos_s             = ()
 
 if sub_repos_s : import subprocess as sp

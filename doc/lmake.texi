@@ -841,7 +841,7 @@ Inside such sub-repositories, the applied flow is the one described in it, namel
 @item Rules are taken from the local @Lmakefile, executed within it (by adjusting their @code{cwd} attributes) and rules from the global repository do not apply.
 However there are 2 situations in which a global rule may apply in a sub-repo :
 @itemize
-@item if a target contains an explicite prefix within a sub-repo, then it is considered the user is willing to subrogate this principle.
+@item if a target contains an explicit prefix within a sub-repo, then it is considered the user is willing to subrogate this principle.
 @item if a rule matches a job with 2 or more targets, with a target outside the sub-repo and another inside it and the target outside the sub-repo is needed,
 the job will be executed, generating a target within the sub-repo.@XXX{flag this case as an error rather than silently accepting it}
 @end itemize
