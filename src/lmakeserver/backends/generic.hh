@@ -474,39 +474,39 @@ namespace Backends {
 							if (r!=req) {
 								auto                  wit2 = re.waiting_queues.find(candidate->first) ;
 								::set<PressureEntry>& pes  = wit2->second                             ;
-								PressureEntry         pe   { wit1->second , j }                       ;                // /!\ pressure is job pressure for r, not for req
+								PressureEntry         pe   { wit1->second , j }                       ;               // /!\ pressure is job pressure for r, not for req
 								SWEAR(pes.contains(pe)) ;
-								if (pes.size()==1) re.waiting_queues.erase(wit2) ;                                     // last entry for this rsrcs, erase the entire queue
+								if (pes.size()==1) re.waiting_queues.erase(wit2) ;                                    // last entry for this rsrcs, erase the entire queue
 								else               pes              .erase(pe  ) ;
 							}
 							re.waiting_jobs.erase(wit1) ;
 						}
-						if (pressure_set.size()==1) queues      .erase(candidate) ;                                    // last entry for this rsrcs, erase the entire queue
+						if (pressure_set.size()==1) queues      .erase(candidate) ;                                   // last entry for this rsrcs, erase the entire queue
 						else                        pressure_set.erase(pressure1) ;
 					}
 				}
-				for( auto& [ji,ld] : launch_descrs ) {
+				for( auto& [j,ld] : launch_descrs ) {
 					Lock lock { id_mutex } ;
 					SpawnedEntry& se = *ld.entry ;
-					if (!se.live) continue ;                                                                           // job was cancelled before being launched
+					if (!se.live) continue ;                                                                          // job was cancelled before being launched
 					try {
-						SpawnId id = launch_job( st , ji , ld.reqs , ld.prio , ld.cmd_line , se.rsrcs , se.verbose ) ; // XXX : manage errors, for now rely on heartbeat
-						SWEAR(id,ji) ;                                                                                 // null id is used to mark absence of id
+						SpawnId id = launch_job( st , j , ld.reqs , ld.prio , ld.cmd_line , se.rsrcs , se.verbose ) ; // XXX : manage errors, for now rely on heartbeat
+						SWEAR(id,j) ;                                                                                 // null id is used to mark absence of id
 						se.id = id ;
-						trace("child",ji,ld.prio,id,ld.cmd_line) ;
+						trace("child",j,ld.prio,id,ld.cmd_line) ;
 					} catch (::string const& e) {
-						trace("fail",ji,ld.prio,e) ;
+						trace("fail",j,ld.prio,e) ;
 						se.failed = true ;
-						_launch_queue.wakeup() ;                                               // we may have new jobs to launch as we did not launch all jobs we were supposed to
+						_launch_queue.wakeup() ;                                              // we may have new jobs to launch as we did not launch all jobs we were supposed to
 					}
 				}
 				{	Lock lock { _s_mutex } ;
-					for( auto const& [ji,_] : launch_descrs ) {
-						auto it=spawned_jobs.find(ji) ; if (it==spawned_jobs.end()) continue ;
-						if (it->second.failed) spawned_jobs.erase(self,it) ;                   // job could not be launched, release resources
-						/**/                   spawned_jobs.flush(     it) ;                   // collect unused entry now that we hold _s_mutex
+					for( auto const& [j,_] : launch_descrs ) {
+						auto it=spawned_jobs.find(j) ; if (it==spawned_jobs.end()) continue ;
+						if (it->second.failed) spawned_jobs.erase(self,it) ;                  // job could not be launched, release resources
+						/**/                   spawned_jobs.flush(     it) ;                  // collect unused entry now that we hold _s_mutex
 					}
-					launch_descrs.clear() ;                                                    // destroy entries while holding the lock
+					launch_descrs.clear() ;                                                   // destroy entries while holding the lock
 				}
 				trace("done") ;
 			}

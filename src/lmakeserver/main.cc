@@ -371,13 +371,13 @@ bool/*interrupted*/ engine_loop() {
 					case JobRpcProc::Start       : je.started     ( ::move(ecj.start.start) ,ecj.start.report , ecj.start.report_unlnks , ecj.start.txt , ecj.start.msg ) ; break ;
 					case JobRpcProc::ReportStart : je.report_start(                                                                                                     ) ; break ;
 					case JobRpcProc::GiveUp      : je.give_up     ( ecj.etc.req , ecj.etc.report                                                                        ) ; break ;
-					case JobRpcProc::End         : je.end         ( ::move(ecj.end.end.end) , true/*sav_jrr*/ , ecj.end.rsrcs                                           ) ; break ;
+					case JobRpcProc::End         : je.end         ( ::move(ecj.end) , true/*sav_jrr*/                                                                   ) ; break ;
 					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				DF}
 			} break ;
 			case EngineClosureKind::JobMngt : {
-				EngineClosureJobMngt& ecjm = closure.ecjm ;
-				JobExec             & je   = ecjm.job_exec    ;
+				EngineClosureJobMngt& ecjm = closure.ecjm  ;
+				JobExec             & je   = ecjm.job_exec ;
 				trace("job_mngt",ecjm.proc,je) ;
 				switch (ecjm.proc) {
 					//                          vvvvvvvvvvvvvvvvvvvvv

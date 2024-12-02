@@ -830,7 +830,7 @@ template<StdEnum E> ::string& operator+=( ::string& os , BitMap<E> const bm ) {
 }
 
 // used in static_assert when defining a table indexed by enum to fire if enum updates are not propagated to tab def
-template<StdEnum E,class T> constexpr bool chk_enum_tab(amap<E,T,N<E>> tab) {
+template<StdEnum E,class T> constexpr bool chk_enum_tab(::amap<E,T,N<E>> tab) {
 	for( E e : iota(All<E>) ) if (tab[+e].first!=e) return false/*ok*/ ;
 	/**/                                            return true /*ok*/ ;
 }

@@ -1980,7 +1980,7 @@ It is rarely necessary.
 
 This attribute specifies the maximum number of times a job can be submitted for a single @lmake command.
 The goal is to protect agains potential infinite loop cases.
-The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submission before stopping).
+The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
 
 @section @code{timeout}
 
@@ -2054,18 +2054,15 @@ Note: some backends, such as slurm, may have other means to manage timeouts. Bot
 @item Type
 @tab @code{int}
 @item Default
-@tab @code{0}
+@tab @code{1}
 @item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
+@tab No.
 @end multitable
 
 This attribute provides the number of allowed retries before giving up when a job is lost.
 For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called @code{job_exec}) was manually killed.
 
 In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.
-
-Job is also retried if the @code{-r} or @code{--retry-on-error} option is passed to @lmake.
-In that case, the number of retries is the max between the 2 values.
 
 @section @code{use_script}
 

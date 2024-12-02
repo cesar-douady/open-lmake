@@ -32,75 +32,72 @@ void print_submit_attrs(SubmitAttrs const& sa) {
 	g_out << "reason   : "  << sa.reason               <<'\n' ;
 }
 
-void print_pre_start(JobRpcReq const& jrr) {
-	SWEAR( jrr.proc==JobRpcProc::Start , jrr.proc ) ;
+void print_pre_start(JobStartRpcReq const& jsrr) {
 	g_out << "--req--\n" ;
 	//
-	g_out << "seq_id : " << jrr.seq_id <<'\n' ;
-	g_out << "job    : " << jrr.job    <<'\n' ;
+	g_out << "seq_id : " << jsrr.seq_id <<'\n' ;
+	g_out << "job    : " << jsrr.job    <<'\n' ;
 	//
-	g_out << "backend_msg :\n" ; g_out << ensure_nl(indent(jrr.msg)) ;
+	g_out << "backend_msg :\n" ; g_out << ensure_nl(indent(jsrr.msg)) ;
 }
 
-void print_start(JobRpcReply const& jrr) {
-	SWEAR( jrr.proc==JobRpcProc::Start , jrr.proc ) ;
+void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "--start--\n" ;
 	//
-	g_out << "addr         : "  << to_hex(jrr.addr)            <<'\n' ;
-	g_out << "auto_mkdir   : "  << jrr.autodep_env.auto_mkdir  <<'\n' ;
-	g_out << "chroot_dir_s : "  << jrr.job_space.chroot_dir_s  <<'\n' ;
-	g_out << "cwd_s        : "  << jrr.cwd_s                   <<'\n' ;
-	g_out << "date_prec    : "  << jrr.date_prec               <<'\n' ;
-	g_out << "ignore_stat  : "  << jrr.autodep_env.ignore_stat <<'\n' ;
-	g_out << "interpreter  : "  << jrr.interpreter             <<'\n' ;
-	g_out << "keep_tmp     : "  << jrr.keep_tmp                <<'\n' ;
-	g_out << "key          : "  << jrr.key                     <<'\n' ;
-	g_out << "kill_sigs    : "  << jrr.kill_sigs               <<'\n' ;
-	g_out << "live_out     : "  << jrr.live_out                <<'\n' ;
-	g_out << "method       : "  << jrr.method                  <<'\n' ;
-	g_out << "tmp_dir_s    : "  << jrr.autodep_env.tmp_dir_s   <<'\n' ; // tmp directory on disk
-	g_out << "root_view_s  : "  << jrr.job_space.root_view_s   <<'\n' ;
-	g_out << "small_id     : "  << jrr.small_id                <<'\n' ;
-	g_out << "stdin        : "  << jrr.stdin                   <<'\n' ;
-	g_out << "stdout       : "  << jrr.stdout                  <<'\n' ;
-	g_out << "timeout      : "  << jrr.timeout                 <<'\n' ;
-	g_out << "tmp_sz_mb    : "  << jrr.tmp_sz_mb               <<'\n' ;
-	g_out << "tmp_view_s   : "  << jrr.job_space.tmp_view_s    <<'\n' ;
-	g_out << "use_script   : "  << jrr.use_script              <<'\n' ;
+	g_out << "addr         : "  << to_hex(jsrr.addr)            <<'\n' ;
+	g_out << "auto_mkdir   : "  << jsrr.autodep_env.auto_mkdir  <<'\n' ;
+	g_out << "chroot_dir_s : "  << jsrr.job_space.chroot_dir_s  <<'\n' ;
+	g_out << "cwd_s        : "  << jsrr.cwd_s                   <<'\n' ;
+	g_out << "date_prec    : "  << jsrr.date_prec               <<'\n' ;
+	g_out << "ignore_stat  : "  << jsrr.autodep_env.ignore_stat <<'\n' ;
+	g_out << "interpreter  : "  << jsrr.interpreter             <<'\n' ;
+	g_out << "keep_tmp     : "  << jsrr.keep_tmp                <<'\n' ;
+	g_out << "key          : "  << jsrr.key                     <<'\n' ;
+	g_out << "kill_sigs    : "  << jsrr.kill_sigs               <<'\n' ;
+	g_out << "live_out     : "  << jsrr.live_out                <<'\n' ;
+	g_out << "method       : "  << jsrr.method                  <<'\n' ;
+	g_out << "tmp_dir_s    : "  << jsrr.autodep_env.tmp_dir_s   <<'\n' ; // tmp directory on disk
+	g_out << "root_view_s  : "  << jsrr.job_space.root_view_s   <<'\n' ;
+	g_out << "small_id     : "  << jsrr.small_id                <<'\n' ;
+	g_out << "stdin        : "  << jsrr.stdin                   <<'\n' ;
+	g_out << "stdout       : "  << jsrr.stdout                  <<'\n' ;
+	g_out << "timeout      : "  << jsrr.timeout                 <<'\n' ;
+	g_out << "tmp_sz_mb    : "  << jsrr.tmp_sz_mb               <<'\n' ;
+	g_out << "tmp_view_s   : "  << jsrr.job_space.tmp_view_s    <<'\n' ;
+	g_out << "use_script   : "  << jsrr.use_script              <<'\n' ;
 	//
-	g_out << "deps :\n"           ; _print_map  (jrr.deps           )                        ;
-	g_out << "env :\n"            ; _print_map  (jrr.env            )                        ;
-	g_out << "star matches :\n"   ; _print_map  (jrr.star_matches   )                        ;
-	g_out << "static matches :\n" ; _print_map  (jrr.static_matches )                        ;
-	g_out << "views :\n"          ; _print_views(jrr.job_space.views)                        ;
-	g_out << "cmd :\n"            ; g_out << ensure_nl(indent(jrr.cmd.first+jrr.cmd.second)) ;
+	g_out << "deps :\n"           ; _print_map  (jsrr.deps           )                        ;
+	g_out << "env :\n"            ; _print_map  (jsrr.env            )                        ;
+	g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   )                        ;
+	g_out << "static matches :\n" ; _print_map  (jsrr.static_matches )                        ;
+	g_out << "views :\n"          ; _print_views(jsrr.job_space.views)                        ;
+	g_out << "cmd :\n"            ; g_out << ensure_nl(indent(jsrr.cmd.first+jsrr.cmd.second)) ;
 }
 
-void print_end(JobRpcReq const& jrr) {
-	JobDigest const& jd = jrr.digest ;
-	JobStats  const& st = jd.stats   ;
-	SWEAR( jrr.proc==JobRpcProc::End , jrr.proc ) ;
+void print_end(JobEndRpcReq const& jerr) {
+	JobDigest const& jd = jerr.digest ;
+	JobStats  const& st = jd.stats    ;
 	//
 	g_out << "--end--\n" ;
 	//
-	g_out << "phy_dynamic_tmp_s  : " << jrr.phy_tmp_dir_s <<'\n' ;
+	g_out << "phy_dynamic_tmp_s  : " << jerr.phy_tmp_dir_s <<'\n' ;
 	//
-	g_out << "digest.status      : " << jd.status         <<'\n' ;
-	g_out << "digest.wstatus     : " << jd.wstatus        <<'\n' ;
-	g_out << "digest.end_date    : " << jd.end_date       <<'\n' ;
-	g_out << "digest.stats.cpu   : " << st.cpu            <<'\n' ;
-	g_out << "digest.stats.job   : " << st.job            <<'\n' ;
-	g_out << "digest.stats.total : " << st.total          <<'\n' ;
-	g_out << "digest.stats.mem   : " << st.mem            <<'\n' ;
+	g_out << "digest.status      : " << jd.status   <<'\n' ;
+	g_out << "digest.wstatus     : " << jd.wstatus  <<'\n' ;
+	g_out << "digest.end_date    : " << jd.end_date <<'\n' ;
+	g_out << "digest.stats.cpu   : " << st.cpu      <<'\n' ;
+	g_out << "digest.stats.job   : " << st.job      <<'\n' ;
+	g_out << "digest.stats.total : " << st.total    <<'\n' ;
+	g_out << "digest.stats.mem   : " << st.mem      <<'\n' ;
 	//
-	g_out << "dynamic_env :\n"         ; _print_map(jrr.dynamic_env)           ;
+	g_out << "dynamic_env :\n"         ; _print_map(jerr.dynamic_env) ;
 	//
 	g_out << "digest.targets :\n"      ; _print_map(jd.targets     )           ;
 	g_out << "digest.deps :\n"         ; _print_map(jd.deps        )           ;
 	g_out << "digest.stderr :\n"       ; g_out << ensure_nl(indent(jd.stderr)) ;
 	g_out << "digest.stdout :\n"       ; g_out << ensure_nl(indent(jd.stdout)) ;
 	//
-	g_out << "_msg :\n" ; g_out << ensure_nl(indent(localize(jrr.msg))) ;
+	g_out << "_msg :\n" ; g_out << ensure_nl(indent(localize(jerr.msg))) ;
 }
 
 int main( int argc , char* argv[] ) {
@@ -117,7 +114,7 @@ int main( int argc , char* argv[] ) {
 		print_start       (job_info.start.start       ) ;
 	}
 	//
-	if (+job_info.end) print_end(job_info.end.end) ;
+	if (+job_info.end) print_end(job_info.end) ;
 	Fd::Stdout.write(g_out) ;
 	return 0 ;
 }

@@ -288,6 +288,7 @@ namespace Engine {
 		Ddate                start_ddate    ;
 		Pdate                eta            ;           // Estimated Time of Arrival
 		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
+		uint8_t              n_retries      = 0       ;
 		bool                 has_backend    = false   ;
 		// summary
 		::vector<Node>                up_to_dates  ;    // asked nodes already done when starting

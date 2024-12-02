@@ -92,6 +92,18 @@ using namespace Hash ;
 }
 
 //
+// EndAttrs
+//
+
+::string& operator+=( ::string& os , EndAttrs const& ea ) {
+	First first ;
+	/**/                    os << "EndAttrs("                      ;
+	if (+ea.cache_key     ) os <<first("",",")<< ea.cache_key      ;
+	if (+ea.max_stderr_len) os <<first("",",")<< ea.max_stderr_len ;
+	return                  os << ')'                              ;
+}
+
+//
 // DepInfo
 //
 
@@ -393,7 +405,15 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 }
 
 //
-// JobRpcReq
+// JobStartRpcReq
+//
+
+::string& operator+=( ::string& os , JobStartRpcReq const& jsrr ) {
+	return os << "JobStartRpcReq(" << jsrr.seq_id <<','<< jsrr.job <<','<< jsrr.port <<','<< jsrr.msg <<')' ;
+}
+
+//
+// JobEndRpcReq
 //
 
 ::string& operator+=( ::string& os , TargetDigest const& td ) {
@@ -408,21 +428,15 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 }
 
 ::string& operator+=( ::string& os , JobDigest const& jd ) {
-	return os << "JobDigest(" << jd.wstatus<<':'<<jd.status <<','<< jd.targets <<','<< jd.deps << ')' ;
+	return os << "JobDigest(" << jd.end_attrs <<','<< jd.wstatus<<':'<<jd.status <<','<< jd.targets <<','<< jd.deps << ')' ;
 }
 
-::string& operator+=( ::string& os , JobRpcReq const& jrr ) {
-	/**/                      os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
-	switch (jrr.proc) {
-		case JobRpcProc::Start : os <<','<< jrr.port                                                     ; break ;
-		case JobRpcProc::End   : os <<','<< jrr.digest <<','<< jrr.phy_tmp_dir_s <<','<< jrr.dynamic_env ; break ;
-		default                :                                                                           break ;
-	}
-	return                    os <<','<< jrr.msg <<')' ;
+::string& operator+=( ::string& os , JobEndRpcReq const& jerr ) {
+	return os << "JobEndRpcReq(" << jerr.seq_id <<','<< jerr.job <<','<< jerr.digest <<','<< jerr.phy_tmp_dir_s <<','<< jerr.dynamic_env <<','<< jerr.msg <<')' ;
 }
 
 //
-// JobRpcReply
+// JobStartRpcReply
 //
 
 ::string& operator+=( ::string& os , MatchFlags const& mf ) {
@@ -435,40 +449,37 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 	return           os << ')' ;
 }
 
-::string& operator+=( ::string& os , JobRpcReply const& jrr ) {
-	os << "JobRpcReply(" << jrr.proc ;
-	switch (jrr.proc) {
-		case JobRpcProc::Start :
-			/**/                           os <<','  << to_hex(jrr.addr)           ;
-			/**/                           os <<','  << jrr.autodep_env            ;
-			if      (+jrr.job_space      ) os <<','  << jrr.job_space              ;
-			if      ( jrr.keep_tmp       ) os <<','  << "keep"                     ;
-			if      ( jrr.tmp_sz_mb==Npos) os <<",T:"<< "..."                      ;
-			else                           os <<",T:"<< jrr.tmp_sz_mb              ;
-			if      (+jrr.cwd_s          ) os <<','  << jrr.cwd_s                  ;
-			if      (+jrr.date_prec      ) os <<','  << jrr.date_prec              ;
-			/**/                           os <<','  << mk_printable(cat(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
-			/**/                           os <<','  << jrr.interpreter            ;
-			/**/                           os <<','  << jrr.kill_sigs              ;
-			if      (jrr.live_out        ) os <<','  << "live_out"                 ;
-			/**/                           os <<','  << jrr.method                 ;
-			if      (+jrr.network_delay  ) os <<','  << jrr.network_delay          ;
-			if      (+jrr.pre_actions    ) os <<','  << jrr.pre_actions            ;
-			/**/                           os <<','  << jrr.small_id               ;
-			if      (+jrr.star_matches   ) os <<','  << jrr.star_matches           ;
-			if      (+jrr.deps           ) os <<'<'  << jrr.deps                   ;
-			if      (+jrr.static_matches ) os <<'>'  << jrr.static_matches         ;
-			if      (+jrr.stdin          ) os <<'<'  << jrr.stdin                  ;
-			if      (+jrr.stdout         ) os <<'>'  << jrr.stdout                 ;
-			if      (+jrr.timeout        ) os <<','  << jrr.timeout                ;
-			/**/                           os <<','  << jrr.cmd                    ; // last as it is most probably multi-line
-			;
-		break ;
-	DN}
-	return os << ')' ;
+::string& operator+=( ::string& os , JobStartRpcReply const& jsrr ) {
+	/**/                           os << "JobStartRpcReply("                ;
+	/**/                           os <<','  << to_hex(jsrr.addr)           ;
+	/**/                           os <<','  << jsrr.autodep_env            ;
+	if (+jsrr.job_space          ) os <<','  << jsrr.job_space              ;
+	if ( jsrr.keep_tmp           ) os <<','  << "keep"                      ;
+	if ( jsrr.tmp_sz_mb==Npos    ) os <<",T:"<< "..."                       ;
+	else                           os <<",T:"<< jsrr.tmp_sz_mb              ;
+	if (+jsrr.cwd_s              ) os <<','  << jsrr.cwd_s                  ;
+	if (+jsrr.date_prec          ) os <<','  << jsrr.date_prec              ;
+	/**/                           os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+	/**/                           os <<','  << jsrr.interpreter            ;
+	/**/                           os <<','  << jsrr.kill_sigs              ;
+	if (jsrr.live_out            ) os <<','  << "live_out"                  ;
+	if (jsrr.allow_stderr        ) os <<','  << "allow_stderr"              ;
+	/**/                           os <<','  << jsrr.method                 ;
+	if (+jsrr.network_delay      ) os <<','  << jsrr.network_delay          ;
+	if (+jsrr.pre_actions        ) os <<','  << jsrr.pre_actions            ;
+	/**/                           os <<','  << jsrr.small_id               ;
+	if (+jsrr.star_matches       ) os <<','  << jsrr.star_matches           ;
+	if (+jsrr.deps               ) os <<'<'  << jsrr.deps                   ;
+	if (+jsrr.end_attrs          ) os <<','  << jsrr.end_attrs              ;
+	if (+jsrr.static_matches     ) os <<'>'  << jsrr.static_matches         ;
+	if (+jsrr.stdin              ) os <<'<'  << jsrr.stdin                  ;
+	if (+jsrr.stdout             ) os <<'>'  << jsrr.stdout                 ;
+	if (+jsrr.timeout            ) os <<','  << jsrr.timeout                ;
+	/**/                           os <<','  << jsrr.cmd                    ; // last as it is most probably multi-line
+	return                         os <<')'                                 ;
 }
 
-bool/*entered*/ JobRpcReply::enter(
+bool/*entered*/ JobStartRpcReply::enter(
 		::vmap_s<MountAction>& actions                                                                                  // out
 	,	::map_ss             & cmd_env                                                                                  // .
 	,	::string             & phy_tmp_dir_s                                                                            // .
@@ -478,7 +489,7 @@ bool/*entered*/ JobRpcReply::enter(
 	,	::string        const& phy_root_dir_s                                                                           // .
 	,	SeqId                  seq_id                                                                                   // .
 ) {
-	Trace trace("JobRpcReply::enter",job,phy_root_dir_s,seq_id) ;
+	Trace trace("JobStartRpcReply::enter",job,phy_root_dir_s,seq_id) ;
 	//
 	for( auto& [k,v] : env ) {
 		if      (v!=EnvPassMrkr)                                                             cmd_env[k] = ::move(v) ;
@@ -541,9 +552,9 @@ bool/*entered*/ JobRpcReply::enter(
 	return entered ;
 }
 
-void JobRpcReply::exit() {
+void JobStartRpcReply::exit() {
 	// work dir cannot be cleaned up as we may have chroot'ed inside
-	Trace trace("JobRpcReply::exit",_tmp_dir_s_to_cleanup) ;
+	Trace trace("JobStartRpcReply::exit",_tmp_dir_s_to_cleanup) ;
 	if (+_tmp_dir_s_to_cleanup) unlnk_inside_s(_tmp_dir_s_to_cleanup,true/*abs_ok*/ ) ;
 	job_space.exit() ;
 }
@@ -585,28 +596,27 @@ void JobRpcReply::exit() {
 //
 
 ::string& operator+=( ::string& os , SubmitAttrs const& sa ) {
-	const char* sep = "" ;
-	/**/                 os << "SubmitAttrs("          ;
-	if (+sa.tag      ) { os <<      sa.tag       <<',' ; sep = "," ; }
-	if ( sa.live_out ) { os <<sep<< "live_out,"        ; sep = "," ; }
-	if ( sa.n_retries) { os <<sep<< sa.n_retries <<',' ; sep = "," ; }
-	if (+sa.pressure ) { os <<sep<< sa.pressure  <<',' ; sep = "," ; }
-	if (+sa.deps     ) { os <<sep<< sa.deps      <<',' ; sep = "," ; }
-	if (+sa.reason   )   os <<sep<< sa.reason    <<',' ;
-	return               os <<')'                      ;
+	First first ;
+	/**/               os << "SubmitAttrs("             ;
+	if (+sa.tag      ) os <<first("",",")<< sa.tag      ;
+	if ( sa.live_out ) os <<first("",",")<< "live_out"  ;
+	if (+sa.pressure ) os <<first("",",")<< sa.pressure ;
+	if (+sa.deps     ) os <<first("",",")<< sa.deps     ;
+	if (+sa.reason   ) os <<first("",",")<< sa.reason   ;
+	return             os <<')'                         ;
 }
 
 //
-// JobInfo
+// JobInfoStart
 //
 
 ::string& operator+=( ::string& os , JobInfoStart const& jis ) {
 	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
 }
 
-::string& operator+=( ::string& os , JobInfoEnd const& jie ) {
-	return os << "JobInfoEnd(" << jie.end <<')' ;
-}
+//
+// JobInfo
+//
 
 JobInfo::JobInfo(::string const& filename , Bool3 get_start , Bool3 get_end ) {
 	Trace trace("JobInfo",filename,get_start,get_end) ;

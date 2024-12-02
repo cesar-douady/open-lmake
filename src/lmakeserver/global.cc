@@ -108,11 +108,6 @@ namespace Engine {
 		return              os <<')'            ;
 	}
 
-	::string& operator+=( ::string& os , EngineClosureJobEnd const& ecje ) {
-		/**/   os << "Ecje("        ;
-		return os << ecje.end <<')' ;
-	}
-
 	::string& operator+=( ::string& os , EngineClosureJob const& ecj ) {
 		/**/                               os << "(" << ecj.proc <<','<< ecj.job_exec ;
 		switch (ecj.proc) {

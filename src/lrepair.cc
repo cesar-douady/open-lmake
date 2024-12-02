@@ -25,17 +25,14 @@ RepairDigest repair(::string const& from_dir_s) {
 	for( ::string const& jd : walk(no_slash(from_dir_s),no_slash(from_dir_s)) ) {
 		{	JobInfo job_info { jd } ;
 			// qualify report
-			if (job_info.start.pre_start.proc!=JobRpcProc::Start) { trace("no_pre_start",jd) ; goto NextJob ; }
-			if (job_info.start.start    .proc!=JobRpcProc::Start) { trace("no_start"    ,jd) ; goto NextJob ; }
-			if (job_info.end  .end      .proc!=JobRpcProc::End  ) { trace("no_end"      ,jd) ; goto NextJob ; }
-			if (job_info.end  .end.digest.status!=Status::Ok    ) { trace("not_ok"      ,jd) ; goto NextJob ; }         // repairing jobs in error is useless
+			if (job_info.end.digest.status!=Status::Ok) { trace("not_ok",jd) ; goto NextJob ; }                         // repairing jobs in error is useless
 			// find rule
 			auto it = rule_tab.find(job_info.start.rule_cmd_crc) ;
 			if (it==rule_tab.end()) { trace("no_rule",jd) ; goto NextJob ; }                                            // no rule
 			Rule rule = it->second ;
 			// find targets
-			::vector<Target> targets ; targets.reserve(job_info.end.end.digest.targets.size()) ;
-			for( auto const& [tn,td] : job_info.end.end.digest.targets ) {
+			::vector<Target> targets ; targets.reserve(job_info.end.digest.targets.size()) ;
+			for( auto const& [tn,td] : job_info.end.digest.targets ) {
 				if ( td.crc==Crc::None && !static_phony(td.tflags) )                                   continue     ;   // this is not a target
 				if ( !td.crc.valid()                               ) { trace("invalid_target",jd,tn) ; goto NextJob ; } // XXX : handle this case
 				if ( td.sig!=FileSig(tn)                           ) { trace("disk_mismatch" ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
@@ -47,8 +44,8 @@ RepairDigest repair(::string const& from_dir_s) {
 			::sort(targets) ;                                                                              // ease search in targets
 			// find deps
 			::vector_s    src_dirs ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs.push_back(s->name()) ;
-			::vector<Dep> deps     ; deps.reserve(job_info.end.end.digest.deps.size()) ;
-			for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
+			::vector<Dep> deps     ; deps.reserve(job_info.end.digest.deps.size()) ;
+			for( auto const& [dn,dd] : job_info.end.digest.deps ) {
 				if ( !is_canon(dn)) goto NextJob ;                                                         // this should never happen, there is a problem with this job
 				if (!is_lcl(dn)) {
 					for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ;            // this could be optimized by searching the longest match in the name prefix tree
@@ -65,7 +62,7 @@ RepairDigest repair(::string const& from_dir_s) {
 			if (!job) goto NextJob ;
 			job->targets.assign(targets) ;
 			job->deps   .assign(deps   ) ;
-			job->status = job_info.end.end.digest.status ;
+			job->status = job_info.end.digest.status ;
 			job->set_exec_ok() ;                                                                           // pretend job just ran
 			// set target actual_job's
 			for( Target t : targets ) {

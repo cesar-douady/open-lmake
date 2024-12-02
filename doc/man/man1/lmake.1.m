@@ -88,7 +88,6 @@ When this option is used, only the jobs directly producing the asked targets hav
 Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
 Item(B(-r) I(count),B(--retry-on-error)=I(count))
 Ask B(lmake) to retry jobs in case of error.
-The number of retries is the max between count and the n_retries attribute of the rule.
 This is useful for unattended execution (e.g. nightly regressions) when system reliability is not enough to guarantee correct execution at the desired level.
 Item(B(-l),B(--local))
 With this option, jobs are launched locally (i.e. using the I(local) backend) instead of the backend mentioned in the rule.

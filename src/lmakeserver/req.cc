@@ -46,7 +46,8 @@ namespace Engine {
 		//
 		Trace trace("Rmake",self,s_n_reqs(),data.start_ddate,data.start_pdate) ;
 		try {
-			JobIdx n_jobs = from_string<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
+			if (ecr.options.flags[ReqFlag::RetryOnError]) data.n_retries = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::RetryOnError]                 ) ;
+			JobIdx                                        n_jobs         = from_string<JobIdx >(ecr.options.flag_args[+ReqFlag::Jobs        ],true/*empty_ok*/) ;
 			if (ecr.as_job()) data.job = ecr.job()                                                                            ;
 			else              data.job = Job( Special::Req , Deps(ecr.targets(),~Accesses(),Dflag::Static,true/*parallel*/) ) ;
 			Backend::s_open_req( +self , n_jobs ) ;
@@ -232,12 +233,11 @@ namespace Engine {
 					seen_stderr = true ;
 				break ;
 				case Special::Plain : {
-					Rule::SimpleMatch match          ;
-					JobInfo           job_info       = job.job_info()                                               ;
-					EndNoneAttrs      end_none_attrs = r->end_none_attrs.eval( job , match , job_info.start.rsrcs ) ;
+					Rule::SimpleMatch match ;
+					JobEndRpcReq      jerr  = job.job_info(false/*need_start*/).end ;
 					//
-					if (!job_info.end.end.proc) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-					else                        seen_stderr = self->audit_stderr( job , job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
+					if (!jerr) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
+					else       seen_stderr = self->audit_stderr( job , jerr.msg , jerr.digest.stderr , jerr.digest.end_attrs.max_stderr_len , lvl+1 ) ;
 				} break ;
 			DN}
 		if (intermediate)

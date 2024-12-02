@@ -49,17 +49,11 @@ cd       $trial_dir
 CXX=${CXX:-g++}
 
 case "$(basename $CXX)" in
-	clang++  ) CXX_FLAVOR=clang ;;
-	clang++-*) CXX_FLAVOR=clang ;;
-	g++      ) CXX_FLAVOR=gcc   ;;
-	g++-*    ) CXX_FLAVOR=gcc   ;;
-	c++      ) CXX_FLAVOR=gcc   ;;
-	clang    ) echo \$CXX=$CXX must be a native C++ one, such as clang++             >>$ERR_FILE ; exit 1 ;;
-	clang-*  ) echo \$CXX=$CXX must be a native C++ one, such as clang++${CXX#clang} >>$ERR_FILE ; exit 1 ;;
-	gcc      ) echo \$CXX=$CXX must be a native C++ one, such as g++                 >>$ERR_FILE ; exit 1 ;;
-	gcc-*    ) echo \$CXX=$CXX must be a native C++ one, such as g++${CXX#gcc}       >>$ERR_FILE ; exit 1 ;;
-	cc       ) echo \$CXX=$CXX must be a native C++ one, such as c++                 >>$ERR_FILE ; exit 1 ;;
-	*        ) echo \$CXX=$CXX cannot be recognized as a c++ compiler                >>$ERR_FILE ; exit 1 ;;
+	*++*  ) ;;
+	cc*   ) echo "\$CXX=$CXX must be a native C++ one, such as c++${CXX#cc}"                                     >>$ERR_FILE ; exit 1 ;;
+	clang*) echo "\$CXX=$CXX must be a native C++ one, such as clang++${CXX#clang}"                              >>$ERR_FILE ; exit 1 ;;
+	gcc*  ) echo "\$CXX=$CXX must be a native C++ one, such as g++${CXX#gcc}"                                    >>$ERR_FILE ; exit 1 ;;
+	*     ) echo "\$CXX=$CXX cannot be recognized as a c++ compiler, please use one such as g++, clang++ or c++" >>$ERR_FILE ; exit 1 ;;
 esac
 
 CXX=$(type -p $CXX)
@@ -68,10 +62,15 @@ CXX_DIR=$(dirname $CXX)
 
 cc() { PATH=$CXX_DIR:$PATH $CXX "$@" ; }
 
+case $(cc --version | head -1) in
+	*clang*) CXX_FLAVOR=clang ;;
+	*      ) CXX_FLAVOR=gcc   ;; # there is no easy marker that can be recognized for gcc
+esac
+
 CXX_VERSION=$(cc -dumpversion)                                                                               # outputs either major version or full version, depending on flavors and versions
 CXX_VERSION=${CXX_VERSION%%.*}                                                                               # strip minor if present
 [ "$CXX_VERSION" ] || { echo cannot determine version of $CXX "($CXX_FLAVOR style)" >>$ERR_FILE ; exit 1 ; }
-case "$CXX_FLAVOR" in
+case $CXX_FLAVOR in
 	clang) [[ $CXX_VERSION -ge 14 ]] || { echo $CXX version $CXX_VERSION must be at least 14 >>$ERR_FILE ; exit 1 ; } ;;
 	gcc  ) [[ $CXX_VERSION -ge 11 ]] || { echo $CXX version $CXX_VERSION must be at least 11 >>$ERR_FILE ; exit 1 ; } ;;
 esac
@@ -101,7 +100,7 @@ case $OS in
 			p=$(type -p $python || :)
 			[ "$p" ] || { msg="$python not found" ; return 1 ; }
 			python=$p
-			llp=$LD_LIBRARY_PATH                                                        # save LD_LIBARY_PATH
+			llp=$LD_LIBRARY_PATH                                                                    # save LD_LIBARY_PATH
 			export LD_LIBRARY_PATH="$(dirname $(dirname $python))/lib:$LD_LIBRARY_PATH"
 			py_major=$($python -c 'import sys       ; print(sys.version_info.major                )')
 			py_minor=$($python -c 'import sys       ; print(sys.version_info.minor                )')
@@ -142,7 +141,7 @@ case $OS in
 				*.so) eval "HAS_PY${ver}_DYN=1" ; echo "using $python as python$ver (version $py_major.$py_minor)"                                           >>$SUM_FILE ;;
 				*.a ) eval "HAS_PY${ver}_DYN=0" ; echo "using $python as python$ver (version $py_major.$py_minor) with static library (minimal job support)" >>$SUM_FILE ;;
 			esac
-			LD_LIBRARY_PATH=$llp                                                        # restore LD_LIBARY_PATH
+			LD_LIBRARY_PATH=$llp                                                                    # restore LD_LIBARY_PATH
 		}
 		#
 		config_python "$PYTHON2" 2 || { echo "no python2 support ($msg)" >>$SUM_FILE ; PYTHON2= ; } # python2 is optional

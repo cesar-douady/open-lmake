@@ -876,10 +876,11 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "ete"              ; if (dct.contains(field)) Attrs::acquire( exec_time , &dct[field]              ) ;
-			field = "force"            ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field]              ) ;
-			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field]              ) ; else throw "not found"s ;
-			field = "max_submit_count" ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] , uint8_t(1) ) ;
+			field = "ete"              ; if (dct.contains(field)) Attrs::acquire( exec_time , &dct[field] ) ;
+			field = "force"            ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field] ) ;
+			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field] ) ; else throw "not found"s ;
+			field = "n_retries"        ; if (dct.contains(field)) Attrs::acquire( n_losts   , &dct[field] ) ;
+			field = "max_submit_count" ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] ) ;
 			//
 			/**/                                            var_idxs["targets"        ] = { VarCmd::Targets                              , 0  } ;
 			for( VarIdx mi : iota<VarIdx>(matches.size()) ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
@@ -890,7 +891,6 @@ namespace Engine {
 			/**/                                                        var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
 			for( VarIdx d : iota<VarIdx>(deps_attrs.spec.deps.size()) ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
-			field = "cache_none_attrs"   ; if (dct.contains(field)) cache_none_attrs   = { dct[field].as_a<Tuple>() , var_idxs } ;
 			field = "submit_rsrcs_attrs" ; if (dct.contains(field)) submit_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs } ;
 			field = "submit_none_attrs"  ; if (dct.contains(field)) submit_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs } ;
 			//
@@ -898,11 +898,9 @@ namespace Engine {
 			for( VarIdx r : iota<VarIdx>(submit_rsrcs_attrs.spec.rsrcs.size()) ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
 			//
 			field = "start_cmd_attrs"   ; if (dct.contains(field)) start_cmd_attrs   = { dct[field].as_a<Tuple>() , var_idxs        } ;
-			field = "cmd"               ; if (dct.contains(field)) cmd               = { dct[field].as_a<Tuple>() , var_idxs , self } ; else throw "not found"s ;
 			field = "start_rsrcs_attrs" ; if (dct.contains(field)) start_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs        } ;
 			field = "start_none_attrs"  ; if (dct.contains(field)) start_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs        } ;
-			field = "end_cmd_attrs"     ; if (dct.contains(field)) end_cmd_attrs     = { dct[field].as_a<Tuple>() , var_idxs        } ;
-			field = "end_none_attrs"    ; if (dct.contains(field)) end_none_attrs    = { dct[field].as_a<Tuple>() , var_idxs        } ;
+			field = "cmd"               ; if (dct.contains(field)) cmd               = { dct[field].as_a<Tuple>() , var_idxs , self } ; else throw "not found"s ;
 			//
 			for( VarIdx mi : iota(n_static_targets) ) {
 				if (matches[mi].first!="<stdout>") continue ;
@@ -975,15 +973,12 @@ namespace Engine {
 			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/ )) ;
 			//
 			deps_attrs        .compile() ;
-			cache_none_attrs  .compile() ;
 			submit_rsrcs_attrs.compile() ;
 			submit_none_attrs .compile() ;
 			start_cmd_attrs   .compile() ;
-			cmd               .compile() ;
 			start_rsrcs_attrs .compile() ;
 			start_none_attrs  .compile() ;
-			end_cmd_attrs     .compile() ;
-			end_none_attrs    .compile() ;
+			cmd               .compile() ;
 		} catch (::string const& e) {
 			throw "while processing "+full_name()+" :\n"+indent(e) ;
 		}
@@ -1245,11 +1240,12 @@ namespace Engine {
 		}
 		if (!is_special()) {
 			if ( force                                             ) entries.emplace_back( "force"            , cat        (force                                          ) ) ;
+			if ( n_losts                                           ) entries.emplace_back( "n_retries"        , ::to_string(n_losts                                        ) ) ;
 			if ( n_submits                                         ) entries.emplace_back( "max_submit_count" , ::to_string(n_submits                                      ) ) ;
-			if (+cache_none_attrs  .spec.key                       ) entries.emplace_back( "key"              ,             cache_none_attrs  .spec.key                      ) ;
 			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"          , snake      (submit_rsrcs_attrs.spec.backend                ) ) ;
-			if ( submit_none_attrs .spec.n_retries                 ) entries.emplace_back( "n_retries"        , ::to_string(submit_none_attrs .spec.n_retries              ) ) ;
+			if (+submit_none_attrs .spec.cache_key                 ) entries.emplace_back( "cache"            ,             submit_none_attrs .spec.cache_key              ) ;
 			if (+interpreter                                       ) entries.emplace_back( "interpreter"      ,             interpreter                                      ) ;
+			if ( start_cmd_attrs   .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"     , cat        (start_cmd_attrs   .spec.allow_stderr           ) ) ;
 			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"       , cat        (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
 			if (+start_cmd_attrs   .spec.job_space.chroot_dir_s    ) entries.emplace_back( "chroot_dir"       , no_slash   (start_cmd_attrs   .spec.job_space.chroot_dir_s ) ) ;
 			if ( start_cmd_attrs   .spec.ignore_stat               ) entries.emplace_back( "ignore_stat"      , cat        (start_cmd_attrs   .spec.ignore_stat            ) ) ;
@@ -1261,8 +1257,7 @@ namespace Engine {
 			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"         , cat        (start_none_attrs  .spec.keep_tmp               ) ) ;
 			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"      ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
 			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"        ,             kill_sigs                                        ) ;
-			if ( end_cmd_attrs     .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"     , cat        (end_cmd_attrs     .spec.allow_stderr           ) ) ;
-			if ( end_none_attrs    .spec.max_stderr_len!=size_t(-1)) entries.emplace_back( "max_stderr_len"   , ::to_string(end_none_attrs    .spec.max_stderr_len         ) ) ;
+			if ( start_none_attrs  .spec.max_stderr_len!=Npos      ) entries.emplace_back( "max_stderr_len"   , ::to_string(start_none_attrs  .spec.max_stderr_len         ) ) ;
 		}
 		::string res = _pretty_vmap( title , entries ) ;
 		//
@@ -1279,15 +1274,12 @@ namespace Engine {
 		// then dynamic part
 		if (!is_special()) {
 			res << indent( _pretty_dyn(deps_attrs        ) , 1 ) ;
-			res << indent( _pretty_dyn(cache_none_attrs  ) , 1 ) ;
 			res << indent( _pretty_dyn(submit_rsrcs_attrs) , 1 ) ;
 			res << indent( _pretty_dyn(submit_none_attrs ) , 1 ) ;
 			res << indent( _pretty_dyn(start_cmd_attrs   ) , 1 ) ;
 			res << indent( _pretty_dyn(start_rsrcs_attrs ) , 1 ) ;
 			res << indent( _pretty_dyn(start_none_attrs  ) , 1 ) ;
 			res << indent( _pretty_dyn(cmd               ) , 1 ) ;
-			res << indent( _pretty_dyn(end_cmd_attrs     ) , 1 ) ;
-			res << indent( _pretty_dyn(end_none_attrs    ) , 1 ) ;
 		}
 		// and finally the cmd
 		if (!is_special()) {
@@ -1344,9 +1336,8 @@ namespace Engine {
 			h.update(matches               ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
 			h.update(force                 ) ;
 			h.update(is_python             ) ;
-			cmd            .update_hash(h)   ;
 			start_cmd_attrs.update_hash(h)   ;
-			end_cmd_attrs  .update_hash(h)   ;
+			cmd            .update_hash(h)   ;
 			Crc cmd = h.digest() ;
 			//
 			submit_rsrcs_attrs.update_hash(h) ;

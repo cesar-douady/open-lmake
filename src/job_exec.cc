@@ -47,19 +47,19 @@ struct PatternDict {
 	::vmap<RegExpr,MatchFlags> patterns = {} ;
 } ;
 
-Gather      g_gather         ;
-JobIdx      g_job            = 0/*garbage*/ ;
-PatternDict g_match_dct      ;
-NfsGuard    g_nfs_guard      ;
-SeqId       g_seq_id         = 0/*garbage*/ ;
-::string    g_phy_root_dir_s ;
-::string    g_phy_tmp_dir_s  ;
-::string    g_service_start  ;
-::string    g_service_mngt   ;
-::string    g_service_end    ;
-JobRpcReply g_start_info     ;
-SeqId       g_trace_id       = 0/*garbage*/ ;
-::vector_s  g_washed         ;
+Gather           g_gather         ;
+JobIdx           g_job            = 0/*garbage*/ ;
+PatternDict      g_match_dct      ;
+NfsGuard         g_nfs_guard      ;
+SeqId            g_seq_id         = 0/*garbage*/ ;
+::string         g_phy_root_dir_s ;
+::string         g_phy_tmp_dir_s  ;
+::string         g_service_start  ;
+::string         g_service_mngt   ;
+::string         g_service_end    ;
+JobStartRpcReply g_start_info     ;
+SeqId            g_trace_id       = 0/*garbage*/ ;
+::vector_s       g_washed         ;
 
 struct Digest {
 	::vmap_s<TargetDigest> targets ;
@@ -272,7 +272,7 @@ int main( int argc , char* argv[] ) {
 	//
 	g_trace_file = new ::string{g_phy_root_dir_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
 	//
-	JobRpcReq end_report { JobRpcProc::End , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error, so we can goto End anytime
+	JobEndRpcReq end_report { {g_seq_id,g_job} , {.end_date=start_overhead,.status=Status::EarlyErr} } ;   // prepare to return an error, so we can goto End anytime
 	//
 	if (::chdir(no_slash(g_phy_root_dir_s).c_str())!=0) {
 		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_root_dir_s)<<'\n' ;
@@ -291,20 +291,17 @@ int main( int argc , char* argv[] ) {
 			ClientSockFd fd {g_service_start,NConnectionTrials} ;
 			fd.set_timeout(Delay(100)) ;                                                                   // ensure we dont stay stuck in case server is in the coma ...
 			found_server = true ;                                                                          //  ... 100 = 100 simultaneous connections, 10 jobs/s
-			//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			/**/           OMsgBuf().send                ( fd , JobRpcReq{JobRpcProc::Start,g_seq_id,g_job,server_fd.port()} ) ;
-			g_start_info = IMsgBuf().receive<JobRpcReply>( fd                                                                ) ;
-			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			/**/           OMsgBuf().send                     ( fd , JobStartRpcReq({g_seq_id,g_job},server_fd.port()) ) ;
+			g_start_info = IMsgBuf().receive<JobStartRpcReply>( fd                                                     ) ;
+			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			trace("no_start_info",g_service_start,STR(found_server),e) ;
 			if (found_server) exit(Rc::Fail                                                       ) ;      // this is typically a ^C
 			else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ;      // this may be a server config problem, better to report
 		}
 		trace("g_start_info",Pdate(New),g_start_info) ;
-		switch (g_start_info.proc) {
-			case JobRpcProc::None  : return 0 ;                                                            // server ask us to give up
-			case JobRpcProc::Start : break    ;                                                            // normal case
-		DF}
+		if (!g_start_info) return 0 ;                                                                      // server ask us to give up
 		try                       { g_start_info.job_space.mk_canon(g_phy_root_dir_s) ; }
 		catch (::string const& e) { end_report.msg += e ; goto End ;                    }
 		//
@@ -412,22 +409,25 @@ int main( int argc , char* argv[] ) {
 				catch (::string const&) {                                                                }
 		}
 		//
-		if ( status==Status::Ok && +digest.msg ) status = Status::Err ;
+		if ( status==Status::Ok && ( +digest.msg || (+g_gather.stderr&&!g_start_info.allow_stderr) ) ) status = Status::Err ;
+		//
 		/**/                        end_report.msg += g_gather.msg ;
 		if (status!=Status::Killed) end_report.msg += digest  .msg ;
+		JobStats stats {
+			.cpu { Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime) }
+		,	.job { g_gather.end_date-g_gather.start_date         }
+		,	.mem = size_t(rsrcs.ru_maxrss<<10)
+		} ;
 		end_report.digest = {
-			.status       = status
-		,	.targets      { ::move(digest.targets ) }
-		,	.deps         { ::move(digest.deps    ) }
-		,	.stderr       { ::move(g_gather.stderr) }
-		,	.stdout       { ::move(g_gather.stdout) }
-		,	.wstatus      = g_gather.wstatus
-		,	.end_date     = g_gather.end_date
-		,	.stats{
-				.cpu { Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime) }
-			,	.job { g_gather.end_date-g_gather.start_date         }
-			,	.mem = size_t(rsrcs.ru_maxrss<<10)
-			}
+			.deps           { ::move(digest.deps           ) }
+		,	.end_attrs      { ::move(g_start_info.end_attrs) }
+		,	.end_date       =        g_gather.end_date
+		,	.stats          { ::move(stats                 ) }
+		,	.status         =        status
+		,	.stderr         { ::move(g_gather.stderr       ) }
+		,	.stdout         { ::move(g_gather.stdout       ) }
+		,	.targets        { ::move(digest.targets        ) }
+		,	.wstatus        =        g_gather.wstatus
 		} ;
 	}
 End :

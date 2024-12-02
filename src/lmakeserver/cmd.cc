@@ -189,8 +189,8 @@ namespace Engine {
 	}
 
 	static ::pair<::vmap_ss/*set*/,::vector_s/*keep*/> _mk_env( JobInfo const& job_info ) {
-		bool                                        has_end = +job_info.end.end.proc                ;
-		::umap_ss                                   de      = mk_umap(job_info.end.end.dynamic_env) ;
+		bool                                        has_end = +job_info.end                     ;
+		::umap_ss                                   de      = mk_umap(job_info.end.dynamic_env) ;
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> res     ;
 		for( auto const& [k,v] : job_info.start.start.env )
 			if      (v!=EnvPassMrkr) res.first .emplace_back(k,v       ) ;
@@ -200,9 +200,9 @@ namespace Engine {
 	}
 
 	static ::string _mk_gen_script_line( Job j , ReqOptions const& ro , JobInfo const& job_info , ::string const& dbg_dir_s , ::string const& key ) {
-		JobRpcReply const& start = job_info.start.start ;
-		AutodepEnv  const& ade   = start.autodep_env    ;
-		Rule::SimpleMatch  match = j->simple_match()    ;
+		JobStartRpcReply const& start = job_info.start.start ;
+		AutodepEnv       const& ade   = start.autodep_env    ;
+		Rule::SimpleMatch       match = j->simple_match()    ;
 		//
 		for( Node t  : j->targets ) t->set_buildable() ;                    // necessary for pre_actions()
 		::string res ;
@@ -339,7 +339,7 @@ namespace Engine {
 		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->full_name()+" jobs" ;
 		//
 		JobInfo job_info = job.job_info() ;
-		if (!job_info.start.start.proc) {
+		if (!job_info.start.start) {
 			audit( fd , ro , Color::Err , "no info available" ) ;
 			return false ;
 		}
@@ -499,10 +499,10 @@ namespace Engine {
 		Trace trace("show_job",ro.key,job) ;
 		Rule             rule         = job->rule()                ;
 		JobInfo          job_info     = job.job_info()             ;
-		bool             has_start    = +job_info.start.start.proc ;
-		bool             has_end      = +job_info.end  .end  .proc ;
+		bool             has_start    = +job_info.start.start      ;
+		bool             has_end      = +job_info.end              ;
 		bool             verbose      = ro.flags[ReqFlag::Verbose] ;
-		JobDigest const& digest       = job_info.end.end.digest    ;
+		JobDigest const& digest       = job_info.end.digest        ;
 		switch (ro.key) {
 			case ReqKey::Cmd    :
 			case ReqKey::Env    :
@@ -524,9 +524,9 @@ namespace Engine {
 						break ;
 					DF}
 				} else {
-					JobRpcReq   const& pre_start = job_info.start.pre_start ;
-					JobRpcReply const& start     = job_info.start.start     ;
-					JobRpcReq   const& end       = job_info.end  .end       ;
+					JobStartRpcReq   const& pre_start = job_info.start.pre_start ;
+					JobStartRpcReply const& start     = job_info.start.start     ;
+					JobEndRpcReq     const& end       = job_info.end             ;
 					//
 					if (pre_start.job) SWEAR(pre_start.job==+job,pre_start.job,+job) ;
 					//

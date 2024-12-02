@@ -136,25 +136,19 @@ namespace Engine {
 		Req  req    = {}    ;
 	} ;
 
-	struct EngineClosureJobEnd {
-		friend ::string& operator+=( ::string& , EngineClosureJobEnd const& ) ;
-		::vmap_ss  rsrcs = {} ;
-		JobInfoEnd end   = {} ;
-	} ;
-
 	struct EngineClosureJob {
 		friend ::string& operator+=( ::string& , EngineClosureJob const& ) ;
 		// cxtors & casts
 		EngineClosureJob( JobRpcProc p , JobExec const& je , EngineClosureJobStart&& ecjs ) : proc{p} , job_exec{je} , start{ecjs} {}
 		EngineClosureJob( JobRpcProc p , JobExec const& je , EngineClosureJobEtc  && ecje ) : proc{p} , job_exec{je} , etc  {ecje} {}
-		EngineClosureJob( JobRpcProc p , JobExec const& je , EngineClosureJobEnd  && ecje ) : proc{p} , job_exec{je} , end  {ecje} {}
+		EngineClosureJob( JobRpcProc p , JobExec const& je , JobEndRpcReq         && jerr ) : proc{p} , job_exec{je} , end  {jerr} {}
 		//
 		EngineClosureJob(EngineClosureJob&& ecj) : proc{ecj.proc} , job_exec{::move(ecj.job_exec)} {
 			switch (ecj.proc) {
 				case JobRpcProc::Start       : new(&start) EngineClosureJobStart{::move(ecj.start)} ; break ;
 				case JobRpcProc::ReportStart :
 				case JobRpcProc::GiveUp      : new(&etc  ) EngineClosureJobEtc  {::move(ecj.etc  )} ; break ;
-				case JobRpcProc::End         : new(&end  ) EngineClosureJobEnd  {::move(ecj.end  )} ; break ;
+				case JobRpcProc::End         : new(&end  ) JobEndRpcReq         {::move(ecj.end  )} ; break ;
 			DF}
 		}
 		~EngineClosureJob() {
@@ -162,7 +156,7 @@ namespace Engine {
 				case JobRpcProc::Start       : start.~EngineClosureJobStart() ; break ;
 				case JobRpcProc::ReportStart :
 				case JobRpcProc::GiveUp      : etc  .~EngineClosureJobEtc  () ; break ;
-				case JobRpcProc::End         : end  .~EngineClosureJobEnd  () ; break ;
+				case JobRpcProc::End         : end  .~JobEndRpcReq         () ; break ;
 			DF}
 		}
 		EngineClosureJob& operator=(EngineClosureJob const&) = delete ;
@@ -173,7 +167,7 @@ namespace Engine {
 		union {
 			EngineClosureJobStart start ;
 			EngineClosureJobEtc   etc   ;
-			EngineClosureJobEnd   end   ;
+			JobEndRpcReq          end   ;
 		} ;
 	} ;
 
@@ -221,13 +215,9 @@ namespace Engine {
 		,	ecj  { p , ::move(je) , EngineClosureJobStart{.start=jis,.report=r,.report_unlnks=::move(rus),.txt=::move(t),.msg=::move(m)} }
 		{ SWEAR(p==JRP::Start) ; }
 		//
-		EngineClosure( JRP p , JE&& je , R rq , bool rpt ) : kind{K::Job} , ecj{p,::move(je),EngineClosureJobEtc{.report=rpt,.req=rq}} { SWEAR( p==JRP::GiveUp                        ) ; }
-		EngineClosure( JRP p , JE&& je                   ) : kind{K::Job} , ecj{p,::move(je),EngineClosureJobEtc{                   }} { SWEAR( p==JRP::GiveUp || p==JRP::ReportStart ) ; }
-		//
-		EngineClosure( JRP p , JE&& je , JobRpcReq&& jrr , ::vmap_ss&& r ) :
-			kind { K::Job                                                               }
-		,	ecj  { p , ::move(je) , EngineClosureJobEnd{.rsrcs=::move(r),.end={::move(jrr)}} }
-		{ SWEAR(p==JRP::End) ; }
+		EngineClosure( JRP p , JE&& je , R rq , bool rpt     ) : kind{K::Job} , ecj{p,::move(je),EngineClosureJobEtc{.report=rpt,.req=rq}} { SWEAR( p==JRP::GiveUp                        ) ; }
+		EngineClosure( JRP p , JE&& je                       ) : kind{K::Job} , ecj{p,::move(je),EngineClosureJobEtc{                   }} { SWEAR( p==JRP::GiveUp || p==JRP::ReportStart ) ; }
+		EngineClosure( JRP p , JE&& je , JobEndRpcReq&& jerr ) : kind{K::Job} , ecj{p,::move(je),JobEndRpcReq       {::move(jerr)       }} { SWEAR( p==JRP::End                           ) ; }
 		// JobMngt
 		EngineClosure( JMP p , JE&& je , ::string&& t                       ) : kind{K::JobMngt} , ecjm{.proc=p,.job_exec=::move(je),.txt=::move(t)             } { SWEAR(p==JMP::LiveOut) ; }
 		EngineClosure( JMP p , JE&& je , Fd fd_ , ::vmap_s<DepDigest>&& dds ) : kind{K::JobMngt} , ecjm{.proc=p,.job_exec=::move(je),.fd{fd_},.deps{::move(dds)}} {

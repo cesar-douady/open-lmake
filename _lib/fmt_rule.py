@@ -43,8 +43,8 @@ StdAttrs = {
 ,	'keep_tmp'          : ( bool  , True  )
 ,	'kill_sigs'         : ( tuple , True  )
 ,	'max_stderr_len'    : ( int   , True  )
-,	'n_retries'         : ( int   , True  )
 ,	'max_submit_count'  : ( int   , False )
+,	'n_retries'         : ( int   , False )
 ,	'order'             : ( list  , False )
 ,	'python'            : ( tuple , False )
 ,	'resources'         : ( dict  , True  )
@@ -424,7 +424,7 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		for attr in ('ete','force','max_submit_count') :
+		for attr in ('ete','force','max_submit_count','n_retries') :
 			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
 
 	def handle_create_none(self) :
@@ -432,10 +432,10 @@ class Handle :
 		self._handle_val('job_tokens')
 		self.rule_rep.create_none_attrs = self._finalize()
 
-	def handle_cache_none(self) :
+	def handle_submit_none(self) :
 		self._init()
-		self._handle_val('key','cache')
-		self.rule_rep.cache_none_attrs = self._finalize()
+		self._handle_val('cache_key','cache')
+		self.rule_rep.submit_none_attrs = self._finalize()
 
 	def handle_deps(self) :
 		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.pop('dep')
@@ -461,15 +461,11 @@ class Handle :
 		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs',{})
 		if not callable(rsrcs) : self.per_job.update(set(rsrcs.keys()))
 
-	def handle_submit_none(self) :
-		self._init()
-		self._handle_val ('n_retries')
-		self.rule_rep.submit_none_attrs = self._finalize()
-
 	def handle_start_cmd(self) :
 		if self.attrs.is_python : interpreter = 'python'
 		else                    : interpreter = 'shell'
 		self._init()
+		self._handle_val('allow_stderr'                     )
 		self._handle_val('auto_mkdir'                       )
 		self._handle_val('chroot_dir'                       )
 		self._handle_val('env'        ,rep_key='environ_cmd')
@@ -491,22 +487,13 @@ class Handle :
 	def handle_start_none(self) :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
-		self._handle_val('keep_tmp'                               )
-		self._handle_val('start_delay'                            )
-		self._handle_val('kill_sigs'                              )
-		self._handle_val('n_retries'                              )
-		self._handle_val('env'        ,rep_key='environ_ancillary')
+		self._handle_val('env'           ,rep_key='environ_ancillary')
+		self._handle_val('keep_tmp'                                  )
+		self._handle_val('kill_sigs'                                 )
+		self._handle_val('max_stderr_len'                            )
+		self._handle_val('n_retries'                                 )
+		self._handle_val('start_delay'                               )
 		self.rule_rep.start_none_attrs = self._finalize()
-
-	def handle_end_cmd(self) :
-		self._init()
-		self._handle_val('allow_stderr')
-		self.rule_rep.end_cmd_attrs = self._finalize()
-
-	def handle_end_none(self) :
-		self._init()
-		self._handle_val('max_stderr_len')
-		self.rule_rep.end_none_attrs = self._finalize()
 
 	def handle_cmd(self) :
 		self.rule_rep.is_python = self.attrs.is_python
@@ -588,15 +575,12 @@ def do_fmt_rule(rule) :
 	h.prepare_jobs()
 	#
 	h.handle_create_none ()
-	h.handle_cache_none  ()
+	h.handle_submit_none ()
 	h.handle_deps        ()
 	h.handle_submit_rsrcs()
-	h.handle_submit_none ()
 	h.handle_start_cmd   ()
 	h.handle_start_rsrcs ()
 	h.handle_start_none  ()
-	h.handle_end_cmd     ()
-	h.handle_end_none    ()
 	h.handle_cmd         ()
 	for k in [k for k,v in h.rule_rep.items() if v==None] : del h.rule_rep[k]                                        # functions above may generate holes
 	return h.rule_rep

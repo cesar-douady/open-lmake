@@ -132,11 +132,11 @@ int main( int argc , char* argv[] ) {
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
 	//
-	JobRpcReply start_info  ;
-	JobSpace  & job_space   = start_info.job_space   ;
-	AutodepEnv& autodep_env = start_info.autodep_env ;
-	::map_ss    cmd_env     ;
-	Gather      gather      ;
+	JobStartRpcReply start_info  ;
+	JobSpace  &      job_space   = start_info.job_space   ;
+	AutodepEnv&      autodep_env = start_info.autodep_env ;
+	::map_ss         cmd_env     ;
+	Gather           gather      ;
 	//
 	try {
 		throw_if( !cmd_line.args                                                                          , "no exe to launch"                                                       ) ;

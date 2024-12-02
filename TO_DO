@@ -165,7 +165,6 @@ M implement fuse as an autodep method
 	- DepsAttrs
 	- SubmitRsrcsAttrs + SubmitNoneAttrs
 	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
-	- EndCmdAttrs + EndNoneAttrs
 ? avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str
