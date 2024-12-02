@@ -5,9 +5,17 @@
 
 VERSION := 24.12
 
-#
+OS := $(shell uname)
+
 # user configurable
-MAKEFLAGS := -j$(shell nproc||echo 1) -k
+ifeq ($(OS),Linux)
+MAKEFLAGS := -j$(shell nproc||echo 1)
+endif
+ifeq ($(OS),Darwin)
+MAKEFLAGS := -j$(shell sysctl hw.ncpu|cut -w -f2||echo 1)
+endif
+MAKEFLAGS += -k
+
 # mandatory
 MAKEFLAGS += -r -R
 
@@ -32,9 +40,10 @@ sys_config.env : FORCE
 sys_config.log : _bin/sys_config sys_config.env
 	@echo sys_config
 	@# reread sys_config.env in case it has been modified while reading an old sys_config.mk
-	@set -a ;                                                                   \
-	. ./sys_config.env ;                                                        \
-	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@
+	@set -a ;            \
+	OS=$(OS) ;           \
+	. ./sys_config.env ; \
+	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
 sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h   : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.sum : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
@@ -110,6 +119,8 @@ HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
 HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
 SAN_FLAGS    := $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
+# some user codes may have specific (and older) libs, in that case, unless flag l is used, link libstdc++ statically
+LIB_STDCPP := $(if $(findstring l, $(LMAKE_FLAGS)),,-static-libstdc++)
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
@@ -582,7 +593,7 @@ bin/% :
 	@$(LINK) -o $@ $^ $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-# remote libs generate errors when -fsanitize=thread // XXX fix these errors and use $(SAN)
+# remote libs generate errors when -fsanitize=thread # XXX fix these errors and use $(SAN)
 
 LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    _d$(LD_SO_LIB)/ld_preload_jemalloc.so
 LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so
@@ -601,7 +612,7 @@ lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/clmake-py
 %.so :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -shared -static-libstdc++ $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(LINK_LIB) # some user codes may have specific (and older) libs, avoid dependencies
+	@$(LINK) -shared $(LIB_STDCPP) $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 #
@@ -764,7 +775,7 @@ DEBIAN_SRCS := $(filter-out unit_tests/%,$(filter-out lmake_env/%,$(SRCS)))
 open-lmake_$(DEBIAN_VERSION).stamp : $(DEBIAN_SRCS)
 	rm -rf debian-repo
 	mkdir debian-repo
-	echo LMAKE_FLAGS=O3Gt > debian-repo/sys_config.env
+	echo LMAKE_FLAGS=O3Gtl > debian-repo/sys_config.env
 	tar -c $(DEBIAN_SRCS) | tar -x -Cdebian-repo
 	sed \
 		-e 's!\$$DEBIAN_VERSION!$(DEBIAN_VERSION)!' \

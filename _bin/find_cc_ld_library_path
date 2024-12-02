@@ -4,6 +4,15 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+if [ "$OS" = Darwin ] ; then
+	realpath() {
+		case $1 in
+			/*) echo      $1 ;;
+			* ) echo $PWD/$1 ;;
+		esac
+	}
+fi
+
 case x"$1" in
 	x      ) echo usage : $0 [-m32] path/to/c-compiler >&2 ; exit 2 ;;
 	x-h    ) echo usage : $0 [-m32] path/to/c-compiler >&2 ; exit 2 ;;
