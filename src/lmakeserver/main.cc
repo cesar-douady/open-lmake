@@ -403,13 +403,13 @@ bool/*interrupted*/ engine_loop() {
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
-	g_writable = !app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                       // server is always launched at root
-	if (Record::s_is_simple(g_root_dir_s->c_str()))
-		exit(Rc::Usage,"cannot use lmake inside system directory "+no_slash(*g_root_dir_s)) ; // all local files would be seen as simple, defeating autodep
-	Py::init(*g_lmake_dir_s) ;
+	g_writable = !app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                        // server is always launched at root
+	if (Record::s_is_simple(g_repo_root_s->c_str()))
+		exit(Rc::Usage,"cannot use lmake inside system directory "+no_slash(*g_repo_root_s)) ; // all local files would be seen as simple, defeating autodep
+	Py::init(*g_lmake_root_s) ;
 	AutodepEnv ade ;
-	ade.root_dir_s = *g_root_dir_s ;
-	Record::s_static_report = true ;
+	ade.repo_root_s         = *g_repo_root_s ;
+	Record::s_static_report = true           ;
 	Record::s_autodep_env(ade) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
@@ -441,7 +441,7 @@ int main( int argc , char** argv ) {
 	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ; // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
 	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;   // must be done before any thread is launched so that all threads block the signal
 	//
-	Trace trace("main",getpid(),*g_lmake_dir_s,*g_root_dir_s) ;
+	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;
 	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;
 	mk_dir_s(PrivateAdminDirS) ;
 	//             vvvvvvvvvvvvvvv

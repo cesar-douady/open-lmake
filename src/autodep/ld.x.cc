@@ -71,7 +71,7 @@ struct Elf {
 	// cxtors & casts
 	Elf( Record& r_ , ::string const& exe , const char* llp , const char* rp=nullptr ) : r{&r_} , ld_library_path{s_expand(llp,exe)} , rpath{s_expand(rp,exe)} {
 		if (!llp) return ;
-		::string const& root_s = Record::s_autodep_env().root_dir_s ; SWEAR(+root_s) ;    // root_s contains at least /
+		::string const& root_s = Record::s_autodep_env().repo_root_s ; SWEAR(+root_s) ;   // root_s contains at least /
 		size_t          sz     = root_s.size()-1 ;
 		bool start = true ;
 		for( const char* p=llp ; *p ; p++ ) {
@@ -180,8 +180,8 @@ Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map ) {
 }
 
 static ::string _mk_origin(::string const& exe) {
-	if (+exe) {        ::string abs_exe = mk_abs(exe,Record::s_autodep_env().root_dir_s) ; return no_slash(dir_name_s(abs_exe)) ; }
-	else      { static ::string abs_exe = read_lnk("/proc/self/exe")                     ; return no_slash(dir_name_s(abs_exe)) ; }
+	if (+exe) {        ::string abs_exe = mk_abs(exe,Record::s_autodep_env().repo_root_s) ; return no_slash(dir_name_s(abs_exe)) ; }
+	else      { static ::string abs_exe = read_lnk("/proc/self/exe")                      ; return no_slash(dir_name_s(abs_exe)) ; }
 } ;
 ::string Elf::s_expand( const char* txt , ::string const& exe ) {
 	static constexpr const char* LdSoLib   =                 LD_SO_LIB              ;

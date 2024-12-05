@@ -21,7 +21,7 @@ MAKEFLAGS += -r -R
 
 .DEFAULT_GOAL := DFLT
 
-ROOT_DIR := $(abspath .)
+REPO_ROOT := $(abspath .)
 
 .PHONY : FORCE
 FORCE : ;
@@ -95,7 +95,7 @@ SRCS := $(shell cat Manifest 2>/dev/null)
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA := ,
 
-# XXX : add -fdebug_prefix-map=$(ROOT_DIR)=??? when we know a sound value (e.g. the dir in which sources will be installed)
+# XXX : add -fdebug_prefix-map=$(REPO_ROOT)=??? when we know a sound value (e.g. the dir in which sources will be installed)
 HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden -g
 # syntax for LMAKE_FLAGS : (O[0123])?G?d?t?(S[AT])?P?C?
 # - O[0123] : compiler optimization level, defaults to 1 if profiling else 3
@@ -628,12 +628,12 @@ UNIT_TESTS : \
 	$(patsubst %.dir/run.py,%.dir/tok,$(filter examples/%.dir/run.py,$(UT_SRCS)))
 
 TEST_ENV = \
-	export PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH                                         ; \
-	export PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib:$(ROOT_DIR)/unit_tests/base:$$PYTHONPATH ; \
-	export CXX=$(CXX)                                                                           ; \
-	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                        ; \
-	export HAS_32=$(HAS_32)                                                                     ; \
-	export PYTHON2=$(PYTHON2)                                                                   ; \
+	export PATH=$(REPO_ROOT)/bin:$(REPO_ROOT)/_bin:$$PATH                                          ; \
+	export PYTHONPATH=$(REPO_ROOT)/lib:$(REPO_ROOT)/_lib:$(REPO_ROOT)/unit_tests/base:$$PYTHONPATH ; \
+	export CXX=$(CXX)                                                                              ; \
+	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                           ; \
+	export HAS_32=$(HAS_32)                                                                        ; \
+	export PYTHON2=$(PYTHON2)                                                                      ; \
 	exec </dev/null >$@.out 2>$@.err
 
 # keep $(@D) to ease debugging, ignore git rc as old versions work but generate errors
@@ -652,7 +652,7 @@ TEST_POSTLUDE = \
 	@$(TEST_PRELUDE)
 	@for f in $(UT_BASE) ; do df=$(@D)/$${f#unit_tests/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	@( $(TEST_ENV) ; cd $(@D) ; $(ROOT_DIR)/$< ) ; $(TEST_POSTLUDE)
+	@( $(TEST_ENV) ; cd $(@D) ; $(REPO_ROOT)/$< ) ; $(TEST_POSTLUDE)
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
 	@echo py test to $@
@@ -702,13 +702,13 @@ lmake_env/stamp : $(LMAKE_ALL_FILES) lmake_env/Manifest $(patsubst %,lmake_env/%
 	@touch $@
 	@echo init lmake_env-cache
 lmake_env/tok : lmake_env/stamp lmake_env/Lmakefile.py
-	@set -e ;                                                               \
-	cd lmake_env ;                                                          \
-	export CXX=$(CXX) ;                                                     \
-	rc=0 ;                                                                  \
-	$(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ;                      \
-	$(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) || { rm -f $(@F) ; rc=1 ; } ; \
-	wait $$!                                  || { rm -f $(@F) ; rc=1 ; } ; \
+	@set -e ;                                                                \
+	cd lmake_env ;                                                           \
+	export CXX=$(CXX) ;                                                      \
+	rc=0 ;                                                                   \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz -Vn & sleep 1 ;                      \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F) || { rm -f $(@F) ; rc=1 ; } ; \
+	wait $$!                                   || { rm -f $(@F) ; rc=1 ; } ; \
 	exit $$rc
 
 #

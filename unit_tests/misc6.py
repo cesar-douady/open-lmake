@@ -12,9 +12,9 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class PyEnv(Rule) :
-		targets          = { 'DUT' : 'dut' }
-		allow_stderr     = True
-		max_submit_count = 1
+		targets      = { 'DUT' : 'dut' }
+		allow_stderr = True
+		max_submits  = 1
 		cmd = '''
 			stat {DUT}.tmp
 			echo dut > {DUT}.tmp

@@ -404,8 +404,8 @@ namespace Engine {
 		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(dir_s+base)) ;
 		if (is_lcl(dep)     ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
-		::string rel_dir_s = mk_rel(dir_s,*g_root_dir_s) ;
-		::string abs_dir_s = mk_abs(dir_s,*g_root_dir_s) ;
+		::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s) ;
+		::string abs_dir_s = mk_abs(dir_s,*g_repo_root_s) ;
 		if (is_lcl_s(rel_dir_s)) bad("must be provided as local file : "+rel_dir_s+base) ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s ) {
@@ -660,7 +660,6 @@ namespace Engine {
 		return true ;
 	}
 	void RuleData::_acquire_py(Py::Dict const& dct) {
-		static ::string root_dir_s = *g_root_dir_s ;
 		::string field ;
 		Gil::s_swear_locked() ;
 		try {
@@ -681,8 +680,8 @@ namespace Engine {
 			if (+cwd_s) {
 				cwd_s = with_slash(cwd_s) ;
 				if (cwd_s.front()=='/') {
-					if (cwd_s.starts_with(*g_root_dir_s)) cwd_s.erase(0,g_root_dir_s->size()) ;
-					else                                  throw "cwd must be relative to root dir"s ;
+					if (cwd_s.starts_with(*g_repo_root_s)) cwd_s.erase(0,g_repo_root_s->size()) ;
+					else                                   throw "cwd must be relative to root dir"s ;
 				}
 			}
 			//
@@ -800,7 +799,7 @@ namespace Engine {
 					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
 					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)                                ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
+					if ( target.starts_with(*g_repo_root_s)                            ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
 					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                         +target  ;
 					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                     +target  ;
 					if ( +missing_stems                                                ) throw cat("missing stems ",missing_stems," in ",kind," : "        ,target) ;
@@ -876,11 +875,11 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "ete"              ; if (dct.contains(field)) Attrs::acquire( exec_time , &dct[field] ) ;
-			field = "force"            ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field] ) ;
-			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field] ) ; else throw "not found"s ;
-			field = "n_retries"        ; if (dct.contains(field)) Attrs::acquire( n_losts   , &dct[field] ) ;
-			field = "max_submit_count" ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] ) ;
+			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exec_time , &dct[field] ) ;
+			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field] ) ;
+			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field] ) ; else throw "not found"s ;
+			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts   , &dct[field] ) ;
+			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] ) ;
 			//
 			/**/                                            var_idxs["targets"        ] = { VarCmd::Targets                              , 0  } ;
 			for( VarIdx mi : iota<VarIdx>(matches.size()) ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
@@ -1006,7 +1005,7 @@ namespace Engine {
 		::vector<::array_s<3>> entries ;
 		size_t                 wh      = 0 ;
 		size_t                 wk      = 0 ;
-		for( auto const& [h,m] : ::vmap_s<::vmap_ss>({ {"cmd",start_cmd_attrs.spec.env} , {"resources",start_rsrcs_attrs.spec.env} , {"ancillary",start_none_attrs.spec.env} }) ) {
+		for( auto const& [h,m] : ::vmap_s<::vmap_ss>({ {"",start_cmd_attrs.spec.env} , {"resources",start_rsrcs_attrs.spec.env} , {"ancillary",start_none_attrs.spec.env} }) ) {
 			for( auto const& [k,v] : m ) {
 				wh = ::max(wh,h.size()) ;
 				wk = ::max(wk,k.size()) ;
@@ -1234,30 +1233,30 @@ namespace Engine {
 		}
 		//
 		// first simple static attrs
-		{	if ( user_prio!=0                                      ) entries.emplace_back( "prio"             , cat        (user_prio                                      ) ) ;
-			/**/                                                     entries.emplace_back( "job_name"         ,             job_name_                                        ) ;
-			if (+cwd_s                                             ) entries.emplace_back( "cwd"              , no_slash   (cwd_s                                          ) ) ;
+		{	if ( user_prio!=0                                      ) entries.emplace_back( "prio"                , cat        (user_prio                                      ) ) ;
+			/**/                                                     entries.emplace_back( "job_name"            ,             job_name_                                        ) ;
+			if (+cwd_s                                             ) entries.emplace_back( "cwd"                 , no_slash   (cwd_s                                          ) ) ;
 		}
 		if (!is_special()) {
-			if ( force                                             ) entries.emplace_back( "force"            , cat        (force                                          ) ) ;
-			if ( n_losts                                           ) entries.emplace_back( "n_retries"        , ::to_string(n_losts                                        ) ) ;
-			if ( n_submits                                         ) entries.emplace_back( "max_submit_count" , ::to_string(n_submits                                      ) ) ;
-			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"          , snake      (submit_rsrcs_attrs.spec.backend                ) ) ;
-			if (+submit_none_attrs .spec.cache_key                 ) entries.emplace_back( "cache"            ,             submit_none_attrs .spec.cache_key              ) ;
-			if (+interpreter                                       ) entries.emplace_back( "interpreter"      ,             interpreter                                      ) ;
-			if ( start_cmd_attrs   .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"     , cat        (start_cmd_attrs   .spec.allow_stderr           ) ) ;
-			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"       , cat        (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.chroot_dir_s    ) entries.emplace_back( "chroot_dir"       , no_slash   (start_cmd_attrs   .spec.job_space.chroot_dir_s ) ) ;
-			if ( start_cmd_attrs   .spec.ignore_stat               ) entries.emplace_back( "ignore_stat"      , cat        (start_cmd_attrs   .spec.ignore_stat            ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.root_view_s     ) entries.emplace_back( "root_view"        , no_slash   (start_cmd_attrs   .spec.job_space.root_view_s  ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"         , no_slash   (start_cmd_attrs   .spec.job_space.tmp_view_s   ) ) ;
-			/**/                                                     entries.emplace_back( "autodep"          , snake      (start_rsrcs_attrs .spec.method                 ) ) ;
-			if (+start_rsrcs_attrs .spec.timeout                   ) entries.emplace_back( "timeout"          ,             start_rsrcs_attrs .spec.timeout.short_str()      ) ;
-			if ( start_rsrcs_attrs .spec.use_script                ) entries.emplace_back( "use_script"       , cat        (start_rsrcs_attrs .spec.use_script             ) ) ;
-			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"         , cat        (start_none_attrs  .spec.keep_tmp               ) ) ;
-			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"      ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
-			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"        ,             kill_sigs                                        ) ;
-			if ( start_none_attrs  .spec.max_stderr_len!=Npos      ) entries.emplace_back( "max_stderr_len"   , ::to_string(start_none_attrs  .spec.max_stderr_len         ) ) ;
+			if ( force                                             ) entries.emplace_back( "force"               , cat        (force                                          ) ) ;
+			if ( n_losts                                           ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                        ) ) ;
+			if ( n_submits                                         ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                      ) ) ;
+			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs.spec.backend                ) ) ;
+			if (+submit_none_attrs .spec.cache_key                 ) entries.emplace_back( "cache"               ,             submit_none_attrs .spec.cache_key              ) ;
+			if (+interpreter                                       ) entries.emplace_back( "interpreter"         ,             interpreter                                      ) ;
+			if ( start_cmd_attrs   .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"        , cat        (start_cmd_attrs   .spec.allow_stderr           ) ) ;
+			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.chroot_dir_s    ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs   .spec.job_space.chroot_dir_s ) ) ;
+			if ( start_cmd_attrs   .spec.ignore_stat               ) entries.emplace_back( "ignore_stat"         , cat        (start_cmd_attrs   .spec.ignore_stat            ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.repo_view_s     ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs   .spec.job_space.repo_view_s  ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs   .spec.job_space.tmp_view_s   ) ) ;
+			/**/                                                     entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs .spec.method                 ) ) ;
+			if (+start_rsrcs_attrs .spec.timeout                   ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs .spec.timeout.short_str()      ) ;
+			if ( start_rsrcs_attrs .spec.use_script                ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs .spec.use_script             ) ) ;
+			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"            , cat        (start_none_attrs  .spec.keep_tmp               ) ) ;
+			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"         ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
+			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                        ) ;
+			if ( start_none_attrs  .spec.max_stderr_len!=Npos      ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_none_attrs  .spec.max_stderr_len         ) ) ;
 		}
 		::string res = _pretty_vmap( title , entries ) ;
 		//

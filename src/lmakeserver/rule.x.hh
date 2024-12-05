@@ -210,7 +210,7 @@ namespace Engine {
 			Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir"   ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = with_slash(job_space.chroot_dir_s) ;
 			Attrs::acquire_env     ( env                    , py_dct , "env"          ) ;
 			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat"  ) ;
-			Attrs::acquire_from_dct( job_space.root_view_s  , py_dct , "root_view"    ) ; if (+job_space.root_view_s ) job_space.root_view_s  = with_slash(job_space.root_view_s ) ;
+			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"    ) ; if (+job_space.repo_view_s ) job_space.repo_view_s  = with_slash(job_space.repo_view_s ) ;
 			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"     ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
 			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"        ) ;
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc

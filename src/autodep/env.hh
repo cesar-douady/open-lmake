@@ -12,7 +12,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
-	// env format : server:port:options:source_dirs:tmp_dir_s:root_dir_s
+	// env format : server:port:options:source_dirs:tmp_dir_s:repo_root_s
 	// if port is empty, server is considered a file to log deps to (which defaults to stderr if empty)
 	// if tmp_dir_s is empty, there is no tmp dir
 	AutodepEnv(::string const& env) ;

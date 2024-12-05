@@ -559,43 +559,43 @@ struct JobSpace {
 		bool operator+() const { return +phys ; }
 		// data
 		// START_OF_VERSIONING
-		::vector_s phys    ;                  // (upper,lower...)
-		::vector_s copy_up ;                  // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
+		::vector_s phys    ;                   // (upper,lower...)
+		::vector_s copy_up ;                   // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
 	} ;
 	// accesses
-	bool operator+() const { return +chroot_dir_s || +root_view_s || +tmp_view_s || +views ; }
+	bool operator+() const { return +chroot_dir_s || +repo_view_s || +tmp_view_s || +views ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,chroot_dir_s) ;
-		::serdes(s,root_view_s ) ;
+		::serdes(s,repo_view_s ) ;
 		::serdes(s,tmp_view_s  ) ;
 		::serdes(s,views       ) ;
 	}
 	bool/*entered*/ enter(
-		::vmap_s<MountAction>& deps           // out
-	,	::string   const&      phy_root_dir_s // in
-	,	::string   const&      phy_tmp_dir_s  // .
-	,	::string   const&      cwd_s          // .
-	,	size_t                 tmp_sz_mb      // .
-	,	::string   const&      work_dir_s     // .
-	,	::vector_s const&      src_dirs_s={}  // .
+		::vmap_s<MountAction>& deps            // out
+	,	::string   const&      phy_repo_root_s // in
+	,	::string   const&      phy_tmp_dir_s   // .
+	,	::string   const&      cwd_s           // .
+	,	size_t                 tmp_sz_mb       // .
+	,	::string   const&      work_dir_s      // .
+	,	::vector_s const&      src_dirs_s={}   // .
 	) ;
 	void exit() {}
 	//
-	::vmap_s<::vector_s> flat_phys() const ;  // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	::vmap_s<::vector_s> flat_phys() const ;   // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
-	void mk_canon(::string const& phy_root_dir_s) ;
+	void mk_canon(::string const& phy_repo_root_s) ;
 private :
 	bool           _is_lcl_tmp( ::string const&                                                              ) const ;
 	bool/*dst_ok*/ _create    ( ::vmap_s<MountAction>& report , ::string const& dst , ::string const& src={} ) const ;
 	// data
 public :
 	// START_OF_VERSIONING
-	::string            chroot_dir_s = {} ;   // absolute dir which job chroot's to before execution (empty if unused)
-	::string            root_view_s  = {} ;   // absolute dir under which job sees repo root dir     (empty if unused)
-	::string            tmp_view_s   = {} ;   // absolute dir under which job sees tmp dir           (empty if unused)
-	::vmap_s<ViewDescr> views        = {} ;   // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
+	::string            chroot_dir_s = {} ;    // absolute dir which job chroot's to before execution (empty if unused)
+	::string            repo_view_s  = {} ;    // absolute dir under which job sees repo root dir     (empty if unused)
+	::string            tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir           (empty if unused)
+	::vmap_s<ViewDescr> views        = {} ;    // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
 } ;
 
@@ -693,7 +693,8 @@ struct JobStartRpcReply {
 	,	::vmap_ss            & dynamic_env                          // .
 	,	pid_t                & first_pid                            // .
 	,	JobIdx                                                      // in
-	,	::string        const& phy_root_dir_s                       // .
+	,	::string        const& phy_repo_root_s                      // .
+	,	::string        const& lmake_root_s                         // .
 	,	SeqId                                                       // .
 	) ;
 	void exit() ;

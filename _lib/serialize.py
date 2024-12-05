@@ -20,20 +20,20 @@ comment_re = re.compile(r'^\s*(#.*)?$')
 
 _Code = (lambda:None).__code__.__class__
 
-def get_src(*args,no_imports=None,ctx=(),force=False,root_dir=None) :
+def get_src(*args,no_imports=None,ctx=(),force=False,root=None) :
 	'''
 		get a source text that reproduce args :
 		- args must be composed of named objects such as functions or classes or dicts mapping names to values
 		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
 		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though
-		- if root_dir is provided, source filename debug info are reported relative to this directory
+		- if root is provided, source filename debug info are reported relative to this directory
 		The return value is (source,names) where :
 			- source is the source text that reproduces args
 			- names is the set of names found in sets in ctx
 			- debug_info contains a dict mapping generated function names to (module,qualname,file,firstlineno)
 	'''
-	s = Serialize(no_imports,ctx,root_dir)
+	s = Serialize(no_imports,ctx,root)
 	for a in args :
 		if isinstance(a,dict) :
 			for k,v in a.items() : s.val_src(k,v,force)
@@ -116,12 +116,12 @@ def _analyze(filename) :
 
 class Serialize :
 	InSet = object()                                  # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
-	def __init__(self,no_imports,ctx,root_dir=None) :
+	def __init__(self,no_imports,ctx,root=None) :
 		self.seen       = {}
 		self.src        = []
 		self.in_sets    = set()
 		self.ctx        = list(ctx)
-		self.root_dir   = root_dir
+		self.root       = root
 		self.debug_info = {}
 		if not no_imports :
 			self.no_imports_proc = lambda m : False
@@ -285,8 +285,8 @@ class Serialize :
 		for glb_var in self.get_glbs(code) :
 			self.gather_ctx(glb_var)
 		#
-		if self.root_dir  : filename = osp.relpath(filename,self.root_dir)
-		if True           : self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) ) # first line
-		if True           : self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    ) # other lines
+		if self.root : filename = osp.relpath(filename,self.root)
+		if True      : self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) ) # first line
+		if True      : self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    ) # other lines
 		#
 		self.debug_info[name] = (func.__module__,func.__qualname__,filename,first_line_no1)

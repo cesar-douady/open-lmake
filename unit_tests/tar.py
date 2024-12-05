@@ -21,7 +21,7 @@ if __name__!='__main__' :
 			cd $TMPDIR
 			mkdir -p $(dirname {file})
 			echo yes >{file}
-			tar cf $ROOT_DIR/hello.tar {file}
+			tar cf $REPO_ROOT/hello.tar {file}
 		''')
 	class Untar(PyRule) :
 		targets = {

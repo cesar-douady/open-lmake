@@ -32,7 +32,7 @@ class Job :
 
 	chroot_dir  = None
 	cwd         = None
-	root_view   = None
+	repo_view   = None
 	source_dirs = None
 	tmp_dir     = None
 	tmp_size_mb = None
@@ -103,7 +103,7 @@ class Job :
 
 	def gen_tmp_dir(self) :
 		return multi_strip(f'''
-			export     TMPDIR={mk_shell_str(lmake.top_root_dir+'/'+self.debug_dir+'/tmp')}
+			export     TMPDIR={mk_shell_str(lmake.top_repo_root+'/'+self.debug_dir+'/tmp')}
 			rm -rf   "$TMPDIR"
 			mkdir -p "$TMPDIR"
 		''')
@@ -128,7 +128,7 @@ class Job :
 		if True                   : res += f' -l{                  self.link_support           }'
 		if True                   : res += f' -m{                  self.autodep_method         }'
 		if True                   : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
-		if self.root_view         : res += f' -r{mk_shell_str(     self.root_view             )}'
+		if self.repo_view         : res += f' -r{mk_shell_str(     self.repo_view             )}'
 		if self.source_dirs       : res += f' -s{mk_shell_str(repr(self.source_dirs          ))}'
 		if self.tmp_size_mb!=None : res += f' -S{mk_shell_str(repr(self.tmp_size_mb          ))}'
 		if self.tmp_view          : res += f' -t{mk_shell_str(     self.tmp_view              )}' # tmp_size_mb may be 0, in which case it must be passed
@@ -143,7 +143,7 @@ class Job :
 	def gen_init(self) :
 		res = multi_strip(f'''
 			#!/bin/bash
-			cd {mk_shell_str(lmake.top_root_dir)}
+			cd {mk_shell_str(lmake.top_repo_root)}
 		''')
 		return res
 

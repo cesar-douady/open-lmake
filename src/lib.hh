@@ -13,4 +13,4 @@ ENUM( LnkSupport
 ,	Full
 )
 
-::pair_ss search_root_dir_s(::string const& cwd_s={}) ; // use cwd_s() by default
+::pair_ss search_root_s(::string const& cwd_s={}) ; // use cwd_s() by default

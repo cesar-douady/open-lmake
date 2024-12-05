@@ -31,7 +31,7 @@ namespace Py {
 		PyObject* tb  = nullptr ;
 	} ;
 
-	void init(::string const& lmake_dir_s) {
+	void init(::string const& lmake_root_s) {
 		static bool once=false ; if (once) return ; else once = true ;
 		#if PY_VERSION_HEX >= 0x03080000
 			PyPreConfig pre_config ; PyPreConfig_InitIsolatedConfig(&pre_config) ;
@@ -52,8 +52,8 @@ namespace Py {
 		py_get_sys("implementation").set_attr("cache_tag",None) ;                                      // avoid pyc management
 		//
 		List& py_path = py_get_sys<List>("path") ;
-		py_path.prepend( *Ptr<Str>(lmake_dir_s+"lib") ) ;
-		py_path.append ( *Ptr<Str>("."              ) ) ;
+		py_path.prepend( *Ptr<Str>(lmake_root_s+"lib") ) ;
+		py_path.append ( *Ptr<Str>("."               ) ) ;
 		#if PY_VERSION_HEX >= 0x03080000
 			PyEval_SaveThread() ;
 		#endif

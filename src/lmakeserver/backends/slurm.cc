@@ -164,7 +164,7 @@ namespace Backends::Slurm {
 			Trace trace(BeChnl,"Slurm::config",STR(dynamic),dct) ;
 			//
 			const char* config_file = nullptr ;
-			repo_key = base_name(no_slash(*g_root_dir_s))+':' ; // cannot put this code directly as init value as g_root_dir_s is not available early enough
+			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
@@ -641,8 +641,8 @@ namespace Backends::Slurm {
 		return res ;
 	}
 	SlurmId slurm_spawn_job( ::stop_token st , ::string const& key , Job job , ::vector<ReqIdx> const& reqs , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
-		static constexpr char* env[1] = {const_cast<char*>("")} ;
-		static ::string        wd     = no_slash(*g_root_dir_s) ;
+		static constexpr char* env[1] = {const_cast<char*>("")}  ;
+		static ::string        wd     = no_slash(*g_repo_root_s) ;
 		Trace trace(BeChnl,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
 		//
 		SWEAR(rsrcs.size()> 0) ;

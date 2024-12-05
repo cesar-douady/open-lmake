@@ -1200,6 +1200,14 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 // string
 //
 
+inline constexpr bool is_word_char(char c) {
+	if ( '0'<=c && c<='9' ) return true  ;
+	if ( 'a'<=c && c<='z' ) return true  ;
+	if ( 'A'<=c && c<='Z' ) return true  ;
+	if ( c=='_'           ) return true  ;
+	/**/                    return false ;
+}
+
 inline constexpr bool _can_be_delimiter(char c) {                   // ensure delimiter does not clash with encoding
 	if ( c=='\\'          ) return false ;
 	if ( 'a'<=c && c<='z' ) return false ;

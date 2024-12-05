@@ -137,11 +137,11 @@ namespace Backends::Sge {
 		virtual void sub_config( vmap_ss const& dct , bool dynamic ) {
 			Trace trace(BeChnl,"Sge::config",STR(dynamic),dct) ;
 			//
-			repo_key = base_name(no_slash(*g_root_dir_s))+':' ; // cannot put this code directly as init value as g_root_dir_s is not available early enough
+			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
-						case 'b' : if (k=="bin_dir"          ) { sge_bin_dir_s     = with_slash           (v) ; continue ; } break ;
+						case 'b' : if (k=="bin"              ) { sge_bin_s         = with_slash           (v) ; continue ; } break ;
 						case 'c' : if (k=="cell"             ) { sge_cell          =                       v  ; continue ; }
 						/**/       if (k=="cluster"          ) { sge_cluster       =                       v  ; continue ; }
 						/**/       if (k=="cpu_resource"     ) { cpu_rsrc          =                       v  ; continue ; } break ;
@@ -149,14 +149,14 @@ namespace Backends::Sge {
 						case 'm' : if (k=="mem_resource"     ) { mem_rsrc          =                       v  ; continue ; } break ;
 						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
 						case 'r' : if (k=="repo_key"         ) { repo_key          =                       v  ; continue ; }
-						/**/       if (k=="root_dir"         ) { sge_root_dir_s    = with_slash           (v) ; continue ; } break ;
+						/**/       if (k=="root"             ) { sge_root_s        = with_slash           (v) ; continue ; } break ;
 						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                       v  ; continue ; } break ;
 					DN}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
-			throw_unless( +sge_bin_dir_s  , "must specify bin_dir to configure SGE" ) ;
-			throw_unless( +sge_root_dir_s , "must specify root_dir to configure SGE") ;
+			throw_unless( +sge_bin_s  , "must specify bin to configure SGE" ) ;
+			throw_unless( +sge_root_s , "must specify root to configure SGE") ;
 			if (!dynamic) {
 				daemon = sge_sense_daemon(self) ;
 				_s_sge_cancel_thread.open('C',sge_cancel) ;
@@ -234,10 +234,10 @@ namespace Backends::Sge {
 		}
 
 		::pair_s<bool/*ok*/> sge_exec_client( ::vector_s&& cmd_line , bool gather_stdout=false ) const {
-			::map_ss add_env = { { "SGE_ROOT" , no_slash(sge_root_dir_s) } } ;
+			::map_ss add_env = { { "SGE_ROOT" , no_slash(sge_root_s) } } ;
 			if (+sge_cell   ) add_env["SGE_CELL"        ] = sge_cell    ;
 			if (+sge_cluster) add_env["SGE_CLUSTER_NAME"] = sge_cluster ;
-			cmd_line[0] = sge_bin_dir_s+cmd_line[0] ;
+			cmd_line[0] = sge_bin_s+cmd_line[0] ;
 			Child child {
 				.cmd_line  = cmd_line
 			,	.stdin_fd  =                                 Child::NoneFd
@@ -267,10 +267,10 @@ namespace Backends::Sge {
 		::string           cpu_rsrc          ;      // key to use to ask for cpu
 		::string           mem_rsrc          ;      // key to use to ask for memory (in MB)
 		::string           tmp_rsrc          ;      // key to use to ask for tmp    (in MB)
-		::string           sge_bin_dir_s     ;
+		::string           sge_bin_s         ;
 		::string           sge_cell          ;
 		::string           sge_cluster       ;
-		::string           sge_root_dir_s    ;
+		::string           sge_root_s        ;
 		Daemon             daemon            ;      // info sensed from sge daemon
 	} ;
 

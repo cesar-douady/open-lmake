@@ -295,15 +295,15 @@ PyMODINIT_FUNC
 	SWEAR(i==py_bes->size(),i,py_bes->size()) ;
 	//
 	Ptr<Module> mod { PY_MAJOR_VERSION<3?"clmake2":"clmake" , _g_funcs } ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "top_root_dir" , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
-	mod->set_attr( "backends"     , *py_bes                                                         ) ;
-	mod->set_attr( "autodeps"     , *py_ads                                                         ) ;
-	mod->set_attr( "no_crc"       , *Ptr<Int>(+Crc::Unknown)                                        ) ;
-	mod->set_attr( "crc_a_link"   , *Ptr<Int>(+Crc::Lnk    )                                        ) ;
-	mod->set_attr( "crc_a_reg"    , *Ptr<Int>(+Crc::Reg    )                                        ) ;
-	mod->set_attr( "crc_no_file"  , *Ptr<Int>(+Crc::None   )                                        ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "top_repo_root" , *Ptr<Str>(no_slash(Record::s_autodep_env().repo_root_s).c_str()) ) ;
+	mod->set_attr( "backends"      , *py_bes                                                          ) ;
+	mod->set_attr( "autodeps"      , *py_ads                                                          ) ;
+	mod->set_attr( "no_crc"        , *Ptr<Int>(+Crc::Unknown)                                         ) ;
+	mod->set_attr( "crc_a_link"    , *Ptr<Int>(+Crc::Lnk    )                                         ) ;
+	mod->set_attr( "crc_a_reg"     , *Ptr<Int>(+Crc::Reg    )                                         ) ;
+	mod->set_attr( "crc_no_file"   , *Ptr<Int>(+Crc::None   )                                         ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;

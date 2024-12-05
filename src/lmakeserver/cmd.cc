@@ -220,7 +220,7 @@ namespace Engine {
 		/**/                               res << ",\tjob            = " <<           +j                                      << '\n' ;
 		/**/                               res << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                ) << '\n' ;
 		/**/                               res << ",\tname           = " << mk_py_str(j->name()                             ) << '\n' ;
-		if (+start.job_space.root_view_s ) res << ",\troot_view      = " << mk_py_str(no_slash(start.job_space.root_view_s )) << '\n' ;
+		if (+start.job_space.repo_view_s ) res << ",\trepo_view      = " << mk_py_str(no_slash(start.job_space.repo_view_s )) << '\n' ;
 		/**/                               res << ",\tstdin          = " << mk_py_str(start.stdin                           ) << '\n' ;
 		/**/                               res << ",\tstdout         = " << mk_py_str(start.stdout                          ) << '\n' ;
 		if (ro.flags[ReqFlag::TmpDir]    ) res << ",\ttmp_dir        = " << mk_py_str(ro.flag_args[+ReqFlag::TmpDir]        ) << '\n' ;
@@ -344,10 +344,12 @@ namespace Engine {
 			return false ;
 		}
 		//
-		::string const& key       = ro.flag_args[+ReqFlag::Key]                ;
-		auto            it        = g_config->dbg_tab.find(key)                ; throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",ro.flag_args[+ReqFlag::Key] ) ;
-		::string const& runner    = it->second.c_str()                         ;
-		::string        dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
+		::string const& key = ro.flag_args[+ReqFlag::Key] ;
+		auto            it  = g_config->dbg_tab.find(key) ;
+		throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",ro.flag_args[+ReqFlag::Key] ) ;
+		throw_unless( +it->second                 , "empty debug method "  ,ro.flag_args[+ReqFlag::Key] ) ;
+		::string runner    = split(it->second)[0]                       ;                                   // allow doc after first word
+		::string dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
 		mk_dir_s(dbg_dir_s) ;
 		//
 		::string script_file     = dbg_dir_s+"script"       ;
@@ -356,16 +358,16 @@ namespace Engine {
 			gen_script << "#!" PYTHON "\n"                                                  ;
 			gen_script << "import sys\n"                                                    ;
 			gen_script << "import os\n"                                                     ;
-			gen_script << "sys.path[0:0] = ("<<mk_py_str(*g_lmake_dir_s+"/lib")<<",)\n"     ;
+			gen_script << "sys.path[0:0] = ("<<mk_py_str(*g_lmake_root_s+"/lib")<<",)\n"    ;
 			gen_script << "from "<<runner<<" import gen_script\n"                           ;
 			gen_script << _mk_gen_script_line(job,ro,job_info,dbg_dir_s,key)                ;
 			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n" ;
 			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                  ;
 			AcFd(gen_script_file,Fd::Write).write(gen_script) ;
-		}                                                                                     // ensure gen_script is closed before launching it
+		}                                                                                                   // ensure gen_script is closed before launching it
 		::chmod(gen_script_file.c_str(),0755) ;
 		Child child ;
-		child.stdin    = {}                ;                                                  // no input
+		child.stdin    = {}                ;                                                                // no input
 		child.cmd_line = {gen_script_file} ;
 		child.spawn() ;
 		if (!child.wait_ok()) throw "cannot generate debug script "+script_file ;
@@ -610,7 +612,7 @@ namespace Engine {
 								}
 								//
 								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"  , no_slash(start.job_space.chroot_dir_s) ) ;
-								if (+start.job_space.root_view_s  ) push_entry( "root_view"   , no_slash(start.job_space.root_view_s ) ) ;
+								if (+start.job_space.repo_view_s  ) push_entry( "repo_view"   , no_slash(start.job_space.repo_view_s ) ) ;
 								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
 								if (+start.cwd_s                  ) push_entry( "cwd"         , cwd                                    ) ;
 								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"  , "true"                                 ) ;

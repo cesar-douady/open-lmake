@@ -20,15 +20,15 @@ if __name__!='__main__' :
 		targets  = { 'LNK' : 'lnk{N}' }
 		tmp_view = '/tmp'
 		cmd = multi_strip('''
-			ln -s $TMPDIR/a       {LNK}
-			ln -s $ROOT_DIR/{LNK} $TMPDIR/b
+			ln -s $TMPDIR/a        {LNK}
+			ln -s $REPO_ROOT/{LNK} $TMPDIR/b
 			cd $TMPDIR
 			sleep 1      # ensure one will overwrite the other in cas of clash
 			echo $TMPDIR
 			pwd
 			echo {N} > a
 			cat a
-			cd $ROOT_DIR
+			cd $REPO_ROOT
 			cat {LNK}
 			cat $TMPDIR/b
 		''')
@@ -60,7 +60,7 @@ if __name__!='__main__' :
 			echo a >d/a
 			echo b >d/b
 			mkdir d/c
-			cp -a d $ROOT_DIR/{File}.dir/d
+			cp -a d $REPO_ROOT/{File}.dir/d
 		'''
 
 	class UpdateDir(Base) :
@@ -69,10 +69,10 @@ if __name__!='__main__' :
 		tmp_view = '/tmp'
 		cmd      = '''
 			cd $TMPDIR
-			cp -a $ROOT_DIR/{File}.dir/d d
+			cp -a $REPO_ROOT/{File}.dir/d d
 			a=$(cat d/a)
 			echo $a:aa >d/a
-			cp -a d $ROOT_DIR/{File}.dir2/d
+			cp -a d $REPO_ROOT/{File}.dir2/d
 		'''
 
 	class ChkDir(Base) :

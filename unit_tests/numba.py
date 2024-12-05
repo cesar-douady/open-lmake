@@ -18,7 +18,7 @@ if __name__!='__main__' :
 	class TestNumba(PyRule) :
 		targets      = { 'TGT' : 'test.so'}
 		side_targets = { 'O'   : 'test.o' }
-		environ_cmd  = { 'PYTHONPATH' : numba_home+':...' } # '...' stands for inherited value
+		environ      = { 'PYTHONPATH' : numba_home+':...' } # '...' stands for inherited value
 		def cmd() :
 			from numba.pycc import CC
 			import numpy as np

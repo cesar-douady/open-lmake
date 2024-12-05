@@ -79,11 +79,11 @@ if __name__!='__main__' :
 
 	class Env(Rule) :
 		target = r'env.{File:\w*}'
-		environ_cmd       = { 'VAR_CMD'       : file_func }
+		environ           = { 'VAR'           : file_func }
 		environ_resources = { 'VAR_RESOURCES' : file_func }
 		environ_ancillary = { 'VAR_ANCILLARY' : file_func }
 		def cmd() :
-			print(os.environ['VAR_CMD'      ])
+			print(os.environ['VAR'          ])
 			print(os.environ['VAR_RESOURCES'])
 			print(os.environ['VAR_ANCILLARY'])
 

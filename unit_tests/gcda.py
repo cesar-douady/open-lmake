@@ -12,7 +12,7 @@ if __name__!='__main__' :
 
 	ld_library_path = lmake.find_cc_ld_library_path(gxx.gxx)
 
-	depth = len(lmake.root_dir.split('/')) - 1
+	depth = len(lmake.repo_root.split('/')) - 1
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -49,10 +49,10 @@ if __name__!='__main__' :
 		cmd = "PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -fprofile-arcs -o {SO} -shared {' '.join((f for k,f in deps.items()))}"
 
 	class Dut(Rule) :
-		targets     = { 'DUT':'dut' , 'GCDA':r'gcda_dir/{File*:.*}' }
-		deps        = { 'EXE':'hello_world'                         }
-		environ_cmd = { 'LD_LIBRARY_PATH' : ld_library_path         }
-		cmd         = 'GCOV_PREFIX=gcda_dir GCOV_PREFIX_STRIP={depth} ./{EXE} >{DUT}'
+		targets = { 'DUT':'dut' , 'GCDA':r'gcda_dir/{File*:.*}' }
+		deps    = { 'EXE':'hello_world'                         }
+		environ = { 'LD_LIBRARY_PATH' : ld_library_path         }
+		cmd     = 'GCOV_PREFIX=gcda_dir GCOV_PREFIX_STRIP={depth} ./{EXE} >{DUT}'
 
 	class Test(Rule) :
 		target = 'test'

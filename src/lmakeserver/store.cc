@@ -556,9 +556,9 @@ namespace Engine::Persistent {
 		::uset<Node        > new_src_dirs ;
 		Trace trace("new_srcs") ;
 		// check and format new srcs
-		size_t      root_dir_depth = 0                                                                ; { for( char c : *g_root_dir_s ) root_dir_depth += c=='/' ; } root_dir_depth-- ;
-		RealPathEnv rpe            { .lnk_support=g_config->lnk_support , .root_dir_s=*g_root_dir_s } ;
-		RealPath    real_path      { rpe                                                            } ;
+		size_t      repo_root_depth = 0                                                                 ; { for( char c : *g_repo_root_s ) repo_root_depth += c=='/' ; } repo_root_depth-- ;
+		RealPathEnv rpe            { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
+		RealPath    real_path      { rpe                                                              } ;
 		for( ::string& src : src_names ) {
 			throw_unless( +src , "found an empty source" ) ;
 			bool        is_dir_ = is_dirname(src)                   ;
@@ -566,7 +566,7 @@ namespace Engine::Persistent {
 			if (!is_canon(src)) throw src_msg+src+" canonical form is "+mk_canon(src) ;
 			//
 			if (is_dir_) {
-				if ( !is_abs_s(src) && uphill_lvl_s(src)>=root_dir_depth ) throw "cannot access relative source dir "+no_slash(src)+" from repository "+no_slash(*g_root_dir_s) ;
+				if ( !is_abs_s(src) && uphill_lvl_s(src)>=repo_root_depth ) throw "cannot access relative source dir "+no_slash(src)+" from repository "+no_slash(*g_repo_root_s) ;
 				src.pop_back() ;
 			}
 			if (dynamic) nfs_guard.access(src) ;

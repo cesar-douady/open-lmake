@@ -34,6 +34,7 @@ namespace Engine::Makefiles {
 	}
 
 	// dep file line format :
+	// - first dep is special, marked with *, and provide lmake_root
 	// - first char is file existence (+) or non-existence (!)
 	// - then file name
 	// dep check is satisfied if each dep :
@@ -48,17 +49,17 @@ namespace Engine::Makefiles {
 		::vector_s deps      = AcFd(deps_file).read_lines(true/*no_file_ok*/) ;
 		::string   reason    ;
 		for( ::string const& line : deps ) {
-			bool exists = false/*garbage*/ ;
+			SWEAR(+line) ;
+			::string dep_name     = line.substr(1)                 ;
+			FileInfo fi           { (nfs_guard.access(dep_name)) } ;
+			::string rel_dep_name = mk_rel(dep_name,startup_dir_s) ;
 			switch (line[0]) {
-				case '+' : exists = true  ; break ;
-				case '!' : exists = false ; break ;
-			DF}
-			::string dep_name = line.substr(1)                 ;
-			FileInfo fi       { (nfs_guard.access(dep_name)) } ;
-			if      (  exists && !fi               ) reason = "removed"                                   ;
-			else if (  exists && fi.date>deps_date ) reason = "modified"                                  ;          // in case of equality, be optimistic as deps may be modified during the ...
-			else if ( !exists && +fi               ) reason = "created"                                   ;          // ... read process (typically .pyc files) and file resolution is such ...
-			if      ( +reason                      ) return mk_rel(dep_name,startup_dir_s)+" was "+reason ;          // ...  that such deps may very well end up with same date as deps_file
+				case '#' :                                                                      break ;              // comment
+				case '*' : if (dep_name!=*g_lmake_root_s) return "lmake root changed"         ; break ;
+				case '+' : if (!fi                      ) return rel_dep_name+" was removed"  ;
+				/**/       if (fi.date>deps_date        ) return rel_dep_name+" was modified" ; break ;              // in case of equality, be optimistic as deps may be modified during the ...
+				case '!' : if (+fi                      ) return rel_dep_name+" was created"  ; break ;              // ... read process (typically .pyc files) and file resolution is such ...
+			DF}                                                                                                      // ...  that such deps may very well end up with same date as deps_file
 		}
 		trace("ok") ;
 		return {} ;
@@ -74,10 +75,7 @@ namespace Engine::Makefiles {
 		//
 		::vector_s deps = AcFd(_deps_file(action,new_)).read_lines(true/*no_file_ok*/) ;
 		for( ::string const& line : deps ) {
-			switch (line[0]) {
-				case '+' : break ;
-				case '!' : continue ;
-			DF}
+			if (line[0]!='+') continue ; // not an existing file
 			::string d = line.substr(1) ;
 			if (is_abs(d)) continue ;                                                                                 // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n{d} ;
@@ -92,16 +90,21 @@ namespace Engine::Makefiles {
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s )
-			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_root_dir_s),is_abs_s(sd_s)) ;
+			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_repo_root_s),is_abs_s(sd_s)) ;
 		//
-		{	::string content ;
+		{	::string content =
+				"# * : lmake root\n"
+				"# ! : file does not exist\n"
+				"# + : file exists and date is compared with last read date\n"
+				"*"+*g_lmake_root_s+'\n'
+			;
 			for( ::string d : deps ) {
 				SWEAR(+d) ;
 				FileInfo fi{d} ;
 				if (is_abs(d)) {
 					for( auto const& [sd_s,a] : glb_sds_s ) {
 						if (!(d+'/').starts_with(sd_s)) continue ;
-						if (!a                        ) d = mk_rel(d,*g_root_dir_s) ;
+						if (!a                        ) d = mk_rel(d,*g_repo_root_s) ;
 						break ;
 					}
 				}
@@ -123,11 +126,11 @@ namespace Engine::Makefiles {
 		//
 		::string data   = PrivateAdminDirS+action+"_data.py" ;
 		Gather   gather ;
-		gather.autodep_env.src_dirs_s = {"/"}                                                                                                      ;
-		gather.autodep_env.root_dir_s = *g_root_dir_s                                                                                              ;
-		gather.cmd_line               = { PYTHON , *g_lmake_dir_s+"_lib/read_makefiles.py" , data , EnvironFile , '/'+action+"/top/" , sub_repos } ;
-		gather.child_stdin            = Child::NoneFd                                                                                              ;
-		gather.env                    = &_g_env                                                                                                    ;
+		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                       ;
+		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                              ;
+		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data , EnvironFile , '/'+action+"/top/" , sub_repos } ;
+		gather.child_stdin             = Child::NoneFd                                                                                               ;
+		gather.env                     = &_g_env                                                                                                     ;
 		//
 		::string sav_ld_library_path ;
 		if (PY_LD_LIBRARY_PATH[0]!=0) {
@@ -243,7 +246,7 @@ namespace Engine::Makefiles {
 				content << "}\n" ;
 				AcFd( EnvironFile , Fd::Write ).write(content) ;
 			}
-			/**/                          _g_env["HOME"           ] = no_slash(*g_root_dir_s)       ;
+			/**/                          _g_env["HOME"           ] = no_slash(*g_repo_root_s)      ;
 			/**/                          _g_env["PATH"           ] = STD_PATH                      ;
 			/**/                          _g_env["UID"            ] = to_string(getuid())           ;
 			/**/                          _g_env["USER"           ] = ::getpwuid(getuid())->pw_name ;

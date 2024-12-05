@@ -23,7 +23,7 @@ import os      as _os
 import os.path as _osp
 
 try :
-	if _sys.version_info.major<3 : from clmake2 import * # if not in an lmake repo, top_root_dir is not set to current dir
+	if _sys.version_info.major<3 : from clmake2 import * # if not in an lmake repo, top_repo_root is not set to current dir
 	else                         : from clmake  import * # .
 	_has_clmake = True
 except :
@@ -32,10 +32,13 @@ except :
 
 from .utils import *
 
-root_dir     = _os.environ.get('ROOT_DIR'    )
-top_root_dir = _os.environ.get('TOP_ROOT_DIR')
-if root_dir    ==None : root_dir     = _os.getcwd() ; # fall back if not within a job
-if top_root_dir==None : top_root_dir = _os.getcwd() ; # .
+repo_root     = _os.environ.get('REPO_ROOT'    )
+top_repo_root = _os.environ.get('TOP_REPO_ROOT')
+if repo_root    ==None : repo_root     = _os.getcwd() ; # fall back if not within a job
+if top_repo_root==None : top_repo_root = _os.getcwd() ; # .
+
+root_dir     = repo_root     # XXX : until backward compatibility can be broken
+top_root_dir = top_repo_root # XXX : until backward compatibility can be broken
 
 version = ('$VERSION',0) # substituted at build time
 
@@ -44,7 +47,7 @@ def check_version(major,minor=0) :
 
 def maybe_local(file) :
 	'fast check for local files, avoiding full absolute path generation'
-	return not file or file[0]!='/' or file.startswith(top_root_dir)
+	return not file or file[0]!='/' or file.startswith(top_repo_root)
 
 from .config import config
 manifest = []

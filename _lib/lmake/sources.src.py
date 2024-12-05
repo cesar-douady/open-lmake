@@ -46,17 +46,17 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 	#
 	# compute directories
 	#
-	root_dir       = _os.getcwd()
-	abs_git_repo   = root_dir
+	repo_root      = _os.getcwd()
+	abs_git_repo   = repo_root
 	rel_git_repo_s = ''
 	while abs_git_repo!='/' and not _osp.exists(_osp.join(abs_git_repo,'.git')) :
 		abs_git_repo   = _osp.dirname(abs_git_repo)
 		rel_git_repo_s = '../' + rel_git_repo_s
 	if abs_git_repo=='/' : raise NotImplementedError('not in a git repository')
 	abs_git_repo_s = _osp.join(abs_git_repo ,'')
-	root_dir_s     = _osp.join(root_dir     ,'')
-	assert root_dir_s.startswith(abs_git_repo_s),f'found git dir {abs_git_repo} is not a prefix of root dir {root_dir}'
-	repo_dir_s = root_dir_s[len(abs_git_repo_s):]
+	repo_root_s    = _osp.join(repo_root    ,'')
+	assert repo_root_s.startswith(abs_git_repo_s),f'found git dir {abs_git_repo} is not a prefix of root dir {repo_root}'
+	repo_dir_s = repo_root_s[len(abs_git_repo_s):]
 	#
 	# compute file lists
 	#
@@ -64,7 +64,7 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 		# compute submodules
 		# old versions of git (e.g. 1.8) do not support submodule command when not launched from top nor $displaypath
 		submodules = run( (_git,'submodule','--quiet','foreach','--recursive','echo $toplevel/$sm_path') , abs_git_repo ) # less file accesses than git submodule status
-		submodules = [ sm[len(root_dir_s):] for sm in submodules if _osp.join(sm,'').startswith(root_dir_s) ]
+		submodules = [ sm[len(repo_root_s):] for sm in submodules if _osp.join(sm,'').startswith(repo_root_s) ]
 		# sometimes, git ls-files duplicates some files, ensure we filter out such duplicates
 		try :
 			srcs = set(run((_git,'ls-files','--recurse-submodules')))
@@ -77,7 +77,7 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 			for sm in submodules :             # proceed top-down so that srcs includes its sub-modules
 				srcs.remove(sm)
 				try :
-					sub_srcs = run( (_git,'ls-files') , root_dir_s+sm  )
+					sub_srcs = run( (_git,'ls-files') , repo_root_s+sm  )
 					sm_s     = _osp.join(sm,'')
 					srcs.update( sm_s+f for f in sub_srcs )
 					srcs.add   ( sm_s+'.git'              )

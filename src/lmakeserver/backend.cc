@@ -357,7 +357,7 @@ namespace Backends {
 						reply.env.push_back(::move(kv)) ;
 					} else if (step==5) {
 						step = 4 ;
-						start_msg_err.first <<set_nl<< "env variable "<<kv.first<<" is defined both in environ_cmd and environ_resources" ;
+						start_msg_err.first <<set_nl<< "env variable "<<kv.first<<" is defined both in environ and environ_resources" ;
 					}
 			[[fallthrough]] ;
 			case 1 :
@@ -685,7 +685,7 @@ namespace Backends {
 			_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ;
 		}
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
-		if (!dynamic) _s_job_exec = *g_lmake_dir_s+"_bin/job_exec" ;
+		if (!dynamic) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		//
 		Lock lock{_s_mutex} ;
 		for( Tag t : iota(1,All<Tag>) ) {                                                                             // local backend is always available
@@ -735,7 +735,7 @@ namespace Backends {
 		,	_s_job_end_thread  .fd.service(s_tab[+tag]->addr)
 		,	::to_string(entry.conn.seq_id                       )
 		,	::to_string(+job                                    )
-		,	no_slash(*g_root_dir_s)
+		,	no_slash(*g_repo_root_s)
 		,	::to_string(entry.conn.seq_id%g_config->trace.n_jobs)
 		} ;
 		trace("cmd_line",cmd_line) ;

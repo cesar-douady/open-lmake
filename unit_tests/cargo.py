@@ -31,9 +31,9 @@ if __name__!='__main__' :
 			'PKG' : '{Dir}{Module}/Cargo.toml'
 		,	'SRC' : '{Dir}{Module}/src/main.rs'
 		}
-		if   step==1      : autodep     = 'ld_preload_jemalloc'
-		elif step==2      : autodep     = 'ptrace'
-		if   has_jemalloc : environ_cmd = { 'LD_PRELOAD' : 'libjemalloc.so' }
+		if   step==1      : autodep = 'ld_preload_jemalloc'
+		elif step==2      : autodep = 'ptrace'
+		if   has_jemalloc : environ = { 'LD_PRELOAD' : 'libjemalloc.so' }
 		allow_stderr = True
 		cmd          = 'cd  {Dir}{Module} ; cargo build'
 

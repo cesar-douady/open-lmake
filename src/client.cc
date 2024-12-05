@@ -61,7 +61,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 		// try to launch a new server
 		// server calls ::setpgid(0,0) to create a new group by itself, after initialization, so during init, a ^C will propagate to server
 		::vector_s cmd_line = {
-			*g_lmake_dir_s+"_bin/lmakeserver"
+			*g_lmake_root_s+"_bin/lmakeserver"
 		,	"-d"/*no_daemon*/
 		,	"-c"+*g_startup_dir_s
 		} ;

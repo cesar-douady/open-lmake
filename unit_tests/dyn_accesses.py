@@ -37,8 +37,8 @@ if __name__!='__main__' :
 	class Env(Rule) :
 		target = r'env'
 		deps   = { 'ONE' : 'one' }
-		if step==1 : environ_cmd = { 'VAR' : "{open(ONE  ).read().strip()}" } # static dep
-		else       : environ_cmd = { 'VAR' : "{open('two').read().strip()}" } # hidden dep
+		if step==1 : environ = { 'VAR' : "{open(ONE  ).read().strip()}" } # static dep
+		else       : environ = { 'VAR' : "{open('two').read().strip()}" } # hidden dep
 		cmd = '[ $VAR = {step} ] && echo $VAR'
 
 else :

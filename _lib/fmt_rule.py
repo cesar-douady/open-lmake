@@ -18,44 +18,44 @@ no_imports = set() # may be overridden by external code
 
 # helper constants
 StdAttrs = {
-	#                       type   dynamic
-	'job_name'          : ( str   , False )
-,	'name'              : ( str   , False )
-,	'prio'              : ( float , False )
-,	'stems'             : ( dict  , False )
-,	'targets'           : ( dict  , False )
-,	'allow_stderr'      : ( bool  , True  )
-,	'autodep'           : ( str   , True  )
-,	'auto_mkdir'        : ( bool  , True  )
-,	'backend'           : ( str   , True  )
-,	'cache'             : ( str   , True  )
-,	'chroot_dir'        : ( str   , True  )
-,	'cmd'               : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
-,	'side_deps'         : ( dict  , True  )
-,	'deps'              : ( dict  , True  )
-,	'environ_cmd'       : ( dict  , True  )
-,	'environ_resources' : ( dict  , True  )
-,	'environ_ancillary' : ( dict  , True  )
-,	'ete'               : ( float , False )
-,	'force'             : ( bool  , False )
-,	'ignore_stat'       : ( bool  , True  )
-,	'job_tokens'        : ( int   , True  )
-,	'keep_tmp'          : ( bool  , True  )
-,	'kill_sigs'         : ( tuple , True  )
-,	'max_stderr_len'    : ( int   , True  )
-,	'max_submit_count'  : ( int   , False )
-,	'n_retries'         : ( int   , False )
-,	'order'             : ( list  , False )
-,	'python'            : ( tuple , False )
-,	'resources'         : ( dict  , True  )
-,	'root_view'         : ( str   , True  )
-,	'shell'             : ( tuple , False )
-,	'start_delay'       : ( float , True  )
-,	'side_targets'      : ( dict  , True  )
-,	'timeout'           : ( float , True  )
-,	'tmp_view'          : ( str   , True  )
-,	'use_script'        : ( bool  , True  )
-,	'views'             : ( dict  , True  )
+	#                         type   dynamic
+	'job_name'            : ( str   , False )
+,	'name'                : ( str   , False )
+,	'prio'                : ( float , False )
+,	'stems'               : ( dict  , False )
+,	'targets'             : ( dict  , False )
+,	'allow_stderr'        : ( bool  , True  )
+,	'autodep'             : ( str   , True  )
+,	'auto_mkdir'          : ( bool  , True  )
+,	'backend'             : ( str   , True  )
+,	'cache'               : ( str   , True  )
+,	'chroot_dir'          : ( str   , True  )
+,	'cmd'                 : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
+,	'side_deps'           : ( dict  , True  )
+,	'deps'                : ( dict  , True  )
+,	'environ'             : ( dict  , True  )
+,	'environ_resources'   : ( dict  , True  )
+,	'environ_ancillary'   : ( dict  , True  )
+,	'ete'                 : ( float , False )
+,	'force'               : ( bool  , False )
+,	'ignore_stat'         : ( bool  , True  )
+,	'job_tokens'          : ( int   , True  )
+,	'keep_tmp'            : ( bool  , True  )
+,	'kill_sigs'           : ( tuple , True  )
+,	'max_retries_on_lost' : ( int   , False )
+,	'max_stderr_len'      : ( int   , True  )
+,	'max_submits'         : ( int   , False )
+,	'order'               : ( list  , False )
+,	'python'              : ( tuple , False )
+,	'resources'           : ( dict  , True  )
+,	'repo_view'           : ( str   , True  )
+,	'shell'               : ( tuple , False )
+,	'start_delay'         : ( float , True  )
+,	'side_targets'        : ( dict  , True  )
+,	'timeout'             : ( float , True  )
+,	'tmp_view'            : ( str   , True  )
+,	'use_script'          : ( bool  , True  )
+,	'views'               : ( dict  , True  )
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
@@ -416,7 +416,7 @@ class Handle :
 					break
 			else : assert False,f'cannot find a suitable job_name for {self.rule_rep.name}'
 
-	def prepare_jobs(self) :
+	def prepare(self) :
 		self.static_stems = find_static_stems(self.rule_rep.job_name)
 		self.aggregate_per_job = {'stems','target','targets'}
 		self.per_job = {
@@ -424,18 +424,19 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		for attr in ('ete','force','max_submit_count','n_retries') :
+		for attr in ('ete','force','max_submits','max_retries_on_lost') :
 			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
+		seen_keys = set()
+		for e in ('environ','environ_resources','environ_ancillary') :
+			if e in self.attrs :
+				for k in tuple(self.attrs[e].keys()) :
+					if k in seen_keys : del self.attrs[e][k]
+				seen_keys |= self.attrs[e].keys()
 
 	def handle_create_none(self) :
 		self._init()
 		self._handle_val('job_tokens')
 		self.rule_rep.create_none_attrs = self._finalize()
-
-	def handle_submit_none(self) :
-		self._init()
-		self._handle_val('cache_key','cache')
-		self.rule_rep.submit_none_attrs = self._finalize()
 
 	def handle_deps(self) :
 		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.pop('dep')
@@ -461,19 +462,24 @@ class Handle :
 		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs',{})
 		if not callable(rsrcs) : self.per_job.update(set(rsrcs.keys()))
 
+	def handle_submit_none(self) :
+		self._init()
+		self._handle_val('cache_key','cache')
+		self.rule_rep.submit_none_attrs = self._finalize()
+
 	def handle_start_cmd(self) :
 		if self.attrs.is_python : interpreter = 'python'
 		else                    : interpreter = 'shell'
 		self._init()
-		self._handle_val('allow_stderr'                     )
-		self._handle_val('auto_mkdir'                       )
-		self._handle_val('chroot_dir'                       )
-		self._handle_val('env'        ,rep_key='environ_cmd')
-		self._handle_val('ignore_stat'                      )
-		self._handle_val('interpreter',rep_key=interpreter  )
-		self._handle_val('root_view'                        )
-		self._handle_val('tmp_view'                         )
-		self._handle_val('views'                            )
+		self._handle_val('allow_stderr'                   )
+		self._handle_val('auto_mkdir'                     )
+		self._handle_val('chroot_dir'                     )
+		self._handle_val('env'        ,rep_key='environ'  )
+		self._handle_val('ignore_stat'                    )
+		self._handle_val('interpreter',rep_key=interpreter)
+		self._handle_val('repo_view'                      )
+		self._handle_val('tmp_view'                       )
+		self._handle_val('views'                          )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
@@ -491,7 +497,6 @@ class Handle :
 		self._handle_val('keep_tmp'                                  )
 		self._handle_val('kill_sigs'                                 )
 		self._handle_val('max_stderr_len'                            )
-		self._handle_val('n_retries'                                 )
 		self._handle_val('start_delay'                               )
 		self.rule_rep.start_none_attrs = self._finalize()
 
@@ -516,7 +521,7 @@ class Handle :
 			,	ctx        = serialize_ctx
 			,	no_imports = no_imports
 			,	force      = True
-			,	root_dir   = lmake.root_dir
+			,	root       = lmake.repo_root
 			)
 			if multi :
 				cmd += 'def cmd() :\n'
@@ -572,12 +577,12 @@ def do_fmt_rule(rule) :
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no cmd while virtual forced False')
 		return
 	#
-	h.prepare_jobs()
+	h.prepare()
 	#
 	h.handle_create_none ()
-	h.handle_submit_none ()
 	h.handle_deps        ()
 	h.handle_submit_rsrcs()
+	h.handle_submit_none ()
 	h.handle_start_cmd   ()
 	h.handle_start_rsrcs ()
 	h.handle_start_none  ()
@@ -591,10 +596,10 @@ def fmt_rule(rule) :
 	except Exception as e :
 		if hasattr(rule,'name') : name = f'({rule.name})'
 		else                    : name = ''
-		if lmake.root_dir==lmake.top_root_dir :
+		if lmake.repo_root==lmake.top_repo_root :
 			tab = ''
 		else :
-			print(f'in sub-repo {lmake.root_dir[len(lmake.top_root_dir)+1:]} :',file=sys.stderr)
+			print(f'in sub-repo {lmake.repo_root[len(lmake.top_repo_root)+1:]} :',file=sys.stderr)
 			tab = '\t'
 		print(f'{tab}while processing {rule.__name__}{name} :',file=sys.stderr)
 		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'      ,file=sys.stderr)

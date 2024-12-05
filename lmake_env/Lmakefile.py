@@ -16,7 +16,7 @@ import lmake
 version = lmake.user_environ.get('VERSION','??.??')
 gxx     = lmake.user_environ.get('CXX'    ,'g++'  )
 
-from lmake       import config,pdict,run_cc
+from lmake       import config,pdict,repo_root,run_cc
 from lmake.rules import Rule,PyRule,AntiRule,TraceRule,DirRule
 
 if 'slurm' in lmake.backends :
@@ -28,18 +28,16 @@ if 'slurm' in lmake.backends :
 else :
 	backend = 'local'
 
-root_dir = os.getcwd()
-
 config.caches.dir = {
 	'tag'  : 'dir'
-,	'repo' : root_dir
-,	'dir'  : osp.dirname(root_dir)+'/lmake_env-cache'
+,	'repo' : repo_root
+,	'dir'  : osp.dirname(repo_root)+'/lmake_env-cache'
 }
 
 config.console.date_precision = 2
 config.console.show_eta       = True
 
-config.local_admin_dir = root_dir+'/LMAKE_LOCAL'
+config.local_admin_dir = repo_root+'/LMAKE_LOCAL'
 
 config.link_support = 'full'
 
@@ -70,12 +68,12 @@ class BaseRule(Rule) :
 		'mem' : '100M'
 	,	'tmp' : '1G'
 	}
-	n_retries   = 1
-	start_delay = 2
+	max_retries_on_lost = 1
+	start_delay         = 2
 
-class PathRule(BaseRule) :                       # compiler must be accessed using the PATH as it must find its sub-binaries
-	environ_cmd = { 'PATH' : os.getenv('PATH') }
-	cache       = 'dir'
+class PathRule(BaseRule) :                   # compiler must be accessed using the PATH as it must find its sub-binaries
+	environ = { 'PATH' : os.getenv('PATH') }
+	cache   = 'dir'
 
 class HtmlInfo(BaseRule) :
 	target = '{DirS}info.texi'
@@ -87,7 +85,7 @@ class HtmlInfo(BaseRule) :
 class Html(BaseRule,TraceRule) :
 	targets = { 'HTML' : '{DirS}{Base}.html' }
 	deps    = { 'TEXI' : '{DirS}{Base}.texi' }
-	environ_cmd = {
+	environ = {
 		'LANGUAGE' : ''
 	,	'LC_ALL'   : ''
 	,	'LANG'     : ''
@@ -340,10 +338,10 @@ class CpyLmakePy(BaseRule,PyRule) :
 	def cmd() :
 		import shutil
 		txt = sys.stdin.read()
-		txt = txt.replace('$BASH'           ,Rule.shell[0]                             )
-		txt = txt.replace('$GIT'            ,shutil.which('git' ) or ''                )
-		txt = txt.replace('$LD_LIBRARY_PATH',Rule.environ_cmd.get('LD_LIBRARY_PATH',''))
-		txt = txt.replace('$STD_PATH'       ,Rule.environ_cmd.PATH                     )
+		txt = txt.replace('$BASH'           ,Rule.shell[0]                         )
+		txt = txt.replace('$GIT'            ,shutil.which('git' ) or ''            )
+		txt = txt.replace('$LD_LIBRARY_PATH',Rule.environ.get('LD_LIBRARY_PATH',''))
+		txt = txt.replace('$STD_PATH'       ,Rule.environ.PATH                     )
 		sys.stdout.write(txt)
 
 opt_tab.update({

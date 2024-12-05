@@ -36,7 +36,7 @@ if __name__!='__main__' :
 
 	class Dut3(Rule) :
 		tmp_view = '/tmp'
-		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':lmake.root_dir+'/'} }
+		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':lmake.repo_root+'/'} }
 		target   = 'dut3'
 		def cmd():
 			print(open('/tmp/merged/read/src').read(),end='')

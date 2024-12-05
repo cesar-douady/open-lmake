@@ -29,7 +29,7 @@ M missing some deps when reading elf
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
 	- emit a "dont cache" message
-	- unless root_view is used
+	- unless repo_view is used
 	- provide a warning to user if the case arises
 ? before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
@@ -210,7 +210,7 @@ M manage HUGE pages in store
 * add a more agressive TU for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...
-* add a unit_test to validate n_retries
+* add a unit_test to validate max_retries_on_lost
 * gcov
 * idx overflow
 	- check with 8-bits indexes

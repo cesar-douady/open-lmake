@@ -142,12 +142,12 @@ namespace Engine {
 
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
 		SWEAR(!as_job()) ;
-		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .root_dir_s=*g_root_dir_s } ;
-		RealPath       real_path { rpe                                                            } ;
-		::vector<Node> targets   ; targets.reserve(files.size()) ;                                    // typically, there is no bads
+		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
+		RealPath       real_path { rpe                                                              } ;
+		::vector<Node> targets   ; targets.reserve(files.size()) ;                                      // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
-			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                    // we may refer to a symbolic link
+			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                      // we may refer to a symbolic link
 			if (rp.file_loc==FileLoc::Repo) targets.emplace_back(rp.real) ;
 			else                            err_str << _audit_indent(mk_rel(target,startup_dir_s),1) << '\n' ;
 		}

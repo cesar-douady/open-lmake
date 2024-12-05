@@ -35,7 +35,7 @@ if __name__!='__main__' :
 		deps         = { 'MAIN' : 'mandelbrot/src/main.rs' }
 		allow_stderr = True
 		autodep      = 'ld_preload_jemalloc'
-		environ_cmd  = { 'LD_PRELOAD' : 'libjemalloc.so' }
+		environ      = { 'LD_PRELOAD' : 'libjemalloc.so' }
 		cmd          = 'cd mandelbrot ; cargo run --release ; mv output.txt output.dut'
 
 	class Cmp(Rule) :

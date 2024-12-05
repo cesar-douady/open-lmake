@@ -27,7 +27,7 @@ struct Record {
 		SWEAR(_s_autodep_env) ;
 		pid_t pid = ::getpid() ;
 		if (!(+_s_root_fd&&_s_root_pid==pid)) {
-			_s_root_fd = { _s_autodep_env->root_dir_s , Fd::Dir , true/*no_std*/ } ;                                           // avoid poluting standard descriptors
+			_s_root_fd = { _s_autodep_env->repo_root_s , Fd::Dir , true/*no_std*/ } ;                                          // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 			_s_root_pid = pid ;
 		}

@@ -10,12 +10,12 @@ sys.dont_write_bytecode      = True # and dont generate them
 import os
 import os.path as osp
 
-lmake_lib_dir = osp.dirname(__file__     )
-lmake_dir     = osp.dirname(lmake_lib_dir)
+lmake_lib  = osp.dirname(__file__ )
+lmake_root = osp.dirname(lmake_lib)
 
-assert sys.path[0]==lmake_lib_dir # normal python behavior : put script dir as first entry
+assert sys.path[0]==lmake_lib # normal python behavior : put script dir as first entry
 
-sys.path[0:0] = [lmake_dir+'/lib']
+sys.path[0:0] = [lmake_root+'/lib']
 
 if len(sys.argv)!=5 :
 	print('usage : python read_makefiles.py <out_file> <environ_file> /[config/][rules/][sources/][top/] sub_repos_s',file=sys.stderr)
@@ -29,8 +29,8 @@ is_top       = '/top/' in actions
 actions      = actions.replace('/top/','/')
 cwd          = os.getcwd()
 
-if is_top : os.environ['TOP_ROOT_DIR'] = cwd
-if True   : os.environ['ROOT_DIR'    ] = cwd
+if is_top : os.environ['TOP_REPO_ROOT'] = cwd
+if True   : os.environ['REPO_ROOT'    ] = cwd
 
 import lmake
 import fmt_rule
@@ -38,8 +38,8 @@ import fmt_rule
 lmake.user_environ = eval(open(environ_file).read()) # make original user env available while reading config
 pdict              = lmake.pdict
 
-assert sys.path[1]== lmake_lib_dir
-sys.path[1] = '.'                  # suppress access to _lib (not for user usage) and add access to repo (only for user usage)
+assert sys.path[1]== lmake_lib
+sys.path[1] = '.'              # suppress access to _lib (not for user usage) and add access to repo (only for user usage)
 
 def max_link_support(*link_supports) :
 	for ls in ('full','Full','file','File','none','None',None) :
@@ -79,6 +79,12 @@ if '/config/' in actions :
 		except ImportError as e :
 			if e.name!='Lmakefile.config' : raise
 	config = lmake.config
+	if 'backends' in config and 'sge' in config['backends'] : # XXX : suppress when backward compatibility can be broken
+		sge = config['backends']['sge']
+		for old,new in (('bin_dir','bin'),('root_dir','root')) :
+			if old in sge and new not in sge :
+				sge[new] = sge[old]
+				del sge[old]
 	if not isinstance(config,pdict) : config = pdict.mk_deep(config)
 	if is_top :
 		if lmake.manifest : actions += 'sources/'

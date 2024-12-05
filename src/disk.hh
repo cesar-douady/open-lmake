@@ -69,12 +69,17 @@ namespace Disk {
 		if (path.size()<3) return false ;       // we must have at least 2 components and a / to have a dir component
 		return path.find('/',1)<path.size()-2 ; // search a / at neither ends of path
 	}
-	inline ::string dir_name_s(::string const& path) {
-		size_t sep = path.rfind('/',path.size()-2) ;
-		if (sep!=Npos) return path.substr(0,sep+1)    ;
+	inline ::string dir_name_s( ::string const& path , FileNameIdx n=1 ) {
+		SWEAR( n>=1 , path ) ;
 		throw_unless( +path     , "no dir for empty path" ) ;
 		throw_unless( path!="/" , "no dir for /"          ) ;
-		/**/           return {}                      ;
+		size_t sep = path.size()-(path.back()=='/') ;
+		for(; n ; n-- ) {
+			throw_unless( sep!=Npos , "cannot walk uphill "s+n+" dirs from "+path ) ;
+			sep = path.rfind('/',sep-1) ;
+		}
+		if (sep==Npos) return {}                   ;
+		else           return path.substr(0,sep+1) ;
 	}
 	inline ::string base_name(::string const& path) {
 		size_t sep = path.rfind('/',path.size()-2) ;
@@ -92,7 +97,7 @@ namespace Disk {
 	inline bool   is_lcl_s    (::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ;                          }
 	inline bool   is_lcl      (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ;                          }
 	inline size_t uphill_lvl_s(::string const& name_s) { SWEAR(!is_abs_s(name_s)) ; size_t l ; for( l=0 ; name_s.substr(3*l,3)=="../" ; l++ ) {} return l ; }
-	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                   }
+	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                    }
 
 	/**/   ::string mk_lcl( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
 	/**/   ::string mk_glb( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
@@ -327,7 +332,7 @@ namespace Disk {
 		// data
 		LnkSupport lnk_support   = LnkSupport::Full ; // by default, be pessimistic
 		bool       reliable_dirs = false            ; // if true => dirs coherence is enforced when files are updated (unlike NFS)
-		::string   root_dir_s    = {}               ;
+		::string   repo_root_s   = {}               ;
 		::string   tmp_dir_s     = {}               ;
 		::vector_s src_dirs_s    = {}               ;
 	} ;
@@ -398,7 +403,7 @@ namespace Disk {
 		RealPathEnv const* _env            ;
 		::string           _admin_dir      ;
 		::vector_s         _abs_src_dirs_s ;              // this is an absolute version of src_dirs
-		size_t             _root_dir_sz    ;
+		size_t             _repo_root_sz   ;
 		::string           _cwd            ;
 		pid_t              _cwd_pid        = 0 ;          // pid for which _cwd is valid if pid==0
 	} ;

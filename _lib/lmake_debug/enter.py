@@ -9,7 +9,7 @@
 	This includes :
 	- environment variables
 	- chroot dir
-	- root_view mapping
+	- repo_view mapping
 	- tmp_view mapping
 	- views mapping
 '''

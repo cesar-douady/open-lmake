@@ -47,19 +47,19 @@ struct PatternDict {
 	::vmap<RegExpr,MatchFlags> patterns = {} ;
 } ;
 
-Gather           g_gather         ;
-JobIdx           g_job            = 0/*garbage*/ ;
-PatternDict      g_match_dct      ;
-NfsGuard         g_nfs_guard      ;
-SeqId            g_seq_id         = 0/*garbage*/ ;
-::string         g_phy_root_dir_s ;
-::string         g_phy_tmp_dir_s  ;
-::string         g_service_start  ;
-::string         g_service_mngt   ;
-::string         g_service_end    ;
-JobStartRpcReply g_start_info     ;
-SeqId            g_trace_id       = 0/*garbage*/ ;
-::vector_s       g_washed         ;
+Gather           g_gather          ;
+JobIdx           g_job             = 0/*garbage*/ ;
+PatternDict      g_match_dct       ;
+NfsGuard         g_nfs_guard       ;
+SeqId            g_seq_id          = 0/*garbage*/ ;
+::string         g_phy_repo_root_s ;
+::string         g_phy_tmp_dir_s   ;
+::string         g_service_start   ;
+::string         g_service_mngt    ;
+::string         g_service_end     ;
+JobStartRpcReply g_start_info      ;
+SeqId            g_trace_id        = 0/*garbage*/ ;
+::vector_s       g_washed          ;
 
 struct Digest {
 	::vmap_s<TargetDigest> targets ;
@@ -213,7 +213,7 @@ Digest analyze(Status status=Status::New) {                                     
 		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;
 		AcFd( dir_guard(cmd_file) , Fd::Write ).write(g_start_info.cmd.first+g_start_info.cmd.second) ;
 		cmd_line.reserve(cmd_line.size()+1) ;
-		cmd_line.push_back(mk_abs(cmd_file,*g_root_dir_s)) ;                                                     // provide absolute script so as to support cwd
+		cmd_line.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                                                    // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
 	} else {
 		cmd_line.reserve(cmd_line.size()+2) ;
@@ -261,21 +261,21 @@ int main( int argc , char* argv[] ) {
 	Pdate        start_overhead = Pdate(New) ;
 	ServerSockFd server_fd      { New }      ;        // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
-	swear_prod(argc==8,argc) ;                        // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
-	g_service_start  =                     argv[1]  ;
-	g_service_mngt   =                     argv[2]  ;
-	g_service_end    =                     argv[3]  ;
-	g_seq_id         = from_string<SeqId >(argv[4]) ;
-	g_job            = from_string<JobIdx>(argv[5]) ;
-	g_phy_root_dir_s = with_slash         (argv[6]) ; // passed early so we can chdir and trace early
-	g_trace_id       = from_string<SeqId >(argv[7]) ;
+	swear_prod(argc==8,argc) ;                        // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
+	g_service_start   =                     argv[1]  ;
+	g_service_mngt    =                     argv[2]  ;
+	g_service_end     =                     argv[3]  ;
+	g_seq_id          = from_string<SeqId >(argv[4]) ;
+	g_job             = from_string<JobIdx>(argv[5]) ;
+	g_phy_repo_root_s = with_slash         (argv[6]) ; // passed early so we can chdir and trace early
+	g_trace_id        = from_string<SeqId >(argv[7]) ;
 	//
-	g_trace_file = new ::string{g_phy_root_dir_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
+	g_trace_file = new ::string{g_phy_repo_root_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} , {.end_date=start_overhead,.status=Status::EarlyErr} } ;   // prepare to return an error, so we can goto End anytime
 	//
-	if (::chdir(no_slash(g_phy_root_dir_s).c_str())!=0) {
-		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_root_dir_s)<<'\n' ;
+	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
+		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
 		goto End ;
 	}
 	Trace::s_sz = 10<<20 ;                                                                                 // this is more than enough
@@ -302,10 +302,10 @@ int main( int argc , char* argv[] ) {
 		}
 		trace("g_start_info",Pdate(New),g_start_info) ;
 		if (!g_start_info) return 0 ;                                                                      // server ask us to give up
-		try                       { g_start_info.job_space.mk_canon(g_phy_root_dir_s) ; }
-		catch (::string const& e) { end_report.msg += e ; goto End ;                    }
+		try                       { g_start_info.job_space.mk_canon(g_phy_repo_root_s) ; }
+		catch (::string const& e) { end_report.msg += e ; goto End ;                     }
 		//
-		g_root_dir_s = new ::string{ +g_start_info.job_space.root_view_s ? g_start_info.job_space.root_view_s : g_phy_root_dir_s } ;
+		g_repo_root_s = new ::string{ +g_start_info.job_space.repo_view_s ? g_start_info.job_space.repo_view_s : g_phy_repo_root_s } ;
 		//
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
@@ -324,7 +324,7 @@ int main( int argc , char* argv[] ) {
 		::map_ss              cmd_env       ;
 		::vmap_s<MountAction> enter_actions ;
 		try {
-			if ( g_start_info.enter( enter_actions , cmd_env , end_report.phy_tmp_dir_s , end_report.dynamic_env , g_gather.first_pid , g_job , g_phy_root_dir_s , g_seq_id ) ) {
+			if ( g_start_info.enter( enter_actions , cmd_env , end_report.phy_tmp_dir_s , end_report.dynamic_env , g_gather.first_pid , g_job , g_phy_repo_root_s , *g_lmake_root_s , g_seq_id ) ) {
 				RealPath real_path { g_start_info.autodep_env } ;
 				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
