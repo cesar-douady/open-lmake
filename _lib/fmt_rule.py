@@ -30,7 +30,7 @@ StdAttrs = {
 ,	'backend'             : ( str   , True  )
 ,	'cache'               : ( str   , True  )
 ,	'chroot_dir'          : ( str   , True  )
-,	'cmd'                 : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
+,	'cmd'                 : ( str   , True  )                  # when it is a str, such str may be dynamic, i.e. it may be a full f-string
 ,	'side_deps'           : ( dict  , True  )
 ,	'deps'                : ( dict  , True  )
 ,	'environ'             : ( dict  , True  )
@@ -311,8 +311,8 @@ class Handle :
 		if attrs.get('prio' ) : self.rule_rep.prio  = attrs.prio
 
 	def _init(self) :
-		self.static_val  = pdict()
-		self.dynamic_val = pdict()
+		self.static_val  = {}
+		self.dynamic_val = {}
 
 	def _is_simple_fstr(self,fstr) :
 		return SimpleFstrRe.match(fstr) and all( k in ('{{','}}') or k[1:-1] in self.per_job for k in SimpleStemRe.findall(fstr) )
@@ -445,13 +445,13 @@ class Handle :
 		if 'deps' in self.dynamic_val : self.dynamic_val = self.dynamic_val['deps']
 		if 'deps' in self.static_val  : self.static_val  = self.static_val ['deps']
 		if callable(self.dynamic_val) :
-			assert not self.static_val                                                     # there must be no static val when deps are full dynamic
-			self.static_val  = None                                                        # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
+			assert not self.static_val                                                 # there must be no static val when deps are full dynamic
+			self.static_val  = None                                                    # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
 		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
 		if self.rule_rep.deps_attrs and self.rule_rep.deps_attrs[0] :
-			self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
+			self.per_job.update(k for k in self.attrs.deps.keys() if k.isidentifier()) # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
 		self._init()
@@ -459,8 +459,8 @@ class Handle :
 		self._handle_val('rsrcs'  ,'resources')
 		self.rule_rep.submit_rsrcs_attrs = self._finalize()
 		self.aggregate_per_job.add('resources')
-		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs',{})
-		if not callable(rsrcs) : self.per_job.update(set(rsrcs.keys()))
+		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs')
+		if rsrcs and not callable(rsrcs) : self.per_job.update(rsrcs.keys())
 
 	def handle_submit_none(self) :
 		self._init()
@@ -525,10 +525,10 @@ class Handle :
 			)
 			if multi :
 				cmd += 'def cmd() :\n'
-				x = avoid_ctx('x',serialize_ctx)                                                                                       # find a non-conflicting name
+				x = avoid_ctx('x',serialize_ctx)                                                                                   # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					if c.__defaults__ : n_dflts = len(c.__defaults__)
-					else              : n_dflts = 0                                                                                    # stupid c.__defaults__ is None when no defaults, not ()
+					else              : n_dflts = 0                                                                                # stupid c.__defaults__ is None when no defaults, not ()
 					if   c.__code__.co_argcount> n_dflts+1 : raise "cmd cannot have more than a single arg without default value"
 					if   c.__code__.co_argcount<=n_dflts   : a = ''
 					elif i==0                              : a = 'None'
@@ -540,16 +540,13 @@ class Handle :
 						a1 = '' if not b1 else x
 						if b1 : cmd += f'\t{a1} = { c.__name__}({a})\n'
 						else  : cmd += f'\t{        c.__name__}({a})\n'
-			for_this_python = False                                                                                                    # be conservative
+			for_this_python = False                                                                                                # be conservative
 			try :
-				interpreter  = self.rule_rep.start_cmd_attrs[0].interpreter
-				if not interpreter : raise "need an interpreter to execute cmd"
-				interpreter0 = interpreter[0]
-				if not interpreter0 : raise "need an interpreter to execute cmd"
-				if not maybe_local(interpreter0) : for_this_python = osp.realpath(interpreter)==self.ThisPython                        # code can be made simpler if we know we run the same python ...
-			except : pass                                                                                                              # ... but we do not want to create a dep inside the repo if ...
-			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , mk_dbg_info(dbg,serialize_ctx,for_this_python) ) # ... no interpreter (e.g. it may be dynamic), be conservative
-			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                                             )
+				interpreter = self.rule_rep.start_cmd_attrs[0]['interpreter'][0]
+				if not lmake.maybe_local(interpreter) : for_this_python = osp.realpath(interpreter)==self.ThisPython               # code can be made simpler if we know we run the same python ...
+			except : pass                                                                                                          # ... but we do not want to create a dep inside the repo if ...
+			if dbg : self.rule_rep.cmd = ( {'cmd':cmd} , tuple(names) , '' , '' , mk_dbg_info(dbg,serialize_ctx,for_this_python) ) # ... no interpreter (e.g. it may be dynamic), be conservative
+			else   : self.rule_rep.cmd = ( {'cmd':cmd} , tuple(names)                                                            )
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)
 			self._init()

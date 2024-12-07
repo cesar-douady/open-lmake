@@ -1002,23 +1002,20 @@ namespace Engine {
 	}
 
 	::string RuleData::_pretty_env() const {
-		::vector<::array_s<3>> entries ;
-		size_t                 wh      = 0 ;
-		size_t                 wk      = 0 ;
-		for( auto const& [h,m] : ::vmap_s<::vmap_ss>({ {"",start_cmd_attrs.spec.env} , {"resources",start_rsrcs_attrs.spec.env} , {"ancillary",start_none_attrs.spec.env} }) ) {
+		::string res ;
+		for( auto const& [h,m] : ::vmap_s<::vmap_ss>({ {"environ",start_cmd_attrs.spec.env} , {"environ_resources",start_rsrcs_attrs.spec.env} , {"environ_ancillary",start_none_attrs.spec.env} }) ) {
+			if (!m) continue ;
+			size_t wk = 0 ; for( auto const& [k,_] : m ) wk = ::max(wk,k.size()) ;
+			res << h <<" :\n" ;
 			for( auto const& [k,v] : m ) {
-				wh = ::max(wh,h.size()) ;
-				wk = ::max(wk,k.size()) ;
-				if      (v==EnvPassMrkr) entries.push_back({h,k,"  ..."      }) ;
-				else if (v==EnvDynMrkr ) entries.push_back({h,k,"  <dynamic>"}) ;
-				else if (+v            ) entries.push_back({h,k,": "+v       }) ;
-				else                     entries.push_back({h,k,":"          }) ;
+				/**/                     res <<'\t'<< widen(k,wk) ;
+				if      (v==EnvPassMrkr) res << "   ..."          ;
+				else if (v==EnvDynMrkr ) res << "   <dynamic>"    ;
+				else if (+v            ) res << " : "<< v         ;
+				else                     res << " :"              ;
+				/**/                     res <<'\n'               ;
 			}
 		}
-		if (!entries) return {} ;
-		//
-		::string res = "environ :\n" ;
-		for( auto const& [h,k,v] : entries ) res <<'\t'<< widen(h,wh) <<' '<< widen(k,wk) <<' '<< v <<'\n' ;
 		return res ;
 	}
 

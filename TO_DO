@@ -23,7 +23,6 @@ M missing some deps when reading elf
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-! transport pdict as pdict rather than as dict
 ! generate meaningful message in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
