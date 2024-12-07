@@ -748,23 +748,32 @@ namespace Engine {
 									size_t w2 = 0 ;
 									for( auto const& [k,_] : required_rsrcs  ) w2 = ::max(w2,k.size()) ;
 									for( auto const& [k,_] : allocated_rsrcs ) w2 = ::max(w2,k.size()) ;
-									::string hdr = "resources :" ;
-									if      (!+allocated_rsrcs) hdr = "required " +hdr ;
-									else if (!+required_rsrcs ) hdr = "allocated "+hdr ;
-									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                       as_is
-									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
-									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
-									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
-									else {
-										for( auto const& [k,rv] : required_rsrcs ) { //!                                             as_is
-											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , widen(k,w2)+"(required )"+" : "+rv , true , lvl+2 ) ; continue ; }
-											::string const& av = allocated_rsrcs.at(k) ;
-											if (rv==av                      ) { audit( fd , ro , widen(k,w2)+"           "+" : "+rv , true , lvl+2 ) ; continue ; }
-											/**/                                audit( fd , ro , widen(k,w2)+"(required )"+" : "+rv , true , lvl+2 ) ;
-											/**/                                audit( fd , ro , widen(k,w2)+"(allocated)"+" : "+av , true , lvl+2 ) ;
-										}
-										for( auto const& [k,av] : allocated_rsrcs )
-											if (!required_rsrcs.contains(k))    audit( fd , ro , widen(k,w2)+"(allocated)"+" : "+av , true , lvl+2 ) ;
+									::string hdr  ;
+									bool     both = false ;
+									if      (!allocated_rsrcs) hdr  = "required "  ;
+									else if (!required_rsrcs ) hdr  = "allocated " ;
+									else                       both = true         ;
+									audit( fd , ro , ::move(hdr)+"resources :" , true/*as_is*/ , lvl+1 ) ;
+									::string no_msg        ;
+									::string required_msg  ;
+									::string allocated_msg ;
+									if (both) {
+										int w3 = 0 ;
+										for( auto const& [k,rv] : required_rsrcs  ) if ( auto it=allocated_rsrcs.find(k) ; it==allocated_rsrcs.end() || rv!=it->second ) w3 = ::max(w3,8/*required*/ ) ;
+										for( auto const& [k,av] : allocated_rsrcs ) if ( auto it=required_rsrcs .find(k) ; it==required_rsrcs .end() || av!=it->second ) w3 = ::max(w3,9/*allocated*/) ;
+										no_msg        = "  "+widen(""         ,w3)+' ' ;
+										required_msg  = " ("+widen("required" ,w3)+')' ;
+										allocated_msg = " ("+widen("allocated",w3)+')' ;
+									}
+									for( auto const& [k,rv] : required_rsrcs ) {
+										auto it = allocated_rsrcs.find(k) ; //!                                                                         as_is
+										if ( it!=allocated_rsrcs.end() && rv==it->second ) audit( fd , ro , widen(k,w2)+no_msg       +" : "+rv         , true , lvl+2 ) ;
+										else                                               audit( fd , ro , widen(k,w2)+required_msg +" : "+rv         , true , lvl+2 ) ;
+										if ( it!=allocated_rsrcs.end() && rv!=it->second ) audit( fd , ro , widen(k,w2)+allocated_msg+" : "+it->second , true , lvl+2 ) ;
+									}
+									for( auto const& [k,av] : allocated_rsrcs ) {
+										auto it = required_rsrcs.find(k) ;
+										if ( it==required_rsrcs.end()                    ) audit( fd , ro , widen(k,w2)+allocated_msg+" : "+av         , true , lvl+2 ) ;
 									}
 								}
 							}

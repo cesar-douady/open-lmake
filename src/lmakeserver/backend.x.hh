@@ -104,13 +104,13 @@ namespace Backends {
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
 			Conn             conn         ;
-			Pdate            date         ;
+			Pdate            start_date   ;
+			Pdate            spawn_date   ;
 			Workload::Val    workload     = 0            ;
 			::uset_s         washed       ;
 			::vmap_ss        rsrcs        ;
 			::vector<ReqIdx> reqs         ;
 			SubmitAttrs      submit_attrs ;
-			bool             old          = false        ; // becomes true the first time heartbeat passes (only old entries are checked by heartbeat, so first time is skipped for improved perf)
 			Tag              tag          = Tag::Unknown ;
 		} ;
 

@@ -127,6 +127,7 @@ namespace Backends {
 		}
 		// data
 		Rsrcs             rsrcs   ;
+		::string          msg     ;         // message in case of failure
 		::atomic<SpawnId> id      = 0     ;
 		::atomic<bool   > failed  = false ; // if true <=> job could not ben launched
 		bool              started = false ; // if true <=> start() has been called for this job, for assert only
@@ -369,19 +370,14 @@ namespace Backends {
 			if (_oldest_submitted_job.load()+g_config->heartbeat<Pdate(New)) launch() ;                            // prevent jobs from being accumulated for too long
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat(Job j) {                                                        // called on jobs that did not start after at least newwork_delay time
-			auto it = spawned_jobs.find(j) ;
-			if (it==spawned_jobs.end()) {
-				Trace trace(BeChnl,"heartbeat","not_found",j) ;
-				return {"job disappeared",HeartbeatState::Err} ;
-			}
-			SpawnedEntry& se = it->second ;
-			SWEAR(!se.started,j) ;                                                                                 // we should not be called on started jobs
+			auto          it = spawned_jobs.find(j) ; SWEAR(it!=spawned_jobs.end()  ) ;
+			SpawnedEntry& se = it->second           ; SWEAR(!se.started           ,j) ;                            // we should not be called on started jobs
 			if (!se.id) {
 				Lock lock { id_mutex } ;                                                                           // ensure _launch is no more processing entry
 				if (!se.id) {                                                                                      // repeat test so test and decision are atomic
 					Trace trace(BeChnl,"heartbeat","no_id",j) ;
-					if (se.failed) return {"could not launch job",HeartbeatState::Err  } ;
-					else           return {{}                    ,HeartbeatState::Alive} ;                         // book keeping is not updated yet
+					if (se.failed) { spawned_jobs.erase(self,it) ; return {se.msg,HeartbeatState::Err  } ; }
+					else                                           return {{}    ,HeartbeatState::Alive} ;         // book keeping is not updated yet
 				}
 			}
 			::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
@@ -496,17 +492,10 @@ namespace Backends {
 						trace("child",j,ld.prio,id,ld.cmd_line) ;
 					} catch (::string const& e) {
 						trace("fail",j,ld.prio,e) ;
+						se.msg    = e    ;
 						se.failed = true ;
-						_launch_queue.wakeup() ;                                              // we may have new jobs to launch as we did not launch all jobs we were supposed to
+						_launch_queue.wakeup() ; // we may have new jobs to launch as we did not launch all jobs we were supposed to
 					}
-				}
-				{	Lock lock { _s_mutex } ;
-					for( auto const& [j,_] : launch_descrs ) {
-						auto it=spawned_jobs.find(j) ; if (it==spawned_jobs.end()) continue ;
-						if (it->second.failed) spawned_jobs.erase(self,it) ;                  // job could not be launched, release resources
-						/**/                   spawned_jobs.flush(     it) ;                  // collect unused entry now that we hold _s_mutex
-					}
-					launch_descrs.clear() ;                                                   // destroy entries while holding the lock
 				}
 				trace("done") ;
 			}

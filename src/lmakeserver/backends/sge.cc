@@ -242,20 +242,14 @@ namespace Backends::Sge {
 				.cmd_line  = cmd_line
 			,	.stdin_fd  =                                 Child::NoneFd
 			,	.stdout_fd = gather_stdout ? Child::PipeFd : Child::NoneFd
-			,	.stderr_fd =                                 Child::NoneFd
+			,	.stderr_fd = gather_stdout ? Child::PipeFd : Child::NoneFd
 			,	.add_env   = &add_env
 			} ;
 			child.spawn() ;
 			bool ok = child.wait_ok() ;
-			if (!gather_stdout) return {{},ok} ;
-			::string msg ;
-			for(;;) {
-				char buf[128] ;
-				ssize_t cnt = ::read(child.stdout,buf,sizeof(buf)) ;
-				if (cnt< 0) throw "cannot read stdout of child "+cmd_line[0] ;
-				if (cnt==0) return {msg,ok} ;
-				msg.append(buf,cnt) ;
-			}
+			if ( ok && !gather_stdout ) return {{},ok} ;
+			try                       { return { child.stderr.read()+child.stdout.read() , ok } ; }
+			catch (::string const& e) { throw "cannot read stdout of child "+cmd_line[0]        ; }
 		}
 
 		// data

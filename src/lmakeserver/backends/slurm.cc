@@ -650,12 +650,12 @@ namespace Backends::Slurm {
 		// first element is treated specially to avoid allocation in the very frequent case of a single element
 		::string                 job_name    = key + job->name()        ;
 		::string                 script      = _cmd_to_string(cmd_line) ;
-		::string                 stderr_file ;                                                                                                //                 keep alive until slurm is called
-		::string                 stdout_file ;                                                                                                //                 .
-		job_desc_msg_t           job_desc0   ;                                                                                                // first element
-		::string                 gres0       ;                                                                                                // .             , .
-		::vector<job_desc_msg_t> job_descs   ; job_descs.reserve(rsrcs.size()-1) ;                                                            // other elements
-		::vector_s               gress       ; gress    .reserve(rsrcs.size()-1) ;                                                            // .             , .
+		::string                 stderr_file ;                                                                           //                 keep alive until slurm is called
+		::string                 stdout_file ;                                                                           //                 .
+		job_desc_msg_t           job_desc0   ;                                                                           // first element   .
+		::string                 gres0       ;                                                                           // .             , .
+		::vector<job_desc_msg_t> job_descs   ; job_descs.reserve(rsrcs.size()-1) ;                                       // other elements  .
+		::vector_s               gress       ; gress    .reserve(rsrcs.size()-1) ;                                       // .             , .
 		if(verbose) {
 			stderr_file = _get_stderr_file(job) ;
 			stdout_file = _get_stdout_file(job) ;
@@ -663,17 +663,18 @@ namespace Backends::Slurm {
 		}
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			//                            first element            other elements
-			job_desc_msg_t& j    = i==0 ? job_desc0              : job_descs.emplace_back()               ; SlurmApi::init_job_desc_msg(&j) ;
-			::string      & gres = i==0 ? (gres0="gres:"+r.gres) : gress    .emplace_back("gres:"+r.gres) ;                                   // keep alive
+			job_desc_msg_t& j    = i==0 ? job_desc0              : job_descs.emplace_back()               ;              // keep alive
+			::string      & gres = i==0 ? (gres0="gres:"+r.gres) : gress    .emplace_back("gres:"+r.gres) ;              // .
 			//
+			SlurmApi::init_job_desc_msg(&j) ;
 			/**/                     j.cpus_per_task   = r.cpu                                                         ;
 			/**/                     j.environment     = const_cast<char**>(env)                                       ;
 			/**/                     j.env_size        = 1                                                             ;
 			/**/                     j.name            = const_cast<char*>(job_name.c_str())                           ;
-			/**/                     j.pn_min_memory   = r.mem                                                         ;                      //in MB
-			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;                      //in MB
-			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;                      // keep alive
-			/**/                     j.std_out         = verbose ? stdout_file.data() : const_cast<char*>("/dev/null") ;                      // keep alive
+			/**/                     j.pn_min_memory   = r.mem                                                         ; //in MB
+			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ; //in MB
+			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ; // keep alive
+			/**/                     j.std_out         = verbose ? stdout_file.data() : const_cast<char*>("/dev/null") ; // keep alive
 			/**/                     j.work_dir        = wd.data()                                                     ;
 			//
 			if(+r.excludes) j.exc_nodes     = const_cast<char*>(r.excludes.data()) ;
@@ -711,24 +712,41 @@ namespace Backends::Slurm {
 				if (!sav_errno) { SWEAR(!err) ; return res ; }
 			}
 			SWEAR(sav_errno!=0) ;                                                               // if err, we should have a errno, else if no errno, we should have had a msg containing an id
+			::string err_msg ;
 			switch (sav_errno) {
 				case EAGAIN                              :
 				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY :
 				case ESLURM_NODES_BUSY                   : {
 					trace("retry",sav_errno,SlurmApi::strerror(sav_errno)) ;
 					bool zombie = true ;
-					for ( Req r : reqs ) if (!r.zombie()) { zombie = false ; break ; }
+					for ( Req r : reqs ) if (!r.zombie()) { zombie = false ; continue ; }
 					if ( zombie || !Delay(1).sleep_for(st) ) {
 						trace("interrupted",i,STR(zombie)) ;
 						throw "interrupted while connecting to slurm daemon"s ;
 					}
-				} break ;
-				default : {
-					::string err_str = SlurmApi::strerror(sav_errno) ;
-					trace("spawn_error",sav_errno,err_str) ;
-					throw "slurm spawn job error : " + err_str ;
-				}
-			}
+				} continue ;
+			#if SLURM_VERSION_NUMBER>=0x170200
+				case ESLURM_LICENSES_UNAVAILABLE :
+			#endif
+				case ESLURM_INVALID_LICENSES :
+					err_msg = job_desc0.licenses ;                                              // licenses are only on first step
+				break ;
+				case ESLURM_INVALID_GRES   :
+				case ESLURM_DUPLICATE_GRES :
+			#if SLURM_VERSION_NUMBER>=0x130500
+				case ESLURM_INVALID_GRES_TYPE :
+				case ESLURM_UNSUPPORTED_GRES  :
+			#endif
+			#if SLURM_VERSION_NUMBER>=0x160500
+				case ESLURM_INSUFFICIENT_GRES :
+			#endif
+					/**/                                                  err_msg <<(rsrcs.size()>1?"[ ":"") ;
+					for( First first ; RsrcsDataSingle const& r : rsrcs ) err_msg <<first(""," , ")<< r.gres ;
+					/**/                                                  err_msg <<(rsrcs.size()>1?" ]":"") ;
+				break ;
+			DN}
+			trace("spawn_error" ,sav_errno) ;
+			throw "slurm spawn job error : "s+SlurmApi::strerror(sav_errno)+(+err_msg?" (":"")+err_msg+(+err_msg?")":"") ;
 		}
 		trace("cannot_spawn") ;
 		throw "cannot connect to slurm daemon"s ;

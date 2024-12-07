@@ -41,11 +41,8 @@ M missing some deps when reading elf
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* add a warning when ids reach 15/16 of their limits
-* when slurm cannot submit job because resources do not exist :
-	- e.g. no TmpDisk mentioned in config and job needs it
-	- an error message is generated on stderr by slurm_submit_batch_job
-	- error code give no info
+! add a warning when ids reach 15/16 of their limits
+	- hard to do in a nice, informative and homogeneous way
 ? generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
