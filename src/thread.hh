@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <sys/eventfd.h>
+
 #include <condition_variable>
 #include <deque>
 #include <latch>
@@ -209,17 +211,18 @@ ENUM(ServerThreadEventKind
 ,	Slave
 ,	Stop
 )
-template<class Req,bool Flush=true> struct ServerThread {                                  // if Flush, finish on going connections
+template<class Req,bool Flush=true> struct ServerThread {                          // if Flush, finish on going connections
 	using Delay = Time::Delay ;
 	using EventKind = ServerThreadEventKind ;
 private :
 	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self_ , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> func ) {
+		using Event = Epoll<EventKind>::Event ;
 		static constexpr uint64_t One = 1 ;
 		t_thread_key = key ;
 		AcFd               stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
-		Epoll              epoll   { New }                  ;
+		Epoll<EventKind>   epoll   { New }                  ;
 		::umap<Fd,IMsgBuf> slaves  ;
-		::stop_callback    stop_cb {                                                       // transform request_stop into an event Epoll can wait for
+		::stop_callback    stop_cb {                                               // transform request_stop into an event Epoll can wait for
 			stop
 		,	[&](){
 				Trace trace("ServerThread::_s_thread_func::stop_cb",stop_fd) ;
@@ -232,14 +235,14 @@ private :
 		self_->_ready.count_down() ;
 		//
 		epoll.add_read(self_->fd,EventKind::Master) ;
-		epoll.add_read(stop_fd ,EventKind::Stop  ) ;
+		epoll.add_read(stop_fd  ,EventKind::Stop  ) ;
 		for(;;) {
 			trace("wait") ;
-			::vector<Epoll::Event> events = epoll.wait(epoll.cnt?Delay::Forever:Delay()) ; // wait for 1 event, no timeout unless stopped
-			if (!events) { SWEAR(Flush) ; return ; }                                       // if !Flush, we should have returned immediately
-			for( Epoll::Event event : events ) {
-				EventKind kind = event.data<EventKind>() ;
-				Fd        efd  = event.fd()              ;
+			::vector<Event> events = epoll.wait(+epoll?Delay::Forever:Delay()) ;   // wait for 1 event, no timeout unless stopped
+			if (!events) { SWEAR(Flush) ; return ; }                               // if !Flush, we should have returned immediately
+			for( Event event : events ) {
+				EventKind kind = event.data() ;
+				Fd        efd  = event.fd  () ;
 				trace("waited",efd,kind) ;
 				switch (kind) {
 					case EventKind::Master : {
@@ -249,24 +252,23 @@ private :
 							trace("new_req",slave_fd) ;
 							epoll.add_read(slave_fd,EventKind::Slave) ;
 							slaves.try_emplace(slave_fd) ;
-						} catch (::string const& e) { trace("cannot_accept",e) ; }         // ignore error as this may be fd starvation and client will retry
+						} catch (::string const& e) { trace("cannot_accept",e) ; } // ignore error as this may be fd starvation and client will retry
 					} break ;
 					case EventKind::Stop : {
 						uint64_t one ;
-						ssize_t  cnt = ::read(efd,&one,sizeof(one)) ;
-						SWEAR( cnt==sizeof(one) , cnt ) ;
+						ssize_t  cnt = ::read(efd,&one,sizeof(one)) ; SWEAR( cnt==sizeof(one) , cnt ) ;
 						trace("stop",mk_key_vector(slaves)) ;
-						for( auto const& [sfd,_] : slaves ) epoll.close(sfd) ;
+						for( auto const& [sfd,_] : slaves ) epoll.close(false/*write*/,sfd) ;
 						trace("done") ;
-						if (Flush) epoll.cnt-- ;                                           // dont wait for new incoming connections, but finish on going connections and process what comes
-						else       return ;                                                // stop immediately
+						if (Flush) epoll.dec() ;                                   // dont wait for new incoming connections, but finish on going connections and process what comes
+						else       return ;                                        // stop immediately
 					} break ;
 					case EventKind::Slave : {
 						Req r ;
 						try         { if (!slaves.at(efd).receive_step(efd,r)) { trace("partial") ; continue ; } }
 						catch (...) {                                            trace("bad_msg") ; continue ;   } // ignore malformed messages
 						//
-						epoll.del(efd) ;                 // Func may trigger efd being closed by another thread, hence epoll.del must be done before
+						epoll.del(false/*write*/,efd) ;  // Func may trigger efd being closed by another thread, hence epoll.del must be done before
 						slaves.erase(efd) ;
 						SlaveSockFd ssfd { efd }            ;
 						bool        keep = false/*garbage*/ ;

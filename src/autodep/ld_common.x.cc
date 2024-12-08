@@ -356,9 +356,9 @@ struct Mkstemp : WSolve {
 		// close must be tracked as we must call hide
 		// in case close is called with one our our fd's, we must hide somewhere else (unless in server)
 		// note that although hide calls no syscall, auditor() can and we must manage errno
-		//                                     is_stat
-		int  close  (int fd ) { HEADER0(close  ,false,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
-		int  __close(int fd ) { HEADER0(__close,false,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
+		//                                    is_stat
+		int  close  (int fd) { HEADER0(close  ,false,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
+		int  __close(int fd) { HEADER0(__close,false,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
 		#if HAS_CLOSE_RANGE
 			int  close_range(uint fd1,uint fd2,int f) NE { HEADER0(close_range,false/*is_stat*/,(fd1,fd2,f)) ; Hide r{fd1,fd2,f} ; return r(orig(fd1,fd2,f)) ; }
 		#endif
@@ -580,14 +580,13 @@ struct Mkstemp : WSolve {
 	int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__lxstat64  ,true ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),"__lxstat64"  } ; return r(orig(v,  p,b  )) ; }
 	int __fxstatat  (int v,int d,CC* p,struct stat  * b,int f) NE { HEADER1(__fxstatat  ,true ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"__fxstatat"  } ; return r(orig(v,d,p,b,f)) ; }
 	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HEADER1(__fxstatat64,true ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"__fxstatat64"} ; return r(orig(v,d,p,b,f)) ; }
-	#if !NEED_STAT_WRAPPERS //!                                                 is_stat                           no_follow accesses
-		int stat     (      CC* p,struct stat  * b      ) NE { HEADER1(stat     ,true ,p,(  p,b  )) ; Stat r{   p ,false   ,~Accesses(),"stat"     } ; return r(orig(  p,b  )) ; }
-		int stat64   (      CC* p,struct stat64* b      ) NE { HEADER1(stat64   ,true ,p,(  p,b  )) ; Stat r{   p ,false   ,~Accesses(),"stat64"   } ; return r(orig(  p,b  )) ; }
-		int lstat    (      CC* p,struct stat  * b      ) NE { HEADER1(lstat    ,true ,p,(  p,b  )) ; Stat r{   p ,true    ,~Accesses(),"lstat"    } ; return r(orig(  p,b  )) ; }
-		int lstat64  (      CC* p,struct stat64* b      ) NE { HEADER1(lstat64  ,true ,p,(  p,b  )) ; Stat r{   p ,true    ,~Accesses(),"lstat64"  } ; return r(orig(  p,b  )) ; }
-		int fstatat  (int d,CC* p,struct stat  * b,int f) NE { HEADER1(fstatat  ,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat"  } ; return r(orig(d,p,b,f)) ; }
-		int fstatat64(int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64,true ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat64"} ; return r(orig(d,p,b,f)) ; }
-	#endif
+	int stat        (            CC* p,struct stat  * b      ) NE { HEADER1(stat        ,true ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),"stat"        } ; return r(orig(    p,b  )) ; }
+	int stat64      (            CC* p,struct stat64* b      ) NE { HEADER1(stat64      ,true ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),"stat64"      } ; return r(orig(    p,b  )) ; }
+	int lstat       (            CC* p,struct stat  * b      ) NE { HEADER1(lstat       ,true ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),"lstat"       } ; return r(orig(    p,b  )) ; }
+	int lstat64     (            CC* p,struct stat64* b      ) NE { HEADER1(lstat64     ,true ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),"lstat64"     } ; return r(orig(    p,b  )) ; }
+	int fstatat     (      int d,CC* p,struct stat  * b,int f) NE { HEADER1(fstatat     ,true ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat"     } ; return r(orig(  d,p,b,f)) ; }
+	int fstatat64   (      int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64   ,true ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat64"   } ; return r(orig(  d,p,b,f)) ; }
+	//
 	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE {                   // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
 		HEADER1(statx,true/*is_stat*/,p,(d,p,f,msk,b)) ;
 		#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)

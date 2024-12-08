@@ -218,8 +218,8 @@ namespace Disk {
 		return rc==0 && st.st_nlink>1 ;
 	}
 
-	bool/*done*/ uniquify( Fd at , ::string const& file ) {                                 // uniquify file so as to ensure modifications do not alter other hard links
-		SWEAR(+file) ;                                                                      // cannot unlink at without file
+	bool/*done*/ uniquify( Fd at , ::string const& file ) {                                      // uniquify file so as to ensure modifications do not alter other hard links
+		SWEAR(+file) ;                                                                           // cannot unlink at without file
 		const char*   f   = file.c_str() ;
 		const char*   msg = nullptr      ;
 		{
@@ -237,8 +237,8 @@ namespace Disk {
 				if (cnt<0 ) throw "cannot read "+file ;
 				wfd.write({buf,sizeof(buf)}) ;
 			}
-			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , st.st_mtim } ;
-			::futimens(wfd,times) ;                                                         // maintain original date
+			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , st.ST_MTIMESPEC } ;
+			::futimens(wfd,times) ;                                                              // maintain original date
 			//
 			return true/*done*/ ;
 		}

@@ -28,7 +28,7 @@ try :
 	_has_clmake = True
 except :
 	_has_clmake = False
-	from py_clmake import *
+	from .py_clmake import *
 
 from .utils import *
 

@@ -321,7 +321,6 @@ namespace Backends {
 		}
 		trace("deps",step,deps) ;
 		// record as much info as possible in reply
-		::uset_s env_keys ;
 		switch (step) {
 			case 4 :
 				// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
@@ -343,7 +342,7 @@ namespace Backends {
 				reply.timeout    = start_rsrcs_attrs.timeout    ;
 				reply.use_script = start_rsrcs_attrs.use_script ;
 				//
-				for( ::pair_ss& kv : start_rsrcs_attrs.env ) { env_keys.insert(kv.first) ; reply.env.push_back(::move(kv)) ; }
+				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 			[[fallthrough]] ;
 			case 2 :
 				reply.interpreter             = ::move(start_cmd_attrs.interpreter ) ;
@@ -352,13 +351,7 @@ namespace Backends {
 				reply.autodep_env.ignore_stat =        start_cmd_attrs.ignore_stat   ;
 				reply.job_space               = ::move(start_cmd_attrs.job_space   ) ;
 				//
-				for( ::pair_ss& kv : start_cmd_attrs.env )
-					if (env_keys.insert(kv.first).second) {
-						reply.env.push_back(::move(kv)) ;
-					} else if (step==5) {
-						step = 4 ;
-						start_msg_err.first <<set_nl<< "env variable "<<kv.first<<" is defined both in environ and environ_resources" ;
-					}
+				for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
 			[[fallthrough]] ;
 			case 1 :
 				reply.cmd = ::move(cmd) ;
@@ -382,9 +375,7 @@ namespace Backends {
 				/**/                               reply.live_out                  = submit_attrs.live_out                             ;
 				/**/                               reply.network_delay             = g_config->network_delay                           ;
 				//
-				for( ::pair_ss& kv : start_none_attrs.env ) if (env_keys.insert(kv.first).second) reply.env.push_back(::move(kv)) ; // in case of key conflict, ignore environ_ancillary
-				//
-				for( auto const& [k,v] : rsrcs ) if (k=="tmp") { reply.tmp_sz_mb = from_string_with_units<'M'>(v) ; break ; }
+				for( ::pair_ss& kv : start_none_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;
 		DF}
 		//

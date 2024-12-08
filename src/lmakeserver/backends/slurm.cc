@@ -53,17 +53,17 @@ namespace Backends::Slurm {
 			return res ;
 		}
 		// data
-		uint16_t cpu      = 0  ; // number of logical cpu  (sbatch    --cpus-per-task option)
-		uint32_t mem      = 0  ; // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is compulsery)
-		uint32_t tmp      = -1 ; // tmp disk in MB         (sbatch    --tmp           option) default : dont manage tmp size (provide infinite storage, reserv none)
-		::string excludes ;      // list of excludes nodes (sbatch -x,--exclude       option)
-		::string features ;      // features/contraint     (sbatch -C,--constraint    option)
-		::string gres     ;      // generic resources      (sbatch    --gres          option)
-		::string licenses ;      // licenses               (sbatch -L,--licenses      option)
-		::string nodes    ;      // list of required nodes (sbatch -w,--nodelist      option)
-		::string part     ;      // partition name         (sbatch -p,--partition     option)
-		::string qos      ;      // quality of service     (sbatch -q,--qos           option)
-		::string reserv   ;      // reservation            (sbatch -r,--reservation   option)
+		uint16_t cpu      = 0 ; // number of logical cpu  (sbatch    --cpus-per-task option)
+		uint32_t mem      = 0 ; // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is compulsery)
+		uint32_t tmp      = 0 ; // tmp disk in MB         (sbatch    --tmp           option) default : dont manage tmp size (provide infinite storage, reserv none)
+		::string excludes ;     // list of excludes nodes (sbatch -x,--exclude       option)
+		::string features ;     // features/contraint     (sbatch -C,--constraint    option)
+		::string gres     ;     // generic resources      (sbatch    --gres          option)
+		::string licenses ;     // licenses               (sbatch -L,--licenses      option)
+		::string nodes    ;     // list of required nodes (sbatch -w,--nodelist      option)
+		::string part     ;     // partition name         (sbatch -p,--partition     option)
+		::string qos      ;     // quality of service     (sbatch -q,--qos           option)
+		::string reserv   ;     // reservation            (sbatch -r,--reservation   option)
 	} ;
 
 	struct RsrcsData : ::vector<RsrcsDataSingle> {
@@ -327,18 +327,18 @@ namespace Backends::Slurm {
 	//
 
 	::string& operator+=( ::string& os , RsrcsDataSingle const& rsds ) {
-		/**/                         os <<'('<< rsds.cpu       ;
-		if ( rsds.mem              ) os <<','<< rsds.mem<<"MB" ;
-		if ( rsds.tmp!=uint32_t(-1)) os <<','<< rsds.tmp<<"MB" ;
-		if (+rsds.part             ) os <<','<< rsds.part      ;
-		if (+rsds.gres             ) os <<','<< rsds.gres      ;
-		if (+rsds.licenses         ) os <<','<< rsds.licenses  ;
-		if (+rsds.features         ) os <<','<< rsds.features  ;
-		if (+rsds.qos              ) os <<','<< rsds.qos       ;
-		if (+rsds.reserv           ) os <<','<< rsds.reserv    ;
-		if (+rsds.excludes         ) os <<','<< rsds.excludes  ;
-		if (+rsds.nodes            ) os <<','<< rsds.nodes     ;
-		return                       os <<')'                  ;
+		/**/                os <<'('<< rsds.cpu       ;
+		if ( rsds.mem     ) os <<','<< rsds.mem<<"MB" ;
+		if ( rsds.tmp     ) os <<','<< rsds.tmp<<"MB" ;
+		if (+rsds.part    ) os <<','<< rsds.part      ;
+		if (+rsds.gres    ) os <<','<< rsds.gres      ;
+		if (+rsds.licenses) os <<','<< rsds.licenses  ;
+		if (+rsds.features) os <<','<< rsds.features  ;
+		if (+rsds.qos     ) os <<','<< rsds.qos       ;
+		if (+rsds.reserv  ) os <<','<< rsds.reserv    ;
+		if (+rsds.excludes) os <<','<< rsds.excludes  ;
+		if (+rsds.nodes   ) os <<','<< rsds.nodes     ;
+		return              os <<')'                  ;
 	}
 
 	static void _sort_entry(::string& s) {

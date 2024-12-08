@@ -62,7 +62,6 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "stdin        : "  << jsrr.stdin                   <<'\n' ;
 	g_out << "stdout       : "  << jsrr.stdout                  <<'\n' ;
 	g_out << "timeout      : "  << jsrr.timeout                 <<'\n' ;
-	g_out << "tmp_sz_mb    : "  << jsrr.tmp_sz_mb               <<'\n' ;
 	g_out << "tmp_view_s   : "  << jsrr.job_space.tmp_view_s    <<'\n' ;
 	g_out << "use_script   : "  << jsrr.use_script              <<'\n' ;
 	//

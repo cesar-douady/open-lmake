@@ -160,12 +160,12 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::Rsrcs              ,  21 }
 ,	{ JobReasonTag::PollutedTargets    ,  22 }
 ,	{ JobReasonTag::ChkDeps            ,  40 }
-,	{ JobReasonTag::Cmd                ,  60 }
+,	{ JobReasonTag::Cmd                ,  63 }
 ,	{ JobReasonTag::Force              ,  61 }
-,	{ JobReasonTag::Killed             ,  61 }
-,	{ JobReasonTag::Lost               ,  63 }
-,	{ JobReasonTag::New                ,  62 }
-,	{ JobReasonTag::WasLost            ,  61 }
+,	{ JobReasonTag::Killed             ,  62 }
+,	{ JobReasonTag::Lost               ,  60 }
+,	{ JobReasonTag::New                , 100 }
+,	{ JobReasonTag::WasLost            ,  60 }
 //	with node
 ,	{ JobReasonTag::BusyDep            ,  11 }
 ,	{ JobReasonTag::BusyTarget         ,  10 } // this should not occur as there is certainly another reason to be running
@@ -180,12 +180,12 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::DepUnlnked         ,  51 }
 ,	{ JobReasonTag::DepUnstable        ,  51 }
 //	with error, must be higher than ok reasons
-,	{ JobReasonTag::DepOverwritten     , 100 }
-,	{ JobReasonTag::DepDangling        , 101 }
-,	{ JobReasonTag::DepErr             , 101 }
-,	{ JobReasonTag::DepMissingRequired , 101 }
+,	{ JobReasonTag::DepOverwritten     ,  70 }
+,	{ JobReasonTag::DepDangling        ,  71 }
+,	{ JobReasonTag::DepErr             ,  71 }
+,	{ JobReasonTag::DepMissingRequired ,  71 }
 // with missing, must be higher than err reasons
-,	{ JobReasonTag::DepMissingStatic   , 200 }
+,	{ JobReasonTag::DepMissingStatic   ,  80 }
 }} ;
 static_assert(chk_enum_tab(JobReasonTagPrios)) ;
 
@@ -577,7 +577,6 @@ struct JobSpace {
 	,	::string   const&      phy_repo_root_s // in
 	,	::string   const&      phy_tmp_dir_s   // .
 	,	::string   const&      cwd_s           // .
-	,	size_t                 tmp_sz_mb       // .
 	,	::string   const&      work_dir_s      // .
 	,	::vector_s const&      src_dirs_s={}   // .
 	) ;
@@ -683,7 +682,6 @@ struct JobStartRpcReply {
 		::serdes(s,stdin         ) ;
 		::serdes(s,stdout        ) ;
 		::serdes(s,timeout       ) ;
-		::serdes(s,tmp_sz_mb     ) ;
 		::serdes(s,use_script    ) ;
 	}
 	bool/*entered*/ enter(
@@ -724,7 +722,6 @@ struct JobStartRpcReply {
 	::string                 stdin          ;                       //
 	::string                 stdout         ;                       //
 	Time::Delay              timeout        ;                       //
-	size_t                   tmp_sz_mb      = Npos                ; // if not Npos and TMPDIR not defined, tmp size in MB
 	bool                     use_script     = false               ; //
 	// END_OF_VERSIONING
 private :

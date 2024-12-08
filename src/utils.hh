@@ -8,6 +8,7 @@
 #include <netinet/ip.h> // in_addr_t, in_port_t
 #include <signal.h>     // SIG*, kill
 #include <sys/file.h>   // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
+#include <sys/types.h>  // ushort, uint, ulong, ...
 
 #include <cstring> // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
 
@@ -15,10 +16,8 @@
 #include <atomic>
 #include <array>
 #include <charconv> // from_chars_result
-#include <chrono>
 #include <concepts>
 #include <functional>
-#include <iomanip>
 #include <ios>
 #include <limits>
 #include <map>
@@ -28,6 +27,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -40,6 +40,11 @@ using namespace std ; // use std at top level so one write ::stuff instead of st
 using std::getline  ; // special case getline which also has a C version that hides std::getline
 
 #define self (*this)
+
+#if !HAS_UINT
+	using uint  = unsigned int  ;
+	using ulong = unsigned long ;
+#endif
 
 template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
 
@@ -242,7 +247,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 
 template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
-		crash( 1 , SIGABRT , "fail @" , args... ) ;
+		crash( 1 , SIGABRT , "fail" , args... ) ;
 	#else
 		unreachable() ;
 	#endif
@@ -250,26 +255,26 @@ template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] )
 
 template<class... A> constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
-		if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
+		if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 	#else
 		if (!cond) unreachable() ;
 	#endif
 }
 
 template<class... A> [[noreturn]] void fail_prod( A const&... args ) {
-	crash( 1 , SIGABRT , "fail @ " , args... ) ;
+	crash( 1 , SIGABRT , "fail" , args... ) ;
 }
 
 template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
-	if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
+	if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 }
 
 #define _FAIL_STR2(x) #x
 #define _FAIL_STR(x) _FAIL_STR2(x)
-#define FAIL(           ...) fail      (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define FAIL(           ...) fail      (       "@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define FAIL_PROD(      ...) fail_prod (       "@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define SWEAR(     cond,...) swear     ((cond),"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define SWEAR_PROD(cond,...) swear_prod((cond),"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
 
 #define DF default : FAIL() ; // for use at end of switch statements
 #define DN default :        ; // .

@@ -3,22 +3,22 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <execinfo.h> // backtrace
-#include <link.h>     // struct link_map
-
 #include "utils.hh"
 
 #if HAS_CLOSE_RANGE
     #include <linux/close_range.h>
 #endif
 
-#if HAS_STACKTRACE        // must be after utils.hh so that HAS_STACKTRACE is defined
+#if HAS_STACKTRACE        // must be after utils.hh so that HAS_STACKTRACE and HAS_ADDR2LINE are defined
 	#include <stacktrace>
+#elif HAS_ADDR2LINE
+	#include <execinfo.h> // backtrace
+	#include <link.h>     // struct link_map
+	#include "process.hh"
 #endif
 
 #include "disk.hh"
 #include "fd.hh"
-#include "process.hh"
 
 using namespace Disk ;
 
@@ -301,7 +301,7 @@ thread_local char t_thread_key = '?' ;
 		fd.write(bt) ;
 	}
 
-#else
+#elif HAS_ADDR2LINE
 
 	// if ::stacktrace is not available, try to mimic using addr2line, but this is of much lower quality :
 	// - sometimes, the function is completely off
@@ -442,5 +442,9 @@ thread_local char t_thread_key = '?' ;
 		}
 		fd.write(bt) ;
 	}
+
+#else
+
+	void write_backtrace( Fd , int /*hide_cnt*/ ) {}
 
 #endif

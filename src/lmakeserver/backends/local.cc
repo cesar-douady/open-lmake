@@ -197,12 +197,7 @@ namespace Backends::Local {
 
 	inline ::vmap_ss RsrcsData::mk_vmap(::vector_s const& keys) const {
 		::vmap_ss res ; res.reserve(keys.size()) ;
-		for( size_t i : iota(keys.size()) ) {
-			if (!self[i]) continue ;
-			::string const& key = keys[i] ;
-			if ( key=="mem" || key=="tmp" ) res.emplace_back( key , ::to_string(self[i])+'M' ) ;
-			else                            res.emplace_back( key , ::to_string(self[i])     ) ;
-		}
+		for( size_t i : iota(keys.size()) ) if (self[i]) res.emplace_back( keys[i] , to_string_rsrc(keys[i],self[i]) ) ;
 		return res ;
 	}
 

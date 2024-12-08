@@ -31,7 +31,6 @@ ENUM( CmdFlag
 ,	RepoView
 ,	SourceDirs
 ,	TmpDir
-,	TmpSizeMb
 ,	TmpView
 ,   Views
 ,	WorkDir
@@ -125,7 +124,6 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
 	,	{ CmdFlag::RepoView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
 	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                    } }
-	,	{ CmdFlag::TmpSizeMb     , { .short_name='S' , .has_arg=true  , .doc="size of tmp dir"                                                                                           } }
 	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                          } }
 	,	{ CmdFlag::KeepTmp       , { .short_name='T' , .has_arg=false , .doc="keep tmp dir after execution"                                                                              } }
 	,	{ CmdFlag::Views         , { .short_name='v' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}" } }
@@ -148,7 +146,6 @@ int main( int argc , char* argv[] ) {
 		/**/                                        start_info.keep_tmp     =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
 		/**/                                        start_info.key          =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) start_info.method       = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
-		if (cmd_line.flags[CmdFlag::TmpSizeMb    ]) start_info.tmp_sz_mb    = from_string<size_t>   (cmd_line.flag_args[+CmdFlag::TmpSizeMb    ]) ;
 		if (cmd_line.flags[CmdFlag::ChrootDir    ]) job_space.chroot_dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
 		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s   = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
 		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s    = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;

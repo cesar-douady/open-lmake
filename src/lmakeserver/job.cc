@@ -773,23 +773,43 @@ namespace Engine {
 			if (ri.force) return pre_reason | ri.reason | s.reason             ;
 			else          return pre_reason |             s.reason | ri.reason ;
 		} ;
+		// /!\ no_run_reason and inc_submits must stay in sync
 		auto no_run_reason = [&](ReqInfo::State const& s)->NoRunReason {                            // roughly equivalent to !reason(s)||reason(s).tag>=Err but give reason and take care of limits
 			JobReasonTag rt = reason(s).tag ;
-			if (!rt                  ) return NoRunReason::Dep ;
-			if (rt>=JobReasonTag::Err) return NoRunReason::Dep ;
 			switch (rt) {
-				case JobReasonTag::Retry : return                 ri.n_retries>=req->n_retries ? NoRunReason::RetryLoop  : NoRunReason::None ;
-				case JobReasonTag::Lost  : return                 ri.n_losts  >=r->n_losts     ? NoRunReason::LostLoop   : NoRunReason::None ;
-				default                  : return r->n_submits && ri.n_submits>=r->n_submits   ? NoRunReason::SubmitLoop : NoRunReason::None ;
+				case JobReasonTag::None  :                            return NoRunReason::Dep ;
+				case JobReasonTag::Retry :                            goto Retry              ;
+				default                  : if (rt>=JobReasonTag::Err) return NoRunReason::Dep ;
+			}
+			switch (pre_reason.tag) {
+				case JobReasonTag::Retry : if ( rt==JobReasonTag::Retry || is_lost(status) ) goto Retry  ;
+				/**/                       else                 goto Submit ;
+				case JobReasonTag::Lost  :                      goto Lost   ;
+				default                  :                      goto Submit ;
+			}
+		Retry  : return                 ri.n_retries>=req->n_retries ? NoRunReason::RetryLoop  : NoRunReason::None ;
+		Lost   : return                 ri.n_losts  >=r->n_losts     ? NoRunReason::LostLoop   : NoRunReason::None ;
+		Submit : return r->n_submits && ri.n_submits>=r->n_submits   ? NoRunReason::SubmitLoop : NoRunReason::None ;
+		} ;
+		auto inc_submits = [&](JobReasonTag rt)->void {                                             // inc counter associated with no_run_reason (returning None) assuming rt==reason(ri.state).tag
+			switch (rt) {
+				case JobReasonTag::Retry :                      ri.n_retries++ ; break ;
+			DN}
+			switch (pre_reason.tag) {
+				case JobReasonTag::Retry : if (is_lost(status)) ri.n_retries++ ;
+				/**/                       else                 ri.n_submits++ ;
+				break ;
+				case JobReasonTag::Lost  :                      ri.n_losts  ++ ; break ;
+				default                  :                      ri.n_submits++ ;
 			}
 		} ;
 		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
 	RestartFullAnalysis :
 		switch (make_action) {
 			case MakeAction::End :
-				ri.force  = false ;                                                                 // cmd has been executed, it is not new any more
-				ri.reason = {}    ;                                                                 // reasons were to trigger the ending job, there are none now
-				ri.reset(idx()) ;                                                                   // deps have changed
+				ri.force  = false ;                                                                            // cmd has been executed, it is not new any more
+				ri.reason = {}    ;                                                                            // reasons were to trigger the ending job, there are none now
+				ri.reset(idx()) ;                                                                              // deps have changed
 			[[fallthrough]] ;
 			case MakeAction::Wakeup : ri.dec_wait() ;                                      break ;
 			case MakeAction::GiveUp : ri.dec_wait() ; goto Done ;                          break ;
@@ -797,9 +817,9 @@ namespace Engine {
 			case MakeAction::Status : if (!ri.full) { ri.full = true ; ri.reset(idx()) ; } break ;
 			case MakeAction::Makable :
 				SWEAR(!asked_reason,asked_reason) ;
-				ri.speculate = ri.speculate & speculate ;                                           // cannot use &= with bit fields
+				ri.speculate = ri.speculate & speculate ;                                                      // cannot use &= with bit fields
 				if ( !ri.waiting() && !ri.full && sure() ) {
-					SWEAR( !ri.state.reason && !ri.reason , ri.state.reason , ri.reason ) ;         // if we have a reason to run, we must not go to Done
+					SWEAR( !ri.state.reason && !ri.reason , ri.state.reason , ri.reason ) ;                    // if we have a reason to run, we must not go to Done
 					goto Done ;
 				}
 			break ;
@@ -808,30 +828,30 @@ namespace Engine {
 			if (ri.state.missing_dsk) { trace("reset",asked_reason) ; ri.reset(idx()) ; }
 			ri.reason |= asked_reason ;
 		}
-		ri.speculate = ri.speculate & speculate ;                                                   // cannot use &= with bit fields
+		ri.speculate = ri.speculate & speculate ;                                                              // cannot use &= with bit fields
 		if (ri.done()) {
 			if ( !ri.reason && !ri.state.reason ) goto Wakeup ;
 			if ( req.zombie()                   ) goto Wakeup ;
 			/**/                                  goto Run    ;
 		} else {
-			if ( ri.waiting()                   ) goto Wait   ;                                     // we may have looped in which case stats update is meaningless and may fail()
+			if ( ri.waiting()                   ) goto Wait   ;                                                // we may have looped in which case stats update is meaningless and may fail()
 			if ( req.zombie()                   ) goto Done   ;
-			if ( idx().frozen()                 ) goto Run    ;                                     // ensure crc are updated, akin sources
-			if ( special==Special::Infinite     ) goto Run    ;                                     // special case : Infinite actually has no dep, just a list of node showing infinity
+			if ( idx().frozen()                 ) goto Run    ;                                                // ensure crc are updated, akin sources
+			if ( special==Special::Infinite     ) goto Run    ;                                                // special case : Infinite actually has no dep, just a list of node showing infinity
 		}
 		if (ri.step()==Step::None) {
-			estimate_stats() ;                                                                      // initial guestimate to accumulate waiting costs while resources are not fully known yet
+			estimate_stats() ;                                                                                 // initial guestimate to accumulate waiting costs while resources are not fully known yet
 			ri.step(Step::Dep,idx()) ;
 			if (ri.full) {
 				JobReasonTag jrt = {} ;
-				if      ( r->force                                              ) jrt = JobReasonTag::Force   ;
-				else if ( !cmd_ok()                                             ) jrt = JobReasonTag::Cmd     ;
-				else if ( req->options.flags[ReqFlag::ForgetOldErrors] && err() ) jrt = JobReasonTag::OldErr  ; // probably a transient error
-				else if ( !rsrcs_ok()                                           ) jrt = JobReasonTag::Rsrcs   ; // probably a resource  error
+				if      ( r->force                                              ) jrt = JobReasonTag::Force  ;
+				else if ( !cmd_ok()                                             ) jrt = JobReasonTag::Cmd    ;
+				else if ( req->options.flags[ReqFlag::ForgetOldErrors] && err() ) jrt = JobReasonTag::OldErr ; // probably a transient error
+				else if ( !rsrcs_ok()                                           ) jrt = JobReasonTag::Rsrcs  ; // probably a resource  error
 				else                                                              goto NoReason ;
 				ri.reason              = jrt  ;
 				ri.force               = true ;
-				ri.state.proto_modif   = true ;                                                             // ensure we can copy proto_modif to stamped_modif anytime when pertinent
+				ri.state.proto_modif   = true ;                                                                // ensure we can copy proto_modif to stamped_modif anytime when pertinent
 				ri.state.stamped_modif = true ;
 			NoReason : ;
 			}
@@ -851,6 +871,7 @@ namespace Engine {
 			ReqInfo::State state = ri.state ;
 			pre_reason    = _mk_reason(status,make_action==MakeAction::End) ;
 			report_reason = {}                                              ;
+			trace("pre_reason",pre_reason) ;
 			for( DepsIter iter {deps,ri.iter} ;; iter++ ) {
 				//
 				bool       seen_all = iter==deps.end()            ;
@@ -928,7 +949,7 @@ namespace Engine {
 					state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
 				} else {
 					SWEAR(dep_done) ;                                                                              // unless query, after having called make, dep must be either waiting or done
-					bool dep_missing_dsk = ri.full && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
+					bool dep_missing_dsk = !query && ri.full && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
 					state.missing_dsk |= dep_missing_dsk ;                                                         // job needs this dep if it must run
 					if (dep_goal==NodeGoal::Makable) {
 						if ( is_static && required && dnd.ok(*cdri,dep.accesses)==Maybe )
@@ -967,7 +988,7 @@ namespace Engine {
 								trace("missing",STR(is_static),dep) ;
 								break ;
 							}
-							dep_missing_dsk |= cdri->manual>=Manual::Changed ;                           // ensure dangling are correctly handled
+							dep_missing_dsk |= !query && cdri->manual>=Manual::Changed ;                 // ensure dangling are correctly handled
 						[[fallthrough]] ;
 						case Yes :
 							if (dep_goal==NodeGoal::Dsk) {                                               // if asking for disk, we must check disk integrity
@@ -1017,11 +1038,7 @@ namespace Engine {
 		trace("run",report_reason,ri,run_status) ;
 		if ( query && !is_special() )                     goto Return                      ;
 		if ( ri.state.missing_dsk   ) { ri.reset(idx()) ; goto RestartAnalysis/*BACKWARD*/ ; }        // cant run if we are missing some deps on disk
-		switch (report_reason.tag) {
-			case JobReasonTag::Retry : ri.n_retries++ ; break ;
-			case JobReasonTag::Lost  : ri.n_losts  ++ ; break ;
-			default                  : ri.n_submits++ ;
-		}
+		inc_submits(report_reason.tag) ;
 		//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if (is_special()) {      _submit_special( ri                                ) ; goto Done ; } // special never report new deps
 		else              { if (!_submit_plain  ( ri , report_reason , dep_pressure ))  goto Done ; } // if no new deps, we cannot be waiting and we are done

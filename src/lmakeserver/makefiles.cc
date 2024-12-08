@@ -21,18 +21,6 @@ namespace Engine::Makefiles {
 
 	static ::map_ss _g_env ;
 
-	static ::vector_s _gather_srcs(Sequence const& py_srcs) {
-		::vector_s res ;
-		for( Object const& py_src : py_srcs ) res.push_back(py_src.as_a<Str>()) ;
-		return res ;
-	}
-
-	static ::vector<RuleData> _gather_rules(Sequence const& py_rules) {
-		::vector<RuleData> res ;
-		for( Object const& py_rule : py_rules ) res.push_back(py_rule.as_a<Dict>()) ;
-		return res ;
-	}
-
 	// dep file line format :
 	// - first dep is special, marked with *, and provide lmake_root
 	// - first char is file existence (+) or non-existence (!)
@@ -75,7 +63,7 @@ namespace Engine::Makefiles {
 		//
 		::vector_s deps = AcFd(_deps_file(action,new_)).read_lines(true/*no_file_ok*/) ;
 		for( ::string const& line : deps ) {
-			if (line[0]!='+') continue ; // not an existing file
+			if (line[0]!='+') continue ;                                                                              // not an existing file
 			::string d = line.substr(1) ;
 			if (is_abs(d)) continue ;                                                                                 // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n{d} ;
@@ -86,6 +74,7 @@ namespace Engine::Makefiles {
 	}
 
 	static void _gen_deps( ::string const& action , ::vector_s const& deps , ::string const& startup_dir_s ) {
+		SWEAR(+deps) ;                                                                                         // there must at least be Lmakefile.py
 		::string              new_deps_file = _deps_file(action,true /*new*/) ;
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
 		//
@@ -177,7 +166,7 @@ namespace Engine::Makefiles {
 		return { reason , true/*done*/ } ;
 	}
 
-	template<bool IsRules,class T> static ::pair_s<bool/*done*/> _refresh_rules_srcs(
+	template<bool IsRules,class T> static ::pair_s<Bool3/*done*/> _refresh_rules_srcs(                          // Maybe means not split
 		T&              res
 	,	::vector_s&     deps
 	,	Bool3           changed                                                                                 // Maybe means new, Yes means existence of module/callable changed
@@ -186,7 +175,7 @@ namespace Engine::Makefiles {
 	) {
 		bool has_split = IsRules ? g_config->has_split_rules : g_config->has_split_srcs ;
 		Trace trace("_refresh_rules_srcs",STR(IsRules),changed,STR(has_split)) ;
-		if ( !has_split && !py_info && changed==No ) return {{},false/*done*/} ;                                // sources has not been read
+		if ( !has_split && !py_info && changed==No ) return {{},Maybe/*done*/} ;                                // sources has not been read
 		::string  reason      ;
 		Ptr<Dict> py_new_info ;
 		::string  kind        = IsRules ? "rules" : "sources" ;
@@ -196,9 +185,10 @@ namespace Engine::Makefiles {
 				case Maybe : reason = kind+" module/callable was never read" ; break ;
 				case No    :
 					reason = _chk_deps( kind , startup_dir_s , g_config->reliable_dirs ) ;
-					if (!reason) return {{},false/*done*/} ;
+					if (!reason) return {{},No/*done*/} ;
 				break ;
 			}
+			SWEAR(+reason) ;
 			::string sub_repos_s ;
 			First    first       ;
 			/**/                                                sub_repos_s << "("                            ;
@@ -210,12 +200,12 @@ namespace Engine::Makefiles {
 			py_info = py_new_info ;
 		}
 		try {
-			if constexpr (IsRules) res = _gather_rules((*py_info)["rules"   ].as_a<Sequence>()) ;
-			else                   res = _gather_srcs ((*py_info)["manifest"].as_a<Sequence>()) ;
+			if constexpr (IsRules) for( Object const& py_rule : (*py_info)["rules"   ].as_a<Sequence>() ) res.push_back(py_rule.as_a<Dict>()) ;
+			else                   for( Object const& py_src  : (*py_info)["manifest"].as_a<Sequence>() ) res.push_back(py_src .as_a<Str >()) ;
 		} catch(::string const& e) {
 			throw "while processing "+kind+" :\n"+indent(e) ;
 		}
-		return {reason,true/*done*/} ;
+		return {reason,Maybe|+reason/*done*/} ;                                                                 // cannot be split without reason
 	}
 
 	::string/*msg*/ _refresh( bool rescue , bool refresh_ , bool dynamic , ::string const& startup_dir_s ) {
@@ -255,24 +245,24 @@ namespace Engine::Makefiles {
 		//
 		::pair_s<bool/*done*/> config_digest = _refresh_config( config , py_info , config_deps , startup_dir_s ) ;
 		//
-		Bool3 changed_srcs      = No    ;
-		Bool3 changed_rules     = No    ;
-		bool  invalidate_config = false ;
+		Bool3 changed_srcs  = No    ;
+		Bool3 changed_rules = No    ;
+		bool  invalidate    = false ;                                            // invalidate because of config
 		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
-			if (!old.booted) {                                                                     // no old config means first time, all is new
-				changed_srcs      = Maybe ;                                                        // Maybe means new
-				changed_rules     = Maybe ;                                                        // .
-				invalidate_config = true  ;
+			if (!old.booted) {                                                   // no old config means first time, all is new
+				changed_srcs  = Maybe ;                                          // Maybe means new
+				changed_rules = Maybe ;                                          // .
+				invalidate    = true  ;
 				return ;
 			}
-			if (!new_.booted) return ;                                                             // no new config means we keep old config, no modification
+			if (!new_.booted) return ;                                           // no new config means we keep old config, no modification
 			//
-			changed_srcs      |= old.has_split_srcs !=new_.has_split_srcs  ;
-			changed_rules     |= old.has_split_rules!=new_.has_split_rules ;
-			invalidate_config  = old.sub_repos_s!=new_.sub_repos_s         ;                       // this changes matching exceptions, which means it changes matching
+			changed_srcs  |= old.has_split_srcs !=new_.has_split_srcs  ;
+			changed_rules |= old.has_split_rules!=new_.has_split_rules ;
+			invalidate    |= old.sub_repos_s!=new_.sub_repos_s         ;         // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
-			NoGil no_gil { gil } ;                                                                 // release gil as new_config needs Backend which is of lower priority
+			NoGil no_gil { gil } ;                                               // release gil as new_config needs Backend which is of lower priority
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -282,50 +272,50 @@ namespace Engine::Makefiles {
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//
-		::vector_s             srcs           ;
-		::pair_s<bool/*done*/> srcs_digest    = _refresh_rules_srcs<false/*IsRules*/>( srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;
-		bool                   invalidate_src = srcs_digest.second                                                                                 ;
-		if (invalidate_src) {
+		::vector_s              srcs        ;
+		::pair_s<Bool3/*done*/> srcs_digest = _refresh_rules_srcs<false/*IsRules*/>( srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;    // Maybe means not split
+		bool                    new_srcs    = srcs_digest.second==Yes || (srcs_digest.second==Maybe&&config_digest.second)                       ;
+		if (new_srcs) {
 			try {
 				NoGil no_gil { gil } ;
-				//                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				invalidate_src = Persistent::new_srcs( ::move(srcs) , dynamic ) ;
-			} catch (::string const& e) { //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				// if srcs_digest is empty, sources were in config
-				throw "cannot "s+(dynamic?"dynamically ":"")+"read sources (because "+(+srcs_digest.first?srcs_digest.first:config_digest.first)+") : "+e ;
+				//                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				invalidate |= Persistent::new_srcs( ::move(srcs) , dynamic ) ;
+			} catch (::string const& e) { //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				throw "cannot "s+(dynamic?"dynamically ":"")+"read sources (because "+(srcs_digest.second==Yes?srcs_digest.first:config_digest.first)+") : "+e ;
 			}
 		}
 		//
-		::vector<RuleData>     rules           ;
-		::pair_s<bool/*done*/> rules_digest    = _refresh_rules_srcs<true/*IsRules*/>( rules , rules_deps , changed_rules , py_info , startup_dir_s ) ;
-		bool                   invalidate_rule = rules_digest.second                                                                                  ;
-		if (invalidate_rule) {
+		::vector<RuleData>      rules        ;
+		::pair_s<Bool3/*done*/> rules_digest = _refresh_rules_srcs<true/*IsRules*/>( rules , rules_deps , changed_rules , py_info , startup_dir_s ) ; // Maybe means not split
+		bool                    new_rules    = rules_digest.second==Yes || (rules_digest.second==Maybe&&config_digest.second)                       ;
+		if (new_rules) {
 			try {
-				NoGil no_gil { gil } ;                                                             // release gil as new_rules acquires it when needed
-				//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				invalidate_rule = Persistent::new_rules( ::move(rules) , dynamic ) ;
-			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				NoGil no_gil { gil } ;                                                                                // release gil as new_rules acquires it when needed
+				//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				invalidate = Persistent::new_rules( ::move(rules) , dynamic ) ;
+			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// if rules_digest is empty, rules were in config
 				if (dynamic) throw "cannot dynamically read rules (because " + (+rules_digest.first?rules_digest.first:config_digest.first) + ") : " + e ;
 				else         throw "cannot read rules : "                                                                                            + e ;
 			}
 		}
-		if ( invalidate_config || invalidate_src || invalidate_rule ) Persistent::invalidate_match() ;
+		if (invalidate) Persistent::invalidate_match() ;
 		//
-		if      (config_digest.second) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
-		else if (srcs_digest  .second) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have become dangling
-		if      (srcs_digest  .second) _gen_deps    ( "sources" , srcs_deps    , startup_dir_s ) ;
-		if      (rules_digest .second) _gen_deps    ( "rules"   , rules_deps   , startup_dir_s ) ;
-		else if (srcs_digest  .second) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ; // .
+		if      ( config_digest.second                  ) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
+		else if (                              new_srcs ) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have become dangling
+		if      ( srcs_digest  .second==Yes             ) _gen_deps    ( "sources" , srcs_deps    , startup_dir_s ) ;
+		else if ( srcs_digest  .second==No  && new_srcs ) FAIL() ;
+		if      ( rules_digest .second==Yes             ) _gen_deps    ( "rules"   , rules_deps   , startup_dir_s ) ;
+		else if ( rules_digest .second==No  && new_srcs ) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ; // .
 		//
 		::string msg ;
 		if (+config_digest.first) msg<<"read config because " <<config_digest.first<<'\n' ;
 		if (+srcs_digest  .first) msg<<"read sources because "<<srcs_digest  .first<<'\n' ;
 		if (+rules_digest .first) msg<<"read rules because "  <<rules_digest .first<<'\n' ;
 		//
-		if (config_digest.second) _stamp_deps("config" ) ;                                         // stamp deps once all error cases have been cleared
-		if (srcs_digest  .second) _stamp_deps("sources") ;                                         // .
-		if (rules_digest .second) _stamp_deps("rules"  ) ;                                         // .
+		if (config_digest.second     ) _stamp_deps("config" ) ;                                                       // stamp deps once all error cases have been cleared
+		if (srcs_digest  .second==Yes) _stamp_deps("sources") ;                                                       // .
+		if (rules_digest .second==Yes) _stamp_deps("rules"  ) ;                                                       // .
 		//
 		return msg ;
 	}

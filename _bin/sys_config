@@ -7,10 +7,12 @@
 
 if [ "$OS" = Darwin ] ; then
 	realpath() {
-		case $1 in
-			/*) echo      $1 ;;
-			* ) echo $PWD/$1 ;;
-		esac
+		for f in "$@" ; do
+			case $f in
+				/*) echo "$f"      ;;
+				* ) echo "$PWD/$f" ;;
+			esac
+		done
 	}
 fi
 
@@ -21,7 +23,9 @@ ERR_FILE=$(realpath ${4:-/dev/null})
 
 trial_dir=${MK_FILE%.*}.trial
 
-source /etc/os-release # define ID and VERSION_ID
+if [ "$OS" = Linux ] ; then
+	source /etc/os-release  # define ID and VERSION_ID
+fi
 
 echo SYS_CONFIG_OK := 0 >$MK_FILE  # this will be overwritten at the end, when auto-config has gone through
                         >$H_FILE   # useless, for sanity only
@@ -83,9 +87,6 @@ fi
 
 echo "using $CXX as $CXX_STD compiler (version $CXX_VERSION)" >>$SUM_FILE
 
-cc -v -E -o /dev/null -xc - </dev/null 2>compiler_info
-STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' compiler_info)) )" # echo is used to replace \n by space
-
 #
 # Python configuration (Python2 is optional)
 #
@@ -131,7 +132,7 @@ case $OS in
 					PyObject* none = Py_None ;
 				}
 			EOF
-			cc -o probe_python$ver -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { msg="$python is unusable as python library" ; return 1 ; }
+			cc -o /dev/null -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { msg="$python is unusable as python library" ; return 1 ; } # check if Py_None is available in lib
 			eval "PYTHON${ver#3}=$python"
 			eval "PY${ver}_INCLUDEDIR=$inc_dir"
 			eval "PY${ver}_INCLUDEPY=$inc_py"
@@ -155,8 +156,8 @@ case $OS in
 	#
 	Darwin)
 		python=${PYTHON:-python3}
-		p=$(whence $python)
-		[ "$p" ] || { echo "${PYTHON:-python3} not found">>$ERR_FILE ; exit 1 ; }
+		p=$(type -p $python)
+		[ "$p" ] || { echo "$python not found">>$ERR_FILE ; exit 1 ; }
 		python=$p
 		py_major=$($python -c 'import sys ; print(sys.version_info.major)')
 		py_minor=$($python -c 'import sys ; print(sys.version_info.minor)')
@@ -176,7 +177,105 @@ case $OS in
 esac
 
 #
-# LD_SO_LIB & LD_SO_LIB32
+# ADDR2LINE (ADDR2LINE+HAS_ADDR2LINE)
+#
+case $CXX_FLAVOR in
+	gcc  ) ADDR2LINE=$CXX_DIR/addr2line      ;;
+	clang) ADDR2LINE=$CXX_DIR/llvm-addr2line ;;
+esac
+[ -x "$ADDR2LINE" ] || ADDR2LINE=$(type -p addr2line ||:)
+#
+HAS_ADDR2LINE=$(ok test "$ADDR2LINE")
+
+#
+# CLOSE_RANGE (HAS_CLOSE_RANGE)
+# test whether we can include linux/close_range.h
+#
+HAS_CLOSE_RANGE=$(ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
+
+#
+# EPOLL & KQUEUE (HAS_EPOLL+HAS_KQUEUE)
+#
+HAS_EPOLL=$(ok cc -E --include 'sys/epoll.h' -o /dev/null -xc /dev/null )
+cat <<"EOF" >kqueue.c
+	#include <sys/event.h>
+	int main() { kqueue() ; }
+EOF
+HAS_KQUEUE=$(ok cc -o /dev/null -xc kqueue.c) # check if kqueue is available in lib
+
+#
+#
+# INC_DIRS (STD_INC_DIRS+DARWIN_FIX_FLAGS)
+#
+cc -v -E -o /dev/null -xc++ -std=$CXX_STD - </dev/null 2>compiler_info
+# get only first word of each inclue dir as there may be info following it
+STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' -e 's/ *\([^ ]*\).*/\1/' compiler_info)) )" # echo is used to replace \n by space
+if [ "$OS" = Darwin ] ; then
+	DARWIN_FIX_FLAGS=
+	for d in $STD_INC_DIRS ; do
+		DARWIN_FIX_FLAGS="$DARWIN_FIX_FLAGS -isystem $d/c++/v1"
+	done
+fi
+
+# EXPERIMENTAL_LIBRARY (NEED_EXPERIMENTAL_LIBRARY) - must be after INC_DIRS
+#
+cat <<"EOF" >experimental_library.cc
+	#include <stop_token>
+	std::stop_token st ;
+EOF
+if   cc -c -o /dev/null -std=$CXX_STD                        $DARWIN_FIX_FLAGS experimental_library.cc ; then NEED_EXPERIMENTAL_LIBRARY=0
+elif cc -c -o /dev/null -std=$CXX_STD -fexperimental-library $DARWIN_FIX_FLAGS experimental_library.cc ; then NEED_EXPERIMENTAL_LIBRARY=1
+else
+	echo "$CXX does not implement $CXX_STD" >>$ERR_FILE
+	exit 1
+fi
+
+#
+# INOTIFY (HAS_INOTIFY)
+#
+HAS_INOTIFY=$(ok cc -E --include 'sys/inotify.h' -o /dev/null -xc /dev/null )
+
+#
+# LD_AUDIT (HAS_LD_AUDIT)
+#
+case $OS/$ID/$VERSION_ID in
+	Linux/ubuntu/20.04) HAS_LD_AUDIT=0 ;; # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
+	Linux/centos/7    ) HAS_LD_AUDIT=0 ;; # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
+	*                 )
+		cat <<-"EOF" >audited.c
+			#include <stdio.h>
+			int main() { printf("0") ; }
+		EOF
+		cat <<-"EOF" >ld_audit.c
+			#include <stdio.h>
+			#include <stdlib.h>
+			unsigned int la_version(unsigned int) { printf("1") ; exit(0) ; }
+		EOF
+		cc -o audited                   -xc audited.c
+		cc -o ld_audit.so -shared -fPIC -xc ld_audit.c
+		HAS_LD_AUDIT=$(LD_AUDIT=./ld_audit.so ./audited) # check if auditing code is executed
+	;;
+esac
+[ $HAS_LD_AUDIT = 1 ] || echo no LD_AUDIT support >>$SUM_FILE
+
+#
+# LD_LIBRARY_PATH (STD_LIBRARY_PATH+STD_LIBRARY_PATH_32+LINK_LIB_PATH+LINK_LIB_PATH32)
+#
+show_std_library_path() {
+	strace -E LD_PRELOAD='magic1234.so' -E LD_LIBRARY_PATH= $1 2>&1 | awk '/\/magic1234.so/ {sub(/[^"]*"/,"") ; sub(/\/magic1234.so.*/,"") ; printf("%s%s",sep,$0) ; sep=":" }'
+}
+cc      -o std_library_path    -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH=$(   show_std_library_path ./std_library_path   )
+cc -m32 -o std_library_path_32 -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH_32=$(show_std_library_path ./std_library_path_32)
+#
+LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
+LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
+if [ $HAS_32 = 1 ] ; then
+	LINK_LIB_PATH_32=$(find_cc_ld_library_path -m32 $CXX)
+	LINK_LIB_PATH_32=${LINK_LIB_PATH_32//:/ }
+fi
+
+#
+# LD_SO (HAS_32+LD_SO_LIB+LD_SO_LIB32)
 #
 show_lib() {
 	strace -E LD_PRELOAD='/>>>$LIB<<<' $1 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }'
@@ -193,87 +292,125 @@ else
 fi
 
 #
-# LINK_LIB_PATH
+# LIBC (USE_LIBC_START_MAIN)
 #
-
-LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
-LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
-if [ $HAS_32 = 1 ] ; then
-	LINK_LIB_PATH_32=$(find_cc_ld_library_path -m32 $CXX)
-	LINK_LIB_PATH_32=${LINK_LIB_PATH_32//:/ }
-fi
-
-#
-# ADDR2LINE
-#
-case $CXX_FLAVOR in
-	gcc  ) ADDR2LINE=$CXX_DIR/addr2line      ;;
-	clang) ADDR2LINE=$CXX_DIR/llvm-addr2line ;;
-esac
-[ -x "$ADDR2LINE" ] || ADDR2LINE=$(type -p addr2line ||:)
+cat <<"EOF" >start_main.c
+	#include <unistd.h>
+	int __libc_start_main( void* main , int argc , void* argv , void* auxvec , void* init , void* fini , void* rtld_fini , void* stack_end) {
+		write(1,"1",1) ; // stick to very basic sycalls as nothing is initialized yet
+		_exit(0) ;       // dont call main
+	}
+	int main() { write(1,"0",1) ; }
+EOF
+cc -o start_main -xc start_main.c
+USE_LIBC_START_MAIN=$(./start_main) # check if _libc_start_main is executed
 
 #
-# HAS_CLOSE_RANGE
-# test whether we can include linux/close_range.h
+# MAX_PID
 #
-HAS_CLOSE_RANGE=$(ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
+MAX_PID=$(cat /proc/sys/kernel/pid_max || echo 0)
 
 #
-# HAS_LD_AUDIT
-# test whether LD_AUDIT environment variable is managed by dynamic linker
+# MEMFD (HAS_MEMFD)
 #
-case "$ID/$VERSION_ID" in
-	ubuntu/20.04) HAS_LD_AUDIT=0 ;; # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
-	centos/7    ) HAS_LD_AUDIT=0 ;; # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
-esac
-if [ -z "$HAS_LD_AUDIT" ] ; then
-	cat <<-"EOF" > audited.c
-		#include<stdio.h>
-		int main() { printf("0") ; }
-	EOF
-	cat <<-"EOF" > ld_audit.c
-		#include<stdio.h>
-		#include<stdlib.h>
-		unsigned int la_version(unsigned int) { printf("1") ; exit(0) ; }
-	EOF
-	cc -o audited                   -xc audited.c
-	cc -o ld_audit.so -shared -fPIC -xc ld_audit.c
-	HAS_LD_AUDIT=$(LD_AUDIT=./ld_audit.so ./audited)
-fi
-#
-[ $HAS_LD_AUDIT = 1 ] || echo no LD_AUDIT support >>$SUM_FILE
-
-#
-# HAS_MEMFD
-#
-cat <<"EOF" > memfd.c
+cat <<"EOF" >memfd.c
 	#ifndef _GNU_SOURCE
 		#define _GNU_SOURCE
 	#endif
-	#include<sys/mman.h>
+	#include <sys/mman.h>
 	int main() { memfd_create("trial",0) ; }
 EOF
-HAS_MEMFD=$(ok cc -Werror -o memfd -xc memfd.c)
+HAS_MEMFD=$(ok cc -o /dev/null -xc memfd.c) # check if memfd_create is available in lib
 
 #
-# HAS_PCRE
+# MMAP (HAS_MREMAP)
+cat <<"EOF" >mremap.c
+	#ifndef _GNU_SOURCE
+		#define _GNU_SOURCE
+	#endif
+	#include <sys/mman.h>
+	int main() { mremap((void*)0,0,0,0) ; }
+EOF
+HAS_MREMAP=$(ok cc -o /dev/null -xc mremap.c) # check if mremap is available in lib
+
 #
-cat <<"EOF" > pcre.cc
+# NAMESPACES (HAS_NAMESPACES)
+#
+cat <<"EOF" >namespaces.c
+	#ifndef _GNU_SOURCE
+		#define _GNU_SOURCE
+	#endif
+	#include <sched.h>
+	int main() { unshare(0) ; }
+EOF
+HAS_NAMESPACES=$(ok cc -c -o /dev/null -xc namespaces.c) # check if unshare is available in lib
+
+#
+# OBJCOPY
+#
+case $CXX_FLAVOR in
+	gcc  ) OBJCOPY=$CXX_DIR/objcopy      ;;
+	clang) OBJCOPY=$CXX_DIR/llvm-objcopy ;;
+esac
+[ -x "$OBJCOPY" ] || OBJCOPY=$(type -p objcopy ||:)
+
+#
+# OS (IS_LINUX,IS_DARWIN,OS_ID,OS_VERSION_ID)
+#
+IS_LINUX=$(ok  [ "$OS" = Linux  ])
+IS_DARWIN=$(ok [ "$OS" = Darwin ])
+OS_ID="$ID"
+OS_VERSION_ID="$VERSION_ID"
+
+#
+# PATH (STD_PATH)
+#
+STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
+
+#
+# PCRE (HAS_PCRE)
+#
+cat <<"EOF" >pcre.cc
 	#define PCRE2_CODE_UNIT_WIDTH 8
 	#include <pcre2.h>
 	int main() {
 		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
 	}
 EOF
-HAS_PCRE=$(ok cc -std=$CXX_STD -o pcre.o pcre.cc -lpcre2-8 )
+HAS_PCRE=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 ) # check if pcre2_compile is available in lib
 #
 [ $HAS_PCRE = 1 ] || echo "no pcre2 support, fall back to (slower) c++ STL regular expression library" >>$SUM_FILE
 
 #
-# HAS_SECCOMP
+# PTRACE (MUST_UNDEF_PTRACE_MACROS+HAS_PTRACE_GET_SYSCALL_INFO)
+#
+cat <<"EOF" >undef_ptrace_macros.c
+	#include <sys/ptrace.h>
+	#include <linux/ptrace.h>
+	#undef PTRACE_TRACEME
+	int main() {
+		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
+	}
+EOF
+MUST_UNDEF_PTRACE_MACROS=$(ok cc -c -idirafter /usr/include/linux -o /dev/null -xc undef_ptrace_macros.c )
+#
+cat <<"EOF" >get_syscall_info.c
+	#include <sys/ptrace.h>
+	#include <linux/ptrace.h>
+	#if MUST_UNDEF_PTRACE_MACROS
+		#undef PTRACE_GET_SYSCALL_INFO
+	#endif
+	int main() {
+		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
+	}
+EOF
+HAS_PTRACE_GET_SYSCALL_INFO=$(ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o /dev/null -xc get_syscall_info.c )
+
+#
+# SECCOMP (HAS_SECCOMP)
 # test whether we have seccomp : warning, include <seccomp.h> is not enough to test, check its content too
 #
-cat <<"EOF" > seccomp.c
+cat <<"EOF" >seccomp.c
 	#include <seccomp.h>
 	struct scmp_version v ;
 	int main() {
@@ -282,19 +419,19 @@ cat <<"EOF" > seccomp.c
 	}
 EOF
 # usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccomp.h) but some systems have seccomp.h directly installed in /usr/include/linux
-HAS_SECCOMP=$(ok cc -idirafter /usr/include/linux -o seccomp -xc seccomp.c -l:libseccomp.so.2 )
+HAS_SECCOMP=$(ok cc -idirafter /usr/include/linux -o /dev/null -xc seccomp.c -l:libseccomp.so.2 ) # check if seccomp_syscall_priority is available in lib
 #
 [ $HAS_SECCOMP = 1 ] || echo "no seccomp support, fall back to (slower when autodep=ptrace) ptrace to trace jobs" >>$SUM_FILE
 
 #
-# HAS_SGE
+# SGE (HAS_SGE)
 #
 HAS_SGE=$(ok type -p qsub)
 #
 [ $HAS_SGE = 1 ] || echo no sge support >>$SUM_FILE
 
 #
-# HAS_SLURM
+# SLURM (HAS_SLURM+SLURM_INC_DIR+SLURM_SO)
 #
 if [ "$SLURM_ROOT" ] ; then
 	SLURM_INC_DIR=$SLURM_ROOT/include
@@ -307,20 +444,9 @@ HAS_SLURM=$(ok cc -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/s
 [ $HAS_SLURM = 1 ] || echo no slurm support >>$SUM_FILE
 
 #
-# HAS_UNREACHABLE
+# STACKTRACE (HAS_STACKTRACE+HAS_STACKTRACE_32+LIB_STACKTRACE+LIB_STACKTACE_32)
 #
-cat <<"EOF" >unreachable.cc
-	#include <utility>
-	int main() {
-		std::unreachable() ;
-	}
-EOF
-HAS_UNREACHABLE=$(ok cc -std=$CXX_STD -o /dev/null unreachable.cc)
-
-#
-# LIB_STACKTRACE
-#
-cat <<"EOF" > stacktrace.cc
+cat <<"EOF" >stacktrace.cc
 	#include <stacktrace>
 	using namespace std ;
 	int main() {                                    // mimic a mini-program using stack trace
@@ -330,10 +456,10 @@ cat <<"EOF" > stacktrace.cc
 		return rc ;
 	}
 EOF
-if   cc -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE=stdc++_libbacktrace         # compile and link, to ensure both steps are ok
+if   cc -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE=stdc++_libbacktrace         # compile and link, to ensure both steps are ok (check if available in lib)
 elif cc -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE=stdc++exp                   # .
 fi
-if   cc -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE_32=stdc++_libbacktrace # compile and link, to ensure both steps are ok
+if   cc -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE_32=stdc++_libbacktrace # .
 elif cc -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE_32=stdc++exp           # .
 fi
 HAS_STACKTRACE=$((   ${LIB_STACKTRACE:+   1}))
@@ -342,190 +468,160 @@ HAS_STACKTRACE_32=$((${LIB_STACKTRACE_32:+1}))
 [ $HAS_STACKTRACE = 1 ] || echo "no stacktrace support, fall back to (lower quality back trace in case of crash) addr2line" >>$SUM_FILE
 
 #
-# MAX_PID
-#
-MAX_PID=$(cat /proc/sys/kernel/pid_max || echo 0)
-
-#
-# MUST_UNDEF_PTRACE_MACROS
-#
-cat <<"EOF" > undef_ptrace_macros.c
-	#include<sys/ptrace.h>
-	#include<linux/ptrace.h>
-	#undef PTRACE_TRACEME
-	void foo() {
-		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
-	}
-EOF
-MUST_UNDEF_PTRACE_MACROS=$(ok cc -c -idirafter /usr/include/linux -o undef_ptrace_macros.o -xc undef_ptrace_macros.c )
-
-#
-# HAS_PTRACE_GET_SYSCALL_INFO (must be after MUST_UNDEF_PTRACE_MACROS)
-#
-cat <<"EOF" > get_syscall_info.c
-	#include<sys/ptrace.h>
-	#include<linux/ptrace.h>
-	#if MUST_UNDEF_PTRACE_MACROS
-		#undef PTRACE_GET_SYSCALL_INFO
-	#endif
-	void foo() {
-		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
-	}
-EOF
-HAS_PTRACE_GET_SYSCALL_INFO=$(ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o get_syscall_info.o -xc get_syscall_info.c )
-
-#
-# NEED_STAT_WRAPPERS
-# test whether stat syscalls are transformed into __xstat
-#
-cat <<"EOF" > stat.c
-	#include <sys/stat.h>
-	struct stat buf ;
-	int main() { stat("",&buf) ; }
-EOF
-cc -o stat_trial -xc stat.c
-case $OS in
-	Linux ) nm -D stat_trial > stat_trial.nm ;;
-	Darwin) nm -g stat_trial > stat_trial.nm ;;
-esac
-NEED_STAT_WRAPPERS=$(( ! $(ok grep -wq stat stat_trial.nm) ))
-
-#
-# OBJCOPY
-#
-case $CXX_FLAVOR in
-	gcc  ) OBJCOPY=$CXX_DIR/objcopy      ;;
-	clang) OBJCOPY=$CXX_DIR/llvm-objcopy ;;
-esac
-[ -x "$OBJCOPY" ] || OBJCOPY=$(type -p objcopy ||:)
-
-#
-# STD_LIBRARY_PATH & STD_LIBRARY_PATH_32
-#
-show_std_library_path() {
-	strace -E LD_PRELOAD='magic1234.so' -E LD_LIBRARY_PATH= $1 2>&1 | awk '/\/magic1234.so/ {sub(/[^"]*"/,"") ; sub(/\/magic1234.so.*/,"") ; printf("%s%s",sep,$0) ; sep=":" }'
-}
-cc      -o std_library_path    -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH=$(   show_std_library_path ./std_library_path   )
-cc -m32 -o std_library_path_32 -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH_32=$(show_std_library_path ./std_library_path_32)
-
-#
-# SPLIT_DBG
+# SPLIT_DBG (SPLIT_DBG+SPLIT_DBG_32) - must follow STACKTRACE
 #
 if [ "$OBJCOPY" ] ; then
-	SPLIT_DBG=$((   1-$HAS_STACKTRACE   ))
-	SPLIT_DBG_32=$((1-$HAS_STACKTRACE_32))
+	SPLIT_DBG=$((   !$HAS_STACKTRACE   ))
+	SPLIT_DBG_32=$((!$HAS_STACKTRACE_32))
 fi
 
 #
-# STD_PATH
+# STAT (ST_MTIMESPEC)
 #
-STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
-
-#
-# USE_LIBC_START_MAIN
-#
-cat <<"EOF" > start_main.c
-	#include<unistd.h>
-	int __libc_start_main( void* main , int argc , void* argv , void* auxvec , void* init , void* fini , void* rtld_fini , void* stack_end) {
-		write(1,"1",1) ; // stick to very basic sycalls as nothing is initialized yet
-		_exit(0) ;       // dont call main
+cat <<"EOF" >st_mtimespec.c
+	#include <sys/stat.h>
+	int main() {
+		struct stat     buf ;
+		struct timespec ts  = buf.st_mtimespec ;
 	}
-	int main() { write(1,"0",1) ; }
 EOF
-cc -o start_main -xc start_main.c
-USE_LIBC_START_MAIN=$(./start_main)
+if cc -c -o /dev/null -xc st_mtimespec.c ; then ST_MTIMESPEC=st_mtimespec ; fi
+cat <<"EOF" >st_mtim.c
+	#include <sys/stat.h>
+	int main() {
+		struct stat     buf ;
+		struct timespec ts  = buf.st_mtim ;
+	}
+EOF
+if cc -c -o /dev/null -xc st_mtim.c ; then ST_MTIMESPEC=st_mtim ; fi
 
 #
-# MAP_VFORK
+# UINT (HAS_UINT)
+# true if ushort, uint and ulong are standard types
+#
+cat <<"EOF" >uint.cc
+	#include <sys/types.h>
+	ushort us ;
+	uint   ui ;
+	ulong  ul ;
+EOF
+HAS_UINT=$(ok cc -c -std=$CXX_STD -o /dev/null uint.cc)
+
+#
+# UNREACHABLE (HAS_UNREACHABLE)
+#
+cat <<"EOF" >unreachable.cc
+	#include <utility>
+	int main() {
+		std::unreachable() ;
+	}
+EOF
+HAS_UNREACHABLE=$(ok cc -std=$CXX_STD -o /dev/null unreachable.cc) # check if std::unreachable is available in lib
+
+#
+# VFORK (MAP_VFORK)
 #
 # Linux specifies vfork more precisely than Posix
 # with Linux, we must not map vfork to fork as vfork is *not* a subset of fork, in exchange we can instrument exec in child
 # with posix, we must map vfork to fork as vfork is a subset of fork and instrumenting exec in child is forbidden with vfork
-MAP_VFORK=0
+case $OS in
+	Linux ) MAP_VFORK=0 ;;
+	Darwin) MAP_VFORK=1 ;;
+esac
 
-cat >$MK_FILE <<EOF
-SYS_CONFIG_OK      := 1
-LMAKE_FLAGS        := $LMAKE_FLAGS
-#
-BASH               := /bin/bash
-GIT                := $(type -p git)
-STD_PATH           := $STD_PATH
-#
-PYTHON2            := $PYTHON2
-PY2_INCLUDEDIR     := $PY2_INCLUDEDIR
-PY2_INCLUDEPY      := $PY2_INCLUDEPY
-PY2_LIB_DIR        := $PY2_LIB_DIR
-PY2_LIB_BASE       := $PY2_LIB_BASE
-HAS_PY2_DYN        := ${HAS_PY2_DYN#0}
-PYTHON             := $PYTHON
-PY3_INCLUDEDIR     := $PY3_INCLUDEDIR
-PY3_INCLUDEPY      := $PY3_INCLUDEPY
-PY3_LIB_DIR        := $PY3_LIB_DIR
-PY3_LIB_BASE       := $PY3_LIB_BASE
-HAS_PY3_DYN        := ${HAS_PY3_DYN#0}
-PY_LD_LIBRARY_PATH := $PY_LD_LIBRARY_PATH
-#
-CXX                := $CXX
-CXX_DIR            := $CXX_DIR
-CXX_FLAVOR         := $CXX_FLAVOR
-CXX_STD            := $CXX_STD
-LD_SO_LIB          := $LD_SO_LIB
-LD_SO_LIB_32       := $LD_SO_LIB_32
-LIB_STACKTRACE     := $LIB_STACKTRACE
-LIB_STACKTRACE_32  := $LIB_STACKTRACE_32
-LINK_LIB_PATH      := $LINK_LIB_PATH
-LINK_LIB_PATH_32   := $LINK_LIB_PATH_32
-OBJCOPY            := $OBJCOPY
-STD_INC_DIRS       := $STD_INC_DIRS
-#
-SLURM_INC_DIR      := $SLURM_INC_DIR
-#
-HAS_32             := ${HAS_32#0}
-HAS_LD_AUDIT       := ${HAS_LD_AUDIT#0}
-HAS_PCRE           := ${HAS_PCRE#0}
-HAS_SECCOMP        := ${HAS_SECCOMP#0}
-HAS_SGE            := ${HAS_SGE#0}
-HAS_SLURM          := ${HAS_SLURM#0}
-#
-SPLIT_DBG    := ${SPLIT_DBG#0}
-SPLIT_DBG_32 := ${SPLIT_DBG_32#0}
+cat >$MK_FILE <<-EOF
+	SYS_CONFIG_OK := 1
+	LMAKE_FLAGS   := $LMAKE_FLAGS
+	#
+	BASH                      := /bin/bash
+	CXX                       := $CXX
+	CXX_DIR                   := $CXX_DIR
+	CXX_FLAVOR                := $CXX_FLAVOR
+	CXX_STD                   := $CXX_STD
+	DARWIN_FIX_FLAGS          := $DARWIN_FIX_FLAGS
+	GIT                       := $(type -p git)
+	HAS_32                    := ${HAS_32#0}
+	HAS_LD_AUDIT              := ${HAS_LD_AUDIT#0}
+	HAS_NAMESPACES            := ${HAS_NAMESPACES#0}
+	HAS_PCRE                  := ${HAS_PCRE#0}
+	HAS_PY2_DYN               := ${HAS_PY2_DYN#0}
+	HAS_PY3_DYN               := ${HAS_PY3_DYN#0}
+	HAS_SECCOMP               := ${HAS_SECCOMP#0}
+	HAS_SGE                   := ${HAS_SGE#0}
+	HAS_SLURM                 := ${HAS_SLURM#0}
+	LD_SO_LIB                 := $LD_SO_LIB
+	LD_SO_LIB_32              := $LD_SO_LIB_32
+	LIB_STACKTRACE            := $LIB_STACKTRACE
+	LIB_STACKTRACE_32         := $LIB_STACKTRACE_32
+	LINK_LIB_PATH             := $LINK_LIB_PATH
+	LINK_LIB_PATH_32          := $LINK_LIB_PATH_32
+	NEED_EXPERIMENTAL_LIBRARY := ${NEED_EXPERIMENTAL_LIBRARY#0}
+	OBJCOPY                   := $OBJCOPY
+	PY2_INCLUDEDIR            := $PY2_INCLUDEDIR
+	PY2_INCLUDEPY             := $PY2_INCLUDEPY
+	PY2_LIB_BASE              := $PY2_LIB_BASE
+	PY2_LIB_DIR               := $PY2_LIB_DIR
+	PY3_INCLUDEDIR            := $PY3_INCLUDEDIR
+	PY3_INCLUDEPY             := $PY3_INCLUDEPY
+	PY3_LIB_BASE              := $PY3_LIB_BASE
+	PY3_LIB_DIR               := $PY3_LIB_DIR
+	PY_LD_LIBRARY_PATH        := $PY_LD_LIBRARY_PATH
+	PYTHON                    := $PYTHON
+	PYTHON2                   := $PYTHON2
+	SLURM_INC_DIR             := $SLURM_INC_DIR
+	SPLIT_DBG                 := ${SPLIT_DBG#0}
+	SPLIT_DBG_32              := ${SPLIT_DBG_32#0}
+	STD_INC_DIRS              := $STD_INC_DIRS
+	STD_PATH                  := $STD_PATH
 EOF
 
 if [ "$LD_SO_LIB_32" ] ; then
 	case $HAS_STACKTRACE$HAS_STACKTRACE_32 in
-		00) HAS_STACKTRACE_CUR=0                           >> $H_FILE ;;
-		01) HAS_STACKTRACE_CUR='(__i386__||__arm__)'       >> $H_FILE ;;
-		10) HAS_STACKTRACE_CUR='(__x86_64__||__aarch64__)' >> $H_FILE ;;
-		11) HAS_STACKTRACE_CUR=1                           >> $H_FILE ;;
+		00) HAS_STACKTRACE_CUR=0                           >>$H_FILE ;;
+		01) HAS_STACKTRACE_CUR='(__i386__||__arm__)'       >>$H_FILE ;;
+		10) HAS_STACKTRACE_CUR='(__x86_64__||__aarch64__)' >>$H_FILE ;;
+		11) HAS_STACKTRACE_CUR=1                           >>$H_FILE ;;
 	esac
 else
 	HAS_STACKTRACE_CUR=$HAS_STACKTRACE
 fi
-cat >$H_FILE <<EOF
+cat >$H_FILE <<-EOF
 	#pragma once
+	//
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_32                      $HAS_32
+	#define HAS_ADDR2LINE               $HAS_ADDR2LINE
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
+	#define HAS_EPOLL                   $HAS_EPOLL
+	#define HAS_INOTIFY                 $HAS_INOTIFY
+	#define HAS_KQUEUE                  $HAS_KQUEUE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD
+	#define HAS_MREMAP                  $HAS_MREMAP
+	#define HAS_NAMESPACES              $HAS_NAMESPACES
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_SGE                     $HAS_SGE
 	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
+	#define HAS_UINT                    $HAS_UINT
 	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
+	#define IS_LINUX                    $IS_LINUX
+	#define IS_DARWIN                   $IS_DARWIN
 	#define LD_SO_LIB                   "$LD_SO_LIB"
 	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
+	#define MAP_VFORK                   $MAP_VFORK
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
-	#define MAP_VFORK                   $MAP_VFORK
-	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
+	#define OS_ID                       "$OS_ID"
+	#define OS_VERSION_ID               "$OS_VERSION_ID"
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
 	#define SLURM_SO                    "$SLURM_SO"
 	#define STD_LIBRARY_PATH            "$STD_LIBRARY_PATH"
 	#define STD_LIBRARY_PATH_32         "$STD_LIBRARY_PATH_32"
 	#define STD_PATH                    "$STD_PATH"
+	#define ST_MTIMESPEC                $ST_MTIMESPEC
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

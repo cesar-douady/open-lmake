@@ -34,6 +34,7 @@ ENUM( GatherKind // epoll events
 ,	ServerReply
 ,	ChildStart   // just a marker, not actually used as epoll event
 ,	ChildEnd
+,	ChildEndFd
 ,	JobMaster
 ,	JobSlave
 ,	ServerMaster

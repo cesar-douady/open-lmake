@@ -42,7 +42,7 @@ struct Record {
 				else                     _s_report_fd = ClientSockFd(service).detach()                                       ; // establish connection with server
 				_s_report_fd.no_std() ;                                                                                        // avoid poluting standard descriptors
 			} catch (::string const& e) {
-				fail_prod("while trying to report deps",e) ;
+				fail_prod("while trying to report deps :",e) ;
 			}
 			swear_prod(+_s_report_fd,"cannot connect to job_exec through",service) ;
 			_s_report_pid = pid ;

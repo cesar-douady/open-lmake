@@ -98,7 +98,12 @@ using namespace Time ;
 				_s_cur_sz = (_s_cur_sz+4095)&size_t(-4095) ; // round up to 4K
 				_s_cur_sz = ::min(_s_cur_sz,size_t(s_sz))  ;
 				if (::ftruncate(_s_fd,_s_cur_sz)!=0) FAIL(_s_fd,old_sz,_s_cur_sz) ;
-				_s_data = static_cast<uint8_t*>(::mremap( _s_data , old_sz , _s_cur_sz , MREMAP_MAYMOVE )) ;
+				#if HAS_MREMAP
+					_s_data = static_cast<uint8_t*>(::mremap( _s_data , old_sz , _s_cur_sz , MREMAP_MAYMOVE )) ;
+				#else
+					::munmap(_s_data,old_sz) ;
+					_s_data = static_cast<uint8_t*>(::mmap( nullptr , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0 )) ;
+				#endif
 			}
 			if (new_pos>s_sz) {
 				if (_s_pos<s_sz) ::memset(_s_data+_s_pos,0,s_sz-_s_pos) ;

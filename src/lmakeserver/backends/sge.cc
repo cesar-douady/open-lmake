@@ -51,13 +51,13 @@ namespace Backends::Sge {
 			return res ;
 		}
 		// data
-		int16_t            prio   = 0  ; // priority              : qsub -p <prio>     (prio comes from lmake -b               )
-		uint16_t           cpu    = 0  ; // number of logical cpu : qsub -l <cpu_rsrc> (cpu_rsrc comes from config, always hard)
-		uint32_t           mem    = 0  ; // memory   in MB        : qsub -l <mem_rsrc> (mem_rsrc comes from config, always hard)
-		uint32_t           tmp    = -1 ; // tmp disk in MB        : qsub -l <tmp_rsrc> (tmp_rsrc comes from config, always hard) default : dont manage tmp size (provide infinite storage, reserve none)
-		::vector_s         hard   ;      // hard options          : qsub -hard <val>
-		::vector_s         soft   ;      // soft options          : qsub -soft <val>
-		::vmap_s<uint64_t> tokens ;      // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
+		int16_t            prio   = 0 ; // priority              : qsub -p <prio>     (prio comes from lmake -b               )
+		uint32_t           cpu    = 0 ; // number of logical cpu : qsub -l <cpu_rsrc> (cpu_rsrc comes from config, always hard)
+		uint32_t           mem    = 0 ; // memory   in MB        : qsub -l <mem_rsrc> (mem_rsrc comes from config, always hard)
+		uint32_t           tmp    = 0 ; // tmp disk in MB        : qsub -l <tmp_rsrc> (tmp_rsrc comes from config, always hard) default : dont manage tmp size (provide infinite storage, reserve none)
+		::vector_s         hard   ;     // hard options          : qsub -hard <val>
+		::vector_s         soft   ;     // soft options          : qsub -soft <val>
+		::vmap_s<uint64_t> tokens ;     // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
 		// services
 		::vmap_ss mk_vmap(void) const ;
 	} ;
@@ -217,13 +217,13 @@ namespace Backends::Sge {
 			SWEAR(+reqs) ;                                                                                                                     // why launch a job if for no req ?
 			int16_t prio = ::numeric_limits<int16_t>::min() ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
 			//
-			if ( prio                                             ) { sge_cmd_line.push_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
-			if ( +cpu_rsrc && rs->cpu                             ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
-			if ( +mem_rsrc && rs->mem                             ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
-			if ( +tmp_rsrc && (rs->tmp!=0&&rs->tmp!=uint32_t(-1)) ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
-			for( auto const& [k,v] : rs ->tokens )                  { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
-			if ( +rs->hard                                        ) {                                   for( ::string const& s : rs->hard ) sge_cmd_line.push_back(s) ; }
-			if ( +rs->soft                                        ) { sge_cmd_line.push_back("-soft") ; for( ::string const& s : rs->soft ) sge_cmd_line.push_back(s) ; }
+			if ( prio                 )            { sge_cmd_line.push_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
+			if ( +cpu_rsrc && rs->cpu )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
+			if ( +mem_rsrc && rs->mem )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
+			if ( +tmp_rsrc && rs->tmp )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
+			for( auto const& [k,v] : rs ->tokens ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
+			if ( +rs->hard            )            {                                   for( ::string const& s : rs->hard ) sge_cmd_line.push_back(s) ; }
+			if ( +rs->soft            )            { sge_cmd_line.push_back("-soft") ; for( ::string const& s : rs->soft ) sge_cmd_line.push_back(s) ; }
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//
@@ -290,11 +290,11 @@ namespace Backends::Sge {
 
 	::string& operator+=( ::string& os , RsrcsData const& rsd ) {
 		/**/                                  os <<"(cpu="<<       rsd.cpu       ;
-		if (rsd.mem              )            os <<",mem="<<       rsd.mem<<"MB" ;
-		if (rsd.tmp!=uint32_t(-1))            os <<",tmp="<<       rsd.tmp<<"MB" ;
+		if (rsd.mem   )                       os <<",mem="<<       rsd.mem<<"MB" ;
+		if (rsd.tmp   )                       os <<",tmp="<<       rsd.tmp<<"MB" ;
 		for( auto const& [k,v] : rsd.tokens ) os <<','<< k <<'='<< v             ;
-		if (+rsd.hard            )            os <<",H:"<<         rsd.hard      ;
-		if (+rsd.soft            )            os <<",S:"<<         rsd.soft      ;
+		if (+rsd.hard )                       os <<",H:"<<         rsd.hard      ;
+		if (+rsd.soft )                       os <<",S:"<<         rsd.soft      ;
 		return                                os <<')'                           ;
 	}
 
@@ -347,7 +347,7 @@ namespace Backends::Sge {
 		sort(m) ;
 		for( auto&& [k,v] : ::move(m) ) {
 			switch (k[0]) {
-				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_units<    uint16_t>(v) ; continue ; } break ;
+				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
 				case 'h' : if (k=="hard") { hard = _split_rsrcs                        (v) ; continue ; } break ;
 				case 'm' : if (k=="mem" ) { mem  = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
 				case 's' : if (k=="soft") { soft = _split_rsrcs                        (v) ; continue ; } break ;

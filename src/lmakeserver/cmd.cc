@@ -224,7 +224,6 @@ namespace Engine {
 		/**/                               res << ",\tstdin          = " << mk_py_str(start.stdin                           ) << '\n' ;
 		/**/                               res << ",\tstdout         = " << mk_py_str(start.stdout                          ) << '\n' ;
 		if (ro.flags[ReqFlag::TmpDir]    ) res << ",\ttmp_dir        = " << mk_py_str(ro.flag_args[+ReqFlag::TmpDir]        ) << '\n' ;
-		if (start.tmp_sz_mb!=Npos        ) res << ",\ttmp_size_mb    = " <<           start.tmp_sz_mb                         << '\n' ;
 		if (+start.job_space.tmp_view_s  ) res << ",\ttmp_view       = " << mk_py_str(no_slash(start.job_space.tmp_view_s  )) << '\n' ;
 		//
 		res << ",\tpreamble =\n" << mk_py_str(start.cmd.first ) << '\n' ;
@@ -632,9 +631,8 @@ namespace Engine {
 							//
 							if (has_end) {
 								// no need to localize phy_tmp_dir as this is an absolute dir
-								if      (!start.tmp_sz_mb           ) {}
-								else if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , +end.phy_tmp_dir_s?no_slash(end.phy_tmp_dir_s):"<tmpfs>" ) ;
-								else                                  push_entry( "tmp dir"          ,                    no_slash(end.phy_tmp_dir_s)           ) ;
+								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
+								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								//
 								push_entry( "end date" , digest.end_date.str() ) ;
 								if (porcelaine) { //!                                                                     protect

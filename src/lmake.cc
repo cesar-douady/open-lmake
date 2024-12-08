@@ -16,19 +16,17 @@ using namespace Time ;
 
 ::atomic<bool> g_seen_int = false ;
 
-static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
+static void _int_thread_func(::stop_token stop) {
 	t_thread_key = 'I' ;
-	Trace trace ;
-	::stop_callback stop_cb { stop , [&](){ kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for
-	trace("start") ;
+	Trace trace("_int_thread_func") ;
+	::stop_callback stop_cb { stop , [&](){ kill_self(SIGINT) ; } } ;                         // transform request_stop into an event we wait for
+	Epoll           epoll   { New                                 } ; epoll.add_sig(SIGINT) ;
 	for(;;) {
-		using SigInfo = struct signalfd_siginfo ;
-		ssize_t cnt = ::read(int_fd,&::ref(SigInfo()),sizeof(SigInfo)) ;
-		SWEAR( cnt==sizeof(SigInfo) , cnt ) ;
-		if (stop.stop_requested()) break ;                            // not an interrupt, just normal exit
+		epoll.wait() ;
+		if (stop.stop_requested()) break ;                                                    // not an interrupt, just normal exit
 		trace("send_int") ;
 		OMsgBuf().send(g_server_fds.out,ReqRpcReq(ReqProc::Kill)) ;
-		Fd::Stdout.write("\n") ;                                      // output is nicer if ^C is on its own line
+		Fd::Stdout.write("\n") ;                                                              // output is nicer if ^C is on its own line
 		g_seen_int = true ;
 	}
 	trace("done") ;
@@ -38,23 +36,20 @@ static void _handle_int(bool start) {
 	struct Exit {
 		Exit() {
 			block_sigs({SIGINT}) ;
-			int_fd = open_sigs_fd({SIGINT}) ;
 		}
 		~Exit() {                                     // this must be executed after _int_thread_func has completed
-			int_fd.close() ;
 			if (!g_seen_int) return ;
 			unblock_sigs({SIGINT}) ;
 			kill_self(SIGINT) ;                       // appear as being interrupted : important for shell scripts to actually stop
 			kill_self(SIGHUP) ;                       // for some reason, the above kill_self does not work in some situations (e.g. if you type bash -c 'lmake&')
 			fail_prod("lmake does not want to die") ;
 		}
-		Fd int_fd ;
 	} ;
 	static ::jthread int_jt ;
 	if (start) {
 		if (is_blocked_sig(SIGINT)) return ;          // nothing to handle if ^C is blocked
 		static Exit exit ;
-		int_jt = ::jthread( _int_thread_func , exit.int_fd ) ;
+		int_jt = ::jthread(_int_thread_func) ;
 	} else {
 		if (int_jt.joinable()) {
 			int_jt.request_stop() ;

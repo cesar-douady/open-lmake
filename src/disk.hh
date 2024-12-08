@@ -8,12 +8,15 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>  // fstatat, fchmodat
-#include <sys/types.h>
 
 #include "types.hh"
 #include "fd.hh"
 #include "lib.hh"
 #include "time.hh"
+
+#ifndef O_NOATIME
+	#define O_NOATIME 0 // this is just for perf, if not possible, no big deal
+#endif
 
 // ENUM macro does not work inside namespace's
 
@@ -22,12 +25,12 @@ ENUM(Access                                                            // in all
 ,	Reg                                                                // file is accessed with open                  , symlinks      are deemed non-existing
 ,	Stat                                                               // file is accessed with stat like (read inode), only distinguish tag
 )
-static constexpr char AccessChars[] = {
-	'L'                                                                // Lnk
-,	'R'                                                                // Reg
-,	'T'                                                                // Stat
-} ;
-static_assert(::size(AccessChars)==N<Access>) ;
+static constexpr ::amap<Access,char,N<Access>> AccessChars = {{
+	{ Access::Lnk  , 'L' }
+,	{ Access::Reg  , 'R' }
+,	{ Access::Stat , 'T' }
+}} ;
+static_assert(chk_enum_tab(AccessChars)) ;
 using Accesses = BitMap<Access> ;                                      // distinguish files as soon as they can be distinguished by one of the liste Access'es
 static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
 

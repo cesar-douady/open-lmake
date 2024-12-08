@@ -108,6 +108,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 }
 
 static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
+	using Event = Epoll<NewType>::Event ;
 	Trace trace("is_reverse_video",in_fd,out_fd) ;
 	struct ::stat in_stat  ;
 	struct ::stat out_stat ;
@@ -140,15 +141,15 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 		::string reqs[2] = { "\x1b]11;?\a" , "\x1b]10;?\a" } ;                                  // sequence to ask for color
 		uint32_t lum [2] = { 0             , 0             } ;
 		Epoll    epoll   { New }                             ;                                  // timeout set with ::tcsetattr does not always work, so use epoll for that, in case tty does not answer
-		epoll.add_read( in_fd , 0/*unused*/ ) ;
+		epoll.add_read(in_fd) ;
 		for( bool fg : {false,true}) {
 			::string reply ;
 			for( const char c : reqs[fg] )
 				if (::write(out_fd,&c,1)!=1) throw "cannot send request"s ;
 			trace("sent",STR(fg),mk_printable(reqs[fg])) ;
 			for(;;) {
-				char                   c      = 0/*garbage*/           ;
-				::vector<Epoll::Event> events = epoll.wait(Delay(0.5)) ;                        // normal reaction time is 20-50ms
+				char            c      = 0/*garbage*/           ;
+				::vector<Event> events = epoll.wait(Delay(0.5)) ;                               // normal reaction time is 20-50ms
 				SWEAR( events.size()<=1 , events.size() ) ;
 				throw_unless( events.size() , "timeout" ) ;                                     // there is a single fd, there may not be more than 1 event
 				SWEAR( events[0].fd()==in_fd , events[0].fd() , in_fd ) ;
@@ -176,7 +177,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	return res ;
 }
 
-Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb=[](bool)->void{} ) {
+Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb=[](bool/*start*/)->void{} ) {
 	Trace trace("out_proc") ;
 	//
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;

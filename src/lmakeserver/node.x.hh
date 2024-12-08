@@ -87,27 +87,27 @@ namespace Engine {
 #ifdef STRUCT_DEF
 
 inline NodeGoal mk_goal(NodeMakeAction ma) {
-	static constexpr NodeGoal s_tab[] {
-		NodeGoal::None                  // Wakeup
-	,	NodeGoal::Makable               // Makable
-	,	NodeGoal::Status                // Status
-	,	NodeGoal::Dsk                   // Dsk
-	,	NodeGoal::Dsk                   // Dep
-	} ;
-	static_assert(sizeof(s_tab)==N<NodeMakeAction>*sizeof(NodeGoal)) ;
-	return s_tab[+ma] ;
+	static constexpr ::amap<NodeMakeAction,NodeGoal,N<NodeMakeAction>> Goals = {{
+		{ NodeMakeAction::Wakeup  , NodeGoal::None    }
+	,	{ NodeMakeAction::Makable , NodeGoal::Makable }
+	,	{ NodeMakeAction::Status  , NodeGoal::Status  }
+	,	{ NodeMakeAction::Dsk     , NodeGoal::Dsk     }
+	,	{ NodeMakeAction::Query   , NodeGoal::Dsk     }
+	}} ;
+	static_assert(chk_enum_tab(Goals)) ;
+	return Goals[+ma].second ;
 }
 
 inline NodeMakeAction mk_action( NodeGoal g , bool query ) {
-	static constexpr NodeMakeAction s_tab[] {
-		{}
-	,	NodeMakeAction::Makable // Makable
-	,	NodeMakeAction::Status  // Status
-	,	NodeMakeAction::Dsk     // Dsk
-	} ;
-	static_assert(sizeof(s_tab)==N<NodeGoal>*sizeof(NodeMakeAction)) ;
+	static constexpr ::amap<NodeGoal,NodeMakeAction,N<NodeGoal>> Actions = {{
+		{ NodeGoal::None    , NodeMakeAction::Makable/*garbage*/ }
+	,	{ NodeGoal::Makable , NodeMakeAction::Makable            }
+	,	{ NodeGoal::Status  , NodeMakeAction::Status             }
+	,	{ NodeGoal::Dsk     , NodeMakeAction::Dsk                }
+	}} ;
+	static_assert(chk_enum_tab(Actions)) ;
 	SWEAR(g!=NodeGoal::None) ;
-	return query ? NodeMakeAction::Query : s_tab[+g] ;
+	return query ? NodeMakeAction::Query : Actions[+g].second ;
 }
 
 namespace Engine {

@@ -160,7 +160,7 @@ class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
 	}
 	deps = { 'EXE' : '_bin/sys_config' }
 	cmd  = '''
-		CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/mk {H} 2>&1
+		OS={os.uname().sysname} CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/mk {H} 2>&1
 		while read k e v ; do
 			case $k in
 				'#'*      ) ;;

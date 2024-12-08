@@ -4,7 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <err.h>
-#include <linux/sched.h>
+#include <sys/wait.h>
 
 #include "disk.hh"
 #include "trace.hh"
@@ -85,7 +85,7 @@ void AutodepPtrace::init(pid_t cp) {
 int/*rc*/ AutodepPtrace::s_prepare_child(void*) {
 	#if HAS_SECCOMP
 		int rc = ::seccomp_load(s_scmp) ;
-		if (rc!=0) _exit(+Rc::System) ;
+		if (rc!=0) ::_exit(+Rc::System) ;
 	#endif
 	::ptrace( PTRACE_TRACEME , 0/*pid*/ , 0/*addr*/ , 0/*data*/ ) ;
 	kill_self(FirstSignal) ;                                        // cannot call a traced syscall until a signal is received as we are initially traced till the next signal

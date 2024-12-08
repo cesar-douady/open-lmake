@@ -6,10 +6,12 @@
 
 if [ "$OS" = Darwin ] ; then
 	realpath() {
-		case $1 in
-			/*) echo      $1 ;;
-			* ) echo $PWD/$1 ;;
-		esac
+		for f in "$@" ; do
+			case $f in
+				/*) echo "$f"      ;;
+				* ) echo "$PWD/$f" ;;
+			esac
+		done
 	}
 fi
 
@@ -24,7 +26,7 @@ cc=$1
 
 info=$($cc $m32 -v -o /dev/null -xc - <<< "int main(){}" 2>&1)
 
-case $cc in
+case $($cc --version | head -1) in
 	*clang*)
 		set $info
 		while [ $# != 0 ] ; do
