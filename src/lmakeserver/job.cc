@@ -913,7 +913,7 @@ namespace Engine {
 					state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
 				} else {
 					SWEAR(dep_done) ;                                                                              // unless query, after having called make, dep must be either waiting or done
-					bool dep_missing_dsk = ri.full && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
+					bool dep_missing_dsk = !query && ri.full && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
 					state.missing_dsk |= dep_missing_dsk ;                                                         // job needs this dep if it must run
 					if (dep_goal==NodeGoal::Makable) {
 						if ( is_static && required && dnd.ok(*cdri,dep.accesses)==Maybe )
@@ -952,7 +952,7 @@ namespace Engine {
 								trace("missing",STR(is_static),dep) ;
 								break ;
 							}
-							dep_missing_dsk |= cdri->manual>=Manual::Changed ;                           // ensure dangling are correctly handled
+							dep_missing_dsk |= !query && cdri->manual>=Manual::Changed ;                 // ensure dangling are correctly handled
 						[[fallthrough]] ;
 						case Yes :
 							if (dep_goal==NodeGoal::Dsk) {                                               // if asking for disk, we must check disk integrity
