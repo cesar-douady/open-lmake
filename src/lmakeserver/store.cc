@@ -167,6 +167,7 @@ namespace Engine::Persistent {
 			::pair<Name/*top*/,::vector<Name>/*created*/>( {} , {_name_file.insert(name_)} )
 		:	_name_file.insert_chain(name_,'/')
 		;
+		if (+top_created.second) SWEAR(is_canon(name_)) ;                                // XXX : suppress when bug is found, we are supposed to insert only canonic names
 		Node n ; if (+top_created.first) n = _name_file.c_at(top_created.first).node() ;
 		for( Name nn : top_created.second ) n = Node( nn , n ) ;
 		SWEAR(+n,name_) ;

@@ -288,15 +288,15 @@ thread_local char t_thread_key = '?' ;
 		auto end_frame   = begin_frame   ; while( end_frame!=stack.end() && end_frame->description()!="main" ) end_frame  ++ ; // dont trace above main
 		/**/                               if   ( end_frame!=stack.end()                                     ) end_frame  ++ ; // but include main
 		//
-		size_t   wf = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) wf = ::max( wf , mk_canon (it->source_file()).size() ) ;
-		size_t   wl = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) wl = ::max( wl , to_string(it->source_line()).size() ) ;
+		size_t   wf = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) try { wf = ::max( wf , mk_canon (it->source_file()).size() ) ; } catch (::string const&) {}
+		size_t   wl = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ )       wl = ::max( wl , to_string(it->source_line()).size() ) ;
 		::string bt ;
 		for( auto it=begin_frame ; it!=end_frame ; it++ ) {
-			/**/                              bt <<         widen(mk_canon(it->source_file()),wf              ) ;
-			if ( size_t l=it->source_line() ) bt <<':'   << widen(""s+l                      ,wl,true/*right*/) ;
-			else                              bt <<' '   << widen(""                         ,wl              ) ;
-			/**/                              bt <<" : " <<       it->description()                             ;
-			/**/                              bt <<'\n'                                                         ;
+			try                               { bt <<         widen(mk_canon(it->source_file()),wf              ) ; } catch (::string const&) { bt << widen("",wf) ; }
+			if ( size_t l=it->source_line() )   bt <<':'   << widen(""s+l                      ,wl,true/*right*/) ;
+			else                                bt <<' '   << widen(""                         ,wl              ) ;
+			/**/                                bt <<" : " <<       it->description()                             ;
+			/**/                                bt <<'\n'                                                         ;
 		}
 		fd.write(bt) ;
 	}

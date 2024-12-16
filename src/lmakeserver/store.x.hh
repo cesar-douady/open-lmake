@@ -144,24 +144,24 @@ namespace Engine::Persistent {
 		static bool           s_has_srcs         (                                  ) ;
 		static ::vector<Node> s_frozens          (                                  ) ;
 		static ::vector<Node> s_no_triggers      (                                  ) ;
-		static void           s_frozens          ( bool add , ::vector<Node> const& ) ;    // erase (!add) or insert (add)
-		static void           s_no_triggers      ( bool add , ::vector<Node> const& ) ;    // .
+		static void           s_frozens          ( bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
+		static void           s_no_triggers      ( bool add , ::vector<Node> const& ) ; // .
 		static void           s_clear_frozens    (                                  ) ;
 		static void           s_clear_no_triggers(                                  ) ;
 		static void           s_clear_srcs       (                                  ) ;
 		//
 		static Targets const s_srcs( bool dirs                                    ) ;
-		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ;      // erase (!add) or insert (add)
+		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ;   // erase (!add) or insert (add)
 		//
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// static data
 	private :
-		static Mutex<MutexLvl::Node> _s_mutex ;                                            // nodes can be created from several threads, ensure coherence between names and nodes
+		static Mutex<MutexLvl::Node> _s_mutex ;                                         // nodes can be created from several threads, ensure coherence between names and nodes
 		// cxtors & casts
 	public :
 		using Base::Base ;
-		explicit NodeBase( Name                 , Node dir          ) ; // if locked, lock is already taken
-		/**/     NodeBase( ::string const& name , bool no_dir=false ) ; // .
+		explicit NodeBase( Name                 , Node dir          ) ;                 // if locked, lock is already taken
+		/**/     NodeBase( ::string const& name , bool no_dir=false ) ;                 // .
 		// accesses
 		NodeData const& operator* () const ;
 		NodeData      & operator* () ;
@@ -445,6 +445,7 @@ namespace Engine::Persistent {
 			if (!new_) return ;
 			*self = JobData( name_ , ::forward<A>(args)...) ;
 		} else {
+			SWEAR(Disk::is_canon(name_sfx.first),name_sfx) ;                                       // XXX : suppress when bug is found, name part of job is supposed to be canonic
 			_name_file.at(+name_) = self = _job_file.emplace( name_ , ::forward<A>(args)... ) ;
 		}
 		self->_full_name = name_ ;

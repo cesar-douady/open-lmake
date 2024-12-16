@@ -31,6 +31,7 @@ namespace Disk {
 		CanonState state          = CanonState::First ;
 		for( char c : path ) {
 			switch (c) {
+				case '\0' : return false ;                                                    // file names are not supposed to contain any nul char
 				case '/' :
 					switch (state) {
 						case CanonState::Empty  :                      return false ;
@@ -69,6 +70,7 @@ namespace Disk {
 		CanonState state = CanonState::First ;
 		for( char c : path ) {
 			switch (c) {
+				case '\0' : throw "file contains nul char : "+path ;           // file names are not supposed to contain any nul char, cannot canonicalize
 				case '/' :
 					switch (state) {
 						case CanonState::Empty  :                  continue ;  // suppress empty components

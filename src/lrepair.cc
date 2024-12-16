@@ -33,6 +33,7 @@ RepairDigest repair(::string const& from_dir_s) {
 			// find targets
 			::vector<Target> targets ; targets.reserve(job_info.end.digest.targets.size()) ;
 			for( auto const& [tn,td] : job_info.end.digest.targets ) {
+				if ( !is_canon(tn)                                 ) { trace("nul_in_target" ,jd,tn) ; goto NextJob ; } // this should never happen, there is a problem with this job
 				if ( td.crc==Crc::None && !static_phony(td.tflags) )                                   continue     ;   // this is not a target
 				if ( !td.crc.valid()                               ) { trace("invalid_target",jd,tn) ; goto NextJob ; } // XXX : handle this case
 				if ( td.sig!=FileSig(tn)                           ) { trace("disk_mismatch" ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
