@@ -687,12 +687,11 @@ struct JobStartRpcReply {
 	bool/*entered*/ enter(
 		::vmap_s<MountAction>&                                      // out
 	,	::map_ss             & cmd_env                              // .
-	,	::string             & phy_tmp_dir_s                        // .
 	,	::vmap_ss            & dynamic_env                          // .
 	,	pid_t                & first_pid                            // .
-	,	JobIdx                                                      // in
-	,	::string        const& phy_repo_root_s                      // .
+	,	::string        const& phy_repo_root_s                      // in
 	,	::string        const& lmake_root_s                         // .
+	,	::string        const& phy_tmp_dir_s                        // .
 	,	SeqId                                                       // .
 	) ;
 	void exit() ;
@@ -725,7 +724,7 @@ struct JobStartRpcReply {
 	bool                     use_script     = false               ; //
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s_to_cleanup ;                                // for use in exit (autodep.tmp_dir_s may be moved)
+	::string _tmp_dir_s ;                                // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
 struct JobMngtRpcReq {

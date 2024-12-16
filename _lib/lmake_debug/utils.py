@@ -101,40 +101,33 @@ class Job :
 			elif a=='uniquify'        : res += f'uniquify            {f}\n'
 		return res
 
-	def gen_tmp_dir(self) :
-		return multi_strip(f'''
-			export     TMPDIR={mk_shell_str(lmake.top_repo_root+'/'+self.debug_dir+'/tmp')}
-			rm -rf   "$TMPDIR"
-			mkdir -p "$TMPDIR"
-		''')
-
 	def starter(self,*args,enter=False,**kwds) :
 		autodep  = f'{osp.dirname(osp.dirname(osp.dirname(__file__)))}/bin/lautodep'
 		#
 		preamble = ''
-		if enter        : preamble +=  'export LMAKE_HOME="$HOME"\n'                             # use specified value in job, but original one in entered shell
-		if enter        : preamble +=  'export LMAKE_SHLVL="${SHLVL:-1}"\n'                      # .
-		if True         : preamble +=  'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
-		if self.tmp_dir : preamble += f'export TMPDIR={mk_shell_str(self.tmp_dir)}\n'
+		if enter : preamble += 'export LMAKE_HOME="$HOME"\n'                            # use specified value in job, but original one in entered shell
+		if enter : preamble += 'export LMAKE_SHLVL="${SHLVL:-1}"\n'                     # .
+		if True  : preamble += 'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
 		#
 		res = mk_shell_str(autodep)
 		if self.auto_mkdir        : res +=  ' -a'
-		if self.chroot_dir        : res += f' -c{mk_shell_str(     self.chroot_dir            )}'
-		if self.cwd               : res += f' -d{mk_shell_str(     self.cwd                   )}'
-		if self.env               : res += f' -e{mk_shell_str(repr(self.env                  ))}'
+		if self.chroot_dir        : res += f' -c{mk_shell_str(     self.chroot_dir                          )}'
+		if self.cwd               : res += f' -d{mk_shell_str(     self.cwd                                 )}'
+		if self.env               : res += f' -e{mk_shell_str(repr(self.env                                ))}'
 		if self.ignore_stat       : res +=  ' -i'
-		if True                   : res += f' -j{self.job                                      }'
-		if True                   : res += f' -k{mk_shell_str(repr(self.keep_env             ))}'
-		if True                   : res += f' -l{                  self.link_support           }'
-		if True                   : res += f' -m{                  self.autodep_method         }'
-		if True                   : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
-		if self.repo_view         : res += f' -r{mk_shell_str(     self.repo_view             )}'
-		if self.source_dirs       : res += f' -s{mk_shell_str(repr(self.source_dirs          ))}'
-		if self.tmp_size_mb!=None : res += f' -S{mk_shell_str(repr(self.tmp_size_mb          ))}'
-		if self.tmp_view          : res += f' -t{mk_shell_str(     self.tmp_view              )}' # tmp_size_mb may be 0, in which case it must be passed
-		if self.views             : res += f' -v{mk_shell_str(repr(self.views                ))}'
+		if True                   : res += f' -k{mk_shell_str(repr(self.keep_env                           ))}'
+		if True                   : res += f' -K'
+		if True                   : res += f' -l{                  self.link_support                         }'
+		if True                   : res += f' -m{                  self.autodep_method                       }'
+		if True                   : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses'               )}"
+		if self.repo_view         : res += f' -r{mk_shell_str(     self.repo_view                           )}'
+		if self.source_dirs       : res += f' -s{mk_shell_str(repr(self.source_dirs                        ))}'
+		if self.tmp_size_mb!=None : res += f' -S{mk_shell_str(repr(self.tmp_size_mb                        ))}'
+		if self.tmp_view          : res += f' -t{mk_shell_str(     self.tmp_view                            )}'
+		if True                   : res += f" -T{mk_shell_str(lmake.top_repo_root+'/'+self.debug_dir+'/tmp' )}"
+		if self.views             : res += f' -v{mk_shell_str(repr(self.views                              ))}'
 		#
-		if True                   : res += ''.join(' '+x for x in args)                          # must be before redirections to files if args contains redirections
+		if True                   : res += ''.join(' '+x for x in args)                 # must be before redirections to files if args contains redirections
 		if self.stdin             : res += f' <{mk_shell_str(self.stdin )}'
 		if self.stdout            : res += f' >{mk_shell_str(self.stdout)}'
 		#
@@ -211,7 +204,6 @@ class Job :
 	def gen_preamble(self,**kwds) :
 		res  = self.gen_init       (      )
 		res += self.gen_pre_actions(      )
-		res += self.gen_tmp_dir    (      )
 		res += self.gen_lmake_env  (**kwds)
 		return res
 

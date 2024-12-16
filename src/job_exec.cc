@@ -53,7 +53,6 @@ PatternDict      g_match_dct       ;
 NfsGuard         g_nfs_guard       ;
 SeqId            g_seq_id          = 0/*garbage*/ ;
 ::string         g_phy_repo_root_s ;
-::string         g_phy_tmp_dir_s   ;
 ::string         g_service_start   ;
 ::string         g_service_mngt    ;
 ::string         g_service_end     ;
@@ -321,10 +320,25 @@ int main( int argc , char* argv[] ) {
 			}
 		}
 		//
+		if (g_start_info.keep_tmp) {
+			end_report.phy_tmp_dir_s = g_phy_repo_root_s+AdminDirS+"tmp/"+g_job+'/' ;
+		} else {
+			auto it = g_start_info.env.begin() ;
+			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
+			if (it==g_start_info.env.end()) {
+				end_report.phy_tmp_dir_s = g_phy_repo_root_s+PrivateAdminDirS+"tmp/"+g_start_info.small_id+'/' ;
+			} else {
+				if      (it->second!=EnvPassMrkr          )   end_report.phy_tmp_dir_s = with_slash(it->second       )+g_start_info.key+'/'+g_start_info.small_id+'/' ;
+				else if (has_env("TMPDIR")                )   end_report.phy_tmp_dir_s = with_slash(get_env("TMPDIR"))+g_start_info.key+'/'+g_start_info.small_id+'/' ;
+				else                                        { end_report.msg += "$TMPDIR not found in execution environment" ; goto End ; }
+				if      (!is_abs(end_report.phy_tmp_dir_s)) { end_report.msg += "$TMPDIR must be absolute"                   ; goto End ; }
+			}
+		}
+		//
 		::map_ss              cmd_env       ;
 		::vmap_s<MountAction> enter_actions ;
 		try {
-			if ( g_start_info.enter( enter_actions , cmd_env , end_report.phy_tmp_dir_s , end_report.dynamic_env , g_gather.first_pid , g_job , g_phy_repo_root_s , *g_lmake_root_s , g_seq_id ) ) {
+			if ( g_start_info.enter( enter_actions , cmd_env , end_report.dynamic_env , g_gather.first_pid , g_phy_repo_root_s , *g_lmake_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ) {
 				RealPath real_path { g_start_info.autodep_env } ;
 				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
@@ -401,15 +415,8 @@ int main( int argc , char* argv[] ) {
 			g_nfs_guard.close() ;
 		}
 		//
-		if (g_gather.seen_tmp) {
-			if (!cmd_env.contains("TMPDIR"))
-				digest.msg << "accessed "<<no_slash(g_gather.autodep_env.tmp_dir_s)<<" without dedicated tmp dir\n" ;
-			else if (!g_start_info.keep_tmp)
-				try                     { unlnk_inside_s(g_gather.autodep_env.tmp_dir_s,true/*force*/) ; } // cleaning is done at job start any way, so no harm (force because tmp_dir is absolute)
-				catch (::string const&) {                                                                }
-		}
-		//
-		if ( status==Status::Ok && ( +digest.msg || (+g_gather.stderr&&!g_start_info.allow_stderr) ) ) status = Status::Err ;
+		if ( status==Status::Ok && ( +digest.msg || (+g_gather.stderr&&!g_start_info.allow_stderr) ) )
+			status = Status::Err ;
 		//
 		/**/                        end_report.msg += g_gather.msg ;
 		if (status!=Status::Killed) end_report.msg += digest  .msg ;

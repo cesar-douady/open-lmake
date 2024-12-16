@@ -347,26 +347,26 @@ namespace Engine {
 		auto            it  = g_config->dbg_tab.find(key) ;
 		throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",ro.flag_args[+ReqFlag::Key] ) ;
 		throw_unless( +it->second                 , "empty debug method "  ,ro.flag_args[+ReqFlag::Key] ) ;
-		::string runner    = split(it->second)[0]                       ;                                   // allow doc after first word
+		::string runner    = split(it->second)[0]                       ;                                                          // allow doc after first word
 		::string dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
 		mk_dir_s(dbg_dir_s) ;
 		//
 		::string script_file     = dbg_dir_s+"script"       ;
 		::string gen_script_file = dbg_dir_s+"gen_script"   ;
 		{	::string gen_script ;
-			gen_script << "#!" PYTHON "\n"                                                  ;
-			gen_script << "import sys\n"                                                    ;
-			gen_script << "import os\n"                                                     ;
-			gen_script << "sys.path[0:0] = ("<<mk_py_str(*g_lmake_root_s+"/lib")<<",)\n"    ;
-			gen_script << "from "<<runner<<" import gen_script\n"                           ;
-			gen_script << _mk_gen_script_line(job,ro,job_info,dbg_dir_s,key)                ;
-			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n" ;
-			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                  ;
+			gen_script << "#!" PYTHON "\n"                                                                                       ;
+			gen_script << "import sys\n"                                                                                         ;
+			gen_script << "import os\n"                                                                                          ;
+			gen_script << "sys.path[0:0] = ("<<mk_py_str(*g_lmake_root_s+"lib")<<','<<mk_py_str(no_slash(*g_repo_root_s))<<")\n" ; // repo_root is not in path as script is in LMAKE/debug/<job>
+			gen_script << "from "<<runner<<" import gen_script\n"                                                                ;
+			gen_script << _mk_gen_script_line(job,ro,job_info,dbg_dir_s,key)                                                     ;
+			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n"                                      ;
+			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                                                       ;
 			AcFd(gen_script_file,Fd::Write).write(gen_script) ;
-		}                                                                                                   // ensure gen_script is closed before launching it
+		}                                                                                                                          // ensure gen_script is closed before launching it
 		::chmod(gen_script_file.c_str(),0755) ;
 		Child child ;
-		child.stdin    = {}                ;                                                                // no input
+		child.stdin    = {}                ;                                                                                       // no input
 		child.cmd_line = {gen_script_file} ;
 		child.spawn() ;
 		if (!child.wait_ok()) throw "cannot generate debug script "+script_file ;

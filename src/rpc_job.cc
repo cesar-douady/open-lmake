@@ -480,30 +480,24 @@ static bool _end_ok( char c , bool brace ) {
 	else       return !is_word_char(c) ;
 }
 bool/*entered*/ JobStartRpcReply::enter(
-		::vmap_s<MountAction>& actions                                                                                  // out
-	,	::map_ss             & cmd_env                                                                                  // .
-	,	::string             & phy_tmp_dir_s                                                                            // .
-	,	::vmap_ss            & dynamic_env                                                                              // .
-	,	pid_t                & first_pid                                                                                // .
-	,	JobIdx                 job                                                                                      // in
-	,	::string        const& phy_repo_root_s                                                                          // .
-	,	::string        const& lmake_root_s                                                                             // .
-	,	SeqId                  seq_id                                                                                   // .
+		::vmap_s<MountAction>& actions                                                                                   // out
+	,	::map_ss             & cmd_env                                                                                   // .
+	,	::vmap_ss            & dynamic_env                                                                               // .
+	,	pid_t                & first_pid                                                                                 // .
+	,	::string        const& phy_repo_root_s                                                                           // in
+	,	::string        const& lmake_root_s                                                                              // .
+	,	::string        const& phy_tmp_dir_s                                                                             // .
+	,	SeqId                  seq_id                                                                                    // .
 ) {
-	Trace trace("JobStartRpcReply::enter",job,phy_repo_root_s,lmake_root_s,seq_id) ;
+	Trace trace("JobStartRpcReply::enter",phy_repo_root_s,lmake_root_s,phy_tmp_dir_s,seq_id) ;
 	//
 	for( auto& [k,v] : env )
-		if      (v!=EnvPassMrkr)                                                             cmd_env[k] = ::move(v) ;
-		else if (has_env(k)    ) { ::string v = get_env(k) ; dynamic_env.emplace_back(k,v) ; cmd_env[k] = ::move(v) ; } // if special illegal value, use value from environment (typically from slurm)
+		if      (v!=EnvPassMrkr)                                                             cmd_env[k] = ::move(v ) ;
+		else if (has_env(k)    ) { ::string ev=get_env(k) ; dynamic_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
 	//
-	auto it=cmd_env.find("TMPDIR") ;
-	if      (it!=cmd_env.end()) throw_unless( is_abs(it->second) , "$TMPDIR must be absolute but is ",it->second ) ;
-	if      (keep_tmp         ) phy_tmp_dir_s         = phy_repo_root_s+AdminDirS+"tmp/"+job+'/'             ;
-	else if (it!=cmd_env.end()) phy_tmp_dir_s         = with_slash(it->second)+key+'/'+small_id+'/'          ;
-	else                        phy_tmp_dir_s         = phy_repo_root_s+PrivateAdminDirS+"tmp/"+small_id+'/' ;
-	if      (!keep_tmp      )   _tmp_dir_s_to_cleanup = phy_tmp_dir_s                                        ;
 	autodep_env.repo_root_s = +job_space.repo_view_s ? job_space.repo_view_s : phy_repo_root_s ;
 	autodep_env.tmp_dir_s   = +job_space.tmp_view_s  ? job_space.tmp_view_s  : phy_tmp_dir_s   ;
+	_tmp_dir_s              = autodep_env.tmp_dir_s                                            ;                         // for use in exit (autodep.tmp_dir_s may be moved)
 	//
 	try {
 		unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                             // ensure tmp dir is clean
@@ -515,21 +509,14 @@ bool/*entered*/ JobStartRpcReply::enter(
 	::string lmake_root    = no_slash(lmake_root_s                 ) ;
 	::string repo_root     = no_slash(autodep_env.repo_root_s+cwd_s) ;
 	::string top_repo_root = no_slash(autodep_env.repo_root_s      ) ;
-	::string tmp_dir       ;
-	if (+autodep_env.tmp_dir_s) {
-		tmp_dir = no_slash(autodep_env.tmp_dir_s) ;
-		cmd_env["TMPDIR"] = tmp_dir ;
-	} else {
-		SWEAR(!cmd_env.contains("TMPDIR")) ;                                       // if we have a TMPDIR env var, we should have a tmp dir
-		tmp_dir = P_tmpdir ;
-		autodep_env.tmp_dir_s = with_slash(tmp_dir) ;                              // detect accesses to P_tmpdir (usually /tmp) and generate an error
-	}
+	::string tmp_dir       = no_slash(autodep_env.tmp_dir_s        ) ;
 	//
 	cmd_env["LMAKE_ROOT"   ] = lmake_root            ;
 	cmd_env["REPO_ROOT"    ] = repo_root             ;
-	cmd_env["TOP_REPO_ROOT"] = top_repo_root         ;
 	cmd_env["SEQUENCE_ID"  ] = ::to_string(seq_id  ) ;
 	cmd_env["SMALL_ID"     ] = ::to_string(small_id) ;
+	cmd_env["TMPDIR"       ] = tmp_dir               ;
+	cmd_env["TOP_REPO_ROOT"] = top_repo_root         ;
 	if (PY_LD_LIBRARY_PATH[0]!=0) {
 		auto [it,inserted] = cmd_env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
 		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
@@ -566,16 +553,17 @@ bool/*entered*/ JobStartRpcReply::enter(
 		// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
 		static constexpr uint32_t FirstPid = 300                                 ; // apparently, pid's wrap around back to 300
 		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ; // number of available pid's
-		static constexpr uint64_t DelatPid = (1640531527*NPids) >> n_bits(NPids) ; // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
-		first_pid = FirstPid + ((small_id*DelatPid)>>(32-n_bits(NPids)))%NPids ;   // DelatPid on 64 bits to avoid rare overflow in multiplication
+		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ; // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
+		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;   // DeltaPid on 64 bits to avoid rare overflow in multiplication
 	}
 	return entered ;
 }
 
 void JobStartRpcReply::exit() {
 	// work dir cannot be cleaned up as we may have chroot'ed inside
-	Trace trace("JobStartRpcReply::exit",_tmp_dir_s_to_cleanup) ;
-	if (+_tmp_dir_s_to_cleanup) unlnk_inside_s(_tmp_dir_s_to_cleanup,true/*abs_ok*/ ) ;
+	Trace trace("JobStartRpcReply::exit",STR(keep_tmp),_tmp_dir_s) ;
+	SWEAR(+_tmp_dir_s) ;                                        // ensure we do not erase the whole repo
+	if (!keep_tmp) unlnk_inside_s(_tmp_dir_s,true/*abs_ok*/ ) ;
 	job_space.exit() ;
 }
 
