@@ -57,10 +57,10 @@ namespace Disk {
 		}
 		switch (state) {
 			case CanonState::First  :                                                         // an empty path
-			case CanonState::Empty  : return true  ;                                          // a directory ending with /
-			case CanonState::Dot    : return false ;
-			case CanonState::DotDot : return false ;
-			case CanonState::Plain  : return true  ;
+			case CanonState::Empty  : return true           ;                                 // a directory ending with /
+			case CanonState::Dot    : return false          ;
+			case CanonState::DotDot : return accept_dot_dot ;
+			case CanonState::Plain  : return true           ;
 		DF}
 		return true ;
 	}
