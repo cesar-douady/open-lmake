@@ -11,30 +11,6 @@
 
 #include "fd.hh"
 
-struct Pipe {
-	// cxtors & casts
-	Pipe(                          ) = default ;
-	Pipe(NewType,bool no_std_=false) { open(no_std_) ; }
-	// services
-	void open(bool no_std_=false) {
-		int fds[2] ;
-		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
-		read  = {fds[0],no_std_} ;
-		write = {fds[1],no_std_} ;
-	}
-	void close() {
-		read .close() ;
-		write.close() ;
-	}
-	void no_std() {
-		read .no_std() ;
-		write.no_std() ;
-	}
-	// data
-	Fd read  ; // read  side of the pipe
-	Fd write ; // write side of the pipe
-} ;
-
 inline bool is_sig_sync(int sig) {
 	switch (sig) {
 		case SIGILL  :

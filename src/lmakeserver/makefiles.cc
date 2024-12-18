@@ -10,6 +10,10 @@
 #include "autodep/gather.hh"
 #include "makefiles.hh"
 
+#if IS_DARWIN
+	#include <crt_externs.h>
+#endif
+
 using namespace Disk ;
 using namespace Re   ;
 using namespace Time ;
@@ -227,9 +231,14 @@ namespace Engine::Makefiles {
 			{	::string content ;
 				First    first   ;
 				size_t   w       = 0 ;
-				for( char** e=environ ; *e ; e++ ) if ( const char* eq = ::strchr(*e,'=') ) w = ::max(w,size_t(eq-*e)) ;
+				#if IS_DARWIN
+					 char** env = *_NSGetEnviron() ;
+				#else
+					 char** env = environ ;
+				#endif
+				for( char** e=env ; *e ; e++ ) if ( const char* eq = ::strchr(*e,'=') ) w = ::max(w,size_t(eq-*e)) ;
 				content << '{' ;
-				for( char** e=environ ; *e ; e++ )
+				for( char** e=env ; *e ; e++ )
 					if ( const char* eq = ::strchr(*e,'=') )
 						content << first("",",")<<'\t'<< widen(mk_py_str(::string_view(*e,eq-*e)),w) <<" : "<< mk_py_str(::string(eq+1)) << '\n' ;
 				content << "}\n" ;

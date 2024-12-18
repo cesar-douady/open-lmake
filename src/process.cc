@@ -3,10 +3,15 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <sched.h>
-#include <sys/mount.h>
-
 #include "disk.hh"
+
+#if IS_DARWIN
+	#include <crt_externs.h>
+#endif
+#if HAS_NAMESPACES
+	#include <sched.h>
+	#include <sys/mount.h>
+#endif
 
 #include "process.hh"
 
@@ -41,7 +46,7 @@ using namespace Disk ;
 [[noreturn]] void Child::_do_child_trampoline() {
 	if (as_session) ::setsid() ;                                            // if we are here, we are the init process and we must be in the new session to receive the kill signal
 	//
-	sigset_t full_mask ; ::sigfillset(&full_mask) ;
+	sigset_t full_mask ; sigfillset(&full_mask) ;                           // sig fillset may be a macro
 	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                         // restore default behavior
 	//
 	if (stdin_fd ==PipeFd) { _p2c .write.close() ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
@@ -64,47 +69,51 @@ using namespace Disk ;
 		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ; // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
 	#endif
 	//
-	if (first_pid) {
-		SWEAR(first_pid>1,first_pid) ;
-		// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
-		if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) {
-			::perror("cannot mount /proc ") ;
-			_exit(Rc::System,"cannot mount /proc") ;
-		}
-		{	char                     first_pid_buf[30] ;                                                // /!\ cannot use ::string as we are only allowed signal-safe functions
-			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1  )    ; // /!\ .
-			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , Fd::Write } ;
-			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)       ; // dont care about errors, this is best effort
-		}
-		pid_t pid = ::clone( _s_do_child , _child_stack_ptr , SIGCHLD , this ) ;
-		//
-		if (pid==-1) _exit(Rc::System,"cannot spawn sub-process") ;
-		for(;;) {
-			int   wstatus   ;
-			pid_t child_pid = ::wait(&wstatus) ;
-			if (child_pid==pid) {                                                                       // XXX : find a way to simulate a caught signal rather than exit 128+sig
-				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                           // exit as transparently as possible
-				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                           // cannot kill self to be transparent as we are process 1, mimic bash
-				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                       // ensure we have not forgotten a case
+	#if HAS_NAMESPACES
+		if (first_pid) {
+			SWEAR(first_pid>1,first_pid) ;
+			// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
+			if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) {
+				::perror("cannot mount /proc ") ;
+				_exit(Rc::System,"cannot mount /proc") ;
 			}
+			{	char                     first_pid_buf[30] ;                                                // /!\ cannot use ::string as we are only allowed signal-safe functions
+				int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1  )    ; // /!\ .
+				AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , Fd::Write } ;
+				[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)       ; // dont care about errors, this is best effort
+			}
+			pid_t pid = ::clone( _s_do_child , _child_stack_ptr , SIGCHLD , this ) ;
+			//
+			if (pid==-1) _exit(Rc::System,"cannot spawn sub-process") ;
+			for(;;) {
+				int   wstatus   ;
+				pid_t child_pid = ::wait(&wstatus) ;
+				if (child_pid==pid) {                                                                       // XXX : find a way to simulate a caught signal rather than exit 128+sig
+					if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                           // exit as transparently as possible
+					if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                           // cannot kill self to be transparent as we are process 1, mimic bash
+					SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                       // ensure we have not forgotten a case
+				}
+			}
+		} else {
+			_do_child() ;
 		}
-	} else {
+	#else
 		_do_child() ;
-	}
+	#endif
 }
 
 void Child::spawn() {
 	SWEAR( +cmd_line                                                            ) ;
-	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ;                                          // ensure reasonably simple situations
-	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ;                                          // .
-	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ;                                          // .
-	SWEAR( !( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                  ) ;                                          // .
+	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ;                                              // ensure reasonably simple situations
+	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ;                                              // .
+	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ;                                              // .
+	SWEAR( !( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                  ) ;                                              // .
 	if (stdin_fd ==PipeFd) _p2c .open() ; else if (+stdin_fd ) _p2c .read  = stdin_fd  ;
 	if (stdout_fd==PipeFd) _c2po.open() ; else if (+stdout_fd) _c2po.write = stdout_fd ;
 	if (stderr_fd==PipeFd) _c2pe.open() ; else if (+stderr_fd) _c2pe.write = stderr_fd ;
 	//
 	// /!\ memory for environment must be allocated before calling clone
-	::vector_s env_vector ;                                                                                                  // ensure actual env strings (of the form name=val) lifetime
+	::vector_s env_vector ;                                                                                                      // ensure actual env strings (of the form name=val) lifetime
 	if (env) {
 		size_t n_env = env->size() + (add_env?add_env->size():0) ;
 		env_vector.reserve(n_env) ;
@@ -113,16 +122,23 @@ void Child::spawn() {
 		/**/         for( auto const& [k,v] : *env     ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
 		if (add_env) for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
 		/**/                                                                               _child_env[i  ] = nullptr                   ;
-	} else if (add_env) {
-		size_t n_env = add_env->size() ; for( char** e=environ ; *e ; e++ ) n_env++ ;
-		env_vector.reserve(add_env->size()) ;
-		_child_env = new const char*[n_env+1] ;
-		size_t i = 0 ;
-		for( char** e=environ ; *e ; e++  )                                   _child_env[i++] = *e                        ;
-		for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
-		/**/                                                                  _child_env[i  ] = nullptr                   ;
 	} else {
-		_child_env = const_cast<const char**>(environ) ;
+		#if IS_DARWIN
+			char** env = *_NSGetEnviron() ;
+		#else
+			char** env = environ ;
+		#endif
+		if (add_env) {
+			size_t n_env = add_env->size() ; for( char** e=env ; *e ; e++ ) n_env++ ;
+			env_vector.reserve(add_env->size()) ;
+			_child_env = new const char*[n_env+1] ;
+			size_t i = 0 ;
+			for( char** e=env ; *e ; e++  )                                       _child_env[i++] = *e                        ;
+			for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
+			/**/                                                                  _child_env[i  ] = nullptr                   ;
+		} else {
+			_child_env = const_cast<const char**>(env) ;
+		}
 	}
 	//
 	// /!\ memory for args must be allocated before calling clone
@@ -136,16 +152,21 @@ void Child::spawn() {
 	::vector<uint64_t> child_stack ( StackSz/sizeof(uint64_t) ) ;
 	_child_stack_ptr = child_stack.data()+(NpStackGrowsDownward?child_stack.size():0) ;
 	//
-	if (first_pid) {
-		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                               ; // we need a trampoline stack if we launch a grand-child
-		void*              trampoline_stack_ptr = trampoline_stack.data()+(NpStackGrowsDownward?trampoline_stack.size():0) ; // .
-		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is important to mount the new /proc without disturing caller
-	} else {
-		pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD                          , this ) ;
-	}
+	#if HAS_NAMESPACES
+		if (first_pid) {
+			::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                               ; // we need a trampoline stack if we launch a grand-child
+			void*              trampoline_stack_ptr = trampoline_stack.data()+(NpStackGrowsDownward?trampoline_stack.size():0) ; // .
+			pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is passed to mount a new /proc without disturing caller
+		} else {
+			pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD                          , this ) ;
+		}
+	#else
+		SWEAR(!first_pid) ;
+		if (!(pid=::fork())) _do_child_trampoline()/*no_return*/ ;
+	#endif
 	//
 	if (pid==-1) {
-		waited() ;                                                                                                           // ensure we can be destructed
+		waited() ;                                                                                                               // ensure we can be destructed
 		throw cat("cannot spawn process ",cmd_line," : ",::strerror(errno)) ;
 	}
 	//

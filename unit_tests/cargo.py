@@ -5,12 +5,13 @@
 
 import os
 
+import lmake
+
 if __name__!='__main__' :
 
 	from step import rustup_home
 	os.environ['RUSTUP_HOME'] = rustup_home # set before importing lmake.rules so RustRule is correctly configured
 
-	import lmake
 	from lmake.rules import Rule,HomelessRule,RustRule
 
 	from step import step,has_jemalloc
@@ -108,6 +109,7 @@ else :
 	print(file=open('hello/src/main.rs','a'))
 	ut.lmake( 'hello.ok' , steady=1 , changed=1 ) # check cargo can run twice with no problem
 
-	print(f'step=2',file=open('step.py','a'))
-	os.system('rm -rf hello/target hello.ok') # force cargo to regenerate everything
-	ut.lmake( 'hello.ok' , steady=1 )         # check ptrace works with cargo
+	if 'ptrace' in lmake.autodeps :
+		print(f'step=2',file=open('step.py','a'))
+		os.system('rm -rf hello/target hello.ok') # force cargo to regenerate everything
+		ut.lmake( 'hello.ok' , steady=1 )         # check ptrace works with cargo

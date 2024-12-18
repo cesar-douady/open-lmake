@@ -231,6 +231,11 @@ else
 fi
 
 #
+# EVENTFD (HAS_EVENTFD)
+#
+HAS_EVENTFD=$(ok cc -E --include 'sys/eventfd.h' -o /dev/null -xc /dev/null )
+
+#
 # INOTIFY (HAS_INOTIFY)
 #
 HAS_INOTIFY=$(ok cc -E --include 'sys/inotify.h' -o /dev/null -xc /dev/null )
@@ -382,29 +387,37 @@ HAS_PCRE=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 ) # check if pcre2
 [ $HAS_PCRE = 1 ] || echo "no pcre2 support, fall back to (slower) c++ STL regular expression library" >>$SUM_FILE
 
 #
-# PTRACE (MUST_UNDEF_PTRACE_MACROS+HAS_PTRACE_GET_SYSCALL_INFO)
+# PTRACE (HAS_PTRACE+MUST_UNDEF_PTRACE_MACROS+HAS_PTRACE_GET_SYSCALL_INFO)
 #
-cat <<"EOF" >undef_ptrace_macros.c
-	#include <sys/ptrace.h>
-	#include <linux/ptrace.h>
-	#undef PTRACE_TRACEME
-	int main() {
-		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
-	}
-EOF
-MUST_UNDEF_PTRACE_MACROS=$(ok cc -c -idirafter /usr/include/linux -o /dev/null -xc undef_ptrace_macros.c )
-#
-cat <<"EOF" >get_syscall_info.c
-	#include <sys/ptrace.h>
-	#include <linux/ptrace.h>
-	#if MUST_UNDEF_PTRACE_MACROS
-		#undef PTRACE_GET_SYSCALL_INFO
-	#endif
-	int main() {
-		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
-	}
-EOF
-HAS_PTRACE_GET_SYSCALL_INFO=$(ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o /dev/null -xc get_syscall_info.c )
+case $OS in
+	Darwin)
+		HAS_PTRACE=0
+	;;
+	Linux )
+		HAS_PTRACE=1
+		cat <<-"EOF" >undef_ptrace_macros.c
+			#include <sys/ptrace.h>
+			#include <linux/ptrace.h>
+			#undef PTRACE_TRACEME
+			int main() {
+				long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
+			}
+		EOF
+		MUST_UNDEF_PTRACE_MACROS=$(ok cc -c -idirafter /usr/include/linux -o /dev/null -xc undef_ptrace_macros.c )
+		#
+		cat <<-"EOF" >get_syscall_info.c
+			#include <sys/ptrace.h>
+			#include <linux/ptrace.h>
+			#if MUST_UNDEF_PTRACE_MACROS
+				#undef PTRACE_GET_SYSCALL_INFO
+			#endif
+			int main() {
+				long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
+			}
+		EOF
+		HAS_PTRACE_GET_SYSCALL_INFO=$(ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o /dev/null -xc get_syscall_info.c )
+	;;
+esac
 
 #
 # SECCOMP (HAS_SECCOMP)
@@ -544,6 +557,7 @@ cat >$MK_FILE <<-EOF
 	HAS_LD_AUDIT              := ${HAS_LD_AUDIT#0}
 	HAS_NAMESPACES            := ${HAS_NAMESPACES#0}
 	HAS_PCRE                  := ${HAS_PCRE#0}
+	HAS_PTRACE                := ${HAS_PTRACE#0}
 	HAS_PY2_DYN               := ${HAS_PY2_DYN#0}
 	HAS_PY3_DYN               := ${HAS_PY3_DYN#0}
 	HAS_SECCOMP               := ${HAS_SECCOMP#0}
@@ -593,6 +607,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_ADDR2LINE               $HAS_ADDR2LINE
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_EPOLL                   $HAS_EPOLL
+	#define HAS_EVENTFD                 $HAS_EVENTFD
 	#define HAS_INOTIFY                 $HAS_INOTIFY
 	#define HAS_KQUEUE                  $HAS_KQUEUE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
@@ -600,6 +615,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_MREMAP                  $HAS_MREMAP
 	#define HAS_NAMESPACES              $HAS_NAMESPACES
 	#define HAS_PCRE                    $HAS_PCRE
+	#define HAS_PTRACE                  $HAS_PTRACE
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_SGE                     $HAS_SGE

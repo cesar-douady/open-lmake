@@ -3,6 +3,8 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+HasNamespaces = bool("$HAS_NAMESPACES")
+
 import sys
 
 import os
@@ -29,7 +31,6 @@ StdAttrs = {
 ,	'auto_mkdir'          : ( bool  , True  )
 ,	'backend'             : ( str   , True  )
 ,	'cache'               : ( str   , True  )
-,	'chroot_dir'          : ( str   , True  )
 ,	'cmd'                 : ( str   , True  )                  # when it is a str, such str may be dynamic, i.e. it may be a full f-string
 ,	'side_deps'           : ( dict  , True  )
 ,	'deps'                : ( dict  , True  )
@@ -48,15 +49,21 @@ StdAttrs = {
 ,	'order'               : ( list  , False )
 ,	'python'              : ( tuple , False )
 ,	'resources'           : ( dict  , True  )
-,	'repo_view'           : ( str   , True  )
 ,	'shell'               : ( tuple , False )
 ,	'start_delay'         : ( float , True  )
 ,	'side_targets'        : ( dict  , True  )
 ,	'timeout'             : ( float , True  )
-,	'tmp_view'            : ( str   , True  )
 ,	'use_script'          : ( bool  , True  )
-,	'views'               : ( dict  , True  )
 }
+if HasNamespaces :
+	StdAttrs.update({
+		#                type  dynamic
+		'chroot_dir' : ( str  , True )
+	,	'repo_view'  : ( str  , True )
+	,	'tmp_view'   : ( str  , True )
+	,	'views'      : ( dict , True )
+	})
+
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
 SimpleStemRe = re.compile(r'{\w+}|{{|}}')                      # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
@@ -473,13 +480,14 @@ class Handle :
 		self._init()
 		self._handle_val('allow_stderr'                   )
 		self._handle_val('auto_mkdir'                     )
-		self._handle_val('chroot_dir'                     )
 		self._handle_val('env'        ,rep_key='environ'  )
 		self._handle_val('ignore_stat'                    )
 		self._handle_val('interpreter',rep_key=interpreter)
-		self._handle_val('repo_view'                      )
-		self._handle_val('tmp_view'                       )
-		self._handle_val('views'                          )
+		if HasNamespaces :
+			self._handle_val('chroot_dir')
+			self._handle_val('repo_view' )
+			self._handle_val('tmp_view'  )
+			self._handle_val('views'     )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :

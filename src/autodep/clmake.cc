@@ -279,15 +279,15 @@ PyMODINIT_FUNC
 	_g_record = {New,Yes/*enabled*/} ;
 	//
 	//
-	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3 } ;       // PER_AUTODEP_METHOD : add entries here
+	Ptr<Tuple> py_ads { HAS_LD_AUDIT+2+HAS_PTRACE } ; // PER_AUTODEP_METHOD : add entries here
 	size_t i = 0 ;
 	if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
 	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
 	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
-	/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
+	if (HAS_PTRACE  ) py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
 	SWEAR(i==py_ads->size(),i,py_ads->size()) ;
 	//
-	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM } ; // PER_BACKEND : add entries here
+	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM } ;      // PER_BACKEND : add entries here
 	i = 0 ;
 	/**/           py_bes->set_item(i++,*Ptr<Str>("local")) ;
 	if (HAS_SGE  ) py_bes->set_item(i++,*Ptr<Str>("sge"  )) ;

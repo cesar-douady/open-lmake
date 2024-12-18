@@ -505,7 +505,7 @@ The root directory of the (sub-)repository.
 The root directory of the top-level repository as determined when the @lmake command was run.
 
 @item autodeps
-The @code{tuple} of implemented autodep methods. @code{'ld_preload'} and @code{'ptrace'} are always present.
+The @code{tuple} of implemented autodep methods. @code{'ld_preload'} is always present.
 @item backends
 The @code{tuple} of implemented backends. @code{local} is always present.
 @item no_crc
@@ -1852,7 +1852,7 @@ This attribute specifies the backend to use to launch jobs (cf @pxref{backends})
 @item Type
 @tab @code{str}
 @item Constraint
-@tab One of @code{'none'}, @code{'ld_preload'}, @code{'ld_preload_jemalloc'}, @code{'ld_audit'} or @code{'ptrace'}
+@tab One of @code{'none'}, @code{'ld_audit'}, @code{'ld_preload'}, @code{'ld_preload_jemalloc'} or @code{'ptrace'}
 @item Default
 @tab @code{'ld_audit'} if supported else @code{'ld_preload'}
 @item Dynamic
@@ -2592,7 +2592,7 @@ This method is recommended on systems that support it.
 
 The job is run @code{ptrace}'ed. The seccomp mechanism is used (if available) to reduce the performance hit to the minimum possible but still, it is often unacceptable.
 There is no requirement that @file{libc.so} be dynamically linked.
-It is almost not invasive (mostly the job cannot use ptrace itself, i.e. you will not be able to run an executable level debugger).
+It is almost not invasive.
 
 Th main adavantage is that it works with a statically linked @code{libc}.
 The main inconvenients are that the performance hit can be severe and that 32 bits executables are not supported yet (if run on a 64 bits system).

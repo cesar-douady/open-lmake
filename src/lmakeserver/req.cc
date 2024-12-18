@@ -562,21 +562,22 @@ namespace Engine {
 			if ( +jt && jt->run_status!=RunStatus::MissingStatic ) { reason      = "does not produce it"                                      ; goto Report ; }
 			try                                                    { static_deps = rt->rule->deps_attrs.eval(m)                               ;               }
 			catch (::pair_ss const& msg_err)                       { reason      = "cannot compute its deps :\n"+msg_err.first+msg_err.second ; goto Report ; }
-			{	::string missing_key ;
-				for( bool search_non_buildable : {true,false} )                                         // first search a non-buildable, if not found, search for non makable as deps have been made
-					for( auto const& [k,dn] : static_deps ) {
-						Node d{dn.txt} ;
-						if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
-						missing_key = k ;
-						missing_dep = d ;
-						goto Found ;
+			for( bool search_non_buildable : {true,false} )                                             // first search a non-buildable, if not found, search for non makable as deps have been made
+				for( auto const& [k,ds] : static_deps ) {
+					if (!is_canon(ds.txt)) {
+						if (search_non_buildable  ) continue ;                                                           // non-canonic deps are detected after non-buidlable ones
+						if (+options.startup_dir_s) reason = "non-canonic static dep name "+k+" (top-level) : "+ds.txt ; // remind user that name is not localized as this is not reliably ...
+						else                        reason = "non-canonic static dep name "+k+" : "            +ds.txt ; // ... possible (nor desirable) for non-canonic names
+						goto Report ;
 					}
-			Found :
-				SWEAR(+missing_dep) ;                                                                   // else why wouldn't it apply ?!?
-				::string mdn = missing_dep->name()                   ;
-				FileTag tag  = FileInfo(nfs_guard.access(mdn)).tag() ;
-				reason = "misses static dep " + missing_key + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
-			}
+					Node d { ds.txt } ;
+					if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
+					missing_dep = d ;
+					SWEAR(+missing_dep) ;                                                                                // else why wouldn't it apply ?!?
+					FileTag tag = FileInfo(nfs_guard.access(missing_dep->name())).tag() ;
+					reason = "misses static dep " + k + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
+					goto Report ;
+				}
 		Report :
 			if (+missing_dep) audit_node( Color::Note , "rule "+rt->rule->full_name()+' '+reason+" :" , missing_dep , lvl+1 ) ;
 			else              audit_info( Color::Note , "rule "+rt->rule->full_name()+' '+reason      ,               lvl+1 ) ;

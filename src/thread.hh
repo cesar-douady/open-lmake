@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <sys/eventfd.h>
-
 #include <condition_variable>
 #include <deque>
 #include <latch>
@@ -217,25 +215,23 @@ template<class Req,bool Flush=true> struct ServerThread {                       
 private :
 	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self_ , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> func ) {
 		using Event = Epoll<EventKind>::Event ;
-		static constexpr uint64_t One = 1 ;
 		t_thread_key = key ;
-		AcFd               stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
-		Epoll<EventKind>   epoll   { New }                  ;
+		EventFd            stop_fd { New } ;
+		Epoll<EventKind>   epoll   { New } ;
 		::umap<Fd,IMsgBuf> slaves  ;
 		::stop_callback    stop_cb {                                               // transform request_stop into an event Epoll can wait for
 			stop
 		,	[&](){
 				Trace trace("ServerThread::_s_thread_func::stop_cb",stop_fd) ;
-				ssize_t cnt = ::write(stop_fd,&One,sizeof(One)) ;
-				SWEAR( cnt==sizeof(One) , cnt , stop_fd ) ;
+				stop_fd.wakeup() ;
 			}
 		} ;
 		//
 		Trace trace("ServerThread::_s_thread_func",self_->fd,self_->fd.port(),stop_fd) ;
 		self_->_ready.count_down() ;
 		//
-		epoll.add_read(self_->fd,EventKind::Master) ;
-		epoll.add_read(stop_fd  ,EventKind::Stop  ) ;
+		epoll.add_read( self_->fd , EventKind::Master ) ;
+		epoll.add_read( stop_fd   , EventKind::Stop   ) ;
 		for(;;) {
 			trace("wait") ;
 			::vector<Event> events = epoll.wait(+epoll?Delay::Forever:Delay()) ;   // wait for 1 event, no timeout unless stopped
@@ -255,8 +251,7 @@ private :
 						} catch (::string const& e) { trace("cannot_accept",e) ; } // ignore error as this may be fd starvation and client will retry
 					} break ;
 					case EventKind::Stop : {
-						uint64_t one ;
-						ssize_t  cnt = ::read(efd,&one,sizeof(one)) ; SWEAR( cnt==sizeof(one) , cnt ) ;
+						stop_fd.flush() ;
 						trace("stop",mk_key_vector(slaves)) ;
 						for( auto const& [sfd,_] : slaves ) epoll.close(false/*write*/,sfd) ;
 						trace("done") ;

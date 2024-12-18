@@ -159,19 +159,19 @@ else :
 		print(f'step={s}',file=open('step.py','w'))
 		rc = 1 if s==1 else 0
 		#
-		ut.lmake( 'deps.hello+world.ok'        , done=2-rc*2 , steady=0    , failed=0  , new=1-rc , no_deps=rc ,                          rc=rc )
-		ut.lmake( 'interpreter.hello+world.ok' , done=2-rc*2 , steady=0    , failed=rc , new=3*rc ,              resubmit=rc ,            rc=rc ) # python accesses Lmakefile when it fails
-		ut.lmake( 'env.hello.ok'               , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,              resubmit=rc ,            rc=rc )
-		ut.lmake( 'start_delay.no'             , done=rc     , steady=1-rc , failed=0  , new=0    ,              resubmit=rc , start=1  , rc=0  )
-		ut.lmake( 'start_delay.yes'            , done=rc     , steady=1-rc , failed=0  , new=0    ,              resubmit=rc , start=rc , rc=0  )
-		ut.lmake( 'resources.1.ok'             , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                                       rc=rc )
-		ut.lmake( 'resources.2.ok'             , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                                       rc=rc )
-		ut.lmake( 'max_stderr_len.1'           , done=rc     , steady=1-rc , failed=0  , new=0    ,              resubmit=rc ,            rc=0  )
-		ut.lmake( 'max_stderr_len.2'           , done=rc     , steady=1-rc , failed=0  , new=0    ,              resubmit=rc ,            rc=0  )
-		ut.lmake( 'allow_stderr.no'            , done=0      , steady=0    , failed=1  , new=0    ,              resubmit=rc ,            rc=1  )
-		ut.lmake( 'allow_stderr.yes'           , done=1-rc   , steady=0    , failed=rc , new=0    ,              resubmit=rc ,            rc=rc )
-		ut.lmake( 'auto_mkdir.no.ok'           , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,              resubmit=rc ,            rc=rc )
-		ut.lmake( 'auto_mkdir.yes.ok'          , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,              resubmit=rc ,            rc=rc )
-		ut.lmake( 'cmd'                        , done=1-rc   , steady=0    , failed=rc , new=0    ,                                       rc=rc )
+		ut.lmake( 'deps.hello+world.ok'        , done=2-rc*2 , steady=0    , failed=0  , new=1-rc , cannot_compute_deps=rc ,                          rc=rc )
+		ut.lmake( 'interpreter.hello+world.ok' , done=2-rc*2 , steady=0    , failed=rc , new=3*rc ,                          resubmit=rc ,            rc=rc ) # python accesses Lmakefile when it fails
+		ut.lmake( 'env.hello.ok'               , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                          resubmit=rc ,            rc=rc )
+		ut.lmake( 'start_delay.no'             , done=rc     , steady=1-rc , failed=0  , new=0    ,                          resubmit=rc , start=1  , rc=0  )
+		ut.lmake( 'start_delay.yes'            , done=rc     , steady=1-rc , failed=0  , new=0    ,                          resubmit=rc , start=rc , rc=0  )
+		ut.lmake( 'resources.1.ok'             , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                                                   rc=rc )
+		ut.lmake( 'resources.2.ok'             , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                                                   rc=rc )
+		ut.lmake( 'max_stderr_len.1'           , done=rc     , steady=1-rc , failed=0  , new=0    ,                          resubmit=rc ,            rc=0  )
+		ut.lmake( 'max_stderr_len.2'           , done=rc     , steady=1-rc , failed=0  , new=0    ,                          resubmit=rc ,            rc=0  )
+		ut.lmake( 'allow_stderr.no'            , done=0      , steady=0    , failed=1  , new=0    ,                          resubmit=rc ,            rc=1  )
+		ut.lmake( 'allow_stderr.yes'           , done=1-rc   , steady=0    , failed=rc , new=0    ,                          resubmit=rc ,            rc=rc )
+		ut.lmake( 'auto_mkdir.no.ok'           , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                          resubmit=rc ,            rc=rc )
+		ut.lmake( 'auto_mkdir.yes.ok'          , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                          resubmit=rc ,            rc=rc )
+		ut.lmake( 'cmd'                        , done=1-rc   , steady=0    , failed=rc , new=0    ,                                                   rc=rc )
 		#
 		for ad in lmake.autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2-rc*2 , steady=0 , failed=rc , new=rc , resubmit=rc , rc=rc )

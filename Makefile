@@ -320,13 +320,15 @@ version.hh : version.hh.stamp ;
 # add system configuration to lmake.py :
 # Sense git bin dir at install time so as to be independent of it at run time.
 # Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
-lib/%.py : _lib/%.src.py sys_config.mk
+lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk
 	@echo customize $< to $@
 	@mkdir -p $(@D)
 	@sed \
 		-e 's!\$$BASH!$(BASH)!'                          \
 		-e 's!\$$GIT!$(GIT)!'                            \
 		-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
+		-e 's!\$$HAS_NAMESPACES!$(HAS_NAMESPACES)!'      \
+		-e 's!\$$HAS_PTRACE!$(HAS_PTRACE)!'              \
 		-e 's!\$$HAS_SGE!$(HAS_SGE)!'                    \
 		-e 's!\$$HAS_SLURM!$(HAS_SLURM)!'                \
 		-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
@@ -459,24 +461,24 @@ SERVER_SAN_OBJS := \
 	src/lmakeserver/store$(SAN).o
 
 _bin/lmakeserver : \
-	$(SERVER_SAN_OBJS)                                        \
-	src/autodep/gather$(SAN).o                                \
-	src/autodep/ptrace$(SAN).o                                \
-	                  src/lmakeserver/backends/local$(SAN).o  \
-	$(if $(HAS_SLURM),src/lmakeserver/backends/slurm$(SAN).o) \
-	$(if $(HAS_SGE)  ,src/lmakeserver/backends/sge$(SAN).o  ) \
-	src/lmakeserver/cmd$(SAN).o                               \
-	src/lmakeserver/makefiles$(SAN).o                         \
+	$(SERVER_SAN_OBJS)                                         \
+	src/autodep/gather$(SAN).o                                 \
+	$(if $(HAS_PTRACE),src/autodep/ptrace$(SAN).o            ) \
+	src/lmakeserver/backends/local$(SAN).o                     \
+	$(if $(HAS_SLURM) ,src/lmakeserver/backends/slurm$(SAN).o) \
+	$(if $(HAS_SGE)   ,src/lmakeserver/backends/sge$(SAN).o  ) \
+	src/lmakeserver/cmd$(SAN).o                                \
+	src/lmakeserver/makefiles$(SAN).o                          \
 	src/lmakeserver/main$(SAN).o
 
 bin/lrepair : \
-	$(SERVER_SAN_OBJS)                                        \
-	src/autodep/gather$(SAN).o                                \
-	src/autodep/ptrace$(SAN).o                                \
-	                  src/lmakeserver/backends/local$(SAN).o  \
-	$(if $(HAS_SLURM),src/lmakeserver/backends/slurm$(SAN).o) \
-	$(if $(HAS_SGE)  ,src/lmakeserver/backends/sge$(SAN).o  ) \
-	src/lmakeserver/makefiles$(SAN).o                         \
+	$(SERVER_SAN_OBJS)                                         \
+	src/autodep/gather$(SAN).o                                 \
+	$(if $(HAS_PTRACE),src/autodep/ptrace$(SAN).o            ) \
+	src/lmakeserver/backends/local$(SAN).o                     \
+	$(if $(HAS_SLURM) ,src/lmakeserver/backends/slurm$(SAN).o) \
+	$(if $(HAS_SGE)   ,src/lmakeserver/backends/sge$(SAN).o  ) \
+	src/lmakeserver/makefiles$(SAN).o                          \
 	src/lrepair$(SAN).o
 
 _bin/ldump : \
@@ -560,14 +562,14 @@ AUTODEP_OBJS := $(BASIC_REMOTE_OBJS) src/autodep/syscall_tab.o
 REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) src/autodep/job_support.o
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)      \
-	src/app.o            \
-	src/py.o             \
-	src/re.o             \
-	src/rpc_job.o        \
-	src/trace.o          \
-	src/autodep/gather.o \
-	src/autodep/ptrace.o \
+	$(AUTODEP_OBJS)                          \
+	src/app.o                                \
+	src/py.o                                 \
+	src/re.o                                 \
+	src/rpc_job.o                            \
+	src/trace.o                              \
+	src/autodep/gather.o                     \
+	$(if $(HAS_PTRACE),src/autodep/ptrace.o) \
 	src/autodep/record.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS) src/job_exec.o

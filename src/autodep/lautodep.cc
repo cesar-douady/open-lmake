@@ -104,7 +104,7 @@ int main( int argc , char* argv[] ) {
 	::string dbg_dir_s = *g_repo_root_s+AdminDirS+"debug/" ;
 	mk_dir_s(dbg_dir_s) ;
 	AcFd lock_fd { no_slash(dbg_dir_s) } ;
-	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                         // because we have no small_id, we can only run a single instance
+	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                // because we have no small_id, we can only run a single instance
 		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"            ) ;
 		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",::strerror(errno)) ;
 	}
@@ -160,8 +160,8 @@ int main( int argc , char* argv[] ) {
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]                               ) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
 		(void)start_info.enter(
-			::ref(::vmap_s<MountAction>()) , cmd_env , ::ref(::vmap_ss())/*dynamic_env*/                               // outs
-		,	gather.first_pid , *g_repo_root_s , *g_lmake_root_s , cmd_line.flag_args[+CmdFlag::TmpDir] , 0/*small_id*/ // ins
+			::ref(::vmap_s<MountAction>()) , cmd_env , ::ref(::vmap_ss())/*dynamic_env*/ , gather.first_pid   // outs
+		,	*g_repo_root_s , *g_lmake_root_s , cmd_line.flag_args[+CmdFlag::TmpDir] , 0/*small_id*/           // ins
 		) ;
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }
@@ -193,7 +193,7 @@ int main( int argc , char* argv[] ) {
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	Pdate    prev_first_read  ;
-	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                                  // process deps with a delay of 1 because we need next entry for ascii art
+	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                         // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) deps += "  "  ;
@@ -207,7 +207,7 @@ int main( int argc , char* argv[] ) {
 		prev_dep        = dep        ;
 	} ;
 	for( auto const& [dep,ai] : gather.accesses ) if (ai.digest.write==No) send(dep,ai.first_read().first) ;
-	/**/                                                                   send(                         ) ;           // send last
+	/**/                                                                   send(                         ) ;  // send last
 	//
 	if (cmd_line.flags[CmdFlag::Out]) Fd(cmd_line.flag_args[+CmdFlag::Out],Fd::Write).write(deps) ;
 	else                              Fd::Stdout                                     .write(deps) ;

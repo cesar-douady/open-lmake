@@ -6,7 +6,11 @@
 #include <syscall.h>   // for SYS_* macros
 #include <sys/mount.h>
 
-#include "ptrace.hh"
+#include "utils.hh" // HAS_PTRACE
+
+#if HAS_PTRACE
+	#include "ptrace.hh"
+#endif
 #include "record.hh"
 
 #include "syscall_tab.hh"
@@ -14,49 +18,54 @@
 // return null terminated string pointed by src in process pid's space
 [[maybe_unused]] static ::string _get_str( pid_t pid , uint64_t src ) {
 	if (!pid) return {reinterpret_cast<const char*>(src)} ;
-	::string res ;
-	errno = 0 ;
-	for(;;) {
-		uint64_t offset = src%sizeof(long)                                               ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		if (errno) throw errno ;
-		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
-		for( uint64_t len : iota(sizeof(long)-offset) ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
-		/**/                                                                    res.append( buf+offset , sizeof(long)-offset ) ;
-		src += sizeof(long)-offset ;
-	}
+	#if HAS_PTRACE
+		::string res ;
+		errno = 0 ;
+		for(;;) {
+			uint64_t offset = src%sizeof(long)                                               ;
+			long     word   = ::ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
+			if (errno) throw errno ;
+			char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
+			for( uint64_t len : iota(sizeof(long)-offset) ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
+			/**/                                                                    res.append( buf+offset , sizeof(long)-offset ) ;
+			src += sizeof(long)-offset ;
+		}
+	#else
+		FAIL() ;
+	#endif
 }
 
-// copy src to process pid's space @ dst
-[[maybe_unused]] static void _peek( pid_t pid , char* dst , uint64_t src , size_t sz ) {
-	SWEAR(pid) ;
-	errno = 0 ;
-	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) { // invariant : copy src[i:sz] to dst
-		size_t offset = src%sizeof(long) ;
-		long   word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		if (errno) throw errno ;
-		chunk = ::min( sizeof(long) - offset , sz ) ;
-		::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
+#if HAS_PTRACE
+	// copy process pid's space @ src to dst
+	[[maybe_unused]] static void _peek( pid_t pid , char* dst , uint64_t src , size_t sz ) {
+		SWEAR(pid) ;
+		errno = 0 ;
+		for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) { // invariant : copy src[i:sz] to dst
+			size_t offset = src%sizeof(long) ;
+			long   word   = ::ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
+			if (errno) throw errno ;
+			chunk = ::min( sizeof(long) - offset , sz ) ;
+			::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
+		}
 	}
-}
-
-// copy src to process pid's space @ dst
-[[maybe_unused]] static void _poke( pid_t pid , uint64_t dst , const char* src , size_t sz ) {
-	SWEAR(pid) ;
-	errno = 0 ;
-	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                 // invariant : copy src[i:sz] to dst
-		size_t offset = dst%sizeof(long) ;
-		long   word   = 0/*garbage*/     ;
-		chunk = ::min( sizeof(long) - offset , sz ) ;
-		if ( offset || offset+chunk<sizeof(long) ) {                                // partial word
-			word = ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;
+	// copy src to process pid's space @ dst
+	[[maybe_unused]] static void _poke( pid_t pid , uint64_t dst , const char* src , size_t sz ) {
+		SWEAR(pid) ;
+		errno = 0 ;
+		for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                 // invariant : copy src[i:sz] to dst
+			size_t offset = dst%sizeof(long) ;
+			long   word   = 0/*garbage*/     ;
+			chunk = ::min( sizeof(long) - offset , sz ) ;
+			if ( offset || offset+chunk<sizeof(long) ) {                                // partial word
+				word = ::ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;
+				if (errno) throw errno ;
+			}
+			::memcpy( reinterpret_cast<char*>(&word)+offset , src , chunk ) ;
+			::ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
 			if (errno) throw errno ;
 		}
-		::memcpy( reinterpret_cast<char*>(&word)+offset , src , chunk ) ;
-		ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
-		if (errno) throw errno ;
 	}
-}
+#endif
 
 template<bool At> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args ) {
 	::string arg = _get_str(pid,args[At]) ;
@@ -183,10 +192,14 @@ template<bool At> [[maybe_unused]] static void _entry_read_lnk( void* & ctx , Re
 	if (ctx) {
 		RLB* rlb = static_cast<RLB*>(ctx) ;
 		SWEAR( res<=ssize_t(rlb->first.sz) , res , rlb->first.sz ) ;
-		if ( pid && res>=0 ) _peek( pid , rlb->first.buf , rlb->second , res ) ;
+		#if HAS_PTRACE
+			if ( pid && res>=0 ) _peek( pid , rlb->first.buf , rlb->second , res ) ;
+		#endif
 		res = (rlb->first)(r,res) ;
 		if (pid) {
-			if ( rlb->first.emulated && res>=0 ) _poke( pid , rlb->second , rlb->first.buf , res ) ; // access to backdoor was emulated, we must transport result to actual user space
+			#if HAS_PTRACE
+				if ( rlb->first.emulated && res>=0 ) _poke( pid , rlb->second , rlb->first.buf , res ) ; // access to backdoor was emulated, we must transport result to actual user space
+			#endif
 			delete[] rlb->first.buf ;
 		}
 		delete rlb ;

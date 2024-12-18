@@ -17,6 +17,10 @@
 
 #include "disk.hh"
 
+#if IS_DARWIN
+	#include <crt_externs.h>
+#endif
+
 #include "gather.hh"
 #include "record.hh"
 #include "syscall_tab.hh"
@@ -140,7 +144,7 @@ struct _Exec : Record::Exec {
 		static constexpr char   Llpe[] = "LD_LIBRARY_PATH=" ;
 		static constexpr size_t LlpeSz = sizeof(Llpe)-1     ;                          // -1 to account of terminating null
 		//
-		const char* const* llp = nullptr/*garbage*/ ;
+		const char* const* llp ;
 		for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
 		if (*llp) elf_deps( r , self , *llp+LlpeSz , comment+".dep" ) ;                // pass value after the LD_LIBRARY_PATH= prefix
 		else      elf_deps( r , self , nullptr     , comment+".dep" ) ;                // /!\ dont add LlpeSz to nullptr
@@ -406,12 +410,18 @@ struct Mkstemp : WSolve {
 			Lock lock { _g_mutex       } ;               \
 			Exec( path , no_follow , envp , #libcall ) ; \
 		}
+	#if IS_DARWIN
+		#define environ (*_NSGetEnviron())
+	#endif
 	//                                                                                                                 no_follow
 	int execv   (         CC* p , char* const argv[]                                 ) NE { HEADER_EXEC(Exec ,execv   ,false      ,               p ,environ) ; return orig(  p,argv          ) ; }
 	int execve  (         CC* p , char* const argv[] , char* const envp[]            ) NE { HEADER_EXEC(Exec ,execve  ,false      ,               p ,envp   ) ; return orig(  p,argv,envp     ) ; }
 	int execvp  (         CC* p , char* const argv[]                                 ) NE { HEADER_EXEC(Execp,execvp  ,false      ,               p ,environ) ; return orig(  p,argv          ) ; }
 	int execvpe (         CC* p , char* const argv[] , char* const envp[]            ) NE { HEADER_EXEC(Execp,execvpe ,false      ,               p ,envp   ) ; return orig(  p,argv,envp     ) ; }
 	int execveat( int d , CC* p , char* const argv[] , char *const envp[] , int flgs ) NE { HEADER_EXEC(Exec ,execveat,ASLNF(flgs),Record::Path(d,p),envp   ) ; return orig(d,p,argv,envp,flgs) ; }
+	#if IS_DARWIN
+		#undef environ
+	#endif
 	// execl
 	#define MK_ARGS(end_action,value) \
 		char*   cur         = const_cast<char*>(arg)            ;            \

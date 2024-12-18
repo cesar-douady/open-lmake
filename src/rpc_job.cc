@@ -3,12 +3,14 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <sched.h>     // unshare
-#include <sys/mount.h> // mount
-
 #include "disk.hh"
 #include "hash.hh"
 #include "trace.hh"
+
+#if HAS_NAMESPACES
+	#include <sched.h>     // unshare
+	#include <sys/mount.h> // mount
+#endif
 
 #include "rpc_job.hh"
 
@@ -214,7 +216,7 @@ bool/*entered*/ JobSpace::enter(
 	//
 	if (!self) return false/*entered*/ ;
 	//
-	#if ! HAS_NAMESPACES
+	#if !HAS_NAMESPACES
 		(void)report ;
 		throw "namespaces are not supported on this system"s ;
 	#else
@@ -543,6 +545,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                         ;
 	bool     entered        = job_space.enter( actions , phy_repo_root_s , phy_tmp_dir_s , cwd_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
 	if (entered) {
+		SWEAR(HAS_NAMESPACES) ;
 		// find a good starting pid
 		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
 		// to do that we spread pid's among the availale range by setting the first pid used by jos as apart from each other as possible

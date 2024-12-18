@@ -21,7 +21,9 @@ static constexpr bool NpStackGrowsDownward = true               ; // XXX : find 
 	static constexpr uint8_t NpWordSz = 32 ;
 #endif
 
-::array<uint64_t,6> np_ptrace_get_args( pid_t pid ,               uint8_t word_sz ) ; // word_sz must be 32 or 64
-int64_t             np_ptrace_get_res ( pid_t pid ,               uint8_t word_sz ) ; // .
-long                np_ptrace_get_nr  ( pid_t pid ,               uint8_t word_sz ) ; // .
-void                np_ptrace_set_res ( pid_t pid , int64_t val , uint8_t word_sz ) ; // .
+#if HAS_PTRACE
+	::array<uint64_t,6> np_ptrace_get_args( pid_t pid ,               uint8_t word_sz ) ; // word_sz must be 32 or 64
+	int64_t             np_ptrace_get_res ( pid_t pid ,               uint8_t word_sz ) ; // .
+	long                np_ptrace_get_nr  ( pid_t pid ,               uint8_t word_sz ) ; // .
+	void                np_ptrace_set_res ( pid_t pid , int64_t val , uint8_t word_sz ) ; // .
+#endif

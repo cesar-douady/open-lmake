@@ -89,7 +89,9 @@ struct Gather {                                                                 
 	} ;
 	// statics
 private :
-	static void _s_do_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_do_child(report_fd,ready) ; }
+	#if HAS_PTRACE
+		static void _s_ptrace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_ptrace_child(report_fd,ready) ; }
+	#endif
 	// services
 	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only
@@ -122,8 +124,10 @@ public : //!                                                                    
 	//
 	void reorder(bool at_end) ;                                                                       // reorder accesses by first read access and suppress superfluous accesses
 private :
-	Fd   _spawn_child(                               ) ;
-	void _do_child   ( Fd report_fd , ::latch* ready ) ;
+	Fd _spawn_child() ;
+	#if HAS_PTRACE
+		void _ptrace_child( Fd report_fd , ::latch* ready ) ;
+	#endif
 	// data
 public :
 	::vector_s                        cmd_line         ;
@@ -160,7 +164,6 @@ public :
 private :
 	::map_ss            _add_env       ;
 	Child               _child         ;
-	::jthread           _ptrace_thread ;
 	::umap<Fd,::string> _codec_files   ;
 	PD                  _end_timeout   = PD::Future ;
 	PD                  _end_child     = PD::Future ;
@@ -169,4 +172,7 @@ private :
 	NodeIdx             _parallel_id   = 0          ;                                                 // id to identify parallel deps
 	bool                _timeout_fired = false      ;
 	BitMap<Kind>        _wait          ;                                                              // events we are waiting for
+	#if HAS_PTRACE
+		::jthread _ptrace_thread ;
+	#endif
 } ;

@@ -5,10 +5,14 @@
 
 #pragma once
 
-#include <sys/ptrace.h>
-
 #include "gather.hh"
 #include "record.hh"
+
+#if !HAS_PTRACE
+	#error cannot include ptrace.hh without HAS_PTRACE
+#endif
+
+#include <sys/ptrace.h>
 
 #if HAS_PTRACE_GET_SYSCALL_INFO        // must be after utils.hh include, use portable calls if implemented
 	#include <linux/ptrace.h>          // for struct ptrace_syscall_info, must be after sys/ptrace.h to avoid stupid request macro definitions

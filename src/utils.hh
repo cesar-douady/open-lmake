@@ -213,7 +213,7 @@ template<void (*Handler)(int sig,void* addr)> void _sig_action( int sig , siginf
 	Handler(sig,si->si_addr) ;
 }
 template<void (*Handler)(int sig,void* addr)> void set_sig_handler(int sig) {
-	sigset_t         empty  ;      ::sigemptyset(&empty) ;
+	sigset_t         empty  ;      sigemptyset(&empty) ;                      // sigemptyset can be a macro
 	struct sigaction action = {} ;
 	action.sa_sigaction = _sig_action<Handler>  ;
 	action.sa_mask      = empty                 ;
@@ -221,7 +221,7 @@ template<void (*Handler)(int sig,void* addr)> void set_sig_handler(int sig) {
 	::sigaction( sig , &action , nullptr ) ;
 }
 template<void (*Handler)(int sig)> void set_sig_handler(int sig) {
-	sigset_t         empty  ;      ::sigemptyset(&empty) ;
+	sigset_t         empty  ;      sigemptyset(&empty) ;                      // sigemptyset can be a macro
 	struct sigaction action = {} ;
 	action.sa_handler = Handler    ;
 	action.sa_mask    = empty      ;

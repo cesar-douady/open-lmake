@@ -9,6 +9,10 @@
 
 #include "time.hh"
 
+#if HAS_EVENTFD
+	#include <sys/eventfd.h>
+#endif
+
 #if HAS_EPOLL
 	#include <sys/epoll.h>
 	#include <sys/signalfd.h>
@@ -181,14 +185,14 @@ namespace std {
 
 inline sigset_t _mk_sigset(::vector<int> const& sigs) {
 	sigset_t res ;
-	::sigemptyset(&res) ;
-	for( int s : sigs) ::sigaddset(&res,s) ;
+	sigemptyset(&res) ;                                                                        // sigemptyset can be a macro
+	for( int s : sigs) sigaddset(&res,s) ;                                                     // sigaddset can be a macro
 	return res ;
 }
 inline bool is_blocked_sig(int sig) {
 	sigset_t old_mask ;
 	swear( ::pthread_sigmask(0,nullptr,&old_mask)==0 , "cannot get sig ",sig ) ;
-	return ::sigismember(&old_mask,sig) ;
+	return sigismember(&old_mask,sig) ;                                                        // sigismember can be a macro
 }
 inline void block_sigs  (::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_BLOCK   , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot block sigs "  ,sigs) ; }
 inline void unblock_sigs(::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_UNBLOCK , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot unblock sigs ",sigs) ; }
@@ -203,12 +207,81 @@ struct BlockedSig {
 } ;
 
 //
+// Pipe
+//
+
+struct Pipe {
+	// cxtors & casts
+	Pipe(                          ) = default ;
+	Pipe(NewType,bool no_std_=false) { open(no_std_) ; }
+	// services
+	void open(bool no_std_=false) {
+		int fds[2] ;
+		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
+		read  = {fds[0],no_std_} ;
+		write = {fds[1],no_std_} ;
+	}
+	void close() {
+		read .close() ;
+		write.close() ;
+	}
+	void no_std() {
+		read .no_std() ;
+		write.no_std() ;
+	}
+	// data
+	Fd read  ; // read  side of the pipe
+	Fd write ; // write side of the pipe
+} ;
+
+//
+// EventFd
+//
+
+#if HAS_EVENTFD
+	struct EventFd : AcFd {
+		EventFd(NewType) : AcFd{::eventfd(0,O_CLOEXEC),true/*no_std*/} {}
+		void wakeup() const {
+			static constexpr uint64_t One = 1 ;
+			ssize_t cnt = ::write(self,&One,sizeof(One)) ;
+			SWEAR( cnt==sizeof(One) , cnt,self ) ;
+		}
+		void flush() const {
+			uint64_t one ;
+			ssize_t  cnt = ::read(self,&one,sizeof(one)) ;
+			SWEAR( cnt==sizeof(one) , cnt,self ) ;
+		}
+	} ;
+#else
+	struct EventFd : AcFd {
+		EventFd(NewType) {
+			Pipe pipe { New } ;
+			AcFd::operator=(pipe.read) ;
+			_write = pipe.write ;
+		}
+		void wakeup() const {
+			static constexpr char Zero = 0 ;
+			ssize_t cnt = ::write(_write,&Zero,1) ;
+			SWEAR( cnt==1 , cnt,self ) ;
+		}
+		void flush() const {
+			char zero ;
+			ssize_t cnt = ::read(self,&zero,1) ;
+			SWEAR( cnt==1 , cnt,self ) ;
+		}
+		// data
+	private :
+		AcFd _write ;
+	} ;
+#endif
+
+//
 // Epoll
 //
 
 #if HAS_EPOLL
 
-	extern ::uset<int>* _s_epoll_sigs ;                                 // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
+	extern ::uset<int>* _s_epoll_sigs ; // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
 	template<StdEnum E> struct _Epoll {
 		struct Event : ::epoll_event {
 			// cxtors & casts
@@ -230,17 +303,15 @@ struct BlockedSig {
 			_fd = AcFd( ::epoll_create1(EPOLL_CLOEXEC) , true/*no_std*/ ) ;
 		}
 		void add( bool write , Fd fd , E data ) {
-			Event event { write , fd , data }                              ;
-			int   rc    = ::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event ) ;
-			swear_prod(rc==0,"cannot add",fd,"to epoll",_fd,'(',::strerror(errno),')') ;
+			Event event { write , fd , data } ;
+			if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )<0) fail_prod("cannot add",fd,"to epoll",_fd,'(',::strerror(errno),')') ;
 		}
 		void del( bool /*write*/ , Fd fd ) {
-			int rc = ::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr ) ;
-			swear_prod(rc==0,"cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
+			if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr )<0) fail_prod("cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
 		}
 		void add_sig( int sig , E data , pid_t pid=0 ) {
 			SWEAR(is_blocked_sig(sig)) ;
-			::sigset_t sig_set  ;                                                          ::sigemptyset(&sig_set) ; ::sigaddset(&sig_set,sig) ;
+			::sigset_t sig_set  ;                                                          sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
 			Fd         fd       = ::signalfd( -1 , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
 			bool       inserted = _sig_infos   . try_emplace(sig,fd     ).second          ; SWEAR(inserted,fd,sig    ) ;
 			/**/       inserted = _fd_infos    . try_emplace(fd ,sig,pid).second          ; SWEAR(inserted,fd,sig,pid) ;
@@ -338,10 +409,11 @@ struct BlockedSig {
 
 	template<StdEnum E=NewType/*when unused*/> struct _Epoll {
 		struct Event : ::kevent {
+			using Base = struct ::kevent ;
 			// cxtors & casts
-			Event(                                           ) : ::kevent{                                                                                                                  } {}
-			Event( bool write , Fd  fd  , uint16_t f , E d=0 ) : ::kevent{ .ident{fd } , .filter{write?EVFILT_WRITE:EVFILT_READ} , .flags{f} , .udata{reinterpret_cast<void*>(uint32_t(d))} } {}
-			Event(              int sig , uint16_t f , E d=0 ) : ::kevent{ .ident{sig} , .filter{EVFILT_SIGNAL                 } , .flags{f} , .udata{reinterpret_cast<void*>(uint32_t(d))} } {}
+			Event(                                           ) = default ;
+			Event( bool write , Fd  fd  , uint16_t f , E d=0 ) : Base{.ident=uintptr_t(fd ),.filter=int16_t(write?EVFILT_WRITE:EVFILT_READ),.flags=f,.udata=reinterpret_cast<void*>(uint32_t(d))} {}
+			Event(              int sig , uint16_t f , E d=0 ) : Base{.ident=uintptr_t(sig),.filter=        EVFILT_SIGNAL                  ,.flags=f,.udata=reinterpret_cast<void*>(uint32_t(d))} {}
 			// access
 			int sig (_Epoll const&) const { SWEAR(filter==EVFILT_SIGNAL) ; return ident                                 ; }
 			Fd  fd  (             ) const { SWEAR(filter!=EVFILT_SIGNAL) ; return ident                                 ; }
@@ -351,25 +423,21 @@ struct BlockedSig {
 		void init() {
 			_fd = AcFd(::kqueue()) ;
 		}
-		template<StdEnum E> void add( bool write , Fd fd , E data ) {
+		void add( bool write , Fd fd , E data ) {
 			Event event { write , fd , EV_ADD , data } ;
-			int rc = ::kevent( _fd , &event,1 , nullptr,0 , nullptr ) ;
-			swear_prod(rc==0,"cannot add",fd,"to kqueue",_fd,'(',::strerror(errno),')') ;
+			if (::kevent( _fd , &event,1 , nullptr,0 , nullptr )<0) fail_prod("cannot add",fd,"to kqueue",_fd,'(',::strerror(errno),')') ;
 		}
 		void del( bool write , Fd fd ) {
 			Event event { write , fd , EV_DELETE } ;
-			int rc = ::kevent( _fd , &event,1 , nullptr,0 , nullptr ) ;
-			swear_prod(rc==0,"cannot del",fd,"from kqueue",_fd,'(',::strerror(errno),')') ;
+			if (::kevent( _fd , &event,1 , nullptr,0 , nullptr )<0) fail_prod("cannot del",fd,"from kqueue",_fd,'(',::strerror(errno),')') ;
 		}
-		template<StdEnum E> void add_sig( int sig , E data ) {
+		void add_sig( int sig , E data ) {
 			Event event { sig , EV_ADD , data } ;
-			int rc = ::kevent( _fd , &event,1 , nullptr,0 , nullptr ) ;
-			swear_prod(rc==0,"cannot add signal",sig,"to kqueue",_fd,'(',::strerror(errno),')') ;
+			if (::kevent( _fd , &event,1 , nullptr,0 , nullptr )<0) fail_prod("cannot add signal",sig,"to kqueue",_fd,'(',::strerror(errno),')') ;
 		}
 		void del_sig(int sig) {
 			Event event { sig , EV_DELETE } ;
-			int rc = ::kevent( _fd , &event,1 , nullptr,0 , nullptr ) ;
-			swear_prod(rc==0,"cannot del signal",fd,"from kqueue",_fd,'(',::strerror(errno),')') ;
+			if (::kevent( _fd , &event,1 , nullptr,0 , nullptr )<0) fail_prod("cannot del signal",sig,"from kqueue",_fd,'(',::strerror(errno),')') ;
 		}
 		void add_pid( pid_t pid , E data ) {
 			add_sig(SIGCHLD,data) ;

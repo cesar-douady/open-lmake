@@ -4,9 +4,10 @@
 
 valgrind = '/usr/bin/valgrind'
 
+import lmake
+
 if __name__!='__main__' :
 
-	import lmake
 	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
@@ -28,6 +29,10 @@ else :
 
 	import os
 	import os.path as osp
+
+	if 'ptrace' not in lmake.autodeps :
+		print('ptrace not available',file=open('skipped','w'))
+		exit()
 
 	if not osp.exists(valgrind) :
 		print('valgrind not available',file=open('skipped','w'))

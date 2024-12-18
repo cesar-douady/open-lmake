@@ -11,7 +11,7 @@ struct SyscallDescr {
 	static constexpr long NSyscalls = 1024 ;           // must larger than higher syscall number, 1024 is plenty, actual upper value is around 450
 	using Tab = ::array<SyscallDescr,NSyscalls> ;      // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
 	// static data
-	static Tab const& s_tab ;                          // ptrace does not support tmp mapping, which simplifies table a bit
+	static Tab const& s_tab ;
 	// accesses
 	constexpr bool operator+() const { return prio ; } // prio=0 means entry is not allocated
 	// data

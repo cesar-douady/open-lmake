@@ -3,12 +3,12 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-from lmake.rules import Rule
+import lmake
 
 if __name__!='__main__' :
 
-	import lmake
 	from lmake       import multi_strip
+	from lmake.rules import Rule
 
 	lmake.manifest = ('Lmakefile.py',)
 
@@ -83,6 +83,10 @@ if __name__!='__main__' :
 		'''
 
 else :
+
+	if not lmake.has_namespaces :
+		print('namespaces not available',file=open('skipped','w'))
+		exit()
 
 	import ut
 

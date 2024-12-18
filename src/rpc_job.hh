@@ -15,15 +15,47 @@
 #include "rpc_job_common.hh"
 
 // START_OF_VERSIONING
-ENUM_2( AutodepMethod                     // PER_AUTODEP_METHOD : add entry here
-,	Ld   = LdAudit                        // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
-,	Dflt = HAS_LD_AUDIT?LdAudit:LdPreload // by default, use  a compromize between speed an reliability
-,	None
-,	Ptrace
-,	LdAudit
-,	LdPreload
-,	LdPreloadJemalloc
-)
+#if HAS_LD_AUDIT
+	#if HAS_PTRACE
+		ENUM_2( AutodepMethod // PER_AUTODEP_METHOD : add entry here
+		,	Ld   = LdAudit    // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
+		,	Dflt = LdAudit    // by default, use a compromize between speed an reliability
+		,	None
+		,	Ptrace
+		,	LdAudit
+		,	LdPreload
+		,	LdPreloadJemalloc
+		)
+	#else
+		ENUM_2( AutodepMethod // PER_AUTODEP_METHOD : add entry here
+		,	Ld   = LdAudit    // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
+		,	Dflt = LdAudit    // by default, use a compromize between speed an reliability
+		,	None
+		,	LdAudit
+		,	LdPreload
+		,	LdPreloadJemalloc
+		)
+	#endif
+#else
+	#if HAS_PTRACE
+		ENUM_2( AutodepMethod // PER_AUTODEP_METHOD : add entry here
+		,	Ld   = LdPreload  // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
+		,	Dflt = LdPreload  // by default, use a compromize between speed an reliability
+		,	None
+		,	Ptrace
+		,	LdPreload
+		,	LdPreloadJemalloc
+		)
+	#else
+		ENUM_2( AutodepMethod // PER_AUTODEP_METHOD : add entry here
+		,	Ld   = LdPreload  // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
+		,	Dflt = LdPreload  // by default, use a compromize between speed an reliability
+		,	None
+		,	LdPreload
+		,	LdPreloadJemalloc
+		)
+	#endif
+#endif
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
@@ -724,7 +756,7 @@ struct JobStartRpcReply {
 	bool                     use_script     = false               ; //
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s ;                                // for use in exit (autodep.tmp_dir_s may be moved)
+	::string _tmp_dir_s ;                                           // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
 struct JobMngtRpcReq {

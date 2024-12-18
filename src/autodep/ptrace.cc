@@ -14,6 +14,11 @@
 
 #include "ptrace.hh"
 
+#if !HAS_PTRACE
+	#error cannot compile ptrace.cc without HAS_PTRACE
+#endif
+
+
 #if HAS_PTRACE_GET_SYSCALL_INFO
 	#include <linux/audit.h>    // AUDIT_ARCH_*
 #endif
