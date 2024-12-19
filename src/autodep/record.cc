@@ -3,13 +3,18 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <linux/limits.h>
-
 #include "disk.hh"
 
 #include "backdoor.hh"
 
 #include "record.hh"
+
+#ifndef O_PATH
+	#define O_PATH 0 // no check for O_PATH if it does not exist
+#endif
+#ifndef O_TMPFILE
+	#define O_TMPFILE 0 // no check for O_TMPFILE if it does not exist
+#endif
 
 using namespace Disk ;
 using namespace Time ;

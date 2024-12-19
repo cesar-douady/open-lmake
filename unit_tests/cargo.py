@@ -53,6 +53,10 @@ if __name__!='__main__' :
 
 else :
 
+	if os.uname().sysname!='Linux' :
+		print('neither jemalloc nor ptrace available',file=open('skipped','w'))
+		exit()
+
 	import os.path as osp
 	import shutil
 	import subprocess as sp

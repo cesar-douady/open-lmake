@@ -51,32 +51,57 @@ struct SyscallDescr {
 //
 // mere path accesses, no actual accesses to file data */
 //
+#if HAS_OFF64
+	#define ENUMERATE_PATH_LIBCALLS_64 /*is_stat*/ \
+	,	LIBCALL_ENTRY(fstatat64          ,true ) \
+	,	LIBCALL_ENTRY(__fxstatat64       ,true ) \
+	,	LIBCALL_ENTRY(lstat64            ,true ) \
+	,	LIBCALL_ENTRY(__lxstat64         ,true ) \
+	,	LIBCALL_ENTRY(scandir64          ,false) \
+	,	LIBCALL_ENTRY(scandirat64        ,false) \
+	,	LIBCALL_ENTRY(stat64             ,true ) \
+	,	LIBCALL_ENTRY(__xstat64          ,true )
+#else
+	#define ENUMERATE_PATH_LIBCALLS_64
+#endif
 #define ENUMERATE_PATH_LIBCALLS       /*is_stat*/ \
 ,	LIBCALL_ENTRY(access                ,true ) \
 ,	LIBCALL_ENTRY(canonicalize_file_name,false) \
 ,	LIBCALL_ENTRY(faccessat             ,true ) \
 ,	LIBCALL_ENTRY(fstatat               ,true ) \
-,	LIBCALL_ENTRY(fstatat64             ,true ) \
 ,	LIBCALL_ENTRY(__fxstatat            ,true ) \
-,	LIBCALL_ENTRY(__fxstatat64          ,true ) \
 ,	LIBCALL_ENTRY(lstat                 ,true ) \
-,	LIBCALL_ENTRY(lstat64               ,true ) \
 ,	LIBCALL_ENTRY(__lxstat              ,true ) \
-,	LIBCALL_ENTRY(__lxstat64            ,true ) \
 ,	LIBCALL_ENTRY(mkdirat               ,false) \
 ,	LIBCALL_ENTRY(opendir               ,false) \
 ,	LIBCALL_ENTRY(realpath              ,false) \
 ,	LIBCALL_ENTRY(__realpath_chk        ,false) \
 ,	LIBCALL_ENTRY(scandir               ,false) \
-,	LIBCALL_ENTRY(scandir64             ,false) \
 ,	LIBCALL_ENTRY(scandirat             ,false) \
-,	LIBCALL_ENTRY(scandirat64           ,false) \
 ,	LIBCALL_ENTRY(statx                 ,true ) \
 ,	LIBCALL_ENTRY(stat                  ,true ) \
-,	LIBCALL_ENTRY(stat64                ,true ) \
 ,	LIBCALL_ENTRY(__xstat               ,true ) \
-,	LIBCALL_ENTRY(__xstat64             ,true )
+	ENUMERATE_PATH_LIBCALLS_64
 
+#if HAS_OFF64
+	#define ENUMERATE_LIBCALLS_64    /*is_stat*/ \
+	,	LIBCALL_ENTRY(creat64          ,false) \
+	,	LIBCALL_ENTRY(fopen64          ,false) \
+	,	LIBCALL_ENTRY(freopen64        ,false) \
+	,	LIBCALL_ENTRY(mkostemp64       ,false) \
+	,	LIBCALL_ENTRY(mkostemps64      ,false) \
+	,	LIBCALL_ENTRY(mkstemp64        ,false) \
+	,	LIBCALL_ENTRY(mkstemps64       ,false) \
+	,	LIBCALL_ENTRY(open64           ,false) \
+	,	LIBCALL_ENTRY(__open64         ,false) \
+	,	LIBCALL_ENTRY(__open64_nocancel,false) \
+	,	LIBCALL_ENTRY(__open64_2       ,false) \
+	,	LIBCALL_ENTRY(openat64         ,false) \
+	,	LIBCALL_ENTRY(__openat64_2     ,false) \
+	,	LIBCALL_ENTRY(truncate64       ,false)
+#else
+	#define ENUMERATE_LIBCALLS_64
+#endif
 #define ENUMERATE_LIBCALLS       /*is_stat*/ \
 	LIBCALL_ENTRY(chdir            ,false) \
 ,	LIBCALL_ENTRY(chmod            ,false) \
@@ -85,7 +110,6 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(close            ,false) \
 ,	LIBCALL_ENTRY(__close          ,false) \
 ,	LIBCALL_ENTRY(creat            ,false) \
-,	LIBCALL_ENTRY(creat64          ,false) \
 ,	LIBCALL_ENTRY(dup2             ,false) \
 ,	LIBCALL_ENTRY(dup3             ,false) \
 ,	LIBCALL_ENTRY(execl            ,false) \
@@ -99,11 +123,9 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(fchdir           ,false) \
 ,	LIBCALL_ENTRY(fchmodat         ,false) \
 ,	LIBCALL_ENTRY(fopen            ,false) \
-,	LIBCALL_ENTRY(fopen64          ,false) \
 ,	LIBCALL_ENTRY(fork             ,false) \
 ,	LIBCALL_ENTRY(__fork           ,false) \
 ,	LIBCALL_ENTRY(freopen          ,false) \
-,	LIBCALL_ENTRY(freopen64        ,false) \
 ,	LIBCALL_ENTRY(futimesat        ,false) \
 ,	LIBCALL_ENTRY(__libc_fork      ,false) \
 ,	LIBCALL_ENTRY(link             ,false) \
@@ -111,26 +133,16 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(lutimes          ,false) \
 ,	LIBCALL_ENTRY(mkdir            ,false) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
 ,	LIBCALL_ENTRY(mkostemp         ,false) \
-,	LIBCALL_ENTRY(mkostemp64       ,false) \
 ,	LIBCALL_ENTRY(mkostemps        ,false) \
-,	LIBCALL_ENTRY(mkostemps64      ,false) \
 ,	LIBCALL_ENTRY(mkstemp          ,false) \
-,	LIBCALL_ENTRY(mkstemp64        ,false) \
 ,	LIBCALL_ENTRY(mkstemps         ,false) \
-,	LIBCALL_ENTRY(mkstemps64       ,false) \
 ,	LIBCALL_ENTRY(mount            ,false) \
 ,	LIBCALL_ENTRY(open             ,false) \
 ,	LIBCALL_ENTRY(__open           ,false) \
 ,	LIBCALL_ENTRY(__open_nocancel  ,false) \
 ,	LIBCALL_ENTRY(__open_2         ,false) \
-,	LIBCALL_ENTRY(open64           ,false) \
-,	LIBCALL_ENTRY(__open64         ,false) \
-,	LIBCALL_ENTRY(__open64_nocancel,false) \
-,	LIBCALL_ENTRY(__open64_2       ,false) \
 ,	LIBCALL_ENTRY(openat           ,false) \
 ,	LIBCALL_ENTRY(__openat_2       ,false) \
-,	LIBCALL_ENTRY(openat64         ,false) \
-,	LIBCALL_ENTRY(__openat64_2     ,false) \
 ,	LIBCALL_ENTRY(readlink         ,false) \
 ,	LIBCALL_ENTRY(readlinkat       ,false) \
 ,	LIBCALL_ENTRY(__readlinkat_chk ,false) \
@@ -144,12 +156,12 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(syscall          ,false) \
 ,	LIBCALL_ENTRY(system           ,false) \
 ,	LIBCALL_ENTRY(truncate         ,false) \
-,	LIBCALL_ENTRY(truncate64       ,false) \
 ,	LIBCALL_ENTRY(unlink           ,false) \
 ,	LIBCALL_ENTRY(unlinkat         ,false) \
 ,	LIBCALL_ENTRY(utime            ,false) \
 ,	LIBCALL_ENTRY(utimensat        ,false) \
 ,	LIBCALL_ENTRY(utimes           ,false) \
+	ENUMERATE_LIBCALLS_64                  \
 	ENUMERATE_LD_PRELOAD_LIBCALLS          \
 	ENUMERATE_PATH_LIBCALLS                \
 	ENUMERATE_VFORK_LIBCALLS

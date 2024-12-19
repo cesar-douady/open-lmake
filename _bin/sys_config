@@ -204,6 +204,18 @@ EOF
 HAS_KQUEUE=$(ok cc -o /dev/null -xc kqueue.c) # check if kqueue is available in lib
 
 #
+# FILE_HANDLE (HAS_FILE_HANDLE)
+#
+cat <<"EOF" >file_handle.c
+	#ifndef _GNU_SOURCE
+		#define _GNU_SOURCE
+	#endif
+	#include <fcntl.h>
+	int main() { name_to_handle_at(0,NULL,NULL,NULL,0) ; }
+EOF
+HAS_FILE_HANDLE=$(ok cc -o /dev/null -xc file_handle.c) # check if name_to_handle_at is available in lib
+
+#
 #
 # INC_DIRS (STD_INC_DIRS+DARWIN_FIX_FLAGS)
 #
@@ -216,6 +228,11 @@ if [ "$OS" = Darwin ] ; then
 		DARWIN_FIX_FLAGS="$DARWIN_FIX_FLAGS -isystem $d/c++/v1"
 	done
 fi
+
+#
+# ELF (HAS_ELF)
+#
+HAS_ELF=$(ok cc -E --include 'link.h' -o /dev/null -xc /dev/null )
 
 # EXPERIMENTAL_LIBRARY (NEED_EXPERIMENTAL_LIBRARY) - must be after INC_DIRS
 #
@@ -348,7 +365,7 @@ cat <<"EOF" >namespaces.c
 	#include <sched.h>
 	int main() { unshare(0) ; }
 EOF
-HAS_NAMESPACES=$(ok cc -c -o /dev/null -xc namespaces.c) # check if unshare is available in lib
+HAS_NAMESPACES=$(ok cc -o /dev/null -xc namespaces.c) # check if unshare is available in lib
 
 #
 # OBJCOPY
@@ -358,6 +375,18 @@ case $CXX_FLAVOR in
 	clang) OBJCOPY=$CXX_DIR/llvm-objcopy ;;
 esac
 [ -x "$OBJCOPY" ] || OBJCOPY=$(type -p objcopy ||:)
+
+#
+# OFF64 (HAS_OFF64)
+#
+cat <<"EOF" >off64.c
+	#ifndef _GNU_SOURCE
+		#define _GNU_SOURCE
+	#endif
+	#include <sys/types.h>
+	off64_t x ;
+EOF
+HAS_OFF64=$(ok cc -c -o /dev/null -xc off64.c)
 
 #
 # OS (IS_LINUX,IS_DARWIN,OS_ID,OS_VERSION_ID)
@@ -437,6 +466,11 @@ HAS_SECCOMP=$(ok cc -idirafter /usr/include/linux -o /dev/null -xc seccomp.c -l:
 [ $HAS_SECCOMP = 1 ] || echo "no seccomp support, fall back to (slower when autodep=ptrace) ptrace to trace jobs" >>$SUM_FILE
 
 #
+# SENDFILE (HAS_SENDFILE)
+#
+HAS_SENDFILE=$(ok cc -E --include 'sys/sendfile.h' -o /dev/null -xc /dev/null )
+
+#
 # SGE (HAS_SGE)
 #
 HAS_SGE=$(ok type -p qsub)
@@ -509,6 +543,11 @@ EOF
 if cc -c -o /dev/null -xc st_mtim.c ; then ST_MTIMESPEC=st_mtim ; fi
 
 #
+# TEXI (HAS_TEXI)
+#
+HAS_TEXI=$(ok type -p texi2any)
+
+#
 # UINT (HAS_UINT)
 # true if ushort, uint and ulong are standard types
 #
@@ -554,6 +593,7 @@ cat >$MK_FILE <<-EOF
 	DARWIN_FIX_FLAGS          := $DARWIN_FIX_FLAGS
 	GIT                       := $(type -p git)
 	HAS_32                    := ${HAS_32#0}
+	HAS_ELF                   := ${HAS_ELF#0}
 	HAS_LD_AUDIT              := ${HAS_LD_AUDIT#0}
 	HAS_NAMESPACES            := ${HAS_NAMESPACES#0}
 	HAS_PCRE                  := ${HAS_PCRE#0}
@@ -563,6 +603,9 @@ cat >$MK_FILE <<-EOF
 	HAS_SECCOMP               := ${HAS_SECCOMP#0}
 	HAS_SGE                   := ${HAS_SGE#0}
 	HAS_SLURM                 := ${HAS_SLURM#0}
+	HAS_TEXI                  := ${HAS_TEXI#0}
+	IS_DARWIN                 := ${IS_DARWIN#0}
+	IS_LINUX                  := ${IS_LINUX#0}
 	LD_SO_LIB                 := $LD_SO_LIB
 	LD_SO_LIB_32              := $LD_SO_LIB_32
 	LIB_STACKTRACE            := $LIB_STACKTRACE
@@ -606,25 +649,29 @@ cat >$H_FILE <<-EOF
 	#define HAS_32                      $HAS_32
 	#define HAS_ADDR2LINE               $HAS_ADDR2LINE
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
+	#define HAS_ELF                     $HAS_ELF
 	#define HAS_EPOLL                   $HAS_EPOLL
 	#define HAS_EVENTFD                 $HAS_EVENTFD
+	#define HAS_FILE_HANDLE             $HAS_FILE_HANDLE
 	#define HAS_INOTIFY                 $HAS_INOTIFY
 	#define HAS_KQUEUE                  $HAS_KQUEUE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD
 	#define HAS_MREMAP                  $HAS_MREMAP
 	#define HAS_NAMESPACES              $HAS_NAMESPACES
+	#define HAS_OFF64                   $HAS_OFF64
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PTRACE                  $HAS_PTRACE
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
+	#define HAS_SENDFILE                $HAS_SENDFILE
 	#define HAS_SGE                     $HAS_SGE
 	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
 	#define HAS_UINT                    $HAS_UINT
 	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
-	#define IS_LINUX                    $IS_LINUX
 	#define IS_DARWIN                   $IS_DARWIN
+	#define IS_LINUX                    $IS_LINUX
 	#define LD_SO_LIB                   "$LD_SO_LIB"
 	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
 	#define MAP_VFORK                   $MAP_VFORK

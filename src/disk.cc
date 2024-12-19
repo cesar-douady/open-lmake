@@ -4,10 +4,13 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <sys/mman.h>
-#include <sys/sendfile.h>
 
 #include "disk.hh"
 #include "hash.hh"
+
+#if HAS_SENDFILE
+	#include <sys/sendfile.h>
+#endif
 
 using namespace filesystem ;
 
@@ -321,14 +324,15 @@ namespace Disk {
 				dir_guard(dst_at,dst_file) ;
 				AcFd rfd {             src_at , src_file }                                                                                                                             ;
 				AcFd wfd { ::openat( dst_at , dst_file.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0777 & ~(tag==FileTag::Exe?0000:0111) & ~(mk_read_only?0222:0000) ) } ;
-				::sendfile( wfd , rfd , nullptr , fi.sz ) ;
-			}
-			break ;
-			case FileTag::Lnk : {
-				::string target = read_lnk(src_at,src_file) ;
+				#if HAS_SENDFILE
+					::sendfile( wfd , rfd , nullptr , fi.sz ) ;
+				#else
+					wfd.write( rfd.read(fi.sz) ) ;
+				#endif
+			} break ;
+			case FileTag::Lnk :
 				dir_guard(dst_at,dst_file) ;
-				lnk( dst_at , dst_file , target ) ;
-			}
+				lnk( dst_at , dst_file , read_lnk(src_at,src_file) ) ;
 			break ;
 		DF}
 		return tag ;
@@ -363,7 +367,8 @@ namespace Disk {
 
 	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {
 		Stat st ;
-		if (::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|(no_follow?AT_SYMLINK_NOFOLLOW:0) )<0) return ;
+		if (+name) { if (::fstatat( at , name.c_str() , &st , no_follow?AT_SYMLINK_NOFOLLOW:0 )<0) return ; }
+		else       { if (::fstat  ( at ,                &st                                   )<0) return ; }
 		self = st ;
 	}
 

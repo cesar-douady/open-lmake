@@ -5,6 +5,11 @@
 
 #include "utils.hh"
 
+#if !HAS_ELF
+	#undef HAS_ADDR2LINE
+	#define HAS_ADDR2LINE 0 // cant use addr2line w/o elf support
+#endif
+
 #if HAS_CLOSE_RANGE
     #include <linux/close_range.h>
 #endif

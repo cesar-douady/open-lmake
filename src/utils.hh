@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <atomic>
 #include <array>
+#include <bit>
 #include <charconv> // from_chars_result
 #include <concepts>
 #include <functional>

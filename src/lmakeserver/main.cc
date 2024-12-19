@@ -193,11 +193,9 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						goto Done ;
 					}
 					switch (kind) {
-						case EventKind::Int   : {
-							struct signalfd_siginfo event ;
-							ssize_t                 cnt   = ::read( fd , &event , sizeof(event) ) ;
-							SWEAR(cnt==sizeof(event),cnt) ;
-						} break ;
+						case EventKind::Int :
+							EventFd(fd).flush() ;
+						break ;
 						#if HAS_INOTIFY
 							case EventKind::Watch : {
 								struct inotify_event event ;

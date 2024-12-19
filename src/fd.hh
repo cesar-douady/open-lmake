@@ -241,6 +241,7 @@ struct Pipe {
 #if HAS_EVENTFD
 	struct EventFd : AcFd {
 		EventFd(NewType) : AcFd{::eventfd(0,O_CLOEXEC),true/*no_std*/} {}
+		EventFd(Fd fd_ ) : AcFd{fd_                                  } {}
 		void wakeup() const {
 			static constexpr uint64_t One = 1 ;
 			ssize_t cnt = ::write(self,&One,sizeof(One)) ;
@@ -259,14 +260,15 @@ struct Pipe {
 			AcFd::operator=(pipe.read) ;
 			_write = pipe.write ;
 		}
+		EventFd(Fd fd_) : AcFd{fd_} {}
 		void wakeup() const {
 			static constexpr char Zero = 0 ;
 			ssize_t cnt = ::write(_write,&Zero,1) ;
 			SWEAR( cnt==1 , cnt,self ) ;
 		}
 		void flush() const {
-			char zero ;
-			ssize_t cnt = ::read(self,&zero,1) ;
+			char    zero ;
+			ssize_t cnt  = ::read(self,&zero,1) ;
 			SWEAR( cnt==1 , cnt,self ) ;
 		}
 		// data
@@ -411,9 +413,9 @@ struct Pipe {
 		struct Event : ::kevent {
 			using Base = struct ::kevent ;
 			// cxtors & casts
-			Event(                                           ) = default ;
-			Event( bool write , Fd  fd  , uint16_t f , E d=0 ) : Base{.ident=uintptr_t(fd ),.filter=int16_t(write?EVFILT_WRITE:EVFILT_READ),.flags=f,.udata=reinterpret_cast<void*>(uint32_t(d))} {}
-			Event(              int sig , uint16_t f , E d=0 ) : Base{.ident=uintptr_t(sig),.filter=        EVFILT_SIGNAL                  ,.flags=f,.udata=reinterpret_cast<void*>(uint32_t(d))} {}
+			Event(                                            ) = default ;
+			Event( bool write , Fd  fd  , uint16_t f , E d={} ) : Base{.ident=uintptr_t(fd ),.filter=int16_t(write?EVFILT_WRITE:EVFILT_READ),.flags=f,.udata=reinterpret_cast<void*>(uint32_t(d))} {}
+			Event( int sig              , uint16_t f , E d={} ) : Base{.ident=uintptr_t(sig),.filter=        EVFILT_SIGNAL                  ,.flags=f,.udata=reinterpret_cast<void*>(uint32_t(d))} {}
 			// access
 			int sig (_Epoll const&) const { SWEAR(filter==EVFILT_SIGNAL) ; return ident                                 ; }
 			Fd  fd  (             ) const { SWEAR(filter!=EVFILT_SIGNAL) ; return ident                                 ; }
@@ -423,26 +425,17 @@ struct Pipe {
 		void init() {
 			_fd = AcFd(::kqueue()) ;
 		}
-		void add( bool write , Fd fd , E data ) {
-			Event event { write , fd , EV_ADD , data } ;
-			if (::kevent( _fd , &event,1 , nullptr,0 , nullptr )<0) fail_prod("cannot add",fd,"to kqueue",_fd,'(',::strerror(errno),')') ;
-		}
-		void del( bool write , Fd fd ) {
-			Event event { write , fd , EV_DELETE } ;
-			if (::kevent( _fd , &event,1 , nullptr,0 , nullptr )<0) fail_prod("cannot del",fd,"from kqueue",_fd,'(',::strerror(errno),')') ;
-		}
-		void add_sig( int sig , E data ) {
-			Event event { sig , EV_ADD , data } ;
-			if (::kevent( _fd , &event,1 , nullptr,0 , nullptr )<0) fail_prod("cannot add signal",sig,"to kqueue",_fd,'(',::strerror(errno),')') ;
-		}
-		void del_sig(int sig) {
-			Event event { sig , EV_DELETE } ;
-			if (::kevent( _fd , &event,1 , nullptr,0 , nullptr )<0) fail_prod("cannot del signal",sig,"from kqueue",_fd,'(',::strerror(errno),')') ;
-		}
-		void add_pid( pid_t pid , E data ) {
-			add_sig(SIGCHLD,data) ;
-		}
-		void del_pid (pid_t          ) { del_sig(SIGCHLD     ) ; }
+		#define N  nullptr
+		#define ES ::strerror(errno)
+		void add( bool write , Fd fd , E data ) { if (::kevent( _fd , &::ref(Event(write,fd,EV_ADD   ,data)),1 , N,0 , N )<0) fail_prod("cannot add"       ,fd ,"to kqueue"  ,_fd,'(',ES,')') ; }
+		void del( bool write , Fd fd          ) { if (::kevent( _fd , &::ref(Event(write,fd,EV_DELETE     )),1 , N,0 , N )<0) fail_prod("cannot del"       ,fd ,"from kqueue",_fd,'(',ES,')') ; }
+		void add_sig( int sig        , E data ) { if (::kevent( _fd , &::ref(Event(sig     ,EV_ADD   ,data)),1 , N,0 , N )<0) fail_prod("cannot add signal",sig,"to kqueue"  ,_fd,'(',ES,')') ; }
+		void del_sig( int sig                 ) { if (::kevent( _fd , &::ref(Event(sig     ,EV_DELETE     )),1 , N,0 , N )<0) fail_prod("cannot del signal",sig,"from kqueue",_fd,'(',ES,')') ; }
+		#undef ES
+		#undef N
+		void add_pid( pid_t , E data ) { add_sig(SIGCHLD,data) ; }
+		void del_pid( pid_t          ) { del_sig(SIGCHLD     ) ; }
+		//
 		::vector<Event> wait( Time::Delay timeout , uint cnt ) const {
 			::vector<Event>   res ( cnt     ) ;
 			struct ::timespec ts  ( timeout ) ;
