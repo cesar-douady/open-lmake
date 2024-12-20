@@ -38,10 +38,6 @@ else :
 	import subprocess as sp
 	import sys
 
-	if os.uname().sysname!='Linux' :
-		print('jemalloc not implemented',file=open('skipped','w'))
-		exit()
-
 	sav = os.environ.get('LD_PRELOAD')
 	os.environ['LD_PRELOAD'] = 'libjemalloc.so'
 	has_jemalloc             = not sp.run(('/usr/bin/echo',),check=True,stderr=sp.PIPE).stderr

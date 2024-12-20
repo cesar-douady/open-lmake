@@ -14,9 +14,7 @@
 
 using namespace Time ;
 
-#if HAS_EPOLL
-	::uset<int>* _s_epoll_sigs = new ::uset<int> ;
-#endif
+::uset<int>* _s_epoll_sigs = new ::uset<int> ;
 
 ::string& operator+=( ::string& os , Fd           const& fd ) { return os << "Fd("           << fd.fd <<')' ; }
 ::string& operator+=( ::string& os , AcFd         const& fd ) { return os << "AcFd("         << fd.fd <<')' ; }

@@ -42,11 +42,6 @@ using std::getline  ; // special case getline which also has a C version that hi
 
 #define self (*this)
 
-#if !HAS_UINT
-	using uint  = unsigned int  ;
-	using ulong = unsigned long ;
-#endif
-
 template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
 
 static constexpr size_t Npos = ::string::npos ;

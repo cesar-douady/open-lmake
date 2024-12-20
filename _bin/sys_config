@@ -5,17 +5,6 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-if [ "$OS" = Darwin ] ; then
-	realpath() {
-		for f in "$@" ; do
-			case $f in
-				/*) echo "$f"      ;;
-				* ) echo "$PWD/$f" ;;
-			esac
-		done
-	}
-fi
-
 MK_FILE=$( realpath ${1:-/dev/null})
 H_FILE=$(  realpath ${2:-/dev/null})
 SUM_FILE=$(realpath ${3:-/dev/null})
@@ -23,9 +12,7 @@ ERR_FILE=$(realpath ${4:-/dev/null})
 
 trial_dir=${MK_FILE%.*}.trial
 
-if [ "$OS" = Linux ] ; then
-	source /etc/os-release  # define ID and VERSION_ID
-fi
+source /etc/os-release # define ID and VERSION_ID
 
 echo SYS_CONFIG_OK := 0 >$MK_FILE  # this will be overwritten at the end, when auto-config has gone through
                         >$H_FILE   # useless, for sanity only
@@ -91,90 +78,64 @@ echo "using $CXX as $CXX_STD compiler (version $CXX_VERSION)" >>$SUM_FILE
 # Python configuration (Python2 is optional)
 #
 
-case $OS in
-	#
-	Linux)
-		config_python() {
-			python=$1
-			ver=$2
-			python=${python:-python$ver}
-			p=$(type -p $python || :)
-			[ "$p" ] || { msg="$python not found" ; return 1 ; }
-			python=$p
-			llp=$LD_LIBRARY_PATH                                                                    # save LD_LIBARY_PATH
-			export LD_LIBRARY_PATH="$(dirname $(dirname $python))/lib:$LD_LIBRARY_PATH"
-			py_major=$($python -c 'import sys       ; print(sys.version_info.major                )')
-			py_minor=$($python -c 'import sys       ; print(sys.version_info.minor                )')
-			inc_dir=$( $python -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEDIR"))')
-			inc_py=$(  $python -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEPY" ))')
-			lib_base=$($python -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY" ))')
-			lib_dir=$( $python -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"    ))')
-			case $ver in
-				2)	[ $py_major -eq 2 ] || { msg="$python version must be 2.x"          ; return 1 ; }
-					[ $py_minor -ge 7 ] || { msg="$python version must be at least 2.7" ; return 1 ; }
-				;;
-				3)	[ $py_major -eq 3 ] || { msg="$python version must be 3.x"          ; return 1 ; }
-					[ $py_minor -ge 6 ] || { msg="$python version must be at least 3.6" ; return 1 ; }
-				;;
-			esac
-			case $lib_base in
-				*.so | *.a ) ;;
-				*          ) msg="$python library $lib_base is not a python library" ; return 1 ;;
-			esac
-			case $lib_dir/ in
-				/usr/lib/*  ) lib_dir= ;;
-				/usr/lib64/*) lib_dir= ;;
-			esac
-			[ ! "$lib_dir" ] || lib_opt=-L$lib_dir
-			cat <<-"EOF" >probe_python$ver.c
-				#include <Python.h>
-				int main() {
-					PyObject* none = Py_None ;
-				}
-			EOF
-			cc -o /dev/null -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { msg="$python is unusable as python library" ; return 1 ; } # check if Py_None is available in lib
-			eval "PYTHON${ver#3}=$python"
-			eval "PY${ver}_INCLUDEDIR=$inc_dir"
-			eval "PY${ver}_INCLUDEPY=$inc_py"
-			eval "PY${ver}_LIB_BASE=$lib_base"
-			eval "PY${ver}_LIB_DIR=$lib_dir"
-			case "$lib_base" in
-				*.so) eval "HAS_PY${ver}_DYN=1" ; echo "using $python as python$ver (version $py_major.$py_minor)"                                           >>$SUM_FILE ;;
-				*.a ) eval "HAS_PY${ver}_DYN=0" ; echo "using $python as python$ver (version $py_major.$py_minor) with static library (minimal job support)" >>$SUM_FILE ;;
-			esac
-			LD_LIBRARY_PATH=$llp                                                                    # restore LD_LIBARY_PATH
+config_python() {
+	python=$1
+	ver=$2
+	python=${python:-python$ver}
+	p=$(type -p $python || :)
+	[ "$p" ] || { msg="$python not found" ; return 1 ; }
+	python=$p
+	llp=$LD_LIBRARY_PATH                                                                                                                   # save LD_LIBARY_PATH
+	export LD_LIBRARY_PATH="$(dirname $(dirname $python))/lib:$LD_LIBRARY_PATH"
+	py_major=$($python -c 'import sys       ; print(sys.version_info.major                )')
+	py_minor=$($python -c 'import sys       ; print(sys.version_info.minor                )')
+	inc_dir=$( $python -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEDIR"))')
+	inc_py=$(  $python -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEPY" ))')
+	lib_base=$($python -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY" ))')
+	lib_dir=$( $python -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"    ))')
+	case $ver in
+		2)	[ $py_major -eq 2 ] || { msg="$python version must be 2.x"          ; return 1 ; }
+			[ $py_minor -ge 7 ] || { msg="$python version must be at least 2.7" ; return 1 ; }
+		;;
+		3)	[ $py_major -eq 3 ] || { msg="$python version must be 3.x"          ; return 1 ; }
+			[ $py_minor -ge 6 ] || { msg="$python version must be at least 3.6" ; return 1 ; }
+		;;
+	esac
+	case $lib_base in
+		*.so | *.a ) ;;
+		*          ) msg="$python library $lib_base is not a python library" ; return 1 ;;
+	esac
+	case $lib_dir/ in
+		/usr/lib/*  ) lib_dir= ;;
+		/usr/lib64/*) lib_dir= ;;
+	esac
+	[ ! "$lib_dir" ] || lib_opt=-L$lib_dir
+	cat <<-"EOF" >probe_python$ver.c
+		#include <Python.h>
+		int main() {
+			PyObject* none = Py_None ;
 		}
-		#
-		config_python "$PYTHON2" 2 || { echo "no python2 support ($msg)" >>$SUM_FILE ; PYTHON2= ; } # python2 is optional
-		config_python "$PYTHON"  3 || { echo                      $msg   >>$ERR_FILE ; exit 1   ; } # python3 is compulsery
-		#
-		if   [ "$PY2_LIB_DIR" -a "$PY3_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR:$PY2_LIB_DIR
-		elif [ "$PY2_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY2_LIB_DIR
-		elif [ "$PY3_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR
-		fi
-	;;
-	#
-	Darwin)
-		python=${PYTHON:-python3}
-		p=$(type -p $python)
-		[ "$p" ] || { echo "$python not found">>$ERR_FILE ; exit 1 ; }
-		python=$p
-		py_major=$($python -c 'import sys ; print(sys.version_info.major)')
-		py_minor=$($python -c 'import sys ; print(sys.version_info.minor)')
-		[ $py_major -eq 3 ] || { echo "$python version must be 3.x"          >>$ERR_FILE ; exit 1 ; }
-		[ $py_minor -ge 6 ] || { echo "$python version must be at least 3.6" >>$ERR_FILE ; exit 1 ; }
-		base=$($python -c 'import sysconfig ; print(sysconfig.get_config_var("base"))')
-		#
-		PYTHON=$python
-		PY3_INCLUDEDIR=
-		PY3_INCLUDEPY=$base/Headers
-		PY3_LIB_BASE=libpython3.$py_minor.dylib
-		PY3_LIB_DIR=$base/lib/python3.$py_minor/config-3.$py_minor-darwin
-		HAS_PY3_DYN=1
-		PY_LD_LIBRARY_PATH=$PY3_LIB_DIR
-	;;
-	#
-esac
+	EOF
+	cc -o /dev/null -I$inc_py $lib_opt -xc probe_python$ver.c -l:$lib_base || { msg="$python is unusable as python library" ; return 1 ; } # check if Py_None is available in lib
+	eval "PYTHON${ver#3}=$python"
+	eval "PY${ver}_INCLUDEDIR=$inc_dir"
+	eval "PY${ver}_INCLUDEPY=$inc_py"
+	eval "PY${ver}_LIB_BASE=$lib_base"
+	eval "PY${ver}_LIB_DIR=$lib_dir"
+	case "$lib_base" in
+		*.so) eval "HAS_PY${ver}_DYN=1" ; echo "using $python as python$ver (version $py_major.$py_minor)"                                           >>$SUM_FILE ;;
+		*.a ) eval "HAS_PY${ver}_DYN=0" ; echo "using $python as python$ver (version $py_major.$py_minor) with static library (minimal job support)" >>$SUM_FILE ;;
+	esac
+	LD_LIBRARY_PATH=$llp                                                                                                                   # restore LD_LIBARY_PATH
+}
+#
+config_python "$PYTHON2" 2 || { echo "no python2 support ($msg)" >>$SUM_FILE ; PYTHON2= ; }                                                # python2 is optional
+config_python "$PYTHON"  3 || { echo                      $msg   >>$ERR_FILE ; exit 1   ; }                                                # python3 is compulsery
+#
+if   [ "$PY2_LIB_DIR" -a "$PY3_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR:$PY2_LIB_DIR
+elif [ "$PY2_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY2_LIB_DIR
+elif [ "$PY3_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR
+fi
 
 #
 # ADDR2LINE (ADDR2LINE+HAS_ADDR2LINE)
@@ -194,45 +155,12 @@ HAS_ADDR2LINE=$(ok test "$ADDR2LINE")
 HAS_CLOSE_RANGE=$(ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
 
 #
-# EPOLL & KQUEUE (HAS_EPOLL+HAS_KQUEUE)
 #
-HAS_EPOLL=$(ok cc -E --include 'sys/epoll.h' -o /dev/null -xc /dev/null )
-cat <<"EOF" >kqueue.c
-	#include <sys/event.h>
-	int main() { kqueue() ; }
-EOF
-HAS_KQUEUE=$(ok cc -o /dev/null -xc kqueue.c) # check if kqueue is available in lib
-
-#
-# FILE_HANDLE (HAS_FILE_HANDLE)
-#
-cat <<"EOF" >file_handle.c
-	#ifndef _GNU_SOURCE
-		#define _GNU_SOURCE
-	#endif
-	#include <fcntl.h>
-	int main() { name_to_handle_at(0,NULL,NULL,NULL,0) ; }
-EOF
-HAS_FILE_HANDLE=$(ok cc -o /dev/null -xc file_handle.c) # check if name_to_handle_at is available in lib
-
-#
-#
-# INC_DIRS (STD_INC_DIRS+DARWIN_FIX_FLAGS)
+# INC_DIRS (STD_INC_DIRS)
 #
 cc -v -E -o /dev/null -xc++ -std=$CXX_STD - </dev/null 2>compiler_info
 # get only first word of each inclue dir as there may be info following it
 STD_INC_DIRS="$(echo $(realpath $(sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$d' -e 's/ *\([^ ]*\).*/\1/' compiler_info)) )" # echo is used to replace \n by space
-if [ "$OS" = Darwin ] ; then
-	DARWIN_FIX_FLAGS=
-	for d in $STD_INC_DIRS ; do
-		DARWIN_FIX_FLAGS="$DARWIN_FIX_FLAGS -isystem $d/c++/v1"
-	done
-fi
-
-#
-# ELF (HAS_ELF)
-#
-HAS_ELF=$(ok cc -E --include 'link.h' -o /dev/null -xc /dev/null )
 
 # EXPERIMENTAL_LIBRARY (NEED_EXPERIMENTAL_LIBRARY) - must be after INC_DIRS
 #
@@ -240,30 +168,20 @@ cat <<"EOF" >experimental_library.cc
 	#include <stop_token>
 	std::stop_token st ;
 EOF
-if   cc -c -o /dev/null -std=$CXX_STD                        $DARWIN_FIX_FLAGS experimental_library.cc ; then NEED_EXPERIMENTAL_LIBRARY=0
-elif cc -c -o /dev/null -std=$CXX_STD -fexperimental-library $DARWIN_FIX_FLAGS experimental_library.cc ; then NEED_EXPERIMENTAL_LIBRARY=1
+if   cc -c -o /dev/null -std=$CXX_STD                        experimental_library.cc ; then NEED_EXPERIMENTAL_LIBRARY=0
+elif cc -c -o /dev/null -std=$CXX_STD -fexperimental-library experimental_library.cc ; then NEED_EXPERIMENTAL_LIBRARY=1
 else
 	echo "$CXX does not implement $CXX_STD" >>$ERR_FILE
 	exit 1
 fi
 
 #
-# EVENTFD (HAS_EVENTFD)
-#
-HAS_EVENTFD=$(ok cc -E --include 'sys/eventfd.h' -o /dev/null -xc /dev/null )
-
-#
-# INOTIFY (HAS_INOTIFY)
-#
-HAS_INOTIFY=$(ok cc -E --include 'sys/inotify.h' -o /dev/null -xc /dev/null )
-
-#
 # LD_AUDIT (HAS_LD_AUDIT)
 #
-case $OS/$ID/$VERSION_ID in
-	Linux/ubuntu/20.04) HAS_LD_AUDIT=0 ;; # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
-	Linux/centos/7    ) HAS_LD_AUDIT=0 ;; # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
-	*                 )
+case $ID/$VERSION_ID in
+	ubuntu/20.04) HAS_LD_AUDIT=0 ;;                      # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
+	centos/7    ) HAS_LD_AUDIT=0 ;;                      # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
+	*           )
 		cat <<-"EOF" >audited.c
 			#include <stdio.h>
 			int main() { printf("0") ; }
@@ -345,29 +263,6 @@ EOF
 HAS_MEMFD=$(ok cc -o /dev/null -xc memfd.c) # check if memfd_create is available in lib
 
 #
-# MMAP (HAS_MREMAP)
-cat <<"EOF" >mremap.c
-	#ifndef _GNU_SOURCE
-		#define _GNU_SOURCE
-	#endif
-	#include <sys/mman.h>
-	int main() { mremap((void*)0,0,0,0) ; }
-EOF
-HAS_MREMAP=$(ok cc -o /dev/null -xc mremap.c) # check if mremap is available in lib
-
-#
-# NAMESPACES (HAS_NAMESPACES)
-#
-cat <<"EOF" >namespaces.c
-	#ifndef _GNU_SOURCE
-		#define _GNU_SOURCE
-	#endif
-	#include <sched.h>
-	int main() { unshare(0) ; }
-EOF
-HAS_NAMESPACES=$(ok cc -o /dev/null -xc namespaces.c) # check if unshare is available in lib
-
-#
 # OBJCOPY
 #
 case $CXX_FLAVOR in
@@ -377,24 +272,9 @@ esac
 [ -x "$OBJCOPY" ] || OBJCOPY=$(type -p objcopy ||:)
 
 #
-# OFF64 (HAS_OFF64)
+# OS (OS_ID)
 #
-cat <<"EOF" >off64.c
-	#ifndef _GNU_SOURCE
-		#define _GNU_SOURCE
-	#endif
-	#include <sys/types.h>
-	off64_t x ;
-EOF
-HAS_OFF64=$(ok cc -c -o /dev/null -xc off64.c)
-
-#
-# OS (IS_LINUX,IS_DARWIN,OS_ID,OS_VERSION_ID)
-#
-IS_LINUX=$(ok  [ "$OS" = Linux  ])
-IS_DARWIN=$(ok [ "$OS" = Darwin ])
-OS_ID="$ID"
-OS_VERSION_ID="$VERSION_ID"
+OS_ID="$ID-$VERSION_ID"
 
 #
 # PATH (STD_PATH)
@@ -416,37 +296,29 @@ HAS_PCRE=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 ) # check if pcre2
 [ $HAS_PCRE = 1 ] || echo "no pcre2 support, fall back to (slower) c++ STL regular expression library" >>$SUM_FILE
 
 #
-# PTRACE (HAS_PTRACE+MUST_UNDEF_PTRACE_MACROS+HAS_PTRACE_GET_SYSCALL_INFO)
+# PTRACE (MUST_UNDEF_PTRACE_MACROS+HAS_PTRACE_GET_SYSCALL_INFO)
 #
-case $OS in
-	Darwin)
-		HAS_PTRACE=0
-	;;
-	Linux )
-		HAS_PTRACE=1
-		cat <<-"EOF" >undef_ptrace_macros.c
-			#include <sys/ptrace.h>
-			#include <linux/ptrace.h>
-			#undef PTRACE_TRACEME
-			int main() {
-				long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
-			}
-		EOF
-		MUST_UNDEF_PTRACE_MACROS=$(ok cc -c -idirafter /usr/include/linux -o /dev/null -xc undef_ptrace_macros.c )
-		#
-		cat <<-"EOF" >get_syscall_info.c
-			#include <sys/ptrace.h>
-			#include <linux/ptrace.h>
-			#if MUST_UNDEF_PTRACE_MACROS
-				#undef PTRACE_GET_SYSCALL_INFO
-			#endif
-			int main() {
-				long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
-			}
-		EOF
-		HAS_PTRACE_GET_SYSCALL_INFO=$(ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o /dev/null -xc get_syscall_info.c )
-	;;
-esac
+cat <<-"EOF" >undef_ptrace_macros.c
+	#include <sys/ptrace.h>
+	#include <linux/ptrace.h>
+	#undef PTRACE_TRACEME
+	int main() {
+		long rx = ptrace(PTRACE_TRACEME,0,0,0) ;
+	}
+EOF
+MUST_UNDEF_PTRACE_MACROS=$(ok cc -c -idirafter /usr/include/linux -o /dev/null -xc undef_ptrace_macros.c )
+#
+cat <<-"EOF" >get_syscall_info.c
+	#include <sys/ptrace.h>
+	#include <linux/ptrace.h>
+	#if MUST_UNDEF_PTRACE_MACROS
+		#undef PTRACE_GET_SYSCALL_INFO
+	#endif
+	int main() {
+		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
+	}
+EOF
+	HAS_PTRACE_GET_SYSCALL_INFO=$(ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o /dev/null -xc get_syscall_info.c )
 
 #
 # SECCOMP (HAS_SECCOMP)
@@ -464,11 +336,6 @@ EOF
 HAS_SECCOMP=$(ok cc -idirafter /usr/include/linux -o /dev/null -xc seccomp.c -l:libseccomp.so.2 ) # check if seccomp_syscall_priority is available in lib
 #
 [ $HAS_SECCOMP = 1 ] || echo "no seccomp support, fall back to (slower when autodep=ptrace) ptrace to trace jobs" >>$SUM_FILE
-
-#
-# SENDFILE (HAS_SENDFILE)
-#
-HAS_SENDFILE=$(ok cc -E --include 'sys/sendfile.h' -o /dev/null -xc /dev/null )
 
 #
 # SGE (HAS_SGE)
@@ -523,41 +390,9 @@ if [ "$OBJCOPY" ] ; then
 fi
 
 #
-# STAT (ST_MTIMESPEC)
-#
-cat <<"EOF" >st_mtimespec.c
-	#include <sys/stat.h>
-	int main() {
-		struct stat     buf ;
-		struct timespec ts  = buf.st_mtimespec ;
-	}
-EOF
-if cc -c -o /dev/null -xc st_mtimespec.c ; then ST_MTIMESPEC=st_mtimespec ; fi
-cat <<"EOF" >st_mtim.c
-	#include <sys/stat.h>
-	int main() {
-		struct stat     buf ;
-		struct timespec ts  = buf.st_mtim ;
-	}
-EOF
-if cc -c -o /dev/null -xc st_mtim.c ; then ST_MTIMESPEC=st_mtim ; fi
-
-#
 # TEXI (HAS_TEXI)
 #
 HAS_TEXI=$(ok type -p texi2any)
-
-#
-# UINT (HAS_UINT)
-# true if ushort, uint and ulong are standard types
-#
-cat <<"EOF" >uint.cc
-	#include <sys/types.h>
-	ushort us ;
-	uint   ui ;
-	ulong  ul ;
-EOF
-HAS_UINT=$(ok cc -c -std=$CXX_STD -o /dev/null uint.cc)
 
 #
 # UNREACHABLE (HAS_UNREACHABLE)
@@ -576,10 +411,7 @@ HAS_UNREACHABLE=$(ok cc -std=$CXX_STD -o /dev/null unreachable.cc) # check if st
 # Linux specifies vfork more precisely than Posix
 # with Linux, we must not map vfork to fork as vfork is *not* a subset of fork, in exchange we can instrument exec in child
 # with posix, we must map vfork to fork as vfork is a subset of fork and instrumenting exec in child is forbidden with vfork
-case $OS in
-	Linux ) MAP_VFORK=0 ;;
-	Darwin) MAP_VFORK=1 ;;
-esac
+MAP_VFORK=0
 
 cat >$MK_FILE <<-EOF
 	SYS_CONFIG_OK := 1
@@ -590,22 +422,16 @@ cat >$MK_FILE <<-EOF
 	CXX_DIR                   := $CXX_DIR
 	CXX_FLAVOR                := $CXX_FLAVOR
 	CXX_STD                   := $CXX_STD
-	DARWIN_FIX_FLAGS          := $DARWIN_FIX_FLAGS
 	GIT                       := $(type -p git)
 	HAS_32                    := ${HAS_32#0}
-	HAS_ELF                   := ${HAS_ELF#0}
 	HAS_LD_AUDIT              := ${HAS_LD_AUDIT#0}
-	HAS_NAMESPACES            := ${HAS_NAMESPACES#0}
 	HAS_PCRE                  := ${HAS_PCRE#0}
-	HAS_PTRACE                := ${HAS_PTRACE#0}
 	HAS_PY2_DYN               := ${HAS_PY2_DYN#0}
 	HAS_PY3_DYN               := ${HAS_PY3_DYN#0}
 	HAS_SECCOMP               := ${HAS_SECCOMP#0}
 	HAS_SGE                   := ${HAS_SGE#0}
 	HAS_SLURM                 := ${HAS_SLURM#0}
 	HAS_TEXI                  := ${HAS_TEXI#0}
-	IS_DARWIN                 := ${IS_DARWIN#0}
-	IS_LINUX                  := ${IS_LINUX#0}
 	LD_SO_LIB                 := $LD_SO_LIB
 	LD_SO_LIB_32              := $LD_SO_LIB_32
 	LIB_STACKTRACE            := $LIB_STACKTRACE
@@ -649,42 +475,26 @@ cat >$H_FILE <<-EOF
 	#define HAS_32                      $HAS_32
 	#define HAS_ADDR2LINE               $HAS_ADDR2LINE
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
-	#define HAS_ELF                     $HAS_ELF
-	#define HAS_EPOLL                   $HAS_EPOLL
-	#define HAS_EVENTFD                 $HAS_EVENTFD
-	#define HAS_FILE_HANDLE             $HAS_FILE_HANDLE
-	#define HAS_INOTIFY                 $HAS_INOTIFY
-	#define HAS_KQUEUE                  $HAS_KQUEUE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD
-	#define HAS_MREMAP                  $HAS_MREMAP
-	#define HAS_NAMESPACES              $HAS_NAMESPACES
-	#define HAS_OFF64                   $HAS_OFF64
 	#define HAS_PCRE                    $HAS_PCRE
-	#define HAS_PTRACE                  $HAS_PTRACE
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
-	#define HAS_SENDFILE                $HAS_SENDFILE
 	#define HAS_SGE                     $HAS_SGE
 	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
-	#define HAS_UINT                    $HAS_UINT
 	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
-	#define IS_DARWIN                   $IS_DARWIN
-	#define IS_LINUX                    $IS_LINUX
 	#define LD_SO_LIB                   "$LD_SO_LIB"
 	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
 	#define MAP_VFORK                   $MAP_VFORK
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define OS_ID                       "$OS_ID"
-	#define OS_VERSION_ID               "$OS_VERSION_ID"
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
 	#define SLURM_SO                    "$SLURM_SO"
 	#define STD_LIBRARY_PATH            "$STD_LIBRARY_PATH"
 	#define STD_LIBRARY_PATH_32         "$STD_LIBRARY_PATH_32"
 	#define STD_PATH                    "$STD_PATH"
-	#define ST_MTIMESPEC                $ST_MTIMESPEC
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

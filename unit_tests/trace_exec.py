@@ -34,10 +34,6 @@ if __name__!='__main__' :
 
 else :
 
-	if not lmake.has_namespaces :
-		print('namespaces not available',file=open('skipped','w'))
-		exit()
-
 	import os
 	import subprocess as sp
 

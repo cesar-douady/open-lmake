@@ -58,14 +58,12 @@ bool Record::s_is_simple(const char* file) {
 			else if (strncmp(file+4,"32/",3)   ) top_sz = 7 ;     // in lib32    => simple
 			else if (strncmp(file+4,"64/",3)   ) top_sz = 7 ;     // in lib64    => simple
 		break ;                                                   // else        => not simple
-		#if IS_LINUX
-			case 'p' :                                            // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
-				if ( strncmp(file+1,"proc/",5)!=0 ) break ;       // not in /proc      => not simple
-				if ( file[6]>='0' && file[6]<='9' ) break ;       // in /proc/<pid>    => not simple
-				if ( strncmp(file+6,"self/",5)==0 ) break ;       // not in /proc/self => not simple
-				top_sz = 6 ;                                      // else              => simple
-			break ;
-		#endif
+		case 'p' :                                                // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
+			if ( strncmp(file+1,"proc/",5)!=0 ) break ;           // not in /proc      => not simple
+			if ( file[6]>='0' && file[6]<='9' ) break ;           // in /proc/<pid>    => not simple
+			if ( strncmp(file+6,"self/",5)==0 ) break ;           // not in /proc/self => not simple
+			top_sz = 6 ;                                          // else              => simple
+		break ;
 	DN}
 	if (!top_sz) return false ;
 	int depth = 0 ;

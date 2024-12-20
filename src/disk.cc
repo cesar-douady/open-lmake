@@ -4,13 +4,10 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <sys/mman.h>
+#include <sys/sendfile.h>
 
 #include "disk.hh"
 #include "hash.hh"
-
-#if HAS_SENDFILE
-	#include <sys/sendfile.h>
-#endif
 
 using namespace filesystem ;
 
@@ -223,8 +220,8 @@ namespace Disk {
 		return rc==0 && st.st_nlink>1 ;
 	}
 
-	bool/*done*/ uniquify( Fd at , ::string const& file ) {                                      // uniquify file so as to ensure modifications do not alter other hard links
-		SWEAR(+file) ;                                                                           // cannot unlink at without file
+	bool/*done*/ uniquify( Fd at , ::string const& file ) {                                 // uniquify file so as to ensure modifications do not alter other hard links
+		SWEAR(+file) ;                                                                      // cannot unlink at without file
 		const char*   f   = file.c_str() ;
 		const char*   msg = nullptr      ;
 		{
@@ -242,8 +239,8 @@ namespace Disk {
 				if (cnt<0 ) throw "cannot read "+file ;
 				wfd.write({buf,sizeof(buf)}) ;
 			}
-			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , st.ST_MTIMESPEC } ;
-			::futimens(wfd,times) ;                                                              // maintain original date
+			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , st.st_mtim } ;
+			::futimens(wfd,times) ;                                                         // maintain original date
 			//
 			return true/*done*/ ;
 		}
@@ -324,11 +321,7 @@ namespace Disk {
 				dir_guard(dst_at,dst_file) ;
 				AcFd rfd {             src_at , src_file }                                                                                                                             ;
 				AcFd wfd { ::openat( dst_at , dst_file.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0777 & ~(tag==FileTag::Exe?0000:0111) & ~(mk_read_only?0222:0000) ) } ;
-				#if HAS_SENDFILE
-					::sendfile( wfd , rfd , nullptr , fi.sz ) ;
-				#else
-					wfd.write( rfd.read(fi.sz) ) ;
-				#endif
+				::sendfile( wfd , rfd , nullptr , fi.sz ) ;
 			} break ;
 			case FileTag::Lnk :
 				dir_guard(dst_at,dst_file) ;
@@ -443,10 +436,8 @@ namespace Disk {
 	// /!\ : this code must be in sync with RealPath::solve
 	FileLoc RealPathEnv::file_loc(::string const& real) const {
 		::string abs_real   = mk_abs(real,repo_root_s) ;
-		if (abs_real.starts_with(tmp_dir_s )) return FileLoc::Tmp  ;
-		#if IS_LINUX
-			if (abs_real.starts_with("/proc/")) return FileLoc::Proc ;
-		#endif
+		if (abs_real.starts_with(tmp_dir_s  )) return FileLoc::Tmp  ;
+		if (abs_real.starts_with("/proc/"   )) return FileLoc::Proc ;
 		if (abs_real.starts_with(repo_root_s)) {
 			if ((mk_lcl(abs_real,repo_root_s)+'/').starts_with(AdminDirS)) return FileLoc::Admin ;
 			else                                                           return FileLoc::Repo  ;
@@ -458,7 +449,7 @@ namespace Disk {
 		}
 	}
 
-	void RealPath::_DvgReal::update( ::string const& domain , ::string const& chk ) {
+	void RealPath::_Dvg::update( ::string const& domain , ::string const& chk ) {
 		size_t start = dvg ;
 		ok  = domain.size() <= chk.size()     ;
 		dvg = ok ? domain.size() : chk.size() ;
@@ -515,28 +506,18 @@ namespace Disk {
 		::string      tmp_dir       = +_env->tmp_dir_s?no_slash(_env->tmp_dir_s  ):""s ;
 		::string      real          ; real.reserve(file.size()) ;                        // canonical (link free, absolute, no ., .. nor empty component). Empty instead of '/'. Anticipate no link
 		if (!pos) {                                                                      // file is relative, meaning relative to at
-			if      (at==Fd::Cwd)                     real = cwd()                                 ;
-			else if (pid        ) { SWEAR(IS_LINUX) ; real = read_lnk(s_proc+'/'+pid+"/fd/"+at.fd) ; }
-			else {
-				#if IS_LINUX
-					real = read_lnk(s_proc+"/self/fd/"   +at.fd) ;
-				#elif IS_DARWIN
-					real.resize(PATH_MAX) ;
-					::fcntl( at.fd , F_GETPATH , real.data() ) ;
-					real.resize(::strlen(real.data())) ;
-				#else
-					#error dont know how to make a file name from a file descriptor
-				#endif
-			}
+			if      (at==Fd::Cwd) real = cwd()                                 ;
+			else if (pid        ) real = read_lnk(s_proc+'/'+pid+"/fd/"+at.fd) ;
+			else                  real = read_lnk(s_proc+"/self/fd/"   +at.fd) ;
 			//
 			if (!is_abs(real) ) return {} ;                                              // user code might use the strangest at, it will be an error but we must support it
 			if (real.size()==1) real.clear() ;                                           // if '/', we must substitute the empty string to enforce invariant
 		}
-		_Dvg<true/*Real*/> in_repo   { repo_root  , real }         ;                     // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
-		_Dvg<true/*Real*/> in_tmp    { tmp_dir    , real }         ;                     // keep track of where we are w.r.t. tmp        , always track symlinks
-		_Dvg<true/*Real*/> in_admin  { _admin_dir , real }         ;                     // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
-		_Dvg<IS_LINUX    > in_proc   { s_proc     , real }         ;                     // keep track of where we are w.r.t. /proc      , always track symlinks
-		bool               is_in_tmp = +_env->tmp_dir_s && +in_tmp ;
+		_Dvg in_repo   { repo_root  , real }         ;                                   // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
+		_Dvg in_tmp    { tmp_dir    , real }         ;                                   // keep track of where we are w.r.t. tmp        , always track symlinks
+		_Dvg in_admin  { _admin_dir , real }         ;                                   // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
+		_Dvg in_proc   { s_proc     , real }         ;                                   // keep track of where we are w.r.t. /proc      , always track symlinks
+		bool is_in_tmp = +_env->tmp_dir_s && +in_tmp ;
 		// loop INVARIANT : accessed file is real+'/'+cur.substr(pos)
 		// when pos>cur.size(), we are done and result is real
 		size_t   end       ;
@@ -657,9 +638,6 @@ namespace Disk {
 	}
 
 	void RealPath::chdir() {
-		#if !IS_LINUX
-			SWEAR(!pid,pid) ; // need /proc to find cwd of pid
-		#endif
 		if (pid)   _cwd = read_lnk("/proc/"s+pid+"/cwd") ;
 		else     { _cwd = no_slash(cwd_s())              ; _cwd_pid = ::getpid() ; }
 	}

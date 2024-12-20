@@ -5,20 +5,12 @@
 
 #pragma once
 
+#include <sys/epoll.h>
+#include <sys/eventfd.h>
+#include <sys/signalfd.h>
 #include <sys/socket.h>
 
 #include "time.hh"
-
-#if HAS_EVENTFD
-	#include <sys/eventfd.h>
-#endif
-
-#if HAS_EPOLL
-	#include <sys/epoll.h>
-	#include <sys/signalfd.h>
-#elif HAS_KQUEUE
-	#include <sys/event.h>
-#endif
 
 #ifndef SOCK_CLOEXEC
 	#define SOCK_CLOEXEC 0 // CLOEXEC is just defensive programming, not really needed
@@ -238,220 +230,148 @@ struct Pipe {
 // EventFd
 //
 
-#if HAS_EVENTFD
-	struct EventFd : AcFd {
-		EventFd(NewType) : AcFd{::eventfd(0,O_CLOEXEC),true/*no_std*/} {}
-		EventFd(Fd fd_ ) : AcFd{fd_                                  } {}
-		void wakeup() const {
-			static constexpr uint64_t One = 1 ;
-			ssize_t cnt = ::write(self,&One,sizeof(One)) ;
-			SWEAR( cnt==sizeof(One) , cnt,self ) ;
-		}
-		void flush() const {
-			uint64_t one ;
-			ssize_t  cnt = ::read(self,&one,sizeof(one)) ;
-			SWEAR( cnt==sizeof(one) , cnt,self ) ;
-		}
-	} ;
-#else
-	struct EventFd : AcFd {
-		EventFd(NewType) {
-			Pipe pipe { New } ;
-			AcFd::operator=(pipe.read) ;
-			_write = pipe.write ;
-		}
-		EventFd(Fd fd_) : AcFd{fd_} {}
-		void wakeup() const {
-			static constexpr char Zero = 0 ;
-			ssize_t cnt = ::write(_write,&Zero,1) ;
-			SWEAR( cnt==1 , cnt,self ) ;
-		}
-		void flush() const {
-			char    zero ;
-			ssize_t cnt  = ::read(self,&zero,1) ;
-			SWEAR( cnt==1 , cnt,self ) ;
-		}
-		// data
-	private :
-		AcFd _write ;
-	} ;
-#endif
+struct EventFd : AcFd {
+	EventFd(NewType) : AcFd{::eventfd(0,O_CLOEXEC),true/*no_std*/} {}
+	EventFd(Fd fd_ ) : AcFd{fd_                                  } {}
+	void wakeup() const {
+		static constexpr uint64_t One = 1 ;
+		ssize_t cnt = ::write(self,&One,sizeof(One)) ;
+		SWEAR( cnt==sizeof(One) , cnt,self ) ;
+	}
+	void flush() const {
+		uint64_t one ;
+		ssize_t  cnt = ::read(self,&one,sizeof(one)) ;
+		SWEAR( cnt==sizeof(one) , cnt,self ) ;
+	}
+} ;
 
 //
 // Epoll
 //
 
-#if HAS_EPOLL
-
-	extern ::uset<int>* _s_epoll_sigs ; // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
-	template<StdEnum E> struct _Epoll {
-		struct Event : ::epoll_event {
-			// cxtors & casts
-			using ::epoll_event::epoll_event ;
-			Event(                             ) : ::epoll_event{ .events=0                      , .data{.u64=                     uint32_t(Fd())} } {}
-			Event( bool write , Fd fd , E data ) : ::epoll_event{ .events=write?EPOLLOUT:EPOLLIN , .data{.u64=(uint64_t(data)<<32)|uint32_t(fd  )} } {}
-			// access
-			bool operator+(                ) const { return +fd()                                 ; }
-			int sig       (_Epoll const& ep) const { return ep._fd_infos.at(fd()).first           ; }
-			Fd  fd        (                ) const { return uint32_t(::epoll_event::data.u64    ) ; }
-			E   data      (                ) const { return E       (::epoll_event::data.u64>>32) ; }
-		} ;
+extern ::uset<int>* _s_epoll_sigs ; // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
+template<StdEnum E> struct _Epoll {
+	struct Event : ::epoll_event {
 		// cxtors & casts
-		~_Epoll() {
-			for( auto [fd,sig_pid] : _fd_infos ) _s_epoll_sigs->erase(sig_pid.first) ;
+		using ::epoll_event::epoll_event ;
+		Event(                             ) : ::epoll_event{ .events=0                      , .data{.u64=                     uint32_t(Fd())} } {}
+		Event( bool write , Fd fd , E data ) : ::epoll_event{ .events=write?EPOLLOUT:EPOLLIN , .data{.u64=(uint64_t(data)<<32)|uint32_t(fd  )} } {}
+		// access
+		bool operator+(                ) const { return +fd()                                 ; }
+		int sig       (_Epoll const& ep) const { return ep._fd_infos.at(fd()).first           ; }
+		Fd  fd        (                ) const { return uint32_t(::epoll_event::data.u64    ) ; }
+		E   data      (                ) const { return E       (::epoll_event::data.u64>>32) ; }
+	} ;
+	// cxtors & casts
+	~_Epoll() {
+		for( auto [fd,sig_pid] : _fd_infos ) _s_epoll_sigs->erase(sig_pid.first) ;
+	}
+	// services
+	void init() {
+		_fd = AcFd( ::epoll_create1(EPOLL_CLOEXEC) , true/*no_std*/ ) ;
+	}
+	void add( bool write , Fd fd , E data ) {
+		Event event { write , fd , data } ;
+		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )<0) fail_prod("cannot add",fd,"to epoll",_fd,'(',::strerror(errno),')') ;
+	}
+	void del( bool /*write*/ , Fd fd ) {
+		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr )<0) fail_prod("cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
+	}
+	void add_sig( int sig , E data , pid_t pid=0 ) {
+		SWEAR(is_blocked_sig(sig)) ;
+		::sigset_t sig_set  ;                                                          sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
+		Fd         fd       = ::signalfd( -1 , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
+		bool       inserted = _sig_infos   . try_emplace(sig,fd     ).second          ; SWEAR(inserted,fd,sig    ) ;
+		/**/       inserted = _fd_infos    . try_emplace(fd ,sig,pid).second          ; SWEAR(inserted,fd,sig,pid) ;
+		/**/       inserted = _s_epoll_sigs->insert     (sig        ).second          ; SWEAR(inserted,fd,sig    ) ;
+		add( false/*write*/ , fd , data ) ;
+		_n_sigs++ ;
+	}
+	void del_sig(int sig) {
+		auto it = _sig_infos.find(sig) ; SWEAR(it!=_sig_infos.end(),sig) ;
+		SWEAR(_n_sigs) ; _n_sigs-- ;
+		del( false/*write*/ , it->second ) ;
+		_fd_infos    . erase(it->second) ;                          // must be done before next line as it is not valid after erasing it
+		_sig_infos   . erase(it        ) ;
+		_s_epoll_sigs->erase(sig       ) ;
+	}
+	void add_pid( pid_t pid , E data ) { add_sig(SIGCHLD,data,pid) ; }
+	void del_pid (pid_t              ) { del_sig(SIGCHLD         ) ; }
+	::vector<Event> wait( Time::Delay timeout , uint cnt ) const {
+		struct ::timespec now ;
+		struct ::timespec end ;
+		bool has_timeout = timeout>Time::Delay() && timeout!=Time::Delay::Forever ;
+		if (has_timeout) {
+			::clock_gettime(CLOCK_MONOTONIC,&now) ;
+			end.tv_sec  = now.tv_sec  + timeout.sec()       ;
+			end.tv_nsec = now.tv_nsec + timeout.nsec_in_s() ;
+			if (end.tv_nsec>=1'000'000'000l) {
+				end.tv_nsec -= 1'000'000'000l ;
+				end.tv_sec  += 1              ;
+			}
 		}
-		// services
-		void init() {
-			_fd = AcFd( ::epoll_create1(EPOLL_CLOEXEC) , true/*no_std*/ ) ;
-		}
-		void add( bool write , Fd fd , E data ) {
-			Event event { write , fd , data } ;
-			if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )<0) fail_prod("cannot add",fd,"to epoll",_fd,'(',::strerror(errno),')') ;
-		}
-		void del( bool /*write*/ , Fd fd ) {
-			if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr )<0) fail_prod("cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
-		}
-		void add_sig( int sig , E data , pid_t pid=0 ) {
-			SWEAR(is_blocked_sig(sig)) ;
-			::sigset_t sig_set  ;                                                          sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
-			Fd         fd       = ::signalfd( -1 , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
-			bool       inserted = _sig_infos   . try_emplace(sig,fd     ).second          ; SWEAR(inserted,fd,sig    ) ;
-			/**/       inserted = _fd_infos    . try_emplace(fd ,sig,pid).second          ; SWEAR(inserted,fd,sig,pid) ;
-			/**/       inserted = _s_epoll_sigs->insert     (sig        ).second          ; SWEAR(inserted,fd,sig    ) ;
-			add( false/*write*/ , fd , data ) ;
-			_n_sigs++ ;
-		}
-		void del_sig(int sig) {
-			auto it = _sig_infos.find(sig) ; SWEAR(it!=_sig_infos.end(),sig) ;
-			SWEAR(_n_sigs) ; _n_sigs-- ;
-			del( false/*write*/ , it->second ) ;
-			_fd_infos    . erase(it->second) ;                          // must be done before next line as it is not valid after erasing it
-			_sig_infos   . erase(it        ) ;
-			_s_epoll_sigs->erase(sig       ) ;
-		}
-		void add_pid( pid_t pid , E data ) { add_sig(SIGCHLD,data,pid) ; }
-		void del_pid (pid_t              ) { del_sig(SIGCHLD         ) ; }
-		::vector<Event> wait( Time::Delay timeout , uint cnt ) const {
-			struct ::timespec now ;
-			struct ::timespec end ;
-			bool has_timeout = timeout>Time::Delay() && timeout!=Time::Delay::Forever ;
+		for(;;) {                                                   // manage case where timeout is longer than the maximum allowed timeout by looping over partial timeouts
+			::vector<Event> events        ( cnt ) ;
+			int             cnt_          ;
+			int             wait_ms       = -1    ;
+			bool            wait_overflow = false ;
 			if (has_timeout) {
-				::clock_gettime(CLOCK_MONOTONIC,&now) ;
-				end.tv_sec  = now.tv_sec  + timeout.sec()       ;
-				end.tv_nsec = now.tv_nsec + timeout.nsec_in_s() ;
-				if (end.tv_nsec>=1'000'000'000l) {
-					end.tv_nsec -= 1'000'000'000l ;
-					end.tv_sec  += 1              ;
-				}
+				time_t wait_s   = end.tv_sec - now.tv_sec               ;
+				time_t wait_max = ::numeric_limits<int>::max()/1000 - 1 ;
+				if ((wait_overflow=(wait_s>wait_max))) wait_s = wait_max ;
+				wait_ms  = wait_s                    * 1'000      ;
+				wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ; // protect against possible conversion to time_t which may be unsigned
+			} else {
+				wait_ms = +timeout ? -1 : 0 ;
 			}
-			for(;;) {                                                   // manage case where timeout is longer than the maximum allowed timeout by looping over partial timeouts
-				::vector<Event> events        ( cnt ) ;
-				int             cnt_          ;
-				int             wait_ms       = -1    ;
-				bool            wait_overflow = false ;
-				if (has_timeout) {
-					time_t wait_s   = end.tv_sec - now.tv_sec               ;
-					time_t wait_max = ::numeric_limits<int>::max()/1000 - 1 ;
-					if ((wait_overflow=(wait_s>wait_max))) wait_s = wait_max ;
-					wait_ms  = wait_s                    * 1'000      ;
-					wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ; // protect against possible conversion to time_t which may be unsigned
-				} else {
-					wait_ms = +timeout ? -1 : 0 ;
-				}
-				cnt_ = ::epoll_wait( _fd , events.data() , int(cnt) , wait_ms ) ;
-				switch (cnt_) {
-					case  0 :                                                                                                   // timeout
-						if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
-						else               return {} ;
-					break ;
-					case -1 :
-						SWEAR( errno==EINTR , errno ) ;
-					break ;
-					default :
-						events.resize(cnt_) ;
-						if (_n_sigs) {                                                                                          // fast path : avoid looping over events if not necessary
-							bool shorten = false ;
-							for( Event& e : events ) {
-								Fd                        fd        = e.fd()             ; SWEAR(+fd) ;                         // it is non-sense to have an event for non-existent fd
-								auto                      it        = _fd_infos.find(fd) ; if (it==_fd_infos.end() ) continue ;
-								auto                      [sig,pid] = it->second         ;
-								bool                      found     = !pid               ;                                      // if not waiting for a particular pid, event is always ok
-								struct ::signalfd_siginfo si        ;
-								ssize_t                   n         ;                                                           // we are supposed to read at least once, so init with error case
-								while ( (n=::read(fd,&si,sizeof(si)))==sizeof(si) ) {                                           // flush signal fd, including possibly left-over old sigs
-									SWEAR(int(si.ssi_signo)==sig,si.ssi_signo,sig) ;
-									found |= pid_t(si.ssi_pid)==pid ;
-								}
-								SWEAR( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK) , n,fd,errno ) ;                              // fd is non-blocking
-								if (!found) { e = {} ; shorten = true ; }                                                       // event is supposed to represent that pid is terminated
+			cnt_ = ::epoll_wait( _fd , events.data() , int(cnt) , wait_ms ) ;
+			switch (cnt_) {
+				case  0 :                                                                                                   // timeout
+					if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
+					else               return {} ;
+				break ;
+				case -1 :
+					SWEAR( errno==EINTR , errno ) ;
+				break ;
+				default :
+					events.resize(cnt_) ;
+					if (_n_sigs) {                                                                                          // fast path : avoid looping over events if not necessary
+						bool shorten = false ;
+						for( Event& e : events ) {
+							Fd                        fd        = e.fd()             ; SWEAR(+fd) ;                         // it is non-sense to have an event for non-existent fd
+							auto                      it        = _fd_infos.find(fd) ; if (it==_fd_infos.end() ) continue ;
+							auto                      [sig,pid] = it->second         ;
+							bool                      found     = !pid               ;                                      // if not waiting for a particular pid, event is always ok
+							struct ::signalfd_siginfo si        ;
+							ssize_t                   n         ;                                                           // we are supposed to read at least once, so init with error case
+							while ( (n=::read(fd,&si,sizeof(si)))==sizeof(si) ) {                                           // flush signal fd, including possibly left-over old sigs
+								SWEAR(int(si.ssi_signo)==sig,si.ssi_signo,sig) ;
+								found |= pid_t(si.ssi_pid)==pid ;
 							}
-							if (shorten) {
-								size_t j = 0 ;
-								for( size_t i : iota(events.size()) ) {
-									if (!events[i]) continue ;
-									if (j<i) events[j] = events[i] ;
-									j++ ;
-								}
-								events.resize(j) ;
-							}
+							SWEAR( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK) , n,fd,errno ) ;                              // fd is non-blocking
+							if (!found) { e = {} ; shorten = true ; }                                                       // event is supposed to represent that pid is terminated
 						}
-						return events ;
-				}
+						if (shorten) {
+							size_t j = 0 ;
+							for( size_t i : iota(events.size()) ) {
+								if (!events[i]) continue ;
+								if (j<i) events[j] = events[i] ;
+								j++ ;
+							}
+							events.resize(j) ;
+						}
+					}
+					return events ;
 			}
 		}
-		// data
-	private :
-		AcFd                                        _fd        ;
-		::umap<int/*sig*/,Fd                      > _sig_infos ;
-		::umap<Fd        ,::pair<int/*sig*/,pid_t>> _fd_infos  ;
-		uint                                        _n_sigs    = 0 ;
-	} ;
-
-#elif HAS_KQUEUE
-
-	template<StdEnum E=NewType/*when unused*/> struct _Epoll {
-		struct Event : ::kevent {
-			using Base = struct ::kevent ;
-			// cxtors & casts
-			Event(                                            ) = default ;
-			Event( bool write , Fd  fd  , uint16_t f , E d={} ) : Base{.ident=uintptr_t(fd ),.filter=int16_t(write?EVFILT_WRITE:EVFILT_READ),.flags=f,.udata=reinterpret_cast<void*>(uint32_t(d))} {}
-			Event( int sig              , uint16_t f , E d={} ) : Base{.ident=uintptr_t(sig),.filter=        EVFILT_SIGNAL                  ,.flags=f,.udata=reinterpret_cast<void*>(uint32_t(d))} {}
-			// access
-			int sig (_Epoll const&) const { SWEAR(filter==EVFILT_SIGNAL) ; return ident                                 ; }
-			Fd  fd  (             ) const { SWEAR(filter!=EVFILT_SIGNAL) ; return ident                                 ; }
-			E   data(             ) const {                                return E(reinterpret_cast<uintptr_t>(udata)) ; }
-		} ;
-		// services
-		void init() {
-			_fd = AcFd(::kqueue()) ;
-		}
-		#define N  nullptr
-		#define ES ::strerror(errno)
-		void add( bool write , Fd fd , E data ) { if (::kevent( _fd , &::ref(Event(write,fd,EV_ADD   ,data)),1 , N,0 , N )<0) fail_prod("cannot add"       ,fd ,"to kqueue"  ,_fd,'(',ES,')') ; }
-		void del( bool write , Fd fd          ) { if (::kevent( _fd , &::ref(Event(write,fd,EV_DELETE     )),1 , N,0 , N )<0) fail_prod("cannot del"       ,fd ,"from kqueue",_fd,'(',ES,')') ; }
-		void add_sig( int sig        , E data ) { if (::kevent( _fd , &::ref(Event(sig     ,EV_ADD   ,data)),1 , N,0 , N )<0) fail_prod("cannot add signal",sig,"to kqueue"  ,_fd,'(',ES,')') ; }
-		void del_sig( int sig                 ) { if (::kevent( _fd , &::ref(Event(sig     ,EV_DELETE     )),1 , N,0 , N )<0) fail_prod("cannot del signal",sig,"from kqueue",_fd,'(',ES,')') ; }
-		#undef ES
-		#undef N
-		void add_pid( pid_t , E data ) { add_sig(SIGCHLD,data) ; }
-		void del_pid( pid_t          ) { del_sig(SIGCHLD     ) ; }
-		//
-		::vector<Event> wait( Time::Delay timeout , uint cnt ) const {
-			::vector<Event>   res ( cnt     ) ;
-			struct ::timespec ts  ( timeout ) ;
-			int rc ;
-			if (timeout<Time::Delay::Forever) rc = ::kevent( _fd , nullptr,0 , res.data(),int(cnt) , &ts     ) ;
-			else                              rc = ::kevent( _fd , nullptr,0 , res.data(),int(cnt) , nullptr ) ;
-			SWEAR(rc>=0) ;
-			res.resize(rc) ;
-			return res ;
-		}
-		// data
-	private :
-		AcFd _fd ;
-	} ;
-
-#endif
+	}
+	// data
+private :
+	AcFd                                        _fd        ;
+	::umap<int/*sig*/,Fd                      > _sig_infos ;
+	::umap<Fd        ,::pair<int/*sig*/,pid_t>> _fd_infos  ;
+	uint                                        _n_sigs    = 0 ;
+} ;
 
 template<StdEnum E=NewType/*when_unused*/> struct Epoll : _Epoll<E> {
 	using Base  = _Epoll<E>            ;

@@ -14,10 +14,6 @@ items :
 ****************************************************************************************************
 
 ! fix compilation with LMAKE_FLAGS=ST
-M missing some deps when reading elf
-	- find a way to reproduce it
-	- it seems that libc.so is missing at least in some occasions
-	- probably fixed by correct default library path code
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
@@ -136,6 +132,12 @@ M missing some deps when reading elf
 	? seems to be highly architecture dependent, is it worth ?
 M implement fuse as an autodep method
 	- does not seem doable because read foo/bar first does a lookup(foo)
+M port to Darwin
+	- autodep requires the use of dtrace as there is no way to piggyback calls to libc
+	- dtrace requires admin privileges which obliges job_exec and the like to be suid root
+	- dtrace is *very* different from ptrace, an entirely new code
+	- Darwin support makes code less readable because of numerous #if's
+	- no traction
 
 ****************************************************************************************************
 * OPTIMIZATIONS

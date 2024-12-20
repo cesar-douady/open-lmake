@@ -55,10 +55,6 @@ if __name__!='__main__' :
 
 else :
 
-	if not lmake.has_namespaces :
-		print('namespaces not available',file=open('skipped','w'))
-		exit()
-
 	import ut
 
 	print('lower\nupper',file=open('tmp_map_ref','w'))

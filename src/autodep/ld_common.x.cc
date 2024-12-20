@@ -15,12 +15,7 @@
 
 #include "disk.hh"
 
-#if IS_DARWIN
-	#include <crt_externs.h> // _GetNSEnviron
-	#define NE               // Darwin does not define exception specifications
-#else
-	#define NE noexcept
-#endif
+#define NE noexcept
 
 #include "gather.hh"
 #include "record.hh"
@@ -44,7 +39,7 @@
 	#define O_TMPFILE 0 // no check for O_TMPFILE if it does not exist0
 #endif
 
-#define NEED_ELF ( !LD_AUDIT && HAS_ELF ) // else elf dependencies are captured by auditing code or unavailable
+#define NEED_ELF (!LD_AUDIT) // else elf dependencies are captured by auditing code or unavailable
 
 #if NEED_ELF
 	#include <dlfcn.h> // dlopen
@@ -76,6 +71,7 @@ using namespace Disk ;
 extern "C" {
 	// the following libcalls are defined in libc not always in #include's, so they may be called by application code
 	// they may not be defined on all systems, but it does not hurt to redeclare them if they are already declared, so filter may be loose
+	extern int     __clone2        ( int (*fn)(void*) , void *stack_base , size_t stack_size , int flags , void *arg , ...    ) ;
 	extern int     __close         (         int fd                                                                           )    ;
 	extern int     __dup2          (         int oldfd , int newfd                                                            ) NE ;
 	extern pid_t   __fork          (                                                                                          ) NE ;
@@ -95,23 +91,20 @@ extern "C" {
 	extern int     faccessat2      (         int dirfd , const char* pth , int mod , int flgs                                 ) NE ;
 	extern int     renameat2       (         int odfd  , const char* op  , int ndfd , const char* np , uint flgs              ) NE ;
 	extern int     statx           (         int dirfd , const char* pth , int flgs , uint msk , struct statx* buf            ) NE ;
+	//
+	extern int __open64         (                   const char* pth , int flgs , ...                )    ;
+	extern int __open64_nocancel(                   const char* pth , int flgs , ...                )    ;
+	extern int __open64_2       (                   const char* pth , int flgs                      )    ;
+	extern int __openat64_2     (         int dfd , const char* pth , int flgs                      )    ;
+	extern int __xstat64        ( int v ,           const char* pth , struct stat64* buf            ) NE ;
+	extern int __lxstat64       ( int v ,           const char* pth , struct stat64* buf            ) NE ;
+	extern int __fxstatat64     ( int v , int dfd , const char* pth , struct stat64* buf , int flgs ) NE ;
+	//
 	#if HAS_CLOSE_RANGE
 		extern int close_range( uint fd1 , uint fd2 , int flgs ) NE ;
 	#endif
-	#if HAS_NAMESPACES
-		int __clone2( int (*fn)(void*) , void *stack_base , size_t stack_size , int flags , void *arg , ... ) ;
-	#endif
 	#if MAP_VFORK
 		extern pid_t __vfork() NE ;
-	#endif
-	#if HAS_OFF64
-		extern int __open64         (                   const char* pth , int flgs , ...                )    ;
-		extern int __open64_nocancel(                   const char* pth , int flgs , ...                )    ;
-		extern int __open64_2       (                   const char* pth , int flgs                      )    ;
-		extern int __openat64_2     (         int dfd , const char* pth , int flgs                      )    ;
-		extern int __xstat64        ( int v ,           const char* pth , struct stat64* buf            ) NE ;
-		extern int __lxstat64       ( int v ,           const char* pth , struct stat64* buf            ) NE ;
-		extern int __fxstatat64     ( int v , int dfd , const char* pth , struct stat64* buf , int flgs ) NE ;
 	#endif
 }
 
@@ -366,47 +359,45 @@ struct Mkstemp : WSolve {
 	int chmod   (      CC* p,mode_t m      ) NE { HEADER1(chmod   ,false,p,(  p,m  )) ; Chmod r{   p ,EXE(m),false   ,"chmod"   } ; return r(orig(  p,m  )) ; }
 	int fchmodat(int d,CC* p,mode_t m,int f) NE { HEADER1(fchmodat,false,p,(d,p,m,f)) ; Chmod r{{d,p},EXE(m),ASLNF(f),"fchmodat"} ; return r(orig(d,p,m,f)) ; }
 
-	#if HAS_NAMESPACES
-		// clone
-		// cf fork about why this wrapper is necessary
-		static int (*_clone_fn)(void*) ;       // variable to hold actual function to call
-		static int _call_clone_fn(void* arg) {
-			_t_loop = false ;
-			_g_mutex.unlock(MutexLvl::None) ;  // contrarily to fork, clone does not proceed but calls a function and the lock must be released in both parent and child (we are the only thread here)
-			return _clone_fn(arg) ;
+	// clone
+	// cf fork about why this wrapper is necessary
+	static int (*_clone_fn)(void*) ;       // variable to hold actual function to call
+	static int _call_clone_fn(void* arg) {
+		_t_loop = false ;
+		_g_mutex.unlock(MutexLvl::None) ;  // contrarily to fork, clone does not proceed but calls a function and the lock must be released in both parent and child (we are the only thread here)
+		return _clone_fn(arg) ;
+	}
+	int clone( int (*fn)(void*) , void *stack , int flags , void *arg , ... ) NE {
+		va_list args ;
+		va_start(args,arg) ;
+		pid_t* parent_tid = va_arg(args,pid_t*) ;
+		void * tls        = va_arg(args,void *) ;
+		pid_t* child_tid  = va_arg(args,pid_t*) ;
+		va_end(args) ;
+		//
+		ORIG(clone) ;
+		if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,flags,arg,parent_tid,tls,child_tid) ; // if flags contains CLONE_VM, lock is not duplicated : nothing to do
+		NO_SERVER(clone) ;
+		Lock lock{_g_mutex} ;                                                                                               // no need to set _t_loop as clone calls no other piggy-backed function
+		_clone_fn = fn ;                                                                                                    // _g_mutex is held, so there is no risk of clash
+		return (*atomic_orig)(_call_clone_fn,stack,flags,arg,parent_tid,tls,child_tid) ;
+	}
+	int __clone2( int (*fn)(void*) , void *stack , size_t stack_size , int flags , void *arg , ... ) {
+		va_list args ;
+		va_start(args,arg) ;
+		pid_t* parent_tid = va_arg(args,pid_t*) ;
+		void * tls        = va_arg(args,void *) ;
+		pid_t* child_tid  = va_arg(args,pid_t*) ;
+		va_end(args) ;
+		//
+		ORIG(__clone2) ;
+		if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ; // cf clone
+		Lock lock{_g_mutex} ;                                                                                                          // cf clone
+		//
+		NO_SERVER(__clone2) ;
+		_clone_fn = fn ;                                                                                                               // cf clone
+		return (*atomic_orig)(_call_clone_fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ;
 		}
-		int clone( int (*fn)(void*) , void *stack , int flags , void *arg , ... ) NE {
-			va_list args ;
-			va_start(args,arg) ;
-			pid_t* parent_tid = va_arg(args,pid_t*) ;
-			void * tls        = va_arg(args,void *) ;
-			pid_t* child_tid  = va_arg(args,pid_t*) ;
-			va_end(args) ;
-			//
-			ORIG(clone) ;
-			if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,flags,arg,parent_tid,tls,child_tid) ; // if flags contains CLONE_VM, lock is not duplicated : nothing to do
-			NO_SERVER(clone) ;
-			Lock lock{_g_mutex} ;                                                                                               // no need to set _t_loop as clone calls no other piggy-backed function
-			_clone_fn = fn ;                                                                                                    // _g_mutex is held, so there is no risk of clash
-			return (*atomic_orig)(_call_clone_fn,stack,flags,arg,parent_tid,tls,child_tid) ;
-		}
-		int __clone2( int (*fn)(void*) , void *stack , size_t stack_size , int flags , void *arg , ... ) {
-			va_list args ;
-			va_start(args,arg) ;
-			pid_t* parent_tid = va_arg(args,pid_t*) ;
-			void * tls        = va_arg(args,void *) ;
-			pid_t* child_tid  = va_arg(args,pid_t*) ;
-			va_end(args) ;
-			//
-			ORIG(__clone2) ;
-			if ( _t_loop || !started() || flags&CLONE_VM ) return (*atomic_orig)(fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ; // cf clone
-			Lock lock{_g_mutex} ;                                                                                                          // cf clone
-			//
-			NO_SERVER(__clone2) ;
-			_clone_fn = fn ;                                                                                                               // cf clone
-			return (*atomic_orig)(_call_clone_fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ;
-		}
-	#endif
 
 	#if !IN_SERVER
 		// close
@@ -462,18 +453,12 @@ struct Mkstemp : WSolve {
 			Lock lock { _g_mutex       } ;               \
 			Exec( path , no_follow , envp , #libcall ) ; \
 		}
-	#if IS_DARWIN
-		#define environ (*_NSGetEnviron())
-	#endif
 	//                                                                                                                 no_follow
 	int execv   (         CC* p , char* const argv[]                                 ) NE { HEADER_EXEC(Exec ,execv   ,false      ,               p ,environ) ; return orig(  p,argv          ) ; }
 	int execve  (         CC* p , char* const argv[] , char* const envp[]            ) NE { HEADER_EXEC(Exec ,execve  ,false      ,               p ,envp   ) ; return orig(  p,argv,envp     ) ; }
 	int execvp  (         CC* p , char* const argv[]                                 ) NE { HEADER_EXEC(Execp,execvp  ,false      ,               p ,environ) ; return orig(  p,argv          ) ; }
 	int execvpe (         CC* p , char* const argv[] , char* const envp[]            ) NE { HEADER_EXEC(Execp,execvpe ,false      ,               p ,envp   ) ; return orig(  p,argv,envp     ) ; }
 	int execveat( int d , CC* p , char* const argv[] , char *const envp[] , int flgs ) NE { HEADER_EXEC(Exec ,execveat,ASLNF(flgs),Record::Path(d,p),envp   ) ; return orig(d,p,argv,envp,flgs) ; }
-	#if IS_DARWIN
-		#undef environ
-	#endif
 	// execl
 	#define MK_ARGS(end_action,value) \
 		char*   cur         = const_cast<char*>(arg)            ;            \
@@ -498,10 +483,9 @@ struct Mkstemp : WSolve {
 	// fopen                                             is_stat
 	FILE* fopen  (CC* p,CC* m         ) { HEADER1(fopen  ,false,p,(p,m   )) ; Fopen r{p,m,"fopen"  } ; return r(orig(p,m   )) ; }
 	FILE* freopen(CC* p,CC* m,FILE* fp) { HEADER1(freopen,false,p,(p,m,fp)) ; Fopen r{p,m,"freopen"} ; return r(orig(p,m,fp)) ; }
-	#if HAS_OFF64 //!                                        is_stat
+	//                                                       is_stat
 	FILE* fopen64  (CC* p,CC* m         ) { HEADER1(fopen64  ,false,p,(p,m   )) ; Fopen r{p,m,"fopen64"  } ; return r(orig(p,m   )) ; }
 	FILE* freopen64(CC* p,CC* m,FILE* fp) { HEADER1(freopen64,false,p,(p,m,fp)) ; Fopen r{p,m,"freopen64"} ; return r(orig(p,m,fp)) ; }
-	#endif
 
 	// fork
 	// not recursively called by auditing code
@@ -532,60 +516,51 @@ struct Mkstemp : WSolve {
 	int mkostemp (char* t,int f       ) { HEADER0(mkostemp ,false,(t,f   )) ; Mkstemp r{t,   "mkostemp" } ; return r(orig(t,f   )) ; }
 	int mkstemps (char* t,      int sl) { HEADER0(mkstemps ,false,(t,  sl)) ; Mkstemp r{t,sl,"mkstemps" } ; return r(orig(t,  sl)) ; }
 	int mkostemps(char* t,int f,int sl) { HEADER0(mkostemps,false,(t,f,sl)) ; Mkstemp r{t,sl,"mkostemps"} ; return r(orig(t,f,sl)) ; }
-	#if HAS_OFF64 //!                                              is_stat
-		int mkstemp64  (char* t             ) { HEADER0(mkstemp64  ,false,(t     )) ; Mkstemp r{t,   "mkstemp64"  } ; return r(orig(t     )) ; }
-		int mkostemp64 (char* t,int f       ) { HEADER0(mkostemp64 ,false,(t,f   )) ; Mkstemp r{t,   "mkostemp64" } ; return r(orig(t,f   )) ; }
-		int mkstemps64 (char* t,      int sl) { HEADER0(mkstemps64 ,false,(t,  sl)) ; Mkstemp r{t,sl,"mkstemps64" } ; return r(orig(t,  sl)) ; }
-		int mkostemps64(char* t,int f,int sl) { HEADER0(mkostemps64,false,(t,f,sl)) ; Mkstemp r{t,sl,"mkostemps64"} ; return r(orig(t,f,sl)) ; }
-	#endif
+	//                                                         is_stat
+	int mkstemp64  (char* t             ) { HEADER0(mkstemp64  ,false,(t     )) ; Mkstemp r{t,   "mkstemp64"  } ; return r(orig(t     )) ; }
+	int mkostemp64 (char* t,int f       ) { HEADER0(mkostemp64 ,false,(t,f   )) ; Mkstemp r{t,   "mkostemp64" } ; return r(orig(t,f   )) ; }
+	int mkstemps64 (char* t,      int sl) { HEADER0(mkstemps64 ,false,(t,  sl)) ; Mkstemp r{t,sl,"mkstemps64" } ; return r(orig(t,  sl)) ; }
+	int mkostemps64(char* t,int f,int sl) { HEADER0(mkostemps64,false,(t,f,sl)) ; Mkstemp r{t,sl,"mkostemps64"} ; return r(orig(t,f,sl)) ; }
 
-	#if HAS_NAMESPACES
-		// mount
-		int mount(CC* sp,CC* tp,CC* fst,ulong f,const void* d) {
-			HEADER( mount , false/*is_stat*/ , !(f&MS_BIND) || (Record::s_is_simple(sp)&&Record::s_is_simple(tp)) , (sp,tp,fst,f,d) ) ;
-			Mount r{sp,tp,"mount"} ;
-			return r(orig(sp,tp,fst,f,d)) ;
+	// mount
+	int mount(CC* sp,CC* tp,CC* fst,ulong f,const void* d) {
+		HEADER( mount , false/*is_stat*/ , !(f&MS_BIND) || (Record::s_is_simple(sp)&&Record::s_is_simple(tp)) , (sp,tp,fst,f,d) ) ;
+		Mount r{sp,tp,"mount"} ;
+		return r(orig(sp,tp,fst,f,d)) ;
 		}
-	#endif
 
-	#if HAS_FILE_HANDLE
-		// name_to_handle_at
-		int name_to_handle_at( int d , CC* p , struct ::file_handle *h , int *mount_id , int f ) NE {
-			HEADER1( name_to_handle_at , false/*is_stat*/ , p , (d,p,h,mount_id,f) ) ;
-			Open r{{d,p},f,"name_to_handle_at"} ;
-			return r(orig(d,p,h,mount_id,f)) ;
-		}
-	#endif
+	// name_to_handle_at
+	int name_to_handle_at( int d , CC* p , struct ::file_handle *h , int *mount_id , int f ) NE {
+		HEADER1( name_to_handle_at , false/*is_stat*/ , p , (d,p,h,mount_id,f) ) ;
+		Open r{{d,p},f,"name_to_handle_at"} ;
+		return r(orig(d,p,h,mount_id,f)) ;
+	}
 
 	// open
 	static_assert( ::is_unsigned_v<mode_t> && sizeof(mode_t)<=sizeof(uint) ) ;
 	#define MOD mode_t m = 0 ; if ( f & (O_CREAT|O_TMPFILE) ) { va_list lst ; va_start(lst,f) ; m = mode_t(va_arg(lst,uint)) ; va_end(lst) ; }
-	//                                                                          is_stat
-	int open           (      CC* p,int f,...) { MOD ; HEADER1(open             ,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"open"             } ; return r(orig(  p,f,m)) ; }
-	int __open         (      CC* p,int f,...) { MOD ; HEADER1(__open           ,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open"           } ; return r(orig(  p,f,m)) ; }
-	int __open_nocancel(      CC* p,int f,...) { MOD ; HEADER1(__open_nocancel  ,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open_nocancel"  } ; return r(orig(  p,f,m)) ; }
-	int __open_2       (      CC* p,int f    ) {       HEADER1(__open_2         ,false,p,(  p,f  )) ; Open r{   p ,f                         ,"__open_2"         } ; return r(orig(  p,f  )) ; }
-	int openat         (int d,CC* p,int f,...) { MOD ; HEADER1(openat           ,false,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat"           } ; return r(orig(d,p,f,m)) ; }
-	int __openat_2     (int d,CC* p,int f    ) {       HEADER1(__openat_2       ,false,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat_2"       } ; return r(orig(d,p,f  )) ; }
-	int creat          (      CC* p,mode_t m ) {       HEADER1(creat            ,false,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat"            } ; return r(orig(  p,  m)) ; }
-	#if HAS_OFF64 //!                                                                 is_stat
-		int open64           (      CC* p,int f,...) { MOD ; HEADER1(open64           ,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"open64"           } ; return r(orig(  p,f,m)) ; }
-		int __open64         (      CC* p,int f,...) { MOD ; HEADER1(__open64         ,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64"         } ; return r(orig(  p,f,m)) ; }
-		int __open64_nocancel(      CC* p,int f,...) { MOD ; HEADER1(__open64_nocancel,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64_nocancel"} ; return r(orig(  p,f,m)) ; }
-		int __open64_2       (      CC* p,int f    ) {       HEADER1(__open64_2       ,false,p,(  p,f  )) ; Open r{   p ,f                         ,"__open64_2"       } ; return r(orig(  p,f  )) ; }
-		int openat64         (int d,CC* p,int f,...) { MOD ; HEADER1(openat64         ,false,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat64"         } ; return r(orig(d,p,f,m)) ; }
-		int __openat64_2     (int d,CC* p,int f    ) {       HEADER1(__openat64_2     ,false,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat64_2"     } ; return r(orig(d,p,f  )) ; }
-		int creat64          (      CC* p,mode_t m ) {       HEADER1(creat64          ,false,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat64"          } ; return r(orig(  p,  m)) ; }
-	#endif
+	//                                                                        is_stat
+	int open           (      CC* p,int f,...) { MOD ; HEADER1(open           ,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"open"           } ; return r(orig(  p,f,m)) ; }
+	int __open         (      CC* p,int f,...) { MOD ; HEADER1(__open         ,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open"         } ; return r(orig(  p,f,m)) ; }
+	int __open_nocancel(      CC* p,int f,...) { MOD ; HEADER1(__open_nocancel,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open_nocancel"} ; return r(orig(  p,f,m)) ; }
+	int __open_2       (      CC* p,int f    ) {       HEADER1(__open_2       ,false,p,(  p,f  )) ; Open r{   p ,f                         ,"__open_2"       } ; return r(orig(  p,f  )) ; }
+	int openat         (int d,CC* p,int f,...) { MOD ; HEADER1(openat         ,false,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat"         } ; return r(orig(d,p,f,m)) ; }
+	int __openat_2     (int d,CC* p,int f    ) {       HEADER1(__openat_2     ,false,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat_2"     } ; return r(orig(d,p,f  )) ; }
+	int creat          (      CC* p,mode_t m ) {       HEADER1(creat          ,false,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat"          } ; return r(orig(  p,  m)) ; }
+	//                                                                            is_stat
+	int open64           (      CC* p,int f,...) { MOD ; HEADER1(open64           ,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"open64"           } ; return r(orig(  p,f,m)) ; }
+	int __open64         (      CC* p,int f,...) { MOD ; HEADER1(__open64         ,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64"         } ; return r(orig(  p,f,m)) ; }
+	int __open64_nocancel(      CC* p,int f,...) { MOD ; HEADER1(__open64_nocancel,false,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64_nocancel"} ; return r(orig(  p,f,m)) ; }
+	int __open64_2       (      CC* p,int f    ) {       HEADER1(__open64_2       ,false,p,(  p,f  )) ; Open r{   p ,f                         ,"__open64_2"       } ; return r(orig(  p,f  )) ; }
+	int openat64         (int d,CC* p,int f,...) { MOD ; HEADER1(openat64         ,false,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat64"         } ; return r(orig(d,p,f,m)) ; }
+	int __openat64_2     (int d,CC* p,int f    ) {       HEADER1(__openat64_2     ,false,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat64_2"     } ; return r(orig(d,p,f  )) ; }
+	int creat64          (      CC* p,mode_t m ) {       HEADER1(creat64          ,false,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat64"          } ; return r(orig(  p,  m)) ; }
 	#undef MOD
 	DIR* opendir(CC* p) { HEADER1(opendir,false/*is_stat*/,p,(p)) ; Solve r{p,true/*no_follow*/,false/*read*/,false/*create*/,"opendir"  } ; return r(orig(p)) ; }
 
 	// readlink
 	#define RL Readlink
 	#if LD_PRELOAD_JEMALLOC
-		#if !IS_LINUX                                                      // we need the __readlink_chk hack, which is only available under Linux
-			#error cannot implement ld_preload_jemalloc if not under Linux
-		#endif
 		// jemalloc does a readlink of its config file (/etc/jemalloc.conf) during its init phase
 		// under some circumstances (not really understood), dlsym, which is necessary to find the original readlink function calls malloc
 		// this creates a loop, leading to a deadlock in jemalloc as it takes a mutex during its init phase
@@ -629,9 +604,8 @@ struct Mkstemp : WSolve {
 
 	// truncate                                      is_stat
 	int truncate(CC* p,off_t l) NE { HEADER1(truncate,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate"} ; return r(orig(p,l)) ; }
-	#if HAS_OFF64 //!                                          is_stat
-		int truncate64(CC* p,off64_t l) NE { HEADER1(truncate64,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(p,l)) ; }
-	#endif
+	//                                                     is_stat
+	int truncate64(CC* p,off64_t l) NE { HEADER1(truncate64,false,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(p,l)) ; }
 
 	// unlink                                            is_stat
 	int unlink  (      CC* p      ) NE { HEADER1(unlink  ,false,p,(  p  )) ; Unlnk r{   p ,false/*rmdir*/      ,"unlink"  } ; return r(orig(  p  )) ; }
@@ -658,14 +632,13 @@ struct Mkstemp : WSolve {
 	int stat      (            CC* p,struct stat  * b      ) NE { HEADER1(stat      ,true ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),"stat"      } ; return r(orig(    p,b  )) ; }
 	int lstat     (            CC* p,struct stat  * b      ) NE { HEADER1(lstat     ,true ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),"lstat"     } ; return r(orig(    p,b  )) ; }
 	int fstatat   (      int d,CC* p,struct stat  * b,int f) NE { HEADER1(fstatat   ,true ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat"   } ; return r(orig(  d,p,b,f)) ; }
-	#if HAS_OFF64 //!                                                                       is_stat                             no_follow accesses
-		int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,true ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),"__xstat64"   } ; return r(orig(v,  p,b  )) ; }
-		int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__lxstat64  ,true ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),"__lxstat64"  } ; return r(orig(v,  p,b  )) ; }
-		int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HEADER1(__fxstatat64,true ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"__fxstatat64"} ; return r(orig(v,d,p,b,f)) ; }
-		int stat64      (            CC* p,struct stat64* b      ) NE { HEADER1(stat64      ,true ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),"stat64"      } ; return r(orig(    p,b  )) ; }
-		int lstat64     (            CC* p,struct stat64* b      ) NE { HEADER1(lstat64     ,true ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),"lstat64"     } ; return r(orig(    p,b  )) ; }
-		int fstatat64   (      int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64   ,true ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat64"   } ; return r(orig(  d,p,b,f)) ; }
-	#endif
+	//                                                                                  is_stat                             no_follow accesses
+	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,true ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),"__xstat64"   } ; return r(orig(v,  p,b  )) ; }
+	int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__lxstat64  ,true ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),"__lxstat64"  } ; return r(orig(v,  p,b  )) ; }
+	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HEADER1(__fxstatat64,true ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"__fxstatat64"} ; return r(orig(v,d,p,b,f)) ; }
+	int stat64      (            CC* p,struct stat64* b      ) NE { HEADER1(stat64      ,true ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),"stat64"      } ; return r(orig(    p,b  )) ; }
+	int lstat64     (            CC* p,struct stat64* b      ) NE { HEADER1(lstat64     ,true ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),"lstat64"     } ; return r(orig(    p,b  )) ; }
+	int fstatat64   (      int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64   ,true ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),"fstatat64"   } ; return r(orig(  d,p,b,f)) ; }
 	//
 	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE {                   // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
 		HEADER1(statx,true/*is_stat*/,p,(d,p,f,msk,b)) ;
@@ -692,60 +665,57 @@ struct Mkstemp : WSolve {
 	//                                                                  is_stat                               no_follow read  create
 	int scandir  (      CC* p,NmLst nl,Fltr f,Cmp c) { HEADER1(scandir  ,false,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,"scandir"  } ; return r(orig(  p,nl,f,c)) ; }
 	int scandirat(int d,CC* p,NmLst nl,Fltr f,Cmp c) { HEADER1(scandirat,false,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,"scandirat"} ; return r(orig(d,p,nl,f,c)) ; }
-	#if HAS_OFF64
-		using NmLst64 = struct dirent64***                                       ;
-		using Fltr64  = int (*)(const struct dirent64*                         ) ;
-		using Cmp64   = int (*)(const struct dirent64**,const struct dirent64**) ;
-		//                                                                            is_stat                               no_follow read  create
-		int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,false,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,"scandir64"  } ; return r(orig(  p,nl,f,c)) ; }
-		int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,false,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,"scandirat64"} ; return r(orig(d,p,nl,f,c)) ; }
-	#endif
+	//
+	using NmLst64 = struct dirent64***                                       ;
+	using Fltr64  = int (*)(const struct dirent64*                         ) ;
+	using Cmp64   = int (*)(const struct dirent64**,const struct dirent64**) ;
+	//                                                                            is_stat                               no_follow read  create
+	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,false,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,"scandir64"  } ; return r(orig(  p,nl,f,c)) ; }
+	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,false,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,"scandirat64"} ; return r(orig(d,p,nl,f,c)) ; }
 
 	#undef CC
 
-	#if !IS_DARWIN                                                                                       // syscall is deprecated with Darwin ==> ignore
-		// syscall
-		// /!\ we must be very careful to avoid dead-lock :
-		// - mutex calls futex management, which sometimes call syscall
-		// - so filter on s_tab must be done before locking (in HEADER)
-		// - this requires that s_tab does no memory allocation as memory allocation may call brk
-		// - hence it is a ::array, not a ::umap (which would be simpler)
-		decltype(syscall(0)) syscall( long n , ... ) {                                                   // syscall may return int (Darwin) or long (Linux)
-			static constexpr SyscallDescr NoSyscallDescr ;
-			uint64_t args[6] ;
-			{	va_list lst ; va_start(lst,n) ;
-				args[0] = va_arg(lst,uint64_t) ;
-				args[1] = va_arg(lst,uint64_t) ;
-				args[2] = va_arg(lst,uint64_t) ;
-				args[3] = va_arg(lst,uint64_t) ;
-				args[4] = va_arg(lst,uint64_t) ;
-				args[5] = va_arg(lst,uint64_t) ;
-				va_end(lst) ;
-			}
-			SyscallDescr::Tab const& tab   = SyscallDescr::s_tab                                       ;
-			SyscallDescr      const& descr = n>=0&&n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
-			HEADER(
-				syscall
-			,	false/*is_stat*/
-			,	!descr || (descr.filter&&Record::s_is_simple(reinterpret_cast<const char*>(args[descr.filter-1])))
-			,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
-			) ;
-			void* descr_ctx = nullptr ;
-			Ctx audit_ctx ;                                                                              // save user errno when required
-			//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			if (descr.entry) descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ;
-			//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			audit_ctx.restore_errno() ;
-			//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			long res = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
-			//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			audit_ctx.save_errno() ;
-			//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			if (descr.exit) return descr.exit( descr_ctx , auditor() , 0/*pid*/ , res ) ;
-			else            return res                                                  ;
-			//                     ^^^
+	// syscall
+	// /!\ we must be very careful to avoid dead-lock :
+	// - mutex calls futex management, which sometimes call syscall
+	// - so filter on s_tab must be done before locking (in HEADER)
+	// - this requires that s_tab does no memory allocation as memory allocation may call brk
+	// - hence it is a ::array, not a ::umap (which would be simpler)
+	long syscall( long n , ... ) {
+		static constexpr SyscallDescr NoSyscallDescr ;
+		uint64_t args[6] ;
+		{	va_list lst ; va_start(lst,n) ;
+			args[0] = va_arg(lst,uint64_t) ;
+			args[1] = va_arg(lst,uint64_t) ;
+			args[2] = va_arg(lst,uint64_t) ;
+			args[3] = va_arg(lst,uint64_t) ;
+			args[4] = va_arg(lst,uint64_t) ;
+			args[5] = va_arg(lst,uint64_t) ;
+			va_end(lst) ;
 		}
-	#endif
+		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab                                       ;
+		SyscallDescr      const& descr = n>=0&&n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
+		HEADER(
+			syscall
+		,	false/*is_stat*/
+		,	!descr || (descr.filter&&Record::s_is_simple(reinterpret_cast<const char*>(args[descr.filter-1])))
+		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
+		) ;
+		void* descr_ctx = nullptr ;
+		Ctx audit_ctx ;                                                                              // save user errno when required
+		//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (descr.entry) descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ;
+		//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		audit_ctx.restore_errno() ;
+		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		long res = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
+		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		audit_ctx.save_errno() ;
+		//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (descr.exit) return descr.exit( descr_ctx , auditor() , 0/*pid*/ , res ) ;
+		else            return res                                                  ;
+		//                     ^^^
+	}
 
 	#undef NO_SERVER
 	#undef HEADER2

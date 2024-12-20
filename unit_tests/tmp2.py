@@ -106,10 +106,6 @@ if __name__!='__main__' :
 
 else :
 
-	if not lmake.has_namespaces :
-		print('namespaces not available',file=open('skipped','w'))
-		exit()
-
 	import ut
 
 	with open('lnk_dut.ref','w') as f :

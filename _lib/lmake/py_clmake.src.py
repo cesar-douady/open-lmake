@@ -70,10 +70,8 @@ else :
 	if not repo_root : del repo_root
 #
 autodeps = ()
-if "$HAS_LD_AUDIT"              : autodeps += ('ld_audit'           ,)
-if True                         : autodeps += ('ld_preload'         ,)
-if _os.uname().sysname=='Linux' : autodeps += ('ld_preload_jemalloc',)
-if "$HAS_PTRACE"                : autodeps += ('ptrace'             ,)
+if "$HAS_LD_AUDIT" : autodeps += ('ld_audit'  ,                              )
+if True            : autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
 #
 backends = ('local',)
 if "$HAS_SGE"   : backends += ('sge'  ,)

@@ -258,8 +258,8 @@ namespace Time {
 		// cxtors & casts
 	public :
 		using Date::Date ;
-		constexpr Ddate(                           FileTag tag=FileTag::None )                         {                    _val  = +tag ; }
-		constexpr Ddate( struct ::stat const& st , FileTag tag               ) : Date{st.ST_MTIMESPEC} { _val &= ~_TagMsk ; _val |= +tag ; }
+		constexpr Ddate(                           FileTag tag=FileTag::None )                    {                    _val  = +tag ; }
+		constexpr Ddate( struct ::stat const& st , FileTag tag               ) : Date{st.st_mtim} { _val &= ~_TagMsk ; _val |= +tag ; }
 		// accesses
 		constexpr bool    operator+() const { return _date()               ; }
 		constexpr FileTag tag      () const { return FileTag(_val&_TagMsk) ; }

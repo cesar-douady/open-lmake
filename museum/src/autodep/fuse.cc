@@ -546,10 +546,10 @@ namespace Fuse {
 					{ .tv_sec=0 , .tv_nsec=UTIME_OMIT }
 				,	{ .tv_sec=0 , .tv_nsec=UTIME_OMIT }
 				} ;
-				if      ( valid & FUSE_SET_ATTR_ATIME_NOW ) tv[0].tv_nsec = UTIME_NOW          ;
-				else if ( valid & FUSE_SET_ATTR_ATIME     ) tv[0]         = attr->st_atim      ;
-				if      ( valid & FUSE_SET_ATTR_MTIME_NOW ) tv[1].tv_nsec = UTIME_NOW          ;
-				else if ( valid & FUSE_SET_ATTR_MTIME     ) tv[1]         = attr->ST_MTIMESPEC ;
+				if      ( valid & FUSE_SET_ATTR_ATIME_NOW ) tv[0].tv_nsec = UTIME_NOW     ;
+				else if ( valid & FUSE_SET_ATTR_ATIME     ) tv[0]         = attr->st_atim ;
+				if      ( valid & FUSE_SET_ATTR_MTIME_NOW ) tv[1].tv_nsec = UTIME_NOW     ;
+				else if ( valid & FUSE_SET_ATTR_MTIME     ) tv[1]         = attr->st_mtim ;
 				if (fi) { int rc = ::futimens ( fi->fh   ,                              tv     ) ; if (rc<0) throw errno ; }
 				else    { int rc = ::utimensat( AT_FDCWD , self.fds.proc(ino).c_str() , tv , 0 ) ; if (rc<0) throw errno ; }
 			}

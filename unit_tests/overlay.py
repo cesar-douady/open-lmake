@@ -39,7 +39,7 @@ if __name__!='__main__' :
 		tmp_view = '/tmp'
 		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':lmake.repo_root+'/'} }
 		target   = 'dut3'
-		def cmd():
+		def cmd() :
 			print(open('/tmp/merged/read/src').read(),end='')
 
 	class Test(Rule) :
@@ -51,10 +51,6 @@ if __name__!='__main__' :
 		cmd = 'diff {REF} {DUT}'
 
 else :
-
-	if not lmake.has_namespaces :
-		print('namespaces not available',file=open('skipped','w'))
-		exit()
 
 	import os
 

@@ -6,9 +6,7 @@
 #include "app.hh"
 #include "thread.hh"
 
-#if HAS_PTRACE
-	#include "ptrace.hh"
-#endif
+#include "ptrace.hh"
 #include "record.hh"
 
 #include "gather.hh"
@@ -151,34 +149,28 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 	}
 }
 
-#if HAS_PTRACE
-	void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
-		t_thread_key = 'T' ;
-		AutodepPtrace::s_init(autodep_env) ;
-		_child.pre_exec = AutodepPtrace::s_prepare_child  ;
-		//vvvvvvvvvvvv
-		_child.spawn() ;                                                      // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
-		//^^^^^^^^^^^^
-		ready->count_down() ;                                                 // signal main thread that _child.pid is available
-		AutodepPtrace autodep_ptrace{_child.pid} ;
-		wstatus = autodep_ptrace.process() ;
-		_child.waited() ;                                                     // _child is already waited by autodep_ptrace.process
-		ssize_t cnt = write(report_fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; // report child end
-		Record::s_close_report() ;
+void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
+	t_thread_key = 'T' ;
+	AutodepPtrace::s_init(autodep_env) ;
+	_child.pre_exec = AutodepPtrace::s_prepare_child  ;
+	//vvvvvvvvvvvv
+	_child.spawn() ;                                                      // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
+	//^^^^^^^^^^^^
+	ready->count_down() ;                                                 // signal main thread that _child.pid is available
+	AutodepPtrace autodep_ptrace{_child.pid} ;
+	wstatus = autodep_ptrace.process() ;
+	_child.waited() ;                                                     // _child is already waited by autodep_ptrace.process
+	ssize_t cnt = write(report_fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; // report child end
+	Record::s_close_report() ;
 	}
-#endif
 
 Fd Gather::_spawn_child() {
 	SWEAR(+cmd_line) ;
 	Trace trace("_spawn_child",child_stdin,child_stdout,child_stderr) ;
 	//
 	Fd child_fd ;
-	#if HAS_PTRACE
-		Fd   report_fd ;
-		bool is_ptrace = method==AutodepMethod::Ptrace ;
-	#else
-		bool is_ptrace = false ;
-	#endif
+	Fd   report_fd ;
+	bool is_ptrace = method==AutodepMethod::Ptrace ;
 	//
 	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                  // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
@@ -187,15 +179,12 @@ Fd Gather::_spawn_child() {
 	_child.stderr_fd  = child_stderr                          ;
 	_child.first_pid  = first_pid                             ;
 	if (is_ptrace) {                                                                             // PER_AUTODEP_METHOD : handle case
-		SWEAR(HAS_PTRACE) ;
-		#if HAS_PTRACE
-			// we split the responsability into 2 threads :
-			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
-			// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
-			Pipe pipe{New,true/*no_std*/} ;
-			child_fd  = pipe.read  ;
-			report_fd = pipe.write ;
-		#endif
+		// we split the responsability into 2 threads :
+		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
+		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
+		Pipe pipe{New,true/*no_std*/} ;
+		child_fd  = pipe.read  ;
+		report_fd = pipe.write ;
 	} else {
 		if (method>=AutodepMethod::Ld) {                                                         // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
@@ -209,9 +198,7 @@ Fd Gather::_spawn_child() {
 					case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_audit.so"            ; break ;
 				#endif
 					case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_preload.so"          ; break ;
-				#if IS_LINUX
 					case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_preload_jemalloc.so" ; break ;
-				#endif
 				#undef DOLLAR_LIB
 			DF}
 			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
@@ -225,12 +212,9 @@ Fd Gather::_spawn_child() {
 	_child.add_env  = &_add_env ;
 	_child.cwd_s    = cwd_s     ;
 	if (is_ptrace) {
-		SWEAR(HAS_PTRACE) ;
-		#if HAS_PTRACE
-			::latch ready{1} ;
-			_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ;          // /!\ _child must be spawned from tracing thread
-			ready.wait() ;                                                                       // wait until _child.pid is available
-		#endif
+		::latch ready{1} ;
+		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ;              // /!\ _child must be spawned from tracing thread
+		ready.wait() ;                                                                           // wait until _child.pid is available
 	} else {
 		//vvvvvvvvvvvv
 		_child.spawn() ;
@@ -238,7 +222,7 @@ Fd Gather::_spawn_child() {
 	}
 	if (+timeout) { _end_timeout = start_date + timeout ; trace("set_timeout",timeout,_end_timeout) ; }
 	trace("child_pid",_child.pid) ;
-	return child_fd ;
+	return child_fd ;                                                                            // child_fd is only used with ptrace
 }
 Status Gather::exec_child() {
 	using Event = Epoll<Kind>::Event ;

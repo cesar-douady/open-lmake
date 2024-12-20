@@ -40,8 +40,7 @@ if top_repo_root==None : top_repo_root = _os.getcwd() ; # .
 root_dir     = repo_root     # XXX : until backward compatibility can be broken
 top_root_dir = top_repo_root # XXX : until backward compatibility can be broken
 
-version        = ('$VERSION',0)          # substituted at build time
-has_namespaces = bool('$HAS_NAMESPACES') # .
+version = ('$VERSION',0) # substituted at build time
 
 def check_version(major,minor=0) :
 	if major!=version[0] or minor>version[1] : raise RuntimeError('required version '+str((major,minor))+' is incompatible with native version '+str(version))

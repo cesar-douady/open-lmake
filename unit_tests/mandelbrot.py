@@ -48,10 +48,6 @@ if __name__!='__main__' :
 
 else :
 
-	if os.uname().sysname!='Linux' :
-		print('neither jemalloc nor ptrace available',file=open('skipped','w'))
-		exit()
-
 	import shutil
 
 	cargo = shutil.which('cargo')

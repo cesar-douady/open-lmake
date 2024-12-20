@@ -3,27 +3,14 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# notes :
-# - the protection for jemalloc requires a hack which is only available under Linux
-# - syscall() is deprecated under Darwin and is not implemented in autodep
-# - ptrace is not available under Darwin
-# - static libstdc++ is not available under Darwin
-
 VERSION := 24.12
 
-OS := $(shell uname)
-
-# user configurable
-ifeq ($(OS),Linux)
-    MAKEFLAGS := -j$(shell nproc||echo 1)
+ifneq ($(shell uname),Linux)
+    $(error can only compile under Linux)
 endif
-ifeq ($(OS),Darwin)
-    MAKEFLAGS := -j$(shell sysctl hw.ncpu|cut -w -f2||echo 1)
-endif
-MAKEFLAGS += -k
 
-# mandatory
-MAKEFLAGS += -r -R
+MAKEFLAGS := -r -R                       # mandatory
+MAKEFLAGS += -k -j$(shell nproc||echo 1) # user configurable
 
 .DEFAULT_GOAL := DFLT
 
@@ -47,7 +34,6 @@ sys_config.log : _bin/sys_config sys_config.env
 	@echo sys_config
 	@# reread sys_config.env in case it has been modified while reading an old sys_config.mk
 	@set -a ;            \
-	OS=$(OS) ;           \
 	. ./sys_config.env ; \
 	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
 sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
@@ -98,8 +84,7 @@ include Manifest.inc_stamp # Manifest is used in this makefile
 EXCLUDES := \
 	$(if $(HAS_SLURM)   ,,src/lmakeserver/backends/slurm.cc) \
 	$(if $(HAS_SGE)     ,,src/lmakeserver/backends/sge.cc  ) \
-	$(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc          ) \
-	$(if $(IS_DARWIN)   , src/autodep/syscall_tab.cc       )
+	$(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc          )
 SRCS := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 
 # this is the recommanded way to insert a , when calling functions
@@ -131,7 +116,7 @@ HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
 SAN_FLAGS    := $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
 # some user codes may have specific (and older) libs, in that case, unless flag l is used, link libstdc++ statically
-LIB_STDCPP := $(if $(or $(IS_DARWIN),$(findstring l,$(LMAKE_FLAGS))),,-static-libstdc++)
+LIB_STDCPP := $(if $(findstring l,$(LMAKE_FLAGS)),,-static-libstdc++)
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
@@ -146,7 +131,7 @@ ifeq ($(CXX_FLAVOR),clang)
 endif
 #
 USER_FLAGS := -std=$(CXX_STD) $(EXTRA_FLAGS) $(COVERAGE) $(PROFILE)
-COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS) $(if $(NEED_EXPERIMENTAL_LIBRARY),-fexperimental-library) $(DARWIN_FIX_FLAGS)
+COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS) $(if $(NEED_EXPERIMENTAL_LIBRARY),-fexperimental-library)
 LINT       := clang-tidy
 LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
 LINT_CHKS  := -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
@@ -166,7 +151,7 @@ PY2_LINK_FLAGS := $(if $(PYTHON2),$(if $(PY2_LIB_DIR),$(PY2_LIB_DIR)/$(PY2_LIB_B
 PY3_LINK_FLAGS :=                 $(if $(PY3_LIB_DIR),$(PY3_LIB_DIR)/$(PY3_LIB_BASE),-l:$(PY3_LIB_BASE)) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY3_LIB_DIR))
 
 PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,$@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
-PY_LINK_FLAGS = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS)) $(if $(IS_DARWIN),-Wl$(COMMA)-rpath$(COMMA)/Library/Developer/CommandLineTools/Library/Frameworks)
+PY_LINK_FLAGS = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
 #
 PY_SO         = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),-py2)
 MOD_SO        = $(if $(and $(HAS_32) ,$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
@@ -238,7 +223,7 @@ LMAKE_SERVER_FILES := \
 	$(LMAKE_SERVER_PY_FILES)  \
 	$(LMAKE_SERVER_BIN_FILES)
 
-LMAKE_REMOTE_SLIBS := $(if $(HAS_LD_AUDIT),ld_audit.so) ld_preload.so $(if $(IS_LINUX),ld_preload_jemalloc.so)
+LMAKE_REMOTE_SLIBS := $(if $(HAS_LD_AUDIT),ld_audit.so) ld_preload.so ld_preload_jemalloc.so
 LMAKE_REMOTE_FILES := \
 	$(if $(HAS_32),$(patsubst %,_d$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
 	$(patsubst %,_d$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                    \
@@ -341,8 +326,6 @@ lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk
 		-e 's!\$$BASH!$(BASH)!'                          \
 		-e 's!\$$GIT!$(GIT)!'                            \
 		-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
-		-e 's!\$$HAS_NAMESPACES!$(HAS_NAMESPACES)!'      \
-		-e 's!\$$HAS_PTRACE!$(HAS_PTRACE)!'              \
 		-e 's!\$$HAS_SGE!$(HAS_SGE)!'                    \
 		-e 's!\$$HAS_SLURM!$(HAS_SLURM)!'                \
 		-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
@@ -457,7 +440,7 @@ SERVER_SAN_OBJS := \
 	src/autodep/env$(SAN).o                             \
 	src/autodep/ld_server$(SAN).o                       \
 	src/autodep/record$(SAN).o                          \
-	$(if $(IS_DARWIN),,src/autodep/syscall_tab$(SAN).o) \
+	src/autodep/syscall_tab$(SAN).o                     \
 	src/lmakeserver/backend$(SAN).o                     \
 	src/lmakeserver/cache$(SAN).o                       \
 	src/lmakeserver/caches/dir_cache$(SAN).o            \
@@ -473,7 +456,7 @@ SERVER_SAN_OBJS := \
 _bin/lmakeserver : \
 	$(SERVER_SAN_OBJS)                                         \
 	src/autodep/gather$(SAN).o                                 \
-	$(if $(HAS_PTRACE),src/autodep/ptrace$(SAN).o            ) \
+	src/autodep/ptrace$(SAN).o                                 \
 	src/lmakeserver/backends/local$(SAN).o                     \
 	$(if $(HAS_SLURM) ,src/lmakeserver/backends/slurm$(SAN).o) \
 	$(if $(HAS_SGE)   ,src/lmakeserver/backends/sge$(SAN).o  ) \
@@ -484,7 +467,7 @@ _bin/lmakeserver : \
 bin/lrepair : \
 	$(SERVER_SAN_OBJS)                                         \
 	src/autodep/gather$(SAN).o                                 \
-	$(if $(HAS_PTRACE),src/autodep/ptrace$(SAN).o            ) \
+	src/autodep/ptrace$(SAN).o                                 \
 	src/lmakeserver/backends/local$(SAN).o                     \
 	$(if $(HAS_SLURM) ,src/lmakeserver/backends/slurm$(SAN).o) \
 	$(if $(HAS_SGE)   ,src/lmakeserver/backends/sge$(SAN).o  ) \
@@ -568,18 +551,18 @@ BASIC_REMOTE_OBJS := \
 	src/autodep/env.o      \
 	src/autodep/record.o
 
-AUTODEP_OBJS := $(BASIC_REMOTE_OBJS) $(if $(IS_DARWIN),,src/autodep/syscall_tab.o)
+AUTODEP_OBJS := $(BASIC_REMOTE_OBJS) src/autodep/syscall_tab.o
 REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) src/autodep/job_support.o
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)                          \
-	src/app.o                                \
-	src/py.o                                 \
-	src/re.o                                 \
-	src/rpc_job.o                            \
-	src/trace.o                              \
-	src/autodep/gather.o                     \
-	$(if $(HAS_PTRACE),src/autodep/ptrace.o) \
+	$(AUTODEP_OBJS)      \
+	src/app.o            \
+	src/py.o             \
+	src/re.o             \
+	src/rpc_job.o        \
+	src/trace.o          \
+	src/autodep/gather.o \
+	src/autodep/ptrace.o \
 	src/autodep/record.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS) src/job_exec.o
@@ -607,8 +590,8 @@ bin/% :
 
 # remote libs generate errors when -fsanitize=thread # XXX fix these errors and use $(SAN)
 
-LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    $(if $(IS_LINUX),_d$(LD_SO_LIB)/ld_preload_jemalloc.so   )
-LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so $(if $(IS_LINUX),_d$(LD_SO_LIB_32)/ld_preload_jemalloc.so)
+LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    _d$(LD_SO_LIB)/ld_preload_jemalloc.so
+LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so
 _d$(LD_SO_LIB)/ld_audit.so               : $(AUTODEP_OBJS)             src/autodep/ld_audit.o
 _d$(LD_SO_LIB)/ld_preload.so             : $(AUTODEP_OBJS)             src/autodep/ld_preload.o
 _d$(LD_SO_LIB)/ld_preload_jemalloc.so    : $(AUTODEP_OBJS)             src/autodep/ld_preload_jemalloc.o

@@ -18,34 +18,10 @@
 // PER_AUTODEP_METHOD : add entry here
 // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 // by default, use a compromize between speed an reliability
-#if IS_LINUX
-	#if HAS_LD_AUDIT
-		#if HAS_PTRACE
-			ENUM_2( AutodepMethod , Ld=LdAudit   , Dflt=LdAudit   , None , Ptrace , LdAudit , LdPreload , LdPreloadJemalloc )
-		#else
-			ENUM_2( AutodepMethod , Ld=LdAudit   , Dflt=LdAudit   , None ,          LdAudit , LdPreload , LdPreloadJemalloc )
-		#endif
-	#else
-		#if HAS_PTRACE
-			ENUM_2( AutodepMethod , Ld=LdPreload , Dflt=LdPreload , None , Ptrace ,           LdPreload , LdPreloadJemalloc )
-		#else
-			ENUM_2( AutodepMethod , Ld=LdPreload , Dflt=LdPreload , None ,                    LdPreload , LdPreloadJemalloc )
-		#endif
-	#endif
+#if HAS_LD_AUDIT
+	ENUM_2( AutodepMethod , Ld=LdAudit   , Dflt=LdAudit   , None , Ptrace , LdAudit , LdPreload , LdPreloadJemalloc )
 #else
-	#if HAS_LD_AUDIT
-		#if HAS_PTRACE
-			ENUM_2( AutodepMethod , Ld=LdAudit   , Dflt=LdAudit   , None , Ptrace , LdAudit , LdPreload                     )
-		#else
-			ENUM_2( AutodepMethod , Ld=LdAudit   , Dflt=LdAudit   , None ,          LdAudit , LdPreload                     )
-		#endif
-	#else
-		#if HAS_PTRACE
-			ENUM_2( AutodepMethod , Ld=LdPreload , Dflt=LdPreload , None , Ptrace ,           LdPreload                     )
-		#else
-			ENUM_2( AutodepMethod , Ld=LdPreload , Dflt=LdPreload , None ,                    LdPreload                     )
-		#endif
-	#endif
+	ENUM_2( AutodepMethod , Ld=LdPreload , Dflt=LdPreload , None , Ptrace ,           LdPreload , LdPreloadJemalloc )
 #endif
 // END_OF_VERSIONING
 

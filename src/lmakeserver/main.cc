@@ -3,16 +3,14 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <sys/inotify.h>
+
 #include "core.hh" // must be first to include Python.h first
 
 #include "rpc_client.hh"
 #include "autodep/record.hh"
 #include "cmd.hh"
 #include "makefiles.hh"
-
-#if HAS_INOTIFY
-	#include <sys/inotify.h>
-#endif
 
 using namespace Disk   ;
 using namespace Engine ;
@@ -33,9 +31,7 @@ static ::atomic<bool> _g_done           = false  ;
 static bool           _g_server_running = false  ;
 static ::string       _g_host           = host() ;
 static bool           _g_seen_make      = false  ;
-#if HAS_INOTIFY
-	static Fd _g_watch_fd ; // watch LMAKE/server
-#endif
+static Fd             _g_watch_fd       ;          // watch LMAKE/server
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	try {
@@ -72,14 +68,14 @@ static bool/*crashed*/ _start_server() {
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	if ( +mrkr.first && mrkr.first!=_g_host ) {
 		trace("already_existing_elsewhere",mrkr) ;
-		return false/*unused*/ ;                       // if server is running on another host, we cannot qualify with a kill(pid,0), be pessimistic
+		return false/*unused*/ ;                   // if server is running on another host, we cannot qualify with a kill(pid,0), be pessimistic
 	}
 	if (mrkr.second) {
-		if (kill_process(mrkr.second,0)) {             // another server exists
+		if (kill_process(mrkr.second,0)) {         // another server exists
 			trace("already_existing",mrkr) ;
 			return false/*unused*/ ;
 		}
-		unlnk(ServerMrkr) ;                            // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		unlnk(ServerMrkr) ;                        // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		crashed = true ;
 		trace("vanished",mrkr) ;
 	}
@@ -95,14 +91,12 @@ static bool/*crashed*/ _start_server() {
 		//vvvvvvvvvvvvvvvvvvvvvv
 		::atexit(_server_cleanup) ;
 		//^^^^^^^^^^^^^^^^^^^^^^
-		_g_server_running = true ;                     // while we link, pretend we run so cleanup can be done if necessary
+		_g_server_running = true ;                 // while we link, pretend we run so cleanup can be done if necessary
 		fence() ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		_g_server_running = ::link( tmp.c_str() , ServerMrkr )==0 ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		#if HAS_INOTIFY
-			_g_watch_fd = ::inotify_init1(O_CLOEXEC) ; // start watching file as soon as possible (ideally would be before)
-		#endif
+		_g_watch_fd = ::inotify_init1(O_CLOEXEC) ; // start watching file as soon as possible (ideally would be before)
 		unlnk(tmp) ;
 		trace("started",STR(crashed),STR(_g_is_daemon),STR(_g_server_running)) ;
 	}
@@ -110,9 +104,6 @@ static bool/*crashed*/ _start_server() {
 }
 
 static void _chk_os() {
-	#if !IS_LINUX
-		return ;  // XXX : dont know how to check os release
-	#endif
 	static constexpr const char* ReleaseFile = "/etc/os-release" ;
 	::vector_s lines      = AcFd(ReleaseFile).read_lines(true/*no_file_ok*/) ;
 	::string   id         ;
@@ -124,11 +115,11 @@ static void _chk_os() {
 	}
 	if ( id        .starts_with('"') && id        .ends_with('"') ) id         = id        .substr(1,id        .size()-2) ;
 	if ( version_id.starts_with('"') && version_id.ends_with('"') ) version_id = version_id.substr(1,version_id.size()-2) ;
-	//
 	if (!id                      ) exit(Rc::System,"cannot find ID in"        ,ReleaseFile) ;
-	if (id!=OS_ID                ) exit(Rc::System,"bad ID in"                ,ReleaseFile,':',id        ,"!=",OS_ID        ) ;
 	if (!version_id              ) exit(Rc::System,"cannot find VERSION_ID in",ReleaseFile) ;
-	if (version_id!=OS_VERSION_ID) exit(Rc::System,"bad VERSION_ID in"        ,ReleaseFile,':',version_id,"!=",OS_VERSION_ID) ;
+	//
+	id << '-'<<version_id ;
+	if (id!=OS_ID) exit(Rc::System,"bad OS in",ReleaseFile,':',id,"!=",OS_ID) ;
 }
 
 static void _record_targets(Job job) {
@@ -155,12 +146,10 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	if (g_writable) { epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ; } // if read-only, we do not expect additional connections
 	/**/            { epoll.add_sig ( SIGHUP       , EventKind::Int    ) ; trace("read_hup"                ) ; }
 	/**/            { epoll.add_sig ( SIGINT       , EventKind::Int    ) ; trace("read_int"                ) ; }
-	#if HAS_INOTIFY
-		if ( +_g_watch_fd && ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 ) {
-			trace("read_watch",_g_watch_fd) ;
-			epoll.add_read( _g_watch_fd , EventKind::Watch ) ; // if server marker is touched by user, we do as we received a ^C
-		}
-	#endif
+	if ( +_g_watch_fd && ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 ) {
+		trace("read_watch",_g_watch_fd) ;
+		epoll.add_read( _g_watch_fd , EventKind::Watch ) ; // if server marker is touched by user, we do as we received a ^C
+	}
 	//
 	if (!_g_is_daemon) {
 		in_tab[in_fd] ;
@@ -196,13 +185,11 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						case EventKind::Int :
 							EventFd(fd).flush() ;
 						break ;
-						#if HAS_INOTIFY
-							case EventKind::Watch : {
-								struct inotify_event event ;
-								ssize_t              cnt   = ::read( _g_watch_fd , &event , sizeof(event) ) ;
-								SWEAR(cnt==sizeof(event),cnt) ;
-							} break ;
-						#endif
+						case EventKind::Watch : {
+							struct inotify_event event ;
+							ssize_t              cnt   = ::read( _g_watch_fd , &event , sizeof(event) ) ;
+							SWEAR(cnt==sizeof(event),cnt) ;
+						} break ;
 					DF}
 					for( Req r : Req::s_reqs_by_start ) {
 						trace("all_zombie",r) ;
@@ -239,7 +226,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							trace("make",r) ;
 						} break ;
-						case ReqProc::Debug  :                 // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+						case ReqProc::Debug  :             // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 						case ReqProc::Forget :
 						case ReqProc::Mark   :
 							SWEAR(g_writable) ;

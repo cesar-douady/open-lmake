@@ -204,17 +204,15 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
-			Attrs::acquire_from_dct( interpreter  , py_dct , "interpreter"  ) ;
-			Attrs::acquire_from_dct( allow_stderr , py_dct , "allow_stderr" ) ;
-			Attrs::acquire_from_dct( auto_mkdir   , py_dct , "auto_mkdir"   ) ;
-			Attrs::acquire_env     ( env          , py_dct , "env"          ) ;
-			Attrs::acquire_from_dct( ignore_stat  , py_dct , "ignore_stat"  ) ;
-			#if HAS_NAMESPACES
-				Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir" ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = with_slash(job_space.chroot_dir_s) ;
-				Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"  ) ; if (+job_space.repo_view_s ) job_space.repo_view_s  = with_slash(job_space.repo_view_s ) ;
-				Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"   ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
-				Attrs::acquire_from_dct( job_space.views        , py_dct , "views"      ) ;
-			#endif
+			Attrs::acquire_from_dct( allow_stderr           , py_dct , "allow_stderr" ) ;
+			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"   ) ;
+			Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir"   ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = with_slash(job_space.chroot_dir_s) ;
+			Attrs::acquire_env     ( env                    , py_dct , "env"          ) ;
+			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat"  ) ;
+			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter"  ) ;
+			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"    ) ; if (+job_space.repo_view_s ) job_space.repo_view_s  = with_slash(job_space.repo_view_s ) ;
+			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"     ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
+			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"        ) ;
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
 			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
 		}
