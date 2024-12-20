@@ -13,7 +13,7 @@
 extern ::string* g_startup_dir_s ; // pointer to avoid init/fini order hazards, relative to g_repo_root_s, includes final /,  dir from which command was launched
 extern ::string* g_repo_root_s   ; // pointer to avoid init/fini order hazards, absolute                 , root of repository
 extern ::string* g_lmake_root_s  ; // pointer to avoid init/fini order hazards, absolute                 , installation dir of lmake
-extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, absolute                 , executable name for user messages
+extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards,                            executable name for user messages
 
 /**/   bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_=Yes , bool cd_root=true ) ; // if chk_version_==Maybe, it is ok to initialize stored version
 inline bool/*read_only*/ app_init( bool read_only_ok ,                          bool cd_root      ) { return app_init(read_only_ok,Yes,cd_root) ; }
@@ -85,9 +85,9 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	bool   has_arg = false ; for( Flag e : iota(All<Flag>) )                           has_arg |= flags[+e].has_arg             ;
 	//
 	::string err_msg = ensure_nl(msg) ;
-	/**/                 err_msg << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
-	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                                                               ;
-	/**/                 err_msg << "-h or --help : print this help\n"                                                                                                                     ;
+	/**/                 err_msg << Disk::base_name(get_exe()) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
+	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                                        ;
+	/**/                 err_msg << "-h or --help : print this help\n"                                                                                              ;
 	//
 	if (wk) {
 		if (has_dflt_key) { err_msg << "keys (at most 1) :\n" ; wk = ::max(wk,NoKeySz) ; }

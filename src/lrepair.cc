@@ -122,7 +122,7 @@ int main( int argc , char* /*argv*/[] ) {
 		if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	//
-	Trace::s_new_trace_file( g_config->local_admin_dir_s + "trace/" + base_name(read_lnk("/proc/self/exe")) ) ;
+	Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+*g_exe_name ) ;
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
 	//
 	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

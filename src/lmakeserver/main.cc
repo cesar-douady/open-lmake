@@ -473,7 +473,7 @@ int main( int argc , char** argv ) {
 		}
 		continue ;
 	Bad :
-		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax : lmakeserver [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
+		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax :",*g_exe_name," [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
 	if (g_startup_dir_s) SWEAR( is_dirname(*g_startup_dir_s) , *g_startup_dir_s ) ;
 	else                 g_startup_dir_s = new ::string ;
@@ -500,7 +500,7 @@ int main( int argc , char** argv ) {
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
-	if (g_writable) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+base_name(read_lnk("/proc/self/exe")) ) ;
+	if (g_writable) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+*g_exe_name ) ;
 	Codec::Closure::s_init() ;
 	Job           ::s_init() ;
 	//

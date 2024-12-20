@@ -18,7 +18,8 @@ if _sys.version_info.major<3 :
 	try                        : _cpu = _mp.cpu_count()
 	except NotImplementedError : _cpu = 1
 else :
-	_cpu = len(_os.sched_getaffinity(0))
+	try    : _cpu = len(_os.sched_getaffinity(0))
+	except : _cpu = _os.cpu_count()
 #_interface = _socket.getfqdn()
 #_group     = _os.getgroups()[0]
 

@@ -352,18 +352,26 @@ namespace Disk {
 		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp
-		struct _Dvg {
+		struct _DvgReal {
 			// cxtors & casts
-			_Dvg( ::string const& domain , ::string const& chk ) { update(domain,chk) ; }
+			_DvgReal( ::string const& domain , ::string const& chk ) { update(domain,chk) ; }
 			// accesses
-			bool operator +() const { return ok ; }
+			bool operator+() const { return ok ; }
 			// services
 			void update( ::string const& domain , ::string const& chk ) ; // udpate after domain & chk have been lengthened or shortened, but not modified internally
 			// data
 			bool   ok  = false ;
 			size_t dvg = 0     ;
 		} ;
-
+		struct _DvgFake {
+			// cxtors & casts
+			_DvgFake( ::string const& domain , ::string const& chk ) { update(domain,chk) ; }
+			// accesses
+			bool operator+() const { return false ; }
+			// services
+			void update( ::string const& /*domain*/ , ::string const& /*chk*/ ) {}
+		} ;
+		template<bool Real=true> using _Dvg = ::conditional_t<Real,_DvgReal,_DvgFake> ;
 		// statics
 	private :
 		// if No <=> no file, if Maybe <=> a regular file, if Yes <=> a link

@@ -98,7 +98,8 @@ include Manifest.inc_stamp # Manifest is used in this makefile
 EXCLUDES := \
 	$(if $(HAS_SLURM)   ,,src/lmakeserver/backends/slurm.cc) \
 	$(if $(HAS_SGE)     ,,src/lmakeserver/backends/sge.cc  ) \
-	$(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc          )
+	$(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc          ) \
+	$(if $(IS_DARWIN)   , src/autodep/syscall_tab.cc       )
 SRCS := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 
 # this is the recommanded way to insert a , when calling functions
@@ -134,9 +135,7 @@ LIB_STDCPP := $(if $(or $(IS_DARWIN),$(findstring l,$(LMAKE_FLAGS))),,-static-li
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
-ifneq ($(HAS_ELF),)
-    LINK_FLAGS = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath=%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath=%))
-endif
+LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath$(COMMA)%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath$(COMMA)%))
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
 LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) $(PROFILE) -pthread $(LINK_FLAGS)
 LINK_LIB             = -ldl $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
@@ -163,16 +162,12 @@ PY3_INC_DIRS :=                 $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $
 PY2_CC_FLAGS := $(if $(PYTHON2),$(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register)
 PY3_CC_FLAGS :=                 $(patsubst %,-isystem %,$(PY3_INC_DIRS)) -Wno-register
 #
-PY2_LINK_FLAGS := $(if $(PYTHON2),$(if $(PY2_LIB_DIR),$(PY2_LIB_DIR)/$(PY2_LIB_BASE),-l:$(PY2_LIB_BASE)))
-PY3_LINK_FLAGS :=                 $(if $(PY3_LIB_DIR),$(PY3_LIB_DIR)/$(PY3_LIB_BASE),-l:$(PY3_LIB_BASE))
-ifneq ($(HAS_ELF),)
-    PY2_LINK_FLAGS += $(if $(PYTHON2),$(patsubst %,-Wl$(COMMA)-rpath=%,$(PY2_LIB_DIR)))
-    PY3_LINK_FLAGS +=                 $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY3_LIB_DIR))
-else
-endif
+PY2_LINK_FLAGS := $(if $(PYTHON2),$(if $(PY2_LIB_DIR),$(PY2_LIB_DIR)/$(PY2_LIB_BASE),-l:$(PY2_LIB_BASE)) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY2_LIB_DIR)))
+PY3_LINK_FLAGS :=                 $(if $(PY3_LIB_DIR),$(PY3_LIB_DIR)/$(PY3_LIB_BASE),-l:$(PY3_LIB_BASE)) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY3_LIB_DIR))
 
-PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,             $@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
-PY_LINK_FLAGS = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
+PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,$@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
+PY_LINK_FLAGS = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS)) $(if $(IS_DARWIN),-Wl$(COMMA)-rpath$(COMMA)/Library/Developer/CommandLineTools/Library/Frameworks)
+#
 PY_SO         = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),-py2)
 MOD_SO        = $(if $(and $(HAS_32) ,$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
 MOD_O         = $(if $(and $(HAS_32) ,$(findstring -m32,             $@)),-m32)

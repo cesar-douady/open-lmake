@@ -1179,24 +1179,22 @@ inline void Fd::no_std() {
 // assert
 //
 
+::string get_exe() ;
+
+extern bool _crash_busy ;
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
-	static bool busy = false ;
-	if (!busy) {                                 // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
-		busy = true ;
-		char     buf[PATH_MAX] ;
-		ssize_t  cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
-		::string err_msg       ;
-		if ( cnt>=0 || cnt<=PATH_MAX ) {
-			/**/                   err_msg << ::string_view(buf,cnt) ;
-			if (t_thread_key!='?') err_msg <<':'<< t_thread_key      ;
-			/**/                   err_msg <<" :"                    ;
-		}
+	if (!_crash_busy) {                                                                     // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
+		_crash_busy = true ;
+		::string err_msg = get_exe() ;
+		if (t_thread_key!='?') err_msg <<':'<< t_thread_key ;
+		/**/                   err_msg <<" :"               ;
 		[[maybe_unused]] bool _[] = {false,(err_msg<<' '<<args,false)...} ;
 		err_msg << '\n' ;
 		Fd::Stderr.write(err_msg) ;
 		set_sig_handler<SIG_DFL>(sig) ;
 		write_backtrace(Fd::Stderr,hide_cnt+1) ;
-		kill_self(sig) ;                         // rather than merely calling abort, this works even if crash_handler is not installed
+		kill_self(sig) ;                                                                    // rather than merely calling abort, this works even if crash_handler is not installed
+		// continue to abort in case kill did not work for some reason
 	}
 	set_sig_handler<SIG_DFL>(SIGABRT) ;
 	::abort() ;

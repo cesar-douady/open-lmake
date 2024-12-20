@@ -36,10 +36,10 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 		} catch (::string const& e) { exit(Rc::Usage,e) ; }
 		if ( cd_root && +*g_startup_dir_s && ::chdir(no_slash(*g_repo_root_s).c_str())!=0 ) exit(Rc::System,"cannot chdir to ",no_slash(*g_repo_root_s)) ;
 	}
-	::string exe = read_lnk("/proc/self/exe") ;
-	/**/               g_exe_name     = new ::string{base_name(exe)                        } ;
+	::string exe_path = get_exe() ;
+	/**/               g_exe_name     = new ::string{::base_name(exe_path)                 } ;
 	if (!g_trace_file) g_trace_file   = new ::string{PrivateAdminDirS+"trace/"s+*g_exe_name} ;
-	/**/               g_lmake_root_s = new ::string{dir_name_s(exe,2)                     } ;
+	/**/               g_lmake_root_s = new ::string{dir_name_s(exe_path,2)                } ;
 	#if PROFILING
 		set_env( "GMON_OUT_PREFIX" , dir_guard(*g_repo_root_s+GMON_DIR_S+*g_exe_name) ) ;     // ensure unique gmon data file in a non-intrusive (wrt autodep) place
 	#endif

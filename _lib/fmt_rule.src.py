@@ -306,7 +306,7 @@ def avoid_ctx(name,ctxs) :
 	assert False,f'cannot find suffix to make {name} an available name'
 
 class Handle :
-	ThisPython = os.readlink('/proc/self/exe')
+	ThisPython = osp.realpath(sys.executable)
 	def __init__(self,rule) :
 		attrs         = handle_inheritance(rule)
 		module        = sys.modules[rule.__module__]

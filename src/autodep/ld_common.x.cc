@@ -3,7 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <dlfcn.h> // dlopen, dlinfo
 #include <errno.h>
 #include <sched.h>
 #include <stdarg.h>
@@ -27,25 +26,36 @@
 #include "record.hh"
 #include "syscall_tab.hh"
 
-#ifndef LD_AUDIT // else elf dependencies are captured by auditing code, no need to interpret elf content
-	#if HAS_ELF
-		#include "elf.hh"
-	#else
-		// cant interpret exe dependencies, well cant do much about it
-		void         elf_deps  ( Record& , Record::SolveCS const& , const char* /*ld_library_path*/ , ::string&& /*comment*/="elf_dep"  ) {             }
-		Record::Read search_elf( Record& , const char* /*file*/   ,                                   ::string&& /*comment*/="elf_srch" ) { return {} ; }
-	#endif
+// easier to use #if instead of #ifdef
+#ifndef LD_AUDIT
+	#define LD_AUDIT 0
+#endif
+#ifndef LD_PRELOAD
+	#define LD_PRELOAD 0
+#endif
+#ifndef LD_PRELOAD_JEMALLOC
+	#define LD_PRELOAD_JEMALLOC 0
+#endif
+#ifndef IN_SERVER
+	#define IN_SERVER 0
 #endif
 
 #ifndef O_TMPFILE
 	#define O_TMPFILE 0 // no check for O_TMPFILE if it does not exist0
 #endif
 
+#define NEED_ELF ( !LD_AUDIT && HAS_ELF ) // else elf dependencies are captured by auditing code or unavailable
+
+#if NEED_ELF
+	#include <dlfcn.h> // dlopen
+	#include "elf.hh"
+#endif
+
 // compiled with flag -fvisibility=hidden : this is good for perf and with LD_PRELOAD, we do not polute application namespace
 
 using namespace Disk ;
 
-#ifdef LD_AUDIT
+#if LD_AUDIT
 	struct Ctx {
 		void save_errno   () {} // our errno is not the same as user errno, so nothing to do
 		void restore_errno() {} // .
@@ -112,7 +122,7 @@ static thread_local bool                      _t_loop  = false ; // prevent recu
 // In that case, they may come before our own Audit is constructed if declared global (in the case of LD_PRELOAD).
 // To face this order problem, we declare our Audit as a static within a funciton which will be constructed upon first call.
 // As all statics with cxtor/dxtor, we define it through new so as to avoid destruction during finalization.
-#ifndef IN_SERVER
+#if !IN_SERVER
 	static                                // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
 #endif
 Record& auditor() {
@@ -154,7 +164,7 @@ using Symlink  = AuditAction<Record::Symlink       > ;
 using Unlnk    = AuditAction<Record::Unlnk         > ;
 using WSolve   = AuditAction<Record::WSolve        > ;
 
-#ifndef LD_AUDIT // else elf dependencies are captured by auditing code, no need to interpret elf content
+#if NEED_ELF
 
 	//
 	// Dlopen
@@ -180,9 +190,7 @@ struct _Exec : Record::Exec {
 	//
 	_Exec() = default ;
 	_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , ::string&& comment ) : Base{r,::move(path),no_follow,::copy(comment)} {
-		#ifdef LD_AUDIT                                                                    // else elf dependencies are captured by auditing code, no need to interpret elf content
-			(void)envp ;
-		#else
+		#if NEED_ELF
 			static constexpr char   Llpe[] = "LD_LIBRARY_PATH=" ;
 			static constexpr size_t LlpeSz = sizeof(Llpe)-1     ;                          // -1 to account of terminating null
 			//
@@ -190,6 +198,8 @@ struct _Exec : Record::Exec {
 			for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
 			if (*llp) elf_deps( r , self , *llp+LlpeSz , comment+".dep" ) ;                // pass value after the LD_LIBRARY_PATH= prefix
 			else      elf_deps( r , self , nullptr     , comment+".dep" ) ;                // /!\ dont add LlpeSz to nullptr
+		#else
+			(void)envp ;
 		#endif
 	}
 } ;
@@ -288,12 +298,12 @@ struct Mkstemp : WSolve {
 // Audited
 //
 
-#ifdef LD_PRELOAD
+#if LD_PRELOAD
 	// for ld_preload, we want to hide libc functions so as to substitute the auditing functions to the regular functions
 	#pragma GCC visibility push(default) // force visibility of functions defined hereinafter, until the corresponding pop
 	extern "C"
 #endif
-#ifdef LD_AUDIT
+#if LD_AUDIT
 	// for ld_audit, we want to use private functions so auditing code can freely call the libc without having to deal with errno
 	namespace Audited
 #endif
@@ -331,7 +341,7 @@ struct Mkstemp : WSolve {
 	#define HEADER1(libcall,is_stat,path,       args) HEADER( libcall , is_stat , Record::s_is_simple(path )                               , args )
 	#define HEADER2(libcall,is_stat,path1,path2,args) HEADER( libcall , is_stat , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
 	// macro for libcall that are forbidden in server when recording deps
-	#ifdef IN_SERVER
+	#if IN_SERVER
 		#define NO_SERVER(libcall) \
 			*Record::s_deps_err += #libcall " is forbidden in server\n" ; \
 			errno = ENOSYS ;                                              \
@@ -398,7 +408,7 @@ struct Mkstemp : WSolve {
 		}
 	#endif
 
-	#ifndef IN_SERVER
+	#if !IN_SERVER
 		// close
 		// close must be tracked as we must call hide
 		// in case close is called with one our our fd's, we must hide somewhere else (unless in server)
@@ -411,14 +421,14 @@ struct Mkstemp : WSolve {
 		#endif
 	#endif
 
-	#ifndef LD_AUDIT // not necessary with ld_audit as auditing mechanism provides a reliable way of finding indirect deps
+	#if NEED_ELF
 		// dlopen
 		//                                                      is_stat
 		void* dlopen (          CC* p,int f) NE { HEADER(dlopen ,false,!p||!*p,(   p,f)) ; Dlopen r{p,"dlopen" } ; return r(orig(   p,f)) ; } // we do not support tmp mapping for indirect ...
 		void* dlmopen(Lmid_t lm,CC* p,int f) NE { HEADER(dlmopen,false,!p||!*p,(lm,p,f)) ; Dlopen r{p,"dlmopen"} ; return r(orig(lm,p,f)) ; } // ... deps, so we can pass pth to orig
 	#endif
 
-	#ifndef IN_SERVER
+	#if !IN_SERVER
 		// dup2
 		// in case dup2/3 is called with one our fd's, we must hide somewhere else (unless in server)
 		//                                                   is_stat
@@ -427,7 +437,7 @@ struct Mkstemp : WSolve {
 		int __dup2(int ofd,int nfd      ) NE { HEADER0(__dup2,false,(ofd,nfd  )) ; Hide r{nfd} ; return r(orig(ofd,nfd  )) ; }
 	#endif
 
-	#if defined(LD_PRELOAD) && HAS_ELF
+	#if NEED_ELF
 		// env
 		// only there to capture LD_LIBRARY_PATH before it is modified as man dlopen says it must be captured at program start, but we have no entry at program start
 		// ld_audit does not need it and anyway captures LD_LIBRARY_PATH at startup
@@ -572,7 +582,7 @@ struct Mkstemp : WSolve {
 
 	// readlink
 	#define RL Readlink
-	#ifdef LD_PRELOAD_JEMALLOC
+	#if LD_PRELOAD_JEMALLOC
 		#if !IS_LINUX                                                      // we need the __readlink_chk hack, which is only available under Linux
 			#error cannot implement ld_preload_jemalloc if not under Linux
 		#endif
@@ -750,6 +760,6 @@ struct Mkstemp : WSolve {
 
 	#pragma GCC diagnostic pop
 }
-#ifdef LD_PRELOAD
+#if LD_PRELOAD
 	#pragma GCC visibility pop
 #endif

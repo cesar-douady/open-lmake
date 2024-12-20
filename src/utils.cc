@@ -5,6 +5,9 @@
 
 #include "utils.hh"
 
+#if IS_DARWIN
+	#include <mach-o/dyld.h> // _NSGetExecutablePath
+#endif
 #if !HAS_ELF
 	#undef HAS_ADDR2LINE
 	#define HAS_ADDR2LINE 0 // cant use addr2line w/o elf support
@@ -281,7 +284,26 @@ Fail :
 // assert
 //
 
-thread_local char t_thread_key = '?' ;
+thread_local char t_thread_key = '?'   ;
+bool              _crash_busy  = false ;
+
+::string get_exe() {
+	#if IS_DARWIN
+		::string res ( PATH_MAX , '\0' )                    ;
+		uint32_t sz  = res.size()                           ;
+		int      rc  = _NSGetExecutablePath(res.data(),&sz) ; SWEAR(rc==0,rc) ;
+		res.resize(sz) ;
+		AcFd fd { res } ;
+		res.resize(PATH_MAX) ;
+		::fcntl( fd , F_GETPATH , res.data() ) ;
+		res.resize(::strlen(res.data())) ;
+	#elif IS_LINUX
+		::string res = Disk::read_lnk("/proc/self/exe") ;
+	#else
+		#error cannot get executable
+	#endif
+	return res ;
+}
 
 #if HAS_STACKTRACE
 

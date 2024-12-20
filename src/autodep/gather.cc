@@ -348,7 +348,7 @@ Status Gather::exec_child() {
 		}
 		for( Event const& event : events ) {
 			Kind kind = event.data() ;
-			Fd   fd   = event.fd  () ;
+			Fd   fd   ;                if (kind!=Kind::ChildEnd) fd = event.fd() ;                          // no fd available for ChildEnd
 			switch (kind) {
 				case Kind::Stdout :
 				case Kind::Stderr : {
