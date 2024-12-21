@@ -1144,7 +1144,7 @@ namespace Engine {
 		for( ::string const& sr_s : g_config->sub_repos_s )
 			if ( sr_s.size()>cwd_s.size() && sr_s.starts_with(cwd_s) ) {
 				for( ::string const& e_s : excepts_s ) if (sr_s.starts_with(e_s)) goto Seen ;
-				excepts_s.push_back(sr_s) ;                                                   // XXX : do include exceptions if target prefixes guarantee that the rule cannot match inside sr_s
+				excepts_s.push_back(sr_s) ;                                                   // XXX* : dont include exceptions if target prefixes guarantee that the rule cannot match inside sr_s
 			Seen : ;
 			}
 		if (+excepts_s) {

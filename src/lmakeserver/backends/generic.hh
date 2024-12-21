@@ -5,7 +5,7 @@
 
 #include "core.hh" // must be first to include Python.h first
 
-// XXX : rework to maintain an ordered list of waiting_queues in ReqEntry to avoid walking through all rsrcs for each launched job
+// XXX* : rework to maintain an ordered list of waiting_queues in ReqEntry to avoid walking through all rsrcs for each launched job
 
 // a job may have 3 states :
 // - waiting : job has been submitted and is retained here until we can spawn it

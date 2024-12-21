@@ -42,7 +42,7 @@ if __name__!='__main__' :
 				from_server=$(ldepend -v {File} | awk '{{print $2}}')
 				expected=$(   xxhsum     {File}                     )
 				echo $from_server
-				[ $from_server = $expected ] || echo expected $expected got $from_server >&2
+				[ "$from_server" = "$expected" ] || echo expected $expected got $from_server >&2
 			''')
 		class CpyPy(Base,PyRule) :
 			name    = f'cpy-py-{ad}'

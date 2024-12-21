@@ -42,7 +42,7 @@ namespace Engine {
 		data.audit_fd     = ecr.out_fd        ;
 		//
 		s_reqs_by_start.push_back(self) ;
-		_adjust_eta(true/*push_self*/) ;
+		_adjust_eta( {}/*eta*/ , true/*push_self*/ ) ;
 		//
 		Trace trace("Rmake",self,s_n_reqs(),data.start_ddate,data.start_pdate) ;
 		try {
@@ -108,17 +108,17 @@ namespace Engine {
 		Delay delta_ete = new_eta>old_eta ? new_eta-old_eta : old_eta-new_eta       ; // cant use ::abs(new_eta-old_eta) because of signedness
 		//
 		if ( delta_ete.val() <= (old_ete.val()>>4) ) return ;                         // eta did not change significatively
-		self->eta = new_eta ;
-		_adjust_eta() ;
+		_adjust_eta(new_eta) ;
 		Backend::s_new_req_etas() ;                                                   // tell backends that etas changed significatively
 	}
 
-	void Req::_adjust_eta(bool push_self) {
-			Trace trace("R_adjust_eta",self->eta) ;
+	void Req::_adjust_eta( Pdate eta , bool push_self ) {
+			Trace trace("R_adjust_eta",self->eta,eta) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
-			bool changed    = false               ;
-			Lock lock       { s_reqs_mutex }      ;
+			bool changed    = false            ;
+			Lock lock       { s_reqs_mutex }   ;
 			Idx  idx_by_eta = self->idx_by_eta ;
+			if (+eta     ) self->eta = eta ;                                                                 // eta must be upated while lock is held as it is read in other threads
 			if (push_self) _s_reqs_by_eta.push_back(self) ;
 			while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>self->eta ) {                          // if eta is decreased
 				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry

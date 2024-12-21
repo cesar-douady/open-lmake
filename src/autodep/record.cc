@@ -140,7 +140,7 @@ JobExecRpcReply Record::report_sync_access( JobExecRpcReq&& jerr , bool force ) 
 	bool sent = report_async_access(::move(jerr),force) ;
 	if (sent) return _get_reply() ;
 	// not under lmake, try to mimic server as much as possible, but of course no real info available
-	// XXX : for Encode/Decode, we should interrogate the server or explore association file directly so as to allow jobs to run with reasonable data
+	// XXX* : for Encode/Decode, we should interrogate the server or explore association file directly so as to allow jobs to run with reasonable data
 	switch (jerr.proc) {
 		case Proc::DepVerbose : return { jerr.proc , ::vector<pair<Bool3/*ok*/,Hash::Crc>>(jerr.files.size(),{Yes,{}}) } ;
 		default               : return {                                                                               } ;

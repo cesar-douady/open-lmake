@@ -73,13 +73,14 @@ namespace Backends {
 		private :
 			void _refresh() ;
 			// data
-			Val                      _ref_workload        = 0 ;                  // total workload at ref_date
-			Pdate                    _ref_date            ;                      // later than any job start date and end date, always rounded to ms
-			::umap<Job,Pdate>        _eta_tab             ;                      // jobs whose eta is post ref_date
-			::set<::pair<Pdate,Job>> _eta_set             ;                      // same info, but ordered by dates
-			Val                      _reasonable_workload = 0 ;                  // sum of (eta-_ref_date) in _eta_tab
-			JobIdx                   _running_tokens      = 0 ;                  // sum of tokens for all running jobs
-			JobIdx                   _reasonable_tokens   = 0 ;                  // sum ok tokens in _eta_tab
+			Mutex<MutexLvl::Workload> mutable _mutex               ;
+			Val                               _ref_workload        = 0 ;         // total workload at ref_date
+			Pdate                             _ref_date            ;             // later than any job start date and end date, always rounded to ms
+			::umap<Job,Pdate>                 _eta_tab             ;             // jobs whose eta is post ref_date
+			::set<::pair<Pdate,Job>>          _eta_set             ;             // same info, but ordered by dates
+			Val                               _reasonable_workload = 0 ;         // sum of (eta-_ref_date) in _eta_tab
+			JobIdx                            _running_tokens      = 0 ;         // sum of tokens for all running jobs
+			JobIdx                            _reasonable_tokens   = 0 ;         // sum ok tokens in _eta_tab
 			//
 			::array<::atomic<Delay::Tick>,size_t(1)<<NReqIdxBits> _queued_cost ; // use plain integer so as to use atomic inc/dec instructions because schedule/cancel are called w/o lock
 		} ;
@@ -226,14 +227,15 @@ namespace Backends {
 
 namespace Backends {
 
-	inline void  Backend::Workload::submit( Req r , Job j ) {                            _queued_cost[+r] += Delay(j->cost).val() ; }
-	inline void  Backend::Workload::add   ( Req r , Job j ) { if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost).val() ; }
+	inline void  Backend::Workload::submit( Req r , Job j ) { Lock lock{_mutex} ;                            _queued_cost[+r] += Delay(j->cost).val() ; }
+	inline void  Backend::Workload::add   ( Req r , Job j ) { Lock lock{_mutex} ; if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost).val() ; }
 	inline void  Backend::Workload::kill( Req r , Job j ) {
 		Delay::Tick dly = Delay(j->cost).val() ;
 		SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , dly ) ;
 		_queued_cost[+r] -= dly ;
 	}
 	inline Pdate Backend::Workload::submitted_eta(Req r) const {
+		Lock lock{_mutex} ;
 		Pdate res = _ref_date + Delay(New,_queued_cost[+r]) ;
 		if (_running_tokens) res += Delay(_reasonable_workload/1000./_running_tokens) ; // divide by 1000 to convert to seconds
 		return res ;

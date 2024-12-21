@@ -154,15 +154,14 @@ void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
 	AutodepPtrace::s_init(autodep_env) ;
 	_child.pre_exec = AutodepPtrace::s_prepare_child  ;
 	//vvvvvvvvvvvv
-	_child.spawn() ;                                                      // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
+	_child.spawn() ;                                                        // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
 	//^^^^^^^^^^^^
-	ready->count_down() ;                                                 // signal main thread that _child.pid is available
+	ready->count_down() ;                                                   // signal main thread that _child.pid is available
 	AutodepPtrace autodep_ptrace{_child.pid} ;
 	wstatus = autodep_ptrace.process() ;
-	_child.waited() ;                                                     // _child is already waited by autodep_ptrace.process
-	ssize_t cnt = write(report_fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; // report child end
+	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; // report child end
 	Record::s_close_report() ;
-	}
+}
 
 Fd Gather::_spawn_child() {
 	SWEAR(+cmd_line) ;
@@ -332,7 +331,7 @@ Status Gather::exec_child() {
 		}
 		for( Event const& event : events ) {
 			Kind kind = event.data() ;
-			Fd   fd   ;                if (kind!=Kind::ChildEnd) fd = event.fd() ;                          // no fd available for ChildEnd
+			Fd   fd   ;                if (kind!=Kind::ChildEnd) fd = event.fd() ;                                              // no fd available for ChildEnd
 			switch (kind) {
 				case Kind::Stdout :
 				case Kind::Stderr : {
@@ -365,23 +364,25 @@ Status Gather::exec_child() {
 					}
 				} break ;
 				case Kind::ChildEnd   :
-				case Kind::ChildEndFd :
-					if (kind==Kind::ChildEnd)   ::waitpid(_child.pid,&wstatus,0) ;
-					else                      { int cnt=::read(fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; } // wstatus is already set, just flush fd
-					trace(kind,fd,_child.pid,to_hex(uint(wstatus))) ;
-					SWEAR(!WIFSTOPPED(wstatus),_child.pid) ;                                                // child must have ended if we are here
+				case Kind::ChildEndFd : {
+					int ws ;
+					if (kind==Kind::ChildEnd) { ::waitpid(_child.pid,&ws,0) ;                             wstatus = ws      ; } // wstatus is atomic, cant take its addresss as a int*
+					else                      { int cnt=::read(fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; ws      = wstatus ; } // wstatus is already set, just flush fd
+					trace(kind,fd,_child.pid,to_hex(uint(ws))) ;
+					SWEAR(!WIFSTOPPED(ws),_child.pid) ;          // child must have ended if we are here
 					end_date   = New                      ;
-					_end_child = end_date + network_delay ;                                                 // wait at most network_delay for reporting & stdout & stderr to settle down
-					if      (WIFEXITED  (wstatus)) set_status(             WEXITSTATUS(wstatus)!=0 ? Status::Err : Status::Ok       ) ;
-					else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG   (wstatus))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
-					else                           fail("unexpected wstatus : ",wstatus) ;
+					_end_child = end_date + network_delay ;      // wait at most network_delay for reporting & stdout & stderr to settle down
+					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
+					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
+					else                           fail("unexpected wstatus : ",ws) ;
 					if (kind==Kind::ChildEnd) epoll.del_pid(_child.pid       ) ;
 					else                      epoll.del    (false/*write*/,fd) ;
 					_wait &= ~Kind::ChildEnd ;
-					/**/                   epoll.dec() ;                                // dont wait for new connections from job (but process those that come)
-					if (+server_master_fd) epoll.dec() ;                                // idem for connections from server
+					/**/                   epoll.dec() ;                                                                      // dont wait for new connections from job (but process those that come)
+					if (+server_master_fd) epoll.dec() ;                                                                      // idem for connections from server
 					trace("close",kind,status,"wait",_wait,+epoll) ;
-				break ;
+					_child.waited() ;                                                                                         // _child has been waited without calling _child.wait()
+				} break ;
 				case Kind::JobMaster    :
 				case Kind::ServerMaster : {
 					bool is_job = kind==Kind::JobMaster ;
@@ -389,7 +390,7 @@ Status Gather::exec_child() {
 					if (is_job) { SWEAR( fd==job_master_fd    , fd , job_master_fd    ) ; slave = job_master_fd   .accept().detach() ; epoll.add_read(slave,Kind::JobSlave   ) ; }
 					else        { SWEAR( fd==server_master_fd , fd , server_master_fd ) ; slave = server_master_fd.accept().detach() ; epoll.add_read(slave,Kind::ServerSlave) ; }
 					trace(kind,fd,"read_slave",STR(is_job),slave,"wait",_wait,+epoll) ;
-					slaves[slave] ;                                                     // allocate entry
+					slaves[slave] ;                                                                                           // allocate entry
 				} break ;
 				case Kind::ServerSlave : {
 					JobMngtRpcReply jmrr        ;
@@ -485,7 +486,7 @@ Status Gather::exec_child() {
 		}
 	}
 Return :
-	_child.waited() ;
+	SWEAR(!_child) ;                                                                                                                         // _child must have been waited by now
 	trace("done",status) ;
 	SWEAR(status!=Status::New) ;
 	reorder(true/*at_end*/) ;                                                                                                                // ensure server sees a coherent view

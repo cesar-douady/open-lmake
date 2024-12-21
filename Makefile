@@ -241,17 +241,17 @@ LMAKE_DOC_FILES := \
 	$(if $(HAS_TEXI),doc/lmake.html) \
 	$(MAN_FILES)
 
-LMAKE_BASIC_OBJS_ := \
-	src/disk.o    \
-	src/fd.o      \
-	src/hash.o    \
-	src/lib.o     \
-	src/process.o \
-	src/time.o    \
+LMAKE_BASIC_OBJS := \
+	src/disk.o         \
+	src/fd.o           \
+	src/hash.o         \
+	src/lib.o          \
+	src/non_portable.o \
+	src/process.o      \
+	src/time.o         \
 	src/utils.o
 
-LMAKE_BASIC_OBJS     := $(LMAKE_BASIC_OBJS_)               src/non_portable.o
-LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS_:%.o=%$(SAN).o) src/non_portable.o
+LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS:%.o=%$(SAN).o)
 
 LMAKE_FILES        := $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
 LMAKE_BIN_FILES    := $(filter bin/%,$(LMAKE_FILES))
@@ -489,11 +489,11 @@ _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-bin/lmake   : $(CLIENT_SAN_OBJS)               src/lmake$(SAN).o
-bin/lshow   : $(CLIENT_SAN_OBJS)               src/lshow$(SAN).o
-bin/lforget : $(CLIENT_SAN_OBJS)               src/lforget$(SAN).o
-bin/lmark   : $(CLIENT_SAN_OBJS)               src/lmark$(SAN).o
-bin/ldebug  : $(CLIENT_SAN_OBJS:%$(SAN).o=%.o) src/ldebug.o        src/py.o
+bin/lmake   : $(CLIENT_SAN_OBJS) src/lmake$(SAN).o
+bin/lshow   : $(CLIENT_SAN_OBJS) src/lshow$(SAN).o
+bin/lforget : $(CLIENT_SAN_OBJS) src/lforget$(SAN).o
+bin/lmark   : $(CLIENT_SAN_OBJS) src/lmark$(SAN).o
+bin/ldebug  : $(CLIENT_SAN_OBJS) src/ldebug$(SAN).o src/py$(SAN).o
 
 LMAKE_DBG_FILES += bin/lmake bin/lshow bin/lforget bin/lmark
 bin/lmake bin/lshow bin/lforget bin/lmark :
@@ -503,10 +503,10 @@ bin/lmake bin/lshow bin/lforget bin/lmark :
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldebug
-bin/ldebug :                  # XXX : why ldebug does not support sanitize thread ?
+bin/ldebug :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/ldump_job
@@ -532,10 +532,10 @@ _bin/align_comments : \
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/xxhsum
-bin/xxhsum : $(LMAKE_BASIC_OBJS) src/xxhsum.o # XXX : why xxhsum does not support sanitize thread ?
+bin/xxhsum : $(LMAKE_BASIC_OBJS) src/xxhsum.o # xxhsum may be used in jobs and is thus incompatible with sanitize
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@$(LINK) -o $@ $^ $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 #
@@ -554,25 +554,25 @@ BASIC_REMOTE_OBJS := \
 AUTODEP_OBJS := $(BASIC_REMOTE_OBJS) src/autodep/syscall_tab.o
 REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) src/autodep/job_support.o
 
-JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)      \
-	src/app.o            \
-	src/py.o             \
-	src/re.o             \
-	src/rpc_job.o        \
-	src/trace.o          \
-	src/autodep/gather.o \
-	src/autodep/ptrace.o \
-	src/autodep/record.o
+JOB_EXEC_SAN_OBJS := \
+	$(AUTODEP_OBJS:%.o=%$(SAN).o) \
+	src/app$(SAN).o               \
+	src/py$(SAN).o                \
+	src/re$(SAN).o                \
+	src/rpc_job$(SAN).o           \
+	src/trace$(SAN).o             \
+	src/autodep/gather$(SAN).o    \
+	src/autodep/ptrace$(SAN).o    \
+	src/autodep/record$(SAN).o
 
-_bin/job_exec : $(JOB_EXEC_OBJS) src/job_exec.o
-bin/lautodep  : $(JOB_EXEC_OBJS) src/autodep/lautodep.o
+_bin/job_exec : $(JOB_EXEC_SAN_OBJS) src/job_exec$(SAN).o
+bin/lautodep  : $(JOB_EXEC_SAN_OBJS) src/autodep/lautodep$(SAN).o
 
 LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
-_bin/job_exec bin/lautodep :                  # XXX : why job_exec and autodep do not support sanitize thread ?
+_bin/job_exec bin/lautodep :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps

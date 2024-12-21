@@ -1130,10 +1130,10 @@ namespace Store {
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		template<bool S> ::pair<Prefix::VecStr<S,Char>,Prefix::VecStr<S,Char>> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_psfx( Idx idx , size_t psfx_sz ) const {
-			static size_t s_psfx_max_sz      = 0 ;
-			static size_t s_name_max_sz      = 0 ;
-			static size_t s_psfx_path_max_sz = 0 ;
-			static size_t s_name_path_max_sz = 0 ;
+			static ::atomic<size_t> s_psfx_max_sz      = 0 ;
+			static ::atomic<size_t> s_name_max_sz      = 0 ;
+			static ::atomic<size_t> s_psfx_path_max_sz = 0 ;
+			static ::atomic<size_t> s_name_path_max_sz = 0 ;
 			VecStr<S>                        psfx      ; psfx     .reserve(s_psfx_max_sz     ) ;
 			VecStr<S>                        name      ; name     .reserve(s_name_max_sz     ) ;
 			::vmap<Idx,ChunkIdx/*chunk_sz*/> psfx_path ; psfx_path.reserve(s_psfx_path_max_sz) ;  // .
@@ -1157,8 +1157,8 @@ namespace Store {
 				}
 			}
 			if (!Reverse) {
-				s_psfx_path_max_sz = ::max( s_psfx_path_max_sz , psfx_path.size() ) ;
-				s_name_path_max_sz = ::max( s_name_path_max_sz , name_path.size() ) ;
+				if (psfx_path.size()>s_psfx_path_max_sz) s_psfx_path_max_sz = psfx_path.size() ;                  // test and set is not atomic, but it is for perf only
+				if (name_path.size()>s_name_path_max_sz) s_name_path_max_sz = name_path.size() ;                  // .
 				for( auto it=psfx_path.crbegin() ; it!=psfx_path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
 					for( ChunkIdx i : iota(it->second) ) psfx.push_back(item.chunk(item.chunk_sz-it->second+i)) ; // chunk is stored in reverse order
@@ -1168,8 +1168,8 @@ namespace Store {
 					for( ChunkIdx i : iota(it->second) ) name.push_back(item.chunk(i)) ;                          // chunk is stored in reverse order
 				}
 			}
-			s_psfx_max_sz = ::max( s_psfx_max_sz , psfx.size() ) ;
-			s_name_max_sz = ::max( s_name_max_sz , name.size() ) ;
+			if (psfx.size()>s_psfx_max_sz) s_psfx_max_sz = psfx.size() ;                                          // test and set is not atomic, but it is for perf only
+			if (name.size()>s_name_max_sz) s_name_max_sz = name.size() ;                                          // .
 			return { name , psfx } ;
 		}
 
@@ -1184,8 +1184,8 @@ namespace Store {
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key( Idx idx , size_t psfx_sz ) const {
-			static size_t s_res_max_sz  = 0 ;
-			static size_t s_path_max_sz = 0 ;
+			static ::atomic<size_t> s_res_max_sz  = 0 ;
+			static ::atomic<size_t> s_path_max_sz = 0 ;
 			VecStr<S>                        res  ; res .reserve(s_res_max_sz ) ;
 			::vmap<Idx,ChunkIdx/*chunk_sz*/> path ; path.reserve(s_path_max_sz) ;                    // when !Reverse, we must walk from root to idx but we gather path from idx back to root
 			if (!psfx_sz)                                                                            // fast path : avoid managing psfx_sz
@@ -1213,21 +1213,21 @@ namespace Store {
 					idx = item.prev ;
 				}
 			if (!Reverse) {
-				s_path_max_sz = ::max( s_path_max_sz , path.size() ) ;
+				if (path.size()>s_path_max_sz) s_path_max_sz = path.size() ;                         // test and set is not atomic, but it is for perf only
 				for( auto it=path.crbegin() ; it!=path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
 					for( ChunkIdx i : iota(it->second) ) res.push_back(ItemChar<S>(item.chunk(i))) ; // chunk is stored in reverse order
 				}
 			}
-			s_res_max_sz = ::max( s_res_max_sz , res.size() ) ;
+			if (res.size()>s_res_max_sz) s_res_max_sz = res.size() ;                                 // test and set is not atomic, but it is for perf only
 			return res ;
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to get
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
-			static size_t s_res_max_sz  = 0 ;
-			static size_t s_path_max_sz = 0 ;
+			static ::atomic<size_t> s_res_max_sz  = 0 ;
+			static ::atomic<size_t> s_path_max_sz = 0 ;
 			VecStr<S>                        res  ; res .reserve(s_res_max_sz ) ;
 			::vmap<Idx,ChunkIdx/*chunk_sz*/> path ; path.reserve(s_path_max_sz) ;             // when !Reverse, we must walk from root to idx but we gather path from idx back to root
 			for(; +idx ; idx = _at(idx).prev ) {
@@ -1240,19 +1240,19 @@ namespace Store {
 				else                  break ;
 			}
 			if (!Reverse) {
-				s_path_max_sz = ::max( s_path_max_sz , path.size() ) ;
+				if (path.size()>s_path_max_sz) s_path_max_sz = path.size() ;                                     // test and set is not atomic, but it is for perf only
 				for( auto it=path.crbegin() ; it!=path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
 					for( ChunkIdx i : iota(it->second) ) res.push_back(item.chunk(item.chunk_sz-it->second+i)) ; // chunk is stored in reverse order
 				}
 			}
-			s_res_max_sz = ::max( s_res_max_sz , res.size() ) ;
+			if (res.size()>s_res_max_sz) s_res_max_sz = res.size() ;                                             // test and set is not atomic, but it is for perf only
 			return res ;
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		::vector<Idx> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::path(Idx idx) const {
-			static size_t s_res_max_sz  = 0 ;
+			static ::atomic<size_t> s_res_max_sz = 0 ;
 			::vector<Idx> res ;             res.reserve(s_res_max_sz ) ;
 			SLock         lock { _mutex } ;
 			while (idx) {
@@ -1260,7 +1260,7 @@ namespace Store {
 				if (item.used) res.push_back(idx) ;
 				idx = item.prev ;
 			}
-			s_res_max_sz = ::max( s_res_max_sz , res.size() ) ;
+			if (res.size()>s_res_max_sz) s_res_max_sz = res.size() ; // test and set is not atomic, but it is for perf only
 			return res ;
 		}
 

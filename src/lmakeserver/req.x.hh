@@ -91,7 +91,7 @@ namespace Engine {
 		void new_eta(                       ) ;
 		//
 	private :
-		void _adjust_eta(bool push_self=false) ;
+		void _adjust_eta( Pdate eta={} , bool push_self=false ) ;
 		//
 		template<class... A> ::string _title    (A&&...) const ;
 		/**/                 ::string _color_pfx(Color ) const ;
@@ -240,7 +240,7 @@ namespace Engine {
 	public :
 		void clear() ;
 		// accesses
-		bool   operator+() const {                    return +job                                               ; }
+		bool   operator+() const {                    return +job                                                ; }
 		bool   is_open  () const {                    return idx_by_start!=Idx(-1)                               ; }
 		JobIdx n_running() const {                    return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
 		Req    req      () const { SWEAR(is_open()) ; return Req::s_reqs_by_start[idx_by_start]                  ; }

@@ -88,7 +88,8 @@ namespace Backends {
 	}
 
 	Backend::Workload::Val Backend::Workload::start( ::vector<ReqIdx> const& reqs , Job j ) {
-		Delay::Tick dly = Delay(j->cost).val() ;
+		Lock        lock { _mutex }             ;
+		Delay::Tick dly  = Delay(j->cost).val() ;
 		Trace trace(BeChnl,"Workload::start",self,reqs,j,j->tokens1,j->cost,j->exec_time,dly) ;
 		for( Req r : reqs ) {
 			SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , r , dly , j ) ;
@@ -109,6 +110,7 @@ namespace Backends {
 	}
 
 	Backend::Workload::Val Backend::Workload::end( ::vector<ReqIdx> const& , Job j ) {
+		Lock lock { _mutex } ;
 		Trace trace(BeChnl,"Workload::end",self,j,j->tokens1) ;
 		_refresh() ;
 		Tokens tokens = j->tokens1+1 ;
@@ -130,6 +132,7 @@ namespace Backends {
 
 	// cost is the share of exec_time that can be accumulated, i.e. multiplied by the fraction of what was running in parallel
 	Delay Backend::Workload::cost( Job job , Val start_workload , Pdate start_date ) const {
+		Lock lock { _mutex } ;
 		start_date = start_date.round_msec() ;
 		SWEAR( _ref_date>=start_date , _ref_date , start_date ) ;
 		uint64_t dly_ms   = (_ref_date-start_date).msec()                  ;

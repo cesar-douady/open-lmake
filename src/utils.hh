@@ -988,6 +988,7 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	Slurm
 ,	SmallId
 ,	Thread
+,	Workload
 // very inner
 ,	Trace       // allow tracing anywhere (but tracing may call some syscall)
 ,	SyscallTab  // any syscall may need this mutex
