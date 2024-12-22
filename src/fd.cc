@@ -1,4 +1,3 @@
-
 // This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
 // Copyright (c) 2023 Doliam
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
@@ -9,53 +8,13 @@
 
 #include "fd.hh"
 
+#ifndef HOST_NAME_MAX
+	#define HOST_NAME_MAX 255 // SYSv2 limits hostnames to 255 with no macro definition
+#endif
+
 using namespace Time ;
 
-string& operator+=( string& os , Epoll::Event const& e ) {
-	return os << "Event(" << e.fd() <<','<< e.data() <<')' ;
-}
-
-::vector<Epoll::Event> Epoll::wait(Delay timeout) const {
-	if (!cnt) {
-		SWEAR(timeout<Delay::Forever) ;                                       // if we wait for nothing with no timeout, this would block forever
-		timeout.sleep_for() ;
-		return {} ;
-	}
-	struct ::timespec now ;
-	struct ::timespec end ;
-	bool has_timeout = timeout>Delay() && timeout!=Delay::Forever ;
-	if (has_timeout) {
-		::clock_gettime(CLOCK_MONOTONIC,&now) ;
-		end.tv_sec  = now.tv_sec  + timeout.sec()       ;
-		end.tv_nsec = now.tv_nsec + timeout.nsec_in_s() ;
-		if (end.tv_nsec>=1'000'000'000l) {
-			end.tv_nsec -= 1'000'000'000l ;
-			end.tv_sec  += 1              ;
-		}
-	}
-	for(;;) {
-		::vector<Event> events        ; events.resize(cnt) ;
-		int             cnt_          ;
-		int             wait_ms       = -1    ;
-		bool            wait_overflow = false ;
-		if (has_timeout) {
-			time_t wait_s   = end.tv_sec - now.tv_sec               ;
-			time_t wait_max = ::numeric_limits<int>::max()/1000 - 1 ;
-			if ((wait_overflow=(wait_s>wait_max))) wait_s = wait_max ;
-			wait_ms  = wait_s                    * 1'000      ;
-			wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ;               // protect against possible conversion to time_t which may be unsigned
-		} else {
-			wait_ms = +timeout ? -1 : 0 ;
-		}
-		cnt_ = ::epoll_wait( fd , events.data() , cnt , wait_ms ) ;
-		switch (cnt_) {
-			case  0 : if (!wait_overflow)             return {}     ; break ; // timeout
-			case -1 : SWEAR( errno==EINTR , errno ) ;                 break ;
-			default : events.resize(cnt_) ;           return events ;
-		}
-		if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
-	}
-}
+::uset<int>* _s_epoll_sigs = new ::uset<int> ;
 
 ::string& operator+=( ::string& os , Fd           const& fd ) { return os << "Fd("           << fd.fd <<')' ; }
 ::string& operator+=( ::string& os , AcFd         const& fd ) { return os << "AcFd("         << fd.fd <<')' ; }
@@ -66,7 +25,7 @@ string& operator+=( string& os , Epoll::Event const& e ) {
 
 ::string host() {
 	char buf[HOST_NAME_MAX+1] ;
-	int rc = ::gethostname(buf,sizeof(buf)) ;
+	int rc                    = ::gethostname(buf,sizeof(buf)) ;
 	swear_prod(rc==0,"cannot get host name") ;
 	return buf ;
 }
@@ -76,9 +35,9 @@ string& operator+=( string& os , Epoll::Event const& e ) {
 	//
 	auto it = s_tab.find(a) ;
 	if (it==s_tab.end()) {
-		char               buf[HOST_NAME_MAX+1] ;
-		struct sockaddr_in sa                   = s_sockaddr(a,0) ;
-		int rc = getnameinfo( reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) , buf , sizeof(buf) , nullptr/*serv*/ , 0/*servlen*/ , NI_NOFQDN ) ;
+		char                 buf[HOST_NAME_MAX+1] ;
+		struct ::sockaddr_in sa                   = s_sockaddr(a,0)                                                                                                                       ;
+		int                  rc                   = ::getnameinfo( reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) , buf , sizeof(buf) , nullptr/*serv*/ , 0/*servlen*/ , NI_NOFQDN ) ;
 		if (rc) {
 			it = s_tab.emplace(a,"???").first ;
 		} else {
@@ -129,15 +88,15 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 in_addr_t SockFd::s_addr(::string const& server) {
 	if (!server) return LoopBackAddr ;
 	// by standard dot notation
-	{	in_addr_t addr   = 0     ;                                                                      // address being decoded
-		int       byte   = 0     ;                                                                      // ensure component is less than 256
-		int       n      = 0     ;                                                                      // ensure there are 4 components
-		bool      first  = true  ;                                                                      // prevent empty components
-		bool      first0 = false ;                                                                      // prevent leading 0's (unless component is 0)
+	{	in_addr_t addr   = 0     ;                                                                                  // address being decoded
+		int       byte   = 0     ;                                                                                  // ensure component is less than 256
+		int       n      = 0     ;                                                                                  // ensure there are 4 components
+		bool      first  = true  ;                                                                                  // prevent empty components
+		bool      first0 = false ;                                                                                  // prevent leading 0's (unless component is 0)
 		for( char c : server ) {
 			if (c=='.') {
 				if (first) goto ByIfce ;
-				addr  = (addr<<8) | byte ;                                                              // network order is big endian
+				addr  = (addr<<8) | byte ;                                                                          // network order is big endian
 				byte  = 0                ;
 				first = true             ;
 				n++ ;
@@ -161,7 +120,7 @@ ByIfce : ;
 		if (::getifaddrs(&ifa)==0) {
 			for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next )
 				if ( p->ifa_addr && p->ifa_addr->sa_family==AF_INET  && p->ifa_name==server ) {
-					in_addr_t addr = ::ntohl( reinterpret_cast<struct sockaddr_in*>(p->ifa_addr)->sin_addr.s_addr ) ;
+					in_addr_t addr = ntohl( reinterpret_cast<struct sockaddr_in*>(p->ifa_addr)->sin_addr.s_addr ) ; // dont prefix with :: as ntohl may be a macro
 					freeifaddrs(ifa) ;
 					return addr ;
 				}
@@ -175,8 +134,8 @@ ByIfce : ;
 		struct addrinfo* ai ;
 		int              rc  = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai ) ;
 		if (rc!=0) throw "cannot get addr of "+server+" ("+rc+')' ;
-		static_assert(sizeof(in_addr_t)==4) ;                                                           // else use adequate ntohl/ntohs
-		in_addr_t addr = ::ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ;
+		static_assert(sizeof(in_addr_t)==4) ;                                                                       // else use adequate ntohl/ntohs
+		in_addr_t addr = ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ;               // dont prefix with :: as ntohl may be a macro
 		freeaddrinfo(ai) ;
 		return addr ;
 	}

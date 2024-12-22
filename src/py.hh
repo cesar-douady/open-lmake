@@ -77,7 +77,7 @@ namespace Py {
 		return *from_py<T>(v) ;
 	}
 
-	void init(::string const& lmake_dir_s) ;
+	void init(::string const& lmake_root_s) ;
 
 	::string py_err_str_clear() ;        // like PyErr_Print, but return text instead of printing it (Python API provides no means to do this !)
 	//

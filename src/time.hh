@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <sys/stat.h> // struct stat
+
 #include <chrono>
 #include <cmath>
 #include <condition_variable>

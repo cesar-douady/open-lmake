@@ -8,17 +8,17 @@
 #include <netinet/ip.h> // in_addr_t, in_port_t
 #include <signal.h>     // SIG*, kill
 #include <sys/file.h>   // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
+#include <sys/types.h>  // ushort, uint, ulong, ...
 
 #include <cstring> // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
 
 #include <algorithm>
 #include <atomic>
 #include <array>
+#include <bit>
 #include <charconv> // from_chars_result
-#include <chrono>
 #include <concepts>
 #include <functional>
-#include <iomanip>
 #include <ios>
 #include <limits>
 #include <map>
@@ -28,6 +28,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -208,7 +209,7 @@ template<void (*Handler)(int sig,void* addr)> void _sig_action( int sig , siginf
 	Handler(sig,si->si_addr) ;
 }
 template<void (*Handler)(int sig,void* addr)> void set_sig_handler(int sig) {
-	sigset_t         empty  ;      ::sigemptyset(&empty) ;
+	sigset_t         empty  ;      sigemptyset(&empty) ;                      // sigemptyset can be a macro
 	struct sigaction action = {} ;
 	action.sa_sigaction = _sig_action<Handler>  ;
 	action.sa_mask      = empty                 ;
@@ -216,7 +217,7 @@ template<void (*Handler)(int sig,void* addr)> void set_sig_handler(int sig) {
 	::sigaction( sig , &action , nullptr ) ;
 }
 template<void (*Handler)(int sig)> void set_sig_handler(int sig) {
-	sigset_t         empty  ;      ::sigemptyset(&empty) ;
+	sigset_t         empty  ;      sigemptyset(&empty) ;                      // sigemptyset can be a macro
 	struct sigaction action = {} ;
 	action.sa_handler = Handler    ;
 	action.sa_mask    = empty      ;
@@ -242,7 +243,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 
 template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
-		crash( 1 , SIGABRT , "fail @" , args... ) ;
+		crash( 1 , SIGABRT , "fail" , args... ) ;
 	#else
 		unreachable() ;
 	#endif
@@ -250,26 +251,26 @@ template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] )
 
 template<class... A> constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
-		if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
+		if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 	#else
 		if (!cond) unreachable() ;
 	#endif
 }
 
 template<class... A> [[noreturn]] void fail_prod( A const&... args ) {
-	crash( 1 , SIGABRT , "fail @ " , args... ) ;
+	crash( 1 , SIGABRT , "fail" , args... ) ;
 }
 
 template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
-	if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
+	if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 }
 
 #define _FAIL_STR2(x) #x
 #define _FAIL_STR(x) _FAIL_STR2(x)
-#define FAIL(           ...) fail      (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define FAIL(           ...) fail      (       "@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define FAIL_PROD(      ...) fail_prod (       "@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define SWEAR(     cond,...) swear     ((cond),"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define SWEAR_PROD(cond,...) swear_prod((cond),"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
 
 #define DF default : FAIL() ; // for use at end of switch statements
 #define DN default :        ; // .
@@ -830,7 +831,7 @@ template<StdEnum E> ::string& operator+=( ::string& os , BitMap<E> const bm ) {
 }
 
 // used in static_assert when defining a table indexed by enum to fire if enum updates are not propagated to tab def
-template<StdEnum E,class T> constexpr bool chk_enum_tab(amap<E,T,N<E>> tab) {
+template<StdEnum E,class T> constexpr bool chk_enum_tab(::amap<E,T,N<E>> tab) {
 	for( E e : iota(All<E>) ) if (tab[+e].first!=e) return false/*ok*/ ;
 	/**/                                            return true /*ok*/ ;
 }
@@ -987,6 +988,7 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	Slurm
 ,	SmallId
 ,	Thread
+,	Workload
 // very inner
 ,	Trace       // allow tracing anywhere (but tracing may call some syscall)
 ,	SyscallTab  // any syscall may need this mutex
@@ -1173,24 +1175,22 @@ inline void Fd::no_std() {
 // assert
 //
 
+::string get_exe() ;
+
+extern bool _crash_busy ;
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
-	static bool busy = false ;
-	if (!busy) {                                 // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
-		busy = true ;
-		char     buf[PATH_MAX] ;
-		ssize_t  cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
-		::string err_msg       ;
-		if ( cnt>=0 || cnt<=PATH_MAX ) {
-			/**/                   err_msg << ::string_view(buf,cnt) ;
-			if (t_thread_key!='?') err_msg <<':'<< t_thread_key      ;
-			/**/                   err_msg <<" :"                    ;
-		}
+	if (!_crash_busy) {                                                                     // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
+		_crash_busy = true ;
+		::string err_msg = get_exe() ;
+		if (t_thread_key!='?') err_msg <<':'<< t_thread_key ;
+		/**/                   err_msg <<" :"               ;
 		[[maybe_unused]] bool _[] = {false,(err_msg<<' '<<args,false)...} ;
 		err_msg << '\n' ;
 		Fd::Stderr.write(err_msg) ;
 		set_sig_handler<SIG_DFL>(sig) ;
 		write_backtrace(Fd::Stderr,hide_cnt+1) ;
-		kill_self(sig) ;                         // rather than merely calling abort, this works even if crash_handler is not installed
+		kill_self(sig) ;                                                                    // rather than merely calling abort, this works even if crash_handler is not installed
+		// continue to abort in case kill did not work for some reason
 	}
 	set_sig_handler<SIG_DFL>(SIGABRT) ;
 	::abort() ;
@@ -1199,6 +1199,14 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 //
 // string
 //
+
+inline constexpr bool is_word_char(char c) {
+	if ( '0'<=c && c<='9' ) return true  ;
+	if ( 'a'<=c && c<='z' ) return true  ;
+	if ( 'A'<=c && c<='Z' ) return true  ;
+	if ( c=='_'           ) return true  ;
+	/**/                    return false ;
+}
 
 inline constexpr bool _can_be_delimiter(char c) {                   // ensure delimiter does not clash with encoding
 	if ( c=='\\'          ) return false ;

@@ -98,7 +98,7 @@ Open-lmake does the following:
 
 # first steps
 
-you can find a reference documentation in `doc/lmake.html` (`/usr/share/dco/open-lmake/html/lmake.html` if installed with the Debian package)
+you can find a reference documentation in `doc/lmake.html` (`/usr/share/doc/open-lmake/html/lmake.html` if installed with the Debian package)
 
 you have man pages for all commands directly accessible if installed with the debian package or if `$MANPATH` is set as explained above
 

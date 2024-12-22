@@ -15,9 +15,9 @@ if __name__!='__main__' :
 	)
 
 	class Cpy(Rule) :
-		stems       = { 'File' : r'.*' }
-		autodep     = 'ld_preload_jemalloc'
-		environ_cmd = { 'LD_PRELOAD':'libjemalloc.so' }
+		stems   = { 'File' : r'.*' }
+		autodep = 'ld_preload_jemalloc'
+		environ = { 'LD_PRELOAD':'libjemalloc.so' }
 
 	class Auto(Rule) :
 		target = r'auto{D:\d+}'

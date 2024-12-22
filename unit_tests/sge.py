@@ -19,12 +19,12 @@ if __name__!='__main__' :
 	,	'world'
 	)
 
-	sge_bin_dir  = osp.dirname(shutil.which('qsub',path=lmake.user_environ['PATH']))
-	sge_root_dir = osp.dirname(osp.dirname(sge_bin_dir))
+	sge_bin  = osp.dirname(shutil.which('qsub',path=lmake.user_environ['PATH']))
+	sge_root = osp.dirname(osp.dirname(sge_bin))
 	lmake.config.backends.sge = {
 		'interface'    : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
-	,	'bin_dir'      : sge_bin_dir
-	,	'root_dir'     : sge_root_dir
+	,	'bin'          : sge_bin
+	,	'root'         : sge_root
 	#,	'cpu_resource' : 'cpu'
 	#,	'mem_resource' : 'mem'
 	#,	'tmp_resource' : 'tmp'

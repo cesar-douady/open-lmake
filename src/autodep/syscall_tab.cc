@@ -18,7 +18,7 @@
 	errno = 0 ;
 	for(;;) {
 		uint64_t offset = src%sizeof(long)                                               ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
+		long     word   = ::ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
 		if (errno) throw errno ;
 		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
 		for( uint64_t len : iota(sizeof(long)-offset) ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
@@ -27,36 +27,35 @@
 	}
 }
 
-// copy src to process pid's space @ dst
+// copy process pid's space @ src to dst
 [[maybe_unused]] static void _peek( pid_t pid , char* dst , uint64_t src , size_t sz ) {
 	SWEAR(pid) ;
 	errno = 0 ;
-	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) { // invariant : copy src[i:sz] to dst
+	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                   // invariant : copy src[i:sz] to dst
 		size_t offset = src%sizeof(long) ;
-		long   word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
+		long   word   = ::ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
 		if (errno) throw errno ;
 		chunk = ::min( sizeof(long) - offset , sz ) ;
 		::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
 	}
 }
-
 // copy src to process pid's space @ dst
 [[maybe_unused]] static void _poke( pid_t pid , uint64_t dst , const char* src , size_t sz ) {
 	SWEAR(pid) ;
 	errno = 0 ;
-	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                 // invariant : copy src[i:sz] to dst
+	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                   // invariant : copy src[i:sz] to dst
 		size_t offset = dst%sizeof(long) ;
 		long   word   = 0/*garbage*/     ;
 		chunk = ::min( sizeof(long) - offset , sz ) ;
-		if ( offset || offset+chunk<sizeof(long) ) {                                // partial word
-			word = ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;
+		if ( offset || offset+chunk<sizeof(long) ) {                                  // partial word
+			word = ::ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;
 			if (errno) throw errno ;
 		}
 		::memcpy( reinterpret_cast<char*>(&word)+offset , src , chunk ) ;
-		ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
+		::ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
 		if (errno) throw errno ;
 	}
-}
+	}
 
 template<bool At> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args ) {
 	::string arg = _get_str(pid,args[At]) ;
@@ -283,7 +282,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & 
 	}
 #endif
 
-// XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)
+// XXX! : find a way to put one entry per line instead of 3 lines(would be much more readable)
 static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	constexpr long NSyscalls = SyscallDescr::NSyscalls ;
 	SyscallDescr::Tab s_tab = {} ;

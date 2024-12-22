@@ -3,22 +3,22 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <execinfo.h> // backtrace
-#include <link.h>     // struct link_map
-
 #include "utils.hh"
 
 #if HAS_CLOSE_RANGE
     #include <linux/close_range.h>
 #endif
 
-#if HAS_STACKTRACE        // must be after utils.hh so that HAS_STACKTRACE is defined
+#if HAS_STACKTRACE        // must be after utils.hh so that HAS_STACKTRACE and HAS_ADDR2LINE are defined
 	#include <stacktrace>
+#elif HAS_ADDR2LINE
+	#include <execinfo.h> // backtrace
+	#include <link.h>     // struct link_map
+	#include "process.hh"
 #endif
 
 #include "disk.hh"
 #include "fd.hh"
-#include "process.hh"
 
 using namespace Disk ;
 
@@ -276,7 +276,12 @@ Fail :
 // assert
 //
 
-thread_local char t_thread_key = '?' ;
+thread_local char t_thread_key = '?'   ;
+bool              _crash_busy  = false ;
+
+::string get_exe() {
+	return read_lnk("/proc/self/exe") ;
+}
 
 #if HAS_STACKTRACE
 
@@ -288,20 +293,20 @@ thread_local char t_thread_key = '?' ;
 		auto end_frame   = begin_frame   ; while( end_frame!=stack.end() && end_frame->description()!="main" ) end_frame  ++ ; // dont trace above main
 		/**/                               if   ( end_frame!=stack.end()                                     ) end_frame  ++ ; // but include main
 		//
-		size_t   wf = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) wf = ::max( wf , mk_canon (it->source_file()).size() ) ;
-		size_t   wl = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) wl = ::max( wl , to_string(it->source_line()).size() ) ;
+		size_t   wf = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ ) try { wf = ::max( wf , mk_canon (it->source_file()).size() ) ; } catch (::string const&) {}
+		size_t   wl = 0 ; for( auto it=begin_frame ; it!=end_frame ; it++ )       wl = ::max( wl , to_string(it->source_line()).size() ) ;
 		::string bt ;
 		for( auto it=begin_frame ; it!=end_frame ; it++ ) {
-			/**/                              bt <<         widen(mk_canon(it->source_file()),wf              ) ;
-			if ( size_t l=it->source_line() ) bt <<':'   << widen(""s+l                      ,wl,true/*right*/) ;
-			else                              bt <<' '   << widen(""                         ,wl              ) ;
-			/**/                              bt <<" : " <<       it->description()                             ;
-			/**/                              bt <<'\n'                                                         ;
+			try                               { bt <<         widen(mk_canon(it->source_file()),wf              ) ; } catch (::string const&) { bt << widen("",wf) ; }
+			if ( size_t l=it->source_line() )   bt <<':'   << widen(""s+l                      ,wl,true/*right*/) ;
+			else                                bt <<' '   << widen(""                         ,wl              ) ;
+			/**/                                bt <<" : " <<       it->description()                             ;
+			/**/                                bt <<'\n'                                                         ;
 		}
 		fd.write(bt) ;
 	}
 
-#else
+#elif HAS_ADDR2LINE
 
 	// if ::stacktrace is not available, try to mimic using addr2line, but this is of much lower quality :
 	// - sometimes, the function is completely off
@@ -419,7 +424,7 @@ thread_local char t_thread_key = '?' ;
 		static void*    stack         [StackSize] ;     // avoid big allocation on stack
 		static SrcPoint symbolic_stack[StackSize] ;     // .
 		//
-		int backtrace_sz = backtrace(stack,StackSize) ; // XXX : dont know how to avoid malloc here
+		int backtrace_sz = backtrace(stack,StackSize) ; // XXX! : dont know how to avoid malloc here
 		int stack_sz     = 0                          ;
 		for( int i : iota( hide_cnt+1 , backtrace_sz ) ) {
 			stack_sz += fill_src_points( stack[i] , symbolic_stack+stack_sz , StackSize-stack_sz ) ;
@@ -442,5 +447,9 @@ thread_local char t_thread_key = '?' ;
 		}
 		fd.write(bt) ;
 	}
+
+#else
+
+	void write_backtrace( Fd , int /*hide_cnt*/ ) {}
 
 #endif

@@ -20,23 +20,23 @@ using namespace Py   ;
 		Ptr<Object> py_cfg_data = py_eval(AcFd(ADMIN_DIR_S "lmake/config_data.py").read()) ;
 		Object&     py_cfg      = py_cfg_data->as_a<Dict>().get_item("config")             ;
 		Object&     py_dbgs     = py_cfg     . as_a<Dict>().get_item("debug" )             ;
-		::string res   = "(" ;
-		First    first ;
-		for( auto const& [py_k,py_v] : py_dbgs.as_a<Dict>() ) res <<first("",",")<< ::string(py_k.as_a<Str>()) ;
-		res += ')' ;
+		size_t      wk          = 0                                                        ;
+		::string    res         ;
+		for( auto const& [py_k,_   ] : py_dbgs.as_a<Dict>() ) wk = ::max( wk , ::string(py_k.as_a<Str>()).size() ) ;
+		for( auto const& [py_k,py_v] : py_dbgs.as_a<Dict>() ) res <<'\t'<< widen(::string(py_k.as_a<Str>()),wk) <<" : "<< ::string(py_v.as_a<Str>()) <<'\n' ;
 		return res ;
 	} catch (::string const&) { return {} ; } // dont list keys if we cannot gather them
 }
 
 int main( int argc , char* argv[] ) {
 	app_init(false/*read_only_ok*/) ;
-	Py::init(*g_lmake_dir_s       )   ;
+	Py::init(*g_lmake_root_s      ) ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{},{
-		{ ReqFlag::Key     , { .short_name='k' , .has_arg=true  , .doc="entry into config.debug to specify debug method" } }
-	,	{ ReqFlag::NoExec  , { .short_name='n' , .has_arg=false , .doc="dont execute, just generate files"               } }
-	,	{ ReqFlag::KeepTmp , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"                } }
+		{ ReqFlag::Key     , { .short_name='k' , .has_arg=true  , .doc="entry into config.debug to specify debug method\n" } }
+	,	{ ReqFlag::NoExec  , { .short_name='n' , .has_arg=false , .doc="dont execute, just generate files"                 } }
+	,	{ ReqFlag::KeepTmp , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"                  } }
 	}} ;
 	syntax.flags[+ReqFlag::Key].doc <<' '<< keys() ;                // add available keys to usage
 	ReqCmdLine cmd_line{syntax,argc,argv} ;

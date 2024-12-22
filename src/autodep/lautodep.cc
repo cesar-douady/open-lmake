@@ -23,15 +23,13 @@ ENUM( CmdFlag
 ,	Cwd
 ,	Env
 ,	IgnoreStat
-,	Job
 ,	KeepEnv
 ,	KeepTmp
 ,	LinkSupport
 ,	Out
-,	RootView
+,	RepoView
 ,	SourceDirs
 ,	TmpDir
-,	TmpSizeMb
 ,	TmpView
 ,   Views
 ,	WorkDir
@@ -102,11 +100,11 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 int main( int argc , char* argv[] ) {
     block_sigs({SIGCHLD}) ;
 	app_init(true/*read_only_ok*/,false/*cd_root*/) ;
-	Py::init(*g_lmake_dir_s) ;
-	::string dbg_dir_s = *g_root_dir_s+AdminDirS+"debug/" ;
+	Py::init(*g_lmake_root_s) ;
+	::string dbg_dir_s = *g_repo_root_s+AdminDirS+"debug/" ;
 	mk_dir_s(dbg_dir_s) ;
 	AcFd lock_fd { no_slash(dbg_dir_s) } ;
-	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                                // because we have no small_id, we can only run a single instance
+	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                // because we have no small_id, we can only run a single instance
 		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"            ) ;
 		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",::strerror(errno)) ;
 	}
@@ -118,39 +116,39 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Cwd           , { .short_name='d' , .has_arg=true  , .doc="current working directory in which to execute job"                                                         } }
 	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="environment variables to set, given as a python dict"                                                      } }
 	,	{ CmdFlag::IgnoreStat    , { .short_name='i' , .has_arg=false , .doc="stat-like syscalls do not trigger dependencies"                                                            } }
-	,	{ CmdFlag::Job           , { .short_name='j' , .has_arg=true  , .doc="job  index keep tmp dir if mentioned"                                                                      } }
 	,	{ CmdFlag::KeepEnv       , { .short_name='k' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
+	,	{ CmdFlag::KeepTmp       , { .short_name='K' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                        } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
 	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                      } }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
-	,	{ CmdFlag::RootView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
+	,	{ CmdFlag::RepoView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
 	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                    } }
-	,	{ CmdFlag::TmpSizeMb     , { .short_name='S' , .has_arg=true  , .doc="size of tmp dir"                                                                                           } }
 	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                          } }
-	,	{ CmdFlag::KeepTmp       , { .short_name='T' , .has_arg=false , .doc="keep tmp dir after execution"                                                                              } }
+	,	{ CmdFlag::TmpDir        , { .short_name='T' , .has_arg=true  , .doc="physical tmp dir"                                                                                          } }
 	,	{ CmdFlag::Views         , { .short_name='v' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}" } }
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
 	//
-	JobRpcReply start_info  ;
-	JobSpace  & job_space   = start_info.job_space   ;
-	AutodepEnv& autodep_env = start_info.autodep_env ;
-	::map_ss    cmd_env     ;
-	Gather      gather      ;
+	JobStartRpcReply start_info  ;
+	JobSpace  &      job_space   = start_info.job_space   ;
+	AutodepEnv&      autodep_env = start_info.autodep_env ;
+	::map_ss         cmd_env     ;
+	Gather           gather      ;
 	//
 	try {
 		throw_if( !cmd_line.args                                                                          , "no exe to launch"                                                       ) ;
 		throw_if(  cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
-		throw_if(  cmd_line.flags[CmdFlag::RootView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RootView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RootView ] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::RepoView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RepoView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RepoView ] ) ;
 		throw_if(  cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
+		throw_if( !cmd_line.flags[CmdFlag::TmpDir   ]                                                     , "tmp dir must be specified"                                              ) ;
+		throw_if(                                        !is_abs(cmd_line.flag_args[+CmdFlag::TmpDir   ]) , "tmp dir must be absolute : "   ,cmd_line.flag_args[+CmdFlag::TmpDir   ] ) ;
 		//
 		if (cmd_line.flags[CmdFlag::Cwd          ]) start_info.cwd_s        = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;
 		/**/                                        start_info.keep_tmp     =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
 		/**/                                        start_info.key          =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) start_info.method       = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
-		if (cmd_line.flags[CmdFlag::TmpSizeMb    ]) start_info.tmp_sz_mb    = from_string<size_t>   (cmd_line.flag_args[+CmdFlag::TmpSizeMb    ]) ;
 		if (cmd_line.flags[CmdFlag::ChrootDir    ]) job_space.chroot_dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
-		if (cmd_line.flags[CmdFlag::RootView     ]) job_space.root_view_s   = with_slash            (cmd_line.flag_args[+CmdFlag::RootView     ]) ;
+		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s   = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
 		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s    = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;
 		/**/                                        autodep_env.auto_mkdir  =                        cmd_line.flags    [ CmdFlag::AutoMkdir    ]  ;
 		/**/                                        autodep_env.ignore_stat =                        cmd_line.flags    [ CmdFlag::IgnoreStat   ]  ;
@@ -162,8 +160,8 @@ int main( int argc , char* argv[] ) {
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]                               ) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
 		(void)start_info.enter(
-			::ref(::vmap_s<MountAction>()) , cmd_env , ::ref(::string())/*phy_tmp_dir_s*/ , ::ref(::vmap_ss())/*dynamic_env*/ // outs
-		,	gather.first_pid , from_string<JobIdx>(cmd_line.flag_args[+CmdFlag::Job]) , *g_root_dir_s , 0                     // ins
+			::ref(::vmap_s<MountAction>()) , cmd_env , ::ref(::vmap_ss())/*dynamic_env*/ , gather.first_pid   // outs
+		,	*g_repo_root_s , *g_lmake_root_s , cmd_line.flag_args[+CmdFlag::TmpDir] , 0/*small_id*/           // ins
 		) ;
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }
@@ -195,7 +193,7 @@ int main( int argc , char* argv[] ) {
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	Pdate    prev_first_read  ;
-	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                                         // process deps with a delay of 1 because we need next entry for ascii art
+	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                         // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) deps += "  "  ;
@@ -209,7 +207,7 @@ int main( int argc , char* argv[] ) {
 		prev_dep        = dep        ;
 	} ;
 	for( auto const& [dep,ai] : gather.accesses ) if (ai.digest.write==No) send(dep,ai.first_read().first) ;
-	/**/                                                                   send(                         ) ;                  // send last
+	/**/                                                                   send(                         ) ;  // send last
 	//
 	if (cmd_line.flags[CmdFlag::Out]) Fd(cmd_line.flag_args[+CmdFlag::Out],Fd::Write).write(deps) ;
 	else                              Fd::Stdout                                     .write(deps) ;

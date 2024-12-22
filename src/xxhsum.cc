@@ -12,8 +12,8 @@ using namespace Hash ;
 
 int main( int argc , char* argv[] ) {
 	#if PROFILING
-		::string gmon_dir_s ; try { gmon_dir_s = search_root_dir_s().first+GMON_DIR_S ; } catch(...) {}
-		set_env( "GMON_OUT_PREFIX" , dir_guard(gmon_dir_s+"xxh_sum") ) ;                                // in case profiling is used, ensure unique gmon.out
+		::string gmon_dir_s ; try { gmon_dir_s = search_root_s().first+GMON_DIR_S ; } catch(...) {}
+		set_env( "GMON_OUT_PREFIX" , dir_guard(gmon_dir_s+"xxh_sum") ) ;                            // in case profiling is used, ensure unique gmon.out
 	#endif
 	::string out ;
 	for( int i : iota(1,argc) ) {

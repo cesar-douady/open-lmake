@@ -27,13 +27,13 @@ if __name__!='__main__' :
 
 	class CatSh(Cat) :
 		autodep   = 'fuse'
-		root_view = '/repo'
+		repo_view = '/repo'
 		target    = '{File1}+{File2}_sh'
 		cmd       = 'cat {FIRST} {SECOND}'
 
 	class CatPy(Cat,PyRule) :
 		autodep   = 'fuse'
-		root_view = '/repo'
+		repo_view = '/repo'
 		target    = '{File1}+{File2}_py'
 		def cmd() :
 			for fn in (FIRST,SECOND) :

@@ -3,33 +3,27 @@
 * This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 * This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-items :
-	* normal    item : ordered by implementation priority in each section
-	! difficult item : unclear how to implement it
-	? idea      item : unclear that it is desirable
-	M museum         : most probably obsolete, kept as long as not 100% sure
+items (also used in XXX comments) :
+	* normal    : ordered by implementation priority in each section
+	! difficult : unclear how to implement it
+	? idea      : unclear that it is desirable
+	> delayed   : to be implemented later (cannot be implemented today)
+	M museum    : most probably obsolete, kept in museum dir as long as not 100% sure
 
 ****************************************************************************************************
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-! fix compilation with LMAKE_FLAGS=ST
-M missing some deps when reading elf
-	- find a way to reproduce it
-	- it seems that libc.so is missing at least in some occasions
-	- probably fixed by correct default library path code
-
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-! transport pdict as pdict rather than as dict
-! generate meaningful message in case of I/O error such as disk full
+! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
 	- emit a "dont cache" message
-	- unless root_view is used
+	- unless repo_view is used
 	- provide a warning to user if the case arises
 ? before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
@@ -42,11 +36,8 @@ M missing some deps when reading elf
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* add a warning when ids reach 15/16 of their limits
-* when slurm cannot submit job because resources do not exist :
-	- e.g. no TmpDisk mentioned in config and job needs it
-	- an error message is generated on stderr by slurm_submit_batch_job
-	- error code give no info
+! add a warning when ids reach 15/16 of their limits
+	- hard to do in a nice, informative and homogeneous way
 ? generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
@@ -69,6 +60,7 @@ M missing some deps when reading elf
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
 	- or write such functions in C, so that malloc are necessary visible
@@ -140,6 +132,12 @@ M missing some deps when reading elf
 	? seems to be highly architecture dependent, is it worth ?
 M implement fuse as an autodep method
 	- does not seem doable because read foo/bar first does a lookup(foo)
+M port to Darwin
+	- autodep requires the use of dtrace as there is no way to piggyback calls to libc
+	- dtrace requires admin privileges which obliges job_exec and the like to be suid root
+	- dtrace is *very* different from ptrace, an entirely new code
+	- Darwin support makes code less readable because of numerous #if's
+	- no traction
 
 ****************************************************************************************************
 * OPTIMIZATIONS
@@ -165,7 +163,6 @@ M implement fuse as an autodep method
 	- DepsAttrs
 	- SubmitRsrcsAttrs + SubmitNoneAttrs
 	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
-	- EndCmdAttrs + EndNoneAttrs
 ? avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str
@@ -211,7 +208,7 @@ M manage HUGE pages in store
 * add a more agressive TU for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...
-* add a unit_test to validate n_retries
+* add a unit_test to validate max_retries_on_lost
 * gcov
 * idx overflow
 	- check with 8-bits indexes

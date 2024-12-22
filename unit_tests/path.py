@@ -11,13 +11,13 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Base(Rule) :
-		environ_cmd       = {'PATH'               :'...:foo1'}
+		environ           = {'PATH'               :'...:foo1'}
 		environ_resources = {'R'                  :'foo2'    }
 		paths             = {'environ_resources.R':'/'       }
 
 	class Test(Base) :
 		target            = 'test'
-		environ_cmd       = {'PATH':'...:bar1'}
+		environ           = {'PATH':'...:bar1'}
 		environ_resources = {'R'   :'.../bar2'}
 		def cmd() :
 			import os

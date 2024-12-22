@@ -68,8 +68,8 @@ namespace Engine {
 	Config::Config(Dict const& py_map) : booted{true} {                                                                                // if config is read from makefiles, it is booted
 		db_version = Version::Db ;                                                                                                     // record current version
 		// generate a random key
-		::string buf_char = Fd("/dev/urandom").read(false/*no_file_ok*/,sizeof(uint64_t)) ;
-		uint64_t buf_int  ;                                                                 ::memcpy( &buf_int , buf_char.data() , sizeof(buf_int) ) ;
+		::string buf_char = AcFd("/dev/urandom").read(false/*no_file_ok*/,sizeof(uint64_t)) ;
+		uint64_t buf_int  ;                                                                   ::memcpy( &buf_int , buf_char.data() , sizeof(buf_int) ) ;
 		key = to_hex(buf_int) ;
 		//
 		::vector_s fields = {{}} ;

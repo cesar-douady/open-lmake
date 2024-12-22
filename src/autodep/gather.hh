@@ -34,6 +34,7 @@ ENUM( GatherKind // epoll events
 ,	ServerReply
 ,	ChildStart   // just a marker, not actually used as epoll event
 ,	ChildEnd
+,	ChildEndFd
 ,	JobMaster
 ,	JobSlave
 ,	ServerMaster
@@ -88,7 +89,7 @@ struct Gather {                                                                 
 	} ;
 	// statics
 private :
-	static void _s_do_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_do_child(report_fd,ready) ; }
+	static void _s_ptrace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_ptrace_child(report_fd,ready) ; }
 	// services
 	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only
@@ -121,8 +122,8 @@ public : //!                                                                    
 	//
 	void reorder(bool at_end) ;                                                                       // reorder accesses by first read access and suppress superfluous accesses
 private :
-	Fd   _spawn_child(                               ) ;
-	void _do_child   ( Fd report_fd , ::latch* ready ) ;
+	Fd   _spawn_child (                               ) ;
+	void _ptrace_child( Fd report_fd , ::latch* ready ) ;
 	// data
 public :
 	::vector_s                        cmd_line         ;
@@ -155,11 +156,10 @@ public :
 	::string                          stdout           ;                                              // contains child stdout if child_stdout==Pipe
 	::string                          stderr           ;                                              // contains child stderr if child_stderr==Pipe
 	Time::Delay                       timeout          ;
-	int                               wstatus          = 0                                          ;
+	::atomic<int>                     wstatus          = 0                                          ;
 private :
 	::map_ss            _add_env       ;
 	Child               _child         ;
-	::jthread           _ptrace_thread ;
 	::umap<Fd,::string> _codec_files   ;
 	PD                  _end_timeout   = PD::Future ;
 	PD                  _end_child     = PD::Future ;
@@ -168,4 +168,5 @@ private :
 	NodeIdx             _parallel_id   = 0          ;                                                 // id to identify parallel deps
 	bool                _timeout_fired = false      ;
 	BitMap<Kind>        _wait          ;                                                              // events we are waiting for
+	::jthread           _ptrace_thread ;
 } ;

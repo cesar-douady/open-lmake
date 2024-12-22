@@ -23,7 +23,7 @@ static bool started() { return AutodepLock::t_active ; } // no auto-start for se
 // - this happens if get_orig needs to call dlsym
 // note that when not in server, _g_mutex protects us (but it is not used in server when not spying accesses)
 // note also that we cannot put s_libcall_tab in a static outside get_orig as get_orig may be called from global init, before this static initialization
-void* get_orig(const char* libcall) {
+static void* get_orig(const char* libcall) {
 	static constexpr size_t NChar = 20 ;                   // 12 is enough to distinguish /!\ this function must be signal-safe, hence must not call malloc : use char[] as key instead of ::string
 	using LibCallTab = ::map<::array<char,NChar>,void*> ;
 	static ::atomic<LibCallTab*> s_libcall_tab = nullptr ; // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
@@ -49,11 +49,10 @@ void* get_orig(const char* libcall) {
 // unfortunately some libs do accesses before entering main, so we cannot be sure this init is before all libcalls
 static void* init_get_orig = get_orig(nullptr) ;
 
-#include "ld.x.cc"
 #include "ld_common.x.cc"
 
 AutodepLock::AutodepLock(::vmap_s<DepDigest>* deps) : lock{_s_mutex} {
-	// SWEAR(cwd()==Record::s_autodep_env().root_dir) ;                // too expensive
+	// SWEAR(cwd()==no_slash(Record::s_autodep_env().repo_root_s)) ;   // too expensive
 	SWEAR( !Record::s_deps && !Record::s_deps_err ) ;
 	SWEAR( !*Record::s_access_cache               ) ;
 	Record::s_deps     = deps ;
@@ -66,5 +65,5 @@ AutodepLock::~AutodepLock() {
 	Record::s_deps_err = nullptr ;
 	t_active           = false   ;
 	Record::s_access_cache->clear() ;
-	if (auditor().seen_chdir) swear_prod(::fchdir(Record::s_root_fd())==0) ; // restore cwd in case it has been modified during user Python code execution
+	if (auditor().seen_chdir) swear_prod(::fchdir(Record::s_repo_root_fd())==0) ; // restore cwd in case it has been modified during user Python code execution
 }

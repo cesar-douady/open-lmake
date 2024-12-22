@@ -63,7 +63,7 @@ ENUM_1( NodeStatus
 )
 
 ENUM( Polluted
-,	Clean        // must be first
+,	Clean      // must be first
 ,	Old
 ,	PreExist
 ,	Job
@@ -87,27 +87,27 @@ namespace Engine {
 #ifdef STRUCT_DEF
 
 inline NodeGoal mk_goal(NodeMakeAction ma) {
-	static constexpr NodeGoal s_tab[] {
-		NodeGoal::None                  // Wakeup
-	,	NodeGoal::Makable               // Makable
-	,	NodeGoal::Status                // Status
-	,	NodeGoal::Dsk                   // Dsk
-	,	NodeGoal::Dsk                   // Dep
-	} ;
-	static_assert(sizeof(s_tab)==N<NodeMakeAction>*sizeof(NodeGoal)) ;
-	return s_tab[+ma] ;
+	static constexpr ::amap<NodeMakeAction,NodeGoal,N<NodeMakeAction>> Goals = {{
+		{ NodeMakeAction::Wakeup  , NodeGoal::None    }
+	,	{ NodeMakeAction::Makable , NodeGoal::Makable }
+	,	{ NodeMakeAction::Status  , NodeGoal::Status  }
+	,	{ NodeMakeAction::Dsk     , NodeGoal::Dsk     }
+	,	{ NodeMakeAction::Query   , NodeGoal::Dsk     }
+	}} ;
+	static_assert(chk_enum_tab(Goals)) ;
+	return Goals[+ma].second ;
 }
 
 inline NodeMakeAction mk_action( NodeGoal g , bool query ) {
-	static constexpr NodeMakeAction s_tab[] {
-		{}
-	,	NodeMakeAction::Makable // Makable
-	,	NodeMakeAction::Status  // Status
-	,	NodeMakeAction::Dsk     // Dsk
-	} ;
-	static_assert(sizeof(s_tab)==N<NodeGoal>*sizeof(NodeMakeAction)) ;
+	static constexpr ::amap<NodeGoal,NodeMakeAction,N<NodeGoal>> Actions = {{
+		{ NodeGoal::None    , NodeMakeAction::Makable/*garbage*/ }
+	,	{ NodeGoal::Makable , NodeMakeAction::Makable            }
+	,	{ NodeGoal::Status  , NodeMakeAction::Status             }
+	,	{ NodeGoal::Dsk     , NodeMakeAction::Dsk                }
+	}} ;
+	static_assert(chk_enum_tab(Actions)) ;
 	SWEAR(g!=NodeGoal::None) ;
-	return query ? NodeMakeAction::Query : s_tab[+g] ;
+	return query ? NodeMakeAction::Query : Actions[+g].second ;
 }
 
 namespace Engine {
@@ -293,21 +293,21 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                                                                              // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                           // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// static data
 		static Mutex<MutexLvl::NodeCrcDate> s_crc_date_mutex ;
 		// cxtors & casts
-		NodeData() = delete ;                                                                                                            // if necessary, we must take care of the union
+		NodeData() = delete ;                                                                                         // if necessary, we must take care of the union
 		NodeData( Name n , Node dir_ ) : JobNodeData{n} { dir() = dir_ ; }
 		~NodeData() {
 			job_tgts().pop() ;
 		}
 		// accesses
 		Node     idx    () const { return Node::s_idx(self) ; }
-		::string name   () const { return full_name()       ; }
+		::string name   () const { ::string res = full_name() ; SWEAR(Disk::is_canon(res),res) ; return res ; }       // XXX> : suppress SWEAR when bug is found, node names are supposed to be canonic
 		size_t   name_sz() const { return full_name_sz()    ; }
 		//
 		bool is_decode() const { return buildable==Buildable::Decode ; }
@@ -341,7 +341,7 @@ namespace Engine {
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                   // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -355,12 +355,12 @@ namespace Engine {
 		//
 		Manual manual        (                  FileSig const& ) const ;
 		Manual manual        (                                 ) const { return manual(FileSig(name())) ; }
-		Manual manual_refresh( Req            , FileSig const& ) ;                                                                       // refresh date if file was updated but steady
-		Manual manual_refresh( JobData const& , FileSig const& ) ;                                                                       // .
+		Manual manual_refresh( Req            , FileSig const& ) ;                                                    // refresh date if file was updated but steady
+		Manual manual_refresh( JobData const& , FileSig const& ) ;                                                    // .
 		Manual manual_refresh( Req            r                )       { return manual_refresh(r,FileSig(name())) ; }
 		Manual manual_refresh( JobData const& j                )       { return manual_refresh(j,FileSig(name())) ; }
 		//
-		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;                         // Req's are for reporting only
+		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;      // Req's are for reporting only
 		//
 		void full_refresh( bool report_no_file , ::vector<Req> const& reqs , ::string const& name ) {
 			if (+reqs) set_buildable(reqs[0]) ;
@@ -637,7 +637,10 @@ namespace Engine {
 	}
 
 	inline void Dep::acquire_crc() {
-		if ( !is_crc && self->crc.valid() && self->crc!=Crc::None && sig()==self->date().sig ) crc(self->crc) ;
+		if (is_crc              ) return ;                                              // already a crc ==> nothing to do
+		if (!self->crc.valid()  ) return ;                                              // nothing to acquire
+		if (self->crc==Crc::None) { if (sig().tag()<FileTag::Target) crc(self->crc) ; } // acquire no file (cannot test sig equality as sig contains date at which file was known non-existent)
+		else                      { if (sig()==self->date().sig    ) crc(self->crc) ; } // acquire existing file
 	}
 
 	//

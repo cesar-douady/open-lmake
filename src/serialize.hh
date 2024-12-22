@@ -50,24 +50,59 @@ namespace std {
 
 template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {
 	struct U { template<class X> operator X() const ; } ;                                               // a universal class that can be cast to anything
-	template<IsStream S> static void s_serdes( S& s , T& x ) {
-		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure no partial serialization of large classes
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,n,o  ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o  ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,n    ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l,m,n    ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m      ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l,m      ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()                };}) { auto& [a,b,c,d,e,f,g,h,i,j,k,l        ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k,l        ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()                    };}) { auto& [a,b,c,d,e,f,g,h,i,j,k          ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j,k          ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()                        };}) { auto& [a,b,c,d,e,f,g,h,i,j            ] = x ; serdes(s,a,b,c,d,e,f,g,h,i,j            ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()                            };}) { auto& [a,b,c,d,e,f,g,h,i              ] = x ; serdes(s,a,b,c,d,e,f,g,h,i              ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U()                                };}) { auto& [a,b,c,d,e,f,g,h                ] = x ; serdes(s,a,b,c,d,e,f,g,h                ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U()                                    };}) { auto& [a,b,c,d,e,f,g                  ] = x ; serdes(s,a,b,c,d,e,f,g                  ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U()                                        };}) { auto& [a,b,c,d,e,f                    ] = x ; serdes(s,a,b,c,d,e,f                    ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U()                                            };}) { auto& [a,b,c,d,e                      ] = x ; serdes(s,a,b,c,d,e                      ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U()                                                };}) { auto& [a,b,c,d                        ] = x ; serdes(s,a,b,c,d                        ) ; }
-		else if constexpr (requires{T{U(),U(),U()                                                    };}) { auto& [a,b,c                          ] = x ; serdes(s,a,b,c                          ) ; }
-		else if constexpr (requires{T{U(),U()                                                        };}) { auto& [a,b                            ] = x ; serdes(s,a,b                            ) ; }
-		else if constexpr (requires{T{U()                                                            };}) { auto& [a                              ] = x ; serdes(s,a                              ) ; }
+	template<IsStream S> static void s_serdes( S& s_ , T& x_ ) {
+		#define U10     U(),U(),U(),U(),U(),U(),U(),U(),U(),U()
+		#define U20 U10,U(),U(),U(),U(),U(),U(),U(),U(),U(),U()
+		#define U30 U20,U(),U(),U(),U(),U(),U(),U(),U(),U(),U()
+		#define a10     a,b,c,d,e,f,g ,h ,i ,j
+		#define a20 a10,k,l,m,n,o,p,q ,r ,s ,t
+		#define a30 a20,u,v,w,x,y,z,aa,ab,ac,ad
+		if      constexpr (requires{T{U30,U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; }        // force compilation error to ensure no partial serialization of large classes
+		else if constexpr (requires{T{U30,U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a30,ae,af,ag,ah,ai,aj,ak,al,am] = x_ ; serdes(s_,a30,ae,af,ag,ah,ai,aj,ak,al,am) ; }
+		else if constexpr (requires{T{U30,U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a30,ae,af,ag,ah,ai,aj,ak,al   ] = x_ ; serdes(s_,a30,ae,af,ag,ah,ai,aj,ak,al   ) ; }
+		else if constexpr (requires{T{U30,U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a30,ae,af,ag,ah,ai,aj,ak      ] = x_ ; serdes(s_,a30,ae,af,ag,ah,ai,aj,ak      ) ; }
+		else if constexpr (requires{T{U30,U(),U(),U(),U(),U(),U()                };}) { auto& [a30,ae,af,ag,ah,ai,aj         ] = x_ ; serdes(s_,a30,ae,af,ag,ah,ai,aj         ) ; }
+		else if constexpr (requires{T{U30,U(),U(),U(),U(),U()                    };}) { auto& [a30,ae,af,ag,ah,ai            ] = x_ ; serdes(s_,a30,ae,af,ag,ah,ai            ) ; }
+		else if constexpr (requires{T{U30,U(),U(),U(),U()                        };}) { auto& [a30,ae,af,ag,ah               ] = x_ ; serdes(s_,a30,ae,af,ag,ah               ) ; }
+		else if constexpr (requires{T{U30,U(),U(),U()                            };}) { auto& [a30,ae,af,ag                  ] = x_ ; serdes(s_,a30,ae,af,ag                  ) ; }
+		else if constexpr (requires{T{U30,U(),U()                                };}) { auto& [a30,ae,af                     ] = x_ ; serdes(s_,a30,ae,af                     ) ; }
+		else if constexpr (requires{T{U30,U()                                    };}) { auto& [a30,ae                        ] = x_ ; serdes(s_,a30,ae                        ) ; }
+		else if constexpr (requires{T{U30                                        };}) { auto& [a30                           ] = x_ ; serdes(s_,a30                           ) ; }
+		else if constexpr (requires{T{U20,U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a20,u ,v ,w ,x ,y ,z ,aa,ab,ac] = x_ ; serdes(s_,a20,u ,v ,w ,x ,y ,z ,aa,ab,ac) ; }
+		else if constexpr (requires{T{U20,U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a20,u ,v ,w ,x ,y ,z ,aa,ab   ] = x_ ; serdes(s_,a20,u ,v ,w ,x ,y ,z ,aa,ab   ) ; }
+		else if constexpr (requires{T{U20,U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a20,u ,v ,w ,x ,y ,z ,aa      ] = x_ ; serdes(s_,a20,u ,v ,w ,x ,y ,z ,aa      ) ; }
+		else if constexpr (requires{T{U20,U(),U(),U(),U(),U(),U()                };}) { auto& [a20,u ,v ,w ,x ,y ,z          ] = x_ ; serdes(s_,a20,u ,v ,w ,x ,y ,z          ) ; }
+		else if constexpr (requires{T{U20,U(),U(),U(),U(),U()                    };}) { auto& [a20,u ,v ,w ,x ,y             ] = x_ ; serdes(s_,a20,u ,v ,w ,x ,y             ) ; }
+		else if constexpr (requires{T{U20,U(),U(),U(),U()                        };}) { auto& [a20,u ,v ,w ,x                ] = x_ ; serdes(s_,a20,u ,v ,w ,x                ) ; }
+		else if constexpr (requires{T{U20,U(),U(),U()                            };}) { auto& [a20,u ,v ,w                   ] = x_ ; serdes(s_,a20,u ,v ,w                   ) ; }
+		else if constexpr (requires{T{U20,U(),U()                                };}) { auto& [a20,u ,v                      ] = x_ ; serdes(s_,a20,u ,v                      ) ; }
+		else if constexpr (requires{T{U20,U()                                    };}) { auto& [a20,u                         ] = x_ ; serdes(s_,a20,u                         ) ; }
+		else if constexpr (requires{T{U20                                        };}) { auto& [a20                           ] = x_ ; serdes(s_,a20                           ) ; }
+		else if constexpr (requires{T{U10,U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a10,k ,l ,m ,n ,o ,p ,q ,r ,s ] = x_ ; serdes(s_,a10,k ,l ,m ,n ,o ,p ,q ,r ,s ) ; }
+		else if constexpr (requires{T{U10,U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a10,k ,l ,m ,n ,o ,p ,q ,r    ] = x_ ; serdes(s_,a10,k ,l ,m ,n ,o ,p ,q ,r    ) ; }
+		else if constexpr (requires{T{U10,U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a10,k ,l ,m ,n ,o ,p ,q       ] = x_ ; serdes(s_,a10,k ,l ,m ,n ,o ,p ,q       ) ; }
+		else if constexpr (requires{T{U10,U(),U(),U(),U(),U(),U()                };}) { auto& [a10,k ,l ,m ,n ,o ,p          ] = x_ ; serdes(s_,a10,k ,l ,m ,n ,o ,p          ) ; }
+		else if constexpr (requires{T{U10,U(),U(),U(),U(),U()                    };}) { auto& [a10,k ,l ,m ,n ,o             ] = x_ ; serdes(s_,a10,k ,l ,m ,n ,o             ) ; }
+		else if constexpr (requires{T{U10,U(),U(),U(),U()                        };}) { auto& [a10,k ,l ,m ,n                ] = x_ ; serdes(s_,a10,k ,l ,m ,n                ) ; }
+		else if constexpr (requires{T{U10,U(),U(),U()                            };}) { auto& [a10,k ,l ,m                   ] = x_ ; serdes(s_,a10,k ,l ,m                   ) ; }
+		else if constexpr (requires{T{U10,U(),U()                                };}) { auto& [a10,k ,l                      ] = x_ ; serdes(s_,a10,k ,l                      ) ; }
+		else if constexpr (requires{T{U10,U()                                    };}) { auto& [a10,k                         ] = x_ ; serdes(s_,a10,k                         ) ; }
+		else if constexpr (requires{T{U10                                        };}) { auto& [a10                           ] = x_ ; serdes(s_,a10                           ) ; }
+		else if constexpr (requires{T{    U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [    a ,b ,c ,d ,e ,f ,g ,h ,i ] = x_ ; serdes(s_    ,a ,b ,c ,d ,e ,f ,g ,h ,i ) ; }
+		else if constexpr (requires{T{    U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [    a ,b ,c ,d ,e ,f ,g ,h    ] = x_ ; serdes(s_    ,a ,b ,c ,d ,e ,f ,g ,h    ) ; }
+		else if constexpr (requires{T{    U(),U(),U(),U(),U(),U(),U()            };}) { auto& [    a ,b ,c ,d ,e ,f ,g       ] = x_ ; serdes(s_    ,a ,b ,c ,d ,e ,f ,g       ) ; }
+		else if constexpr (requires{T{    U(),U(),U(),U(),U(),U()                };}) { auto& [    a ,b ,c ,d ,e ,f          ] = x_ ; serdes(s_    ,a ,b ,c ,d ,e ,f          ) ; }
+		else if constexpr (requires{T{    U(),U(),U(),U(),U()                    };}) { auto& [    a ,b ,c ,d ,e             ] = x_ ; serdes(s_    ,a ,b ,c ,d ,e             ) ; }
+		else if constexpr (requires{T{    U(),U(),U(),U()                        };}) { auto& [    a ,b ,c ,d                ] = x_ ; serdes(s_    ,a ,b ,c ,d                ) ; }
+		else if constexpr (requires{T{    U(),U(),U()                            };}) { auto& [    a ,b ,c                   ] = x_ ; serdes(s_    ,a ,b ,c                   ) ; }
+		else if constexpr (requires{T{    U(),U()                                };}) { auto& [    a ,b                      ] = x_ ; serdes(s_    ,a ,b                      ) ; }
+		else if constexpr (requires{T{    U()                                    };}) { auto& [    a                         ] = x_ ; serdes(s_    ,a                         ) ; }
+		#undef a30
+		#undef a20
+		#undef a10
+		#undef U30
+		#undef U20
+		#undef U10
 	}
 } ;
 

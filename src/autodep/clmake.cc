@@ -279,7 +279,7 @@ PyMODINIT_FUNC
 	_g_record = {New,Yes/*enabled*/} ;
 	//
 	//
-	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3 } ;       // PER_AUTODEP_METHOD : add entries here
+	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3} ; // PER_AUTODEP_METHOD : add entries here
 	size_t i = 0 ;
 	if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
 	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
@@ -287,7 +287,7 @@ PyMODINIT_FUNC
 	/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
 	SWEAR(i==py_ads->size(),i,py_ads->size()) ;
 	//
-	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM } ; // PER_BACKEND : add entries here
+	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM } ;      // PER_BACKEND : add entries here
 	i = 0 ;
 	/**/           py_bes->set_item(i++,*Ptr<Str>("local")) ;
 	if (HAS_SGE  ) py_bes->set_item(i++,*Ptr<Str>("sge"  )) ;
@@ -295,15 +295,15 @@ PyMODINIT_FUNC
 	SWEAR(i==py_bes->size(),i,py_bes->size()) ;
 	//
 	Ptr<Module> mod { PY_MAJOR_VERSION<3?"clmake2":"clmake" , _g_funcs } ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "top_root_dir" , *Ptr<Str>(no_slash(Record::s_autodep_env().root_dir_s).c_str()) ) ;
-	mod->set_attr( "backends"     , *py_bes                                                         ) ;
-	mod->set_attr( "autodeps"     , *py_ads                                                         ) ;
-	mod->set_attr( "no_crc"       , *Ptr<Int>(+Crc::Unknown)                                        ) ;
-	mod->set_attr( "crc_a_link"   , *Ptr<Int>(+Crc::Lnk    )                                        ) ;
-	mod->set_attr( "crc_a_reg"    , *Ptr<Int>(+Crc::Reg    )                                        ) ;
-	mod->set_attr( "crc_no_file"  , *Ptr<Int>(+Crc::None   )                                        ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "top_repo_root" , *Ptr<Str>(no_slash(Record::s_autodep_env().repo_root_s).c_str()) ) ;
+	mod->set_attr( "backends"      , *py_bes                                                          ) ;
+	mod->set_attr( "autodeps"      , *py_ads                                                          ) ;
+	mod->set_attr( "no_crc"        , *Ptr<Int>(+Crc::Unknown)                                         ) ;
+	mod->set_attr( "crc_a_link"    , *Ptr<Int>(+Crc::Lnk    )                                         ) ;
+	mod->set_attr( "crc_a_reg"     , *Ptr<Int>(+Crc::Reg    )                                         ) ;
+	mod->set_attr( "crc_no_file"   , *Ptr<Int>(+Crc::None   )                                         ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;

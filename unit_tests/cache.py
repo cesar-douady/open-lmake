@@ -15,8 +15,8 @@ if __name__!='__main__' :
 
 	lmake.config.caches.dir = {
 		'tag'  : 'dir'
-	,	'repo' : lmake.root_dir
-	,	'dir'  : lmake.root_dir+'/CACHE'
+	,	'repo' : lmake.repo_root
+	,	'dir'  : lmake.repo_root+'/CACHE'
 	}
 
 	class Auto(Rule) :
@@ -62,5 +62,4 @@ else :
 	os.system('find CACHE -type f -ls')
 
 	print('hello2',file=open('hello','w'))
-	cnt = ut.lmake( 'hello+auto1.hide' , done=1 , hit_steady=... , hit_done=... , new=1 ) # check cache hit on common part, and miss when we depend on hello
-	assert cnt.hit_done+cnt.hit_steady==2                                                 # should be hit_done==2. XXX : fix hit message leading to steady instead of done
+	ut.lmake( 'hello+auto1.hide' , done=1 , hit_done=2 , new=1 ) # check cache hit on common part, and miss when we depend on hello

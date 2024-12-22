@@ -3,8 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <sys/sysinfo.h>
-#include <sys/resource.h>
+#include <sys/resource.h> // getrlimit
 
 #include "generic.hh" // /!\ must be first because Python.h must be first
 
@@ -197,12 +196,7 @@ namespace Backends::Local {
 
 	inline ::vmap_ss RsrcsData::mk_vmap(::vector_s const& keys) const {
 		::vmap_ss res ; res.reserve(keys.size()) ;
-		for( size_t i : iota(keys.size()) ) {
-			if (!self[i]) continue ;
-			::string const& key = keys[i] ;
-			if ( key=="mem" || key=="tmp" ) res.emplace_back( key , ::to_string(self[i])+'M' ) ;
-			else                            res.emplace_back( key , ::to_string(self[i])     ) ;
-		}
+		for( size_t i : iota(keys.size()) ) if (self[i]) res.emplace_back( keys[i] , to_string_rsrc(keys[i],self[i]) ) ;
 		return res ;
 	}
 

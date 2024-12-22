@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <sys/mman.h> // mmap, mremap, munmap
+#include <sys/mman.h> // mmap, munmap
 
 #include "disk.hh"
 #include "trace.hh"
@@ -113,7 +113,7 @@ namespace Store {
 		if (!name) {
 			size = 0 ;
 		} else {
-			int open_flags = O_LARGEFILE | O_CLOEXEC ;
+			int open_flags = O_CLOEXEC ;
 			if (writable) { open_flags |= O_RDWR | O_CREAT ; Disk::dir_guard(name) ; }
 			else            open_flags |= O_RDONLY         ;
 			//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

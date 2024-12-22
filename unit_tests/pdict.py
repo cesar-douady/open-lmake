@@ -6,23 +6,21 @@
 if __name__!='__main__' :
 
 	import lmake
-
-	from lmake.rules import Rule
+	from lmake.utils import pdict
+	from lmake.rules import PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	class PyEnv(Rule) :
-		targets      = { 'DUT' : 'dut' }
-		allow_stderr = True
-		max_submits  = 1
-		cmd = '''
-			stat {DUT}.tmp
-			echo dut > {DUT}.tmp
-			mv {DUT}.tmp {DUT}
-		'''
+	param = pdict(a=1,b=2)
+
+	class Dut(PyRule) :
+		target = 'dut'
+		def cmd() :
+			assert param['a']==1 and param['b']==2
+			assert param.a   ==1 and param.b   ==2
 
 else :
 
 	import ut
 
-	ut.lmake('dut',done=1)
+	ut.lmake( 'dut' , done=1 ) # check param can be used as a pdict

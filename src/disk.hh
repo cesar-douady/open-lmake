@@ -7,13 +7,16 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <sys/stat.h>  // fstatat, fchmodat
-#include <sys/types.h>
+#include <sys/stat.h> // fstatat, fchmodat
 
 #include "types.hh"
 #include "fd.hh"
 #include "lib.hh"
 #include "time.hh"
+
+#ifndef O_NOATIME
+	#define O_NOATIME 0 // this is just for perf, if not possible, no big deal
+#endif
 
 // ENUM macro does not work inside namespace's
 
@@ -22,12 +25,12 @@ ENUM(Access                                                            // in all
 ,	Reg                                                                // file is accessed with open                  , symlinks      are deemed non-existing
 ,	Stat                                                               // file is accessed with stat like (read inode), only distinguish tag
 )
-static constexpr char AccessChars[] = {
-	'L'                                                                // Lnk
-,	'R'                                                                // Reg
-,	'T'                                                                // Stat
-} ;
-static_assert(::size(AccessChars)==N<Access>) ;
+static constexpr ::amap<Access,char,N<Access>> AccessChars = {{
+	{ Access::Lnk  , 'L' }
+,	{ Access::Reg  , 'R' }
+,	{ Access::Stat , 'T' }
+}} ;
+static_assert(chk_enum_tab(AccessChars)) ;
 using Accesses = BitMap<Access> ;                                      // distinguish files as soon as they can be distinguished by one of the liste Access'es
 static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
 
@@ -69,12 +72,17 @@ namespace Disk {
 		if (path.size()<3) return false ;       // we must have at least 2 components and a / to have a dir component
 		return path.find('/',1)<path.size()-2 ; // search a / at neither ends of path
 	}
-	inline ::string dir_name_s(::string const& path) {
-		size_t sep = path.rfind('/',path.size()-2) ;
-		if (sep!=Npos) return path.substr(0,sep+1)    ;
+	inline ::string dir_name_s( ::string const& path , FileNameIdx n=1 ) {
+		SWEAR( n>=1 , path ) ;
 		throw_unless( +path     , "no dir for empty path" ) ;
 		throw_unless( path!="/" , "no dir for /"          ) ;
-		/**/           return {}                      ;
+		size_t sep = path.size()-(path.back()=='/') ;
+		for(; n ; n-- ) {
+			throw_unless( sep!=Npos , "cannot walk uphill "s+n+" dirs from "+path ) ;
+			sep = path.rfind('/',sep-1) ;
+		}
+		if (sep==Npos) return {}                   ;
+		else           return path.substr(0,sep+1) ;
 	}
 	inline ::string base_name(::string const& path) {
 		size_t sep = path.rfind('/',path.size()-2) ;
@@ -92,7 +100,7 @@ namespace Disk {
 	inline bool   is_lcl_s    (::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ;                          }
 	inline bool   is_lcl      (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ;                          }
 	inline size_t uphill_lvl_s(::string const& name_s) { SWEAR(!is_abs_s(name_s)) ; size_t l ; for( l=0 ; name_s.substr(3*l,3)=="../" ; l++ ) {} return l ; }
-	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                   }
+	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                    }
 
 	/**/   ::string mk_lcl( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
 	/**/   ::string mk_glb( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
@@ -287,13 +295,9 @@ namespace Disk {
 	inline Ddate           file_date     ( ::string const& file  , bool no_follow=true                                       ) { return file_date     (Fd::Cwd,file ,no_follow           ) ; }
 
 	inline ::string cwd_s() {
-		char buf[PATH_MAX] ;                          // use posix, not linux extension that allows to pass nullptr as argument and malloc's the returned string
-		char* cwd          = ::getcwd(buf,PATH_MAX) ;
-		if (!cwd) throw "cannot get cwd"s ;
-		::string res{cwd} ;
-		SWEAR( res[0]=='/' , res[0] ) ;
-		if (res.size()==1) return res     ;           // special case / as ::getcwd returns /, not empty
-		else               return res+'/' ;
+		char cwd[PATH_MAX] ;                                   // use posix, not linux extension that allows to pass nullptr as argument and malloc's the returned string
+		if (!::getcwd(cwd,PATH_MAX)) throw "cannot get cwd"s ;
+		return with_slash(cwd) ;                               // cwd is "/" not empty when at root dir, so dont simply append '/'
 	}
 
 	/**/   FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , bool unlnk_dst=false , bool mk_read_only=false ) ;
@@ -327,7 +331,7 @@ namespace Disk {
 		// data
 		LnkSupport lnk_support   = LnkSupport::Full ; // by default, be pessimistic
 		bool       reliable_dirs = false            ; // if true => dirs coherence is enforced when files are updated (unlike NFS)
-		::string   root_dir_s    = {}               ;
+		::string   repo_root_s   = {}               ;
 		::string   tmp_dir_s     = {}               ;
 		::vector_s src_dirs_s    = {}               ;
 	} ;
@@ -348,14 +352,13 @@ namespace Disk {
 			// cxtors & casts
 			_Dvg( ::string const& domain , ::string const& chk ) { update(domain,chk) ; }
 			// accesses
-			bool operator +() const { return ok ; }
+			bool operator+() const { return ok ; }
 			// services
 			void update( ::string const& domain , ::string const& chk ) ; // udpate after domain & chk have been lengthened or shortened, but not modified internally
 			// data
 			bool   ok  = false ;
 			size_t dvg = 0     ;
 		} ;
-
 		// statics
 	private :
 		// if No <=> no file, if Maybe <=> a regular file, if Yes <=> a link
@@ -382,11 +385,11 @@ namespace Disk {
 		SolveReport solve(         const char*     file , bool no_follow=false ) { return solve( Fd::Cwd ,               file  , no_follow ) ; }
 		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve( at      , ::string()          , no_follow ) ; }
 		//
-		vmap_s<Accesses> exec(SolveReport&) ;             // arg is updated to reflect last interpreter
+		vmap_s<Accesses> exec(SolveReport&) ;                             // arg is updated to reflect last interpreter
 		//
 		void chdir() ;
 		::string cwd() {
-			if ( !pid && ::getpid()!=_cwd_pid ) chdir() ; // refresh _cwd if it was updated in the child part of a clone
+			if ( !pid && ::getpid()!=_cwd_pid ) chdir() ;                 // refresh _cwd if it was updated in the child part of a clone
 			return _cwd ;
 		}
 	private :
@@ -397,10 +400,10 @@ namespace Disk {
 	private :
 		RealPathEnv const* _env            ;
 		::string           _admin_dir      ;
-		::vector_s         _abs_src_dirs_s ;              // this is an absolute version of src_dirs
-		size_t             _root_dir_sz    ;
+		::vector_s         _abs_src_dirs_s ;                              // this is an absolute version of src_dirs
+		size_t             _repo_root_sz   ;
 		::string           _cwd            ;
-		pid_t              _cwd_pid        = 0 ;          // pid for which _cwd is valid if pid==0
+		pid_t              _cwd_pid        = 0 ;                          // pid for which _cwd is valid if pid==0
 	} ;
 	::string& operator+=( ::string& , RealPath::SolveReport const& ) ;
 

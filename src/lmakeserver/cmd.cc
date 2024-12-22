@@ -3,7 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <linux/binfmts.h>
 #include <regex>
 
 #include "cmd.hh"
@@ -189,8 +188,8 @@ namespace Engine {
 	}
 
 	static ::pair<::vmap_ss/*set*/,::vector_s/*keep*/> _mk_env( JobInfo const& job_info ) {
-		bool                                        has_end = +job_info.end.end.proc                ;
-		::umap_ss                                   de      = mk_umap(job_info.end.end.dynamic_env) ;
+		bool                                        has_end = +job_info.end                     ;
+		::umap_ss                                   de      = mk_umap(job_info.end.dynamic_env) ;
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> res     ;
 		for( auto const& [k,v] : job_info.start.start.env )
 			if      (v!=EnvPassMrkr) res.first .emplace_back(k,v       ) ;
@@ -200,9 +199,9 @@ namespace Engine {
 	}
 
 	static ::string _mk_gen_script_line( Job j , ReqOptions const& ro , JobInfo const& job_info , ::string const& dbg_dir_s , ::string const& key ) {
-		JobRpcReply const& start = job_info.start.start ;
-		AutodepEnv  const& ade   = start.autodep_env    ;
-		Rule::SimpleMatch  match = j->simple_match()    ;
+		JobStartRpcReply const& start = job_info.start.start ;
+		AutodepEnv       const& ade   = start.autodep_env    ;
+		Rule::SimpleMatch       match = j->simple_match()    ;
 		//
 		for( Node t  : j->targets ) t->set_buildable() ;                    // necessary for pre_actions()
 		::string res ;
@@ -220,11 +219,10 @@ namespace Engine {
 		/**/                               res << ",\tjob            = " <<           +j                                      << '\n' ;
 		/**/                               res << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                ) << '\n' ;
 		/**/                               res << ",\tname           = " << mk_py_str(j->name()                             ) << '\n' ;
-		if (+start.job_space.root_view_s ) res << ",\troot_view      = " << mk_py_str(no_slash(start.job_space.root_view_s )) << '\n' ;
+		if (+start.job_space.repo_view_s ) res << ",\trepo_view      = " << mk_py_str(no_slash(start.job_space.repo_view_s )) << '\n' ;
 		/**/                               res << ",\tstdin          = " << mk_py_str(start.stdin                           ) << '\n' ;
 		/**/                               res << ",\tstdout         = " << mk_py_str(start.stdout                          ) << '\n' ;
 		if (ro.flags[ReqFlag::TmpDir]    ) res << ",\ttmp_dir        = " << mk_py_str(ro.flag_args[+ReqFlag::TmpDir]        ) << '\n' ;
-		if (start.tmp_sz_mb!=Npos        ) res << ",\ttmp_size_mb    = " <<           start.tmp_sz_mb                         << '\n' ;
 		if (+start.job_space.tmp_view_s  ) res << ",\ttmp_view       = " << mk_py_str(no_slash(start.job_space.tmp_view_s  )) << '\n' ;
 		//
 		res << ",\tpreamble =\n" << mk_py_str(start.cmd.first ) << '\n' ;
@@ -339,33 +337,35 @@ namespace Engine {
 		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->full_name()+" jobs" ;
 		//
 		JobInfo job_info = job.job_info() ;
-		if (!job_info.start.start.proc) {
+		if (!job_info.start.start) {
 			audit( fd , ro , Color::Err , "no info available" ) ;
 			return false ;
 		}
 		//
-		::string const& key       = ro.flag_args[+ReqFlag::Key]                ;
-		auto            it        = g_config->dbg_tab.find(key)                ; throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",ro.flag_args[+ReqFlag::Key] ) ;
-		::string const& runner    = it->second.c_str()                         ;
-		::string        dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
+		::string const& key = ro.flag_args[+ReqFlag::Key] ;
+		auto            it  = g_config->dbg_tab.find(key) ;
+		throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",ro.flag_args[+ReqFlag::Key] ) ;
+		throw_unless( +it->second                 , "empty debug method "  ,ro.flag_args[+ReqFlag::Key] ) ;
+		::string runner    = split(it->second)[0]                       ;                                                          // allow doc after first word
+		::string dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
 		mk_dir_s(dbg_dir_s) ;
 		//
 		::string script_file     = dbg_dir_s+"script"       ;
 		::string gen_script_file = dbg_dir_s+"gen_script"   ;
 		{	::string gen_script ;
-			gen_script << "#!" PYTHON "\n"                                                  ;
-			gen_script << "import sys\n"                                                    ;
-			gen_script << "import os\n"                                                     ;
-			gen_script << "sys.path[0:0] = ("<<mk_py_str(*g_lmake_dir_s+"/lib")<<",)\n"     ;
-			gen_script << "from "<<runner<<" import gen_script\n"                           ;
-			gen_script << _mk_gen_script_line(job,ro,job_info,dbg_dir_s,key)                ;
-			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n" ;
-			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                  ;
+			gen_script << "#!" PYTHON "\n"                                                                                       ;
+			gen_script << "import sys\n"                                                                                         ;
+			gen_script << "import os\n"                                                                                          ;
+			gen_script << "sys.path[0:0] = ("<<mk_py_str(*g_lmake_root_s+"lib")<<','<<mk_py_str(no_slash(*g_repo_root_s))<<")\n" ; // repo_root is not in path as script is in LMAKE/debug/<job>
+			gen_script << "from "<<runner<<" import gen_script\n"                                                                ;
+			gen_script << _mk_gen_script_line(job,ro,job_info,dbg_dir_s,key)                                                     ;
+			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n"                                      ;
+			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                                                       ;
 			AcFd(gen_script_file,Fd::Write).write(gen_script) ;
-		}                                                                                     // ensure gen_script is closed before launching it
+		}                                                                                                                          // ensure gen_script is closed before launching it
 		::chmod(gen_script_file.c_str(),0755) ;
 		Child child ;
-		child.stdin    = {}                ;                                                  // no input
+		child.stdin    = {}                ;                                                                                       // no input
 		child.cmd_line = {gen_script_file} ;
 		child.spawn() ;
 		if (!child.wait_ok()) throw "cannot generate debug script "+script_file ;
@@ -499,10 +499,10 @@ namespace Engine {
 		Trace trace("show_job",ro.key,job) ;
 		Rule             rule         = job->rule()                ;
 		JobInfo          job_info     = job.job_info()             ;
-		bool             has_start    = +job_info.start.start.proc ;
-		bool             has_end      = +job_info.end  .end  .proc ;
+		bool             has_start    = +job_info.start.start      ;
+		bool             has_end      = +job_info.end              ;
 		bool             verbose      = ro.flags[ReqFlag::Verbose] ;
-		JobDigest const& digest       = job_info.end.end.digest    ;
+		JobDigest const& digest       = job_info.end.digest        ;
 		switch (ro.key) {
 			case ReqKey::Cmd    :
 			case ReqKey::Env    :
@@ -524,9 +524,9 @@ namespace Engine {
 						break ;
 					DF}
 				} else {
-					JobRpcReq   const& pre_start = job_info.start.pre_start ;
-					JobRpcReply const& start     = job_info.start.start     ;
-					JobRpcReq   const& end       = job_info.end  .end       ;
+					JobStartRpcReq   const& pre_start = job_info.start.pre_start ;
+					JobStartRpcReply const& start     = job_info.start.start     ;
+					JobEndRpcReq     const& end       = job_info.end             ;
 					//
 					if (pre_start.job) SWEAR(pre_start.job==+job,pre_start.job,+job) ;
 					//
@@ -610,7 +610,7 @@ namespace Engine {
 								}
 								//
 								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"  , no_slash(start.job_space.chroot_dir_s) ) ;
-								if (+start.job_space.root_view_s  ) push_entry( "root_view"   , no_slash(start.job_space.root_view_s ) ) ;
+								if (+start.job_space.repo_view_s  ) push_entry( "repo_view"   , no_slash(start.job_space.repo_view_s ) ) ;
 								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
 								if (+start.cwd_s                  ) push_entry( "cwd"         , cwd                                    ) ;
 								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"  , "true"                                 ) ;
@@ -630,9 +630,8 @@ namespace Engine {
 							//
 							if (has_end) {
 								// no need to localize phy_tmp_dir as this is an absolute dir
-								if      (!start.tmp_sz_mb           ) {}
-								else if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , +end.phy_tmp_dir_s?no_slash(end.phy_tmp_dir_s):"<tmpfs>" ) ;
-								else                                  push_entry( "tmp dir"          ,                    no_slash(end.phy_tmp_dir_s)           ) ;
+								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
+								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								//
 								push_entry( "end date" , digest.end_date.str() ) ;
 								if (porcelaine) { //!                                                                     protect
@@ -746,23 +745,32 @@ namespace Engine {
 									size_t w2 = 0 ;
 									for( auto const& [k,_] : required_rsrcs  ) w2 = ::max(w2,k.size()) ;
 									for( auto const& [k,_] : allocated_rsrcs ) w2 = ::max(w2,k.size()) ;
-									::string hdr = "resources :" ;
-									if      (!+allocated_rsrcs) hdr = "required " +hdr ;
-									else if (!+required_rsrcs ) hdr = "allocated "+hdr ;
-									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ; //!                                                                       as_is
-									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
-									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
-									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , widen(k,w2)+" : "+v , true , lvl+2 ) ;
-									else {
-										for( auto const& [k,rv] : required_rsrcs ) { //!                                             as_is
-											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , widen(k,w2)+"(required )"+" : "+rv , true , lvl+2 ) ; continue ; }
-											::string const& av = allocated_rsrcs.at(k) ;
-											if (rv==av                      ) { audit( fd , ro , widen(k,w2)+"           "+" : "+rv , true , lvl+2 ) ; continue ; }
-											/**/                                audit( fd , ro , widen(k,w2)+"(required )"+" : "+rv , true , lvl+2 ) ;
-											/**/                                audit( fd , ro , widen(k,w2)+"(allocated)"+" : "+av , true , lvl+2 ) ;
-										}
-										for( auto const& [k,av] : allocated_rsrcs )
-											if (!required_rsrcs.contains(k))    audit( fd , ro , widen(k,w2)+"(allocated)"+" : "+av , true , lvl+2 ) ;
+									::string hdr  ;
+									bool     both = false ;
+									if      (!allocated_rsrcs) hdr  = "required "  ;
+									else if (!required_rsrcs ) hdr  = "allocated " ;
+									else                       both = true         ;
+									audit( fd , ro , ::move(hdr)+"resources :" , true/*as_is*/ , lvl+1 ) ;
+									::string no_msg        ;
+									::string required_msg  ;
+									::string allocated_msg ;
+									if (both) {
+										int w3 = 0 ;
+										for( auto const& [k,rv] : required_rsrcs  ) if ( auto it=allocated_rsrcs.find(k) ; it==allocated_rsrcs.end() || rv!=it->second ) w3 = ::max(w3,8/*required*/ ) ;
+										for( auto const& [k,av] : allocated_rsrcs ) if ( auto it=required_rsrcs .find(k) ; it==required_rsrcs .end() || av!=it->second ) w3 = ::max(w3,9/*allocated*/) ;
+										no_msg        = "  "+widen(""         ,w3)+' ' ;
+										required_msg  = " ("+widen("required" ,w3)+')' ;
+										allocated_msg = " ("+widen("allocated",w3)+')' ;
+									}
+									for( auto const& [k,rv] : required_rsrcs ) {
+										auto it = allocated_rsrcs.find(k) ; //!                                                                         as_is
+										if ( it!=allocated_rsrcs.end() && rv==it->second ) audit( fd , ro , widen(k,w2)+no_msg       +" : "+rv         , true , lvl+2 ) ;
+										else                                               audit( fd , ro , widen(k,w2)+required_msg +" : "+rv         , true , lvl+2 ) ;
+										if ( it!=allocated_rsrcs.end() && rv!=it->second ) audit( fd , ro , widen(k,w2)+allocated_msg+" : "+it->second , true , lvl+2 ) ;
+									}
+									for( auto const& [k,av] : allocated_rsrcs ) {
+										auto it = required_rsrcs.find(k) ;
+										if ( it==required_rsrcs.end()                    ) audit( fd , ro , widen(k,w2)+allocated_msg+" : "+av         , true , lvl+2 ) ;
 									}
 								}
 							}

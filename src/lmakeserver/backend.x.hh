@@ -73,13 +73,14 @@ namespace Backends {
 		private :
 			void _refresh() ;
 			// data
-			Val                      _ref_workload        = 0 ;                  // total workload at ref_date
-			Pdate                    _ref_date            ;                      // later than any job start date and end date, always rounded to ms
-			::umap<Job,Pdate>        _eta_tab             ;                      // jobs whose eta is post ref_date
-			::set<::pair<Pdate,Job>> _eta_set             ;                      // same info, but ordered by dates
-			Val                      _reasonable_workload = 0 ;                  // sum of (eta-_ref_date) in _eta_tab
-			JobIdx                   _running_tokens      = 0 ;                  // sum of tokens for all running jobs
-			JobIdx                   _reasonable_tokens   = 0 ;                  // sum ok tokens in _eta_tab
+			Mutex<MutexLvl::Workload> mutable _mutex               ;
+			Val                               _ref_workload        = 0 ;         // total workload at ref_date
+			Pdate                             _ref_date            ;             // later than any job start date and end date, always rounded to ms
+			::umap<Job,Pdate>                 _eta_tab             ;             // jobs whose eta is post ref_date
+			::set<::pair<Pdate,Job>>          _eta_set             ;             // same info, but ordered by dates
+			Val                               _reasonable_workload = 0 ;         // sum of (eta-_ref_date) in _eta_tab
+			JobIdx                            _running_tokens      = 0 ;         // sum of tokens for all running jobs
+			JobIdx                            _reasonable_tokens   = 0 ;         // sum ok tokens in _eta_tab
 			//
 			::array<::atomic<Delay::Tick>,size_t(1)<<NReqIdxBits> _queued_cost ; // use plain integer so as to use atomic inc/dec instructions because schedule/cancel are called w/o lock
 		} ;
@@ -104,13 +105,13 @@ namespace Backends {
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
 			Conn             conn         ;
-			Pdate            date         ;
+			Pdate            start_date   ;
+			Pdate            spawn_date   ;
 			Workload::Val    workload     = 0            ;
 			::uset_s         washed       ;
 			::vmap_ss        rsrcs        ;
 			::vector<ReqIdx> reqs         ;
 			SubmitAttrs      submit_attrs ;
-			bool             old          = false        ; // becomes true the first time heartbeat passes (only old entries are checked by heartbeat, so first time is skipped for improved perf)
 			Tag              tag          = Tag::Unknown ;
 		} ;
 
@@ -123,22 +124,10 @@ namespace Backends {
 			JobExec job_exec ;
 		} ;
 
-		struct StartTab : ::map<Job,StartEntry> {
-			using Base = ::map<Job,StartEntry> ;
-			// if !seq_id, entry is kept solely for its submit_attrs.n_retries attribute, behave as if it does not exist
-			auto find    ( Job j             ) const {              auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }
-			auto find    ( Job j , SeqId sid ) const { SWEAR(sid) ; auto res = Base::find(j) ; if ( res!=end() &&  res->second.conn.seq_id!=sid ) return end() ; else return res ; }
-			auto find    ( Job j             )       {              auto res = Base::find(j) ; if ( res!=end() && !res->second                  ) return end() ; else return res ; }
-			auto find    ( Job j , SeqId sid )       { SWEAR(sid) ; auto res = Base::find(j) ; if ( res!=end() &&  res->second.conn.seq_id!=sid ) return end() ; else return res ; }
-			bool contains( Job j             ) const { return find(j    )!=end() ;                                                                                                 }
-			bool contains( Job j , SeqId sid ) const { return find(j,sid)!=end() ;                                                                                                 }
-			//
-			Status release( ::map<Job,StartEntry>::iterator , Status=Status::Ok ) ; // much like erase, but manage retry count
-		} ;
-
-		using JobThread      = ServerThread    <JobRpcReq    ,false/*Flush*/> ;
-		using JobMngtThread  = ServerThread    <JobMngtRpcReq,false/*Flush*/> ;
-		using DeferredThread = TimedDequeThread<DeferredEntry,false/*Flush*/> ;
+		using JobStartThread = ServerThread    <JobStartRpcReq,false/*Flush*/> ;
+		using JobMngtThread  = ServerThread    <JobMngtRpcReq ,false/*Flush*/> ;
+		using JobEndThread   = ServerThread    <JobEndRpcReq  ,false/*Flush*/> ;
+		using DeferredThread = TimedDequeThread<DeferredEntry ,false/*Flush*/> ;
 		// statics
 		static bool             s_is_local  (Tag) ;
 		static bool             s_ready     (Tag) ;
@@ -174,9 +163,9 @@ namespace Backends {
 		static void            _s_kill_req              ( Req={}                                                    ) ; // kill all if req==0
 		static void            _s_wakeup_remote         ( Job , StartEntry::Conn const& , Pdate start , JobMngtProc ) ;
 		static void            _s_heartbeat_thread_func ( ::stop_token                                              ) ;
-		static bool/*keep_fd*/ _s_handle_job_start      ( JobRpcReq    && , SlaveSockFd const& ={}                  ) ;
-		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobMngtRpcReq&& , SlaveSockFd const& ={}                  ) ;
-		static bool/*keep_fd*/ _s_handle_job_end        ( JobRpcReq    && , SlaveSockFd const& ={}                  ) ;
+		static bool/*keep_fd*/ _s_handle_job_start      ( JobStartRpcReq&& , SlaveSockFd const& ={}                 ) ;
+		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobMngtRpcReq && , SlaveSockFd const& ={}                 ) ;
+		static bool/*keep_fd*/ _s_handle_job_end        ( JobEndRpcReq  && , SlaveSockFd const& ={}                 ) ;
 		static void            _s_handle_deferred_report( DeferredEntry&&                                           ) ;
 		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                           ) ;
 		// static data
@@ -188,13 +177,13 @@ namespace Backends {
 		static ::string                             _s_job_exec               ;
 		static DeferredThread                       _s_deferred_report_thread ;
 		static DeferredThread                       _s_deferred_wakeup_thread ;
-		static JobThread                            _s_job_start_thread       ;
+		static JobStartThread                       _s_job_start_thread       ;
 		static JobMngtThread                        _s_job_mngt_thread        ;
-		static JobThread                            _s_job_end_thread         ;
+		static JobEndThread                         _s_job_end_thread         ;
 		static SmallIds<SmallId,true/*ThreadSafe*/> _s_small_ids              ;
 		static ::atomic<JobIdx>                     _s_starting_job           ;                        // this job is starting when _starting_job_mutex is locked
 		static Mutex<MutexLvl::StartJob>            _s_starting_job_mutex     ;
-		static StartTab                             _s_start_tab              ;                        // use map instead of umap because heartbeat iterates over while tab is moving
+		static ::map<Job,StartEntry>                _s_start_tab              ;                        // use map instead of umap because heartbeat iterates over while tab is moving
 		static Workload                             _s_workload               ;                        // book keeping of workload
 		// services
 	public :
@@ -238,14 +227,15 @@ namespace Backends {
 
 namespace Backends {
 
-	inline void  Backend::Workload::submit( Req r , Job j ) {                            _queued_cost[+r] += Delay(j->cost).val() ; }
-	inline void  Backend::Workload::add   ( Req r , Job j ) { if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost).val() ; }
+	inline void  Backend::Workload::submit( Req r , Job j ) { Lock lock{_mutex} ;                            _queued_cost[+r] += Delay(j->cost).val() ; }
+	inline void  Backend::Workload::add   ( Req r , Job j ) { Lock lock{_mutex} ; if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost).val() ; }
 	inline void  Backend::Workload::kill( Req r , Job j ) {
 		Delay::Tick dly = Delay(j->cost).val() ;
 		SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , dly ) ;
 		_queued_cost[+r] -= dly ;
 	}
 	inline Pdate Backend::Workload::submitted_eta(Req r) const {
+		Lock lock{_mutex} ;
 		Pdate res = _ref_date + Delay(New,_queued_cost[+r]) ;
 		if (_running_tokens) res += Delay(_reasonable_workload/1000./_running_tokens) ; // divide by 1000 to convert to seconds
 		return res ;

@@ -12,11 +12,6 @@
 bool        g_force_orig = false   ;
 const char* g_libc_name  = nullptr ;
 
-struct Ctx {
-	void save_errno   () {} // our errno is not the same as user errno, so nothing to do
-	void restore_errno() {} // .
-} ;
-
 struct SymbolEntry {
 	SymbolEntry( void* f , bool is=false ) : func{f} , is_stat{is} {}
 	void*         func    = nullptr ;
@@ -31,12 +26,6 @@ void* get_orig(const char* libcall) {
 	if (!entry.orig) entry.orig = ::dlsym( RTLD_NEXT , libcall ) ; // may be not initialized if a libcall is routed to another libcall
 	return entry.orig ;
 }
-
-void load_exec(::string const& /*file*/) {} // the auditing mechanism tells us about indirectly loaded libraries
-
-// elf dependencies are captured by auditing code, no need to interpret elf content
-void         elf_deps  ( Record& , Record::SolveCS const& , const char* /*ld_library_path*/ , ::string&& /*comment*/="elf_dep"  ) {             }
-Record::Read search_elf( Record& , const char* /*file*/   ,                                   ::string&& /*comment*/="elf_srch" ) { return {} ; }
 
 static bool started() { return true ; }
 

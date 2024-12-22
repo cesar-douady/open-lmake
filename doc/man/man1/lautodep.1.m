@@ -50,13 +50,12 @@ Set the listed environment variables to their associated values.
 Item(B(-i),B(--ignore-stat))
 Mimic setting the rule attribute B(ignore_stat)=I(True).
 
-Item(B(-j) I(id),B(--job)=I(id))
-Pass a job id I(id).
-This is only required in association with I(--keep-tmp) to name the tmp directory.
-
 Item(B(-k) I(list),B(--keep-env)=I(list))
 I(list) must be provided as a  tuple or list of str using the Python syntax (which most probably requires shell quoting).
 Listed variables are kept from the environment.
+
+Item(B(-K),B(--keep-tmp))
+Dont erase tmp dir after execution.
 
 Item(B(-l) I(key),B(--link-support)=I(key))
 Mimic setting the config attribute B(link_support)=I(key).
@@ -67,8 +66,8 @@ Mimic setting the rule attribute B(autodep)=I(key).
 Item(B(-o) I(file),B(--out)=I(file))
 Write access info (deps and targets) to I(file).
 
-Item(B(-r) I(abs_dir),B(--root-view)=I(abs_dir))
-Mimic setting the rule attribute B(root_view)=I(abs_dir).
+Item(B(-r) I(abs_dir),B(--repo-view)=I(abs_dir))
+Mimic setting the rule attribute B(repo_view)=I(abs_dir).
 
 Item(B(-s) I(list),B(--source-dirs)=I(list))
 I(list) must be provided as a  tuple or list of str using the Python syntax (which most probably requires shell quoting).
@@ -80,8 +79,10 @@ The size of the tmp directory if created using tmpfs.
 Item(B(-t) I(abs_dir),B(--tmp-view)=I(abs_dir))
 Mimic setting the rule attribute B(tmp_view)=I(abs_dir).
 
-Item(B(-T),B(--keep-tmp))
-Mimic setting the rule attribute B(keep_tmp)=I(True).
+Item(B(-T) I(abs_dir),B(--tmp-dir)=I(abs_dir))
+This option is compulsery.
+Set the physical tmp directory.
+The tmp directory is cleaned (i.e. all files inside it are B(rm)'ed) before execution.
 
 Item(B(-v) I(dict),B(--views)=I(dict))
 I(dict) must be provided as a dict mapping str to view descriptions using the Python syntax (which most probably requires shell quoting).

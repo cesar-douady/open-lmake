@@ -10,10 +10,10 @@
 #include "time.hh"
 #include "trace.hh"
 
-extern ::string* g_startup_dir_s ; // pointer to avoid init/fini order hazards, relative to g_root_dir_s, includes final /,  dir from which command was launched
-extern ::string* g_root_dir_s    ; // pointer to avoid init/fini order hazards, absolute                , root of repository
-extern ::string* g_lmake_dir_s   ; // pointer to avoid init/fini order hazards, absolute                , installation dir of lmake
-extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, absolute                , executable name for user messages
+extern ::string* g_startup_dir_s ; // pointer to avoid init/fini order hazards, relative to g_repo_root_s, includes final /,  dir from which command was launched
+extern ::string* g_repo_root_s   ; // pointer to avoid init/fini order hazards, absolute                 , root of repository
+extern ::string* g_lmake_root_s  ; // pointer to avoid init/fini order hazards, absolute                 , installation dir of lmake
+extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards,                            executable name for user messages
 
 /**/   bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_=Yes , bool cd_root=true ) ; // if chk_version_==Maybe, it is ok to initialize stored version
 inline bool/*read_only*/ app_init( bool read_only_ok ,                          bool cd_root      ) { return app_init(read_only_ok,Yes,cd_root) ; }
@@ -80,34 +80,34 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
 	static constexpr char   NoKey[] = "<no_key>"      ;                                                                                        // cannot use ::strlen which is not constexpr with clang
     static constexpr size_t NoKeySz = sizeof(NoKey)-1 ;                                                                                        // account for terminating null
-	size_t key_sz  = 0     ; for( Key  k : iota(All<Key >) ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , snake(k).size() ) ; if (has_dflt_key) key_sz = ::max(key_sz,NoKeySz) ;
-	size_t flag_sz = 0     ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , snake(f).size() ) ;
-	bool   has_arg = false ; for( Flag e : iota(All<Flag>) )                           has_arg |= flags[+e].has_arg                  ;
+	size_t wk      = 0     ; for( Key  k : iota(All<Key >) ) if (keys [+k].short_name) wk       = ::max( wk , snake(k).size() ) ;
+	size_t wf      = 0     ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) wf       = ::max( wf , snake(f).size() ) ;
+	bool   has_arg = false ; for( Flag e : iota(All<Flag>) )                           has_arg |= flags[+e].has_arg             ;
 	//
 	::string err_msg = ensure_nl(msg) ;
-	/**/                 err_msg << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
-	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                                                               ;
-	/**/                 err_msg << "-h or --help : print this help\n"                                                                                                                     ;
+	/**/                 err_msg << Disk::base_name(get_exe()) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
+	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                                        ;
+	/**/                 err_msg << "-h or --help : print this help\n"                                                                                              ;
 	//
-	if (key_sz) {
-		if (has_dflt_key) err_msg << "keys (at most 1) :\n" ;
-		else              err_msg << "keys (exactly 1) :\n" ;
-		if (has_dflt_key) err_msg << "<no key>" << widen("",key_sz) <<" : "<< keys[0].doc <<'\n' ;
+	if (wk) {
+		if (has_dflt_key) { err_msg << "keys (at most 1) :\n" ; wk = ::max(wk,NoKeySz) ; }
+		else                err_msg << "keys (exactly 1) :\n" ;
+		if (has_dflt_key) err_msg << "<no key>" << widen("",wk) <<" : "<< keys[0].doc <<'\n' ;
 		for( Key k : iota(All<Key>) ) if (keys[+k].short_name) {
 			::string option { snake(k) } ; for( char& c : option ) if (c=='_') c = '-' ;
-			err_msg << '-' << keys[+k].short_name << " or --" << widen(option,key_sz) <<" : "<< keys[+k].doc <<'\n' ;
+			err_msg << '-' << keys[+k].short_name << " or --" << widen(option,wk) <<" : "<< keys[+k].doc <<'\n' ;
 		}
 	}
 	//
-	if (flag_sz) {
+	if (wf) {
 		err_msg << "flags (0 or more) :\n"  ;
 		for( Flag f : iota(All<Flag>) ) {
 			if (!flags[+f].short_name) continue ;
 			::string flag { snake(f) } ; for( char& c : flag ) if (c=='_') c = '-' ;
-			/**/                        err_msg << '-'<<flags[+f].short_name<<" or --"<<widen(flag,flag_sz) ;
-			if      (flags[+f].has_arg) err_msg << " <arg>"                                                 ;
-			else if (has_arg          ) err_msg << "      "                                                 ;
-			/**/                        err_msg << " : "<<flags[+f].doc<<'\n'                               ;
+			/**/                                err_msg << '-'<<flags[+f].short_name<<" or --"<<widen(flag,wf) ;
+			if      (flags[+f].has_arg        ) err_msg << " <arg>"                                            ;
+			else if (has_arg                  ) err_msg << "      "                                            ;
+			/**/                                err_msg << " : "<<flags[+f].doc<<set_nl                        ;
 		}
 	}
 	exit(Rc::Usage,err_msg) ;

@@ -26,13 +26,12 @@ ENUM( EventKind
 )
 
 static ServerSockFd   _g_server_fd      ;
-static Fd             _g_int_fd         ;          // watch interrupts (^C and hang up)
-static Fd             _g_watch_fd       ;          // watch LMAKE/server
 static bool           _g_is_daemon      = true   ;
 static ::atomic<bool> _g_done           = false  ;
 static bool           _g_server_running = false  ;
 static ::string       _g_host           = host() ;
 static bool           _g_seen_make      = false  ;
+static Fd             _g_watch_fd       ;          // watch LMAKE/server
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	try {
@@ -104,7 +103,26 @@ static bool/*crashed*/ _start_server() {
 	return crashed ;
 }
 
-void record_targets(Job job) {
+static void _chk_os() {
+	static constexpr const char* ReleaseFile = "/etc/os-release" ;
+	::vector_s lines      = AcFd(ReleaseFile).read_lines(true/*no_file_ok*/) ;
+	::string   id         ;
+	::string   version_id ;
+	if (!lines) exit(Rc::System,"cannot find",ReleaseFile) ;
+	for( ::string const& l : lines ) {
+		if      (l.starts_with("ID="        )) id         = l.substr( 3/*ID=*/        ) ;
+		else if (l.starts_with("VERSION_ID=")) version_id = l.substr(11/*VERSION_ID=*/) ;
+	}
+	if ( id        .starts_with('"') && id        .ends_with('"') ) id         = id        .substr(1,id        .size()-2) ;
+	if ( version_id.starts_with('"') && version_id.ends_with('"') ) version_id = version_id.substr(1,version_id.size()-2) ;
+	if (!id                      ) exit(Rc::System,"cannot find ID in"        ,ReleaseFile) ;
+	if (!version_id              ) exit(Rc::System,"cannot find VERSION_ID in",ReleaseFile) ;
+	//
+	id << '-'<<version_id ;
+	if (id!=OS_ID) exit(Rc::System,"bad OS in",ReleaseFile,':',id,"!=",OS_ID) ;
+}
+
+static void _record_targets(Job job) {
 	::string   targets_file  = AdminDirS+"targets"s                              ;
 	::vector_s known_targets = AcFd(targets_file).read_lines(true/*no_file_ok*/) ;
 	for( Node t : job->deps ) {
@@ -116,19 +134,21 @@ void record_targets(Job job) {
 	AcFd(targets_file,Fd::Write).write(content) ;
 }
 
-void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
+static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
+	using Event = Epoll<EventKind>::Event ;
 	t_thread_key = 'Q' ;
-	Trace trace("reqs_thread_func",STR(_g_is_daemon)) ;
+	Trace trace("_reqs_thread_func",STR(_g_is_daemon)) ;
 	//
-	::stop_callback              stop_cb { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;                          // transform request_stop into an event we wait for
+	::stop_callback              stop_cb { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;               // transform request_stop into an event we wait for
 	::umap<Fd,pair<IMsgBuf,Req>> in_tab  ;
-	Epoll                        epoll   { New }                                                 ;
+	Epoll<EventKind>             epoll   { New }                                                 ;
 	//
-	if (g_writable) { epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ; }            // if read-only, we do not expect additional connections
-	/**/            { epoll.add_read( _g_int_fd    , EventKind::Int    ) ; trace("read_int"   ,_g_int_fd   ) ; }
-	//
+	if (g_writable) { epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ; } // if read-only, we do not expect additional connections
+	/**/            { epoll.add_sig ( SIGHUP       , EventKind::Int    ) ; trace("read_hup"                ) ; }
+	/**/            { epoll.add_sig ( SIGINT       , EventKind::Int    ) ; trace("read_int"                ) ; }
 	if ( +_g_watch_fd && ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 ) {
-		epoll.add_read( _g_watch_fd , EventKind::Watch ) ; trace("read_watch",_g_watch_fd) ;                                // if server marker is touched by user, we do as we received a ^C
+		trace("read_watch",_g_watch_fd) ;
+		epoll.add_read( _g_watch_fd , EventKind::Watch ) ; // if server marker is touched by user, we do as we received a ^C
 	}
 	//
 	if (!_g_is_daemon) {
@@ -137,11 +157,11 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	}
 	//
 	for(;;) {
-		::vector<Epoll::Event> events  = epoll.wait() ;
-		bool                   new_fd  = false        ;
-		for( Epoll::Event event : events ) {
-			EventKind kind = event.data<EventKind>() ;
-			Fd        fd   = event.fd()              ;
+		::vector<Event> events  = epoll.wait() ;
+		bool            new_fd  = false        ;
+		for( Event event : events ) {
+			EventKind kind = event.data() ;
+			Fd        fd   = event.fd  () ;
 			trace("event",kind,fd) ;
 			switch (kind) {
 				// it may be that in a single poll, we get the end of a previous run and a request for a new one
@@ -162,8 +182,14 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						goto Done ;
 					}
 					switch (kind) {
-						case EventKind::Int   : { struct signalfd_siginfo event ; ssize_t cnt = ::read(_g_int_fd  ,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
-						case EventKind::Watch : { struct inotify_event    event ; ssize_t cnt = ::read(_g_watch_fd,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
+						case EventKind::Int :
+							EventFd(fd).flush() ;
+						break ;
+						case EventKind::Watch : {
+							struct inotify_event event ;
+							ssize_t              cnt   = ::read( _g_watch_fd , &event , sizeof(event) ) ;
+							SWEAR(cnt==sizeof(event),cnt) ;
+						} break ;
 					DF}
 					for( Req r : Req::s_reqs_by_start ) {
 						trace("all_zombie",r) ;
@@ -200,13 +226,13 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							trace("make",r) ;
 						} break ;
-						case ReqProc::Debug  : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+						case ReqProc::Debug  :             // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 						case ReqProc::Forget :
 						case ReqProc::Mark   :
 							SWEAR(g_writable) ;
 						[[fallthrough]] ;
 						case ReqProc::Show :
-							epoll.del(fd) ; trace("del_fd",rrr.proc,fd) ;                   // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							epoll.del(false/*write*/,fd) ; trace("del_fd",rrr.proc,fd) ;    // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							in_tab.erase(fd) ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 							g_engine_queue.emplace( rrr.proc , fd , ofd , rrr.files , rrr.options ) ;
@@ -214,7 +240,7 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						break ;
 						case ReqProc::Kill :
 						case ReqProc::None : {
-							epoll.del(fd) ; trace("stop_fd",rrr.proc,fd) ;                  // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							epoll.del(false/*write*/,fd) ; trace("stop_fd",rrr.proc,fd) ;   // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							auto it=in_tab.find(fd) ;
 							Req r = it->second.second ;
 							trace("eof",fd) ;
@@ -244,12 +270,12 @@ Done :
 	trace("done") ;
 }
 
-bool/*interrupted*/ engine_loop() {
+static bool/*interrupted*/ _engine_loop() {
 	struct FdEntry {
 		Fd in  ;
 		Fd out ;
 	} ;
-	Trace trace("engine_loop") ;
+	Trace trace("_engine_loop") ;
 	::umap<Req,FdEntry> fd_tab          ;
 	Pdate               next_stats_date = New ;
 	for (;;) {
@@ -326,7 +352,7 @@ bool/*interrupted*/ engine_loop() {
 							trace("cannot_refresh",req) ;
 							goto NoMake ;
 						}
-						if (!ecr.as_job()) record_targets(req->job) ;
+						if (!ecr.as_job()) _record_targets(req->job) ;
 						SWEAR( +ecr.in_fd && +ecr.out_fd , ecr.in_fd , ecr.out_fd ) ;            // in_fd and out_fd are used as marker for killed and closed respectively
 						fd_tab[req] = { .in=ecr.in_fd , .out=ecr.out_fd } ;
 					} break ;
@@ -371,13 +397,13 @@ bool/*interrupted*/ engine_loop() {
 					case JobRpcProc::Start       : je.started     ( ::move(ecj.start.start) ,ecj.start.report , ecj.start.report_unlnks , ecj.start.txt , ecj.start.msg ) ; break ;
 					case JobRpcProc::ReportStart : je.report_start(                                                                                                     ) ; break ;
 					case JobRpcProc::GiveUp      : je.give_up     ( ecj.etc.req , ecj.etc.report                                                                        ) ; break ;
-					case JobRpcProc::End         : je.end         ( ::move(ecj.end.end.end) , true/*sav_jrr*/ , ecj.end.rsrcs                                           ) ; break ;
+					case JobRpcProc::End         : je.end         ( ::move(ecj.end) , true/*sav_jrr*/                                                                   ) ; break ;
 					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				DF}
 			} break ;
 			case EngineClosureKind::JobMngt : {
-				EngineClosureJobMngt& ecjm = closure.ecjm ;
-				JobExec             & je   = ecjm.job_exec    ;
+				EngineClosureJobMngt& ecjm = closure.ecjm  ;
+				JobExec             & je   = ecjm.job_exec ;
 				trace("job_mngt",ecjm.proc,je) ;
 				switch (ecjm.proc) {
 					//                          vvvvvvvvvvvvvvvvvvvvv
@@ -403,13 +429,14 @@ bool/*interrupted*/ engine_loop() {
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
-	g_writable = !app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                       // server is always launched at root
-	if (Record::s_is_simple(g_root_dir_s->c_str()))
-		exit(Rc::Usage,"cannot use lmake inside system directory "+no_slash(*g_root_dir_s)) ; // all local files would be seen as simple, defeating autodep
-	Py::init(*g_lmake_dir_s) ;
+	g_writable = !app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                        // server is always launched at root
+	if (Record::s_is_simple(g_repo_root_s->c_str()))
+		exit(Rc::Usage,"cannot use lmake inside system directory "+no_slash(*g_repo_root_s)) ; // all local files would be seen as simple, defeating autodep
+	_chk_os() ;
+	Py::init(*g_lmake_root_s) ;
 	AutodepEnv ade ;
-	ade.root_dir_s = *g_root_dir_s ;
-	Record::s_static_report = true ;
+	ade.repo_root_s         = *g_repo_root_s ;
+	Record::s_static_report = true           ;
 	Record::s_autodep_env(ade) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
@@ -433,16 +460,14 @@ int main( int argc , char** argv ) {
 		}
 		continue ;
 	Bad :
-		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax : lmakeserver [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
+		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax :",*g_exe_name," [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
 	if (g_startup_dir_s) SWEAR( is_dirname(*g_startup_dir_s) , *g_startup_dir_s ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ; // SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ; SIGPIPE : to generate error on write rather than a signal when reading end is dead
-	_g_int_fd = open_sigs_fd({SIGINT,SIGHUP}) ;   // must be done before any thread is launched so that all threads block the signal
-	//
-	Trace trace("main",getpid(),*g_lmake_dir_s,*g_root_dir_s) ;
-	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;
+	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                                        //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
+	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;                        // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
+	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;                                   // ... must be done before any thread is launched so that all threads block the signal
 	mk_dir_s(PrivateAdminDirS) ;
 	//             vvvvvvvvvvvvvvv
 	bool crashed = _start_server() ;
@@ -462,15 +487,15 @@ int main( int argc , char** argv ) {
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
-	if (g_writable) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+base_name(read_lnk("/proc/self/exe")) ) ;
+	if (g_writable) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+*g_exe_name ) ;
 	Codec::Closure::s_init() ;
 	Job           ::s_init() ;
 	//
-	static ::jthread reqs_thread { reqs_thread_func , in_fd , out_fd } ;
+	static ::jthread reqs_thread { _reqs_thread_func , in_fd , out_fd } ;
 	//
-	//                 vvvvvvvvvvvvv
-	bool interrupted = engine_loop() ;
-	//                 ^^^^^^^^^^^^^
+	//                 vvvvvvvvvvvvvv
+	bool interrupted = _engine_loop() ;
+	//                 ^^^^^^^^^^^^^^
 	if (g_writable) {
 		try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s) ; }         // cleanup
 		catch (::string const& e) { exit(Rc::System,e) ;                       }

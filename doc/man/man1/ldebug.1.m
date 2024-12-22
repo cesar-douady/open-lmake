@@ -39,7 +39,7 @@ Keep tmp directory after job execution (cf. C(lmake)).
 
 .SH STANDARD METHODS
 .LP
-Unless overridden, the following standard debug methods are provided :
+Unless overridden in the configuration (through the I(dict) B(lmake.config.debug)), the following standard debug methods are provided :
 .nr TW 0 Comment( prevent debian packaging tool from grumbling about TW not being defined )
 .TS
 tab(!) ;
@@ -68,7 +68,7 @@ In particular B($SHLVL) can be used to provide a differentiated prompt if adequa
 
 .LP
 In addition to running the job, these standard modules provide the following environment variables to the job :
-Item(B($LMAKE_DEBUG_KEY))    The key provided by the @code{-k} or @code{--key} option.
+Item(B($LMAKE_DEBUG_KEY))    The key provided by the B(-k) or B(--key) option.
 Item(B($LMAKE_DEBUG_STDIN))  The file connected as stdin to B(ldebug) when it was launched (usually a tty) if the job has its stdin redirected (in case the B(dep) rule attribute is defined).
 Item(B($LMAKE_DEBUG_STDOUT)) The file connected as stdout to B(ldebug) when it was launched (usually a tty) if the job has its stdout redirected (in case the B(target) rule attribute is defined).
 

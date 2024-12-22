@@ -5,63 +5,11 @@
 
 #pragma once
 
-#include <sys/signalfd.h>
 #include <sys/wait.h>
-#include <wait.h>
 
 #include <csignal>
 
 #include "fd.hh"
-
-struct Pipe {
-	// cxtors & casts
-	Pipe(                          ) = default ;
-	Pipe(NewType,bool no_std_=false) { open(no_std_) ; }
-	// services
-	void open(bool no_std_=false) {
-		int fds[2] ;
-		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
-		read  = {fds[0],no_std_} ;
-		write = {fds[1],no_std_} ;
-	}
-	void close() {
-		read .close() ;
-		write.close() ;
-	}
-	void no_std() {
-		read .no_std() ;
-		write.no_std() ;
-	}
-	// data
-	Fd read  ; // read  side of the pipe
-	Fd write ; // write side of the pipe
-} ;
-
-inline sigset_t _mk_sigset(::vector<int> const& sigs) {
-	sigset_t res ;
-	::sigemptyset(&res) ;
-	for( int s : sigs) ::sigaddset(&res,s) ;
-	return res ;
-}
-inline bool is_blocked_sig(int sig) {
-	sigset_t old_mask ;
-	swear( ::pthread_sigmask(0,nullptr,&old_mask)==0 , "cannot get sig ",sig ) ;
-	return ::sigismember(&old_mask,sig) ;
-}
-inline void block_sigs  (::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_BLOCK   , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot block sigs "  ,sigs) ; }
-inline void unblock_sigs(::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_UNBLOCK , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot unblock sigs ",sigs) ; }
-inline Fd open_sigs_fd(::vector<int> const& sigs) {
-	return ::signalfd( -1 , &::ref(_mk_sigset(sigs)) , SFD_CLOEXEC ) ;
-}
-struct BlockedSig {
-	BlockedSig (                         ) = default ;
-	BlockedSig (BlockedSig&&             ) = default ;                                         // copy is meaningless
-	BlockedSig (::vector<int> const& sigs) : blocked{       sigs } { block_sigs  (blocked) ; }
-	BlockedSig (::vector<int>     && sigs) : blocked{::move(sigs)} { block_sigs  (blocked) ; }
-	~BlockedSig(                         )                         { unblock_sigs(blocked) ; }
-	// data
-	::vector<int> blocked ;
-} ;
 
 inline bool is_sig_sync(int sig) {
 	switch (sig) {

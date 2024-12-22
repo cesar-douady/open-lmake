@@ -10,7 +10,7 @@ if __name__!='__main__' :
 	import socket
 
 	import lmake
-	from lmake.rules import Rule,_lmake_dir
+	from lmake.rules import Rule
 
 	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
 		lmake.config.backends.slurm = {
@@ -28,10 +28,10 @@ if __name__!='__main__' :
 	)
 
 	class TestNumba(Rule):
-		target      = 'dut'
-		autodep     = 'ld_preload'
-		environ_cmd = { 'PYTHONPATH' : numba_home+':...' } # ... stands for inherited value
-		backend     = backend
+		target  = 'dut'
+		autodep = 'ld_preload'
+		environ = { 'PYTHONPATH' : numba_home+':...' } # ... stands for inherited value
+		backend = backend
 		resources = {
 			'cpu' : 1
 		,	'mem' : '256M'

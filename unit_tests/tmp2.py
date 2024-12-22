@@ -43,13 +43,13 @@ if __name__!='__main__' :
 		side_targets = { 'SIDE' : 'lnk_dut.tmp' }
 		# make a chain of links with all potential cases
 		cmd = multi_strip('''
-			ln -s /tmp/a lnk_dut.tmp        # link from repo to tmp
+			ln -s /tmp/a lnk_dut.tmp              # link from repo to tmp
 			cd /tmp
-			ln -s b             a           # relative link within tmp
-			ln -s /tmp/c        b           # absolute link within tmp
-			ln -s $ROOT_DIR/src c                # link from tmp to repo
-			readlink a b c $ROOT_DIR/lnk_dut.tmp
-			cd $ROOT_DIR
+			ln -s b              a                # relative link within tmp
+			ln -s /tmp/c         b                # absolute link within tmp
+			ln -s $REPO_ROOT/src c                # link from tmp to repo
+			readlink a b c $REPO_ROOT/lnk_dut.tmp
+			cd $REPO_ROOT
 			readlink /tmp/a /tmp/b /tmp/c lnk_dut.tmp
 			cat lnk_dut.tmp
 		''')
@@ -63,7 +63,7 @@ if __name__!='__main__' :
 			cd /tmp
 			cp /tmp/c        b
 			cp b             a
-			cd $ROOT_DIR
+			cd $REPO_ROOT
 			cp /tmp/a cp_dut.tmp
 			cat cp_dut.tmp
 		''')
@@ -74,9 +74,9 @@ if __name__!='__main__' :
 		cmd = multi_strip('''
 			cd /tmp
 			mkdir d
-			cp $ROOT_DIR/src d/a
+			cp $REPO_ROOT/src d/a
 			cd d
-			pwd > $ROOT_DIR/{SIDE}
+			pwd > $REPO_ROOT/{SIDE}
 			mv a b
 			sleep 0.1 # ensure a and b have different dates
 			cp b c
@@ -88,7 +88,7 @@ if __name__!='__main__' :
 			cat d/c
 			rm -r d
 			[ -f d/c ] && {{ echo 'rm did not rm' >&2 ; exit 1 ; }}
-			cd $ROOT_DIR
+			cd $REPO_ROOT
 			cat {SIDE}
 		''')
 
@@ -110,10 +110,10 @@ else :
 
 	with open('lnk_dut.ref','w') as f :
 		for p in range(2) :
-			print('b'                    ,file=f)
-			print('/tmp/c'               ,file=f)
-			print(f'{lmake.root_dir}/src',file=f)
-			print('/tmp/a'               ,file=f)
+			print('b'                     ,file=f)
+			print('/tmp/c'                ,file=f)
+			print(f'{lmake.repo_root}/src',file=f)
+			print('/tmp/a'                ,file=f)
 		print('src_content',file=f)
 
 	with open('cp_dut.ref','w') as f :

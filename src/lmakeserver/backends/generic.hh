@@ -5,7 +5,7 @@
 
 #include "core.hh" // must be first to include Python.h first
 
-// XXX : rework to maintain an ordered list of waiting_queues in ReqEntry to avoid walking through all rsrcs for each launched job
+// XXX! : rework to maintain an ordered list of waiting_queues in ReqEntry to avoid walking through all rsrcs for each launched job
 
 // a job may have 3 states :
 // - waiting : job has been submitted and is retained here until we can spawn it
@@ -127,6 +127,7 @@ namespace Backends {
 		}
 		// data
 		Rsrcs             rsrcs   ;
+		::string          msg     ;         // message in case of failure
 		::atomic<SpawnId> id      = 0     ;
 		::atomic<bool   > failed  = false ; // if true <=> job could not ben launched
 		bool              started = false ; // if true <=> start() has been called for this job, for assert only
@@ -369,19 +370,14 @@ namespace Backends {
 			if (_oldest_submitted_job.load()+g_config->heartbeat<Pdate(New)) launch() ;                            // prevent jobs from being accumulated for too long
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat(Job j) {                                                        // called on jobs that did not start after at least newwork_delay time
-			auto it = spawned_jobs.find(j) ;
-			if (it==spawned_jobs.end()) {
-				Trace trace(BeChnl,"heartbeat","not_found",j) ;
-				return {"job disappeared",HeartbeatState::Err} ;
-			}
-			SpawnedEntry& se = it->second ;
-			SWEAR(!se.started,j) ;                                                                                 // we should not be called on started jobs
+			auto          it = spawned_jobs.find(j) ; SWEAR(it!=spawned_jobs.end()  ) ;
+			SpawnedEntry& se = it->second           ; SWEAR(!se.started           ,j) ;                            // we should not be called on started jobs
 			if (!se.id) {
 				Lock lock { id_mutex } ;                                                                           // ensure _launch is no more processing entry
 				if (!se.id) {                                                                                      // repeat test so test and decision are atomic
 					Trace trace(BeChnl,"heartbeat","no_id",j) ;
-					if (se.failed) return {"could not launch job",HeartbeatState::Err  } ;
-					else           return {{}                    ,HeartbeatState::Alive} ;                         // book keeping is not updated yet
+					if (se.failed) { spawned_jobs.erase(self,it) ; return {se.msg,HeartbeatState::Err  } ; }
+					else                                           return {{}    ,HeartbeatState::Alive} ;         // book keeping is not updated yet
 				}
 			}
 			::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
@@ -444,8 +440,7 @@ namespace Backends {
 					if (rit==reqs.end()) continue ;
 					JobIdx                            n_jobs = rit->second.n_jobs         ;
 					::umap<Rsrcs,set<PressureEntry>>& queues = rit->second.waiting_queues ;
-					for(;;) {
-						if ( n_jobs && spawned_jobs.size()>=n_jobs ) break ;                                       // cannot have more than n_jobs running jobs because of this req, process next req
+					while (!( n_jobs && spawned_jobs.size()>=n_jobs )) {                                           // cannot have more than n_jobs running jobs because of this req, process next req
 						auto candidate = queues.end() ;
 						for( auto it=queues.begin() ; it!=queues.end() ; it++ ) {
 							if ( candidate!=queues.end() && it->second.begin()->pressure<=candidate->second.begin()->pressure ) continue ;
@@ -474,39 +469,32 @@ namespace Backends {
 							if (r!=req) {
 								auto                  wit2 = re.waiting_queues.find(candidate->first) ;
 								::set<PressureEntry>& pes  = wit2->second                             ;
-								PressureEntry         pe   { wit1->second , j }                       ;                // /!\ pressure is job pressure for r, not for req
+								PressureEntry         pe   { wit1->second , j }                       ;               // /!\ pressure is job pressure for r, not for req
 								SWEAR(pes.contains(pe)) ;
-								if (pes.size()==1) re.waiting_queues.erase(wit2) ;                                     // last entry for this rsrcs, erase the entire queue
+								if (pes.size()==1) re.waiting_queues.erase(wit2) ;                                    // last entry for this rsrcs, erase the entire queue
 								else               pes              .erase(pe  ) ;
 							}
 							re.waiting_jobs.erase(wit1) ;
 						}
-						if (pressure_set.size()==1) queues      .erase(candidate) ;                                    // last entry for this rsrcs, erase the entire queue
+						if (pressure_set.size()==1) queues      .erase(candidate) ;                                   // last entry for this rsrcs, erase the entire queue
 						else                        pressure_set.erase(pressure1) ;
 					}
 				}
-				for( auto& [ji,ld] : launch_descrs ) {
+				for( auto& [j,ld] : launch_descrs ) {
 					Lock lock { id_mutex } ;
 					SpawnedEntry& se = *ld.entry ;
-					if (!se.live) continue ;                                                                           // job was cancelled before being launched
+					if (!se.live) continue ;                                                                          // job was cancelled before being launched
 					try {
-						SpawnId id = launch_job( st , ji , ld.reqs , ld.prio , ld.cmd_line , se.rsrcs , se.verbose ) ; // XXX : manage errors, for now rely on heartbeat
-						SWEAR(id,ji) ;                                                                                 // null id is used to mark absence of id
+						SpawnId id = launch_job( st , j , ld.reqs , ld.prio , ld.cmd_line , se.rsrcs , se.verbose ) ; // XXX! : manage errors, for now rely on heartbeat
+						SWEAR(id,j) ;                                                                                 // null id is used to mark absence of id
 						se.id = id ;
-						trace("child",ji,ld.prio,id,ld.cmd_line) ;
+						trace("child",j,ld.prio,id,ld.cmd_line) ;
 					} catch (::string const& e) {
-						trace("fail",ji,ld.prio,e) ;
+						trace("fail",j,ld.prio,e) ;
+						se.msg    = e    ;
 						se.failed = true ;
-						_launch_queue.wakeup() ;                                               // we may have new jobs to launch as we did not launch all jobs we were supposed to
+						_launch_queue.wakeup() ; // we may have new jobs to launch as we did not launch all jobs we were supposed to
 					}
-				}
-				{	Lock lock { _s_mutex } ;
-					for( auto const& [ji,_] : launch_descrs ) {
-						auto it=spawned_jobs.find(ji) ; if (it==spawned_jobs.end()) continue ;
-						if (it->second.failed) spawned_jobs.erase(self,it) ;                   // job could not be launched, release resources
-						/**/                   spawned_jobs.flush(     it) ;                   // collect unused entry now that we hold _s_mutex
-					}
-					launch_descrs.clear() ;                                                    // destroy entries while holding the lock
 				}
 				trace("done") ;
 			}

@@ -42,11 +42,12 @@ namespace Engine {
 		data.audit_fd     = ecr.out_fd        ;
 		//
 		s_reqs_by_start.push_back(self) ;
-		_adjust_eta(true/*push_self*/) ;
+		_adjust_eta( {}/*eta*/ , true/*push_self*/ ) ;
 		//
 		Trace trace("Rmake",self,s_n_reqs(),data.start_ddate,data.start_pdate) ;
 		try {
-			JobIdx n_jobs = from_string<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
+			if (ecr.options.flags[ReqFlag::RetryOnError]) data.n_retries = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::RetryOnError]                 ) ;
+			JobIdx                                        n_jobs         = from_string<JobIdx >(ecr.options.flag_args[+ReqFlag::Jobs        ],true/*empty_ok*/) ;
 			if (ecr.as_job()) data.job = ecr.job()                                                                            ;
 			else              data.job = Job( Special::Req , Deps(ecr.targets(),~Accesses(),Dflag::Static,true/*parallel*/) ) ;
 			Backend::s_open_req( +self , n_jobs ) ;
@@ -107,17 +108,17 @@ namespace Engine {
 		Delay delta_ete = new_eta>old_eta ? new_eta-old_eta : old_eta-new_eta       ; // cant use ::abs(new_eta-old_eta) because of signedness
 		//
 		if ( delta_ete.val() <= (old_ete.val()>>4) ) return ;                         // eta did not change significatively
-		self->eta = new_eta ;
-		_adjust_eta() ;
+		_adjust_eta(new_eta) ;
 		Backend::s_new_req_etas() ;                                                   // tell backends that etas changed significatively
 	}
 
-	void Req::_adjust_eta(bool push_self) {
-			Trace trace("R_adjust_eta",self->eta) ;
+	void Req::_adjust_eta( Pdate eta , bool push_self ) {
+			Trace trace("R_adjust_eta",self->eta,eta) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
-			bool changed    = false               ;
-			Lock lock       { s_reqs_mutex }      ;
+			bool changed    = false            ;
+			Lock lock       { s_reqs_mutex }   ;
 			Idx  idx_by_eta = self->idx_by_eta ;
+			if (+eta     ) self->eta = eta ;                                                                 // eta must be upated while lock is held as it is read in other threads
 			if (push_self) _s_reqs_by_eta.push_back(self) ;
 			while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>self->eta ) {                          // if eta is decreased
 				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
@@ -232,12 +233,11 @@ namespace Engine {
 					seen_stderr = true ;
 				break ;
 				case Special::Plain : {
-					Rule::SimpleMatch match          ;
-					JobInfo           job_info       = job.job_info()                                               ;
-					EndNoneAttrs      end_none_attrs = r->end_none_attrs.eval( job , match , job_info.start.rsrcs ) ;
+					Rule::SimpleMatch match ;
+					JobEndRpcReq      jerr  = job.job_info(false/*need_start*/).end ;
 					//
-					if (!job_info.end.end.proc) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-					else                        seen_stderr = self->audit_stderr( job , job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
+					if (!jerr) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
+					else       seen_stderr = self->audit_stderr( job , jerr.msg , jerr.digest.stderr , jerr.digest.end_attrs.max_stderr_len , lvl+1 ) ;
 				} break ;
 			DN}
 		if (intermediate)
@@ -562,21 +562,22 @@ namespace Engine {
 			if ( +jt && jt->run_status!=RunStatus::MissingStatic ) { reason      = "does not produce it"                                      ; goto Report ; }
 			try                                                    { static_deps = rt->rule->deps_attrs.eval(m)                               ;               }
 			catch (::pair_ss const& msg_err)                       { reason      = "cannot compute its deps :\n"+msg_err.first+msg_err.second ; goto Report ; }
-			{	::string missing_key ;
-				for( bool search_non_buildable : {true,false} )                                         // first search a non-buildable, if not found, search for non makable as deps have been made
-					for( auto const& [k,dn] : static_deps ) {
-						Node d{dn.txt} ;
-						if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
-						missing_key = k ;
-						missing_dep = d ;
-						goto Found ;
+			for( bool search_non_buildable : {true,false} )                                             // first search a non-buildable, if not found, search for non makable as deps have been made
+				for( auto const& [k,ds] : static_deps ) {
+					if (!is_canon(ds.txt)) {
+						if (search_non_buildable  ) continue ;                                                           // non-canonic deps are detected after non-buidlable ones
+						if (+options.startup_dir_s) reason = "non-canonic static dep name "+k+" (top-level) : "+ds.txt ; // remind user that name is not localized as this is not reliably ...
+						else                        reason = "non-canonic static dep name "+k+" : "            +ds.txt ; // ... possible (nor desirable) for non-canonic names
+						goto Report ;
 					}
-			Found :
-				SWEAR(+missing_dep) ;                                                                   // else why wouldn't it apply ?!?
-				::string mdn = missing_dep->name()                   ;
-				FileTag tag  = FileInfo(nfs_guard.access(mdn)).tag() ;
-				reason = "misses static dep " + missing_key + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
-			}
+					Node d { ds.txt } ;
+					if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
+					missing_dep = d ;
+					SWEAR(+missing_dep) ;                                                                                // else why wouldn't it apply ?!?
+					FileTag tag = FileInfo(nfs_guard.access(missing_dep->name())).tag() ;
+					reason = "misses static dep " + k + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
+					goto Report ;
+				}
 		Report :
 			if (+missing_dep) audit_node( Color::Note , "rule "+rt->rule->full_name()+' '+reason+" :" , missing_dep , lvl+1 ) ;
 			else              audit_info( Color::Note , "rule "+rt->rule->full_name()+' '+reason      ,               lvl+1 ) ;

@@ -251,17 +251,17 @@ namespace Caches {
 				job_info.start.pre_start.job       = +job   ;                                       // id is not stored in cache
 				job_info.start.submit_attrs.reason = reason ;
 				//
-				copied.reserve(job_info.end.end.digest.targets.size()) ;
-				for( NodeIdx ti : iota(job_info.end.end.digest.targets.size()) ) {
-					auto&           entry = job_info.end.end.digest.targets[ti] ;
-					::string const& tn    = entry.first                         ;
+				copied.reserve(job_info.end.digest.targets.size()) ;
+				for( NodeIdx ti : iota(job_info.end.digest.targets.size()) ) {
+					auto&           entry = job_info.end.digest.targets[ti] ;
+					::string const& tn    = entry.first                     ;
 					copied.push_back(tn) ;
 					nfs_guard.change(tn) ;
 					trace("copy",dfd,ti,tn) ;
 					cpy( tn , dfd , ::to_string(ti) , true/*unlnk_dst*/ , false/*mk_read_only*/ ) ;
 					entry.second.sig = FileSig(tn) ;                                                // target digest is not stored in cache
 				}
-				job_info.end.end.digest.end_date = New ;                                            // date must be after files are copied
+				job_info.end.digest.end_date = New ;                                                // date must be after files are copied
 			}
 			// ensure we take a single lock at a time to avoid deadlocks
 			// upload is the only one to take several locks
@@ -278,12 +278,12 @@ namespace Caches {
 		}
 	}
 
-	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) {             // XXX : defer upload in a dedicated thread
+	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) {             // XXX! : defer upload in a dedicated thread (very difficult to ensure stability)
 		::string jn_s = _unique_name_s(job)+repo_s ;
 		Trace trace("DirCache::upload",job,jn_s) ;
 		//
 		JobInfo job_info = job.job_info() ;
-		if (!job_info.end.end.proc) {                                                                    // we need a full report to cache job
+		if (!( +job_info.start || +job_info.end )) {                                                     // we need a full report to cache job
 			trace("no_ancillary_file") ;
 			return false/*ok*/ ;
 		}
@@ -294,14 +294,14 @@ namespace Caches {
 		job_info.start.eta                 = {} ;                                                        // dont care about timing info in cache
 		job_info.start.submit_attrs.reason = {} ;                                                        // cache does not care about original reason
 		job_info.start.rsrcs.clear() ;                                                                   // caching resources is meaningless as they have no impact on content
-		for( auto& [tn,td] : job_info.end.end.digest.targets ) {
+		for( auto& [tn,td] : job_info.end.digest.targets ) {
 			SWEAR(!td.pre_exist) ;                                                                       // cannot be a candidate for upload as this must have failed
 			td.sig          = {} ;
 			td.extra_tflags = {} ;
 		}
-		job_info.end.end.digest.end_date = {} ;
+		job_info.end.digest.end_date = {} ;
 		// check deps
-		for( auto const& [dn,dd] : job_info.end.end.digest.deps ) if (!dd.is_crc) return false/*ok*/ ;
+		for( auto const& [dn,dd] : job_info.end.digest.deps ) if (!dd.is_crc) return false/*ok*/ ;
 		//
 		mk_dir_s(dir_fd,jn_s) ;
 		AcFd dfd { dir_fd , jn_s , Fd::Dir } ;
@@ -322,7 +322,7 @@ namespace Caches {
 			::string deps_file = dir_s+jn_s+"deps" ;
 			//
 			job_info.write(data_file) ;
-			AcFd(deps_file,Fd::Write).write(serialize(job_info.end.end.digest.deps)) ;                   // store deps in a compact format so that matching is fast
+			AcFd(deps_file,Fd::Write).write(serialize(job_info.end.digest.deps)) ;                       // store deps in a compact format so that matching is fast
 			//
 			/**/                                       new_sz += FileInfo(data_file           ).sz ;
 			/**/                                       new_sz += FileInfo(deps_file           ).sz ;

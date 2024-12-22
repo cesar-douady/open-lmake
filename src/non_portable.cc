@@ -6,8 +6,9 @@
 #include <elf.h>        // NT_PRSTATUS definition on ARM
 #include <sys/ptrace.h>
 
-#include "non_portable.hh"
 #include "utils.hh"
+
+#include "non_portable.hh"
 
 #if __x86_64__ + __i386__ + __aarch64__ + __arm__ != 1
 	#error "unknown architecture"                      // if situation arises, please provide the adequate code using other cases as a template
@@ -15,36 +16,36 @@
 
 using namespace std ;
 
-using UserRegsStruct = struct ::user_regs_struct ;
-using Iovec          = struct ::iovec            ;
-#if __x86_64__
-	using Word = decltype(UserRegsStruct().rdi    ) ;
-#elif __i386__
-	using Word = decltype(UserRegsStruct().ebx    ) ;
-#elif __aarch64__
-	using Word = decltype(UserRegsStruct().regs[0]) ;
-#elif __arm__
-	using Word = decltype(UserRegsStruct().r0     ) ;
-#endif
-
-static void _get_set( pid_t pid , int n_words , UserRegsStruct& regs , bool set ) {
-	#if __x86_64__ || __i386__
-		(void)n_words ;
-		if ( ::ptrace( set?PTRACE_SETREGS:PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs )<0 ) throw "cannot "s+(set?"set":"get")+" regs" ;
-	#elif __aarch64__ || __arm__
-		Iovec iov { .iov_base=&regs , .iov_len=n_words*sizeof(Word) } ;                                                                                       // read/write n_words registers
-		if ( ::ptrace( set?PTRACE_SETREGSET:PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov )<0 ) throw "cannot "s+(set?"set":"get")+' '+n_words+" regs" ;
-		SWEAR(iov.iov_len==n_words*sizeof(Word),iov.iov_len) ; // check all asked regs have been read/written
+	using UserRegsStruct = struct ::user_regs_struct ;
+	using Iovec          = struct ::iovec            ;
+	#if __x86_64__
+		using Word = decltype(UserRegsStruct().rdi    ) ;
+	#elif __i386__
+		using Word = decltype(UserRegsStruct().ebx    ) ;
+	#elif __aarch64__
+		using Word = decltype(UserRegsStruct().regs[0]) ;
+	#elif __arm__
+		using Word = decltype(UserRegsStruct().r0     ) ;
 	#endif
-}
-//!                                                                                                                                       set
-static UserRegsStruct _get( pid_t pid , int n_words                        ) { UserRegsStruct regs={/*zero*/} ; _get_set(pid,n_words,regs,false) ; return regs ; }
-static void           _set( pid_t pid , int n_words , UserRegsStruct& regs ) {                                  _get_set(pid,n_words,regs,true ) ;               }
 
-// info from : https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/syscalls
+	static void _get_set( pid_t pid , int n_words , UserRegsStruct& regs , bool set ) {
+		#if __x86_64__ || __i386__
+			(void)n_words ;
+			if ( ::ptrace( set?PTRACE_SETREGS:PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs )<0 ) throw "cannot "s+(set?"set":"get")+" regs" ;
+		#elif __aarch64__ || __arm__
+			Iovec iov { .iov_base=&regs , .iov_len=n_words*sizeof(Word) } ;                                                                                       // read/write n_words registers
+			if ( ::ptrace( set?PTRACE_SETREGSET:PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov )<0 ) throw "cannot "s+(set?"set":"get")+' '+n_words+" regs" ;
+			SWEAR(iov.iov_len==n_words*sizeof(Word),iov.iov_len) ; // check all asked regs have been read/written
+		#endif
+	}
+	//!                                                                                                                                       set
+	static UserRegsStruct _get( pid_t pid , int n_words                        ) { UserRegsStruct regs={/*zero*/} ; _get_set(pid,n_words,regs,false) ; return regs ; }
+	static void           _set( pid_t pid , int n_words , UserRegsStruct& regs ) {                                  _get_set(pid,n_words,regs,true ) ;               }
+
+	// info from : https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/syscalls
 
 ::array<uint64_t,6> np_ptrace_get_args( pid_t pid , uint8_t word_sz ) {                 // info come from man 2 syscall
-	SWEAR(word_sz==NpWordSz,word_sz) ;                                                  // XXX : implement 32 bits tracee from 64 bits tracer
+	SWEAR(word_sz==NpWordSz,word_sz) ;                                                  // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct      regs = _get(pid,6/*n_words*/) ;
 	::array<uint64_t,6> res  ;
 	#if __x86_64__
@@ -80,7 +81,7 @@ static void           _set( pid_t pid , int n_words , UserRegsStruct& regs ) {  
 }
 
 int64_t np_ptrace_get_res( pid_t pid , uint8_t word_sz ) {
-	SWEAR(word_sz==NpWordSz,word_sz) ;                                             // XXX : implement 32 bits tracee from 64 bits tracer
+	SWEAR(word_sz==NpWordSz,word_sz) ;                                             // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct regs = _get(pid,1/*n_words*/) ;
 	#if __x86_64__
 		return regs.rax     ;                                                      // full struct is retrieved with x86
@@ -94,7 +95,7 @@ int64_t np_ptrace_get_res( pid_t pid , uint8_t word_sz ) {
 }
 
 long np_ptrace_get_nr( pid_t pid , uint8_t word_sz ) {
-	SWEAR(word_sz==NpWordSz,word_sz) ;                                                           // XXX : implement 32 bits tracee from 64 bits tracer
+	SWEAR(word_sz==NpWordSz,word_sz) ;                                                           // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct regs = _get(pid,9/*n_words*/) ;
 	#if __x86_64__
 		return regs.orig_rax ;                                                                   // full struct is retrieved with x86
@@ -108,7 +109,7 @@ long np_ptrace_get_nr( pid_t pid , uint8_t word_sz ) {
 }
 
 void np_ptrace_set_res( pid_t pid , int64_t val , uint8_t word_sz ) {
-	SWEAR(word_sz==NpWordSz,word_sz) ;                                            // XXX : implement 32 bits tracee from 64 bits tracer
+	SWEAR(word_sz==NpWordSz,word_sz) ;                                            // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct regs = _get(pid,1/*n_words*/)  ;
 	#if __x86_64__
 		regs.rax     = val ;                                                      // full struct is retrieved with x86

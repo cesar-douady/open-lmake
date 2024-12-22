@@ -404,8 +404,8 @@ namespace Engine {
 		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(dir_s+base)) ;
 		if (is_lcl(dep)     ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
-		::string rel_dir_s = mk_rel(dir_s,*g_root_dir_s) ;
-		::string abs_dir_s = mk_abs(dir_s,*g_root_dir_s) ;
+		::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s) ;
+		::string abs_dir_s = mk_abs(dir_s,*g_repo_root_s) ;
 		if (is_lcl_s(rel_dir_s)) bad("must be provided as local file : "+rel_dir_s+base) ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s ) {
@@ -660,7 +660,6 @@ namespace Engine {
 		return true ;
 	}
 	void RuleData::_acquire_py(Py::Dict const& dct) {
-		static ::string root_dir_s = *g_root_dir_s ;
 		::string field ;
 		Gil::s_swear_locked() ;
 		try {
@@ -681,8 +680,8 @@ namespace Engine {
 			if (+cwd_s) {
 				cwd_s = with_slash(cwd_s) ;
 				if (cwd_s.front()=='/') {
-					if (cwd_s.starts_with(*g_root_dir_s)) cwd_s.erase(0,g_root_dir_s->size()) ;
-					else                                  throw "cwd must be relative to root dir"s ;
+					if (cwd_s.starts_with(*g_repo_root_s)) cwd_s.erase(0,g_repo_root_s->size()) ;
+					else                                   throw "cwd must be relative to root dir"s ;
 				}
 			}
 			//
@@ -800,7 +799,7 @@ namespace Engine {
 					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
 					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)                                ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
+					if ( target.starts_with(*g_repo_root_s)                            ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
 					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                         +target  ;
 					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                     +target  ;
 					if ( +missing_stems                                                ) throw cat("missing stems ",missing_stems," in ",kind," : "        ,target) ;
@@ -876,10 +875,11 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "ete"              ; if (dct.contains(field)) Attrs::acquire( exec_time , &dct[field]              ) ;
-			field = "force"            ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field]              ) ;
-			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field]              ) ; else throw "not found"s ;
-			field = "max_submit_count" ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] , uint8_t(1) ) ;
+			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exec_time , &dct[field] ) ;
+			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field] ) ;
+			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field] ) ; else throw "not found"s ;
+			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts   , &dct[field] ) ;
+			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] ) ;
 			//
 			/**/                                            var_idxs["targets"        ] = { VarCmd::Targets                              , 0  } ;
 			for( VarIdx mi : iota<VarIdx>(matches.size()) ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
@@ -890,7 +890,6 @@ namespace Engine {
 			/**/                                                        var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
 			for( VarIdx d : iota<VarIdx>(deps_attrs.spec.deps.size()) ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
-			field = "cache_none_attrs"   ; if (dct.contains(field)) cache_none_attrs   = { dct[field].as_a<Tuple>() , var_idxs } ;
 			field = "submit_rsrcs_attrs" ; if (dct.contains(field)) submit_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs } ;
 			field = "submit_none_attrs"  ; if (dct.contains(field)) submit_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs } ;
 			//
@@ -898,11 +897,9 @@ namespace Engine {
 			for( VarIdx r : iota<VarIdx>(submit_rsrcs_attrs.spec.rsrcs.size()) ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
 			//
 			field = "start_cmd_attrs"   ; if (dct.contains(field)) start_cmd_attrs   = { dct[field].as_a<Tuple>() , var_idxs        } ;
-			field = "cmd"               ; if (dct.contains(field)) cmd               = { dct[field].as_a<Tuple>() , var_idxs , self } ; else throw "not found"s ;
 			field = "start_rsrcs_attrs" ; if (dct.contains(field)) start_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs        } ;
 			field = "start_none_attrs"  ; if (dct.contains(field)) start_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs        } ;
-			field = "end_cmd_attrs"     ; if (dct.contains(field)) end_cmd_attrs     = { dct[field].as_a<Tuple>() , var_idxs        } ;
-			field = "end_none_attrs"    ; if (dct.contains(field)) end_none_attrs    = { dct[field].as_a<Tuple>() , var_idxs        } ;
+			field = "cmd"               ; if (dct.contains(field)) cmd               = { dct[field].as_a<Tuple>() , var_idxs , self } ; else throw "not found"s ;
 			//
 			for( VarIdx mi : iota(n_static_targets) ) {
 				if (matches[mi].first!="<stdout>") continue ;
@@ -975,15 +972,12 @@ namespace Engine {
 			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/ )) ;
 			//
 			deps_attrs        .compile() ;
-			cache_none_attrs  .compile() ;
 			submit_rsrcs_attrs.compile() ;
 			submit_none_attrs .compile() ;
 			start_cmd_attrs   .compile() ;
-			cmd               .compile() ;
 			start_rsrcs_attrs .compile() ;
 			start_none_attrs  .compile() ;
-			end_cmd_attrs     .compile() ;
-			end_none_attrs    .compile() ;
+			cmd               .compile() ;
 		} catch (::string const& e) {
 			throw "while processing "+full_name()+" :\n"+indent(e) ;
 		}
@@ -1008,23 +1002,20 @@ namespace Engine {
 	}
 
 	::string RuleData::_pretty_env() const {
-		::vector<::array_s<3>> entries ;
-		size_t                 wh      = 0 ;
-		size_t                 wk      = 0 ;
-		for( auto const& [h,m] : ::vmap_s<::vmap_ss>({ {"cmd",start_cmd_attrs.spec.env} , {"resources",start_rsrcs_attrs.spec.env} , {"ancillary",start_none_attrs.spec.env} }) ) {
+		::string res ;
+		for( auto const& [h,m] : ::vmap_s<::vmap_ss>({ {"environ",start_cmd_attrs.spec.env} , {"environ_resources",start_rsrcs_attrs.spec.env} , {"environ_ancillary",start_none_attrs.spec.env} }) ) {
+			if (!m) continue ;
+			size_t wk = 0 ; for( auto const& [k,_] : m ) wk = ::max(wk,k.size()) ;
+			res << h <<" :\n" ;
 			for( auto const& [k,v] : m ) {
-				wh = ::max(wh,h.size()) ;
-				wk = ::max(wk,k.size()) ;
-				if      (v==EnvPassMrkr) entries.push_back({h,k,"  ..."      }) ;
-				else if (v==EnvDynMrkr ) entries.push_back({h,k,"  <dynamic>"}) ;
-				else if (+v            ) entries.push_back({h,k,": "+v       }) ;
-				else                     entries.push_back({h,k,":"          }) ;
+				/**/                     res <<'\t'<< widen(k,wk) ;
+				if      (v==EnvPassMrkr) res << "   ..."          ;
+				else if (v==EnvDynMrkr ) res << "   <dynamic>"    ;
+				else if (+v            ) res << " : "<< v         ;
+				else                     res << " :"              ;
+				/**/                     res <<'\n'               ;
 			}
 		}
-		if (!entries) return {} ;
-		//
-		::string res = "environ :\n" ;
-		for( auto const& [h,k,v] : entries ) res <<'\t'<< widen(h,wh) <<' '<< widen(k,wk) <<' '<< v <<'\n' ;
 		return res ;
 	}
 
@@ -1149,22 +1140,35 @@ namespace Engine {
 			else        res <<       patterns_[k]                                     ;
 			/**/        res <<'\n'                                                    ;
 		}
+		// report exceptions (i.e. sub-repos in which rule does not apply) unless it can be proved we cannot match in such sub-repos
 		::vector_s excepts_s ;
-		for( ::string const& sr_s : g_config->sub_repos_s )
-			if ( sr_s.size()>cwd_s.size() && sr_s.starts_with(cwd_s) ) {
-				for( ::string const& e_s : excepts_s ) if (sr_s.starts_with(e_s)) goto Seen ;
-				excepts_s.push_back(sr_s) ;                                                   // XXX : do include exceptions if target prefixes guarantee that the rule cannot match inside sr_s
-			Seen : ;
+		::uset_s   seens_s   ;                                // we are only interested in first level sub-repos under our sub-repo
+		for( ::string const& sr_s : g_config->sub_repos_s ) {
+			if (!( sr_s.size()>cwd_s.size() && sr_s.starts_with(cwd_s) )) continue ;             // if considered sub-repo is not within our sub-repo, it cannot match
+			for( ::string const& e_s : seens_s )
+				if (sr_s.starts_with(e_s)) goto Skip ;                                           // g_config->sub_repos_s are sorted so that higher level occurs first
+			seens_s.insert(sr_s) ;
+			for( auto const& [k,me] : matches ) {                                                // if all targets have a prefix that excludes considered sub-repo, it cannot match
+				if (!( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )) continue ; // not a target
+				::string_view pfx { me.pattern.data() , me.pattern.find(Rule::StemMrkr) } ;      // find target prefix
+				if (sr_s.starts_with(pfx )) goto Report ;                                        // found a target that may      match in sub-repo, include it
+				if (pfx .starts_with(sr_s)) goto Report ;                                        // found a target that may only match in sub-repo, include it
 			}
+		Skip :
+			continue ;
+		Report :
+			excepts_s.push_back(sr_s) ;
+		}
 		if (+excepts_s) {
 			/**/                                  res << "except in sub-repos :\n"  ;
 			for( ::string const& e_s : excepts_s) res <<'\t'<< no_slash(e_s) <<'\n' ;
 		}
+		// report actual reg-exprs to ease debugging
 		res << "patterns :\n" ;
 		for( size_t mi : iota(matches.size()) )
 			res <<'\t'<<
-				/**/     widen(cat(kind(matches [mi].second)),w1)
-			<<	' '   << widen(         matches [mi].first   ,w2)
+				/**/     widen(cat(kind(matches[mi].second)),w1)
+			<<	' '   << widen(         matches[mi].first   ,w2)
 			<<	" : " <<       patterns[mi].txt
 			<<'\n' ;
 		return res ;
@@ -1239,30 +1243,30 @@ namespace Engine {
 		}
 		//
 		// first simple static attrs
-		{	if ( user_prio!=0                                      ) entries.emplace_back( "prio"             , cat        (user_prio                                      ) ) ;
-			/**/                                                     entries.emplace_back( "job_name"         ,             job_name_                                        ) ;
-			if (+cwd_s                                             ) entries.emplace_back( "cwd"              , no_slash   (cwd_s                                          ) ) ;
+		{	if ( user_prio!=0                                      ) entries.emplace_back( "prio"                , cat        (user_prio                                      ) ) ;
+			/**/                                                     entries.emplace_back( "job_name"            ,             job_name_                                        ) ;
+			if (+cwd_s                                             ) entries.emplace_back( "cwd"                 , no_slash   (cwd_s                                          ) ) ;
 		}
 		if (!is_special()) {
-			if ( force                                             ) entries.emplace_back( "force"            , cat        (force                                          ) ) ;
-			if ( n_submits                                         ) entries.emplace_back( "max_submit_count" , ::to_string(n_submits                                      ) ) ;
-			if (+cache_none_attrs  .spec.key                       ) entries.emplace_back( "key"              ,             cache_none_attrs  .spec.key                      ) ;
-			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"          , snake      (submit_rsrcs_attrs.spec.backend                ) ) ;
-			if ( submit_none_attrs .spec.n_retries                 ) entries.emplace_back( "n_retries"        , ::to_string(submit_none_attrs .spec.n_retries              ) ) ;
-			if (+interpreter                                       ) entries.emplace_back( "interpreter"      ,             interpreter                                      ) ;
-			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"       , cat        (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.chroot_dir_s    ) entries.emplace_back( "chroot_dir"       , no_slash   (start_cmd_attrs   .spec.job_space.chroot_dir_s ) ) ;
-			if ( start_cmd_attrs   .spec.ignore_stat               ) entries.emplace_back( "ignore_stat"      , cat        (start_cmd_attrs   .spec.ignore_stat            ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.root_view_s     ) entries.emplace_back( "root_view"        , no_slash   (start_cmd_attrs   .spec.job_space.root_view_s  ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"         , no_slash   (start_cmd_attrs   .spec.job_space.tmp_view_s   ) ) ;
-			/**/                                                     entries.emplace_back( "autodep"          , snake      (start_rsrcs_attrs .spec.method                 ) ) ;
-			if (+start_rsrcs_attrs .spec.timeout                   ) entries.emplace_back( "timeout"          ,             start_rsrcs_attrs .spec.timeout.short_str()      ) ;
-			if ( start_rsrcs_attrs .spec.use_script                ) entries.emplace_back( "use_script"       , cat        (start_rsrcs_attrs .spec.use_script             ) ) ;
-			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"         , cat        (start_none_attrs  .spec.keep_tmp               ) ) ;
-			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"      ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
-			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"        ,             kill_sigs                                        ) ;
-			if ( end_cmd_attrs     .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"     , cat        (end_cmd_attrs     .spec.allow_stderr           ) ) ;
-			if ( end_none_attrs    .spec.max_stderr_len!=size_t(-1)) entries.emplace_back( "max_stderr_len"   , ::to_string(end_none_attrs    .spec.max_stderr_len         ) ) ;
+			if ( force                                             ) entries.emplace_back( "force"               , cat        (force                                          ) ) ;
+			if ( n_losts                                           ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                        ) ) ;
+			if ( n_submits                                         ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                      ) ) ;
+			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs.spec.backend                ) ) ;
+			if (+submit_none_attrs .spec.cache_key                 ) entries.emplace_back( "cache"               ,             submit_none_attrs .spec.cache_key              ) ;
+			if (+interpreter                                       ) entries.emplace_back( "interpreter"         ,             interpreter                                      ) ;
+			if ( start_cmd_attrs   .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"        , cat        (start_cmd_attrs   .spec.allow_stderr           ) ) ;
+			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.chroot_dir_s    ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs   .spec.job_space.chroot_dir_s ) ) ;
+			if ( start_cmd_attrs   .spec.ignore_stat               ) entries.emplace_back( "ignore_stat"         , cat        (start_cmd_attrs   .spec.ignore_stat            ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.repo_view_s     ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs   .spec.job_space.repo_view_s  ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs   .spec.job_space.tmp_view_s   ) ) ;
+			/**/                                                     entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs .spec.method                 ) ) ;
+			if (+start_rsrcs_attrs .spec.timeout                   ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs .spec.timeout.short_str()      ) ;
+			if ( start_rsrcs_attrs .spec.use_script                ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs .spec.use_script             ) ) ;
+			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"            , cat        (start_none_attrs  .spec.keep_tmp               ) ) ;
+			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"         ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
+			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                        ) ;
+			if ( start_none_attrs  .spec.max_stderr_len!=Npos      ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_none_attrs  .spec.max_stderr_len         ) ) ;
 		}
 		::string res = _pretty_vmap( title , entries ) ;
 		//
@@ -1279,15 +1283,12 @@ namespace Engine {
 		// then dynamic part
 		if (!is_special()) {
 			res << indent( _pretty_dyn(deps_attrs        ) , 1 ) ;
-			res << indent( _pretty_dyn(cache_none_attrs  ) , 1 ) ;
 			res << indent( _pretty_dyn(submit_rsrcs_attrs) , 1 ) ;
 			res << indent( _pretty_dyn(submit_none_attrs ) , 1 ) ;
 			res << indent( _pretty_dyn(start_cmd_attrs   ) , 1 ) ;
 			res << indent( _pretty_dyn(start_rsrcs_attrs ) , 1 ) ;
 			res << indent( _pretty_dyn(start_none_attrs  ) , 1 ) ;
 			res << indent( _pretty_dyn(cmd               ) , 1 ) ;
-			res << indent( _pretty_dyn(end_cmd_attrs     ) , 1 ) ;
-			res << indent( _pretty_dyn(end_none_attrs    ) , 1 ) ;
 		}
 		// and finally the cmd
 		if (!is_special()) {
@@ -1344,9 +1345,8 @@ namespace Engine {
 			h.update(matches               ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
 			h.update(force                 ) ;
 			h.update(is_python             ) ;
-			cmd            .update_hash(h)   ;
 			start_cmd_attrs.update_hash(h)   ;
-			end_cmd_attrs  .update_hash(h)   ;
+			cmd            .update_hash(h)   ;
 			Crc cmd = h.digest() ;
 			//
 			submit_rsrcs_attrs.update_hash(h) ;

@@ -17,5 +17,4 @@ void* get_orig(const char* libcall) {
 	return res ;
 }
 
-#include "ld.x.cc"
 #include "ld_common.x.cc"

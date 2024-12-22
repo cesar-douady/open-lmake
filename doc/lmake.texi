@@ -495,22 +495,17 @@ This variable holds the native version of @lmake.
 It is a tuple formed with a @code{str} (the major version) and a @code{int} (the minor version).
 See previous section for more information.
 
-@section @code{def search_root_dir(cwd=os.getcwd())}
-Return the root dir as seen from passed @code{cwd} argument.
-
-Note that his may be different from the @code{top_root_dir} variable in case there is a @Lmakefile file in a subdir.
-
 @section constants
 
 The following constants are defined :
 @table @code
-@item root_dir
+@item repo_root
 The root directory of the (sub-)repository.
-@item top_root_dir
+@item top_repo_root
 The root directory of the top-level repository as determined when the @lmake command was run.
 
 @item autodeps
-The @code{tuple} of implemented autodep methods. @code{'ld_preload'} and @code{'ptrace'} are always present.
+The @code{tuple} of implemented autodep methods. @code{'ld_preload'} is always present.
 @item backends
 The @code{tuple} of implemented backends. @code{local} is always present.
 @item no_crc
@@ -719,7 +714,7 @@ However, the existing environment in which @lmake is launched can be accessed as
 This allows explicit access to this environment while avoiding spurious, unwanted, unreliable and uncontrolled accesses.
 
 Note that @code{lmake.user_environ} is not defined when the @code{lmake} module is imported when not reading the configuration.
-During job execution, environment must be passed using the @code{environ_cmd}, @code{environ_resources} and @code{environ_ancillary} rule attributes.
+During job execution, environment must be passed using the @code{environ}, @code{environ_resources} and @code{environ_ancillary} rule attributes.
 
 Configuration is done by setting attributes (or items) of the @code{pdict} @code{lmake.config}.
 
@@ -843,7 +838,7 @@ However there are 2 situations in which a global rule may apply in a sub-repo :
 @itemize
 @item if a target contains an explicit prefix within a sub-repo, then it is considered the user is willing to subrogate this principle.
 @item if a rule matches a job with 2 or more targets, with a target outside the sub-repo and another inside it and the target outside the sub-repo is needed,
-the job will be executed, generating a target within the sub-repo.@XXX{flag this case as an error rather than silently accepting it}
+the job will be executed, generating a target within the sub-repo.@XXX{?flag this case as an error rather than silently accepting it}
 @end itemize
 @end itemize
 However, relative external source dirs (i.e. source dirs located outside the sub-repository) that happen to be located in the global repository are suppressed,
@@ -983,6 +978,12 @@ This attribute specifies the directory in which the cache puts its data.
 The directory must pre-exist and contain a file @file{LMAKE/size} containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (k, M, G, T, P or E). These refer to base 1024.
 @end multitable
+
+@section debug
+
+When @code{ldebug} is used, it consults this @code{dict}.
+It maps debug keys to modules to import to implement the debug method (cf man ldebug).
+Values contain the module name optionnaly followed by a human description (that will appear with @code{ldebug -h}) separated with spaces.
 
 @chapter Sources
 
@@ -1141,7 +1142,7 @@ Note that this attribute is itself combined, and thus can easily be extended.
 @item Type
 @tab @code{dict}
 @item Default
-@tab @code{@{ 'environ_cmd.PATH':':' , 'environ_cmd.PYTHONPATH':':' , 'environ_cmd.LD_LIBRARY_PATH':':' @}}
+@tab @code{@{ 'environ.PATH':':' , 'environ.PYTHONPATH':':' , 'environ.LD_LIBRARY_PATH':':' @}}
 @item Dynamic
 @tab No.
 @item Example
@@ -1477,12 +1478,12 @@ The order may be partial : other keys are put after the mentioned keys, keeping 
 This attribute defines a directory in which jobs will @code{chroot} into before execution begins.
 It must be an absoluted path (e.g. @code{'/ubuntu22.04'}).
 
-Note that unless the @code{root_view} is set, the repository must be visible under its original name in this chroot environment.
+Note that unless the @code{repo_view} is set, the repository must be visible under its original name in this chroot environment.
 
-If @code{None}, @code{''}, @code{'/'}, no @code{chroot} is performed unless required to manage the @code{tmp_view} and @code{root_view} attributes (in which case it is transparent).
+If @code{None}, @code{''}, @code{'/'}, no @code{chroot} is performed unless required to manage the @code{tmp_view} and @code{repo_view} attributes (in which case it is transparent).
 However, if @code{'/'}, namespaces are used nonetheless (cf @pxref{namespaces}).
 
-@section @code{root_view}
+@section @code{repo_view}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -1502,11 +1503,9 @@ It must be an absolute path not lying in the temporary directory (e.g. @code{'/r
 
 If @code{None} or @code{''}, no bind mount is performed.
 
-If performed, @code{$TOP_ROOT_DIR} will reflect this value.
+If performed, @code{$TOP_REPO_ROOT} will reflect this value.
 
-As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
-
-As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
+As of now, this attribute must be a top level directory, i.e. @file{'/a'} is ok, but @file{'/a/b'} is not.
 
 @section @code{tmp_view}
 
@@ -1523,19 +1522,21 @@ As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok,
 
 This attribute defines the name which the temporary directory available for job execution is mounted on (cf @pxref {namespaces}).
 
-If @code{None}, @code{''} or not specified, this directory is not mounted and job must use @code{$TMPDIR} to identify it.
+If @code{None}, @code{''} or not specified, this directory is not mounted.
 Else, it must be an absolute path.
-in this case, @code{$TMPDIR} is redefined as this value when job is executed.
+
+As of now, this attribute must be a top level directory, i.e. @file{'/a'} is ok, but @file{'/a/b'} is not.
 
 The physical directory is :
 @itemize
-@item @code{$TMPDIR} if it is specified in the environment of the job. Note that it need not be unique as @lmake will create a unique sub-directory within it.
-@item Else, a @code{tmpfs} file system created for the job execution if the @code{'tmp'} resource is defined, in which case this resource indicates the size of the created @code{tmpfs}.
-If the value of this resource is 0, no @code{tmpfs} file system is created and access to the tmp directory (either through the @code{tmp_view} if any or @code{'/tmp'}) will generate an error.
+@item If @lmake is supposed to keep this directory after job execution, it is a directory under @file{LMAKE/tmp}, determined by @lmake (its precise value is reported by @code{lshow -i}).
+@item Else if @code{$TMPDIR} is specified in the environment of the job, it is used. Note that it need not be unique as @lmake will create a unique sub-directory within it.
 @item Else, a directory determined by @lmake lying in the @file{LMAKE} directory.
 @end itemize
 
-As of now, this attribute must be a top level directory, i.e. @code{'/a'} is ok, but @code{'/a/b'} is not.
+Unless @lmake is instructed to keep this directory, it is erased at the end of the job execution.
+
+Note that in all cases, @code{$TMPDIR} is set so that the job can use it to access the tmp directory.
 
 @section @code{views}
 
@@ -1564,7 +1565,7 @@ Such @code{copy_up} items are provided relative to the root of the view.
 @end itemize
 The mapping is done through bind mounts (cf @pxref {namespaces}).
 
-@section @code{environ_cmd}
+@section @code{environ}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -1582,11 +1583,15 @@ The mapping is done through bind mounts (cf @pxref {namespaces}).
 This attribute defines environment variables set during job execution.
 
 The content of this attribute is managed as part of the job command, meaning that jobs are rerun upon modification.
+This is the normal behavior, other means to define environment are there to manage special situations.
 
 The environment in which the @lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from @code{os.environ}.
 
 If resulting value is @code{...} (the Python ellipsis), the value from the execution environment is used.
 This is typically used to access some environment variables set by @code{slurm}.
+
+If a value contains the strings @code{$LMAKE_ROOT}, @code{$REPO_ROOT}, @code{$TOP_REPO_ROOT} or @code{$TMPDIR}, these parts are substituted by their respective definitions.
+They must be isolated words or surrounded by braces (e.g. @code{$@{LMAKE_ROOT@}}).
 
 By default the following environment variables are defined :
 @table @code
@@ -1623,6 +1628,8 @@ This attribute defines environment variables set during job execution.
 
 The content of this attribute is managed as resources, meaning that jobs in error are rerun upon modification, but not jobs that were successfully built.
 
+The values undertake the same substitutions as for the @code{environ} attribute described above.
+
 The environment in which the @lmake command is run is ignored so as to favor reproducibility.
 
 Note that the current environment is accessible when @Lmakefile is read, so that it is quite simple to copy some variables from the user environment
@@ -1649,6 +1656,8 @@ This is typically used to access some environment variables set by @code{slurm}.
 This attribute defines environment variables set during job execution.
 
 The content of this attribute is not managed, meaning that jobs are not rerun upon modification.
+
+The values undertake the same substitutions as for the @code{environ} attribute described above.
 
 The environment in which the @lmake command is run is ignored so as to favor reproducibility.
 
@@ -1724,8 +1733,8 @@ Whether @code{cmd} is a @code{str} or a @code{function}, the following environme
 @item @code{$LD_AUDIT}          : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_audit'} (cf @pxref{autodep}).
 @item @code{$LD_PRELOAD}        : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_preload'} or @code{'ld_preload_jemalloc'} (cf @pxref{autodep}).
 @item @code{$LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (cf @pxref{autodep}).
-@item @code{$ROOT_DIR}          : The root of the (sub-)repository.
-@item @code{$TOP_ROOT_DIR}      : The root of the top-level repository.
+@item @code{$REPO_ROOT}         : The root of the (sub-)repository.
+@item @code{$TOP_REPO_ROOT}     : The root of the top-level repository.
 @item @code{$SEQUENCE_ID}       : A value which is unique for each run.
 It is @code{1} initially and is incremented each time a job is run.
 @item @code{$SMALL_ID}          : A value which is unique among running job at any given time.
@@ -1843,7 +1852,7 @@ This attribute specifies the backend to use to launch jobs (cf @pxref{backends})
 @item Type
 @tab @code{str}
 @item Constraint
-@tab One of @code{'none'}, @code{'ld_preload'}, @code{'ld_preload_jemalloc'}, @code{'ld_audit'} or @code{'ptrace'}
+@tab One of @code{'none'}, @code{'ld_audit'}, @code{'ld_preload'}, @code{'ld_preload_jemalloc'} or @code{'ptrace'}
 @item Default
 @tab @code{'ld_audit'} if supported else @code{'ld_preload'}
 @item Dynamic
@@ -1965,7 +1974,7 @@ When this attribute has a @code{False} value, the temporary directory is washed 
 When this attribute is set to a @code{True} value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
 It is rarely necessary.
 
-@section @code{max_submit_count}
+@section @code{max_submits}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -1980,7 +1989,7 @@ It is rarely necessary.
 
 This attribute specifies the maximum number of times a job can be submitted for a single @lmake command.
 The goal is to protect agains potential infinite loop cases.
-The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submission before stopping).
+The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
 
 @section @code{timeout}
 
@@ -2046,7 +2055,7 @@ in which case @code{stdout} is redirected to the the target and is not waited fo
 
 Note: some backends, such as slurm, may have other means to manage timeouts. Both mechanisms will be usable.
 
-@section @code{n_retries}
+@section @code{max_retries_on_lost}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -2054,18 +2063,15 @@ Note: some backends, such as slurm, may have other means to manage timeouts. Bot
 @item Type
 @tab @code{int}
 @item Default
-@tab @code{0}
+@tab @code{1}
 @item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
+@tab No.
 @end multitable
 
 This attribute provides the number of allowed retries before giving up when a job is lost.
 For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called @code{job_exec}) was manually killed.
 
 In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.
-
-Job is also retried if the @code{-r} or @code{--retry-on-error} option is passed to @lmake.
-In that case, the number of retries is the max between the 2 values.
 
 @section @code{use_script}
 
@@ -2304,7 +2310,7 @@ There are cases where @lmake cannot anticipate such an overwrite.
 @section Namespaces
 
 Namespaces are used to isolate jobs.
-This is used to provide the semantic for the @code{chroot_dir}, @code{root_view}, @code{tmp_view} and @code{views} attributes.
+This is used to provide the semantic for the @code{chroot_dir}, @code{repo_view}, @code{tmp_view} and @code{views} attributes.
 
 In that case, pid's are also isolated which allow reliable job end : when the top-level process exits, the namespaces are destroyed and no other process can survive.
 This guarantees that no daemon is left behind, uncontrolled.
@@ -2317,7 +2323,7 @@ Namespaces can be used in the following situations :
 However, some jobs may use and record absolute paths.
 In that case, the cache will be inefficient as the result in a repository is not identical to the one in another repository.
 This is current practice, in particular in the EDA tools community (which may be rather heavy and where caching is mostly desirable).
-Using the @code{root_view} attribute is a good way to work around this obstacle.
+Using the @code{repo_view} attribute is a good way to work around this obstacle.
 @item @lmake tracks all dependencies inside the reposity and listed source directories. But it does not track external dependencies, typically the system (e.g.the @file{/usr} directory).
 However, the @code{chroot_dir} attribute is part of the command definition and a job will be considered out of date if its value is modified.
 Hence, this can be used as a marker representing the whole system to ensure jobs are rerun upon system updates.
@@ -2419,7 +2425,7 @@ The SGE backend connects to a SGE daemon to schedule jobs, which allows :
 
 The configuration is composed of :
 @itemize @bullet
-@item @code{bin_dir} : The directory in which to find SGE executables such as @code{qsub}. This entry must be specified.
+@item @code{bin}  : The directory in which to find SGE executables such as @code{qsub}. This entry must be specified.
 @item @code{cell} : The cell used by the SGE daemon. This is translated into @code{$SGE_CELL} when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.
 @item @code{cluster} : The cluster used by the SGE daemon. This is translated into @code{$SGE_CLUSTER} when SGE commands are called.
@@ -2438,7 +2444,7 @@ A reasonable value probably lies in the 20-100 range.
 This key is meant to be a short identifier of the repository.
 By default it is the base name of the repository followed by @code{:}.
 Note that SGE precludes some characters and these are replaced by close looking characters (e.g. @code{;} instead of @code{:}).
-@item @code{root_dir} : The root directory of the SGE daemon. This is translated into @code{$SGE_ROOT} when SGE commands are called. This entry must be specified.
+@item @code{root}         : The root directory of the SGE daemon. This is translated into @code{$SGE_ROOT} when SGE commands are called. This entry must be specified.
 @item @code{cpu_resource} : This is the name of a resource used to require cpu's.
 For example if specified as @code{cpu_r} and the rule of a job contains @code{resources=@{'cpu':2@}}, this is translated into @code{-l cpu_r=2} on the @code{qsub} command line.
 @item @code{mem_resource} : This is the name of a resource used to require memory in MB.
@@ -2586,7 +2592,7 @@ This method is recommended on systems that support it.
 
 The job is run @code{ptrace}'ed. The seccomp mechanism is used (if available) to reduce the performance hit to the minimum possible but still, it is often unacceptable.
 There is no requirement that @file{libc.so} be dynamically linked.
-It is almost not invasive (mostly the job cannot use ptrace itself, i.e. you will not be able to run an executable level debugger).
+It is almost not invasive.
 
 Th main adavantage is that it works with a statically linked @code{libc}.
 The main inconvenients are that the performance hit can be severe and that 32 bits executables are not supported yet (if run on a 64 bits system).
@@ -2975,8 +2981,6 @@ class Gcc(lmake.Rule) :
 	cmd     = 'ldepend a/mrkr b/mrkr c/mrkr ; gcc -Ia -Ib -Ic -c -o @{OBJ@} @{SRC@}'
 @end group
 @end example
-
-@XXX{to be completed}
 
 @chapter Glossary
 

@@ -26,10 +26,10 @@ if __name__!='__main__' :
 		cmd     = 'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -O0 -fdiagnostics-color=always -std=c++20 -pthread -o {EXE} {SRC}'
 
 	class Dut(Rule) :
-		target      = r'{File:.*}.out'
-		deps        = { 'EXE':'{File}.exe'                  }
-		environ_cmd = { 'LD_LIBRARY_PATH' : ld_library_path }
-		cmd         = './{EXE}'
+		target  = r'{File:.*}.out'
+		deps    = { 'EXE':'{File}.exe'                  }
+		environ = { 'LD_LIBRARY_PATH' : ld_library_path }
+		cmd     = './{EXE}'
 
 else :
 

@@ -3,8 +3,10 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <dlfcn.h>
-#include <link.h>     // dl related stuff
+#pragma once
+
+#include <dlfcn.h>    // dl related stuff
+#include <link.h>     // elf related stuff
 #include <sys/auxv.h> // getauxval
 
 #include "disk.hh"
@@ -12,21 +14,6 @@
 #include "record.hh"
 
 using namespace Disk ;
-
-struct Ctx {
-	// cxtors & casts
-	Ctx               () { save_errno   () ; }
-	~Ctx              () { restore_errno() ; }
-	// services
-	void save_errno   () { errno_ = errno  ; }
-	void restore_errno() { errno  = errno_ ; }
-	// data
-	int errno_ ;
-} ;
-
-void load_exec(::string const& file) {
-	(void)file ;
-}
 
 //
 // Elf
@@ -36,10 +23,10 @@ void load_exec(::string const& file) {
 // this cannot be done by examining objects after they are loaded as we need to know files that have been tried before the ones that finally were loaded
 
 struct Elf {
-	using Ehdr  = ElfW(Ehdr)    ;
-	using Phdr  = ElfW(Phdr)    ;
-	using Shdr  = ElfW(Shdr)    ;
-	using Dyn   = ElfW(Dyn )    ;
+	using Ehdr = ElfW(Ehdr) ;
+	using Phdr = ElfW(Phdr) ;
+	using Shdr = ElfW(Shdr) ;
+	using Dyn  = ElfW(Dyn ) ;
 
 	static constexpr bool Is32Bits = sizeof(void*)==4 ;
 	static constexpr bool Is64Bits = sizeof(void*)==8 ;
@@ -71,7 +58,7 @@ struct Elf {
 	// cxtors & casts
 	Elf( Record& r_ , ::string const& exe , const char* llp , const char* rp=nullptr ) : r{&r_} , ld_library_path{s_expand(llp,exe)} , rpath{s_expand(rp,exe)} {
 		if (!llp) return ;
-		::string const& root_s = Record::s_autodep_env().root_dir_s ; SWEAR(+root_s) ;    // root_s contains at least /
+		::string const& root_s = Record::s_autodep_env().repo_root_s ; SWEAR(+root_s) ;   // root_s contains at least /
 		size_t          sz     = root_s.size()-1 ;
 		bool start = true ;
 		for( const char* p=llp ; *p ; p++ ) {
@@ -96,7 +83,7 @@ struct Elf {
 	bool                      simple_llp      = false              ;                      // if true => ld_library_path contains no dir to the repo
 } ;
 
-Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
+inline Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
 	if (file_map.sz<sizeof(Ehdr)) throw 2 ;                                                                           // file too small : stop analysis and ignore
 	//
 	Ehdr const& ehdr       = file_map.get<Ehdr>() ;
@@ -143,7 +130,7 @@ template<class T> T const& Elf::DynDigest::_s_vma_to_ref( size_t vma , FileMap c
 	throw 1 ; // bad address : stop analysis and ignore
 }
 
-::pair<const char*,size_t> Elf::DynDigest::_s_str_tab( Dyn const* dyn_tab , FileMap const& file_map ) {
+inline ::pair<const char*,size_t> Elf::DynDigest::_s_str_tab( Dyn const* dyn_tab , FileMap const& file_map ) {
 	const char* str_tab = nullptr ;
 	size_t      sz      = 0       ;
 	for( Dyn const* dyn=dyn_tab ; dyn->d_tag!=DT_NULL ; dyn++ ) {
@@ -161,7 +148,7 @@ template<class T> T const& Elf::DynDigest::_s_vma_to_ref( size_t vma , FileMap c
 	throw 8 ;                                                                                   // cannot find dyn string table
 }
 
-Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map ) {
+inline Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map ) {
 	auto        [str_tab,str_sz] = _s_str_tab(dyn_tab,file_map) ;
 	const char* str_tab_end      = str_tab + str_sz             ;
 	for( Dyn const* dyn=dyn_tab ; dyn->d_tag!=DT_NULL ; dyn++ ) {
@@ -179,11 +166,11 @@ Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map ) {
 	if ( runpath && !*runpath ) runpath = nullptr ;
 }
 
-static ::string _mk_origin(::string const& exe) {
-	if (+exe) {        ::string abs_exe = mk_abs(exe,Record::s_autodep_env().root_dir_s) ; return no_slash(dir_name_s(abs_exe)) ; }
-	else      { static ::string abs_exe = read_lnk("/proc/self/exe")                     ; return no_slash(dir_name_s(abs_exe)) ; }
+inline ::string _mk_origin(::string const& exe) {
+	if (+exe) {        ::string abs_exe = mk_abs(exe,Record::s_autodep_env().repo_root_s) ; return no_slash(dir_name_s(abs_exe)) ; }
+	else      { static ::string abs_exe = read_lnk("/proc/self/exe")                      ; return no_slash(dir_name_s(abs_exe)) ; }
 } ;
-::string Elf::s_expand( const char* txt , ::string const& exe ) {
+inline ::string Elf::s_expand( const char* txt , ::string const& exe ) {
 	static constexpr const char* LdSoLib   =                 LD_SO_LIB              ;
 	static constexpr const char* LdSoLib32 = LD_SO_LIB_32[0]?LD_SO_LIB_32:LD_SO_LIB ; // on 32 bits systems, there is only 32 bits apps and info is in LD_SO_LIB
 	if (!txt) return {} ;
@@ -203,7 +190,7 @@ static ::string _mk_origin(::string const& exe) {
 	return res ;
 }
 
-Record::ReadCS Elf::search_elf( ::string const& file , ::string const& runpath , ::string&& comment ) {
+inline Record::ReadCS Elf::search_elf( ::string const& file , ::string const& runpath , ::string&& comment ) {
 	if (!file               ) return {} ;
 	if (file.find('/')!=Npos) {
 		if (!seen.try_emplace(file,Maybe).second) return {} ;
@@ -226,8 +213,8 @@ Record::ReadCS Elf::search_elf( ::string const& file , ::string const& runpath ,
 		/**/            full_file += file                     ;
 		Record::ReadCS rr { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , ::copy(comment) } ;
 		auto [it,inserted] = seen.try_emplace(rr.real,Maybe) ;
-		if ( it->second==Maybe           )   it->second = No | is_target(Record::s_root_fd(),rr.real,false/*no_follow*/) ; // real may be a sym link in the system directories
-		if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , comment+".dep" ) ; return rr ; }
+		if ( it->second==Maybe           )   it->second = No | is_target(Record::s_repo_root_fd(),rr.real,false/*no_follow*/) ;   // real may be a sym link in the system directories
+		if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , comment+".dep" ) ; return rr ;                       }
 		if ( it->second==Yes             )                                                    return {} ;
 		if (end==Npos) break ;
 		pos = end+1 ;
@@ -235,30 +222,30 @@ Record::ReadCS Elf::search_elf( ::string const& file , ::string const& runpath ,
 	return {} ;
 }
 
-void Elf::elf_deps( Record::SolveCS const& file , bool top , ::string&& comment ) {
+inline void Elf::elf_deps( Record::SolveCS const& file , bool top , ::string&& comment ) {
 	if ( simple_llp && file.file_loc==FileLoc::Ext ) return ;
 	try {
-		FileMap   file_map { Record::s_root_fd() , file.real } ; if (!file_map) return ;                                                               // real may be a sym link in system dirs
-		DynDigest digest   { file_map }                        ;
+		FileMap   file_map { Record::s_repo_root_fd() , file.real } ; if (!file_map) return ;                                                          // real may be a sym link in system dirs
+		DynDigest digest   { file_map }                             ;
 		if (top) rpath = digest.rpath ;                                                                                                                // rpath applies to the whole search
 		for( const char* needed : digest.neededs ) search_elf( s_expand(needed,file.real) , s_expand(digest.runpath,file.real) , comment+".needed" ) ;
 	} catch (int) { return ; }                                                                                                                         // bad file format, ignore
 }
 
 // capture LD_LIBRARY_PATH when first called : man dlopen says it must be captured at program start, but we capture it before any environment modif, should be ok
-const char* get_ld_library_path() {
+inline const char* get_ld_library_path() {
 	static ::string llp = get_env("LD_LIBRARY_PATH") ;
 	return llp.c_str() ;
 }
 
-Record::ReadCS search_elf( Record& r , const char* file , ::string&& comment ) {
+inline Record::ReadCS search_elf( Record& r , const char* file , ::string&& comment ) {
 	if (!file) return {} ;
 	static Elf::DynDigest s_digest { New } ;
 	try                       { return Elf(r,{},get_ld_library_path(),s_digest.rpath).search_elf( file , Elf::s_expand(s_digest.runpath) , ::move(comment) ) ; }
 	catch (::string const& e) { r.report_panic("while searching elf executable "s+file+" : "+e) ; return {} ;                                                  } // if we cannot report the dep, panic
 }
 
-void elf_deps( Record& r , Record::SolveCS const& file , const char* ld_library_path , ::string&& comment ) {
+inline void elf_deps( Record& r , Record::SolveCS const& file , const char* ld_library_path , ::string&& comment ) {
 	try                       { Elf(r,file.real,ld_library_path).elf_deps( file , true/*top*/ , ::move(comment) ) ; }
 	catch (::string const& e) { r.report_panic("while analyzing elf executable "+mk_file(file.real)+" : "+e) ;      } // if we cannot report the dep, panic
 }

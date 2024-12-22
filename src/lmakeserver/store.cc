@@ -167,6 +167,7 @@ namespace Engine::Persistent {
 			::pair<Name/*top*/,::vector<Name>/*created*/>( {} , {_name_file.insert(name_)} )
 		:	_name_file.insert_chain(name_,'/')
 		;
+		if (+top_created.second) SWEAR(is_canon(name_),name_) ;                          // XXX> : suppress when bug is found, we are supposed to insert only canonic names
 		Node n ; if (+top_created.first) n = _name_file.c_at(top_created.first).node() ;
 		for( Name nn : top_created.second ) n = Node( nn , n ) ;
 		SWEAR(+n,name_) ;
@@ -272,7 +273,7 @@ namespace Engine::Persistent {
 		//
 		if (rescue) {
 			trace("rescue") ;
-			Fd::Stderr.write("previous crash detected, checking & rescueing\n") ;
+			Fd::Stderr.write("previous crash detected, checking & rescuing\n") ;
 			try {
 				chk()                                    ; // first verify we have a coherent store
 				invalidate_match(true/*force_physical*/) ; // then rely only on essential data that should be crash-safe
@@ -556,9 +557,9 @@ namespace Engine::Persistent {
 		::uset<Node        > new_src_dirs ;
 		Trace trace("new_srcs") ;
 		// check and format new srcs
-		size_t      root_dir_depth = 0                                                                ; { for( char c : *g_root_dir_s ) root_dir_depth += c=='/' ; } root_dir_depth-- ;
-		RealPathEnv rpe            { .lnk_support=g_config->lnk_support , .root_dir_s=*g_root_dir_s } ;
-		RealPath    real_path      { rpe                                                            } ;
+		size_t      repo_root_depth = 0                                                                 ; { for( char c : *g_repo_root_s ) repo_root_depth += c=='/' ; } repo_root_depth-- ;
+		RealPathEnv rpe            { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
+		RealPath    real_path      { rpe                                                              } ;
 		for( ::string& src : src_names ) {
 			throw_unless( +src , "found an empty source" ) ;
 			bool        is_dir_ = is_dirname(src)                   ;
@@ -566,7 +567,7 @@ namespace Engine::Persistent {
 			if (!is_canon(src)) throw src_msg+src+" canonical form is "+mk_canon(src) ;
 			//
 			if (is_dir_) {
-				if ( !is_abs_s(src) && uphill_lvl_s(src)>=root_dir_depth ) throw "cannot access relative source dir "+no_slash(src)+" from repository "+no_slash(*g_root_dir_s) ;
+				if ( !is_abs_s(src) && uphill_lvl_s(src)>=repo_root_depth ) throw "cannot access relative source dir "+no_slash(src)+" from repository "+no_slash(*g_repo_root_s) ;
 				src.pop_back() ;
 			}
 			if (dynamic) nfs_guard.access(src) ;
@@ -606,7 +607,7 @@ namespace Engine::Persistent {
 		}
 		if (!fresh) {
 			for( auto [n,t] : new_srcs_ ) if (t==FileTag::Dir) throw "new source dir "+n->name()+' '+git_clean_msg() ; // we may not have recorded some deps to these, and this is unpredictable
-			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ; // XXX : this could be managed if necessary
+			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ; // XXX! : this could be managed if necessary
 		}
 		//
 		for( Node d : src_dirs ) { if ( auto it=old_src_dirs.find(d) ; it!=old_src_dirs.end() ) old_src_dirs.erase(it) ; else new_src_dirs.insert(d) ; }

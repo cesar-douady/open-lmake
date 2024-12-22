@@ -4,22 +4,23 @@
 
 valgrind = '/usr/bin/valgrind'
 
+import lmake
+
 if __name__!='__main__' :
 
-	import lmake
 	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Dut1(Rule) :
-		autodep = 'ptrace'      # XXX : generates a free(): invalid pointer with ld_audit
+		autodep = 'ptrace'      # XXX! : generates a free(): invalid pointer with ld_audit
 		targets = {'LOG':'log'}
 		cmd     = '{valgrind} --log-file={LOG} --tool=memcheck hostname'
 
 	class Dut2(Rule) :
-		max_submit_count = 2
-		autodep          = 'ptrace'                      # valgrind does not go through libc to write its output
-		targets          = { 'LOGS' : r'logdir/{*:.*}' }
+		max_submits = 2
+		autodep     = 'ptrace'                      # valgrind does not go through libc to write its output
+		targets     = { 'LOGS' : r'logdir/{*:.*}' }
 		cmd = '''
 			{valgrind} --log-file={LOGS('log')} --tool=memcheck hostname
 		'''
@@ -28,6 +29,10 @@ else :
 
 	import os
 	import os.path as osp
+
+	if 'ptrace' not in lmake.autodeps :
+		print('ptrace not available',file=open('skipped','w'))
+		exit()
 
 	if not osp.exists(valgrind) :
 		print('valgrind not available',file=open('skipped','w'))

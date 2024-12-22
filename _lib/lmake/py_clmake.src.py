@@ -62,15 +62,15 @@ def check_deps(                      ) :        _run((_bin('lcheck_deps'),      
 def get_autodep(      ) : return True                                                                                           # placeholder
 def set_autodep(enable) : pass                                                                                                  # .
 #
-if 'TOP_ROOT_DIR' in _os.environ :
-	top_root_dir = _os.environ['TOP_ROOT_DIR']
+if 'TOP_REPO_ROOT' in _os.environ :
+	top_repo_root = _os.environ['TOP_REPO_ROOT']
 else :
-	root_dir = _os.getcwd()
-	while root_dir!='/' and not _osp.exists(root_dir+'/Lmakefile.py') : root_dir = _osp.dirname(root_dir)                       # avoid searching Lmakefile.py to avoid new dependency
-	if not root_dir : del root_dir
+	repo_root = _os.getcwd()
+	while repo_root!='/' and not _osp.exists(repo_root+'/Lmakefile.py') : repo_root = _osp.dirname(repo_root)                   # avoid searching Lmakefile.py to avoid new dependency
+	if not repo_root : del repo_root
 #
 autodeps = ()
-if "$HAS_LD_AUDIT" : autodeps += ('ld_audit',                                )
+if "$HAS_LD_AUDIT" : autodeps += ('ld_audit'  ,                              )
 if True            : autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
 #
 backends = ('local',)

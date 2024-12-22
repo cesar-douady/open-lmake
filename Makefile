@@ -5,15 +5,16 @@
 
 VERSION := 24.12
 
-#
-# user configurable
-MAKEFLAGS := -j$(shell nproc||echo 1) -k
-# mandatory
-MAKEFLAGS += -r -R
+ifneq ($(shell uname),Linux)
+    $(error can only compile under Linux)
+endif
+
+MAKEFLAGS := -r -R                       # mandatory
+MAKEFLAGS += -k -j$(shell nproc||echo 1) # user configurable
 
 .DEFAULT_GOAL := DFLT
 
-ROOT_DIR := $(abspath .)
+REPO_ROOT := $(abspath .)
 
 .PHONY : FORCE
 FORCE : ;
@@ -32,9 +33,9 @@ sys_config.env : FORCE
 sys_config.log : _bin/sys_config sys_config.env
 	@echo sys_config
 	@# reread sys_config.env in case it has been modified while reading an old sys_config.mk
-	@set -a ;                                                                   \
-	. ./sys_config.env ;                                                        \
-	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@
+	@set -a ;            \
+	. ./sys_config.env ; \
+	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
 sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h   : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.sum : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
@@ -80,13 +81,17 @@ Manifest : .git/index
 	else                        mv $@.new $@ ; echo new    Manifest ; \
 	fi
 include Manifest.inc_stamp # Manifest is used in this makefile
-SRCS := $(shell cat Manifest 2>/dev/null)
+EXCLUDES := \
+	$(if $(HAS_SLURM)   ,,src/lmakeserver/backends/slurm.cc) \
+	$(if $(HAS_SGE)     ,,src/lmakeserver/backends/sge.cc  ) \
+	$(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc          )
+SRCS := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 
 # this is the recommanded way to insert a , when calling functions
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA := ,
 
-# XXX : add -fdebug_prefix-map=$(ROOT_DIR)=??? when we know a sound value (e.g. the dir in which sources will be installed)
+# XXX! : add -fdebug_prefix-map=$(REPO_ROOT)=??? when we know a sound value (e.g. the dir in which sources will be installed)
 HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden -g
 # syntax for LMAKE_FLAGS : (O[0123])?G?d?t?(S[AT])?P?C?
 # - O[0123] : compiler optimization level, defaults to 1 if profiling else 3
@@ -110,11 +115,13 @@ HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
 HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
 SAN_FLAGS    := $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
+# some user codes may have specific (and older) libs, in that case, unless flag l is used, link libstdc++ statically
+LIB_STDCPP := $(if $(findstring l,$(LMAKE_FLAGS)),,-static-libstdc++)
 #
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
+LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath$(COMMA)%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath$(COMMA)%))
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
-LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath=%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath=%))
 LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) $(PROFILE) -pthread $(LINK_FLAGS)
 LINK_LIB             = -ldl $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
@@ -124,7 +131,7 @@ ifeq ($(CXX_FLAVOR),clang)
 endif
 #
 USER_FLAGS := -std=$(CXX_STD) $(EXTRA_FLAGS) $(COVERAGE) $(PROFILE)
-COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS)
+COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_FLAGS) -fno-strict-aliasing -pthread $(WARNING_FLAGS) $(if $(NEED_EXPERIMENTAL_LIBRARY),-fexperimental-library)
 LINT       := clang-tidy
 LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
 LINT_CHKS  := -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
@@ -133,23 +140,26 @@ LINT_OPTS  := '-header-filter=.*' $(LINT_CHKS)
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CPP_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
 
-PY2_INC_DIRS   := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -isystem
-PY2_CC_FLAGS   := $(if $(PYTHON2),$(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register)
-PY2_LINK_FLAGS := $(if $(PYTHON2),$(patsubst %,-L%,$(PY2_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY2_LIB_DIR)) -l:$(PY2_LIB_BASE))
-PY3_INC_DIRS   := $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))                  # for some reasons, compilation does not work if standard inc dirs are given with -isystem
-PY3_CC_FLAGS   := $(patsubst %,-isystem %,$(PY3_INC_DIRS)) -Wno-register
-PY3_LINK_FLAGS := $(patsubst %,-L%,$(PY3_LIB_DIR))  $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY3_LIB_DIR)) -l:$(PY3_LIB_BASE)
-PCRE_LIB       := $(if $(HAS_PCRE),-lpcre2-8)
+PCRE_LIB := $(if $(HAS_PCRE),-lpcre2-8)
 
-PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,             $@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
-PY_LINK_FLAGS = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
+PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -isystem
+PY3_INC_DIRS :=                 $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))  # .
+PY2_CC_FLAGS := $(if $(PYTHON2),$(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register)
+PY3_CC_FLAGS :=                 $(patsubst %,-isystem %,$(PY3_INC_DIRS)) -Wno-register
+#
+PY2_LINK_FLAGS := $(if $(PYTHON2),$(if $(PY2_LIB_DIR),$(PY2_LIB_DIR)/$(PY2_LIB_BASE),-l:$(PY2_LIB_BASE)) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY2_LIB_DIR)))
+PY3_LINK_FLAGS :=                 $(if $(PY3_LIB_DIR),$(PY3_LIB_DIR)/$(PY3_LIB_BASE),-l:$(PY3_LIB_BASE)) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY3_LIB_DIR))
+
+PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,$@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
+PY_LINK_FLAGS = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
+#
 PY_SO         = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),-py2)
 MOD_SO        = $(if $(and $(HAS_32) ,$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
 MOD_O         = $(if $(and $(HAS_32) ,$(findstring -m32,             $@)),-m32)
 
 COMPILE = $(COMPILE1) $(PY_CC_FLAGS) $(CPP_FLAGS)
 
-# XXX : use split debug info when stacktrace supports it
+# XXX> : use split debug info when stacktrace supports it
 SPLIT_DBG_CMD = \
 	$(if $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(SPLIT_DBG_32),$(SPLIT_DBG)) , \
 		( \
@@ -227,21 +237,21 @@ LMAKE_REMOTE_FILES := \
 	bin/ltarget
 
 LMAKE_DOC_FILES := \
-	doc/lmake_doc.pptx \
-	doc/lmake.html     \
+	doc/lmake_doc.pptx               \
+	$(if $(HAS_TEXI),doc/lmake.html) \
 	$(MAN_FILES)
 
-LMAKE_BASIC_OBJS_ := \
-	src/disk.o    \
-	src/fd.o      \
-	src/hash.o    \
-	src/lib.o     \
-	src/process.o \
-	src/time.o    \
+LMAKE_BASIC_OBJS := \
+	src/disk.o         \
+	src/fd.o           \
+	src/hash.o         \
+	src/lib.o          \
+	src/non_portable.o \
+	src/process.o      \
+	src/time.o         \
 	src/utils.o
 
-LMAKE_BASIC_OBJS     := $(LMAKE_BASIC_OBJS_)               src/non_portable.o
-LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS_:%.o=%$(SAN).o) src/non_portable.o
+LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS:%.o=%$(SAN).o)
 
 LMAKE_FILES        := $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
 LMAKE_BIN_FILES    := $(filter bin/%,$(LMAKE_FILES))
@@ -309,7 +319,7 @@ version.hh : version.hh.stamp ;
 # add system configuration to lmake.py :
 # Sense git bin dir at install time so as to be independent of it at run time.
 # Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
-lib/%.py : _lib/%.src.py sys_config.mk
+lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk
 	@echo customize $< to $@
 	@mkdir -p $(@D)
 	@sed \
@@ -408,10 +418,6 @@ include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS)
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
 LIB_SECCOMP := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
-src/autodep/ld_audit.o                 : src/autodep/ld_common.x.cc
-src/autodep/ld_preload.o               : src/autodep/ld_common.x.cc src/autodep/ld.x.cc
-src/autodep/ld_preload_jemalloc.o      : src/autodep/ld_common.x.cc src/autodep/ld.x.cc
-src/autodep/ld_server$(SAN).o          : src/autodep/ld_common.x.cc src/autodep/ld.x.cc
 src/lmakeserver/backends/slurm$(SAN).o : CPP_FLAGS += $(if $(SLURM_INC_DIR),-isystem $(SLURM_INC_DIR))
 
 CLIENT_SAN_OBJS := \
@@ -422,50 +428,50 @@ CLIENT_SAN_OBJS := \
 	src/trace$(SAN).o
 
 SERVER_SAN_OBJS := \
-	$(LMAKE_BASIC_SAN_OBJS)                   \
-	src/app$(SAN).o                           \
-	src/py$(SAN).o                            \
-	src/re$(SAN).o                            \
-	src/rpc_client$(SAN).o                    \
-	src/rpc_job$(SAN).o                       \
-	src/rpc_job_exec$(SAN).o                  \
-	src/trace$(SAN).o                         \
-	src/autodep/backdoor$(SAN).o              \
-	src/autodep/env$(SAN).o                   \
-	src/autodep/ld_server$(SAN).o             \
-	src/autodep/record$(SAN).o                \
-	src/autodep/syscall_tab$(SAN).o           \
-	src/lmakeserver/backend$(SAN).o           \
-	src/lmakeserver/cache$(SAN).o             \
-	src/lmakeserver/caches/dir_cache$(SAN).o  \
-	src/lmakeserver/codec$(SAN).o             \
-	src/lmakeserver/global$(SAN).o            \
-	src/lmakeserver/config$(SAN).o            \
-	src/lmakeserver/job$(SAN).o               \
-	src/lmakeserver/node$(SAN).o              \
-	src/lmakeserver/req$(SAN).o               \
-	src/lmakeserver/rule$(SAN).o              \
+	$(LMAKE_BASIC_SAN_OBJS)                             \
+	src/app$(SAN).o                                     \
+	src/py$(SAN).o                                      \
+	src/re$(SAN).o                                      \
+	src/rpc_client$(SAN).o                              \
+	src/rpc_job$(SAN).o                                 \
+	src/rpc_job_exec$(SAN).o                            \
+	src/trace$(SAN).o                                   \
+	src/autodep/backdoor$(SAN).o                        \
+	src/autodep/env$(SAN).o                             \
+	src/autodep/ld_server$(SAN).o                       \
+	src/autodep/record$(SAN).o                          \
+	src/autodep/syscall_tab$(SAN).o                     \
+	src/lmakeserver/backend$(SAN).o                     \
+	src/lmakeserver/cache$(SAN).o                       \
+	src/lmakeserver/caches/dir_cache$(SAN).o            \
+	src/lmakeserver/codec$(SAN).o                       \
+	src/lmakeserver/global$(SAN).o                      \
+	src/lmakeserver/config$(SAN).o                      \
+	src/lmakeserver/job$(SAN).o                         \
+	src/lmakeserver/node$(SAN).o                        \
+	src/lmakeserver/req$(SAN).o                         \
+	src/lmakeserver/rule$(SAN).o                        \
 	src/lmakeserver/store$(SAN).o
 
 _bin/lmakeserver : \
-	$(SERVER_SAN_OBJS)                                        \
-	src/autodep/gather$(SAN).o                                \
-	src/autodep/ptrace$(SAN).o                                \
-	                  src/lmakeserver/backends/local$(SAN).o  \
-	$(if $(HAS_SLURM),src/lmakeserver/backends/slurm$(SAN).o) \
-	$(if $(HAS_SGE)  ,src/lmakeserver/backends/sge$(SAN).o  ) \
-	src/lmakeserver/cmd$(SAN).o                               \
-	src/lmakeserver/makefiles$(SAN).o                         \
+	$(SERVER_SAN_OBJS)                                         \
+	src/autodep/gather$(SAN).o                                 \
+	src/autodep/ptrace$(SAN).o                                 \
+	src/lmakeserver/backends/local$(SAN).o                     \
+	$(if $(HAS_SLURM) ,src/lmakeserver/backends/slurm$(SAN).o) \
+	$(if $(HAS_SGE)   ,src/lmakeserver/backends/sge$(SAN).o  ) \
+	src/lmakeserver/cmd$(SAN).o                                \
+	src/lmakeserver/makefiles$(SAN).o                          \
 	src/lmakeserver/main$(SAN).o
 
 bin/lrepair : \
-	$(SERVER_SAN_OBJS)                                        \
-	src/autodep/gather$(SAN).o                                \
-	src/autodep/ptrace$(SAN).o                                \
-	                  src/lmakeserver/backends/local$(SAN).o  \
-	$(if $(HAS_SLURM),src/lmakeserver/backends/slurm$(SAN).o) \
-	$(if $(HAS_SGE)  ,src/lmakeserver/backends/sge$(SAN).o  ) \
-	src/lmakeserver/makefiles$(SAN).o                         \
+	$(SERVER_SAN_OBJS)                                         \
+	src/autodep/gather$(SAN).o                                 \
+	src/autodep/ptrace$(SAN).o                                 \
+	src/lmakeserver/backends/local$(SAN).o                     \
+	$(if $(HAS_SLURM) ,src/lmakeserver/backends/slurm$(SAN).o) \
+	$(if $(HAS_SGE)   ,src/lmakeserver/backends/sge$(SAN).o  ) \
+	src/lmakeserver/makefiles$(SAN).o                          \
 	src/lrepair$(SAN).o
 
 _bin/ldump : \
@@ -483,11 +489,11 @@ _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-bin/lmake   : $(CLIENT_SAN_OBJS)               src/lmake$(SAN).o
-bin/lshow   : $(CLIENT_SAN_OBJS)               src/lshow$(SAN).o
-bin/lforget : $(CLIENT_SAN_OBJS)               src/lforget$(SAN).o
-bin/lmark   : $(CLIENT_SAN_OBJS)               src/lmark$(SAN).o
-bin/ldebug  : $(CLIENT_SAN_OBJS:%$(SAN).o=%.o) src/ldebug.o        src/py.o
+bin/lmake   : $(CLIENT_SAN_OBJS) src/lmake$(SAN).o
+bin/lshow   : $(CLIENT_SAN_OBJS) src/lshow$(SAN).o
+bin/lforget : $(CLIENT_SAN_OBJS) src/lforget$(SAN).o
+bin/lmark   : $(CLIENT_SAN_OBJS) src/lmark$(SAN).o
+bin/ldebug  : $(CLIENT_SAN_OBJS) src/ldebug$(SAN).o src/py$(SAN).o
 
 LMAKE_DBG_FILES += bin/lmake bin/lshow bin/lforget bin/lmark
 bin/lmake bin/lshow bin/lforget bin/lmark :
@@ -497,10 +503,10 @@ bin/lmake bin/lshow bin/lforget bin/lmark :
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldebug
-bin/ldebug : # XXX : why ldebug does not support sanitize thread ?
+bin/ldebug :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/ldump_job
@@ -526,10 +532,10 @@ _bin/align_comments : \
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/xxhsum
-bin/xxhsum : $(LMAKE_BASIC_OBJS) src/xxhsum.o # XXX : why xxhsum does not support sanitize thread ?
+bin/xxhsum : $(LMAKE_BASIC_OBJS) src/xxhsum.o # xxhsum may be used in jobs and is thus incompatible with sanitize
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@$(LINK) -o $@ $^ $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 #
@@ -548,25 +554,25 @@ BASIC_REMOTE_OBJS := \
 AUTODEP_OBJS := $(BASIC_REMOTE_OBJS) src/autodep/syscall_tab.o
 REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) src/autodep/job_support.o
 
-JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)      \
-	src/app.o            \
-	src/py.o             \
-	src/re.o             \
-	src/rpc_job.o        \
-	src/trace.o          \
-	src/autodep/gather.o \
-	src/autodep/ptrace.o \
-	src/autodep/record.o
+JOB_EXEC_SAN_OBJS := \
+	$(AUTODEP_OBJS:%.o=%$(SAN).o) \
+	src/app$(SAN).o               \
+	src/py$(SAN).o                \
+	src/re$(SAN).o                \
+	src/rpc_job$(SAN).o           \
+	src/trace$(SAN).o             \
+	src/autodep/gather$(SAN).o    \
+	src/autodep/ptrace$(SAN).o    \
+	src/autodep/record$(SAN).o
 
-_bin/job_exec : $(JOB_EXEC_OBJS) src/job_exec.o
-bin/lautodep  : $(JOB_EXEC_OBJS) src/autodep/lautodep.o
+_bin/job_exec : $(JOB_EXEC_SAN_OBJS) src/job_exec$(SAN).o
+bin/lautodep  : $(JOB_EXEC_SAN_OBJS) src/autodep/lautodep$(SAN).o
 
 LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
-_bin/job_exec bin/lautodep : # XXX : why job_exec and autodep do not support sanitize thread ?
+_bin/job_exec bin/lautodep :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps
@@ -582,7 +588,7 @@ bin/% :
 	@$(LINK) -o $@ $^ $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-# remote libs generate errors when -fsanitize=thread // XXX fix these errors and use $(SAN)
+# remote libs generate errors when -fsanitize=thread # XXX! fix these errors and use $(SAN)
 
 LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    _d$(LD_SO_LIB)/ld_preload_jemalloc.so
 LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so
@@ -601,7 +607,7 @@ lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/clmake-py
 %.so :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -shared -static-libstdc++ $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(LINK_LIB) # some user codes may have specific (and older) libs, avoid dependencies
+	@$(LINK) -shared $(LIB_STDCPP) $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 #
@@ -617,12 +623,12 @@ UNIT_TESTS : \
 	$(patsubst %.dir/run.py,%.dir/tok,$(filter examples/%.dir/run.py,$(UT_SRCS)))
 
 TEST_ENV = \
-	export PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH                                         ; \
-	export PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib:$(ROOT_DIR)/unit_tests/base:$$PYTHONPATH ; \
-	export CXX=$(CXX)                                                                           ; \
-	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                        ; \
-	export HAS_32=$(HAS_32)                                                                     ; \
-	export PYTHON2=$(PYTHON2)                                                                   ; \
+	export PATH=$(REPO_ROOT)/bin:$(REPO_ROOT)/_bin:$$PATH                                          ; \
+	export PYTHONPATH=$(REPO_ROOT)/lib:$(REPO_ROOT)/_lib:$(REPO_ROOT)/unit_tests/base:$$PYTHONPATH ; \
+	export CXX=$(CXX)                                                                              ; \
+	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                           ; \
+	export HAS_32=$(HAS_32)                                                                        ; \
+	export PYTHON2=$(PYTHON2)                                                                      ; \
 	exec </dev/null >$@.out 2>$@.err
 
 # keep $(@D) to ease debugging, ignore git rc as old versions work but generate errors
@@ -641,7 +647,7 @@ TEST_POSTLUDE = \
 	@$(TEST_PRELUDE)
 	@for f in $(UT_BASE) ; do df=$(@D)/$${f#unit_tests/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	@( $(TEST_ENV) ; cd $(@D) ; $(ROOT_DIR)/$< ) ; $(TEST_POSTLUDE)
+	@( $(TEST_ENV) ; cd $(@D) ; $(REPO_ROOT)/$< ) ; $(TEST_POSTLUDE)
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
 	@echo py test to $@
@@ -691,13 +697,13 @@ lmake_env/stamp : $(LMAKE_ALL_FILES) lmake_env/Manifest $(patsubst %,lmake_env/%
 	@touch $@
 	@echo init lmake_env-cache
 lmake_env/tok : lmake_env/stamp lmake_env/Lmakefile.py
-	@set -e ;                                                               \
-	cd lmake_env ;                                                          \
-	export CXX=$(CXX) ;                                                     \
-	rc=0 ;                                                                  \
-	$(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ;                      \
-	$(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) || { rm -f $(@F) ; rc=1 ; } ; \
-	wait $$!                                  || { rm -f $(@F) ; rc=1 ; } ; \
+	@set -e ;                                                                \
+	cd lmake_env ;                                                           \
+	export CXX=$(CXX) ;                                                      \
+	rc=0 ;                                                                   \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz -Vn & sleep 1 ;                      \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F) || { rm -f $(@F) ; rc=1 ; } ; \
+	wait $$!                                   || { rm -f $(@F) ; rc=1 ; } ; \
 	exit $$rc
 
 #
@@ -748,13 +754,13 @@ DEBIAN_DEPS :
 #
 # /!\ this rule is necessary for debian packaging to work, it is not primarily made to be executed by user
 #
-install : $(LMAKE_ALL_FILES) doc/lmake.html $(EXAMPLE_FILES)
-	set -e ; for f in $(LMAKE_SERVER_BIN_FILES); do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	set -e ; for f in $(LMAKE_REMOTE_FILES)    ; do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	set -e ; for f in $(LMAKE_DBG_FILES_ALL)   ; do install -D -m 644     $$f.dbg $(DESTDIR)/usr/lib/open-lmake/$$f.dbg        ; done
-	set -e ; for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644     $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	set -e ; for f in lmake.html               ; do install -D -m 644 doc/$$f     $(DESTDIR)/usr/share/doc/open-lmake/html/$$f ; done
-	set -e ; for f in $(EXAMPLE_FILES)         ; do install -D -m 644     $$f     $(DESTDIR)/usr/share/doc/open-lmake/$$f      ; done
+install : $(LMAKE_ALL_FILES) $(if $(HAS_TEXI),doc/lmake.html) $(EXAMPLE_FILES)
+	:;               set -e ; for f in $(LMAKE_SERVER_BIN_FILES); do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
+	:;               set -e ; for f in $(LMAKE_REMOTE_FILES)    ; do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
+	:;               set -e ; for f in $(LMAKE_DBG_FILES_ALL)   ; do install -D -m 644     $$f.dbg $(DESTDIR)/usr/lib/open-lmake/$$f.dbg        ; done
+	:;               set -e ; for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644     $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
+	$(if $(HAS_TEXI),set -e ; for f in lmake.html               ; do install -D -m 644 doc/$$f     $(DESTDIR)/usr/share/doc/open-lmake/html/$$f ; done)
+	:;               set -e ; for f in $(EXAMPLE_FILES)         ; do install -D -m 644     $$f     $(DESTDIR)/usr/share/doc/open-lmake/$$f      ; done
 
 DEBIAN : open-lmake_$(DEBIAN_VERSION).stamp
 
@@ -764,7 +770,7 @@ DEBIAN_SRCS := $(filter-out unit_tests/%,$(filter-out lmake_env/%,$(SRCS)))
 open-lmake_$(DEBIAN_VERSION).stamp : $(DEBIAN_SRCS)
 	rm -rf debian-repo
 	mkdir debian-repo
-	echo LMAKE_FLAGS=O3Gt > debian-repo/sys_config.env
+	echo LMAKE_FLAGS=O3Gtl > debian-repo/sys_config.env
 	tar -c $(DEBIAN_SRCS) | tar -x -Cdebian-repo
 	sed \
 		-e 's!\$$DEBIAN_VERSION!$(DEBIAN_VERSION)!' \
@@ -773,7 +779,7 @@ open-lmake_$(DEBIAN_VERSION).stamp : $(DEBIAN_SRCS)
 	{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f     /usr/$$f                   ; done ; } > debian-repo/debian/open-lmake.links
 	{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>debian-repo/debian/open-lmake.links
 	{ for f in                   $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > debian-repo/debian/open-lmake.manpages
-	{ for f in                   $(SRCS)             ; do echo $$f                                                    ; done ; } > debian-repo/Manifest
-	# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX : find a way to filter out these lines more cleanly
+	cat Manifest                                                                                                                 > debian-repo/Manifest
+	# work around a lintian bug that reports elf-error warnings for debug symbol files                                        # XXX! : find a way to filter out these lines more cleanly
 	cd debian-repo ; debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
 	touch $@

@@ -37,8 +37,8 @@ if __name__!='__main__' :
 	class Env(Rule) :
 		target = r'env'
 		deps   = { 'ONE' : 'one' }
-		if step==1 : environ_cmd = { 'VAR' : "{open(ONE  ).read().strip()}" } # static dep
-		else       : environ_cmd = { 'VAR' : "{open('two').read().strip()}" } # hidden dep
+		if step==1 : environ = { 'VAR' : "{open(ONE  ).read().strip()}" } # static dep
+		else       : environ = { 'VAR' : "{open('two').read().strip()}" } # hidden dep
 		cmd = '[ $VAR = {step} ] && echo $VAR'
 
 else :
@@ -49,7 +49,7 @@ else :
 	print(2,file=open('two'  ,'w'))
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake('deps','resources','env',new=1,no_deps=1,done=2,rc=1) # resources can have dynamic deps
+	ut.lmake('deps','resources','env',new=1,cannot_compute_deps=1,done=2,rc=1) # resources can have dynamic deps
 
 	print('step=2',file=open('step.py','w'))
 	ut.lmake('deps','resources','env',new=1,done=3)

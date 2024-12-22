@@ -46,8 +46,8 @@ from os import environ
 def mkLocal(fileName) :
 	if not fileName     : return ''
 	if fileName[0]!='/' : return fileName
-	# ROOT_DIR is typically set after import of this module as importer is meant to be imported very early.
-	try             : root = environ['ROOT_DIR']
+	# REPO_ROOT is typically set after import of this module as importer is meant to be imported very early.
+	try             : root = environ['REPO_ROOT']
 	except KeyError : root = os.getcwd()
 	rootSlash = root+'/'
 	if (fileName+'/').startswith(rootSlash) : return fileName[len(rootSlash):]
@@ -213,13 +213,13 @@ if 'importer_done' not in sys.__dict__ :
 			for f in sys.local_path :
 				yield osp.join(f,*name)
 		def findLocalSpec(self,name,path=()) :
-			root  = environ.get('ROOT_DIR','')
+			root  = environ.get('REPO_ROOT','')
 			bases = []
 			for base in self.bases(name,path) :
 				if base in bases : continue
 				if base is False : break
 				for suffix,isPkg,loader in sys.import_policy :
-					src = osp.join(root,base+suffix) # beware that cwd may not be ROOT_DIR, but in that case, ROOT_DIR should be set
+					src = osp.join(root,base+suffix) # beware that cwd may not be REPO_ROOT, but in that case, REPO_ROOT should be set
 					try    : open(src,'r')           # trigger dependency
 					except : continue
 					if isPkg :

@@ -5,12 +5,11 @@
 
 if __name__!='__main__' :
 
-	import lmake
-
 	def config() :
 		pass
 
 	def sources() :
+		import lmake
 		lmake.manifest = (
 			'Lmakefile.py'
 		,	'hello'
@@ -18,9 +17,9 @@ if __name__!='__main__' :
 		)
 
 	def rules() :
-
+		#
 		from lmake.rules import Rule,PyRule
-
+		#
 		class Cat(Rule) :
 			stems = {
 				'File1' : r'.*'
@@ -30,11 +29,11 @@ if __name__!='__main__' :
 				'FIRST'  : '{File1}'
 			,	'SECOND' : '{File2}'
 			}
-
+		#
 		class CatSh(Cat) :
 			target = '{File1}+{File2}_sh'
 			cmd    = 'cat {FIRST} {SECOND}'
-
+		#
 		class CatPy(Cat,PyRule) :
 			target = '{File1}+{File2}_py'
 			def cmd() :

@@ -120,7 +120,7 @@ index bef02c3..0ee042f 100644
 --- a/_lib/lmake/py_clmake.src.py
 +++ b/_lib/lmake/py_clmake.src.py
 @@ -71,9 +71,8 @@ else :
- 	if not root_dir : del root_dir
+ 	if not repo_root : del repo_root
  #
  autodeps = ()
 -if "$HAS_FUSE"     : autodeps += ('fuse'    ,)
@@ -287,7 +287,7 @@ index e491e9a..4e2d8ed 100644
 -	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, fuse, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                } }
 +	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                      } }
  	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
- 	,	{ CmdFlag::RootView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
+ 	,	{ CmdFlag::RepoView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
  	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                    } }
 diff --git a/src/lmakeserver/rule.x.hh b/src/lmakeserver/rule.x.hh
 index 9cfa395..87ec32d 100644
@@ -342,8 +342,8 @@ index a7473a3..d77c6df 100644
 -	#if !HAS_FUSE
 -		SWEAR(!use_fuse) ;
 -	#endif
--	Trace trace("JobSpace::enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s,STR(use_fuse)) ;
-+	Trace trace("JobSpace::enter",*this,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s) ;
+-	Trace trace("JobSpace::enter",*this,phy_repo_root_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s,STR(use_fuse)) ;
++	Trace trace("JobSpace::enter",*this,phy_repo_root_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s) ;
  	//
 -	if ( !use_fuse && !*this ) return false/*entered*/ ;
 +	if (!*this) return false/*entered*/ ;
@@ -352,7 +352,7 @@ index a7473a3..d77c6df 100644
  	int gid = ::getgid() ;          // .
 @@ -262,16 +246,15 @@ bool/*entered*/ JobSpace::enter(
  	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ;
- 	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
+ 	bool     must_create_root = +super_repo_view_s && !is_dir(chroot_dir+no_slash(super_repo_view_s)) ;
  	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
 -	trace("create",STR(must_create_root),STR(must_create_tmp),STR(use_fuse)) ;
 -	if ( must_create_root || must_create_tmp || +views || use_fuse )
@@ -373,14 +373,14 @@ index a7473a3..d77c6df 100644
 @@ -302,12 +285,6 @@ bool/*entered*/ JobSpace::enter(
  	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
  	//
- 	::string root_dir_s = +root_view_s ? root_view_s : phy_root_dir_s ;
+ 	::string repo_root_s = +repo_view_s ? repo_view_s : phy_repo_root_s ;
 -	#if HAS_FUSE
--		if (use_fuse) { //!                                                                                                                         pfx_s     report_writes
--			/**/                                          _mount_fuse( chroot_dir+                 root_dir_s  ,                  phy_root_dir_s  , {}        , true      ) ;
--			for( ::string const& src_dir_s : src_dirs_s ) _mount_fuse( chroot_dir+mk_abs(src_dir_s,root_dir_s) , mk_abs(src_dir_s,phy_root_dir_s) , src_dir_s , false     ) ;
+-		if (use_fuse) { //!                                                                                                                           pfx_s     report_writes
+-			/**/                                          _mount_fuse( chroot_dir+                 repo_root_s  ,                  phy_repo_root_s  , {}        , true      ) ;
+-			for( ::string const& src_dir_s : src_dirs_s ) _mount_fuse( chroot_dir+mk_abs(src_dir_s,repo_root_s) , mk_abs(src_dir_s,phy_repo_root_s) , src_dir_s , false     ) ;
 -		} else
 -	#endif
- 	if (+root_view_s) _mount_bind( chroot_dir+super_root_view_s , phy_super_root_dir_s ) ;
+ 	if (+repo_view_s) _mount_bind( chroot_dir+super_repo_view_s , phy_super_repo_root_s ) ;
  	if (+tmp_view_s ) {
  		if      (+phy_tmp_dir_s) _mount_bind( chroot_dir+tmp_view_s , phy_tmp_dir_s ) ;
 @@ -348,14 +325,6 @@ bool/*entered*/ JobSpace::enter(
@@ -407,9 +407,9 @@ index a7473a3..d77c6df 100644
 -	#else
 -		bool need_fuse = false ;
 -	#endif
- 	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                            ;
--	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s , need_fuse ) ;
-+	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s ) ;
+ 	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                                         ;
+-	bool     entered        = job_space.enter( actions , phy_repo_root_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s , need_fuse ) ;
++	bool     entered        = job_space.enter( actions , phy_repo_root_s , phy_tmp_dir_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s             ) ;
  	if (entered) {
  		// find a good starting pid
  		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
@@ -426,10 +426,10 @@ index d535e90..8a529a2 100644
  ,	LdAudit
  ,	LdPreload
 @@ -600,9 +599,8 @@ struct JobSpace {
- 	,	size_t                 tmp_sz_mb      // .
- 	,	::string        const& work_dir_s     // .
- 	,	::vector_s      const& src_dirs_s={}  // .
--	,	bool                   use_fuse   = false // .
+ 	,	size_t                 tmp_sz_mb        // .
+ 	,	::string        const& work_dir_s       // .
+ 	,	::vector_s      const& src_dirs_s={}    // .
+-	,	bool                   use_fuse  =false // .
  	) ;
 -	void exit() ;
 +	void exit() {}

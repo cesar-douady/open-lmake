@@ -17,17 +17,17 @@ extern "C" {
 }
 #pragma GCC visibility pop
 
-::pair_ss search_root_dir_s(::string const& cwd_s_) {
-	::string from_dir_s = cwd_s_.front()=='/' ? cwd_s_ : cwd_s()+cwd_s_ ;
-	::string root_dir_s = from_dir_s                                    ;
+::pair_ss search_root_s(::string const& cwd_s_) {
+	::string from_dir_s  = cwd_s_.front()=='/' ? cwd_s_ : cwd_s()+cwd_s_ ;
+	::string repo_root_s = from_dir_s                                    ;
 	::vector_s candidates ;
-	for(;; root_dir_s = dir_name_s(root_dir_s) ) {
-		if ( is_target(root_dir_s+"Lmakefile.py") || is_target(root_dir_s+"Lmakefile/__init__.py") ) candidates.push_back(root_dir_s) ;
-		if ( root_dir_s.size()==1                                                                  ) break ;
+	for(;; repo_root_s = dir_name_s(repo_root_s) ) {
+		if ( is_target(repo_root_s+"Lmakefile.py") || is_target(repo_root_s+"Lmakefile/__init__.py") ) candidates.push_back(repo_root_s) ;
+		if ( repo_root_s.size()==1                                                                   ) break ;
 	}
 	switch (candidates.size()) {
 		case 0 : throw "cannot find root dir"s ;
-		case 1 : root_dir_s = candidates[0] ; break ;
+		case 1 : repo_root_s = candidates[0] ; break ;
 		default : {
 			::vector_s candidates2 ;
 			for( ::string const& c : candidates ) if (is_dir(no_slash(c+AdminDirS))) candidates2.push_back(c) ;
@@ -37,7 +37,7 @@ extern "C" {
 					for( ::string const& c : candidates ) msg << "\tmkdir " << no_slash(c+AdminDirS) <<'\n' ;
 					throw msg ;
 				}
-				case 1 : root_dir_s = ::move(candidates2[0]) ; break ;
+				case 1 : repo_root_s = ::move(candidates2[0]) ; break ;
 				default : {
 					::string msg = "ambiguous root dir, to disambiguate, consider "s+(candidates2.size()-1)+" of :\n" ;
 					for( ::string const& c : candidates2 ) msg << "\trm -r " << no_slash(c+AdminDirS) <<'\n' ;
@@ -46,5 +46,5 @@ extern "C" {
 			}
 		}
 	}
-	return { root_dir_s , from_dir_s.substr(root_dir_s.size())/*startup_dir_s*/ } ;
+	return { repo_root_s , from_dir_s.substr(repo_root_s.size())/*startup_dir_s*/ } ;
 }

@@ -91,7 +91,7 @@ namespace Engine {
 		void new_eta(                       ) ;
 		//
 	private :
-		void _adjust_eta(bool push_self=false) ;
+		void _adjust_eta( Pdate eta={} , bool push_self=false ) ;
 		//
 		template<class... A> ::string _title    (A&&...) const ;
 		/**/                 ::string _color_pfx(Color ) const ;
@@ -240,7 +240,7 @@ namespace Engine {
 	public :
 		void clear() ;
 		// accesses
-		bool   operator+() const {                    return +job                                               ; }
+		bool   operator+() const {                    return +job                                                ; }
 		bool   is_open  () const {                    return idx_by_start!=Idx(-1)                               ; }
 		JobIdx n_running() const {                    return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
 		Req    req      () const { SWEAR(is_open()) ; return Req::s_reqs_by_start[idx_by_start]                  ; }
@@ -248,11 +248,11 @@ namespace Engine {
 		void audit_summary(bool err) const ;
 		//
 		#define SC ::string const
-		//                                                                                                                                                      as_is
-		void audit_info      ( Color c , SC& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t+' '+Disk::mk_file(lt) , false , l ) ; }
-		void audit_info      ( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , false , l ) ; }
-		void audit_info_as_is( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , true  , l ) ; }
-		void audit_node      ( Color c , SC& p , Node n             , DepDepth l=0 ) const ;
+		//                                                                                                                                          as_is
+		void audit_info      ( Color c , SC& t , SC& lt , DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t+' '+Disk::mk_file(lt) , false , l ) ; }
+		void audit_info      ( Color c , SC& t ,          DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , false , l ) ; }
+		void audit_info_as_is( Color c , SC& t ,          DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , true  , l ) ; }
+		void audit_node      ( Color c , SC& p , Node n , DepDepth l=0 ) const ;
 		//
 		void audit_job( Color , Pdate , SC& step , SC& rule_name , SC& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , SC& step , Job                          , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
@@ -263,9 +263,9 @@ namespace Engine {
 		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je     ,et) ; }
 		#undef SC
 		//
-		void         audit_status( bool ok                                                                                        ) const ;
-		void         audit_stats (                                                                                                ) const ;
-		bool/*seen*/ audit_stderr( Job , ::string const& msg , ::string const& stderr , size_t max_stderr_len=-1 , DepDepth lvl=0 ) const ;
+		void         audit_status( bool ok                                                                                          ) const ;
+		void         audit_stats (                                                                                                  ) const ;
+		bool/*seen*/ audit_stderr( Job , ::string const& msg , ::string const& stderr , size_t max_stderr_len=Npos , DepDepth lvl=0 ) const ;
 	private :
 		void _open_log() ;
 		//
@@ -288,6 +288,7 @@ namespace Engine {
 		Ddate                start_ddate    ;
 		Pdate                eta            ;           // Estimated Time of Arrival
 		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
+		uint8_t              n_retries      = 0       ;
 		bool                 has_backend    = false   ;
 		// summary
 		::vector<Node>                up_to_dates  ;    // asked nodes already done when starting

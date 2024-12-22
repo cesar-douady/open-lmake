@@ -3,13 +3,18 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <linux/limits.h>
-
 #include "disk.hh"
 
 #include "backdoor.hh"
 
 #include "record.hh"
+
+#ifndef O_PATH
+	#define O_PATH 0    // no check for O_PATH if it does not exist
+#endif
+#ifndef O_TMPFILE
+	#define O_TMPFILE 0 // no check for O_TMPFILE if it does not exist
+#endif
 
 using namespace Disk ;
 using namespace Time ;
@@ -21,16 +26,16 @@ using namespace Time ;
 // Record
 //
 
-bool                                                   Record::s_static_report = false        ;
-::vmap_s<DepDigest>                                  * Record::s_deps          = nullptr      ;
-::string                                             * Record::s_deps_err      = nullptr      ;
-::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache  = nullptr      ; // map file to read accesses
-AutodepEnv*                                            Record::_s_autodep_env  = nullptr      ; // declare as pointer to avoid late initialization
-Fd                                                     Record::_s_root_fd      ;
-pid_t                                                  Record::_s_root_pid     = 0            ;
-Fd                                                     Record::_s_report_fd    ;
-pid_t                                                  Record::_s_report_pid   = 0            ;
-uint64_t                                               Record::_s_id           = 0/*garbage*/ ;
+bool                                                   Record::s_static_report  = false        ;
+::vmap_s<DepDigest>                                  * Record::s_deps           = nullptr      ;
+::string                                             * Record::s_deps_err       = nullptr      ;
+::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache   = nullptr      ; // map file to read accesses
+AutodepEnv*                                            Record::_s_autodep_env   = nullptr      ; // declare as pointer to avoid late initialization
+Fd                                                     Record::_s_repo_root_fd  ;
+pid_t                                                  Record::_s_repo_root_pid = 0            ;
+Fd                                                     Record::_s_report_fd     ;
+pid_t                                                  Record::_s_report_pid    = 0            ;
+uint64_t                                               Record::_s_id            = 0/*garbage*/ ;
 
 bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                     // no file is simple (not documented, but used in practice)
@@ -92,9 +97,9 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 	}
 }
 
-bool/*sent*/ Record::report_async_access( JobExecRpcReq&& jerr , bool force ) const {
+bool/*sent_to_server*/ Record::report_async_access( JobExecRpcReq&& jerr , bool force ) const {
 	SWEAR( jerr.proc==Proc::Access || jerr.proc==Proc::DepVerbose , jerr.proc ) ;
-	if ( !force && !enable ) return false/*sent*/ ;                                        // dont update cache as report is not actually done
+	if ( !force && !enable ) return false/*sent_to_server*/ ;                              // dont update cache as report is not actually done
 	if (!jerr.sync) {
 		bool miss = false ;
 		for( auto const& [f,dd] : jerr.files ) {
@@ -113,32 +118,47 @@ bool/*sent*/ Record::report_async_access( JobExecRpcReq&& jerr , bool force ) co
 			}
 			miss = true ;
 		}
-		if (!miss) return false/*sent*/ ;                                                  // modifying accesses cannot be cached as we do not know what other processes may have done in between
+		if (!miss) return false/*sent_to_server*/ ;                                        // modifying accesses cannot be cached as we do not know what other processes may have done in between
 	}
 	return report_direct(::move(jerr)) ;
 }
 
 JobExecRpcReply Record::report_sync_direct( JobExecRpcReq&& jerr , bool force ) const {
-	bool sent = report_direct(::move(jerr),force) ;
-	if (!jerr.sync) return {}           ;
-	if (sent      ) return _get_reply() ;
-	// not under lmake, try to mimic server as much as possible, but of course no real info available
+	bool sent_to_server = report_direct(::move(jerr),force) ;
+	if (!jerr.sync    ) return {}           ;
+	if (sent_to_server) return _get_reply() ;
+	// not under lmake (typically ldebug), try to mimic server as much as possible
 	switch (jerr.proc) {
 		case Proc::Decode :
-		case Proc::Encode : throw "encode/decode not yet implemented without server"s ;
-		default           : return {} ;
+		case Proc::Encode :
+			// /!\ format must stay in sync with Codec::_s_canonicalize
+			for( ::string const& line : AcFd(jerr.codec_file()).read_lines(true/*no_file_ok*/) ) {
+				size_t pos = 0 ;
+				/**/                                             if ( line[pos++]!=' '                  ) continue ; // bad format
+				::string ctx  = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' ' || ctx!=jerr.ctx ) continue ; // .          or bad ctx
+				::string code = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' '                  ) continue ; // .
+				::string val  = parse_printable     (line,pos) ; if ( line[pos  ]!=0                    ) continue ; // .
+				//
+				if (jerr.proc==Proc::Decode) { if (code==jerr.code()) return {jerr.proc,Yes/*ok*/,val } ; }
+				else                         { if (val ==jerr.val ()) return {jerr.proc,Yes/*ok*/,code} ; }
+			}
+			return { jerr.proc , No/*ok*/ , ""s } ;
+		default : return {} ;
 	}
 }
 
 JobExecRpcReply Record::report_sync_access( JobExecRpcReq&& jerr , bool force ) const {
 	jerr.sync = true ;
-	bool sent = report_async_access(::move(jerr),force) ;
-	if (sent) return _get_reply() ;
-	// not under lmake, try to mimic server as much as possible, but of course no real info available
-	// XXX : for Encode/Decode, we should interrogate the server or explore association file directly so as to allow jobs to run with reasonable data
+	bool sent_to_server = report_async_access(::move(jerr),force) ;
+	if (sent_to_server) return _get_reply() ;
+	// not under lmake (typically ldebug), try to mimic server as much as possible
 	switch (jerr.proc) {
-		case Proc::DepVerbose : return { jerr.proc , ::vector<pair<Bool3/*ok*/,Hash::Crc>>(jerr.files.size(),{Yes,{}}) } ;
-		default               : return {                                                                               } ;
+		case Proc::DepVerbose : {
+			::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos ;
+			for( auto const& [f,fi] : jerr.files ) dep_infos.emplace_back(Yes/*ok*/,Crc(f)) ;
+			return { jerr.proc , dep_infos } ;
+		}
+		default : return {} ;
 	}
 }
 
@@ -154,7 +174,7 @@ int Record::Chdir::operator()( Record& r , int rc ) {
 
 Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,false/*create*/,c} { // behave like a read-modify-write
 	if (file_loc>FileLoc::Dep) return ;
-	FileInfo fi { s_root_fd() , real } ;
+	FileInfo fi { s_repo_root_fd() , real } ;
 	if ( +fi && exe!=(fi.tag()==FileTag::Exe) )
 		id = r._report_update( file_loc , ::move(real) , ::move(real0) , fi , accesses|Access::Reg , ::move(c) ) ; // only consider as a target if exe bit changes
 }

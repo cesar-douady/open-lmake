@@ -23,29 +23,22 @@ struct Record {
 	// statics
 	static bool s_is_simple (const char*) ;
 	//
-	static Fd s_root_fd() {
-		SWEAR(_s_autodep_env) ;
+	static bool s_has_server() {
+		return _s_autodep_env->has_server() ;
+	}
+	static Fd s_repo_root_fd() {
 		pid_t pid = ::getpid() ;
-		if (!(+_s_root_fd&&_s_root_pid==pid)) {
-			_s_root_fd = { _s_autodep_env->root_dir_s , Fd::Dir , true/*no_std*/ } ;                                           // avoid poluting standard descriptors
-			SWEAR(+_s_root_fd) ;
-			_s_root_pid = pid ;
+		if (!(+_s_repo_root_fd&&_s_repo_root_pid==pid)) {
+			_s_repo_root_fd  = _s_autodep_env->repo_root_fd() ;
+			_s_repo_root_pid = pid                            ;
 		}
-		return _s_root_fd ;
+		return _s_repo_root_fd ;
 	}
 	static Fd s_report_fd() {
-		pid_t           pid     = ::getpid()              ;
-		::string const& service = _s_autodep_env->service ;
-		if ( !(+_s_report_fd&&_s_report_pid==pid) && +service ) {
-			try {
-				if (service.back()==':') _s_report_fd = { Disk::dir_guard(service.substr(0,service.size()-1)) , Fd::Append } ; // write to file
-				else                     _s_report_fd = ClientSockFd(service).detach()                                       ; // establish connection with server
-				_s_report_fd.no_std() ;                                                                                        // avoid poluting standard descriptors
-			} catch (::string const& e) {
-				fail_prod("while trying to report deps",e) ;
-			}
-			swear_prod(+_s_report_fd,"cannot connect to job_exec through",service) ;
-			_s_report_pid = pid ;
+		pid_t pid = ::getpid() ;
+		if ( !(+_s_report_fd&&_s_report_pid==pid) && +*_s_autodep_env ) {
+			_s_report_fd  = _s_autodep_env->report_fd() ;
+			_s_report_pid = pid                         ;
 		}
 		return _s_report_fd ;
 	}
@@ -62,17 +55,17 @@ struct Record {
 		return *_s_autodep_env ;
 	}
 	static AutodepEnv const& s_autodep_env(NewType) {
-		SWEAR( !s_access_cache == !_s_autodep_env ) ;
+		SWEAR( bool(s_access_cache) == bool(_s_autodep_env) ) ;
 		if (!_s_autodep_env) _s_mk_autodep_env(new AutodepEnv{New}) ;
 		return *_s_autodep_env ;
 	}
 	static void s_hide(int fd) {
-		if (_s_root_fd  .fd==fd) _s_root_fd  .detach() ;
-		if (_s_report_fd.fd==fd) _s_report_fd.detach() ;
+		if (_s_repo_root_fd.fd==fd) _s_repo_root_fd.detach() ;
+		if (_s_report_fd   .fd==fd) _s_report_fd   .detach() ;
 	}
 	static void s_hide( uint min , uint max ) {
-		if ( _s_root_fd  .fd>=0 &&  uint(_s_root_fd  .fd)>=min && uint(_s_root_fd  .fd)<=max ) _s_root_fd  .detach() ;
-		if ( _s_report_fd.fd>=0 &&  uint(_s_report_fd.fd)>=min && uint(_s_report_fd.fd)<=max ) _s_report_fd.detach() ;
+		if ( _s_repo_root_fd.fd>=0 &&  uint(_s_repo_root_fd.fd)>=min && uint(_s_repo_root_fd.fd)<=max ) _s_repo_root_fd.detach() ;
+		if ( _s_report_fd   .fd>=0 &&  uint(_s_report_fd   .fd)>=min && uint(_s_report_fd   .fd)<=max ) _s_report_fd   .detach() ;
 	}
 	// private
 	static void _s_mk_autodep_env(AutodepEnv* ade) {
@@ -80,9 +73,9 @@ struct Record {
 		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
 		// use a random number as starting point for access id's, then it is incremented at each access
 		// this ensures reasonable uniqueness while avoiding heavy host/pid/local_id to ensure uniqueness
-		AcFd    fd = {"/dev/urandom"}                ; SWEAR(+fd)                  ;                                           // getrandom is not available in CentOS7
+		AcFd    fd = {"/dev/urandom"}                ; SWEAR(+fd)                  ; // getrandom is not available in CentOS7
 		ssize_t rc = ::read(fd,&_s_id,sizeof(_s_id)) ; SWEAR(rc==sizeof(_s_id),rc) ;
-		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;                                              // ensure we can confortably generate ids while never generating 0
+		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;    // ensure we can confortably generate ids while never generating 0
 	}
 	// static data
 public :
@@ -91,13 +84,13 @@ public :
 	static ::string                                             * s_deps_err       ;
 	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ; // map file to read accesses
 private :
-	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                              // a file descriptor to repo root dir
-	static pid_t       _s_root_pid    ;                                              // pid in which _s_root_fd is valid
+	static AutodepEnv* _s_autodep_env   ;
+	static Fd          _s_repo_root_fd  ;                                            // a file descriptor to repo root dir
+	static pid_t       _s_repo_root_pid ;                                            // pid in which _s_repo_root_fd is valid
 public:
-	static Fd          _s_report_fd   ;
-	static pid_t       _s_report_pid  ;                                              // pid in which _s_report_fd is valid
-	static uint64_t    _s_id          ;                                              // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
+	static Fd       _s_report_fd  ;
+	static pid_t    _s_report_pid ;                                                  // pid in which _s_report_fd is valid
+	static uint64_t _s_id         ;                                                  // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -140,7 +133,7 @@ private :
 	}
 	//
 	void _report_dep( FileLoc fl , ::string&& f , Accesses a , ::string&& c={} ) const {
-		if (+a) _report_dep( fl , ::move(f) , FileInfo(s_root_fd(),f) , a , ::move(c) ) ;
+		if (+a) _report_dep( fl , ::move(f) , FileInfo(s_repo_root_fd(),f) , a , ::move(c) ) ;
 	}
 	//
 	uint64_t/*id*/ _report_update( FileLoc fl , ::string&& f , ::string&& f0 , FileInfo fi , Accesses a , ::string&& c={} ) const { // f0 is the file to which we write if non-empty
@@ -154,12 +147,12 @@ private :
 		return 0 ;
 	}
 	uint64_t/*id*/ _report_update( FileLoc fl , ::string&& f , ::string&& f0 , Accesses a , ::string&& c={} ) const {
-		return _report_update( fl , ::move(f) , ::move(f0) , +a?FileInfo(s_root_fd(),f):FileInfo() , a , ::move(c) ) ;
+		return _report_update( fl , ::move(f) , ::move(f0) , +a?FileInfo(s_repo_root_fd(),f):FileInfo() , a , ::move(c) ) ;
 	}
 	//
 	uint64_t/*id*/ _report_deps( ::vector_s const& fs , Accesses a , Bool3 unlnk , ::string&& c={} ) const {
 		::vmap_s<FileInfo> files ;
-		for( ::string const& f : fs ) files.emplace_back( f , FileInfo(s_root_fd(),f) ) ;
+		for( ::string const& f : fs ) files.emplace_back( f , FileInfo(s_repo_root_fd(),f) ) ;
 		report_async_access({ Proc::Access , ++_s_id , ::move(files) , {.write=unlnk,.accesses=a} , ::move(c) }) ;
 		return _s_id ;
 	}
@@ -178,16 +171,16 @@ private :
 		if (id) report_direct({ Proc::Confirm , id , ok }) ;
 	}
 public :
-	bool/*sent*/ report_direct( JobExecRpcReq&& jerr , bool force=false ) const {
-		//!                                                              sent
+	bool/*sent_to_server*/ report_direct( JobExecRpcReq&& jerr , bool force=false ) const {
+		//!                                                              sent_to_server
 		if ( !force && !enable )                                  return false ;
 		if ( s_static_report   ) { _static_report(::move(jerr)) ; return true  ; }
 		if ( Fd fd=s_report_fd() ; +fd ) {
 			try                       { OMsgBuf().send(fd,jerr) ;                   }
 			catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }                                 // this justifies panic, but we cannot report panic !
-			return true/*sent*/ ;
+			return s_has_server()/*sent_to_server*/ ;
 		}
-		return false/*sent*/ ;
+		return false/*sent_to_server*/ ;
 	}
 	JobExecRpcReply report_sync_direct ( JobExecRpcReq&& , bool force=false ) const ;
 	bool            report_async_access( JobExecRpcReq&& , bool force=false ) const ;
@@ -257,10 +250,10 @@ public :
 					if (!phys                                                                      ) continue ;       // empty phys do not represent a view
 					if (!( file.starts_with(view) && (is_dirname(view)||file.size()==view.size()) )) continue ;
 					for( size_t i : iota(phys.size()) ) {
-						bool     last  = i==phys.size()-1                                 ;
-						::string f     = phys[i] + file.substr(view.size())               ;
-						FileInfo fi    = !last||+a ? FileInfo(s_root_fd(),f) : FileInfo() ;
-						bool     found = fi.tag()!=FileTag::None || !read                 ;                           // if not reading, assume file is found in upper
+						bool     last  = i==phys.size()-1                                      ;
+						::string f     = phys[i] + file.substr(view.size())                    ;
+						FileInfo fi    = !last||+a ? FileInfo(s_repo_root_fd(),f) : FileInfo() ;
+						bool     found = fi.tag()!=FileTag::None || !read                      ;                      // if not reading, assume file is found in upper
 						fl = r._real_path.file_loc(f) ;                                                               // use f before ::move
 						if (store) {
 							if      (last ) { real  = f ; file_loc  = fl ; }

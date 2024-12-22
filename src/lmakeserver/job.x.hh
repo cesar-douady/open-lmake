@@ -150,21 +150,21 @@ namespace Engine {
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
 		//
-		JobMngtRpcReply  job_analysis( JobMngtProc , ::vector<Dep> const& deps                ) const ; // answer to requests from job execution
-		void             end         ( JobRpcReq&& , bool sav_jrr , ::vmap_ss const& rsrcs={} ) ;       // hit indicates that result is from a cache hit
-		void             give_up     ( Req={} , bool report=true                              ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
+		JobMngtRpcReply  job_analysis( JobMngtProc , ::vector<Dep> const& deps ) const ; // answer to requests from job execution
+		void             end         ( JobEndRpcReq&& , bool sav_jerr          ) ;       // hit indicates that result is from a cache hit
+		void             give_up     ( Req={} , bool report=true               ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
-		JobReport audit_end(ReqInfo&   ,bool with_stats,::string const& pfx,::string const& msg,::string const& stderr   ,size_t max_stderr_len=-1,Delay exec_time={}) const ;
-		JobReport audit_end(ReqInfo& ri,bool with_stats,::string const& pfx,                    ::string const& stderr={},size_t max_stderr_len=-1,Delay exec_time={}) const {
-			return audit_end(ri,with_stats,pfx,{}/*msg*/,stderr,max_stderr_len,exec_time) ;
+		JobReport audit_end(ReqInfo&   ,bool with_stats,::string const& pfx,::string const& msg,::string const& stderr   ,size_t max_stderr_len=-1,Delay exec_time={} , bool retry=false ) const ;
+		JobReport audit_end(ReqInfo& ri,bool with_stats,::string const& pfx,                    ::string const& stderr={},size_t max_stderr_len=-1,Delay exec_time={} , bool retry=false ) const {
+			return audit_end(ri,with_stats,pfx,{}/*msg*/,stderr,max_stderr_len,exec_time,retry) ;
 		}
 		// data
 		in_addr_t   host       = NoSockAddr ;
-		CoarseDelay cost       ;                                                                        // exec time / average number of running job during execution
+		CoarseDelay cost       ;                                                         // exec time / average number of running job during execution
 		Tokens1     tokens1    = 0          ;
 		Pdate       start_date ;
-		Pdate       end_date   ;                                                                        // if no end_date, job is stil on going
+		Pdate       end_date   ;                                                         // if no end_date, job is stil on going
 	} ;
 
 }
@@ -196,8 +196,8 @@ namespace Engine {
 		// services
 		void reset(Job j) {
 			if (step()>Step::Dep) step(Step::Dep,j) ;
-			iter  = {}      ;
-			state = State() ;
+			iter  = {} ;
+			state = {} ;
 		}
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) {
 			ReqInfo::add_watcher(watcher,watcher_req_info) ;
@@ -215,6 +215,9 @@ namespace Engine {
 		// data
 		struct State {
 			friend ::string& operator+=( ::string& , State const& ) ;
+			// cxtors & casts
+			State() = default ;
+			// data
 			JobReason reason          = {}    ;                        //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
 			bool      missing_dsk  :1 = false ;                        //          1 bit , if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
 			RunStatus stamped_err  :2 = {}    ;                        //          2 bits, errors seen in dep until iter before    last parallel chunk
@@ -225,7 +228,9 @@ namespace Engine {
 		DepsIter::Digest iter               ;                          // ~20+6<= 64 bits, deps up to this one statisfy required action
 		State            state              ;                          //  43  <= 96 bits, dep analysis state
 		JobReason        reason             ;                          //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
-		uint8_t          n_submits          = 0     ;                  //          8 bits, number of times job has been submitted to avoid infinite loop
+		uint8_t          n_losts            = 0     ;                  //          8 bits, number of times job has been lost
+		uint8_t          n_retries          = 0     ;                  //          8 bits, number of times job has been seen in error
+		uint8_t          n_submits          = 0     ;                  //         16 bits, number of times job has been rerun
 		bool             force           :1 = false ;                  //          1 bit , if true <=> job must run because reason
 		bool             full            :1 = false ;                  //          1 bit , if true <=>, job result is asked, else only makable
 		bool             start_reported  :1 = false ;                  //          1 bit , if true <=> start message has been reported to user
@@ -237,7 +242,7 @@ namespace Engine {
 	private :
 		Step _step:3 = {} ;                                            //          3 bits
 	} ;
-	static_assert(sizeof(JobReqInfo)==48) ;                            // check expected size, XXX : optimize size, can be 32
+	static_assert(sizeof(JobReqInfo)==56) ;                            // check expected size, XXX! : optimize size, can be 40
 
 }
 
@@ -276,11 +281,14 @@ namespace Engine {
 		void _reset_targets(                        ) { _reset_targets(simple_match()) ; }
 		// accesses
 	public :
-		Job      idx   () const { return Job::s_idx(self) ; }
-		Rule     rule  () const { return rule_crc->rule   ; }
-		::string name  () const {
-			if ( Rule r=rule() ; +r )                               return full_name(r->job_sfx_len())             ;
-			else                      { ::string fn = full_name() ; return fn.substr(0,fn.find(RuleData::JobMrkr)) ; }   // heavier, but works without rule
+		Job      idx () const { return Job::s_idx(self) ; }
+		Rule     rule() const { return rule_crc->rule   ; }
+		::string name() const {
+			::string res ;
+			if ( Rule r=rule() ; +r )                               res = full_name(r->job_sfx_len())             ;
+			else                      { ::string fn = full_name() ; res = fn.substr(0,fn.find(RuleData::JobMrkr)) ; }    // heavier, but works without rule
+			SWEAR(Disk::is_canon(res),res) ;                                                                             // XXX> : suppress when bug is found, job names are supposed to be canonic
+			return res ;
 		}
 		//
 		ReqInfo const& c_req_info  ( Req                                        ) const ;

@@ -51,13 +51,13 @@ namespace Backends::Sge {
 			return res ;
 		}
 		// data
-		int16_t            prio   = 0  ; // priority              : qsub -p <prio>     (prio comes from lmake -b               )
-		uint16_t           cpu    = 0  ; // number of logical cpu : qsub -l <cpu_rsrc> (cpu_rsrc comes from config, always hard)
-		uint32_t           mem    = 0  ; // memory   in MB        : qsub -l <mem_rsrc> (mem_rsrc comes from config, always hard)
-		uint32_t           tmp    = -1 ; // tmp disk in MB        : qsub -l <tmp_rsrc> (tmp_rsrc comes from config, always hard) default : dont manage tmp size (provide infinite storage, reserve none)
-		::vector_s         hard   ;      // hard options          : qsub -hard <val>
-		::vector_s         soft   ;      // soft options          : qsub -soft <val>
-		::vmap_s<uint64_t> tokens ;      // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
+		int16_t            prio   = 0 ; // priority              : qsub -p <prio>     (prio comes from lmake -b               )
+		uint32_t           cpu    = 0 ; // number of logical cpu : qsub -l <cpu_rsrc> (cpu_rsrc comes from config, always hard)
+		uint32_t           mem    = 0 ; // memory   in MB        : qsub -l <mem_rsrc> (mem_rsrc comes from config, always hard)
+		uint32_t           tmp    = 0 ; // tmp disk in MB        : qsub -l <tmp_rsrc> (tmp_rsrc comes from config, always hard) default : dont manage tmp size (provide infinite storage, reserve none)
+		::vector_s         hard   ;     // hard options          : qsub -hard <val>
+		::vector_s         soft   ;     // soft options          : qsub -soft <val>
+		::vmap_s<uint64_t> tokens ;     // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
 		// services
 		::vmap_ss mk_vmap(void) const ;
 	} ;
@@ -137,11 +137,11 @@ namespace Backends::Sge {
 		virtual void sub_config( vmap_ss const& dct , bool dynamic ) {
 			Trace trace(BeChnl,"Sge::config",STR(dynamic),dct) ;
 			//
-			repo_key = base_name(no_slash(*g_root_dir_s))+':' ; // cannot put this code directly as init value as g_root_dir_s is not available early enough
+			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
-						case 'b' : if (k=="bin_dir"          ) { sge_bin_dir_s     = with_slash           (v) ; continue ; } break ;
+						case 'b' : if (k=="bin"              ) { sge_bin_s         = with_slash           (v) ; continue ; } break ;
 						case 'c' : if (k=="cell"             ) { sge_cell          =                       v  ; continue ; }
 						/**/       if (k=="cluster"          ) { sge_cluster       =                       v  ; continue ; }
 						/**/       if (k=="cpu_resource"     ) { cpu_rsrc          =                       v  ; continue ; } break ;
@@ -149,14 +149,14 @@ namespace Backends::Sge {
 						case 'm' : if (k=="mem_resource"     ) { mem_rsrc          =                       v  ; continue ; } break ;
 						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
 						case 'r' : if (k=="repo_key"         ) { repo_key          =                       v  ; continue ; }
-						/**/       if (k=="root_dir"         ) { sge_root_dir_s    = with_slash           (v) ; continue ; } break ;
+						/**/       if (k=="root"             ) { sge_root_s        = with_slash           (v) ; continue ; } break ;
 						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                       v  ; continue ; } break ;
 					DN}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
-			throw_unless( +sge_bin_dir_s  , "must specify bin_dir to configure SGE" ) ;
-			throw_unless( +sge_root_dir_s , "must specify root_dir to configure SGE") ;
+			throw_unless( +sge_bin_s  , "must specify bin to configure SGE" ) ;
+			throw_unless( +sge_root_s , "must specify root to configure SGE") ;
 			if (!dynamic) {
 				daemon = sge_sense_daemon(self) ;
 				_s_sge_cancel_thread.open('C',sge_cancel) ;
@@ -196,10 +196,10 @@ namespace Backends::Sge {
 			SWEAR(+se.rsrcs) ;
 			return "sge_id:"s+se.id.load() ;
 		}
-		// XXX : implement end_job to give explanations if verbose (mimic slurm)
+		// XXX! : implement end_job to give explanations if verbose (mimic slurm)
 		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {
 			if (sge_exec_client({"qstat","-j",::to_string(se.id)}).second) return { {}/*msg*/                      , HeartbeatState::Alive } ;
-			else                                                           return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX : try to distinguish between Lost and Err
+			else                                                           return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX! : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (se.live) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                                // asynchronous (as faster and no return value) cancel
@@ -208,7 +208,7 @@ namespace Backends::Sge {
 			::vector_s sge_cmd_line = {
 				"qsub"
 			,	"-b"     , "y"
-			,	"-o"     , "/dev/null"                                                                                                         // XXX : if verbose, collect stdout/sderr
+			,	"-o"     , "/dev/null"                                                                                                         // XXX? : if verbose, collect stdout/sderr (expensive)
 			,	"-j"     , "y"
 			,	"-shell" , "n"
 			,	"-terse"
@@ -217,13 +217,13 @@ namespace Backends::Sge {
 			SWEAR(+reqs) ;                                                                                                                     // why launch a job if for no req ?
 			int16_t prio = ::numeric_limits<int16_t>::min() ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
 			//
-			if ( prio                                             ) { sge_cmd_line.push_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
-			if ( +cpu_rsrc && rs->cpu                             ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
-			if ( +mem_rsrc && rs->mem                             ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
-			if ( +tmp_rsrc && (rs->tmp!=0&&rs->tmp!=uint32_t(-1)) ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
-			for( auto const& [k,v] : rs ->tokens )                  { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
-			if ( +rs->hard                                        ) {                                   for( ::string const& s : rs->hard ) sge_cmd_line.push_back(s) ; }
-			if ( +rs->soft                                        ) { sge_cmd_line.push_back("-soft") ; for( ::string const& s : rs->soft ) sge_cmd_line.push_back(s) ; }
+			if ( prio                 )            { sge_cmd_line.push_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
+			if ( +cpu_rsrc && rs->cpu )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
+			if ( +mem_rsrc && rs->mem )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
+			if ( +tmp_rsrc && rs->tmp )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
+			for( auto const& [k,v] : rs ->tokens ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
+			if ( +rs->hard            )            {                                   for( ::string const& s : rs->hard ) sge_cmd_line.push_back(s) ; }
+			if ( +rs->soft            )            { sge_cmd_line.push_back("-soft") ; for( ::string const& s : rs->soft ) sge_cmd_line.push_back(s) ; }
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//
@@ -234,28 +234,22 @@ namespace Backends::Sge {
 		}
 
 		::pair_s<bool/*ok*/> sge_exec_client( ::vector_s&& cmd_line , bool gather_stdout=false ) const {
-			::map_ss add_env = { { "SGE_ROOT" , no_slash(sge_root_dir_s) } } ;
+			::map_ss add_env = { { "SGE_ROOT" , no_slash(sge_root_s) } } ;
 			if (+sge_cell   ) add_env["SGE_CELL"        ] = sge_cell    ;
 			if (+sge_cluster) add_env["SGE_CLUSTER_NAME"] = sge_cluster ;
-			cmd_line[0] = sge_bin_dir_s+cmd_line[0] ;
+			cmd_line[0] = sge_bin_s+cmd_line[0] ;
 			Child child {
 				.cmd_line  = cmd_line
 			,	.stdin_fd  =                                 Child::NoneFd
 			,	.stdout_fd = gather_stdout ? Child::PipeFd : Child::NoneFd
-			,	.stderr_fd =                                 Child::NoneFd
+			,	.stderr_fd = gather_stdout ? Child::PipeFd : Child::NoneFd
 			,	.add_env   = &add_env
 			} ;
 			child.spawn() ;
 			bool ok = child.wait_ok() ;
-			if (!gather_stdout) return {{},ok} ;
-			::string msg ;
-			for(;;) {
-				char buf[128] ;
-				ssize_t cnt = ::read(child.stdout,buf,sizeof(buf)) ;
-				if (cnt< 0) throw "cannot read stdout of child "+cmd_line[0] ;
-				if (cnt==0) return {msg,ok} ;
-				msg.append(buf,cnt) ;
-			}
+			if ( ok && !gather_stdout ) return {{},ok} ;
+			try                       { return { child.stderr.read()+child.stdout.read() , ok } ; }
+			catch (::string const& e) { throw "cannot read stdout of child "+cmd_line[0]        ; }
 		}
 
 		// data
@@ -267,10 +261,10 @@ namespace Backends::Sge {
 		::string           cpu_rsrc          ;      // key to use to ask for cpu
 		::string           mem_rsrc          ;      // key to use to ask for memory (in MB)
 		::string           tmp_rsrc          ;      // key to use to ask for tmp    (in MB)
-		::string           sge_bin_dir_s     ;
+		::string           sge_bin_s         ;
 		::string           sge_cell          ;
 		::string           sge_cluster       ;
-		::string           sge_root_dir_s    ;
+		::string           sge_root_s        ;
 		Daemon             daemon            ;      // info sensed from sge daemon
 	} ;
 
@@ -296,11 +290,11 @@ namespace Backends::Sge {
 
 	::string& operator+=( ::string& os , RsrcsData const& rsd ) {
 		/**/                                  os <<"(cpu="<<       rsd.cpu       ;
-		if (rsd.mem              )            os <<",mem="<<       rsd.mem<<"MB" ;
-		if (rsd.tmp!=uint32_t(-1))            os <<",tmp="<<       rsd.tmp<<"MB" ;
+		if (rsd.mem   )                       os <<",mem="<<       rsd.mem<<"MB" ;
+		if (rsd.tmp   )                       os <<",tmp="<<       rsd.tmp<<"MB" ;
 		for( auto const& [k,v] : rsd.tokens ) os <<','<< k <<'='<< v             ;
-		if (+rsd.hard            )            os <<",H:"<<         rsd.hard      ;
-		if (+rsd.soft            )            os <<",S:"<<         rsd.soft      ;
+		if (+rsd.hard )                       os <<",H:"<<         rsd.hard      ;
+		if (+rsd.soft )                       os <<",S:"<<         rsd.soft      ;
 		return                                os <<')'                           ;
 	}
 
@@ -353,7 +347,7 @@ namespace Backends::Sge {
 		sort(m) ;
 		for( auto&& [k,v] : ::move(m) ) {
 			switch (k[0]) {
-				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_units<    uint16_t>(v) ; continue ; } break ;
+				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
 				case 'h' : if (k=="hard") { hard = _split_rsrcs                        (v) ; continue ; } break ;
 				case 'm' : if (k=="mem" ) { mem  = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
 				case 's' : if (k=="soft") { soft = _split_rsrcs                        (v) ; continue ; } break ;

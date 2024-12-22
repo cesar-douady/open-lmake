@@ -7,7 +7,6 @@
 #include <sys/mount.h>
 
 #include "disk.hh"
-
 #include "process.hh"
 
 using namespace Disk ;
@@ -41,7 +40,7 @@ using namespace Disk ;
 [[noreturn]] void Child::_do_child_trampoline() {
 	if (as_session) ::setsid() ;                                            // if we are here, we are the init process and we must be in the new session to receive the kill signal
 	//
-	sigset_t full_mask ; ::sigfillset(&full_mask) ;
+	sigset_t full_mask ; sigfillset(&full_mask) ;                           // sig fillset may be a macro
 	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                         // restore default behavior
 	//
 	if (stdin_fd ==PipeFd) { _p2c .write.close() ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
@@ -82,7 +81,7 @@ using namespace Disk ;
 		for(;;) {
 			int   wstatus   ;
 			pid_t child_pid = ::wait(&wstatus) ;
-			if (child_pid==pid) {                                                                       // XXX : find a way to simulate a caught signal rather than exit 128+sig
+			if (child_pid==pid) {                                                                       // XXX! : find a way to simulate a caught signal rather than exit 128+sig
 				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                           // exit as transparently as possible
 				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                           // cannot kill self to be transparent as we are process 1, mimic bash
 				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                       // ensure we have not forgotten a case
@@ -113,16 +112,18 @@ void Child::spawn() {
 		/**/         for( auto const& [k,v] : *env     ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
 		if (add_env) for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
 		/**/                                                                               _child_env[i  ] = nullptr                   ;
-	} else if (add_env) {
-		size_t n_env = add_env->size() ; for( char** e=environ ; *e ; e++ ) n_env++ ;
-		env_vector.reserve(add_env->size()) ;
-		_child_env = new const char*[n_env+1] ;
-		size_t i = 0 ;
-		for( char** e=environ ; *e ; e++  )                                   _child_env[i++] = *e                        ;
-		for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
-		/**/                                                                  _child_env[i  ] = nullptr                   ;
 	} else {
-		_child_env = const_cast<const char**>(environ) ;
+		if (add_env) {
+			size_t n_env = add_env->size() ; for( char** e=environ ; *e ; e++ ) n_env++ ;
+			env_vector.reserve(add_env->size()) ;
+			_child_env = new const char*[n_env+1] ;
+			size_t i = 0 ;
+			for( char** e=environ ; *e ; e++  )                                   _child_env[i++] = *e                        ;
+			for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
+			/**/                                                                  _child_env[i  ] = nullptr                   ;
+		} else {
+			_child_env = const_cast<const char**>(environ) ;
+		}
 	}
 	//
 	// /!\ memory for args must be allocated before calling clone
@@ -134,12 +135,12 @@ void Child::spawn() {
 	//
 	// /!\ memory for child stack must be allocated before calling clone
 	::vector<uint64_t> child_stack ( StackSz/sizeof(uint64_t) ) ;
-	_child_stack_ptr = child_stack.data()+(NpStackGrowsDownward?child_stack.size():0) ;
+	_child_stack_ptr = child_stack.data()+(STACK_GROWS_DOWNWARD?child_stack.size():0) ;
 	//
 	if (first_pid) {
 		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                               ; // we need a trampoline stack if we launch a grand-child
-		void*              trampoline_stack_ptr = trampoline_stack.data()+(NpStackGrowsDownward?trampoline_stack.size():0) ; // .
-		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is important to mount the new /proc without disturing caller
+		void*              trampoline_stack_ptr = trampoline_stack.data()+(STACK_GROWS_DOWNWARD?trampoline_stack.size():0) ; // .
+		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is passed to mount a new /proc without disturing caller
 	} else {
 		pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD                          , this ) ;
 	}

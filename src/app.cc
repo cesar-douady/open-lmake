@@ -15,9 +15,9 @@
 using namespace Disk ;
 using namespace Time ;
 
-::string* g_lmake_dir_s   = nullptr ;
-::string* g_root_dir_s    = nullptr ;
-::string* g_startup_dir_s = nullptr ; // relative to g_root_dir_s , dir from which command was launched
+::string* g_lmake_root_s  = nullptr ;
+::string* g_repo_root_s   = nullptr ;
+::string* g_startup_dir_s = nullptr ; // relative to g_repo_root_s , dir from which command was launched
 ::string* g_exe_name      = nullptr ;
 
 void crash_handler( int sig , void* addr ) {
@@ -29,29 +29,29 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ; // catch all synchronous signals so as to generate a backtrace
 	//
 	if (!g_startup_dir_s) g_startup_dir_s = new ::string ;
-	if (!g_root_dir_s   ) {
+	if (!g_repo_root_s  ) {
 		try {
-			g_root_dir_s                        = new ::string{cwd_s()}            ;
-			tie(*g_root_dir_s,*g_startup_dir_s) = search_root_dir_s(*g_root_dir_s) ;
+			g_repo_root_s                        = new ::string{cwd_s()}         ;
+			tie(*g_repo_root_s,*g_startup_dir_s) = search_root_s(*g_repo_root_s) ;
 		} catch (::string const& e) { exit(Rc::Usage,e) ; }
-		if ( cd_root && +*g_startup_dir_s && ::chdir(no_slash(*g_root_dir_s).c_str())!=0 ) exit(Rc::System,"cannot chdir to ",no_slash(*g_root_dir_s)) ;
+		if ( cd_root && +*g_startup_dir_s && ::chdir(no_slash(*g_repo_root_s).c_str())!=0 ) exit(Rc::System,"cannot chdir to ",no_slash(*g_repo_root_s)) ;
 	}
-	::string exe = read_lnk("/proc/self/exe") ;
-	/**/               g_exe_name    = new ::string{base_name(exe)                        } ;
-	if (!g_trace_file) g_trace_file  = new ::string{PrivateAdminDirS+"trace/"s+*g_exe_name} ;
-	/**/               g_lmake_dir_s = new ::string{dir_name_s(dir_name_s(exe))           } ;
+	::string exe_path = get_exe() ;
+	/**/               g_exe_name     = new ::string{::base_name(exe_path)                 } ;
+	if (!g_trace_file) g_trace_file   = new ::string{PrivateAdminDirS+"trace/"s+*g_exe_name} ;
+	/**/               g_lmake_root_s = new ::string{dir_name_s(exe_path,2)                } ;
 	#if PROFILING
-		set_env( "GMON_OUT_PREFIX" , dir_guard(*g_root_dir_s+GMON_DIR_S+*g_exe_name) ) ;     // ensure unique gmon data file in a non-intrusive (wrt autodep) place
+		set_env( "GMON_OUT_PREFIX" , dir_guard(*g_repo_root_s+GMON_DIR_S+*g_exe_name) ) ;     // ensure unique gmon data file in a non-intrusive (wrt autodep) place
 	#endif
 	//
-	bool read_only = ::access(no_slash(*g_root_dir_s).c_str(),W_OK) ;
+	bool read_only = ::access(no_slash(*g_repo_root_s).c_str(),W_OK) ;
 	if (read_only>read_only_ok) exit(Rc::Perm,"cannot run in read-only repository") ;
 	//
 	if (chk_version_!=No)
 		try                       { chk_version( !read_only && chk_version_==Maybe ) ; }
 		catch (::string const& e) { exit(Rc::Format,e) ;                               }
 	//
-    t_thread_key = '=' ;                                                                     // we are the main thread
+    t_thread_key = '=' ;                                                                      // we are the main thread
 	if (!read_only)
 		try                       { Trace::s_start() ; }
 		catch (::string const& e) { exit(Rc::Perm,e) ; }

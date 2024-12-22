@@ -3,11 +3,12 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import lmake
+
 if __name__!='__main__' :
 
 	import os
 
-	import lmake
 	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
@@ -36,9 +37,9 @@ if __name__!='__main__' :
 
 	class Dut3(Rule) :
 		tmp_view = '/tmp'
-		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':lmake.root_dir+'/'} }
+		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':lmake.repo_root+'/'} }
 		target   = 'dut3'
-		def cmd():
+		def cmd() :
 			print(open('/tmp/merged/read/src').read(),end='')
 
 	class Test(Rule) :

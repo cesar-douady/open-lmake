@@ -11,7 +11,7 @@ struct SyscallDescr {
 	static constexpr long NSyscalls = 1024 ;           // must larger than higher syscall number, 1024 is plenty, actual upper value is around 450
 	using Tab = ::array<SyscallDescr,NSyscalls> ;      // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
 	// static data
-	static Tab const& s_tab ;                          // ptrace does not support tmp mapping, which simplifies table a bit
+	static Tab const& s_tab ;
 	// accesses
 	constexpr bool operator+() const { return prio ; } // prio=0 means entry is not allocated
 	// data
@@ -26,32 +26,24 @@ struct SyscallDescr {
 
 #ifdef LD_PRELOAD
 	#define ENUMERATE_LD_PRELOAD_LIBCALLS \
-		,	LIBCALL_ENTRY(dlmopen ,false/*is_stat*/) \
-		,	LIBCALL_ENTRY(dlopen  ,false/*is_stat*/) \
-		,	LIBCALL_ENTRY(putenv  ,false/*is_stat*/) \
-		,	LIBCALL_ENTRY(setenv  ,false/*is_stat*/) \
-		,	LIBCALL_ENTRY(unsetenv,false/*is_stat*/)
+		/**/                    /*is_stat*/ \
+		,	LIBCALL_ENTRY(dlmopen ,false) \
+		,	LIBCALL_ENTRY(dlopen  ,false) \
+		,	LIBCALL_ENTRY(putenv  ,false) \
+		,	LIBCALL_ENTRY(setenv  ,false) \
+		,	LIBCALL_ENTRY(unsetenv,false)
 #else
 	// handled by la_objopen (calling Audited::dlmopen does not work for a mysterious reason)
 	#define ENUMERATE_LD_PRELOAD_LIBCALLS
 #endif
 
-#if NEED_STAT_WRAPPERS
-	#define ENUMERATE_DIRECT_STAT_LIBCALLS
-#else
-	#define ENUMERATE_DIRECT_STAT_LIBCALLS \
-	,	LIBCALL_ENTRY(fstatat  ,true/*is_stat*/) \
-	,	LIBCALL_ENTRY(fstatat64,true/*is_stat*/) \
-	,	LIBCALL_ENTRY(lstat    ,true/*is_stat*/) \
-	,	LIBCALL_ENTRY(lstat64  ,true/*is_stat*/) \
-	,	LIBCALL_ENTRY(stat     ,true/*is_stat*/) \
-	,	LIBCALL_ENTRY(stat64   ,true/*is_stat*/)
-#endif
+#define ENUMERATE_DIRECT_STAT_LIBCALLS \
 
 #if MAP_VFORK
 	#define ENUMERATE_VFORK_LIBCALLS \
-	,	LIBCALL_ENTRY(vfork  ,false/*is_stat*/) \
-	,	LIBCALL_ENTRY(__vfork,false/*is_stat*/)
+		/**/               /*is_stat*/ \
+	,	LIBCALL_ENTRY(vfork  ,false) \
+	,	LIBCALL_ENTRY(__vfork,false)
 #else
 	#define ENUMERATE_VFORK_LIBCALLS
 #endif
@@ -59,100 +51,108 @@ struct SyscallDescr {
 //
 // mere path accesses, no actual accesses to file data */
 //
-#define ENUMERATE_PATH_LIBCALLS \
-,	LIBCALL_ENTRY(access                ,true /*is_stat*/) \
-,	LIBCALL_ENTRY(canonicalize_file_name,false/*is_stat*/) \
-,	LIBCALL_ENTRY(faccessat             ,true /*is_stat*/) \
-,	LIBCALL_ENTRY(__fxstatat            ,true /*is_stat*/) \
-,	LIBCALL_ENTRY(__fxstatat64          ,true /*is_stat*/) \
-,	LIBCALL_ENTRY(__lxstat              ,true /*is_stat*/) \
-,	LIBCALL_ENTRY(__lxstat64            ,true /*is_stat*/) \
-,	LIBCALL_ENTRY(mkdirat               ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(opendir               ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(realpath              ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__realpath_chk        ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(scandir               ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(scandir64             ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(scandirat             ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(scandirat64           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(statx                 ,true /*is_stat*/) \
-,	LIBCALL_ENTRY(__xstat               ,true /*is_stat*/) \
-,	LIBCALL_ENTRY(__xstat64             ,true /*is_stat*/)
+#define ENUMERATE_PATH_LIBCALLS       /*is_stat*/ \
+,	LIBCALL_ENTRY(access                ,true ) \
+,	LIBCALL_ENTRY(canonicalize_file_name,false) \
+,	LIBCALL_ENTRY(faccessat             ,true ) \
+,	LIBCALL_ENTRY(fstatat               ,true ) \
+,	LIBCALL_ENTRY(__fxstatat            ,true ) \
+,	LIBCALL_ENTRY(lstat                 ,true ) \
+,	LIBCALL_ENTRY(__lxstat              ,true ) \
+,	LIBCALL_ENTRY(mkdirat               ,false) \
+,	LIBCALL_ENTRY(opendir               ,false) \
+,	LIBCALL_ENTRY(realpath              ,false) \
+,	LIBCALL_ENTRY(__realpath_chk        ,false) \
+,	LIBCALL_ENTRY(scandir               ,false) \
+,	LIBCALL_ENTRY(scandirat             ,false) \
+,	LIBCALL_ENTRY(statx                 ,true ) \
+,	LIBCALL_ENTRY(stat                  ,true ) \
+,	LIBCALL_ENTRY(__xstat               ,true ) \
+\
+,	LIBCALL_ENTRY(fstatat64             ,true ) \
+,	LIBCALL_ENTRY(__fxstatat64          ,true ) \
+,	LIBCALL_ENTRY(lstat64               ,true ) \
+,	LIBCALL_ENTRY(__lxstat64            ,true ) \
+,	LIBCALL_ENTRY(scandir64             ,false) \
+,	LIBCALL_ENTRY(scandirat64           ,false) \
+,	LIBCALL_ENTRY(stat64                ,true ) \
+,	LIBCALL_ENTRY(__xstat64             ,true )
 
-#define ENUMERATE_LIBCALLS \
-	LIBCALL_ENTRY(chdir            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(chmod            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(clone            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__clone2         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(close            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__close          ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(creat            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(creat64          ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(dup2             ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(dup3             ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(execl            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(execle           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(execlp           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(execv            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(execve           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(execveat         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(execvp           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(execvpe          ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(fchdir           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(fchmodat         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(fopen            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(fopen64          ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(fork             ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__fork           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(freopen          ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(freopen64        ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(futimesat        ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__libc_fork      ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(link             ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(linkat           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(lutimes          ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(mkdir            ,false/*is_stat*/) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
-,	LIBCALL_ENTRY(mkostemp         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(mkostemp64       ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(mkostemps        ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(mkostemps64      ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(mkstemp          ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(mkstemp64        ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(mkstemps         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(mkstemps64       ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(mount            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(open             ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__open           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__open_nocancel  ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__open_2         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(open64           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__open64         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__open64_nocancel,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__open64_2       ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(openat           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__openat_2       ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(openat64         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__openat64_2     ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(readlink         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(readlinkat       ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__readlinkat_chk ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(__readlink_chk   ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(rename           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(renameat         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(renameat2        ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(rmdir            ,false/*is_stat*/) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
-,	LIBCALL_ENTRY(symlink          ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(symlinkat        ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(syscall          ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(system           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(truncate         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(truncate64       ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(unlink           ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(unlinkat         ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(utime            ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(utimensat        ,false/*is_stat*/) \
-,	LIBCALL_ENTRY(utimes           ,false/*is_stat*/) \
-	ENUMERATE_LD_PRELOAD_LIBCALLS                     \
-	ENUMERATE_PATH_LIBCALLS                           \
-	ENUMERATE_DIRECT_STAT_LIBCALLS                    \
+#define ENUMERATE_LIBCALLS       /*is_stat*/ \
+	LIBCALL_ENTRY(chdir            ,false) \
+,	LIBCALL_ENTRY(chmod            ,false) \
+,	LIBCALL_ENTRY(clone            ,false) \
+,	LIBCALL_ENTRY(__clone2         ,false) \
+,	LIBCALL_ENTRY(close            ,false) \
+,	LIBCALL_ENTRY(__close          ,false) \
+,	LIBCALL_ENTRY(creat            ,false) \
+,	LIBCALL_ENTRY(dup2             ,false) \
+,	LIBCALL_ENTRY(dup3             ,false) \
+,	LIBCALL_ENTRY(execl            ,false) \
+,	LIBCALL_ENTRY(execle           ,false) \
+,	LIBCALL_ENTRY(execlp           ,false) \
+,	LIBCALL_ENTRY(execv            ,false) \
+,	LIBCALL_ENTRY(execve           ,false) \
+,	LIBCALL_ENTRY(execveat         ,false) \
+,	LIBCALL_ENTRY(execvp           ,false) \
+,	LIBCALL_ENTRY(execvpe          ,false) \
+,	LIBCALL_ENTRY(fchdir           ,false) \
+,	LIBCALL_ENTRY(fchmodat         ,false) \
+,	LIBCALL_ENTRY(fopen            ,false) \
+,	LIBCALL_ENTRY(fork             ,false) \
+,	LIBCALL_ENTRY(__fork           ,false) \
+,	LIBCALL_ENTRY(freopen          ,false) \
+,	LIBCALL_ENTRY(futimesat        ,false) \
+,	LIBCALL_ENTRY(__libc_fork      ,false) \
+,	LIBCALL_ENTRY(link             ,false) \
+,	LIBCALL_ENTRY(linkat           ,false) \
+,	LIBCALL_ENTRY(lutimes          ,false) \
+,	LIBCALL_ENTRY(mkdir            ,false) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
+,	LIBCALL_ENTRY(mkostemp         ,false) \
+,	LIBCALL_ENTRY(mkostemps        ,false) \
+,	LIBCALL_ENTRY(mkstemp          ,false) \
+,	LIBCALL_ENTRY(mkstemps         ,false) \
+,	LIBCALL_ENTRY(mount            ,false) \
+,	LIBCALL_ENTRY(open             ,false) \
+,	LIBCALL_ENTRY(__open           ,false) \
+,	LIBCALL_ENTRY(__open_nocancel  ,false) \
+,	LIBCALL_ENTRY(__open_2         ,false) \
+,	LIBCALL_ENTRY(openat           ,false) \
+,	LIBCALL_ENTRY(__openat_2       ,false) \
+,	LIBCALL_ENTRY(readlink         ,false) \
+,	LIBCALL_ENTRY(readlinkat       ,false) \
+,	LIBCALL_ENTRY(__readlinkat_chk ,false) \
+,	LIBCALL_ENTRY(__readlink_chk   ,false) \
+,	LIBCALL_ENTRY(rename           ,false) \
+,	LIBCALL_ENTRY(renameat         ,false) \
+,	LIBCALL_ENTRY(renameat2        ,false) \
+,	LIBCALL_ENTRY(rmdir            ,false) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
+,	LIBCALL_ENTRY(symlink          ,false) \
+,	LIBCALL_ENTRY(symlinkat        ,false) \
+,	LIBCALL_ENTRY(syscall          ,false) \
+,	LIBCALL_ENTRY(system           ,false) \
+,	LIBCALL_ENTRY(truncate         ,false) \
+,	LIBCALL_ENTRY(unlink           ,false) \
+,	LIBCALL_ENTRY(unlinkat         ,false) \
+,	LIBCALL_ENTRY(utime            ,false) \
+,	LIBCALL_ENTRY(utimensat        ,false) \
+,	LIBCALL_ENTRY(utimes           ,false) \
+\
+,	LIBCALL_ENTRY(creat64          ,false) \
+,	LIBCALL_ENTRY(fopen64          ,false) \
+,	LIBCALL_ENTRY(freopen64        ,false) \
+,	LIBCALL_ENTRY(mkostemp64       ,false) \
+,	LIBCALL_ENTRY(mkostemps64      ,false) \
+,	LIBCALL_ENTRY(mkstemp64        ,false) \
+,	LIBCALL_ENTRY(mkstemps64       ,false) \
+,	LIBCALL_ENTRY(open64           ,false) \
+,	LIBCALL_ENTRY(__open64         ,false) \
+,	LIBCALL_ENTRY(__open64_nocancel,false) \
+,	LIBCALL_ENTRY(__open64_2       ,false) \
+,	LIBCALL_ENTRY(openat64         ,false) \
+,	LIBCALL_ENTRY(__openat64_2     ,false) \
+,	LIBCALL_ENTRY(truncate64       ,false) \
+\
+	ENUMERATE_LD_PRELOAD_LIBCALLS          \
+	ENUMERATE_PATH_LIBCALLS                \
 	ENUMERATE_VFORK_LIBCALLS

@@ -19,8 +19,8 @@ using namespace Disk ;
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
-		try                     { root_dir_s = search_root_dir_s().first ; }
-		catch (::string const&) { root_dir_s = cwd_s()                   ; }
+		try                     { repo_root_s = search_root_s().first ; }
+		catch (::string const&) { repo_root_s = cwd_s()               ; }
 		return ;
 	}
 	size_t pos = env.find(':'           ) ; if (pos==Npos) goto Fail ;
@@ -41,10 +41,10 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			default  : goto Fail ;
 		}
 	// other dirs
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } tmp_dir_s  = parse_printable<'"'>                 (env,pos                  ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } root_dir_s = parse_printable<'"'>                 (env,pos                  ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; }                                      src_dirs_s = parse_printable<::vector_s>          (env,pos,false/*empty_ok*/) ;
-	{ if (env[pos++]!=':') goto Fail ; }                                      views      = parse_printable<::vmap_s<::vector_s>>(env,pos,false/*empty_ok*/) ;
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } tmp_dir_s   = parse_printable<'"'>                 (env,pos                  ) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } repo_root_s = parse_printable<'"'>                 (env,pos                  ) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; }                                      src_dirs_s  = parse_printable<::vector_s>          (env,pos,false/*empty_ok*/) ;
+	{ if (env[pos++]!=':') goto Fail ; }                                      views       = parse_printable<::vmap_s<::vector_s>>(env,pos,false/*empty_ok*/) ;
 	{ if (env[pos  ]!=0  ) goto Fail ; }
 	for( ::string const& src_dir_s : src_dirs_s ) if (!is_dirname(src_dir_s)) goto Fail ;
 	return ;
@@ -67,7 +67,7 @@ AutodepEnv::operator ::string() const {
 		case LnkSupport::Full : res << 'a' ; break ;
 	DF}
 	res <<':'<< '"'<<mk_printable<'"'>(tmp_dir_s                   )<<'"' ;
-	res <<':'<< '"'<<mk_printable<'"'>(root_dir_s                  )<<'"' ;
+	res <<':'<< '"'<<mk_printable<'"'>(repo_root_s                 )<<'"' ;
 	res <<':'<<      mk_printable     (src_dirs_s,false/*empty_ok*/)      ;
 	res <<':'<<      mk_printable     (views     ,false/*empty_ok*/)      ;
 	return res ;

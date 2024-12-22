@@ -182,32 +182,18 @@ namespace Engine {
 		// END_OF_VERSIONING
 	} ;
 
-	// used at submit time, participate in resources
-	struct SubmitNoneAttrs {
-		static constexpr const char* Msg = "submit ancillary attributes" ;
-		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
-			Attrs::acquire_from_dct( n_retries , py_dct , "n_retries" ) ;
-		}
-		// data
-		// START_OF_VERSIONING
-		uint8_t n_retries = 0 ;
-		// END_OF_VERSIONING
-	} ;
-
 	// used both at submit time (for cache look up) and at end of execution (for cache upload)
-	struct CacheNoneAttrs {
+	struct SubmitNoneAttrs {
 		static constexpr const char* Msg = "cache key" ;
 		// services
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
-			Attrs::acquire_from_dct( key , py_dct , "key" ) ;
-			throw_unless( !key || Cache::s_tab.contains(key) , "unexpected cache key ",key," not found in config" ) ;
+			Attrs::acquire_from_dct( cache_key , py_dct , "cache_key" ) ;
+			throw_unless( !cache_key || Cache::s_tab.contains(cache_key) , "unexpected cache ",cache_key," not found in config" ) ;
 		}
 		// data
 		// START_OF_VERSIONING
-		::string key ;
+		::string cache_key ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -218,24 +204,26 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
-			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter" ) ;
-			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"  ) ;
-			Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir"  ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = with_slash(job_space.chroot_dir_s) ;
-			Attrs::acquire_env     ( env                    , py_dct , "env"         ) ;
-			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat" ) ;
-			Attrs::acquire_from_dct( job_space.root_view_s  , py_dct , "root_view"   ) ; if (+job_space.root_view_s ) job_space.root_view_s  = with_slash(job_space.root_view_s ) ;
-			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"    ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
-			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"       ) ;
+			Attrs::acquire_from_dct( allow_stderr           , py_dct , "allow_stderr" ) ;
+			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"   ) ;
+			Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir"   ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = with_slash(job_space.chroot_dir_s) ;
+			Attrs::acquire_env     ( env                    , py_dct , "env"          ) ;
+			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat"  ) ;
+			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter"  ) ;
+			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"    ) ; if (+job_space.repo_view_s ) job_space.repo_view_s  = with_slash(job_space.repo_view_s ) ;
+			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"     ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
+			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"        ) ;
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
 			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
 		}
 		// data
 		// START_OF_VERSIONING
-		::vector_s interpreter ;
-		bool       auto_mkdir  = false ;
-		bool       ignore_stat = false ;
-		::vmap_ss  env         ;
-		JobSpace   job_space   ;
+		::vector_s interpreter  ;
+		bool       allow_stderr = false ;
+		bool       auto_mkdir   = false ;
+		bool       ignore_stat  = false ;
+		::vmap_ss  env          ;
+		JobSpace   job_space    ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -247,6 +235,50 @@ namespace Engine {
 		::string qual_name      ;
 		::string filename       ;
 		size_t   first_line_no1 = 0 ; // illegal value as lines start at 1
+		// END_OF_VERSIONING
+	} ;
+
+	// used at start time, participate in resources
+	struct StartRsrcsAttrs {
+		static constexpr const char* Msg = "execution resources attributes" ;
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
+			Attrs::acquire_env     ( env        , py_dct , "env"                               ) ;
+			Attrs::acquire_from_dct( method     , py_dct , "autodep"                           ) ;
+			Attrs::acquire_from_dct( timeout    , py_dct , "timeout"    , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( use_script , py_dct , "use_script"                        ) ;
+			::sort(env) ;                                                                                             // stabilize rsrcs crc
+		}
+		// data
+		// START_OF_VERSIONING
+		::vmap_ss     env        ;
+		AutodepMethod method     = {} ;
+		Time::Delay   timeout    ;                                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
+		bool          use_script = false ;
+		// END_OF_VERSIONING
+	} ;
+
+	// used at start time, participate to nothing
+	struct StartNoneAttrs {
+		static constexpr const char* Msg = "execution ancillary attributes" ;
+		// services
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
+			using namespace Attrs ;
+			Attrs::acquire_from_dct( keep_tmp       , py_dct , "keep_tmp"                              ) ;
+			Attrs::acquire_from_dct( start_delay    , py_dct , "start_delay"    , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( kill_sigs      , py_dct , "kill_sigs"                             ) ;
+			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len"                        ) ;
+			Attrs::acquire_env     ( env            , py_dct , "env"                                   ) ;
+			::sort(env) ;                                                                               // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
+		}
+		// data
+		// START_OF_VERSIONING
+		bool              keep_tmp       = false ;
+		Time::Delay       start_delay    ;                                                              // job duration above which a start message is generated
+		::vector<uint8_t> kill_sigs      ;                                                              // signals to use to kill job (tried in sequence, 1s apart from each other)
+		size_t            max_stderr_len = Npos  ;                                                      // max lines when displaying stderr (full content is shown with lshow -e)
+		::vmap_ss         env            ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -265,80 +297,6 @@ namespace Engine {
 	namespace Attrs {
 		bool/*updated*/ acquire( DbgEntry& dst , Py::Object const* py_src ) ;
 	}
-
-	// used at start time, participate in resources
-	struct StartRsrcsAttrs {
-		static constexpr const char* Msg = "execution resources attributes" ;
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
-			Attrs::acquire_env     ( env        , py_dct , "env"                               ) ;
-			Attrs::acquire_from_dct( method     , py_dct , "autodep"                           ) ;
-			Attrs::acquire_from_dct( timeout    , py_dct , "timeout"    , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( use_script , py_dct , "use_script"                        ) ;
-			::sort(env) ;                                                                                             // stabilize rsrcs crc
-			// check
-			throw_if( !HAS_LD_AUDIT && method==AutodepMethod::LdAudit , method," is not supported on this system" ) ; // PER_AUTODEP_METHOD.
-		}
-		// data
-		// START_OF_VERSIONING
-		::vmap_ss     env        ;
-		AutodepMethod method     = {} ;
-		Time::Delay   timeout    ;                                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
-		bool          use_script = false ;
-		// END_OF_VERSIONING
-	} ;
-
-	// used at start time, participate to nothing
-	struct StartNoneAttrs {
-		static constexpr const char* Msg = "execution ancillary attributes" ;
-		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
-			using namespace Attrs ;
-			Attrs::acquire_from_dct( keep_tmp    , py_dct , "keep_tmp"                           ) ;
-			Attrs::acquire_from_dct( start_delay , py_dct , "start_delay" , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( kill_sigs   , py_dct , "kill_sigs"                          ) ;
-			Attrs::acquire_from_dct( n_retries   , py_dct , "n_retries"                          ) ;
-			Attrs::acquire_env     ( env         , py_dct , "env"                                ) ;
-			::sort(env) ;                                                                            // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
-		}
-		// data
-		// START_OF_VERSIONING
-		bool              keep_tmp    = false ;
-		Time::Delay       start_delay ;                                                              // job duration above which a start message is generated
-		::vector<uint8_t> kill_sigs   ;                                                              // signals to use to kill job (tried in sequence, 1s apart from each other)
-		uint8_t           n_retries   = 0     ;                                                      // max number of retry if job is lost
-		::vmap_ss         env         ;
-		// END_OF_VERSIONING
-	} ;
-
-	// used at end of job execution, participate in cmd
-	struct EndCmdAttrs {
-		static constexpr const char* Msg = "end command attributes" ;
-		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
-			Attrs::acquire_from_dct( allow_stderr , py_dct , "allow_stderr" ) ;
-		}
-		// data
-		// START_OF_VERSIONING
-		bool allow_stderr = false ; // if true <=> non empty stderr does not imply job error
-		// END_OF_VERSIONING
-	} ;
-
-	// used at end of job execution, participate in nothing
-	struct EndNoneAttrs {
-		static constexpr const char* Msg = "end ancillary attributes" ;
-		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
-			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len" , size_t(1) ) ;
-		}
-		// data
-		// START_OF_VERSIONING
-		size_t max_stderr_len = -1 ; // max lines when displaying stderr (full content is shown with lshow -e)
-		// END_OF_VERSIONING
-	} ;
 
 	using EvalCtxFuncStr = ::function<void( VarCmd , VarIdx idx , string const& key , string  const& val )> ;
 	using EvalCtxFuncDct = ::function<void( VarCmd , VarIdx idx , string const& key , vmap_ss const& val )> ;
@@ -597,18 +555,16 @@ namespace Engine {
 		bool                 allow_ext  = false         ;                          // if true <=> rule may match outside repo
 		// following is only if plain rules
 		DynamicDepsAttrs          deps_attrs         ;                             // in match crc, evaluated at job creation time
-		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                             // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
 		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                             // in rsrcs crc, evaluated at submit time
 		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;                             // in no    crc, evaluated at submit time
 		DynamicStartCmdAttrs      start_cmd_attrs    ;                             // in cmd   crc, evaluated before execution
-		DynamicCmd                cmd                ;                             // in cmd   crc, evaluated before execution
 		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;                             // in rsrcs crc, evaluated before execution
 		Dynamic<StartNoneAttrs  > start_none_attrs   ;                             // in no    crc, evaluated before execution
-		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;                             // in cmd   crc, evaluated after  execution
-		Dynamic<EndNoneAttrs    > end_none_attrs     ;                             // in no    crc, evaluated after  execution
+		DynamicCmd                cmd                ;                             // in cmd   crc, evaluated before execution
 		bool                      is_python          = false ;
 		bool                      force              = false ;
-		uint8_t                   n_submits          = 0     ;                     // max number of submission for a given job for a given req (disabled if 0)
+		uint8_t                   n_losts            = 0     ;                     // max number of times a job can be lost
+		uint8_t                   n_submits          = 0     ;                     // max number of times a job can be submitted (except losts & retries), 0 = infinity
 		// derived data
 		::vector<uint32_t> stem_mark_cnts   ;                                      // number of capturing groups within each stem
 		RuleCrc            crc              ;
@@ -923,17 +879,15 @@ namespace Engine {
 		::serdes(s,n_statics       ) ;
 		if (special==Special::Plain) {
 			::serdes(s,deps_attrs        ) ;
-			::serdes(s,cache_none_attrs  ) ;
 			::serdes(s,submit_rsrcs_attrs) ;
 			::serdes(s,submit_none_attrs ) ;
 			::serdes(s,start_cmd_attrs   ) ;
 			::serdes(s,cmd               ) ;
 			::serdes(s,start_rsrcs_attrs ) ;
 			::serdes(s,start_none_attrs  ) ;
-			::serdes(s,end_cmd_attrs     ) ;
-			::serdes(s,end_none_attrs    ) ;
 			::serdes(s,is_python         ) ;
 			::serdes(s,force             ) ;
+			::serdes(s,n_losts           ) ;
 			::serdes(s,n_submits         ) ;
 			::serdes(s,cost_per_token    ) ;
 			::serdes(s,exec_time         ) ;

@@ -17,46 +17,46 @@ pdict = lmake.pdict
 no_imports = set() # may be overridden by external code
 
 # helper constants
-StdAttrs = {
-	#                       type   dynamic
-	'job_name'          : ( str   , False )
-,	'name'              : ( str   , False )
-,	'prio'              : ( float , False )
-,	'stems'             : ( dict  , False )
-,	'targets'           : ( dict  , False )
-,	'allow_stderr'      : ( bool  , True  )
-,	'autodep'           : ( str   , True  )
-,	'auto_mkdir'        : ( bool  , True  )
-,	'backend'           : ( str   , True  )
-,	'cache'             : ( str   , True  )
-,	'chroot_dir'        : ( str   , True  )
-,	'cmd'               : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
-,	'side_deps'         : ( dict  , True  )
-,	'deps'              : ( dict  , True  )
-,	'environ_cmd'       : ( dict  , True  )
-,	'environ_resources' : ( dict  , True  )
-,	'environ_ancillary' : ( dict  , True  )
-,	'ete'               : ( float , False )
-,	'force'             : ( bool  , False )
-,	'ignore_stat'       : ( bool  , True  )
-,	'job_tokens'        : ( int   , True  )
-,	'keep_tmp'          : ( bool  , True  )
-,	'kill_sigs'         : ( tuple , True  )
-,	'max_stderr_len'    : ( int   , True  )
-,	'n_retries'         : ( int   , True  )
-,	'max_submit_count'  : ( int   , False )
-,	'order'             : ( list  , False )
-,	'python'            : ( tuple , False )
-,	'resources'         : ( dict  , True  )
-,	'root_view'         : ( str   , True  )
-,	'shell'             : ( tuple , False )
-,	'start_delay'       : ( float , True  )
-,	'side_targets'      : ( dict  , True  )
-,	'timeout'           : ( float , True  )
-,	'tmp_view'          : ( str   , True  )
-,	'use_script'        : ( bool  , True  )
-,	'views'             : ( dict  , True  )
+StdAttrs = { #!               type   dynamic
+	'allow_stderr'        : ( bool  , True  )
+,	'autodep'             : ( str   , True  )
+,	'auto_mkdir'          : ( bool  , True  )
+,	'backend'             : ( str   , True  )
+,	'cache'               : ( str   , True  )
+,	'chroot_dir'          : ( str   , True  )
+,	'cmd'                 : ( str   , True  ) # when it is a str, such str may be dynamic, i.e. it may be a full f-string
+,	'deps'                : ( dict  , True  )
+,	'environ_ancillary'   : ( dict  , True  )
+,	'environ'             : ( dict  , True  )
+,	'environ_resources'   : ( dict  , True  )
+,	'ete'                 : ( float , False )
+,	'force'               : ( bool  , False )
+,	'ignore_stat'         : ( bool  , True  )
+,	'job_name'            : ( str   , False )
+,	'job_tokens'          : ( int   , True  )
+,	'keep_tmp'            : ( bool  , True  )
+,	'kill_sigs'           : ( tuple , True  )
+,	'max_retries_on_lost' : ( int   , False )
+,	'max_stderr_len'      : ( int   , True  )
+,	'max_submits'         : ( int   , False )
+,	'name'                : ( str   , False )
+,	'order'               : ( list  , False )
+,	'prio'                : ( float , False )
+,	'python'              : ( tuple , False )
+,	'repo_view'           : ( str   , True  )
+,	'resources'           : ( dict  , True  )
+,	'shell'               : ( tuple , False )
+,	'side_deps'           : ( dict  , True  )
+,	'side_targets'        : ( dict  , True  )
+,	'start_delay'         : ( float , True  )
+,	'stems'               : ( dict  , False )
+,	'targets'             : ( dict  , False )
+,	'timeout'             : ( float , True  )
+,	'tmp_view'            : ( str   , True  )
+,	'use_script'          : ( bool  , True  )
+,	'views'               : ( dict  , True  )
 }
+
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
 SimpleStemRe = re.compile(r'{\w+}|{{|}}')                      # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
@@ -299,7 +299,7 @@ def avoid_ctx(name,ctxs) :
 	assert False,f'cannot find suffix to make {name} an available name'
 
 class Handle :
-	ThisPython = os.readlink('/proc/self/exe')
+	ThisPython = osp.realpath(sys.executable)
 	def __init__(self,rule) :
 		attrs         = handle_inheritance(rule)
 		module        = sys.modules[rule.__module__]
@@ -311,8 +311,8 @@ class Handle :
 		if attrs.get('prio' ) : self.rule_rep.prio  = attrs.prio
 
 	def _init(self) :
-		self.static_val  = pdict()
-		self.dynamic_val = pdict()
+		self.static_val  = {}
+		self.dynamic_val = {}
 
 	def _is_simple_fstr(self,fstr) :
 		return SimpleFstrRe.match(fstr) and all( k in ('{{','}}') or k[1:-1] in self.per_job for k in SimpleStemRe.findall(fstr) )
@@ -416,7 +416,7 @@ class Handle :
 					break
 			else : assert False,f'cannot find a suitable job_name for {self.rule_rep.name}'
 
-	def prepare_jobs(self) :
+	def prepare(self) :
 		self.static_stems = find_static_stems(self.rule_rep.job_name)
 		self.aggregate_per_job = {'stems','target','targets'}
 		self.per_job = {
@@ -424,18 +424,19 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		for attr in ('ete','force','max_submit_count') :
+		for attr in ('ete','force','max_submits','max_retries_on_lost') :
 			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
+		seen_keys = set()
+		for e in ('environ','environ_resources','environ_ancillary') :
+			if e in self.attrs :
+				for k in tuple(self.attrs[e].keys()) :
+					if k in seen_keys : del self.attrs[e][k]
+				seen_keys |= self.attrs[e].keys()
 
 	def handle_create_none(self) :
 		self._init()
 		self._handle_val('job_tokens')
 		self.rule_rep.create_none_attrs = self._finalize()
-
-	def handle_cache_none(self) :
-		self._init()
-		self._handle_val('key','cache')
-		self.rule_rep.cache_none_attrs = self._finalize()
 
 	def handle_deps(self) :
 		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.pop('dep')
@@ -444,13 +445,13 @@ class Handle :
 		if 'deps' in self.dynamic_val : self.dynamic_val = self.dynamic_val['deps']
 		if 'deps' in self.static_val  : self.static_val  = self.static_val ['deps']
 		if callable(self.dynamic_val) :
-			assert not self.static_val                                                     # there must be no static val when deps are full dynamic
-			self.static_val  = None                                                        # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
+			assert not self.static_val                                                 # there must be no static val when deps are full dynamic
+			self.static_val  = None                                                    # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
 		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
 		if self.rule_rep.deps_attrs and self.rule_rep.deps_attrs[0] :
-			self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
+			self.per_job.update(k for k in self.attrs.deps.keys() if k.isidentifier()) # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
 		self._init()
@@ -458,26 +459,27 @@ class Handle :
 		self._handle_val('rsrcs'  ,'resources')
 		self.rule_rep.submit_rsrcs_attrs = self._finalize()
 		self.aggregate_per_job.add('resources')
-		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs',{})
-		if not callable(rsrcs) : self.per_job.update(set(rsrcs.keys()))
+		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs')
+		if rsrcs and not callable(rsrcs) : self.per_job.update(rsrcs.keys())
 
 	def handle_submit_none(self) :
 		self._init()
-		self._handle_val ('n_retries')
+		self._handle_val('cache_key','cache')
 		self.rule_rep.submit_none_attrs = self._finalize()
 
 	def handle_start_cmd(self) :
 		if self.attrs.is_python : interpreter = 'python'
 		else                    : interpreter = 'shell'
 		self._init()
-		self._handle_val('auto_mkdir'                       )
-		self._handle_val('chroot_dir'                       )
-		self._handle_val('env'        ,rep_key='environ_cmd')
-		self._handle_val('ignore_stat'                      )
-		self._handle_val('interpreter',rep_key=interpreter  )
-		self._handle_val('root_view'                        )
-		self._handle_val('tmp_view'                         )
-		self._handle_val('views'                            )
+		self._handle_val('allow_stderr'                   )
+		self._handle_val('auto_mkdir'                     )
+		self._handle_val('chroot_dir'                     )
+		self._handle_val('env'        ,rep_key='environ'  )
+		self._handle_val('ignore_stat'                    )
+		self._handle_val('interpreter',rep_key=interpreter)
+		self._handle_val('repo_view'                      )
+		self._handle_val('tmp_view'                       )
+		self._handle_val('views'                          )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
@@ -491,22 +493,12 @@ class Handle :
 	def handle_start_none(self) :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
-		self._handle_val('keep_tmp'                               )
-		self._handle_val('start_delay'                            )
-		self._handle_val('kill_sigs'                              )
-		self._handle_val('n_retries'                              )
-		self._handle_val('env'        ,rep_key='environ_ancillary')
+		self._handle_val('env'           ,rep_key='environ_ancillary')
+		self._handle_val('keep_tmp'                                  )
+		self._handle_val('kill_sigs'                                 )
+		self._handle_val('max_stderr_len'                            )
+		self._handle_val('start_delay'                               )
 		self.rule_rep.start_none_attrs = self._finalize()
-
-	def handle_end_cmd(self) :
-		self._init()
-		self._handle_val('allow_stderr')
-		self.rule_rep.end_cmd_attrs = self._finalize()
-
-	def handle_end_none(self) :
-		self._init()
-		self._handle_val('max_stderr_len')
-		self.rule_rep.end_none_attrs = self._finalize()
 
 	def handle_cmd(self) :
 		self.rule_rep.is_python = self.attrs.is_python
@@ -529,14 +521,14 @@ class Handle :
 			,	ctx        = serialize_ctx
 			,	no_imports = no_imports
 			,	force      = True
-			,	root_dir   = lmake.root_dir
+			,	root       = lmake.repo_root
 			)
 			if multi :
 				cmd += 'def cmd() :\n'
-				x = avoid_ctx('x',serialize_ctx)                                                                                       # find a non-conflicting name
+				x = avoid_ctx('x',serialize_ctx)                                                                                   # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					if c.__defaults__ : n_dflts = len(c.__defaults__)
-					else              : n_dflts = 0                                                                                    # stupid c.__defaults__ is None when no defaults, not ()
+					else              : n_dflts = 0                                                                                # stupid c.__defaults__ is None when no defaults, not ()
 					if   c.__code__.co_argcount> n_dflts+1 : raise "cmd cannot have more than a single arg without default value"
 					if   c.__code__.co_argcount<=n_dflts   : a = ''
 					elif i==0                              : a = 'None'
@@ -548,16 +540,13 @@ class Handle :
 						a1 = '' if not b1 else x
 						if b1 : cmd += f'\t{a1} = { c.__name__}({a})\n'
 						else  : cmd += f'\t{        c.__name__}({a})\n'
-			for_this_python = False                                                                                                    # be conservative
+			for_this_python = False                                                                                                # be conservative
 			try :
-				interpreter  = self.rule_rep.start_cmd_attrs[0].interpreter
-				if not interpreter : raise "need an interpreter to execute cmd"
-				interpreter0 = interpreter[0]
-				if not interpreter0 : raise "need an interpreter to execute cmd"
-				if not maybe_local(interpreter0) : for_this_python = osp.realpath(interpreter)==self.ThisPython                        # code can be made simpler if we know we run the same python ...
-			except : pass                                                                                                              # ... but we do not want to create a dep inside the repo if ...
-			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , mk_dbg_info(dbg,serialize_ctx,for_this_python) ) # ... no interpreter (e.g. it may be dynamic), be conservative
-			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                                             )
+				interpreter = self.rule_rep.start_cmd_attrs[0]['interpreter'][0]
+				if not lmake.maybe_local(interpreter) : for_this_python = osp.realpath(interpreter)==self.ThisPython               # code can be made simpler if we know we run the same python ...
+			except : pass                                                                                                          # ... but we do not want to create a dep inside the repo if ...
+			if dbg : self.rule_rep.cmd = ( {'cmd':cmd} , tuple(names) , '' , '' , mk_dbg_info(dbg,serialize_ctx,for_this_python) ) # ... no interpreter (e.g. it may be dynamic), be conservative
+			else   : self.rule_rep.cmd = ( {'cmd':cmd} , tuple(names)                                                            )
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)
 			self._init()
@@ -585,18 +574,15 @@ def do_fmt_rule(rule) :
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no cmd while virtual forced False')
 		return
 	#
-	h.prepare_jobs()
+	h.prepare()
 	#
 	h.handle_create_none ()
-	h.handle_cache_none  ()
 	h.handle_deps        ()
 	h.handle_submit_rsrcs()
 	h.handle_submit_none ()
 	h.handle_start_cmd   ()
 	h.handle_start_rsrcs ()
 	h.handle_start_none  ()
-	h.handle_end_cmd     ()
-	h.handle_end_none    ()
 	h.handle_cmd         ()
 	for k in [k for k,v in h.rule_rep.items() if v==None] : del h.rule_rep[k]                                        # functions above may generate holes
 	return h.rule_rep
@@ -607,10 +593,10 @@ def fmt_rule(rule) :
 	except Exception as e :
 		if hasattr(rule,'name') : name = f'({rule.name})'
 		else                    : name = ''
-		if lmake.root_dir==lmake.top_root_dir :
+		if lmake.repo_root==lmake.top_repo_root :
 			tab = ''
 		else :
-			print(f'in sub-repo {lmake.root_dir[len(lmake.top_root_dir)+1:]} :',file=sys.stderr)
+			print(f'in sub-repo {lmake.repo_root[len(lmake.top_repo_root)+1:]} :',file=sys.stderr)
 			tab = '\t'
 		print(f'{tab}while processing {rule.__name__}{name} :',file=sys.stderr)
 		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'      ,file=sys.stderr)

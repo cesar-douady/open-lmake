@@ -35,7 +35,7 @@ if __name__!='__main__' :
 		deps         = { 'MAIN' : 'mandelbrot/src/main.rs' }
 		allow_stderr = True
 		autodep      = 'ld_preload_jemalloc'
-		environ_cmd  = { 'LD_PRELOAD' : 'libjemalloc.so' }
+		environ      = { 'LD_PRELOAD' : 'libjemalloc.so' }
 		cmd          = 'cd mandelbrot ; cargo run --release ; mv output.txt output.dut'
 
 	class Cmp(Rule) :
@@ -48,17 +48,16 @@ if __name__!='__main__' :
 
 else :
 
-	import os.path as osp
 	import shutil
-	import subprocess as sp
-	import sys
-
-	import ut
 
 	cargo = shutil.which('cargo')
 	if not cargo :
 		print('cargo not available',file=open('skipped','w'))
 		exit()
+
+	import os.path as osp
+
+	import ut
 
 	rustup_home = osp.dirname(osp.dirname(osp.dirname(cargo)))+'/.rustup'
 	print(f'rustup_home={rustup_home!r}',file=open('step.py','w'))

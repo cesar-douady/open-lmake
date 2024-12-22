@@ -4,7 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <err.h>
-#include <linux/sched.h>
+#include <sys/wait.h>
 
 #include "disk.hh"
 #include "trace.hh"
@@ -50,7 +50,7 @@ struct PidInfo {
 void AutodepPtrace::s_init(AutodepEnv const& ade) {
 	Record::s_autodep_env(ade) ;
 	#if HAS_SECCOMP
-		// XXX : find a way to load seccomp rules that support 32 bits and 64 bits exe's
+		// XXX! : find a way to load seccomp rules that support 32 bits and 64 bits exe's
 		static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab ;
 		// prepare seccomp filter outside s_prepare_child as this might very well call malloc
 		bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ;                         // if full link support, we need to analyze uphill dirs
@@ -85,7 +85,7 @@ void AutodepPtrace::init(pid_t cp) {
 int/*rc*/ AutodepPtrace::s_prepare_child(void*) {
 	#if HAS_SECCOMP
 		int rc = ::seccomp_load(s_scmp) ;
-		if (rc!=0) _exit(+Rc::System) ;
+		if (rc!=0) ::_exit(+Rc::System) ;
 	#endif
 	::ptrace( PTRACE_TRACEME , 0/*pid*/ , 0/*addr*/ , 0/*data*/ ) ;
 	kill_self(FirstSignal) ;                                        // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
@@ -132,12 +132,12 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 						case AUDIT_ARCH_AARCH64 : word_sz = 64 ; break ;
 						default                 : FAIL("unexpected arch",syscall_info.arch) ;
 					}
-				#else                                                                             // XXX : try to find a way to determine tracee word size
+				#else                                                                             // XXX! : try to find a way to determine tracee word size
 					word_sz = NpWordSz ;                                                          // waiting for a way to determine tracee word size, assume it is the same as us
 				#endif
 				if (!info.on_going) {
 					#if HAS_PTRACE_GET_SYSCALL_INFO
-						// XXX : support 32 bits exe's (beware of 32 bits syscall numbers)
+						// XXX! : support 32 bits exe's (beware of 32 bits syscall numbers)
 						if (word_sz!=NpWordSz) {
 							Trace trace("AutodepPtrace::_changed","panic","word width") ;
 							info.record.report_direct({ JobExecProc::Panic , word_sz+" bits processes on "s+NpWordSz+" host not supported yet with ptrace" }) ;
@@ -205,7 +205,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 			SWEAR(errno==ESRCH,errno) ;               // if we cant find pid, it means we were not informed it terminated
 			int   ws   = 0/*garbage*/               ;
 			pid_t pid_ = ::waitpid(pid,&ws,WNOHANG) ;
-			if (pid_==0) {                            // XXX : it seems that there is a race here : process cant receive a ptrace, but waitpid is not aware of the new status
+			if (pid_==0) {                            // XXX! : it seems that there is a race here : process cant receive a ptrace, but waitpid is not aware of the new status
 				sleep(1) ;
 				pid_ = ::waitpid(pid,&ws,WNOHANG) ;   // retry once the race is solved
 			}

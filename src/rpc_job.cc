@@ -3,7 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <sys/mount.h>
+#include <sched.h>     // unshare
+#include <sys/mount.h> // mount
 
 #include "disk.hh"
 #include "hash.hh"
@@ -92,6 +93,18 @@ using namespace Hash ;
 }
 
 //
+// EndAttrs
+//
+
+::string& operator+=( ::string& os , EndAttrs const& ea ) {
+	First first ;
+	/**/                    os << "EndAttrs("                      ;
+	if (+ea.cache_key     ) os <<first("",",")<< ea.cache_key      ;
+	if (+ea.max_stderr_len) os <<first("",",")<< ea.max_stderr_len ;
+	return                  os << ')'                              ;
+}
+
+//
 // DepInfo
 //
 
@@ -117,27 +130,20 @@ using namespace Hash ;
 	First first ;
 	/**/                  os <<"JobSpace("                           ;
 	if (+js.chroot_dir_s) os <<first("",",")<<"C:"<< js.chroot_dir_s ;
-	if (+js.root_view_s ) os <<first("",",")<<"R:"<< js.root_view_s  ;
+	if (+js.repo_view_s ) os <<first("",",")<<"R:"<< js.repo_view_s  ;
 	if (+js.tmp_view_s  ) os <<first("",",")<<"T:"<< js.tmp_view_s   ;
 	if (+js.views       ) os <<first("",",")<<"V:"<< js.views        ;
 	return                os <<')'                                   ;
 }
 
-static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(no_slash(dir_s).c_str())!=0) throw "cannot chroot to "+no_slash(dir_s)+" : "+::strerror(errno) ; }
-static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (no_slash(dir_s).c_str())!=0) throw "cannot chdir to " +no_slash(dir_s)+" : "+::strerror(errno) ; }
+	static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(no_slash(dir_s).c_str())!=0) throw "cannot chroot to "+no_slash(dir_s)+" : "+::strerror(errno) ; }
+	static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (no_slash(dir_s).c_str())!=0) throw "cannot chdir to " +no_slash(dir_s)+" : "+::strerror(errno) ; }
 
-static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
-	Trace trace("_mount_bind",dst,src) ;
-	if (::mount( no_slash(src).c_str() , no_slash(dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
-		throw "cannot bind mount "+src+" onto "+dst+" : "+::strerror(errno) ;
-}
-
-static void _mount_tmp( ::string const& dst_s , size_t sz_mb ) {
-	SWEAR(sz_mb) ;
-	Trace trace("_mount_tmp",dst_s,sz_mb) ;
-	if (::mount( "" ,  no_slash(dst_s).c_str() , "tmpfs" , 0/*flags*/ , ("size="+::to_string(sz_mb)+"m").c_str() )!=0)
-		throw "cannot mount tmpfs of size "+to_string_with_units<'M'>(sz_mb)+"B onto "+no_slash(dst_s)+" : "+::strerror(errno) ;
-}
+	static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
+		Trace trace("_mount_bind",dst,src) ;
+		if (::mount( no_slash(src).c_str() , no_slash(dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
+			throw "cannot bind mount "+src+" onto "+dst+" : "+::strerror(errno) ;
+	}
 
 static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
 	SWEAR(+srcs_s) ;
@@ -194,14 +200,13 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 
 bool/*entered*/ JobSpace::enter(
 	::vmap_s<MountAction>& report
-,	::string   const&      phy_root_dir_s
+,	::string   const&      phy_repo_root_s
 ,	::string   const&      phy_tmp_dir_s
 ,	::string   const&      cwd_s
-,	size_t                 tmp_sz_mb
 ,	::string   const&      work_dir_s
 ,	::vector_s const&      src_dirs_s
 ) {
-	Trace trace("JobSpace::enter",self,phy_root_dir_s,phy_tmp_dir_s,tmp_sz_mb,work_dir_s,src_dirs_s) ;
+	Trace trace("JobSpace::enter",self,phy_repo_root_s,phy_tmp_dir_s,cwd_s,work_dir_s,src_dirs_s) ;
 	//
 	if (!self) return false/*entered*/ ;
 	//
@@ -218,38 +223,37 @@ bool/*entered*/ JobSpace::enter(
 			highest_s  = d_s ;
 		}
 	//
-	::string phy_super_root_dir_s ;                                                 // dir englobing all relative source dirs
-	::string super_root_view_s    ;                                                 // .
-	::string top_root_view_s      ;
-	if (+root_view_s) {
-		if (!( root_view_s.ends_with(cwd_s) && root_view_s.size()>cwd_s.size()+1 )) // ensure root_view_s has at least one more level than cwd_s
+	::string phy_super_repo_root_s ;                                                // dir englobing all relative source dirs
+	::string super_repo_view_s     ;                                                // .
+	::string top_repo_view_s       ;
+	if (+repo_view_s) {
+		if (!( repo_view_s.ends_with(cwd_s) && repo_view_s.size()>cwd_s.size()+1 )) // ensure repo_view_s has at least one more level than cwd_s
 			throw
-				"cannot map local repository dir to "+no_slash(root_view_s)+" appearing as "+no_slash(cwd_s)+" in top-level repository"
-			+	", "
-			+	"consider setting <rule>.root_view="+mk_py_str("/repo/"+no_slash(cwd_s))
+				"cannot map local repository dir to "+no_slash(repo_view_s)+" appearing as "+no_slash(cwd_s)+" in top-level repository, "
+				"consider setting <rule>.repo_view="+mk_py_str("/repo/"+no_slash(cwd_s))
 			;
-		phy_super_root_dir_s = phy_root_dir_s ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) phy_super_root_dir_s = dir_name_s(phy_super_root_dir_s) ;
-		super_root_view_s    = root_view_s    ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) super_root_view_s    = dir_name_s(super_root_view_s   ) ;
-		SWEAR(phy_super_root_dir_s!="/",phy_root_dir_s,uphill_lvl) ;                                                                                          // this should have been checked earlier
-		if (!super_root_view_s)
+		phy_super_repo_root_s = phy_repo_root_s ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) phy_super_repo_root_s = dir_name_s(phy_super_repo_root_s) ;
+		super_repo_view_s     = repo_view_s     ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) super_repo_view_s     = dir_name_s(super_repo_view_s    ) ;
+		SWEAR(phy_super_repo_root_s!="/",phy_repo_root_s,uphill_lvl) ;              // this should have been checked earlier
+		if (!super_repo_view_s)
 			throw
-				"cannot map repository dir to "+no_slash(root_view_s)+" with relative source dir "+no_slash(highest_s)
+				"cannot map repository dir to "+no_slash(repo_view_s)+" with relative source dir "+no_slash(highest_s)
 			+	", "
-			+	"consider setting <rule>.root_view="+mk_py_str("/repo/"+no_slash(phy_root_dir_s.substr(phy_super_root_dir_s.size())+cwd_s))
+			+	"consider setting <rule>.repo_view="+mk_py_str("/repo/"+no_slash(phy_repo_root_s.substr(phy_super_repo_root_s.size())+cwd_s))
 			;
-		if (root_view_s.substr(super_root_view_s.size())!=phy_root_dir_s.substr(phy_super_root_dir_s.size()))
+		if (repo_view_s.substr(super_repo_view_s.size())!=phy_repo_root_s.substr(phy_super_repo_root_s.size()))
 			throw
 				"last "s+uphill_lvl+" components do not match between physical root dir and root view"
 			+	", "
-			+	"consider setting <rule>.root_view="+mk_py_str("/repo/"+no_slash(phy_root_dir_s.substr(phy_super_root_dir_s.size())+cwd_s))
+			+	"consider setting <rule>.repo_view="+mk_py_str("/repo/"+no_slash(phy_repo_root_s.substr(phy_super_repo_root_s.size())+cwd_s))
 			;
-		top_root_view_s = root_view_s.substr(0,root_view_s.size()-cwd_s.size()) ;
+		top_repo_view_s = repo_view_s.substr(0,repo_view_s.size()-cwd_s.size()) ;
 	}
-	if ( +super_root_view_s && super_root_view_s.rfind('/',super_root_view_s.size()-2)!=0 ) throw "non top-level root_view not yet implemented"s ; // XXX : handle cases where dir is not top level
+	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s ; // XXX! : handle cases where dir is not top level
 	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
 	//
-	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ;
-	bool     must_create_root = +super_root_view_s && !is_dir(chroot_dir+no_slash(super_root_view_s)) ;
+	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly manage the '/' case
+	bool     must_create_root = +super_repo_view_s && !is_dir(chroot_dir+no_slash(super_repo_view_s)) ;
 	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
 	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
 	if ( must_create_root || must_create_tmp || +views )
@@ -263,15 +267,15 @@ bool/*entered*/ JobSpace::enter(
 				:	                   " ???"
 				)
 			;
-		::vector_s top_lvls        = lst_dir_s(+chroot_dir_s?chroot_dir_s:"/") ;
-		::string   work_root_dir   = work_dir_s+"root"                         ;
-		::string   work_root_dir_s = work_root_dir+'/'                         ;
-		mk_dir_s      (work_root_dir_s) ;
-		unlnk_inside_s(work_root_dir_s) ;
-		trace("top_lvls",work_root_dir_s,top_lvls) ;
+		::vector_s top_lvls    = lst_dir_s(+chroot_dir_s?chroot_dir_s:"/") ;
+		::string   work_root   = work_dir_s+"root"                         ;
+		::string   work_root_s = work_root+'/'                             ;
+		mk_dir_s      (work_root_s) ;
+		unlnk_inside_s(work_root_s) ;
+		trace("top_lvls",work_root_s,top_lvls) ;
 		for( ::string const& f : top_lvls ) {
 			::string src_f     = (+chroot_dir_s?chroot_dir_s:"/"s) + f ;
-			::string private_f = work_root_dir_s                   + f ;
+			::string private_f = work_root_s                       + f ;
 			switch (FileInfo(src_f).tag()) {                                                                                   // exclude weird files
 				case FileTag::Reg   :
 				case FileTag::Empty :
@@ -280,30 +284,27 @@ bool/*entered*/ JobSpace::enter(
 				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)) ;                                break ; // copy symlink
 			DN}
 		}
-		if (must_create_root) mk_dir_s(work_root_dir+super_root_view_s) ;
-		if (must_create_tmp ) mk_dir_s(work_root_dir+tmp_view_s       ) ;
-		chroot_dir = ::move(work_root_dir) ;
+		if (must_create_root) mk_dir_s(work_root+super_repo_view_s) ;
+		if (must_create_tmp ) mk_dir_s(work_root+tmp_view_s       ) ;
+		chroot_dir = ::move(work_root) ;
 	}
 	// mapping uid/gid is necessary to manage overlayfs
 	_atomic_write( "/proc/self/setgroups" , "deny"                 ) ;                                                         // necessary to be allowed to write the gid_map (if desirable)
 	_atomic_write( "/proc/self/uid_map"   , ""s+uid+' '+uid+" 1\n" ) ;
 	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
 	//
-	::string root_dir_s = +root_view_s ? top_root_view_s : phy_root_dir_s ;
-	if (+root_view_s) _mount_bind( chroot_dir+super_root_view_s , phy_super_root_dir_s ) ;
-	if (+tmp_view_s ) {
-		if      (+phy_tmp_dir_s) _mount_bind( chroot_dir+tmp_view_s , phy_tmp_dir_s ) ;
-		else if (tmp_sz_mb     ) _mount_tmp ( chroot_dir+tmp_view_s , tmp_sz_mb     ) ;
-	}
+	::string repo_root_s = +repo_view_s ? top_repo_view_s : phy_repo_root_s ;
+	if (+repo_view_s) _mount_bind( chroot_dir+super_repo_view_s , phy_super_repo_root_s ) ;
+	if (+tmp_view_s ) _mount_bind( chroot_dir+tmp_view_s        , phy_tmp_dir_s         ) ;
 	//
-	if      (+chroot_dir ) _chroot(chroot_dir)    ;
-	if      (+root_view_s) _chdir(root_view_s   ) ;
-	else if (+chroot_dir ) _chdir(phy_root_dir_s) ;
+	if      (+chroot_dir ) _chroot(chroot_dir)     ;
+	if      (+repo_view_s) _chdir(repo_view_s    ) ;
+	else if (+chroot_dir ) _chdir(phy_repo_root_s) ;
 	//
 	size_t work_idx = 0 ;
 	for( auto const& [view,descr] : views ) if (+descr) {                                                                      // empty descr does not represent a view
-		::string   abs_view = mk_abs(view,root_dir_s) ;
-		::vector_s abs_phys ;                           abs_phys.reserve(descr.phys.size()) ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,root_dir_s)) ;
+		::string   abs_view = mk_abs(view,repo_root_s) ;
+		::vector_s abs_phys ;                            abs_phys.reserve(descr.phys.size()) ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,repo_root_s)) ;
 		/**/                                    _create(report,view) ;
 		for( ::string const& phy : descr.phys ) _create(report,phy ) ;
 		if (is_dirname(view)) {
@@ -323,14 +324,14 @@ bool/*entered*/ JobSpace::enter(
 		} else {
 			::string work_s = is_lcl(upper) ? work_dir_s+"work_"+(work_idx++)+'/' : upper.substr(0,upper.size()-1)+".work/" ;  // if not in the repo, it must be in tmp
 			mk_dir_s(work_s) ;
-			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,root_dir_s) ) ;
+			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,repo_root_s) ) ;
 		}
 	}
 	trace("done") ;
 	return true/*entered*/ ;
 }
 
-// XXX : implement recursive views
+// XXX! : implement recursive views
 // for now, phys cannot englobe or lie within a view, but when it is to be implemented, it is here
 ::vmap_s<::vector_s> JobSpace::flat_phys() const {
 	::vmap_s<::vector_s> res ; res.reserve(views.size()) ;
@@ -338,35 +339,35 @@ bool/*entered*/ JobSpace::enter(
 	return res ;
 }
 
-void JobSpace::mk_canon(::string const& phy_root_dir_s) {
+void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	auto do_top = [&]( ::string& dir_s , bool slash_ok , ::string const& key )->void {
-		if ( !dir_s                                     ) return ;
-		if ( !is_canon(dir_s)                           ) dir_s = ::mk_canon(dir_s) ;
-		if ( slash_ok && dir_s=="/"                     ) return ;
-		if (             dir_s=="/"                     ) throw key+" cannot be /"                                           ;
-		if ( !is_abs(dir_s)                             ) throw key+" must be absolute : "+no_slash(dir_s)                   ;
-		if ( phy_root_dir_s.starts_with(dir_s         ) ) throw "repository cannot lie within "+key+' '+no_slash(dir_s)      ;
-		if ( dir_s         .starts_with(phy_root_dir_s) ) throw key+' '+no_slash(dir_s)+" cannot be local to the repository" ;
+		if ( !dir_s                                       ) return ;
+		if ( !is_canon(dir_s)                             ) dir_s = ::mk_canon(dir_s) ;
+		if ( slash_ok && dir_s=="/"                       ) return ;
+		if (             dir_s=="/"                       ) throw key+" cannot be /"                                           ;
+		if ( !is_abs(dir_s)                               ) throw key+" must be absolute : "+no_slash(dir_s)                   ;
+		if ( phy_repo_root_s.starts_with(dir_s          ) ) throw "repository cannot lie within "+key+' '+no_slash(dir_s)      ;
+		if ( dir_s          .starts_with(phy_repo_root_s) ) throw key+' '+no_slash(dir_s)+" cannot be local to the repository" ;
 	} ;
 	//                   slash_ok
 	do_top( chroot_dir_s , true  , "chroot dir" ) ;
-	do_top( root_view_s  , false , "root view"  ) ;
+	do_top( repo_view_s  , false , "root view"  ) ;
 	do_top( tmp_view_s   , false , "tmp view"   ) ;
-	if ( +root_view_s && +tmp_view_s ) {
-		if (root_view_s.starts_with(tmp_view_s )) throw "root view "+no_slash(root_view_s)+" cannot lie within tmp view " +no_slash(tmp_view_s ) ;
-		if (tmp_view_s .starts_with(root_view_s)) throw "tmp view " +no_slash(tmp_view_s )+" cannot lie within root view "+no_slash(root_view_s) ;
+	if ( +repo_view_s && +tmp_view_s ) {
+		if (repo_view_s.starts_with(tmp_view_s )) throw "root view "+no_slash(repo_view_s)+" cannot lie within tmp view " +no_slash(tmp_view_s ) ;
+		if (tmp_view_s .starts_with(repo_view_s)) throw "tmp view " +no_slash(tmp_view_s )+" cannot lie within root view "+no_slash(repo_view_s) ;
 	}
 	//
-	::string const& job_root_dir_s = +root_view_s ? root_view_s : phy_root_dir_s ;
+	::string const& job_repo_root_s = +repo_view_s ? repo_view_s : phy_repo_root_s ;
 	auto do_path = [&](::string& path)->void {
-		if      (!is_canon(path)                 ) path = ::mk_canon(path)                   ;
-		if      (path.starts_with("../")         ) path = mk_abs(path,job_root_dir_s)        ;
-		else if (path.starts_with(job_root_dir_s)) path = path.substr(job_root_dir_s.size()) ;
+		if      (!is_canon(path)                  ) path = ::mk_canon(path)                    ;
+		if      (path.starts_with("../")          ) path = mk_abs(path,job_repo_root_s)        ;
+		else if (path.starts_with(job_repo_root_s)) path = path.substr(job_repo_root_s.size()) ;
 	} ;
 	for( auto& [view,_] : views ) {
 		do_path(view) ;
-		if (!view                           ) throw "cannot map the whole repository"s                  ;
-		if (job_root_dir_s.starts_with(view)) throw "repository cannot lie within view "+no_slash(view) ;
+		if (!view                            ) throw "cannot map the whole repository"s                  ;
+		if (job_repo_root_s.starts_with(view)) throw "repository cannot lie within view "+no_slash(view) ;
 	}
 	//
 	for( auto& [view,descr] : views ) {
@@ -380,12 +381,12 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 			if (  is_dir_view && !is_dirname(phy) ) throw "cannot map dir "          +no_slash(view)+" to file "        +no_slash(phy) ;
 			if ( !is_dir_view &&  is_dirname(phy) ) throw "cannot map file "         +no_slash(view)+" to dir "         +no_slash(phy) ;
 			if (+phy) {
-				for( auto const& [v,_] : views ) {                                                                            // XXX : suppress this check when recursive maps are implemented
+				for( auto const& [v,_] : views ) {                                                                            // XXX! : suppress this check when recursive maps are implemented
 					if ( phy.starts_with(v  ) && (v  .back()=='/'||phy[v  .size()]=='/') ) throw "cannot map "+no_slash(view)+" to "+no_slash(phy)+" within "    +no_slash(v) ;
 					if ( v  .starts_with(phy) && (phy.back()=='/'||v  [phy.size()]=='/') ) throw "cannot map "+no_slash(view)+" to "+no_slash(phy)+" containing "+no_slash(v) ;
 				}
 			} else {
-				for( auto const& [v,_] : views )                                                                              // XXX : suppress this check when recursive maps are implemented
+				for( auto const& [v,_] : views )                                                                              // XXX! : suppress this check when recursive maps are implemented
 					if (!is_abs(v)) throw "cannot map "+no_slash(view)+" to full repository with "+no_slash(v)+" being map" ;
 			}
 		}
@@ -393,7 +394,15 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 }
 
 //
-// JobRpcReq
+// JobStartRpcReq
+//
+
+::string& operator+=( ::string& os , JobStartRpcReq const& jsrr ) {
+	return os << "JobStartRpcReq(" << jsrr.seq_id <<','<< jsrr.job <<','<< jsrr.port <<','<< jsrr.msg <<')' ;
+}
+
+//
+// JobEndRpcReq
 //
 
 ::string& operator+=( ::string& os , TargetDigest const& td ) {
@@ -408,21 +417,15 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 }
 
 ::string& operator+=( ::string& os , JobDigest const& jd ) {
-	return os << "JobDigest(" << jd.wstatus<<':'<<jd.status <<','<< jd.targets <<','<< jd.deps << ')' ;
+	return os << "JobDigest(" << jd.end_attrs <<','<< jd.wstatus<<':'<<jd.status <<','<< jd.targets <<','<< jd.deps << ')' ;
 }
 
-::string& operator+=( ::string& os , JobRpcReq const& jrr ) {
-	/**/                      os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
-	switch (jrr.proc) {
-		case JobRpcProc::Start : os <<','<< jrr.port                                                     ; break ;
-		case JobRpcProc::End   : os <<','<< jrr.digest <<','<< jrr.phy_tmp_dir_s <<','<< jrr.dynamic_env ; break ;
-		default                :                                                                           break ;
-	}
-	return                    os <<','<< jrr.msg <<')' ;
+::string& operator+=( ::string& os , JobEndRpcReq const& jerr ) {
+	return os << "JobEndRpcReq(" << jerr.seq_id <<','<< jerr.job <<','<< jerr.digest <<','<< jerr.phy_tmp_dir_s <<','<< jerr.dynamic_env <<','<< jerr.msg <<')' ;
 }
 
 //
-// JobRpcReply
+// JobStartRpcReply
 //
 
 ::string& operator+=( ::string& os , MatchFlags const& mf ) {
@@ -435,95 +438,101 @@ void JobSpace::mk_canon(::string const& phy_root_dir_s) {
 	return           os << ')' ;
 }
 
-::string& operator+=( ::string& os , JobRpcReply const& jrr ) {
-	os << "JobRpcReply(" << jrr.proc ;
-	switch (jrr.proc) {
-		case JobRpcProc::Start :
-			/**/                           os <<','  << to_hex(jrr.addr)           ;
-			/**/                           os <<','  << jrr.autodep_env            ;
-			if      (+jrr.job_space      ) os <<','  << jrr.job_space              ;
-			if      ( jrr.keep_tmp       ) os <<','  << "keep"                     ;
-			if      ( jrr.tmp_sz_mb==Npos) os <<",T:"<< "..."                      ;
-			else                           os <<",T:"<< jrr.tmp_sz_mb              ;
-			if      (+jrr.cwd_s          ) os <<','  << jrr.cwd_s                  ;
-			if      (+jrr.date_prec      ) os <<','  << jrr.date_prec              ;
-			/**/                           os <<','  << mk_printable(cat(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
-			/**/                           os <<','  << jrr.interpreter            ;
-			/**/                           os <<','  << jrr.kill_sigs              ;
-			if      (jrr.live_out        ) os <<','  << "live_out"                 ;
-			/**/                           os <<','  << jrr.method                 ;
-			if      (+jrr.network_delay  ) os <<','  << jrr.network_delay          ;
-			if      (+jrr.pre_actions    ) os <<','  << jrr.pre_actions            ;
-			/**/                           os <<','  << jrr.small_id               ;
-			if      (+jrr.star_matches   ) os <<','  << jrr.star_matches           ;
-			if      (+jrr.deps           ) os <<'<'  << jrr.deps                   ;
-			if      (+jrr.static_matches ) os <<'>'  << jrr.static_matches         ;
-			if      (+jrr.stdin          ) os <<'<'  << jrr.stdin                  ;
-			if      (+jrr.stdout         ) os <<'>'  << jrr.stdout                 ;
-			if      (+jrr.timeout        ) os <<','  << jrr.timeout                ;
-			/**/                           os <<','  << jrr.cmd                    ; // last as it is most probably multi-line
-			;
-		break ;
-	DN}
-	return os << ')' ;
+::string& operator+=( ::string& os , JobStartRpcReply const& jsrr ) {
+	/**/                           os << "JobStartRpcReply("                ;
+	/**/                           os <<','  << to_hex(jsrr.addr)           ;
+	/**/                           os <<','  << jsrr.autodep_env            ;
+	if (+jsrr.job_space          ) os <<','  << jsrr.job_space              ;
+	if ( jsrr.keep_tmp           ) os <<','  << "keep"                      ;
+	if (+jsrr.cwd_s              ) os <<','  << jsrr.cwd_s                  ;
+	if (+jsrr.date_prec          ) os <<','  << jsrr.date_prec              ;
+	/**/                           os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+	/**/                           os <<','  << jsrr.interpreter            ;
+	/**/                           os <<','  << jsrr.kill_sigs              ;
+	if (jsrr.live_out            ) os <<','  << "live_out"                  ;
+	if (jsrr.allow_stderr        ) os <<','  << "allow_stderr"              ;
+	/**/                           os <<','  << jsrr.method                 ;
+	if (+jsrr.network_delay      ) os <<','  << jsrr.network_delay          ;
+	if (+jsrr.pre_actions        ) os <<','  << jsrr.pre_actions            ;
+	/**/                           os <<','  << jsrr.small_id               ;
+	if (+jsrr.star_matches       ) os <<','  << jsrr.star_matches           ;
+	if (+jsrr.deps               ) os <<'<'  << jsrr.deps                   ;
+	if (+jsrr.end_attrs          ) os <<','  << jsrr.end_attrs              ;
+	if (+jsrr.static_matches     ) os <<'>'  << jsrr.static_matches         ;
+	if (+jsrr.stdin              ) os <<'<'  << jsrr.stdin                  ;
+	if (+jsrr.stdout             ) os <<'>'  << jsrr.stdout                 ;
+	if (+jsrr.timeout            ) os <<','  << jsrr.timeout                ;
+	/**/                           os <<','  << jsrr.cmd                    ; // last as it is most probably multi-line
+	return                         os <<')'                                 ;
 }
 
-bool/*entered*/ JobRpcReply::enter(
-		::vmap_s<MountAction>& actions                                                                                  // out
-	,	::map_ss             & cmd_env                                                                                  // .
-	,	::string             & phy_tmp_dir_s                                                                            // .
-	,	::vmap_ss            & dynamic_env                                                                              // .
-	,	pid_t                & first_pid                                                                                // .
-	,	JobIdx                 job                                                                                      // in
-	,	::string        const& phy_root_dir_s                                                                           // .
-	,	SeqId                  seq_id                                                                                   // .
+static bool _end_ok( char c , bool brace ) {
+	if (brace) return c=='}'           ;
+	else       return !is_word_char(c) ;
+}
+bool/*entered*/ JobStartRpcReply::enter(
+		::vmap_s<MountAction>& actions                                                                                   // out
+	,	::map_ss             & cmd_env                                                                                   // .
+	,	::vmap_ss            & dynamic_env                                                                               // .
+	,	pid_t                & first_pid                                                                                 // .
+	,	::string        const& phy_repo_root_s                                                                           // in
+	,	::string        const& lmake_root_s                                                                              // .
+	,	::string        const& phy_tmp_dir_s                                                                             // .
+	,	SeqId                  seq_id                                                                                    // .
 ) {
-	Trace trace("JobRpcReply::enter",job,phy_root_dir_s,seq_id) ;
+	Trace trace("JobStartRpcReply::enter",phy_repo_root_s,lmake_root_s,phy_tmp_dir_s,seq_id) ;
 	//
-	for( auto& [k,v] : env ) {
-		if      (v!=EnvPassMrkr)                                                             cmd_env[k] = ::move(v) ;
-		else if (has_env(k)    ) { ::string v = get_env(k) ; dynamic_env.emplace_back(k,v) ; cmd_env[k] = ::move(v) ; } // if special illegal value, use value from environment (typically from slurm)
-	}
+	for( auto& [k,v] : env )
+		if      (v!=EnvPassMrkr)                                                             cmd_env[k] = ::move(v ) ;
+		else if (has_env(k)    ) { ::string ev=get_env(k) ; dynamic_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
 	//
-	if ( auto it=cmd_env.find("TMPDIR") ; it!=cmd_env.end() ) {
-		throw_unless( is_abs(it->second) , "$TMPDIR must be absolute but is ",it->second ) ;
-		phy_tmp_dir_s = with_slash(it->second)+key+'/'+small_id+'/' ;
-	} else if ( tmp_sz_mb==Npos || !job_space.tmp_view_s ) {
-		phy_tmp_dir_s = phy_root_dir_s+PrivateAdminDirS+"tmp/"+small_id+'/' ;
-	} else {
-		phy_tmp_dir_s = {} ;
-	}
-	if      (keep_tmp      ) phy_tmp_dir_s         = phy_root_dir_s+AdminDirS+"tmp/"+job+'/' ;
-	else if (+phy_tmp_dir_s) _tmp_dir_s_to_cleanup = phy_tmp_dir_s                           ;
-	autodep_env.root_dir_s = +job_space.root_view_s ? job_space.root_view_s : phy_root_dir_s ;
-	autodep_env.tmp_dir_s  = +job_space.tmp_view_s  ? job_space.tmp_view_s  : phy_tmp_dir_s  ;
+	autodep_env.repo_root_s = +job_space.repo_view_s ? job_space.repo_view_s : phy_repo_root_s ;
+	autodep_env.tmp_dir_s   = +job_space.tmp_view_s  ? job_space.tmp_view_s  : phy_tmp_dir_s   ;
+	_tmp_dir_s              = autodep_env.tmp_dir_s                                            ;                         // for use in exit (autodep.tmp_dir_s may be moved)
 	//
 	try {
-		if (+phy_tmp_dir_s) unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;             // ensure tmp dir is clean
+		unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                             // ensure tmp dir is clean
 	} catch (::string const&) {
-		try                       { mk_dir_s(phy_tmp_dir_s) ;            }             // ensure tmp dir exists
+		try                       { mk_dir_s(phy_tmp_dir_s) ;            }         // ensure tmp dir exists
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
 	}
 	//
-	cmd_env["ROOT_DIR"    ] = no_slash(autodep_env.root_dir_s+cwd_s) ;
-	cmd_env["TOP_ROOT_DIR"] = no_slash(autodep_env.root_dir_s      ) ;
-	cmd_env["SEQUENCE_ID" ] = ::to_string(seq_id  )                  ;
-	cmd_env["SMALL_ID"    ] = ::to_string(small_id)                  ;
+	::string lmake_root    = no_slash(lmake_root_s                 ) ;
+	::string repo_root     = no_slash(autodep_env.repo_root_s+cwd_s) ;
+	::string top_repo_root = no_slash(autodep_env.repo_root_s      ) ;
+	::string tmp_dir       = no_slash(autodep_env.tmp_dir_s        ) ;
+	//
+	cmd_env["LMAKE_ROOT"   ] = lmake_root            ;
+	cmd_env["REPO_ROOT"    ] = repo_root             ;
+	cmd_env["SEQUENCE_ID"  ] = ::to_string(seq_id  ) ;
+	cmd_env["SMALL_ID"     ] = ::to_string(small_id) ;
+	cmd_env["TMPDIR"       ] = tmp_dir               ;
+	cmd_env["TOP_REPO_ROOT"] = top_repo_root         ;
 	if (PY_LD_LIBRARY_PATH[0]!=0) {
 		auto [it,inserted] = cmd_env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
 		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
 	}
-	//
-	if (+autodep_env.tmp_dir_s) {
-		cmd_env["TMPDIR"] = no_slash(autodep_env.tmp_dir_s) ;
-	} else {
-		SWEAR(!cmd_env.contains("TMPDIR")) ;                                           // if we have a TMPDIR env var, we should have a tmp dir
-		autodep_env.tmp_dir_s = with_slash(P_tmpdir) ;                                 // detect accesses to P_tmpdir (usually /tmp) and generate an error
+	for( auto& [k,v] : cmd_env ) {
+		for( size_t d=0 ;; d++ ) {
+			d = v.find('$',d) ;
+			if (d==Npos) break ;
+			::string_view sv { &v[d+1/*$*/] , v.size()-(d+1/*$*/) } ; //!                                                      terminating_null
+			static constexpr char LmakeRoot  [] = "LMAKE_ROOT"    ; static constexpr size_t LmakeRootSz   = sizeof(LmakeRoot  )-1             ;
+			static constexpr char RepoRoot   [] = "REPO_ROOT"     ; static constexpr size_t RepoRootSz    = sizeof(RepoRoot   )-1             ;
+			static constexpr char TopRepoRoot[] = "TOP_REPO_ROOT" ; static constexpr size_t TopRepoRootSz = sizeof(TopRepoRoot)-1             ;
+			static constexpr char TmpDir     [] = "TMPDIR"        ; static constexpr size_t TmpDirSz      = sizeof(TmpDir     )-1             ;
+			bool brace = sv[0]=='{' ;
+			if (sv[0]=='{') sv = sv.substr(1) ;
+			if      ( sv.starts_with(LmakeRoot  ) && _end_ok(sv[LmakeRootSz  ],brace) ) { v = v.substr(0,d)+lmake_root   +sv.substr(LmakeRootSz  +brace) ; d += lmake_root   .size() ; }
+			else if ( sv.starts_with(RepoRoot   ) && _end_ok(sv[RepoRootSz   ],brace) ) { v = v.substr(0,d)+repo_root    +sv.substr(RepoRootSz   +brace) ; d += repo_root    .size() ; }
+			else if ( sv.starts_with(TopRepoRoot) && _end_ok(sv[TopRepoRootSz],brace) ) { v = v.substr(0,d)+top_repo_root+sv.substr(TopRepoRootSz+brace) ; d += top_repo_root.size() ; }
+			else if ( sv.starts_with(TmpDir     ) && _end_ok(sv[TmpDirSz     ],brace) ) { v = v.substr(0,d)+tmp_dir      +sv.substr(TmpDirSz     +brace) ; d += tmp_dir      .size() ; }
+			else continue ;
+		}
 	}
-	if (!cmd_env.contains("HOME")) cmd_env["HOME"] = no_slash(autodep_env.tmp_dir_s) ; // by default, set HOME to tmp dir as this cannot be set from rule
 	//
-	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                                    ;
-	bool     entered        = job_space.enter( actions , phy_root_dir_s , phy_tmp_dir_s , cwd_s , tmp_sz_mb , phy_work_dir_s , autodep_env.src_dirs_s ) ;
+	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                         ;
+	bool     entered        = job_space.enter( actions , phy_repo_root_s , phy_tmp_dir_s , cwd_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
 	if (entered) {
 		// find a good starting pid
 		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
@@ -533,18 +542,19 @@ bool/*entered*/ JobRpcReply::enter(
 		// this way there is a conflict between job 1 and job 2 when (id2-id1)*phi is near an integer
 		// because phi is the irrational which is as far from rationals as possible, and id's are as small as possible, this probability is minimized
 		// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
-		static constexpr uint32_t FirstPid = 300                                 ;     // apparently, pid's wrap around back to 300
-		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ;     // number of available pid's
-		static constexpr uint64_t DelatPid = (1640531527*NPids) >> n_bits(NPids) ;     // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
-		first_pid = FirstPid + ((small_id*DelatPid)>>(32-n_bits(NPids)))%NPids ;       // DelatPid on 64 bits to avoid rare overflow in multiplication
+		static constexpr uint32_t FirstPid = 300                                 ; // apparently, pid's wrap around back to 300
+		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ; // number of available pid's
+		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ; // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
+		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;   // DeltaPid on 64 bits to avoid rare overflow in multiplication
 	}
 	return entered ;
 }
 
-void JobRpcReply::exit() {
+void JobStartRpcReply::exit() {
 	// work dir cannot be cleaned up as we may have chroot'ed inside
-	Trace trace("JobRpcReply::exit",_tmp_dir_s_to_cleanup) ;
-	if (+_tmp_dir_s_to_cleanup) unlnk_inside_s(_tmp_dir_s_to_cleanup,true/*abs_ok*/ ) ;
+	Trace trace("JobStartRpcReply::exit",STR(keep_tmp),_tmp_dir_s) ;
+	SWEAR(+_tmp_dir_s) ;                                             // ensure we do not erase the whole repo
+	if (!keep_tmp) unlnk_inside_s(_tmp_dir_s,true/*abs_ok*/ ) ;
 	job_space.exit() ;
 }
 
@@ -585,28 +595,27 @@ void JobRpcReply::exit() {
 //
 
 ::string& operator+=( ::string& os , SubmitAttrs const& sa ) {
-	const char* sep = "" ;
-	/**/                 os << "SubmitAttrs("          ;
-	if (+sa.tag      ) { os <<      sa.tag       <<',' ; sep = "," ; }
-	if ( sa.live_out ) { os <<sep<< "live_out,"        ; sep = "," ; }
-	if ( sa.n_retries) { os <<sep<< sa.n_retries <<',' ; sep = "," ; }
-	if (+sa.pressure ) { os <<sep<< sa.pressure  <<',' ; sep = "," ; }
-	if (+sa.deps     ) { os <<sep<< sa.deps      <<',' ; sep = "," ; }
-	if (+sa.reason   )   os <<sep<< sa.reason    <<',' ;
-	return               os <<')'                      ;
+	First first ;
+	/**/               os << "SubmitAttrs("             ;
+	if (+sa.tag      ) os <<first("",",")<< sa.tag      ;
+	if ( sa.live_out ) os <<first("",",")<< "live_out"  ;
+	if (+sa.pressure ) os <<first("",",")<< sa.pressure ;
+	if (+sa.deps     ) os <<first("",",")<< sa.deps     ;
+	if (+sa.reason   ) os <<first("",",")<< sa.reason   ;
+	return             os <<')'                         ;
 }
 
 //
-// JobInfo
+// JobInfoStart
 //
 
 ::string& operator+=( ::string& os , JobInfoStart const& jis ) {
 	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
 }
 
-::string& operator+=( ::string& os , JobInfoEnd const& jie ) {
-	return os << "JobInfoEnd(" << jie.end <<')' ;
-}
+//
+// JobInfo
+//
 
 JobInfo::JobInfo(::string const& filename , Bool3 get_start , Bool3 get_end ) {
 	Trace trace("JobInfo",filename,get_start,get_end) ;
@@ -639,23 +648,23 @@ void JobInfo::write(::string const& filename) const {
 	+	serialize(end  )
 	) ;
 }
+
 //
 // codec
 //
 
-
 namespace Codec {
 
 	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) {
-		return CodecPfx+mk_printable<'.'>(file)+".cdir/"+mk_printable<'.'>(ctx)+".ddir/"+mk_printable(code) ;
+		return CodecPfx+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+'/'+mk_printable(code) ;
 	}
 
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
-		return CodecPfx+mk_printable<'.'>(file)+".cdir/"+mk_printable<'.'>(ctx)+".edir/"+Xxh(val).digest().hex() ;
+		return CodecPfx+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+'/'+Xxh(val).digest().hex() ;
 	}
 
 	::string mk_file(::string const& node) {
-		return parse_printable<'.'>(node,::ref(size_t(0))).substr(sizeof(CodecPfx)-1) ; // account for terminating null in CodecPfx
+		return parse_printable<'/'>(node,::ref(sizeof(CodecPfx)-1)) ; // account for terminating null in CodecPfx
 	}
 
 }

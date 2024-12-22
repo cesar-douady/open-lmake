@@ -517,13 +517,13 @@ namespace Engine {
 		return true ;
 	}
 	void NodeData::_do_make( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
-		RuleIdx prod_idx       = NoIdx                              ;
-		Req     req            = ri.req                             ;
-		Bool3   clean          = Maybe                              ;                                     // lazy evaluate manual()==No
-		bool    multi          = false                              ;
-		bool    stop_speculate = speculate<ri.speculate && +ri.goal ;
-		bool    query          = make_action==MakeAction::Query     ;
-		bool    first          = true                               ;                                     // anti infinite loop : may only regenerate once
+		RuleIdx            prod_idx       = NoIdx                              ;
+		Req                req            = ri.req                             ;
+		Bool3              clean          = Maybe                              ;                                                   // lazy evaluate manual()==No
+		::array<RuleIdx,2> multi          = {NoIdx,NoIdx}                      ;
+		bool               stop_speculate = speculate<ri.speculate && +ri.goal ;
+		bool               query          = make_action==MakeAction::Query     ;
+		bool               first          = true                               ;                                                   // anti infinite loop : may only regenerate once
 		Trace trace("Nmake",idx(),ri,make_action) ;
 		ri.speculate &= speculate ;
 		//vvvvvvvvvvvvvvvv
@@ -553,8 +553,8 @@ namespace Engine {
 				JobTgt jt   = *it                                                 ;
 				bool   done = jt->c_req_info(req).done(ri.goal>=NodeGoal::Status) ;
 				trace("check",jt,jt->c_req_info(req)) ;
-				if (!done             ) { prod_idx = NoIdx ; goto Make ;                               }  // we waited for it and it is not done, retry
-				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }  // jobs in error are deemed to produce all their potential targets
+				if (!done             ) { prod_idx = NoIdx ; goto Make ;                                            }              // we waited for it and it is not done, retry
+				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = {prod_idx,it.idx} ; }              // jobs in error are deemed to produce all their potential targets
 			}
 			if (prod_idx!=NoIdx) goto DoWakeup ;                                                          // we have at least one done job, no need to investigate any further
 			if (ri.single) ri.single   = false  ;                                                         // if regenerating but job does not generate us, something strange happened, retry this prio
@@ -584,7 +584,7 @@ namespace Engine {
 						if      ( jt.sure()                 )   buildable = Buildable::Yes ;              // buildable is data independent & pessimistic (may be Maybe instead of Yes)
 						else if (!jt->c_req_info(req).done())   continue ;
 						else if (!jt.produces(idx())        )   continue ;
-						if      (prod_idx!=NoIdx            ) { multi = true ; goto DoWakeup ; }
+						if      (prod_idx!=NoIdx            ) { multi = {prod_idx,it.idx} ; goto DoWakeup ; }
 						prod_idx = it.idx ;
 					}
 					prod_idx = NoIdx ;
@@ -629,15 +629,15 @@ namespace Engine {
 								}
 							break ;
 						DF}
-						if (ri.live_out) jri.live_out = ri.live_out ;                                                 // transmit user request to job for last level live output
+						if (ri.live_out) jri.live_out = ri.live_out ;                                                              // transmit user request to job for last level live output
 						jt->asking = idx() ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						jt->make( jri , ma , reason , ri.speculate ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						trace("job",ri,clean,ma,jt,STR(jri.waiting()),STR(jt.produces(idx())),polluted,STR(busy)) ;
 						if      (jri.waiting()     )   jt->add_watcher(jri,idx(),ri,ri.pressure) ;
-						else if (!jri.done()       ) { SWEAR(query) ; goto Wait ;                                   }
-						else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
+						else if (!jri.done()       ) { SWEAR(query) ; goto Wait ;                                                }
+						else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = {prod_idx,it.idx} ; } // jobs in error are deemed to produce all their potential targets
 					}
 				}
 				if (ri.waiting()   ) goto Wait ;
@@ -646,22 +646,21 @@ namespace Engine {
 			}
 		DoWakeup :
 			if (prod_idx==NoIdx) {
-				if ( ri.goal==NodeGoal::Dsk && !query ) manual_wash(ri,false/*query*/,true/*dangling*/) ;             // no producing job, check for dangling if asked to do so
+				if ( ri.goal==NodeGoal::Dsk && !query ) manual_wash(ri,false/*query*/,true/*dangling*/) ; // no producing job, check for dangling if asked to do so
 				status(NodeStatus::None) ;
-			} else if (!multi) {
-				conform_idx(prod_idx) ;
-			} else {
+			} else if (multi[0]!=NoIdx) {
+				SWEAR(multi[1]!=NoIdx) ;                                                                  // both must contain a valid index or none of them
 				status(NodeStatus::Multi) ;
-				::vector<JobTgt> jts ;
-				for( JobTgt jt : conform_job_tgts(ri) ) if (jt.produces(idx())) jts.push_back(jt) ;
-				trace("multi",ri,job_tgts().size(),conform_job_tgts(ri),jts) ;
-				/**/                   req->audit_node(Color::Err ,"multi",idx()            ) ;
-				/**/                   req->audit_info(Color::Note,"several rules match :",1) ;
-				for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule()->full_name(),2) ;
+				trace("multi",ri,multi) ;
+				/**/                     req->audit_node(Color::Err ,"multi",idx()                       ) ;
+				/**/                     req->audit_info(Color::Note,"at least 2 rules match :"        ,1) ;
+				for( RuleIdx i : multi ) req->audit_info(Color::Note,job_tgts()[i]->rule()->full_name(),2) ;
+			} else {
+				conform_idx(prod_idx) ;
 			}
 			ri.done_ = ri.goal ;
 			if (!_may_need_regenerate(self,ri,make_action)) break ;
-			SWEAR(first) ;                                                                                            // avoid infinite loop : we should not need to regenerate more than once
+			SWEAR(first) ;                                                                                // avoid infinite loop : we should not need to regenerate more than once
 			prod_idx = NoIdx ;
 		}
 	Wakeup :
@@ -807,7 +806,7 @@ namespace Engine {
 
 	::string Dep::accesses_str() const {
 		::string res ; res.reserve(N<Access>) ;
-		for( Access a : iota(All<Access>) ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX : for some reason, clang-tidy fires up here
+		for( Access a : iota(All<Access>) ) res.push_back( accesses[a] ? AccessChars[+a].second : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX! : for some reason, clang-tidy fires up here
 		return res ;
 	}
 

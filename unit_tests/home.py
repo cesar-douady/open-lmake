@@ -14,7 +14,7 @@ if __name__!='__main__' :
 
 	class Home(Rule) :
 		target = 'home'
-		cmd    = '[ $HOME = $ROOT_DIR ]'
+		cmd    = '[ $HOME = $REPO_ROOT ]'
 
 	class Homeless1(HomelessRule) :
 		target = 'homeless1'
@@ -22,7 +22,7 @@ if __name__!='__main__' :
 
 	class Homeless2(HomelessRule) :
 		target = 'homeless2'
-		cmd    = '[ {0}$HOME = {0}$TMPDIR ]'                                   # force python execution of f-string
+		cmd    = '[ {0}$HOME = {0}$TMPDIR ]' # force python execution of f-string
 
 	class Homeless3(HomelessRule) :
 		target = 'homeless3'
