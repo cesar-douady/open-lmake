@@ -124,7 +124,7 @@ namespace Disk {
 		if (is_abs(file)) return file ;
 		::string_view d_sv = dir_s ;
 		::string_view f_v  = file  ;
-		for(; f_v.starts_with("../") ; f_v = f_v.substr(3) ) {
+		for(; f_v.starts_with("../") ; f_v=f_v.substr(3) ) {
 			if (!d_sv) break ;
 			d_sv = d_sv.substr(0,d_sv.size()-1) ;                                         // suppress ending /
 			size_t last_slash = d_sv.rfind('/') ;

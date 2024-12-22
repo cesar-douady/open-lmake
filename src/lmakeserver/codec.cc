@@ -113,32 +113,32 @@ namespace Codec {
 		//
 		bool first = true ;
 		for( ::string const& line : lines ) {
-			{	size_t pos = 0 ;
-				/**/                                             if (line[pos++]!=' ') { trace("no_space_0") ; is_canonic=false ; continue ; }
-				::string ctx  = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') { trace("no_space_1") ; is_canonic=false ; continue ; }
-				::string code = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') { trace("no_space_2") ; is_canonic=false ; continue ; }
-				::string val  = parse_printable     (line,pos) ; if (line[pos  ]!=0  ) { trace("no_end"    ) ; is_canonic=false ; continue ; }
-				//
-				if (is_canonic) {
-					// use same order as in decode_tab below when rewriting file and ensure standard line formatting
-					if      ( !first && ::pair(prev_ctx,prev_code)>=::pair(ctx,code)          ) { trace("wrong_order",prev_ctx,prev_code,ctx,code) ; is_canonic=false ; }
-					else if ( ::string l=_codec_line(ctx,code,val,false/*with_nl*/) ; line!=l ) { trace("fancy_line" ,'"'+line+'"',"!=",'"'+l+'"') ; is_canonic=false ; }
-				}
-				//
-				auto [it,inserted] = encode_tab[ctx].try_emplace(val,code) ;
-				if (inserted) {
-					prev_ctx  = ::move(ctx ) ;
-					prev_code = ::move(code) ;
-					first     = false        ;
+			size_t pos = 0 ;
+			// /!\ format must stay in sync with Record::report_sync_direct
+			/**/                                             if (line[pos++]!=' ') { trace("no_space_0") ; is_canonic=false ; continue ; }
+			::string ctx  = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') { trace("no_space_1") ; is_canonic=false ; continue ; }
+			::string code = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') { trace("no_space_2") ; is_canonic=false ; continue ; }
+			::string val  = parse_printable     (line,pos) ; if (line[pos  ]!=0  ) { trace("no_end"    ) ; is_canonic=false ; continue ; }
+			//
+			if (is_canonic) {
+				// use same order as in decode_tab below when rewriting file and ensure standard line formatting
+				if      ( !first && ::pair(prev_ctx,prev_code)>=::pair(ctx,code)          ) { trace("wrong_order",prev_ctx,prev_code,ctx,code) ; is_canonic=false ; }
+				else if ( ::string l=_codec_line(ctx,code,val,false/*with_nl*/) ; line!=l ) { trace("fancy_line" ,'"'+line+'"',"!=",'"'+l+'"') ; is_canonic=false ; }
+			}
+			//
+			auto [it,inserted] = encode_tab[ctx].try_emplace(val,code) ;
+			if (inserted) {
+				prev_ctx  = ::move(ctx ) ;
+				prev_code = ::move(code) ;
+				first     = false        ;
+			} else {
+				is_canonic = false ;
+				if (it->second==code) {
+					trace("duplicate",line) ;
 				} else {
-					is_canonic = false ;
-					if (it->second==code) {
-						trace("duplicate",line) ;
-					} else {
-						::string crc = Xxh(val).digest().hex() ;
-						if (_code_prio(code,crc)>_code_prio(it->second,crc)) it->second = code ; // keep best code
-						trace("val_conflict",prev_code,code,it->second) ;
-					}
+					::string crc = Xxh(val).digest().hex() ;
+					if (_code_prio(code,crc)>_code_prio(it->second,crc)) it->second = code ; // keep best code
+					trace("val_conflict",prev_code,code,it->second) ;
 				}
 			}
 		}

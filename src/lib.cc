@@ -21,7 +21,7 @@ extern "C" {
 	::string from_dir_s  = cwd_s_.front()=='/' ? cwd_s_ : cwd_s()+cwd_s_ ;
 	::string repo_root_s = from_dir_s                                    ;
 	::vector_s candidates ;
-	for(;; repo_root_s = dir_name_s(repo_root_s) ) {
+	for(;; repo_root_s=dir_name_s(repo_root_s) ) {
 		if ( is_target(repo_root_s+"Lmakefile.py") || is_target(repo_root_s+"Lmakefile/__init__.py") ) candidates.push_back(repo_root_s) ;
 		if ( repo_root_s.size()==1                                                                   ) break ;
 	}

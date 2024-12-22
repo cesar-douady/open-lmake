@@ -154,7 +154,7 @@ index 99c2887..e3a65fd 100644
  _bin/job_exec : $(JOB_EXEC_OBJS) src/job_exec.o
 @@ -590,8 +607,8 @@ bin/% :
  
- # remote libs generate errors when -fsanitize=thread # XXX fix these errors and use $(SAN)
+ # remote libs generate errors when -fsanitize=thread # XXXM fix these errors and use $(SAN)
  
 -LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    _d$(LD_SO_LIB)/ld_preload_jemalloc.so
 -LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so
@@ -832,8 +832,8 @@ index dc74807..62a387d 100644
 --- a/_lib/lmake/__init__.src.py
 +++ b/_lib/lmake/__init__.src.py
 @@ -40,7 +40,8 @@ if top_repo_root==None : top_repo_root = _os.getcwd() ; # .
- root_dir     = repo_root     # XXX : until backward compatibility can be broken
- top_root_dir = top_repo_root # XXX : until backward compatibility can be broken
+ root_dir     = repo_root     # XXXM : until backward compatibility can be broken
+ top_root_dir = top_repo_root # XXXM : until backward compatibility can be broken
  
 -version = ('$VERSION',0) # substituted at build time
 +version        = ('$VERSION',0)          # substituted at build time
@@ -2537,7 +2537,7 @@ index 45e97ee..c941607 100644
  
  static void _chk_os() {
 +	#if !IS_LINUX
-+		return ;  // XXX : dont know how to check os release
++		return ;  // XXXM : dont know how to check os release
 +	#endif
  	static constexpr const char* ReleaseFile = "/etc/os-release" ;
  	::vector_s lines      = AcFd(ReleaseFile).read_lines(true/*no_file_ok*/) ;
@@ -2701,7 +2701,7 @@ index 504f938..855dee7 100644
  	// info from : https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/syscalls
  
 -::array<uint64_t,6> np_ptrace_get_args( pid_t pid , uint8_t word_sz ) {                 // info come from man 2 syscall
--	SWEAR(word_sz==NpWordSz,word_sz) ;                                                  // XXX : implement 32 bits tracee from 64 bits tracer
+-	SWEAR(word_sz==NpWordSz,word_sz) ;                                                  // XXXM : implement 32 bits tracee from 64 bits tracer
 -	UserRegsStruct      regs = _get(pid,6/*n_words*/) ;
 -	::array<uint64_t,6> res  ;
 -	#if __x86_64__
@@ -2736,7 +2736,7 @@ index 504f938..855dee7 100644
 -	return res ;
 -}
 +	::array<uint64_t,6> np_ptrace_get_args( pid_t pid , uint8_t word_sz ) {                 // info come from man 2 syscall
-+		SWEAR(word_sz==NpWordSz,word_sz) ;                                                  // XXX : implement 32 bits tracee from 64 bits tracer
++		SWEAR(word_sz==NpWordSz,word_sz) ;                                                  // XXXM : implement 32 bits tracee from 64 bits tracer
 +		UserRegsStruct      regs = _get(pid,6/*n_words*/) ;
 +		::array<uint64_t,6> res  ;
 +		#if __x86_64__
@@ -2772,7 +2772,7 @@ index 504f938..855dee7 100644
 +	}
  
 -int64_t np_ptrace_get_res( pid_t pid , uint8_t word_sz ) {
--	SWEAR(word_sz==NpWordSz,word_sz) ;                                             // XXX : implement 32 bits tracee from 64 bits tracer
+-	SWEAR(word_sz==NpWordSz,word_sz) ;                                             // XXXM : implement 32 bits tracee from 64 bits tracer
 -	UserRegsStruct regs = _get(pid,1/*n_words*/) ;
 -	#if __x86_64__
 -		return regs.rax     ;                                                      // full struct is retrieved with x86
@@ -2785,7 +2785,7 @@ index 504f938..855dee7 100644
 -	#endif
 -}
 +	int64_t np_ptrace_get_res( pid_t pid , uint8_t word_sz ) {
-+		SWEAR(word_sz==NpWordSz,word_sz) ;                                             // XXX : implement 32 bits tracee from 64 bits tracer
++		SWEAR(word_sz==NpWordSz,word_sz) ;                                             // XXXM : implement 32 bits tracee from 64 bits tracer
 +		UserRegsStruct regs = _get(pid,1/*n_words*/) ;
 +		#if __x86_64__
 +			return regs.rax     ;                                                      // full struct is retrieved with x86
@@ -2799,7 +2799,7 @@ index 504f938..855dee7 100644
 +	}
  
 -long np_ptrace_get_nr( pid_t pid , uint8_t word_sz ) {
--	SWEAR(word_sz==NpWordSz,word_sz) ;                                                           // XXX : implement 32 bits tracee from 64 bits tracer
+-	SWEAR(word_sz==NpWordSz,word_sz) ;                                                           // XXXM : implement 32 bits tracee from 64 bits tracer
 -	UserRegsStruct regs = _get(pid,9/*n_words*/) ;
 -	#if __x86_64__
 -		return regs.orig_rax ;                                                                   // full struct is retrieved with x86
@@ -2812,7 +2812,7 @@ index 504f938..855dee7 100644
 -	#endif
 -}
 +	long np_ptrace_get_nr( pid_t pid , uint8_t word_sz ) {
-+		SWEAR(word_sz==NpWordSz,word_sz) ;                                                           // XXX : implement 32 bits tracee from 64 bits tracer
++		SWEAR(word_sz==NpWordSz,word_sz) ;                                                           // XXXM : implement 32 bits tracee from 64 bits tracer
 +		UserRegsStruct regs = _get(pid,9/*n_words*/) ;
 +		#if __x86_64__
 +			return regs.orig_rax ;                                                                   // full struct is retrieved with x86
@@ -2826,7 +2826,7 @@ index 504f938..855dee7 100644
 +	}
  
 -void np_ptrace_set_res( pid_t pid , int64_t val , uint8_t word_sz ) {
--	SWEAR(word_sz==NpWordSz,word_sz) ;                                            // XXX : implement 32 bits tracee from 64 bits tracer
+-	SWEAR(word_sz==NpWordSz,word_sz) ;                                            // XXXM : implement 32 bits tracee from 64 bits tracer
 -	UserRegsStruct regs = _get(pid,1/*n_words*/)  ;
 -	#if __x86_64__
 -		regs.rax     = val ;                                                      // full struct is retrieved with x86
@@ -2840,7 +2840,7 @@ index 504f938..855dee7 100644
 -	_set(pid,1,regs) ;
 -}
 +	void np_ptrace_set_res( pid_t pid , int64_t val , uint8_t word_sz ) {
-+		SWEAR(word_sz==NpWordSz,word_sz) ;                                            // XXX : implement 32 bits tracee from 64 bits tracer
++		SWEAR(word_sz==NpWordSz,word_sz) ;                                            // XXXM : implement 32 bits tracee from 64 bits tracer
 +		UserRegsStruct regs = _get(pid,1/*n_words*/)  ;
 +		#if __x86_64__
 +			regs.rax     = val ;                                                      // full struct is retrieved with x86
@@ -2859,7 +2859,7 @@ diff --git a/src/non_portable.hh b/src/non_portable.hh
 index 046b0b5..d03611a 100644
 --- a/src/non_portable.hh
 +++ b/src/non_portable.hh
-@@ -21,7 +21,9 @@ static constexpr bool NpStackGrowsDownward = true               ; // XXX : find
+@@ -21,7 +21,9 @@ static constexpr bool NpStackGrowsDownward = true               ; // XXXM : find
  	static constexpr uint8_t NpWordSz = 32 ;
  #endif
  
@@ -2919,7 +2919,7 @@ index d13c757..ed7da65 100644
 -		for(;;) {
 -			int   wstatus   ;
 -			pid_t child_pid = ::wait(&wstatus) ;
--			if (child_pid==pid) {                                                                       // XXX : find a way to simulate a caught signal rather than exit 128+sig
+-			if (child_pid==pid) {                                                                       // XXXM : find a way to simulate a caught signal rather than exit 128+sig
 -				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                           // exit as transparently as possible
 -				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                           // cannot kill self to be transparent as we are process 1, mimic bash
 -				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                       // ensure we have not forgotten a case
@@ -2942,7 +2942,7 @@ index d13c757..ed7da65 100644
 +			for(;;) {
 +				int   wstatus   ;
 +				pid_t child_pid = ::wait(&wstatus) ;
-+				if (child_pid==pid) {                                                                       // XXX : find a way to simulate a caught signal rather than exit 128+sig
++				if (child_pid==pid) {                                                                       // XXXM : find a way to simulate a caught signal rather than exit 128+sig
 +					if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                           // exit as transparently as possible
 +					if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                           // cannot kill self to be transparent as we are process 1, mimic bash
 +					SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                       // ensure we have not forgotten a case
@@ -3170,7 +3170,7 @@ index ea1c80f..5a82c91 100644
 -			;
 -		top_repo_view_s = repo_view_s.substr(0,repo_view_s.size()-cwd_s.size()) ;
 -	}
--	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s ; // XXX : handle cases where dir is not top level
+-	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s ; // XXXM : handle cases where dir is not top level
 -	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
 -	//
 -	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly manage the '/' case
@@ -3278,7 +3278,7 @@ index ea1c80f..5a82c91 100644
 -				else
 -					for( size_t i : iota(1,descr.phys.size()) )
 -						if (_create(report,dst,descr.phys[i]+cu)) break ;
-+		if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s ; // XXX : handle cases where dir is not top level
++		if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s ; // XXXM : handle cases where dir is not top level
 +		if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
 +		//
 +		::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ;   // cannot use no_slash to properly manage ...
@@ -3372,7 +3372,7 @@ index ea1c80f..5a82c91 100644
 +	#endif
  }
  
- // XXX : implement recursive views
+ // XXXM : implement recursive views
 @@ -534,6 +545,7 @@ bool/*entered*/ JobStartRpcReply::enter(
  	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                         ;
  	bool     entered        = job_space.enter( actions , phy_repo_root_s , phy_tmp_dir_s , cwd_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;

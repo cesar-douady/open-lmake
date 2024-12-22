@@ -65,7 +65,7 @@ namespace Backends {
 		Pdate now = Pdate(New).round_msec() ;                                                   // avoid rounding errors
 		Trace trace(BeChnl,"Workload::_refresh",self,now) ;
 		//
-		for( auto it = _eta_set.begin() ; it!=_eta_set.end() && it->first<=now ;) {             // eta is passed, job is no more reasonable
+		for( auto it=_eta_set.begin() ; it!=_eta_set.end() && it->first<=now ;) {               // eta is passed, job is no more reasonable
 			auto   [eta,job]     = *it                           ;
 			Tokens tokens        = job->tokens1+1                ;
 			Val    left_workload = tokens*(eta-_ref_date).msec() ;
@@ -386,8 +386,8 @@ namespace Backends {
 		if (+deps) {
 			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )
-				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;   // update existing dep
-				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      } // create new dep
+				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;          // update existing dep
+				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      }        // create new dep
 		}
 		bool deps_done = false ;                    // true if all deps are done for at least a non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {
@@ -560,13 +560,13 @@ namespace Backends {
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("queued_in_backend",j) ;
 				}
-			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                          // /!\ we erase entries while iterating
+			for( auto jit=_s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                            // /!\ we erase entries while iterating
 				Job         j = jit->first  ;
 				StartEntry& e = jit->second ;
 				if (!e) { jit++ ; continue ; }
 				if (+r) {
 					if ( e.reqs.size()==1 && e.reqs[0]==+r ) goto Kill ;
-					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) {                                          // e.reqs is a non-sorted vector, we must search ri by hand
+					for( auto it=e.reqs.begin() ; it!=e.reqs.end() ; it++ ) {                                            // e.reqs is a non-sorted vector, we must search ri by hand
 						if (*it!=+r) continue ;
 						e.reqs.erase(it) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

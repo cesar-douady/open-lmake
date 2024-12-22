@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-// XXX : fuse autodep does not work for the following reason :
+// XXXM : fuse autodep does not work for the following reason :
 // when foo/bar is open(RDONLY), fuse first does lookup(top-level,foo) before lookup(foo,bar) and finally open(foo/bar)
 // the problem is that if foo does not exist, we still want to record a dep on foo/bar
 // and we never get the info that foo/bar is accessed

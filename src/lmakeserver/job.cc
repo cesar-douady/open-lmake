@@ -31,10 +31,10 @@ namespace Engine {
 		::umap<Node,NodeIdx/*depth*/> to_rmdirs        ;
 		::vmap<Node,FileAction>       actions          ;
 		for( Node d : to_mkdirs )
-			for( Node hd=d->dir() ; +hd ; hd = hd->dir() )
+			for( Node hd=d->dir() ; +hd ; hd=hd->dir() )
 				if (!to_mkdir_uphills.insert(hd).second) break ;
 		for( auto const& [_,d] : match.deps() )                                           // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
-			for( Node hd=Node(d.txt)->dir() ; +hd ; hd = hd->dir() )
+			for( Node hd=Node(d.txt)->dir() ; +hd ; hd=hd->dir() )
 				if (!locked_dirs.insert(hd).second) break ;                               // if dir contains a dep, it cannot be rmdir'ed
 		//
 		// remove old targets
@@ -65,7 +65,7 @@ namespace Engine {
 						NodeIdx depth = 0 ;
 						for( Node hd=td ; +hd ; (hd=hd->dir()),depth++ )
 							if (_s_target_dirs.contains(hd)) goto NextTarget ; // everything under a protected dir is protected, dont even start walking from td
-						for( Node hd=td ; +hd ; hd = hd->dir() ) {
+						for( Node hd=td ; +hd ; hd=hd->dir() ) {
 							if (_s_hier_target_dirs.contains(hd)) break ;      // dir is protected
 							if (locked_dirs        .contains(hd)) break ;      // dir contains a file, no hope to remove it
 							if (to_mkdirs          .contains(hd)) break ;      // dir must exist, it is silly to spend time to rmdir it, then again to mkdir it
@@ -105,7 +105,7 @@ namespace Engine {
 		::uset<Node> dirs        = simple_match().target_dirs() ;
 		::uset<Node> dir_uphills ;
 		for( Node d : dirs )
-			for( Node hd=d->dir() ; +hd ; hd = hd->dir() )
+			for( Node hd=d->dir() ; +hd ; hd=hd->dir() )
 				if (!dir_uphills.insert(hd).second) break ;
 		//
 		auto dec = [&]( ::umap<Node,Idx/*cnt*/>& dirs , Node d )->void {

@@ -9,7 +9,7 @@
 
 namespace Store {
 
-	// XXX : always consistency not implemented
+	// XXXM : always consistency not implemented
 
 	//
 	// MultiRedBlackFile  : multi-root red-black file
@@ -80,7 +80,7 @@ namespace Store {
 		Item const& _at(Idx idx) const { return Base::at(idx) ; }
 		Item      & _at(Idx idx)       { return Base::at(idx) ; }
 	public :
-		::vector<Idx> lst(Idx root) const {                                                           // XXX : implement iterator rather than vector
+		::vector<Idx> lst(Idx root) const {                                                           // XXXM : implement iterator rather than vector
 			::vector<Idx> res ;
 			_append_lst(res,root) ;
 			return res ;

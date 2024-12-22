@@ -73,7 +73,7 @@ index 9a7a9cc..b334218 100644
  	src/re.o             \
  	src/rpc_job.o        \
 @@ -573,7 +564,7 @@ LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
- _bin/job_exec bin/lautodep : # XXX : why job_exec and autodep do not support sanitize thread ?
+ _bin/job_exec bin/lautodep : # XXXM : why job_exec and autodep do not support sanitize thread ?
  	@mkdir -p $(@D)
  	@echo link to $@
 -	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(FUSE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
@@ -138,12 +138,12 @@ index 5170a59..1e82e39 100644
  	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
  	cmd          = 'cd ext/{DirS} ; ./configure'
  
--class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
-+class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
+-class SysConfig(PathRule,TraceRule) : # XXXM : handle FUSE and PCRE
++class SysConfig(PathRule,TraceRule) : # XXXM : handle PCRE
  	targets = {
  		'H'     : 'sys_config.h'
  	,	'TRIAL' : r'trial/{*:.*}'
-@@ -164,13 +164,10 @@ class SysConfig(PathRule,TraceRule) : # XXX : handle FUSE and PCRE
+@@ -164,13 +164,10 @@ class SysConfig(PathRule,TraceRule) : # XXXM : handle FUSE and PCRE
  		while read k e v ; do
  			case $k in
  				'#'*      ) ;;
@@ -395,7 +395,7 @@ index a7473a3..d77c6df 100644
 -	trace("done") ;
 -}
 -
- // XXX : implement recursive views
+ // XXXM : implement recursive views
  // for now, phys cannot englobe or lie within a view, but when it is to be implemented, it is here
  ::vmap_s<::vector_s> JobSpace::flat_phys() const {
 @@ -549,13 +518,8 @@ bool/*entered*/ JobRpcReply::enter(

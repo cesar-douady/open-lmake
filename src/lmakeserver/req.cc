@@ -319,7 +319,7 @@ namespace Engine {
 		}
 		_n_watchers = 0 ;
 		// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
-		for( auto it = watchers.begin() ; it!=watchers.end() ; it++ )
+		for( auto it=watchers.begin() ; it!=watchers.end() ; it++ )
 			if      (waiting()      ) _add_watcher(*it) ;                           // if waiting again, add back watchers we have got and that we no more want to call
 			else if (it->is_a<Job>()) Job (*it)->wakeup(Job (*it)->req_info(req)) ; // ok, we are still done, we can call watcher
 			else                      Node(*it)->wakeup(Node(*it)->req_info(req)) ; // .

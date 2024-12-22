@@ -18,6 +18,9 @@ __pycache__
 /_bin/lkpi
 /_bin/lmakeserver
 
+# libs
+/_lib/fmt_rule.py
+
 # doc
 /doc/info.texi
 /doc/lmake.html

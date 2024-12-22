@@ -1138,7 +1138,7 @@ namespace Store {
 			VecStr<S>                        name      ; name     .reserve(s_name_max_sz     ) ;
 			::vmap<Idx,ChunkIdx/*chunk_sz*/> psfx_path ; psfx_path.reserve(s_psfx_path_max_sz) ;  // .
 			::vmap<Idx,ChunkIdx/*chunk_sz*/> name_path ; name_path.reserve(s_name_path_max_sz) ;  // when !Reverse, we must walk from root to idx but we gather pathes from idx back to root
-			for(; +idx ; idx = _at(idx).prev ) {
+			for(; +idx ; idx=_at(idx).prev ) {
 				Item const& item     = _at(idx)      ;
 				ChunkIdx    chunk_sz = item.chunk_sz ;
 				if (psfx_sz>=chunk_sz) {
@@ -1230,7 +1230,7 @@ namespace Store {
 			static ::atomic<size_t> s_path_max_sz = 0 ;
 			VecStr<S>                        res  ; res .reserve(s_res_max_sz ) ;
 			::vmap<Idx,ChunkIdx/*chunk_sz*/> path ; path.reserve(s_path_max_sz) ;             // when !Reverse, we must walk from root to idx but we gather path from idx back to root
-			for(; +idx ; idx = _at(idx).prev ) {
+			for(; +idx ; idx=_at(idx).prev ) {
 				Item const& item         = _at(idx)                        ;
 				ChunkIdx    chunk_sz     = item.chunk_sz                   ;
 				ChunkIdx    min_chunk_sz = ::min(size_t(chunk_sz),psfx_sz) ;
@@ -1328,7 +1328,7 @@ namespace Store {
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_shorten_by( Idx idx , size_t by ) {
 			ULock lock{_mutex} ;
-			for(; +idx ; idx = _at(idx).prev ) {
+			for(; +idx ; idx=_at(idx).prev ) {
 				Item const& item = _at(idx) ;
 				ChunkIdx chunk_sz = item.chunk_sz ;
 				if (by) {

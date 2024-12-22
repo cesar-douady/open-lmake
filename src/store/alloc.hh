@@ -125,7 +125,7 @@ namespace Store {
 			} ;
 			// cxtors & casts
 			Lst( AllocFile const& s ) : _self{&s} , _lock{s._mutex} {
-				for( Idx i=_self->_free(0) ; +i ; i = _self->Base::at(i).nxt ) _frees.insert(+i) ;
+				for( Idx i=_self->_free(0) ; +i ; i=_self->Base::at(i).nxt ) _frees.insert(+i) ;
 			}
 			// accesses
 			Sz size() const { return _self->size() ; }
