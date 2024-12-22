@@ -242,7 +242,7 @@ namespace Engine {
 	private :
 		Step _step:3 = {} ;                                            //          3 bits
 	} ;
-	static_assert(sizeof(JobReqInfo)==56) ;                            // check expected size, XXX : optimize size, can be 40
+	static_assert(sizeof(JobReqInfo)==56) ;                            // check expected size, XXX! : optimize size, can be 40
 
 }
 
@@ -287,7 +287,7 @@ namespace Engine {
 			::string res ;
 			if ( Rule r=rule() ; +r )                               res = full_name(r->job_sfx_len())             ;
 			else                      { ::string fn = full_name() ; res = fn.substr(0,fn.find(RuleData::JobMrkr)) ; }    // heavier, but works without rule
-			SWEAR(Disk::is_canon(res),res) ;                                                                             // XXX : suppress when bug is found, job names are supposed to be canonic
+			SWEAR(Disk::is_canon(res),res) ;                                                                             // XXX> : suppress when bug is found, job names are supposed to be canonic
 			return res ;
 		}
 		//

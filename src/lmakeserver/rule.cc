@@ -1140,22 +1140,35 @@ namespace Engine {
 			else        res <<       patterns_[k]                                     ;
 			/**/        res <<'\n'                                                    ;
 		}
+		// report exceptions (i.e. sub-repos in which rule does not apply) unless it can be proved we cannot match in such sub-repos
 		::vector_s excepts_s ;
-		for( ::string const& sr_s : g_config->sub_repos_s )
-			if ( sr_s.size()>cwd_s.size() && sr_s.starts_with(cwd_s) ) {
-				for( ::string const& e_s : excepts_s ) if (sr_s.starts_with(e_s)) goto Seen ;
-				excepts_s.push_back(sr_s) ;                                                   // XXX* : dont include exceptions if target prefixes guarantee that the rule cannot match inside sr_s
-			Seen : ;
+		::uset_s   seens_s   ;                                // we are only interested in first level sub-repos under our sub-repo
+		for( ::string const& sr_s : g_config->sub_repos_s ) {
+			if (!( sr_s.size()>cwd_s.size() && sr_s.starts_with(cwd_s) )) continue ;             // if considered sub-repo is not within our sub-repo, it cannot match
+			for( ::string const& e_s : seens_s )
+				if (sr_s.starts_with(e_s)) goto Skip ;                                           // g_config->sub_repos_s are sorted so that higher level occurs first
+			seens_s.insert(sr_s) ;
+			for( auto const& [k,me] : matches ) {                                                // if all targets have a prefix that excludes considered sub-repo, it cannot match
+				if (!( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )) continue ; // not a target
+				::string_view pfx { me.pattern.data() , me.pattern.find(Rule::StemMrkr) } ;      // find target prefix
+				if (sr_s.starts_with(pfx )) goto Report ;                                        // found a target that may      match in sub-repo, include it
+				if (pfx .starts_with(sr_s)) goto Report ;                                        // found a target that may only match in sub-repo, include it
 			}
+		Skip :
+			continue ;
+		Report :
+			excepts_s.push_back(sr_s) ;
+		}
 		if (+excepts_s) {
 			/**/                                  res << "except in sub-repos :\n"  ;
 			for( ::string const& e_s : excepts_s) res <<'\t'<< no_slash(e_s) <<'\n' ;
 		}
+		// report actual reg-exprs to ease debugging
 		res << "patterns :\n" ;
 		for( size_t mi : iota(matches.size()) )
 			res <<'\t'<<
-				/**/     widen(cat(kind(matches [mi].second)),w1)
-			<<	' '   << widen(         matches [mi].first   ,w2)
+				/**/     widen(cat(kind(matches[mi].second)),w1)
+			<<	' '   << widen(         matches[mi].first   ,w2)
 			<<	" : " <<       patterns[mi].txt
 			<<'\n' ;
 		return res ;

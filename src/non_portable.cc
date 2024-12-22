@@ -45,7 +45,7 @@ using namespace std ;
 	// info from : https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/syscalls
 
 ::array<uint64_t,6> np_ptrace_get_args( pid_t pid , uint8_t word_sz ) {                 // info come from man 2 syscall
-	SWEAR(word_sz==NpWordSz,word_sz) ;                                                  // XXX : implement 32 bits tracee from 64 bits tracer
+	SWEAR(word_sz==NpWordSz,word_sz) ;                                                  // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct      regs = _get(pid,6/*n_words*/) ;
 	::array<uint64_t,6> res  ;
 	#if __x86_64__
@@ -81,7 +81,7 @@ using namespace std ;
 }
 
 int64_t np_ptrace_get_res( pid_t pid , uint8_t word_sz ) {
-	SWEAR(word_sz==NpWordSz,word_sz) ;                                             // XXX : implement 32 bits tracee from 64 bits tracer
+	SWEAR(word_sz==NpWordSz,word_sz) ;                                             // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct regs = _get(pid,1/*n_words*/) ;
 	#if __x86_64__
 		return regs.rax     ;                                                      // full struct is retrieved with x86
@@ -95,7 +95,7 @@ int64_t np_ptrace_get_res( pid_t pid , uint8_t word_sz ) {
 }
 
 long np_ptrace_get_nr( pid_t pid , uint8_t word_sz ) {
-	SWEAR(word_sz==NpWordSz,word_sz) ;                                                           // XXX : implement 32 bits tracee from 64 bits tracer
+	SWEAR(word_sz==NpWordSz,word_sz) ;                                                           // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct regs = _get(pid,9/*n_words*/) ;
 	#if __x86_64__
 		return regs.orig_rax ;                                                                   // full struct is retrieved with x86
@@ -109,7 +109,7 @@ long np_ptrace_get_nr( pid_t pid , uint8_t word_sz ) {
 }
 
 void np_ptrace_set_res( pid_t pid , int64_t val , uint8_t word_sz ) {
-	SWEAR(word_sz==NpWordSz,word_sz) ;                                            // XXX : implement 32 bits tracee from 64 bits tracer
+	SWEAR(word_sz==NpWordSz,word_sz) ;                                            // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct regs = _get(pid,1/*n_words*/)  ;
 	#if __x86_64__
 		regs.rax     = val ;                                                      // full struct is retrieved with x86

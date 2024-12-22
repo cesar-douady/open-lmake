@@ -428,7 +428,7 @@ namespace Backends {
 				job_exec = { job , reply.addr , New/*start*/ } ;                                                                 // job starts and ends
 				JobEndRpcReq end_jrr {                                                                                           // before ::move(reply)
 					{jsrr.seq_id,jsrr.job}
-				,	{ .deps=reply.deps , .end_attrs=EndAttrs() , .status=status , .stderr=start_msg_err.second }                 // XXX : init of end_attrs seems necessary for g++12 -O3 ?
+				,	{ .deps=reply.deps , .end_attrs=EndAttrs() , .status=status , .stderr=start_msg_err.second }                 // XXX! : init of end_attrs seems necessary for g++12 -O3 ?
 				,	::move(start_msg_err.first)
 				} ;
 				::string     msg = jsrr.msg ;                                                                                    // before ::move(jsrr)

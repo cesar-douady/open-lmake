@@ -37,8 +37,8 @@ top_repo_root = _os.environ.get('TOP_REPO_ROOT')
 if repo_root    ==None : repo_root     = _os.getcwd() ; # fall back if not within a job
 if top_repo_root==None : top_repo_root = _os.getcwd() ; # .
 
-root_dir     = repo_root     # XXX : until backward compatibility can be broken
-top_root_dir = top_repo_root # XXX : until backward compatibility can be broken
+root_dir     = repo_root     # XXX> : until backward compatibility can be broken
+top_root_dir = top_repo_root # XXX> : until backward compatibility can be broken
 
 version = ('$VERSION',0) # substituted at build time
 
@@ -69,7 +69,7 @@ class Autodep :
 	def __exit__(self,*args) :
 		set_autodep(self.prev)
 
-#def run_cc(*cmd_line,marker='...',stdin=None) :                             # XXX : use this prototype when Python2 is no more supported
+#def run_cc(*cmd_line,marker='...',stdin=None) :                             # XXX> : use this prototype when Python2 is no more supported
 def run_cc(*cmd_line,**kwds) :
 	'''
 		Run cmd_line assuming it is a C/C++ compiler.
@@ -80,7 +80,7 @@ def run_cc(*cmd_line,**kwds) :
 		You can pass keyword argument marker (defaults to '...') to specify the marker (a file inside dirs) that guarantees dir existences.
 		You can exceptionnally pass stdin as the stdin argument.
 	'''
-	marker = '...'                                                           # XXX : suppress kwds analysis when Python2 is no more supported
+	marker = '...'                                                           # XXX> : suppress kwds analysis when Python2 is no more supported
 	stdin  = None
 	for k,v in kwds.items() :
 		if   k=='marker' : marker = v

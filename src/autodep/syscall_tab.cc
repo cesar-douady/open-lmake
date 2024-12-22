@@ -282,7 +282,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & 
 	}
 #endif
 
-// XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)
+// XXX! : find a way to put one entry per line instead of 3 lines(would be much more readable)
 static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	constexpr long NSyscalls = SyscallDescr::NSyscalls ;
 	SyscallDescr::Tab s_tab = {} ;

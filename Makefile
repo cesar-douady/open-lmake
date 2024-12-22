@@ -91,7 +91,7 @@ SRCS := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA := ,
 
-# XXX : add -fdebug_prefix-map=$(REPO_ROOT)=??? when we know a sound value (e.g. the dir in which sources will be installed)
+# XXX! : add -fdebug_prefix-map=$(REPO_ROOT)=??? when we know a sound value (e.g. the dir in which sources will be installed)
 HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden -g
 # syntax for LMAKE_FLAGS : (O[0123])?G?d?t?(S[AT])?P?C?
 # - O[0123] : compiler optimization level, defaults to 1 if profiling else 3
@@ -159,7 +159,7 @@ MOD_O         = $(if $(and $(HAS_32) ,$(findstring -m32,             $@)),-m32)
 
 COMPILE = $(COMPILE1) $(PY_CC_FLAGS) $(CPP_FLAGS)
 
-# XXX : use split debug info when stacktrace supports it
+# XXX> : use split debug info when stacktrace supports it
 SPLIT_DBG_CMD = \
 	$(if $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(SPLIT_DBG_32),$(SPLIT_DBG)) , \
 		( \
@@ -588,7 +588,7 @@ bin/% :
 	@$(LINK) -o $@ $^ $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-# remote libs generate errors when -fsanitize=thread # XXX fix these errors and use $(SAN)
+# remote libs generate errors when -fsanitize=thread # XXX! fix these errors and use $(SAN)
 
 LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    _d$(LD_SO_LIB)/ld_preload_jemalloc.so
 LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so
@@ -780,6 +780,6 @@ open-lmake_$(DEBIAN_VERSION).stamp : $(DEBIAN_SRCS)
 	{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>debian-repo/debian/open-lmake.links
 	{ for f in                   $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > debian-repo/debian/open-lmake.manpages
 	cat Manifest                                                                                                                 > debian-repo/Manifest
-	# work around a lintian bug that reports elf-error warnings for debug symbol files                                        # XXX : find a way to filter out these lines more cleanly
+	# work around a lintian bug that reports elf-error warnings for debug symbol files                                        # XXX! : find a way to filter out these lines more cleanly
 	cd debian-repo ; debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
 	touch $@

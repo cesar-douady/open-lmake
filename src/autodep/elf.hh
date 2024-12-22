@@ -213,8 +213,8 @@ inline Record::ReadCS Elf::search_elf( ::string const& file , ::string const& ru
 		/**/            full_file += file                     ;
 		Record::ReadCS rr { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , ::copy(comment) } ;
 		auto [it,inserted] = seen.try_emplace(rr.real,Maybe) ;
-		if ( it->second==Maybe           )   it->second = No | is_target(Record::s_root_fd(),rr.real,false/*no_follow*/) ; // real may be a sym link in the system directories
-		if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , comment+".dep" ) ; return rr ; }
+		if ( it->second==Maybe           )   it->second = No | is_target(Record::s_repo_root_fd(),rr.real,false/*no_follow*/) ;   // real may be a sym link in the system directories
+		if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , comment+".dep" ) ; return rr ;                       }
 		if ( it->second==Yes             )                                                    return {} ;
 		if (end==Npos) break ;
 		pos = end+1 ;
@@ -225,8 +225,8 @@ inline Record::ReadCS Elf::search_elf( ::string const& file , ::string const& ru
 inline void Elf::elf_deps( Record::SolveCS const& file , bool top , ::string&& comment ) {
 	if ( simple_llp && file.file_loc==FileLoc::Ext ) return ;
 	try {
-		FileMap   file_map { Record::s_root_fd() , file.real } ; if (!file_map) return ;                                                               // real may be a sym link in system dirs
-		DynDigest digest   { file_map }                        ;
+		FileMap   file_map { Record::s_repo_root_fd() , file.real } ; if (!file_map) return ;                                                          // real may be a sym link in system dirs
+		DynDigest digest   { file_map }                             ;
 		if (top) rpath = digest.rpath ;                                                                                                                // rpath applies to the whole search
 		for( const char* needed : digest.neededs ) search_elf( s_expand(needed,file.real) , s_expand(digest.runpath,file.real) , comment+".needed" ) ;
 	} catch (int) { return ; }                                                                                                                         // bad file format, ignore

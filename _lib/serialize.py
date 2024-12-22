@@ -100,7 +100,7 @@ def _analyze(filename) :
 			if prev_line and not prev_line.isspace() and prev_line.startswith(prefix) and prev_line[def_pos]=='@' :
 				file_end_lines[start_lineno] = None                                                                 # cannot handle decorators in serializer as we generally cannot reproduce the object
 		candidate = None
-		for lineno in range(start_lineno+1,len(lines)) :                                                            # XXX : handle misaligned (), [] & {} and multi-lines '''string''' & """string"""
+		for lineno in range(start_lineno+1,len(lines)) :                                                            # XXX! : handle misaligned (), [] & {} and multi-lines '''string''' & """string"""
 			line = lines[lineno]
 			if comment_re.match(line) :
 				if not candidate : candidate = lineno                                                               # manage to exclude comment lines at end of funcs

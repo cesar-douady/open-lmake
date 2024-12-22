@@ -13,7 +13,7 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Dut1(Rule) :
-		autodep = 'ptrace'      # XXX : generates a free(): invalid pointer with ld_audit
+		autodep = 'ptrace'      # XXX! : generates a free(): invalid pointer with ld_audit
 		targets = {'LOG':'log'}
 		cmd     = '{valgrind} --log-file={LOG} --tool=memcheck hostname'
 

@@ -838,7 +838,7 @@ However there are 2 situations in which a global rule may apply in a sub-repo :
 @itemize
 @item if a target contains an explicit prefix within a sub-repo, then it is considered the user is willing to subrogate this principle.
 @item if a rule matches a job with 2 or more targets, with a target outside the sub-repo and another inside it and the target outside the sub-repo is needed,
-the job will be executed, generating a target within the sub-repo.@XXX{flag this case as an error rather than silently accepting it}
+the job will be executed, generating a target within the sub-repo.@XXX{?flag this case as an error rather than silently accepting it}
 @end itemize
 @end itemize
 However, relative external source dirs (i.e. source dirs located outside the sub-repository) that happen to be located in the global repository are suppressed,
@@ -2981,8 +2981,6 @@ class Gcc(lmake.Rule) :
 	cmd     = 'ldepend a/mrkr b/mrkr c/mrkr ; gcc -Ia -Ib -Ic -c -o @{OBJ@} @{SRC@}'
 @end group
 @end example
-
-@XXX{to be completed}
 
 @chapter Glossary
 

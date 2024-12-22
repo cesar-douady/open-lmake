@@ -278,7 +278,7 @@ namespace Caches {
 		}
 	}
 
-	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) {             // XXX : defer upload in a dedicated thread
+	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) {             // XXX! : defer upload in a dedicated thread (very difficult to ensure stability)
 		::string jn_s = _unique_name_s(job)+repo_s ;
 		Trace trace("DirCache::upload",job,jn_s) ;
 		//

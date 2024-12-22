@@ -167,7 +167,7 @@ namespace Engine::Persistent {
 			::pair<Name/*top*/,::vector<Name>/*created*/>( {} , {_name_file.insert(name_)} )
 		:	_name_file.insert_chain(name_,'/')
 		;
-		if (+top_created.second) SWEAR(is_canon(name_),name_) ;                          // XXX : suppress when bug is found, we are supposed to insert only canonic names
+		if (+top_created.second) SWEAR(is_canon(name_),name_) ;                          // XXX> : suppress when bug is found, we are supposed to insert only canonic names
 		Node n ; if (+top_created.first) n = _name_file.c_at(top_created.first).node() ;
 		for( Name nn : top_created.second ) n = Node( nn , n ) ;
 		SWEAR(+n,name_) ;
@@ -607,7 +607,7 @@ namespace Engine::Persistent {
 		}
 		if (!fresh) {
 			for( auto [n,t] : new_srcs_ ) if (t==FileTag::Dir) throw "new source dir "+n->name()+' '+git_clean_msg() ; // we may not have recorded some deps to these, and this is unpredictable
-			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ; // XXX : this could be managed if necessary
+			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ; // XXX! : this could be managed if necessary
 		}
 		//
 		for( Node d : src_dirs ) { if ( auto it=old_src_dirs.find(d) ; it!=old_src_dirs.end() ) old_src_dirs.erase(it) ; else new_src_dirs.insert(d) ; }

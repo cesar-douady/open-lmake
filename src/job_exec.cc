@@ -201,12 +201,12 @@ Digest analyze(Status status=Status::New) {                                     
 
 ::vmap_s<DepDigest> cur_deps_cb() { return analyze().deps ; }
 
-::string g_to_unlnk ;                                                                                           // XXX : suppress when CentOS7 bug is fixed
+::string g_to_unlnk ;                                                                                           // XXX> : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line() {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
 	::vector_s res = ::move(g_start_info.interpreter) ;                                                         // avoid copying as interpreter is used only here
 	if ( g_start_info.use_script || (g_start_info.cmd.first.size()+g_start_info.cmd.second.size())>ArgMax/2 ) { // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		// XXX : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
+		// XXX> : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
 		// correct code :
 		// ::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
 		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;

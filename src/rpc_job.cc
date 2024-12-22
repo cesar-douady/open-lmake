@@ -249,7 +249,7 @@ bool/*entered*/ JobSpace::enter(
 			;
 		top_repo_view_s = repo_view_s.substr(0,repo_view_s.size()-cwd_s.size()) ;
 	}
-	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s ; // XXX : handle cases where dir is not top level
+	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s ; // XXX! : handle cases where dir is not top level
 	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
 	//
 	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly manage the '/' case
@@ -331,7 +331,7 @@ bool/*entered*/ JobSpace::enter(
 	return true/*entered*/ ;
 }
 
-// XXX : implement recursive views
+// XXX! : implement recursive views
 // for now, phys cannot englobe or lie within a view, but when it is to be implemented, it is here
 ::vmap_s<::vector_s> JobSpace::flat_phys() const {
 	::vmap_s<::vector_s> res ; res.reserve(views.size()) ;
@@ -381,12 +381,12 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 			if (  is_dir_view && !is_dirname(phy) ) throw "cannot map dir "          +no_slash(view)+" to file "        +no_slash(phy) ;
 			if ( !is_dir_view &&  is_dirname(phy) ) throw "cannot map file "         +no_slash(view)+" to dir "         +no_slash(phy) ;
 			if (+phy) {
-				for( auto const& [v,_] : views ) {                                                                            // XXX : suppress this check when recursive maps are implemented
+				for( auto const& [v,_] : views ) {                                                                            // XXX! : suppress this check when recursive maps are implemented
 					if ( phy.starts_with(v  ) && (v  .back()=='/'||phy[v  .size()]=='/') ) throw "cannot map "+no_slash(view)+" to "+no_slash(phy)+" within "    +no_slash(v) ;
 					if ( v  .starts_with(phy) && (phy.back()=='/'||v  [phy.size()]=='/') ) throw "cannot map "+no_slash(view)+" to "+no_slash(phy)+" containing "+no_slash(v) ;
 				}
 			} else {
-				for( auto const& [v,_] : views )                                                                              // XXX : suppress this check when recursive maps are implemented
+				for( auto const& [v,_] : views )                                                                              // XXX! : suppress this check when recursive maps are implemented
 					if (!is_abs(v)) throw "cannot map "+no_slash(view)+" to full repository with "+no_slash(v)+" being map" ;
 			}
 		}
@@ -656,15 +656,15 @@ void JobInfo::write(::string const& filename) const {
 namespace Codec {
 
 	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) {
-		return CodecPfx+mk_printable<'.'>(file)+".cdir/"+mk_printable<'.'>(ctx)+".ddir/"+mk_printable(code) ;
+		return CodecPfx+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+'/'+mk_printable(code) ;
 	}
 
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
-		return CodecPfx+mk_printable<'.'>(file)+".cdir/"+mk_printable<'.'>(ctx)+".edir/"+Xxh(val).digest().hex() ;
+		return CodecPfx+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+'/'+Xxh(val).digest().hex() ;
 	}
 
 	::string mk_file(::string const& node) {
-		return parse_printable<'.'>(node,::ref(size_t(0))).substr(sizeof(CodecPfx)-1) ; // account for terminating null in CodecPfx
+		return parse_printable<'/'>(node,::ref(sizeof(CodecPfx)-1)) ; // account for terminating null in CodecPfx
 	}
 
 }

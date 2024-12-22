@@ -211,7 +211,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool 
 			ReqRpcReply report = IMsgBuf().receive<ReqRpcReply>(g_server_fds.in) ;
 			switch (report.proc) {
 				case Proc::None   : trace("done"                 ) ;                                               goto Return ;
-				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           goto Return ; // XXX : why is it necessary to goto Return here ? ...
+				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           goto Return ; // XXX! : why is it necessary to goto Return here ? ...
 				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ; // ... we should receive None when server closes stream
 				case Proc::Txt    :                                  Fd::Stdout.write(report.txt) ;                break       ;
 			DF}

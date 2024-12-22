@@ -72,14 +72,16 @@ struct JobExecRpcReq {
 	JERR(P p,S&& f,S&& val ,S&& c,uint8_t ml) : proc{p},sync{true},min_len{ml},date{},files{{{::move(f),{}}}},digest{.accesses=Access::Reg},txt{val },ctx{c} { SWEAR(p==P::Encode) ; }
 	#undef S
 	#undef JERR
+	// accesses
+	::string const& codec_file() const { SWEAR( proc==P::Decode || proc==P::Encode ) ; SWEAR(files.size()==1) ; return files[0].first ; }
+	::string const& code      () const { SWEAR( proc==P::Decode                    ) ;                          return txt            ; }
+	::string const& val       () const { SWEAR(                    proc==P::Encode ) ;                          return txt            ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,proc) ;
-		::serdes(s,date) ;
-		::serdes(s,sync) ;
-		if (proc>=P::HasFiles) {
-			::serdes(s,files) ;
-		}
+		/**/                   ::serdes(s,proc ) ;
+		/**/                   ::serdes(s,date ) ;
+		/**/                   ::serdes(s,sync ) ;
+		if (proc>=P::HasFiles) ::serdes(s,files) ;
 		switch (proc) {
 			case P::ChkDeps    :
 			case P::Tmp        :
@@ -103,7 +105,7 @@ struct JobExecRpcReq {
 	::vmap_s<FI> files   ;
 	AD           digest  ;
 	::string     txt     ;         // if proc==Access|Decode|Encode|Trace comment for Access, code for Decode, value for Encode
-	::string     ctx     ;         // if proc==Decode|Encode
+	::string     ctx     ;         // if proc==       Decode|Encode
 } ;
 
 struct JobExecRpcReply {

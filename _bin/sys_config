@@ -358,7 +358,7 @@ HAS_SLURM=$(ok cc -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/s
 [ $HAS_SLURM = 1 ] || echo no slurm support >>$SUM_FILE
 
 #
-# STACKTRACE (HAS_STACKTRACE+HAS_STACKTRACE_32+LIB_STACKTRACE+LIB_STACKTACE_32)
+# STACK (HAS_STACKTRACE+HAS_STACKTRACE_32+LIB_STACKTRACE+LIB_STACKTACE_32+STACK_GROWS_DOWNWARD)
 #
 cat <<"EOF" >stacktrace.cc
 	#include <stacktrace>
@@ -376,10 +376,26 @@ fi
 if   cc -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++_libbacktrace ; then LIB_STACKTRACE_32=stdc++_libbacktrace # .
 elif cc -m32 -std=$CXX_STD -o /dev/null stacktrace.cc -lstdc++exp           ; then LIB_STACKTRACE_32=stdc++exp           # .
 fi
+#
 HAS_STACKTRACE=$((   ${LIB_STACKTRACE:+   1}))
 HAS_STACKTRACE_32=$((${LIB_STACKTRACE_32:+1}))
 #
 [ $HAS_STACKTRACE = 1 ] || echo "no stacktrace support, fall back to (lower quality back trace in case of crash) addr2line" >>$SUM_FILE
+#
+cat <<"EOF" >stack_dir.c
+	#include <stdint.h>
+	#include <stdio.h>
+	uintptr_t sub() {
+		int x ;
+		return uintptr_t(&x) ;
+	}
+	int main() {
+		int x ;
+		printf("%d\n",uintptr_t(&x)>=sub()) ;
+	}
+EOF
+cc -o stack_dir stack_dir.c
+STACK_GROWS_DOWNWARD=$(./stack_dir)
 
 #
 # SPLIT_DBG (SPLIT_DBG+SPLIT_DBG_32) - must follow STACKTRACE
@@ -493,6 +509,7 @@ cat >$H_FILE <<-EOF
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
 	#define SLURM_SO                    "$SLURM_SO"
+	#define STACK_GROWS_DOWNWARD        $STACK_GROWS_DOWNWARD
 	#define STD_LIBRARY_PATH            "$STD_LIBRARY_PATH"
 	#define STD_LIBRARY_PATH_32         "$STD_LIBRARY_PATH_32"
 	#define STD_PATH                    "$STD_PATH"

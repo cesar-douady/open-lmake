@@ -196,10 +196,10 @@ namespace Backends::Sge {
 			SWEAR(+se.rsrcs) ;
 			return "sge_id:"s+se.id.load() ;
 		}
-		// XXX : implement end_job to give explanations if verbose (mimic slurm)
+		// XXX! : implement end_job to give explanations if verbose (mimic slurm)
 		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {
 			if (sge_exec_client({"qstat","-j",::to_string(se.id)}).second) return { {}/*msg*/                      , HeartbeatState::Alive } ;
-			else                                                           return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX : try to distinguish between Lost and Err
+			else                                                           return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX! : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (se.live) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                                // asynchronous (as faster and no return value) cancel
@@ -208,7 +208,7 @@ namespace Backends::Sge {
 			::vector_s sge_cmd_line = {
 				"qsub"
 			,	"-b"     , "y"
-			,	"-o"     , "/dev/null"                                                                                                         // XXX : if verbose, collect stdout/sderr
+			,	"-o"     , "/dev/null"                                                                                                         // XXX? : if verbose, collect stdout/sderr (expensive)
 			,	"-j"     , "y"
 			,	"-shell" , "n"
 			,	"-terse"

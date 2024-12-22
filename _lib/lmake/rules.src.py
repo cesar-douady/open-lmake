@@ -23,7 +23,7 @@ _ld_library_path = '$LD_LIBRARY_PATH' # .
 class _RuleBase :
 	def __init_subclass__(cls) :
 		lmake._rules.append(cls)                           # list of rules
-		for old,new in (                                   # XXX : suppress when backward compatibility can be suppressed
+		for old,new in (                                   # XXX> : suppress when backward compatibility can be suppressed
 			( 'environ_cmd'      , 'environ'             )
 		,	( 'max_submit_count' , 'max_submits'         )
 		,	( 'n_retries'        , 'max_retries_on_lost' )
@@ -91,13 +91,13 @@ class Rule(_RuleBase) :
 #	ete                 = 0                            # Estimated Time Enroute, initial guess for job exec time (in s)
 #	force               = False                        # if set, jobs are never up-to-date, they are rebuilt every time they are needed
 	max_submits         = 10                           # maximum number a job can be submitted in a single lmake command, unlimited if None
-	max_submit_count    = max_submits                  # XXX : suppress when backward compatibility can be suppressed
+	max_submit_count    = max_submits                  # XXX> : suppress when backward compatibility can be suppressed
 #	ignore_stat         = False                        # if set, stat-like syscalls do not, by themselves, trigger dependencies (but link_support is still ensured at required level)
 #	job_tokens          = 1                            # number of tokens taken by a job, follow the same syntax as deps (used for ETA estimation)
 #	keep_tmp            = False                        # keep tmp dir after job execution
 	kill_sigs           = (_signal.SIGKILL,)           # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
 	max_retries_on_lost = 1                            # max number of retries in case of job lost. 1 is a reasonable value
-	n_retries           = max_retries_on_lost          # XXX : suppress when backward compatibility can be suppressed
+	n_retries           = max_retries_on_lost          # XXX> : suppress when backward compatibility can be suppressed
 	max_stderr_len      = 100                          # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 #	prio                = 0                            # in case of ambiguity, rules are selected with highest prio first
 	python              = (python,)                    # python used for callable cmd
@@ -124,7 +124,7 @@ class Rule(_RuleBase) :
 		HOME = '$REPO_ROOT'                            # favor repeatability by hiding use home dir some tools use at start up time
 	,	PATH = ':'.join(('$LMAKE_ROOT/bin',_std_path))
 	)
-	environ_cmd       = environ                        # XXX : suppress when backward compatibility can be suppressed
+	environ_cmd       = environ                        # XXX> : suppress when backward compatibility can be suppressed
 	environ_resources = pdict()                        # job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)
 	environ_ancillary = pdict(                         # job execution environment, does not trigger rebuild upon modification
 		UID  = str(_os.getuid())                       # this may be necessary by some tools and usually does not lead to user specific configuration
@@ -170,7 +170,7 @@ class Py2Rule(_PyRule) :
 		except ImportError : sys.path[0:0] = (_os.environ['LMAKE_ROOT']+'/lib',)
 		from lmake.import_machinery import fix_import
 		fix_import('Py2Rule')
-	cmd.shell = ''                                                             # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
+	cmd.shell = ''                                                             # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file
@@ -183,7 +183,7 @@ class Py3Rule(_PyRule) :
 		except ImportError : sys.path[0:0] = (_os.environ['LMAKE_ROOT']+'/lib',)
 		from lmake.import_machinery import fix_import
 		fix_import('Py3Rule')
-	cmd.shell = ''                                                             # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
+	cmd.shell = ''                                                             # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
 
 PyRule = Py3Rule
 

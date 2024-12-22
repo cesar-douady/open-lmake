@@ -424,7 +424,7 @@ bool              _crash_busy  = false ;
 		static void*    stack         [StackSize] ;     // avoid big allocation on stack
 		static SrcPoint symbolic_stack[StackSize] ;     // .
 		//
-		int backtrace_sz = backtrace(stack,StackSize) ; // XXX : dont know how to avoid malloc here
+		int backtrace_sz = backtrace(stack,StackSize) ; // XXX! : dont know how to avoid malloc here
 		int stack_sz     = 0                          ;
 		for( int i : iota( hide_cnt+1 , backtrace_sz ) ) {
 			stack_sz += fill_src_points( stack[i] , symbolic_stack+stack_sz , StackSize-stack_sz ) ;

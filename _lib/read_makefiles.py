@@ -79,7 +79,7 @@ if '/config/' in actions :
 		except ImportError as e :
 			if e.name!='Lmakefile.config' : raise
 	config = lmake.config
-	if 'backends' in config and 'sge' in config['backends'] : # XXX : suppress when backward compatibility can be broken
+	if 'backends' in config and 'sge' in config['backends'] : # XXX> : suppress when backward compatibility can be broken
 		sge = config['backends']['sge']
 		for old,new in (('bin_dir','bin'),('root_dir','root')) :
 			if old in sge and new not in sge :
@@ -151,7 +151,7 @@ manifest = sorted(set(manifest)) # suppress duplicates if any
 
 # generate output
 # could be a mere print, but it is easier to debug with a prettier output
-# XXX : write a true pretty printer
+# XXX! : write a true pretty printer
 
 lvl_stack = []
 def sep(l) :

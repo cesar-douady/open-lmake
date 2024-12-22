@@ -74,7 +74,7 @@ template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : pr
 	#define RNQA requires(!QueueAccess)
 	// statics
 private :
-	// XXX : why gcc refuses to call both functions _s_thread_func ?
+	// XXX! : why gcc refuses to call both functions _s_thread_func ?
 	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val const&)> func ) requires(QueueAccess) {
 		t_thread_key = key ;
 		Trace trace("QueueThread::_s_thread_func2") ;

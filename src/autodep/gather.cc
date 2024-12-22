@@ -108,8 +108,8 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 		case Proc::ChkDeps    : reorder(false/*at_end*/)       ; break ; // ensure server sees a coherent view
 		case Proc::DepVerbose : _new_accesses(fd,::copy(jerr)) ; break ;
 		//
-		case Proc::Decode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_decode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
-		case Proc::Encode : SWEAR( jerr.sync && jerr.files.size()==1 , jerr ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.files[0].first , jerr.ctx , jerr.txt ) ; break ;
+		case Proc::Decode : SWEAR( jerr.sync , jerr ) ; _codec_files[fd] = Codec::mk_decode_node( jerr.codec_file() , jerr.ctx , jerr.code() ) ; break ;
+		case Proc::Encode : SWEAR( jerr.sync , jerr ) ; _codec_files[fd] = Codec::mk_encode_node( jerr.codec_file() , jerr.ctx , jerr.val () ) ; break ;
 	DN}
 	if (!jerr.sync) fd = {} ;                                            // dont reply if not sync
 	JobMngtRpcReq jmrr ;

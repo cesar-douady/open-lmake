@@ -182,7 +182,7 @@ namespace Store {
 		//
 		void clear()                                  { ULock lock{_mutex} ; _clear() ; }
 		void chk  () const requires(!HasData        ) {                                 }
-		void chk  () const requires(!is_void_v<Data>) ;                                                                        // XXX : why cant we use HasData here with clang ?!?
+		void chk  () const requires(!is_void_v<Data>) ;                                                                        // XXX! : why cant we use HasData here with clang ?!?
 	protected :
 		void _clear() {
 			Base::_clear() ;

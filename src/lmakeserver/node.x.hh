@@ -307,7 +307,7 @@ namespace Engine {
 		}
 		// accesses
 		Node     idx    () const { return Node::s_idx(self) ; }
-		::string name   () const { ::string res = full_name() ; SWEAR(Disk::is_canon(res),res) ; return res ; }       // XXX : suppress SWEAR when bug is found, node names are supposed to be canonic
+		::string name   () const { ::string res = full_name() ; SWEAR(Disk::is_canon(res),res) ; return res ; }       // XXX> : suppress SWEAR when bug is found, node names are supposed to be canonic
 		size_t   name_sz() const { return full_name_sz()    ; }
 		//
 		bool is_decode() const { return buildable==Buildable::Decode ; }

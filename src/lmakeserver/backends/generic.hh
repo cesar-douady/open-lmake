@@ -5,7 +5,7 @@
 
 #include "core.hh" // must be first to include Python.h first
 
-// XXX* : rework to maintain an ordered list of waiting_queues in ReqEntry to avoid walking through all rsrcs for each launched job
+// XXX! : rework to maintain an ordered list of waiting_queues in ReqEntry to avoid walking through all rsrcs for each launched job
 
 // a job may have 3 states :
 // - waiting : job has been submitted and is retained here until we can spawn it
@@ -440,8 +440,7 @@ namespace Backends {
 					if (rit==reqs.end()) continue ;
 					JobIdx                            n_jobs = rit->second.n_jobs         ;
 					::umap<Rsrcs,set<PressureEntry>>& queues = rit->second.waiting_queues ;
-					for(;;) {
-						if ( n_jobs && spawned_jobs.size()>=n_jobs ) break ;                                       // cannot have more than n_jobs running jobs because of this req, process next req
+					while (!( n_jobs && spawned_jobs.size()>=n_jobs )) {                                           // cannot have more than n_jobs running jobs because of this req, process next req
 						auto candidate = queues.end() ;
 						for( auto it=queues.begin() ; it!=queues.end() ; it++ ) {
 							if ( candidate!=queues.end() && it->second.begin()->pressure<=candidate->second.begin()->pressure ) continue ;
@@ -486,7 +485,7 @@ namespace Backends {
 					SpawnedEntry& se = *ld.entry ;
 					if (!se.live) continue ;                                                                          // job was cancelled before being launched
 					try {
-						SpawnId id = launch_job( st , j , ld.reqs , ld.prio , ld.cmd_line , se.rsrcs , se.verbose ) ; // XXX : manage errors, for now rely on heartbeat
+						SpawnId id = launch_job( st , j , ld.reqs , ld.prio , ld.cmd_line , se.rsrcs , se.verbose ) ; // XXX! : manage errors, for now rely on heartbeat
 						SWEAR(id,j) ;                                                                                 // null id is used to mark absence of id
 						se.id = id ;
 						trace("child",j,ld.prio,id,ld.cmd_line) ;

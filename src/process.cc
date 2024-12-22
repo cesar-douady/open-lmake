@@ -81,7 +81,7 @@ using namespace Disk ;
 		for(;;) {
 			int   wstatus   ;
 			pid_t child_pid = ::wait(&wstatus) ;
-			if (child_pid==pid) {                                                                       // XXX : find a way to simulate a caught signal rather than exit 128+sig
+			if (child_pid==pid) {                                                                       // XXX! : find a way to simulate a caught signal rather than exit 128+sig
 				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                           // exit as transparently as possible
 				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                           // cannot kill self to be transparent as we are process 1, mimic bash
 				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                       // ensure we have not forgotten a case
@@ -135,11 +135,11 @@ void Child::spawn() {
 	//
 	// /!\ memory for child stack must be allocated before calling clone
 	::vector<uint64_t> child_stack ( StackSz/sizeof(uint64_t) ) ;
-	_child_stack_ptr = child_stack.data()+(NpStackGrowsDownward?child_stack.size():0) ;
+	_child_stack_ptr = child_stack.data()+(STACK_GROWS_DOWNWARD?child_stack.size():0) ;
 	//
 	if (first_pid) {
 		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                               ; // we need a trampoline stack if we launch a grand-child
-		void*              trampoline_stack_ptr = trampoline_stack.data()+(NpStackGrowsDownward?trampoline_stack.size():0) ; // .
+		void*              trampoline_stack_ptr = trampoline_stack.data()+(STACK_GROWS_DOWNWARD?trampoline_stack.size():0) ; // .
 		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is passed to mount a new /proc without disturing caller
 	} else {
 		pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD                          , this ) ;
