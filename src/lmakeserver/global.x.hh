@@ -60,10 +60,15 @@ namespace Engine {
 namespace Engine {
 
 	// sep is put before the last indent level, useful for porcelaine output
-	/**/   void audit( Fd out , Fd log , ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) ;
-	inline void audit( Fd out ,          ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { audit(out,{} ,ro,c          ,t,a,l,sep) ; }
-	inline void audit( Fd out , Fd log , ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { audit(out,log,ro,Color::None,t,a,l,sep) ; }
-	inline void audit( Fd out ,          ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { audit(out,{} ,ro,Color::None,t,a,l,sep) ; }
+	/**/   void _audit( Fd out , Fd log , ReqOptions const& , Color , ::string const& txt , bool as_is , DepDepth , char sep , bool err ) ;
+	//                                                                                             as_is              lvl                                                          err
+	inline void audit( Fd out , Fd log , ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,log,ro,c          ,t,a,l,sep,false) ; }
+	inline void audit( Fd out ,          ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,{} ,ro,c          ,t,a,l,sep,false) ; }
+	inline void audit( Fd out , Fd log , ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,log,ro,Color::None,t,a,l,sep,false) ; }
+	inline void audit( Fd out ,          ReqOptions const& ro ,           ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,{} ,ro,Color::None,t,a,l,sep,false) ; }
+	//
+	inline void audit_err( Fd out , ReqOptions const& ro , Color c , ::string const& t , bool as_is=false ) { _audit(out,{},ro,c          ,t,as_is,0/*lvl*/,0/*sep*/,true/*err*/) ; }
+	inline void audit_err( Fd out , ReqOptions const& ro ,           ::string const& t , bool as_is=false ) { _audit(out,{},ro,Color::None,t,as_is,0/*lvl*/,0/*sep*/,true/*err*/) ; }
 	//
 	/**/   void audit_file( Fd out , ::string&& f ) ;
 	//

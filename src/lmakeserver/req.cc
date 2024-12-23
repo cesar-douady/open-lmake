@@ -492,16 +492,16 @@ namespace Engine {
 	void ReqData::audit_stats() const {
 		try {
 			ReqRpcReply rrr{
-				ReqRpcReplyProc::Txt
+				ReqRpcReplyProc::Stdout
 			,	title(options,
-					( stats.ended[+JobReport::Failed]                   ? "failed:"s   +  stats.ended[+JobReport::Failed]              +' ' : ""s )
+					( stats.ended[+JobReport::Failed]                   ? "failed:"s   +  stats.ended[+JobReport::Failed]              +' '        : ""s )
 				+	                                                      "done:"s     + (stats.done()-stats.ended[+JobReport::Failed])
-				+	( +g_config->caches && stats.ended[+JobReport::Hit] ? " hit:"s     +  stats.ended[+JobReport::Hit   ]                   : ""s )
-				+	( stats.ended[+JobReport::Rerun ]                   ? " rerun:"s   +  stats.ended[+JobReport::Rerun ]                   : ""s )
+				+	( +g_config->caches && stats.ended[+JobReport::Hit] ? " hit:"s     +  stats.ended[+JobReport::Hit   ]                          : ""s )
+				+	( stats.ended[+JobReport::Rerun ]                   ? " rerun:"s   +  stats.ended[+JobReport::Rerun ]                          : ""s )
 				+	                                                      " running:"s +  stats.cur(JobStep::Exec  )
-				+	( stats.cur(JobStep::Queued)                        ? " queued:"s  +  stats.cur(JobStep::Queued)                        : ""s )
-				+	( stats.cur(JobStep::Dep   )>1                      ? " waiting:"s + (stats.cur(JobStep::Dep   )-1                )     : ""s ) // suppress job representing Req itself
-				+	( g_config->console.show_eta                        ? " - ETA:"s   +  eta.str(0/*prec*/,true/*in_day*/)                 : ""s )
+				+	( stats.cur(JobStep::Queued)                        ? " queued:"s  +  stats.cur(JobStep::Queued)                               : ""s )
+				+	( stats.cur(JobStep::Dep   )>1                      ? " waiting:"s + (stats.cur(JobStep::Dep   )-!options.flags[ReqFlag::Job]) : ""s ) // suppress job representing Req itself
+				+	( g_config->console.show_eta                        ? " - ETA:"s   +  eta.str(0/*prec*/,true/*in_day*/)                        : ""s )
 				)
 			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;

@@ -4,6 +4,12 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 import os.path as osp
+def chk_numba() :
+	from numba import vectorize , uint32
+	@vectorize( [uint32(uint32)] , target='parallel' )
+	def clipUi32_(x) :
+		return x
+	return numba
 
 if __name__!='__main__' :
 
@@ -38,11 +44,7 @@ if __name__!='__main__' :
 		}
 		def cmd():
 			from subprocess import check_call
-			from numba      import vectorize , uint32
-			#
-			@vectorize( [uint32(uint32)] , target='parallel' )
-			def clipUi32_(x) :
-				return x
+			chk_numba()
 			check_call('hostname')
 
 else :
@@ -56,7 +58,7 @@ else :
 		sys.path.append(f'{os.environ["VIRTUAL_ENV"]}/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')
 
 	try :
-		import numba
+		numba = chk_numba()
 	except :
 		print('numba not available',file=open('skipped','w'))
 		exit()

@@ -28,8 +28,9 @@
 	switch (rrr.proc) {
 		case Proc::None   :                               break ;
 		case Proc::Status : os << (rrr.ok?",ok":",err") ; break ;
-		case Proc::File   : os <<",F:"<< rrr.txt        ; break ;
-		case Proc::Txt    : os <<",T:"<< rrr.txt        ; break ;
+		case Proc::File   :
+		case Proc::Stderr :
+		case Proc::Stdout : os <<",T:"<< rrr.txt        ; break ;
 	DF}
 	return os << ')' ;
 }

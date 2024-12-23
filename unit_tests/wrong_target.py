@@ -13,5 +13,5 @@ else :
 
 	import ut
 
-	ut.lmake( '../dut' , files=1 , rc=1 ) # file is outside repo
-	ut.lmake( '/dut'   , files=1 , rc=1 ) # .
+	ut.lmake( '../dut' , rc=1 ) # file is outside repo
+	ut.lmake( '/dut'   , rc=1 ) # .

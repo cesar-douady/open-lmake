@@ -26,7 +26,7 @@ namespace Engine {
 		return res ;
 	}
 
-	void audit( Fd out , Fd log , ReqOptions const& ro , Color c , ::string const& txt , bool as_is , DepDepth lvl , char sep ) {
+	void _audit( Fd out , Fd log , ReqOptions const& ro , Color c , ::string const& txt , bool as_is , DepDepth lvl , char sep , bool err ) {
 		if (!txt) return ;
 		//
 		::string   report_txt  = color_pfx(ro,c)                              ;
@@ -35,10 +35,11 @@ namespace Engine {
 		/**/       report_txt += color_sfx(ro,c)                              ;
 		/**/       report_txt += '\n'                                         ;
 		//
-		try                       { OMsgBuf().send( out , ReqRpcReply(ReqRpcReplyProc::Txt,_audit_indent(::move(report_txt),lvl,sep)) ) ; } // if we lose connection, there is nothing much we ...
-		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                                      } // ... can do about it (hoping that we can still trace)
+		ReqRpcReplyProc proc = err ? ReqRpcReplyProc::Stderr : ReqRpcReplyProc::Stdout ;
+		try                       { OMsgBuf().send( out , ReqRpcReply(proc,_audit_indent(::move(report_txt),lvl,sep)) ) ; } // if we lose connection, there is nothing much we ...
+		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                      } // ... can do about it (hoping that we can still trace)
 		if (+log)
-			try                       { log.write(_audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep)) ; }                         // .
+			try                       { log.write(_audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep)) ; }         // .
 			catch (::string const& e) { Trace("audit","lost_log",e) ;                                             }
 	}
 
@@ -62,10 +63,10 @@ namespace Engine {
 		/**/                                          msg << "kill"                                                           ;
 		::string report_txt  = color_pfx(ro,Color::Note) + msg + color_sfx(ro,Color::Note) +'\n' ;
 		//
-		try                       { OMsgBuf().send( out, ReqRpcReply(ReqRpcReplyProc::Txt,::move(report_txt)) ) ; } // if we lose connection, there is nothing much we ...
-		catch (::string const& e) { Trace("audit_ctrl_c","lost_client",e) ;                                       } // ... can do about it (hoping that we can still trace)
+		try                       { OMsgBuf().send( out, ReqRpcReply(ReqRpcReplyProc::Stdout,::move(report_txt)) ) ; } // if we lose connection, there is nothing much we ...
+		catch (::string const& e) { Trace("audit_ctrl_c","lost_client",e) ;                                          } // ... can do about it (hoping that we can still trace)
 		if (+log)
-			try                       { log.write("^C\n"+msg+'\n') ;         }                                      // .
+			try                       { log.write("^C\n"+msg+'\n') ;         }                                         // .
 			catch (::string const& e) { Trace("audit_ctrl_c","lost_log",e) ; }
 	}
 
@@ -168,12 +169,13 @@ namespace Engine {
 		for( Rule r : Persistent::rule_lst() ) {
 			if ( Job j{r,files[0]} ; +j ) candidates.push_back(j) ;
 		}
-		if (candidates.size()==1) return candidates[0] ;
-		if (!candidates         ) throw "cannot find job "+mk_rel(files[0],startup_dir_s) ;
-		//
-		::string err_str = "several rules match, consider :\n" ;
-		for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule()->full_name())+" -J "+files[0] ,1) << '\n' ;
-		throw err_str ;
+		if      (candidates.size()==1) return candidates[0]                                    ;
+		else if (!candidates         ) throw "cannot find job "+mk_rel(files[0],startup_dir_s) ;
+		else {
+			::string err_str = "several rules match, consider :\n" ;
+			for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule()->full_name())+" -J "+files[0] ,1) << '\n' ;
+			throw err_str ;
+		}
 	}
 
 	//

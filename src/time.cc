@@ -11,6 +11,8 @@ namespace Time {
 
 	using namespace Disk ;
 
+	Pdate Pdate::_s_last ;
+
 	static void _add_frac( ::string& res , uint32_t ns , uint8_t prec ) {
 		if (!prec) return ;                                               // no decimal point if no sub-second part
 		uint32_t sub1  = 1'000'000'000 + ns ;                             // avoid formatting efforts : sub1 is now in the range 1.000.000.000-1.999.999.999
@@ -128,6 +130,22 @@ namespace Time {
 				} break ;
 			}
 		}
+	}
+
+	//
+	// Pdate
+	//
+
+	// ensure clock is monotonic by calling CLOCK_MONOTONIC and provide some adjustement to have a reasonable real-time
+	static Delay _mk_delta() {
+		Pdate::TimeSpec monotonic ; ::clock_gettime(CLOCK_MONOTONIC,&monotonic) ;
+		Pdate::TimeSpec real_time ; ::clock_gettime(CLOCK_REALTIME ,&real_time) ;
+		return Pdate(real_time)-Pdate(monotonic) ;
+	} ;
+	Pdate::Pdate(NewType) {
+		static Delay s_delta = _mk_delta() ;
+		TimeSpec now ; ::clock_gettime(CLOCK_MONOTONIC,&now) ;
+		self = Pdate(now)+s_delta ;
 	}
 
 }

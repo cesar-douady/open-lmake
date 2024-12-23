@@ -82,7 +82,8 @@ ENUM( ReqRpcReplyProc
 ,	None
 ,	File
 ,	Status
-,	Txt
+,	Stdout
+,	Stderr
 )
 
 struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
@@ -164,8 +165,8 @@ struct ReqRpcReply {
 	using Proc = ReqRpcReplyProc ;
 	// cxtors & casts
 	ReqRpcReply(                          ) = default ;
-	ReqRpcReply( Proc p , bool       ok_  ) : proc{p} , ok {ok_         } { SWEAR( p==Proc::Status               ) ; }
-	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Txt ) ; }
+	ReqRpcReply( Proc p , bool       ok_  ) : proc{p} , ok {ok_         } { SWEAR( p==Proc::Status                                     ) ; }
+	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Stderr || p==Proc::Stdout ) ; }
 	//
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,proc) ;
@@ -173,7 +174,8 @@ struct ReqRpcReply {
 			case Proc::None   :                   break ;
 			case Proc::Status : ::serdes(s,ok ) ; break ;
 			case Proc::File   :
-			case Proc::Txt    : ::serdes(s,txt) ; break ;
+			case Proc::Stderr :
+			case Proc::Stdout : ::serdes(s,txt) ; break ;
 		DF}
 	}
 	// data

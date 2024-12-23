@@ -223,7 +223,11 @@ namespace Time {
 		friend ::string& operator+=( ::string& , Pdate const ) ;
 		friend Delay ;
 		static const Pdate Future ;
+		// static data
+	private :
+		static Pdate _s_last ; // time returned by last call, used to ensure strict monotonicity on systems that have unreliable clocks
 		// cxtors & casts
+	public :
 		using Date::Date ;
 		Pdate(NewType) ;
 		// services
@@ -325,11 +329,6 @@ namespace Time {
 
 	constexpr Pdate Pdate::Future { New , Pdate::Tick(-1) } ;
 
-	inline Pdate::Pdate(NewType) {
-		TimeSpec now ;
-		::clock_gettime(CLOCK_REALTIME,&now) ;
-		self = Pdate(now) ;
-	}
 	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,Delay::Tick(_val   -other._val   )) ; }
 	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,Delay::Tick(_date()-other._date())) ; }
 	//

@@ -338,7 +338,7 @@ static bool/*interrupted*/ _engine_loop() {
 						}
 						try {
 							::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
-							if (+msg) audit( ecr.out_fd , ecr.options , Color::Note , msg ) ;
+							if (+msg) audit_err( ecr.out_fd , ecr.options , msg ) ;
 							trace("new_req",req) ;
 							req.alloc() ; allocated = true ;
 							//vvvvvvvvvvv
@@ -347,7 +347,7 @@ static bool/*interrupted*/ _engine_loop() {
 							_g_seen_make = true ;
 						} catch(::string const& e) {
 							if (allocated) req.dealloc() ;
-							audit       ( ecr.out_fd , ecr.options , Color::Err , e ) ;
+							audit_err   ( ecr.out_fd , ecr.options , Color::Err , e ) ;
 							audit_status( ecr.out_fd , ecr.options , false/*ok*/    ) ;
 							trace("cannot_refresh",req) ;
 							goto NoMake ;
