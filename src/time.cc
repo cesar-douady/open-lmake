@@ -11,8 +11,6 @@ namespace Time {
 
 	using namespace Disk ;
 
-	Pdate Pdate::_s_last ;
-
 	static void _add_frac( ::string& res , uint32_t ns , uint8_t prec ) {
 		if (!prec) return ;                                               // no decimal point if no sub-second part
 		uint32_t sub1  = 1'000'000'000 + ns ;                             // avoid formatting efforts : sub1 is now in the range 1.000.000.000-1.999.999.999
@@ -61,7 +59,7 @@ namespace Time {
 		const char* sign = v<0?"-":"" ;
 		if (v<0) v = -v ;
 		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wrestrict" // seems to be a gcc bug in some versions
+		#pragma GCC diagnostic ignored "-Wrestrict"                                                             // seems to be a gcc bug in some versions
 		//                                                       right                         right fill
 		/**/      if (v< 10*1000) return sign+      cat(v/1000)        +'.'+widen(cat(v%1000),3,true,'0')+'s' ;
 		v /= 10 ; if (v< 60* 100) return sign+widen(cat(v/ 100),2,true)+'.'+widen(cat(v% 100),2,true,'0')+'s' ;
@@ -136,16 +134,23 @@ namespace Time {
 	// Pdate
 	//
 
-	// ensure clock is monotonic by calling CLOCK_MONOTONIC and provide some adjustement to have a reasonable real-time
-	static Delay _mk_delta() {
-		Pdate::TimeSpec monotonic ; ::clock_gettime(CLOCK_MONOTONIC,&monotonic) ;
-		Pdate::TimeSpec real_time ; ::clock_gettime(CLOCK_REALTIME ,&real_time) ;
-		return Pdate(real_time)-Pdate(monotonic) ;
-	} ;
+	#if __cplusplus<202600L
+		Mutex<MutexLvl::PdateNew> Pdate::_s_mutex_new ;
+		Pdate::Tick               Pdate::_s_min_next  ;
+	#else
+		::atomic<Pdate::Tick> Pdate::_s_min_next ;
+	#endif
+
 	Pdate::Pdate(NewType) {
-		static Delay s_delta = _mk_delta() ;
-		TimeSpec now ; ::clock_gettime(CLOCK_MONOTONIC,&now) ;
-		self = Pdate(now)+s_delta ;
+		TimeSpec now_ts ;            ::clock_gettime(CLOCK_REALTIME,&now_ts) ;
+		Pdate    now    { now_ts } ;
+		#if __cplusplus<202600L
+			Lock lock { _s_mutex_new } ;                     // ::atomic::fetch_max is not available, so use a mutex to ensure atomic fetch and max
+			_s_min_next = ::max( _s_min_next , now.val() ) ;
+		#else
+			_s_min_next.fetch_max(now.val()) ;
+		#endif
+		self = Pdate(New,_s_min_next++) ;
 	}
 
 }

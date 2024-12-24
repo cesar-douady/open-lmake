@@ -991,7 +991,8 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	Workload
 // very inner
 ,	Trace       // allow tracing anywhere (but tracing may call some syscall)
-,	SyscallTab  // any syscall may need this mutex
+,	SyscallTab  // any syscall may need this mutex, which may occur during tracing
+,	PdateNew    // may need time anywhere, even during syscall processing
 )
 
 extern thread_local MutexLvl t_mutex_lvl ;

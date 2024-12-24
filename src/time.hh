@@ -225,7 +225,12 @@ namespace Time {
 		static const Pdate Future ;
 		// static data
 	private :
-		static Pdate _s_last ; // time returned by last call, used to ensure strict monotonicity on systems that have unreliable clocks
+		#if __cplusplus<202600L
+			static Mutex<MutexLvl::PdateNew> _s_mutex_new ; // ensure serialization to _s_last before c++26
+			static Tick                      _s_min_next  ; // time returned by last call, used to ensure strict monotonicity on systems that have unreliable clocks
+		#else
+			static ::atomic<Tick> _s_min_next ;
+		#endif
 		// cxtors & casts
 	public :
 		using Date::Date ;
