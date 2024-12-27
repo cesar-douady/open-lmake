@@ -249,58 +249,80 @@ struct EventFd : AcFd {
 // Epoll
 //
 
-extern ::uset<int>* _s_epoll_sigs ; // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
-template<StdEnum E> struct _Epoll {
+extern ::uset<int>* _s_epoll_sigs ;                       // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
+template<StdEnum E=NewType/*when_unused*/> struct Epoll {
 	struct Event : ::epoll_event {
 		// cxtors & casts
 		using ::epoll_event::epoll_event ;
 		Event(                             ) : ::epoll_event{ .events=0                      , .data{.u64=                     uint32_t(Fd())} } {}
 		Event( bool write , Fd fd , E data ) : ::epoll_event{ .events=write?EPOLLOUT:EPOLLIN , .data{.u64=(uint64_t(data)<<32)|uint32_t(fd  )} } {}
 		// access
-		bool operator+(                ) const { return +fd()                                 ; }
-		int sig       (_Epoll const& ep) const { return ep._fd_infos.at(fd()).first           ; }
-		Fd  fd        (                ) const { return uint32_t(::epoll_event::data.u64    ) ; }
-		E   data      (                ) const { return E       (::epoll_event::data.u64>>32) ; }
+		bool operator+(               ) const { return +fd()                                 ; }
+		int sig       (Epoll const& ep) const { return ep._fd_infos.at(fd()).first           ; }
+		Fd  fd        (               ) const { return uint32_t(::epoll_event::data.u64    ) ; }
+		E   data      (               ) const { return E       (::epoll_event::data.u64>>32) ; }
 	} ;
 	// cxtors & casts
-	~_Epoll() {
+	Epoll(       ) = default ;
+	Epoll(NewType) { init () ; }
+	~Epoll() {
 		for( auto [fd,sig_pid] : _fd_infos ) _s_epoll_sigs->erase(sig_pid.first) ;
 	}
+	// accesses
+	uint operator+() const { return _n_waits ;                }
+	void dec      ()       { SWEAR(_n_waits>0) ; _n_waits-- ; }
 	// services
 	void init() {
 		_fd = AcFd( ::epoll_create1(EPOLL_CLOEXEC) , true/*no_std*/ ) ;
 	}
-	void add( bool write , Fd fd , E data ) {
+	void add( bool write , Fd fd , E data={} , bool wait=true ) {
 		Event event { write , fd , data } ;
 		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )<0) fail_prod("cannot add",fd,"to epoll",_fd,'(',::strerror(errno),')') ;
+		if (wait) _n_waits ++ ;
+		/**/      _n_events++ ;
 	}
-	void del( bool /*write*/ , Fd fd ) {
+	void del( bool /*write*/ , Fd fd , bool wait=true ) {                                                                                // wait must be coherent with corresponding add
 		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr )<0) fail_prod("cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
+		if (wait) { SWEAR(_n_waits >0) ; _n_waits -- ; }
+		/**/        SWEAR(_n_events>0) ; _n_events-- ;
 	}
-	void add_sig( int sig , E data , pid_t pid=0 ) {
+private :
+	void _add_sig( int sig , E data , pid_t pid , bool wait ) {
 		SWEAR(is_blocked_sig(sig)) ;
 		::sigset_t sig_set  ;                                                          sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
 		Fd         fd       = ::signalfd( -1 , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
-		bool       inserted = _sig_infos   . try_emplace(sig,fd     ).second          ; SWEAR(inserted,fd,sig    ) ;
-		/**/       inserted = _fd_infos    . try_emplace(fd ,sig,pid).second          ; SWEAR(inserted,fd,sig,pid) ;
-		/**/       inserted = _s_epoll_sigs->insert     (sig        ).second          ; SWEAR(inserted,fd,sig    ) ;
-		add( false/*write*/ , fd , data ) ;
+		bool       inserted = _sig_infos   . try_emplace(sig,fd     ).second         ; SWEAR(inserted,fd,sig    ) ;
+		/**/       inserted = _fd_infos    . try_emplace(fd ,sig,pid).second         ; SWEAR(inserted,fd,sig,pid) ;
+		/**/       inserted = _s_epoll_sigs->insert     (sig        ).second         ; SWEAR(inserted,fd,sig    ) ;
+		add( false/*write*/ , fd , data , wait ) ;
 		_n_sigs++ ;
 	}
-	void del_sig(int sig) {
+public :
+	void add_sig( int sig , E data={} , bool wait=true ) { _add_sig(sig,data,0/*pid*/,wait) ; }
+	void del_sig( int sig ,             bool wait=true ) {                                                                    // wait must be coherent with corresponding add_sig
 		auto it = _sig_infos.find(sig) ; SWEAR(it!=_sig_infos.end(),sig) ;
-		SWEAR(_n_sigs) ; _n_sigs-- ;
-		del( false/*write*/ , it->second ) ;
-		_fd_infos    . erase(it->second) ;                          // must be done before next line as it is not valid after erasing it
+		del( false/*write*/ , it->second , wait ) ;
+		_fd_infos    . erase(it->second) ;                                                                                    // must be done before next line as it is not valid after erasing it
 		_sig_infos   . erase(it        ) ;
 		_s_epoll_sigs->erase(sig       ) ;
+		SWEAR(_n_sigs) ; _n_sigs-- ;
 	}
-	void add_pid( pid_t pid , E data ) { add_sig(SIGCHLD,data,pid) ; }
-	void del_pid (pid_t              ) { del_sig(SIGCHLD         ) ; }
-	::vector<Event> wait( Time::Delay timeout , uint cnt ) const {
-		struct ::timespec now ;
-		struct ::timespec end ;
-		bool has_timeout = timeout>Time::Delay() && timeout!=Time::Delay::Forever ;
+	void add_pid( pid_t pid , E data={} , bool wait=true ) { _add_sig(SIGCHLD,data,pid,wait) ; }
+	void del_pid( pid_t     ,             bool wait=true ) { del_sig (SIGCHLD         ,wait) ; }                              // wait must be coherent with corresponding add_pid
+	//
+	void add_read (              Fd fd , E data={} , bool wait=true ) {              add(false,fd,data,wait) ;              }
+	void add_write(              Fd fd , E data={} , bool wait=true ) {              add(true ,fd,data,wait) ;              }
+	void close    ( bool write , Fd fd ,             bool wait=true ) { SWEAR(+fd) ; del(write,fd,     wait) ; fd.close() ; } // wait must be coherent with corresponding add
+	//
+	::vector<Event> wait(Time::Delay timeout=Time::Delay::Forever) const {
+		if (!_n_events) {
+			SWEAR(timeout<Time::Delay::Forever) ;                     // if we wait for nothing with no timeout, we would block forever
+			timeout.sleep_for() ;
+			return {} ;
+		}
+		struct ::timespec now         ;
+		struct ::timespec end         ;
+		bool              has_timeout = timeout>Time::Delay() && timeout!=Time::Delay::Forever ;
 		if (has_timeout) {
 			::clock_gettime(CLOCK_MONOTONIC,&now) ;
 			end.tv_sec  = now.tv_sec  + timeout.sec()       ;
@@ -310,21 +332,22 @@ template<StdEnum E> struct _Epoll {
 				end.tv_sec  += 1              ;
 			}
 		}
-		for(;;) {                                                   // manage case where timeout is longer than the maximum allowed timeout by looping over partial timeouts
-			::vector<Event> events        ( cnt ) ;
+		for(;;) {                                                     // manage case where timeout is longer than the maximum allowed timeout by looping over partial timeouts
+			::vector<Event> events        ( _n_events ) ;
 			int             cnt_          ;
-			int             wait_ms       = -1    ;
-			bool            wait_overflow = false ;
+			int             wait_ms       = -1          ;
+			bool            wait_overflow = false       ;
 			if (has_timeout) {
-				time_t wait_s   = end.tv_sec - now.tv_sec               ;
-				time_t wait_max = ::numeric_limits<int>::max()/1000 - 1 ;
-				if ((wait_overflow=(wait_s>wait_max))) wait_s = wait_max ;
+				static constexpr time_t WaitMax = Max<int>/1000 - 1 ; // ensure time can be expressed in ms with an int after adding fractional part
+				time_t wait_s = end.tv_sec - now.tv_sec ;
+				if ((wait_overflow=(wait_s>WaitMax))) wait_s = WaitMax ;
 				wait_ms  = wait_s                    * 1'000      ;
-				wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ; // protect against possible conversion to time_t which may be unsigned
+				wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ;   // /!\ protect against possible conversion to time_t which may be unsigned
 			} else {
-				wait_ms = +timeout ? -1 : 0 ;
+				wait_ms = timeout==Time::Delay::Forever ? -1 : 0 ;
 			}
-			cnt_ = ::epoll_wait( _fd , events.data() , int(cnt) , wait_ms ) ;
+			SWEAR(_n_events<=Max<int>) ;
+			cnt_ = ::epoll_wait( _fd , events.data() , int(_n_events) , wait_ms ) ;
 			switch (cnt_) {
 				case  0 :                                                                                                   // timeout
 					if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
@@ -371,39 +394,6 @@ private :
 	::umap<int/*sig*/,Fd                      > _sig_infos ;
 	::umap<Fd        ,::pair<int/*sig*/,pid_t>> _fd_infos  ;
 	uint                                        _n_sigs    = 0 ;
-} ;
-
-template<StdEnum E=NewType/*when_unused*/> struct Epoll : _Epoll<E> {
-	using Base  = _Epoll<E>            ;
-	using Event = typename Base::Event ;
-	using Base::init ;
-	// cxtors & casts
-	Epoll(       ) = default ;
-	Epoll(NewType) { init () ; }
-	// accesses
-	uint operator+() const { return _cnt ;            }
-	void dec      ()       { SWEAR(_cnt>0) ; _cnt-- ; }
-	// services
-	void add    ( bool write , Fd    fd  , E data={} , bool wait=true ) { Base::add    (write,fd ,data) ;                 _cnt += wait ; }
-	void del    ( bool write , Fd    fd  ,             bool wait=true ) { Base::del    (write,fd      ) ; SWEAR(_cnt>0) ; _cnt -= wait ; } // wait must be coherent with corresponding add
-	void add_sig(              int   sig , E data={} , bool wait=true ) { Base::add_sig(      sig,data) ;                 _cnt += wait ; }
-	void del_sig(              int   sig ,             bool wait=true ) { Base::del_sig(      sig     ) ; SWEAR(_cnt>0) ; _cnt -= wait ; } // wait must be coherent with corresponding add_sig
-	void add_pid(              pid_t pid , E data={} , bool wait=true ) { Base::add_pid(      pid,data) ;                 _cnt += wait ; }
-	void del_pid(              pid_t pid ,             bool wait=true ) { Base::del_pid(      pid     ) ; SWEAR(_cnt>0) ; _cnt -= wait ; } // wait must be coherent with corresponding add_sig
-	//
-	void add_read (              Fd fd , E data={} , bool wait=true ) {              add(false,fd,data,wait) ;              }
-	void add_write(              Fd fd , E data={} , bool wait=true ) {              add(true ,fd,data,wait) ;              }
-	void close    ( bool write , Fd fd ,             bool wait=true ) { SWEAR(+fd) ; del(write,fd,     wait) ; fd.close() ; }              // wait must be coherent with corresponding add
-	//
-	::vector<Event> wait(Time::Delay timeout=Time::Delay::Forever) const {
-		if (!_cnt) {
-			SWEAR(timeout<Time::Delay::Forever) ; // if we wait for nothing with no timeout, we would block forever
-			timeout.sleep_for() ;
-			return {} ;
-		}
-		return Base::wait(timeout,_cnt) ;
-	}
-	// data
-private :
-	uint _cnt = 0 ;
+	uint                                        _n_waits   = 0 ;
+	uint                                        _n_events  = 0 ;
 } ;

@@ -109,11 +109,11 @@ namespace Engine {
 
 	namespace Attrs {
 		// statics
-		/**/                   bool/*updated*/ acquire( bool               & dst , Py::Object const* py_src                                                                               ) ;
-		/**/                   bool/*updated*/ acquire( Delay              & dst , Py::Object const* py_src , Delay min=Delay::Lowest              , Delay max=Delay::Highest             ) ;
-		/**/                   bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Py::Object const* py_src                                                                               ) ;
-		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=::numeric_limits<I>::min() , I     max=::numeric_limits<I>::max() ) ;
-		template<StdEnum    E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src                                                                               ) ;
+		/**/                   bool/*updated*/ acquire( bool               & dst , Py::Object const* py_src                                                      ) ;
+		/**/                   bool/*updated*/ acquire( Delay              & dst , Py::Object const* py_src , Delay min=Delay::Lowest , Delay max=Delay::Highest ) ;
+		/**/                   bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Py::Object const* py_src                                                      ) ;
+		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>         ) ;
+		template<StdEnum    E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src                                                      ) ;
 		//
 		template<        bool Env=false>                                       bool/*updated*/ acquire( ::string   & dst , Py::Object const* py_src ) ;
 		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) ;
@@ -167,17 +167,17 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
-			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) ::sort(rsrcs) ;                                                                  // stabilize rsrcs crc
+			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) ::sort(rsrcs) ;                                              // stabilize rsrcs crc
 		}
 		Tokens1 tokens1() const {
 			for(auto const& [k,v] : rsrcs) if (k=="cpu")
-				try                     { return ::min( ::max(from_string<uint32_t>(v),uint32_t(1))-1 , uint32_t(::numeric_limits<Tokens1>::max()) ); }
-				catch (::string const&) { break ;                                                                                                     } // no valid cpu count, do as if no cpu found
-			return 0 ;                                                                                                                                  // not found : default to 1 cpu
+				try                     { return ::min( ::max(from_string<uint32_t>(v),uint32_t(1))-1 , uint32_t(Max<Tokens1>) ); }
+				catch (::string const&) { break ;                                                                                 } // no valid cpu count, do as if no cpu found
+			return 0 ;                                                                                                              // not found : default to 1 cpu
 		}
 		// data
 		// START_OF_VERSIONING
-		BackendTag backend = BackendTag::Local ;                                                                                                        // backend to use to launch jobs
+		BackendTag backend = BackendTag::Local ;                                                                                    // backend to use to launch jobs
 		::vmap_ss  rsrcs   ;
 		// END_OF_VERSIONING
 	} ;
@@ -247,13 +247,13 @@ namespace Engine {
 			Attrs::acquire_from_dct( method     , py_dct , "autodep"                           ) ;
 			Attrs::acquire_from_dct( timeout    , py_dct , "timeout"    , Time::Delay()/*min*/ ) ;
 			Attrs::acquire_from_dct( use_script , py_dct , "use_script"                        ) ;
-			::sort(env) ;                                                                                             // stabilize rsrcs crc
+			::sort(env) ;                                                                          // stabilize rsrcs crc
 		}
 		// data
 		// START_OF_VERSIONING
 		::vmap_ss     env        ;
 		AutodepMethod method     = {} ;
-		Time::Delay   timeout    ;                                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
+		Time::Delay   timeout    ;                                                                 // if 0 <=> no timeout, maximum time allocated to job execution in s
 		bool          use_script = false ;
 		// END_OF_VERSIONING
 	} ;
@@ -270,14 +270,14 @@ namespace Engine {
 			Attrs::acquire_from_dct( kill_sigs      , py_dct , "kill_sigs"                             ) ;
 			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len"                        ) ;
 			Attrs::acquire_env     ( env            , py_dct , "env"                                   ) ;
-			::sort(env) ;                                                                               // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
+			::sort(env) ;                                                                                  // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
 		// START_OF_VERSIONING
 		bool              keep_tmp       = false ;
-		Time::Delay       start_delay    ;                                                              // job duration above which a start message is generated
-		::vector<uint8_t> kill_sigs      ;                                                              // signals to use to kill job (tried in sequence, 1s apart from each other)
-		size_t            max_stderr_len = Npos  ;                                                      // max lines when displaying stderr (full content is shown with lshow -e)
+		Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
+		::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
+		size_t            max_stderr_len = Npos  ;                                                         // max lines when displaying stderr (full content is shown with lshow -e)
 		::vmap_ss         env            ;
 		// END_OF_VERSIONING
 	} ;

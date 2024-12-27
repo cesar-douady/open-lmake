@@ -250,13 +250,13 @@ namespace Py {
 			if (::is_signed_v<T>) {
 				long v = PyLong_AsLong( to_py() ) ;
 				if (py_err_occurred()) throw py_err_str_clear() ;
-				throw_unless( v>=::numeric_limits<T>::min() , "underflow" ) ;
-				throw_unless( v<=::numeric_limits<T>::max() , "overflow"  ) ;
+				throw_unless( v>=Min<T> , "underflow" ) ;
+				throw_unless( v<=Max<T> , "overflow"  ) ;
 				return T(v) ;
 			} else {
 				ulong v = PyLong_AsUnsignedLong( to_py() ) ;
 				if (py_err_occurred()) throw py_err_str_clear() ;
-				throw_unless( v<=::numeric_limits<T>::max() , "overflow" ) ;
+				throw_unless( v<=Max<T> , "overflow" ) ;
 				return T(v) ;
 			}
 		}

@@ -124,9 +124,9 @@ namespace Time {
 		::string short_str(              ) const ;
 		size_t   hash     (              ) const { return _val ; }
 	} ;
-	constexpr Delay Delay::Lowest  { New , ::numeric_limits<Tick>::min() } ;
-	constexpr Delay Delay::Highest { New , ::numeric_limits<Tick>::max() } ;
-	constexpr Delay Delay::Forever { New , ::numeric_limits<Tick>::max() } ;
+	constexpr Delay Delay::Lowest  { New , Min<Tick> } ;
+	constexpr Delay Delay::Highest { New , Max<Tick> } ;
+	constexpr Delay Delay::Forever { New , Max<Tick> } ;
 
 	// short float representation of time (positive)
 	// when exp<=0, representation is linear after TicksPerSecond
@@ -184,8 +184,8 @@ namespace Time {
 	private :
 		Val _val = 0 ;
 	} ;
-	constexpr CoarseDelay CoarseDelay::Lowest  { New , Val(1)                       } ;
-	constexpr CoarseDelay CoarseDelay::Highest { New , ::numeric_limits<Val>::max() } ;
+	constexpr CoarseDelay CoarseDelay::Lowest  { New , Val(1)   } ;
+	constexpr CoarseDelay CoarseDelay::Highest { New , Max<Val> } ;
 
 	struct Date : TimeBase<uint64_t> {
 		using Base = TimeBase<uint64_t> ;

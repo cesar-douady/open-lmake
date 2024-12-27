@@ -83,6 +83,9 @@ template<class T> constexpr T const& constify(T const& x) { return   x ; }
 
 template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
 
+template<class T> static constexpr T Max = ::numeric_limits<T>::max() ;
+template<class T> static constexpr T Min = ::numeric_limits<T>::min() ;
+
 //
 // std lib name simplification
 //
@@ -119,7 +122,7 @@ template<class K,class V         > using vmap     = ::vector<pair  <K     ,V>   
 template<        class V         > using vmap_s   = ::vmap         <string,V       > ;
 /**/                               using vmap_ss  = ::vmap_s       <       string  > ;
 
-namespace std {                                                                                                   // must be defined in std or operator! does not recognize it
+namespace std {                                                                                                          // must be defined in std or operator! does not recognize it
 	template<class T,size_t N> inline constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
 	template<class T,class  U> inline constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
 	template<class K,class  V> inline constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
@@ -1084,28 +1087,28 @@ public :
 		_Lock lock { _mutex } ;
 		if (!free_ids) {
 			res = n_allocated ;
-			throw_unless( n_allocated<::numeric_limits<T>::max() , "cannot allocate id" ) ;
+			throw_unless( n_allocated< Max<T> , "cannot allocate id" ) ;
 			n_allocated++ ;
 		} else {
 			res = *free_ids.begin() ;
 			free_ids.erase(res) ;
 		}
-		n_acquired++ ;                                  // protected by _mutex
-		SWEAR(n_acquired!=::numeric_limits<T>::min()) ; // ensure no overflow
+		SWEAR(n_acquired<Max<T>) ;      // ensure no overflow
+		n_acquired++ ;                  // protected by _mutex
 		return res ;
 	}
 	void release(T id) {
-		if (!id) return ;                               // id 0 has not been acquired
+		if (!id) return ;               // id 0 has not been acquired
 		_Lock lock { _mutex } ;
-		SWEAR(!free_ids.contains(id)) ;                 // else, double release
+		SWEAR(!free_ids.contains(id)) ; // else, double release
 		free_ids.insert(id) ;
-		n_acquired-- ;                                  // protected by _mutex
-		SWEAR(n_acquired!=::numeric_limits<T>::max()) ; // ensure no underflow
+		SWEAR(n_acquired>Min<T>) ;      // ensure no underflow
+		n_acquired-- ;                  // protected by _mutex
 	}
 	// data
 	set<T>   free_ids    ;
-	T        n_allocated = 1 ;                          // dont use id 0 so that it is free to mean "no id"
-	_AtomicT n_acquired  = 0 ;                          // can be freely read by any thread if ThreadSafe
+	T        n_allocated = 1 ;          // dont use id 0 so that it is free to mean "no id"
+	_AtomicT n_acquired  = 0 ;          // can be freely read by any thread if ThreadSafe
 private :
 	_Mutex _mutex ;
 } ;
@@ -1123,8 +1126,8 @@ private :
 template<class T> using FenceSave = Save<T,true> ;
 
 template<class T> struct SaveInc {
-	 SaveInc(T& ref) : _ref{ref} { SWEAR(_ref<::numeric_limits<T>::max()) ; _ref++ ; } // increment
-	~SaveInc(      )             { SWEAR(_ref>::numeric_limits<T>::min()) ; _ref-- ; } // restore
+	 SaveInc(T& ref) : _ref{ref} { SWEAR(_ref<Max<T>) ; _ref++ ; } // increment
+	~SaveInc(      )             { SWEAR(_ref>Min<T>) ; _ref-- ; } // restore
 private :
 	T& _ref ;
 } ;
@@ -1312,16 +1315,16 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 			val = 0 ;
 		} else {
 			val >>= uint8_t(B-b) ;
-			throw_unless( val<=::numeric_limits<I>::max() , "overflow"  ) ;
-			throw_unless( val>=::numeric_limits<I>::min() , "underflow" ) ;
+			throw_unless( val<=Max<I> , "overflow"  ) ;
+			throw_unless( val>=Min<I> , "underflow" ) ;
 		}
 	} else {
 		if (uint8_t(b-B)>=NBits<I>) {
 			throw_unless( val<=0 , "overflow"  ) ;
 			throw_unless( val>=0 , "underflow" ) ;
 		} else {
-			throw_unless( val<=I(::numeric_limits<I>::max()>>uint8_t(b-B)) , "overflow"  ) ;
-			throw_unless( val>=I(::numeric_limits<I>::min()>>uint8_t(b-B)) , "underflow" ) ;
+			throw_unless( val<=I( Max<I> >>uint8_t(b-B)) , "overflow"  ) ;
+			throw_unless( val>=I( Min<I> >>uint8_t(b-B)) , "underflow" ) ;
 			val <<= uint8_t(b-B) ;
 		}
 	}
@@ -1333,7 +1336,6 @@ template<char U,::integral I> ::string to_string_with_units(I x) {
 		if (U) return "0"s+U ;
 		else   return "0"    ;
 	}
-	//
 	switch (U) {
 		case 'a' : if (x&0x3ff) return ::to_string(x)+'a' ; x >>= 10 ; [[fallthrough]] ;
 		case 'f' : if (x&0x3ff) return ::to_string(x)+'f' ; x >>= 10 ; [[fallthrough]] ;
