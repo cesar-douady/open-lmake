@@ -183,8 +183,8 @@ namespace Engine {
 			if (n_skip>0) { n_skip-- ; continue ; }
 			if (item.is_a<Str>()) {
 				::string flag_str = item.as_a<Str>() ;
-				bool     neg      = flag_str[0]=='-'  ;
-				if (neg) flag_str = flag_str.substr(1) ; // suppress initial - sign
+				bool     neg      = flag_str[0]=='-' ;
+				if (neg) flag_str.erase(0,1) ;         // suppress initial - sign
 				//
 				if      ( F  f  ; can_mk_enum<F >(flag_str) && (f =mk_enum<F >(flag_str),f <F ::NRule) ) flags      .set(f ,!neg) ;
 				else if ( EF ef ; can_mk_enum<EF>(flag_str) && (ef=mk_enum<EF>(flag_str),ef<EF::NRule) ) extra_flags.set(ef,!neg) ;
@@ -391,22 +391,19 @@ namespace Engine {
 	//
 
 	static bool/*keep*/ _qualify_dep( ::string const& key , DepKind kind , ::string const& dep , ::string const& full_dep , ::string const& dep_for_msg ) {
-		::string        dir_s   = dep.substr(0,dep.find(Rule::StemMrkr))          ;
-		size_t          dir_pos = dir_s.rfind('/')                                ;
-		/**/            dir_s   = dir_pos==Npos ? ""s : dir_s.substr(0,dir_pos+1) ;
-		::string        base    = full_dep.substr(dir_s.size())                   ;
+		::string dir_s = dep.substr(0,dep.find(Rule::StemMrkr)) ; if ( size_t p=dir_s.rfind('/') ; p!=Npos ) dir_s.resize(p+1) ; else dir_s.clear() ;
 		//
 		auto bad = [&] [[noreturn]] (::string const& msg) {
 			if (kind==DepKind::Dep) throw "dep "+key     +" ("+dep_for_msg+") "+msg ;
 			else                    throw snake_str(kind)+" ("+dep_for_msg+") "+msg ;
 		} ;
 		//
-		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(dir_s+base)) ;
+		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(full_dep)) ;
 		if (is_lcl(dep)     ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
 		::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s) ;
 		::string abs_dir_s = mk_abs(dir_s,*g_repo_root_s) ;
-		if (is_lcl_s(rel_dir_s)) bad("must be provided as local file : "+rel_dir_s+base) ;
+		if (is_lcl_s(rel_dir_s)) bad("must be provided as local file : "+rel_dir_s+substr_view(full_dep,dir_s.size())) ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s ) {
 			if ( is_lcl_s(sd_s)                                                ) continue ;                        // nothing to recognize inside repo
@@ -638,8 +635,8 @@ namespace Engine {
 					else              return false ;                                                   // different chars, no conflict possible
 				}
 				if ( a_is_stem && b_is_stem ) {
-					::string_view sa = ::string_view(a).substr(iae+1-sizeof(VarIdx),sizeof(VarIdx)) ;
-					::string_view sb = ::string_view(b).substr(ibe+1-sizeof(VarIdx),sizeof(VarIdx)) ;
+					::string_view sa = substr_view( a , iae+1-sizeof(VarIdx) , sizeof(VarIdx) ) ;
+					::string_view sb = substr_view( b , ibe+1-sizeof(VarIdx) , sizeof(VarIdx) ) ;
 					if (sa==sb) { i+=sizeof(VarIdx) ; continue ; }                                     // same      stems, continue analysis
 					else        { goto Continue ;                }                                     // different stems, could have identical values
 				}
@@ -1142,17 +1139,17 @@ namespace Engine {
 		}
 		// report exceptions (i.e. sub-repos in which rule does not apply) unless it can be proved we cannot match in such sub-repos
 		::vector_s excepts_s ;
-		::uset_s   seens_s   ;                                // we are only interested in first level sub-repos under our sub-repo
+		::uset_s   seens_s   ;                                                                        // we are only interested in first level sub-repos under our sub-repo
 		for( ::string const& sr_s : g_config->sub_repos_s ) {
-			if (!( sr_s.size()>cwd_s.size() && sr_s.starts_with(cwd_s) )) continue ;             // if considered sub-repo is not within our sub-repo, it cannot match
+			if (!( sr_s.size()>cwd_s.size() && sr_s.starts_with(cwd_s) )) continue ;                  // if considered sub-repo is not within our sub-repo, it cannot match
 			for( ::string const& e_s : seens_s )
-				if (sr_s.starts_with(e_s)) goto Skip ;                                           // g_config->sub_repos_s are sorted so that higher level occurs first
+				if (sr_s.starts_with(e_s)) goto Skip ;                                                // g_config->sub_repos_s are sorted so that higher level occurs first
 			seens_s.insert(sr_s) ;
-			for( auto const& [k,me] : matches ) {                                                // if all targets have a prefix that excludes considered sub-repo, it cannot match
-				if (!( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )) continue ; // not a target
-				::string_view pfx { me.pattern.data() , me.pattern.find(Rule::StemMrkr) } ;      // find target prefix
-				if (sr_s.starts_with(pfx )) goto Report ;                                        // found a target that may      match in sub-repo, include it
-				if (pfx .starts_with(sr_s)) goto Report ;                                        // found a target that may only match in sub-repo, include it
+			for( auto const& [k,me] : matches ) {                                                     // if all targets have a prefix that excludes considered sub-repo, it cannot match
+				if (!( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )) continue ;      // not a target
+				::string_view pfx = substr_view( me.pattern , 0 , me.pattern.find(Rule::StemMrkr) ) ; // find target prefix
+				if (sr_s.starts_with(pfx )) goto Report ;                                             // found a target that may      match in sub-repo, include it
+				if (pfx .starts_with(sr_s)) goto Report ;                                             // found a target that may only match in sub-repo, include it
 			}
 		Skip :
 			continue ;
@@ -1418,8 +1415,10 @@ namespace Engine {
 			,	Escape::None
 			,	rule->n_static_stems/*stop_above*/
 			) ;
-			size_t sep = target.rfind('/') ;
-			if (sep!=Npos) dirs.insert(Node(target.substr(0,sep))) ;
+			if ( size_t sep=target.rfind('/') ; sep!=Npos ) {
+				target.resize(sep)        ;
+				dirs.insert(Node(target)) ;
+			}
 		}
 		return dirs ;
 	}

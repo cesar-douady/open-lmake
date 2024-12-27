@@ -195,7 +195,7 @@ namespace Time {
 		friend Pdate ;
 		// cxtors & casts
 		using Base::Base ;
-		Date(::string_view const&) ; // read a reasonable approximation of ISO8601
+		Date(::string_view) ; // read a reasonable approximation of ISO8601
 		// services
 		using Base::operator+ ;
 		constexpr Date  operator+ (Delay other) const {                     return Date(New,_val+other._val) ; }

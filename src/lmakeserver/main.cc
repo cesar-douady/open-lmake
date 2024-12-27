@@ -115,8 +115,8 @@ static void _chk_os() {
 	}
 	if ( id        .starts_with('"') && id        .ends_with('"') ) id         = id        .substr(1,id        .size()-2) ;
 	if ( version_id.starts_with('"') && version_id.ends_with('"') ) version_id = version_id.substr(1,version_id.size()-2) ;
-	if (!id                      ) exit(Rc::System,"cannot find ID in"        ,ReleaseFile) ;
-	if (!version_id              ) exit(Rc::System,"cannot find VERSION_ID in",ReleaseFile) ;
+	if ( !id                                                      ) exit(Rc::System,"cannot find ID in"        ,ReleaseFile) ;
+	if ( !version_id                                              ) exit(Rc::System,"cannot find VERSION_ID in",ReleaseFile) ;
 	//
 	id << '-'<<version_id ;
 	if (id!=OS_ID) exit(Rc::System,"bad OS in",ReleaseFile,':',id,"!=",OS_ID) ;
@@ -318,7 +318,7 @@ static bool/*interrupted*/ _engine_loop() {
 						trace(ecr) ;
 						bool ok = true/*garbage*/ ;
 						if ( !ecr.options.flags[ReqFlag::Quiet] && +startup_dir_s )
-							audit( ecr.out_fd , ecr.options , Color::Note , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) , true/*as_is*/ ) ;
+							audit( ecr.out_fd , ecr.options , Color::Note , "startup dir : "+no_slash(startup_dir_s) , true/*as_is*/ ) ;
 						try                        { ok = g_cmd_tab[+ecr.proc](ecr) ;                                  }
 						catch (::string  const& e) { ok = false ; if (+e) audit(ecr.out_fd,ecr.options,Color::Err,e) ; }
 						OMsgBuf().send( ecr.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ;

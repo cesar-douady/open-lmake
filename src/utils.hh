@@ -120,50 +120,50 @@ template<        class V         > using vmap_s   = ::vmap         <string,V    
 /**/                               using vmap_ss  = ::vmap_s       <       string  > ;
 
 namespace std {                                                                                                   // must be defined in std or operator! does not recognize it
-	template<class T,size_t N> constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
-	template<class T,class  U> constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
-	template<class K,class  V> constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
-	template<class K,class  V> constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
-	template<class K         > constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
-	template<class K         > constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
-	template<class T         > constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
+	template<class T,size_t N> inline constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
+	template<class T,class  U> inline constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
+	template<class K,class  V> inline constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
+	template<class K,class  V> inline constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
+	template<class K         > inline constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
+	template<class K         > inline constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
+	template<class T         > inline constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
 }
 
 #define VT(T) typename T::value_type
 
 // easy transformation of a container into another
-template<class K,        class V> ::set   <K                                                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
-template<class K,        class V> ::uset  <K                                                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
-template<        class T,class V> ::vector<                                  T                 > mk_vector(V const& v) { return ::vector<T>( v.begin() , v.end() ) ; }
-template<class K,class T,class V> ::map   <K                                ,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
-template<class K,class T,class V> ::umap  <K                                ,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
-template<class K,class T,class V> ::vmap  <K                                ,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,        class V> inline ::set   <K                                                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,        class V> inline ::uset  <K                                                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> inline ::vector<                                  T                 > mk_vector(V const& v) { return ::vector<T>( v.begin() , v.end() ) ; }
+template<class K,class T,class V> inline ::map   <K                                ,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,class T,class V> inline ::umap  <K                                ,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,class T,class V> inline ::vmap  <K                                ,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
 // with implicit key type
-template<        class T,class V> ::map   <remove_const_t<VT(V)::first_type>,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
-template<        class T,class V> ::umap  <remove_const_t<VT(V)::first_type>,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
-template<        class T,class V> ::vmap  <remove_const_t<VT(V)::first_type>,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> inline ::map   <remove_const_t<VT(V)::first_type>,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> inline ::umap  <remove_const_t<VT(V)::first_type>,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> inline ::vmap  <remove_const_t<VT(V)::first_type>,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
 // with implicit item type
-template<                class V> ::set   <remove_const_t<VT(V)            >                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::uset  <remove_const_t<VT(V)            >                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::vector<                                  VT(V)             > mk_vector(V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::map   <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::umap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::vmap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> inline ::set   <remove_const_t<VT(V)            >                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> inline ::uset  <remove_const_t<VT(V)            >                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> inline ::vector<                                  VT(V)             > mk_vector(V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> inline ::map   <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> inline ::umap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> inline ::vmap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
 
 // keys & vals
-template<class K,class M> ::set   <K> const mk_key_set   (M const& m) { ::set   <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
-template<class K,class M> ::uset  <K> const mk_key_uset  (M const& m) { ::uset  <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
-template<class K,class M> ::vector<K> const mk_key_vector(M const& m) { ::vector<K> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(k) ; return res ; }
-template<class T,class M> ::set   <T>       mk_val_set   (M const& m) { ::set   <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
-template<class T,class M> ::uset  <T>       mk_val_uset  (M const& m) { ::uset  <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
-template<class T,class M> ::vector<T>       mk_val_vector(M const& m) { ::vector<T> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(v) ; return res ; }
+template<class K,class M> inline ::set   <K> const mk_key_set   (M const& m) { ::set   <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
+template<class K,class M> inline ::uset  <K> const mk_key_uset  (M const& m) { ::uset  <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
+template<class K,class M> inline ::vector<K> const mk_key_vector(M const& m) { ::vector<K> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(k) ; return res ; }
+template<class T,class M> inline ::set   <T>       mk_val_set   (M const& m) { ::set   <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
+template<class T,class M> inline ::uset  <T>       mk_val_uset  (M const& m) { ::uset  <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
+template<class T,class M> inline ::vector<T>       mk_val_vector(M const& m) { ::vector<T> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(v) ; return res ; }
 // with implicit item type
-template<class M> ::set   <remove_const_t<VT(M)::first_type >> const mk_key_set   (M const& m) { return mk_key_set   <remove_const_t<VT(M)::first_type >>(m) ; }
-template<class M> ::uset  <remove_const_t<VT(M)::first_type >> const mk_key_uset  (M const& m) { return mk_key_uset  <remove_const_t<VT(M)::first_type >>(m) ; }
-template<class M> ::vector<remove_const_t<VT(M)::first_type >> const mk_key_vector(M const& m) { return mk_key_vector<remove_const_t<VT(M)::first_type >>(m) ; }
-template<class M> ::set   <               VT(M)::second_type >       mk_val_set   (M const& m) { return mk_val_set   <               VT(M)::second_type >(m) ; }
-template<class M> ::uset  <               VT(M)::second_type >       mk_val_uset  (M const& m) { return mk_val_uset  <               VT(M)::second_type >(m) ; }
-template<class M> ::vector<               VT(M)::second_type >       mk_val_vector(M const& m) { return mk_val_vector<               VT(M)::second_type >(m) ; }
+template<class M> inline ::set   <remove_const_t<VT(M)::first_type >> const mk_key_set   (M const& m) { return mk_key_set   <remove_const_t<VT(M)::first_type >>(m) ; }
+template<class M> inline ::uset  <remove_const_t<VT(M)::first_type >> const mk_key_uset  (M const& m) { return mk_key_uset  <remove_const_t<VT(M)::first_type >>(m) ; }
+template<class M> inline ::vector<remove_const_t<VT(M)::first_type >> const mk_key_vector(M const& m) { return mk_key_vector<remove_const_t<VT(M)::first_type >>(m) ; }
+template<class M> inline ::set   <               VT(M)::second_type >       mk_val_set   (M const& m) { return mk_val_set   <               VT(M)::second_type >(m) ; }
+template<class M> inline ::uset  <               VT(M)::second_type >       mk_val_uset  (M const& m) { return mk_val_uset  <               VT(M)::second_type >(m) ; }
+template<class M> inline ::vector<               VT(M)::second_type >       mk_val_vector(M const& m) { return mk_val_vector<               VT(M)::second_type >(m) ; }
 
 // support container arg to standard utility functions
 using std::sort          ;                              // keep std definitions
@@ -173,23 +173,19 @@ using std::lower_bound   ;                              // .
 using std::min           ;                              // .
 using std::max           ;                              // .
 #define CMP ::function<bool(VT(T) const&,VT(T) const&)>
-template<class T>          void              sort         ( T      & x ,                  CMP cmp ) {                                             ::sort         ( x.begin() , x.end() ,     cmp ) ; }
-template<class T>          void              stable_sort  ( T      & x ,                  CMP cmp ) {                                             ::stable_sort  ( x.begin() , x.end() ,     cmp ) ; }
-template<class T>          bool              binary_search( T const& x , VT(T) const& v , CMP cmp ) {                                     return  ::binary_search( x.begin() , x.end() , v , cmp ) ; }
-template<class T> typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v , CMP cmp ) {                                     return  ::lower_bound  ( x.begin() , x.end() , v , cmp ) ; }
-template<class T>          VT(T)             min          ( T const& x ,                  CMP cmp ) { if (x.begin()==x.end()) return {} ; return *::min_element  ( x.begin() , x.end() ,     cmp ) ; }
-template<class T>          VT(T)             max          ( T const& x ,                  CMP cmp ) { if (x.begin()==x.end()) return {} ; return *::max_element  ( x.begin() , x.end() ,     cmp ) ; }
-template<class T>          void              sort         ( T      & x                            ) {                                             ::sort         ( x.begin() , x.end()           ) ; }
-template<class T>          void              stable_sort  ( T      & x                            ) {                                             ::stable_sort  ( x.begin() , x.end()           ) ; }
-template<class T>          bool              binary_search( T const& x , VT(T) const& v           ) {                                     return  ::binary_search( x.begin() , x.end() , v       ) ; }
-template<class T> typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v           ) {                                     return  ::lower_bound  ( x.begin() , x.end() , v       ) ; }
-template<class T>          VT(T)             min          ( T const& x                            ) { if (x.begin()==x.end()) return {} ; return *::min_element  ( x.begin() , x.end()           ) ; }
-template<class T>          VT(T)             max          ( T const& x                            ) { if (x.begin()==x.end()) return {} ; return *::max_element  ( x.begin() , x.end()           ) ; }
+template<class T> inline          void              sort         ( T      & x ,                  CMP cmp ) {         ::sort         ( x.begin() , x.end() ,     cmp ) ; }
+template<class T> inline          void              stable_sort  ( T      & x ,                  CMP cmp ) {         ::stable_sort  ( x.begin() , x.end() ,     cmp ) ; }
+template<class T> inline          bool              binary_search( T const& x , VT(T) const& v , CMP cmp ) { return  ::binary_search( x.begin() , x.end() , v , cmp ) ; }
+template<class T> inline typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v , CMP cmp ) { return  ::lower_bound  ( x.begin() , x.end() , v , cmp ) ; }
+template<class T> inline          void              sort         ( T      & x                            ) {         ::sort         ( x.begin() , x.end()           ) ; }
+template<class T> inline          void              stable_sort  ( T      & x                            ) {         ::stable_sort  ( x.begin() , x.end()           ) ; }
+template<class T> inline          bool              binary_search( T const& x , VT(T) const& v           ) { return  ::binary_search( x.begin() , x.end() , v       ) ; }
+template<class T> inline typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v           ) { return  ::lower_bound  ( x.begin() , x.end() , v       ) ; }
 #undef CMP
 
 #undef TVT
 
-template<class T> T& grow( ::vector<T>& v , size_t i ) {
+template<class T> inline T& grow( ::vector<T>& v , size_t i ) {
 	if(i>=v.size()) v.resize(i+1) ;
 	return v[i] ;
 }
@@ -205,7 +201,7 @@ extern thread_local char t_thread_key ;
 void kill_self      ( int sig                ) ;
 void write_backtrace( Fd      , int hide_cnt ) ;
 
-template<void (*Handler)(int sig,void* addr)> void _sig_action( int sig , siginfo_t* si , void* ) {
+template<void (*Handler)(int sig,void* addr)> inline void _sig_action( int sig , siginfo_t* si , void* ) {
 	Handler(sig,si->si_addr) ;
 }
 template<void (*Handler)(int sig,void* addr)> void set_sig_handler(int sig) {
@@ -241,7 +237,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 	}
 #endif
 
-template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] ) {
+template<class... A> [[noreturn]] inline void fail( A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
 		crash( 1 , SIGABRT , "fail" , args... ) ;
 	#else
@@ -249,7 +245,7 @@ template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] )
 	#endif
 }
 
-template<class... A> constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
+template<class... A> inline constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
 		if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 	#else
@@ -257,11 +253,11 @@ template<class... A> constexpr void swear( bool cond , A const&... args [[maybe_
 	#endif
 }
 
-template<class... A> [[noreturn]] void fail_prod( A const&... args ) {
+template<class... A> [[noreturn]] inline void fail_prod( A const&... args ) {
 	crash( 1 , SIGABRT , "fail" , args... ) ;
 }
 
-template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
+template<class... A> constexpr inline void swear_prod( bool cond , A const&... args ) {
 	if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 }
 
@@ -317,12 +313,17 @@ template<bool WithStart,Iotable I> struct Iota {
 	I bounds[1+WithStart] = {} ;
 } ;
 
-template<           Iotable I > constexpr Iota<false/*with_start*/,I > iota(            I  end ) {                                    return {   end} ; }
-template<Iotable I1,Iotable I2> constexpr Iota<true /*with_start*/,I2> iota( I1 begin , I2 end ) { I2 b2=I2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
+template<           Iotable I > inline constexpr Iota<false/*with_start*/,I > iota(            I  end ) {                                    return {   end} ; }
+template<Iotable I1,Iotable I2> inline constexpr Iota<true /*with_start*/,I2> iota( I1 begin , I2 end ) { I2 b2=I2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
 
 //
 // string
 //
+
+inline ::string_view substr_view( ::string const& s , size_t start , size_t len=Npos ) {
+	SWEAR(start<=s.size()) ;
+	return { s.data()+start , ::min(len,s.size()-start) } ;
+}
 
 template<::unsigned_integral I> ::string to_hex( I v , uint8_t width=sizeof(I)*2 ) {
 	::string res ( width , '0' ) ;
@@ -357,10 +358,10 @@ private :
 	uint8_t _val=0 ;
 } ;
 
-namespace std {                                                                      // must be defined in std or operator! does not recognize it
-	inline            bool operator+(::string      const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
-	inline            bool operator+(::string_view const& s) { return !s.empty() ; } // .
-	template<class T> bool operator+(::span<T>     const& v) { return !v.empty() ; } // .
+namespace std {                                                                        // must be defined in std or operator! does not recognize it
+	inline                   bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
+	inline                   bool operator+(::string_view   s) { return !s.empty() ; } // .
+	template<class T> inline bool operator+(::span<T>       v) { return !v.empty() ; } // .
 }
 
 namespace std {
@@ -370,10 +371,11 @@ namespace std {
 	template<class T> concept _CanDoToHex   = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
 	template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ;                // use a template to avoid having to high a priority when compiler selects an overload
 	#if __cplusplus<202600L
-		inline ::string  operator+ ( ::string          && s , ::string_view const& v ) { return ::move     (s) +  ::string(v) ; }
-		inline ::string  operator+ ( ::string      const& s , ::string_view const& v ) { return             s  +  ::string(v) ; }
-		inline ::string  operator+ ( ::string_view const& v , ::string      const& s ) { return ::string   (v) +           s  ; }
-		inline ::string& operator+=( ::string           & s , ::string_view const& v ) { return             s  += ::string(v) ; }
+		inline ::string  operator+ ( ::string     && s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return ::move(s) ; }
+		inline ::string  operator+ ( ::string_view   v , ::string     && s ) {                    s.insert(0,v.data(),v.size()) ; return ::move(s) ; }
+		inline ::string  operator+ ( ::string const& s , ::string_view   v ) { ::string r = s   ; r.append(  v.data(),v.size()) ; return        r  ; }
+		inline ::string  operator+ ( ::string_view   v , ::string const& s ) { ::string r { v } ; r.append(  s.data(),s.size()) ; return        r  ; }
+		inline ::string& operator+=( ::string      & s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return        s  ; }
 	#endif
 	inline ::string  operator+ ( ::string     && s , nullptr_t         ) { return ::move(s       ) +  "(null)" ; }
 	inline ::string  operator+ ( ::string const& s , nullptr_t         ) { return        s         +  "(null)" ; }
@@ -424,7 +426,7 @@ inline ::string widen( ::string const& s , size_t sz , bool right=false , char f
 	/**/              return        s +f ;
 }
 
-template<class... A> ::string cat(A&&... args) {
+template<class... A> inline ::string cat(A&&... args) {
 	::string res ;
 	[[maybe_unused]] bool _[] = { false , (res+=args,false)... } ;
 	return res ;
@@ -441,7 +443,7 @@ template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const&
 	if ( rc.ec!=::errc{} ) throw ::make_error_code(rc.ec).message() ;
 	else                   return res ;
 }
-template<::integral I> I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt,::strlen(txt)) , empty_ok , hex ) ; }
+template<::integral I> inline I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt) , empty_ok , hex ) ; }
 //
 template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S const& txt , bool empty_ok=false ) {
 	if ( empty_ok && !txt ) return 0 ;
@@ -452,13 +454,13 @@ template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S 
 	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
 	else                 return res ;
 }
-template<::floating_point F> F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt,::strlen(txt)) , empty_ok ) ; }
+template<::floating_point F> inline F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt) , empty_ok ) ; }
 
 /**/   ::string mk_json_str (::string_view  ) ;
 /**/   ::string mk_shell_str(::string_view  ) ;
 /**/   ::string mk_py_str   (::string_view  ) ;
-inline ::string mk_py_str   (const char*   s) { return mk_py_str(::string_view(s,::strlen(s))) ; }
-inline ::string mk_py_str   (bool          b) { return b ? "True" : "False"                    ; }
+inline ::string mk_py_str   (const char*   s) { return mk_py_str(::string_view(s)) ; }
+inline ::string mk_py_str   (bool          b) { return b ? "True" : "False"        ; }
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
 inline constexpr bool is_space(char c) {
@@ -482,8 +484,8 @@ inline bool is_printable(::string const& s) {
 	/**/                                    return true  ;
 }
 
-template<char Delimiter=0> ::string mk_printable(::string const&    ) ;
-template<char Delimiter=0> ::string mk_printable(::string     && txt) {
+template<char Delimiter=0>        ::string mk_printable(::string const&    ) ;
+template<char Delimiter=0> inline ::string mk_printable(::string     && txt) {
 	for( char c : txt ) if ( !is_printable(c) || (Delimiter&&c==Delimiter) ) return mk_printable(txt) ;
 	return ::move(txt) ;                                                                                // fast path : avoid analysis & copy
 }
@@ -527,7 +529,7 @@ inline ::string strip(::string const& txt) {
 }
 
 // split into space separated words
-inline ::vector_s split(::string_view const& txt) {
+inline ::vector_s split(::string_view txt) {
 	::vector_s res ;
 	for( size_t pos=0 ;;) {
 		for( ; pos<txt.size() && is_space(txt[pos]) ; pos++ ) ;
@@ -540,7 +542,7 @@ inline ::vector_s split(::string_view const& txt) {
 }
 
 // split on sep
-inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=Npos ) {
+inline ::vector_s split( ::string_view txt , char sep , size_t n_sep=Npos ) {
 	::vector_s res ;
 	size_t     pos = 0 ;
 	for( [[maybe_unused]] size_t _ : iota(n_sep) ) {
@@ -553,7 +555,7 @@ inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=Npos
 	return res ;
 }
 
-inline ::string_view first_lines( ::string_view const& txt , size_t n_sep , char sep='\n' ) {
+inline ::string_view first_lines( ::string_view txt , size_t n_sep , char sep='\n' ) {
 	size_t pos = -1 ;
 	for( [[maybe_unused]] size_t _ : iota(n_sep) ) {
 		pos = txt.find(sep,pos+1) ;
@@ -562,25 +564,25 @@ inline ::string_view first_lines( ::string_view const& txt , size_t n_sep , char
 	return txt.substr(0,pos+1) ;
 }
 
-template<::integral I> I decode_int(const char* p) {
+template<::integral I> inline I decode_int(const char* p) {
 	I r = 0 ;
 	for( uint8_t i : iota<uint8_t>(sizeof(I)) ) r |= I(uint8_t(p[i]))<<(i*8) ; // little endian, /!\ : beware of signs, casts & integer promotion
 	return r ;
 }
 
-template<::integral I> void encode_int( char* p , I x ) {
+template<::integral I> inline void encode_int( char* p , I x ) {
 	for( uint8_t i : iota<uint8_t>(sizeof(I)) ) p[i] = char(x>>(i*8)) ; // little endian
 }
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
 
-template<char U,::integral I=size_t> I        from_string_with_units(::string const& s) ;                                           // provide default unit in U. ...
-template<char U,::integral I=size_t> ::string to_string_with_units  (I               x) ;                                           // ... If provided, return value is expressed in this unit
-template<       ::integral I=size_t> I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
-template<       ::integral I=size_t> ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
+template<char U,::integral I=size_t>        I        from_string_with_units(::string const& s) ;                                           // provide default unit in U. ...
+template<char U,::integral I=size_t>        ::string to_string_with_units  (I               x) ;                                           // ... If provided, return value is expressed in this unit
+template<       ::integral I=size_t> inline I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
+template<       ::integral I=size_t> inline ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
 
-template<class... A> constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw cat(args...) ; }
-template<class... A> constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw cat(args...) ; }
+template<class... A> inline constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw cat(args...) ; }
+template<class... A> inline constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw cat(args...) ; }
 
 //
 // span
@@ -597,9 +599,9 @@ constexpr inline uint8_t n_bits(size_t n) { return NBits<size_t>-::countl_zero(n
 template<::integral T=size_t> constexpr inline T lsb_msk (uint8_t b) { return  (T(1)<<b)-1 ; }
 template<::integral T=size_t> constexpr inline T msb_msk (uint8_t b) { return -(T(1)<<b)   ; }
 
-template<size_t D,class N> constexpr inline N round_down(N n) { return n - n%D              ; }
-template<size_t D,class N> constexpr inline N round_up  (N n) { return round_down<D>(n+D-1) ; }
-template<size_t D,class N> constexpr inline N div_up    (N n) { return (n+D-1)/D            ; }
+template<size_t D,class N> inline constexpr N round_down(N n) { return n - n%D              ; }
+template<size_t D,class N> inline constexpr N round_up  (N n) { return round_down<D>(n+D-1) ; }
+template<size_t D,class N> inline constexpr N div_up    (N n) { return (n+D-1)/D            ; }
 
 static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
@@ -610,20 +612,20 @@ static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
 
 namespace std {
 
-	#define OP(...) ::string& operator+=( ::string& os , __VA_ARGS__ )
-	template<class T,size_t N> OP(          T    const  a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class T,size_t N> OP( ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class T         > OP( ::vector<T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class T         > OP( ::span  <T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class K         > OP( ::uset  <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-	template<class K         > OP( ::set   <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-	template<class K,class V > OP( ::umap  <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
-	template<class K,class V > OP( ::map   <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+	#define IOP(...) inline ::string& operator+=( ::string& os , __VA_ARGS__ )
+	template<class T,size_t N> IOP(          T    const  a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class T,size_t N> IOP( ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class T         > IOP( ::vector<T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class T         > IOP( ::span  <T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class K         > IOP( ::uset  <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+	template<class K         > IOP( ::set   <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+	template<class K,class V > IOP( ::umap  <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+	template<class K,class V > IOP( ::map   <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
 	//
-	template<class A,class B > OP( ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
-	inline                     OP( uint8_t     const  i ) { return os << uint32_t(i)                         ; } // avoid output a char when actually a int
-	inline                     OP( int8_t      const  i ) { return os << int32_t (i)                         ; } // .
-	#undef OP
+	template<class A,class B > IOP( ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
+	/**/                       IOP( uint8_t     const  i ) { return os << uint32_t(i)                         ; } // avoid output a char when actually a int
+	/**/                       IOP( int8_t      const  i ) { return os << int32_t (i)                         ; } // .
+	#undef IOP
 
 }
 
@@ -696,18 +698,18 @@ template<StdEnum E> static constexpr ::array<::string_view,N<E>                >
 
 template<StdEnum E> static constexpr size_t NBits<E> = n_bits(N<E>) ;
 
-template<StdEnum E> ::string_view camel     (E e) { return          EnumCamels<E>[+e]        ; }
-template<StdEnum E> ::string_view snake     (E e) { return          EnumSnakes<E>[+e]        ; }
-template<StdEnum E> ::string      camel_str (E e) { return ::string(EnumCamels<E>[+e])       ; }
-template<StdEnum E> ::string      snake_str (E e) { return ::string(EnumSnakes<E>[+e])       ; }
-template<StdEnum E> const char*   camel_cstr(E e) { return          EnumCamels<E>[+e].data() ; } // string_view's in this table have a terminating null
-template<StdEnum E> const char*   snake_cstr(E e) { return          EnumSnakes<E>[+e].data() ; } // .
+template<StdEnum E> inline ::string_view camel     (E e) { return          EnumCamels<E>[+e]        ; }
+template<StdEnum E> inline ::string_view snake     (E e) { return          EnumSnakes<E>[+e]        ; }
+template<StdEnum E> inline ::string      camel_str (E e) { return ::string(EnumCamels<E>[+e])       ; }
+template<StdEnum E> inline ::string      snake_str (E e) { return ::string(EnumSnakes<E>[+e])       ; }
+template<StdEnum E> inline const char*   camel_cstr(E e) { return          EnumCamels<E>[+e].data() ; } // string_view's in this table have a terminating null
+template<StdEnum E> inline const char*   snake_cstr(E e) { return          EnumSnakes<E>[+e].data() ; } // .
 
 namespace std {
-	template<StdEnum E> ::string  operator+ ( ::string     && s , E               e ) { return ::move(s)+snake(e)                          ; }
-	template<StdEnum E> ::string  operator+ ( ::string const& s , E               e ) { return        s +snake(e)                          ; }
-	template<StdEnum E> ::string  operator+ ( E               e , ::string const& s ) { return snake (e)+      s                           ; }
-	template<StdEnum E> ::string& operator+=( ::string      & s , E               e ) { return e<All<E> ? s<<snake(e) : s<<"N+"<<(+e-N<E>) ; }
+	template<StdEnum E> inline ::string  operator+ ( ::string     && s , E               e ) { return ::move(s)+snake(e)                          ; }
+	template<StdEnum E> inline ::string  operator+ ( ::string const& s , E               e ) { return        s +snake(e)                          ; }
+	template<StdEnum E> inline ::string  operator+ ( E               e , ::string const& s ) { return snake (e)+      s                           ; }
+	template<StdEnum E> inline ::string& operator+=( ::string      & s , E               e ) { return e<All<E> ? s<<snake(e) : s<<"N+"<<(+e-N<E>) ; }
 }
 
 template<StdEnum E> ::umap_s<E> _mk_enum_tab() {
@@ -725,11 +727,11 @@ template<StdEnum E> ::pair<E,bool/*ok*/> _mk_enum(::string const& x) {
 	else                 return {it->second,true /*ok*/} ;
 }
 
-template<StdEnum E> bool can_mk_enum(::string const& x) {
+template<StdEnum E> inline bool can_mk_enum(::string const& x) {
 	return _mk_enum<E>(x).second ;
 }
 
-template<StdEnum E> E mk_enum(::string const& x) {
+template<StdEnum E> inline E mk_enum(::string const& x) {
 	::pair<E,bool/*ok*/> res = _mk_enum<E>(x) ;
 	throw_unless( res.second , "cannot make enum ",EnumName<E>," from ",x ) ;
 	return res.first ;
@@ -753,25 +755,25 @@ template<StdEnum E> E mk_enum(::string const& x) {
 template<StdEnum E> using EnumUint = underlying_type_t<E>         ;
 template<StdEnum E> using EnumInt  = ::make_signed_t<EnumUint<E>> ;
 
-template<StdEnum E> constexpr EnumUint<E> operator+(E e) { return EnumUint<E>(e) ; }
+template<StdEnum E> inline constexpr EnumUint<E> operator+(E e) { return EnumUint<E>(e) ; }
 //
-template<StdEnum E> constexpr E          operator+ (E  e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
-template<StdEnum E> constexpr E&         operator+=(E& e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
-template<StdEnum E> constexpr E          operator- (E  e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
-template<StdEnum E> constexpr EnumInt<E> operator- (E  e,E          o) { EnumInt<E> d ; d =   +e-+o  ; return d  ; }
-template<StdEnum E> constexpr E&         operator-=(E& e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
-template<StdEnum E> constexpr E          operator++(E& e             ) {                e = E(+e+ 1) ; return e  ; }
-template<StdEnum E> constexpr E          operator++(E& e,int         ) { E e_ = e ;     e = E(+e+ 1) ; return e_ ; }
-template<StdEnum E> constexpr E          operator--(E& e             ) {                e = E(+e- 1) ; return e  ; }
-template<StdEnum E> constexpr E          operator--(E& e,int         ) { E e_ = e ;     e = E(+e- 1) ; return e_ ; }
+template<StdEnum E> inline constexpr E          operator+ (E  e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
+template<StdEnum E> inline constexpr E&         operator+=(E& e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
+template<StdEnum E> inline constexpr E          operator- (E  e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
+template<StdEnum E> inline constexpr EnumInt<E> operator- (E  e,E          o) { EnumInt<E> d ; d =   +e-+o  ; return d  ; }
+template<StdEnum E> inline constexpr E&         operator-=(E& e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
+template<StdEnum E> inline constexpr E          operator++(E& e             ) {                e = E(+e+ 1) ; return e  ; }
+template<StdEnum E> inline constexpr E          operator++(E& e,int         ) { E e_ = e ;     e = E(+e+ 1) ; return e_ ; }
+template<StdEnum E> inline constexpr E          operator--(E& e             ) {                e = E(+e- 1) ; return e  ; }
+template<StdEnum E> inline constexpr E          operator--(E& e,int         ) { E e_ = e ;     e = E(+e- 1) ; return e_ ; }
 //
-template<StdEnum E> constexpr E  operator& (E  e,E o) {           return ::min(e,o) ; }
-template<StdEnum E> constexpr E  operator| (E  e,E o) {           return ::max(e,o) ; }
-template<StdEnum E> constexpr E& operator&=(E& e,E o) { e = e&o ; return e          ; }
-template<StdEnum E> constexpr E& operator|=(E& e,E o) { e = e|o ; return e          ; }
+template<StdEnum E> inline constexpr E  operator& (E  e,E o) {           return ::min(e,o) ; }
+template<StdEnum E> inline constexpr E  operator| (E  e,E o) {           return ::max(e,o) ; }
+template<StdEnum E> inline constexpr E& operator&=(E& e,E o) { e = e&o ; return e          ; }
+template<StdEnum E> inline constexpr E& operator|=(E& e,E o) { e = e|o ; return e          ; }
 //
-template<StdEnum E> E    decode_enum( const char* p ) { return E(decode_int<EnumUint<E>>(p)) ; }
-template<StdEnum E> void encode_enum( char* p , E e ) { encode_int(p,+e) ;                     }
+template<StdEnum E> inline E    decode_enum( const char* p ) { return E(decode_int<EnumUint<E>>(p)) ; }
+template<StdEnum E> inline void encode_enum( char* p , E e ) { encode_int(p,+e) ;                     }
 
 template<StdEnum E> struct BitMap {
 	template<StdEnum> friend ::string& operator+=( ::string& , BitMap const ) ;
@@ -811,27 +813,26 @@ private :
 	Val _val = 0 ;
 } ;
 //
-template<StdEnum E> constexpr BitMap<E> operator~(E e) { return ~BitMap<E>(e)  ; }
+template<StdEnum E> inline constexpr BitMap<E> operator~(E e) { return ~BitMap<E>(e)  ; }
 
-template<StdEnum E> BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
+template<StdEnum E>inline  BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
 	BitMap<E> res ;
 	for( ::string const& s : split(x,sep) ) res |= mk_enum<E>(s) ;
 	return res ;
 }
 
-template<StdEnum E> ::string& operator+=( ::string& os , BitMap<E> const bm ) {
+template<StdEnum E> inline ::string& operator+=( ::string& os , BitMap<E> const bm ) {
 	os <<'(' ;
 	bool first = true ;
-	for( E e : iota(All<E>) )
-		if (bm[e]) {
-			if (first) { os <<      e ; first = false ; }
-			else       { os <<'|'<< e ;                 }
-		}
+	for( E e : iota(All<E>) ) if (bm[e]) {
+		if (first) { os <<      e ; first = false ; }
+		else       { os <<'|'<< e ;                 }
+	}
 	return os <<')' ;
 }
 
 // used in static_assert when defining a table indexed by enum to fire if enum updates are not propagated to tab def
-template<StdEnum E,class T> constexpr bool chk_enum_tab(::amap<E,T,N<E>> tab) {
+template<StdEnum E,class T> inline constexpr bool chk_enum_tab(::amap<E,T,N<E>> tab) {
 	for( E e : iota(All<E>) ) if (tab[+e].first!=e) return false/*ok*/ ;
 	/**/                                            return true /*ok*/ ;
 }
@@ -1138,12 +1139,12 @@ ENUM( Rc
 ,	System
 )
 
-template<class... As> [[noreturn]] void exit( Rc rc , As const&... args ) {
+template<class... As> [[noreturn]] inline void exit( Rc rc , As const&... args ) {
 	Fd::Stderr.write(ensure_nl(cat(args...))) ;
 	::std::exit(+rc) ;
 }
 
-template<class... As> inline void dbg( ::string const& title , As const&... args ) {
+template<class... As> void dbg( ::string const& title , As const&... args ) {
 	::string              msg = title                                 ;
 	[[maybe_unused]] bool _[] = { false , (msg<<' '<<args,false)... } ;
 	msg += '\n' ;

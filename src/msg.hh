@@ -31,9 +31,9 @@ inline ::string& operator+=( ::string& os , MsgBuf const& mb ) { return os<<"Msg
 struct IMsgBuf : MsgBuf {
 	// statics
 	template<class T> static T s_receive(const char* str) {
-		//     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		return deserialize<T>(::string_view( str+sizeof(Len) , s_sz(str) )) ;
-		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		return deserialize<T>({ str+sizeof(Len) , s_sz(str) }) ;
+		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 	// cxtors & casts
 	IMsgBuf() { _buf.resize(sizeof(Len)) ; }             // prepare to receive len

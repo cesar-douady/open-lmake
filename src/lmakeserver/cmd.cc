@@ -596,10 +596,9 @@ namespace Engine {
 								else            push_entry("required by",localize(mk_file(    n         ->name()),su)) ;
 							}
 							if (has_start) {
-								JobInfoStart const& rs       = job_info.start                             ;
-								SubmitAttrs  const& sa       = rs.submit_attrs                            ;
-								::string            cwd      = start.cwd_s.substr(0,start.cwd_s.size()-1) ;
-								::string            pressure = sa.pressure.short_str()                    ;
+								JobInfoStart const& rs       = job_info.start          ;
+								SubmitAttrs  const& sa       = rs.submit_attrs         ;
+								::string            pressure = sa.pressure.short_str() ;
 								//
 								if (+sa.reason         ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
 								if (rs.host!=NoSockAddr) push_entry( "host"   , SockFd::s_host(rs.host)            ) ;
@@ -612,7 +611,7 @@ namespace Engine {
 								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"  , no_slash(start.job_space.chroot_dir_s) ) ;
 								if (+start.job_space.repo_view_s  ) push_entry( "repo_view"   , no_slash(start.job_space.repo_view_s ) ) ;
 								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
-								if (+start.cwd_s                  ) push_entry( "cwd"         , cwd                                    ) ;
+								if (+start.cwd_s                  ) push_entry( "cwd"         , no_slash(start.cwd_s                 ) ) ;
 								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"  , "true"                                 ) ;
 								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat" , "true"                                 ) ;
 								/**/                                push_entry( "autodep"     , snake_str(start.method)                ) ;

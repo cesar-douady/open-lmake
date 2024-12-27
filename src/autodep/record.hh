@@ -251,7 +251,7 @@ public :
 					if (!( file.starts_with(view) && (is_dirname(view)||file.size()==view.size()) )) continue ;
 					for( size_t i : iota(phys.size()) ) {
 						bool     last  = i==phys.size()-1                                      ;
-						::string f     = phys[i] + file.substr(view.size())                    ;
+						::string f     = phys[i] + substr_view(file,view.size())               ;
 						FileInfo fi    = !last||+a ? FileInfo(s_repo_root_fd(),f) : FileInfo() ;
 						bool     found = fi.tag()!=FileTag::None || !read                      ;                      // if not reading, assume file is found in upper
 						fl = r._real_path.file_loc(f) ;                                                               // use f before ::move

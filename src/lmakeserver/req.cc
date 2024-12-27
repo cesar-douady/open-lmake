@@ -411,8 +411,8 @@ namespace Engine {
 			::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ::string(Delay::ShortStrSz,' ') ;
 			audit_info( c , widen(cat(jr),wk)+" time : "+t+" ("+widen(cat(stats.ended[+jr]),wn,true/*right*/)+" jobs)" ) ;
 		}
-		/**/                                   audit_info( Color::Note , widen("elapsed",wk)+" time : " + (Pdate(New)-start_pdate)        .short_str()                   ) ;
-		if (+options.startup_dir_s           ) audit_info( Color::Note , widen("startup",wk)+" dir  : " + options.startup_dir_s.substr(0,options.startup_dir_s.size()-1) ) ;
+		/**/                                   audit_info( Color::Note , widen("elapsed",wk)+" time : " + (Pdate(New)-start_pdate).short_str() ) ;
+		if (+options.startup_dir_s           ) audit_info( Color::Note , widen("startup",wk)+" dir  : " + no_slash(options.startup_dir_s)      ) ;
 		//
 		if (+up_to_dates) {
 			static ::string src_msg       = "file is a source"       ;

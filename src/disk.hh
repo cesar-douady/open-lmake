@@ -97,10 +97,10 @@ namespace Disk {
 	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
 	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
 	//
-	inline bool   is_lcl_s    (::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ;                          }
-	inline bool   is_lcl      (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ;                          }
-	inline size_t uphill_lvl_s(::string const& name_s) { SWEAR(!is_abs_s(name_s)) ; size_t l ; for( l=0 ; name_s.substr(3*l,3)=="../" ; l++ ) {} return l ; }
-	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                    }
+	inline bool   is_lcl_s    (::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ;                               }
+	inline bool   is_lcl      (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ;                               }
+	inline size_t uphill_lvl_s(::string const& name_s) { SWEAR(!is_abs_s(name_s)) ; size_t l ; for( l=0 ; substr_view(name_s,3*l,3)=="../" ; l++ ) {} return l ; }
+	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                         }
 
 	/**/   ::string mk_lcl( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
 	/**/   ::string mk_glb( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
@@ -350,11 +350,11 @@ namespace Disk {
 		// helper class to help recognize when we are in repo or in tmp
 		struct _Dvg {
 			// cxtors & casts
-			_Dvg( ::string const& domain , ::string const& chk ) { update(domain,chk) ; }
+			_Dvg( ::string const& domain_s , ::string const& chk ) { update(domain_s,chk) ; }
 			// accesses
 			bool operator+() const { return ok ; }
 			// services
-			void update( ::string const& domain , ::string const& chk ) ; // udpate after domain & chk have been lengthened or shortened, but not modified internally
+			void update( ::string const& domain_s , ::string const& chk ) ; // udpate after domain_s & chk have been lengthened or shortened, but not modified internally
 			// data
 			bool   ok  = false ;
 			size_t dvg = 0     ;
@@ -399,7 +399,7 @@ namespace Disk {
 		pid_t pid = 0 ;
 	private :
 		RealPathEnv const* _env            ;
-		::string           _admin_dir      ;
+		::string           _admin_dir_s    ;
 		::vector_s         _abs_src_dirs_s ;                              // this is an absolute version of src_dirs
 		size_t             _repo_root_sz   ;
 		::string           _cwd            ;

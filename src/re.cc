@@ -20,8 +20,8 @@ namespace Re {
 		//
 
 		static ::string _mk_subject( ::string const& s , RegExpr const& re ) {
-			if ( s.size() >= re.pfx.size()+re.sfx.size() ) return s.substr( re.pfx.size() , s.size()-(re.pfx.size()+re.sfx.size()) ) ;
-			else                                           return {}                                                                 ;
+			if ( s.size() > re.pfx.size()+re.sfx.size() ) return s.substr( re.pfx.size() , s.size()-(re.pfx.size()+re.sfx.size()) ) ;
+			else                                          return {}                                                                 ;
 		}
 		Match::Match( RegExpr const& re , ::string const& s , bool chk_psfx ) : _subject{ _mk_subject(s,re) } {
 			if (chk_psfx) {

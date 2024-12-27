@@ -351,7 +351,7 @@ namespace Backends::Slurm {
 	}
 	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d , JobIdx ji ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
 		sort(m) ;
-		for( auto&& [kn,v] : ::move(m) ) {
+		for( auto& [kn,v] : ::move(m) ) {
 			size_t           p    = kn.find(':')                                                   ;
 			::string         k    = p==Npos ? ::move(kn) :                       kn.substr(0  ,p)  ;
 			uint32_t         n    = p==Npos ? 0          : from_string<uint32_t>(kn.substr(p+1  )) ;

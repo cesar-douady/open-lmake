@@ -38,16 +38,15 @@ namespace Engine::Makefiles {
 		::string   reason    ;
 		for( ::string const& line : deps ) {
 			SWEAR(+line) ;
-			::string dep_name     = line.substr(1)                 ;
-			FileInfo fi           { (nfs_guard.access(dep_name)) } ;
-			::string rel_dep_name = mk_rel(dep_name,startup_dir_s) ;
+			::string d  = line.substr(1)        ;
+			FileInfo fi { nfs_guard.access(d) } ;
 			switch (line[0]) {
-				case '#' :                                                                      break ;              // comment
-				case '*' : if (dep_name!=*g_lmake_root_s) return "lmake root changed"         ; break ;
-				case '+' : if (!fi                      ) return rel_dep_name+" was removed"  ;
-				/**/       if (fi.date>deps_date        ) return rel_dep_name+" was modified" ; break ;              // in case of equality, be optimistic as deps may be modified during the ...
-				case '!' : if (+fi                      ) return rel_dep_name+" was created"  ; break ;              // ... read process (typically .pyc files) and file resolution is such ...
-			DF}                                                                                                      // ...  that such deps may very well end up with same date as deps_file
+				case '#' :                                                                          break ;          // comment
+				case '*' : if (d!=*g_lmake_root_s) return "lmake root changed"                    ; break ;
+				case '+' : if (!fi               ) return mk_rel(d,startup_dir_s)+" was removed"  ;
+				/**/       if (fi.date>deps_date ) return mk_rel(d,startup_dir_s)+" was modified" ; break ;          // in case of equality, be optimistic as deps may be modified during the ...
+				case '!' : if (+fi               ) return mk_rel(d,startup_dir_s)+" was created"  ; break ;          // ... read process (typically .pyc files) and file resolution is such ...
+			DF}                                                                                                      // ... that such deps may very well end up with same date as deps_file
 		}
 		trace("ok") ;
 		return {} ;

@@ -502,27 +502,32 @@ Return :
 void Gather::reorder(bool at_end) {
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	Trace trace("reorder") ;
-	::stable_sort(           // reorder by date, keeping parallel entries together (which must have the same date)
+	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
 			return a.second.first_read().first < b.second.first_read().first ;
 		}
 	) ;
-	// 1st pass (backward) : note dirs immediately following files
-	::vmap_s<AccessInfo>::reverse_iterator last = accesses.rend() ;
-	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {                                                         // XXX : manage parallel deps
+	// 1st pass (backward) : note dirs immediately preceding sub-files
+	::vector<::vmap_s<AccessInfo>::reverse_iterator> lasts   ;                      // because of parallel deps, there may be several last deps
+	Pdate                                            last_pd = Pdate::Future ;
+	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
 		::string const& file   = it->first         ;
 		::AccessDigest& digest = it->second.digest ;
-		if (
-			last!=accesses.rend()
-		&&	( digest.write==No && !digest.dflags                             )
-		&&	( last->first.starts_with(file) && last->first[file.size()]=='/' )
-		) {
-			if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; digest.accesses  = {}           ; }
-			else                                     { trace("no_lnk_from_next",file) ; digest.accesses &= ~Access::Lnk ; }
-			continue ;                                                                                                      // keep original last which is better
+		if (digest.write!=No)                   goto NextDep ;
+		if (+digest.dflags  ) { lasts.clear() ; goto NextDep ; }
+		if (!digest.accesses)                   goto NextDep ;
+		for( auto last : lasts ) {
+			if (!( last->first.starts_with(file) && last->first[file.size()]=='/' ))                                                                                            continue     ;
+			if (   last->second.dep_info.exists()==Yes                             ) { trace("skip_from_next"  ,file) ; digest.accesses  = {}           ;                       goto NextDep ; }
+			else                                                                     { trace("no_lnk_from_next",file) ; digest.accesses &= ~Access::Lnk ; if (!digest.accesses) goto NextDep ; }
 		}
-		last = it ;
+		if ( Pdate pd=it->second.first_read().first ; pd<last_pd ) {
+			lasts.clear() ;                                                         // not a parallel dep => clear old ones that are no more last
+			last_pd = pd ;
+		}
+		lasts.push_back(it) ;
+	NextDep : ;
 	}
 	// 2nd pass (forward) : suppress dirs of seen files and previously noted dirs
 	::umap_s<bool/*sub-file exists*/> dirs  ;
@@ -547,13 +552,13 @@ void Gather::reorder(bool at_end) {
 		for( ::string dir_s=dir_name_s(file) ; +dir_s&&dir_s!="/" ; dir_s=dir_name_s(dir_s) ) {
 			auto [it,inserted] = dirs.try_emplace(dir_s,exists) ;
 			if (!inserted) {
-				if (it->second>=exists) break ;                                                                             // all uphill dirs are already inserted if a dir has been inserted
-				it->second = exists ;                                                                                       // record existence of a sub-file as soon as one if found
+				if (it->second>=exists) break ;                                     // all uphill dirs are already inserted if a dir has been inserted
+				it->second = exists ;                                               // record existence of a sub-file as soon as one if found
 			}
 		}
 		if (cpy) accesses[i_dst] = ::move(access) ;
 		i_dst++ ;
 	}
 	accesses.resize(i_dst) ;
-	for( NodeIdx i : iota(accesses.size()) ) access_map.at(accesses[i].first) = i ;                                         // always recompute access_map as accesses has been sorted
+	for( NodeIdx i : iota(accesses.size()) ) access_map.at(accesses[i].first) = i ; // always recompute access_map as accesses has been sorted
 }

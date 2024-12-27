@@ -76,21 +76,23 @@ namespace Codec {
 	}
 
 	static FileNameIdx _code_prio( ::string const& code , ::string const& crc ) {
-		SWEAR( +code && code.size()<=PATH_MAX , code ) ;
-		::string_view code1 { code.data() , code.size()-1 } ;
-		char          last  = code.back()                   ;
-		uint8_t       lvl   = 3                             ;
-		if      ( crc.starts_with(code)                                                      ) lvl = 2 ; // an automatic code, not good as a user provided one
-		else if ( crc.starts_with(code1) && ((last>='0'&&last<='9')||(last>='a'&&last<='f')) ) lvl = 1 ; // an automatic replacement code in case of clash, the worst
-		return PATH_MAX*lvl-code.size() ;                                                                // prefer shorter codes
+		static_assert( 3*PATH_MAX<= ::numeric_limits<FileNameIdx>::max() ) ;       // ensure highest possible value fits in range
+		SWEAR( code.size()<=PATH_MAX , code ) ;
+		char    last = code.back() ;
+		uint8_t lvl  = 3           ;
+		if ( +code && crc.starts_with(substr_view(code,0,code.size()-1)) ) {
+			if      ( last==code.back()                                ) lvl = 2 ; // an automatic code, not as good as a user provided one
+			else if ( ((last>='0'&&last<='9')||(last>='a'&&last<='f')) ) lvl = 1 ; // an automatic replacement code in case of clash, the worst
+		}
+		return PATH_MAX*lvl-code.size() ;                                          // prefer shorter codes
 	}
 
 	static ::string _mk_new_code( ::string const& code , ::string const& val , ::map_ss const& codes ) {
-		::string crc = Xxh(val).digest().hex() ;
-		uint8_t d ; for ( d=0 ; d<code.size() ; d++ ) if ( crc.starts_with(::string_view(&code[d],code.size()-d)) ) break ;
-		::string pfx = code.substr(0,d) ;
-		for( uint8_t i : iota(d+1,crc.size()) ) {
-			::string res = pfx+crc.substr(0,i) ;
+		::string crc = Xxh(val).digest().hex()       ;
+		uint8_t  d   = ::min(code.size(),crc.size()) ; while (!code.ends_with(substr_view(crc,0,d))) d-- ;
+		::string res = code                          ; res.reserve(code.size()+1) ;                        // most of the time, adding a single char is enough
+		for( char c : substr_view(crc,d) ) {
+			res.push_back(c) ;
 			if (!codes.contains(res)) return res ;
 		}
 		FAIL("codec crc clash for code",code,crc,val) ;
@@ -144,7 +146,7 @@ namespace Codec {
 		}
 		trace(STR(is_canonic)) ;
 		//
-		if (!is_canonic) { // if already canonic, nothing to do, there may not be any code conflict as they are strictly increasing
+		if (!is_canonic) {                                                                   // if already canonic, nothing to do, there may not be any code conflict as they are strictly increasing
 			// disambiguate in case the same code is used for the several vals
 			::map_s<map_ss>/*ctx->code->val*/ decode_tab ;
 			bool                              has_clash  = false ;
@@ -244,7 +246,7 @@ namespace Codec {
 		::string crc         = Xxh(txt).digest().hex() ;
 		::string code        = crc.substr(0,min_len()) ;
 		Node     decode_node ;
-		for(; code.size()<=crc.size() ; code=crc.substr(0,code.size()+1) ) {
+		for(; code.size()<=crc.size() ; code.push_back(crc[code.size()]) ) {
 			decode_node = { mk_decode_node(file,ctx,code) , true/*no_dir*/ } ;
 			if (!_buildable_ok(file,decode_node)) goto NewCode ;
 		}

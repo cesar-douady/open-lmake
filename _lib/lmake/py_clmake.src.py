@@ -12,7 +12,7 @@ import os      as _os
 import os.path as _osp
 
 # provide minimal support in pure python
-# XXX : provide full support
+# XXX! : provide support for get_autodep() and set_autodep()
 
 import subprocess as _sp
 def _run(cmd_line,**kwds) :

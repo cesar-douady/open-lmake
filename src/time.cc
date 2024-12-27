@@ -105,7 +105,7 @@ namespace Time {
 		return res ;
 	}
 
-	Date::Date(::string_view const& s) {
+	Date::Date(::string_view s) {
 		{	struct tm   t    = {}                              ;                                                                    // zero out all fields
 			const char* end  = ::strptime(s.data(),"%F %T",&t) ; throw_unless(end              , "cannot read date & time : ",s ) ;
 			time_t      secs = ::mktime(&t)                    ; throw_unless(secs!=time_t(-1) , "cannot read date & time : ",s ) ;

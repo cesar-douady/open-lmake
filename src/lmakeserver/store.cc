@@ -347,22 +347,20 @@ namespace Engine::Persistent {
 	// return suffix after last stem (StartMrkr+str if no stem)
 	static ::string _parse_sfx(::string const& str) {
 		size_t pos = 0 ;
-		for(;;) {
+		for(;;) {                                           // cannot use rfind as anything can follow a StemMrkr, including a StemMrkr, so iterate with find
 			size_t nxt_pos = str.find(Rule::StemMrkr,pos) ;
 			if (nxt_pos==Npos) break ;
 			pos = nxt_pos+1+sizeof(VarIdx) ;
 		}
-		if (pos==0) return StartMrkr+str   ; // signal that there is no stem by prefixing with StartMrkr
-		else        return str.substr(pos) ; // suppress stem marker & stem idx
+		if (pos==0) return StartMrkr+str   ;                // signal that there is no stem by prefixing with StartMrkr
+		else        return str.substr(pos) ;                // suppress stem marker & stem idx
 	}
-
 	// return prefix before first stem (empty if no stem)
 	static ::string _parse_pfx(::string const& str) {
 		size_t pos = str.find(Rule::StemMrkr) ;
-		if (pos==Npos) return {}                ; // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
+		if (pos==Npos) return {}                ;           // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
 		else           return str.substr(0,pos) ;
 	}
-
 	struct Rt : RuleTgt {
 		// cxtors & casts
 		Rt() = default  ;
@@ -419,7 +417,7 @@ namespace Engine::Persistent {
 		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {
 			::map_s<uset<Rt>> pfx_map = empty_pfx_map ;
 			if ( sfx.starts_with(StartMrkr) ) {                                  // manage targets with no stems as a suffix made of the entire target and no prefix
-				::string_view sfx1 = ::string_view(sfx).substr(1) ;
+				::string_view sfx1 = substr_view(sfx,1) ;
 				for( Rt const& rt : sfx_rule_tgts ) if (sfx1.starts_with(rt.pfx)) pfx_map[""].insert(rt) ;
 			} else {
 				for( Rt const& rt : sfx_rule_tgts ) pfx_map[rt.pfx].insert(rt) ;

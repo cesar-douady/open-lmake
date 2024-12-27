@@ -285,8 +285,8 @@ namespace Engine {
 		Rule     rule() const { return rule_crc->rule   ; }
 		::string name() const {
 			::string res ;
-			if ( Rule r=rule() ; +r )                               res = full_name(r->job_sfx_len())             ;
-			else                      { ::string fn = full_name() ; res = fn.substr(0,fn.find(RuleData::JobMrkr)) ; }    // heavier, but works without rule
+			if ( Rule r=rule() ; +r )   res = full_name(r->job_sfx_len()) ;
+			else                      { res = full_name(                ) ; res.resize(res.find(RuleData::JobMrkr)) ; }  // heavier, but works without rule
 			SWEAR(Disk::is_canon(res),res) ;                                                                             // XXX> : suppress when bug is found, job names are supposed to be canonic
 			return res ;
 		}

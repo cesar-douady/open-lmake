@@ -261,8 +261,8 @@ Fail :
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) {
 	SWEAR(+sub) ;
-	size_t      pos   = txt.find(sub)     ; if (pos==Npos) return ::move(txt) ;
-	::string    res   = txt.substr(0,pos) ; res.reserve(txt.size()+repl.size()-sub.size()) ; // assume single replacement, which is the common case when there is one
+	size_t   pos = txt.find(sub)     ; if (pos==Npos) return ::move(txt) ;
+	::string res = txt.substr(0,pos) ; res.reserve(txt.size()+repl.size()-sub.size()) ; // assume single replacement, which is the common case when there is one
 	while (pos!=Npos) {
 		size_t p = pos+sub.size() ;
 		pos = txt.find(sub,p) ;

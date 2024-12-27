@@ -41,8 +41,8 @@ using namespace Time ;
 		if (rc) {
 			it = s_tab.emplace(a,"???").first ;
 		} else {
-			::string host = &buf[0] ; host = host.substr(0,host.find('.')) ;
-			it   = s_tab.emplace(a,::move(host)).first   ;
+			::string host = &buf[0] ; if ( size_t p=host.find('.') ; p!=Npos ) host.resize(p) ;
+			it = s_tab.emplace(a,::move(host)).first ;
 		}
 	}
 	return it->second ;

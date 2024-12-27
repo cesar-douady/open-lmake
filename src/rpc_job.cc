@@ -241,7 +241,7 @@ bool/*entered*/ JobSpace::enter(
 			+	", "
 			+	"consider setting <rule>.repo_view="+mk_py_str("/repo/"+no_slash(phy_repo_root_s.substr(phy_super_repo_root_s.size())+cwd_s))
 			;
-		if (repo_view_s.substr(super_repo_view_s.size())!=phy_repo_root_s.substr(phy_super_repo_root_s.size()))
+		if (substr_view(repo_view_s,super_repo_view_s.size())!=substr_view(phy_repo_root_s,phy_super_repo_root_s.size()))
 			throw
 				"last "s+uphill_lvl+" components do not match between physical root dir and root view"
 			+	", "
@@ -360,9 +360,9 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	//
 	::string const& job_repo_root_s = +repo_view_s ? repo_view_s : phy_repo_root_s ;
 	auto do_path = [&](::string& path)->void {
-		if      (!is_canon(path)                  ) path = ::mk_canon(path)                    ;
-		if      (path.starts_with("../")          ) path = mk_abs(path,job_repo_root_s)        ;
-		else if (path.starts_with(job_repo_root_s)) path = path.substr(job_repo_root_s.size()) ;
+		if      (!is_canon(path)                  ) path = ::mk_canon(path)             ;
+		if      (path.starts_with("../")          ) path = mk_abs(path,job_repo_root_s) ;
+		else if (path.starts_with(job_repo_root_s)) path.erase(0,job_repo_root_s.size()) ;
 	} ;
 	for( auto& [view,_] : views ) {
 		do_path(view) ;
@@ -516,13 +516,13 @@ bool/*entered*/ JobStartRpcReply::enter(
 		for( size_t d=0 ;; d++ ) {
 			d = v.find('$',d) ;
 			if (d==Npos) break ;
-			::string_view sv { &v[d+1/*$*/] , v.size()-(d+1/*$*/) } ; //!                                                      terminating_null
+			::string_view sv = substr_view( v , d+1/*$*/ ) ; //!                                                               terminating_null
 			static constexpr char LmakeRoot  [] = "LMAKE_ROOT"    ; static constexpr size_t LmakeRootSz   = sizeof(LmakeRoot  )-1             ;
 			static constexpr char RepoRoot   [] = "REPO_ROOT"     ; static constexpr size_t RepoRootSz    = sizeof(RepoRoot   )-1             ;
 			static constexpr char TopRepoRoot[] = "TOP_REPO_ROOT" ; static constexpr size_t TopRepoRootSz = sizeof(TopRepoRoot)-1             ;
 			static constexpr char TmpDir     [] = "TMPDIR"        ; static constexpr size_t TmpDirSz      = sizeof(TmpDir     )-1             ;
 			bool brace = sv[0]=='{' ;
-			if (sv[0]=='{') sv = sv.substr(1) ;
+			if (brace) sv.remove_prefix(1) ;
 			if      ( sv.starts_with(LmakeRoot  ) && _end_ok(sv[LmakeRootSz  ],brace) ) { v = v.substr(0,d)+lmake_root   +sv.substr(LmakeRootSz  +brace) ; d += lmake_root   .size() ; }
 			else if ( sv.starts_with(RepoRoot   ) && _end_ok(sv[RepoRootSz   ],brace) ) { v = v.substr(0,d)+repo_root    +sv.substr(RepoRootSz   +brace) ; d += repo_root    .size() ; }
 			else if ( sv.starts_with(TopRepoRoot) && _end_ok(sv[TopRepoRootSz],brace) ) { v = v.substr(0,d)+top_repo_root+sv.substr(TopRepoRootSz+brace) ; d += top_repo_root.size() ; }
@@ -620,7 +620,7 @@ void JobStartRpcReply::exit() {
 JobInfo::JobInfo(::string const& filename , Bool3 get_start , Bool3 get_end ) {
 	Trace trace("JobInfo",filename,get_start,get_end) ;
 	if ( get_start==No && get_end==No ) return ;                                                              // fast path : dont read filename
-	::string      job_info ;            try { job_info = AcFd(filename).read() ; } catch (::string const&) {} // empty string in case of error, will processed later
+	::string      job_info ;            try { job_info = AcFd(filename).read() ; } catch (::string const&) {} // empty string in case of error, will be processed later
 	::string_view jis      = job_info ;
 	try {
 		if (get_start==No) deserialize( jis , ::ref(JobInfoStart()) ) ;                                       // even if we do not need start, we need to skip it

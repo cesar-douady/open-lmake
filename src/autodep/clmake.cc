@@ -299,10 +299,6 @@ PyMODINIT_FUNC
 	mod->set_attr( "top_repo_root" , *Ptr<Str>(no_slash(Record::s_autodep_env().repo_root_s).c_str()) ) ;
 	mod->set_attr( "backends"      , *py_bes                                                          ) ;
 	mod->set_attr( "autodeps"      , *py_ads                                                          ) ;
-	mod->set_attr( "no_crc"        , *Ptr<Int>(+Crc::Unknown)                                         ) ;
-	mod->set_attr( "crc_a_link"    , *Ptr<Int>(+Crc::Lnk    )                                         ) ;
-	mod->set_attr( "crc_a_reg"     , *Ptr<Int>(+Crc::Reg    )                                         ) ;
-	mod->set_attr( "crc_no_file"   , *Ptr<Int>(+Crc::None   )                                         ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
