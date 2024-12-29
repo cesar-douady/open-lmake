@@ -529,11 +529,10 @@ namespace Engine {
 		//vvvvvvvvvvvvvvvv
 		set_buildable(req) ;
 		//^^^^^^^^^^^^^^^^
-		if (make_action==MakeAction::Wakeup                               ) ri.dec_wait() ;
-		else                                                                ri.goal = ri.goal | mk_goal(make_action) ;
-		if      ( ri.waiting()                                            ) goto Wait ;
-		else if ( req.zombie()                                            ) ri.done_ |= NodeGoal::Dsk     ;
-		else if ( buildable>=Buildable::Yes && ri.goal==NodeGoal::Makable ) ri.done_ |= NodeGoal::Makable ;
+		if (make_action==MakeAction::Wakeup) ri.dec_wait() ;
+		else                                 ri.goal = ri.goal | mk_goal(make_action) ;
+		if      ( ri.waiting()             ) goto Wait ;
+		else if ( req.zombie()             ) ri.done_ |= NodeGoal::Dsk ;
 		//
 		if (ri.prio_idx==NoIdx) {
 			if (ri.done()) goto Wakeup ;
@@ -550,15 +549,15 @@ namespace Engine {
 			// fast path : check jobs we were waiting for, lighter than full analysis
 			JobTgtIter it{self,ri} ;
 			for(; it ; it++ ) {
-				JobTgt jt   = *it                                                 ;
-				bool   done = jt->c_req_info(req).done(ri.goal>=NodeGoal::Status) ;
+				JobTgt jt   = *it                        ;
+				bool   done = jt->c_req_info(req).done() ;
 				trace("check",jt,jt->c_req_info(req)) ;
 				if (!done             ) { prod_idx = NoIdx ; goto Make ;                                            }              // we waited for it and it is not done, retry
 				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = {prod_idx,it.idx} ; }              // jobs in error are deemed to produce all their potential targets
 			}
-			if (prod_idx!=NoIdx) goto DoWakeup ;                                                          // we have at least one done job, no need to investigate any further
-			if (ri.single) ri.single   = false  ;                                                         // if regenerating but job does not generate us, something strange happened, retry this prio
-			else           ri.prio_idx = it.idx ;                                                         // else go on with next prio
+			if (prod_idx!=NoIdx) goto DoWakeup ;                                             // we have at least one done job, no need to investigate any further
+			if (ri.single) ri.single   = false  ;                                            // if regenerating but job does not generate us, something strange happened, retry this prio
+			else           ri.prio_idx = it.idx ;                                            // else go on with next prio
 		}
 	Make :
 		g_kpi.n_node_make++ ;
@@ -566,22 +565,22 @@ namespace Engine {
 		for(;; first=false ) {
 			for (;;) {
 				SWEAR(ri.prio_idx!=NoIdx) ;
-				if (ri.prio_idx>=job_tgts().size()) {                                                     // gather new job_tgts from rule_tgts
-					SWEAR(!ri.single) ;                                                                   // we only regenerate using an existing job
+				if (ri.prio_idx>=job_tgts().size()) {                                        // gather new job_tgts from rule_tgts
+					SWEAR(!ri.single) ;                                                      // we only regenerate using an existing job
 					try {
 						//                      vvvvvvvvvvvvvvvvvvvvvvvvvv
 						buildable = buildable | _gather_prio_job_tgts(req) ;
 						//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
-						if (ri.prio_idx>=job_tgts().size()) break ;                                       // fast path
+						if (ri.prio_idx>=job_tgts().size()) break ;                          // fast path
 					} catch (::vector<Node> const& e) {
 						set_infinite(e) ;
 						break ;
 					}
 				}
-				if (!ri.single) {                                                                         // fast path : cannot have several jobs if we consider only a single job
-					for( JobTgtIter it{self,ri} ; it ; it++ ) {                                           // check if we obviously have several jobs, in which case make nothing
+				if (!ri.single) {                                                            // fast path : cannot have several jobs if we consider only a single job
+					for( JobTgtIter it{self,ri} ; it ; it++ ) {                              // check if we obviously have several jobs, in which case make nothing
 						JobTgt jt = *it ;
-						if      ( jt.sure()                 )   buildable = Buildable::Yes ;              // buildable is data independent & pessimistic (may be Maybe instead of Yes)
+						if      ( jt.sure()                 )   buildable = Buildable::Yes ; // buildable is data independent & pessimistic (may be Maybe instead of Yes)
 						else if (!jt->c_req_info(req).done())   continue ;
 						else if (!jt.produces(idx())        )   continue ;
 						if      (prod_idx!=NoIdx            ) { multi = {prod_idx,it.idx} ; goto DoWakeup ; }
@@ -591,50 +590,42 @@ namespace Engine {
 				}
 				// make eligible jobs
 				JobTgtIter it { self , ri } ;
-				{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                     // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
+				{	ReqInfo::WaitInc sav_n_wait{ri} ;                                        // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
 					for(; it ; it++ ) {
-						JobTgt        jt     = *it                   ;
-						JobMakeAction ma     = JobMakeAction::Status ;
-						JobReason     reason ;
-						JobReqInfo&   jri    = jt->req_info(req)     ;
-						if (query)
-							ma = JobMakeAction::Query ;
-						else switch (ri.goal) {
-							case NodeGoal::Makable : if (jt.sure()) ma = JobMakeAction::Makable ; break ; // if star, job must be run to know if we are generated
-							case NodeGoal::Status  :
-							case NodeGoal::Dsk     :
-								if (busy) {
-										/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
-								} else if (+polluted) {
-									if (crc==Crc::None) {
-										/**/                      reason = {JobReasonTag::NoTarget      ,+idx()} ;
-									} else switch (polluted) {
-										case Polluted::Old      : reason = {JobReasonTag::OldTarget     ,+idx()} ; break ;
-										case Polluted::PreExist : reason = {JobReasonTag::PrevTarget    ,+idx()} ; break ;
-										case Polluted::Job      : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;                          // polluting job is already set
-									DF}
-								} else if (ri.goal!=NodeGoal::Status) {                                                                             // dont check disk if asked for Status
-									if (jt->running(true/*with_zombies*/))
-										/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
-									else switch (manual_wash(ri,false/*query*/,false/*dangling*/)) {
-										case Manual::Ok         :                                                  break ;
-										case Manual::Unlnked    : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
-										case Manual::Empty      :
-										case Manual::Modif      : reason = {JobReasonTag::ManualTarget  ,+idx()} ; break ;
-									DF}
-								}
-								if ( !reason && !has_actual_job(jt) && jt.produces(idx(),true/*actual*/) ) {                                        // ensure we dont let go a node with the wrong job
-										if (has_actual_job())   { reason = {JobReasonTag::PollutedTarget,+idx()} ; polluting_job = actual_job() ; }
-										else                      reason = {JobReasonTag::NoTarget      ,+idx()} ;
-								}
-							break ;
-						DF}
+						JobTgt      jt     = *it               ;
+						JobReason   reason ;
+						JobReqInfo& jri    = jt->req_info(req) ;
+						if (busy) {
+								/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
+						} else if (+polluted) {
+							if (crc==Crc::None) {
+								/**/                      reason = {JobReasonTag::NoTarget      ,+idx()} ;
+							} else switch (polluted) {
+								case Polluted::Old      : reason = {JobReasonTag::OldTarget     ,+idx()} ; break ;
+								case Polluted::PreExist : reason = {JobReasonTag::PrevTarget    ,+idx()} ; break ;
+								case Polluted::Job      : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;                          // polluting job is already set
+							DF}
+						} else if (ri.goal!=NodeGoal::Status) {                                                                             // dont check disk if asked for Status
+							if (jt->running(true/*with_zombies*/))
+								/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
+							else switch (manual_wash(ri,false/*query*/,false/*dangling*/)) {
+								case Manual::Ok         :                                                  break ;
+								case Manual::Unlnked    : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
+								case Manual::Empty      :
+								case Manual::Modif      : reason = {JobReasonTag::ManualTarget  ,+idx()} ; break ;
+							DF}
+						}
+						if ( !reason && !has_actual_job(jt) && jt.produces(idx(),true/*actual*/) ) {                                        // ensure we dont let go a node with the wrong job
+								if (has_actual_job())   { reason = {JobReasonTag::PollutedTarget,+idx()} ; polluting_job = actual_job() ; }
+								else                      reason = {JobReasonTag::NoTarget      ,+idx()} ;
+						}
 						if (ri.live_out) jri.live_out = ri.live_out ;                                                              // transmit user request to job for last level live output
 						jt->asking = idx() ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						jt->make( jri , ma , reason , ri.speculate ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						trace("job",ri,clean,ma,jt,STR(jri.waiting()),STR(jt.produces(idx())),polluted,STR(busy)) ;
+						//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						if      (!query ) jt->make( jri , JobMakeAction::Status , reason , ri.speculate ) ;
+						else if (!reason) jt->make( jri , JobMakeAction::Query  , reason , ri.speculate ) ;                        // if we have a reason to run job, answer to query is known
+						//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						trace("job",ri,clean,STR(query),jt,STR(jri.waiting()),STR(jt.produces(idx())),polluted,STR(busy)) ;
 						if      (jri.waiting()     )   jt->add_watcher(jri,idx(),ri,ri.pressure) ;
 						else if (!jri.done()       ) { SWEAR(query) ; goto Wait ;                                                }
 						else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = {prod_idx,it.idx} ; } // jobs in error are deemed to produce all their potential targets

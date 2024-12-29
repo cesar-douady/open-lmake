@@ -16,7 +16,6 @@ ENUM( AncillaryTag
 
 ENUM( JobMakeAction
 ,	Wakeup          // waited nodes are available
-,	Makable         // job makability is available
 ,	Status          // target crcs are available
 ,	End             // job has completed
 ,	GiveUp          // job is abandonned, because of error or ^C
@@ -189,7 +188,7 @@ namespace Engine {
 				default           : return false  ;
 			}
 		}
-		bool done(bool is_full=false) const { return step()>=Step::Done && (!is_full||full) ; }
+		bool done() const { return step()>=Step::Done ; }
 		//
 		Step step(          ) const { return _step ; }
 		void step(Step s,Job) ;
@@ -232,7 +231,6 @@ namespace Engine {
 		uint8_t          n_retries          = 0     ;                  //          8 bits, number of times job has been seen in error
 		uint8_t          n_submits          = 0     ;                  //         16 bits, number of times job has been rerun
 		bool             force           :1 = false ;                  //          1 bit , if true <=> job must run because reason
-		bool             full            :1 = false ;                  //          1 bit , if true <=>, job result is asked, else only makable
 		bool             start_reported  :1 = false ;                  //          1 bit , if true <=> start message has been reported to user
 		bool             speculative_wait:1 = false ;                  //          1 bit , if true <=> job is waiting for speculative deps only
 		Bool3            speculate       :2 = Yes   ;                  //          2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)

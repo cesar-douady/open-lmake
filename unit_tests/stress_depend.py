@@ -63,5 +63,5 @@ else :
 	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
 		backends.append('slurm')
 
-	for backend in backends     : ut.lmake( f'all_{backend}_{n}'     , steady=n+1 , done=n , may_rerun=n+1 )
-	if not lmake.Autodep.IsFake : ut.lmake( f'all_local_verbose_{n}' , steady=  1 , done=n , may_rerun=  1 )
+	for backend in backends     : ut.lmake( f'all_{backend}_{n}'     , was_done=n+1 , done=n , may_rerun=n+1 )
+	if not lmake.Autodep.IsFake : ut.lmake( f'all_local_verbose_{n}' , was_done=  1 , done=n , may_rerun=  1 )

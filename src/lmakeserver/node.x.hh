@@ -37,14 +37,12 @@ ENUM_1( Manual
 
 ENUM( NodeGoal // each action is included in the following one
 ,	None
-,	Makable    // do whatever is necessary to assert node does/does not exist (data dependent)
 ,	Status     // check book-keeping, no disk access
 ,	Dsk        // ensure up-to-date on disk
 )
 
 ENUM( NodeMakeAction
 ,	Wakeup           // a job has completed
-,	Makable
 ,	Status
 ,	Dsk
 ,	Query            // query only, no job is executed, besides that, looks like Dsk
@@ -88,11 +86,10 @@ namespace Engine {
 
 inline NodeGoal mk_goal(NodeMakeAction ma) {
 	static constexpr ::amap<NodeMakeAction,NodeGoal,N<NodeMakeAction>> Goals = {{
-		{ NodeMakeAction::Wakeup  , NodeGoal::None    }
-	,	{ NodeMakeAction::Makable , NodeGoal::Makable }
-	,	{ NodeMakeAction::Status  , NodeGoal::Status  }
-	,	{ NodeMakeAction::Dsk     , NodeGoal::Dsk     }
-	,	{ NodeMakeAction::Query   , NodeGoal::Dsk     }
+		{ NodeMakeAction::Wakeup  , NodeGoal::None   }
+	,	{ NodeMakeAction::Status  , NodeGoal::Status }
+	,	{ NodeMakeAction::Dsk     , NodeGoal::Dsk    }
+	,	{ NodeMakeAction::Query   , NodeGoal::Dsk    }
 	}} ;
 	static_assert(chk_enum_tab(Goals)) ;
 	return Goals[+ma].second ;
@@ -100,10 +97,9 @@ inline NodeGoal mk_goal(NodeMakeAction ma) {
 
 inline NodeMakeAction mk_action( NodeGoal g , bool query ) {
 	static constexpr ::amap<NodeGoal,NodeMakeAction,N<NodeGoal>> Actions = {{
-		{ NodeGoal::None    , NodeMakeAction::Makable/*garbage*/ }
-	,	{ NodeGoal::Makable , NodeMakeAction::Makable            }
-	,	{ NodeGoal::Status  , NodeMakeAction::Status             }
-	,	{ NodeGoal::Dsk     , NodeMakeAction::Dsk                }
+		{ NodeGoal::None    , {}/*garbage*/          }
+	,	{ NodeGoal::Status  , NodeMakeAction::Status }
+	,	{ NodeGoal::Dsk     , NodeMakeAction::Dsk    }
 	}} ;
 	static_assert(chk_enum_tab(Actions)) ;
 	SWEAR(g!=NodeGoal::None) ;
@@ -555,11 +551,10 @@ namespace Engine {
 
 	inline bool NodeData::done( ReqInfo const& cri , NodeGoal na ) const {
 		if (cri.done(na)) return true ;
-		switch (na) {                                                                // if not actually done, report obvious cases
-			case NodeGoal::None    : return true                                   ;
-			case NodeGoal::Makable : return match_ok() && is_src_anti()            ;
-			case NodeGoal::Status  : return match_ok() && buildable<=Buildable::No ;
-			case NodeGoal::Dsk     : return false                                  ;
+		switch (na) {                                                               // if not actually done, report obvious cases
+			case NodeGoal::None   : return true                                   ;
+			case NodeGoal::Status : return match_ok() && buildable<=Buildable::No ;
+			case NodeGoal::Dsk    : return false                                  ;
 		DF}
 	}
 	inline bool NodeData::done( ReqInfo const& cri               ) const { return done(cri          ,cri.goal) ; }

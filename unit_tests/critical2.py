@@ -29,5 +29,5 @@ else :
 
 	import ut
 
-	print('dep1',file=open('lst','w')) ; ut.lmake( 'dut' , new    =1 , may_rerun=1 , done=1 , steady=1 )
-	print('dep2',file=open('lst','a')) ; ut.lmake( 'dut' , changed=1 , may_rerun=1 , done=1 , steady=1 )
+	print('dep1',file=open('lst','w')) ; ut.lmake( 'dut' , new    =1 , may_rerun=1 , done=1 , was_done  =1 )
+	print('dep2',file=open('lst','a')) ; ut.lmake( 'dut' , changed=1 , may_rerun=1 , done=1 , was_steady=1 )

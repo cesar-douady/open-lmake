@@ -65,6 +65,7 @@ else :
 	import ut
 
 	n_ads = len(lmake.autodeps)
+	print(f'lmake.autodeps : {lmake.autodeps}')
 
 	#
 	for ls in ('none','file','full') :
@@ -74,13 +75,20 @@ else :
 			try                      : os.unlink(f)
 			except FileNotFoundError : pass
 		print(f'p=0\nlink_support={ls!r}',file=open('step.py','w'))
-		ut.lmake( 'Lmakefile.py' , new=1 )                          # prevent new Lmakefile.py in case of error as python reads it to display backtrace
+		ut.lmake( 'Lmakefile.py' , new=1 )                                                     # prevent new Lmakefile.py in case of error as python reads it to display backtrace
+		tgts = [
+			f'hello.{interp}.{cmd}.{ad}.{ls}.cpy'
+			for interp in ('sh','py')
+			for cmd    in ('acc','dep')
+			for ad     in lmake.autodeps
+		]
 		for p in range(3) :
 			print(f'p={p!r}\nlink_support={ls!r}',file=open('step.py','w'))
-			# rerun versus may_rerun is timing dependent, but the sum is predictible
-			cnts = ut.lmake(
-				*( f'hello.{interp}.{cmd}.{ad}.{ls}.cpy' for interp in ('sh','py') for cmd in ('acc','dep') for ad in lmake.autodeps )
-			,	may_rerun=... , rerun=... , done=... , steady=...
-			)
-			assert cnts.done+cnts.steady     == (p==0)+(p!=1)+(p!=1)*4*n_ads
-			assert cnts.may_rerun+cnts.rerun == (p==0)*4*n_ads
+			if p==0 :
+				cnts = ut.lmake( *tgts , may_rerun=... , rerun=... , done=... , was_done=... ) # rerun versus may_rerun is timing dependent, but the sum is predictible
+				assert cnts.done+cnts.was_done   == 2+4*n_ads
+				assert cnts.may_rerun+cnts.rerun == 4*n_ads
+			elif p==1 :
+				ut.lmake( *tgts )
+			elif p==2 :
+				ut.lmake( *tgts , done=1+2*n_ads )

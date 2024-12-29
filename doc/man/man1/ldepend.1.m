@@ -9,10 +9,10 @@ Header(ldepend,report a dep from a OpenLmake job)
 
 .SH DESCRIPTION
 .LP
-B(ldepend) may be used to inform OpenLmake that some files must be deemed as read as if you called C(open,2) (with the O_RDONLY flag) on each of them.
-To this extent, it is not that much different from C(cat) (except performance wise, B(ldepend) is of course faster since I(files) are not really accessed).
+B(ldepend) may be used to pass flags to OpenLmake.
+Unless specified otherwise, passed deps are required to be buildable an produced without error.
 .LP
-Also, there are a few differences :
+Note that :
 Bullet
 	Generated deps are parallel, i.e. a modification on a dep will not mask an error on another one (cf. note (3)).
 Bullet
@@ -37,13 +37,12 @@ Item(B(-v),B(--verbose))
 	Item(I(<crc>-R)) the file is a regular file , <crc> is 16-digit hexadecimal number computed after its content (the exe permission is taken into account when computing crc)
 	Item(I(<crc>-L)) the file is a symbolic link, <crc> is 16-digit hexadecimal number computed on the link (not the content of the target of the link)
 	.RE
-Item(B(-R),B(--no-read))        Does not report an actual read, only dep flags. Default is to report a read and alter flags.
-Item(B(-c),B(--critical))       Create critical deps (cf. note (5)).
-Item(B(-E),B(--essential))      Passed deps will appear in the flow shown with a graphical tool.
-Item(B(-e),B(--ignore-error))   Ignore the error status of the passed dependencies.
-Item(B(-r),B(--no-required))    Accept that deps be not buildable, as for a normal read access (in that case, the read may fail, but OpenLmake is ok).
-Item(B(-I),B(--ignore))         Dep is ignored altogether.
-Item(B(-d),B(--stat-read-data)) if dep is accessed with a stat-like access, OpenLmake will consider full content has been accessed.
+Item(B(-R),B(--read))         Report an actual read. Default is to only alter flags.
+Item(B(-c),B(--critical))     Create critical deps (cf. note (5)).
+Item(B(-E),B(--essential))    Passed deps will appear in the flow shown with a graphical tool.
+Item(B(-e),B(--ignore-error)) Ignore the error status of the passed dependencies.
+Item(B(-r),B(--no-required))  Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
+Item(B(-I),B(--ignore))       Deps are ignored altogether, even if further accessed (but previous accesses are kept).
 Default is to optimize dependency check as much as possible.
 
 .SH NOTES

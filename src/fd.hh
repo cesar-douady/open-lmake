@@ -246,6 +246,30 @@ struct EventFd : AcFd {
 } ;
 
 //
+// SignalFd
+//
+
+struct SignalFd : AcFd {
+	// cxtors & casts
+	SignalFd( NewType, int sig ) : AcFd{_mk_fd(sig),true/*no_std*/} {}
+	SignalFd( Fd fd_           ) : AcFd{fd_                       } {}
+private :
+	int _mk_fd(int sig) {
+		SWEAR(is_blocked_sig(sig)) ;                                                                                      // if not blocked, it may signal the process
+		::sigset_t sig_set  ;                                           sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
+		return ::signalfd( -1 , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
+	}
+	// services
+public :
+	int/*sig*/ read() const {
+		struct ::signalfd_siginfo si ;
+		ssize_t  cnt = ::read(self,&si,sizeof(si)) ;
+		SWEAR( cnt==sizeof(si) , cnt,self ) ;
+		return int(si.ssi_signo) ;
+	}
+} ;
+
+//
 // Epoll
 //
 
@@ -288,12 +312,10 @@ template<StdEnum E=NewType/*when_unused*/> struct Epoll {
 	}
 private :
 	void _add_sig( int sig , E data , pid_t pid , bool wait ) {
-		SWEAR(is_blocked_sig(sig)) ;
-		::sigset_t sig_set  ;                                                          sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
-		Fd         fd       = ::signalfd( -1 , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
-		bool       inserted = _sig_infos   . try_emplace(sig,fd     ).second         ; SWEAR(inserted,fd,sig    ) ;
-		/**/       inserted = _fd_infos    . try_emplace(fd ,sig,pid).second         ; SWEAR(inserted,fd,sig,pid) ;
-		/**/       inserted = _s_epoll_sigs->insert     (sig        ).second         ; SWEAR(inserted,fd,sig    ) ;
+		Fd         fd       = SignalFd(New,sig).detach()                                                  ;
+		bool       inserted = _sig_infos   . try_emplace(sig,fd     ).second ; SWEAR(inserted,fd,sig    ) ;
+		/**/       inserted = _fd_infos    . try_emplace(fd ,sig,pid).second ; SWEAR(inserted,fd,sig,pid) ;
+		/**/       inserted = _s_epoll_sigs->insert     (sig        ).second ; SWEAR(inserted,fd,sig    ) ;
 		add( false/*write*/ , fd , data , wait ) ;
 		_n_sigs++ ;
 	}

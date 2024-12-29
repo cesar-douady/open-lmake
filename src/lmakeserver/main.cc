@@ -183,7 +183,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					}
 					switch (kind) {
 						case EventKind::Int :
-							EventFd(fd).flush() ;
+							SignalFd(fd).read() ;
 						break ;
 						case EventKind::Watch : {
 							struct inotify_event event ;

@@ -17,6 +17,7 @@ if __name__!='__main__' :
 		'Lmakefile.py'
 	,	'hello'
 	,	'world'
+	,	'a_no_dep'
 	,	'a_dep'
 	)
 
@@ -32,7 +33,8 @@ if __name__!='__main__' :
 		}
 		python = (lmake.user_environ['PYTHON2'],)
 		def cmd() :
-			lmake.depend('a_dep')
+			lmake.depend('a_dep'   ,read=True)
+			lmake.depend('a_no_dep'          )
 			sys.stdout.write(open(FIRST ).read())
 			sys.stdout.write(open(SECOND).read())
 
@@ -44,12 +46,15 @@ else :
 
 	import ut
 
-	open('hello','w').write('hello\n')
-	open('world','w').write('world\n')
-	open('a_dep','w').write('1\n'    )
+	open('hello'   ,'w').write('hello\n')
+	open('world'   ,'w').write('world\n')
+	open('a_no_dep','w').write('1\n'    )
+	open('a_dep'   ,'w').write('1\n'    )
 
-	ut.lmake( 'hello+world' , done=1   , new    =3 ) # check targets are out of date
+	ut.lmake( 'hello+world' , done=1   , new    =4 ) # check targets are out of date
 	open('a_dep','w').write('2\n')
-	ut.lmake( 'hello+world' , steady=1 , changed=1 ) # check target is sensitive to a_dep
+	ut.lmake( 'hello+world' , changed=1 , steady=1 ) # check target is sensitive to a_dep
+	open('a_no_dep','w').write('2\n')
+	ut.lmake( 'hello+world' , changed=1            ) # check target is not sensitive to a_no_dep
 	ut.lmake( 'hello+world'                        ) # check targets are up to date
 	ut.lmake( 'world+world' , done=1               ) # check reconvergence

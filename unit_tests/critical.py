@@ -32,8 +32,8 @@ if __name__!='__main__' :
 	class Critical(PyRule) :
 		target = 'tgt'
 		def cmd() :
-			lmake.depend('src1','src2',critical=True)
-			lmake.depend(*(f'good{i}' for i in range(n_goods)),critical=True)
+			lmake.depend('src1','src2'                        ,read=True,critical=True)
+			lmake.depend(*(f'good{i}' for i in range(n_goods)),read=True,critical=True)
 			if step==1 : lmake.depend('src1','bad0',*(f'bad{i}' for i in range(n_bads)))
 			else       : lmake.depend('src1'                                           )
 
@@ -48,7 +48,7 @@ else :
 	ut.lmake( 'tgt' , may_rerun=2 , was_dep_err=1 , done=n_goods , failed=n_bads , new=2 , rc=1 ) # must discover good_*, then bad_*
 
 	print('new 1',file=open('src1','w'))
-	ut.lmake( 'tgt' , dep_err=1 , changed=1 , rc=1 ) # src* are not critical, so error fires immediately
+	ut.lmake( 'tgt' , dep_err=1 , changed=1 , rc=1 ) # src* are read, so tgt is rerun
 
 	print('step=2',file=open('step.py','w'))
 	ut.lmake( 'tgt' , steady=n_goods-1+1 , done=1 , rc=0 ) # modified critical good_0 implies that bad_* are not remade

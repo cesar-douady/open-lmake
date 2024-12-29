@@ -26,4 +26,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'dut' , may_rerun=2 , done=2 , steady=1 ) # check that errors past out-of-date does not prevent rerun
+	ut.lmake( 'dut' , may_rerun=2 , done=2 , was_done=1 ) # check that errors past out-of-date does not prevent rerun

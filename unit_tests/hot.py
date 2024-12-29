@@ -27,4 +27,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'dep' , 'dut.1' , 'dut.3' , done=2 , rerun=1 , steady=1 ) # check dut.1 is rerun despite dep being read 1s after available, but not dut.3
+	ut.lmake( 'dep' , 'dut.1' , 'dut.3' , done=3 , rerun=1 ) # check dut.1 is rerun despite dep being read 1s after available, but not dut.3

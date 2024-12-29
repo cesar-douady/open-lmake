@@ -39,5 +39,5 @@ else :
 	import ut
 
 	ut.lmake('dut1',may_rerun=1,done=2,was_failed=1,rc=1)
-	ut.lmake('dut2',may_rerun=2,done=2,steady=1         )
-	ut.lmake('dut3',may_rerun=0,done=1,steady=0         )
+	ut.lmake('dut2',may_rerun=2,done=3                  )
+	ut.lmake('dut3',may_rerun=0,done=1                  )

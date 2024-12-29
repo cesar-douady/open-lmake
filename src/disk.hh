@@ -350,11 +350,11 @@ namespace Disk {
 		// helper class to help recognize when we are in repo or in tmp
 		struct _Dvg {
 			// cxtors & casts
-			_Dvg( ::string const& domain_s , ::string const& chk ) { update(domain_s,chk) ; }
+			_Dvg( ::string_view domain_s , ::string const& chk ) { update(domain_s,chk) ; }
 			// accesses
 			bool operator+() const { return ok ; }
 			// services
-			void update( ::string const& domain_s , ::string const& chk ) ; // udpate after domain_s & chk have been lengthened or shortened, but not modified internally
+			void update( ::string_view domain_s , ::string const& chk ) ; // udpate after domain_s & chk have been lengthened or shortened, but not modified internally
 			// data
 			bool   ok  = false ;
 			size_t dvg = 0     ;

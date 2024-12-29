@@ -25,7 +25,7 @@ if __name__!='__main__' :
 		deps      = {'TRIG':'trig'}
 		resources = {'mem':1}
 		def cmd() :
-			lmake.depend(TRIG)
+			lmake.depend(TRIG,read=True)
 			assert int(os.environ['SMALL_ID'])<=n_jobs , f"small id is {os.environ['SMALL_ID']} > {n_jobs}"
 
 	class Trig(PyRule) :
@@ -39,5 +39,5 @@ else :
 	import ut
 
 	n = n_jobs*2+10
-	print(1,file=open('trig','w')) ; ut.lmake( '-j' , str(n_jobs) , f'out_{n}' , new=1 , may_rerun=1 , done=n , steady=1            )
+	print(1,file=open('trig','w')) ; ut.lmake( '-j' , str(n_jobs) , f'out_{n}' , new=1 , may_rerun=1 , done=n , was_done=1          )
 	print(2,file=open('trig','w')) ; ut.lmake(                      f'out_{n}' , new=1 , failed=... , steady=... , changed=1 , rc=1 ) # python reads Lmakefile.py to display backtrace

@@ -23,7 +23,7 @@ def _bin(f) : return _bin_dir_s+f
 def depend(
 	*args
 ,	critical=False , essential=False , ignore_error=False , required=True , ignore=False
-,	follow_symlinks=False , read=True , verbose=False
+,	follow_symlinks=False , read=False , verbose=False
 ) :
 	assert not verbose,'verbose is not supported without dynamic python librairy'
 	cmd_line = [_bin('ldepend')]
@@ -33,25 +33,25 @@ def depend(
 	if not required        : cmd_line.append('--no-required'    )
 	if     ignore          : cmd_line.append('--ignore'         )
 	if     follow_symlinks : cmd_line.append('--follow-symlinks')
-	if not read            : cmd_line.append('--no-read'        )
+	if     read            : cmd_line.append('--read'           )
 	cmd_line += args
 	_run(cmd_line)
 def target(
 	*args
 ,	essential=False , incremental=False , no_uniquify=False , no_warning=False , phony=False , ignore=False , no_allow=False , source_ok=False
-,	follow_symlinks=False , write=True
+,	follow_symlinks=False , write=False
 ) :
 	cmd_line = [_bin('ltarget')]
-	if     essential       : cmd_line.append('--essential'      )
-	if     incremental     : cmd_line.append('--incremental'    )
-	if     no_uniquify     : cmd_line.append('--no-uniquify'    )
-	if     no_warning      : cmd_line.append('--no-warning'     )
-	if     phony           : cmd_line.append('--phony'          )
-	if     ignore          : cmd_line.append('--ignore'         )
-	if     no_allow        : cmd_line.append('--no-allow'       )
-	if     source_ok       : cmd_line.append('--source-ok'      )
-	if     follow_symlinks : cmd_line.append('--follow-symlinks')
-	if not write           : cmd_line.append('--no-write'       )
+	if essential       : cmd_line.append('--essential'      )
+	if incremental     : cmd_line.append('--incremental'    )
+	if no_uniquify     : cmd_line.append('--no-uniquify'    )
+	if no_warning      : cmd_line.append('--no-warning'     )
+	if phony           : cmd_line.append('--phony'          )
+	if ignore          : cmd_line.append('--ignore'         )
+	if no_allow        : cmd_line.append('--no-allow'       )
+	if source_ok       : cmd_line.append('--source-ok'      )
+	if follow_symlinks : cmd_line.append('--follow-symlinks')
+	if write           : cmd_line.append('--write'          )
 	cmd_line += args
 	_run(cmd_line)
 #

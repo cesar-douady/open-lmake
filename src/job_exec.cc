@@ -6,7 +6,7 @@
 #include <sched.h>
 #include <sys/mount.h>
 #include <sys/resource.h>
-#include <unistd.h> // sysconf
+#include <unistd.h>       // sysconf
 
 #include "app.hh"
 #include "disk.hh"
@@ -66,9 +66,9 @@ struct Digest {
 	::string               msg     ;
 } ;
 
-Digest analyze(Status status=Status::New) {                                                                                                         // status==New means job is not done
+Digest analyze(Status status=Status::New) {                                                                                                    // status==New means job is not done
 	Trace trace("analyze",status,g_gather.accesses.size()) ;
-	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                           // typically most of accesses are deps
+	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                      // typically most of accesses are deps
 	Pdate  prev_first_read ;
 	Pdate  relax           = Pdate(New)+g_start_info.network_delay ;
 	//
@@ -82,11 +82,13 @@ Digest analyze(Status status=Status::New) {                                     
 			case Maybe :                                                                       ;                                                                                      break ;
 		DF}
 		//
-		if (ad.write==Yes)                                                                                                                          // ignore reads after earliest confirmed write
+		if (ad.write==Yes)                                                                                                                     // ignore reads after earliest confirmed write
 			for( Access a : iota(All<Access>) )
 				if (info.read[+a]>info.write) ad.accesses &= ~a ;
-		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                     ;
-		bool                   is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && +ad.accesses && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning
+		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                ;
+		bool                   ignore_err = ad.dflags[Dflag::IgnoreError]||ad.extra_dflags[ExtraDflag::Ignore]                               ;
+		bool                   is_read    = +ad.accesses || info.digest_required || !ignore_err                                              ;
+		bool                   is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && is_read && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
@@ -97,15 +99,13 @@ Digest analyze(Status status=Status::New) {                                     
 		if (is_dep) {
 			DepDigest dd { ad.accesses , info.dep_info , ad.dflags } ;
 			//
-			if ( ad.dflags[Dflag::Static] && ad.dflags[Dflag::Required] ) dd.accesses = ~Accesses() ;    // required static deps are deemed to be fully accessed
-			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
 			dd.hot          = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.date_prec) ;
 			dd.parallel     = +first_read.first && first_read.first==prev_first_read                                                                ;
 			prev_first_read = first_read.first                                                                                                      ;
 			// try to transform date into crc as far as possible
 			if      ( dd.is_crc                                 )   {}                                   // already a crc => nothing to do
-			else if ( !dd.accesses                              )   {}                                   // no access     => nothing to do
+			else if ( !is_read                                  )   {}                                   // no access     => nothing to do
 			else if ( !info.digest_seen || info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false ; } // job has been executed without seeing the file (before possibly writing to it)
 			else if ( !dd.sig()                                 )   dd.crc({}       ) ;                  // file was not present initially but was seen, it is incoherent even if not present finally
 			else if ( ad.write!=No                              )   {}                                   // cannot check stability as we wrote to it, clash will be detected in server if any
@@ -115,7 +115,7 @@ Digest analyze(Status status=Status::New) {                                     
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (dd.hot) trace("dep hot",dd,flags,info.dep_info,first_read,g_start_info.date_prec,file) ;
+			if (dd.hot) trace("dep_hot",dd,flags,info.dep_info,first_read,g_start_info.date_prec,file) ;
 			else        trace("dep    ",dd,flags,                                                file) ;
 		}
 		if (status==Status::New) continue ;            // we are handling chk_deps and we only care about deps
@@ -146,7 +146,7 @@ Digest analyze(Status status=Status::New) {                                     
 				case No :
 					if (!written                          ) break ; // it is ok to attempt writing as long as attempt does not succeed
 					if (ad.extra_tflags[ExtraTflag::Allow]) break ; // it is ok if explicitly allowed by user
-					trace("bad access",ad,flags) ;
+					trace("bad_access",ad,flags) ;
 					if (ad.write==Maybe    ) res.msg << "maybe "                        ;
 					/**/                     res.msg << "unexpected "                   ;
 					/**/                     res.msg << (unlnk?"unlink ":"write to ")   ;
@@ -160,9 +160,10 @@ Digest analyze(Status status=Status::New) {                                     
 				if (!reported) {                                    // if dep and unexpected target, prefer unexpected message rather than this one
 					const char* read = nullptr ;
 					if      (ad.dflags[Dflag::Static]       ) read = "a static dep" ;
-					if      (first_read.second[Access::Reg ]) read = "read"         ;
+					else if (first_read.second[Access::Reg ]) read = "read"         ;
 					else if (first_read.second[Access::Lnk ]) read = "readlink'ed"  ;
 					else if (first_read.second[Access::Stat]) read = "stat'ed"      ;
+					else if (ad.dflags[Dflag::Required]     ) read = "required"     ;
 					SWEAR(read) ;
 					res.msg << "file was "<<read<<" and later declared as target : "<<mk_file(file)<<'\n' ;
 				}
@@ -184,7 +185,7 @@ Digest analyze(Status status=Status::New) {                                     
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("target ",ad,td,STR(unlnk),file) ;
 		} else if (!is_dep) {
-			trace("ignore",ad,file) ;
+			trace("ignore ",ad,file) ;
 		}
 	}
 	for( ::string const& t : g_washed ) if (!g_gather.access_map.contains(t)) {

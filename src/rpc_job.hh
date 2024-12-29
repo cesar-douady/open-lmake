@@ -424,9 +424,9 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		/**/                                                 return _sig==other._sig ;
 	}
 	// accesses
-	constexpr Crc     crc        () const { SWEAR( +accesses &&  is_crc , accesses , is_crc ) ; return _crc                       ; }
-	constexpr FileSig sig        () const { SWEAR( +accesses && !is_crc , accesses , is_crc ) ; return _sig                       ; }
-	constexpr bool    never_match() const { SWEAR(               is_crc , accesses , is_crc ) ; return _crc.never_match(accesses) ; }
+	constexpr Crc     crc        () const { SWEAR( is_crc) ; return _crc                       ; }
+	constexpr FileSig sig        () const { SWEAR(!is_crc) ; return _sig                       ; }
+	constexpr bool    never_match() const { SWEAR( is_crc) ; return _crc.never_match(accesses) ; }
 	//
 	constexpr void crc    (Crc             c ) { is_crc = true  ; _crc = c        ; }
 	constexpr void sig    (FileSig  const& s ) { is_crc = false ; _sig = s        ; }

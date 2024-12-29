@@ -63,7 +63,7 @@ struct Gather {                                                                 
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
 		::pair<PD,Accesses> first_read() const {
-			::pair<PD,Access> res = {PD::Future,{}} ;                                                           // normally, initial Access is not used, but in case, choose the most ubiquitous access
+			::pair<PD,Access> res = {required,{}} ;
 			for( Access a : iota(All<Access>) ) {
 				if (!digest.accesses[a]) continue ;
 				if (read[+a]>res.first ) continue ;
@@ -79,13 +79,15 @@ struct Gather {                                                                 
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		PD           read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access (or ignore) date for each access
-		PD           write           = PD::Future                             ;                                 // first write  (or ignore) date
+		PD           required        = PD::Future                             ;                                 // first required (or ignore) date
+		PD           read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access   (or ignore) date for each access
+		PD           write           = PD::Future                             ;                                 // first write    (or ignore) date
 		PD           target          = PD::Future                             ;                                 // first date at which file was known to be a target
 		PD           seen            = PD::Future                             ;                                 // first date at which file has been seen existing
 		DI           dep_info        ;                                                                          // state when first read
 		AccessDigest digest          ;
 		bool         digest_seen     = false                                  ;                                 // if true <=> not ignored when seen existing
+		bool         digest_required = false                                  ;                                 // if true <=> dep has been required
 	} ;
 	// statics
 private :

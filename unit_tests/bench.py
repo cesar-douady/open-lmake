@@ -56,4 +56,4 @@ else :
 
 	for i in range(n*l) : open(f'inc_{i}.h','w')
 
-	ut.lmake( f'all_{r}' , new=... , may_rerun=r+1 , done=r*l+r , steady=1 ) # lmake all_10000 to reproduce bench conditions of : https://david.rothlis.net/ninja-benchmark
+	ut.lmake( f'all_{r}' , new=... , may_rerun=r+1 , done=r*l+r , was_done=1 ) # lmake all_10000 to reproduce bench conditions of : https://david.rothlis.net/ninja-benchmark

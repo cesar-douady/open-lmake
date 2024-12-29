@@ -27,8 +27,14 @@ namespace JobSupport {
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(f),.no_follow=no_follow,.read=true,.write=false,.comment="depend"}) ;
 			if (sr.file_loc<=FileLoc::Dep) deps.emplace_back(::move(sr.real),sr.file_info) ;
 		}
-		if (verbose) { JobExecRpcReply reply = r.report_sync_access ( JobExecRpcReq( Proc::DepVerbose , ::move(deps) , ad , "depend" ) ) ; return reply.dep_infos ; }
-		else         {                         r.report_async_access( JobExecRpcReq( Proc::Access     , ::move(deps) , ad , "depend" ) ) ; return {}              ; }
+		if (verbose) {
+			ad.accesses = ~Accesses() ;                                                                                         // if verbose, we de facto fully access files
+			JobExecRpcReply reply = r.report_sync_access ( JobExecRpcReq( Proc::DepVerbose , ::move(deps) , ad , "depend" ) ) ;
+			return reply.dep_infos ;
+		} else {
+			r.report_async_access( JobExecRpcReq( Proc::Access , ::move(deps) , ad , "depend" ) ) ;
+			return {} ;
+		}
 	}
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad ) {

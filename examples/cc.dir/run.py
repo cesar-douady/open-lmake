@@ -22,7 +22,7 @@ except :
 		sp.run( ('lmake',)+cmd_line , stdin=None )
 
 # first, run a full build, the mentioned counts here assumes starting from a clean repository
-lmake( 'hello_world.ok' , new=7 , done=16 , may_rerun=2 , steady=1 )
+lmake( 'hello_world.ok' , new=7 , done=16 , may_rerun=2 , was_done=1 )
 # Note the may_rerun status on some lines :
 # This means that new deps have been discovered and they were out-of-date.
 # So, this run missed the point.
@@ -101,7 +101,7 @@ lmake( 'hello_world.ok' , changed=1 , done=2 , steady=2 )
 print('\n* add a test')
 sz = os.stat('hello_world.regr').st_size                            # note size to further undo modifications
 print('duke : duke : hello duke',file=open('hello_world.regr','a'))
-lmake( 'hello_world.ok' , changed=1 , done=7 , may_rerun=1 , steady=1 )
+lmake( 'hello_world.ok' , changed=1 , done=7 , may_rerun=1 , was_steady=1 )
 # new test is inserted in regression
 # because of the critical flag on the regression list, the regression list is rebuilt before tests are run, hence the may_rerun
 # this is to ensure an old test, possibly time consuming, is run to finally decide that it was useless

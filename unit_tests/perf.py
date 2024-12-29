@@ -66,12 +66,12 @@ else :
 	print('n_srcs = 0',file=open('step.py','w'))
 
 	start = time.time()
-	ut.lmake( f'test1_{n_no_deps}'    , may_rerun=1 , done=n_no_deps , steady=1 )
+	ut.lmake( f'test1_{n_no_deps}'    , may_rerun=1 , done=n_no_deps , was_done=1 )
 	t2 = time.time()-start
 
 	assert n_deps<n_no_deps,'there will be some unpredictable number of reruns if 2nd level deps are not prepared before test'
 	start = time.time()
-	ut.lmake( f'test2_{n_deps}_{n_with_deps}' , may_rerun=1 , done=n_with_deps , steady=1 )
+	ut.lmake( f'test2_{n_deps}_{n_with_deps}' , may_rerun=1 , done=n_with_deps , was_done=1 )
 	t3 = time.time()-start
 
 	print( f'time to read {n_srcs} sources : '        , t1             )

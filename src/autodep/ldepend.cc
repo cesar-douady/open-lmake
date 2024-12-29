@@ -17,7 +17,7 @@ ENUM(Key,None)
 ENUM(Flag
 ,	FollowSymlinks
 ,	Verbose
-,	NoRead
+,	Read
 ,	Essential
 ,	Critical
 ,	IgnoreError
@@ -29,13 +29,13 @@ int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax{{
 		{ Flag::FollowSymlinks , { .short_name='L' , .has_arg=false , .doc="Logical view, follow symolic links" } }
 	,	{ Flag::Verbose        , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"           } }
-	,	{ Flag::NoRead         , { .short_name='R' , .has_arg=false , .doc="does not report a read, only flags" } }
+	,	{ Flag::Read           , { .short_name='R' , .has_arg=false , .doc="report a read"                      } }
 	//
 	,	{ Flag::Critical    , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .has_arg=false , .doc="report critical deps"                    } }
 	,	{ Flag::Essential   , { .short_name=DflagChars     [+Dflag     ::Essential  ].second , .has_arg=false , .doc="ask that deps be seen in graphical flow" } }
-	,	{ Flag::IgnoreError , { .short_name=DflagChars     [+Dflag     ::IgnoreError].second , .has_arg=false , .doc="accept that deps are in error"           } }
-	,	{ Flag::NoRequired  , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .has_arg=false , .doc="accept that deps cannot be built"        } }
-	,	{ Flag::Ignore      , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore     ].second , .has_arg=false , .doc="ignore reads"                            } }
+	,	{ Flag::Ignore      , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore     ].second , .has_arg=false , .doc="ignore deps"                             } }
+	,	{ Flag::IgnoreError , { .short_name=DflagChars     [+Dflag     ::IgnoreError].second , .has_arg=false , .doc="ignore if deps are in error"             } }
+	,	{ Flag::NoRequired  , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .has_arg=false , .doc="ignore if deps cannot be built"          } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
 	//
@@ -45,12 +45,12 @@ int main( int argc , char* argv[]) {
 	bool         no_follow = !cmd_line.flags[Flag::FollowSymlinks] ;
 	bool         verbose   =  cmd_line.flags[Flag::Verbose       ] ;
 	AccessDigest ad        ;
-	if (!cmd_line.flags[Flag::NoRead     ]) ad.accesses      = ~Accesses()             ;
-	if ( cmd_line.flags[Flag::Critical   ]) ad.dflags       |= Dflag     ::Critical    ;
-	if ( cmd_line.flags[Flag::Essential  ]) ad.dflags       |= Dflag     ::Essential   ;
-	if ( cmd_line.flags[Flag::IgnoreError]) ad.dflags       |= Dflag     ::IgnoreError ;
-	if (!cmd_line.flags[Flag::NoRequired ]) ad.dflags       |= Dflag     ::Required    ;
-	if ( cmd_line.flags[Flag::Ignore     ]) ad.extra_dflags |= ExtraDflag::Ignore      ;
+	if      ( cmd_line.flags[Flag::Critical   ]) ad.dflags       |= Dflag     ::Critical    ;
+	if      ( cmd_line.flags[Flag::Essential  ]) ad.dflags       |= Dflag     ::Essential   ;
+	if      ( cmd_line.flags[Flag::Ignore     ]) ad.extra_dflags |= ExtraDflag::Ignore      ;
+	if      ( cmd_line.flags[Flag::IgnoreError]) ad.dflags       |= Dflag     ::IgnoreError ;
+	else if (!cmd_line.flags[Flag::NoRequired ]) ad.dflags       |= Dflag     ::Required    ;
+	if      ( cmd_line.flags[Flag::Read       ]) ad.accesses      = ~Accesses()             ;
 	//
 	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos ;
 	try                       { dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose ) ; }
