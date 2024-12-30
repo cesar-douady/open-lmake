@@ -24,7 +24,7 @@ ENUM(Flag
 )
 
 int main( int argc , char* argv[]) {
-	Syntax<Key,Flag> syntax{{
+	Syntax<Key,Flag> syntax {{
 		{ Flag::Write , { .short_name='W' , .has_arg=false , .doc="report a write, in addition to flags" } }
 	//
 	,	{ Flag::Essential   , { .short_name=TflagChars     [+Tflag     ::Essential  ].second , .has_arg=false , .doc="show when generating user oriented graphs"                              } }

@@ -63,7 +63,7 @@ int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
 	app_init(false/*read_only_ok*/,Maybe/*chk_version*/) ;
 	//
-	ReqSyntax syntax{{
+	ReqSyntax syntax {{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated" } }
 	,	{ ReqFlag::ForgetOldErrors , { .short_name='e' , .has_arg=false , .doc="assume old errors are transient"             } }
 	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of jobs"                          } }

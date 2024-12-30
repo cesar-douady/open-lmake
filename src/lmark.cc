@@ -12,7 +12,7 @@ using namespace Disk ;
 int main( int argc , char* argv[] ) {
 	app_init(false/*read_only_ok*/) ;
 	//
-	ReqSyntax syntax{{
+	ReqSyntax syntax {{
 		{ ReqKey::Add    , { .short_name='a' , .doc="mark args"              } }
 	,	{ ReqKey::Delete , { .short_name='d' , .doc="delete marks of args"   } }
 	,	{ ReqKey::Clear  , { .short_name='c' , .doc="clear all marks"        } }

@@ -84,7 +84,7 @@ Digest analyze(Status status=Status::New) {                                     
 		//
 		if (ad.write==Yes)                                                                                                                     // ignore reads after earliest confirmed write
 			for( Access a : iota(All<Access>) )
-				if (info.read[+a]>info.write) ad.accesses &= ~a ;
+				if ( info.read[+a]>info.write || info.read[+a]>info.target ) ad.accesses &= ~a ;
 		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                ;
 		bool                   ignore_err = ad.dflags[Dflag::IgnoreError]||ad.extra_dflags[ExtraDflag::Ignore]                               ;
 		bool                   is_read    = +ad.accesses || info.digest_required || !ignore_err                                              ;

@@ -33,7 +33,7 @@ int main( int argc , char* argv[] ) {
 	Py::init(*g_lmake_root_s      ) ;
 	Trace trace("main") ;
 	//
-	ReqSyntax syntax{{},{
+	ReqSyntax syntax {{},{
 		{ ReqFlag::Key     , { .short_name='k' , .has_arg=true  , .doc="entry into config.debug to specify debug method\n" } }
 	,	{ ReqFlag::NoExec  , { .short_name='n' , .has_arg=false , .doc="dont execute, just generate files"                 } }
 	,	{ ReqFlag::KeepTmp , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"                  } }

@@ -26,7 +26,7 @@ ENUM(Flag
 )
 
 int main( int argc , char* argv[]) {
-	Syntax<Key,Flag> syntax{{
+	Syntax<Key,Flag> syntax {{
 		{ Flag::FollowSymlinks , { .short_name='L' , .has_arg=false , .doc="Logical view, follow symolic links" } }
 	,	{ Flag::Verbose        , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"           } }
 	,	{ Flag::Read           , { .short_name='R' , .has_arg=false , .doc="report a read"                      } }

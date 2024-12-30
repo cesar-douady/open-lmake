@@ -2259,7 +2259,7 @@ A file cannot stop being a target : once it has become a target, this is until t
 
 A file is a target from the begining of the job execution if it matches a @code{targets} or @code{side_targets} entry.
 
-A file becomes a target when it is written to (with the meaning mentioned above).
+A file becomes a target when it is written to (with the meaning mentioned above) or when @code{lmake.target} or @code{ltarget} is called.
 
 @subsection Being a dep
 A file may be a dep from the begining of the job execution, or it may become a dep during job execution.
@@ -2292,8 +2292,10 @@ The third case is when a target was not declared as such.
 A target that is not declared is an error.
 
 @subsection Processing a target
-Targets are normally erased before the start of the job execution, unless they are flagged as @code{incremental}.
+Targets are normally erased before the start of the job execution, unless they are sources or flagged as @code{incremental}.
 In case a target is also a dep, it is automatically flagged as @code{incremental}, whether it is an error or not.
+
+If a job is run when a not @code{incremental} and not source target exists, it is deemed unreliable and is rerun.
 
 @subsection Best effort
 
@@ -2590,12 +2592,15 @@ This method is recommended on systems that support it.
 
 @subsection @code{'Ptrace'} or @code{'ptrace'}
 
-The job is run @code{ptrace}'ed. The seccomp mechanism is used (if available) to reduce the performance hit to the minimum possible but still, it is often unacceptable.
+The job is run @code{ptrace}'ed. The seccomp mechanism is used (if available) to reduce the performance hit to the minimum possible but still, it may be unacceptable.
 There is no requirement that @file{libc.so} be dynamically linked.
 It is almost not invasive.
 
 Th main adavantage is that it works with a statically linked @code{libc}.
-The main inconvenients are that the performance hit can be severe and that 32 bits executables are not supported yet (if run on a 64 bits system).
+The main inconvenients are that the performance hit can be severe and that 32 bits executables are not supported yet.
+
+Performance varies significantly depending on the number of syscalls made by the job.
+As examples, a typical compilation will suffer a 10% hit while an extreme code doing only syscalls will see a 3x slow down.
 
 This method is recommended as a fall back when the previous (@code{ld_preload} and @code{ld_audit}) methods cannot be used.
 

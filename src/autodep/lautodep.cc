@@ -109,7 +109,7 @@ int main( int argc , char* argv[] ) {
 		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",::strerror(errno)) ;
 	}
 	//
-	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax{{
+	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax {{
 		// PER_AUTODEP_METHOD : complete doc on line below
 		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                       } }
 	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                   } }

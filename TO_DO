@@ -204,7 +204,6 @@ M manage HUGE pages in store
 ****************************************************************************************************
 
 * add a TU for scp
-* add a TU for dynamic config update
 * add a more agressive TU for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...

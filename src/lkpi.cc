@@ -28,7 +28,6 @@ int main( int argc , char* /*argv*/[] ) {
 	}
 	for( const Job j : Persistent::job_lst() ) {
 		bool has_rule = +j->rule() ;
-if (j->name()=="_bin/ldump") dbg("j",j->name(),j->rule()) ;
 		/**/                                            n_jobs[has_rule]++ ;
 		for ( [[maybe_unused]] Dep const& _ : j->deps ) n_deps[has_rule]++ ;
 	}

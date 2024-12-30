@@ -11,7 +11,7 @@ int main( int argc , char* argv[] ) {
 	app_init(false/*read_only_ok*/) ;
 	Trace trace("main") ;
 	//
-	ReqSyntax syntax{{
+	ReqSyntax syntax {{
 		{ ReqKey::None      , { .short_name=0   , .doc="rerun files provided in arguments"                   } }
 	,	{ ReqKey::Resources , { .short_name='r' , .doc="rerun jobs with new resources, even if not in error" } }
 	},{

@@ -12,7 +12,7 @@ int main( int argc , char* argv[] ) {
 	bool read_only = app_init(true/*read_only_ok*/) ;
 	Trace trace("main") ;
 	//
-	ReqSyntax syntax{{
+	ReqSyntax syntax {{
 		{ ReqKey::Bom        , { .short_name='b' , .doc="show necessary sources"                   } }
 	,	{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                 } }
 	,	{ ReqKey::Deps       , { .short_name='d' , .doc="show existing deps"                       } }

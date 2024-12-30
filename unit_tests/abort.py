@@ -15,7 +15,7 @@ if __name__!='__main__' :
 
 	class Compile(Rule) :
 		targets = { 'EXE' : r'{File:.*}.exe' }
-		deps    = { 'SRC' :  '{File}.c'     }
+		deps    = { 'SRC' :  '{File}.c'      }
 		cmd     = 'gcc -std=c99 -o {EXE} {SRC}'
 
 	class Dut(Rule) :

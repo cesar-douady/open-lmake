@@ -23,7 +23,7 @@ ENUM(Flag
 )
 
 int main( int argc , char* argv[]) {
-	Syntax<Key,Flag> syntax{{
+	Syntax<Key,Flag> syntax {{
 		{ Flag::File    , { .short_name='f' , .has_arg=true , .doc="file storing code-value associations"                     } }
 	,	{ Flag::Context , { .short_name='x' , .has_arg=true , .doc="context used within file to store code-value association" } }
 	,	{ Flag::MinLen  , { .short_name='l' , .has_arg=true , .doc="min length of generated code from value"                  } }

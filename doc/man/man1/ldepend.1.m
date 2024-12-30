@@ -22,7 +22,7 @@ Bullet
 	Flags accumulate and will apply even if the file is independently accessed.
 Bullet
 	Deps are reported even if the autodep method (the I(autodep) rule attribute) is I(none).
-	This is B(the) way (or a call to B(lmake.depend)) of reporting deps in such a case.
+	This is B(the) way (or a call to B(lmake.depend)) of reporting deps in such a case (usually with I(--read)).
 
 .SH OPTIONS
 .LP

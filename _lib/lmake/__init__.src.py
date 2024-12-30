@@ -100,7 +100,7 @@ def run_cc(*cmd_line,**kwds) :
 			dirs.add(d)
 	if dirs :
 		for d in dirs : os.makedirs(d,exist_ok=True)                         # this will suffice most of the time
-		depend(*(d+'/'+marker for d in dirs),required=False)                 # this guarantees that in all cases, dirs will not be removed by server finding some dirs useless
+		depend(*(d+'/'+marker for d in dirs),required=False,read=True)       # this guarantees that in all cases, dirs will not be removed by server finding some dirs useless
 		check_deps()                                                         # avoid running compiler without proper markers
 	return sp.run(
 		cmd_line
