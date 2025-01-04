@@ -14,6 +14,9 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* cache has been seen being read several times
+	- a priori, this is a performance bug only
+
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
@@ -77,6 +80,10 @@ items (also used in XXX comments) :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+? provide several sets of rules/sources
+	- useful if some rules are heavy to read, such as converting from another format
+	- the idea is then to avoid recomputing these rules because another unrelated source of rules has changed
+	- can also be leveraged in case of sub-repo to separate reading different repos
 ? provide a mechansim to prevent writing non-targets
 	- mount an overlay over the repo
 	- at the end, transport targets to their real location

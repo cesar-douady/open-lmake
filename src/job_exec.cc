@@ -88,7 +88,7 @@ Digest analyze(Status status=Status::New) {                                     
 		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                ;
 		bool                   ignore_err = ad.dflags[Dflag::IgnoreError]||ad.extra_dflags[ExtraDflag::Ignore]                               ;
 		bool                   is_read    = +ad.accesses || info.digest_required || !ignore_err                                              ;
-		bool                   is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && is_read && first_read.first<=info.target ) ; // if a (side) target, it is since the beginning
+		bool                   is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && is_read && first_read.first<=info.target ) ; // if a (side) target, it is so since the beginning
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
@@ -115,8 +115,8 @@ Digest analyze(Status status=Status::New) {                                     
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (dd.hot) trace("dep_hot",dd,flags,info.dep_info,first_read,g_start_info.date_prec,file) ;
-			else        trace("dep    ",dd,flags,                                                file) ;
+			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.date_prec,file) ;
+			else        trace("dep    ",dd,                                                file) ;
 		}
 		if (status==Status::New) continue ;            // we are handling chk_deps and we only care about deps
 		// handle targets

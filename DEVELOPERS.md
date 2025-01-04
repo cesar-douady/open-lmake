@@ -1,25 +1,28 @@
-# This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-# Copyright (c) 2023 Doliam
-# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
-# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
 
-# directory layout
-- `_bin`       : contains scripts mostly used for building lmake
+Copyright (c) 2023 Doliam
+
+This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+
+This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+# Directory layout
+- `_bin`       : contains scripts mostly used for building open-lmake
 - `debian`     : contains files necessary to build a debian package
 - `doc`        : contains documentation
-- `docker`     : contains the docker files used to validate lmake
+- `docker`     : contains the docker files used to validate open-lmake
 - `examples`   : contains abundantly commented examples
 - `ext`        : contains all code coming from external sources
 - `_lib`       : contains all python code
-- `lmake_env`  : contains an lmake repo that allow to build lmake (not fully functional) under lmake (used as an example/unit test)
+- `lmake_env`  : contains an open-lmake repo that allow to build open-lmake (not fully functional) under open-lmake (used as an example/unit test)
 - `museum`     : contains dead code that could come back to life in a near or far future
 - `src`        : contains all C++ source files
 - `src/engine` : contains all C++ source files that are specific to lmakeserver
 - `unit_tests` : contains unit tests
 
-# coding rules
+# Coding rules
 
-## statics & globals
+## Statics & globals
 
 - variables with executable cxtor/dxtor are never put (or with much care) in statics or globals
 	- this includes string's, despite these being declared constexpr in the STL
@@ -28,11 +31,11 @@
 - when required, a pointer (initilized to nullptr) and a new is done in a timely manner
 - this way, variable is not automatically destructed
 
-## cases
+## Cases
 - CamelCase for namespaces, types, template parameters and constexpr
 - snake\_case for other names
 
-## name prefixes
+## Name prefixes
 - `_`   : private (including static functions in .cc files that are de facto not accessible from elsewhere)
 - `c_`  : const
 - `s_`  : static
@@ -44,7 +47,7 @@
 Names are suffixed with \_ if needed to suppress ambiguities.
 Several prefixes can be used, for example a private static variable will start with `_s_`.
 
-## abbreviations
+## Abbreviations
 - general rules:
 	- words are abbreviated depending on their use and span: the shorter the span and the heavier the usage , the more they are abbreviated
 	- words may be abbreviated by their beginning, such as env for environ
@@ -68,7 +71,7 @@ Several prefixes can be used, for example a private static variable will start w
 	<tr> <td> wrt      </td> <td> with respect to        </td> </tr>
 	</table>
 
-## file layout
+## File layout
 - lines are limited to 200 characters (as is this document)
 - functions are limited to 100 lines:
 	- there are few exceptions, though, where it was impossible to cut without making too artificial a sub-function
@@ -88,39 +91,41 @@ Several prefixes can be used, for example a private static variable will start w
 		) ;
 `
 
-## special words
+## Special words
 These special words deserv a dedicated syntax coloring in your prefered editor :
 - `DF`                          : `default : FAIL() ;`, used at the end of switch statements when all cases are suposed to be enumerated
 - `DN`                          : `default : ;`       , used at the end of switch statements to allow default as noop
 - `throw_if` and `throw_unless` :                       functions that take a condition as 1st arg and throw a string made after other args if condition is (is not) met
 - `self`                        : `(*this)`             fix c++ that should have defined this as a reference rather than a pointer, makes the code significantly lighter
 
-## invariants are either
+## Invariants are either
 - in swear/fail if reasonably fast to check
 - in a function `chk` (even if never called) when they can be expressed programatically
 - else in comments preceded by the keyword INVARIANT
 
-## invariants are expected and enforced by public methods
+## Invariants are expected and enforced by public methods
 - this is a general consideration: methods are private/public depending on their dangerosity
 - private methods can violate them, though
 	- e.g. `_clear` are local methods violating invariants, clear handles consequences
 - public methods can violate unrelated invariants they can live w/
 	- e.g. `Node.mk_plain` does not enforce job invariant about having all its targets set
 
-## data members are
+## Data members are
 - public when they can be read with no pre-condition and modified individually w/o violating invariants
 - private otherwise
 
-## if branch order
+## `if` branch order
 When there is a choice between "if (cond) branch1 else branch2" and "if (!cond) branch2 else branch1", the order is governed by the following prioritized considerations (prefer means put first):
+
 - if there is natural chronological order between branch1 and branch2, respect the natural order
 - prefer simpler branch
 - prefer normal case to error case
 - prefer "true" case to "false" case (at semantic level)
 - prefer positive test (i.e. prefer == to !=, x or +x to !x, etc.)
 
-## bool values and if
+## `bool` values and `if`
 Most objects have a natural "empty" value, such as empty strings, empty vectors, the first value of an enum, etc.
+
 - It is extremely practical to write `if (err_msg) process_err() ;` rather than `if (!err_msg.empty()) process_err() ;`
 - This suggests to have casts to bool mostly everywhere, but
 	- this does not apply to enum nor to STL classes
@@ -137,9 +142,9 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 ## comments
 - comments can be realigned with the command `_bin/align_comments 4 200 [// or #]`
 - standard comments
-	- `//vvvvvvvvvvvvvvvvvvvvvvvvvv`
-	- `main purpose of the function`
-	- `//^^^^^^^^^^^^^^^^^^^^^^^^^^`
+	- `//vvvvvvvvvvvvvvvvvvvvvvvvvvvv`
+	- `main_purpose_of_the_function()`
+	- `//^^^^^^^^^^^^^^^^^^^^^^^^^^^^`
 	- `XXX`            means something has to be reworked              (it is recommanded to highlight it in you editor)
 	- `/!\`            means something requires your special attention (it is recommanded to highlight it in you editor)
 	- `BACKWARD`       means the associated goto goes backward
@@ -149,11 +154,12 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 	- ` ...` at the end means comment continue on next line where `...` appears again
 	- `/*garbage*/`    means we dont care about the value, it is only there to be certain having no uninitialized values
 
-- apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the best extent
+## Guideline
+we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the best extent.
 
-# general description
+# General description
 
-## main classes
+## Main classes
 - Req represents an lmake command
 	- several `Req`'s may be present as several lmake command may run (but there is a single server serving all of them)
 - `Rule` represents a derivation rule
@@ -163,9 +169,9 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 	- a Job has several targets and several dependencies
 	- targets may be explicit in the Rule (it is said static), or it may be described as matching a regular expression (it is said star).
 		- this is not to be confused by regular expressions used to match a Rule. For example:
-			- `{File}.o`            in a compilation rule   : this is a static target (a Job produces a single .o)
-			- `{Dir}.untar/{File*}` in a tar exapnsion rule : these are star targets  (a Job produces a bunch of files in a single directory)
-	- dependencies may be expressed explicitly in the Rule (is is said static), or discovered by spying job execution syscall's (it is said hidden)
+			- `{File}.o`            in a compilation rule   : this is a static target (a job produces a single .o)
+			- `{Dir}.untar/{File*}` in a tar exapnsion rule : these are star targets  (a job produces a bunch of files in a single directory)
+	- dependencies may be expressed explicitly in the Rule (aka static), or discovered by spying job execution syscall's (aka hidden or dynamic)
 		- typically in a compilation rule, .c files are static deps, .h files are hidden deps
 - `Node` represents a file
 	- a `Node` has a prioritized list of `Job`'s to try to generate it
@@ -175,7 +181,7 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 			- if several of them actually generate the node, it will be an error condition
 		- unless it can be certain in advance that several of them will generate the node, in which case the error is generated before execution
 
-## the heart of the algorithm is composed of
+## The heart of the algorithm is composed of
 - for static considerations (i.e. does not depend on Req):
 	- `Node::set_buildable`: analyse a Node and determine if it can be made (3-way answer: No, Yes, Maybe)
 		- calls `Job::Job` on Job candidates (down-hill recursion)
@@ -194,7 +200,7 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 	- `Job::end`    : analyse a Job at end of execution, calling make to analyse the result
 		- calls `Job::make` to analyze execution and ensure everything is ok (or re-submit if there is any reason to do so)
 
-## state
+## State
 - the state is directly maintainted on disk in mapped files:
 	- files are located in `LMAKE/store`
 	- code that handle them is in:
@@ -214,14 +220,14 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 - this makes booting extremely fast, suppressing the need to keep a live daemon
 - persistent states are associated with Rule's, Job's, Node's but not Req's
 
-## traces
-- when lmake is executed, a trace of activity is generated for debug purpose
+## Traces
+- when `lmake` is executed, a trace of activity is generated for debug purpose (unless compiled with `$LMAKE_FLAGS` including `t`)
 - this is true for all executables (`lmake`, `lmakeserver`, `lautodep`, ...)
 - traces are located in:
 	- `LMAKE/lmake/local_admin/trace/<executable>`
 		- for `lmakeserver`, the most important trace, an history of the last few executions is kept
 	- `LMAKE/lmake/remote_admin/job_trace/<seq_id>` for remote job execution
-- the first character of each line is either ' or ""
+- the first character of each line is either ' or "
 	- this is because the trace file is managed as a circular buffer for performance
 	- so each time we wrap around, this first character is toggled between ' and "
 - trace entries are timestamped and a letter indicates the thread:
@@ -252,12 +258,12 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 	- all `Trace` objects created while this one is alive will be indented, thus reproducing the call graph in the trace
 	- booleans cannot be traced as this is mostly unreadable. Instead use the `STR` macro to transform the boolean into a string. `STR(foo)` will be `foo` if foo is true, else `!foo`.
 
-## streams
+## Streams
 open-lmake does not use stream at all.
 The reason is that there are problems with streams when using statically linked libstdc++ (required to be robust to all installations) when python modules refer to it dynamically.
 By the way, the execution is lighter and code is not heavier.
 
-# modification
+# Modification
 
 * before pushing any modification:
 	- run make without argument to check nothing unrelated to your modifications is broken

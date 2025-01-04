@@ -1238,9 +1238,11 @@ template<char Delimiter> ::string mk_printable(::string const& s) { // encode s 
 				if ( is_printable(c) && c!=Delimiter ) {
 					res += c ;
 				} else {
-					res += "\\x"                                                ;
-					res += char( (c>>4 )>=10 ? 'a'+((c>>4 )-10) : '0'+(c>>4 ) ) ;
-					res += char( (c&0xf)>=10 ? 'a'+((c&0xf)-10) : '0'+(c&0xf) ) ;
+					char c1 = (c&0xf0)>>4 ;                         // /!\ c is signed
+					char c2 =  c&0x0f     ;
+					res += "\\x"                               ;
+					res += char( c1>=10 ? 'a'+c1-10 : '0'+c1 ) ;
+					res += char( c2>=10 ? 'a'+c2-10 : '0'+c2 ) ;
 				}
 		}
 	}

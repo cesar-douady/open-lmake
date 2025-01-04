@@ -23,9 +23,17 @@ namespace JobSupport {
 		::vmap_s<FileInfo> deps ;
 		_chk_files(files) ;
 		for( ::string& f : files ) {
-			throw_unless( f.size()<=PATH_MAX , "file name too long (",f.size()," characters)" ) ;
-			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(f),.no_follow=no_follow,.read=true,.write=false,.comment="depend"}) ;
-			if (sr.file_loc<=FileLoc::Dep) deps.emplace_back(::move(sr.real),sr.file_info) ;
+			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
+				.file      = ::move(f)
+			,	.no_follow = no_follow
+			,	.read      = true
+			,	.write     = false
+			,	.comment  = "depend"
+			}) ;
+			if (sr.file_loc<=FileLoc::Dep) {
+				ad.accesses |= sr.accesses ;                      // appears pessimistic, but sr.accesses does not depend on actual file, only on no_follow and link_support
+				deps.emplace_back(::move(sr.real),sr.file_info) ;
+			}
 		}
 		if (verbose) {
 			ad.accesses = ~Accesses() ;                                                                                         // if verbose, we de facto fully access files
@@ -41,9 +49,18 @@ namespace JobSupport {
 		::vmap_s<FileInfo> targets ;
 		_chk_files(files) ;
 		for( ::string& f : files ) {
-			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(f),.no_follow=true,.read=false,.write=true,.create=true,.comment="target"}) ;
-			if (sr.file_loc<=FileLoc::Repo) targets.emplace_back(::move(sr.real),sr.file_info) ;
-			/**/                            ad.accesses |= sr.accesses ;                         // pessimistic but in practice, sr.accesses is empty for all files
+			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
+				.file      = ::move(f)
+			,	.no_follow = true
+			,	.read      = false
+			,	.write     = true
+			,	.create    = true
+			,	.comment   = "target"
+			}) ;
+			if (sr.file_loc<=FileLoc::Repo) {
+				ad.accesses |= sr.accesses ;                         // defensive only as sr.accesses is always empty when no_follow
+				targets.emplace_back(::move(sr.real),sr.file_info) ;
+			}
 		}
 		r.report_async_access( JobExecRpcReq( Proc::Access , ::move(targets) , ad , "target" ) ) ;
 	}
