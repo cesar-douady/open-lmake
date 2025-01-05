@@ -80,6 +80,15 @@ items (also used in XXX comments) :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* clean up LMAKE/outputs
+	- keep a number of days given in lmake.config
+	- need to list LMAKE/outputs only when a new day is open, which occur at most once a day
+* generate an execution trace for jobs
+	- accesses with : date, syscall, flags, file
+	- start/end, before/after overhead
+	- dep discrepancy at analysis time
+	- check deps, codec
+	- ...
 ? provide several sets of rules/sources
 	- useful if some rules are heavy to read, such as converting from another format
 	- the idea is then to avoid recomputing these rules because another unrelated source of rules has changed

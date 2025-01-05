@@ -5,9 +5,7 @@ Comment(
 	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 )
 
-Title(lcheck_deps,ensure deps collected so far in a OpenLmake job are up-to-date)
-.SH SYNOPSYS
-B(lcheck_deps)
+Header(lcheck_deps,ensure deps collected so far in a OpenLmake job are up-to-date)
 
 .SH DESCRIPTION
 .LP
@@ -26,6 +24,12 @@ It will then rebuild I(generated.h) and rerun the compilation to I(heavy.o), ano
 .LP
 Suppose now that your compilation script separates the preprocessor (say 10 secondes) phase from the compilation (10 minutes) phase and call B(lcheck_deps) inbetween.
 In that case, the first run will stop after preprocessing as B(lcheck_deps) will kill the job at that moment and the overall time will be 10 minutes 10 secondes instead of 20 minutes.
+
+.SH OPTIONS
+.LP
+Item(B(-v),B(--verbose)) wait for server answer rather than letting job go speculatively while it is interrogated.
+return code will be 1 if at least one dep is in error.
+This is necessary, even without checking return code, to ensure that after this call, the directories of previous deps actually exist if such deps are not read (such as with B(lmake.depend)).
 
 .SH NOTES
 .LP

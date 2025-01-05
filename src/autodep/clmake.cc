@@ -129,11 +129,11 @@ static PyObject* check_deps( PyObject* /*null*/ , PyObject* args , PyObject* kwd
 			else                return py_err_set(Exception::TypeErr,"unexpected keyword arg "+key) ;
 		}
 	//
-	Bool3 ok = JobSupport::check_deps(_g_record,verbose)                                                                  ;
+	Bool3 ok = JobSupport::check_deps(_g_record,verbose) ;
 	if (!verbose) return None.to_py_boost() ;
 	switch (ok) {
 		case Yes   : return True .to_py_boost()                                           ;
-		case Maybe : return py_err_set(Exception::RuntimeErr,"some deps are out-of-date") ;
+		case Maybe : return py_err_set(Exception::RuntimeErr,"some deps are out-of-date") ; // defensive only : job should be killed in that case
 		case No    : return False.to_py_boost()                                           ;
 	DF}
 }
@@ -254,10 +254,12 @@ PyMODINIT_FUNC
 			"Flags accumulate and are never reset.\n"
 		)
 	,	F( "check_deps" , check_deps ,
-			"check_deps(verbose=false)\n"
+			"check_deps(verbose=False)\n"
 			"Ensure that all previously seen deps are up-to-date.\n"
 			"Job will be killed in case some deps are not up-to-date.\n"
-			"If verbose, wait for server reply (it is unclear that this be useful in any way).\n"
+			"If verbose, wait for server reply. Return value is False if at least a dep is in error.\n"
+			"This is necessary, even without checking return value, to ensure that after this call,\n"
+			"the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).\n"
 		)
 	,	F( "get_autodep" , get_autodep ,
 			"get_autodep()\n"

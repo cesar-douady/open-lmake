@@ -99,9 +99,16 @@ def run_cc(*cmd_line,**kwds) :
 			if   d.startswith('$SYSROOT') : continue
 			dirs.add(d)
 	if dirs :
-		for d in dirs : os.makedirs(d,exist_ok=True)                         # this will suffice most of the time
-		depend(*(d+'/'+marker for d in dirs),required=False,read=True)       # this guarantees that in all cases, dirs will not be removed by server finding some dirs useless
-		check_deps()                                                         # avoid running compiler without proper markers
+		# an alternative to depend(read=True) is check_deps(verbose=True) :
+		# - depend(read=True) provides a proof of existence of marker files, hence their containing dirs
+		# - check_deps(verbose=True) would ensure dirs exist when call returns as without verbose, job continues while waiting for server reply,
+		#   and may even finish without the dir existing and in that case it would not be rerun
+		if True :
+			depend(*(d+'/'+marker for d in dirs),required=False,read=True)   # ensure dirs exist
+			check_deps()                                                     # avoid running compiler without proper markers
+		else :
+			depend(*(d+'/'+marker for d in dirs),required=False)             # ensure dirs exist
+			check_deps(verbose=True)                                         # avoid running compiler without proper markers
 	return sp.run(
 		cmd_line
 	,	universal_newlines=True

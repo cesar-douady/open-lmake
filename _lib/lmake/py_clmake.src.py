@@ -54,19 +54,21 @@ def target(
 	if write           : cmd_line.append('--write'          )
 	cmd_line += args
 	_run(cmd_line)
+def check_deps(verbose=False) :
+	if verbose : _run((_bin('lcheck_deps'),'--verbose'))
+	else       : _run((_bin('lcheck_deps'),           ))
 #
-def decode    (file,ctx,code         ) : return _run((_bin('ldecode'    ),'-f',file,'-x',ctx,'-c',code        )          )
-def encode    (file,ctx,val,min_len=1) : return _run((_bin('lencode'    ),'-f',file,'-x',ctx,'-l',str(min_len)),input=val)[:-1] # suppress terminating newline
-def check_deps(                      ) :        _run((_bin('lcheck_deps'),                                    )          )
+def decode(file,ctx,code         ) : return _run((_bin('ldecode'),'-f',file,'-x',ctx,'-c',code        )          )
+def encode(file,ctx,val,min_len=1) : return _run((_bin('lencode'),'-f',file,'-x',ctx,'-l',str(min_len)),input=val)[:-1] # suppress terminating newline
 #
-def get_autodep(      ) : return True                                                                                           # placeholder
-def set_autodep(enable) : pass                                                                                                  # .
+def get_autodep(      ) : return True                                                                                   # placeholder
+def set_autodep(enable) : pass                                                                                          # .
 #
 if 'TOP_REPO_ROOT' in _os.environ :
 	top_repo_root = _os.environ['TOP_REPO_ROOT']
 else :
 	repo_root = _os.getcwd()
-	while repo_root!='/' and not _osp.exists(repo_root+'/Lmakefile.py') : repo_root = _osp.dirname(repo_root)                   # avoid searching Lmakefile.py to avoid new dependency
+	while repo_root!='/' and not _osp.exists(repo_root+'/Lmakefile.py') : repo_root = _osp.dirname(repo_root)           # avoid searching Lmakefile.py to avoid new dependency
 	if not repo_root : del repo_root
 #
 autodeps = ()
