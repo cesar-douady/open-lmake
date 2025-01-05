@@ -32,7 +32,6 @@ namespace Engine {
 		;
 		if (sc.max_dep_depth       )                  os <<",MD" << sc.max_dep_depth          ;
 		if (sc.max_err_lines       )                  os <<",EL" << sc.max_err_lines          ;
-		if (sc.n_output_days       )                  os <<",NO" << sc.n_output_days          ;
 		if (sc.path_max!=size_t(-1))                  os <<",PM" << sc.path_max               ;
 		if (+sc.caches             )                  os <<','   << sc.caches                 ;
 		if (+sc.sub_repos_s        )                  os <<','   << sc.sub_repos_s            ;
@@ -80,7 +79,6 @@ namespace Engine {
 			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
 			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "n_output_days"       ; if (py_map.contains(fields[0])) n_output_days          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
 			fields[0] = "path_max"            ; if (py_map.contains(fields[0])) path_max               = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs          =                           +py_map[fields[0]]                          ;
@@ -103,13 +101,18 @@ namespace Engine {
 					if (py_date_prec==None) console.date_prec = uint8_t(-1)                                    ;
 					else                    console.date_prec = static_cast<uint8_t>(py_date_prec.as_a<Int>()) ;
 				}
+				fields[1] = "has_exec_time" ;
+				if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
+				fields[1] = "history_days" ;
+				if (py_console.contains(fields[1])) {
+					Object const& py_history_days = py_console[fields[1]] ;
+					if (+py_history_days) console.history_days = static_cast<uint32_t>(py_history_days.as_a<Int>()) ;
+				}
 				fields[1] = "host_length" ;
 				if (py_console.contains(fields[1])) {
 					Object const& py_host_len = py_console[fields[1]] ;
 					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
 				}
-				fields[1] = "has_exec_time" ;
-				if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
 				fields[1] = "show_eta" ;
 				if (py_console.contains(fields[1])) console.show_eta      = +py_console[fields[1]] ;
 				fields.pop_back() ;
@@ -266,13 +269,13 @@ namespace Engine {
 		//
 		/**/               res << "dynamic :\n"                                  ;
 		if (max_err_lines) res << "\tmax_error_lines : " << max_err_lines <<'\n' ;
-		if (n_output_days) res << "\tn_output_days   : " << n_output_days <<'\n' ;
 		/**/               res << "\treliable_dirs   : " << reliable_dirs <<'\n' ;
 		//
 		res << "\tconsole :\n" ;
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
-		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
 		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
+		if (console.history_days          ) res << "\t\thistory_days   : " << console.history_days  <<'\n' ;
+		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
 		/**/                                res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
 		//
 		bool has_digits = false ; for( StdRsrc r : iota(All<StdRsrc>) ) { if (rsrc_digits[+r]) has_digits = true ; break ; }

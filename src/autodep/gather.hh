@@ -126,6 +126,8 @@ public : //!                                                                    
 private :
 	Fd   _spawn_child (                               ) ;
 	void _ptrace_child( Fd report_fd , ::latch* ready ) ;
+	void _exec_trace  ( PD pd , ::string     && step , string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,::move(step),file) ; }
+	void _exec_trace  ( PD pd , ::string const& step , string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,       step ,file) ; }
 	// data
 public :
 	::vector_s                        cmd_line         ;
@@ -141,6 +143,7 @@ public :
 	::string                          cwd_s            ;
 	PD                                end_date         ;
 	 ::map_ss const*                  env              = nullptr                                    ;
+	 ::vector<ExecTraceEntry>*        exec_trace       = nullptr                                    ;
 	pid_t                             first_pid        = 0                                          ;
 	uset_s                            guards           ;                                              // dir creation/deletion that must be guarded against NFS
 	JobIdx                            job              = 0                                          ;

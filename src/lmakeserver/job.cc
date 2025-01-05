@@ -316,7 +316,7 @@ namespace Engine {
 		NotKilled :
 			req.chk_end() ;
 		} else {
-			for( Req r : jd.running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                   ;
+			for( Req r : jd.running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                ;
 			for( Req r : jd.running_reqs(true/*with_zombies*/) ) FAIL(jd.name(),"is still running for",r,"after kill all") ;
 		}
 	}

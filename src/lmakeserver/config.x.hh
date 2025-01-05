@@ -145,10 +145,11 @@ namespace Engine {
 		//
 		struct Console {
 			bool operator==(Console const&) const = default ;
-			uint8_t date_prec     = -1    ;                   // -1 means no date at all in console output
-			uint8_t host_len      = 0     ;                   //  0 means no host at all in console output
-			bool    has_exec_time = false ;
-			bool    show_eta      = false ;
+			uint8_t  date_prec     = -1    ;                                                         // -1 means no date at all in console output
+			uint8_t  host_len      = 0     ;                                                         //  0 means no host at all in console output
+			uint32_t history_days  = 0     ;                                                         // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
+			bool     has_exec_time = false ;
+			bool     show_eta      = false ;
 		} ;
 		//
 		// services
@@ -158,7 +159,6 @@ namespace Engine {
 		// data
 		// START_OF_VERSIONING
 		size_t                                                                  max_err_lines = 0     ; // unlimited
-		size_t                                                                  n_output_days = 0     ; // unlimited
 		bool                                                                    reliable_dirs = false ; // if true => dirs coherence is enforced when files are modified
 		Console                                                                 console       ;
 		::array<uint8_t,N<StdRsrc>>                                             rsrc_digits   = {}    ; // precision of standard resources

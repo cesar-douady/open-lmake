@@ -40,6 +40,7 @@ ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other comma
 ,	Stderr     // if proc==Show
 ,	Stdout     // if proc==Show
 ,	Targets    // if proc==Show
+,	Trace      // if proc==Show
 )
 inline bool is_mark_glb(ReqKey key) {
 	switch (key) {

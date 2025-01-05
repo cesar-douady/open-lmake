@@ -497,18 +497,20 @@ namespace Engine {
 
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
-		Rule             rule         = job->rule()                ;
-		JobInfo          job_info     = job.job_info()             ;
-		bool             has_start    = +job_info.start.start      ;
-		bool             has_end      = +job_info.end              ;
-		bool             verbose      = ro.flags[ReqFlag::Verbose] ;
-		JobDigest const& digest       = job_info.end.digest        ;
+		bool              verbose   = ro.flags[ReqFlag::Verbose] ;
+		Rule              rule      = job->rule()                ;
+		JobInfo           job_info  = job.job_info()             ;
+		JobStartRpcReq  & pre_start = job_info.start.pre_start   ;
+		JobStartRpcReply& start     = job_info.start.start       ;
+		JobEndRpcReq    & end       = job_info.end               ;
+		JobDigest       & digest    = end.digest                 ;
 		switch (ro.key) {
 			case ReqKey::Cmd    :
 			case ReqKey::Env    :
 			case ReqKey::Info   :
 			case ReqKey::Stderr :
-			case ReqKey::Stdout : {
+			case ReqKey::Stdout :
+			case ReqKey::Trace  : {
 				if ( +rule && rule->is_special() ) {
 					switch (ro.key) {
 						case ReqKey::Info   :
@@ -519,20 +521,18 @@ namespace Engine {
 						case ReqKey::Cmd    :
 						case ReqKey::Env    :
 						case ReqKey::Stdout :
+						case ReqKey::Trace  :
 							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job                , lvl   ) ;
 							audit     ( fd , ro , Color::Err , "no "s+ro.key+" available" , true/*as_is*/ , lvl+1 ) ;
 						break ;
 					DF}
 				} else {
-					JobStartRpcReq   const& pre_start = job_info.start.pre_start ;
-					JobStartRpcReply const& start     = job_info.start.start     ;
-					JobEndRpcReq     const& end       = job_info.end             ;
 					//
 					if (pre_start.job) SWEAR(pre_start.job==+job,pre_start.job,+job) ;
 					//
 					switch (ro.key) {
 						case ReqKey::Env : {
-							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
+							if (!start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
 							size_t                                      w   = 0                 ;
 							for( auto     const& [k,v] : env.first  ) w = ::max(w,k.size()) ;
@@ -540,26 +540,37 @@ namespace Engine {
 							for( auto     const& [k,v] : env.first  ) audit( fd , ro , widen(k,w)+" : "+v , true/*as_is*/ , lvl ) ;
 							for( ::string const&  k    : env.second ) audit( fd , ro , widen(k,w)+" ..."  , true/*as_is*/ , lvl ) ;
 						} break ;
-						case ReqKey::Cmd : //!                                                              as_is
-							if (!has_start) audit( fd , ro , Color::Err , "no info available"              , true , lvl ) ;
-							else            audit( fd , ro ,              start.cmd.first+start.cmd.second , true , lvl ) ;
+						case ReqKey::Cmd :
+							if (!start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
+							audit( fd , ro , start.cmd.first+start.cmd.second , true/*as_is*/ , lvl ) ;
 						break ;
 						case ReqKey::Stdout :
-							if (!has_end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
+							if (!end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
 							audit     ( fd , ro , digest.stdout                            , lvl+1 ) ;
 						break ;
 						case ReqKey::Stderr :
-							if (!has_end && !(has_start&&verbose) ) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
+							if (!( +end || (+start&&verbose) )) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-							if (has_start) {
-								if (verbose) audit( fd , ro , Color::Note , pre_start.msg  , false/*as_is*/  , lvl+1 ) ;
-							}
-							if (has_end) { //!                                                as_is
-								if (verbose) audit( fd , ro , Color::Note , end.msg , false , lvl+1 ) ;
-								/**/         audit( fd , ro ,               digest.stderr   , true  , lvl+1 ) ;
-							}
+							//                                                                       as_is
+							if ( +start && verbose ) audit( fd , ro , Color::Note , pre_start.msg  , false , lvl+1 ) ;
+							if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg        , false , lvl+1 ) ;
+							if ( +end              ) audit( fd , ro ,               digest.stderr  , true  , lvl+1 ) ;
 						break ;
+						case ReqKey::Trace : {
+							if (!end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
+							sort(end.exec_trace) ;
+							::string et ;
+							size_t   w  = 0 ; for( ExecTraceEntry const& e : end.exec_trace ) w = ::max(w,e.step.size()) ;
+							for( ExecTraceEntry const& e : end.exec_trace ) {
+								/**/         et <<      e.date.str(3/*prec*/,true/*in_day*/) ;
+								/**/         et <<' '<< widen(e.step,w)                      ;
+								if (+e.file) et <<' '<< e.file                               ;
+								/**/         et <<'\n'                                       ;
+							}
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
+							audit     ( fd , ro , et                                       , lvl+1 ) ;
+						} break ;
 						case ReqKey::Info : {
 							struct Entry {
 								::string txt     ;
@@ -576,14 +587,14 @@ namespace Engine {
 							::string ids ;
 							if (porcelaine) {
 								ids = "{ 'job':"s+(+job) ;
-								if (has_start) {
+								if (+start) {
 									if (start    .small_id) ids<<" , 'small':"<<start    .small_id ;
 									if (pre_start.seq_id  ) ids<<" , 'seq':"  <<pre_start.seq_id   ;
 								}
 								ids += " }" ;
 							} else {
 								ids = "job="s+(+job) ;
-								if (has_start) {
+								if (+start) {
 									if (start    .small_id) ids<<" , small="<<start    .small_id ;
 									if (pre_start.seq_id  ) ids<<" , seq="  <<pre_start.seq_id   ;
 								}
@@ -595,7 +606,7 @@ namespace Engine {
 								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),su)) ;
 								else            push_entry("required by",localize(mk_file(    n         ->name()),su)) ;
 							}
-							if (has_start) {
+							if (+start) {
 								JobInfoStart const& rs       = job_info.start          ;
 								SubmitAttrs  const& sa       = rs.submit_attrs         ;
 								::string            pressure = sa.pressure.short_str() ;
@@ -627,7 +638,7 @@ namespace Engine {
 								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
 							} catch(::pair_ss const&) {}
 							//
-							if (has_end) {
+							if (+end) {
 								// no need to localize phy_tmp_dir as this is an absolute dir
 								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
 								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
@@ -861,6 +872,7 @@ namespace Engine {
 				case ReqKey::Stderr  :
 				case ReqKey::Stdout  :
 				case ReqKey::Targets :
+				case ReqKey::Trace   :
 					_show_job(fd,ro,job,lvl) ;
 				break ;
 				case ReqKey::Info :

@@ -76,11 +76,17 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI
 	} else {
 		info = &accesses[it->second].second ;
 	}
-	AccessInfo old_info = *info ;                                                                                                                            // for tracing only
+	AccessInfo old_info = *info ;                                                                                               // for tracing only
 	//vvvvvvvvvvvvvvvvvvvvvvvvvv
 	info->update( pd , ad , di ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
+	if ( is_new || *info!=old_info ) {
+		if (+comment) {
+			if (is_new) _exec_trace(pd,::copy(comment),accesses.back().first) ;                                                 // file has been ::move()'ed
+			else        _exec_trace(pd,::copy(comment),file                 ) ;
+		}
+		Trace("_new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
+	}
 }
 
 void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdin ) {
@@ -317,6 +323,7 @@ Status Gather::exec_child() {
 				try {
 					child_fd  = _spawn_child()    ;
 					_wait    &= ~Kind::ChildStart ;
+					_exec_trace(start_date,"start_job") ;
 					trace("started","wait",_wait,+epoll) ;
 				} catch(::string const& e) {
 					if (child_stderr==Child::PipeFd) stderr = ensure_nl(e) ;
@@ -374,6 +381,7 @@ Status Gather::exec_child() {
 					SWEAR(!WIFSTOPPED(ws),_child.pid) ;          // child must have ended if we are here
 					end_date   = New                      ;
 					_end_child = end_date + network_delay ;      // wait at most network_delay for reporting & stdout & stderr to settle down
+					_exec_trace(end_date,"end_job") ;
 					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",ws) ;
@@ -398,19 +406,35 @@ Status Gather::exec_child() {
 					JobMngtRpcReply jmrr        ;
 					auto&           slave_entry = slaves.at(fd) ;
 					try         { if (!slave_entry.first.receive_step(fd,jmrr)) { trace(kind,fd,"...") ; continue ; } }
-					catch (...) { trace("no_jmrr",jmrr) ; jmrr.proc = {} ;                                            }                      // fd was closed, ensure no partially received jmrr
+					catch (...) { trace("no_jmrr",jmrr) ; jmrr.proc = {} ;                                            }       // fd was closed, ensure no partially received jmrr
 					trace(kind,fd,jmrr) ;
-					Fd rfd = jmrr.fd ;                                                                                                       // capture before move
+					Fd rfd = jmrr.fd ;                                                                                        // capture before move
 					if (jmrr.seq_id==seq_id) {
 						switch (jmrr.proc) {
-							case JobMngtProc::DepVerbose :
-							case JobMngtProc::Heartbeat  :                                                                           break ;
-							case JobMngtProc::Kill       :
-							case JobMngtProc::None       :                       set_status(Status::Killed ) ; kill() ;              break ; // server died
-							case JobMngtProc::ChkDeps    : if (jmrr.ok==Maybe) { set_status(Status::ChkDeps) ; kill() ; rfd = {} ; } break ;
+							case JobMngtProc::DepVerbose : {
+								Pdate now { New } ;
+								for( auto const& [ok,crc] : jmrr.dep_infos ) switch (ok) {
+									case Yes   : _exec_trace( now , "dep_verbose.reply" , ::string(crc) ) ; break ;
+									case Maybe : _exec_trace( now , "dep_verbose.reply" , "???"         ) ; break ;
+									case No    : _exec_trace( now , "dep_verbose.reply" , "error"       ) ; break ;
+								}
+							} break ;
+							case JobMngtProc::Heartbeat  :                                                                   break ;
+							case JobMngtProc::Kill : _exec_trace(New,"killed"     ) ; set_status(Status::Killed ) ; kill() ; break ;
+							case JobMngtProc::None : _exec_trace(New,"lost_server") ; set_status(Status::Killed ) ; kill() ; break ;
+							case JobMngtProc::ChkDeps :
+								if (jmrr.ok==Maybe) {
+									_exec_trace( New , "chk_deps.killed" ) ;
+									set_status(Status::ChkDeps) ; kill() ;
+									rfd = {} ;                                                                                // dont reply to ensure job waits if sync
+								} else {
+									_exec_trace( New , cat("chk_deps.",jmrr.ok==Yes?"ok":"err") ) ;
+								}
+							break ;
 							case JobMngtProc::Decode :
 							case JobMngtProc::Encode : {
 								SWEAR(+jmrr.fd) ;
+								_exec_trace( New , snake(jmrr.proc)+".reply" , jmrr.txt ) ;
 								auto it = _codec_files.find(jmrr.fd) ;
 								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , snake_str(jmrr.proc) ) ;
 								_codec_files.erase(it) ;
@@ -438,17 +462,17 @@ Status Gather::exec_child() {
 					auto sit          = slaves.find(fd) ;
 					auto& slave_entry = sit->second     ;
 					try                       { if (!slave_entry.first.receive_step(fd,jerr)) { trace(kind,fd,"...") ; continue ; } }
-					catch (::string const& e) { trace("no_jerr",kind,fd,jerr,e) ; jerr.proc = Proc::None ; }                                 // fd was closed, ensure no partially received jerr
-					Proc proc  = jerr.proc ;                                                                                                 // capture essential info so as to be able to move jerr
-					bool sync_ = jerr.sync ;                                                                                                 // .
-					if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                                      // accesses are traced when processed
+					catch (::string const& e) { trace("no_jerr",kind,fd,jerr,e) ; jerr.proc = Proc::None ; }                          // fd was closed, ensure no partially received jerr
+					Proc proc  = jerr.proc ;                                                                                          // capture essential info so as to be able to move jerr
+					bool sync_ = jerr.sync ;                                                                                          // .
+					if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                               // accesses are traced when processed
 					switch (proc) {
 						case Proc::Confirm : {
 							trace("confirm",jerr.id,jerr.digest.write) ;
 							auto jit = slave_entry.second.find(jerr.id) ;
-							SWEAR(jit!=slave_entry.second.end()  ) ;                                                                         // ensure we can find access to confirm
-							SWEAR(jit->second.digest.write==Maybe) ;                                                                         // ensure confirmation is required
-							SWEAR(jerr       .digest.write!=Maybe) ;                                                                         // ensure we confirm/infirm
+							SWEAR(jit!=slave_entry.second.end()  ) ;                                                                  // ensure we can find access to confirm
+							SWEAR(jit->second.digest.write==Maybe) ;                                                                  // ensure confirmation is required
+							SWEAR(jerr       .digest.write!=Maybe) ;                                                                  // ensure we confirm/infirm
 							jit->second.digest.write = jerr.digest.write ;
 							_new_accesses(fd,::move(jit->second)) ;
 							slave_entry.second.erase(jit) ;
@@ -456,28 +480,47 @@ Status Gather::exec_child() {
 						case Proc::None :
 							epoll.close(false/*write*/,fd) ;
 							trace("close",kind,fd,"wait",_wait,+epoll) ;
-							for( auto& [id,j] : slave_entry.second ) _new_accesses(fd,::move(j)) ;                                           // process deferred entries although with uncertain outcome
+							for( auto& [id,j] : slave_entry.second ) _new_accesses(fd,::move(j)) ;                                    // process deferred entries although with uncertain outcome
 							slaves.erase(sit) ;
 						break ;
 						case Proc::Access :
 							// for read accesses, trying is enough to trigger a dep, so confirm is useless
 							if      (jerr.digest.write!=Maybe                                    ) _new_accesses(fd,::move(jerr)) ;
-							else if (!slave_entry.second.try_emplace(jerr.id,::move(jerr)).second) FAIL()                         ;          // check no id clash and defer until confirm resolution
+							else if (!slave_entry.second.try_emplace(jerr.id,::move(jerr)).second) FAIL()                         ;   // check no id clash and defer until confirm resolution
 						break ;
-						case Proc::Tmp        : seen_tmp = true ;                       break        ;
-						case Proc::Guard      : _new_guards(fd,::move(jerr)) ;          break        ;
+						case Proc::Tmp :
+							if (!seen_tmp) {
+								_exec_trace(jerr.date,"access_tmp") ;
+								seen_tmp = true ;
+							}
+						break ;
+						case Proc::Guard :
+							_new_guards(fd,::move(jerr)) ;
+						break ;
 						case Proc::DepVerbose :
-						case Proc::Decode     :
-						case Proc::Encode     : _send_to_server(fd,::move(jerr)) ;      goto NoReply ;
-						case Proc::ChkDeps    : delayed_check_deps[fd] = ::move(jerr) ; goto NoReply ;                                       // if sync, reply is delayed as well
+							for( auto const& [f,_] : jerr.files ) _exec_trace(jerr.date,"dep_verbose.req",f) ;
+							jerr.txt.clear() ;                                                                                        // prevent tracing for user as access is already traced
+							_send_to_server(fd,::move(jerr)) ;
+						goto NoReply ;
+						case Proc::Decode :
+						case Proc::Encode :
+							_exec_trace(jerr.date,snake(proc)+".req",jerr.txt) ;
+							_send_to_server(fd,::move(jerr)) ;
+						goto NoReply ;
+						case Proc::ChkDeps :
+							_exec_trace(jerr.date,"chk_deps.req") ;
+							delayed_check_deps[fd] = ::move(jerr) ;
+						goto NoReply ;                                                                                                // if sync, reply is delayed as well
 						case Proc::Panic :
-							if (!panic_seen) {                                                                                               // report only first panic
+							if (!panic_seen) {                                                                                        // report only first panic
+								_exec_trace(jerr.date,"panic",jerr.txt) ;
 								set_status(Status::Err,jerr.txt) ;
 								kill() ;
 								panic_seen = true ;
 							}
 						[[fallthrough]] ;
 						case Proc::Trace :
+							_exec_trace(jerr.date,"trace",jerr.txt) ;
 							trace(jerr.txt) ;
 						break ;
 					DF}
@@ -488,10 +531,10 @@ Status Gather::exec_child() {
 		}
 	}
 Return :
-	SWEAR(!_child) ;                                                                                                                         // _child must have been waited by now
+	SWEAR(!_child) ;                                                                                                                  // _child must have been waited by now
 	trace("done",status) ;
 	SWEAR(status!=Status::New) ;
-	reorder(true/*at_end*/) ;                                                                                                                // ensure server sees a coherent view
+	reorder(true/*at_end*/) ;                                                                                                         // ensure server sees a coherent view
 	return status ;
 }
 

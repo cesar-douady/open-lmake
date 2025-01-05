@@ -119,6 +119,12 @@ Item(B(-T),B(--inv-targets))
 Show jobs that produce targets either officially (listed in B(targets) attribute) or not (listed in B(side_targets) attribute or not)
 Unless I(--quiet), output is preceded by a description of the job which it relates to.
 
+Item(B(-u),B(--trace))
+Show an execution trace of the jobs.
+Accesses generating no new dep are not shown.
+The main purpose is to provide an explanation for each dep and target.
+Unless I(--quiet), output is preceded by a description of the job which it relates to.
+
 SpecificOptions
 Item(B(-p),B(--porcelaine))
 In porcelaine mode, information shown with I(--info) is provided as an easy-to-parse python B(dict).

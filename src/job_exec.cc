@@ -46,18 +46,19 @@ struct PatternDict {
 	::vmap<RegExpr,MatchFlags> patterns = {} ;
 } ;
 
-Gather           g_gather          ;
-JobIdx           g_job             = 0/*garbage*/ ;
-PatternDict      g_match_dct       ;
-NfsGuard         g_nfs_guard       ;
-SeqId            g_seq_id          = 0/*garbage*/ ;
-::string         g_phy_repo_root_s ;
-::string         g_service_start   ;
-::string         g_service_mngt    ;
-::string         g_service_end     ;
-JobStartRpcReply g_start_info      ;
-SeqId            g_trace_id        = 0/*garbage*/ ;
-::vector_s       g_washed          ;
+::vector<ExecTraceEntry>* g_exec_trace      = nullptr      ;
+Gather                    g_gather          ;
+JobIdx                    g_job             = 0/*garbage*/ ;
+PatternDict               g_match_dct       ;
+NfsGuard                  g_nfs_guard       ;
+SeqId                     g_seq_id          = 0/*garbage*/ ;
+::string                  g_phy_repo_root_s ;
+::string                  g_service_start   ;
+::string                  g_service_mngt    ;
+::string                  g_service_end     ;
+JobStartRpcReply          g_start_info      ;
+SeqId                     g_trace_id        = 0/*garbage*/ ;
+::vector_s                g_washed          ;
 
 struct Digest {
 	::vmap_s<TargetDigest> targets ;
@@ -92,7 +93,7 @@ Digest analyze(Status status=Status::New) {                                     
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
-			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                          // fast path : no matching, no pollution, no washing => forget it
+			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                           // fast path : no matching, no pollution, no washing => forget it
 			)
 		;
 		// handle deps
@@ -104,25 +105,30 @@ Digest analyze(Status status=Status::New) {                                     
 			dd.parallel     = +first_read.first && first_read.first==prev_first_read                                                                ;
 			prev_first_read = first_read.first                                                                                                      ;
 			// try to transform date into crc as far as possible
-			if      ( dd.is_crc                                 )   {}                                   // already a crc => nothing to do
-			else if ( !is_read                                  )   {}                                   // no access     => nothing to do
-			else if ( !info.digest_seen || info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false ; } // job has been executed without seeing the file (before possibly writing to it)
-			else if ( !dd.sig()                                 )   dd.crc({}       ) ;                  // file was not present initially but was seen, it is incoherent even if not present finally
-			else if ( ad.write!=No                              )   {}                                   // cannot check stability as we wrote to it, clash will be detected in server if any
-			else if ( FileSig sig{file} ; sig!=dd.sig()         )   dd.crc({}       ) ;                  // file dates are incoherent from first access to end of job, dont know what has been read
-			else if ( !sig                                      )   dd.crc({}       ) ;                  // file is awkward
-			else if ( !Crc::s_sense(dd.accesses,sig.tag())      )   dd.crc(sig.tag()) ;                  // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			bool unstable = false ;
+			if      ( dd.is_crc                                 )   {}                                    // already a crc => nothing to do
+			else if ( !is_read                                  )   {}                                    // no access     => nothing to do
+			else if ( !info.digest_seen || info.seen>info.write ) { dd.crc(Crc::None) ; dd.hot=false  ; } // job has been executed without seeing the file (before possibly writing to it)
+			else if ( !dd.sig()                                 ) { dd.crc({}       ) ; unstable=true ; } // file was not present initially but was seen, it is incoherent even if not present finally
+			else if ( ad.write!=No                              )   {}                                    // cannot check stability as we wrote to it, clash will be detected in server if any
+			else if ( FileSig sig{file} ; sig!=dd.sig()         ) { dd.crc({}       ) ; unstable=true ; } // file dates are incoherent from first access to end of job, dont know what has been read
+			else if ( !sig                                      ) { dd.crc({}       ) ; unstable=true ; } // file is awkward
+			else if ( !Crc::s_sense(dd.accesses,sig.tag())      )   dd.crc(sig.tag()) ;                   // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (status!=Status::New) {                                               // only trace for user at end of job as intermediate analyses are of marginal interest for user
+				if      (unstable) g_exec_trace->emplace_back(New,"unstable",file) ;
+				else if (dd.hot  ) g_exec_trace->emplace_back(New,"hot"     ,file) ;
+			}
 			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.date_prec,file) ;
 			else        trace("dep    ",dd,                                                file) ;
 		}
-		if (status==Status::New) continue ;            // we are handling chk_deps and we only care about deps
+		if (status==Status::New) continue ;                                          // we are handling chk_deps and we only care about deps
 		// handle targets
 		if (is_tgt) {
-			if (ad.write==Maybe) relax.sleep_until() ; // /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk ...
-			//                                         // ... no need to optimize (could compute other crcs while waiting) as this is exceptional
+			if (ad.write==Maybe) relax.sleep_until() ;                               // /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk ...
+			//                                                                       // ... no need to optimize (could compute other crcs while waiting) as this is exceptional
 			bool    written  = ad.write==Yes ;
 			FileSig sig      ;
 			Crc     crc      ;                                                                                            // lazy evaluated (not in parallel, but need is exceptional)
@@ -141,11 +147,11 @@ Digest analyze(Status status=Status::New) {                                     
 			switch (flags.is_target) {
 				case Yes   : break ;
 				case Maybe :
-					if (unlnk) break ;                              // it is ok to write and unlink temporary files
+					if (unlnk) break ;                                  // it is ok to write and unlink temporary files
 				[[fallthrough]] ;
 				case No :
-					if (!written                          ) break ; // it is ok to attempt writing as long as attempt does not succeed
-					if (ad.extra_tflags[ExtraTflag::Allow]) break ; // it is ok if explicitly allowed by user
+					if (!written                          ) break ;     // it is ok to attempt writing as long as attempt does not succeed
+					if (ad.extra_tflags[ExtraTflag::Allow]) break ;     // it is ok if explicitly allowed by user
 					trace("bad_access",ad,flags) ;
 					if (ad.write==Maybe    ) res.msg << "maybe "                        ;
 					/**/                     res.msg << "unexpected "                   ;
@@ -156,8 +162,8 @@ Digest analyze(Status status=Status::New) {                                     
 				break ;
 			}
 			if ( is_dep && !unlnk ) {
-				trace("dep_and_target",ad,flags) ;
-				if (!reported) {                                    // if dep and unexpected target, prefer unexpected message rather than this one
+				g_exec_trace->emplace_back(New,"dep_and_target",file) ;
+				if (!reported) {                                        // if dep and unexpected target, prefer unexpected message rather than this one
 					const char* read = nullptr ;
 					if      (ad.dflags[Dflag::Static]       ) read = "a static dep" ;
 					else if (first_read.second[Access::Reg ]) read = "read"         ;
@@ -172,7 +178,7 @@ Digest analyze(Status status=Status::New) {                                     
 				if      ( unlnk                                               )                  td.crc = Crc::None    ;
 				else if ( status==Status::Killed || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ; } // no crc if meaningless
 				else if ( +crc                                                ) { td.sig = sig ; td.crc = crc          ; } // we already have a crc
-					res.crcs.emplace_back(res.targets.size()) ;                                                            // record index in res.targets for deferred (parallel) crc computation
+				res.crcs.emplace_back(res.targets.size()) ;                                                                // record index in res.targets for deferred (parallel) crc computation
 			}
 			if (
 				td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] // target is expected
@@ -273,6 +279,8 @@ int main( int argc , char* argv[] ) {
 	g_trace_file = new ::string{g_phy_repo_root_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} , {.end_date=start_overhead,.status=Status::EarlyErr} } ; // prepare to return an error, so we can goto End anytime
+	g_exec_trace = &end_report.exec_trace ;
+	g_exec_trace->emplace_back(start_overhead,"start_overhead") ;
 	//
 	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
 		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
@@ -365,6 +373,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.cur_deps_cb       =        cur_deps_cb                         ;
 		g_gather.cwd_s             =        g_start_info.cwd_s                  ;
 		g_gather.env               =        &cmd_env                            ;
+		g_gather.exec_trace        =        g_exec_trace                        ;
 		g_gather.job               =        g_job                               ;
 		g_gather.kill_sigs         = ::move(g_start_info.kill_sigs            ) ;
 		g_gather.live_out          =        g_start_info.live_out               ;
@@ -443,6 +452,7 @@ End :
 		try {
 			ClientSockFd fd           { g_service_end , NConnectionTrials } ;
 			Pdate        end_overhead = New                                 ;
+			g_exec_trace->emplace_back(end_overhead,"end_overhead") ;
 			end_report.digest.stats.total = end_overhead - start_overhead ;                              // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;

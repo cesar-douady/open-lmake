@@ -31,7 +31,6 @@ config = pdict(
 #,	local_admin_dir     = 'LMAKE_LOCAL' # directory in which to store data that are private to the server (not accessed by remote executing hosts) (default is within LMAKE dir)
 ,	max_dep_depth       = 1000          # used to detect infinite recursions and loops
 ,	max_error_lines     = 100           # used to limit the number of error lines when not reasonably limited otherwise
-,	n_output_days       = 30            # number days during which outputs are kept
 ,	network_delay       = 1             # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 ,	path_max            = 400           # max path length, but a smaller value makes debugging easier (by default, not activated)
 #,	reliable_dirs       = False         # if true, close to open coherence is deemed to encompass enclosing directory coherence (improve performances)
@@ -42,6 +41,7 @@ config = pdict(
 ,	console = pdict(                    # tailor output lines
 		date_precision = None           # number of second decimals in the timestamp field
 	,	has_exec_time  = True           # if True, output the exec_time field
+	,	history_days   = 7              # number of days during which output logs are kept in LMAKE/outputs
 	,	host_length    = None           # length of the host field (lines will be misaligned if a host is longer)
 	,	show_eta       = True           # if True, the title includes the ETA of the lmake command
 	)

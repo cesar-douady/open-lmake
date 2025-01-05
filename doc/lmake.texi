@@ -785,11 +785,6 @@ The search stops if the depth of the search reaches the value of this attribute,
 followed by a line containing @code{...}.
 The purpose is to ease reading.
 
-@item @code{n_output_days}
-@tab @code{30}
-@tab Dynamic
-@tab Number of days during which output logs are kept in the @file{LMAKE/outputs} directory.
-
 @item @code{network_delay}
 @tab @code{1}
 @tab Static
@@ -858,6 +853,11 @@ If @code{None}, no timestamp is generated.
 @tab @code{True}
 @tab Dynamic
 @tab If this attribute is true, execution time is reported each time a job is completed.
+
+@item @code{console.history_days}
+@tab @code{7}
+@tab Dynamic
+@tab This attribute specifies the number of days the output log history is kept in the @file{LMAKE/outputs} directory.
 
 @item @code{console.host_length}
 @tab @code{None}
@@ -2127,7 +2127,7 @@ Each line contains a file, preceded by a @code{+} if file exists or a @code{!} i
 @section @file{LMAKE/outputs/<date>/<time>}
 
 This file contains a transcript of the @lmake command that has been run at @file{<time>} on @file{<day>}.
-Such logs are kept for a number of days given in @code{lmake.config.n_output_days}.
+Such logs are kept for a number of days given in @code{lmake.config.console.history_days}.
 
 @section @file{LMAKE/last_output}
 

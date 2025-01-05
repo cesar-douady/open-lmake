@@ -623,6 +623,25 @@ struct JobStartRpcReq : JobRpcReq {
 	// END_OF_VERSIONING)
 } ;
 
+struct ExecTraceEntry {
+	// cxtors & casts
+	ExecTraceEntry() = default ;
+	ExecTraceEntry( Time::Pdate pd , ::string const& s , ::string const& f={} ) : date{pd} , step{       s } , file{f} {}
+	ExecTraceEntry( Time::Pdate pd , ::string     && s , ::string const& f={} ) : date{pd} , step{::move(s)} , file{f} {}
+	// accesses
+	bool              operator== (ExecTraceEntry const&) const = default ;
+	::strong_ordering operator<=>(ExecTraceEntry const&) const = default ;
+	// services
+	template<IsStream T> void serdes(T& s) {
+		::serdes(s,date) ;
+		::serdes(s,step) ;
+		::serdes(s,file) ;
+	}
+	// data
+	Time::Pdate date ;
+	::string    step ;
+	::string    file ;
+} ;
 struct JobEndRpcReq : JobRpcReq {
 	using P   = JobRpcProc          ;
 	using SI  = SeqId               ;
@@ -639,13 +658,15 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes(s,phy_tmp_dir_s                ) ;
 		::serdes(s,dynamic_env                  ) ;
 		::serdes(s,msg                          ) ;
+		::serdes(s,exec_trace                   ) ;
 	}
 	// data
 	// START_OF_VERSIONING
-	JobDigest digest        ;
-	::string  phy_tmp_dir_s ;
-	::vmap_ss dynamic_env   ; // env variables computed in job_exec
-	::string  msg           ;
+	JobDigest              digest        ;
+	::string               phy_tmp_dir_s ;
+	::vmap_ss              dynamic_env   ; // env variables computed in job_exec
+	::string               msg           ;
+	vector<ExecTraceEntry> exec_trace    ;
 	// END_OF_VERSIONING)
 } ;
 
@@ -821,13 +842,13 @@ struct JobMngtRpcReply {
 		DF}
 	}
 	// data
-	Proc                      proc      = {}    ;
-	SeqId                     seq_id    = 0     ;
-	Fd                        fd        ;         // proc == ChkDeps|DepVerbose|Decode|Encode , fd to which reply must be forwarded
-	::vector<pair<Bool3,Crc>> dep_infos ;         // proc ==         DepVerbose
-	Bool3                     ok        = Maybe ; // proc == ChkDeps|           Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
-	::string                  txt       ;         // proc ==                    Decode|Encode , value for Decode, code for Encode
-	Crc                       crc       ;         // proc ==                    Decode|Encode , crc of txt
+	Proc                            proc      = {}    ;
+	SeqId                           seq_id    = 0     ;
+	Fd                              fd        ;         // proc == ChkDeps|DepVerbose|Decode|Encode , fd to which reply must be forwarded
+	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;         // proc ==         DepVerbose
+	Bool3                           ok        = Maybe ; // proc == ChkDeps|           Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
+	::string                        txt       ;         // proc ==                    Decode|Encode , value for Decode, code for Encode
+	Crc                             crc       ;         // proc ==                    Decode|Encode , crc of txt
 } ;
 
 struct SubmitAttrs {

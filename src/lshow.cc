@@ -13,17 +13,18 @@ int main( int argc , char* argv[] ) {
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax {{
-		{ ReqKey::Bom        , { .short_name='b' , .doc="show necessary sources"                   } }
-	,	{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                 } }
-	,	{ ReqKey::Deps       , { .short_name='d' , .doc="show existing deps"                       } }
-	,	{ ReqKey::Env        , { .short_name='E' , .doc="show envionment variables to execute job" } }
-	,	{ ReqKey::Info       , { .short_name='i' , .doc="show info about jobs leading to files"    } }
-	,	{ ReqKey::InvDeps    , { .short_name='D' , .doc="show dependents"                          } }
-	,	{ ReqKey::InvTargets , { .short_name='T' , .doc="show producing jobs"                      } }
-	,	{ ReqKey::Running    , { .short_name='r' , .doc="show running jobs"                        } }
-	,	{ ReqKey::Stderr     , { .short_name='e' , .doc="show stderr"                              } }
-	,	{ ReqKey::Stdout     , { .short_name='o' , .doc="show stdout"                              } }
-	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"    } }
+		{ ReqKey::Bom        , { .short_name='b' , .doc="show necessary sources"                        } }
+	,	{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                      } }
+	,	{ ReqKey::Deps       , { .short_name='d' , .doc="show existing deps"                            } }
+	,	{ ReqKey::Env        , { .short_name='E' , .doc="show envionment variables to execute job"      } }
+	,	{ ReqKey::Info       , { .short_name='i' , .doc="show info about jobs leading to files"         } }
+	,	{ ReqKey::InvDeps    , { .short_name='D' , .doc="show dependents"                               } }
+	,	{ ReqKey::InvTargets , { .short_name='T' , .doc="show producing jobs"                           } }
+	,	{ ReqKey::Running    , { .short_name='r' , .doc="show running jobs"                             } }
+	,	{ ReqKey::Stderr     , { .short_name='e' , .doc="show stderr"                                   } }
+	,	{ ReqKey::Stdout     , { .short_name='o' , .doc="show stdout"                                   } }
+	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"         } }
+	,	{ ReqKey::Trace      , { .short_name='u' , .doc="show execution trace of jobs leading to files" } }
 	},{
 		{ ReqFlag::Porcelaine , { .short_name='p' , .has_arg=false , .doc="generate output as an easy to parse python dict" } }
 	,	{ ReqFlag::Verbose    , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts"      } }

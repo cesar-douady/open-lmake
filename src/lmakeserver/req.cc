@@ -350,39 +350,48 @@ namespace Engine {
 	}
 
 	void ReqData::_open_log() {
+		static ::string const Last = AdminDirS+"last_output"s ;
 		Trace trace("_open_log") ;
-		Pdate now { New } ;
+		Pdate    now { New }         ;
 		::string day = now.day_str() ;
-		for( int i=0 ;; i++ ) {                                                                  // try increasing resolution in file name until no conflict
-			::string lcl_log_file = "outputs/"+day+'/'+now.str(i,true/*in_day*/)  ;
-			::string log_file     = AdminDirS+lcl_log_file                        ;
-			if (FileInfo(log_file).tag()>=FileTag::Reg) { SWEAR(i<=9,i) ; continue ; }           // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
+		unlnk(Last) ;
+		start_pdate = now ;
+		if ( uint32_t hd = g_config->console.history_days ) {
+			::string lcl_log_dir_s = "outputs/"+day+'/' ;
+			::string lcl_log_file  ;
+			::string log_file      ;
+			for( int i=0 ;; i++ ) {                                                              // try increasing resolution in file name until no conflict
+				lcl_log_file = lcl_log_dir_s+now.str(i,true/*in_day*/) ;
+				log_file     = AdminDirS+lcl_log_file                  ;
+				if (FileInfo(log_file).tag()==FileTag::None) break ;                             // else conflict => try higher resolution
+				SWEAR(i<=9,i) ;                                                                  // at ns resolution, it impossible to have a conflict
+			}
 			trace(log_file) ;
 			//
-			::string last = AdminDirS+"last_output"s ;
-			//
-			::string log_dir_s = dir_name_s(log_file) ;
-			if (mk_dir_s(log_dir_s)<log_dir_s.size()-1)                                          // dir was created, check if we must unlink old ones, this is slow but happens at most once a day
-				if (g_config->n_output_days) {                                                   // else outputs are unlimited
-					::string outputs_dir_s = AdminDirS+"outputs/"s ;
-					::set_s entries = mk_set(lst_dir_s(outputs_dir_s)) ;
-					trace(g_config->n_output_days,entries.size()) ;
-					size_t i = g_config->n_output_days ;
-					for( ::string const& e : entries ) {
-						if (i>=entries.size()) break ;
+			::string log_dir_s = AdminDirS+lcl_log_dir_s ;
+			if (mk_dir_s(log_dir_s)<log_dir_s.size()-1) {                                        // dir was created, check if we must unlink old ones, this is slow but happens at most once a day
+				::string   outputs_dir_s = AdminDirS+"outputs/"s    ;
+				::vector_s entries       = lst_dir_s(outputs_dir_s) ;
+				trace(hd,entries.size()) ;
+				if (entries.size()>hd) {
+					sort(entries) ;
+					for( ::string const& e : ::span_s(entries.data(),entries.size()-hd) ) {
 						SWEAR(e!=day,e,day) ;                                                    // day is supposed to be the most recent and we keep at least 1 entry
 						::string f = outputs_dir_s+e ;
 						trace("unlnk",f) ;
 						unlnk( f , true/*dir_ok*/ ) ;
-						i++ ;
 					}
 				}
+			}
 			log_fd = Fd( log_file , Fd::Write ) ;
-			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                               }
-			catch (...) { exit(Rc::System,"cannot create symlink ",last," to ",lcl_log_file) ; }
+			try         { lnk(Last,lcl_log_file) ;                                             }
+			catch (...) { exit(Rc::System,"cannot create symlink ",Last," to ",lcl_log_file) ; }
 			start_ddate = file_date(log_file) ;                                                  // use log_file as a date marker
-			start_pdate = New                 ;
-			break ;
+		} else {
+			trace("no_log") ;
+			AcFd(Last,Fd::Write) ;                                                               // use Last as a marker, just to gather its date
+			start_ddate = file_date(Last) ;
+			unlnk(Last) ;
 		}
 	}
 
