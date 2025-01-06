@@ -260,14 +260,16 @@ Status Gather::exec_child() {
 		if      (next_step             ) SWEAR(_kill_step<=kill_sigs.size()) ;
 		else if (_kill_step            ) return ;
 		if      (!_wait[Kind::ChildEnd]) return ;
-		int sig = _kill_step==kill_sigs.size() ? SIGKILL : kill_sigs[_kill_step] ;
+		int   sig = _kill_step==kill_sigs.size() ? SIGKILL : kill_sigs[_kill_step] ;
+		Pdate now { New }                                                          ;
 		trace("kill_sig",sig) ;
+		_exec_trace(now,"kill",cat(sig)) ;
 		//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if ( sig && _child.pid>1 ) kill_process(_child.pid,sig,as_session/*as_group*/) ;
 		//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		set_status(Status::Killed) ;
 		if      (_kill_step==kill_sigs.size()) _end_kill = Pdate::Future       ;
-		else if (!_end_kill                  ) _end_kill = Pdate(New)+Delay(1) ;
+		else if (!_end_kill                  ) _end_kill = now+Delay(1)        ;
 		else                                   _end_kill = _end_kill +Delay(1) ;
 		_kill_step++ ;
 		trace("kill_done",_end_kill) ;
@@ -282,13 +284,14 @@ Status Gather::exec_child() {
 	while ( +epoll || +_wait ) {
 		Pdate now = New ;
 		if (now>_end_child) {
+			_exec_trace(now,"still_alive") ;
 			if (!_wait[Kind::ChildEnd]) {
 				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , _end_child ) ; // else we should already have exited
 				::string msg ;
 				if ( _wait[Kind::Stdout]                        ) msg += "stdout " ;
 				if ( _wait[Kind::Stdout] && _wait[Kind::Stderr] ) msg += "and "    ;
 				if (                        _wait[Kind::Stderr] ) msg += "stderr " ;
-				msg << "still open after having been dead for " << network_delay.short_str() ;
+				msg << "still open after job having been dead for " << network_delay.short_str() ;
 				set_status(Status::Err,msg) ;
 			}
 			else if ( _kill_step && _kill_step< kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+_kill_step      +" times"                      ) ;
@@ -301,6 +304,7 @@ Status Gather::exec_child() {
 			kill() ;
 		}
 		if ( now>_end_timeout && !_timeout_fired ) {
+			_exec_trace(now,"timeout") ;
 			set_status(Status::Err,"timeout after "+timeout.short_str()) ;
 			kill() ;
 			_timeout_fired = true          ;
