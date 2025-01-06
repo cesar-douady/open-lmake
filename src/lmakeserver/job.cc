@@ -386,7 +386,9 @@ namespace Engine {
 
 	bool/*reported*/ JobExec::report_start( ReqInfo& ri , ::vmap<Node,FileActionTag> const& report_unlnks , ::string const& stderr , ::string const& msg ) const {
 		if ( ri.start_reported ) return false ;
-		ri.req->audit_job( +stderr?Color::Warning:Color::HiddenNote , "start" , self ) ;
+		if      (ri.reason.tag==JobReasonTag::Retry) ri.req->audit_job( Color::Warning    , "retry" , self ) ;
+		else if (+stderr                           ) ri.req->audit_job( Color::Warning    , "start" , self ) ;
+		else                                         ri.req->audit_job( Color::HiddenNote , "start" , self ) ;
 		ri.req->last_info = self ;
 		for( auto [t,fat] : report_unlnks ) {
 			Job aj = t->actual_job() ;
@@ -693,8 +695,7 @@ namespace Engine {
 			color      &= Color::Warning ;
 			if      (is_lost(jd.status)             ) {                                           }
 			else if (jd.status==Status::EarlyChkDeps) { jr = JR::Resubmit ; color = Color::Note ; }
-			else if (retry                          )   jr = JR::Retry    ;
-			else                                      { jr = JR::Rerun    ; color = Color::Note ; }
+			else if (!retry                         ) { jr = JR::Rerun    ; color = Color::Note ; }
 		}
 		//
 		switch (color) {
@@ -749,25 +750,24 @@ namespace Engine {
 	}
 
 	static JobReasonTag _mk_reason( Status s , bool end ) {
-		static constexpr ::amap<Status,::array<JobReasonTag,2>,N<Status>> ReasonTab {{
-			//                         !end                            end
-			{ Status::New          , { JobReasonTag::New             , JobReasonTag::New             } }
-		,	{ Status::EarlyChkDeps , { JobReasonTag::ChkDeps         , JobReasonTag::ChkDeps         } }
-		,	{ Status::EarlyErr     , { JobReasonTag::None            , JobReasonTag::Retry           } }
-		,	{ Status::EarlyLost    , { JobReasonTag::WasLost         , JobReasonTag::Lost            } }
-		,	{ Status::EarlyLostErr , { JobReasonTag::WasLost         , JobReasonTag::Retry           } }
-		,	{ Status::LateLost     , { JobReasonTag::WasLost         , JobReasonTag::Lost            } }
-		,	{ Status::LateLostErr  , { JobReasonTag::WasLost         , JobReasonTag::Retry           } }
-		,	{ Status::Killed       , { JobReasonTag::Killed          , JobReasonTag::Killed          } }
-		,	{ Status::ChkDeps      , { JobReasonTag::ChkDeps         , JobReasonTag::ChkDeps         } }
-		,	{ Status::BadTarget    , { JobReasonTag::PollutedTargets , JobReasonTag::PollutedTargets } }
-		,	{ Status::Ok           , { JobReasonTag::None            , JobReasonTag::None            } }
-		,	{ Status::SubmitLoop   , { JobReasonTag::None            , JobReasonTag::None            } }
-		,	{ Status::Err          , { JobReasonTag::None            , JobReasonTag::Retry           } }
+		static constexpr ::amap<Status,JobReasonTag,N<Status>> ReasonTab {{
+			{ Status::New          , JobReasonTag::New             }
+		,	{ Status::EarlyChkDeps , JobReasonTag::ChkDeps         }
+		,	{ Status::EarlyErr     , JobReasonTag::Retry           }
+		,	{ Status::EarlyLost    , JobReasonTag::Lost            }                                // becomes WasLost if end
+		,	{ Status::EarlyLostErr , JobReasonTag::Retry           }
+		,	{ Status::LateLost     , JobReasonTag::Lost            }                                // becomes WasLost if end
+		,	{ Status::LateLostErr  , JobReasonTag::Retry           }
+		,	{ Status::Killed       , JobReasonTag::Killed          }
+		,	{ Status::ChkDeps      , JobReasonTag::ChkDeps         }
+		,	{ Status::BadTarget    , JobReasonTag::PollutedTargets }
+		,	{ Status::Ok           , JobReasonTag::None            }
+		,	{ Status::SubmitLoop   , JobReasonTag::None            }
+		,	{ Status::Err          , JobReasonTag::Retry           }
 		}} ;
 		static_assert(chk_enum_tab(ReasonTab)) ;
-		JobReasonTag res = ReasonTab[+s].second[end] ;
-		SWEAR( res<JobReasonTag::HasNode , s , res ) ;
+		JobReasonTag res = ReasonTab[+s].second ; if ( res==JobReasonTag::Lost && !end ) res = JobReasonTag::WasLost ;
+		SWEAR( res<JobReasonTag::HasNode , s , end , res ) ;
 		return res ;
 	}
 	JobReason JobData::make( ReqInfo& ri , MakeAction make_action , JobReason asked_reason , Bool3 speculate , bool wakeup_watchers ) {
@@ -803,9 +803,9 @@ namespace Engine {
 				case JobReasonTag::Lost  :                      goto Lost   ;
 				default                  :                      goto Submit ;
 			}
-		Retry  : return                 ri.n_retries>=req->n_retries ? NoRunReason::RetryLoop  : NoRunReason::None ;
-		Lost   : return                 ri.n_losts  >=r->n_losts     ? NoRunReason::LostLoop   : NoRunReason::None ;
-		Submit : return r->n_submits && ri.n_submits>=r->n_submits   ? NoRunReason::SubmitLoop : NoRunReason::None ;
+			Retry  : return                 ri.n_retries>=req->n_retries ? NoRunReason::RetryLoop  : NoRunReason::None ;
+			Lost   : return                 ri.n_losts  >=r->n_losts     ? NoRunReason::LostLoop   : NoRunReason::None ;
+			Submit : return r->n_submits && ri.n_submits>=r->n_submits   ? NoRunReason::SubmitLoop : NoRunReason::None ;
 		} ;
 		auto inc_submits = [&](JobReasonTag rt)->void {                                             // inc counter associated with no_run_reason (returning None) assuming rt==reason(ri.state).tag
 			switch (rt) {
@@ -873,8 +873,8 @@ namespace Engine {
 			ri.speculative_wait = false ;                                                                  // initially, we are not waiting at all
 			//
 			ReqInfo::State state = ri.state ;
-			pre_reason    = _mk_reason(status,make_action==MakeAction::End) ;
-			report_reason = {}                                              ;
+			report_reason = {}                                                  ;
+			pre_reason    = _mk_reason( status , make_action==MakeAction::End ) ;
 			trace("pre_reason",pre_reason) ;
 			for( DepsIter iter {deps,ri.iter} ;; iter++ ) {
 				//
@@ -1026,28 +1026,28 @@ namespace Engine {
 			NoRunReason nrr = no_run_reason(ri.state) ;
 			switch (nrr) {
 				case NoRunReason::None       :                                                                                                     break     ;
-				case NoRunReason::RetryLoop  : trace("fail")        ; pre_reason = JobReasonTag::None                                            ; goto Done ;
+				case NoRunReason::RetryLoop  : trace("fail_loop")   ; pre_reason = JobReasonTag::None                                            ; goto Done ;
 				case NoRunReason::LostLoop   : trace("lost_loop")   ; status = status<Status::Early ? Status::EarlyLostErr : Status::LateLostErr ; goto Done ;
 				case NoRunReason::SubmitLoop : trace("submit_loop") ; status = Status::SubmitLoop                                                ; goto Done ;
 				case NoRunReason::Dep        :                                                                                                     goto Done ;
 			}
 		}
 	Run :
-		report_reason = reason(ri.state) ;                                                            // ensure we have a reason to report that we would have run if not queried
-		trace("run",report_reason,ri,run_status) ;
+		report_reason = ri.reason = reason(ri.state) ;                                             // ensure we have a reason to report that we would have run if not queried
+		trace("run",ri,run_status) ;
 		if ( query && !is_special() )                     goto Return                      ;
-		if ( ri.state.missing_dsk   ) { ri.reset(idx()) ; goto RestartAnalysis/*BACKWARD*/ ; }        // cant run if we are missing some deps on disk
-		inc_submits(report_reason.tag) ;
-		//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (is_special()) {      _submit_special( ri                                ) ; goto Done ; } // special never report new deps
-		else              { if (!_submit_plain  ( ri , report_reason , dep_pressure ))  goto Done ; } // if no new deps, we cannot be waiting and we are done
-		//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if ( ri.state.missing_dsk   ) { ri.reset(idx()) ; goto RestartAnalysis/*BACKWARD*/ ; }     // cant run if we are missing some deps on disk
+		inc_submits(ri.reason.tag) ;
+		//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (is_special()) {      _submit_special( ri                ) ; goto Done ; }              // special never report new deps
+		else              { if (!_submit_plain  ( ri , dep_pressure ))  goto Done ; }              // if no new deps, we cannot be waiting and we are done
+		//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (ri.waiting()) goto Wait ;
 		SWEAR(!ri.running()) ;
-		make_action = MakeAction::End ;                                                               // restart analysis as if called by end() as in case of flash execution, submit has called end()
-		ri.inc_wait() ;                                                                               // .
-		asked_reason = {} ;                                                                           // .
-		ri.reason    = {} ;                                                                           // .
+		make_action = MakeAction::End ;                                                            // restart analysis as if called by end() as in case of flash execution, submit has called end()
+		ri.inc_wait() ;                                                                            // .
+		asked_reason = {} ;                                                                        // .
+		ri.reason    = {} ;                                                                        // .
 		trace("restart_analysis",ri) ;
 		goto RestartFullAnalysis/*BACKWARD*/ ;
 	Done :
@@ -1058,7 +1058,7 @@ namespace Engine {
 			JobAudit const& ja = it->second ;
 			trace("report_missing",ja) ;
 			//
-			if (ja.report!=JobReport::Hit) req->stats.move(JobReport::Rerun,ja.report,exec_time) ;    // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
+			if (ja.report!=JobReport::Hit) req->stats.move(JobReport::Rerun,ja.report,exec_time) ; // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
 			//
 			JobDigest digest = idx().job_info(false/*need_start*/,true/*need_end*/).end.digest               ;
 			JobReason jr     = reason(ri.state)                                                              ;
@@ -1074,7 +1074,7 @@ namespace Engine {
 		report_reason = reason(ri.state) ;
 		goto Return ;
 	Wait :
-		SWEAR(!query) ;                                                                               // ensure we never wait when query
+		SWEAR(!query) ;                                                                            // ensure we never wait when query
 		trace("wait",ri) ;
 	Return :
 		return report_reason ;
@@ -1164,12 +1164,12 @@ namespace Engine {
 		DF}
 	}
 
-	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
+	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
 		using Step = JobStep ;
 		Rule              r     = rule()  ;
 		Req               req   = ri.req  ;
 		Rule::SimpleMatch match { idx() } ;
-		Trace trace("_submit_plain",idx(),ri,reason,pressure) ;
+		Trace trace("_submit_plain",idx(),ri,pressure) ;
 		SWEAR(!ri.waiting(),ri) ;
 		SWEAR(!ri.running(),ri) ;
 		for( Req rr : running_reqs(false/*with_zombies*/) ) if (rr!=req) {
@@ -1220,8 +1220,8 @@ namespace Engine {
 							if (!dfa_msg.second) return false/*maybe_new_deps*/ ;
 						}
 						//
-						JobExec je       { idx() , New }                                          ;          // job starts and ends, no host
-						JobInfo job_info = cache->download(idx(),cache_match.id,reason,nfs_guard) ;
+						JobExec je       { idx() , New }                                             ;       // job starts and ends, no host
+						JobInfo job_info = cache->download(idx(),cache_match.id,ri.reason,nfs_guard) ;
 						Job::_s_record_thread.emplace(idx(),job_info) ;
 						if (ri.live_out) je.live_out(ri,job_info.end.digest.stdout) ;
 						ri.step(Step::Hit,idx()) ;
@@ -1277,7 +1277,7 @@ namespace Engine {
 			,	.deps      = ::move(early_deps                 )
 			,	.live_out  =        ri.live_out
 			,	.pressure  =        pressure
-			,	.reason    =        reason
+			,	.reason    =        ri.reason
 			,	.tokens1   =        tokens1
 			} ;
 			estimate_stats(tokens1) ;                                                                        // refine estimate with best available info just before submitting

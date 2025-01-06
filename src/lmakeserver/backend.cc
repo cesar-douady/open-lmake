@@ -414,7 +414,7 @@ namespace Backends {
 			//                  ^^^^^^^^^^^^^^^^^^^^^^^
 			if ( step<4 || !deps_done ) {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				OMsgBuf().send(fd,JobStartRpcReply()) ;                                                                          // silently tell job_exec to give up
+				OMsgBuf().send(fd,JobStartRpcReply()) ;                                                           // silently tell job_exec to give up
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				Status status = Status::EarlyErr ;
 				if (!deps_done) {
@@ -422,16 +422,16 @@ namespace Backends {
 					start_msg_err = {}                   ;
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				s_end( entry.tag , +job , status ) ;                                                                             // dont care about backend, job is dead for other reasons
+				s_end( entry.tag , +job , status ) ;                                                              // dont care about backend, job is dead for other reasons
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("early",start_msg_err) ;
-				job_exec = { job , reply.addr , New/*start*/ } ;                                                                 // job starts and ends
-				JobEndRpcReq end_jrr {                                                                                           // before ::move(reply)
+				job_exec = { job , reply.addr , New/*start*/ } ;                                                  // job starts and ends
+				JobEndRpcReq end_jrr {                                                                            // before ::move(reply)
 					{jsrr.seq_id,jsrr.job}
-				,	{ .deps=reply.deps , .end_attrs=EndAttrs() , .status=status , .stderr=start_msg_err.second }                 // XXX! : init of end_attrs seems necessary for g++12 -O3 ?
+				,	{ .deps=reply.deps , .end_attrs=EndAttrs() , .status=status , .stderr=start_msg_err.second }  // XXX! : init of end_attrs seems necessary for g++12 -O3 ?
 				,	::move(start_msg_err.first)
 				} ;
-				::string     msg = jsrr.msg ;                                                                                    // before ::move(jsrr)
+				::string     msg = jsrr.msg ;                                                                     // before ::move(jsrr)
 				JobInfoStart jis {
 					.eta          =        eta
 				,	.submit_attrs = ::move(submit_attrs        )
@@ -452,16 +452,16 @@ namespace Backends {
 			//
 			reply.small_id = _s_small_ids.acquire() ;
 			//vvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send(fd,reply) ;                                                                                           // send reply ASAP to minimize overhead
+			OMsgBuf().send(fd,reply) ;                                                                            // send reply ASAP to minimize overhead
 			//^^^^^^^^^^^^^^^^^^^^^^
-			job_exec            = { job , reply.addr , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ;                // job starts
+			job_exec            = { job , reply.addr , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts
 			entry.start_date    = job_exec.start_date                             ;
 			entry.workload      = _s_workload.start(entry.reqs,job)               ;
 			entry.conn.host     = job_exec.host                                   ;
 			entry.conn.port     = jsrr.port                                       ;
 			entry.conn.small_id = reply.small_id                                  ;
 		}
-		in_addr_t reply_addr = reply.addr ;                                                                                      // save before move
+		in_addr_t reply_addr = reply.addr ;                                                                       // save before move
 		JobInfoStart jis {
 			.rule_cmd_crc =        rule->crc->cmd
 		,	.stems        = ::move(match.stems         )
@@ -474,12 +474,17 @@ namespace Backends {
 		,	.stderr       =        start_msg_err.second
 		} ;
 		trace("started",job_exec,reply) ;
-		bool report_now = +pre_action_warnings || +start_msg_err.second || Delay(job->exec_time)>=start_none_attrs.start_delay ; // dont defer long jobs or if a message is to be delivered to user
+		bool report_now =                                                                                         // dont defer long jobs or if a message is to be delivered to user
+				+pre_action_warnings
+			||	+start_msg_err.second
+			||	submit_attrs.reason.tag==JobReasonTag::Retry                                                      // emit retry start message
+			||	Delay(job->exec_time)>=start_none_attrs.start_delay                                               // if job is probably long, emit start message immediately
+		;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , ::move(jis) , report_now , ::move(pre_action_warnings) , ::move(start_msg_err.second) , jsrr.msg+start_msg_err.first ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (!report_now) {
-			Pdate start_report = job_exec.start_date+start_none_attrs.start_delay ;                                              // record before moving job_exec
+			Pdate start_report = job_exec.start_date+start_none_attrs.start_delay ;                               // record before moving job_exec
 			_s_deferred_report_thread.emplace_at( start_report , jsrr.seq_id , ::move(job_exec) ) ;
 		}
 		return false/*keep_fd*/ ;

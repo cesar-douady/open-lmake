@@ -358,9 +358,9 @@ namespace Engine {
 	private :
 		void _propag_speculate(ReqInfo const&) const ;
 		//
-		void                   _submit_special ( ReqInfo&                                    ) ;                         // special never report new deps
-		bool/*maybe_new_deps*/ _submit_plain   ( ReqInfo& , JobReason , CoarseDelay pressure ) ;
-		void                   _do_set_pressure( ReqInfo& ,             CoarseDelay          ) const ;
+		void                   _submit_special ( ReqInfo&                        ) ;                                     // special never report new deps
+		bool/*maybe_new_deps*/ _submit_plain   ( ReqInfo& , CoarseDelay pressure ) ;
+		void                   _do_set_pressure( ReqInfo& , CoarseDelay          ) const ;
 		// data
 		// START_OF_VERSIONING
 	public :
