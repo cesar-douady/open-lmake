@@ -101,9 +101,9 @@ Digest analyze(Status status=Status::New) {                                     
 			DepDigest dd { ad.accesses , info.dep_info , ad.dflags } ;
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
-			dd.hot          = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.date_prec) ;
-			dd.parallel     = +first_read.first && first_read.first==prev_first_read                                                                ;
-			prev_first_read = first_read.first                                                                                                      ;
+			dd.hot          = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.ddate_prec) ;
+			dd.parallel     = +first_read.first && first_read.first==prev_first_read                                                                 ;
+			prev_first_read = first_read.first                                                                                                       ;
 			// try to transform date into crc as far as possible
 			bool unstable = false ;
 			if      ( dd.is_crc                                 )   {}                                    // already a crc => nothing to do
@@ -121,8 +121,8 @@ Digest analyze(Status status=Status::New) {                                     
 				if      (unstable) g_exec_trace->emplace_back(New,"unstable",file) ;
 				else if (dd.hot  ) g_exec_trace->emplace_back(New,"hot"     ,file) ;
 			}
-			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.date_prec,file) ;
-			else        trace("dep    ",dd,                                                file) ;
+			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.ddate_prec,file) ;
+			else        trace("dep    ",dd,                                                 file) ;
 		}
 		if (status==Status::New) continue ;                                          // we are handling chk_deps and we only care about deps
 		// handle targets

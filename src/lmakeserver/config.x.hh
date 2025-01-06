@@ -49,24 +49,15 @@ namespace Engine {
 
 namespace Engine {
 
-	struct Version {
-		static const Version Db ;
-		bool operator==(Version const&) const = default ;
-		size_t major = 0 ;
-		size_t minor = 0 ;
-	} ;
-	constexpr Version Version::Db = {1,0} ;
-
 	// changing these values require restarting from a clean base
 	struct ConfigClean {
 		// services
 		bool operator==(ConfigClean const&) const = default ;
 		// data
 		// START_OF_VERSIONING
-		Version    db_version             ;                    // must always stay first so it is always understood, by default, db version does not match
 		LnkSupport lnk_support            = LnkSupport::Full ;
 		::string   user_local_admin_dir_s ;
-		::string   key                    ;                    // random key to differentiate repo from other repos
+		::string   key                    ; // random key to differentiate repo from other repos
 		// END_OF_VERSIONING
 	} ;
 
@@ -104,18 +95,19 @@ namespace Engine {
 		// services
 		bool operator==(ConfigStatic const&) const = default ;
 		// data
+		// /!\ default values must stay in sync with _lib/lmake/config.src.py
 		// START_OF_VERSIONING
-		Time::Delay    date_prec       ;                                              // precision of dates on disk
-		Time::Delay    heartbeat       ;                                              // min time between successive heartbeat probes for any given job
-		Time::Delay    heartbeat_tick  ;                                              // min time between successive heartbeat probes
-		DepDepth       max_dep_depth   = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
-		Time::Delay    network_delay   ;
-		size_t         path_max        = -1    ;                                      // if -1 <=> unlimited
+		Time::Delay    ddate_prec      { 0.01 } ; // precision of dates on disk
+		Time::Delay    heartbeat       { 10   } ; // min time between successive heartbeat probes for any given job
+		Time::Delay    heartbeat_tick  { 0.01 } ; // min time between successive heartbeat probes
+		DepDepth       max_dep_depth   = 1000   ; // max dep of the whole flow used to detect infinite recursion
+		Time::Delay    network_delay   { 1    } ;
+		size_t         path_max        = 400    ; // if -1 <=> unlimited
 		::vector_s     sub_repos_s     ;
 		TraceConfig    trace           ;
 		::map_s<Cache> caches          ;
-		bool           has_split_rules = false ;                                      // if true <=> read independently of config
-		bool           has_split_srcs  = false ;                                      // .
+		bool           has_split_rules = false  ; // if true <=> read independently of config
+		bool           has_split_srcs  = false  ; // .
 		// END_OF_VERSIONING
 	} ;
 
@@ -145,11 +137,14 @@ namespace Engine {
 		//
 		struct Console {
 			bool operator==(Console const&) const = default ;
-			uint8_t  date_prec     = -1    ;                                                         // -1 means no date at all in console output
-			uint8_t  host_len      = 0     ;                                                         //  0 means no host at all in console output
-			uint32_t history_days  = 0     ;                                                         // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
-			bool     has_exec_time = false ;
-			bool     show_eta      = false ;
+			// /!\ default values must stay in sync with _lib/lmake/config.src.py
+			// START_OF_VERSIONING
+			uint8_t  date_prec     = 0    ;                                                             // -1 means no date at all in console output
+			uint8_t  host_len      = 0    ;                                                             //  0 means no host at all in console output
+			uint32_t history_days  = 7    ;                                                             // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
+			bool     has_exec_time = true ;
+			bool     show_eta      = true ;
+			// END_OF_VERSIONING
 		} ;
 		//
 		// services
@@ -171,16 +166,16 @@ namespace Engine {
 	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {
 		friend ::string& operator+=( ::string& , Config const& ) ;
 		// cxtors & casts
-		Config(                      ) : booted{false} {}   // if config comes from nowhere, it is not booted
+		Config(                      ) : booted{false} {} // if config comes from nowhere, it is not booted
 		Config(Py::Dict const& py_map) ;
 		// services
 		template<IsStream S> void serdes(S& s) {
 			// START_OF_VERSIONING
-			::serdes(s,static_cast<ConfigClean  &>(self)) ; // must always stay first field to ensure db_version is always understood
+			::serdes(s,static_cast<ConfigClean  &>(self)) ;
 			::serdes(s,static_cast<ConfigStatic &>(self)) ;
 			::serdes(s,static_cast<ConfigDynamic&>(self)) ;
 			// END_OF_VERSIONING
-			if (IsIStream<S>) booted = true ;               // is config comes from disk, it is booted
+			if (IsIStream<S>) booted = true ;             // is config comes from disk, it is booted
 		}
 		::string pretty_str() const ;
 		void open(bool dynamic) ;
@@ -191,7 +186,7 @@ namespace Engine {
 			else                                     return ConfigDiff::None    ;
 		}
 		// data (derived info not saved on disk)
-		bool     booted            = false ;                // a marker to distinguish clean repository
+		bool     booted            = false ;              // a marker to distinguish clean repository
 		::string local_admin_dir_s ;
 	} ;
 

@@ -48,7 +48,7 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "auto_mkdir   : "  << jsrr.autodep_env.auto_mkdir  <<'\n' ;
 	g_out << "chroot_dir_s : "  << jsrr.job_space.chroot_dir_s  <<'\n' ;
 	g_out << "cwd_s        : "  << jsrr.cwd_s                   <<'\n' ;
-	g_out << "date_prec    : "  << jsrr.date_prec               <<'\n' ;
+	g_out << "ddate_prec   : "  << jsrr.ddate_prec              <<'\n' ;
 	g_out << "ignore_stat  : "  << jsrr.autodep_env.ignore_stat <<'\n' ;
 	g_out << "interpreter  : "  << jsrr.interpreter             <<'\n' ;
 	g_out << "keep_tmp     : "  << jsrr.keep_tmp                <<'\n' ;

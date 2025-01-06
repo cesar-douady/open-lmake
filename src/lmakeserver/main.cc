@@ -232,7 +232,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 							SWEAR(g_writable) ;
 						[[fallthrough]] ;
 						case ReqProc::Show :
-							epoll.del(false/*write*/,fd) ; trace("del_fd",rrr.proc,fd) ;    // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							epoll.del(false/*write*/,fd) ; trace("del_fd",rrr.proc,fd) ;  // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							in_tab.erase(fd) ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 							g_engine_queue.emplace( rrr.proc , fd , ofd , rrr.files , rrr.options ) ;
@@ -240,14 +240,14 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						break ;
 						case ReqProc::Kill :
 						case ReqProc::None : {
-							epoll.del(false/*write*/,fd) ; trace("stop_fd",rrr.proc,fd) ;   // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							epoll.del(false/*write*/,fd) ; trace("stop_fd",rrr.proc,fd) ; // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							auto it=in_tab.find(fd) ;
 							Req r = it->second.second ;
 							trace("eof",fd) ;
-							if (+r) { trace("zombie",r) ; r.zombie(true) ; }                // make req zombie immediately to optimize reaction time
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace_urgent( ReqProc::Kill , r , fd , ofd ) ; // this will close ofd when done writing to it
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							if (+r) { trace("zombie",r) ; r.zombie(true) ; }              // make req zombie immediately to optimize reaction time
+							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd ) ;    // this will close ofd when done writing to it
+							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							in_tab.erase(it) ;
 						} break ;
 					DF}
@@ -255,18 +255,18 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 			DF}
 		}
 		//
-		if ( !_g_is_daemon && !in_tab ) break ;                                             // check end of loop after processing slave events and before master events
+		if ( !_g_is_daemon && !in_tab ) break ;                                           // check end of loop after processing slave events and before master events
 		//
 		if (new_fd) {
 			Fd slave_fd = _g_server_fd.accept().detach() ;
-			in_tab[slave_fd] ;                                                              // allocate entry
+			in_tab[slave_fd] ;                                                            // allocate entry
 			epoll.add_read(slave_fd,EventKind::Slave) ; trace("new_req",slave_fd) ;
 			_report_server(slave_fd,true/*running*/) ;
 		}
 	}
 Done :
 	_g_done = true ;
-	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                          // ensure engine loop sees we are done
+	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                        // ensure engine loop sees we are done
 	trace("done") ;
 }
 
@@ -322,7 +322,7 @@ static bool/*interrupted*/ _engine_loop() {
 						try                        { ok = g_cmd_tab[+ecr.proc](ecr) ;                                  }
 						catch (::string  const& e) { ok = false ; if (+e) audit(ecr.out_fd,ecr.options,Color::Err,e) ; }
 						OMsgBuf().send( ecr.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ;
-						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                          // close out_fd before in_fd as closing clears out_fd, defeating the equality test
+						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                                       // close out_fd before in_fd as closing clears out_fd, defeating the equality test
 						/**/                       ecr.in_fd .close() ;
 					} break ;
 					// Make, Kill and Close management :
@@ -332,7 +332,7 @@ static bool/*interrupted*/ _engine_loop() {
 					// write side is closed upon Close (cannot be upon Kill  as this may trigger lmake command termination, which, in turn, will trigger eof on the read side
 					case ReqProc::Make : {
 						bool allocated = false ;
-						if (req.zombie()) {                                                      // if already zombie, dont make req
+						if (req.zombie()) {                                                                   // if already zombie, dont make req
 							trace("already_killed",req) ;
 							goto NoMake ;
 						}
@@ -353,12 +353,12 @@ static bool/*interrupted*/ _engine_loop() {
 							goto NoMake ;
 						}
 						if (!ecr.as_job()) _record_targets(req->job) ;
-						SWEAR( +ecr.in_fd && +ecr.out_fd , ecr.in_fd , ecr.out_fd ) ;            // in_fd and out_fd are used as marker for killed and closed respectively
+						SWEAR( +ecr.in_fd && +ecr.out_fd , ecr.in_fd , ecr.out_fd ) ;                         // in_fd and out_fd are used as marker for killed and closed respectively
 						fd_tab[req] = { .in=ecr.in_fd , .out=ecr.out_fd } ;
 					} break ;
 					NoMake :
-						if (ecr.in_fd!=ecr.out_fd) ::close   (ecr.out_fd        ) ;              // do as if immediate Close
-						else                       ::shutdown(ecr.out_fd,SHUT_WR) ;              // .
+						if (ecr.in_fd!=ecr.out_fd) ::close   (ecr.out_fd        ) ;                           // do as if immediate Close
+						else                       ::shutdown(ecr.out_fd,SHUT_WR) ;                           // .
 					break ;
 					case ReqProc::Close : {
 						auto     it  = fd_tab.find(req) ; SWEAR(it!=fd_tab.end()) ;
@@ -367,23 +367,23 @@ static bool/*interrupted*/ _engine_loop() {
 						//vvvvvvvvv
 						req.close() ;
 						//^^^^^^^^^
-						if (fde.in!=fde.out)   ::close   (fde.out        ) ;                     // either finalize close after Kill or in and out are different from the beginning
-						else                   ::shutdown(fde.out,SHUT_WR) ;                     // close only output side
-						if (+fde.in        )   fde.out = Fd() ;                                  // mark req is closed
-						else                 { fd_tab.erase(it) ; req.dealloc() ; }              // dealloc when req can be reused, i.e. after Kill and Close
+						if (fde.in!=fde.out)   ::close   (fde.out        ) ;                                  // either finalize close after Kill or in and out are different from the beginning
+						else                   ::shutdown(fde.out,SHUT_WR) ;                                  // close only output side
+						if (+fde.in        )   fde.out = Fd() ;                                               // mark req is closed
+						else                 { fd_tab.erase(it) ; req.dealloc() ; }                           // dealloc when req can be reused, i.e. after Kill and Close
 					} break ;
-					case ReqProc::Kill : {
-						trace("kill_req",ecr) ;
-						auto     it  = fd_tab.find(req) ; if (it==fd_tab.end()) break ;          // Kill before Make
+					case ReqProc::Kill :
+					case ReqProc::None : {
+						auto     it  = fd_tab.find(req) ; if (it==fd_tab.end()) { trace("kill_before_make",ecr) ; break ; }
 						FdEntry& fde = it->second       ;
-						trace("kill_req",fde.in,fde.out) ;
-						//                                              vvvvvvvvvv
-						if (+fde.out       ) { SWEAR( +req && +*req ) ; req.kill() ; }           // kill req if not already closed
-						//                                              ^^^^^^^^^^
-						if (fde.in!=fde.out)   ::close   (fde.in        ) ;                      // either finalize close after Close or in and out are different from the beginning
-						else                   ::shutdown(fde.in,SHUT_RD) ;                      // close only input side
-						if (+fde.out       )   fde.in = Fd() ;                                   // mark req is killed
-						else                 { fd_tab.erase(it) ; req.dealloc() ; }              // dealloc when req can be reused, i.e. after Kill and Close
+						trace("kill_req",ecr,fde.in,fde.out) ;
+						//                                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						if (+fde.out       ) { SWEAR( +req && +*req ) ; req.kill(ecr.proc==ReqProc::Kill) ; } // kill req if not already closed
+						//                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						if (fde.in!=fde.out)   ::close   (fde.in        ) ;                                   // either finalize close after Close or in and out are different from the beginning
+						else                   ::shutdown(fde.in,SHUT_RD) ;                                   // close only input side
+						if (+fde.out       )   fde.in = Fd() ;                                                // mark req is killed
+						else                 { fd_tab.erase(it) ; req.dealloc() ; }                           // dealloc when req can be reused, i.e. after Kill and Close
 					} break ;
 				DF}
 			} break ;
@@ -391,7 +391,7 @@ static bool/*interrupted*/ _engine_loop() {
 				EngineClosureJob& ecj = closure.ecj  ;
 				JobExec         & je  = ecj.job_exec ;
 				trace("job",ecj.proc,je) ;
-				Req::s_new_etas() ;                                                              // regularly adjust queued job priorities if necessary
+				Req::s_new_etas() ;                                                                           // regularly adjust queued job priorities if necessary
 				switch (ecj.proc) {
 					//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					case JobRpcProc::Start       : je.started     ( ::move(ecj.start.start) ,ecj.start.report , ecj.start.report_unlnks , ecj.start.txt , ecj.start.msg ) ; break ;
@@ -414,7 +414,7 @@ static bool/*interrupted*/ _engine_loop() {
 						::vector<Dep> deps ; deps.reserve(ecjm.deps.size()) ;
 						for( auto const& [dn,dd] : ecjm.deps ) deps.emplace_back(Node(dn),dd) ;
 						JobMngtRpcReply jmrr = je.job_analysis(ecjm.proc,deps) ;
-						jmrr.fd = ecjm.fd ;                                                      // seq_id will be filled in by send_reply
+						jmrr.fd = ecjm.fd ;                                                                   // seq_id will be filled in by send_reply
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						Backends::send_reply( +je , ::move(jmrr) ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

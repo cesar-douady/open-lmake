@@ -23,59 +23,61 @@ else :
 #_interface = _socket.getfqdn()
 #_group     = _os.getgroups()[0]
 
+# /!\ default values must stay in sync with src/lmakeserver/config.hh
 config = pdict(
-	disk_date_precision = 0.010         # in seconds, precisions of dates on disk, must account for date granularity and date discrepancy between executing hosts and disk servers
-,	heartbeat           = 10            # in seconds, minimum interval between 2 heartbeat checks (and before first one) for the same job (no heartbeat if None)
-,	heartbeat_tick      =  0.1          # in seconds, minimum internval between 2 heartbeat checks (globally)                             (no heartbeat if None)
-,	link_support        = 'Full'        # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
-#,	local_admin_dir     = 'LMAKE_LOCAL' # directory in which to store data that are private to the server (not accessed by remote executing hosts) (default is within LMAKE dir)
-,	max_dep_depth       = 1000          # used to detect infinite recursions and loops
-,	max_error_lines     = 100           # used to limit the number of error lines when not reasonably limited otherwise
-,	network_delay       = 1             # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
-,	path_max            = 400           # max path length, but a smaller value makes debugging easier (by default, not activated)
-#,	reliable_dirs       = False         # if true, close to open coherence is deemed to encompass enclosing directory coherence (improve performances)
-#	                                    # - forced true if only local backend is used
-#	                                    # - set   true  for ceph
-#	                                    # - leave false for NFS
-,	sub_repos          = []             # list of sub_repos
-,	console = pdict(                    # tailor output lines
-		date_precision = None           # number of second decimals in the timestamp field
-	,	has_exec_time  = True           # if True, output the exec_time field
-	,	history_days   = 7              # number of days during which output logs are kept in LMAKE/outputs
-	,	host_length    = None           # length of the host field (lines will be misaligned if a host is longer)
-	,	show_eta       = True           # if True, the title includes the ETA of the lmake command
+	disk_date_precision = 0.010                             # in seconds, precisions of dates on disk, must account for date granularity and date discrepancy between executing hosts and disk servers
+,	heartbeat           = 10                                # in seconds, minimum interval between 2 heartbeat checks (and before first one) for the same job (no heartbeat if None)
+,	heartbeat_tick      = 0.1                               # in seconds, minimum internval between 2 heartbeat checks (globally)                             (no heartbeat if None)
+,	link_support        = 'Full'                            # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
+#,	local_admin_dir     = '/path/to/local/disk/LMAKE_LOCAL' # directory in which to store data that are private to the server (not accessed by remote executing hosts) (default is within LMAKE dir)
+#	                                                          open-lmake ensures unicity between repos, so a hard-coded value is ok
+,	max_dep_depth       = 1000                              # used to detect infinite recursions and loops
+,	max_error_lines     = 100                               # used to limit the number of error lines when not reasonably limited otherwise
+,	network_delay       = 1                                 # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
+,	path_max            = 400                               # max path length, smaller values make debugging easier (if None, not activated)
+,	reliable_dirs       = False                             # if true, close to open coherence is deemed to encompass enclosing directory coherence (improve performances)
+#	                                                          - forced true if only local backend is used
+#	                                                          - set   true  for ceph
+#	                                                          - leave false for NFS
+,	sub_repos           = []                                # list of sub_repos
+,	console = pdict(                                        # tailor output lines
+		date_precision = 0                                  # number of second decimals in the timestamp field (None means no timestamp field)
+	,	has_exec_time  = True                               # if True, output the exec_time field
+	,	history_days   = 7                                  # number of days during which output logs are kept in LMAKE/outputs (0 or None means no history)
+	,	host_length    = None                               # length of the host field (lines will be misaligned if a host is longer) (0 or None means no host field)
+	,	show_eta       = True                               # if True, the title includes the ETA of the lmake command
 	)
-,	backends = pdict(                                                 # PER_BACKEND : provide a default configuration for each backend
-		local = pdict(                                                # entries mention the total availability of resources
-			cpu =     _cpu                                            # total number of cpus available for the process, and hence for all jobs launched locally
-		,	mem = str(_mem>>20)+'M'                                   # total available memory in MBytes, defaults to all available memory
-		,	tmp = str(_tmp>>20)+'M'                                   # total available temporary disk space in MBytes, defaults to free space in current filesystem
+,	backends = pdict(                                       # PER_BACKEND : provide a default configuration for each backend
+		local = pdict(                                      # entries mention the total availability of resources
+			cpu =     _cpu                                  # total number of cpus available for the process, and hence for all jobs launched locally
+		,	mem = str(_mem>>20)+'M'                         # total available memory in MBytes, defaults to all available memory
+		,	tmp = str(_tmp>>20)+'M'                         # total available temporary disk space in MBytes, defaults to free space in current filesystem
 		)
 	#,	sge = pdict(
-	#		interface         = _interface                            # address at which lmake can be contacted from jobs launched by this backend, can be :
-	#		                                                          # - ''                     : loop-back address (127.0.0.1) for local backend, hostname for remote backends
-	#		                                                          # - standard dot notation  : for example '192.168.0.1'
-	#		                                                          # - network interface name : the address of the host on this interface (as shown by ifconfig)
-	#		                                                          # - a host name            : the address of the host as found in networkd database (as shown by ping)
-	#		                                                          # - default is loopback for local backend and hostname for the others
-	#	,	bin               = '/opt/sge/bin/ls-amd64'               # directory where sge binaries are located
-	#	,	cell              = 'default'                             # cell     used for SGE job submission, by default, SGE automatically determines it
-	#	,	cluster           = 'p6444'                               # cluseter used for SGE job submission, by default, SGE automatically determines it
-	#	,	default_prio      = 0                                     # default priority to use if none is specified on the lmake command line (this is the default)
-	#	,	n_max_queued_jobs = 10                                    # max number of queued jobs for a given set of asked resources
-	#	,	repo_key          = _osp.basename(_os.getcwd())           # prefix used before job name to name slurm jobs (this is the default if not specified)
-	#	,	root              = '/opt/sge'                            # root directory of the SGE installation
-	#	,	cpu_resource      = 'cpu'                                 # resource used to require cpus                 (e.g. qsub -l cpu=1   to require 1 cpu ), not managed if not specified
-	#	,	mem_resource      = 'mem'                                 # resource used to require memory         in MB (e.g. qsub -l mem=10  to require 10 MB ), not managed if not specified
-	#	,	tmp_resource      = 'tmp'                                 # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified
+	#		interface         = _interface                  # address at which lmake can be contacted from jobs launched by this backend, can be :
+	#		                                                  - ''                     : loop-back address (127.0.0.1) for local backend, hostname for remote backends
+	#		                                                  - standard dot notation  : for example '192.168.0.1'
+	#		                                                  - network interface name : the address of the host on this interface (as shown by ifconfig)
+	#		                                                  - a host name            : the address of the host as found in networkd database (as shown by ping)
+	#		                                                  - default is loopback for local backend and hostname for the others
+	#	,	bin               = '/opt/sge/bin/ls-amd64'     # directory where sge binaries are located
+	#	,	cell              = 'default'                   # cell     used for SGE job submission, by default, SGE automatically determines it
+	#	,	cluster           = 'p6444'                     # cluseter used for SGE job submission, by default, SGE automatically determines it
+	#	,	default_prio      = 0                           # default priority to use if none is specified on the lmake command line (this is the default)
+	#	,	n_max_queued_jobs = 10                          # max number of queued jobs for a given set of asked resources
+	#	,	repo_key          = _osp.basename(_os.getcwd()) # prefix used before job name to name slurm jobs (this is the default if not specified)
+	#	,	root              = '/opt/sge'                  # root directory of the SGE installation
+	#	,	cpu_resource      = 'cpu'                       # resource used to require cpus                 (e.g. qsub -l cpu=1   to require 1 cpu ), not managed if not specified
+	#	,	mem_resource      = 'mem'                       # resource used to require memory         in MB (e.g. qsub -l mem=10  to require 10 MB ), not managed if not specified
+	#	,	tmp_resource      = 'tmp'                       # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified
 	#	)
 	#,	slurm = pdict(
-	#		interface         = _interface                            # cf sge entry above
-	#	,	config            = '/etc/slurm/slurm.conf'               # config file (this is the default value if not specified)
-	#	,	n_max_queued_jobs = 10                                    # max number of queued jobs for a given set of asked resources
-	#	,	repo_key          = _osp.basename(_os.getcwd())           # prefix used before job name to name slurm jobs
-	#	,	use_nice          = True                                  # if True (default is False), nice value is used to automatically prioritize jobs between repositories
-	#		                                                          # requires slurm configuration collaboration
+	#		interface         = _interface                  # cf sge entry above
+	#	,	config            = '/etc/slurm/slurm.conf'     # config file (this is the default value if not specified)
+	#	,	n_max_queued_jobs = 10                          # max number of queued jobs for a given set of asked resources
+	#	,	repo_key          = _osp.basename(_os.getcwd()) # prefix used before job name to name slurm jobs
+	#	,	use_nice          = True                        # if True (default is False), nice value is used to automatically prioritize jobs between repositories
+	#		                                                # requires slurm configuration collaboration
 	#	)
 	)
 ,	debug = pdict({

@@ -210,10 +210,10 @@ namespace Engine {
 		// Global
 		EngineClosure(GP p) : kind{Kind::Global} , ecg{.proc=p} {}
 		// Req
-		EngineClosure(RP p,R r,Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},ecr{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR(p==RP::Make                ) ; }
-		EngineClosure(RP p,    Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},ecr{.proc=p,       .in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR(p!=RP::Make&&p>=RP::HasArgs) ; }
-		EngineClosure(RP p,R r,Fd ifd,Fd ofd                          ) : kind{K::Req},ecr{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill                ) ; }
-		EngineClosure(RP p,R r                                        ) : kind{K::Req},ecr{.proc=p,.req=r                                             } { SWEAR(p==RP::Close               ) ; }
+		EngineClosure(RP p,R r,Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},ecr{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR( p==RP::Make                 ) ; }
+		EngineClosure(RP p,    Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},ecr{.proc=p,       .in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR( p!=RP::Make&&p>=RP::HasArgs ) ; }
+		EngineClosure(RP p,R r,Fd ifd,Fd ofd                          ) : kind{K::Req},ecr{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd                      } { SWEAR( p==RP::Kill || p==RP::None  ) ; }
+		EngineClosure(RP p,R r                                        ) : kind{K::Req},ecr{.proc=p,.req=r                                             } { SWEAR( p==RP::Close                ) ; }
 		// Job
 		EngineClosure( JRP p , JE&& je , JobInfoStart&& jis , bool r , ::vmap<Node,FileActionTag>&& rus={} , ::string&& t={} , ::string&& m={} ) :
 			kind { K::Job                                                                                                       }

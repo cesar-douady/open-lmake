@@ -372,7 +372,7 @@ namespace Backends {
 				/**/                               reply.autodep_env.src_dirs_s    = *g_src_dirs_s                                     ;
 				/**/                               reply.end_attrs.cache_key       = submit_attrs.cache_key                            ;
 				/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
-				/**/                               reply.date_prec                 = g_config->date_prec                               ;
+				/**/                               reply.ddate_prec                = g_config->ddate_prec                              ;
 				/**/                               reply.key                       = g_config->key                                     ;
 				/**/                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
 				/**/                               reply.live_out                  = submit_attrs.live_out                             ;

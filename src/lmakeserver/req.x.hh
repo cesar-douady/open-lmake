@@ -83,7 +83,7 @@ namespace Engine {
 		void zombie(bool z)       { SWEAR(+self) ; _s_zombie_tab[+self] = z ; }                            // ensure Req 0 is always zombie
 		// services
 		void make   (EngineClosureReq const&) ;
-		void kill   (                       ) ;
+		void kill   (bool ctrl_c            ) ;
 		void close  (                       ) ;
 		void chk_end(                       ) ;
 		void alloc  (                       ) ;

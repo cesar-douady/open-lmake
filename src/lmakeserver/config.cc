@@ -26,10 +26,7 @@ namespace Engine {
 	}
 
 	::string& operator+=( ::string& os , Config const& sc ) {
-		os << "Config("
-			/**/ << sc.db_version.major <<'.'<< sc.db_version.minor
-			<<','<< sc.lnk_support
-		;
+		/**/                                          os << "Config(" << sc.lnk_support       ;
 		if (sc.max_dep_depth       )                  os <<",MD" << sc.max_dep_depth          ;
 		if (sc.max_err_lines       )                  os <<",EL" << sc.max_err_lines          ;
 		if (sc.path_max!=size_t(-1))                  os <<",PM" << sc.path_max               ;
@@ -65,7 +62,6 @@ namespace Engine {
 	}
 
 	Config::Config(Dict const& py_map) : booted{true} {                                                                                // if config is read from makefiles, it is booted
-		db_version = Version::Db ;                                                                                                     // record current version
 		// generate a random key
 		::string buf_char = AcFd("/dev/urandom").read(false/*no_file_ok*/,sizeof(uint64_t)) ;
 		uint64_t buf_int  ;                                                                   ::memcpy( &buf_int , buf_char.data() , sizeof(buf_int) ) ;
@@ -73,16 +69,21 @@ namespace Engine {
 		//
 		::vector_s fields = {{}} ;
 		try {
-			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) date_prec              = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
+			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) ddate_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
 			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())           ;
 			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
 			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
 			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "path_max"            ; if (py_map.contains(fields[0])) path_max               = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs          =                           +py_map[fields[0]]                          ;
 			//
+			fields[0] = "path_max" ;
+			if (py_map.contains(fields[0])) {
+				Object const& py_path_max = py_map[fields[0]] ;
+				if (py_path_max==None) path_max = size_t(-1                     ) ; // deactivate
+				else                   path_max = size_t(py_path_max.as_a<Int>()) ;
+			}
 			fields[0] = "link_support" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_lnk_support = py_map[fields[0]] ;
@@ -98,8 +99,8 @@ namespace Engine {
 				fields[1] = "date_precision" ;
 				if (py_console.contains(fields[1])) {
 					Object const& py_date_prec = py_console[fields[1]] ;
-					if (py_date_prec==None) console.date_prec = uint8_t(-1)                                    ;
-					else                    console.date_prec = static_cast<uint8_t>(py_date_prec.as_a<Int>()) ;
+					if (py_date_prec==None)   console.date_prec = uint8_t(-1                      ) ;
+					else                    { console.date_prec = uint8_t(py_date_prec.as_a<Int>()) ; throw_unless(console.date_prec<=9,"must be at most 9") ; }
 				}
 				fields[1] = "has_exec_time" ;
 				if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
@@ -234,15 +235,14 @@ namespace Engine {
 		// clean
 		//
 		res << "clean :\n" ;
-		/**/                         res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		/**/                         res << "\tlink_support    : " << lnk_support                             <<'\n' ;
-		/**/                         res << "\tkey             : " << key                                     <<'\n' ;
-		if (+user_local_admin_dir_s) res << "\tlocal_admin_dir : " << no_slash(user_local_admin_dir_s)        <<'\n' ;
+		/**/                         res << "\tlink_support    : " << lnk_support                      <<'\n' ;
+		/**/                         res << "\tkey             : " << key                              <<'\n' ;
+		if (+user_local_admin_dir_s) res << "\tlocal_admin_dir : " << no_slash(user_local_admin_dir_s) <<'\n' ;
 		//
 		// static
 		//
 		res << "static :\n" ;
-		/**/                             res << "\tdisk_date_precision : " << date_prec     .short_str() <<'\n' ;
+		/**/                             res << "\tdisk_date_precision : " << ddate_prec.short_str()     <<'\n' ;
 		if (heartbeat     >Delay()     ) res << "\theartbeat           : " << heartbeat     .short_str() <<'\n' ;
 		if (heartbeat_tick>Delay()     ) res << "\theartbeat_tick      : " << heartbeat_tick.short_str() <<'\n' ;
 		if (max_dep_depth!=DepDepth(-1)) res << "\tmax_dep_depth       : " << size_t(max_dep_depth)      <<'\n' ;

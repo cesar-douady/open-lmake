@@ -86,7 +86,8 @@ namespace Engine {
 			case ReqProc::Mark   :
 			case ReqProc::Show   : os <<                 ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
 			case ReqProc::Make   : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
-			case ReqProc::Kill   : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
+			case ReqProc::Kill   :
+			case ReqProc::None   : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
 			case ReqProc::Close  : os << ecr.req                                                                             ; break ;
 		DF}
 		return os <<')' ;

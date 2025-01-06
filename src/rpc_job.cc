@@ -445,7 +445,7 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	if (+jsrr.job_space          ) os <<','  << jsrr.job_space              ;
 	if ( jsrr.keep_tmp           ) os <<','  << "keep"                      ;
 	if (+jsrr.cwd_s              ) os <<','  << jsrr.cwd_s                  ;
-	if (+jsrr.date_prec          ) os <<','  << jsrr.date_prec              ;
+	if (+jsrr.ddate_prec         ) os <<','  << jsrr.ddate_prec             ;
 	/**/                           os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable EnvPassMrkr value
 	/**/                           os <<','  << jsrr.interpreter            ;
 	/**/                           os <<','  << jsrr.kill_sigs              ;

@@ -683,7 +683,7 @@ struct JobStartRpcReply {
 		::serdes(s,autodep_env   ) ;
 		::serdes(s,cmd           ) ;
 		::serdes(s,cwd_s         ) ;
-		::serdes(s,date_prec     ) ;
+		::serdes(s,ddate_prec    ) ;
 		::serdes(s,deps          ) ;
 		::serdes(s,end_attrs     ) ;
 		::serdes(s,env           ) ;
@@ -722,7 +722,7 @@ struct JobStartRpcReply {
 	AutodepEnv               autodep_env    ;                       //
 	::pair_ss/*script,call*/ cmd            ;                       //
 	::string                 cwd_s          ;                       //
-	Time::Delay              date_prec      ;                       //
+	Time::Delay              ddate_prec     ;                       //
 	::vmap_s<DepDigest>      deps           ;                       // deps already accessed (always includes static deps)
 	EndAttrs                 end_attrs      ;
 	::vmap_ss                env            ;                       //

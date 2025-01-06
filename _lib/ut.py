@@ -46,7 +46,7 @@ def lmake(*args,rc=0,summary=None,**kwds) :
 					sum_cnt[k] += 1
 					break
 			else :
-				m = re.fullmatch(r'(?P<key>\w+) .*',l)
+				m = re.fullmatch(r'(\d\d:\d\d:\d\d(\.\d+)? )?(?P<key>\w+) .*',l)
 				if not m : continue
 				k = m.group('key')
 				if k not in cnt : raise RuntimeError(f'unexpected key {k}')

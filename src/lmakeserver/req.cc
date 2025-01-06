@@ -73,10 +73,10 @@ namespace Engine {
 		chk_end() ;
 	}
 
-	void Req::kill() {
+	void Req::kill(bool ctrl_c) {
 		Trace trace("Rkill",self) ;
-		SWEAR(zombie()) ;                                               // zombie has already been set
-		audit_ctrl_c( self->audit_fd , self->log_fd , self->options ) ;
+		SWEAR(zombie()) ;                                                           // zombie has already been set
+		if (ctrl_c) audit_ctrl_c( self->audit_fd , self->log_fd , self->options ) ;
 		Backend::s_kill_req(+self) ;
 	}
 
