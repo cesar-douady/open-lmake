@@ -35,7 +35,6 @@
 #include <vector>
 
 #include "sys_config.h"
-#include "non_portable.hh"
 
 using namespace std ; // use std at top level so one write ::stuff instead of std::stuff
 using std::getline  ; // special case getline which also has a C version that hides std::getline
@@ -1000,8 +999,8 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 )
 
 extern thread_local MutexLvl t_mutex_lvl ;
-template<MutexLvl Lvl_,bool S=false/*shared*/> struct _Mutex : ::conditional_t<S,::shared_timed_mutex,::timed_mutex> {
-	using Base =                                               ::conditional_t<S,::shared_timed_mutex,::timed_mutex> ;
+template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,::shared_timed_mutex,::timed_mutex> {
+	using Base =                                              ::conditional_t<S,::shared_timed_mutex,::timed_mutex> ;
 	static constexpr MutexLvl           Lvl     = Lvl_ ;
 	static constexpr ::chrono::duration Timeout = 30s  ; // crash on dead-lock by setting a comfortable timeout on locks (regression passes with 35ms, so 30s should be very comfortable)
 	// services
@@ -1017,10 +1016,8 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct _Mutex : ::conditional_t<S
 		void swear_locked_shared() requires(S) {}
 	#endif
 } ;
-template<MutexLvl Lvl> using Mutex       = _Mutex<Lvl,false/*shared*/> ;
-template<MutexLvl Lvl> using SharedMutex = _Mutex<Lvl,true /*shared*/> ;
 
-template<class M,bool S=false/*shared*/> struct Lock {
+template<class M,bool S=false> struct Lock {
 	// cxtors & casts
 	Lock (                          ) = default ;
 	Lock ( Lock&& l                 )              { self = ::move(l) ;      }
@@ -1046,7 +1043,6 @@ template<class M,bool S=false/*shared*/> struct Lock {
 	MutexLvl _lvl   = MutexLvl::None/*garbage*/ ; // valid when _locked
 	bool    _locked = false                     ;
 } ;
-template<class M,bool S=true/*shared*/> using SharedLock = Lock<M,S/*shared*/> ;
 
 //
 // miscellaneous

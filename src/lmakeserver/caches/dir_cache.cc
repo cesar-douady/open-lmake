@@ -59,17 +59,25 @@ namespace Caches {
 	void DirCache::config(Config::Cache const& config) {
 		::map_ss dct = mk_map(config.dct) ;
 		//
+		if ( auto it=dct.find("dir" ) ; it!=dct.end() ) dir_s  = with_slash(it->second) ;
+		else                                            throw "dir not found"s  ;
+		//
 		Hash::Xxh repo_hash ;
-		if ( auto it=dct.find("repo") ; it!=dct.end() ) repo_hash.update(it->second)                  ; else throw "repo not found"s ;
-		if ( auto it=dct.find("dir" ) ; it!=dct.end() ) dir_s  =         it->second+'/'               ; else throw "dir not found"s  ;
-		/**/                                            repo_s = "repo-"+repo_hash.digest().hex()+'/' ;
+		if ( auto it=dct.find("repo") ; it!=dct.end() ) repo_hash.update(it->second              ) ;
+		else                                            repo_hash.update(no_slash(*g_repo_root_s)) ;
+		repo_s = "repo-"+repo_hash.digest().hex()+'/' ;
 		//
 		try                     { chk_version(true/*may_init*/,dir_s+AdminDirS) ;                    }
 		catch (::string const&) { throw "cache version mismatch, running without "+no_slash(dir_s) ; }
 		//
 		dir_fd = { dir_s , Fd::Dir , true/*no_std*/ } ;                                  // avoid poluting standard descriptors
 		if (!dir_fd) throw "cannot configure cache "+no_slash(dir_s)+" : no directory" ;
-		sz = from_string_with_units<size_t>(strip(AcFd(dir_s+AdminDirS+"size").read())) ;
+		//
+		::string sz_file = cat(AdminDirS,"size") ;
+		AcFd     sz_fd   { dir_fd , sz_file }    ;
+		throw_unless( +sz_fd , "file ",dir_s,sz_file," must exist and contain the size of the cache" ) ;
+		try                       { sz = from_string_with_units<size_t>(strip(sz_fd.read())) ; }
+		catch (::string const& e) { throw "cannot read "+dir_s+sz_file+" : "+e ;               }
 	}
 
 	// START_OF_VERSIONING

@@ -17,9 +17,9 @@
 // inconsistent state is never acceptable
 
 namespace Store {
-
-	template<bool AutoLock> using UniqueLock = ::conditional_t<AutoLock,::Lock      <SharedMutex<MutexLvl::File>>,NoLock<SharedMutex<MutexLvl::File>>> ;
-	template<bool AutoLock> using SharedLock = ::conditional_t<AutoLock,::SharedLock<SharedMutex<MutexLvl::File>>,NoLock<SharedMutex<MutexLvl::File>>> ;
+	//                                                                                             Shared Shared                            Shared
+	template<bool AutoLock> using UniqueLock = ::conditional_t<AutoLock,::Lock<Mutex<MutexLvl::File,true>,false>,NoLock<Mutex<MutexLvl::File,true>>> ;
+	template<bool AutoLock> using SharedLock = ::conditional_t<AutoLock,::Lock<Mutex<MutexLvl::File,true>,true >,NoLock<Mutex<MutexLvl::File,true>>> ;
 
 	template<bool AutoLock,size_t Capacity> struct File {
 		using ULock = UniqueLock<AutoLock> ;
@@ -89,7 +89,7 @@ namespace Store {
 		bool             writable  = false   ;
 		bool             keep_open = false   ;
 	protected :
-		SharedMutex<MutexLvl::File> mutable _mutex ;
+		Mutex<MutexLvl::File,true/*Shared*/> mutable _mutex ;
 	private :
 		AcFd _fd ;
 	} ;

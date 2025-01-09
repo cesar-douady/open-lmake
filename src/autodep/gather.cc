@@ -263,14 +263,14 @@ Status Gather::exec_child() {
 		int   sig = _kill_step==kill_sigs.size() ? SIGKILL : kill_sigs[_kill_step] ;
 		Pdate now { New }                                                          ;
 		trace("kill_sig",sig) ;
-		_exec_trace(now,"kill",cat(sig)) ;
 		//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if ( sig && _child.pid>1 ) kill_process(_child.pid,sig,as_session/*as_group*/) ;
 		//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		set_status(Status::Killed) ;
 		if      (_kill_step==kill_sigs.size()) _end_kill = Pdate::Future       ;
-		else if (!_end_kill                  ) _end_kill = now+Delay(1)        ;
+		else if (!_end_kill                  ) _end_kill = now       +Delay(1) ;
 		else                                   _end_kill = _end_kill +Delay(1) ;
+		_exec_trace(now,"kill",cat(sig)) ;
 		_kill_step++ ;
 		trace("kill_done",_end_kill) ;
 	} ;

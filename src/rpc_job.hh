@@ -888,15 +888,15 @@ struct JobInfoStart {
 	bool operator+() const { return +pre_start ; }
 	// data
 	// START_OF_VERSIONING
-	Hash::Crc        rule_cmd_crc = {}         ;
-	::vector_s       stems        = {}         ;
-	Time::Pdate      eta          = {}         ;
-	SubmitAttrs      submit_attrs = {}         ;
-	::vmap_ss        rsrcs        = {}         ;
-	in_addr_t        host         = NoSockAddr ;
-	JobStartRpcReq   pre_start    = {}         ;
-	JobStartRpcReply start        = {}         ;
-	::string         stderr       = {}         ;
+	Hash::Crc        rule_cmd_crc = {} ;
+	::vector_s       stems        = {} ;
+	Time::Pdate      eta          = {} ;
+	SubmitAttrs      submit_attrs = {} ;
+	::vmap_ss        rsrcs        = {} ;
+	in_addr_t        host         = 0  ;
+	JobStartRpcReq   pre_start    = {} ;
+	JobStartRpcReply start        = {} ;
+	::string         stderr       = {} ;
 	// END_OF_VERSIONING
 } ;
 

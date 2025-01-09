@@ -9,7 +9,10 @@
 #include "fd.hh"
 
 #ifndef HOST_NAME_MAX
-	#define HOST_NAME_MAX 255 // SYSv2 limits hostnames to 255 with no macro definition
+	#define HOST_NAME_MAX 255  // SYSv2 limits hostnames to 255 with no macro definition
+#endif
+#ifndef DOMAIN_NAME_MAX
+	#define DOMAIN_NAME_MAX 64 // from man getdomainname
 #endif
 
 using namespace Time ;
@@ -30,8 +33,17 @@ using namespace Time ;
 	return buf ;
 }
 
-::string const& SockFd::s_host(in_addr_t a) {                  // implement a cache as getnameinfo implies network access and can be rather long
-	static ::umap<in_addr_t,::string> s_tab{{NoSockAddr,""}} ; // pre-populate to return empty for local accesses
+::string fqdn() {
+	char buf[DOMAIN_NAME_MAX+1] ;
+	int rc                      = ::getdomainname(buf,sizeof(buf)) ;
+	if (rc<0          ) return host()         ;
+	if (!buf[0]       ) return host()         ;
+	if (buf=="(none)"s) return host()         ;
+	/**/                return host()+'.'+buf ;
+}
+
+::string const& SockFd::s_host(in_addr_t a) {                                // implement a cache as getnameinfo implies network access and can be rather long
+	static ::umap<in_addr_t,::string> s_tab { {0,""} , {LoopBackAddr,""} } ; // pre-populate to return empty for local accesses
 	//
 	auto it = s_tab.find(a) ;
 	if (it==s_tab.end()) {
@@ -57,7 +69,6 @@ SlaveSockFd ServerSockFd::accept() {
 void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , Delay timeout ) {
 	if (!self) init() ;
 	swear_prod(fd>=0,"cannot create socket") ;
-	static_assert( sizeof(in_port_t)==2 && sizeof(in_addr_t)==4 ) ;                            // else use adequate htons/htonl according to the sizes
 	struct sockaddr_in sa       = s_sockaddr(server,port) ;
 	Pdate              end      ;
 	bool               too_late = false                   ;
@@ -88,15 +99,15 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 in_addr_t SockFd::s_addr(::string const& server) {
 	if (!server) return LoopBackAddr ;
 	// by standard dot notation
-	{	in_addr_t addr   = 0     ;                                                                                  // address being decoded
-		int       byte   = 0     ;                                                                                  // ensure component is less than 256
-		int       n      = 0     ;                                                                                  // ensure there are 4 components
-		bool      first  = true  ;                                                                                  // prevent empty components
-		bool      first0 = false ;                                                                                  // prevent leading 0's (unless component is 0)
+	{	in_addr_t addr   = 0     ;                                                                    // address being decoded
+		int       byte   = 0     ;                                                                    // ensure component is less than 256
+		int       n      = 0     ;                                                                    // ensure there are 4 components
+		bool      first  = true  ;                                                                    // prevent empty components
+		bool      first0 = false ;                                                                    // prevent leading 0's (unless component is 0)
 		for( char c : server ) {
 			if (c=='.') {
-				if (first) goto ByIfce ;
-				addr  = (addr<<8) | byte ;                                                                          // network order is big endian
+				if (first) goto ByName ;
+				addr  = (addr<<8) | byte ;                                                            // dot notation is big endian
 				byte  = 0                ;
 				first = true             ;
 				n++ ;
@@ -105,38 +116,41 @@ in_addr_t SockFd::s_addr(::string const& server) {
 			if ( c>='0' && c<='9' ) {
 				byte = byte*10 + (c-'0') ;
 				if      (first    ) { first0 = first && c=='0' ; first  = false ; }
-				else if (first0   )   goto ByIfce ;
-				if      (byte>=256)   goto ByIfce ;
+				else if (first0   )   goto ByName ;
+				if      (byte>=256)   goto ByName ;
 				continue ;
 			}
-			goto ByIfce ;
+			goto ByName ;
 		}
-		if (first) goto ByIfce ;
-		if (n!=4 ) goto ByIfce ;
+		if (first) goto ByName ;
+		if (n!=4 ) goto ByName ;
 		return addr ;
 	}
-ByIfce : ;
-	{	struct ifaddrs* ifa ;
-		if (::getifaddrs(&ifa)==0) {
-			for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next )
-				if ( p->ifa_addr && p->ifa_addr->sa_family==AF_INET  && p->ifa_name==server ) {
-					in_addr_t addr = ntohl( reinterpret_cast<struct sockaddr_in*>(p->ifa_addr)->sin_addr.s_addr ) ; // dont prefix with :: as ntohl may be a macro
-					freeifaddrs(ifa) ;
-					return addr ;
-				}
-			freeifaddrs(ifa) ;
-		}
-	}
-	// by name
-	{	struct addrinfo hint = {} ;
-		hint.ai_family   = AF_INET     ;
-		hint.ai_socktype = SOCK_STREAM ;
-		struct addrinfo* ai ;
-		int              rc  = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai ) ;
+ByName :
+	{	struct addrinfo  hint = {}                                                      ; hint.ai_family = AF_INET ; hint.ai_socktype = SOCK_STREAM ;
+		struct addrinfo* ai   ;
+		int              rc   = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai ) ;
 		if (rc!=0) throw "cannot get addr of "+server+" ("+rc+')' ;
-		static_assert(sizeof(in_addr_t)==4) ;                                                                       // else use adequate ntohl/ntohs
-		in_addr_t addr = ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ;               // dont prefix with :: as ntohl may be a macro
+		in_addr_t addr = ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
 		freeaddrinfo(ai) ;
 		return addr ;
 	}
 }
+
+::vmap_s<in_addr_t> SockFd::s_addrs_self(::string const& ifce) {
+	::vmap_s<in_addr_t> res ;
+	struct ifaddrs*     ifa ;
+	if (::getifaddrs(&ifa)<0) return {{{},LoopBackAddr}} ;
+	for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next ) {
+		if (!( p->ifa_addr && p->ifa_addr->sa_family==AF_INET )) continue ;
+		in_addr_t addr = ntohl(reinterpret_cast<struct sockaddr_in*>(p->ifa_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
+		if (+ifce) { if (p->ifa_name      !=ifce) continue ; }                                        // searching provided interface
+		else       { if (((addr>>24)&0xff)==127 ) continue ; }                                        // searching for any non-loopback interface
+		res.emplace_back(p->ifa_name,addr) ;
+	}
+	freeifaddrs(ifa) ;
+	if (+res ) return res                 ;
+	if (+ifce) return {{{},s_addr(ifce)}} ;                                                           // ifce may actually be a name
+	/**/       return {{{},LoopBackAddr}} ;
+}
+

@@ -181,16 +181,11 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						trace("stop_requested") ;
 						goto Done ;
 					}
-					switch (kind) {
-						case EventKind::Int :
-							SignalFd(fd).read() ;
-						break ;
-						case EventKind::Watch : {
-							struct inotify_event event ;
-							ssize_t              cnt   = ::read( _g_watch_fd , &event , sizeof(event) ) ;
-							SWEAR(cnt==sizeof(event),cnt) ;
-						} break ;
-					DF}
+					if (kind==EventKind::Watch) {
+						struct inotify_event event ;
+						ssize_t              cnt   = ::read( _g_watch_fd , &event , sizeof(event) ) ;
+						SWEAR(cnt==sizeof(event),cnt) ;
+					}
 					for( Req r : Req::s_reqs_by_start ) {
 						trace("all_zombie",r) ;
 						r.zombie(true) ;

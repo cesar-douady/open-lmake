@@ -136,7 +136,7 @@ public :
 	Fd                                child_stderr     = Fd::Stderr                                 ;
 	umap_s<NodeIdx   >                access_map       ;
 	vmap_s<AccessInfo>                accesses         ;
-	in_addr_t                         addr             = NoSockAddr                                 ; // local addr to which we can be contacted by running job
+	in_addr_t                         addr             = 0                                          ; // local addr to which we can be contacted by running job
 	::atomic<bool>                    as_session       = false                                      ; // if true <=> process is launched in its own group
 	AutodepEnv                        autodep_env      ;
 	::function<::vmap_s<DepDigest>()> cur_deps_cb      = [&]()->::vmap_s<DepDigest> { return {} ; } ;

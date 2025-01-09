@@ -611,8 +611,8 @@ namespace Engine {
 								SubmitAttrs  const& sa       = rs.submit_attrs         ;
 								::string            pressure = sa.pressure.short_str() ;
 								//
-								if (+sa.reason         ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
-								if (rs.host!=NoSockAddr) push_entry( "host"   , SockFd::s_host(rs.host)            ) ;
+								if (+sa.reason) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
+								if (rs.host   ) push_entry( "host"   , SockFd::s_host(rs.host)            ) ;
 								//
 								if (+rs.eta) {
 									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(sa.pressure))+" )"      , Color::None,false/*protect*/ ) ;

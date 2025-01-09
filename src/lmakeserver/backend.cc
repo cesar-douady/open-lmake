@@ -15,6 +15,7 @@ using namespace Engine ;
 namespace Backends {
 
 	void send_reply( Job job , JobMngtRpcReply&& jmrr ) {
+		Trace trace("send_reply",job) ;
 		Lock lock { Backend::_s_mutex }             ;
 		auto it   = Backend::_s_start_tab.find(job) ;
 		if (it==Backend::_s_start_tab.end()) return ;         // job is dead without waiting for reply, curious but possible
@@ -29,6 +30,7 @@ namespace Backends {
 			,	Backend::DeferredEntry { e.conn.seq_id , JobExec(job,e.conn.host,e.start_date) }
 			) ;
 		}
+		trace("done") ;
 	}
 
 	//
@@ -514,6 +516,7 @@ namespace Backends {
 				case JobMngtProc::Encode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len , entry.reqs ) ; break ;
 			DF} //!                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
+		trace("done") ;
 		return false/*keep_fd*/ ;
 	}
 
@@ -707,10 +710,25 @@ namespace Backends {
 					} catch (::string const& e) {
 						throw "bad interface for "s+t+'\n'+indent(e,1) ;
 					}
-				} else {
-					ifce = host() ;
 				}
-				be->addr = ServerSockFd::s_addr(ifce) ;
+				::vmap_s<in_addr_t> addrs = ServerSockFd::s_addrs_self(ifce) ;
+				if (addrs.size()>1) {
+					::string msg   = "multiple possible interfaces : " ;
+					::string host_ = host()                            ;
+					::string fqdn_ = fqdn()                            ;
+					First    first ;
+					for( auto const& [ifce,addr] : addrs ) msg << first("",", ") << ifce <<'('<< ServerSockFd::s_addr_str(addr) <<')' ;
+					msg += '\n' ;
+					msg << "consider one of :\n" ;
+					/**/              msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(host_)<<'\n' ;
+					if (fqdn_!=host_) msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(fqdn_)<<'\n' ;
+					for( auto const& [ifce,addr] : addrs ) {
+						msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ifce                          )<<'\n' ;
+						msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ServerSockFd::s_addr_str(addr))<<'\n' ;
+					}
+					throw msg ;
+				}
+				be->addr = addrs[0].second ;
 			}
 			try                       { be->config(cfg.dct,dynamic) ; be->config_err.clear() ; trace("ready",t  ) ; }
 			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e     ; trace("err"  ,t,e) ; } // empty config_err means ready

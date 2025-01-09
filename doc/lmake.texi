@@ -951,7 +951,7 @@ Internally, the granularity is forced to MBytes before any possible rounding lin
 
 @section caches
 
-By default, no cache is configured, but an example can be found in @file{lib/lmake.py}, commented out.
+By default, no cache is configured, but an example can be found in @file{lib/lmake/config.py}, commented out.
 
 @multitable @columnfractions 0.1 0.07 0.83
 @headitem Attribute @tab Default @tab Description
@@ -960,23 +960,30 @@ By default, no cache is configured, but an example can be found in @file{lib/lma
 @tab This attribute specifies the method used by @lmake to cache values.
 In the current version, only 2 tags may be used :
 @itemize @minus
-@item @code{'none'} is a cache that caches nothing. No further configuration is required for such a cache.
-@item @code{'dir'} is a cache working without daemon. The data are stored in a directory.
+@item @code{'none'} is a cache that caches nothing.
+No further configuration is required for such a cache.
+@item @code{'dir'} is a cache working without daemon.
+The data are stored in a directory.
 @end itemize
 @item @code{caches.<dir>.repo}
-@tab -
+@tab @code{lmake.repo_root}
 @tab Valid only when @code{tag} is @code{'dir'}. This attribute specifies a key identifying the repository.
 In order to avoid poluting the cache during typical edit-run-debug loops with data that will never be reused, the cache restrict its data to at most one entry for each job in each repo.
 This attribute is used to identiy a repository.
 If 2 repositories use the same key, then results produced in one will replace those produced in the other one.
 Symetrically, if you use 2 different keys for the same repo, then the cache may store several entries for the same repo.
-Besides this restriction, a classical LRU algorithm is used.
+Besides these considerations, a classical LRU algorithm is used.
 @item @code{caches.<dir>.dir}
 @tab -
 @tab Valid only when @code{tag} is @code{'dir'}.
 This attribute specifies the directory in which the cache puts its data.
 The directory must pre-exist and contain a file @file{LMAKE/size} containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (k, M, G, T, P or E). These refer to base 1024.
+@item @code{caches.<dir>.group}
+@tab -
+@tab Valid only when @code{tag} is @code{'dir'}.
+This attribute specifies the group used when creating entries.
+By default, the default group of the user is used.
 @end multitable
 
 @section debug

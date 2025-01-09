@@ -159,9 +159,9 @@ namespace Engine {
 			return audit_end(ri,with_stats,pfx,{}/*msg*/,stderr,max_stderr_len,exec_time,retry) ;
 		}
 		// data
-		in_addr_t   host       = NoSockAddr ;
+		in_addr_t   host       = 0 ;
 		CoarseDelay cost       ;                                                         // exec time / average number of running job during execution
-		Tokens1     tokens1    = 0          ;
+		Tokens1     tokens1    = 0 ;
 		Pdate       start_date ;
 		Pdate       end_date   ;                                                         // if no end_date, job is stil on going
 	} ;

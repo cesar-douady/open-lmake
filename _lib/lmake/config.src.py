@@ -88,13 +88,12 @@ config = pdict(
 	,	'c' : 'lmake_debug.vscode  (launch job under vscode control)'
 	,	'g' : 'lmake_debug.gdb     (launch interpreter under gdb)'
 	})
-,	caches = pdict(                                                   # PER_CACHE : provide an explanation for each cache method
-	#	dir = pdict(                                                  # when rule specifies cache = 'dir' , this cache is selected
-	#		tag    = 'dir'                                            # specify the caching method, must be one of the supported method
-	#	,	repo   = repo_root                                        # an id that identifies the repository, no more than one entry is stored in the cache for a given job and tag
-	#	,	dir    = '/cache_dir'                                     # the directory in which cached results are stored
-	#	,	size   = 10<<30                                           # the overall size of this cache
-	#	,	group  = _group                                           # the group used to write to the cache. If user does not belong to this group, read-only access is still possible
+,	caches = pdict(                                                  # PER_CACHE : provide an explanation for each cache method
+	#	dir = pdict(                                                 # when rule specifies cache = 'dir' , this cache is selected
+	#		tag   = 'dir'                                            # specify the caching method, must be one of the supported method
+	#	,	repo  = repo_root                                        # an id that identifies the repository, no more than one entry is stored in the cache for a given job and tag
+	#	,	dir   = '/cache_dir'                                     # the directory in which cached results are stored
+	#	,	group = _group                                           # the group used to write to the cache. If user does not belong to this group, read-only access is still possible
 	#	)
 	)
 ,	colors = pdict(

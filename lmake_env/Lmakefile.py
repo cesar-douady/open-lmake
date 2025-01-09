@@ -6,6 +6,7 @@
 import os
 import os.path as osp
 import re
+import socket
 import sys
 import sysconfig
 import tarfile
@@ -22,7 +23,8 @@ from lmake.rules import Rule,PyRule,AntiRule,TraceRule,DirRule
 if 'slurm' in lmake.backends :
 	backend = 'slurm'
 	config.backends.slurm = {
-		'use_nice'          : True
+		'interface'         : socket.getfqdn()
+	,	'use_nice'          : True
 	,	'n_max_queued_jobs' : 10
 	}
 else :

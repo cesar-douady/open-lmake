@@ -17,6 +17,7 @@
 #endif
 
 ::string host() ;
+::string fqdn() ; // fully qualified domain name (includes hostname)
 
 struct AcFd : Fd {
 	friend ::string& operator+=( ::string& , AcFd const& ) ;
@@ -50,14 +51,13 @@ struct LockedFd : Fd {
 	void unlock(      ) { if (fd>=0) flock(fd,  LOCK_UN        ) ; }
 } ;
 
-static constexpr in_addr_t NoSockAddr = 0x7f000001 ;
 struct SockFd : AcFd {
 	friend ::string& operator+=( ::string& , SockFd const& ) ;
-	static constexpr in_addr_t LoopBackAddr = NoSockAddr ;
+	static constexpr in_addr_t LoopBackAddr = 0x7f000001 ;
 	// statics
 	static ::string s_addr_str(in_addr_t addr) {
 		::string res ; res.reserve(15) ;          // 3 digits per level + 5 digits for the port
-		res <<      ((addr>>24)&0xff) ;
+		res <<      ((addr>>24)&0xff) ;           // dot notation is big endian
 		res <<'.'<< ((addr>>16)&0xff) ;
 		res <<'.'<< ((addr>> 8)&0xff) ;
 		res <<'.'<< ((addr>> 0)&0xff) ;
@@ -66,17 +66,18 @@ struct SockFd : AcFd {
 	static struct sockaddr_in  s_sockaddr( in_addr_t a , in_port_t p ) {
 		struct sockaddr_in res {
 			.sin_family = AF_INET
-		,	.sin_port   = htons(p)
-		,	.sin_addr   = { .s_addr=htonl(a) }
+		,	.sin_port   =           htons(p)      // dont prefix with :: as htons may be a macro
+		,	.sin_addr   = { .s_addr=htonl(a) }    // dont prefix with :: as htonl may be a macro
 		,	.sin_zero   = {}
 		} ;
 		return res ;
 	}
-	static ::string const&     s_host     (in_addr_t              ) ;
-	static ::string            s_host     (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                                   ; }
-	static in_port_t           s_port     (::string const& service) { size_t col = _s_col(service) ; return                           from_string<in_port_t>(service.c_str()+col+1)   ; }
-	static ::pair_s<in_port_t> s_host_port(::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_string<in_port_t>(service.c_str()+col+1) } ; }
-	static in_addr_t           s_addr     (::string const& server ) ;
+	static ::string const&     s_host      (in_addr_t              ) ;
+	static ::string            s_host      (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                                   ; }
+	static in_port_t           s_port      (::string const& service) { size_t col = _s_col(service) ; return                           from_string<in_port_t>(service.c_str()+col+1)   ; }
+	static ::pair_s<in_port_t> s_host_port (::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_string<in_port_t>(service.c_str()+col+1) } ; }
+	static in_addr_t           s_addr      (::string const& server ) ;
+	static ::vmap_s<in_addr_t> s_addrs_self(::string const& ifce={}) ;
 	//
 	static ::string s_service( ::string const& host , in_port_t port ) { return host+':'+port                    ; }
 	static ::string s_service( in_addr_t       addr , in_port_t port ) { return s_service(s_addr_str(addr),port) ; }
@@ -104,7 +105,6 @@ public :
 		set_send_timeout   (to) ;
 	}
 	in_addr_t peer_addr() const {
-		static_assert(sizeof(in_addr_t)==4) ;     // else use adequate ntohs/ntohl according to the size
 		struct sockaddr_in peer_addr ;
 		socklen_t          len       = sizeof(peer_addr)                                                           ;
 		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;
@@ -118,7 +118,7 @@ public :
 		int                rc      = ::getsockname( fd , reinterpret_cast<struct sockaddr*>(&my_addr) , &len ) ;
 		SWEAR( rc ==0               , rc  ) ;
 		SWEAR( len==sizeof(my_addr) , len ) ;
-		return ntohs(my_addr.sin_port) ;
+		return ntohs(my_addr.sin_port) ;          // dont prefix with :: as ntohs may be a macro
 	}
 } ;
 

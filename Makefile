@@ -3,7 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-VERSION := 24.12
+VERSION := 25.01
 
 ifneq ($(shell uname),Linux)
     $(error can only compile under Linux)
@@ -242,13 +242,12 @@ LMAKE_DOC_FILES := \
 	$(MAN_FILES)
 
 LMAKE_BASIC_OBJS := \
-	src/disk.o         \
-	src/fd.o           \
-	src/hash.o         \
-	src/lib.o          \
-	src/non_portable.o \
-	src/process.o      \
-	src/time.o         \
+	src/disk.o    \
+	src/fd.o      \
+	src/hash.o    \
+	src/lib.o     \
+	src/process.o \
+	src/time.o    \
 	src/utils.o
 
 LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS:%.o=%$(SAN).o)
@@ -455,6 +454,7 @@ SERVER_SAN_OBJS := \
 
 _bin/lmakeserver : \
 	$(SERVER_SAN_OBJS)                                         \
+	src/non_portable$(SAN).o                                   \
 	src/autodep/gather$(SAN).o                                 \
 	src/autodep/ptrace$(SAN).o                                 \
 	src/lmakeserver/backends/local$(SAN).o                     \
@@ -466,6 +466,7 @@ _bin/lmakeserver : \
 
 bin/lrepair : \
 	$(SERVER_SAN_OBJS)                                         \
+	src/non_portable$(SAN).o                                   \
 	src/autodep/gather$(SAN).o                                 \
 	src/autodep/ptrace$(SAN).o                                 \
 	src/lmakeserver/backends/local$(SAN).o                     \
@@ -557,6 +558,7 @@ REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) src/autodep/job_support.o
 JOB_EXEC_SAN_OBJS := \
 	$(AUTODEP_OBJS:%.o=%$(SAN).o) \
 	src/app$(SAN).o               \
+	src/non_portable$(SAN).o      \
 	src/py$(SAN).o                \
 	src/re$(SAN).o                \
 	src/rpc_job$(SAN).o           \

@@ -188,8 +188,8 @@ namespace Engine {
 	::string& operator+=( ::string& os , JobExec const& je ) {
 		if (!je) return os << "JE()" ;
 		//
-		/**/                     os <<'('<< Job(je)                     ;
-		if (je.host!=NoSockAddr) os <<','<< SockFd::s_addr_str(je.host) ;
+		/**/         os <<'('<< Job(je)                     ;
+		if (je.host) os <<','<< SockFd::s_addr_str(je.host) ;
 		if (je.start_date==je.end_date) {
 			os <<','<< je.start_date ;
 		} else {

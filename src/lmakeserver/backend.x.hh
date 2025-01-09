@@ -92,10 +92,10 @@ namespace Backends {
 				// accesses
 				bool operator+() const { return seq_id ; }
 				// data
-				in_addr_t host     = NoSockAddr ;
-				in_port_t port     = 0          ;
-				SeqId     seq_id   = 0          ;
-				SmallId   small_id = 0          ;
+				in_addr_t host     = 0 ;
+				in_port_t port     = 0 ;
+				SeqId     seq_id   = 0 ;
+				SmallId   small_id = 0 ;
 			} ;
 			// cxtors & casts
 			StartEntry() = default ;
@@ -216,7 +216,7 @@ namespace Backends {
 		/**/                                                                                                          // ... operator| of the submit/add_pressure corresponding values for the job
 		// data
 	public :
-		in_addr_t addr       = NoSockAddr ;
+		in_addr_t addr       = 0 ;
 		::string  config_err ;
 	} ;
 
