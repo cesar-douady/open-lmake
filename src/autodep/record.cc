@@ -236,10 +236,11 @@ Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
 	bool do_read  = _do_read (flags) ;
 	bool do_write = _do_write(flags) ;
 	//
-	if (_no_follow(flags))   c += ".NF" ;
-	if (do_stat          ) { c += ".S"  ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, there may be a further fstat, which is not piggy-backed
-	if (do_read          ) { c += ".R"  ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
-	if (do_write         )   c += ".W"  ;
+	if ( _no_follow(flags)              )   c += ".NF" ;
+	if ( do_stat || do_read || do_write )   c += '.'   ;
+	if ( do_stat                        ) { c += 'S'   ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, there may be a further fstat
+	if ( do_read                        ) { c += 'R'   ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
+	if ( do_write                       )   c += 'W'   ;
 	//
 	if      ( do_write           ) id = r._report_update( file_loc , ::move(real) , ::move(real0) , accesses , ::move(c) ) ;
 	else if ( do_read || do_stat )      r._report_dep   ( file_loc , ::move(real) ,                 accesses , ::move(c) ) ;

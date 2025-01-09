@@ -44,6 +44,16 @@ if __name__!='__main__' :
 		cache = 'dir'
 		cmd   = 'cat {FIRST} {SECOND}'
 
+	class MkDir(Rule):
+		target  = 'mkdir.dut'
+		targets = { 'OUT' : r'mkdir.dir/{*:.*}' }
+		cache   = 'dir'
+		cmd = '''
+			dir={OUT('v1')}
+			mkdir -p $dir
+			> $dir/res
+		'''
+
 else :
 
 	import os
@@ -57,9 +67,12 @@ else :
 
 	ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 ) # check target is out of date
 	ut.lmake( 'hello+auto1.hide' , done=0 ,               new=0 ) # check target is up to date
+	ut.lmake( 'mkdir.dut'        , done=1                       ) # check everything is ok with dirs and empty files
 
 	os.system('mkdir bck ; mv LMAKE *auto* bck')
 	os.system('find CACHE -type f -ls')
 
 	print('hello2',file=open('hello','w'))
-	ut.lmake( 'hello+auto1.hide' , done=1 , hit_done=2 , new=1 ) # check cache hit on common part, and miss when we depend on hello
+	ut.lmake( 'hello+auto1.hide' , done=1     , hit_done=2 , new=1 ) # check cache hit on common part, and miss when we depend on hello
+	ut.lmake( 'mkdir.dut'        , unlinked=1 , hit_done=1         ) # check everything is ok with dirs and empty files (mkdir.dut still exists and is unlinked)
+

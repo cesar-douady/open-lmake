@@ -310,14 +310,16 @@ namespace Disk {
 	}
 
 	FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , bool unlnk_dst , bool mk_read_only ) {
-		FileInfo fi { src_at , src_file } ;
-		FileTag tag = fi.tag()            ;
-		if (unlnk_dst) unlnk(dst_at,dst_file)                                 ;
+		FileInfo fi  { src_at , src_file } ;
+		FileTag  tag = fi.tag()            ;
+		if (unlnk_dst) unlnk(dst_at,dst_file,true/*dir_ok*/)                  ;
 		else           SWEAR( !is_target(dst_at,dst_file) , dst_at,dst_file ) ;
 		switch (tag) {
-			case FileTag::None : break ;
-			case FileTag::Reg  :
-			case FileTag::Exe  : {
+			case FileTag::None  :
+			case FileTag::Dir   : break ; // dirs are like no file
+			case FileTag::Reg   :
+			case FileTag::Empty :
+			case FileTag::Exe   : {
 				dir_guard(dst_at,dst_file) ;
 				AcFd rfd {             src_at , src_file }                                                                                                                             ;
 				AcFd wfd { ::openat( dst_at , dst_file.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0777 & ~(tag==FileTag::Exe?0000:0111) & ~(mk_read_only?0222:0000) ) } ;
