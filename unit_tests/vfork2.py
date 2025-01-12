@@ -35,6 +35,7 @@ else :
 	print(r'''
 		#include <fcntl.h>
 		#include <stdlib.h>
+		#include <sys/wait.h>
 		#include <time.h>
 		#include <unistd.h>
 		//
@@ -44,22 +45,23 @@ else :
 		#include <iostream>
 		#include <sstream>
 		#include <thread>
+		//
 		using namespace std ;
 
 		int g_cnt = 0 ;
 
 		void trace(::string const& msg) {
 			static struct timespec s_start    ;
-			static bool            s_started  = (::clock_gettime(CLOCK_REALTIME,&s_start),true) ;
+			static bool            s_started  = (::clock_gettime(CLOCK_REALTIME,&s_start),true)                 ;
 			static uint64_t        s_start_ms = uint64_t(s_start.tv_sec*1000)+uint64_t(s_start.tv_nsec)/1000000 ;
 			//
 			struct timespec now ;
 			::clock_gettime(CLOCK_REALTIME,&now) ;
 			uint64_t now_ms   = uint64_t(now.tv_sec*1000)+uint64_t(now.tv_nsec)/1000000 ;
-			uint64_t delta_ms = now_ms - s_start_ms                                    ;
+			uint64_t delta_ms = now_ms - s_start_ms                                     ;
 			//
 			::stringstream ss ;
-			ss << (delta_ms/1000)<<'.'<<::setfill('0')<<::setw(3)<<(delta_ms%1000) <<' '<< ::setfill(' ')<<::setw(4)<<g_cnt <<" : "<< msg <<'\n' ;
+			ss << (delta_ms/1000)<<'.'<<::setfill('0')<<::setw(3)<<(delta_ms%1000) <<' '<< ::setfill(' ')<<::setw(7)<<g_cnt <<" : "<< msg <<'\n' ;
 			::cout << ss.str() << ::flush ;
 		}
 
@@ -73,16 +75,17 @@ else :
 		}
 		int main() {
 			trace("main1") ;
-			{	::jthread jt { thread_func } ;
-				for( int i=0 ; i<1000 ; i++ ) {
-					if (vfork()==0) {
+			{	::jthread jt ;
+				for( int i=0 ; i<300 ; i++ )
+					if ( pid_t pid= i%2 ? ::vfork() : ::fork() ; pid==0 ) {
 						::close(::open("Lmakefile.py",O_RDONLY)) ;
-						if ((i%100)==0) trace("child1") ;
-						exit(0) ;
+						if ((i%30)==0) trace("child1") ;
+						_exit(0) ;
 					} else {
-						if ((i%100)==0) trace("parent1") ;
+						if (i==1     ) jt = ::jthread(thread_func) ;
+						if ((i%30)==0) trace("parent1") ;
+						::waitpid(pid,nullptr,0) ;
 					}
-				}
 			}
 			trace("main2") ;
 		}

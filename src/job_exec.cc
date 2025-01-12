@@ -67,6 +67,27 @@ struct Digest {
 	::string               msg     ;
 } ;
 
+JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
+	Trace trace("get_start_info") ;
+	bool             found_server = false ;
+	JobStartRpcReply res          ;
+	try {
+		ClientSockFd fd {g_service_start,NConnectionTrials} ;
+		fd.set_timeout(Delay(100)) ;                                                              // ensure we dont stay stuck in case server is in the coma ...
+		found_server = true ;                                                                     //  ... 100 = 100 simultaneous connections, 10 jobs/s
+		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		/**/  OMsgBuf().send                     ( fd , JobStartRpcReq({g_seq_id,g_job},server_fd.port()) ) ;
+		res = IMsgBuf().receive<JobStartRpcReply>( fd                                                     ) ;
+		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	} catch (::string const& e) {
+		trace("no_start_info",g_service_start,STR(found_server),e) ;
+		if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
+		else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
+	}
+	trace(res) ;
+	return res ;
+}
+
 Digest analyze(Status status=Status::New) {                                                                                                    // status==New means job is not done
 	Trace trace("analyze",status,g_gather.accesses.size()) ;
 	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                      // typically most of accesses are deps
@@ -283,6 +304,7 @@ int main( int argc , char* argv[] ) {
 	g_exec_trace->emplace_back(start_overhead,"start_overhead") ;
 	//
 	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
+		get_start_info(server_fd) ; // getting start info is useless, but necessary to be allowed to report end
 		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
 		goto End ;
 	}
@@ -294,21 +316,7 @@ int main( int argc , char* argv[] ) {
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
-		bool found_server = false ;
-		try {
-			ClientSockFd fd {g_service_start,NConnectionTrials} ;
-			fd.set_timeout(Delay(100)) ;                                                                 // ensure we dont stay stuck in case server is in the coma ...
-			found_server = true ;                                                                        //  ... 100 = 100 simultaneous connections, 10 jobs/s
-			//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			/**/           OMsgBuf().send                     ( fd , JobStartRpcReq({g_seq_id,g_job},server_fd.port()) ) ;
-			g_start_info = IMsgBuf().receive<JobStartRpcReply>( fd                                                     ) ;
-			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		} catch (::string const& e) {
-			trace("no_start_info",g_service_start,STR(found_server),e) ;
-			if (found_server) exit(Rc::Fail                                                       ) ;    // this is typically a ^C
-			else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ;    // this may be a server config problem, better to report
-		}
-		trace("g_start_info",Pdate(New),g_start_info) ;
+		g_start_info = get_start_info(server_fd) ;
 		if (!g_start_info) return 0 ;                                                                    // server ask us to give up
 		try                       { g_start_info.job_space.mk_canon(g_phy_repo_root_s) ; }
 		catch (::string const& e) { end_report.msg += e ; goto End ;                     }

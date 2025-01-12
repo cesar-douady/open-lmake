@@ -12,34 +12,6 @@ module_suffixes = ('.so','.py','/__init__.py') # can be tailored to suit applica
 
 from . import maybe_local
 
-def _mask_python_deps() :
-	'''replace __import__ by a semantically equivalent function (that actually calls the original one) to suppress python generated deps'''
-	# Instead of trying to access file candidates implementing the module, Python optimizes by first reading the englobing dir and only access existing files.
-	# This is severely anti-lmake :
-	# - if a file can be generated, there will be no dep (as the file is not accessed), this may lead to a non-existing module without job rerun or worse, a following file may be used
-	# - a lot of sibling files will be accessed, triggering potentially unwanted deps
-	# to prevent that, autodep is deactivated during import
-	if _sys.version_info.major==2 :
-		builtins_dct = __builtins__
-	else :
-		import builtins
-		builtins_dct = builtins.__dict__
-	orig_import = builtins_dct['__import__']
-	def new_import(*args,**kwds) :
-		with Autodep(False) :
-			return orig_import(*args,**kwds)
-	# try to re-enable autodep when actually executing the module as the purpose was to disable autodep during the search phase, not the execute phase
-	try :
-		from importlib._bootstrap_external import _LoaderBasics
-		orig_exec_module = _LoaderBasics.exec_module
-		def new_exec_module(*args,**kwds) :
-			with Autodep(True) :
-				return orig_exec_module(*args,**kwds)
-		_LoaderBasics.exec_module = orig_exec_module
-	except :
-		raise RuntimeError('masking python deps during import is not available for python%d.%d'%_sys.version_info[:2])
-	builtins_dct['__import__'] = new_import                                                                            # wrap at the end to avoid wraping our own imports
-
 def _depend_module(module_name,path=None) :
 	if path==None : path = _sys.path
 	tail = module_name.rsplit('.',1)[-1]
@@ -56,20 +28,35 @@ def _depend_module(module_name,path=None) :
 				if _osp.exists(base+suffix) : return
 
 if _sys.version_info.major==2 :
-	_std_suffixes = ['.py','.so','/__init__.py']               # standard suffixes are not available with Python2
+
+	_std_suffixes = ['.py','.so','/__init__.py'] # standard suffixes are not available with Python2
+
 	def _gen_module_deps() :
-		'''fixes imports so as to be sure all files needed to do an import is correctly reported (not merely those that exist)'''
+		'''fix imports so as to be sure all files needed to do an import is correctly reported (not merely those that exist)'''
+		# Instead of trying to access file candidates implementing the module, Python optimizes by first reading the englobing dir and only access existing files.
+		# This is severely anti-lmake :
+		# - if a file can be generated, there will be no dep (as the file is not accessed)
+		# - this may lead to a non-existing module without job rerun
+		# - or worse : a following file may be used
+		# To prevent that, deps are expclitly put on all candidate files before loading module
 		class Depend :
 			@staticmethod
 			def find_module(module_name,path=None) :
 				_depend_module(module_name,path)
 		# put dependency checker before accessing standard path based module loader
 		_sys.meta_path.append(Depend)
+
+	def fix_import() :
+		_gen_module_deps()
+
 else :
+
 	import importlib.machinery as _machinery
+
 	_std_suffixes = _machinery.all_suffixes()+['/__init__.py'] # account for packages, not included in all_suffixes()
+
 	def _gen_module_deps() :
-		'''fixes imports so as to be sure all files needed to do an import is correctly reported (not merely those that exist)'''
+		'''fix imports so as to be sure all files needed to do an import are correctly reported (not merely those that exist)'''
 		class Depend :
 			@staticmethod
 			def find_spec(module_name,path,target=None) :
@@ -77,6 +64,26 @@ else :
 		try    : _sys.meta_path.insert( _sys.meta_path.index(_machinery.PathFinder) , Depend ) # put dependency checker before the first path based finder
 		except : _sys.meta_path.append(                                               Depend ) # or at the end if none is found
 
-def fix_import(py_rule) :
-	if py_rule=='Py3Rule' : _mask_python_deps()
-	if True               : _gen_module_deps ()
+	def _mask_python_deps() :
+		'''replace __import__ by a semantically equivalent function (that actually calls the original one) to suppress python generated deps'''
+		# During import, python triggers deps on a lot of unwanted sibling files will be accessed
+		# To prevent that, autodep is deactivated during import search, but re-enabled when actually importing
+		import builtins
+		orig_import = builtins.__import__
+		def new_import(*args,**kwds) :
+			with Autodep(False) :
+				return orig_import(*args,**kwds)
+		try :
+			from importlib._bootstrap_external import _LoaderBasics
+			orig_exec_module = _LoaderBasics.exec_module
+			def new_exec_module(*args,**kwds) :
+				with Autodep(True) :
+					return orig_exec_module(*args,**kwds)
+			_LoaderBasics.exec_module = orig_exec_module
+		except :
+			raise RuntimeError('masking python deps during import is not available for python%d.%d'%_sys.version_info[:2])
+		builtins.__import__ = new_import                                                                                   # wrap at the end to avoid wraping our own imports
+
+	def fix_import() :
+		_mask_python_deps()
+		_gen_module_deps ()

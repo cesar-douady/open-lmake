@@ -553,8 +553,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 void JobStartRpcReply::exit() {
 	// work dir cannot be cleaned up as we may have chroot'ed inside
 	Trace trace("JobStartRpcReply::exit",STR(keep_tmp),_tmp_dir_s) ;
-	SWEAR(+_tmp_dir_s) ;                                             // ensure we do not erase the whole repo
-	if (!keep_tmp) unlnk_inside_s(_tmp_dir_s,true/*abs_ok*/ ) ;
+	if ( !keep_tmp && +_tmp_dir_s ) unlnk_inside_s(_tmp_dir_s,true/*abs_ok*/ ) ;
 	job_space.exit() ;
 }
 

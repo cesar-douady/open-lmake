@@ -169,7 +169,7 @@ class Py2Rule(_PyRule) :
 		try                : import lmake
 		except ImportError : sys.path[0:0] = (_os.environ['LMAKE_ROOT']+'/lib',)
 		from lmake.import_machinery import fix_import
-		fix_import('Py2Rule')
+		fix_import()
 	cmd.shell = ''                                                             # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
@@ -182,7 +182,7 @@ class Py3Rule(_PyRule) :
 		try                : import lmake
 		except ImportError : sys.path[0:0] = (_os.environ['LMAKE_ROOT']+'/lib',)
 		from lmake.import_machinery import fix_import
-		fix_import('Py3Rule')
+		fix_import()
 	cmd.shell = ''                                                             # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
 
 PyRule = Py3Rule
