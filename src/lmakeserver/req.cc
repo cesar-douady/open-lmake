@@ -133,15 +133,19 @@ namespace Engine {
 	}
 
 	void Req::_report_cycle(Node node) {
-		::uset  <Node> seen      ;
-		::vector<Node> cycle     ;
-		::uset  <Rule> to_raise  ;
+		::uset<Node>   seen      ;
+		::vmap_s<Node> cycle     ;
+		::uset<Rule>   to_raise  ;
 		::vector<Node> to_forget ;
+		First          first     ;
+		::string       cycle_str ;
 		for( Node d=node ; seen.insert(d).second ;) {
 			NodeStatus dns = d->status() ;
+			::string   dr  ;
 			if ( dns!=NodeStatus::Unknown && dns>=NodeStatus::Uphill ) {
-				d = d->dir() ;
-				goto Next ;
+				d  = d->dir()   ;
+				dr = "<uphill>" ;
+				goto Next ;                                   // there is no rule for uphill
 			}
 			for( Job j : d->conform_job_tgts(d->c_req_info(self)) )          // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
 				if (j->c_req_info(self).done()) to_raise.insert(j->rule()) ;
@@ -151,36 +155,46 @@ namespace Engine {
 				if (cjri.speculative_wait) to_forget.push_back(d) ;
 				for( Node dd : j->deps ) {
 					if (dd->done(self)) continue ;
-					d = dd ;
+					d  = dd                     ;
+					dr = j->rule()->full_name() ;
+					cycle_str << first("(",",")<< mk_py_str(d->name()) ;
 					goto Next ;
 				}
 				fail_prod("not done but all deps are done :",j->name()) ;
 			}
 			fail_prod("not done but all pertinent jobs are done :",d->name()) ;
 		Next :
-			cycle.push_back(d) ;
+			cycle.emplace_back(dr,d) ;
 		}
+		cycle_str += first("",",)",")") ;
 		self->audit_node( Color::Err , "cycle detected for",node ) ;
-		Node deepest   = cycle.back()  ;
-		bool seen_loop = deepest==node ;
+		Node   deepest   = cycle.back().second ;
+		bool   seen_loop = deepest==node       ;
+		size_t w         = 0                   ; for( auto const& [r,_] : cycle ) w = ::max(w,r.size()) ;
 		for( size_t i : iota(cycle.size()) ) {
 			const char* prefix ;
-			/**/ if ( seen_loop && i==0 && i==cycle.size()-1 ) { prefix = "^-- " ;                    }
-			else if ( seen_loop && i==0                      ) { prefix = "^   " ;                    }
-			else if (                      i==cycle.size()-1 ) { prefix = "+-- " ;                    }
-			else if ( seen_loop && i!=0                      ) { prefix = "|   " ;                    }
-			else if ( cycle[i]==deepest                      ) { prefix = "+-> " ; seen_loop = true ; }
-			else                                               { prefix = "    " ;                    }
-			self->audit_node( Color::Note , prefix,cycle[i] , 1 ) ;
+			/**/ if ( seen_loop && i==0 && i==cycle.size()-1 )   prefix = "^-- " ;
+			else if ( seen_loop && i==0                      )   prefix = "^   " ;
+			else if (                      i==cycle.size()-1 )   prefix = "+-- " ;
+			else if ( seen_loop && i!=0                      )   prefix = "|   " ;
+			else if ( cycle[i].second==deepest               ) { prefix = "+-> " ; seen_loop = true ; }
+			else                                                 prefix = "    " ;
+			self->audit_node( Color::Note , prefix+widen(cycle[i].first,w),cycle[i].second , 1 ) ;
 		}
-		if ( +to_forget || +to_raise ) {
-			self->audit_info( Color::Note , "consider some of :\n" ) ;
-			for( Node n : to_forget ) self->audit_node( Color::Note , "lforget -d" , n                                         , 1 ) ;
-			if (+to_raise)            self->audit_info( Color::Note , "add to Lmakefile.py :"                                  , 1 ) ;
-			for( Rule r : to_raise  ) self->audit_info( Color::Note , r->full_name()+".prio = "+::to_string(r->user_prio)+"+1" , 2 ) ;
-			/**/                      self->audit_info( Color::Note , "for t in (<cycle above>) :"                             , 2 ) ;
-			/**/                      self->audit_info( Color::Note , "class MyAntiRule(AntiRule) :"                           , 3 ) ;
-			/**/                      self->audit_info( Color::Note , "target = t"                                             , 4 ) ;
+		if ( +to_forget || +to_forget || +cycle_str ) {
+			/**/                      self->audit_info( Color::Note , "consider some of :\n"     ) ;
+			for( Node n : to_forget ) self->audit_node( Color::Note , "lforget -d" , n       , 1 ) ;
+			::set_s cwds_s ; for( Rule r : to_raise ) cwds_s.insert(r->cwd_s) ;
+			for( ::string const& cwd_s : cwds_s ) {
+				/**/                                           self->audit_info( Color::Note , "add to "+cwd_s+"Lmakefile.py :"                  , 1 ) ;
+				for( Rule r : to_raise  ) if (r->cwd_s==cwd_s) self->audit_info( Color::Note , r->name+".prio = "+::to_string(r->user_prio)+"+1" , 2 ) ;
+			}
+			if (+cycle_str) {
+				self->audit_info( Color::Note , "add to Lmakefile.py :"        , 1 ) ;
+				self->audit_info( Color::Note , "for t in "+cycle_str+" :"     , 2 ) ;
+				self->audit_info( Color::Note , "class MyAntiRule(AntiRule) :" , 3 ) ;
+				self->audit_info( Color::Note , "target = t"                   , 4 ) ;
+			}
 		}
 	}
 

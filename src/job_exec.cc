@@ -199,7 +199,8 @@ Digest analyze(Status status=Status::New) {                                     
 				if      ( unlnk                                               )                  td.crc = Crc::None    ;
 				else if ( status==Status::Killed || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ; } // no crc if meaningless
 				else if ( +crc                                                ) { td.sig = sig ; td.crc = crc          ; } // we already have a crc
-				res.crcs.emplace_back(res.targets.size()) ;                                                                // record index in res.targets for deferred (parallel) crc computation
+				//
+				if (!crc.valid()) res.crcs.emplace_back(res.targets.size()) ;                                              // record index in res.targets for deferred (parallel) crc computation
 			}
 			if (
 				td.tflags[Tflag::Target] && !td.tflags[Tflag::Phony] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] // target is expected
@@ -304,7 +305,7 @@ int main( int argc , char* argv[] ) {
 	g_exec_trace->emplace_back(start_overhead,"start_overhead") ;
 	//
 	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
-		get_start_info(server_fd) ; // getting start info is useless, but necessary to be allowed to report end
+		get_start_info(server_fd) ;                                                                      // getting start info is useless, but necessary to be allowed to report end
 		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
 		goto End ;
 	}

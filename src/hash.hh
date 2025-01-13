@@ -39,7 +39,7 @@ namespace Hash {
 	struct Crc {
 		friend ::string& operator+=( ::string& , Crc const ) ;
 		using Val = uint64_t ;
-		static constexpr uint8_t NChkBits = 8 ;                       // as Crc may be used w/o protection against collision, ensure we have some margin
+		static constexpr uint8_t NChkBits = 8 ;                         // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
 		static constexpr Val ChkMsk = ~lsb_msk<Val>(NChkBits) ;
 		//
@@ -49,7 +49,7 @@ namespace Hash {
 		static const Crc None    ;
 		static const Crc Empty   ;
 		// statics
-		static bool s_sense( Accesses a , FileTag t ) {               // return whether accesses a can see the difference between files with tag t
+		static bool s_sense( Accesses a , FileTag t ) {                 // return whether accesses a can see the difference between files with tag t
 			Crc crc{t} ;
 			return !crc.match(crc,a) ;
 		}
@@ -69,8 +69,12 @@ namespace Hash {
 		Crc(                             ::string const& filename ) ;
 		Crc( Disk::FileSig&/*out*/ sig , ::string const& filename ) {
 			sig  = Disk::FileSig(filename) ;
-			self = Crc(filename)         ;
-			if (Disk::FileSig(filename)!=sig) self = Crc(sig.tag()) ; // file was moving, association date<=>crc is not reliable
+			self = Crc(filename)           ;
+			Disk::FileSig sig_after = Disk::FileSig(filename) ;
+			if (sig_after!=sig) {                                       // file was moving, association date<=>crc is not reliable
+				if (sig_after.tag()==sig.tag()) self = Crc(sig.tag()) ; // file type is reliable
+				else                            self = {}             ; // nothing is reliable
+			}
 		}
 	private :
 		constexpr Crc( CrcSpecial special ) : _val{+special} {}

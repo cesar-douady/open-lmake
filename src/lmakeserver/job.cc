@@ -615,7 +615,6 @@ namespace Engine {
 			SWEAR(+digest.stats.total) ;
 			jd.record_stats( digest.stats.total , cost , tokens1 ) ;
 		}
-		bool one_done = false ;
 		for( Req req : jd.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
 			ReqInfo& ri = jd.req_info(req) ;
 			ri.modified |= modified ;                                 // accumulate modifications until reported
@@ -630,7 +629,8 @@ namespace Engine {
 			//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason job_reason = jd.make( ri , MakeAction::End , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
-			bool     full_report = ri.done() || !has_new_deps        ;   // if not done, does a full report anyway if this is not due to new deps
+			bool     done        = ri.done()                         ;
+			bool     full_report = done || !has_new_deps             ;   // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
@@ -642,22 +642,21 @@ namespace Engine {
 				/**/         job_msg << reason_str(job_reason)<<'\n'   ;
 			}
 			//
-			Delay    exec_time = digest.stats.total                                                                   ;
-			::string pfx       = !ri.done() && !ri.running() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
+			Delay    exec_time = digest.stats.total                                                              ;
+			::string pfx       = !done && !ri.running() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
 			// dont report user stderr if analysis made it meaningless
 			JobReport jr = audit_end( ri , true/*with_stats*/ , pfx , job_msg , !job_err?stderr:""s , digest.end_attrs.max_stderr_len , exec_time , job_reason.tag==JobReasonTag::Retry ) ;
-			if (ri.done()) {
+			if (done) {
 				trace("wakeup_watchers",ri) ;
 				ri.wakeup_watchers() ;
-				one_done = true ;
 			} else {
+				upload = false ;
 				req->missing_audits[self] = { jr , msg } ;
 			}
 			trace("req_after",ri,job_reason) ;
 			req.chk_end() ;
 		}
-		// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
-		if ( upload && one_done ) {                                      // cache only successful results
+		if (upload) {                                                    // cache only successful results
 			NfsGuard nfs_guard{g_config->reliable_dirs} ;
 			Cache::s_tab.at(digest.end_attrs.cache_key)->upload( self , digest , nfs_guard ) ;
 		}

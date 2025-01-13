@@ -616,32 +616,11 @@ These classes may be used as base @code{class} for Python code doing imports.
 
 It manages @code{.pyc} files so that user is not annoyed by Python generating @code{.pyc} files at esoteric places.
 
-It relies on @code{stat} access made by Python to access the original @code{.py} to check @code{.pyc} validity.
-As a consequence, if you want to set the @code{ignore_stat} attribute on a @code{PyRule}, you must run python with the @code{-B} option set for all rules.
-Otherwise, dependencies to the original @code{.py} will be lost when the @code{.pyc} is available an up-to-date.
+Also, it provides dependencies to module source files although Python may optimize such accesses and miss deps on dynamically generated modules.
 
 @code{Py2Rule} manages Python2.
 @code{Py3Rule} manages Python3.
 @code{PyRule} is an alias for @code{Py3Rule}.
-
-In addition standard attributes, the following ones may be set on these rules :
-@itemize @minus
-@item @code{gen_module_deps} : If set (the default), the import machinery is set up to ensure all deps to all logically searched files are recorded.
-This ensures dynamically generated modules will be adequately rebuilt if necessary.
-If not set, Python optimizes its search and misses module files if the enclosing directory does not exist.
-@item @code{mask_python_deps} : Only supported for Python3. If set, the import machinery is set up to prevent Python from generating deps when reading files.
-This is useful when Python absusively stats files it does not import, which occur in certain cases.
-@end itemize
-
-@subsection @code{class DynamicPy[23]Rule}
-These classes may be used as base @code{class} for Python code doing imports that are dynamically generated.
-
-In addition to @code{Py[23]Rule} features, they patch Python import machinery to prevent optimizations that suppress accesses to inexisting modules.
-Accessing inexisting modules is the way to inform @lmake that these are needed and must be generated.
-
-@code{DynamicPy2Rule} manages Python2.
-@code{DynamicPy3Rule} manages Python3.
-@code{DynamicPyRule} is an alias for @code{DynamicPy3Rule}.
 
 @subsection @code{class RustRule}
 This @code{class} may be used as a base @code{class} to execute executable written in rust.
@@ -679,6 +658,18 @@ In that case, sources are adequately set to track @code{git} updates.
 
 @subsection @code{def auto_sources(**kwds)}
 This function tries to find sources by calling @code{manifest_sources} and @code{git_sources} in turn, untill one succeeds. Arguments are passed as pertinent.
+
+@section The @code{lmake.import_machinery} module
+
+@subsection @code{def fix_import()}
+
+The classes @code{PyRule}, @code{Py2Rule} and @code{Py3Rule} call @code{lmake.import_machinery.fix_import()} to manage dependencies during import.
+In case you have a rule that calls Python and needs to manage imports similarly, you may call this function.
+
+@subsection @code{module_suffixes}
+
+In case you have to manage non-standard file extensions, you may add them to this variable.
+The default value is @code{('.py','.so','/__init__.py')}.
 
 @chapter Directories
 
