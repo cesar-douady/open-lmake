@@ -684,7 +684,7 @@ namespace Backends {
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
 		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
-		if (!dynamic) {                                                                                               // if dynamic, threads are already running
+		if (!dynamic) {                                                                                                           // if dynamic, threads are already running
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
 			_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ;
 			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ;
@@ -695,11 +695,14 @@ namespace Backends {
 		if (!dynamic) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		//
 		Lock lock{_s_mutex} ;
-		for( Tag t : iota(1,All<Tag>) ) {                                                                             // local backend is always available
+		for( Tag t : iota(1,All<Tag>) ) {                                                                                         // local backend is always available
 			Backend*               be  = s_tab [+t] ;
 			Config::Backend const& cfg = config[+t] ;
-			if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }
-			if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; }
+			if (!be            )      {                                                                   trace("not_implemented",t  ) ; continue ; }
+			if (!cfg.configured)      {                               be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; } // empty config_err means ready
+			try                       { be->config(cfg.dct,dynamic) ; be->config_err.clear()            ; trace("ready"          ,t  ) ;            } // .
+			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e                ; trace("err"            ,t,e) ; continue ; } // .
+			//
 			if (!be->is_local()) {
 				::string ifce ;
 				if (+cfg.ifce) {
@@ -730,8 +733,6 @@ namespace Backends {
 				}
 				be->addr = addrs[0].second ;
 			}
-			try                       { be->config(cfg.dct,dynamic) ; be->config_err.clear() ; trace("ready",t  ) ; }
-			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e     ; trace("err"  ,t,e) ; } // empty config_err means ready
 		}
 		_s_job_start_thread.wait_started() ;
 		_s_job_mngt_thread .wait_started() ;
