@@ -3,7 +3,8 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-VERSION := 25.01
+VERSION     := 25.01
+VERSION_TAG := $(VERSION).1
 
 ifneq ($(shell uname),Linux)
     $(error can only compile under Linux)
@@ -744,7 +745,7 @@ lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 # to install : sudo apt install open-lmake_$(DEBIAN_VERSION)_amd64.deb
 #
 
-DEBIAN_VERSION := $(VERSION).1-1
+DEBIAN_VERSION := $(VERSION_TAG)-1
 
 EXAMPLE_FILES := $(filter examples/%,$(SRCS))
 
