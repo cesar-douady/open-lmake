@@ -15,9 +15,9 @@ namespace Caches {
 		// services
 		virtual void config(Config::Cache const&) ;
 		//
-		virtual Match      match   ( Job , Req                                                   ) ;
-		virtual JobInfo    download( Job , Id        const& , JobReason const& , Disk::NfsGuard& ) ;
-		virtual bool/*ok*/ upload  ( Job , JobDigest const& ,                    Disk::NfsGuard& ) ;
+		virtual Match      match   ( Job , Req                                            ) ;
+		virtual JobInfo    download( Job , Id const& , JobReason const& , Disk::NfsGuard& ) ;
+		virtual bool/*ok*/ upload  ( Job ,                                Disk::NfsGuard& ) ;
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :

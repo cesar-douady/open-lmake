@@ -898,6 +898,7 @@ ENUM( FdAction
 ,	Read
 ,	Write
 ,	Append
+,	CreateReadOnly
 ,	Dir
 )
 struct Fd {
@@ -907,10 +908,11 @@ struct Fd {
 	static const Fd Stdout ;
 	static const Fd Stderr ;
 	static const Fd Std    ;                                                                            // the highest standard fd
-	static constexpr FdAction Read   = FdAction::Read   ;
-	static constexpr FdAction Write  = FdAction::Write  ;
-	static constexpr FdAction Append = FdAction::Append ;
-	static constexpr FdAction Dir    = FdAction::Dir    ;
+	static constexpr FdAction Read           = FdAction::Read           ;
+	static constexpr FdAction Write          = FdAction::Write          ;
+	static constexpr FdAction Append         = FdAction::Append         ;
+	static constexpr FdAction CreateReadOnly = FdAction::CreateReadOnly ;
+	static constexpr FdAction Dir            = FdAction::Dir            ;
 	// cxtors & casts
 	constexpr Fd(                        ) = default ;
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
@@ -921,12 +923,13 @@ struct Fd {
 		Fd{
 			::openat(
 				at , action==Dir&&file!="/" ? no_slash(file).c_str() : file.c_str()
-			,		action==Read   ? O_RDONLY                      | O_CLOEXEC
-				:	action==Write  ? O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC
-				:	action==Append ? O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC
-				:	action==Dir    ? O_RDONLY | O_DIRECTORY        | O_CLOEXEC
-				:	                 0                                                                  // force error
-			,	0644
+			,		action==Read           ? O_RDONLY                      | O_CLOEXEC
+				:	action==Write          ? O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC
+				:	action==Append         ? O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC
+				:	action==CreateReadOnly ? O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC
+				:	action==Dir            ? O_RDONLY | O_DIRECTORY        | O_CLOEXEC
+				:	0                                                                                   // force error
+			,	action==CreateReadOnly ? 0444 : 0666
 			)
 		,	no_std_
 		}

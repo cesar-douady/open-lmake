@@ -640,14 +640,6 @@ JobInfo::JobInfo(::string const& filename , Bool3 get_start , Bool3 get_end ) {
 	}
 }
 
-void JobInfo::write(::string const& filename) const {
-	AcFd os { dir_guard(filename) , Fd::Write } ;
-	os.write(
-		serialize(start)
-	+	serialize(end  )
-	) ;
-}
-
 //
 // codec
 //

@@ -908,7 +908,10 @@ struct JobInfo {
 	JobInfo(                      JobEndRpcReq&& jerr                                     ) :                      end{::move(jerr)} {}
 	JobInfo( JobInfoStart&& jis , JobEndRpcReq&& jerr                                     ) : start{::move(jis)} , end{::move(jerr)} {}
 	// services
-	void write(::string const& filename) const ;
+	template<IsStream T> void serdes(T& s) {
+		::serdes(s,start) ;
+		::serdes(s,end  ) ;
+	}
 	// data
 	// START_OF_VERSIONING
 	JobInfoStart start ;

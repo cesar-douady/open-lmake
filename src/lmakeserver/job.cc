@@ -604,8 +604,10 @@ namespace Engine {
 		if (sav_jerr) {
 			msg = jerr.msg ;
 			jerr.msg <<set_nl<< local_msg << severe_msg ;
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			if (upload) _s_record_thread.emplace(self,::copy(jerr)) ; // leave jerr intact so upload can be done later on
 			else        _s_record_thread.emplace(self,::move(jerr)) ;
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} else {
 			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ;    // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
 			msg = ::move(jerr.msg) ;
@@ -658,7 +660,7 @@ namespace Engine {
 		}
 		if (upload) {                                                    // cache only successful results
 			NfsGuard nfs_guard{g_config->reliable_dirs} ;
-			Cache::s_tab.at(digest.end_attrs.cache_key)->upload( self , digest , nfs_guard ) ;
+			Cache::s_tab.at(digest.end_attrs.cache_key)->upload( self , nfs_guard ) ;
 		}
 		trace("summary",self) ;
 	}

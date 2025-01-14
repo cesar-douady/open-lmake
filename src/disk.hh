@@ -170,6 +170,7 @@ namespace Disk {
 		FileSig(         ::string const& name , bool no_follow=true ) : FileSig{Fd::Cwd,name,no_follow     } {}
 		FileSig( Fd at , ::string const& name , bool no_follow=true ) : FileSig{FileInfo(at,name,no_follow)} {}
 		FileSig( FileInfo const&                                    ) ;
+		FileSig( FileTag tag                                        ) : _val{+tag}                           {}
 		// accesses
 	public :
 		bool    operator==(FileSig const& fs) const {
