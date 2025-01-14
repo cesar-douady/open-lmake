@@ -360,6 +360,7 @@ namespace Caches {
 			new_sz += deps_str     .size() ;
 			_mk_room(old_sz,new_sz) ;
 			made_room = true ;
+			// store data
 			// START_OF_VERSIONING
 			AcFd data_fd { dfd , "data" , FdAction::CreateReadOnly } ;                             // data is created R/O to ensure no spurious further modifications
 			for( NodeIdx ti : iota(digest.targets.size()) ) {

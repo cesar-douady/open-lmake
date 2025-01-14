@@ -338,18 +338,19 @@ int main( int argc , char* argv[] ) {
 			}
 		}
 		//
+		SWEAR(!end_report.phy_tmp_dir_s,end_report.phy_tmp_dir_s) ;
 		if (g_start_info.keep_tmp) {
-			end_report.phy_tmp_dir_s = g_phy_repo_root_s+AdminDirS+"tmp/"+g_job+'/' ;
+			end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 		} else {
 			auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if (it==g_start_info.env.end()) {
-				end_report.phy_tmp_dir_s = g_phy_repo_root_s+PrivateAdminDirS+"tmp/"+g_start_info.small_id+'/' ;
-			} else {
-				if      (it->second!=EnvPassMrkr          )   end_report.phy_tmp_dir_s = with_slash(it->second       )+g_start_info.key+'/'+g_start_info.small_id+'/' ;
-				else if (has_env("TMPDIR")                )   end_report.phy_tmp_dir_s = with_slash(get_env("TMPDIR"))+g_start_info.key+'/'+g_start_info.small_id+'/' ;
-				else                                        { end_report.msg += "$TMPDIR not found in execution environment" ; goto End ; }
-				if      (!is_abs(end_report.phy_tmp_dir_s)) { end_report.msg += "$TMPDIR must be absolute"                   ; goto End ; }
+			if      (it==g_start_info.env.end()       ) {}
+			else if (it->second!=EnvPassMrkr          ) end_report.phy_tmp_dir_s << with_slash(it->second       )<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
+			else if (has_env("TMPDIR")                ) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
+			if      (!end_report.phy_tmp_dir_s        ) end_report.phy_tmp_dir_s << g_phy_repo_root_s<<PrivateAdminDirS<<"tmp/"         <<g_start_info.small_id<<'/' ;
+			else if (!is_abs(end_report.phy_tmp_dir_s)) {
+				end_report.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
+				goto End ;
 			}
 		}
 		//
@@ -360,18 +361,20 @@ int main( int argc , char* argv[] ) {
 				RealPath real_path { g_start_info.autodep_env } ;
 				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
-					for( ::string& l : sr.lnks ) g_gather.new_dep( start_overhead , ::move(l) ,  Access::Lnk  , "mount_lnk" ) ;
+					for( ::string& l : sr.lnks )
+						/**/                            g_gather.new_dep   ( start_overhead , ::move(l      ) ,  Access::Lnk  , "mount_lnk"    ) ;
 					if (sr.file_loc<=FileLoc::Dep) {
-						if      (a==MountAction::Read ) g_gather.new_dep( start_overhead , ::move(sr.real) , ~Access::Stat , "mount_src" ) ;
-						else if (sr.file_accessed==Yes) g_gather.new_dep( start_overhead , ::move(sr.real) ,  Access::Lnk  , "mount_src" ) ;
+						if      (a==MountAction::Read ) g_gather.new_dep   ( start_overhead , ::move(sr.real) , ~Access::Stat , "mount_src"    ) ;
+						else if (sr.file_accessed==Yes) g_gather.new_dep   ( start_overhead , ::move(sr.real) ,  Access::Lnk  , "mount_src"    ) ;
 					}
 					if (sr.file_loc<=FileLoc::Repo) {
-						if (a==MountAction::Write) g_gather.new_target( start_overhead , ::move(sr.real) , "mount_target" ) ;
+						if      (a==MountAction::Write) g_gather.new_target( start_overhead , ::move(sr.real) ,                 "mount_target" ) ;
 					}
 				}
 			}
 		} catch (::string const& e) {
-			end_report.msg += e ; goto End ;
+			end_report.msg += e ;
+			goto End ;
 		}
 		trace("prepared",g_start_info.autodep_env) ;
 		//
