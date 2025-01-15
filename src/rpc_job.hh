@@ -516,15 +516,15 @@ struct TargetDigest {
 struct JobDigest {
 	friend ::string& operator+=( ::string& , JobDigest const& ) ;
 	// START_OF_VERSIONING
-	::vmap_s<DepDigest   > deps           = {}          ; // INVARIANT : sorted in first access order
-	EndAttrs               end_attrs      = {}          ;
-	Time::Pdate            end_date       = {}          ;
-	JobStats               stats          = {}          ;
-	Status                 status         = Status::New ;
-	::string               stderr         = {}          ;
-	::string               stdout         = {}          ;
-	::vmap_s<TargetDigest> targets        = {}          ;
-	int                    wstatus        = 0           ;
+	::vmap_s<DepDigest   > deps      = {}          ; // INVARIANT : sorted in first access order
+	EndAttrs               end_attrs = {}          ;
+	Time::Pdate            end_date  = {}          ;
+	JobStats               stats     = {}          ;
+	Status                 status    = Status::New ;
+	::string               stderr    = {}          ;
+	::string               stdout    = {}          ;
+	::vmap_s<TargetDigest> targets   = {}          ;
+	int                    wstatus   = 0           ;
 	// END_OF_VERSIONING
 } ;
 

@@ -19,6 +19,9 @@
 //		- deps crcs      in <job_dir>/deps      (the deps part of meta-data for fast matching)
 //		- target content in <job_dir>/data      (concatenation of all targets that can be split based on target sizes stored in meta-data)
 
+#define USE_TAR      0
+#define USE_SENDFILE 1 // not used when USE_TAR, else use read/write
+
 #include <sys/sendfile.h>
 
 #include "dir_cache.hh"
@@ -249,11 +252,13 @@ namespace Caches {
 		::string                         jn         = _unique_name_s(job)+id  ;
 		::string                         jn_s       = jn+'/'                  ;
 		AcFd                             dfd        { dir_fd , jn , Fd::Dir } ;
-		size_t                           n_copied   = 0                       ;
+		NodeIdx                          n_copied   = 0                       ;
 		::pair<JobInfo,::vector<size_t>> meta_data  ;
-		JobInfo         &                job_info   = meta_data.first         ;
-		::vector<size_t>&                target_szs = meta_data.second        ;
-		JobDigest       &                digest     = job_info.end.digest     ;
+		JobInfo  &                       job_info   = meta_data.first         ;
+		JobDigest&                       digest     = job_info.end.digest     ;
+		#if !USE_TAR
+			::vector<size_t>& target_szs = meta_data.second ;
+		#endif
 		Trace trace("DirCache::download",job,id,jn) ;
 		try {
 			{	LockedFd lock { dfd , false/*exclusive*/ } ;                     // because we read the data, shared is ok
@@ -262,24 +267,33 @@ namespace Caches {
 				job_info.start.pre_start.job       = +job   ;                    // id is not stored in cache
 				job_info.start.submit_attrs.reason = reason ;
 				//
-				AcFd data_fd { ::openat( dfd , "data" , O_RDONLY|O_NOFOLLOW|O_CLOEXEC ) } ;
-				for( NodeIdx ti : iota(digest.targets.size()) ) {
-					auto&           entry = digest.targets[ti]     ;
-					::string const& tn    = entry.first            ;
-					FileTag         tag   = entry.second.sig.tag() ;
-					n_copied = ti+1 ;
-					nfs_guard.change(tn) ;
-					trace("copy",ti,tn) ;
-					unlnk(dir_guard(tn),true/*dir_ok*/) ;
-					switch (tag) {
-						case FileTag::Lnk   : lnk( tn , data_fd.read(target_szs[ti]) )                                                                                     ; break ;
-						case FileTag::Empty :             AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , 0666 ))                                        ; break ;
-						case FileTag::Reg   : ::sendfile( AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , 0666 )) , data_fd , nullptr , target_szs[ti] ) ; break ;
-						case FileTag::Exe   : ::sendfile( AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , 0777 )) , data_fd , nullptr , target_szs[ti] ) ; break ;
-					DN}
-					FileSig sig { tn } ;
-					entry.second.sig = sig ;                                     // target digest is not stored in cache
-				}
+				#if USE_TAR
+					for( auto const& [tn,_] : digest.targets ) nfs_guard.change(tn) ;
+					::system(( "tar -xf " + dir_s+jn_s+"data" ).c_str()) ;
+				#else
+					AcFd data_fd { ::openat( dfd , "data" , O_RDONLY|O_NOFOLLOW|O_CLOEXEC ) } ;
+					for( NodeIdx ti : iota(digest.targets.size()) ) {
+						auto&           entry = digest.targets[ti]     ;
+						::string const& tn    = entry.first            ;
+						FileTag         tag   = entry.second.sig.tag() ;
+						n_copied = ti+1 ;
+						nfs_guard.change(tn) ;
+						trace("copy",ti,tn) ;
+						unlnk(dir_guard(tn),true/*dir_ok*/) ;
+						switch (tag) {
+							case FileTag::Lnk   : lnk( tn , data_fd.read(target_szs[ti]) )                                  ; break ;
+							case FileTag::Empty : AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , 0666 )) ; break ;
+							#if USE_SENDFILE
+								case FileTag::Reg : ::sendfile( AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , 0666 )) , data_fd , nullptr , target_szs[ti] ) ; break ;
+								case FileTag::Exe : ::sendfile( AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , 0777 )) , data_fd , nullptr , target_szs[ti] ) ; break ;
+							#else
+								case FileTag::Reg : AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , 0666 )).write(data_fd.read(target_szs[ti]) ) ; break ;
+								case FileTag::Exe : AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , 0777 )).write(data_fd.read(target_szs[ti]) ) ; break ;
+							#endif
+						DN}
+						entry.second.sig = FileSig(tn) ;                         // target digest is not stored in cache
+					}
+				#endif
 				digest.end_date = New ;                                          // date must be after files are copied
 			}
 			// ensure we take a single lock at a time to avoid deadlocks
@@ -362,19 +376,28 @@ namespace Caches {
 			made_room = true ;
 			// store data
 			// START_OF_VERSIONING
-			AcFd data_fd { dfd , "data" , FdAction::CreateReadOnly } ;                             // data is created R/O to ensure no spurious further modifications
-			for( NodeIdx ti : iota(digest.targets.size()) ) {
-				::pair_s<TargetDigest> const& entry = digest.targets[ti]     ;
-				::string               const& tn    = entry.first            ;
-				FileTag                       tag   = entry.second.sig.tag() ;
-				trace("copy",tn,ti) ;
-				switch (tag) {
-					case FileTag::Lnk : data_fd.write(read_lnk(tn))                                 ; break ;
-					case FileTag::Reg :
-					case FileTag::Exe : ::sendfile( data_fd , AcFd(tn) , nullptr , target_szs[ti] ) ; break ;
-				DN}
-				throw_unless( FileSig(tn)==target_sigs[ti] , "unstable ",tn ) ;                    // ensure cache entry is reliable by checking file *after* copy
-			}
+			#if USE_TAR
+				::string targets_str ; for( auto const& [tn,_] : digest.targets ) targets_str <<' '<< tn ;
+				::system(( "tar -cf " + dir_s+jn_s+"data" + targets_str ).c_str()) ;
+			#else
+				AcFd data_fd { dfd , "data" , FdAction::CreateReadOnly } ;                         // data is created R/O to ensure no spurious further modifications
+				for( NodeIdx ti : iota(digest.targets.size()) ) {
+					::pair_s<TargetDigest> const& entry = digest.targets[ti]     ;
+					::string               const& tn    = entry.first            ;
+					FileTag                       tag   = entry.second.sig.tag() ;
+					trace("copy",tn,ti) ;
+					switch (tag) {
+						case FileTag::Lnk : data_fd.write(read_lnk(tn)) ; break ;
+						case FileTag::Reg :
+						#if USE_SENDFILE
+							case FileTag::Exe : ::sendfile( data_fd , AcFd(tn) , nullptr , target_szs[ti] ) ; break ;
+						#else
+							case FileTag::Exe : data_fd.write(AcFd(tn).read())                              ; break ;
+						#endif
+					DN}
+					throw_unless( FileSig(tn)==target_sigs[ti] , "unstable ",tn ) ;                // ensure cache entry is reliable by checking file *after* copy
+				}
+			#endif
 			// END_OF_VERSIONING
 		} catch (::string const& e) {
 			trace("failed",e) ;
