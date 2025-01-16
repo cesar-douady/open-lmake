@@ -193,7 +193,11 @@ namespace Engine {
 		Step step(          ) const { return _step ; }
 		void step(Step s,Job) ;
 		// services
-		void reset(Job j) {
+		void reset( Job j , bool has_run=false ) {
+			if (has_run) {
+				force  = false ;                                       // cmd has been executed, it is not new any more
+				reason = {}    ;                                       // reasons were to trigger the ending job, there are none now
+			}
 			if (step()>Step::Dep) step(Step::Dep,j) ;
 			iter  = {} ;
 			state = {} ;

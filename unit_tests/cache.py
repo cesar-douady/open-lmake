@@ -14,9 +14,8 @@ if __name__!='__main__' :
 	)
 
 	lmake.config.caches.dir = {
-		'tag'  : 'dir'
-	,	'repo' : lmake.repo_root
-	,	'dir'  : lmake.repo_root+'/CACHE'
+		'tag' : 'dir'
+	,	'dir' : lmake.repo_root+'/CACHE'
 	}
 
 	class Auto(Rule) :

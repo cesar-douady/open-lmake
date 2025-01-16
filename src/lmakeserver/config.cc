@@ -63,8 +63,8 @@ namespace Engine {
 
 	Config::Config(Dict const& py_map) : booted{true} {                                                                                // if config is read from makefiles, it is booted
 		// generate a random key
-		::string buf_char = AcFd("/dev/urandom").read(false/*no_file_ok*/,sizeof(uint64_t)) ;
-		uint64_t buf_int  ;                                                                   ::memcpy( &buf_int , buf_char.data() , sizeof(buf_int) ) ;
+		::string buf_char = AcFd("/dev/urandom").read(sizeof(uint64_t)) ;
+		uint64_t buf_int  ;                                               ::memcpy( &buf_int , buf_char.data() , sizeof(buf_int) ) ;
 		key = to_hex(buf_int) ;
 		//
 		::vector_s fields = {{}} ;
@@ -81,7 +81,7 @@ namespace Engine {
 			fields[0] = "path_max" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_path_max = py_map[fields[0]] ;
-				if (py_path_max==None) path_max = size_t(-1                     ) ; // deactivate
+				if (py_path_max==None) path_max = size_t(-1                     ) ;                                                    // deactivate
 				else                   path_max = size_t(py_path_max.as_a<Int>()) ;
 			}
 			fields[0] = "link_support" ;

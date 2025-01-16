@@ -774,6 +774,7 @@ namespace Engine {
 	JobReason JobData::make( ReqInfo& ri , MakeAction make_action , JobReason asked_reason , Bool3 speculate , bool wakeup_watchers ) {
 		using Step = JobStep ;
 		static constexpr Dep Sentinel { false/*parallel*/ } ;                                       // used to clean up after all deps are processed
+		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
 		//
 		SWEAR( asked_reason.tag<JobReasonTag::Err,asked_reason) ;
 		Rule        r             = rule()                                                        ;
@@ -820,13 +821,10 @@ namespace Engine {
 				default                  :                      ri.n_submits++ ;
 			}
 		} ;
-		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
 	RestartFullAnalysis :
 		switch (make_action) {
 			case MakeAction::End :
-				ri.force  = false ;                                                                        // cmd has been executed, it is not new any more
-				ri.reason = {}    ;                                                                        // reasons were to trigger the ending job, there are none now
-				ri.reset(idx()) ;                                                                          // deps have changed
+				ri.reset(idx(),true/*has_run*/) ;                                                          // deps have changed
 			[[fallthrough]] ;
 			case MakeAction::Wakeup : ri.dec_wait() ; break     ;
 			case MakeAction::GiveUp : ri.dec_wait() ; goto Done ;
@@ -925,7 +923,7 @@ namespace Engine {
 				if (!dep_goal) continue ;                                                                  // this is not a dep (not static while asked for makable only)
 			RestartDep :
 				if (!cdri->waiting()) {
-					ReqInfo::WaitInc sav_n_wait{ri} ;                                                      // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+					ReqInfo::WaitInc sav_n_wait { ri } ;                                                   // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 					if (!dri        ) cdri = dri    = &dep->req_info(*cdri) ;                              // refresh cdri in case dri allocated a new one
 					if (dep_live_out) dri->live_out = true                  ;                              // ask live output for last level if user asked it
 					Bool3 speculate_dep =
@@ -1221,17 +1219,18 @@ namespace Engine {
 							if (!dfa_msg.second) return false/*maybe_new_deps*/ ;
 						}
 						//
-						JobExec je       { idx() , New }                                             ;       // job starts and ends, no host
+						JobExec je       { idx() , New }                                             ;                        // job starts and ends, no host
 						JobInfo job_info = cache->download(idx(),cache_match.id,ri.reason,nfs_guard) ;
 						Job::_s_record_thread.emplace(idx(),job_info) ;
 						if (ri.live_out) je.live_out(ri,job_info.end.digest.stdout) ;
 						ri.step(Step::Hit,idx()) ;
 						trace("hit_result") ;
-						je.end( ::move(job_info.end) , false/*sav_jrr*/ ) ;                                  // no resources nor backend for cached jobs
-						req->stats.add(JobReport::Hit) ;
-						req->missing_audits[idx()] = { JobReport::Hit , {} } ;
+						je.end( ::move(job_info.end) , false/*sav_jrr*/ ) ;                                                   // no resources nor backend for cached jobs
+						for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(idx(),true/*has_run*/) ; // there are new deps and end() has called make, ...
+						req->stats.add(JobReport::Hit) ;                                                                      // ... so req_info is not reset spontaneously, ...
+						req->missing_audits[idx()] = { JobReport::Hit , {} } ;                                                // ... and we have to ensure ri.iter is stil a legal iterator
 						return true/*maybe_new_deps*/ ;
-					} catch (::string const&) {}                                                             // if we cant download result, it is like a miss
+					} catch (::string const&) {}                                                                              // if we cant download result, it is like a miss
 				break ;
 				case Maybe :
 					for( Node d : cache_match.new_deps ) {
@@ -1268,7 +1267,7 @@ namespace Engine {
 			return true/*maybe_new_deps*/ ;
 		}
 		//
-		ri.inc_wait() ;                                                                                      // set before calling submit call back as in case of flash execution, we must be clean
+		ri.inc_wait() ;                              // set before calling submit call back as in case of flash execution, we must be clean
 		ri.step(Step::Queued,idx()) ;
 		ri.backend = submit_rsrcs_attrs.backend ;
 		try {
@@ -1281,13 +1280,13 @@ namespace Engine {
 			,	.reason    =        ri.reason
 			,	.tokens1   =        tokens1
 			} ;
-			estimate_stats(tokens1) ;                                                                        // refine estimate with best available info just before submitting
+			estimate_stats(tokens1) ;                // refine estimate with best available info just before submitting
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Backend::s_submit( ri.backend , +idx() , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			for( Node t : targets ) t->busy = true ;                                                         // make targets busy once we are sure job is submitted
+			for( Node t : targets ) t->busy = true ; // make targets busy once we are sure job is submitted
 		} catch (::string const& e) {
-			ri.dec_wait() ;                                                                                  // restore n_wait as we prepared to wait
+			ri.dec_wait() ;                          // restore n_wait as we prepared to wait
 			ri.step(Step::None,idx()) ;
 			status  = Status::EarlyErr ;
 			req->audit_job ( Color::Err  , "failed" , idx()     ) ;

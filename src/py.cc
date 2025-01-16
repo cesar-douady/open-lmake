@@ -79,7 +79,7 @@ namespace Py {
 		auto read_all = [&](Fd fd)->void {
 			char    buf[256] ;
 			ssize_t c        ;
-			while ( (c=read(fd,buf,sizeof(buf)))>0 ) res += ::string_view(buf,c) ;
+			while ( (c=::read(fd,buf,sizeof(buf)))>0 ) res += ::string_view(buf,c) ;
 		} ;
 		#if HAS_MEMFD
 			::dup2(AcFd(::memfd_create("back_trace",MFD_CLOEXEC)),Fd::Stderr) ; // name is for debug purpose only

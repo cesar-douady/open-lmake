@@ -19,9 +19,15 @@ if __name__!='__main__' :
 	,	'mandelbrot.zip'
 	)
 
+	lmake.config.caches.dir = {
+		'tag'  : 'dir'
+	,	'dir'  : lmake.repo_root+'/CACHE'
+	}
+
 	class Unzip(Rule) :
 		targets = { 'FILE' : r'mandelbrot/{*:.*}' }
 		deps    = { 'ZIP'  : 'mandelbrot.zip'     }
+		cache   = 'dir'
 		cmd     = 'unzip {ZIP} ; mv mandelbrot/output.txt mandelbrot/output.ref'
 
 	class RunRust(RustRule) :
@@ -36,6 +42,7 @@ if __name__!='__main__' :
 		allow_stderr = True
 		autodep      = 'ld_preload_jemalloc'
 		environ      = { 'LD_PRELOAD' : 'libjemalloc.so' }
+		cache        = 'dir'
 		cmd          = 'cd mandelbrot ; cargo run --release ; mv output.txt output.dut'
 
 	class Cmp(Rule) :
@@ -58,6 +65,9 @@ else :
 	import os.path as osp
 
 	import ut
+
+	os.makedirs('CACHE/LMAKE')
+	print('1G',file=open('CACHE/LMAKE/size','w'))
 
 	rustup_home = osp.dirname(osp.dirname(osp.dirname(cargo)))+'/.rustup'
 	print(f'rustup_home={rustup_home!r}',file=open('step.py','w'))

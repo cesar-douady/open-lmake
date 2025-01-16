@@ -795,6 +795,16 @@ namespace Engine {
 		return os << static_cast<DepDigestBase<Node> const&>(d) ;
 	}
 
+	::string& operator+=( ::string& os , GenericDep const& gd ) {
+		os << "GenericDep(" ;
+		if (gd.hdr.sz) {
+			os << gd.hdr.chunk_accesses            <<',' ;
+			os << ::span((&gd)[1].chunk,gd.hdr.sz) <<',' ;
+		}
+		os << gd.hdr ;
+		return os << ')' ;
+	}
+
 	::string Dep::accesses_str() const {
 		::string res ; res.reserve(N<Access>) ;
 		for( Access a : iota(All<Access>) ) res.push_back( accesses[a] ? AccessChars[+a].second : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX! : for some reason, clang-tidy fires up here
@@ -816,7 +826,7 @@ namespace Engine {
 	}
 
 	static void _append_dep( ::vector<GenericDep>& deps , Dep const& dep , size_t& hole ) {
-		bool can_compress = dep.is_crc && +dep.accesses && dep.crc()==Crc::None && !dep.dflags && !dep.parallel ;
+		bool can_compress = dep.is_crc && dep.crc()==Crc::None && !dep.dflags && !dep.parallel ;
 		if (hole==Npos) {
 			if (can_compress) {                                                                       // create new open chunk
 				/**/ hole                         = deps.size()             ;
@@ -846,6 +856,7 @@ namespace Engine {
 			}
 		}
 	}
+
 	static void _fill_hole(GenericDep& hdr) {
 		SWEAR(hdr.hdr.sz!=0) ;
 		uint8_t  sz                     = hdr.hdr.sz-1                                                 ;
@@ -859,6 +870,13 @@ namespace Engine {
 		GenericDep& d = deps[hole] ;
 		_fill_hole(d) ;
 		if (d.hdr.sz%GenericDep::NodesPerDep==0) deps.pop_back() ;
+	}
+
+	void Deps::_chk( ::vector<Node> const& deps , size_t is_tail ) {
+		::vector<Node> stored ; for( Dep const& d : self ) stored.push_back(d) ;
+		if (is_tail) SWEAR(stored.size()>=deps.size(),stored.size(),deps.size()) ;
+		else         SWEAR(stored.size()==deps.size(),stored.size(),deps.size()) ;
+		for( size_t i : iota(deps.size())) SWEAR(deps[i]==stored[i+stored.size()-deps.size()],i,deps,stored) ;
 	}
 
 	Deps::Deps(::vmap<Node,Dflags> const& deps , Accesses accesses , bool parallel ) {
@@ -886,6 +904,7 @@ namespace Engine {
 	}
 
 	void Deps::replace_tail( DepsIter it , ::vector<Dep> const& deps ) {
+		SWEAR(it!=end()) ;                                                          // else current chunk is already closed
 		// close current chunk
 		GenericDep* cur_dep = const_cast<GenericDep*>(it.hdr) ;
 		cur_dep->hdr.sz = it.i_chunk ;

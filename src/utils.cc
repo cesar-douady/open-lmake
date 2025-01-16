@@ -40,23 +40,40 @@ void Fd::write(::string_view data) const {
 	}
 }
 
-::string Fd::read( bool no_file_ok , size_t sz ) const {
-	if ( no_file_ok && !self ) return {} ;
-	::string res ; res.reserve(::min(sz,size_t(4096))) ;
-	while (res.size()<sz) {
-		size_t old_sz = res.size()                    ;
-		size_t rd_sz  = ::min(sz-old_sz,size_t(4096)) ;
-		res.resize( old_sz + rd_sz ) ;
-		ssize_t c = ::read( fd , &res[old_sz] , rd_sz ) ;
-		if (c<0 ) throw "cannot read from fd "s+fd ;
-		res.resize( old_sz + c ) ;
-		if (c==0) break ;
+::string Fd::read( size_t sz , bool no_file_ok ) const {
+	::string res ;
+	if (sz!=Npos) {
+		res.resize(sz) ;
+		size_t cnt = read_to( ::span(res.data(),sz) , no_file_ok ) ;
+		res.resize(cnt) ;
+	} else if ( !no_file_ok || +self ) {
+		size_t goal_sz = 4096 ;
+		for( size_t cnt=0 ;;) {
+			res.resize(goal_sz) ;
+			ssize_t c = ::read( fd , &res[cnt] , goal_sz-cnt ) ;
+			if (c<0) throw "cannot read from fd "s+fd ;
+			cnt += c ;
+			if (c==0        ) { res.resize(cnt) ; break ; }
+			if (cnt==goal_sz)   goal_sz += goal_sz ;        // increase buf size as long as it is filled up
+			else                goal_sz += c       ;        // we reach system limit, no interest to read more
+		}
 	}
 	return res ;
 }
 
+size_t Fd::read_to( ::span<char> dst , bool no_file_ok ) const {
+	if ( no_file_ok && !self ) return 0 ;
+	for( size_t cnt=0 ; cnt<dst.size() ;) {
+		ssize_t c = ::read( fd , &dst[cnt] , dst.size()-cnt ) ;
+		if (c< 0) throw "cannot read "s+dst.size()+" bytes from fd "+fd ;
+		if (c==0) return cnt                                            ;
+		cnt += c ;
+	}
+	return dst.size() ;
+}
+
 ::vector_s Fd::read_lines(bool no_file_ok) const {
-	::string content = read(no_file_ok) ;
+	::string content = read(Npos/*sz*/,no_file_ok) ;
 	if (!content            ) return {} ;
 	if (content.back()=='\n') content.pop_back() ;
 	return split(content,'\n') ;

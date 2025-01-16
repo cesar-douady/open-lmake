@@ -623,10 +623,10 @@ namespace Disk {
 			Accesses a = Access::Reg ; if (sr.file_accessed==Yes) a |= Access::Lnk ;
 			if (sr.file_loc<=FileLoc::Dep) res.emplace_back(sr.real,a) ;
 			//
-			AcFd     hdr_fd { mk_abs(sr.real,_env->repo_root_s) }  ; if (!hdr_fd               ) break ;
-			::string hdr    = hdr_fd.read(false/*no_file_ok*/,256) ; if (!hdr.starts_with("#!")) break ;
-			size_t   pos    = hdr.find('\n')                       ; if (pos!=Npos             ) hdr.resize(pos) ;
-			/**/     pos    = hdr.find(' ' )                       ; if (pos==0                ) break ;
+			AcFd     hdr_fd { mk_abs(sr.real,_env->repo_root_s) } ; if (!hdr_fd               ) break ;
+			::string hdr    = hdr_fd.read(256)                    ; if (!hdr.starts_with("#!")) break ;
+			size_t   pos    = hdr.find('\n')                      ; if (pos!=Npos             ) hdr.resize(pos) ;
+			/**/     pos    = hdr.find(' ' )                      ; if (pos==0                ) break ;
 			// recurse
 			sr = solve( hdr.substr(2,pos-2) , false/*no_follow*/ ) ;                         // interpreter starts after #! until first space or end of line
 		}

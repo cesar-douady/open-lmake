@@ -169,6 +169,7 @@ namespace Engine {
 
 	union GenericDep {
 		static constexpr uint8_t NodesPerDep = sizeof(Dep)/sizeof(Node) ;
+		friend ::string& operator+=( ::string& , GenericDep const& ) ;
 		// cxtors & casts
 		GenericDep(Dep const& d={}) : hdr{d} {}
 		// services
@@ -176,7 +177,7 @@ namespace Engine {
 		GenericDep      * next()       { return this+1+div_up<GenericDep::NodesPerDep>(hdr.sz) ; }
 		// data
 		Dep hdr                 = {} ;
-		Node chunk[NodesPerDep] ;
+		Node chunk[1/*hdr.sz*/] ;
 	} ;
 
 	//
@@ -186,6 +187,7 @@ namespace Engine {
 	struct DepsIter {
 		struct Digest {
 			friend ::string& operator+=( ::string& , Digest const& ) ;
+			bool operator==(Digest const&) const = default ;
 			DepsIdx hdr     = 0 ;
 			uint8_t i_chunk = 0 ;
 		} ;
@@ -206,7 +208,7 @@ namespace Engine {
 		// services
 		Dep const* operator->() const { return &*self ; }
 		Dep const& operator* () const {
-			// Node's in chunk are semanticly located before header so :
+			// Node's in chunk are semantically located before header so :
 			// - if i_chunk< hdr->sz : refer to dep with no crc, flags nor parallel
 			// - if i_chunk==hdr->sz : refer to header
 			SWEAR(hdr) ;
@@ -245,6 +247,8 @@ namespace Engine {
 		}
 		void assign      (            ::vector<Dep> const& ) ;
 		void replace_tail( DepsIter , ::vector<Dep> const& ) ;
+	private :
+		void _chk( ::vector<Node> const& deps , size_t is_tail=false ) ;
 	} ;
 
 }

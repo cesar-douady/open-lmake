@@ -940,16 +940,17 @@ struct Fd {
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// services
-	/**/      bool              operator== ( Fd const&                              ) const = default ;
-	/**/      ::strong_ordering operator<=>( Fd const&                              ) const = default ;
-	/**/      void              write      ( ::string_view data                     ) const ;           // writing does not modify the Fd object
-	/**/      ::string          read       ( bool no_file_ok=false , size_t sz=Npos ) const ;           // read sz bytes or to eof
-	/**/      ::vector_s        read_lines ( bool no_file_ok=false                  ) const ;
-	/**/      Fd                dup        (                                        ) const { return ::dup(fd) ;                     }
-	constexpr Fd                detach     (                                        )       { Fd res = self ; fd = -1 ; return res ; }
-	constexpr void              close      (                                        ) ;
-	/**/      void              no_std     (                                        ) ;
-	/**/      void              cloexec    (bool set=true                           ) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
+	/**/      bool              operator== ( Fd const&                                ) const = default ;
+	/**/      ::strong_ordering operator<=>( Fd const&                                ) const = default ;
+	/**/      void              write      ( ::string_view data                       ) const ;           // writing does not modify the Fd object
+	/**/      ::string          read       ( size_t sz=Npos   , bool no_file_ok=false ) const ;           // read sz bytes or to eof
+	/**/      ::vector_s        read_lines (                    bool no_file_ok=false ) const ;
+	/**/      size_t            read_to    ( ::span<char> dst , bool no_file_ok=false ) const ;
+	/**/      Fd                dup        (                                          ) const { return ::dup(fd) ;                     }
+	constexpr Fd                detach     (                                          )       { Fd res = self ; fd = -1 ; return res ; }
+	constexpr void              close      (                                          ) ;
+	/**/      void              no_std     (                                          ) ;
+	/**/      void              cloexec    (bool set=true                             ) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
 	// data
 	int fd = -1 ;
 } ;
