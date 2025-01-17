@@ -773,18 +773,20 @@ namespace Engine {
 	JobReason JobData::make( ReqInfo& ri , MakeAction make_action , JobReason asked_reason , Bool3 speculate , bool wakeup_watchers ) {
 		using Step = JobStep ;
 		static constexpr Dep Sentinel { false/*parallel*/ } ;                                       // used to clean up after all deps are processed
+		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
 		//
 		SWEAR( asked_reason.tag<JobReasonTag::Err,asked_reason) ;
-		Rule        r             = rule()                                                        ;
-		bool        query         = make_action==MakeAction::Query                                ;
-		Req         req           = ri.req                                                        ;
-		Special     special       = r->special                                                    ;
-		bool        dep_live_out  = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
-		CoarseDelay dep_pressure  = ri.pressure + exec_time                                       ;
-		bool        archive       = req->options.flags[ReqFlag::Archive]                          ;
-		JobReason   pre_reason    ;                                                                 // reason to run job when deps are ready before deps analysis
-		JobReason   report_reason ;
+		Rule        r            = rule()                                                        ;
+		bool        query        = make_action==MakeAction::Query                                ;
+		Req         req          = ri.req                                                        ;
+		Special     special      = r->special                                                    ;
+		bool        dep_live_out = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
+		CoarseDelay dep_pressure = ri.pressure + exec_time                                       ;
+		bool        archive      = req->options.flags[ReqFlag::Archive]                          ;
 		//
+	RestartFullAnalysis :
+		JobReason pre_reason    ;                                                                 // reason to run job when deps are ready before deps analysis
+		JobReason report_reason ;
 		auto reason = [&](ReqInfo::State const& s)->JobReason {
 			if (ri.force) return pre_reason | ri.reason | s.reason             ;
 			else          return pre_reason |             s.reason | ri.reason ;
@@ -819,8 +821,6 @@ namespace Engine {
 				default                  :                      ri.n_submits++ ;
 			}
 		} ;
-		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
-	RestartFullAnalysis :
 		switch (make_action) {
 			case MakeAction::End :
 				ri.force  = false ;                                                                        // cmd has been executed, it is not new any more
@@ -836,9 +836,9 @@ namespace Engine {
 		}
 		ri.speculate = ri.speculate & speculate ;                                                          // cannot use &= with bit fields
 		if (ri.done()) {
-			if ( !ri.reason && !ri.state.reason ) goto Wakeup ;
-			if ( req.zombie()                   ) goto Wakeup ;
-			/**/                                  goto Run    ;
+			if ( !reason(ri.state).need_run() ) goto Wakeup ;
+			if ( req.zombie()                 ) goto Wakeup ;
+			/**/                                goto Run    ;
 		} else {
 			if ( ri.waiting()                   ) goto Wait   ;                                            // we may have looped in which case stats update is meaningless and may fail()
 			if ( req.zombie()                   ) goto Done   ;

@@ -288,7 +288,8 @@ struct JobReason {
 	JobReason( Tag t             ) : tag{t}           { SWEAR( t< Tag::HasNode       , t     ) ; }
 	JobReason( Tag t , NodeIdx n ) : tag{t} , node{n} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
 	// accesses
-	bool operator+() const { return +tag ; }
+	bool operator+() const { return +tag                           ; }
+	bool need_run () const { return +tag and tag<JobReasonTag::Err ; }
 	// services
 	JobReason operator|(JobReason jr) const {
 		if (JobReasonTagPrios[+tag].second>=JobReasonTagPrios[+jr.tag].second) return self ; // at equal level, prefer older reason
