@@ -87,7 +87,7 @@ else :
 			if p==0 :
 				cnts = ut.lmake( *tgts , may_rerun=... , rerun=... , done=... , was_done=... ) # rerun versus may_rerun is timing dependent, but the sum is predictible
 				assert cnts.done+cnts.was_done   == 2+4*n_ads
-				assert cnts.may_rerun+cnts.rerun == 4*n_ads
+				assert cnts.may_rerun+cnts.rerun <= 4*n_ads   # depend on timing w.r.t hello, there may be may_rerun (if before), rerun (if during) or nothing (if after)
 			elif p==1 :
 				ut.lmake( *tgts )
 			elif p==2 :

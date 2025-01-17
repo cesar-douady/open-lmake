@@ -272,7 +272,7 @@ namespace Caches {
 				auto flush = [&](NodeIdx ti)->void {
 					if (cnt) {
 						::string buf = data_fd.read(cnt) ;
-						trace("flush_to") ;
+						trace("flush_to",cnt) ;
 						size_t   c   = 0                 ;
 						for( NodeIdx t : iota(buf_ti,ti) ) {
 							auto& entry = digest.targets[t] ;
@@ -303,10 +303,10 @@ namespace Caches {
 								static constexpr size_t BufSz = 1<<16 ;
 								if (cnt+sz>BufSz) flush(ti) ;                    // clears cnt
 								if (cnt+sz<BufSz) {
-									trace("write_to",tn) ;
+									trace("write_to",sz,tn) ;
 									cnt += sz ;
 								} else {
-									trace("sendfile_to",tn) ;
+									trace("sendfile_to",sz,tn) ;
 									AcFd fd { ::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , mode(tag) ) } ;
 									::sendfile( fd , data_fd , nullptr , sz ) ;
 								}
@@ -377,6 +377,7 @@ namespace Caches {
 			job_info.start.rsrcs.clear() ;                                                         // caching resources is meaningless as they have no impact on content
 			target_szs .reserve(digest.targets.size()) ;
 			target_sigs.reserve(digest.targets.size()) ;
+			trace("stat") ;
 			for( auto& [tn,td] : digest.targets ) {
 				SWEAR(!td.pre_exist) ;                                                             // else cannot be a candidate for upload as this must have failed
 				size_t sz = td.sig.tag()==FileTag::Empty ? 0 : FileInfo(nfs_guard.access(tn)).sz ; // fast path : no need to access empty files as we know size is 0
@@ -386,6 +387,7 @@ namespace Caches {
 				td.sig           = td.sig.tag() ;                                                  // forget date, just keep tag
 				td.extra_tflags  = {}           ;
 			}
+			trace("stat_done") ;
 			digest.end_date = {} ;
 			// store meta-data
 			// START_OF_VERSIONING
@@ -405,7 +407,7 @@ namespace Caches {
 			size_t cnt        = 0                                         ;
 			auto flush = [&]()->void {
 				if (cnt) {
-					trace("flush") ;
+					trace("flush",cnt) ;
 					data_fd.write(::string_view(buf,cnt)) ;
 					cnt = 0 ;
 				}
@@ -415,29 +417,32 @@ namespace Caches {
 				::string               const& tn    = entry.first            ;
 				FileTag                       tag   = entry.second.sig.tag() ;
 				switch (tag) {
-					case FileTag::Lnk   : trace("lnk_from"  ,tn) ; data_fd.write(read_lnk(tn)) ; break ;
-					case FileTag::Empty : trace("empty_from",tn) ;                               break ;
+					case FileTag::Lnk   : trace("lnk_from"  ,tn) ; data_fd.write(read_lnk(tn)) ; goto ChkSig ;
+					case FileTag::Empty : trace("empty_from",tn) ;                               break       ;
 					case FileTag::Reg   :
 					case FileTag::Exe   : {
-						AcFd fd { tn } ;
+						AcFd fd { ::open( tn.c_str() , O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NOATIME ) } ;
 						if ( size_t sz=target_szs[ti] ) {
 							if (cnt+sz>sizeof(buf)) flush() ;                                      // clears cnt
 							if (sz) {
 								if (cnt+sz<sizeof(buf)) {
-									trace("read_from",tn) ;
-									size_t c = fd.read_to(::span(&buf[cnt],sz)) ; SWEAR(c==sz) ;
+									trace("read_from",sz,tn) ;
+									size_t c = fd.read_to(::span(&buf[cnt],sz)) ; SWEAR(c==sz,c,sz) ;
 									cnt += sz ;
 								} else {
-									trace("sendfile_from",tn) ;
+									trace("sendfile_from",sz,tn) ;
 									::sendfile( data_fd , fd , nullptr , sz ) ;
 								}
+								goto ChkSig ;
 							} else {
 								trace("no_data_from",tn) ;
 							}
 						}
 					} break ;
 				DN}
-				throw_unless( FileSig(tn)==target_sigs[ti] , "unstable ",tn ) ;                    // ensure cache entry is reliable by checking file *after* copy
+				continue ;
+			ChkSig :                                                                               // ensure cache entry is reliable by checking file *after* copy
+				throw_unless( FileSig(tn)==target_sigs[ti] , "unstable ",tn ) ;
 			}
 			flush() ;
 			// END_OF_VERSIONING

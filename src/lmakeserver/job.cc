@@ -139,8 +139,8 @@ namespace Engine {
 		const char* sep = "" ;
 		/**/                                            os <<'('                                                  ;
 		if (+ris.reason                             ) { os <<            ris.reason                               ; sep = "," ; }
-		if ( +ris.stamped_err   || +ris.proto_err   ) { os <<sep<<"E:"<< ris.proto_err  <<"->"<<ris.stamped_err   ; sep = "," ; }
-		if ( +ris.stamped_modif || +ris.proto_modif )   os <<sep<<"M:"<< ris.proto_modif<<"->"<<ris.stamped_modif ;
+		if ( +ris.stamped_err   || +ris.proto_err   ) { os <<sep<<"E:"<< ris.stamped_err  <<"->"<<ris.proto_err   ; sep = "," ; }
+		if ( +ris.stamped_modif || +ris.proto_modif )   os <<sep<<"M:"<< ris.stamped_modif<<"->"<<ris.proto_modif ;
 		return                                          os <<')'                                                  ;
 	}
 
@@ -755,9 +755,9 @@ namespace Engine {
 			{ Status::New          , JobReasonTag::New             }
 		,	{ Status::EarlyChkDeps , JobReasonTag::ChkDeps         }
 		,	{ Status::EarlyErr     , JobReasonTag::Retry           }
-		,	{ Status::EarlyLost    , JobReasonTag::Lost            }                                // becomes WasLost if end
+		,	{ Status::EarlyLost    , JobReasonTag::Lost            }                            // becomes WasLost if end
 		,	{ Status::EarlyLostErr , JobReasonTag::Retry           }
-		,	{ Status::LateLost     , JobReasonTag::Lost            }                                // becomes WasLost if end
+		,	{ Status::LateLost     , JobReasonTag::Lost            }                            // becomes WasLost if end
 		,	{ Status::LateLostErr  , JobReasonTag::Retry           }
 		,	{ Status::Killed       , JobReasonTag::Killed          }
 		,	{ Status::ChkDeps      , JobReasonTag::ChkDeps         }
@@ -773,26 +773,27 @@ namespace Engine {
 	}
 	JobReason JobData::make( ReqInfo& ri , MakeAction make_action , JobReason asked_reason , Bool3 speculate , bool wakeup_watchers ) {
 		using Step = JobStep ;
-		static constexpr Dep Sentinel { false/*parallel*/ } ;                                       // used to clean up after all deps are processed
+		static constexpr Dep Sentinel { false/*parallel*/ } ;                                   // used to clean up after all deps are processed
 		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
 		//
 		SWEAR( asked_reason.tag<JobReasonTag::Err,asked_reason) ;
-		Rule        r             = rule()                                                        ;
-		bool        query         = make_action==MakeAction::Query                                ;
-		Req         req           = ri.req                                                        ;
-		Special     special       = r->special                                                    ;
-		bool        dep_live_out  = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
-		CoarseDelay dep_pressure  = ri.pressure + exec_time                                       ;
-		bool        archive       = req->options.flags[ReqFlag::Archive]                          ;
-		JobReason   pre_reason    ;                                                                 // reason to run job when deps are ready before deps analysis
-		JobReason   report_reason ;
+		Rule        r            = rule()                                                        ;
+		bool        query        = make_action==MakeAction::Query                                ;
+		Req         req          = ri.req                                                        ;
+		Special     special      = r->special                                                    ;
+		bool        dep_live_out = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
+		CoarseDelay dep_pressure = ri.pressure + exec_time                                       ;
+		bool        archive      = req->options.flags[ReqFlag::Archive]                          ;
 		//
+	RestartFullAnalysis :
+		JobReason pre_reason    ;                                                               // reason to run job when deps are ready before deps analysis
+		JobReason report_reason ;
 		auto reason = [&](ReqInfo::State const& s)->JobReason {
 			if (ri.force) return pre_reason | ri.reason | s.reason             ;
 			else          return pre_reason |             s.reason | ri.reason ;
 		} ;
 		// /!\ no_run_reason and inc_submits must stay in sync
-		auto no_run_reason = [&](ReqInfo::State const& s)->NoRunReason {                            // roughly equivalent to !reason(s)||reason(s).tag>=Err but give reason and take care of limits
+		auto no_run_reason = [&](ReqInfo::State const& s)->NoRunReason {                        // roughly equivalent to !reason(s)||reason(s).tag>=Err but give reason and take care of limits
 			JobReasonTag rt = reason(s).tag ;
 			switch (rt) {
 				case JobReasonTag::None  :                            return NoRunReason::Dep ;
@@ -809,7 +810,7 @@ namespace Engine {
 			Lost   : return                 ri.n_losts  >=r->n_losts     ? NoRunReason::LostLoop   : NoRunReason::None ;
 			Submit : return r->n_submits && ri.n_submits>=r->n_submits   ? NoRunReason::SubmitLoop : NoRunReason::None ;
 		} ;
-		auto inc_submits = [&](JobReasonTag rt)->void {                                             // inc counter associated with no_run_reason (returning None) assuming rt==reason(ri.state).tag
+		auto inc_submits = [&](JobReasonTag rt)->void {                                         // inc counter associated with no_run_reason (returning None) assuming rt==reason(ri.state).tag
 			switch (rt) {
 				case JobReasonTag::Retry :                      ri.n_retries++ ; break ;
 			DN}
@@ -821,10 +822,9 @@ namespace Engine {
 				default                  :                      ri.n_submits++ ;
 			}
 		} ;
-	RestartFullAnalysis :
 		switch (make_action) {
 			case MakeAction::End :
-				ri.reset(idx(),true/*has_run*/) ;                                                          // deps have changed
+				ri.reset(idx(),true/*has_run*/) ;                                               // deps have changed
 			[[fallthrough]] ;
 			case MakeAction::Wakeup : ri.dec_wait() ; break     ;
 			case MakeAction::GiveUp : ri.dec_wait() ; goto Done ;
@@ -833,16 +833,16 @@ namespace Engine {
 			if (ri.state.missing_dsk) { trace("reset",asked_reason) ; ri.reset(idx()) ; }
 			ri.reason |= asked_reason ;
 		}
-		ri.speculate = ri.speculate & speculate ;                                                          // cannot use &= with bit fields
+		ri.speculate = ri.speculate & speculate ;                                               // cannot use &= with bit fields
 		if (ri.done()) {
-			if ( !ri.reason && !ri.state.reason ) goto Wakeup ;
-			if ( req.zombie()                   ) goto Wakeup ;
-			/**/                                  goto Run    ;
+			if (!reason(ri.state).need_run()) goto Wakeup ;
+			if (req.zombie()                ) goto Wakeup ;
+			/**/                              goto Run    ;
 		} else {
-			if ( ri.waiting()                   ) goto Wait   ;                                            // we may have looped in which case stats update is meaningless and may fail()
-			if ( req.zombie()                   ) goto Done   ;
-			if ( idx().frozen()                 ) goto Run    ;                                            // ensure crc are updated, akin sources
-			if ( special==Special::Infinite     ) goto Run    ;                                            // special case : Infinite actually has no dep, just a list of node showing infinity
+			if (ri.waiting()                ) goto Wait   ;                                     // we may have looped in which case stats update is meaningless and may fail()
+			if (req.zombie()                ) goto Done   ;
+			if (idx().frozen()              ) goto Run    ;                                     // ensure crc are updated, akin sources
+			if (special==Special::Infinite  ) goto Run    ;                                     // special case : Infinite actually has no dep, just a list of node showing infinity
 		}
 		if (ri.step()==Step::None) {
 			estimate_stats() ;                                                                             // initial guestimate to accumulate waiting costs while resources are not fully known yet
