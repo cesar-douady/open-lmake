@@ -970,6 +970,10 @@ Besides these considerations, a classical LRU algorithm is used.
 This attribute specifies the directory in which the cache puts its data.
 The directory must pre-exist and contain a file @file{LMAKE/size} containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (k, M, G, T, P or E). These refer to base 1024.
+@item @code{caches.<dir>.reliable_dirs}
+@tab @code{False}
+Same meaning as @code{config.reliable_dirs} for the directory containing the cache.
+@tab Valid only when @code{tag} is @code{'dir'}.
 @item @code{caches.<dir>.group}
 @tab -
 @tab Valid only when @code{tag} is @code{'dir'}.

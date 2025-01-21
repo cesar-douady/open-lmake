@@ -39,7 +39,7 @@ namespace Hash {
 	struct Crc {
 		friend ::string& operator+=( ::string& , Crc const ) ;
 		using Val = uint64_t ;
-		static constexpr uint8_t NChkBits = 8 ;                         // as Crc may be used w/o protection against collision, ensure we have some margin
+		static constexpr uint8_t NChkBits = 8 ;                                       // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
 		static constexpr Val ChkMsk = ~lsb_msk<Val>(NChkBits) ;
 		//
@@ -49,7 +49,7 @@ namespace Hash {
 		static const Crc None    ;
 		static const Crc Empty   ;
 		// statics
-		static bool s_sense( Accesses a , FileTag t ) {                 // return whether accesses a can see the difference between files with tag t
+		static bool s_sense( Accesses a , FileTag t ) {                               // return whether accesses a can see the difference between files with tag t
 			Crc crc{t} ;
 			return !crc.match(crc,a) ;
 		}
@@ -66,15 +66,21 @@ namespace Hash {
 				case FileTag::Empty : self = Crc::Empty ; break ;
 			DF}
 		}
-		Crc(                             ::string const& filename ) ;
-		Crc( Disk::FileSig&/*out*/ sig , ::string const& filename ) {
-			sig  = Disk::FileSig(filename) ;
+		Crc( ::string const& filename                             ) ;
+		Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
+			fi  = Disk::FileInfo(filename) ;
 			self = Crc(filename)           ;
-			Disk::FileSig sig_after = Disk::FileSig(filename) ;
-			if (sig_after!=sig) {                                       // file was moving, association date<=>crc is not reliable
-				if (sig_after.tag()==sig.tag()) self = Crc(sig.tag()) ; // file type is reliable
-				else                            self = {}             ; // nothing is reliable
+			Disk::FileSig sig_before = fi.sig()                ;
+			Disk::FileSig sig_after  = Disk::FileSig(filename) ;
+			if (sig_after!=sig_before) {                                              // file was moving, association date<=>crc is not reliable
+				if (sig_after.tag()==sig_before.tag()) self = Crc(sig_before.tag()) ; // file type is reliable
+				else                                   self = {}                    ; // nothing is reliable
 			}
+		}
+		Crc( ::string const& filename , Disk::FileSig&/*out*/ sig ) {
+			Disk::FileInfo fi ;
+			self = Crc(filename,fi) ;
+			sig  = fi.sig()         ;
 		}
 	private :
 		constexpr Crc( CrcSpecial special ) : _val{+special} {}

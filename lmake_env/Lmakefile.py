@@ -407,6 +407,7 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'RECORD'       : 'src/autodep/record.o'
 	,	'SYSCALL'      : 'src/autodep/syscall_tab.o'
 	,	'RPC_JOB'      : 'src/rpc_job.o'
+	,	'DIR_CACHE'    : 'src/caches/dir_cache.o'
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
 	,	'RPC_CLIENT'   : None
 	}
@@ -432,12 +433,11 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
+	,	'DIR_CACHE'  : 'src/caches/dir_cache.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'BE_LOCAL'   : 'src/lmakeserver/backends/local.o'
 	#,	'BE_SLURM'   : 'src/lmakeserver/backends/slurm.o' # XXX : add conditional compilation to compile slurm when it is available
-	,	'CACHE'      : 'src/lmakeserver/cache.o'
-	,	'DIR_CACHE'  : 'src/lmakeserver/caches/dir_cache.o'
 	,	'CMD'        : 'src/lmakeserver/cmd.o'
 	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
@@ -462,10 +462,9 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'    : 'src/rpc_job.o'
+	,	'DIR_CACHE'  : 'src/caches/dir_cache.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
-	,	'CACHE'      : 'src/lmakeserver/cache.o'
-	,	'DIR_CACHE'  : 'src/lmakeserver/caches/dir_cache.o'
 	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
 	,	'CONFIG'     : 'src/lmakeserver/config.o'
@@ -480,8 +479,9 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
 	deps = {
-		'RPC_JOB' : 'src/rpc_job.o'
-	,	'MAIN'    : 'src/ldump_job.o'
+		'RPC_JOB'   : 'src/rpc_job.o'
+	,	'DIR_CACHE' : 'src/caches/dir_cache.o'
+	,	'MAIN'      : 'src/ldump_job.o'
 	}
 
 for client in ('lforget','lmake','lmark','lshow') :

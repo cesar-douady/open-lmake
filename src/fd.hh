@@ -19,23 +19,6 @@
 ::string host() ;
 ::string fqdn() ; // fully qualified domain name (includes hostname)
 
-struct AcFd : Fd {
-	friend ::string& operator+=( ::string& , AcFd const& ) ;
-	// cxtors & casts
-	AcFd(                                                                          ) = default ;
-	AcFd( Fd fd_                                                                   ) : Fd{fd_                            } {              }
-	AcFd( AcFd&& acfd                                                              )                                       { swap(acfd) ; }
-	AcFd( int fd_                                             , bool no_std_=false ) : Fd{fd_,no_std_                    } {              }
-	AcFd(         ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{       file , action , no_std_ } {              }
-	AcFd( Fd at , ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ at  , file , action , no_std_ } {              }
-	//
-	~AcFd() { close() ; }
-	//
-	AcFd& operator=(int       fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return self ; }
-	AcFd& operator=(Fd const& fd_ ) { self = fd_ .fd ;                      return self ; }
-	AcFd& operator=(AcFd   && acfd) { swap(acfd) ;                          return self ; }
-} ;
-
 struct LockedFd : Fd {
 	friend ::string& operator+=( ::string& , LockedFd const& ) ;
 	// cxtors & casts

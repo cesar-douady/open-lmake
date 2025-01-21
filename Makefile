@@ -420,6 +420,10 @@ LIB_SECCOMP := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
 src/lmakeserver/backends/slurm$(SAN).o : CPP_FLAGS += $(if $(SLURM_INC_DIR),-isystem $(SLURM_INC_DIR))
 
+RPC_JOB_SAN_OBJS := \
+	src/rpc_job$(SAN).o          \
+	src/caches/dir_cache$(SAN).o
+
 CLIENT_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)   \
 	src/app$(SAN).o        \
@@ -428,29 +432,27 @@ CLIENT_SAN_OBJS := \
 	src/trace$(SAN).o
 
 SERVER_SAN_OBJS := \
-	$(LMAKE_BASIC_SAN_OBJS)                             \
-	src/app$(SAN).o                                     \
-	src/py$(SAN).o                                      \
-	src/re$(SAN).o                                      \
-	src/rpc_client$(SAN).o                              \
-	src/rpc_job$(SAN).o                                 \
-	src/rpc_job_exec$(SAN).o                            \
-	src/trace$(SAN).o                                   \
-	src/autodep/backdoor$(SAN).o                        \
-	src/autodep/env$(SAN).o                             \
-	src/autodep/ld_server$(SAN).o                       \
-	src/autodep/record$(SAN).o                          \
-	src/autodep/syscall_tab$(SAN).o                     \
-	src/lmakeserver/backend$(SAN).o                     \
-	src/lmakeserver/cache$(SAN).o                       \
-	src/lmakeserver/caches/dir_cache$(SAN).o            \
-	src/lmakeserver/codec$(SAN).o                       \
-	src/lmakeserver/global$(SAN).o                      \
-	src/lmakeserver/config$(SAN).o                      \
-	src/lmakeserver/job$(SAN).o                         \
-	src/lmakeserver/node$(SAN).o                        \
-	src/lmakeserver/req$(SAN).o                         \
-	src/lmakeserver/rule$(SAN).o                        \
+	$(LMAKE_BASIC_SAN_OBJS)         \
+	$(RPC_JOB_SAN_OBJS)             \
+	src/app$(SAN).o                 \
+	src/py$(SAN).o                  \
+	src/re$(SAN).o                  \
+	src/rpc_client$(SAN).o          \
+	src/rpc_job_exec$(SAN).o        \
+	src/trace$(SAN).o               \
+	src/autodep/backdoor$(SAN).o    \
+	src/autodep/env$(SAN).o         \
+	src/autodep/ld_server$(SAN).o   \
+	src/autodep/record$(SAN).o      \
+	src/autodep/syscall_tab$(SAN).o \
+	src/lmakeserver/backend$(SAN).o \
+	src/lmakeserver/codec$(SAN).o   \
+	src/lmakeserver/global$(SAN).o  \
+	src/lmakeserver/config$(SAN).o  \
+	src/lmakeserver/job$(SAN).o     \
+	src/lmakeserver/node$(SAN).o    \
+	src/lmakeserver/req$(SAN).o     \
+	src/lmakeserver/rule$(SAN).o    \
 	src/lmakeserver/store$(SAN).o
 
 _bin/lmakeserver : \
@@ -514,8 +516,8 @@ bin/ldebug :
 LMAKE_DBG_FILES += _bin/ldump_job
 _bin/ldump_job : \
 	$(LMAKE_BASIC_SAN_OBJS) \
+	$(RPC_JOB_SAN_OBJS)     \
 	src/app$(SAN).o         \
-	src/rpc_job$(SAN).o     \
 	src/trace$(SAN).o       \
 	src/autodep/env$(SAN).o \
 	src/ldump_job$(SAN).o
@@ -558,18 +560,18 @@ REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) src/autodep/job_support.o
 
 JOB_EXEC_SAN_OBJS := \
 	$(AUTODEP_OBJS:%.o=%$(SAN).o) \
+	$(RPC_JOB_SAN_OBJS)           \
 	src/app$(SAN).o               \
 	src/non_portable$(SAN).o      \
 	src/py$(SAN).o                \
 	src/re$(SAN).o                \
-	src/rpc_job$(SAN).o           \
 	src/trace$(SAN).o             \
 	src/autodep/gather$(SAN).o    \
 	src/autodep/ptrace$(SAN).o    \
 	src/autodep/record$(SAN).o
 
-_bin/job_exec : $(JOB_EXEC_SAN_OBJS) src/job_exec$(SAN).o
-bin/lautodep  : $(JOB_EXEC_SAN_OBJS) src/autodep/lautodep$(SAN).o
+_bin/job_exec : $(JOB_EXEC_SAN_OBJS) $(CACHE_SAN_OBJS) src/job_exec$(SAN).o
+bin/lautodep  : $(JOB_EXEC_SAN_OBJS)                   src/autodep/lautodep$(SAN).o
 
 LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
 _bin/job_exec bin/lautodep :

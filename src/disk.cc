@@ -566,7 +566,7 @@ namespace Disk {
 				case LnkSupport::Full :           goto HandleLnk ;
 			DF}
 		HandleLnk :
-			::string& nxt = local_file[(ping=!ping)] ;                                                                       // bounce, initially, when cur is neither local_file's, any buffer is ok
+			::string& nxt = local_file[ping] ;                                                                               // bounce, initially, when cur is neither local_file's, any buffer is ok
 			nxt = read_lnk(real) ;
 			if (!nxt) {
 				if (errno==ENOENT) exists = false ;
@@ -580,12 +580,13 @@ namespace Disk {
 				if (+in_repo) lnks.push_back(                              real.c_str()+_repo_root_sz                    ) ;
 				else          lnks.push_back( _env->src_dirs_s[src_idx] + (real.c_str()+_abs_src_dirs_s[src_idx].size()) ) ; // real lie in a source dir
 			}
-			if (n_lnks++>=NMaxLnks) return {{},::move(lnks)} ;              // link loop detected, same check as system
-			if (!last                 ) nxt << '/'<<(cur.data()+end+1) ;    // append unprocessed part, avoiding this copy would be very complex (would need a stack) and links to dir are uncommon
-			if (nxt[0]=='/'           ) { end =  0 ; prev_real_size = 0 ; } // absolute link target : flush real
-			else                          end = -1 ;                        // end must point to the /, invent a virtual one before the string
-			real.resize(prev_real_size) ;                                   // links are relative to containing dir, suppress last component
-			cur = nxt ;
+			if (n_lnks++>=NMaxLnks) return {{},::move(lnks)} ;          // link loop detected, same check as system
+			if (!last             )   nxt << '/'<<(cur.data()+end+1) ;  // append unprocessed part, avoiding this copy would be very complex (would need a stack) and links to dir are uncommon
+			if (nxt[0]=='/'       ) { end =  0 ; prev_real_size = 0 ; } // absolute link target : flush real
+			else                      end = -1 ;                        // end must point to the /, invent a virtual one before the string
+			real.resize(prev_real_size) ;                               // links are relative to containing dir, suppress last component
+			ping = !ping ;
+			cur  = nxt   ;
 		}
 		// admin is in repo, tmp might be, repo root is in_repo
 		if (+in_tmp) //!                                                                                                                       file_accessed
@@ -613,7 +614,7 @@ namespace Disk {
 	}
 
 	::vmap_s<Accesses> RealPath::exec(SolveReport& sr) {
-		::vmap_s<Accesses> res         ;
+		::vmap_s<Accesses> res ;
 		// from tmp, we can go back to repo
 		for( int i=0 ; i<=4 ; i++ ) {                                                        // interpret #!<interpreter> recursively (4 levels as per man execve)
 			for( ::string& l : sr.lnks ) res.emplace_back(::move(l),Accesses(Access::Lnk)) ;
@@ -623,12 +624,16 @@ namespace Disk {
 			Accesses a = Access::Reg ; if (sr.file_accessed==Yes) a |= Access::Lnk ;
 			if (sr.file_loc<=FileLoc::Dep) res.emplace_back(sr.real,a) ;
 			//
-			AcFd     hdr_fd { mk_abs(sr.real,_env->repo_root_s) } ; if (!hdr_fd               ) break ;
-			::string hdr    = hdr_fd.read(256)                    ; if (!hdr.starts_with("#!")) break ;
-			size_t   pos    = hdr.find('\n')                      ; if (pos!=Npos             ) hdr.resize(pos) ;
-			/**/     pos    = hdr.find(' ' )                      ; if (pos==0                ) break ;
-			// recurse
-			sr = solve( hdr.substr(2,pos-2) , false/*no_follow*/ ) ;                         // interpreter starts after #! until first space or end of line
+			try {
+				AcFd     hdr_fd { mk_abs(sr.real,_env->repo_root_s) } ; if (!hdr_fd               ) break ;
+				::string hdr    = hdr_fd.read(256)                    ; if (!hdr.starts_with("#!")) break ;
+				size_t   pos    = hdr.find('\n')                      ; if (pos!=Npos             ) hdr.resize(pos) ;
+				/**/     pos    = hdr.find(' ' )                      ; if (pos==0                ) break ;
+				// recurse
+				sr = solve( hdr.substr(2,pos-2) , false/*no_follow*/ ) ;                     // interpreter starts after #! until first space or end of line
+			} catch (::string const&) {
+				break ;                                                                      // if hdr_fd is not readable (e.g. it is a dir), do as if it did not exist at all
+			}
 		}
 		return res ;
 	}

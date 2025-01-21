@@ -392,7 +392,7 @@ static bool/*interrupted*/ _engine_loop() {
 					case JobRpcProc::Start       : je.started     ( ::move(ecj.start.start) ,ecj.start.report , ecj.start.report_unlnks , ecj.start.txt , ecj.start.msg ) ; break ;
 					case JobRpcProc::ReportStart : je.report_start(                                                                                                     ) ; break ;
 					case JobRpcProc::GiveUp      : je.give_up     ( ecj.etc.req , ecj.etc.report                                                                        ) ; break ;
-					case JobRpcProc::End         : je.end         ( ::move(ecj.end) , true/*sav_jrr*/                                                                   ) ; break ;
+					case JobRpcProc::End         : je.end         ( ::move(ecj.end)                                                                                     ) ; break ;
 					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				DF}
 			} break ;

@@ -31,4 +31,4 @@ else :
 	import ut
 
 	ut.lmake( 'bad' , failed=1  , rc=1 )
-	ut.lmake( 'dut' , dep_err=1 , rc=1 ) # check Double is not run, although dut depends 2x on it
+	ut.lmake( 'dut' , dep_err=1 , rc=1 ) # check Double is not run, although dut depends both on double1 and double2

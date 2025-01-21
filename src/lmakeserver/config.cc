@@ -5,10 +5,11 @@
 
 #include "core.hh" // must be first to include Python.h first
 
-using namespace Disk ;
-using namespace Hash ;
-using namespace Py   ;
-using namespace Time ;
+using namespace Caches ;
+using namespace Disk   ;
+using namespace Hash   ;
+using namespace Py     ;
+using namespace Time   ;
 
 namespace Engine {
 
@@ -62,10 +63,7 @@ namespace Engine {
 	}
 
 	Config::Config(Dict const& py_map) : booted{true} {                                                                                // if config is read from makefiles, it is booted
-		// generate a random key
-		::string buf_char = AcFd("/dev/urandom").read(sizeof(uint64_t)) ;
-		uint64_t buf_int  ;                                               ::memcpy( &buf_int , buf_char.data() , sizeof(buf_int) ) ;
-		key = to_hex(buf_int) ;
+		key = to_hex(random<uint64_t>()) ;
 		//
 		::vector_s fields = {{}} ;
 		try {
@@ -342,7 +340,7 @@ namespace Engine {
 		//
 		if (dynamic) return ;
 		//
-		Caches::Cache::s_config(caches) ;
+		for( auto const& [key,config] : caches ) Caches::Cache::s_config(key,config.tag,config.dct) ;
 	}
 
 }

@@ -287,12 +287,12 @@ Status Gather::exec_child() {
 			_exec_trace(now,"still_alive") ;
 			if (!_wait[Kind::ChildEnd]) {
 				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , _end_child ) ; // else we should already have exited
-				::string msg ;
-				if ( _wait[Kind::Stdout]                        ) msg += "stdout " ;
-				if ( _wait[Kind::Stdout] && _wait[Kind::Stderr] ) msg += "and "    ;
-				if (                        _wait[Kind::Stderr] ) msg += "stderr " ;
-				msg << "still open after job having been dead for " << network_delay.short_str() ;
-				set_status(Status::Err,msg) ;
+				::string msg_ ;
+				if ( _wait[Kind::Stdout]                        ) msg_ += "stdout " ;
+				if ( _wait[Kind::Stdout] && _wait[Kind::Stderr] ) msg_ += "and "    ;
+				if (                        _wait[Kind::Stderr] ) msg_ += "stderr " ;
+				msg_ << "still open after job having been dead for " << network_delay.short_str() ;
+				set_status(Status::Err,msg_) ;
 			}
 			else if ( _kill_step && _kill_step< kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+_kill_step      +" times"                      ) ;
 			else if (               _kill_step==kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+kill_sigs.size()+" times followed by a SIGKILL") ;

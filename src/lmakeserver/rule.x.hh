@@ -189,7 +189,7 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( cache_key , py_dct , "cache_key" ) ;
-			throw_unless( !cache_key || Cache::s_tab.contains(cache_key) , "unexpected cache ",cache_key," not found in config" ) ;
+			throw_unless( !cache_key || Caches::Cache::s_tab.contains(cache_key) , "unexpected cache ",cache_key," not found in config" ) ;
 		}
 		// data
 		// START_OF_VERSIONING

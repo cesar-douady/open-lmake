@@ -960,6 +960,23 @@ constexpr Fd Fd::Stdout{1            } ;
 constexpr Fd Fd::Stderr{2            } ;
 constexpr Fd Fd::Std   {2            } ;
 
+struct AcFd : Fd {
+	friend ::string& operator+=( ::string& , AcFd const& ) ;
+	// cxtors & casts
+	AcFd(                                                                          ) = default ;
+	AcFd( Fd fd_                                                                   ) : Fd{fd_                            } {              }
+	AcFd( AcFd&& acfd                                                              )                                       { swap(acfd) ; }
+	AcFd( int fd_                                             , bool no_std_=false ) : Fd{fd_,no_std_                    } {              }
+	AcFd(         ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{       file , action , no_std_ } {              }
+	AcFd( Fd at , ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ at  , file , action , no_std_ } {              }
+	//
+	~AcFd() { close() ; }
+	//
+	AcFd& operator=(int       fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return self ; }
+	AcFd& operator=(Fd const& fd_ ) { self = fd_ .fd ;                      return self ; }
+	AcFd& operator=(AcFd   && acfd) { swap(acfd) ;                          return self ; }
+} ;
+
 //
 // mutexes
 //
@@ -1152,6 +1169,12 @@ template<class... As> void dbg( ::string const& title , As const&... args ) {
 	[[maybe_unused]] bool _[] = { false , (msg<<' '<<args,false)... } ;
 	msg += '\n' ;
 	Fd::Stderr.write(msg) ;
+}
+
+template<::integral I> I random() {
+	::string buf_char = AcFd("/dev/urandom").read(sizeof(I)) ; SWEAR(buf_char.size()==sizeof(I),buf_char.size()) ;
+	I        buf_int  ;                                        ::memcpy( &buf_int , buf_char.data() , sizeof(I) ) ;
+	return buf_int ;
 }
 
 //

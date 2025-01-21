@@ -73,8 +73,7 @@ struct Record {
 		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
 		// use a random number as starting point for access id's, then it is incremented at each access
 		// this ensures reasonable uniqueness while avoiding heavy host/pid/local_id to ensure uniqueness
-		AcFd    fd = {"/dev/urandom"}                ; SWEAR(+fd)                  ; // getrandom is not available in CentOS7
-		ssize_t rc = ::read(fd,&_s_id,sizeof(_s_id)) ; SWEAR(rc==sizeof(_s_id),rc) ;
+		_s_id = random<uint64_t>() ;
 		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;    // ensure we can confortably generate ids while never generating 0
 	}
 	// static data

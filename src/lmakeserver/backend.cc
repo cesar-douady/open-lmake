@@ -7,6 +7,7 @@
 
 #include "codec.hh"
 
+using namespace Caches ;
 using namespace Disk   ;
 using namespace Py     ;
 using namespace Time   ;
@@ -373,6 +374,7 @@ namespace Backends {
 				/**/                               reply.autodep_env.reliable_dirs = g_config->reliable_dirs                           ;
 				/**/                               reply.autodep_env.src_dirs_s    = *g_src_dirs_s                                     ;
 				/**/                               reply.end_attrs.cache_key       = submit_attrs.cache_key                            ;
+				if (+submit_attrs.cache_key      ) reply.cache                     = Cache::s_tab.at(submit_attrs.cache_key)           ;
 				/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
 				/**/                               reply.ddate_prec                = g_config->ddate_prec                              ;
 				/**/                               reply.key                       = g_config->key                                     ;

@@ -22,10 +22,11 @@
 #include "rpc_job.hh"
 #include "rpc_job_exec.hh"
 
-using namespace Disk ;
-using namespace Hash ;
-using namespace Re   ;
-using namespace Time ;
+using namespace Caches ;
+using namespace Disk   ;
+using namespace Hash   ;
+using namespace Re     ;
+using namespace Time   ;
 
 static constexpr int NConnectionTrials = 3 ; // number of times to try connect when connecting to server
 
@@ -84,6 +85,7 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
 		else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
 	}
+	g_exec_trace->emplace_back(New,"received_info_from_server") ;
 	trace(res) ;
 	return res ;
 }
@@ -150,29 +152,29 @@ Digest analyze(Status status=Status::New) {                                     
 		if (is_tgt) {
 			if (ad.write==Maybe) relax.sleep_until() ;                               // /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk ...
 			//                                                                       // ... no need to optimize (could compute other crcs while waiting) as this is exceptional
-			bool    written  = ad.write==Yes ;
-			FileSig sig      ;
-			Crc     crc      ;                                                                                            // lazy evaluated (not in parallel, but need is exceptional)
-			if (ad.write==Maybe) {                                                                                        // if we dont know if file has been written, detect file update from disk
-				if (info.dep_info.kind==DepInfoKind::Crc) { crc = Crc(sig,file) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
-				else                                                              written |= info.dep_info.sig()!=sig ;
+			bool    written = ad.write==Yes ;
+			FileSig sig     ;
+			Crc     crc     ;                                                        // lazy evaluated (not in parallel, but need is exceptional)
+			if (ad.write==Maybe) {                                                   // if we dont know if file has been written, detect file update from disk
+				if (info.dep_info.kind==DepInfoKind::Crc) { crc = Crc(file,sig/*out*/) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
+				else                                                                     written |= info.dep_info.sig()!=sig ;
 			}
-			if (!crc) sig = file ;                                                                                        // sig is computed at the same time as crc, but we need it in all cases
+			if (!crc) sig = file ;                                                                // sig is computed at the same time as crc, but we need it in all cases
 			//
 			TargetDigest td       { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
 			bool unlnk    = !sig  ;
 			bool reported = false ;
 			//
-			if (is_dep                        ) td.tflags    |= Tflag::Incremental              ;                         // if is_dep, previous target state is guaranteed by being a dep, use it
+			if (is_dep                        ) td.tflags    |= Tflag::Incremental              ; // if is_dep, previous target state is guaranteed by being a dep, use it
 			if (!td.tflags[Tflag::Incremental]) td.pre_exist  = info.dep_info.seen(ad.accesses) ;
 			switch (flags.is_target) {
 				case Yes   : break ;
 				case Maybe :
-					if (unlnk) break ;                                  // it is ok to write and unlink temporary files
+					if (unlnk) break ;                                                            // it is ok to write and unlink temporary files
 				[[fallthrough]] ;
 				case No :
-					if (!written                          ) break ;     // it is ok to attempt writing as long as attempt does not succeed
-					if (ad.extra_tflags[ExtraTflag::Allow]) break ;     // it is ok if explicitly allowed by user
+					if (!written                          ) break ;                               // it is ok to attempt writing as long as attempt does not succeed
+					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                               // it is ok if explicitly allowed by user
 					trace("bad_access",ad,flags) ;
 					if (ad.write==Maybe    ) res.msg << "maybe "                        ;
 					/**/                     res.msg << "unexpected "                   ;
@@ -184,7 +186,7 @@ Digest analyze(Status status=Status::New) {                                     
 			}
 			if ( is_dep && !unlnk ) {
 				g_exec_trace->emplace_back(New,"dep_and_target",file) ;
-				if (!reported) {                                        // if dep and unexpected target, prefer unexpected message rather than this one
+				if (!reported) {                                                                  // if dep and unexpected target, prefer unexpected message rather than this one
 					const char* read = nullptr ;
 					if      (ad.dflags[Dflag::Static]       ) read = "a static dep" ;
 					else if (first_read.second[Access::Reg ]) read = "read"         ;
@@ -224,6 +226,7 @@ Digest analyze(Status status=Status::New) {                                     
 		else if (flags.extra_tflags()[ETF::Ignore]) {}
 		else                                        res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ETF::Wash , .crc=Crc::None } ) ;
 	}
+	g_exec_trace->emplace_back(New,"anaylized") ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
@@ -251,15 +254,23 @@ Digest analyze(Status status=Status::New) {                                     
 	return res ;
 }
 
-void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex ) {
+void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , ::vector<FileInfo>* target_fis , size_t* sz ) {
 	static ::atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc_thread_func",targets->size(),crcs->size()) ;
 	NodeIdx cnt = 0 ;                                             // cnt is for trace only
+	*sz = 0 ;
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
-		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ci]] ;
-		Pdate                   before = New                     ;
-		e.second.crc = Crc( e.second.sig/*out*/ , e.first ) ;
+		NodeIdx                 ti     = (*crcs)[ci]    ;
+		::pair_s<TargetDigest>& e      = (*targets)[ti] ;
+		Pdate                   before = New            ;
+		FileInfo                fi     ;
+		//             vvvvvvvvvvvvvvvvvvvvvvvvvv
+		e.second.crc = Crc( e.first , fi/*out*/ ) ;
+		//             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+		e.second.sig       = fi.sig() ;
+		(*target_fis)[ti]  = fi       ;
+		*sz               += fi.sz    ;
 		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.sig,e.first) ;
 		if (!e.second.crc.valid()) {
 			Lock lock{*msg_mutex} ;
@@ -269,7 +280,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	trace("done",cnt) ;
 }
 
-::string compute_crcs(Digest& digest) {
+::string/*msg*/ compute_crcs( Digest& digest , ::vector<FileInfo>& target_fis/*out*/ , size_t& sz/*out*/ ) {
 	size_t                            n_threads = thread::hardware_concurrency() ;
 	if (n_threads<1                 ) n_threads = 1                              ;
 	if (n_threads>8                 ) n_threads = 8                              ;
@@ -278,10 +289,14 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	Trace trace("compute_crcs",digest.crcs.size(),n_threads) ;
 	::string                 msg       ;
 	Mutex<MutexLvl::JobExec> msg_mutex ;
-	{	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
-		for( size_t i : iota(n_threads) )
-			crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex ) ; // just constructing and destructing the threads will execute & join them
+	::vector<size_t>         szs       ( n_threads ) ;
+	target_fis.resize(digest.targets.size()) ;
+	{	::vector<::jthread> crc_threads ; crc_threads.reserve(n_threads) ;
+		for( size_t i  : iota(n_threads) ) crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex , &target_fis , &szs[i] ) ;
 	}
+	sz = 0 ;
+	for( size_t s : szs ) sz += s ;
+	g_exec_trace->emplace_back(New,"computed_crc") ;
 	return msg ;
 }
 
@@ -336,6 +351,7 @@ int main( int argc , char* argv[] ) {
 				end_report.digest.status = Status::LateLostErr ;
 				goto End ;
 			}
+			g_exec_trace->emplace_back(New,"washed") ;
 		}
 		//
 		SWEAR(!end_report.phy_tmp_dir_s,end_report.phy_tmp_dir_s) ;
@@ -371,6 +387,7 @@ int main( int argc , char* argv[] ) {
 						if      (a==MountAction::Write) g_gather.new_target( start_overhead , ::move(sr.real) ,                 "mount_target" ) ;
 					}
 				}
+				g_exec_trace->emplace_back(New,"entered_namespace") ;
 			}
 		} catch (::string const& e) {
 			end_report.msg += e ;
@@ -429,7 +446,18 @@ int main( int argc , char* argv[] ) {
 		Digest digest = analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
-		end_report.msg += compute_crcs(digest) ;
+		size_t             sz         = 0/*garbage*/ ;
+		::vector<FileInfo> target_fis ;
+		end_report.msg += compute_crcs( digest , target_fis/*out*/ , sz/*out*/ ) ;
+		//
+		CacheKey upload_key = 0 ;
+		if (g_start_info.cache) {
+			::pair<AcFd,Cache::Key> cache_reserve = g_start_info.cache->reserve(sz) ;
+			g_start_info.cache->upload( cache_reserve.first , digest.targets , target_fis ) ;
+			upload_key = cache_reserve.second ;
+			g_exec_trace->emplace_back(New,"uploaded_to_cache",cat(g_start_info.cache->tag())) ;
+			trace("cache",g_start_info.end_attrs.cache_key,upload_key) ;
+		}
 		//
 		if (!g_start_info.autodep_env.reliable_dirs) {                                                   // fast path : avoid listing targets & guards if reliable_dirs
 			for( auto const& [t,_] : digest.targets  ) g_nfs_guard.change(t) ;                           // protect against NFS strange notion of coherence while computing crcs
@@ -448,7 +476,8 @@ int main( int argc , char* argv[] ) {
 		,	.mem = size_t(rsrcs.ru_maxrss<<10)
 		} ;
 		end_report.digest = {
-			.deps           { ::move(digest.deps           ) }
+			.upload_key     =        upload_key
+		,	.deps           { ::move(digest.deps           ) }
 		,	.end_attrs      { ::move(g_start_info.end_attrs) }
 		,	.end_date       =        g_gather.end_date
 		,	.stats          { ::move(stats                 ) }

@@ -150,7 +150,7 @@ namespace Engine {
 		void live_out(            ::string const& ) const ;
 		//
 		JobMngtRpcReply  job_analysis( JobMngtProc , ::vector<Dep> const& deps ) const ; // answer to requests from job execution
-		void             end         ( JobEndRpcReq&& , bool sav_jerr          ) ;       // hit indicates that result is from a cache hit
+		void             end         ( JobEndRpcReq&&                          ) ;
 		void             give_up     ( Req={} , bool report=true               ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
@@ -292,6 +292,7 @@ namespace Engine {
 			SWEAR(Disk::is_canon(res),res) ;                                                                             // XXX> : suppress when bug is found, job names are supposed to be canonic
 			return res ;
 		}
+		::string unique_name() const ;
 		//
 		ReqInfo const& c_req_info  ( Req                                        ) const ;
 		ReqInfo      & req_info    ( Req                                        ) const ;

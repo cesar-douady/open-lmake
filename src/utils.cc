@@ -470,3 +470,10 @@ bool              _crash_busy  = false ;
 	void write_backtrace( Fd , int /*hide_cnt*/ ) {}
 
 #endif
+
+//
+// Fd
+//
+
+::string& operator+=( ::string& os , Fd   const& fd ) { return os <<"Fd("  << fd.fd <<')' ; }
+::string& operator+=( ::string& os , AcFd const& fd ) { return os <<"AcFd("<< fd.fd <<')' ; }

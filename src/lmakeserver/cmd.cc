@@ -588,15 +588,17 @@ namespace Engine {
 							if (porcelaine) {
 								ids = "{ 'job':"s+(+job) ;
 								if (+start) {
-									if (start    .small_id) ids<<" , 'small':"<<start    .small_id ;
-									if (pre_start.seq_id  ) ids<<" , 'seq':"  <<pre_start.seq_id   ;
+									if      (start.small_id             ) ids<<" , 'small':"<<start.small_id     ;
+									if      (pre_start.seq_id==SeqId(-1)) ids<<" , 'downloaded_from_cache':True" ;
+									else if (pre_start.seq_id!=0        ) ids<<" , 'seq':"  <<pre_start.seq_id   ;
 								}
 								ids += " }" ;
 							} else {
 								ids = "job="s+(+job) ;
 								if (+start) {
-									if (start    .small_id) ids<<" , small="<<start    .small_id ;
-									if (pre_start.seq_id  ) ids<<" , seq="  <<pre_start.seq_id   ;
+									if      (start.small_id             ) ids<<" , small:"<<start.small_id   ;
+									if      (pre_start.seq_id==SeqId(-1)) ids<<" , downloaded_from_cache"    ;
+									else if (pre_start.seq_id!=0        ) ids<<" , seq:"  <<pre_start.seq_id ;
 								}
 							}
 							//
@@ -611,8 +613,8 @@ namespace Engine {
 								SubmitAttrs  const& sa       = rs.submit_attrs         ;
 								::string            pressure = sa.pressure.short_str() ;
 								//
-								if (+sa.reason) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
-								if (rs.host   ) push_entry( "host"   , SockFd::s_host(rs.host)            ) ;
+								if ( +sa.reason                               ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
+								if ( rs.host && rs.host!=SockFd::LoopBackAddr ) push_entry( "host"   , SockFd::s_host(rs.host)            ) ;
 								//
 								if (+rs.eta) {
 									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(sa.pressure))+" )"      , Color::None,false/*protect*/ ) ;
@@ -818,12 +820,12 @@ namespace Engine {
 					if (it!=rev_map.end())                                                            tk = it->second ;
 					else                   for ( auto const& [k,e] : res ) if (+e.match(t->name())) { tk = k          ; break ; }
 					//
-					bool exists = t->crc==Crc::None ;
-					/**/                               pfx <<      (exists?'U':+t->crc?'W':'-')              <<' ' ;
+					bool exists = t->crc!=Crc::None ;
+					/**/                               pfx <<      (!exists?'U':+t->crc?'W':'-')             <<' ' ;
 					for( Tflag tf : iota(All<Tflag>) ) pfx <<      (t.tflags[tf]?TflagChars[+tf].second:'-')       ;
 					if (+rule)                         pfx <<' '<< widen(tk,w)                                     ;
 					//
-					_audit_node( fd , ro , verbose , Maybe|!(exists&&t.tflags[Tflag::Target])/*hide*/ , pfx , t , lvl ) ;
+					_audit_node( fd , ro , verbose , Maybe|!(exists||t.tflags[Tflag::Target])/*hide*/ , pfx , t , lvl ) ;
 				}
 			} break ;
 			default :

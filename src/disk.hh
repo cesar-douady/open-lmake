@@ -212,36 +212,35 @@ namespace Disk {
 		}
 		// cxtors & casts
 	public :
-		NfsGuard(bool rd=false) : reliable_dirs{rd} {}                                      // if dirs are not reliable, i.e. close to open coherence does not encompass uphill dirs ...
-		~NfsGuard() { close() ; }                                                           // ... uphill dirs must must be open/close to force reliable access to files and their inodes
+		NfsGuard(bool rd=false) : reliable_dirs{rd} {}                                     // if dirs are not reliable, i.e. close to open coherence does not encompass uphill dirs ...
+		~NfsGuard() { close() ; }                                                          // ... uphill dirs must must be open/close to force reliable access to files and their inodes
 		//service
-		::string const& access(::string const& file) {                                      // return file, must be called before any access to file or its inode if not sure it was produced locally
-			if ( !reliable_dirs && +file && has_dir(file) ) _access_dir(dir_name_s(file)) ;
+		::string const& access(::string const& file) {                                     // return file, must be called before any access to file or its inode if not sure it was produced locally
+			if ( !reliable_dirs && +file && has_dir(file) ) access_dir(dir_name_s(file)) ;
 			return file ;
 		}
-		::string const& change(::string const& path) {                                      // must be called before any modif to file or its inode if not sure it was produced locally
+		::string const& change(::string const& path) {                                     // must be called before any modif to file or its inode if not sure it was produced locally
 			if ( !reliable_dirs && has_dir(path) ) {
 				::string dir_s = dir_name_s(path) ;
-				_access_dir(dir_s) ;
+				access_dir(dir_s) ;
 				to_stamp_dirs_s.insert(::move(dir_s)) ;
 			}
 			return path ;
 		}
 		void close() {
-			SWEAR( !to_stamp_dirs_s || !reliable_dirs ) ;                                   // cannot record dirs to stamp if reliable_dirs
-			for( ::string const& d_s : to_stamp_dirs_s ) _s_protect(d_s) ;                  // close to force NFS close to open cohenrence, open is useless
+			SWEAR( !to_stamp_dirs_s || !reliable_dirs ) ;                                  // cannot record dirs to stamp if reliable_dirs
+			for( ::string const& d_s : to_stamp_dirs_s ) _s_protect(d_s) ;                 // close to force NFS close to open cohenrence, open is useless
 			to_stamp_dirs_s.clear() ;
 		}
-	private :
-		void _access_dir(::string const& dir_s) {
-			access(no_slash(dir_s)) ;                                                       // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
-			if (fetched_dirs_s.insert(dir_s).second) _s_protect(dir_s) ;                    // open to force NFS close to open coherence, close is useless
+		::string const& access_dir(::string const& dir_s) {
+			access(no_slash(dir_s)) ;                                                      // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
+			if (fetched_dirs_s.insert(dir_s).second) _s_protect(dir_s) ;                   // open to force NFS close to open coherence, close is useless
+			return dir_s ;
 		}
 		// data
-	public :
 		::uset_s fetched_dirs_s  ;
 		::uset_s to_stamp_dirs_s ;
-		bool     reliable_dirs = false/*garbage*/ ;
+		bool     reliable_dirs   = false/*garbage*/ ;
 	} ;
 
 	// list files within dir with prefix in front of each entry

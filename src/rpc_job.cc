@@ -9,6 +9,7 @@
 #include "disk.hh"
 #include "hash.hh"
 #include "trace.hh"
+#include "caches/dir_cache.hh" // PER_CACHE : add include line for each cache method
 
 #include "rpc_job.hh"
 
@@ -114,6 +115,29 @@ using namespace Hash ;
 		case DepInfoKind::Sig  : return os <<'('<< di.sig () <<')' ;
 		case DepInfoKind::Info : return os <<'('<< di.info() <<')' ;
 	DF}
+}
+
+//
+// Cache
+//
+
+namespace Caches {
+
+	::map_s<Cache*> Cache::s_tab ;
+
+	Cache* Cache::s_new(Tag tag) {
+		switch (tag) {
+			case Tag::None : return nullptr      ; // base class Cache actually caches nothing
+			case Tag::Dir  : return new DirCache ; // PER_CACHE : add a case for each cache method
+		DF}
+	}
+
+	void Cache::s_config( ::string const& key , Tag tag , ::vmap_ss const& dct ) {
+		Cache* cache = s_new(tag) ;
+		cache->config(dct) ;
+		s_tab.emplace(key,cache) ;
+	}
+
 }
 
 //

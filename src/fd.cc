@@ -19,8 +19,6 @@ using namespace Time ;
 
 ::uset<int>* _s_epoll_sigs = new ::uset<int> ;
 
-::string& operator+=( ::string& os , Fd           const& fd ) { return os << "Fd("           << fd.fd <<')' ; }
-::string& operator+=( ::string& os , AcFd         const& fd ) { return os << "AcFd("         << fd.fd <<')' ; }
 ::string& operator+=( ::string& os , SockFd       const& fd ) { return os << "SockFd("       << fd.fd <<')' ; }
 ::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return os << "SlaveSockFd("  << fd.fd <<')' ; }
 ::string& operator+=( ::string& os , ServerSockFd const& fd ) { return os << "ServerSockFd(" << fd.fd <<')' ; }

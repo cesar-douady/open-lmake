@@ -7,7 +7,8 @@
 
 #include "rpc_job.hh"
 
-using namespace Disk ;
+using namespace Caches ;
+using namespace Disk   ;
 
 ENUM( NoRunReason
 ,	None
@@ -329,10 +330,10 @@ namespace Engine {
 		switch (proc) {
 			case JobMngtProc::DepVerbose : {
 				::vector<pair<Bool3/*ok*/,Crc>> res ;
-				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,res} ; // if job is not running, it is too late, seq_id will be filled in later, /!\ {} would be interpreted as Bool3 !
+				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,res} ;                  // if job is not running, it is too late, seq_id will be filled in later, /!\ {} would be interpreted as Bool3 !
 				res.reserve(deps.size()) ;
 				for( Dep const& dep : deps ) {
-					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;
+					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ; // dep is const
 					Bool3 dep_ok = Yes ;
 					for( Req req : reqs ) {
 						NodeReqInfo& dri = dep->req_info(req) ;
@@ -348,7 +349,7 @@ namespace Engine {
 			case JobMngtProc::ChkDeps :
 				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ;                         // if job is not running, it is too late, seq_id will be filled in later
 				for( Dep const& dep : deps ) {
-					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;
+					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;          // dep is const
 					Bool3 dep_ok = Yes ;
 					for( Req req : reqs ) {
 						NodeReqInfo& dri  = dep->req_info(req)                               ;
@@ -422,7 +423,7 @@ namespace Engine {
 		}
 	}
 
-	void JobExec::end( JobEndRpcReq&& jerr , bool sav_jerr ) {
+	void JobExec::end(JobEndRpcReq&& jerr) {
 		JobData&          jd            = *self                                                ;
 		JobDigest&        digest        = jerr.digest                                          ;
 		Status            status        = digest.status                                        ; // status will be modified, need to make a copy
@@ -432,7 +433,6 @@ namespace Engine {
 		bool              unstable_dep  = false                                                ;
 		bool              modified      = false                                                ;
 		bool              fresh_deps    = status==Status::EarlyChkDeps || status>Status::Async ; // if job did not go through, old deps are better than new ones
-		bool              seen_dep_date = false                                                ;
 		Rule              rule          = jd.rule()                                            ;
 		::vector<Req>     running_reqs_ = jd.running_reqs(true/*with_zombies*/)                ;
 		::string          local_msg     ;                                                        // to be reported if job was otherwise ok
@@ -441,7 +441,6 @@ namespace Engine {
 		//
 		Trace trace("end",self,status) ;
 		//
-		SWEAR(+jerr              ) ;
 		SWEAR(status!=Status::New) ;                 // we just executed the job, it can be neither new, frozen or special
 		SWEAR(!frozen()          ) ;                 // .
 		SWEAR(!rule->is_special()) ;                 // .
@@ -573,7 +572,7 @@ namespace Engine {
 				if (!dep.is_crc) {
 					dep->full_refresh(true/*report_no_file*/,running_reqs_,dn) ;
 					dep.acquire_crc() ;
-					if (dep.is_crc) { dd.crc_sig(dep) ; seen_dep_date = true ; }                             // if a dep has become a crc, update digest so that ancillary file reflects it
+					if (dep.is_crc) dd.crc_sig(dep) ;                                                        // if a dep has become a crc, update digest so that ancillary file reflects it
 				} else if (dep.never_match()) {
 					dep->set_buildable() ;
 					if (dep->is_src_anti()) dep->refresh_src_anti(true/*report_no_file*/,running_reqs_,dn) ; // the goal is to detect overwritten
@@ -589,40 +588,36 @@ namespace Engine {
 		//
 		// wrap up
 		//
-		::string stderr = digest.stderr ;                             // must copy because digest is move'd when jerr is move'd
+		::string stderr = digest.stderr ; // must copy because digest is move'd when jerr is move'd
 		//
-		jd.set_exec_ok() ;                                            // effect of old cmd has gone away with job execution
-		fence() ;                                                     // only update status once every other info is set in case of crash and avoid transforming garbage into Err
+		jd.set_exec_ok() ;                // effect of old cmd has gone away with job execution
+		fence() ;                         // only update status once every other info is set in case of crash and avoid transforming garbage into Err
 		if ( !lost && +target_reason && status> Status::Garbage ) status = Status::BadTarget ;
 		//vvvvvvvvvvvvvvvv
 		jd.status = status ;
 		//^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
-		bool     upload = sav_jerr && jd.run_status==RunStatus::Ok && ok==Yes && +digest.end_attrs.cache_key ;
+		bool     upload = jd.run_status==RunStatus::Ok && ok==Yes                             ;
 		::string msg    ;
-		trace("wrap_up",STR(sav_jerr),ok,digest.end_attrs.cache_key,jd.run_status,STR(upload)) ;
-		if (sav_jerr) {
-			msg = jerr.msg ;
-			jerr.msg <<set_nl<< local_msg << severe_msg ;
-			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			if (upload) _s_record_thread.emplace(self,::copy(jerr)) ; // leave jerr intact so upload can be done later on
-			else        _s_record_thread.emplace(self,::move(jerr)) ;
-			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		} else {
-			SWEAR( !seen_dep_date && !local_msg && !severe_msg ) ;    // results from cache are always ok and all deps are crc, ensure there is nothing to updatea
-			msg = ::move(jerr.msg) ;
-		}
+		Cache*   cache  = +jerr.digest.upload_key ? Cache::s_tab.at(digest.end_attrs.cache_key) : nullptr ; // search cache before jerr is moved
+		trace("wrap_up",ok,digest.end_attrs.cache_key,jd.run_status,STR(upload)) ;
+		msg = jerr.msg ;
+		jerr.msg <<set_nl<< local_msg << severe_msg ;
+		SWEAR(+jerr) ;                                // ensure jerr is saved
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		_s_record_thread.emplace(self,::move(jerr)) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//
-		if (ok==Yes) {                                                // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
+		if (ok==Yes) {                                // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 			SWEAR(+digest.stats.total) ;
 			jd.record_stats( digest.stats.total , cost , tokens1 ) ;
 		}
 		for( Req req : jd.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
 			ReqInfo& ri = jd.req_info(req) ;
-			ri.modified |= modified ;                                 // accumulate modifications until reported
+			ri.modified |= modified ;                 // accumulate modifications until reported
 			if (!ri.running()) continue ;
 			SWEAR(ri.step()==Step::Exec) ;
-			ri.step(Step::End,self) ;                                 // ensure no confusion with previous run, all steps must be updated before any make() is called
+			ri.step(Step::End,self) ;                 // ensure no confusion with previous run, all steps must be updated before any make() is called
 		}
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = jd.req_info(req) ;
@@ -632,13 +627,13 @@ namespace Engine {
 			JobReason job_reason = jd.make( ri , MakeAction::End , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !has_new_deps             ;   // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = done || !has_new_deps             ;                           // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
 				/**/         job_msg << msg                   <<set_nl ;
 				if (job_err) job_msg << reason_str(job_reason)<<'\n'   ;
-				else         job_msg << local_msg             <<set_nl ; // report local_msg if no better message
+				else         job_msg << local_msg             <<set_nl ;                         // report local_msg if no better message
 				/**/         job_msg << severe_msg                     ;
 			} else if (req->options.flags[ReqFlag::Verbose]) {
 				/**/         job_msg << reason_str(job_reason)<<'\n'   ;
@@ -655,12 +650,13 @@ namespace Engine {
 				upload = false ;
 				req->missing_audits[self] = { jr , msg } ;
 			}
-			trace("req_after",ri,job_reason) ;
+			trace("req_after",ri,job_reason,STR(done)) ;
 			req.chk_end() ;
 		}
-		if (upload) {                                                    // cache only successful results
-			NfsGuard nfs_guard{g_config->reliable_dirs} ;
-			Cache::s_tab.at(digest.end_attrs.cache_key)->upload( self , nfs_guard ) ;
+		if (digest.upload_key) {
+			SWEAR(cache) ;                                                                       // cannot upload without cache
+			if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ; // cache only successful results
+			else        cache->dismiss( digest.upload_key                                    ) ; // free up temporary storage copied in job_exec
 		}
 		trace("summary",self) ;
 	}
@@ -725,6 +721,25 @@ namespace Engine {
 	::umap<Node,JobData::Idx/*cnt*/> JobData::_s_target_dirs       ;
 	::umap<Node,JobData::Idx/*cnt*/> JobData::_s_hier_target_dirs  ;
 
+	::string JobData::unique_name() const {
+		Rule     r         = rule()                       ;
+		::string fn        = full_name()                  ; r->validate(fn) ;                                          // only name suffix is considered to make Rule
+		size_t   user_sz   = fn.size() - r->job_sfx_len() ;
+		::string res       = fn.substr(0,user_sz)         ; res.reserve(res.size()+1+r->n_static_stems*(2*(3+1))+16) ; // allocate 2x3 digits per stem, this is comfortable
+		//
+		for( char& c : res ) if (c==Rule::StarMrkr) c = '*' ;
+		res.push_back('/') ;
+		//
+		char* p = &fn[user_sz+1] ;                                                                                     // start of suffix
+		for( [[maybe_unused]] VarIdx _ : iota(r->n_static_stems) ) {
+			FileNameIdx pos = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
+			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
+			res << pos << '-' << sz << '+' ;
+		}
+		res << "rule-" << r->crc->cmd.hex() ;
+		return res ;
+	}
+
 	void JobData::_reset_targets(Rule::SimpleMatch const& match) {
 		Rule             r     = rule()                          ;
 		::vector<Target> ts    ; ts.reserve(r->n_static_targets) ;
@@ -761,6 +776,7 @@ namespace Engine {
 		,	{ Status::LateLostErr  , JobReasonTag::Retry           }
 		,	{ Status::Killed       , JobReasonTag::Killed          }
 		,	{ Status::ChkDeps      , JobReasonTag::ChkDeps         }
+		,	{ Status::CacheMatch   , JobReasonTag::CacheMatch      }
 		,	{ Status::BadTarget    , JobReasonTag::PollutedTargets }
 		,	{ Status::Ok           , JobReasonTag::None            }
 		,	{ Status::SubmitLoop   , JobReasonTag::None            }
@@ -1138,7 +1154,7 @@ namespace Engine {
 					SpecialStep ss = SpecialStep::Idle ;
 					if (!( t->crc.valid() && FileSig(nfs_guard.access(tn))==t->date().sig )) {
 						FileSig sig  ;
-						Crc   crc { sig , tn } ;
+						Crc   crc { tn , sig/*out*/ } ;
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
 						Trace trace( "frozen" , t->crc ,"->", crc , t->date() ,"->", sig ) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -1199,8 +1215,13 @@ namespace Engine {
 			req->audit_stderr( idx() , ensure_nl(r->submit_none_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , Npos , 1 ) ;
 		}
 		if (+submit_none_attrs.cache_key) {
-			Cache*       cache       = Cache::s_tab.at(submit_none_attrs.cache_key) ;
-			Cache::Match cache_match = cache->match(idx(),req)                      ;
+			::vmap_s<DepDigest> dns ;
+			for( Dep const& d : deps ) {
+				DepDigest dd = d ; dd.crc(d->crc) ;                                                          // provide node actual crc as this is the hit criteria
+				dns.emplace_back(d->name(),dd) ;
+			}
+			Cache*              cache       = Cache::s_tab.at(submit_none_attrs.cache_key) ;
+			Cache::Match        cache_match = cache->match( unique_name() , dns )          ;
 			if (!cache_match.completed) FAIL("delayed cache not yet implemented") ;
 			switch (cache_match.hit) {
 				case Yes :
@@ -1219,27 +1240,27 @@ namespace Engine {
 							if (!dfa_msg.second) return false/*maybe_new_deps*/ ;
 						}
 						//
-						JobExec je       { idx() , New }                                             ;                        // job starts and ends, no host
-						JobInfo job_info = cache->download(idx(),cache_match.id,ri.reason,nfs_guard) ;
-						Job::_s_record_thread.emplace(idx(),job_info) ;
+						JobExec je       { idx() , New }                                                     ;                                         // job starts and ends, no host
+						JobInfo job_info = cache->download(unique_name(),cache_match.id,ri.reason,nfs_guard) ; job_info.start.pre_start.job = +idx() ; // id is not stored in cache as it is ...
+						Job::_s_record_thread.emplace(idx(),::move(job_info.start)) ;                                                                  // ... repo dependent
 						if (ri.live_out) je.live_out(ri,job_info.end.digest.stdout) ;
 						ri.step(Step::Hit,idx()) ;
 						trace("hit_result") ;
-						je.end( ::move(job_info.end) , false/*sav_jrr*/ ) ;                                                   // no resources nor backend for cached jobs
-						for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(idx(),true/*has_run*/) ; // there are new deps and end() has called make, ...
-						req->stats.add(JobReport::Hit) ;                                                                      // ... so req_info is not reset spontaneously, ...
-						req->missing_audits[idx()] = { JobReport::Hit , {} } ;                                                // ... and we have to ensure ri.iter is stil a legal iterator
-						return true/*maybe_new_deps*/ ;
-					} catch (::string const&) {}                                                                              // if we cant download result, it is like a miss
+						je.end(::move(job_info.end)) ;                                                                    // does not call make, no resources nor backend for cached jobs
+						req->stats.add(JobReport::Hit) ;
+						req->missing_audits[idx()] = { JobReport::Hit , {} } ;
+						goto ResetReqInfo ;
+					} catch (::string const&) {}                                                                          // if we cant download result, it is like a miss
 				break ;
-				case Maybe :
-					for( Node d : cache_match.new_deps ) {
-						NodeReqInfo& dri = d->req_info(req) ;
-						d->make(dri,NodeMakeAction::Status) ;
-						if (dri.waiting()) d->add_watcher(dri,idx(),ri,pressure) ;
-					}
+				case Maybe : {
+					::vector<Dep> ds ; ds.reserve(cache_match.new_deps.size()) ; for( auto& [dn,dd] : cache_match.new_deps ) ds.emplace_back(dn,dd) ;
+					deps.assign(ds) ;
+					status = Status::CacheMatch ;
 					trace("hit_deps") ;
-					return true/*maybe_new_deps*/ ;
+				}
+				ResetReqInfo :
+					for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(idx(),true/*has_run*/) ; // there are new deps and req_info are not reset spontaneously, ...
+					return true/*maybe_new_deps*/ ;                                                                       // ... so we have to ensure ri.iter are still legal iterators
 				case No :
 				break ;
 			DF}

@@ -9,11 +9,6 @@
 
 #ifdef STRUCT_DECL
 
-ENUM( CacheTag // PER_CACHE : add a tag for each cache method
-,	None
-,	Dir
-)
-
 ENUM( Color
 ,	None
 ,	HiddenNote
@@ -78,8 +73,8 @@ namespace Engine {
 			}
 			// data
 			// START_OF_VERSIONING
-			Caches::Tag tag ;
-			::vmap_ss   dct ;
+			CacheTag  tag ;
+			::vmap_ss dct ;
 			// END_OF_VERSIONING
 		} ;
 		//
