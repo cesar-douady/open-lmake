@@ -564,7 +564,7 @@ namespace Disk {
 				case LnkSupport::Full :           goto HandleLnk ;
 			DF}
 		HandleLnk :
-			::string& nxt = local_file[(ping=!ping)] ;                                                                       // bounce, initially, when cur is neither local_file's, any buffer is ok
+			::string& nxt = local_file[ping] ;                                                                               // bounce, initially, when cur is neither local_file's, any buffer is ok
 			nxt = read_lnk(real) ;
 			if (!nxt) {
 				if (errno==ENOENT) exists = false ;
@@ -583,7 +583,8 @@ namespace Disk {
 			if (nxt[0]=='/'           ) { end =  0 ; prev_real_size = 0 ; } // absolute link target : flush real
 			else                          end = -1 ;                        // end must point to the /, invent a virtual one before the string
 			real.resize(prev_real_size) ;                                   // links are relative to containing dir, suppress last component
-			cur = nxt ;
+			ping = !ping ;
+			cur  = nxt   ;
 		}
 		// admin is in repo, tmp might be, repo root is in_repo
 		if (+in_tmp) //!                                                                                                                       file_accessed
