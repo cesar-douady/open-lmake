@@ -499,7 +499,8 @@ namespace Backends {
 
 	bool/*keep_fd*/ Backend::_s_handle_job_mngt( JobMngtRpcReq&& jmrr , SlaveSockFd const& fd ) {
 		switch (jmrr.proc) {
-			case JobMngtProc::None       : return false/*keep_fd*/ ;      // if connection is lost, ignore it
+			case JobMngtProc::None       :                                // if connection is lost, ignore it
+			case JobMngtProc::Heartbeat  : return false/*keep_fd*/ ;      // received heartbeat probe from job, just receive and ignore
 			case JobMngtProc::ChkDeps    :
 			case JobMngtProc::DepVerbose :
 			case JobMngtProc::Decode     :
@@ -708,7 +709,9 @@ namespace Backends {
 			try                       { be->config(cfg.dct,dynamic) ; be->config_err.clear()            ; trace("ready"          ,t  ) ;            } // .
 			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e                ; trace("err"            ,t,e) ; continue ; } // .
 			//
-			if (!be->is_local()) {
+			if (be->is_local()) {
+				be->addr = SockFd::LoopBackAddr ;
+			} else {
 				::string ifce ;
 				if (+cfg.ifce) {
 					Gil gil ;

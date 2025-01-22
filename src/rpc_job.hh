@@ -830,11 +830,11 @@ struct JobMngtRpcReq {
 	// cxtors & casts
 	#define S ::string
 	#define M ::move
-	JobMngtRpcReq(                             ) = default ;
-	JobMngtRpcReq( P p , SI si , JI j , Fd fd_ ) : proc{p} , seq_id{si} , job{j} , fd{fd_} {}
+	JobMngtRpcReq(                                ) = default ;
+	JobMngtRpcReq( P p , SI si , JI j , Fd fd_={} ) : proc{p} , seq_id{si} , job{j} , fd{fd_} {}
 	//
-	JobMngtRpcReq(P p,SI si,JI j,       S&& t   ) : proc{p},seq_id{si},job{j},        txt{M(t)}   { SWEAR(p==P::LiveOut                  ,p) ; }
-	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,MDD&& ds) : proc{p},seq_id{si},job{j},fd{fd_},deps{M(ds)} { SWEAR(p==P::ChkDeps||p==P::DepVerbose,p) ; }
+	JobMngtRpcReq( P p , SI si , JI j ,          S&& t    ) : proc{p} , seq_id{si} , job{j} ,           txt{M(t)}   { SWEAR(p==P::LiveOut                  ,p) ; }
+	JobMngtRpcReq( P p , SI si , JI j , Fd fd_ , MDD&& ds ) : proc{p} , seq_id{si} , job{j} , fd{fd_} , deps{M(ds)} { SWEAR(p==P::ChkDeps||p==P::DepVerbose,p) ; }
 	//
 	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& code,S&& f,S&& c           ) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(code)}             { SWEAR(p==P::Decode,p) ; }
 	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& val ,S&& f,S&& c,uint8_t ml) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(val )},min_len{ml} { SWEAR(p==P::Encode,p) ; }
@@ -846,7 +846,8 @@ struct JobMngtRpcReq {
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
 		switch (proc) {
-			case P::None       :                    break ;
+			case P::None       :
+			case P::Heartbeat  :                    break ;
 			case P::LiveOut    : ::serdes(s,txt ) ; break ;
 			case P::ChkDeps    :
 			case P::DepVerbose :

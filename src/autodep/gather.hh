@@ -55,8 +55,9 @@ struct Gather {                                                                 
 	using Crc  = Hash::Crc     ;
 	using PD   = Time::Pdate   ;
 	using DI   = DepInfo       ;
-	struct AccessInfo {
-		friend ::string& operator+=( ::string& , AccessInfo const& ) ;
+	static constexpr Time::Delay HeartbeatTick { 10 } ;                                                        // heartbeat to probe server when waiting for it ...
+	struct AccessInfo {                                                                                         // ... dont bother server too much as there may be 1000's job_exec's waiting for it, ...
+		friend ::string& operator+=( ::string& , AccessInfo const& ) ;                                          // ... 100s seems a good compromize
 		// cxtors & casts
 		AccessInfo() = default ;
 		//
@@ -105,8 +106,9 @@ private :
 		Trace trace("_new_guards",fd,jerr.txt) ;
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
-	void _kill          ( bool force          ) ;
-	void _send_to_server( Fd fd , Jerr&& jerr ) ;
+	void         _kill          ( bool force           ) ;
+	void         _send_to_server( Fd fd , Jerr&&       ) ;
+	bool/*sent*/ _send_to_server( JobMngtRpcReq const& ) ;
 public : //!                                                                                                           crc_file_info
 	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,c) ; }
 	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,c) ; } // new_unlnk is used for internal wash
@@ -116,8 +118,9 @@ public : //!                                                                    
 	void new_deps( PD    , ::vmap_s<DepDigest>&& deps , ::string const& stdin={}                              ) ;
 	void new_exec( PD    , ::string const&       exe  ,                            ::string const&  ="s_exec" ) ;
 	//
-	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
-		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                // dont care if we cannot report the reply to job
+	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
+		try                     { OMsgBuf().send(fd,jerr) ; }
+		catch (::string const&) {                           }                                         // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child() ;
@@ -163,15 +166,11 @@ public :
 	Time::Delay                       timeout          ;
 	::atomic<int>                     wstatus          = 0                                          ;
 private :
-	::map_ss            _add_env       ;
-	Child               _child         ;
-	::umap<Fd,::string> _codec_files   ;
-	PD                  _end_timeout   = PD::Future ;
-	PD                  _end_child     = PD::Future ;
-	PD                  _end_kill      = PD::Future ;
-	size_t              _kill_step     = 0          ;
-	NodeIdx             _parallel_id   = 0          ;                                                 // id to identify parallel deps
-	bool                _timeout_fired = false      ;
-	BitMap<Kind>        _wait          ;                                                              // events we are waiting for
-	::jthread           _ptrace_thread ;
+	::map_ss            _add_env              ;
+	Child               _child                ;
+	::umap<Fd,::string> _codec_files          ;
+	size_t              _n_server_req_pending = 0 ;
+	NodeIdx             _parallel_id          = 0 ;                                                   // id to identify parallel deps
+	BitMap<Kind>        _wait                 ;                                                       // events we are waiting for
+	::jthread           _ptrace_thread        ;
 } ;

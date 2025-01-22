@@ -425,7 +425,7 @@ namespace Engine::Persistent {
 	//
 	// JobBase
 	//
-	inline JobFile::Lst job_lst() { return _job_file .lst(  ); }
+	inline JobFile::Lst job_lst() { return _job_file .lst() ; }
 	// statics
 	inline Job JobBase::s_idx(JobData const& jd) { return _job_file.idx(jd) ; }
 	//

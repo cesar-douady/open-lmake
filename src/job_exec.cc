@@ -69,7 +69,7 @@ struct Digest {
 } ;
 
 JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
-	Trace trace("get_start_info") ;
+	Trace trace("get_start_info",g_service_start) ;
 	bool             found_server = false ;
 	JobStartRpcReply res          ;
 	try {
@@ -81,7 +81,7 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		res = IMsgBuf().receive<JobStartRpcReply>( fd                                                     ) ;
 		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	} catch (::string const& e) {
-		trace("no_start_info",g_service_start,STR(found_server),e) ;
+		trace("no_start_info",STR(found_server),e) ;
 		if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
 		else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
 	}
@@ -436,9 +436,11 @@ int main( int argc , char* argv[] ) {
 			g_gather.child_stdout.no_std() ;
 		}
 		g_gather.cmd_line = cmd_line() ;
-		//              vvvvvvvvvvvvvvvvvvvvv
-		Status status = g_gather.exec_child() ;
-		//              ^^^^^^^^^^^^^^^^^^^^^
+		Status status ;
+		//                                   vvvvvvvvvvvvvvvvvvvvv
+		try                       { status = g_gather.exec_child() ; }
+		//                                   ^^^^^^^^^^^^^^^^^^^^^
+		catch (::string const& e) { end_report.msg += e ; goto End ; }
 		struct rusage rsrcs ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
 		if (+g_to_unlnk) unlnk(g_to_unlnk) ;
