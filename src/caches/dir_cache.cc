@@ -21,233 +21,11 @@
 
 // XXX : implement timeout when locking cache
 
-#include <sys/sendfile.h>
-
 #include "app.hh"
 
 #include "dir_cache.hh"
 
-#if HAS_ZLIB
-	#define ZLIB_CONST
-	#include <zlib.h>
-#endif
-
 using namespace Disk ;
-
-struct DeflateFd : AcFd {
-	static constexpr size_t BufSz = 1<<16 ;
-	// cxtors & casts
-	DeflateFd() = default ;
-	#if HAS_ZLIB
-		DeflateFd( AcFd&& fd , uint8_t lvl_=0 ) : AcFd{::move(fd)} , lvl{lvl_} {
-			SWEAR(lvl<=Z_BEST_COMPRESSION) ;
-			if (lvl) {
-				int rc = deflateInit(&_zs,lvl) ; SWEAR(rc==Z_OK) ;
-				_reset_buf() ;
-			}
-		}
-		~DeflateFd() { flush() ; }
-	#else
-		DeflateFd( AcFd&& fd , uint8_t lvl=0 ) : AcFd{::move(fd)} { SWEAR(!lvl,lvl) ; }
-		~DeflateFd() { _flush() ; }
-	#endif
-	// services
-	void write(::string const& s) {
-		#if HAS_ZLIB
-			SWEAR(!_flushed) ;
-			if (lvl) {
-				_zs.next_in  = reinterpret_cast<uint8_t const*>(s.data()) ;
-				_zs.avail_in = s.size()                                   ;
-				while (_zs.avail_in) {
-					if (!_zs.avail_out) {
-						AcFd::write({_buf,BufSz}) ;
-						total_sz += BufSz ;
-						_reset_buf() ;
-					}
-					deflate(&_zs,Z_NO_FLUSH) ;
-				}
-				return ;
-			}
-		#endif
-		_flush(s.size()) ;
-		if      (s.size()>=BufSz) { AcFd::write(s)                              ; total_sz += s.size() ; }                                                           // large data : send directly
-		else if (s.size()       ) { ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; }                                                           // small data : put in _buf
-	}
-	void send_from( Fd fd_ , size_t sz ) {
-		#if HAS_ZLIB
-			SWEAR(!_flushed) ;
-			if (lvl) {
-				while (sz) {
-					size_t cnt = ::min(sz,BufSz) ;
-					::string s = fd_.read(cnt) ; throw_unless(s.size()==cnt,"missing ",cnt-s.size()," bytes from ",fd) ;
-					write(s) ;
-					sz -= cnt ;
-				}
-				return ;
-			}
-		#endif
-		_flush(sz) ;
-		if      (sz>=BufSz) { SWEAR(!_pos) ; size_t c = ::sendfile(self,fd_,nullptr,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz += sz ; } // large data : send directly
-		else if (sz       ) {                size_t c = fd_.read_to({_buf+_pos,sz})     ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos     += c  ; } // small data : put in _buf
-	}
-	void flush() {
-		#if HAS_ZLIB
-			if (_flushed) return ;
-			_flushed = true ;
-			if (lvl) {
-				_zs.next_in  = nullptr ;
-				_zs.avail_in = 0       ;
-				for (;;) {
-					int    rc = deflate(&_zs,Z_FINISH)                                ;
-					size_t sz = size_t(_zs.next_out-reinterpret_cast<uint8_t*>(_buf)) ;
-					AcFd::write({_buf,sz}) ;
-					total_sz += sz ;
-					switch (rc) {
-						case Z_OK         :
-						case Z_BUF_ERROR  :                    break  ;
-						case Z_STREAM_END : deflateEnd(&_zs) ; return ;
-					DF}
-					_reset_buf() ;
-				}
-				return ;
-			}
-		#endif
-		_flush() ;
-	}
-private :
-	#if HAS_ZLIB
-		void _reset_buf() {
-			_zs.next_out  = reinterpret_cast<uint8_t*>(_buf) ;
-			_zs.avail_out = BufSz                            ;
-		}
-	#endif
-	void _flush(size_t room=BufSz) {                                                                                                                                 // flush if not enough room
-		#if HAS_ZLIB
-			SWEAR(!lvl) ;
-		#endif
-		if (_pos+room<=BufSz) return ;                                                                                                                               // enough room
-		if (!_pos           ) return ;                                                                                                                               // _buf is already empty
-		AcFd::write({_buf,_pos}) ;
-		total_sz += _pos ;
-		_pos      = 0    ;
-	}
-	// data
-public :
-	Disk::DiskSz total_sz = 0 ;
-	#if HAS_ZLIB
-		uint8_t lvl = 0 ;
-	#endif
-private :
-	char   _buf[BufSz] ;
-	size_t _pos        = 0 ;
-	#if HAS_ZLIB
-		z_stream _zs      = {}    ;
-		bool     _flushed = false ;
-	#endif
-} ;
-
-struct InflateFd : AcFd {
-	static constexpr size_t BufSz = 1<<16 ;
-	// cxtors & casts
-	InflateFd() = default ;
-	#if HAS_ZLIB
-		InflateFd( AcFd&& fd , bool lvl_=false ) : AcFd{::move(fd)} , lvl{lvl_} {
-			if (lvl) {
-				int rc = inflateInit(&_zs) ; SWEAR(rc==Z_OK) ;
-				_reset_buf() ;
-			}
-		}
-	#else
-		InflateFd( AcFd&& fd , bool lvl=false ) : AcFd{::move(fd)} { SWEAR(!lvl,lvl) ; }
-	#endif
-	// services
-	::string read(size_t sz) {
-		::string res ( sz , 0 ) ;
-		#if HAS_ZLIB
-			if (lvl) {
-				_zs.next_out  = reinterpret_cast<uint8_t*>(res.data()) ;
-				_zs.avail_out = res.size()                             ;
-				while (_zs.avail_out) {
-					if (!_zs.avail_in) {
-						size_t cnt = AcFd::read_to({_buf,BufSz}) ; throw_unless(cnt,"missing ",_zs.avail_out," bytes from ",self) ;
-						_reset_buf(cnt) ;
-					}
-					inflate(&_zs,Z_NO_FLUSH) ;
-				}
-				return res ;
-			}
-		#endif
-		size_t   cnt = ::min( sz , _len ) ;
-		if (cnt) {                                                                                                           // gather available data from _buf
-			::memcpy( res.data() , _buf+_pos , cnt ) ;
-			_pos += cnt ;
-			_len -= cnt ;
-			sz   -= cnt ;
-		}
-		if (sz) {
-			SWEAR(!_len,_len) ;
-			if (sz>=BufSz) {                                                                                                 // large data : read directly
-				size_t c = AcFd::read_to({&res[cnt],sz}) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
-			} else {                                                                                                         // small data : bufferize
-				_len = AcFd::read_to({_buf,BufSz}) ;       throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
-				::memcpy( &res[cnt] , _buf , sz ) ;
-				_pos  = sz ;
-				_len -= sz ;
-			}
-		}
-		return res ;
-	}
-	void send_to( Fd fd_ , size_t sz ) {
-		#if HAS_ZLIB
-			if (lvl) {
-				while (sz) {
-					size_t cnt = ::min(sz,BufSz) ;
-					::string s = read(cnt) ; SWEAR(s.size()==cnt,s.size(),cnt) ;
-					fd_.write(s) ;
-					sz -= cnt ;
-				}
-				return ;
-			}
-		#endif
-		size_t cnt = ::min(sz,_len) ;
-		if (cnt) {                                                                                                           // gather available data from _buf
-			fd_.write({_buf+_pos,cnt}) ;
-			_pos += cnt ;
-			_len -= cnt ;
-			sz   -= cnt ;
-		}
-		if (sz) {
-			SWEAR(!_len,_len) ;
-			if (sz>=BufSz) {                                                                                                 // large data : transfer directly fd to fd
-				size_t c = ::sendfile(fd_,self,nullptr,sz) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
-			} else {                                                                                                         // small data : bufferize
-				_len = AcFd::read_to({_buf,BufSz}) ;         throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
-				fd_.write({_buf,sz}) ;
-				_pos  = sz ;
-				_len -= sz ;
-			}
-		}
-	}
-private :
-	#if HAS_ZLIB
-		void _reset_buf(size_t cnt=0) {
-			_zs.next_in  = reinterpret_cast<uint8_t const*>(_buf) ;
-			_zs.avail_in = cnt                                    ;
-		}
-	#endif
-	// data
-public :
-	#if HAS_ZLIB
-		bool lvl = false ;
-	#endif
-private :
-	char   _buf[BufSz] ;
-	size_t _pos        = 0 ;
-	size_t _len        = 0 ;
-	#if HAS_ZLIB
-		z_stream _zs = {} ;
-	#endif
-} ;
 
 namespace Caches {
 
@@ -391,20 +169,31 @@ namespace Caches {
 		AcFd(nfs_guard.change(here_file),Fd::Write).write(serialize(here)) ;
 	}
 
-	DirCache::Sz DirCache::_reserved_sz( Key key , NfsGuard& nfs_guard ) {
-		return deserialize<Sz>(AcFd(nfs_guard.access(cat(dir_s,AdminDirS,"reserved/",key,".sz"))).read()) ;
+	DirCache::Sz DirCache::_reserved_sz( ::string const& upload_key , NfsGuard& nfs_guard ) {
+		return deserialize<Sz>(AcFd(nfs_guard.access(cat(dir_s,AdminDirS,"reserved/",upload_key,".sz"))).read()) ;
 	}
 
-	Cache::Match DirCache::match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) {
+	Cache::Match DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) {
 		Trace trace("DirCache::match",job) ;
 		NfsGuard            nfs_guard    { reliable_dirs }                            ;
 		::string            abs_jn_s     = dir_s+job+'/'                              ;
 		AcFd                dfd          { nfs_guard.access_dir(abs_jn_s) , Fd::Dir } ;
 		LockedFd            lock         { dir_s , false/*exclusive*/ }               ;
-		::umap_s<DepDigest> repo_dep_map ;                                                                                                                                // lazy evaluated
+		::umap_s<DepDigest> repo_dep_map ;                                              // lazy evaluated
+		// deps_hint may point to the right entry (hint only as link is not updated when its target is modified)
+		Hash::Xxh deps_hint_hash ;                                                            deps_hint_hash.update(serialize(repo_deps)) ;
+		::string  deps_hint      = read_lnk(dfd,"deps_hint-"+deps_hint_hash.digest().hex()) ;
 		//
 		try {
-			for( ::string const& r : lst_dir_s(dfd) ) {
+			::vector_s repos = lst_dir_s(dfd) ;
+			if ( +deps_hint && repos.size()>1 )                                         // reorder is only meaningful if there are several entries
+				for( size_t r : iota(repos.size()) )
+					if (repos[r]==deps_hint) {                                          // hint found
+						for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;   // rotate repos to put hint in front
+						repos[0] = ::move(deps_hint) ;                                  // .
+						break ;
+					}
+			for( ::string const& r : repos ) {
 				::string deps_file  = abs_jn_s+r+"/deps"                                                         ;
 				auto     cache_deps = deserialize<::vmap_s<DepDigest>>(AcFd(nfs_guard.access(deps_file)).read()) ;
 				//
@@ -422,7 +211,7 @@ namespace Caches {
 				}
 				if (!has_dvg) {
 					trace("hit",r) ;
-					return { .completed=true , .hit=Yes , .id{r} } ;                      // hit
+					return { .completed=true , .hit=Yes , .key{job+'/'+r} } ;             // hit
 				}
 				for( NodeIdx i : iota(dvg,cache_deps.size()) ) {
 					if ( cache_deps[i].second.dflags[Dflag::Critical] && ! repo_dep_map.contains(cache_deps[i].first) ) {
@@ -441,225 +230,101 @@ namespace Caches {
 		return { .completed=true , .hit=No } ;
 	}
 
-	JobInfo DirCache::download( ::string const& job , Id const& id , JobReason const& reason , NfsGuard& repo_nfs_guard ) {
-		NfsGuard                nfs_guard  { reliable_dirs }                              ;
-		::string                jn         = job+'/'+id                                   ;
-		::string                jn_s       = jn+'/'                                       ;
-		AcFd                    dfd        { nfs_guard.access_dir(dir_s+jn_s) , Fd::Dir } ;
-		NodeIdx                 n_copied   = 0                                            ;
-		JobInfo                 job_info   ;
-		JobDigest&              digest     = job_info.end.digest                          ;
-		::vmap_s<TargetDigest>& targets    = digest.targets                               ;
+	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {
+		NfsGuard                nfs_guard  { reliable_dirs }                               ;
+		::string                key_s      = match_key+'/'                                 ;
+		AcFd                    dfd        { nfs_guard.access_dir(dir_s+key_s) , Fd::Dir } ;
 		AcFd                    info_fd    ;
 		AcFd                    data_fd    ;
-		Trace trace("DirCache::download",job,id,jn) ;
-		{	LockedFd lock { dir_s , true /*exclusive*/ }    ;                                                                     // because we manipulate LRU, need exclusive
-			Sz       sz    = _lru_remove( jn_s , nfs_guard ) ; throw_if( !sz , "no entry ",jn ) ;
-			_lru_first( jn_s , sz , nfs_guard ) ;
-			info_fd = AcFd( dfd , "info"s ) ; SWEAR(+info_fd) ;                                                                   // _lru_remove worked => everything should be accessible
-			data_fd = AcFd( dfd , "data"s ) ; SWEAR(+data_fd) ;                                                                   // .
+		{	LockedFd lock { dir_s , true /*exclusive*/ }     ;                                           // because we manipulate LRU, need exclusive
+			Sz       sz   = _lru_remove( key_s , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
+			_lru_first( key_s , sz , nfs_guard ) ;
+			info_fd = AcFd( dfd , "info"s ) ; SWEAR(+info_fd) ;                                          // _lru_remove worked => everything should be accessible
+			data_fd = AcFd( dfd , "data"s ) ; SWEAR(+data_fd) ;                                          // .
 		}
-		try {
-			deserialize(info_fd.read(),job_info) ;
-			#if !HAS_ZLIB
-				throw_if( job_info.start.start.z_lvl , "cannot uncompress without zlib" ) ;
-			#endif
-			// update some info
-			job_info.start.submit_attrs.reason = reason ;
-			//
-			NodeIdx   n_targets = targets.size()                                            ;
-			auto      mode      = [](FileTag t)->int { return t==FileTag::Exe?0777:0666 ; } ;
-			InflateFd data_fd   { AcFd(dfd,"data"s) , bool(job_info.start.start.z_lvl) }    ;
-			//
-			::string     target_szs_str = data_fd.read(n_targets*sizeof(Sz)) ;
-			::vector<Sz> target_szs     ( n_targets )                        ; for( NodeIdx ti : iota(n_targets) ) ::memcpy( &target_szs[ti] , &target_szs_str[ti*sizeof(Sz)] , sizeof(Sz) ) ;
-			for( NodeIdx ti : iota(n_targets) ) {
-				auto&           entry = targets[ti]            ;
-				::string const& tn    = entry.first            ;
-				FileTag         tag   = entry.second.sig.tag() ;
-				n_copied = ti+1 ;
-				repo_nfs_guard.change(tn) ;
-				unlnk(dir_guard(tn),true/*dir_ok*/) ;
-				switch (tag) {
-					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(target_szs[ti]) )                                       ; break ;
-					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , mode(tag) )) ; break ;
-					case FileTag::Exe   :
-					case FileTag::Reg   :
-						if ( size_t sz = target_szs[ti] ) {
-							trace("write_to",tn,sz) ;
-							data_fd.send_to( AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC,mode(tag))) , sz ) ;
-						} else {                                                                                                  // may be an empty exe
-							trace("no_data_to",tn) ;
-							::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , mode(tag) ) ;
-						}
-					break ;
-				DN}
-				entry.second.sig = FileSig(tn) ;                                                                                  // target digest is not stored in cache
-			}
-			digest.end_date = New ;                                                                                               // date must be after files are copied
-			// ensure we take a single lock at a time to avoid deadlocks
-			trace("done") ;
-			return job_info ;
-		} catch(::string const& e) {
-			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                                         // clean up partial job
-			trace("failed") ;
-			throw e ;
-		}
+		 ;
+		return { deserialize<JobInfo>(info_fd.read()) , ::move(data_fd) } ;
 	}
 
-	::pair<AcFd,DirCache::Key> DirCache::reserve( Sz sz , uint8_t z_lvl ) {
-		Trace trace("DirCache::reserve",sz) ;
+	::pair_s/*upload_key*/<AcFd> DirCache::sub_upload(Sz max_sz) {
+		Trace trace("DirCache::reserve",max_sz) ;
 		//
-		#if HAS_ZLIB
-			static_assert(sizeof(ulong)==sizeof(Sz)) ;             // compressBound manages ulong and we need a Sz
-			if (z_lvl) sz = compressBound(sz) ;
-		#else
-			SWEAR(!z_lvl,z_lvl) ;
-		#endif
-		NfsGuard nfs_guard { reliable_dirs } ;
-		Key      key       = random<Key>()   ; if (!key) key = 1 ; // reserve 0 for no key
+		NfsGuard nfs_guard { reliable_dirs }    ;
+		uint64_t key       = random<uint64_t>() ; if (!key) key = 1 ; // reserve 0 for no key
 		{	LockedFd lock { dir_s , true/*exclusive*/ } ;
-			_mk_room( 0 , sz , nfs_guard ) ;
+			_mk_room( 0 , max_sz , nfs_guard ) ;
 		}
-		AcFd         ( nfs_guard.change(cat(dir_s+AdminDirS,"reserved/",key,".sz"  )) , Fd::CreateReadOnly ).write(serialize(sz)) ;
+		AcFd         ( nfs_guard.change(cat(dir_s+AdminDirS,"reserved/",key,".sz"  )) , Fd::CreateReadOnly ).write(serialize(max_sz)) ;
 		AcFd data_fd { nfs_guard.change(cat(dir_s+AdminDirS,"reserved/",key,".data")) , Fd::CreateReadOnly } ;
 		trace(data_fd,key) ;
-		return { ::move(data_fd) , key } ;
+		return { cat(key) , ::move(data_fd) } ;
 	}
 
-	DirCache::Sz/*compressed*/ DirCache::upload( AcFd&& data_fd_ , ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , uint8_t z_lvl ) {
-		Trace trace("DirCache::upload",data_fd_,targets.size()) ;
-		//
-		NodeIdx n_targets = targets.size() ;
-		DeflateFd data_fd { ::move(data_fd_) , z_lvl } ;
-		//
-		SWEAR( target_fis.size()==n_targets , target_fis.size() , n_targets ) ;
-		::string target_szs_str ( n_targets*sizeof(Sz) , 0 ) ; for( NodeIdx ti : iota(n_targets) ) ::memcpy( &target_szs_str[ti*sizeof(Sz)] , &target_fis[ti].sz , sizeof(Sz) ) ;
-		data_fd.write(target_szs_str) ;
-		//
-		for( NodeIdx ti : iota(n_targets) ) {
-			::pair_s<TargetDigest> const& entry = targets[ti]            ;
-			::string               const& tn    = entry.first            ;
-			FileTag                       tag   = entry.second.sig.tag() ;
-			Sz                            sz    = target_fis[ti].sz      ;
-			switch (tag) {
-				case FileTag::Lnk   : { trace("lnk_from"  ,tn,sz) ; ::string l = read_lnk(tn) ; SWEAR(l.size()==sz) ; data_fd.write(l) ; goto ChkSig ; }
-				case FileTag::Empty :   trace("empty_from",tn   ) ;                                                                      break       ;
-				case FileTag::Reg   :
-				case FileTag::Exe   :
-					if (sz) {
-						trace("read_from",tn,sz) ;
-						data_fd.send_from( {::open(tn.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NOATIME)} , sz ) ;
-						goto ChkSig ;
-					} else {
-						trace("empty_from",tn) ;
-						break ;
-					}
-				break ;
-			DN}
-			continue ;
-		ChkSig :                                                                 // ensure cache entry is reliable by checking file *after* copy
-			throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;
-		}
-		data_fd.flush() ;                                                        // update data_fd.sz
-		return data_fd.total_sz ;
-	}
-
-	bool/*ok*/ DirCache::commit( Key key , ::string const& job , JobInfo&& job_info ) {
+	bool/*ok*/ DirCache::sub_commit( ::string const& upload_key , ::string const& job , JobInfo&& job_info ) {
 		NfsGuard nfs_guard { reliable_dirs } ;
-		::string jn_s      = job+'/'+repo_s  ;
-		Trace trace("DirCache::commit",job,jn_s) ;
-		//
-		JobDigest& digest = job_info.end.digest ;
-		if (!( +job_info.start || +job_info.end )) {                                                                             // we need a full report to cache job
-			trace("no_ancillary_file") ;
-			dismiss(key) ;
-			return false/*ok*/ ;
-		}
-		// check deps
-		for( auto const& [dn,dd] : digest.deps ) if (!dd.is_crc) {
-			trace("not_a_crc_dep",dn,dd) ;
-			dismiss(key) ;
-			return false/*ok*/ ;
-		}
-		// defensive programming : remove useless/meaningless info
-		job_info.start.eta                   = {}      ;                                                                         // cache does not care
-		job_info.start.submit_attrs.cache    = {}      ;                                                                         // no recursive info
-		job_info.start.submit_attrs.live_out = false   ;                                                                         // cache does not care
-		job_info.start.submit_attrs.reason   = {}      ;                                                                         // .
-		job_info.start.pre_start.seq_id      = -1      ;                                                                         // 0 is reserved to mean no start info
-		job_info.start.pre_start.job         = 0       ;                                                                         // cache does not care
-		job_info.start.pre_start.port        = 0       ;                                                                         // .
-		job_info.start.start.addr            = 0       ;                                                                         // cache does not care
-		job_info.start.start.cache           = nullptr ;                                                                         // no recursive info
-		job_info.start.start.live_out        = false   ;                                                                         // cache does not care
-		job_info.start.start.small_id        = 0       ;                                                                         // no small_id since no execution
-		job_info.start.start.pre_actions     = {}      ;                                                                         // pre_actions depend on execution context
-		job_info.start.rsrcs.clear() ;                                                                                           // caching resources is meaningless as they have no impact on content
-		for( auto& [tn,td] : digest.targets ) {
-			SWEAR(!td.pre_exist) ;                                                                                               // else cannot be a candidate for upload as this must have failed
-			td.sig = td.sig.tag() ;                                                                                              // forget date, just keep tag
-		}
-		job_info.end.seq_id    = -1 ;                                                                                            // 0 is reserved to mean no start info
-		job_info.end.job       = 0  ;                                                                                            // cache does not care
-		digest.end_date        = {} ;                                                                                            // .
-		digest.upload_key      = 0  ;                                                                                            // no recursive info
-		digest.end_attrs.cache = {} ;                                                                                            // .
+		::string jn_s      = job+'/'         ;
+		::string jnid_s    = jn_s+repo_s     ;
+		Trace trace("DirCache::sub_commit",upload_key,job) ;
 		//
 		// START_OF_VERSIONING
-		::string job_info_str = serialize(job_info)    ;
-		::string deps_str     = serialize(digest.deps) ;
+		::string job_info_str = serialize(job_info                ) ;
+		::string deps_str     = serialize(job_info.end.digest.deps) ;
 		// END_OF_VERSIONING
-		::string abs_jn_s = dir_s + jn_s ;
-		mk_dir_s(nfs_guard.change(abs_jn_s)) ;
-		AcFd dfd { nfs_guard.access_dir(abs_jn_s) , Fd::Dir } ;
+		::string abs_jnid_s = dir_s + jnid_s ;
+		mk_dir_s(nfs_guard.change(abs_jnid_s)) ;
+		AcFd dfd { nfs_guard.access_dir(abs_jnid_s) , Fd::Dir } ;
 		//
 		// upload is the only one to take several locks and it starts with the global lock
 		// this way, we are sure to avoid deadlocks
 		Sz new_sz =
 			job_info_str.size()
 		+	deps_str.size()
-		+	FileInfo(nfs_guard.access(cat(dir_s,AdminDirS,"reserved/",key,".data"))).sz
+		+	FileInfo(nfs_guard.access(cat(dir_s,AdminDirS,"reserved/",upload_key,".data"))).sz
 		;
-		Sz       old_sz    = _reserved_sz(key,nfs_guard) ;
-		bool     made_room = false                       ;
-		LockedFd lock      { dir_s , true/*exclusive*/ } ;                                                                       // lock as late as possible
+		Sz       old_sz    = _reserved_sz(upload_key,nfs_guard) ;
+		bool     made_room = false                              ;
+		LockedFd lock      { dir_s , true/*exclusive*/ }        ; // lock as late as possible
 		try {
-			old_sz += _lru_remove(jn_s,nfs_guard) ;
+			old_sz += _lru_remove(jnid_s,nfs_guard) ;
 			unlnk_inside_s(dfd) ;
 			// store meta-data and data
 			_mk_room( old_sz , new_sz , nfs_guard ) ;
 			made_room = true ;
 			// START_OF_VERSIONING
 			AcFd(dfd,"info",FdAction::CreateReadOnly).write(job_info_str) ;
-			AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                                      // store deps in a compact format so that matching is fast
-			int rc = ::renameat( Fd::Cwd,nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",key,".data")).c_str() , dfd,"data" ) ;
+			AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                                             // store deps in a compact format so that matching is fast
+			int rc = ::renameat( Fd::Cwd,nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",upload_key,".data")).c_str() , dfd,"data" ) ;
 			// END_OF_VERSIONING
 			if (rc<0) throw "cannot move data from tmp to final destination"s ;
-			unlnk( nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",key,".sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
-			_lru_first( jn_s , new_sz , nfs_guard ) ;
+			unlnk( nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",upload_key,".sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
+			_lru_first( jnid_s , new_sz , nfs_guard ) ;
 		} catch (::string const& e) {
 			trace("failed",e) ;
-			unlnk_inside_s(dfd) ;                                                                                                // clean up in case of partial execution
-			_dismiss( key , made_room?new_sz:old_sz , nfs_guard ) ;                                                              // finally, we did not populate the entry
+			unlnk_inside_s(dfd) ;                                                                                                       // clean up in case of partial execution
+			_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                                              // finally, we did not populate the entry
 			return false/*ok*/ ;
 		}
+		// set a symlink from a name derived from deps to improve match speed in case of hit
+		// this is a hint only as when link target is updated, link is not
+		Hash::Xxh deps_hash ; deps_hash.update(deps_str) ;
+		::string abs_deps_hint = dir_s+jn_s+"deps_hint-"+deps_hash.digest().hex() ;
+		unlnk( abs_deps_hint , false/*dir_ok*/ , true/*abs_ok*/ ) ;
+		lnk  ( abs_deps_hint , no_slash(repo_s) ) ;
+		//
 		trace("done",new_sz) ;
 		return true/*ok*/ ;
 	}
 
-	void DirCache::dismiss( Key key ) {
-		Trace trace("DirCache::dismiss",key) ;
-		//
+	void DirCache::sub_dismiss(::string const& upload_key) {
 		NfsGuard nfs_guard { reliable_dirs }             ;
-		LockedFd lock      { dir_s , true/*exclusive*/ } ;          // lock as late as possible
-		_dismiss( key , _reserved_sz(key,nfs_guard) , nfs_guard ) ;
+		LockedFd lock      { dir_s , true/*exclusive*/ } ;                        // lock as late as possible
+		_dismiss( upload_key , _reserved_sz(upload_key,nfs_guard) , nfs_guard ) ;
 	}
 
-	void DirCache::_dismiss( Key key , Sz sz , NfsGuard& nfs_guard ) {
-		_mk_room( sz , 0 , nfs_guard ) ; //!                                   dir_ok   abs_ok
-		unlnk( nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",key,".sz"  )) , false , true ) ;
-		unlnk( nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",key,".data")) , false , true ) ;
+	void DirCache::_dismiss( ::string const& upload_key , Sz sz , NfsGuard& nfs_guard ) {
+		_mk_room( sz , 0 , nfs_guard ) ; //!                                          dir_ok   abs_ok
+		unlnk( nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",upload_key,".sz"  )) , false , true ) ;
+		unlnk( nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",upload_key,".data")) , false , true ) ;
 	}
 
 }

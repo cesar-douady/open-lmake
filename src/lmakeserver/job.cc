@@ -588,29 +588,32 @@ namespace Engine {
 		//
 		// wrap up
 		//
-		::string stderr = digest.stderr ; // must copy because digest is move'd when jerr is move'd
-		//
-		jd.set_exec_ok() ;                // effect of old cmd has gone away with job execution
-		fence() ;                         // only update status once every other info is set in case of crash and avoid transforming garbage into Err
+		jd.set_exec_ok() ; // effect of old cmd has gone away with job execution
+		fence() ;          // only update status once every other info is set in case of crash and avoid transforming garbage into Err
 		if ( !lost && +target_reason && status> Status::Garbage ) status = Status::BadTarget ;
 		//vvvvvvvvvvvvvvvv
 		jd.status = status ;
 		//^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
-		bool     upload = jd.run_status==RunStatus::Ok && ok==Yes                                     ;
-		::string msg    ;
-		Cache*   cache  = +jerr.digest.upload_key ? Cache::s_tab.at(digest.end_attrs.cache) : nullptr ; // search cache before jerr is moved
-		trace("wrap_up",ok,digest.end_attrs.cache,jd.run_status,STR(upload)) ;
-		msg = jerr.msg ;
+		::string stderr         = digest.stderr                                                          ; // must copy because digest is move'd when jerr is move'd
+		::string upload_key     = digest.upload_key                                                      ; // .
+		Delay    exec_time      = digest.stats.total                                                     ; // .
+		size_t   max_stderr_len = digest.end_attrs.max_stderr_len                                        ; // .
+		Cache*   cache          = +digest.upload_key ? Cache::s_tab.at(digest.end_attrs.cache) : nullptr ; // .
+		::string msg            = jerr.msg                                                               ;
+		bool     upload         = jd.run_status==RunStatus::Ok && ok==Yes                                ;
+		//
+		trace("wrap_up",ok,digest.end_attrs.cache,jd.run_status,STR(upload),digest.upload_key) ;
 		jerr.msg <<set_nl<< local_msg << severe_msg ;
+		//
 		SWEAR(+jerr) ;                                // ensure jerr is saved
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		_s_record_thread.emplace(self,::move(jerr)) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//
 		if (ok==Yes) {                                // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
-			SWEAR(+digest.stats.total) ;
-			jd.record_stats( digest.stats.total , cost , tokens1 ) ;
+			SWEAR(+exec_time) ;
+			jd.record_stats( exec_time , cost , tokens1 ) ;
 		}
 		for( Req req : jd.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
 			ReqInfo& ri = jd.req_info(req) ;
@@ -627,22 +630,21 @@ namespace Engine {
 			JobReason job_reason = jd.make( ri , MakeAction::End , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !has_new_deps             ;                           // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = done || !has_new_deps             ;                    // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
 				/**/         job_msg << msg                   <<set_nl ;
 				if (job_err) job_msg << reason_str(job_reason)<<'\n'   ;
-				else         job_msg << local_msg             <<set_nl ;                         // report local_msg if no better message
+				else         job_msg << local_msg             <<set_nl ;                  // report local_msg if no better message
 				/**/         job_msg << severe_msg                     ;
 			} else if (req->options.flags[ReqFlag::Verbose]) {
 				/**/         job_msg << reason_str(job_reason)<<'\n'   ;
 			}
 			//
-			Delay    exec_time = digest.stats.total                                                              ;
-			::string pfx       = !done && !ri.running() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
+			::string pfx = !done && !ri.running() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
 			// dont report user stderr if analysis made it meaningless
-			JobReport jr = audit_end( ri , true/*with_stats*/ , pfx , job_msg , !job_err?stderr:""s , digest.end_attrs.max_stderr_len , exec_time , job_reason.tag==JobReasonTag::Retry ) ;
+			JobReport jr = audit_end( ri , true/*with_stats*/ , pfx , job_msg , !job_err?stderr:""s , max_stderr_len , exec_time , job_reason.tag==JobReasonTag::Retry ) ;
 			if (done) {
 				trace("wakeup_watchers",ri) ;
 				ri.wakeup_watchers() ;
@@ -653,10 +655,10 @@ namespace Engine {
 			trace("req_after",ri,job_reason,STR(done)) ;
 			req.chk_end() ;
 		}
-		if (digest.upload_key) {
-			SWEAR(cache) ;                                                                       // cannot upload without cache
-			if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ; // cache only successful results
-			else        cache->dismiss( digest.upload_key                                    ) ; // free up temporary storage copied in job_exec
+		if (+upload_key) {
+			SWEAR(cache) ;                                                                // cannot upload without cache
+			if (upload) cache->commit ( upload_key , self->unique_name() , job_info() ) ; // cache only successful results
+			else        cache->dismiss( upload_key                                    ) ; // free up temporary storage copied in job_exec
 		}
 		trace("summary",self) ;
 	}
@@ -1208,7 +1210,7 @@ namespace Engine {
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		SubmitNoneAttrs submit_none_attrs ;
 		try {
-			submit_none_attrs = r->submit_none_attrs.eval( idx() , match , &::ref(::vmap_s<DepDigest>()) ) ; // dont care about dependencies as these attributes have no impact on result
+			submit_none_attrs = r->submit_none_attrs.eval( idx() , match , &::ref(::vmap_s<DepDigest>()) ) ;              // dont care about dependencies as these attributes have no impact on result
 		} catch (::pair_ss const& msg_err) {
 			submit_none_attrs = r->submit_none_attrs.spec ;
 			req->audit_job(Color::Note,"no_dynamic",idx()) ;
@@ -1217,7 +1219,7 @@ namespace Engine {
 		if (+submit_none_attrs.cache) {
 			::vmap_s<DepDigest> dns ;
 			for( Dep const& d : deps ) {
-				DepDigest dd = d ; dd.crc(d->crc) ;                                                          // provide node actual crc as this is the hit criteria
+				DepDigest dd = d ; dd.crc(d->crc) ;                                                                       // provide node actual crc as this is the hit criteria
 				dns.emplace_back(d->name(),dd) ;
 			}
 			Cache*              cache       = Cache::s_tab.at(submit_none_attrs.cache) ;
@@ -1240,9 +1242,11 @@ namespace Engine {
 							if (!dfa_msg.second) return false/*maybe_new_deps*/ ;
 						}
 						//
-						JobExec je       { idx() , New }                                                     ;                                         // job starts and ends, no host
-						JobInfo job_info = cache->download(unique_name(),cache_match.id,ri.reason,nfs_guard) ; job_info.start.pre_start.job = +idx() ; // id is not stored in cache as it is ...
-						Job::_s_record_thread.emplace(idx(),::move(job_info.start)) ;                                                                  // ... repo dependent
+						JobExec je       { idx() , New }                              ;                                   // job starts and ends, no host
+						JobInfo job_info = cache->download(cache_match.key,nfs_guard) ;
+						job_info.start.pre_start.job       = +idx()    ;                                                  // idx is repo dependent
+						job_info.start.submit_attrs.reason = ri.reason ;                                                  // reason is context dependent
+						Job::_s_record_thread.emplace(idx(),::move(job_info.start)) ;
 						if (ri.live_out) je.live_out(ri,job_info.end.digest.stdout) ;
 						ri.step(Step::Hit,idx()) ;
 						trace("hit_result") ;

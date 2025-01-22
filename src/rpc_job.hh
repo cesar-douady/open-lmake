@@ -533,7 +533,7 @@ struct TargetDigest {
 struct JobDigest {
 	friend ::string& operator+=( ::string& , JobDigest const& ) ;
 	// START_OF_VERSIONING
-	Caches::CacheKey       upload_key = 0           ;
+	::string               upload_key = {}          ;
 	::vmap_s<DepDigest   > deps       = {}          ; // INVARIANT : sorted in first access order
 	EndAttrs               end_attrs  = {}          ;
 	Time::Pdate            end_date   = {}          ;
@@ -574,15 +574,13 @@ struct JobInfo ;
 namespace Caches {
 
 	struct Cache {
-		using Id  = ::string     ;
 		using Sz  = Disk::DiskSz ;
-		using Key = CacheKey     ;                                   // key returned by reserve, used by commit & dismiss to identify reserved data
 		using Tag = CacheTag     ;
 		struct Match {
 			bool                completed = true ;                   //                            if false <=> answer is delayed and an action will be post to the main loop when ready
 			Bool3               hit       = No   ;                   // if completed
 			::vmap_s<DepDigest> new_deps  = {}   ;                   // if completed&&hit==Maybe : deps that were not done and need to be done before answering hit/miss
-			Id                  id        = {}   ;                   // if completed&&hit==Yes   : an id to easily retrieve matched results when calling download
+			::string            key       = {}   ;                   // if completed&&hit==Yes   : an id to easily retrieve matched results when calling download
 		} ;
 		// statics
 		static Cache* s_new   ( Tag                                          ) ;
@@ -590,18 +588,22 @@ namespace Caches {
 		// static data
 		static ::map_s<Cache*> s_tab ;
 		// services
+		Match                  match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match"  ,job) ; return sub_match(job,repo_deps) ; }
+		JobInfo                download( ::string const& upload_key , Disk::NfsGuard& repo_nfs_guard                       ) ;
+		::string/*upload_key*/ upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t z_lvl=0 ) ;
+		bool/*ok*/             commit  ( ::string const& key , ::string const& /*job*/ , JobInfo&&                         ) ;
+		void                   dismiss ( ::string const& key                                                               ) { Trace trace("Cache::dismiss",key) ;        sub_dismiss(key)         ; }
 		// default implementation : no caching, but enforce protocol
 		virtual void config(::vmap_ss const&) {}
 		virtual Tag  tag   (                ) { return Tag::None ; }
 		virtual void serdes(::string     &  ) {}                     // serialize
 		virtual void serdes(::string_view&  ) {}                     // deserialize
 		//
-		virtual Match            match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&                                                       ) { return { .completed=true , .hit=No } ; }
-		virtual JobInfo          download( ::string const& /*job*/ , Id const& , JobReason const& , Disk::NfsGuard&                                   ) ;
-		virtual ::pair<AcFd,Key> reserve ( Sz                                                                                   , uint8_t /*z_lvl*/=0 ) { return {AcFd(),0}                    ; }
-		virtual Sz/*compressed*/ upload  ( AcFd&& /*data_fd*/ , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t /*z_lvl*/=0 ) { return 0                             ; }
-		virtual bool/*ok*/       commit  ( Key , ::string const& /*job*/ , JobInfo&&                                                                  ) { return false                         ; }
-		virtual void             dismiss ( Key                                                                                                        ) {                                        }
+		virtual Match                        sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) { return { .completed=true , .hit=No } ; }
+		virtual ::pair<JobInfo,AcFd>         sub_download( ::string const& /*key*/                                       ) ;
+		virtual ::pair_s/*upload_key*/<AcFd> sub_upload  ( Sz /*max_sz*/                                                 ) { return {}                            ; }
+		virtual bool/*ok*/                   sub_commit  ( ::string const& /*key*/ , ::string const& /*job*/ , JobInfo&& ) { return false                         ; }
+		virtual void                         sub_dismiss ( ::string const& /*key*/                                       ) {                                        }
 	} ;
 
 }
@@ -1011,4 +1013,4 @@ namespace Codec {
 // implementation
 //
 
-inline JobInfo Caches::Cache::download( ::string const& /*job*/ , Id const& , JobReason const& , Disk::NfsGuard& ) { FAIL() ; } // never match => no download
+inline ::pair<JobInfo,AcFd> Caches::Cache::sub_download(::string const& /*key*/) { return {} ; }

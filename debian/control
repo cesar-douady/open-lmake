@@ -14,7 +14,9 @@ Build-Depends:
  libslurm-dev,
  libseccomp-dev,
  libpcre2-dev,
- libpcre2-8-0
+ libpcre2-8-0,
+ zlib1g,
+ zlib1g-dev
 Standards-Version: 4.6.2
 Homepage: https://github.com/cesar-douady/open-lmake
 
@@ -28,7 +30,9 @@ Depends:
 # necessary if mentioned at build time, suppress if suppressed at build time
  git,
  libseccomp-dev,
- libpcre2-8-0
+ libpcre2-8-0,
+ zlib1g,
+ zlib1g-dev
 Recommends:
  libslurm37 | libslurm38 | libslurm39 | libslurm40 | libslurm40t64
 Description: pythonic workflow management system

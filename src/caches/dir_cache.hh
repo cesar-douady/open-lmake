@@ -21,21 +21,20 @@ namespace Caches {
 		virtual void serdes(::string     & os) { _serdes(os) ;     } // serialize
 		virtual void serdes(::string_view& is) { _serdes(is) ;     } // deserialize
 		//
-		virtual Match            match   ( ::string const& job , ::vmap_s<DepDigest> const&                                                   ) ;
-		virtual JobInfo          download( ::string const& job , Id const& , JobReason const& , Disk::NfsGuard&                               ) ;
-		virtual ::pair<AcFd,Key> reserve ( Sz                                                                               , uint8_t z_lvl=0 ) ;
-		virtual Sz/*compressed*/ upload  ( AcFd&& data_fd , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t z_lvl=0 ) ;
-		virtual bool/*ok*/       commit  ( Key , ::string const& job , JobInfo&&                                                              ) ;
-		virtual void             dismiss ( Key                                                                                                ) ;
+		virtual Match                        sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&                 ) ;
+		virtual ::pair<JobInfo,AcFd>         sub_download( ::string const& /*match_key*/                                        ) ;
+		virtual ::pair_s/*upload_key*/<AcFd> sub_upload  ( Sz /*max_sz*/                                                        ) ;
+		virtual bool/*ok*/                   sub_commit  ( ::string const& /*upload_key*/ , ::string const& /*job*/ , JobInfo&& ) ;
+		virtual void                         sub_dismiss ( ::string const& /*upload_key*/                                       ) ;
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :
-		::string _lru_file   ( ::string const& entry_s                               ) const { return dir_s+entry_s+"lru" ; }
-		Sz       _lru_remove ( ::string const& entry_s             , Disk::NfsGuard& ) ;
-		void     _lru_first  ( ::string const& entry_s , Sz        , Disk::NfsGuard& ) ;
-		void     _mk_room    ( Sz old_sz               , Sz new_sz , Disk::NfsGuard& ) ;
-		Sz       _reserved_sz( Key                                 , Disk::NfsGuard& ) ;
-		void     _dismiss    ( Key                     , Sz        , Disk::NfsGuard& ) ;
+		::string _lru_file   ( ::string const& entry_s                           ) const { return dir_s+entry_s+"lru" ; }
+		Sz       _lru_remove ( ::string const& entry_s         , Disk::NfsGuard& ) ;
+		void     _lru_first  ( ::string const& entry_s    , Sz , Disk::NfsGuard& ) ;
+		void     _mk_room    ( Sz old_sz , Sz new_sz           , Disk::NfsGuard& ) ;
+		Sz       _reserved_sz( ::string const& upload_key      , Disk::NfsGuard& ) ;
+		void     _dismiss    ( ::string const& upload_key , Sz , Disk::NfsGuard& ) ;
         //
 		template<IsStream T> void _serdes(T& s) {
 			::serdes(s,repo_s       ) ;

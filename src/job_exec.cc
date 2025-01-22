@@ -451,15 +451,9 @@ int main( int argc , char* argv[] ) {
 		::vector<FileInfo> target_fis ;
 		end_report.msg += compute_crcs( digest , target_fis/*out*/ , end_report.total_sz/*out*/ ) ;
 		//
-		CacheKey upload_key = 0 ;
+		::string upload_key ;
 		if (g_start_info.cache) {
-			::pair<AcFd,Cache::Key> cache_reserve = g_start_info.cache->reserve( end_report.total_sz , g_start_info.z_lvl ) ;
-			try {
-				end_report.compressed_sz = g_start_info.cache->upload( ::move(cache_reserve.first) , digest.targets , target_fis , g_start_info.z_lvl ) ;
-				upload_key = cache_reserve.second ;
-			} catch (::string const&) {
-				g_start_info.cache->dismiss(cache_reserve.second) ;
-			}
+			upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
 			g_exec_trace->emplace_back( New , "uploaded_to_cache" , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
 			trace("cache",g_start_info.end_attrs.cache,upload_key) ;
 		}
