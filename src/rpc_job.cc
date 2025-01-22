@@ -99,10 +99,10 @@ using namespace Hash ;
 
 ::string& operator+=( ::string& os , EndAttrs const& ea ) {
 	First first ;
-	/**/                    os << "EndAttrs("                      ;
-	if (+ea.cache_key     ) os <<first("",",")<< ea.cache_key      ;
-	if (+ea.max_stderr_len) os <<first("",",")<< ea.max_stderr_len ;
-	return                  os << ')'                              ;
+	/**/                    os << "EndAttrs("                            ;
+	if (+ea.cache         ) os <<first("",",")<<       ea.cache          ;
+	if (+ea.max_stderr_len) os <<first("",",")<<"L:"<< ea.max_stderr_len ;
+	return                  os << ')'                                    ;
 }
 
 //

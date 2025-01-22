@@ -21,12 +21,12 @@ namespace Caches {
 		virtual void serdes(::string     & os) { _serdes(os) ;     } // serialize
 		virtual void serdes(::string_view& is) { _serdes(is) ;     } // deserialize
 		//
-		virtual Match            match   ( ::string const& job , ::vmap_s<DepDigest> const&                             ) ;
-		virtual JobInfo          download( ::string const& job , Id const& , JobReason const& , Disk::NfsGuard&         ) ;
-		virtual ::pair<AcFd,Key> reserve ( Sz                                                                           ) ;
-		virtual void             upload  ( Fd data_fd , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& ) ;
-		virtual bool/*ok*/       commit  ( Key , ::string const& job , JobInfo&&                                        ) ;
-		virtual void             dismiss ( Key                                                                          ) ;
+		virtual Match            match   ( ::string const& job , ::vmap_s<DepDigest> const&                                                   ) ;
+		virtual JobInfo          download( ::string const& job , Id const& , JobReason const& , Disk::NfsGuard&                               ) ;
+		virtual ::pair<AcFd,Key> reserve ( Sz                                                                               , uint8_t z_lvl=0 ) ;
+		virtual Sz/*compressed*/ upload  ( AcFd&& data_fd , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t z_lvl=0 ) ;
+		virtual bool/*ok*/       commit  ( Key , ::string const& job , JobInfo&&                                                              ) ;
+		virtual void             dismiss ( Key                                                                                                ) ;
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :

@@ -25,6 +25,7 @@ StdAttrs = { #!               type   dynamic
 ,	'cache'               : ( str   , True  )
 ,	'chroot_dir'          : ( str   , True  )
 ,	'cmd'                 : ( str   , True  ) # when it is a str, such str may be dynamic, i.e. it may be a full f-string
+,	'compression'         : ( int   , True  ) # compression level
 ,	'deps'                : ( dict  , True  )
 ,	'environ_ancillary'   : ( dict  , True  )
 ,	'environ'             : ( dict  , True  )
@@ -464,7 +465,7 @@ class Handle :
 
 	def handle_submit_none(self) :
 		self._init()
-		self._handle_val('cache_key','cache')
+		self._handle_val('cache')
 		self.rule_rep.submit_none_attrs = self._finalize()
 
 	def handle_start_cmd(self) :
@@ -493,6 +494,7 @@ class Handle :
 	def handle_start_none(self) :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
+		self._handle_val('compression'                               )
 		self._handle_val('env'           ,rep_key='environ_ancillary')
 		self._handle_val('keep_tmp'                                  )
 		self._handle_val('kill_sigs'                                 )

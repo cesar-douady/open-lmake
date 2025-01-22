@@ -578,10 +578,10 @@ template<::integral I> inline void encode_int( char* p , I x ) {
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
 
-template<char U,::integral I=size_t>        I        from_string_with_units(::string const& s) ;                                           // provide default unit in U. ...
-template<char U,::integral I=size_t>        ::string to_string_with_units  (I               x) ;                                           // ... If provided, return value is expressed in this unit
-template<       ::integral I=size_t> inline I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
-template<       ::integral I=size_t> inline ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
+template<char U,::integral I=size_t>        I        from_string_with_unit(::string const& s) ;                                          // provide default unit in U. ...
+template<char U,::integral I=size_t>        ::string to_string_with_unit  (I               x) ;                                          // ... If provided, return value is expressed in this unit
+template<       ::integral I=size_t> inline I        from_string_with_unit(::string const& s) { return from_string_with_unit<0,I>(s) ; }
+template<       ::integral I=size_t> inline ::string to_string_with_unit  (I               x) { return to_string_with_unit  <0,I>(x) ; }
 
 template<class... A> inline constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw cat(args...) ; }
 template<class... A> inline constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw cat(args...) ; }
@@ -907,7 +907,7 @@ struct Fd {
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
 	static const Fd Stderr ;
-	static const Fd Std    ;                                                                            // the highest standard fd
+	static const Fd Std    ;                                                                              // the highest standard fd
 	static constexpr FdAction Read           = FdAction::Read           ;
 	static constexpr FdAction Write          = FdAction::Write          ;
 	static constexpr FdAction Append         = FdAction::Append         ;
@@ -928,7 +928,7 @@ struct Fd {
 				:	action==Append         ? O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC
 				:	action==CreateReadOnly ? O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC
 				:	action==Dir            ? O_RDONLY | O_DIRECTORY        | O_CLOEXEC
-				:	0                                                                                   // force error
+				:	0                                                                                     // force error
 			,	action==CreateReadOnly ? 0444 : 0666
 			)
 		,	no_std_
@@ -1322,7 +1322,7 @@ constexpr inline int8_t _unit_val(char u) {
 		default  : throw "unrecognized suffix "s+u ;
 	}
 }
-template<char U,::integral I> I from_string_with_units(::string const& s) {
+template<char U,::integral I> I from_string_with_unit(::string const& s) {
 	using I64 = ::conditional_t<is_signed_v<I>,int64_t,uint64_t> ;
 	I64                 val     = 0 /*garbage*/                   ;
 	const char*         s_start = s.c_str()                       ;
@@ -1356,7 +1356,7 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 	return I(val) ;
 }
 
-template<char U,::integral I> ::string to_string_with_units(I x) {
+template<char U,::integral I> ::string to_string_with_unit(I x) {
 	if (!x) {
 		if (U) return "0"s+U ;
 		else   return "0"    ;

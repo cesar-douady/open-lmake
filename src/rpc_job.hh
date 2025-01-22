@@ -265,9 +265,9 @@ namespace Caches {
 
 struct EndAttrs {
 	friend ::string& operator+=( ::string& , EndAttrs const& ) ;
-	bool operator+() const { return +cache_key || max_stderr_len!=Npos ; }
+	bool operator+() const { return +cache || max_stderr_len!=Npos ; }
 	// START_OF_VERSIONING
-	::string cache_key      = {}   ;
+	::string cache          = {}   ;
 	size_t   max_stderr_len = Npos ;
 	// END_OF_VERSIONING
 } ;
@@ -596,12 +596,12 @@ namespace Caches {
 		virtual void serdes(::string     &  ) {}                     // serialize
 		virtual void serdes(::string_view&  ) {}                     // deserialize
 		//
-		virtual Match            match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&                             ) { return { .completed=true , .hit=No } ; }
-		virtual JobInfo          download( ::string const& /*job*/ , Id const& , JobReason const& , Disk::NfsGuard&         ) ;
-		virtual ::pair<AcFd,Key> reserve ( Sz                                                                               ) { return {AcFd(),0} ;                    }
-		virtual void             upload  ( Fd /*data_fd*/ , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& ) {                                        }
-		virtual bool/*ok*/       commit  ( Key , ::string const& /*job*/ , JobInfo&&                                        ) { return false ;                         }
-		virtual void             dismiss ( Key                                                                              ) {                                        }
+		virtual Match            match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&                                                       ) { return { .completed=true , .hit=No } ; }
+		virtual JobInfo          download( ::string const& /*job*/ , Id const& , JobReason const& , Disk::NfsGuard&                                   ) ;
+		virtual ::pair<AcFd,Key> reserve ( Sz                                                                                   , uint8_t /*z_lvl*/=0 ) { return {AcFd(),0}                    ; }
+		virtual Sz/*compressed*/ upload  ( AcFd&& /*data_fd*/ , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t /*z_lvl*/=0 ) { return 0                             ; }
+		virtual bool/*ok*/       commit  ( Key , ::string const& /*job*/ , JobInfo&&                                                                  ) { return false                         ; }
+		virtual void             dismiss ( Key                                                                                                        ) {                                        }
 	} ;
 
 }
@@ -711,6 +711,7 @@ struct JobStartRpcReply {
 		::serdes(s,stdout        ) ;
 		::serdes(s,timeout       ) ;
 		::serdes(s,use_script    ) ;
+		::serdes(s,z_lvl         ) ;
 		//
 		CacheTag tag ;
 		if (IsIStream<S>) {
@@ -761,6 +762,7 @@ struct JobStartRpcReply {
 	::string                 stdout         ;                       //
 	Time::Delay              timeout        ;                       //
 	bool                     use_script     = false               ; //
+	uint8_t                  z_lvl          = 0                   ;
 	// END_OF_VERSIONING
 private :
 	::string _tmp_dir_s ;                                           // for use in exit (autodep.tmp_dir_s may be moved)
@@ -802,6 +804,8 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes(s,dynamic_env                  ) ;
 		::serdes(s,msg                          ) ;
 		::serdes(s,exec_trace                   ) ;
+		::serdes(s,total_sz                     ) ;
+		::serdes(s,compressed_sz                ) ;
 	}
 	// data
 	// START_OF_VERSIONING
@@ -810,6 +814,8 @@ struct JobEndRpcReq : JobRpcReq {
 	::vmap_ss              dynamic_env   ; // env variables computed in job_exec
 	::string               msg           ;
 	vector<ExecTraceEntry> exec_trace    ;
+	Disk::DiskSz           total_sz      = 0 ;
+	Disk::DiskSz           compressed_sz = 0 ;
 	// END_OF_VERSIONING)
 } ;
 
@@ -921,10 +927,10 @@ struct SubmitAttrs {
 	friend ::string& operator+=( ::string& , SubmitAttrs const& ) ;
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
-		// cache_key, deps and tag are independent of req but may not always be present
-		if      (!cache_key) cache_key = other.cache_key ; else if (+other.cache_key) SWEAR(cache_key==other.cache_key,cache_key,other.cache_key) ;
-		if      (!deps     ) deps      = other.deps      ; else if (+other.deps     ) SWEAR(deps     ==other.deps     ,deps     ,other.deps     ) ;
-		if      (!tag      ) tag       = other.tag       ; else if (+other.tag      ) SWEAR(tag      ==other.tag      ,tag      ,other.tag      ) ;
+		// cache, deps and tag are independent of req but may not always be present
+		if      (!cache) cache = other.cache ; else if (+other.cache) SWEAR(cache==other.cache,cache,other.cache) ;
+		if      (!deps ) deps  = other.deps  ; else if (+other.deps ) SWEAR(deps ==other.deps ,deps ,other.deps ) ;
+		if      (!tag  ) tag   = other.tag   ; else if (+other.tag  ) SWEAR(tag  ==other.tag  ,tag  ,other.tag  ) ;
 		live_out  |= other.live_out                   ;
 		pressure   = ::max(pressure ,other.pressure ) ;
 		reason    |= other.reason                     ;
@@ -938,13 +944,13 @@ struct SubmitAttrs {
 	}
 	// data
 	// START_OF_VERSIONING
-	::string            cache_key = {}    ;
-	::vmap_s<DepDigest> deps      = {}    ;
-	bool                live_out  = false ;
-	Time::CoarseDelay   pressure  = {}    ;
-	JobReason           reason    = {}    ;
-	BackendTag          tag       = {}    ;
-	Tokens1             tokens1   = 0     ;
+	::string            cache    = {}    ;
+	::vmap_s<DepDigest> deps     = {}    ;
+	bool                live_out = false ;
+	Time::CoarseDelay   pressure = {}    ;
+	JobReason           reason   = {}    ;
+	BackendTag          tag      = {}    ;
+	Tokens1             tokens1  = 0     ;
 	// END_OF_VERSIONING
 } ;
 

@@ -226,7 +226,7 @@ Digest analyze(Status status=Status::New) {                                     
 		else if (flags.extra_tflags()[ETF::Ignore]) {}
 		else                                        res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ETF::Wash , .crc=Crc::None } ) ;
 	}
-	g_exec_trace->emplace_back(New,"anaylized") ;
+	g_exec_trace->emplace_back(New,"analyzed") ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
@@ -280,7 +280,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	trace("done",cnt) ;
 }
 
-::string/*msg*/ compute_crcs( Digest& digest , ::vector<FileInfo>& target_fis/*out*/ , size_t& sz/*out*/ ) {
+::string/*msg*/ compute_crcs( Digest& digest , ::vector<FileInfo>& target_fis/*out*/ , size_t& total_sz/*out*/ ) {
 	size_t                            n_threads = thread::hardware_concurrency() ;
 	if (n_threads<1                 ) n_threads = 1                              ;
 	if (n_threads>8                 ) n_threads = 8                              ;
@@ -294,8 +294,8 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	{	::vector<::jthread> crc_threads ; crc_threads.reserve(n_threads) ;
 		for( size_t i  : iota(n_threads) ) crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex , &target_fis , &szs[i] ) ;
 	}
-	sz = 0 ;
-	for( size_t s : szs ) sz += s ;
+	total_sz = 0 ;
+	for( size_t s : szs ) total_sz += s ;
 	g_exec_trace->emplace_back(New,"computed_crc") ;
 	return msg ;
 }
@@ -446,17 +446,20 @@ int main( int argc , char* argv[] ) {
 		Digest digest = analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
-		size_t             sz         = 0/*garbage*/ ;
 		::vector<FileInfo> target_fis ;
-		end_report.msg += compute_crcs( digest , target_fis/*out*/ , sz/*out*/ ) ;
+		end_report.msg += compute_crcs( digest , target_fis/*out*/ , end_report.total_sz/*out*/ ) ;
 		//
 		CacheKey upload_key = 0 ;
 		if (g_start_info.cache) {
-			::pair<AcFd,Cache::Key> cache_reserve = g_start_info.cache->reserve(sz) ;
-			g_start_info.cache->upload( cache_reserve.first , digest.targets , target_fis ) ;
-			upload_key = cache_reserve.second ;
-			g_exec_trace->emplace_back(New,"uploaded_to_cache",cat(g_start_info.cache->tag())) ;
-			trace("cache",g_start_info.end_attrs.cache_key,upload_key) ;
+			::pair<AcFd,Cache::Key> cache_reserve = g_start_info.cache->reserve( end_report.total_sz , g_start_info.z_lvl ) ;
+			try {
+				end_report.compressed_sz = g_start_info.cache->upload( ::move(cache_reserve.first) , digest.targets , target_fis , g_start_info.z_lvl ) ;
+				upload_key = cache_reserve.second ;
+			} catch (::string const&) {
+				g_start_info.cache->dismiss(cache_reserve.second) ;
+			}
+			g_exec_trace->emplace_back( New , "uploaded_to_cache" , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
+			trace("cache",g_start_info.end_attrs.cache,upload_key) ;
 		}
 		//
 		if (!g_start_info.autodep_env.reliable_dirs) {                                                   // fast path : avoid listing targets & guards if reliable_dirs

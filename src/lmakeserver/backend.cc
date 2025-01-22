@@ -340,6 +340,9 @@ namespace Backends {
 				}
 				reply.keep_tmp                 |= start_none_attrs.keep_tmp       ;
 				reply.end_attrs.max_stderr_len  = start_none_attrs.max_stderr_len ;
+				#if HAS_ZLIB
+					reply.z_lvl = start_none_attrs.z_lvl ; // if zlib is not available, dont compress
+				#endif
 				//
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
 			[[fallthrough]] ;
@@ -373,8 +376,8 @@ namespace Backends {
 				/**/                               reply.autodep_env.lnk_support   = g_config->lnk_support                             ;
 				/**/                               reply.autodep_env.reliable_dirs = g_config->reliable_dirs                           ;
 				/**/                               reply.autodep_env.src_dirs_s    = *g_src_dirs_s                                     ;
-				/**/                               reply.end_attrs.cache_key       = submit_attrs.cache_key                            ;
-				if (+submit_attrs.cache_key      ) reply.cache                     = Cache::s_tab.at(submit_attrs.cache_key)           ;
+				/**/                               reply.end_attrs.cache           = submit_attrs.cache                                ;
+				if (+submit_attrs.cache          ) reply.cache                     = Cache::s_tab.at(submit_attrs.cache)               ;
 				/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
 				/**/                               reply.ddate_prec                = g_config->ddate_prec                              ;
 				/**/                               reply.key                       = g_config->key                                     ;

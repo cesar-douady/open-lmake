@@ -10,8 +10,13 @@ if __name__!='__main__' :
 
 	lmake.manifest = (
 		'Lmakefile.py'
+	,	'step.py'
 	,	'hello'
+	,	'hello+auto1.hide.ref'
+	,	'mkdir.dut.ref'
 	)
+
+	from step import z_lvl
 
 	lmake.config.caches.dir = {
 		'tag' : 'dir'
@@ -40,18 +45,29 @@ if __name__!='__main__' :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		cache = 'dir'
-		cmd   = 'cat {FIRST} {SECOND}'
+		cache       = 'dir'
+		compression = z_lvl
+		cmd         = 'cat {FIRST} {SECOND}'
 
 	class MkDir(Rule):
-		target  = 'mkdir.dut'
-		targets = { 'OUT' : r'mkdir.dir/{*:.*}' }
-		cache   = 'dir'
+		target      = 'mkdir.dut'
+		targets     = { 'OUT' : r'mkdir.dir/{*:.*}' }
+		cache       = 'dir'
+		compression = z_lvl
 		cmd = '''
 			dir={OUT('v1')}
 			mkdir -p $dir
 			> $dir/res
+			echo mkdir
 		'''
+
+	class Ok(Rule) :
+		target = r'{File:.*}.ok'
+		deps = {
+			'DUT' : '{File}'
+		,	'REF' : '{File}.ref'
+		}
+		cmd = 'diff {REF} {DUT}>&2'
 
 else :
 
@@ -59,19 +75,26 @@ else :
 
 	import ut
 
-	print('hello',file=open('hello','w'))
+	for z_lvl in (0,5) :
+		print(f'z_lvl={z_lvl}',file=open('step.py','w'))
+		os.system(f'rm -rf LMAKE CACHE *auto1* mkdir*')
 
-	os.makedirs('CACHE/LMAKE')
-	print('1M',file=open('CACHE/LMAKE/size','w'))
+		print('hello'       ,file=open('hello'               ,'w'))
+		print('hello\n#auto',file=open('hello+auto1.hide.ref','w'))
+		print('mkdir'       ,file=open('mkdir.dut.ref'       ,'w'))
 
-	ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 ) # check target is out of date
-	ut.lmake( 'hello+auto1.hide' , done=0 ,               new=0 ) # check target is up to date
-	ut.lmake( 'mkdir.dut'        , done=1                       ) # check everything is ok with dirs and empty files
+		os.makedirs('CACHE/LMAKE')
+		print('1M',file=open('CACHE/LMAKE/size','w'))
 
-	os.system('mkdir bck ; mv LMAKE *auto* bck')
-	os.system('find CACHE -type f -ls')
+		ut.lmake( 'hello+auto1.hide.ok' , done=4 , may_rerun=1 , new=2 ) # check target is out of date
+		ut.lmake( 'hello+auto1.hide.ok' , done=0                       ) # check target is up to date
+		ut.lmake( 'mkdir.dut.ok'        , done=2 ,               new=1 ) # check everything is ok with dirs and empty files
 
-	print('hello2',file=open('hello','w'))
-	ut.lmake( 'hello+auto1.hide' , done=1     , hit_done=2 , new=1 ) # check cache hit on common part, and miss when we depend on hello
-	ut.lmake( 'mkdir.dut'        , unlinked=1 , hit_done=1         ) # check everything is ok with dirs and empty files (mkdir.dut still exists and is unlinked)
+		os.system(f'mkdir bck{z_lvl} ; mv LMAKE auto1 auto1.hide hello+auto1.hide bck{z_lvl}')
+		os.system('find CACHE -type f -ls')
+
+		print('hello2'       ,file=open('hello'               ,'w'))
+		print('hello2\n#auto',file=open('hello+auto1.hide.ref','w'))
+		ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_done=2 , unlinked=1                 , new=2 ) # check cache hit on common part, and miss when we depend on hello
+		ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check everything is ok with dirs and empty files (mkdir.dut still exists and is unlinked)
 

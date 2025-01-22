@@ -1829,6 +1829,26 @@ When a job is executed, its results are stored in the cache.
 If space is needed (all caches are constrained in size), any other entry can be replaced.
 The cache policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.
 
+@section @code{compression}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Python
+@item Type
+@tab @code{int}
+@item Constraint
+@tab between @code{0} and @code{9}
+@item Default
+@tab 0
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
+@end multitable
+
+This attribute specifies the compression level used when caching.
+It is passed to the zlib library used to compress job targets.
+@code{0} means no compression.
+@code{9} means maximum compression.
+
 @section @code{backend}
 
 @multitable @columnfractions 0.1 0.9

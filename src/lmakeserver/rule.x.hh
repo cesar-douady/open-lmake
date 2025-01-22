@@ -188,12 +188,12 @@ namespace Engine {
 		// services
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
-			Attrs::acquire_from_dct( cache_key , py_dct , "cache_key" ) ;
-			throw_unless( !cache_key || Caches::Cache::s_tab.contains(cache_key) , "unexpected cache ",cache_key," not found in config" ) ;
+			Attrs::acquire_from_dct( cache , py_dct , "cache" ) ;
+			throw_unless( !cache || Caches::Cache::s_tab.contains(cache) , "unexpected cache ",cache," not found in config" ) ;
 		}
 		// data
 		// START_OF_VERSIONING
-		::string cache_key ;
+		::string cache ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -266,6 +266,7 @@ namespace Engine {
 		void update(                       Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
 			Attrs::acquire_from_dct( keep_tmp       , py_dct , "keep_tmp"                              ) ;
+			Attrs::acquire_from_dct( z_lvl          , py_dct , "compression"                           ) ;
 			Attrs::acquire_from_dct( start_delay    , py_dct , "start_delay"    , Time::Delay()/*min*/ ) ;
 			Attrs::acquire_from_dct( kill_sigs      , py_dct , "kill_sigs"                             ) ;
 			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len"                        ) ;
@@ -275,6 +276,7 @@ namespace Engine {
 		// data
 		// START_OF_VERSIONING
 		bool              keep_tmp       = false ;
+		uint8_t           z_lvl          = 0     ;
 		Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
 		::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
 		size_t            max_stderr_len = Npos  ;                                                         // max lines when displaying stderr (full content is shown with lshow -e)

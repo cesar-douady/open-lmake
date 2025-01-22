@@ -142,6 +142,7 @@ LINT_OPTS  := '-header-filter=.*' $(LINT_CHKS)
 CPP_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
 
 PCRE_LIB := $(if $(HAS_PCRE),-lpcre2-8)
+Z_LIB    := $(if $(HAS_ZLIB),-lz      )
 
 PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -isystem
 PY3_INC_DIRS :=                 $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))  # .
@@ -416,7 +417,7 @@ include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS)
 #
 
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
-LIB_SECCOMP := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
+SECCOMP_LIB := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
 src/lmakeserver/backends/slurm$(SAN).o : CPP_FLAGS += $(if $(SLURM_INC_DIR),-isystem $(SLURM_INC_DIR))
 
@@ -490,7 +491,7 @@ LMAKE_DBG_FILES += _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi
 _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 bin/lmake   : $(CLIENT_SAN_OBJS) src/lmake$(SAN).o
@@ -523,7 +524,7 @@ _bin/ldump_job : \
 	src/ldump_job$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/align_comments
@@ -577,7 +578,7 @@ LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
 _bin/job_exec bin/lautodep :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LIB_SECCOMP) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps

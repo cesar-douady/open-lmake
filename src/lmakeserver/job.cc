@@ -597,10 +597,10 @@ namespace Engine {
 		jd.status = status ;
 		//^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
-		bool     upload = jd.run_status==RunStatus::Ok && ok==Yes                             ;
+		bool     upload = jd.run_status==RunStatus::Ok && ok==Yes                                     ;
 		::string msg    ;
-		Cache*   cache  = +jerr.digest.upload_key ? Cache::s_tab.at(digest.end_attrs.cache_key) : nullptr ; // search cache before jerr is moved
-		trace("wrap_up",ok,digest.end_attrs.cache_key,jd.run_status,STR(upload)) ;
+		Cache*   cache  = +jerr.digest.upload_key ? Cache::s_tab.at(digest.end_attrs.cache) : nullptr ; // search cache before jerr is moved
+		trace("wrap_up",ok,digest.end_attrs.cache,jd.run_status,STR(upload)) ;
 		msg = jerr.msg ;
 		jerr.msg <<set_nl<< local_msg << severe_msg ;
 		SWEAR(+jerr) ;                                // ensure jerr is saved
@@ -1214,14 +1214,14 @@ namespace Engine {
 			req->audit_job(Color::Note,"no_dynamic",idx()) ;
 			req->audit_stderr( idx() , ensure_nl(r->submit_none_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , Npos , 1 ) ;
 		}
-		if (+submit_none_attrs.cache_key) {
+		if (+submit_none_attrs.cache) {
 			::vmap_s<DepDigest> dns ;
 			for( Dep const& d : deps ) {
 				DepDigest dd = d ; dd.crc(d->crc) ;                                                          // provide node actual crc as this is the hit criteria
 				dns.emplace_back(d->name(),dd) ;
 			}
-			Cache*              cache       = Cache::s_tab.at(submit_none_attrs.cache_key) ;
-			Cache::Match        cache_match = cache->match( unique_name() , dns )          ;
+			Cache*              cache       = Cache::s_tab.at(submit_none_attrs.cache) ;
+			Cache::Match        cache_match = cache->match( unique_name() , dns )      ;
 			if (!cache_match.completed) FAIL("delayed cache not yet implemented") ;
 			switch (cache_match.hit) {
 				case Yes :
@@ -1294,12 +1294,12 @@ namespace Engine {
 		try {
 			Tokens1 tokens1 = submit_rsrcs_attrs.tokens1() ;
 			SubmitAttrs sa {
-				.cache_key = ::move(submit_none_attrs.cache_key)
-			,	.deps      = ::move(early_deps                 )
-			,	.live_out  =        ri.live_out
-			,	.pressure  =        pressure
-			,	.reason    =        ri.reason
-			,	.tokens1   =        tokens1
+				.cache    = ::move(submit_none_attrs.cache)
+			,	.deps     = ::move(early_deps             )
+			,	.live_out =        ri.live_out
+			,	.pressure =        pressure
+			,	.reason   =        ri.reason
+			,	.tokens1  =        tokens1
 			} ;
 			estimate_stats(tokens1) ;                // refine estimate with best available info just before submitting
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

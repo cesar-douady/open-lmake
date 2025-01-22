@@ -20,15 +20,16 @@ if __name__!='__main__' :
 	)
 
 	lmake.config.caches.dir = {
-		'tag'  : 'dir'
-	,	'dir'  : lmake.repo_root+'/CACHE'
+		'tag' : 'dir'
+	,	'dir' : lmake.repo_root+'/CACHE'
 	}
 
 	class Unzip(Rule) :
-		targets = { 'FILE' : r'mandelbrot/{*:.*}' }
-		deps    = { 'ZIP'  : 'mandelbrot.zip'     }
-		cache   = 'dir'
-		cmd     = 'unzip {ZIP} ; mv mandelbrot/output.txt mandelbrot/output.ref'
+		targets     = { 'FILE' : r'mandelbrot/{*:.*}' }
+		deps        = { 'ZIP'  : 'mandelbrot.zip'     }
+		cache       = 'dir'
+		compression = 1
+		cmd         = 'unzip {ZIP} ; mv mandelbrot/output.txt mandelbrot/output.ref'
 
 	class RunRust(RustRule) :
 		targets = {
@@ -43,6 +44,7 @@ if __name__!='__main__' :
 		autodep      = 'ld_preload_jemalloc'
 		environ      = { 'LD_PRELOAD' : 'libjemalloc.so' }
 		cache        = 'dir'
+		compression  = 1
 		cmd          = 'cd mandelbrot ; cargo run --release ; mv output.txt output.dut'
 
 	class Cmp(Rule) :

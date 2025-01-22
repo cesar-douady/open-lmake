@@ -429,6 +429,18 @@ HAS_UNREACHABLE=$(ok cc -std=$CXX_STD -o /dev/null unreachable.cc) # check if st
 # with posix, we must map vfork to fork as vfork is a subset of fork and instrumenting exec in child is forbidden with vfork
 MAP_VFORK=0
 
+#
+# ZLIB (HAS_ZLIB)
+#
+cat <<"EOF" >zlib.cc
+	#include <zlib.h>
+	int main() {
+		z_stream zs ;
+		deflate(&zs,0) ;
+	}
+EOF
+HAS_ZLIB=$(ok cc -std=$CXX_STD -o /dev/null zlib.cc -lz ) # check both include and lib
+
 cat >$MK_FILE <<-EOF
 	SYS_CONFIG_OK := 1
 	LMAKE_FLAGS   := $LMAKE_FLAGS
@@ -448,6 +460,7 @@ cat >$MK_FILE <<-EOF
 	HAS_SGE                   := ${HAS_SGE#0}
 	HAS_SLURM                 := ${HAS_SLURM#0}
 	HAS_TEXI                  := ${HAS_TEXI#0}
+	HAS_ZLIB                  := ${HAS_ZLIB#0}
 	LD_SO_LIB                 := $LD_SO_LIB
 	LD_SO_LIB_32              := $LD_SO_LIB_32
 	LIB_STACKTRACE            := $LIB_STACKTRACE
@@ -500,6 +513,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
 	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
+	#define HAS_ZLIB                    $HAS_ZLIB
 	#define LD_SO_LIB                   "$LD_SO_LIB"
 	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
 	#define MAP_VFORK                   $MAP_VFORK

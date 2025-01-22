@@ -250,12 +250,15 @@ class LinkRule(PathRule,PyRule) :
 	resources    = {'mem':'1G'}
 	need_python  = False
 	need_seccomp = False
+	need_zlib    = False
 	def cmd() :
 		ns  = need_seccomp and sys_config('HAS_SECCOMP')
+		nz  = need_zlib    and sys_config('HAS_ZLIB'   )
 		lst = sys_config('LIB_STACKTRACE')
 		if True        : post_opts = ['-ldl']
 		if lst         : post_opts.append(f'-l{lst}')
 		if ns          : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists
+		if nz          : post_opts.append('-lz'               )
 		if need_python :
 			post_opts.append(f"-L{sysconfig.get_config_var('LIBDIR')}")
 			lib = sysconfig.get_config_var('LDLIBRARY')
@@ -412,6 +415,7 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'RPC_CLIENT'   : None
 	}
 	need_seccomp = True
+	need_zlib    = True
 
 class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_lib/ld_{Method:audit|preload|preload_jemalloc}.so' }
@@ -450,6 +454,7 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
+	need_zlib = True
 
 class LinkLrepairExe(LinkLmakeserverExe) :
 	targets = { 'TARGET' : 'bin/lrepair' }
@@ -475,6 +480,7 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/ldump.o'
 	}
+	need_zlib = True
 
 class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
@@ -483,6 +489,7 @@ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	,	'DIR_CACHE' : 'src/caches/dir_cache.o'
 	,	'MAIN'      : 'src/ldump_job.o'
 	}
+	need_zlib = True
 
 for client in ('lforget','lmake','lmark','lshow') :
 	class LinkLmake(LinkClientAppExe) :

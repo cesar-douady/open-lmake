@@ -1249,7 +1249,7 @@ namespace Engine {
 			if ( n_losts                                           ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                        ) ) ;
 			if ( n_submits                                         ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                      ) ) ;
 			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs.spec.backend                ) ) ;
-			if (+submit_none_attrs .spec.cache_key                 ) entries.emplace_back( "cache"               ,             submit_none_attrs .spec.cache_key              ) ;
+			if (+submit_none_attrs .spec.cache                     ) entries.emplace_back( "cache"               ,             submit_none_attrs .spec.cache                  ) ;
 			if (+interpreter                                       ) entries.emplace_back( "interpreter"         ,             interpreter                                      ) ;
 			if ( start_cmd_attrs   .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"        , cat        (start_cmd_attrs   .spec.allow_stderr           ) ) ;
 			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
@@ -1264,6 +1264,7 @@ namespace Engine {
 			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"         ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
 			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                        ) ;
 			if ( start_none_attrs  .spec.max_stderr_len!=Npos      ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_none_attrs  .spec.max_stderr_len         ) ) ;
+			if ( start_none_attrs  .spec.z_lvl                     ) entries.emplace_back( "compression"         , ::to_string(start_none_attrs  .spec.z_lvl                  ) ) ;
 		}
 		::string res = _pretty_vmap( title , entries ) ;
 		//

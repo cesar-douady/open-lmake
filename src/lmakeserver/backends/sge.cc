@@ -347,23 +347,23 @@ namespace Backends::Sge {
 		sort(m) ;
 		for( auto&& [k,v] : ::move(m) ) {
 			switch (k[0]) {
-				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
-				case 'h' : if (k=="hard") { hard = _split_rsrcs                        (v) ; continue ; } break ;
-				case 'm' : if (k=="mem" ) { mem  = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
-				case 's' : if (k=="soft") { soft = _split_rsrcs                        (v) ; continue ; } break ;
-				case 't' : if (k=="tmp" ) { tmp  = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_unit<    uint32_t>(v) ; continue ; } break ;
+				case 'h' : if (k=="hard") { hard = _split_rsrcs                       (v) ; continue ; } break ;
+				case 'm' : if (k=="mem" ) { mem  = from_string_with_unit<'M',uint32_t>(v) ; continue ; } break ;
+				case 's' : if (k=="soft") { soft = _split_rsrcs                       (v) ; continue ; } break ;
+				case 't' : if (k=="tmp" ) { tmp  = from_string_with_unit<'M',uint32_t>(v) ; continue ; } break ;
 				case '-' : throw "resource cannot start with - :"+k ;
 			DN}
-			tokens.emplace_back( k , from_string_with_units<uint64_t>(v) ) ;
+			tokens.emplace_back( k , from_string_with_unit<uint64_t>(v) ) ;
 		}
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
 		::vmap_ss res ;
 		// It may be interesting to know the number of cpu reserved to know how many thread to launch in some situation
-		if (cpu              )            res.emplace_back( "cpu" , to_string_with_units     (cpu) ) ;
-		if (mem              )            res.emplace_back( "mem" , to_string_with_units<'M'>(mem) ) ;
-		if (tmp!=uint32_t(-1))            res.emplace_back( "tmp" , to_string_with_units<'M'>(tmp) ) ;
-		for( auto const& [k,v] : tokens ) res.emplace_back( k     , to_string_with_units     (v  ) ) ;
+		if (cpu              )            res.emplace_back( "cpu" , to_string_with_unit     (cpu) ) ;
+		if (mem              )            res.emplace_back( "mem" , to_string_with_unit<'M'>(mem) ) ;
+		if (tmp!=uint32_t(-1))            res.emplace_back( "tmp" , to_string_with_unit<'M'>(tmp) ) ;
+		for( auto const& [k,v] : tokens ) res.emplace_back( k     , to_string_with_unit     (v  ) ) ;
 		return res ;
 	}
 

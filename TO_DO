@@ -150,6 +150,9 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* implement cache compression
+* in cache, add a link from deps-crc to improve hit speed
+	- this way, hit is a direct access and need no search
 * prepare namespace while waiting for server if possible
 	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs
