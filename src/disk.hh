@@ -58,6 +58,8 @@ namespace Disk {
 	using DiskSz      = uint64_t                 ;
 	using FileNameIdx = Uint<n_bits(PATH_MAX+1)> ; // file names are limited to PATH_MAX
 
+	static constexpr DiskSz DiskBufSz = 1<<16 ; // buffer size to use when reading or writing disk
+
 	//
 	// path name library
 	//
@@ -359,15 +361,6 @@ namespace Disk {
 			bool   ok  = false ;
 			size_t dvg = 0     ;
 		} ;
-		// statics
-	private :
-		// if No <=> no file, if Maybe <=> a regular file, if Yes <=> a link
-		Bool3/*ok*/ _read_lnk( ::string& target/*out*/ , ::string const& real ) {
-			::string t = read_lnk(real) ;
-			if (!t) return Maybe & (errno!=ENOENT) ;
-			target = ::move(t) ;
-			return Yes ;
-		}
 		// cxtors & casts
 	public :
 		RealPath() = default ;

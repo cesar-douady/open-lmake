@@ -81,7 +81,7 @@ else :
 				with Autodep(True) :                      # reactivate import when reading found module
 					return orig_exec_module(*args,**kwds)
 			_LoaderBasics.exec_module = orig_exec_module
-			builtins.__import__ = new_import              # wrap at the end to avoid wraping our own imports
+			builtins.__import__       = new_import        # wrap at the end to avoid wraping our own imports
 		except :
 			pass                                          # masking spurious deps is not available : well, we'll live without
 

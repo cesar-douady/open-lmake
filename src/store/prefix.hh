@@ -380,7 +380,7 @@ namespace Store {
 			}
 			// find diverging point and return status. chunk_pos is always updated, idx only if status is Dvg::Cont
 			// psfx is prefix (Reverse) / suffix (!Reverse)
-			Dvg find_dvg( Idx& idx/*out*/ , ChunkIdx& chunk_pos/*inout*/ , size_t& name_pos/*inout*/ , VecView const& name , VecView const& psfx ) const {
+			Dvg find_dvg( Idx&/*out*/ idx , ChunkIdx&/*inout*/ chunk_pos , size_t&/*inout*/ name_pos , VecView const& name , VecView const& psfx ) const {
 				size_t total_sz      = Prefix::size(name,psfx) ;
 				size_t total_end_pos = ::min( total_sz      , name_pos+chunk_sz-chunk_pos ) ;
 				size_t name_end_pos  = ::min( total_end_pos , name.size()                 ) ;
@@ -569,7 +569,7 @@ namespace Store {
 					Idx         prev_idx = idx        ;
 					Item const& item     = f._at(idx) ;
 					chunk_pos = cp                                                                              ;
-					dvg       = item.find_dvg( idx/*out*/ , chunk_pos/*inout*/ , name_pos/*inout*/ , n , psfx ) ;
+					dvg       = item.find_dvg( /*out*/idx , /*inout*/chunk_pos , /*inout*/name_pos , n , psfx ) ;
 					if ( item.used && chunk_pos==item.chunk_sz && (!with_sep||name_pos==Prefix::size(n,psfx)||Prefix::char_at<Reverse>(n,psfx,name_pos)==sep) ) {
 						used_idx = prev_idx ;
 						used_pos = name_pos ;
@@ -656,7 +656,7 @@ namespace Store {
 		}
 		// per item
 	private :
-		void  _append_lst( ::vector<Idx>& idx_lst/*out*/ , Idx                                                ) const ;
+		void  _append_lst( ::vector<Idx>&/*out*/ idx_lst , Idx                                                ) const ;
 		IdxSz _chk       (                                 Idx , bool recurse_backward , bool recurse_forward ) const ;
 		// cannot provide insert_data as insert requires unlocked while data requires locked
 	public :
@@ -1112,16 +1112,16 @@ namespace Store {
 	} ;
 
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		void MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_append_lst( ::vector<Idx>& idx_lst/*out*/ , Idx idx ) const {
+		void MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_append_lst( ::vector<Idx>&/*out*/ idx_lst , Idx idx ) const {
 			Item const& item = _at(idx) ;
 			if (item.used) idx_lst.push_back(idx) ;
 			switch (item.kind()) {
 				case Kind::Terminal : break ;
-				case Kind::Prefix   : _append_lst( idx_lst , item.nxt() ) ; break ;
+				case Kind::Prefix   : _append_lst( /*out*/idx_lst , item.nxt() ) ; break ;
 				case Kind::Split : {
 					bool zero_is_eq = !item.dvg_at(0) ;
-					_append_lst( idx_lst , item.nxt_if( zero_is_eq) ) ; // output in increasing order
-					_append_lst( idx_lst , item.nxt_if(!zero_is_eq) ) ; // .
+					_append_lst( /*out*/idx_lst , item.nxt_if( zero_is_eq) ) ; // output in increasing order
+					_append_lst( /*out*/idx_lst , item.nxt_if(!zero_is_eq) ) ; // .
 				} break ;
 			DF}
 		}

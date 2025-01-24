@@ -1156,7 +1156,7 @@ namespace Engine {
 					SpecialStep ss = SpecialStep::Idle ;
 					if (!( t->crc.valid() && FileSig(nfs_guard.access(tn))==t->date().sig )) {
 						FileSig sig  ;
-						Crc   crc { tn , sig/*out*/ } ;
+						Crc   crc { tn , /*out*/sig } ;
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
 						Trace trace( "frozen" , t->crc ,"->", crc , t->date() ,"->", sig ) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvv

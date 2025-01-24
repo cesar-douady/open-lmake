@@ -14,9 +14,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* cache has been seen being read several times
-	- a priori, this is a performance bug only
-
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
@@ -80,6 +77,10 @@ items (also used in XXX comments) :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* implement cache_repair
+	- clean LMAKE/reserved
+	- recompute overall size
+	- recompute all lru files
 * implement cache v2 :
 	- use a daemon
 ? provide several sets of rules/sources
@@ -148,7 +149,7 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* prepare namespace while waiting for server if possible
+! prepare namespace while waiting for server if possible
 	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs
 	- share views in submit_attrs as there is very few variability
@@ -208,16 +209,16 @@ M manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
-* add a TU for scp
+* gcov
 * add a more agressive TU for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...
-* add a unit_test to validate max_retries_on_lost
-* gcov
-* idx overflow
+! add a unit_test to validate max_retries_on_lost
+! idx overflow
 	- check with 8-bits indexes
-* test crash recovery
+! test crash recovery
 	- including atomicity of store
+? add a TU for scp
 
 ****************************************************************************************************
 * TOOLS

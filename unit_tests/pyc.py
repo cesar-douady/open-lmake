@@ -8,16 +8,23 @@ import sys
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'mod.py'
+	,	'sub_mod.py'
 	)
 
 	class Dut(Rule) :
 		target ='dut'
 		python = (sys.executable,'-B')
+		def cmd():
+			sys.path.append('.') # ensure mod can be founded even if executed with use_script=True
+			import mod
+
+	class PyDut(PyRule) :
+		target ='py_dut'
 		def cmd():
 			sys.path.append('.') # ensure mod can be founded even if executed with use_script=True
 			import mod
@@ -30,8 +37,9 @@ else :
 	os.environ['LMAKE_ARGS'] = 'dut'
 
 	os.makedirs('mod',exist_ok=True)
-	open('mod.py','w')
-	ut.lmake(  done=1 , new=1 , rc=0 )
+	print(                 file=open('sub_mod.py','w'))
+	print('import sub_mod',file=open('mod.py'    ,'w'))
+	ut.lmake(  done=1 , new=2 , rc=0 )
 
 	os.makedirs('__pycache__',exist_ok=True)
 	open(f'__pycache__/mod.cpython-{sys.version_info.major}{sys.version_info.minor}.pyc','w')
@@ -39,3 +47,9 @@ else :
 
 	ut.lmake(        dangling=1 , failed=0  , new=0 , rc=1 )
 	ut.lmake( '-e' , dangling=1 , dep_err=1 , new=0 , rc=1 )
+
+	os.environ['LMAKE_ARGS'] = 'py_dut'
+
+	ut.lmake(done=1)
+	os.unlink('py_dut')
+	ut.lmake(steady=1)

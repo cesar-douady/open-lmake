@@ -11,10 +11,6 @@ namespace Caches {
 
 	struct DirCache : Cache {     // PER_CACHE : inherit from Cache and provide implementation
 		static constexpr char HeadS[] = ADMIN_DIR_S ;
-	private :
-		static constexpr size_t _BufSz = 1<<16 ;
-		// statics
-	public :
 		// services
 		virtual void config(::vmap_ss const& ) ;
 		virtual Tag  tag   (                 ) { return Tag::Dir ; }

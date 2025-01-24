@@ -32,7 +32,7 @@ using namespace Hash ;
 	return                              os <<')'                      ;
 }
 
-::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks/*out*/ , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
+::pair_s<bool/*ok*/> do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
 	::uset_s keep_dirs ;
 	::string msg       ;
 	bool     ok        = true ;
@@ -128,7 +128,6 @@ using namespace Hash ;
 //
 
 struct DeflateFd : AcFd {
-	static constexpr size_t BufSz = 1<<16 ;
 	// cxtors & casts
 	DeflateFd() = default ;
 	#if HAS_ZLIB
@@ -153,8 +152,8 @@ struct DeflateFd : AcFd {
 				_zs.avail_in = s.size()                                   ;
 				while (_zs.avail_in) {
 					if (!_zs.avail_out) {
-						AcFd::write({_buf,BufSz}) ;
-						total_sz += BufSz ;
+						AcFd::write({_buf,DiskBufSz}) ;
+						total_sz += DiskBufSz ;
 						_reset_buf() ;
 					}
 					deflate(&_zs,Z_NO_FLUSH) ;
@@ -163,15 +162,15 @@ struct DeflateFd : AcFd {
 			}
 		#endif
 		_flush(s.size()) ;
-		if      (s.size()>=BufSz) { AcFd::write(s)                              ; total_sz += s.size() ; }                                                           // large data : send directly
-		else if (s.size()       ) { ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; }                                                           // small data : put in _buf
+		if      (s.size()>=DiskBufSz) { AcFd::write(s)                              ; total_sz += s.size() ; }                                                           // large data : send directly
+		else if (s.size()           ) { ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; }                                                           // small data : put in _buf
 	}
 	void send_from( Fd fd_ , size_t sz ) {
 		#if HAS_ZLIB
 			SWEAR(!_flushed) ;
 			if (lvl) {
 				while (sz) {
-					size_t cnt = ::min(sz,BufSz) ;
+					size_t cnt = ::min(sz,DiskBufSz) ;
 					::string s = fd_.read(cnt) ; throw_unless(s.size()==cnt,"missing ",cnt-s.size()," bytes from ",fd) ;
 					write(s) ;
 					sz -= cnt ;
@@ -180,8 +179,8 @@ struct DeflateFd : AcFd {
 			}
 		#endif
 		_flush(sz) ;
-		if      (sz>=BufSz) { SWEAR(!_pos) ; size_t c = ::sendfile(self,fd_,nullptr,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz += sz ; } // large data : send directly
-		else if (sz       ) {                size_t c = fd_.read_to({_buf+_pos,sz})     ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos     += c  ; } // small data : put in _buf
+		if      (sz>=DiskBufSz) { SWEAR(!_pos) ; size_t c = ::sendfile(self,fd_,nullptr,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz += sz ; } // large data : send directly
+		else if (sz           ) {                size_t c = fd_.read_to({_buf+_pos,sz})     ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos     += c  ; } // small data : put in _buf
 	}
 	void flush() {
 		#if HAS_ZLIB
@@ -211,15 +210,15 @@ private :
 	#if HAS_ZLIB
 		void _reset_buf() {
 			_zs.next_out  = reinterpret_cast<uint8_t*>(_buf) ;
-			_zs.avail_out = BufSz                            ;
+			_zs.avail_out = DiskBufSz                        ;
 		}
 	#endif
-	void _flush(size_t room=BufSz) {                                                                                                                                 // flush if not enough room
+	void _flush(size_t room=DiskBufSz) {                                                                                                                                 // flush if not enough room
 		#if HAS_ZLIB
 			SWEAR(!lvl) ;
 		#endif
-		if (_pos+room<=BufSz) return ;                                                                                                                               // enough room
-		if (!_pos           ) return ;                                                                                                                               // _buf is already empty
+		if (_pos+room<=DiskBufSz) return ;                                                                                                                               // enough room
+		if (!_pos               ) return ;                                                                                                                               // _buf is already empty
 		AcFd::write({_buf,_pos}) ;
 		total_sz += _pos ;
 		_pos      = 0    ;
@@ -231,8 +230,8 @@ public :
 		uint8_t lvl = 0 ;
 	#endif
 private :
-	char   _buf[BufSz] ;
-	size_t _pos        = 0 ;
+	char   _buf[DiskBufSz] ;
+	size_t _pos            = 0 ;
 	#if HAS_ZLIB
 		z_stream _zs      = {}    ;
 		bool     _flushed = false ;
@@ -240,7 +239,6 @@ private :
 } ;
 
 struct InflateFd : AcFd {
-	static constexpr size_t BufSz = 1<<16 ;
 	// cxtors & casts
 	InflateFd() = default ;
 	#if HAS_ZLIB
@@ -262,7 +260,7 @@ struct InflateFd : AcFd {
 				_zs.avail_out = res.size()                             ;
 				while (_zs.avail_out) {
 					if (!_zs.avail_in) {
-						size_t cnt = AcFd::read_to({_buf,BufSz}) ; throw_unless(cnt,"missing ",_zs.avail_out," bytes from ",self) ;
+						size_t cnt = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(cnt,"missing ",_zs.avail_out," bytes from ",self) ;
 						_reset_buf(cnt) ;
 					}
 					inflate(&_zs,Z_NO_FLUSH) ;
@@ -279,10 +277,10 @@ struct InflateFd : AcFd {
 		}
 		if (sz) {
 			SWEAR(!_len,_len) ;
-			if (sz>=BufSz) {                                                                                                 // large data : read directly
+			if (sz>=DiskBufSz) {                                                                                             // large data : read directly
 				size_t c = AcFd::read_to({&res[cnt],sz}) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
 			} else {                                                                                                         // small data : bufferize
-				_len = AcFd::read_to({_buf,BufSz}) ;       throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
+				_len = AcFd::read_to({_buf,DiskBufSz}) ;   throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
 				::memcpy( &res[cnt] , _buf , sz ) ;
 				_pos  = sz ;
 				_len -= sz ;
@@ -294,8 +292,8 @@ struct InflateFd : AcFd {
 		#if HAS_ZLIB
 			if (lvl) {
 				while (sz) {
-					size_t cnt = ::min(sz,BufSz) ;
-					::string s = read(cnt) ; SWEAR(s.size()==cnt,s.size(),cnt) ;
+					size_t   cnt = ::min(sz,DiskBufSz)                           ;
+					::string s   = read(cnt) ; SWEAR(s.size()==cnt,s.size(),cnt) ;
 					fd_.write(s) ;
 					sz -= cnt ;
 				}
@@ -311,10 +309,10 @@ struct InflateFd : AcFd {
 		}
 		if (sz) {
 			SWEAR(!_len,_len) ;
-			if (sz>=BufSz) {                                                                                                 // large data : transfer directly fd to fd
+			if (sz>=DiskBufSz) {                                                                                             // large data : transfer directly fd to fd
 				size_t c = ::sendfile(fd_,self,nullptr,sz) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
 			} else {                                                                                                         // small data : bufferize
-				_len = AcFd::read_to({_buf,BufSz}) ;         throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
+				_len = AcFd::read_to({_buf,DiskBufSz}) ;     throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
 				fd_.write({_buf,sz}) ;
 				_pos  = sz ;
 				_len -= sz ;
@@ -334,7 +332,7 @@ public :
 		bool lvl = false ;
 	#endif
 private :
-	char   _buf[BufSz] ;
+	char   _buf[DiskBufSz] ;
 	size_t _pos        = 0 ;
 	size_t _len        = 0 ;
 	#if HAS_ZLIB
@@ -413,7 +411,7 @@ namespace Caches {
 		//
 		Sz max_sz = 0 ; for( FileInfo fi : target_fis ) max_sz += fi.sz ;
 		#if HAS_ZLIB
-			static_assert(sizeof(ulong)==sizeof(Sz)) ;                // compressBound manages ulong and we need a Sz
+			static_assert(sizeof(ulong)==sizeof(Sz)) ;                               // compressBound manages ulong and we need a Sz
 			if (z_lvl) max_sz = ::compressBound(max_sz) ;
 		#else
 			SWEAR(!z_lvl,z_lvl) ;
@@ -455,8 +453,10 @@ namespace Caches {
 			data_fd.flush() ;                                                        // update data_fd.sz
 		} catch (::string const&) {
 			dismiss(key_fd.first) ;
+			trace("failed") ;
 			return {} ;
 		}
+		trace("done") ;
 		return ::move(key_fd.first) ;
 	}
 
@@ -493,7 +493,6 @@ namespace Caches {
 		start.rsrcs                 = {}        ;  // caching resources is meaningless as they have no impact on content
 		end.seq_id                  = SeqId(-1) ;  // 0 is reserved to mean no info
 		end.job                     = 0         ;  // cache does not care
-		end.digest.end_date         = {}        ;  // .
 		end.digest.upload_key       = {}        ;  // no recursive info
 		end.digest.end_attrs.cache  = {}        ;  // .
 		for( auto& [_,td] : end.digest.targets ) {
@@ -589,12 +588,12 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 }
 
 bool/*entered*/ JobSpace::enter(
-	::vmap_s<MountAction>& report
-,	::string   const&      phy_repo_root_s
-,	::string   const&      phy_tmp_dir_s
-,	::string   const&      cwd_s
-,	::string   const&      work_dir_s
-,	::vector_s const&      src_dirs_s
+	::vmap_s<MountAction>&/*out*/ report
+,	::string   const&             phy_repo_root_s
+,	::string   const&             phy_tmp_dir_s
+,	::string   const&             cwd_s
+,	::string   const&             work_dir_s
+,	::vector_s const&             src_dirs_s
 ) {
 	Trace trace("JobSpace::enter",self,phy_repo_root_s,phy_tmp_dir_s,cwd_s,work_dir_s,src_dirs_s) ;
 	//
@@ -861,14 +860,14 @@ static bool _end_ok( char c , bool brace ) {
 	else       return !is_word_char(c) ;
 }
 bool/*entered*/ JobStartRpcReply::enter(
-		::vmap_s<MountAction>& actions                                                                                   // out
-	,	::map_ss             & cmd_env                                                                                   // .
-	,	::vmap_ss            & dynamic_env                                                                               // .
-	,	pid_t                & first_pid                                                                                 // .
-	,	::string        const& phy_repo_root_s                                                                           // in
-	,	::string        const& lmake_root_s                                                                              // .
-	,	::string        const& phy_tmp_dir_s                                                                             // .
-	,	SeqId                  seq_id                                                                                    // .
+		::vmap_s<MountAction>&/*out*/ actions
+	,	::map_ss             &/*out*/ cmd_env
+	,	::vmap_ss            &/*out*/ dynamic_env
+	,	pid_t                &/*out*/ first_pid
+	,	::string        const&/*in */ phy_repo_root_s
+	,	::string        const&/*in */ lmake_root_s
+	,	::string        const&/*in */ phy_tmp_dir_s
+	,	SeqId                 /*in */ seq_id
 ) {
 	Trace trace("JobStartRpcReply::enter",phy_repo_root_s,lmake_root_s,phy_tmp_dir_s,seq_id) ;
 	//
@@ -921,8 +920,8 @@ bool/*entered*/ JobStartRpcReply::enter(
 		}
 	}
 	//
-	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                         ;
-	bool     entered        = job_space.enter( actions , phy_repo_root_s , phy_tmp_dir_s , cwd_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
+	::string phy_work_dir_s = PrivateAdminDirS+"work/"s+small_id+'/'                                                                                ;
+	bool     entered        = job_space.enter( /*out*/actions , phy_repo_root_s , phy_tmp_dir_s , cwd_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
 	if (entered) {
 		// find a good starting pid
 		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common

@@ -156,7 +156,7 @@ Digest analyze(Status status=Status::New) {                                     
 			FileSig sig     ;
 			Crc     crc     ;                                                        // lazy evaluated (not in parallel, but need is exceptional)
 			if (ad.write==Maybe) {                                                   // if we dont know if file has been written, detect file update from disk
-				if (info.dep_info.kind==DepInfoKind::Crc) { crc = Crc(file,sig/*out*/) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
+				if (info.dep_info.kind==DepInfoKind::Crc) { crc = Crc(file,/*out*/sig) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
 				else                                                                     written |= info.dep_info.sig()!=sig ;
 			}
 			if (!crc) sig = file ;                                                                // sig is computed at the same time as crc, but we need it in all cases
@@ -266,7 +266,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 		Pdate                   before = New            ;
 		FileInfo                fi     ;
 		//             vvvvvvvvvvvvvvvvvvvvvvvvvv
-		e.second.crc = Crc( e.first , fi/*out*/ ) ;
+		e.second.crc = Crc( e.first , /*out*/fi ) ;
 		//             ^^^^^^^^^^^^^^^^^^^^^^^^^^
 		e.second.sig       = fi.sig() ;
 		(*target_fis)[ti]  = fi       ;
@@ -280,7 +280,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	trace("done",cnt) ;
 }
 
-::string/*msg*/ compute_crcs( Digest& digest , ::vector<FileInfo>& target_fis/*out*/ , size_t& total_sz/*out*/ ) {
+::string/*msg*/ compute_crcs( Digest& digest , ::vector<FileInfo>&/*out*/ target_fis , size_t&/*out*/ total_sz ) {
 	size_t                            n_threads = thread::hardware_concurrency() ;
 	if (n_threads<1                 ) n_threads = 1                              ;
 	if (n_threads>8                 ) n_threads = 8                              ;
@@ -303,6 +303,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 int main( int argc , char* argv[] ) {
 	Pdate        start_overhead = Pdate(New) ;
 	ServerSockFd server_fd      { New }      ;         // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
+	::string     upload_key     ;                      // key used to identify temporary data uploaded to the cache
 	//
 	swear_prod(argc==8,argc) ;                         // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
 	g_service_start   =                     argv[1]  ;
@@ -345,7 +346,7 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add( false/*star*/ , dt , mf            ) ;
 		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
 		//
-		{	::pair_s<bool/*ok*/> wash_report = do_file_actions( g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard ) ;
+		{	::pair_s<bool/*ok*/> wash_report = do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard ) ;
 			end_report.msg += ensure_nl(::move(wash_report.first)) ;
 			if (!wash_report.second) {
 				end_report.digest.status = Status::LateLostErr ;
@@ -373,7 +374,18 @@ int main( int argc , char* argv[] ) {
 		::map_ss              cmd_env       ;
 		::vmap_s<MountAction> enter_actions ;
 		try {
-			if ( g_start_info.enter( enter_actions , cmd_env , end_report.dynamic_env , g_gather.first_pid , g_phy_repo_root_s , *g_lmake_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ) {
+			if (
+				g_start_info.enter(
+					/*out*/enter_actions
+				,	/*out*/cmd_env
+				,	/*out*/end_report.dynamic_env
+				,	/*out*/g_gather.first_pid
+				,	       g_phy_repo_root_s
+				,	       *g_lmake_root_s
+				,	       end_report.phy_tmp_dir_s
+				,	       g_seq_id
+				)
+			) {
 				RealPath real_path { g_start_info.autodep_env } ;
 				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
@@ -449,9 +461,8 @@ int main( int argc , char* argv[] ) {
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
 		::vector<FileInfo> target_fis ;
-		end_report.msg += compute_crcs( digest , target_fis/*out*/ , end_report.total_sz/*out*/ ) ;
+		end_report.msg += compute_crcs( digest , /*out*/target_fis , /*out*/end_report.total_sz ) ;
 		//
-		::string upload_key ;
 		if (g_start_info.cache) {
 			upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
 			g_exec_trace->emplace_back( New , "uploaded_to_cache" , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
@@ -498,7 +509,10 @@ End :
 			OMsgBuf().send( fd , end_report ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
-		} catch (::string const& e) { exit(Rc::Fail,"after job execution : ",e) ; }
+		} catch (::string const& e) {
+			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                   // suppress temporary data if server cannot handle them
+			exit(Rc::Fail,"after job execution : ",e) ;
+		}
 	}
 	try                       { g_start_info.exit() ;                             }
 	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }

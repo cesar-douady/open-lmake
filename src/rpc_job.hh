@@ -281,9 +281,9 @@ struct FileAction {
 	Hash::Crc     crc ;                                                                                  // expected (else, quarantine)
 	Disk::FileSig sig ;                                                                                  // .
 } ;
-/**/   ::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks/*out*/ , ::vmap_s<FileAction>&&    , Disk::NfsGuard&    ) ;
-inline ::pair_s<bool/*ok*/> do_file_actions( ::vector_s& unlnks/*out*/ , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(&unlnks,::move(pa),ng) ; }
-inline ::pair_s<bool/*ok*/> do_file_actions(                             ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(nullptr,::move(pa),ng) ; }
+/**/   ::pair_s<bool/*ok*/> do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&&    , Disk::NfsGuard&    ) ;
+inline ::pair_s<bool/*ok*/> do_file_actions( ::vector_s& /*out*/ unlnks , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(/*out*/&unlnks,::move(pa),ng) ; }
+inline ::pair_s<bool/*ok*/> do_file_actions(                              ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(/*out*/nullptr,::move(pa),ng) ; }
 
 struct AccDflags {
 	// services
@@ -629,12 +629,12 @@ struct JobSpace {
 		::serdes(s,views       ) ;
 	}
 	bool/*entered*/ enter(
-		::vmap_s<MountAction>& deps            // out
-	,	::string   const&      phy_repo_root_s // in
-	,	::string   const&      phy_tmp_dir_s   // .
-	,	::string   const&      cwd_s           // .
-	,	::string   const&      work_dir_s      // .
-	,	::vector_s const&      src_dirs_s={}   // .
+		::vmap_s<MountAction>&/*out*/ deps
+	,	::string   const&             phy_repo_root_s
+	,	::string   const&             phy_tmp_dir_s
+	,	::string   const&             cwd_s
+	,	::string   const&             work_dir_s
+	,	::vector_s const&             src_dirs_s={}
 	) ;
 	void exit() {}
 	//
@@ -726,14 +726,14 @@ struct JobStartRpcReply {
 		if (+tag) cache->serdes(s) ;
 	}
 	bool/*entered*/ enter(
-		::vmap_s<MountAction>&                                      // out
-	,	::map_ss             & cmd_env                              // .
-	,	::vmap_ss            & dynamic_env                          // .
-	,	pid_t                & first_pid                            // .
-	,	::string        const& phy_repo_root_s                      // in
-	,	::string        const& lmake_root_s                         // .
-	,	::string        const& phy_tmp_dir_s                        // .
-	,	SeqId                                                       // .
+		::vmap_s<MountAction>&/*out*/
+	,	::map_ss             &/*out*/ cmd_env
+	,	::vmap_ss            &/*out*/ dynamic_env
+	,	pid_t                &/*out*/ first_pid
+	,	::string        const&        phy_repo_root_s
+	,	::string        const&        lmake_root_s
+	,	::string        const&        phy_tmp_dir_s
+	,	SeqId
 	) ;
 	void exit() ;
 	// data

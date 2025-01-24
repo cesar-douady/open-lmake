@@ -160,8 +160,14 @@ int main( int argc , char* argv[] ) {
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]                               ) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
 		(void)start_info.enter(
-			::ref(::vmap_s<MountAction>()) , cmd_env , ::ref(::vmap_ss())/*dynamic_env*/ , gather.first_pid     // outs
-		,	*g_repo_root_s , *g_lmake_root_s , with_slash(cmd_line.flag_args[+CmdFlag::TmpDir]) , 0/*small_id*/ // ins
+			/*out*/::ref(::vmap_s<MountAction>())
+		,	/*out*/cmd_env
+		,	/*out*/::ref(::vmap_ss())/*dynamic_env*/
+		,	/*out*/gather.first_pid
+		,	       *g_repo_root_s
+		,	       *g_lmake_root_s
+		,	       with_slash(cmd_line.flag_args[+CmdFlag::TmpDir])
+		,	       0/*small_id*/
 		) ;
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }

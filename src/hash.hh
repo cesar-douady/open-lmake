@@ -79,8 +79,8 @@ namespace Hash {
 		}
 		Crc( ::string const& filename , Disk::FileSig&/*out*/ sig ) {
 			Disk::FileInfo fi ;
-			self = Crc(filename,fi) ;
-			sig  = fi.sig()         ;
+			self = Crc(filename,/*out*/fi) ;
+			sig  = fi.sig()                ;
 		}
 	private :
 		constexpr Crc( CrcSpecial special ) : _val{+special} {}

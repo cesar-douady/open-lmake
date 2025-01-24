@@ -987,6 +987,7 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	None
 // level 1
 ,	Audit
+,	Cache
 ,	JobExec
 ,	Rule
 ,	StartJob

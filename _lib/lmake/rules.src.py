@@ -171,11 +171,9 @@ class Py2Rule(_PyRule) :
 		except ImportError : sys.path[0:0] = (_os.environ['LMAKE_ROOT']+'/lib',)
 		from lmake.import_machinery import fix_import
 		fix_import()
-	cmd.shell = ''                                                             # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
+	cmd.shell = ''                                    # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
-	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file
-	side_targets = { '__PYC__' : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'incremental','top' ) }
 	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 	def cmd() :
 		import sys
@@ -183,8 +181,8 @@ class Py3Rule(_PyRule) :
 		try                : import lmake
 		except ImportError : sys.path[0:0] = (_os.environ['LMAKE_ROOT']+'/lib',)
 		from lmake.import_machinery import fix_import
-		fix_import()
-	cmd.shell = ''                                                             # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
+		fix_import()                                  # deps/targets to pyc files are ignored, so nothing to do
+	cmd.shell = ''                                    # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
 
 PyRule = Py3Rule
 
