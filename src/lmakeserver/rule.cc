@@ -760,7 +760,7 @@ namespace Engine {
 					MatchKind       kind               = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                       // targets are a tuple (target_pattern,kind,flags...)
 					bool            is_star            = false                                         ;
 					::set_s         missing_stems      ;
-					bool            is_target          = kind!=MatchKind::SideDeps                     ;
+					bool            is_target          = kind!=MatchKind::SideDep                      ;
 					bool            is_official_target = kind==MatchKind::Target                       ;
 					bool            is_stdout          = field=="<stdout>"                             ;
 					MatchFlags      flags              ;
@@ -1065,9 +1065,9 @@ namespace Engine {
 	::string RuleData::_pretty_matches() const {
 		auto kind = [&](RuleData::MatchEntry const& me)->::string_view {
 			return snake(
-				me.flags.is_target==No           ? MatchKind::SideDeps
+				me.flags.is_target==No           ? MatchKind::SideDep
 			:	me.flags.tflags()[Tflag::Target] ? MatchKind::Target
-			:	                                   MatchKind::SideTargets
+			:	                                   MatchKind::SideTarget
 			) ;
 		} ;
 		size_t    w1        = 0 ;

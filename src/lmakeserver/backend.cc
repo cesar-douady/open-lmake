@@ -341,7 +341,7 @@ namespace Backends {
 				reply.keep_tmp                 |= start_none_attrs.keep_tmp       ;
 				reply.end_attrs.max_stderr_len  = start_none_attrs.max_stderr_len ;
 				#if HAS_ZLIB
-					reply.z_lvl = start_none_attrs.z_lvl ; // if zlib is not available, dont compress
+					reply.z_lvl = start_none_attrs.z_lvl ;                                                                                                   // if zlib is not available, dont compress
 				#endif
 				//
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
@@ -534,12 +534,11 @@ namespace Backends {
 		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;                    // ensure _s_handled_job_start is done for this job
 		{	Lock lock { _s_mutex } ;                                                         // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; return false/*keep_fd*/ ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; return false/*keep_fd*/ ; }
+			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; goto Bad ; }
+			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; goto Bad ; }
 			_s_small_ids.release(entry.conn.small_id) ;
 			//
-			je = { job , entry.conn.host , entry.start_date , New } ;
-
+			je         = { job , entry.conn.host , entry.start_date , New }                       ;
 			/**/         _s_workload.end ( entry.reqs , job                                     ) ;
 			je.cost    = _s_workload.cost(              job , entry.workload , entry.start_date ) ;
 			je.tokens1 = entry.submit_attrs.tokens1                                               ;
@@ -557,8 +556,12 @@ namespace Backends {
 		trace("info") ;
 		job->end_exec() ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jerr) ) ; // /!\ _s_starting_job ensures Start has been queued before we enqueue End
+		g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jerr) ) ;                    // /!\ _s_starting_job ensures Start has been queued before we enqueue End
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		return false/*keep_fd*/ ;
+	Bad :
+		JobDigest& digest = jerr.digest ;
+		if (+digest.upload_key) Cache::s_tab.at(digest.end_attrs.cache)->dismiss(digest.upload_key) ; // this job corresponds to nothing in server, free up temporary storage copied in job_exec
 		return false/*keep_fd*/ ;
 	}
 

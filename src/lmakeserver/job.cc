@@ -34,20 +34,21 @@ namespace Engine {
 		for( Node d : to_mkdirs )
 			for( Node hd=d->dir() ; +hd ; hd=hd->dir() )
 				if (!to_mkdir_uphills.insert(hd).second) break ;
-		for( auto const& [_,d] : match.deps() )                                           // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
+		for( auto const& [_,d] : match.deps() )                    // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
 			for( Node hd=Node(d.txt)->dir() ; +hd ; hd=hd->dir() )
-				if (!locked_dirs.insert(hd).second) break ;                               // if dir contains a dep, it cannot be rmdir'ed
+				if (!locked_dirs.insert(hd).second) break ;        // if dir contains a dep, it cannot be rmdir'ed
 		//
 		// remove old targets
 		for( Target t : targets ) {
 			FileActionTag fat = {}/*garbage*/ ;
 			//
-			if      ( t->crc==Crc::None           ) fat = FileActionTag::None           ; // nothing to wash
-			else if ( t->is_src_anti()            ) fat = FileActionTag::Src            ; // dont touch sources, not even integrity check
-			else if (+t->polluted                 ) fat = FileActionTag::UnlinkPolluted ; // wash pollution
-			else if (!t.tflags[Tflag::Incremental]) fat = FileActionTag::Unlink         ;
-			else if ( t.tflags[Tflag::NoUniquify ]) fat = FileActionTag::NoUniquify     ;
-			else                                    fat = FileActionTag::Uniquify       ;
+			if      (  t->crc==Crc::None                                  ) fat = FileActionTag::None           ; // nothing to wash
+			else if (  t->is_src_anti()                                   ) fat = FileActionTag::Src            ; // dont touch sources, not even integrity check
+			else if ( +t->polluted       &&  t.tflags[Tflag::Target     ] ) fat = FileActionTag::UnlinkPolluted ; // wash     polluted targets
+			else if ( +t->polluted       && !t.tflags[Tflag::Incremental] ) fat = FileActionTag::UnlinkPolluted ; // wash     polluted non-incremental
+			else if (                       !t.tflags[Tflag::Incremental] ) fat = FileActionTag::Unlink         ; // wahs non-polluted non-incremental
+			else if (                        t.tflags[Tflag::NoUniquify ] ) fat = FileActionTag::NoUniquify     ;
+			else                                                            fat = FileActionTag::Uniquify       ;
 			FileAction fa { fat , t->crc , t->date().sig } ;
 			//
 			trace("wash_target",t,fa) ;
@@ -606,21 +607,21 @@ namespace Engine {
 		trace("wrap_up",ok,digest.end_attrs.cache,jd.run_status,STR(upload),digest.upload_key) ;
 		jerr.msg <<set_nl<< local_msg << severe_msg ;
 		//
-		SWEAR(+jerr) ;                                // ensure jerr is saved
+		SWEAR(+jerr) ;                       // ensure jerr is saved
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		_s_record_thread.emplace(self,::move(jerr)) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//
-		if (ok==Yes) {                                // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
+		if (ok==Yes) {                       // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 			SWEAR(+exec_time) ;
 			jd.record_stats( exec_time , cost , tokens1 ) ;
 		}
 		for( Req req : jd.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
 			ReqInfo& ri = jd.req_info(req) ;
-			ri.modified |= modified ;                 // accumulate modifications until reported
+			ri.modified |= modified ;        // accumulate modifications until reported
 			if (!ri.running()) continue ;
 			SWEAR(ri.step()==Step::Exec) ;
-			ri.step(Step::End,self) ;                 // ensure no confusion with previous run, all steps must be updated before any make() is called
+			ri.step(Step::End,self) ;        // ensure no confusion with previous run, all steps must be updated before any make() is called
 		}
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = jd.req_info(req) ;

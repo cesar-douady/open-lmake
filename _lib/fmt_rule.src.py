@@ -395,9 +395,9 @@ class Handle :
 			raise TypeError(f'bad {kind} {k} : {val}')
 		#
 		d = {
-			**{ k:fmt(k,'target'      ,t) for k,t in self.attrs.targets     .items() }
-		,	**{ k:fmt(k,'side_targets',t) for k,t in self.attrs.side_targets.items() }
-		,	**{ k:fmt(k,'side_deps'   ,t) for k,t in self.attrs.side_deps   .items() }
+			**{ k:fmt(k,'target'     ,t) for k,t in self.attrs.targets     .items() }
+		,	**{ k:fmt(k,'side_target',t) for k,t in self.attrs.side_targets.items() }
+		,	**{ k:fmt(k,'side_dep'   ,t) for k,t in self.attrs.side_deps   .items() }
 		}
 		if self.attrs.order : # reorder d
 			d2 = {}

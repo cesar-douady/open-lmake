@@ -199,8 +199,8 @@ static_assert(chk_enum_tab(JobReasonTagPrios)) ;
 // START_OF_VERSIONING
 ENUM( MatchKind
 ,	Target
-,	SideTargets
-,	SideDeps
+,	SideTarget
+,	SideDep
 )
 // END_OF_VERSIONING
 
