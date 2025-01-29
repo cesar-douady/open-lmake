@@ -29,7 +29,7 @@ sys_config.env : FORCE
 			echo PYTHON2=\'$$(   echo "$$PYTHON2"   |sed "s:':'\\'':")\' ; \
 			echo PYTHON3=\'$$(   echo "$$PYTHON"    |sed "s:':'\\'':")\' ; \
 			echo SLURM_ROOT=\'$$(echo "$$SLURM_ROOT"|sed "s:':'\\'':")\' ; \
-			echo LMAKE_FLAGS=$$LMAKE_FLAGS ;                               \
+			echo LMAKE_FLAGS=$$LMAKE_FLAGS                               ; \
 		} >$@ ;                                                            \
 	fi
 
@@ -785,7 +785,8 @@ DEBIAN_SRC : $(DEBIAN_TAG)-$(DEBIAN_RELEASE)~focal_source.changes $(DEBIAN_TAG)-
 DEBIAN     : DEBIAN_BIN DEBIAN_SRC
 
 DEBIAN_SRCS   := $(filter-out debian/%,$(filter-out unit_tests/%,$(filter-out lmake_env/%,$(SRCS))))
-DEBIAN_DEBIAN := $(filter-out %.src,$(filter debian/%,$(SRCS)))
+DEBIAN_DEBIAN := $(filter debian/%,$(SRCS))
+DEBIAN_COPY   := $(filter-out %.src,$(DEBIAN_DEBIAN))
 
 # as of now, stacktrace is incompatible with split debug info
 $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
@@ -794,44 +795,51 @@ $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
 	@tar -c $(DEBIAN_SRCS) Manifest | tar -x -C$(DEBIAN_DIR)
 	@echo LMAKE_FLAGS=O3Gtl > $(DEBIAN_DIR)/sys_config.env
 	@tar -cz -C$(DEBIAN_DIR) -f $@ .
-	@tar -c $(DEBIAN_DEBIAN) | tar -x -C$(DEBIAN_DIR)
+	@tar -c $(DEBIAN_COPY) | tar -x -C$(DEBIAN_DIR)
 	@{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f     /usr/$$f                   ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.links
 	@{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>$(DEBIAN_DIR)/debian/open-lmake.links
 	@{ for f in                   $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.manpages
-	@touch $@
 
-$(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz
-	@echo generate source package in $(DEBIAN_DIR)-$*
+DEBHELPER_COMPAT=13
+$(DEBIAN_TAG)-$(DEBIAN_RELEASE)~focal_source.changes : DEBHELPER_COMPAT=12
+$(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 	@rm -rf $(DEBIAN_DIR)-$*
 	@cp -a $(DEBIAN_DIR) $(DEBIAN_DIR)-$*
-	@ \
-	RELEASE='$*' ;                                                       \
-	KEY=$$(echo $$(gpg --list-keys|grep -x ' *[0-9A-Z]\+') ) ;           \
-	sed                                                                  \
-		-e 's!\$$VERSION_TAG!$(VERSION_TAG)!g'                           \
-		-e 's!\$$DEBIAN_RELEASE!'"$$RELEASE"'!g'                         \
-		-e 's!\$$OS_CODENAME!'"$${RELEASE#*~}"'!g'                       \
-		-e 's!\$$DATE!'"$$(date -R)"'!g'                                 \
-		debian/changelog.src >$(DEBIAN_DIR)-$$RELEASE/debian/changelog ; \
-	cd $(DEBIAN_DIR)-$$RELEASE ;                                         \
-	MAKEFLAGS= MAKELEVEL= debuild -S -us -k$$KEY >../$@.log
+	@RELEASE='$*' ;                                \
+	sed                                            \
+		-e 's!\$$VERSION_TAG!$(VERSION_TAG)!g'     \
+		-e 's!\$$DEBIAN_RELEASE!'"$$RELEASE"'!g'   \
+		-e 's!\$$OS_CODENAME!'"$${RELEASE#*~}"'!g' \
+		-e 's!\$$DATE!'"$$(date -R)"'!g'           \
+		debian/changelog.src >$(DEBIAN_DIR)-$$RELEASE/debian/changelog
+	RELEASE='$*' ;                                      \
+	sed                                                  \
+		-e 's!\$$DEBHELPER_COMPAT!$(DEBHELPER_COMPAT)!g' \
+		debian/control.src >$(DEBIAN_DIR)-$$RELEASE/debian/control ;
+	@RELEASE='$*'                                                           ; \
+	KEY=$$(echo $$(gpg --list-keys|grep -x ' *[0-9A-Z]\+') )                ; \
+	echo generate source package in $(DEBIAN_DIR)-$$RELEASE using key $$KEY ; \
+	( cd $(DEBIAN_DIR)-$$RELEASE ; MAKEFLAGS= MAKELEVEL= debuild -S -us -k$$KEY ) >$@.log
 	@echo upload command : dput ppa:cdouady/open-lmake $@
 
 # ensure bin and src package constructions are serialized
-$(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz
+$(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 	@echo generate bin package in $(DEBIAN_DIR)-bin
 	@rm -rf $(DEBIAN_DIR)-bin
 	@cp -a $(DEBIAN_DIR) $(DEBIAN_DIR)-bin
-	@ \
-	. /etc/os-release ; \
-	sed \
+	@. /etc/os-release ;                               \
+	sed                                                \
 		-e 's!\$$VERSION_TAG!$(VERSION_TAG)!g'         \
 		-e 's!\$$DEBIAN_RELEASE!$(DEBIAN_RELEASE)!g'   \
 		-e 's!\$$OS_CODENAME!'"$$VERSION_CODENAME"'!g' \
 		-e 's!\$$DATE!'"$$(date -R)"'!g'               \
 		debian/changelog.src >$(DEBIAN_DIR)-bin/debian/changelog
-	# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX! : find a way to filter out these lines more cleanly
-	@ \
-	cd $(DEBIAN_DIR)-bin ; \
-	MAKEFLAGS= MAKELEVEL= debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
+	@. /etc/os-release                                                  ; \
+	DEBHELPER_COMPAT=13                                                 ; \
+	if [ "$$VERSION_CODENAME" = focal ] ; then DEBHELPER_COMPAT=12 ; fi ; \
+	sed                                                                   \
+		-e 's!\$$DEBHELPER_COMPAT!'"$$DEBHELPER_COMPAT"'!g'               \
+		debian/control.src >$(DEBIAN_DIR)-bin/debian/control
+	@# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX! : find a way to filter out these lines more cleanly
+	@cd $(DEBIAN_DIR)-bin ; MAKEFLAGS= MAKELEVEL= debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
 	@touch $@
