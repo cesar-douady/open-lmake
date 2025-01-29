@@ -361,18 +361,18 @@ namespace Backends::Slurm {
 				throw_unless( n==0 , k," is only for 1st component of job, not component ",n ) ;
 			} ;
 			switch (k[0]) {
-				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_unit<    uint32_t>(v) ; continue ; } break ;
-				case 'm' : if (k=="mem"     ) { if (d.manage_mem)              rsds.mem      = from_string_with_unit<'M',uint32_t>(v) ; continue ; } break ; // dont ask mem if not managed
-				case 't' : if (k=="tmp"     ) {                                rsds.tmp      = from_string_with_unit<'M',uint32_t>(v) ; continue ; } break ;
-				case 'e' : if (k=="excludes") {                                rsds.excludes = ::move                             (v) ; continue ; } break ;
-				case 'f' : if (k=="features") {                                rsds.features = ::move                             (v) ; continue ; }
-				/**/       if (k=="feature" ) {                                rsds.features = ::move                             (v) ; continue ; } break ; // for backward compatibility
-				case 'g' : if (k=="gres"    ) {               _sort_entry(v) ; rsds.gres     = ::move                             (v) ; continue ; } break ; // normalize to favor resources sharing
-				case 'l' : if (k=="licenses") { chk_first() ; _sort_entry(v) ; rsds.licenses = ::move                             (v) ; continue ; } break ; // normalize to favor resources sharing
-				case 'n' : if (k=="nodes"   ) {                                rsds.nodes    = ::move                             (v) ; continue ; } break ;
-				case 'p' : if (k=="part"    ) {                                rsds.part     = ::move                             (v) ; continue ; } break ;
-				case 'q' : if (k=="qos"     ) {                                rsds.qos      = ::move                             (v) ; continue ; } break ;
-				case 'r' : if (k=="reserv"  ) {                                rsds.reserv   = ::move                             (v) ; continue ; } break ;
+				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_unit<    uint32_t              >(v) ; continue ; } break ;
+				case 'm' : if (k=="mem"     ) { if (d.manage_mem)              rsds.mem      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ; // no mem if not managed
+				case 't' : if (k=="tmp"     ) {                                rsds.tmp      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
+				case 'e' : if (k=="excludes") {                                rsds.excludes = ::move                                           (v) ; continue ; } break ;
+				case 'f' : if (k=="features") {                                rsds.features = ::move                                           (v) ; continue ; }
+				/**/       if (k=="feature" ) {                                rsds.features = ::move                                           (v) ; continue ; } break ; // for backward compatibility
+				case 'g' : if (k=="gres"    ) {               _sort_entry(v) ; rsds.gres     = ::move                                           (v) ; continue ; } break ; // normalize to favor ...
+				case 'l' : if (k=="licenses") { chk_first() ; _sort_entry(v) ; rsds.licenses = ::move                                           (v) ; continue ; } break ; // ... resources sharing
+				case 'n' : if (k=="nodes"   ) {                                rsds.nodes    = ::move                                           (v) ; continue ; } break ;
+				case 'p' : if (k=="part"    ) {                                rsds.part     = ::move                                           (v) ; continue ; } break ;
+				case 'q' : if (k=="qos"     ) {                                rsds.qos      = ::move                                           (v) ; continue ; } break ;
+				case 'r' : if (k=="reserv"  ) {                                rsds.reserv   = ::move                                           (v) ; continue ; } break ;
 			DN}
 			if ( auto it = d.licenses.find(k) ; it==d.licenses.end() ) {               { if ( +rsds.gres     && rsds.gres    .back()!=',' ) rsds.gres     += ',' ; } rsds.gres     += k+':'+v+',' ; }
 			else                                                       { chk_first() ; { if ( +rsds.licenses && rsds.licenses.back()!=',' ) rsds.licenses += ',' ; } rsds.licenses += k+':'+v+',' ; }
@@ -485,8 +485,8 @@ namespace Backends::Slurm {
 		cxxopts::Options res { "slurm" , "Slurm options parser for lmake" } ;
 		res.add_options()
 			( "c,cpus-per-task" , "cpus-per-task" , cxxopts::value<uint16_t>() )
-			( "mem"             , "mem"           , cxxopts::value<uint32_t>() )
-			( "tmp"             , "tmp"           , cxxopts::value<uint32_t>() )
+			( "mem"             , "mem"           , cxxopts::value<::string>() )
+			( "tmp"             , "tmp"           , cxxopts::value<::string>() )
 			( "C,constraint"    , "constraint"    , cxxopts::value<::string>() )
 			( "x,exclude"       , "exclude nodes" , cxxopts::value<::string>() )
 			( "gres"            , "gres"          , cxxopts::value<::string>() )
@@ -521,17 +521,17 @@ namespace Backends::Slurm {
 			try {
 				auto opts = s_opt_parse.parse(argv.size(),argv.data()) ;
 				//
-				if (opts.count("cpus-per-task")) res1.cpu      = opts["cpus-per-task"].as<uint16_t>() ;
-				if (opts.count("mem"          )) res1.mem      = opts["mem"          ].as<uint32_t>() ;
-				if (opts.count("tmp"          )) res1.tmp      = opts["tmp"          ].as<uint32_t>() ;
-				if (opts.count("constraint"   )) res1.features = opts["constraint"   ].as<::string>() ;
-				if (opts.count("exclude"      )) res1.excludes = opts["exclude"      ].as<::string>() ;
-				if (opts.count("gres"         )) res1.gres     = opts["gres"         ].as<::string>() ;
-				if (opts.count("licenses"     )) res1.licenses = opts["licenses"     ].as<::string>() ;
-				if (opts.count("nodelist"     )) res1.nodes    = opts["nodelist"     ].as<::string>() ;
-				if (opts.count("partition"    )) res1.part     = opts["partition"    ].as<::string>() ;
-				if (opts.count("qos"          )) res1.qos      = opts["qos"          ].as<::string>() ;
-				if (opts.count("reservation"  )) res1.reserv   = opts["reservation"  ].as<::string>() ;
+				if (opts.count("cpus-per-task")) res1.cpu      =                                                   opts["cpus-per-task"].as<uint16_t>() ;
+				if (opts.count("mem"          )) res1.mem      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["mem"          ].as<::string>()) ;
+				if (opts.count("tmp"          )) res1.tmp      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["tmp"          ].as<::string>()) ;
+				if (opts.count("constraint"   )) res1.features =                                                   opts["constraint"   ].as<::string>() ;
+				if (opts.count("exclude"      )) res1.excludes =                                                   opts["exclude"      ].as<::string>() ;
+				if (opts.count("gres"         )) res1.gres     =                                                   opts["gres"         ].as<::string>() ;
+				if (opts.count("licenses"     )) res1.licenses =                                                   opts["licenses"     ].as<::string>() ;
+				if (opts.count("nodelist"     )) res1.nodes    =                                                   opts["nodelist"     ].as<::string>() ;
+				if (opts.count("partition"    )) res1.part     =                                                   opts["partition"    ].as<::string>() ;
+				if (opts.count("qos"          )) res1.qos      =                                                   opts["qos"          ].as<::string>() ;
+				if (opts.count("reservation"  )) res1.reserv   =                                                   opts["reservation"  ].as<::string>() ;
 				if (opts.count("help"         )) throw s_opt_parse.help() ;
 			} catch (cxxopts::exceptions::exception const& e) {
 				throw "Error while parsing slurm options: "s+e.what() ;

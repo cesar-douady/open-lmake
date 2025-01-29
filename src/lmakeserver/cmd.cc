@@ -655,7 +655,7 @@ namespace Engine {
 									push_entry( "cost"           , ::to_string(double(job->cost         )) , Color::None , false ) ;
 								} else {
 									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
-									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_unit<size_t>(mem_rsrc_str):0                                                                   ;
+									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_unit(mem_rsrc_str):0                                                                           ;
 									bool            overflow     = digest.stats.mem > mem_rsrc                                                                                                   ;
 									::string        mem_str      = to_string_with_unit<'M'>(digest.stats.mem>>20)+'B'                                                                            ;
 									if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
@@ -685,9 +685,9 @@ namespace Engine {
 									audit( fd , ro , mk_py_str(k)+" : {" , true/*as_is*/ , lvl+1 , ',' ) ;
 									for( auto const& [k,v] : m ) {
 										::string v_str ;
-										if      ( !protect                                    ) v_str = v                                             ;
-										else if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = ::to_string(from_string_with_unit<size_t>(v)) ;
-										else                                                    v_str = mk_py_str(v)                                  ;
+										if      ( !protect                                    ) v_str = v                                     ;
+										else if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = ::to_string(from_string_with_unit(v)) ;
+										else                                                    v_str = mk_py_str(v)                          ;
 										audit( fd , ro , widen(mk_py_str(k),w)+" : "+v_str , true/*as_is*/ , lvl+2 , sep ) ;
 										sep = ',' ;
 									}

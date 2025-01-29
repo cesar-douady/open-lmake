@@ -77,8 +77,8 @@ namespace Caches {
 		::string sz_file = cat(dir_s,AdminDirS,"size") ;
 		AcFd     sz_fd   { sz_file }                   ;
 		throw_unless( +sz_fd , "file ",sz_file," must exist and contain the size of the cache" ) ;
-		try                       { sz = from_string_with_unit<size_t>(strip(sz_fd.read())) ; }
-		catch (::string const& e) { throw "cannot read "+sz_file+" : "+e ;                    }
+		try                       { sz = from_string_with_unit(strip(sz_fd.read())) ; }
+		catch (::string const& e) { throw "cannot read "+sz_file+" : "+e ;            }
 		mk_dir_s( cat(dir_s,AdminDirS,"reserved") ) ;
 	}
 

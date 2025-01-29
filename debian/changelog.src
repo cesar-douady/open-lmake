@@ -1,5 +1,6 @@
-open-lmake ($DEBIAN_VERSION) UNRELEASED; urgency=low
+open-lmake ($VERSION_TAG-$DEBIAN_RELEASE) $OS_CODENAME; urgency=low
 
-  * support namespaces
+  * initial release
+  * cache is an experimental feature
 
  -- Cesar Douady <cesar.douady@doliam.fr>  $DATE

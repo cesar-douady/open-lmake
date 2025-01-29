@@ -3,8 +3,10 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-VERSION     := 25.02
-VERSION_TAG := $(VERSION).0
+# typical package name : open-lmake-$(VERSION).$(TAG)-$(DEBIAN_RELEASE)
+VERSION        := 25.02
+TAG            := 3
+DEBIAN_RELEASE := 1
 
 ifneq ($(shell uname),Linux)
     $(error can only compile under Linux)
@@ -34,8 +36,10 @@ sys_config.env : FORCE
 sys_config.log : _bin/sys_config sys_config.env
 	@echo sys_config
 	@# reread sys_config.env in case it has been modified while reading an old sys_config.mk
-	@set -a ;            \
-	. ./sys_config.env ; \
+	@set -a                                          ; \
+	PATH=$$(env -i bash -c 'echo $$PATH')            ; \
+	unset CXX PYTHON2 PYTHON3 SLURM_ROOT LMAKE_FLAGS ; \
+	. ./sys_config.env                               ; \
 	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
 sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h   : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
@@ -309,7 +313,7 @@ version.hh.stamp : _bin/version Manifest $(VERSION_SRCS)
 	@./$< $(VERSION_SRCS) >$@
 	@# dont touch output if it is steady
 	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version ; \
-	else                                mv $@ $(@:%.stamp=%) ; echo new    version ; \
+	else                                cp $@ $(@:%.stamp=%) ; echo new    version ; \
 	fi
 version.hh : version.hh.stamp ;
 
@@ -743,12 +747,15 @@ lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES_ALL:%=%.dbg) | tar -x -C$(ARCHIVE_DIR)
 	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
 
+VERSION_TAG := $(VERSION).$(TAG)
+
 #
 # Build debian package
-# to install : sudo apt install open-lmake_$(DEBIAN_VERSION)_amd64.deb
+# to install on focal, jammy or noble : sudo apt install open-lmake_$(VERSION_TAG)-$(DEBIAN_RELEASE)_amd64.deb
 #
 
-DEBIAN_VERSION := $(VERSION_TAG)-1
+DEBIAN_DIR := open-lmake-$(VERSION_TAG)
+DEBIAN_TAG := open-lmake_$(VERSION_TAG)
 
 EXAMPLE_FILES := $(filter examples/%,$(SRCS))
 
@@ -758,7 +765,7 @@ DEBIAN_DEPS :
 	sudo -k mk-build-deps --install debian/control
 
 #
-# /!\ this rule is necessary for debian packaging to work, it is not primarily made to be executed by user
+# /!\ these rules are necessary for debian packaging to work, they are not primarily made to be executed by user
 #
 install : $(LMAKE_ALL_FILES) $(if $(HAS_TEXI),doc/lmake.html) $(EXAMPLE_FILES)
 	:;               set -e ; for f in $(LMAKE_SERVER_BIN_FILES); do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
@@ -768,24 +775,63 @@ install : $(LMAKE_ALL_FILES) $(if $(HAS_TEXI),doc/lmake.html) $(EXAMPLE_FILES)
 	$(if $(HAS_TEXI),set -e ; for f in lmake.html               ; do install -D -m 644 doc/$$f     $(DESTDIR)/usr/share/doc/open-lmake/html/$$f ; done)
 	:;               set -e ; for f in $(EXAMPLE_FILES)         ; do install -D -m 644     $$f     $(DESTDIR)/usr/share/doc/open-lmake/$$f      ; done
 
-DEBIAN : open-lmake_$(DEBIAN_VERSION).stamp
+clean :
+	@echo cleaning...
+	@rm -rf Manifest.inc_stamp sys_config.log sys_config.trial sys_config.mk sys_config.h sys_config.sum sys_config.err
+	@find . -name '*.d' -exec rm {} \;
 
-DEBIAN_SRCS := $(filter-out unit_tests/%,$(filter-out lmake_env/%,$(SRCS)))
+DEBIAN_BIN : $(DEBIAN_TAG).bin_stamp
+DEBIAN_SRC : $(DEBIAN_TAG)-$(DEBIAN_RELEASE)~focal_source.changes $(DEBIAN_TAG)-$(DEBIAN_RELEASE)~jammy_source.changes $(DEBIAN_TAG)-$(DEBIAN_RELEASE)~noble_source.changes
+DEBIAN     : DEBIAN_BIN DEBIAN_SRC
+
+DEBIAN_SRCS   := $(filter-out debian/%,$(filter-out unit_tests/%,$(filter-out lmake_env/%,$(SRCS))))
+DEBIAN_DEBIAN := $(filter-out %.src,$(filter debian/%,$(SRCS)))
 
 # as of now, stacktrace is incompatible with split debug info
-open-lmake_$(DEBIAN_VERSION).stamp : $(DEBIAN_SRCS)
-	rm -rf debian-repo
-	mkdir debian-repo
-	echo LMAKE_FLAGS=O3Gtl > debian-repo/sys_config.env
-	tar -c $(DEBIAN_SRCS) | tar -x -Cdebian-repo
+$(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
+	@echo generate $(DEBIAN_DIR)
+	@rm -rf $(DEBIAN_DIR) ; mkdir -p $(DEBIAN_DIR)
+	@tar -c $(DEBIAN_SRCS) Manifest | tar -x -C$(DEBIAN_DIR)
+	@echo LMAKE_FLAGS=O3Gtl > $(DEBIAN_DIR)/sys_config.env
+	@tar -cz -C$(DEBIAN_DIR) -f $@ .
+	@tar -c $(DEBIAN_DEBIAN) | tar -x -C$(DEBIAN_DIR)
+	@{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f     /usr/$$f                   ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.links
+	@{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>$(DEBIAN_DIR)/debian/open-lmake.links
+	@{ for f in                   $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.manpages
+	@touch $@
+
+$(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz
+	@echo generate source package in $(DEBIAN_DIR)-$*
+	@rm -rf $(DEBIAN_DIR)-$*
+	@cp -a $(DEBIAN_DIR) $(DEBIAN_DIR)-$*
+	@ \
+	RELEASE='$*' ;                                                       \
+	KEY=$$(echo $$(gpg --list-keys|grep -x ' *[0-9A-Z]\+') ) ;           \
+	sed                                                                  \
+		-e 's!\$$VERSION_TAG!$(VERSION_TAG)!g'                           \
+		-e 's!\$$DEBIAN_RELEASE!'"$$RELEASE"'!g'                         \
+		-e 's!\$$OS_CODENAME!'"$${RELEASE#*~}"'!g'                       \
+		-e 's!\$$DATE!'"$$(date -R)"'!g'                                 \
+		debian/changelog.src >$(DEBIAN_DIR)-$$RELEASE/debian/changelog ; \
+	cd $(DEBIAN_DIR)-$$RELEASE ;                                         \
+	MAKEFLAGS= MAKELEVEL= debuild -S -us -k$$KEY >../$@.log
+	@echo upload command : dput ppa:cdouady/open-lmake $@
+
+# ensure bin and src package constructions are serialized
+$(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz
+	@echo generate bin package in $(DEBIAN_DIR)-bin
+	@rm -rf $(DEBIAN_DIR)-bin
+	@cp -a $(DEBIAN_DIR) $(DEBIAN_DIR)-bin
+	@ \
+	. /etc/os-release ; \
 	sed \
-		-e 's!\$$DEBIAN_VERSION!$(DEBIAN_VERSION)!' \
-		-e 's!\$$DATE!'"$$(date -R)!"               \
-		debian/changelog.src >debian-repo/debian/changelog
-	{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f     /usr/$$f                   ; done ; } > debian-repo/debian/open-lmake.links
-	{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>debian-repo/debian/open-lmake.links
-	{ for f in                   $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > debian-repo/debian/open-lmake.manpages
-	cat Manifest                                                                                                                 > debian-repo/Manifest
-	# work around a lintian bug that reports elf-error warnings for debug symbol files                                        # XXX! : find a way to filter out these lines more cleanly
-	cd debian-repo ; debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
-	touch $@
+		-e 's!\$$VERSION_TAG!$(VERSION_TAG)!g'         \
+		-e 's!\$$DEBIAN_RELEASE!$(DEBIAN_RELEASE)!g'   \
+		-e 's!\$$OS_CODENAME!'"$$VERSION_CODENAME"'!g' \
+		-e 's!\$$DATE!'"$$(date -R)"'!g'               \
+		debian/changelog.src >$(DEBIAN_DIR)-bin/debian/changelog
+	# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX! : find a way to filter out these lines more cleanly
+	@ \
+	cd $(DEBIAN_DIR)-bin ; \
+	MAKEFLAGS= MAKELEVEL= debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
+	@touch $@

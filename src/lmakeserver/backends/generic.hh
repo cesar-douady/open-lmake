@@ -79,9 +79,9 @@ namespace std {
 
 namespace Backends {
 
-	template<class I=size_t> I from_string_rsrc( ::string const& k , ::string const& v ) {
-		if ( k=="mem" || k=="tmp" ) return from_string_with_unit<'M',I>(v) ;
-		else                        return from_string_with_unit<    I>(v) ;
+	template<class I=size_t,bool RndUp=true> I from_string_rsrc( ::string const& k , ::string const& v ) {
+		if ( k=="mem" || k=="tmp" ) return from_string_with_unit<'M',I,RndUp>(v) ;
+		else                        return from_string_with_unit<    I,RndUp>(v) ;
 	}
 
 	template<class I> ::string to_string_rsrc( ::string const& k , I v ) {
@@ -248,7 +248,7 @@ namespace Backends {
 			for( auto&& [k,v] : rsrcs ) {
 				auto it = capa.find(k) ;
 				if (it==capa.end() ) { single = true ; continue ; }                                       // unrecognized resource : fall back to single job by reserving the full capacity
-				size_t v1 = from_string_rsrc<size_t>(k,v) ;
+				size_t v1 = from_string_rsrc(k,v) ;
 				if (v1>it->second) { v1 = it->second ; single = true ; }
 				res.emplace_back( ::move(k) , to_string_rsrc(k,v1) ) ;                                    // recognized resource : allow local execution by limiting resource to capacity
 			}

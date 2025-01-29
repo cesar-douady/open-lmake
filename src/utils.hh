@@ -578,10 +578,10 @@ template<::integral I> inline void encode_int( char* p , I x ) {
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
 
-template<char U,::integral I=size_t>        I        from_string_with_unit(::string const& s) ;                                          // provide default unit in U. ...
-template<char U,::integral I=size_t>        ::string to_string_with_unit  (I               x) ;                                          // ... If provided, return value is expressed in this unit
-template<       ::integral I=size_t> inline I        from_string_with_unit(::string const& s) { return from_string_with_unit<0,I>(s) ; }
-template<       ::integral I=size_t> inline ::string to_string_with_unit  (I               x) { return to_string_with_unit  <0,I>(x) ; }
+template<char U,::integral I=size_t,bool RndUp=false>        I        from_string_with_unit(::string const& s) ; // if U is provided, return value is expressed in this unit
+template<char U,::integral I=size_t                 >        ::string to_string_with_unit  (I               x) ;
+template<       ::integral I=size_t,bool RndUp=false> inline I        from_string_with_unit(::string const& s) { return from_string_with_unit<0,I,RndUp>(s) ; }
+template<       ::integral I=size_t                 > inline ::string to_string_with_unit  (I               x) { return to_string_with_unit  <0,I      >(x) ; }
 
 template<class... A> inline constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw cat(args...) ; }
 template<class... A> inline constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw cat(args...) ; }
@@ -1323,7 +1323,7 @@ constexpr inline int8_t _unit_val(char u) {
 		default  : throw "unrecognized suffix "s+u ;
 	}
 }
-template<char U,::integral I> I from_string_with_unit(::string const& s) {
+template<char U,::integral I,bool RndUp> I from_string_with_unit(::string const& s) {
 	using I64 = ::conditional_t<is_signed_v<I>,int64_t,uint64_t> ;
 	I64                 val     = 0 /*garbage*/                   ;
 	const char*         s_start = s.c_str()                       ;
@@ -1340,14 +1340,14 @@ template<char U,::integral I> I from_string_with_unit(::string const& s) {
 		if (uint8_t(B-b)>=NBits<I>) {
 			val = 0 ;
 		} else {
-			val >>= uint8_t(B-b) ;
+			val = ( (val-RndUp) >> uint8_t(B-b) ) + RndUp ;
 			throw_unless( val<=Max<I> , "overflow"  ) ;
 			throw_unless( val>=Min<I> , "underflow" ) ;
 		}
 	} else {
 		if (uint8_t(b-B)>=NBits<I>) {
-			throw_unless( val<=0 , "overflow"  ) ;
-			throw_unless( val>=0 , "underflow" ) ;
+			throw_unless( val<0 , "overflow"  ) ;
+			throw_unless( val>0 , "underflow" ) ;
 		} else {
 			throw_unless( val<=I( Max<I> >>uint8_t(b-B)) , "overflow"  ) ;
 			throw_unless( val>=I( Min<I> >>uint8_t(b-B)) , "underflow" ) ;

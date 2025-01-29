@@ -21,9 +21,9 @@ namespace Backends::Local {
 
 	struct RsrcsData : ::vector<Rsrc> {
 		// cxtors & casts
-		RsrcsData(                                                 ) = default ;
-		RsrcsData( size_t sz                                       ) : ::vector<Rsrc>(sz) {}
-		RsrcsData( ::vmap_ss const& , ::umap_s<size_t> const& idxs ) ;
+		RsrcsData(                                                                    ) = default ;
+		RsrcsData( size_t sz                                                          ) : ::vector<Rsrc>(sz) {}
+		RsrcsData( ::vmap_ss const& , ::umap_s<size_t> const& idxs , bool rnd_up=true ) ;
 		//
 		::vmap_ss mk_vmap(::vector_s const& keys) const ;
 		// services
@@ -96,7 +96,7 @@ namespace Backends::Local {
 					rsrc_keys.push_back("<single>") ;
 				}
 			}
-			capacity_ = RsrcsData( dct , rsrc_idxs  ) ; if (capacity_.size()>dct.size()) capacity_.back()/*<single>*/ = 1 ;
+			capacity_ = RsrcsData( dct , rsrc_idxs , false/*rnd_up*/ ) ; if (capacity_.size()>dct.size()) capacity_.back()/*<single>*/ = 1 ;
 			occupied  = RsrcsData( rsrc_keys.size() ) ;
 			//
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
@@ -183,14 +183,20 @@ namespace Backends::Local {
 
 	bool _inited = (LocalBackend::s_init(),true) ;
 
-	inline RsrcsData::RsrcsData( ::vmap_ss const& m , ::umap_s<size_t> const& idxs ) {
+	inline RsrcsData::RsrcsData( ::vmap_ss const& m , ::umap_s<size_t> const& idxs , bool rnd_up ) {
 		resize(idxs.size()) ;
 		for( auto const& [k,v] : m ) {
 			auto it = idxs.find(k) ;
 			throw_unless( it!=idxs.end() , "no resource ",k," for backend ",MyTag ) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
-			try        { self[it->second] = from_string_rsrc<Rsrc>(k,v) ;            }
-			catch(...) { throw "cannot convert resource "+k+" from "+v+" to a int" ; }
+			try        {
+				self[it->second] =
+					rnd_up ? from_string_rsrc<Rsrc,true /*RndUp*/>(k,v)
+					:        from_string_rsrc<Rsrc,false/*RndUp*/>(k,v)
+				;
+			} catch(...) {
+				throw "cannot convert resource "+k+" from "+v+" to a int" ;
+			}
 		}
 	}
 

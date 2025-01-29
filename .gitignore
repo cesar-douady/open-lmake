@@ -42,7 +42,7 @@ __pycache__
 *.so
 *.stamp
 */stamp
-*.inc_stamp
+*.*_stamp
 *.dbg
 
 # tests
@@ -62,16 +62,7 @@ tok
 
 # tarball
 /lmake.tar.gz
-/open-lmake-*/
 
 # debian
-/debian/*debhelper*
-/debian/*substvars
-/debian/files
-/debian/changelog
-/debian/*/
-/open-lmake_*.build
-/open-lmake_*.buildinfo
-/open-lmake_*.changes
-/open-lmake_*.deb
-/debian-repo/
+/open-lmake_*
+/open-lmake-*/

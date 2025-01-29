@@ -203,8 +203,8 @@ namespace Engine {
 			if (py_map.contains(fields[0])) {
 				Dict const& py_trace = py_map[fields[0]].as_a<Dict>() ;
 				fields.emplace_back() ;
-				fields[1] = "size"     ; if (py_trace.contains(fields[1])) trace.sz     = from_string_with_unit<0,size_t>(*py_trace[fields[1]].str()) ;
-				fields[1] = "n_jobs"   ; if (py_trace.contains(fields[1])) trace.n_jobs = py_trace[fields[1]].as_a<Int>()                             ;
+				fields[1] = "size"     ; if (py_trace.contains(fields[1])) trace.sz     = from_string_with_unit(*py_trace[fields[1]].str()) ;
+				fields[1] = "n_jobs"   ; if (py_trace.contains(fields[1])) trace.n_jobs = py_trace[fields[1]].as_a<Int>()                   ;
 				fields[1] = "channels" ; if (py_trace.contains(fields[1])) {
 					trace.channels = {} ;
 					for( Object const& py_c : py_trace[fields[1]].as_a<Sequence>() ) trace.channels |= mk_enum<Channel>(py_c.as_a<Str>()) ;

@@ -4,3 +4,5 @@ if command -v py3clean >/dev/null 2>&1 ; then
 	py3clean /usr/lib/open-lmake/_lib/
 	py3clean /usr/lib/open-lmake/lib/
 fi
+
+#DEBHELPER#
