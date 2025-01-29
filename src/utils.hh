@@ -10,6 +10,7 @@
 #include <sys/file.h>   // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
 #include <sys/types.h>  // ushort, uint, ulong, ...
 
+#include <cmath>   // ldexp
 #include <cstring> // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
 
 #include <algorithm>
@@ -578,10 +579,12 @@ template<::integral I> inline void encode_int( char* p , I x ) {
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
 
-template<char U,::integral I=size_t,bool RndUp=false>        I        from_string_with_unit(::string const& s) ; // if U is provided, return value is expressed in this unit
-template<char U,::integral I=size_t                 >        ::string to_string_with_unit  (I               x) ;
-template<       ::integral I=size_t,bool RndUp=false> inline I        from_string_with_unit(::string const& s) { return from_string_with_unit<0,I,RndUp>(s) ; }
-template<       ::integral I=size_t                 > inline ::string to_string_with_unit  (I               x) { return to_string_with_unit  <0,I      >(x) ; }
+template<char U,::integral I=size_t,bool RndUp=false>        I        from_string_with_unit    (::string const& s) ; // if U is provided, return value is expressed in this unit
+template<char U,::integral I=size_t                 >        ::string to_string_with_unit      (I               x) ;
+template<char U,::integral I=size_t                 >        ::string to_short_string_with_unit(I               x) ;
+template<       ::integral I=size_t,bool RndUp=false> inline I        from_string_with_unit    (::string const& s) { return from_string_with_unit    <0,I,RndUp>(s) ; }
+template<       ::integral I=size_t                 > inline ::string to_string_with_unit      (I               x) { return to_string_with_unit      <0,I      >(x) ; }
+template<       ::integral I=size_t                 > inline ::string to_short_string_with_unit(I               x) { return to_short_string_with_unit<0,I      >(x) ; }
 
 template<class... A> inline constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw cat(args...) ; }
 template<class... A> inline constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw cat(args...) ; }
@@ -987,7 +990,6 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	None
 // level 1
 ,	Audit
-,	Cache
 ,	JobExec
 ,	Rule
 ,	StartJob
@@ -1307,74 +1309,68 @@ template<char Delimiter> ::string parse_printable( ::string const& s , size_t& p
 
 constexpr inline int8_t _unit_val(char u) {
 	switch (u) {
-		case 'E' : return  60 ; break ;
-		case 'P' : return  50 ; break ;
-		case 'T' : return  40 ; break ;
-		case 'G' : return  30 ; break ;
-		case 'M' : return  20 ; break ;
-		case 'k' : return  10 ; break ;
-		case 0   : return   0 ; break ;
-		case 'm' : return -10 ; break ;
-		case 'u' : return -20 ; break ;
-		case 'n' : return -30 ; break ;
-		case 'p' : return -40 ; break ;
-		case 'f' : return -50 ; break ;
-		case 'a' : return -60 ; break ;
+		case 'a' : return -6 ; break ;
+		case 'f' : return -5 ; break ;
+		case 'p' : return -4 ; break ;
+		case 'n' : return -3 ; break ;
+		case 'u' : return -2 ; break ;
+		case 'm' : return -1 ; break ;
+		case 0   : return  0 ; break ;
+		case 'k' : return  1 ; break ;
+		case 'M' : return  2 ; break ;
+		case 'G' : return  3 ; break ;
+		case 'T' : return  4 ; break ;
+		case 'P' : return  5 ; break ;
+		case 'E' : return  6 ; break ;
 		default  : throw "unrecognized suffix "s+u ;
 	}
 }
 template<char U,::integral I,bool RndUp> I from_string_with_unit(::string const& s) {
-	using I64 = ::conditional_t<is_signed_v<I>,int64_t,uint64_t> ;
-	I64                 val     = 0 /*garbage*/                   ;
-	const char*         s_start = s.c_str()                       ;
-	const char*         s_end   = s_start+s.size()                ;
-	::from_chars_result fcr     = ::from_chars(s_start,s_end,val) ;
+	double              val     ;
+	const char*         s_start = s.c_str()                                             ;
+	const char*         s_end   = s_start+s.size()                                      ;
+	::from_chars_result fcr     = ::from_chars(s_start,s_end,val,::chars_format::fixed) ;
 	//
 	throw_unless( fcr.ec==::errc() , "unrecognized value "        ,s ) ;
 	throw_unless( fcr.ptr>=s_end-1 , "partially recognized value ",s ) ;
 	//
-	static constexpr int8_t B = _unit_val(U       ) ;
-	/**/             int8_t b = _unit_val(*fcr.ptr) ;
-	//
-	if (b<=B) {
-		if (uint8_t(B-b)>=NBits<I>) {
-			val = 0 ;
-		} else {
-			val = ( (val-RndUp) >> uint8_t(B-b) ) + RndUp ;
-			throw_unless( val<=Max<I> , "overflow"  ) ;
-			throw_unless( val>=Min<I> , "underflow" ) ;
-		}
-	} else {
-		if (uint8_t(b-B)>=NBits<I>) {
-			throw_unless( val<0 , "overflow"  ) ;
-			throw_unless( val>0 , "underflow" ) ;
-		} else {
-			throw_unless( val<=I( Max<I> >>uint8_t(b-B)) , "overflow"  ) ;
-			throw_unless( val>=I( Min<I> >>uint8_t(b-B)) , "underflow" ) ;
-			val <<= uint8_t(b-B) ;
-		}
-	}
-	return I(val) ;
+	val = ::ldexp( val , 10*(_unit_val(*fcr.ptr)-_unit_val(U)) ) ; // scale val to take units into account
+	throw_unless( val<double(Max<I>)+1 , "overflow"  ) ;           // use </> and +/-1 to ensure conservative test for 64 bits int (as double mantissa is only 54 bits)
+	throw_unless( val>double(Min<I>)-1 , "underflow" ) ;           // .
+	if (RndUp) return I(::ceil (val)) ;
+	else       return I(::floor(val)) ;
 }
 
 template<char U,::integral I> ::string to_string_with_unit(I x) {
-	if (!x) {
-		if (U) return "0"s+U ;
-		else   return "0"    ;
+	int8_t e = _unit_val(U) ;                                     // INVARIANT : value = x<<10*e
+	if (x)
+		while ((x&0x3ff)==0) {                                    // .
+			if (e>=6) break ;
+			x >>= 10 ;
+			e++ ;
+		}
+	::string res = ::to_string(x) ;
+	if (e) res += "afpnum?kMGTPE"[e+6] ;
+	return res ;
+}
+
+template<char U,::integral I> ::string to_short_string_with_unit(I x) {
+	static constexpr int8_t E = _unit_val(U) ;
+	//
+	bool   neg = x<0 ; if (neg) x = -x ;
+	double d   = x   ;                                                                         // INVARIANT : value == (neg?-1:1)*::ldexp(d,10*e)
+	int8_t e   = E   ;                                                                         // .
+	while (d>=(1<<10)) {                                                                       // .
+		if (e>=6) return "++++" ;
+		d = ::ldexp(d,-10) ;
+		e++ ;
 	}
-	switch (U) {
-		case 'a' : if (x&0x3ff) return ::to_string(x)+'a' ; x >>= 10 ; [[fallthrough]] ;
-		case 'f' : if (x&0x3ff) return ::to_string(x)+'f' ; x >>= 10 ; [[fallthrough]] ;
-		case 'p' : if (x&0x3ff) return ::to_string(x)+'p' ; x >>= 10 ; [[fallthrough]] ;
-		case 'n' : if (x&0x3ff) return ::to_string(x)+'n' ; x >>= 10 ; [[fallthrough]] ;
-		case 'u' : if (x&0x3ff) return ::to_string(x)+'u' ; x >>= 10 ; [[fallthrough]] ;
-		case 'm' : if (x&0x3ff) return ::to_string(x)+'m' ; x >>= 10 ; [[fallthrough]] ;
-		case 0   : if (x&0x3ff) return ::to_string(x)     ; x >>= 10 ; [[fallthrough]] ;
-		case 'k' : if (x&0x3ff) return ::to_string(x)+'k' ; x >>= 10 ; [[fallthrough]] ;
-		case 'M' : if (x&0x3ff) return ::to_string(x)+'M' ; x >>= 10 ; [[fallthrough]] ;
-		case 'G' : if (x&0x3ff) return ::to_string(x)+'G' ; x >>= 10 ; [[fallthrough]] ;
-		case 'T' : if (x&0x3ff) return ::to_string(x)+'T' ; x >>= 10 ; [[fallthrough]] ;
-		case 'P' : if (x&0x3ff) return ::to_string(x)+'P' ; x >>= 10 ; [[fallthrough]] ;
-		case 'E' :              return ::to_string(x)+'E' ;
-	DF}
+	::string          res  ( 1/*neg*/+4/*d*/+1/*e*/ , 0 )          ;
+	::to_chars_result tcr                                          ; tcr.ptr = res.data() ;
+	int8_t            prec = e==E ? 0 : d>=100 ? 0 : d>=10 ? 1 : 2 ;                           // no frac part if result is known exact
+	if (neg) *tcr.ptr++ = '-'                                                                ;
+	/**/      tcr       = to_chars( tcr.ptr , tcr.ptr+4 , d , ::chars_format::fixed , prec ) ; SWEAR(tcr.ec==::errc()) ;
+	if (e)   *tcr.ptr++ = "afpnum?kMGTPE"[e+6]                                               ;
+	res.resize(size_t(tcr.ptr-res.data())) ;
+	return res ;
 }

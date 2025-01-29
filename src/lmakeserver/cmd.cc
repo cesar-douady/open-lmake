@@ -657,7 +657,7 @@ namespace Engine {
 									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
 									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_unit(mem_rsrc_str):0                                                                           ;
 									bool            overflow     = digest.stats.mem > mem_rsrc                                                                                                   ;
-									::string        mem_str      = to_string_with_unit<'M'>(digest.stats.mem>>20)+'B'                                                                            ;
+									::string        mem_str      = to_short_string_with_unit(digest.stats.mem)+'B'                                                                               ;
 									if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
 									::string rc_str   = wstatus_str(digest.wstatus) + (wstatus_ok(digest.wstatus)&&+digest.stderr?" (with non-empty stderr)":"") ;
 									Color    rc_color = wstatus_ok(digest.wstatus) ? Color::Ok : Color::Err                                                      ;
@@ -669,8 +669,8 @@ namespace Engine {
 									push_entry( "used mem"       , mem_str                        , overflow?Color::Warning:Color::None ) ;
 									push_entry( "cost"           , job->cost         .short_str()                                       ) ;
 								}
-								/**/                   push_entry( "total size"      , to_string_with_unit(end.total_sz     )+'B' ) ;
-								if (end.compressed_sz) push_entry( "compressed size" , to_string_with_unit(end.compressed_sz)+'B' ) ;
+								/**/                   push_entry( "total size"      , to_short_string_with_unit(end.total_sz     )+'B' ) ;
+								if (end.compressed_sz) push_entry( "compressed size" , to_short_string_with_unit(end.compressed_sz)+'B' ) ;
 							}
 							//
 							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg,su)                  ) ;
