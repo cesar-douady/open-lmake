@@ -40,12 +40,10 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	digest.extra_dflags |= ad.extra_dflags ;
 	//
 	bool tfi =        ad.extra_tflags[ExtraTflag::Ignore] ;
-	bool dfi = tfi || ad.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
+	bool dfi = tfi || ad.extra_dflags[ExtraDflag::Ignore] ;               // tfi also prevents reads from being visible
 	//
-	// if ignore, record empty info (which will mask further info)
-	/**/                                if (required<=pd) goto NotFirst ;
 	for( Access a : iota(All<Access>) ) if (read[+a]<=pd) goto NotFirst ;
-	dep_info = dfi ? DI() : di ;
+	dep_info = dfi ? DI() : di ;                                          // if ignore, record empty info (which will mask further info)
 NotFirst :
 	/**/                                if ( PD& d=seen     ; pd<d && (dfi||di.seen(ad.accesses)       ) ) { d = pd ; digest_seen     = !dfi         ; }
 	/**/                                if ( PD& d=required ; pd<d && (dfi||ad.dflags[Dflag::Required] ) ) { d = pd ; digest_required = !dfi         ; }
@@ -182,13 +180,13 @@ Fd Gather::_spawn_child() {
 	Fd   report_fd ;
 	bool is_ptrace = method==AutodepMethod::Ptrace ;
 	//
-	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                 // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
 	_child.stdin_fd   = child_stdin                           ;
 	_child.stdout_fd  = child_stdout                          ;
 	_child.stderr_fd  = child_stderr                          ;
 	_child.first_pid  = first_pid                             ;
-	if (is_ptrace) {                                                                                // PER_AUTODEP_METHOD : handle case
+	if (is_ptrace) {                                                                            // PER_AUTODEP_METHOD : handle case
 		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
@@ -196,13 +194,13 @@ Fd Gather::_spawn_child() {
 		child_fd  = pipe.read  ;
 		report_fd = pipe.write ;
 	} else {
-		if (method>=AutodepMethod::Ld) {                                                            // PER_AUTODEP_METHOD : handle case
+		if (method>=AutodepMethod::Ld) {                                                        // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
-			switch (method) {                                                                       // PER_AUTODEP_METHOD : handle case
+			switch (method) {                                                                   // PER_AUTODEP_METHOD : handle case
 				#if HAS_32
-					#define DOLLAR_LIB "$LIB"                                                       // 32 bits is supported, use ld.so automatic detection feature
+					#define DOLLAR_LIB "$LIB"                                                   // 32 bits is supported, use ld.so automatic detection feature
 				#else
-					#define DOLLAR_LIB "lib"                                                        // 32 bits is not supported, use standard name
+					#define DOLLAR_LIB "lib"                                                    // 32 bits is not supported, use standard name
 				#endif
 				#if HAS_LD_AUDIT
 					case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_audit.so"            ; break ;
@@ -216,22 +214,22 @@ Fd Gather::_spawn_child() {
 		}
 		new_exec( New , mk_glb(cmd_line[0],cwd_s) ) ;
 	}
-	start_date      = New       ;                                                                   // record job start time as late as possible
+	start_date      = New       ;                                                               // record job start time as late as possible
 	_child.cmd_line = cmd_line  ;
 	_child.env      = env       ;
 	_child.add_env  = &_add_env ;
 	_child.cwd_s    = cwd_s     ;
 	if (is_ptrace) {
 		::latch ready{1} ;
-		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ;                 // /!\ _child must be spawned from tracing thread
-		ready.wait() ;                                                                              // wait until _child.pid is available
+		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ;             // /!\ _child must be spawned from tracing thread
+		ready.wait() ;                                                                          // wait until _child.pid is available
 	} else {
 		//vvvvvvvvvvvv
 		_child.spawn() ;
 		//^^^^^^^^^^^^
 	}
 	trace("child_pid",_child.pid) ;
-	return child_fd ;                                                                               // child_fd is only used with ptrace
+	return child_fd ;                                                                           // child_fd is only used with ptrace
 }
 Status Gather::exec_child() {
 	using Event = Epoll<Kind>::Event ;
@@ -245,22 +243,22 @@ Status Gather::exec_child() {
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	AcFd                                                 child_fd           ;
-	::jthread                                            wait_jt            ;                       // thread dedicated to wating child
+	::jthread                                            wait_jt            ;                   // thread dedicated to wating child
 	Epoll<Kind>                                          epoll              { New }       ;
 	Status                                               status             = Status::New ;
-	::umap<Fd,Jerr>                                      delayed_check_deps ;                       // check_deps events are delayed to ensure all previous deps are received
+	::umap<Fd,Jerr>                                      delayed_check_deps ;                   // check_deps events are delayed to ensure all previous deps are received
 	size_t                                               live_out_pos       = 0           ;
-	::umap<Fd,pair<IMsgBuf,::umap<uint64_t/*id*/,Jerr>>> slaves             ;                       // Jerr's are waiting for confirmation
+	::umap<Fd,pair<IMsgBuf,::umap<uint64_t/*id*/,Jerr>>> slaves             ;                   // Jerr's are waiting for confirmation
 	bool                                                 panic_seen         = false       ;
 	PD                                                   end_timeout        = PD::Future  ;
 	PD                                                   end_child          = PD::Future  ;
 	PD                                                   end_kill           = PD::Future  ;
-	PD                                                   end_heartbeat      = PD::Future  ;         // heartbeat to probe server when waiting for it
+	PD                                                   end_heartbeat      = PD::Future  ;     // heartbeat to probe server when waiting for it
 	bool                                                 timeout_fired      = false       ;
 	size_t                                               kill_step          = 0           ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
-		if ( status==Status::New || status==Status::Ok ) status = status_ ;                         // else there is already another reason
+		if ( status==Status::New || status==Status::Ok ) status = status_ ;                     // else there is already another reason
 		if ( +msg_                                     ) msg << set_nl << msg_ ;
 	} ;
 	auto kill = [&](bool next_step=false)->void {
@@ -294,7 +292,7 @@ Status Gather::exec_child() {
 		if (now>end_child) {
 			_exec_trace(now,"still_alive") ;
 			if (!_wait[Kind::ChildEnd]) {
-				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ;     // else we should already have exited
+				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ; // else we should already have exited
 				::string msg_ ;
 				if ( _wait[Kind::Stdout]                        ) msg_ += "stdout " ;
 				if ( _wait[Kind::Stdout] && _wait[Kind::Stderr] ) msg_ += "and "    ;

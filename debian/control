@@ -3,7 +3,7 @@ Section: devel
 Priority: optional
 Maintainer: Cesar Douady <cesar.douady@doliam.fr>
 Build-Depends:
- debhelper-compat (= $DEBHELPER_COMPAT),
+ debhelper-compat (= 13),
  ed,
  texinfo,
  python3,

@@ -3,12 +3,13 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import shutil
+
 import lmake
 
 if __name__!='__main__' :
 
 	import os.path as osp
-	import shutil
 	import socket
 
 	from lmake.rules import Rule,PyRule
@@ -55,6 +56,9 @@ if __name__!='__main__' :
 else :
 
 	if 'sge' not in lmake.backends :
+		print('sge not compiled in',file=open('skipped','w'))
+		exit() ;
+	if not shutil.which('qsub') :
 		print('sge not available',file=open('skipped','w'))
 		exit() ;
 

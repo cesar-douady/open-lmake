@@ -3,10 +3,11 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# typical package name : open-lmake-$(VERSION).$(TAG)-$(DEBIAN_RELEASE)
 VERSION        := 25.02
-TAG            := 3
+TAG            := 4
+# ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net
 DEBIAN_RELEASE := 1
+DISTROS        := jammy noble
 
 ifneq ($(shell uname),Linux)
     $(error can only compile under Linux)
@@ -751,7 +752,10 @@ VERSION_TAG := $(VERSION).$(TAG)
 
 #
 # Build debian package
-# to install on focal, jammy or noble : sudo apt install open-lmake_$(VERSION_TAG)-$(DEBIAN_RELEASE)_amd64.deb
+# to install on one of $(DISTROS) :
+# - sudo apt-add-repository ppa:cdouady/open-lmake
+# - sudo apt update
+# - sudo apt install open-lmake
 #
 
 DEBIAN_DIR := open-lmake-$(VERSION_TAG)
@@ -780,8 +784,8 @@ clean :
 	@rm -rf Manifest.inc_stamp sys_config.log sys_config.trial sys_config.mk sys_config.h sys_config.sum sys_config.err
 	@find . -name '*.d' -exec rm {} \;
 
+DEBIAN_SRC : $(patsubst %,$(DEBIAN_TAG)-$(DEBIAN_RELEASE)~%.changes , $(DISTRO) )
 DEBIAN_BIN : $(DEBIAN_TAG).bin_stamp
-DEBIAN_SRC : $(DEBIAN_TAG)-$(DEBIAN_RELEASE)~focal_source.changes $(DEBIAN_TAG)-$(DEBIAN_RELEASE)~jammy_source.changes $(DEBIAN_TAG)-$(DEBIAN_RELEASE)~noble_source.changes
 DEBIAN     : DEBIAN_BIN DEBIAN_SRC
 
 DEBIAN_SRCS   := $(filter-out debian/%,$(filter-out unit_tests/%,$(filter-out lmake_env/%,$(SRCS))))
@@ -800,8 +804,6 @@ $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
 	@{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>$(DEBIAN_DIR)/debian/open-lmake.links
 	@{ for f in                   $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.manpages
 
-DEBHELPER_COMPAT=13
-$(DEBIAN_TAG)-$(DEBIAN_RELEASE)~focal_source.changes : DEBHELPER_COMPAT=12
 $(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 	@rm -rf $(DEBIAN_DIR)-$*
 	@cp -a $(DEBIAN_DIR) $(DEBIAN_DIR)-$*
@@ -812,10 +814,6 @@ $(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 		-e 's!\$$OS_CODENAME!'"$${RELEASE#*~}"'!g' \
 		-e 's!\$$DATE!'"$$(date -R)"'!g'           \
 		debian/changelog.src >$(DEBIAN_DIR)-$$RELEASE/debian/changelog
-	RELEASE='$*' ;                                      \
-	sed                                                  \
-		-e 's!\$$DEBHELPER_COMPAT!$(DEBHELPER_COMPAT)!g' \
-		debian/control.src >$(DEBIAN_DIR)-$$RELEASE/debian/control ;
 	@RELEASE='$*'                                                           ; \
 	KEY=$$(echo $$(gpg --list-keys|grep -x ' *[0-9A-Z]\+') )                ; \
 	echo generate source package in $(DEBIAN_DIR)-$$RELEASE using key $$KEY ; \
@@ -834,12 +832,6 @@ $(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 		-e 's!\$$OS_CODENAME!'"$$VERSION_CODENAME"'!g' \
 		-e 's!\$$DATE!'"$$(date -R)"'!g'               \
 		debian/changelog.src >$(DEBIAN_DIR)-bin/debian/changelog
-	@. /etc/os-release                                                  ; \
-	DEBHELPER_COMPAT=13                                                 ; \
-	if [ "$$VERSION_CODENAME" = focal ] ; then DEBHELPER_COMPAT=12 ; fi ; \
-	sed                                                                   \
-		-e 's!\$$DEBHELPER_COMPAT!'"$$DEBHELPER_COMPAT"'!g'               \
-		debian/control.src >$(DEBIAN_DIR)-bin/debian/control
 	@# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX! : find a way to filter out these lines more cleanly
 	@cd $(DEBIAN_DIR)-bin ; MAKEFLAGS= MAKELEVEL= debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
 	@touch $@

@@ -20,7 +20,7 @@ ENUM_2( Dflag        // flags for deps
 ,	Critical         // if modified, ignore following deps
 ,	Essential        // show when generating user oriented graphs
 ,	IgnoreError      // dont propagate error if dep is in error (Error instead of Err because name is visible from user)
-,	Required         // dep must be buildable
+,	Required         // dep must be buildable (static deps are always required)
 ,	Static           // is static dep, for internal use only
 )
 // END_OF_VERSIONING

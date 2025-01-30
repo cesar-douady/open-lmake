@@ -123,7 +123,7 @@ Once you have understood what is going on with `hello_world`, you can repeat the
 
 # Installation
 
-To install open-lmake, please refer to the [INSTALL](INSTALL.md) file.
+To install open-lmake, as a binary package or by compiling sources, please refer to the [INSTALL](INSTALL.md) file.
 
 # Developers
 

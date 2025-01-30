@@ -13,11 +13,7 @@ if __name__!='__main__' :
 
 	sys.path.append(numpy_home)
 
-	try :
-		import numpy                                          # check we can import numpy
-	except ModuleNotFoundError :
-		numpy = None                                          # but ignore test if module does not exist
-		print('numpy not available',file=open('skipped','w'))
+	import numpy # check we can import numpy
 
 	lmake.manifest = (
 		'Lmakefile.py'

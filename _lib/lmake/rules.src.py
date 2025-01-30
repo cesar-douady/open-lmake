@@ -175,7 +175,10 @@ class Py2Rule(_PyRule) :
 class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file (guaranteed if fix_import is called)
-	side_targets = { '__PYC__' : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'incremental','top' ) }
+	side_targets = {
+		'__PYC__'     : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc'         , 'incremental','top' )
+	,	'__PYC_TMP__' : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc.{*:\d+}' , 'ignore'     ,'top' ) # these are temporary files guaranteed unique by Python
+	}
 	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 	def cmd() :
 		import sys

@@ -450,9 +450,8 @@ namespace Engine {
 		::vector_s const& interpreter  = rd.start_cmd_attrs.spec.interpreter ;
 		if (+interpreter) {
 			::string interpreter0 = rd.add_cwd(::copy(interpreter[0])) ;
-			if ( _qualify_dep( {} , rd.is_python?DepKind::Python:DepKind::Shell , interpreter0 , interpreter0 , interpreter[0] ) ) {
-				deps.emplace_back( "<interpreter>" , DepSpec{::move(interpreter0),Dflags(Dflag::Static,Dflag::Required),{}} ) ;
-			}
+			if ( _qualify_dep( {} , rd.is_python?DepKind::Python:DepKind::Shell , interpreter0 , interpreter0 , interpreter[0] ) )
+				deps.emplace_back( "<interpreter>" , DepSpec{::move(interpreter0),Dflag::Static,{}} ) ;
 		}
 	}
 

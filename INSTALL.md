@@ -6,7 +6,20 @@ This program is free software: you can redistribute/modify under the terms of th
 
 This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# Requirements
+# Binary packages
+
+open-lmake binary packages are available on launchpad.net for the following systems :
+- ubuntu22.04 (jammy)
+- ubuntu24.04 (noble)
+
+To install these, execute:
+- `sudo add-apt-repository ppa:cdouady/open-lmake`
+- `sudo apt update`
+- `sudo apt install open-lmake`
+
+# Compilation
+
+## Requirements
 
 To compile open-lmake, you will need:
 
@@ -15,7 +28,7 @@ To compile open-lmake, you will need:
 
 It has been tested with the dockers listed in the docker directory
 
-# Compilation
+## Procedure
 
 - type `make`
 	- this builds all necessary files and some unit tests
