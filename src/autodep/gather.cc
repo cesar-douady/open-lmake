@@ -43,7 +43,6 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	bool dfi = tfi || ad.extra_dflags[ExtraDflag::Ignore] ; // tfi also prevents reads from being visible
 	//
 	// if ignore, record empty info (which will mask further info)
-	/**/                                if (required<=pd) goto NotFirst ;
 	for( Access a : iota(All<Access>) ) if (read[+a]<=pd) goto NotFirst ;
 	dep_info = dfi ? DI() : di ;
 NotFirst :
