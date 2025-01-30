@@ -772,9 +772,11 @@ namespace Engine {
 										int w3 = 0 ;
 										for( auto const& [k,rv] : required_rsrcs  ) if ( auto it=allocated_rsrcs.find(k) ; it==allocated_rsrcs.end() || rv!=it->second ) w3 = ::max(w3,8/*required*/ ) ;
 										for( auto const& [k,av] : allocated_rsrcs ) if ( auto it=required_rsrcs .find(k) ; it==required_rsrcs .end() || av!=it->second ) w3 = ::max(w3,9/*allocated*/) ;
-										no_msg        = "  "+widen(""         ,w3)+' ' ;
-										required_msg  = " ("+widen("required" ,w3)+')' ;
-										allocated_msg = " ("+widen("allocated",w3)+')' ;
+										if (w3) {
+											no_msg        = "  "+widen(""         ,w3)+' ' ;
+											required_msg  = " ("+widen("required" ,w3)+')' ;
+											allocated_msg = " ("+widen("allocated",w3)+')' ;
+										}
 									}
 									for( auto const& [k,rv] : required_rsrcs ) {
 										auto it = allocated_rsrcs.find(k) ; //!                                                                         as_is

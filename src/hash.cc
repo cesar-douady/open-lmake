@@ -24,9 +24,8 @@ namespace Hash {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 		self = None ;
 		if ( AcFd fd = ::open(filename.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
-			FileInfo fi  { fd }                   ;
-			DiskSz   sz  = ::min(DiskBufSz,fi.sz) ;
-			::string buf ( sz , 0 )               ;
+			FileInfo fi  { fd }                         ;
+			::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 			switch (fi.tag()) {
 				case FileTag::Empty :
 					self = Empty ;
@@ -34,16 +33,17 @@ namespace Hash {
 				case FileTag::Reg :
 				case FileTag::Exe : {
 					Xxh ctx { fi.tag() } ;
-					for(;;) {
+					for( size_t sz=fi.sz ;;) {
 						ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
 						if      (cnt> 0) ctx.update(buf.data(),cnt) ;
-						else if (cnt==0) break ;
+						else if (cnt==0) break ;                      // file could change while crc is being computed
 						else switch (errno) {
 							case EAGAIN :
 							case EINTR  : continue                                       ;
 							default     : throw "I/O error while reading file "+filename ;
 						}
-						if (size_t(cnt)>=sz) break ;              // anticipate that file could change while crc is being computed
+						SWEAR(cnt>0,cnt) ;
+						if (size_t(cnt)>=sz) break ;
 						sz -= cnt ;
 					}
 					self = ctx.digest() ;
@@ -51,7 +51,7 @@ namespace Hash {
 			DN}
 		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
 			Xxh ctx{FileTag::Lnk} ;
-			ctx.update( lnk_target.data() , lnk_target.size() ) ; // no need to compute crc on size as would be the case with ctx.update(lnk_target)
+			ctx.update( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx.update(lnk_target)
 			self = ctx .digest() ;
 		}
 	}

@@ -24,6 +24,7 @@ if __name__!='__main__' :
 		target    = r'file_{:\d+}'
 		deps      = {'TRIG':'trig'}
 		resources = {'mem':'1M'}
+		environ   = {'SMALL_ID':'$SMALL_ID' }
 		def cmd() :
 			lmake.depend(TRIG,read=True)
 			assert int(os.environ['SMALL_ID'])<=n_jobs , f"small id is {os.environ['SMALL_ID']} > {n_jobs}"

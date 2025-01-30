@@ -17,6 +17,7 @@ if __name__!='__main__' :
 	file = 'a/b/c'
 	class Tar(Rule) :
 		targets = { 'TAR' : r'hello.tar{*:.*}' }
+		environ = { 'REPO_ROOT' : '$REPO_ROOT' }
 		cmd = multi_strip('''
 			cd $TMPDIR
 			mkdir -p $(dirname {file})

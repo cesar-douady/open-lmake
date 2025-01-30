@@ -1513,8 +1513,6 @@ It must be an absolute path not lying in the temporary directory (e.g. @code{'/r
 
 If @code{None} or @code{''}, no bind mount is performed.
 
-If performed, @code{$TOP_REPO_ROOT} will reflect this value.
-
 As of now, this attribute must be a top level directory, i.e. @file{'/a'} is ok, but @file{'/a/b'} is not.
 
 @section @code{tmp_view}
@@ -1600,8 +1598,39 @@ The environment in which the @lmake command is run is ignored so as to favor rep
 If resulting value is @code{...} (the Python ellipsis), the value from the execution environment is used.
 This is typically used to access some environment variables set by @code{slurm}.
 
-If a value contains the strings @code{$LMAKE_ROOT}, @code{$REPO_ROOT}, @code{$TOP_REPO_ROOT} or @code{$TMPDIR}, these parts are substituted by their respective definitions.
-They must be isolated words or surrounded by braces (e.g. @code{$@{LMAKE_ROOT@}}).
+If a value contains one of the following strings, they are replaced by their corresponding definitions :
+@multitable @columnfractions 0.2 0.6 0.2
+@item Key
+@tab Replacement
+@tab Comment
+@item @code{$LMAKE_ROOT}
+@tab The root directory of the @lmake package.
+@tab This value must not be stored in targets as it might then require cleaning repo (and interact with cache)
+@item @code{$PHYSICAL_REPO_ROOT}
+@tab The absolute directory of the lowest level repository including the @code{cwd} attribute if any, before mapping if @code{repo_view} is defined
+@tab May prevent repo from being movable, in particular may interact with correctness of cached results
+@item @code{$PHYSICAL_TMPDIR}
+@tab The absolute directory of the tmp directory, before mapping if @code{tmp_view} is defined
+@tab May prevent repo from being movable, in particular may interact with correctness of cached results
+@item @code{$PHYSICAL_TOP_REPO_ROOT}
+@tab The absolute directory of the top-level repository, before mapping if @code{repo_view} is defined
+@tab May prevent repo from being movable, in particular may interact with correctness of cached results
+@item @code{$REPO_ROOT}
+@tab The absolute directory of the lowest level repository including the @code{cwd} attribute if any, as seen by the job
+@tab
+@item @code{$SEQUENCE_ID}
+@tab A value which is unique for each job execution since repo was first initialized (at least 1)
+@tab This value must be semantically considered as a random value
+@item @code{$SMALL_ID}
+@tab A value which is unique among simultaneously running jobs (at least 1)
+@tab This value must be semantically considered as a random value
+@item @code{$TMPDIR}
+@tab The absolute directory of the tmp directory, as seen by the job
+@tab
+@item @code{$TOP_REPO_ROOT}
+@tab The absolute directory of the top-level repository, as seen by the job
+@tab
+@end multitable
 
 By default the following environment variables are defined :
 @table @code
@@ -1743,16 +1772,8 @@ Whether @code{cmd} is a @code{str} or a @code{function}, the following environme
 @item @code{$LD_AUDIT}          : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_audit'} (cf @pxref{autodep}).
 @item @code{$LD_PRELOAD}        : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_preload'} or @code{'ld_preload_jemalloc'} (cf @pxref{autodep}).
 @item @code{$LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (cf @pxref{autodep}).
-@item @code{$REPO_ROOT}         : The root of the (sub-)repository.
-@item @code{$TOP_REPO_ROOT}     : The root of the top-level repository.
-@item @code{$SEQUENCE_ID}       : A value which is unique for each run.
-It is @code{1} initially and is incremented each time a job is run.
-@item @code{$SMALL_ID}          : A value which is unique among running job at any given time.
-It is always at least @code{1} and efforts are made to maintain it as small as possible.
 @item @code{$TMPDIR}            : The name of a directory which is empty at the start of the job.
 If the temporary directory is not kept through the use of the @code{keep_tmp} attribute or the @code{-t} option, this directory is cleaned up at the end of the job execution.
-@item @code{$HOME}              : This variable is set to the value of the TMPDIR variable if not set.
-However it is set by default to the root of the repository by the @code{Rule} base class.
 @end itemize
 
 @subsection if it is a @code{function}

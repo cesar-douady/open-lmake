@@ -521,17 +521,17 @@ namespace Backends::Slurm {
 			try {
 				auto opts = s_opt_parse.parse(argv.size(),argv.data()) ;
 				//
-				if (opts.count("cpus-per-task")) res1.cpu      =                                                   opts["cpus-per-task"].as<uint16_t>() ;
+				if (opts.count("cpus-per-task")) res1.cpu      =                                                   opts["cpus-per-task"].as<uint16_t>()  ;
 				if (opts.count("mem"          )) res1.mem      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["mem"          ].as<::string>()) ;
 				if (opts.count("tmp"          )) res1.tmp      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["tmp"          ].as<::string>()) ;
-				if (opts.count("constraint"   )) res1.features =                                                   opts["constraint"   ].as<::string>() ;
-				if (opts.count("exclude"      )) res1.excludes =                                                   opts["exclude"      ].as<::string>() ;
-				if (opts.count("gres"         )) res1.gres     =                                                   opts["gres"         ].as<::string>() ;
-				if (opts.count("licenses"     )) res1.licenses =                                                   opts["licenses"     ].as<::string>() ;
-				if (opts.count("nodelist"     )) res1.nodes    =                                                   opts["nodelist"     ].as<::string>() ;
-				if (opts.count("partition"    )) res1.part     =                                                   opts["partition"    ].as<::string>() ;
-				if (opts.count("qos"          )) res1.qos      =                                                   opts["qos"          ].as<::string>() ;
-				if (opts.count("reservation"  )) res1.reserv   =                                                   opts["reservation"  ].as<::string>() ;
+				if (opts.count("constraint"   )) res1.features =                                                   opts["constraint"   ].as<::string>()  ;
+				if (opts.count("exclude"      )) res1.excludes =                                                   opts["exclude"      ].as<::string>()  ;
+				if (opts.count("gres"         )) res1.gres     =                                                   opts["gres"         ].as<::string>()  ;
+				if (opts.count("licenses"     )) res1.licenses =                                                   opts["licenses"     ].as<::string>()  ;
+				if (opts.count("nodelist"     )) res1.nodes    =                                                   opts["nodelist"     ].as<::string>()  ;
+				if (opts.count("partition"    )) res1.part     =                                                   opts["partition"    ].as<::string>()  ;
+				if (opts.count("qos"          )) res1.qos      =                                                   opts["qos"          ].as<::string>()  ;
+				if (opts.count("reservation"  )) res1.reserv   =                                                   opts["reservation"  ].as<::string>()  ;
 				if (opts.count("help"         )) throw s_opt_parse.help() ;
 			} catch (cxxopts::exceptions::exception const& e) {
 				throw "Error while parsing slurm options: "s+e.what() ;

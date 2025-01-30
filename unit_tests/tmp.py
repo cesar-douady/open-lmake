@@ -19,6 +19,7 @@ if __name__!='__main__' :
 		target   = 'dut{N}'
 		targets  = { 'LNK' : 'lnk{N}' }
 		tmp_view = '/tmp'
+		environ  = { 'REPO_ROOT' : '$REPO_ROOT' }
 		cmd = multi_strip('''
 			ln -s $TMPDIR/a        {LNK}
 			ln -s $REPO_ROOT/{LNK} $TMPDIR/b
@@ -54,6 +55,7 @@ if __name__!='__main__' :
 	class GenDir(Base) :
 		targets  = { 'DST' : r'{File:.*}.dir/{*:.*}' }
 		tmp_view = '/tmp'
+		environ  = { 'REPO_ROOT' : '$REPO_ROOT' }
 		cmd = '''
 			cd $TMPDIR
 			mkdir d
@@ -67,6 +69,7 @@ if __name__!='__main__' :
 		targets  = { 'DST' : r'{File:.*}.dir2/{*:.*}' }
 		deps     = { 'SRC' :  '{File}.dir/d/a'        }
 		tmp_view = '/tmp'
+		environ  = { 'REPO_ROOT' : '$REPO_ROOT' }
 		cmd      = '''
 			cd $TMPDIR
 			cp -a $REPO_ROOT/{File}.dir/d d

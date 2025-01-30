@@ -13,8 +13,9 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Home(Rule) :
-		target = 'home'
-		cmd    = '[ $HOME = $REPO_ROOT ]'
+		target  = 'home'
+		environ = { 'REPO_ROOT' : '$REPO_ROOT' }
+		cmd     = '[ $HOME = $REPO_ROOT ]'
 
 	class Homeless1(HomelessRule) :
 		target = 'homeless1'
