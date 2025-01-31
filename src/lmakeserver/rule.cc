@@ -1254,6 +1254,7 @@ namespace Engine {
 			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
 			if (+start_cmd_attrs   .spec.job_space.chroot_dir_s    ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs   .spec.job_space.chroot_dir_s ) ) ;
 			if ( start_cmd_attrs   .spec.ignore_stat               ) entries.emplace_back( "ignore_stat"         , cat        (start_cmd_attrs   .spec.ignore_stat            ) ) ;
+			if (+start_cmd_attrs   .spec.job_space.lmake_view_s    ) entries.emplace_back( "lmake_view"          , no_slash   (start_cmd_attrs   .spec.job_space.lmake_view_s ) ) ;
 			if (+start_cmd_attrs   .spec.job_space.repo_view_s     ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs   .spec.job_space.repo_view_s  ) ) ;
 			if (+start_cmd_attrs   .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs   .spec.job_space.tmp_view_s   ) ) ;
 			/**/                                                     entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs .spec.method                 ) ) ;

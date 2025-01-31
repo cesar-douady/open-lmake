@@ -519,6 +519,7 @@ namespace Caches {
 	First first ;
 	/**/                  os <<"JobSpace("                           ;
 	if (+js.chroot_dir_s) os <<first("",",")<<"C:"<< js.chroot_dir_s ;
+	if (+js.lmake_view_s) os <<first("",",")<<"R:"<< js.lmake_view_s ;
 	if (+js.repo_view_s ) os <<first("",",")<<"R:"<< js.repo_view_s  ;
 	if (+js.tmp_view_s  ) os <<first("",",")<<"T:"<< js.tmp_view_s   ;
 	if (+js.views       ) os <<first("",",")<<"V:"<< js.views        ;
@@ -589,6 +590,7 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 
 bool/*entered*/ JobSpace::enter(
 	::vmap_s<MountAction>&/*out*/ report
+,	::string   const&             phy_lmake_root_s
 ,	::string   const&             phy_repo_root_s
 ,	::string   const&             phy_tmp_dir_s
 ,	::string   const&             cwd_s
@@ -638,22 +640,25 @@ bool/*entered*/ JobSpace::enter(
 			;
 		top_repo_view_s = repo_view_s.substr(0,repo_view_s.size()-cwd_s.size()) ;
 	}
-	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s ; // XXX! : handle cases where dir is not top level
-	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s  ; // .
+	if ( +lmake_view_s      && lmake_view_s     .rfind('/',lmake_view_s     .size()-2)!=0 ) throw "non top-level lmake_view not yet implemented"s ; // XXX! : handle cases where dir is not top level
+	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s  ; // .
+	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s   ; // .
 	//
-	::string chroot_dir       = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly manage the '/' case
-	bool     must_create_root = +super_repo_view_s && !is_dir(chroot_dir+no_slash(super_repo_view_s)) ;
-	bool     must_create_tmp  = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
-	trace("create",STR(must_create_root),STR(must_create_tmp)) ;
-	if ( must_create_root || must_create_tmp || +views )
+	::string chroot_dir        = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly manage the '/' case
+	bool     must_create_lmake = +lmake_view_s      && !is_dir(chroot_dir+no_slash(lmake_view_s     )) ;
+	bool     must_create_repo  = +super_repo_view_s && !is_dir(chroot_dir+no_slash(super_repo_view_s)) ;
+	bool     must_create_tmp   = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
+	trace("create",STR(must_create_repo),STR(must_create_tmp)) ;
+	if ( must_create_repo || must_create_tmp || +views )
 		try { unlnk_inside_s(work_dir_s) ; } catch (::string const& e) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
-	if ( must_create_root || must_create_tmp ) {                          // we cannot mount directly in chroot_dir
+	if ( must_create_lmake || must_create_repo || must_create_tmp ) {     // we cannot mount directly in chroot_dir
 		if (!work_dir_s)
 			throw
 				"need a work dir to"s
-			+	(	must_create_root ? " create root view"
-				:	must_create_tmp  ? " create tmp view"
-				:	                   " ???"
+			+	(	must_create_lmake ? " create lmake view"
+				:	must_create_repo  ? " create repo view"
+				:	must_create_tmp   ? " create tmp view"
+				:	                    " ???"
 				)
 			;
 		::vector_s top_lvls    = lst_dir_s(+chroot_dir_s?chroot_dir_s:"/") ;
@@ -673,8 +678,9 @@ bool/*entered*/ JobSpace::enter(
 				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)) ;                                break ; // copy symlink
 			DN}
 		}
-		if (must_create_root) mk_dir_s(work_root+super_repo_view_s) ;
-		if (must_create_tmp ) mk_dir_s(work_root+tmp_view_s       ) ;
+		if (must_create_lmake) mk_dir_s(work_root+lmake_view_s     ) ;
+		if (must_create_repo ) mk_dir_s(work_root+super_repo_view_s) ;
+		if (must_create_tmp  ) mk_dir_s(work_root+tmp_view_s       ) ;
 		chroot_dir = ::move(work_root) ;
 	}
 	// mapping uid/gid is necessary to manage overlayfs
@@ -683,8 +689,9 @@ bool/*entered*/ JobSpace::enter(
 	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
 	//
 	::string repo_root_s = +repo_view_s ? top_repo_view_s : phy_repo_root_s ;
-	if (+repo_view_s) _mount_bind( chroot_dir+super_repo_view_s , phy_super_repo_root_s ) ;
-	if (+tmp_view_s ) _mount_bind( chroot_dir+tmp_view_s        , phy_tmp_dir_s         ) ;
+	if (+lmake_view_s) _mount_bind( chroot_dir+lmake_view_s      , phy_lmake_root_s      ) ;
+	if (+repo_view_s ) _mount_bind( chroot_dir+super_repo_view_s , phy_super_repo_root_s ) ;
+	if (+tmp_view_s  ) _mount_bind( chroot_dir+tmp_view_s        , phy_tmp_dir_s         ) ;
 	//
 	if      (+chroot_dir ) _chroot(chroot_dir)     ;
 	if      (+repo_view_s) _chdir(repo_view_s    ) ;
@@ -740,11 +747,20 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	} ;
 	//                   slash_ok
 	do_top( chroot_dir_s , true  , "chroot dir" ) ;
-	do_top( repo_view_s  , false , "root view"  ) ;
+	do_top( lmake_view_s , false , "lmake view" ) ;
+	do_top( repo_view_s  , false , "repo view"  ) ;
 	do_top( tmp_view_s   , false , "tmp view"   ) ;
+	if ( +lmake_view_s && +repo_view_s ) {
+		if (lmake_view_s.starts_with(repo_view_s )) throw "lmake view "+no_slash(lmake_view_s)+" cannot lie within repo view " +no_slash(repo_view_s ) ;
+ 		if (repo_view_s .starts_with(lmake_view_s)) throw "repo view " +no_slash(repo_view_s )+" cannot lie within lmake view "+no_slash(lmake_view_s) ;
+	}
+	if ( +lmake_view_s && +tmp_view_s ) {
+		if (lmake_view_s.starts_with(tmp_view_s  )) throw "lmake view "+no_slash(lmake_view_s)+" cannot lie within tmp view "  +no_slash(tmp_view_s  ) ;
+		if (tmp_view_s  .starts_with(lmake_view_s)) throw "tmp view "  +no_slash(tmp_view_s  )+" cannot lie within lmake view "+no_slash(lmake_view_s) ;
+	}
 	if ( +repo_view_s && +tmp_view_s ) {
-		if (repo_view_s.starts_with(tmp_view_s )) throw "root view "+no_slash(repo_view_s)+" cannot lie within tmp view " +no_slash(tmp_view_s ) ;
-		if (tmp_view_s .starts_with(repo_view_s)) throw "tmp view " +no_slash(tmp_view_s )+" cannot lie within root view "+no_slash(repo_view_s) ;
+ 		if (repo_view_s .starts_with(tmp_view_s  )) throw "repo view " +no_slash(repo_view_s )+" cannot lie within tmp view "  +no_slash(tmp_view_s  ) ;
+		if (tmp_view_s  .starts_with(repo_view_s )) throw "tmp view "  +no_slash(tmp_view_s  )+" cannot lie within repo view " +no_slash(repo_view_s ) ;
 	}
 	//
 	::string const& job_repo_root_s = +repo_view_s ? repo_view_s : phy_repo_root_s ;
@@ -872,25 +888,26 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	::map_ss             &/*out*/ cmd_env
 	,	::vmap_ss            &/*out*/ dynamic_env
 	,	pid_t                &/*out*/ first_pid
+	,	::string        const&/*in */ phy_lmake_root_s
 	,	::string        const&/*in */ phy_repo_root_s
-	,	::string        const&/*in */ lmake_root_s
 	,	::string        const&/*in */ phy_tmp_dir_s
 	,	SeqId                 /*in */ seq_id
 ) {
-	Trace trace("JobStartRpcReply::enter",phy_repo_root_s,lmake_root_s,phy_tmp_dir_s,seq_id) ;
+	Trace trace("JobStartRpcReply::enter",phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,seq_id) ;
 	//
 	for( auto& [k,v] : env )
 		if      (v!=EnvPassMrkr)                                                             cmd_env[k] = ::move(v ) ;
 		else if (has_env(k)    ) { ::string ev=get_env(k) ; dynamic_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
 	//
-	autodep_env.repo_root_s = +job_space.repo_view_s ? job_space.repo_view_s : phy_repo_root_s ;
-	autodep_env.tmp_dir_s   = +job_space.tmp_view_s  ? job_space.tmp_view_s  : phy_tmp_dir_s   ;
-	_tmp_dir_s              = autodep_env.tmp_dir_s                                            ;                         // for use in exit (autodep.tmp_dir_s may be moved)
+	::string const& lmake_root_s            = +job_space.lmake_view_s ? job_space.lmake_view_s : phy_lmake_root_s ;
+	/**/            autodep_env.repo_root_s = +job_space.repo_view_s  ? job_space.repo_view_s  : phy_repo_root_s  ;
+	/**/            autodep_env.tmp_dir_s   = +job_space.tmp_view_s   ? job_space.tmp_view_s   : phy_tmp_dir_s    ;
+	_tmp_dir_s = autodep_env.tmp_dir_s ;                                                                                 // for use in exit (autodep.tmp_dir_s may be moved)
 	//
 	try {
-		unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                             // ensure tmp dir is clean
+		unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                                                                   // ensure tmp dir is clean
 	} catch (::string const&) {
-		try                       { mk_dir_s(phy_tmp_dir_s) ;            }         // ensure tmp dir exists
+		try                       { mk_dir_s(phy_tmp_dir_s) ;            }                                               // ensure tmp dir exists
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
 	}
 	//
@@ -905,21 +922,22 @@ bool/*entered*/ JobStartRpcReply::enter(
 			if (d==Npos) break ;
 			switch (v[d+1/*$*/]) {
 				//                inout inout
-				case 'L' : _handle( v  , d  , "LMAKE_ROOT"             , lmake_root_s                  ) ; break ;
-				case 'P' : _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s        ,cwd_s )
-				||         _handle( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s                 )
-				||         _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s               ) ; break ;
-				case 'R' : _handle( v  , d  , "REPO_ROOT"              , autodep_env.repo_root_s,cwd_s ) ; break ;
-				case 'S' : _handle( v  , d  , "SEQUENCE_ID"            , seq_id                        )
-				||         _handle( v  , d  , "SMALL_ID"               , small_id                      ) ; break ;
-				case 'T' : _handle( v  , d  , "TMPDIR"                 , autodep_env.tmp_dir_s         )
-				||         _handle( v  , d  , "TOP_REPO_ROOT"          , autodep_env.repo_root_s       ) ; break ;
+				case 'L' : _handle( v  , d  , "LMAKE_ROOT"             , lmake_root_s                    ) ; break ;
+				case 'P' : _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s                )
+				||         _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s         , cwd_s )
+				||         _handle( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s                   )
+				||         _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s                 ) ; break ;
+				case 'R' : _handle( v  , d  , "REPO_ROOT"              , autodep_env.repo_root_s , cwd_s ) ; break ;
+				case 'S' : _handle( v  , d  , "SEQUENCE_ID"            , seq_id                          )
+				||         _handle( v  , d  , "SMALL_ID"               , small_id                        ) ; break ;
+				case 'T' : _handle( v  , d  , "TMPDIR"                 , autodep_env.tmp_dir_s           )
+				||         _handle( v  , d  , "TOP_REPO_ROOT"          , autodep_env.repo_root_s         ) ; break ;
 			DN}
 		}
 	}
 	//
-	::string phy_work_dir_s = cat(PrivateAdminDirS,"work/",small_id,'/')                                                                            ;
-	bool     entered        = job_space.enter( /*out*/actions , phy_repo_root_s , phy_tmp_dir_s , cwd_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
+	::string phy_work_dir_s = cat(PrivateAdminDirS,"work/",small_id,'/')                                                                                               ;
+	bool     entered        = job_space.enter( /*out*/actions , phy_lmake_root_s , phy_repo_root_s , phy_tmp_dir_s , cwd_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
 	if (entered) {
 		// find a good starting pid
 		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common

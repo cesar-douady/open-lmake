@@ -14,25 +14,30 @@ if __name__!='__main__' :
 	,	'tmp_map_ref'
 	)
 
-	for tmp_view in (None,'tmp','new_tmp') :
+	for lmake_view in (None,'lmake') :
 		for repo_view in (None,'repo') :
-			class Dut(Rule) :
-				name      = f'dut {tmp_view} {repo_view}'
-				target    = f'dut.{tmp_view}.{repo_view}'
-				resources = {}
-				if tmp_view :
-					tmp_view         = '/'+tmp_view
-					resources['tmp'] = '100M'
-				if repo_view :
-					repo_view = '/'+repo_view
-				cmd = multi_strip('''
-					unset PWD                     # ensure pwd calls getcwd
-					pwd          > $TMPDIR/stdout
-					echo $TMPDIR > $TMPDIR/stdout
-					cat $TMPDIR/stdout
-				''')
-				if tmp_view  : cmd += f'[ $TMPDIR = {tmp_view } ] || exit 1\n'
-				if repo_view : cmd += f'[ $(pwd)  = {repo_view} ] || exit 1\n'
+			for tmp_view in (None,'tmp','new_tmp') :
+				class Dut(Rule) :
+					name      = f'dut {lmake_view} {repo_view} {tmp_view}'
+					target    = f'dut.{lmake_view}.{repo_view}.{tmp_view}'
+					resources = {}
+					if lmake_view :
+						lmake_view = '/'+lmake_view
+					if repo_view :
+						repo_view = '/'+repo_view
+					if tmp_view :
+						tmp_view         = '/'+tmp_view
+						resources['tmp'] = '100M'
+					cmd = multi_strip('''
+						unset PWD                       # ensure pwd calls getcwd
+						type -p lmake >  $TMPDIR/stdout
+						pwd           >> $TMPDIR/stdout
+						echo $TMPDIR  >> $TMPDIR/stdout
+						cat $TMPDIR/stdout
+					''')
+					if lmake_view : cmd += f'[ $(type -p lmake) = {lmake_view}/bin/lmake ] || exit 1\n'
+					if repo_view  : cmd += f'[ $(pwd)           = {repo_view }           ] || exit 1\n'
+					if tmp_view   : cmd += f'[ $TMPDIR          = {tmp_view  }           ] || exit 1\n'
 
 	class TmpMap(Rule) :
 		target   = 'tmp_map_dut'
@@ -59,5 +64,5 @@ else :
 
 	print('lower\nupper',file=open('tmp_map_ref','w'))
 
-	ut.lmake( *(f'dut.{t}.{r}' for t in (None,'tmp','new_tmp') for r in (None,'repo') ) ,         done=6 )
-	ut.lmake( 'tmp_map_test'                                                            , new=1 , done=2 )
+	ut.lmake( *(f'dut.{l}.{r}.{t}' for l in (None,'lmake') for r in (None,'repo') for t in (None,'tmp','new_tmp') ) ,         done=12 )
+	ut.lmake( 'tmp_map_test'                                                                                        , new=1 , done=2  )

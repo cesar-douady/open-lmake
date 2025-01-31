@@ -26,6 +26,7 @@ ENUM( CmdFlag
 ,	KeepEnv
 ,	KeepTmp
 ,	LinkSupport
+,	LmakeView
 ,	Out
 ,	RepoView
 ,	SourceDirs
@@ -119,6 +120,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::KeepEnv       , { .short_name='k' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
 	,	{ CmdFlag::KeepTmp       , { .short_name='K' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                        } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
+	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                      } }
 	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                      } }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
 	,	{ CmdFlag::RepoView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
@@ -138,6 +140,7 @@ int main( int argc , char* argv[] ) {
 	try {
 		throw_if( !cmd_line.args                                                                          , "no exe to launch"                                                       ) ;
 		throw_if(  cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::LmakeView] && !is_abs(cmd_line.flag_args[+CmdFlag::LmakeView]) , "lmake view must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeView] ) ;
 		throw_if(  cmd_line.flags[CmdFlag::RepoView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RepoView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RepoView ] ) ;
 		throw_if(  cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
 		throw_if( !cmd_line.flags[CmdFlag::TmpDir   ]                                                     , "tmp dir must be specified"                                              ) ;
@@ -148,6 +151,7 @@ int main( int argc , char* argv[] ) {
 		/**/                                        start_info.key          =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) start_info.method       = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
 		if (cmd_line.flags[CmdFlag::ChrootDir    ]) job_space.chroot_dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
+		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s  = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
 		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s   = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
 		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s    = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;
 		/**/                                        autodep_env.auto_mkdir  =                        cmd_line.flags    [ CmdFlag::AutoMkdir    ]  ;
@@ -164,8 +168,8 @@ int main( int argc , char* argv[] ) {
 		,	/*out*/cmd_env
 		,	/*out*/::ref(::vmap_ss())/*dynamic_env*/
 		,	/*out*/gather.first_pid
-		,	       *g_repo_root_s
 		,	       *g_lmake_root_s
+		,	       *g_repo_root_s
 		,	       with_slash(cmd_line.flag_args[+CmdFlag::TmpDir])
 		,	       0/*small_id*/
 		) ;

@@ -218,6 +218,7 @@ namespace Engine {
 		/**/                               res << ",\tkey            = " << mk_py_str(key                                   ) << '\n' ;
 		/**/                               res << ",\tjob            = " <<           +j                                      << '\n' ;
 		/**/                               res << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                ) << '\n' ;
+		if (+start.job_space.lmake_view_s) res << ",\tlmake_view     = " << mk_py_str(no_slash(start.job_space.lmake_view_s)) << '\n' ;
 		/**/                               res << ",\tname           = " << mk_py_str(j->name()                             ) << '\n' ;
 		if (+start.job_space.repo_view_s ) res << ",\trepo_view      = " << mk_py_str(no_slash(start.job_space.repo_view_s )) << '\n' ;
 		/**/                               res << ",\tstdin          = " << mk_py_str(start.stdin                           ) << '\n' ;
@@ -622,6 +623,7 @@ namespace Engine {
 								}
 								//
 								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"  , no_slash(start.job_space.chroot_dir_s) ) ;
+								if (+start.job_space.lmake_view_s ) push_entry( "lmake_view"  , no_slash(start.job_space.lmake_view_s) ) ;
 								if (+start.job_space.repo_view_s  ) push_entry( "repo_view"   , no_slash(start.job_space.repo_view_s ) ) ;
 								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
 								if (+start.cwd_s                  ) push_entry( "cwd"         , no_slash(start.cwd_s                 ) ) ;

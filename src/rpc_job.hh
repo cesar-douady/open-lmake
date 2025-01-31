@@ -620,16 +620,18 @@ struct JobSpace {
 		// END_OF_VERSIONING
 	} ;
 	// accesses
-	bool operator+() const { return +chroot_dir_s || +repo_view_s || +tmp_view_s || +views ; }
+	bool operator+() const { return +chroot_dir_s || +lmake_view_s || +repo_view_s || +tmp_view_s || +views ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,chroot_dir_s) ;
+		::serdes(s,lmake_view_s) ;
 		::serdes(s,repo_view_s ) ;
 		::serdes(s,tmp_view_s  ) ;
 		::serdes(s,views       ) ;
 	}
 	bool/*entered*/ enter(
 		::vmap_s<MountAction>&/*out*/ deps
+	,	::string   const&             phy_lmake_root_s
 	,	::string   const&             phy_repo_root_s
 	,	::string   const&             phy_tmp_dir_s
 	,	::string   const&             cwd_s
@@ -647,9 +649,10 @@ private :
 	// data
 public :
 	// START_OF_VERSIONING
-	::string            chroot_dir_s = {} ;    // absolute dir which job chroot's to before execution (empty if unused)
-	::string            repo_view_s  = {} ;    // absolute dir under which job sees repo root dir     (empty if unused)
-	::string            tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir           (empty if unused)
+	::string            chroot_dir_s = {} ;    // absolute dir which job chroot's to before execution   (empty if unused)
+	::string            lmake_view_s = {} ;    // absolute dir under which job sees open-lmake root dir (empty if unused)
+	::string            repo_view_s  = {} ;    // absolute dir under which job sees repo root dir       (empty if unused)
+	::string            tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir             (empty if unused)
 	::vmap_s<ViewDescr> views        = {} ;    // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
 } ;
@@ -730,8 +733,8 @@ struct JobStartRpcReply {
 	,	::map_ss             &/*out*/ cmd_env
 	,	::vmap_ss            &/*out*/ dynamic_env
 	,	pid_t                &/*out*/ first_pid
+	,	::string        const&        phy_lmake_root_s
 	,	::string        const&        phy_repo_root_s
-	,	::string        const&        lmake_root_s
 	,	::string        const&        phy_tmp_dir_s
 	,	SeqId
 	) ;

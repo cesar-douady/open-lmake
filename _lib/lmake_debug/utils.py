@@ -32,6 +32,7 @@ class Job :
 
 	chroot_dir  = None
 	cwd         = None
+	lmake_view  = None
 	repo_view   = None
 	source_dirs = None
 	tmp_dir     = None
@@ -118,6 +119,7 @@ class Job :
 		if True                   : res += f' -k{mk_shell_str(repr(self.keep_env                           ))}'
 		if True                   : res += f' -K'
 		if True                   : res += f' -l{                  self.link_support                         }'
+		if self.lmake_view        : res += f' -L{mk_shell_str(     self.lmake_view                          )}'
 		if True                   : res += f' -m{                  self.autodep_method                       }'
 		if True                   : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses'               )}"
 		if self.repo_view         : res += f' -r{mk_shell_str(     self.repo_view                           )}'

@@ -380,8 +380,8 @@ int main( int argc , char* argv[] ) {
 				,	/*out*/cmd_env
 				,	/*out*/end_report.dynamic_env
 				,	/*out*/g_gather.first_pid
-				,	       g_phy_repo_root_s
 				,	       *g_lmake_root_s
+				,	       g_phy_repo_root_s
 				,	       end_report.phy_tmp_dir_s
 				,	       g_seq_id
 				)

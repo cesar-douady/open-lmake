@@ -9,9 +9,10 @@
 	This includes :
 	- environment variables
 	- chroot dir
-	- repo_view mapping
-	- tmp_view mapping
-	- views mapping
+	- lmake_view mapping
+	- repo_view  mapping
+	- tmp_view   mapping
+	- views      mapping
 '''
 
 import os

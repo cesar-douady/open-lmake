@@ -97,6 +97,7 @@ class Rule(_RuleBase) :
 #	job_tokens          = 1                            # number of tokens taken by a job, follow the same syntax as deps (used for ETA estimation)
 #	keep_tmp            = False                        # keep tmp dir after job execution
 	kill_sigs           = (_signal.SIGKILL,)           # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
+#	lmake_view          = '/lmake'                     # absolute path under which the open-lmake installation directory is seen (if None, empty, or absent, no bind mount is done)
 	max_retries_on_lost = 1                            # max number of retries in case of job lost. 1 is a reasonable value
 	n_retries           = max_retries_on_lost          # XXX> : suppress when backward compatibility can be suppressed
 	max_stderr_len      = 100                          # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
