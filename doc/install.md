@@ -1,18 +1,12 @@
-This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-
-Copyright (c) 2023 Doliam
-
-This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
-
-This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
 # Binary packages
 
 open-lmake binary packages are available on launchpad.net for the following systems :
+
 - ubuntu22.04 (jammy)
 - ubuntu24.04 (noble)
 
 To install these, execute:
+
 - `sudo add-apt-repository ppa:cdouady/open-lmake`
 - `sudo apt update`
 - `sudo apt install open-lmake`
@@ -24,7 +18,7 @@ To install these, execute:
 To compile open-lmake, you will need:
 
 - c++20
-- python 3.6 or later with developer support (i.e. access to the Python.so file)
+- python 3.6 or later with developer support (i.e. access to the `Python.so` file)
 
 It has been tested with the dockers listed in the docker directory
 
@@ -32,16 +26,16 @@ It has been tested with the dockers listed in the docker directory
 
 - type `make`
 	- this builds all necessary files and some unit tests
-	- you must invoke `git clean -fdx` if you modified the Makefile or otherwise if you want a reliable build
+	- you must invoke `git clean -fdx` if you modified the Makefile or otherwise if you want a reliable build (`make` is not open-lmake)
 	- you may have to invoke `git clean -fdx lmake_env*` or even `git clean -fdx` after a `git pull`
-		- `lmake_env` is a directory which builds lmake under lmake, for test purpose, no guarantee that the resulting lmake is funtional for now
+		- `lmake_env` is a directory which builds lmake under lmake, for test purpose, no guarantee that the resulting package is funtional for now
 		- `lmake_env-cache` is a directory containing cached results from jobs in `lmake_env`
 		- they are not cleaned on purpose before running as this creates variability for testing lmake, but may fail
 		- and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary to get a reliable build
 	- you can type `make LMAKE` to just build all necessary files
 	- you can type `make lmake.tar.gz.SUMMARY` (built by default) to make a tar ball of the compiled files that you can easily deploy
 - install
-	- untar `lmake.tar.gz` wherever you want and have your $PATH point to the `bin` directory.
+	- untar `lmake.tar.gz` wherever you want and have your `$PATH` point to the `bin` directory and `$MANPATH` point to the `doc/man` directory.
 		- the `bin` sub-dir contains the executables meant to be executed by the user
 		- the `_bin` sub-dir contains the executables necessary for open-lmake to run, but not meant to be directly invoked by the user
 			- it also contains some executables to help debugging open-lmake itself.
@@ -80,12 +74,14 @@ This is the simplest way unless you seek a system-wide installation.
 If running under Ubuntu and you have the necessary packages installed (that you can find by inspecting Makefile, the entry `DEBIAN_DEPS`),
 you can make a Debian package:
 - type `make DEBIAN`
-- the package is `open-lmake_v24.09.1-1_<arch>.deb`
-- you can install it with `sudo apt install ./open-lmake_v24.09.1-1_<arch>.deb`
+- the package is `open-lmake_v25.02.7-1_<arch>.deb`
+- you can install it with `sudo apt install ./open-lmake_v25.02.7-1_<arch>.deb`
 
 Alternatively, you can untar `lmake.tar.gz` at any place.
 
 Installing system-wide with Debian package will take care of placing both binaries and man pages in the standard directories. Alternatively, you can:
+
 - put `/path/to/open-lmake/bin`     in your `$PATH`
 - put `/path/to/open-lmake/doc/man` in your `$MANPATH`
+
 This will simplify the user experience but is not required.

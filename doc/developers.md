@@ -1,11 +1,3 @@
-This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-
-Copyright (c) 2023 Doliam
-
-This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
-
-This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
 # Directory layout
 - `_bin`       : contains scripts mostly used for building open-lmake
 - `debian`     : contains files necessary to build a debian package
@@ -93,6 +85,7 @@ Several prefixes can be used, for example a private static variable will start w
 
 ## Special words
 These special words deserv a dedicated syntax coloring in your prefered editor :
+
 - `DF`                          : `default : FAIL() ;`, used at the end of switch statements when all cases are suposed to be enumerated
 - `DN`                          : `default : ;`       , used at the end of switch statements to allow default as noop
 - `throw_if` and `throw_unless` :                       functions that take a condition as 1st arg and throw a string made after other args if condition is (is not) met
@@ -127,11 +120,11 @@ When there is a choice between "if (cond) branch1 else branch2" and "if (!cond) 
 Most objects have a natural "empty" value, such as empty strings, empty vectors, the first value of an enum, etc.
 
 - It is extremely practical to write `if (err_msg) process_err() ;` rather than `if (!err_msg.empty()) process_err() ;`
-- This suggests to have casts to bool mostly everywhere, but
+- This suggests to have casts to bool mostly everywhere, but:
 	- this does not apply to enum nor to STL classes
 	- this creates a lot of ambiguities
 	- this is actually pretty dangerous as this weakens static type checking (as bool can in turn be converted to int...)
-- The pefect balance is to define the prefix operators + (non empty) and ! (empty):
+- The pefect balance is to define the prefix operators `+` (non empty) and `!` (empty):
 	- we can write `if (+err_msg) process_err() ;` or `if (!err_msg) process_ok() ;` which is still very light
 	- it can apply to any type
 

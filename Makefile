@@ -4,7 +4,7 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 VERSION        := 25.02
-TAG            := 5
+TAG            := 7
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -561,8 +561,14 @@ BASIC_REMOTE_OBJS := \
 	src/autodep/env.o      \
 	src/autodep/record.o
 
-AUTODEP_OBJS := $(BASIC_REMOTE_OBJS) src/autodep/syscall_tab.o
-REMOTE_OBJS  := $(BASIC_REMOTE_OBJS) src/autodep/job_support.o
+AUTODEP_OBJS := \
+	$(BASIC_REMOTE_OBJS) \
+	src/autodep/syscall_tab.o
+REMOTE_OBJS  := \
+	$(BASIC_REMOTE_OBJS)   \
+	src/app.o              \
+	src/trace.o            \
+	src/autodep/job_support.o
 
 JOB_EXEC_SAN_OBJS := \
 	$(AUTODEP_OBJS:%.o=%$(SAN).o) \
@@ -737,7 +743,7 @@ DOCKER : $(DOCKER_FILES)
 #
 
 # as of now, stacktrace is incompatible with split debug info
-LMAKE_DBG_FILES_ALL := $(if $(SPLIT_DBG),$(LMAKE_DBG_FILES)) $(if $(and $(HAS_32),$(SPLIT_DBG_32)),$(LMAKE_DBG_FILES_32))
+LMAKE_DBG_FILES_ALL := $(patsubst %,%.dbg,$(if $(SPLIT_DBG),$(LMAKE_DBG_FILES)) $(if $(and $(HAS_32),$(SPLIT_DBG_32)),$(LMAKE_DBG_FILES_32)))
 
 ARCHIVE_DIR := open-lmake-$(VERSION)
 lmake.tar.gz  : TAR_COMPRESS := z
@@ -745,7 +751,7 @@ lmake.tar.bz2 : TAR_COMPRESS := j
 lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 	@rm -rf $(ARCHIVE_DIR)
 	@mkdir -p $(ARCHIVE_DIR)
-	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES_ALL:%=%.dbg) | tar -x -C$(ARCHIVE_DIR)
+	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES_ALL) | tar -x -C$(ARCHIVE_DIR)
 	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
 
 VERSION_TAG := $(VERSION).$(TAG)
@@ -761,6 +767,7 @@ VERSION_TAG := $(VERSION).$(TAG)
 DEBIAN_DIR := open-lmake-$(VERSION_TAG)
 DEBIAN_TAG := open-lmake_$(VERSION_TAG)
 
+DOC_FILES     := $(if $(HAS_TEXI),$(patsubst %.texi,%.html,$(filter doc/%.texi,$(SRCS))))
 EXAMPLE_FILES := $(filter examples/%,$(SRCS))
 
 # Install debian packages needed to build open-lmake package
@@ -771,13 +778,10 @@ DEBIAN_DEPS :
 #
 # /!\ these rules are necessary for debian packaging to work, they are not primarily made to be executed by user
 #
-install : $(LMAKE_ALL_FILES) $(if $(HAS_TEXI),doc/lmake.html) $(EXAMPLE_FILES)
-	:;               set -e ; for f in $(LMAKE_SERVER_BIN_FILES); do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	:;               set -e ; for f in $(LMAKE_REMOTE_FILES)    ; do install -D            $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	:;               set -e ; for f in $(LMAKE_DBG_FILES_ALL)   ; do install -D -m 644     $$f.dbg $(DESTDIR)/usr/lib/open-lmake/$$f.dbg        ; done
-	:;               set -e ; for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644     $$f     $(DESTDIR)/usr/lib/open-lmake/$$f            ; done
-	$(if $(HAS_TEXI),set -e ; for f in lmake.html               ; do install -D -m 644 doc/$$f     $(DESTDIR)/usr/share/doc/open-lmake/html/$$f ; done)
-	:;               set -e ; for f in $(EXAMPLE_FILES)         ; do install -D -m 644     $$f     $(DESTDIR)/usr/share/doc/open-lmake/$$f      ; done
+install : $(LMAKE_ALL_FILES) $(DOC_FILES) $(EXAMPLE_FILES)
+	set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
+	set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
+	set -e ; for f in $(EXAMPLE_FILES) $(DOC_FILES)                   ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
 
 clean :
 	@echo cleaning...
@@ -800,9 +804,10 @@ $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
 	@echo LMAKE_FLAGS=O3Gtl > $(DEBIAN_DIR)/sys_config.env
 	@tar -cz -C$(DEBIAN_DIR) -f $@ .
 	@tar -c $(DEBIAN_COPY) | tar -x -C$(DEBIAN_DIR)
-	@{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f     /usr/$$f                   ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.links
-	@{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg /usr/lib/debug/usr/$$f.dbg ; done ; } >>$(DEBIAN_DIR)/debian/open-lmake.links
-	@{ for f in                   $(MAN_FILES)        ; do echo $$f                                                    ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.manpages
+	@{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f       /usr/$$f                   ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.links
+	@{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg   /usr/lib/debug/usr/$$f.dbg ; done ; } >>$(DEBIAN_DIR)/debian/open-lmake.links
+	@{ for f in                   doc examples        ; do echo /usr/share/doc/open-lmake/$$f /usr/lib/open-lmake/$$f    ; done ; } >>$(DEBIAN_DIR)/debian/open-lmake.links
+	@{ for f in                   $(MAN_FILES)        ; do echo $$f                                                      ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.manpages
 
 $(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 	@rm -rf $(DEBIAN_DIR)-$*
