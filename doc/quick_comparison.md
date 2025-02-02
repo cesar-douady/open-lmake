@@ -12,9 +12,9 @@ Nevertheless, as seen from today, `make` suffers a rather long list of flaws.
 - its recipe accesses a file which is not declared as a dependency.
 - a dependency has been modified while the target was being rebuilt.
 
-`open-lmake` handles all such cases:
+open-lmake handles all such cases:
 - It is self-tracking, i.e. it handles correctly the modifications of its configuration.
-- It automatically tracks dependencies, leaving no room to the recipe to access files without `open-lmake` being aware of it.
+- It automatically tracks dependencies, leaving no room to the recipe to access files without open-lmake being aware of it.
 - It checks dependencies at the end of each job to ensure they were stable througout the whole execution.
 
 ## The dependencies nightmare
@@ -28,15 +28,15 @@ In addition to that, `make` has a static view of dependencies : they are stored 
 All this makes managing dependencies a nightmare when using make.
 This often results in approximations leading to loss of efficiency when over-approximating and loss of reliability when under-approximating.
 
-On the other side, `open-lmake` only needs the obvious dependencies, for example the `.c` file to build `.o` files.
+On the other side, open-lmake only needs the obvious dependencies, for example the `.c` file to build `.o` files.
 And even, this is often not even necessary. It is only required in such situations where:
 
 - you have a `foo.c` file but no `foo.cc` file.
 - you have compilation rules for C (from `.c` files) and C++ (from `.cc` files).
 - you require `foo.o`
 
-In that case, `open-lmake` needs to know what rule to apply, and for that it needs to know that the first one requires a `.c` file and the second one a `.cc` file.
-Because `foo.c` exists and `foo.cc` does not, `open-lmake` can choose the first rule if statically given the dependency of the direct source.
+In that case, open-lmake needs to know what rule to apply, and for that it needs to know that the first one requires a `.c` file and the second one a `.cc` file.
+Because `foo.c` exists and `foo.cc` does not, open-lmake can choose the first rule if statically given the dependency of the direct source.
 
 ## Lack of scalability
 
@@ -47,7 +47,7 @@ Current builds often need hundreds of thousands to millions of files.
 This is completely out of the scope of `make`.
 This lead the use of recursive makefiles which have proven to perform very poorly.
 
-On the other hand, `open-lmake` can easily handle millions of files with no burden.
+On the other hand, open-lmake can easily handle millions of files with no burden.
 
 ## Rigidity
 
@@ -57,7 +57,7 @@ So rigid that more modern tools have completely abandonned such genericity.
 
 The actual need is to have more flexibility in defining when a rule applies to produce a given file.
 
-On its side, `open-lmake` uses full regular expressions to describe matching rules, which provides the necesary flexibility to define any flow a human can reasonably understand.
+On its side, open-lmake uses full regular expressions to describe matching rules, which provides the necesary flexibility to define any flow a human can reasonably understand.
 
 # ninja
 
@@ -76,14 +76,14 @@ you still need to generate the full configuration, a time consuming process.
 
 If your project is somewhat parametrizable, the overall space can be virtually infinite (with say billions or more possible targets), making this approach completely impracticable.
 
-`open-lmake` dynamically generates its internal graph, to the only extent it is needed (its static configuration is made of regular expressions, not list of files).
+open-lmake dynamically generates its internal graph, to the only extent it is needed (its static configuration is made of regular expressions, not list of files).
 
 Moreover, it automatically decides, reliably, when rematching is necessary.
 For example, in the case above with 2 rules to produce `.o` files from `.c` and `.cc` files, if you used to have a `foo.c` file but move it to `foo.cc`,
-`open-lmake` will automatically see that the selection of the C compilation rule is not adequate any more and will rematch the `foo.o` file
+open-lmake will automatically see that the selection of the C compilation rule is not adequate any more and will rematch the `foo.o` file
 to find out that the right rule to use is the C++ compilation one.
 
-As with `ninja`, most of the time, this is not necessary, and `open-lmake` will be at least as fast as `ninja`, with reliability as a bonus.
+As with `ninja`, most of the time, this is not necessary, and open-lmake will be at least as fast as `ninja`, with reliability as a bonus.
 
 # bazel
 
@@ -117,7 +117,7 @@ In that case, there is a dependency to `dir2/my_lib.h`, but not to `dir1/my_lib.
 Build systems relying on such use of `gcc -M` (including `bazel` as this part is left to the user) will incorrectly consider `foo.o` as up to date.
 This is in contradiction with `bazel` advertising "speed through correctness".
 
-`open-lmake` correctly maintains a dependency to `dir1/my_lib.h`, in addition to `dir2/my_lib.h`.
+open-lmake correctly maintains a dependency to `dir1/my_lib.h`, in addition to `dir2/my_lib.h`.
 More precisely, it maintains a dependency to "`dir1/my_lib.h` must not exist nor be buildable". If this statement does not hold, `foo.o` is rebuilt, as expected.
 
 # CMake
@@ -130,5 +130,5 @@ In addition to flaws inherited from its backends (cf above), CMake syntax is rat
 Also, CMake contains a lot of predefined commands to manage a lot of specific situations.
 Such commands should not be part of the build system itself and they participate to the overall complexisty of this tool.
 
-On the contrary, `open-lmake` is fully generic contains no specific cases to manage such situations.
+On the contrary, open-lmake is fully generic contains no specific cases to manage such situations.
 There is no predefined project organization.

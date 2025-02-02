@@ -7,7 +7,7 @@ According to [Build Systems à la carte](https://dl.acm.org/doi/pdf/10.1145/3236
 open-lmake is correct, monadic, restarting, self-tracking, keeps verifying traces, implements parallel execution, does early cutoff and implements dynamically allocated keys.
 Optionally, it can keep constructive traces and be a cloud build system.
 
-Its major goal is reliability and repeatability, stealing ideas from [Building System Rules and Algorithms] (https://gittup.org/tup/build_system_rules_and_algorithms.pdf).
+Its major goal is reliability and repeatability, stealing ideas from [Building System Rules and Algorithms](https://gittup.org/tup/build_system_rules_and_algorithms.pdf).
 However our conclusions about implementation are different.
 To understand why, visit [why sticking to alpha algorithms](doc/why_stick_to_alpha_algo.md).
 

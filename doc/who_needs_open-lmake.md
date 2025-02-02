@@ -18,10 +18,13 @@ If you experience any of the following time-wasting situations:
 Then you need a tool to help you.
 Such tools are called build systems.
 
-Open-lmake is such a tool that will provide apt solutions to all the above-mentioned points.
+open-lmake is such a tool that will provide apt solutions to all the above-mentioned points.
 
 If your development is mainstream (such as writing an app in C, Python or Java) and you are seeking a fast on-boarding tool, you may find some other tools adequate.
 These may be for example `Cmake`, `PyBuilder` or `maven`. They will save you from writing common case rules, call the compiler with the right options etc.
 
 In other cases (e.g. you use CAD tools, you write embedded code, the complexity of your flow comes from testing & evaluating KPI's rather than compiling, etc.),
 you need a more generic tool and open-lmake is an excellent choice.
+
+In particular, if you already use `make` today and are frustrated by its poor static dependency paradigm and lack of versatility, and if you are tired typing `make clean` every so often,
+then converting your code base to open-lmake will be 1) easy and 2) a breath of fresh air.

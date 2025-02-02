@@ -16,12 +16,12 @@ Also, it is considered as granted that the time to go through the DAG (backward 
 This is true for `make`, but is not necessary:
 
 - According to the paper, `makes` takes about half an hour to analyze 100.000 files.
-- `open-lmake` takes less than a second in the same situation, less than a common single compilation.
+- open-lmake takes less than a second in the same situation, less than a common single compilation.
 
-While I can't explain what is going on on the `make` side, what happends on the `open-lmake` side is:
+While I can't explain what is going on on the `make` side, what happends on the open-lmake side is:
 
 - It is not necessary to `stat` all intermediate files, only source files need to be `stat`ed.
-- `open-lmake` keeps its internal DAG data-base on disk in an optimized format, directly mapped in the process at start-up.
+- open-lmake keeps its internal DAG data-base on disk in an optimized format, directly mapped in the process at start-up.
 
 Mapping this entire DAG has constant time as long as it is not read, and only the partial DAG aiming to the targets will ever be read, leading to time proportional to its size.
 On average, it may very well be comparable to the size of the DAG originating from the updated sources.
@@ -29,7 +29,7 @@ And in all cases, we are speaking of less than a second to an already rather lar
 
 Also, detecting that a file has been modified is far from easy while keeping a good reliability level:
 
-- The IDE and the source control system may very well be instrumented (as is any job in `open-lmake`), but what if the user uses a plain linux command (such as `sed` or whatever) ?
+- The IDE and the source control system may very well be instrumented (as is any job in open-lmake), but what if the user uses a plain linux command (such as `sed` or whatever) ?
 - A solution would be to use `inotify` (which probably did not exist at the time the paper was written), but:
 	- it would require one `inotify` instance per source file, which makes it impractical as soon as the project reaches an even moderate size,
 	- `inotify` advertises itself as _unreliable_, for example is the file is modified on another host through a network file system, such modification would go unnoticed.
