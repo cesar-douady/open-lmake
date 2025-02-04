@@ -209,31 +209,35 @@ namespace Engine {
 	// Dynamic
 	//
 
-	bool DynamicDskBase::s_is_dynamic(Py::Tuple const& py_src) {
+	::string& operator+=( ::string& os , DepSpec const& ds ) {
+		return os <<"DepSpec("<< ds.txt <<','<< ds.dflags <<','<< ds.extra_dflags <<')' ;
+	}
+
+	bool DynamicDskBase::s_is_dynamic(Tuple const& py_src) {
 		ssize_t sz = py_src.size() ;
-		if (sz>1) SWEAR(py_src[1].is_a<Py::Sequence>()) ; // names
+		if (sz>1) SWEAR(py_src[1].is_a<Sequence>()) ; // names
 		switch (sz) {
 			case 1 :
 			case 2 : return false ;
 			case 5 :
-				SWEAR(py_src[2].is_a<Py::Str>()) ;        // glbs
-				SWEAR(py_src[3].is_a<Py::Str>()) ;        // code
-				SWEAR(py_src[4].is_a<Py::Str>()) ;        // dbg_info
+				SWEAR(py_src[2].is_a<Str>()) ;        // glbs
+				SWEAR(py_src[3].is_a<Str>()) ;        // code
+				SWEAR(py_src[4].is_a<Str>()) ;        // dbg_info
 				return +py_src[3] ;
 		DF}
 	}
 
-	DynamicDskBase::DynamicDskBase( Py::Tuple const& py_src , ::umap_s<CmdIdx> const& var_idxs ) :
+	DynamicDskBase::DynamicDskBase( Tuple const& py_src , ::umap_s<CmdIdx> const& var_idxs ) :
 		is_dynamic { s_is_dynamic(py_src)                                        }
-	,	glbs_str   { is_dynamic      ? ::string(py_src[2].as_a<Py::Str>()) : ""s }
-	,	code_str   { is_dynamic      ? ::string(py_src[3].as_a<Py::Str>()) : ""s }
-	,	dbg_info   { py_src.size()>4 ? ::string(py_src[4].as_a<Py::Str>()) : ""s }
+	,	glbs_str   { is_dynamic      ? ::string(py_src[2].as_a<Str>()) : ""s }
+	,	code_str   { is_dynamic      ? ::string(py_src[3].as_a<Str>()) : ""s }
+	,	dbg_info   { py_src.size()>4 ? ::string(py_src[4].as_a<Str>()) : ""s }
 	{
-		Py::Gil::s_swear_locked() ;
+		Gil::s_swear_locked() ;
 		if (py_src.size()<=1) return ;
-		ctx.reserve(py_src[1].as_a<Py::Sequence>().size()) ;
-		for( Py::Object const& py_item : py_src[1].as_a<Py::Sequence>() ) {
-			CmdIdx ci = var_idxs.at(py_item.as_a<Py::Str>()) ;
+		ctx.reserve(py_src[1].as_a<Sequence>().size()) ;
+		for( Object const& py_item : py_src[1].as_a<Sequence>() ) {
+			CmdIdx ci = var_idxs.at(py_item.as_a<Str>()) ;
 			ctx.push_back(ci) ;
 		}
 		::sort(ctx) ; // stabilize crc's
@@ -390,34 +394,36 @@ namespace Engine {
 	// DepsAttrs
 	//
 
-	static bool/*keep*/ _qualify_dep( ::string const& key , DepKind kind , ::string const& dep , ::string const& full_dep , ::string const& dep_for_msg ) {
+	static bool/*keep*/ _qualify_dep( ::string const& key , bool is_python , ::string const& dep , ::string const& full_dep , ::string const& dep_for_msg ) {
 		::string dir_s = dep.substr(0,dep.find(Rule::StemMrkr)) ; if ( size_t p=dir_s.rfind('/') ; p!=Npos ) dir_s.resize(p+1) ; else dir_s.clear() ;
 		//
-		auto bad = [&] [[noreturn]] (::string const& msg) {
-			if (kind==DepKind::Dep) throw "dep "+key     +" ("+dep_for_msg+") "+msg ;
-			else                    throw snake_str(kind)+" ("+dep_for_msg+") "+msg ;
+		auto bad = [&] ( ::string const& msg, bool interpreter_ok )->void {
+			if (key!="<interpreter>") throw "dep "+key+" ("+dep_for_msg+") "+msg ;
+			if (interpreter_ok      ) return                                     ;
+			if (is_python           ) throw "python ("     +dep_for_msg+") "+msg ;
+			/**/                      throw "shell ("      +dep_for_msg+") "+msg ;
 		} ;
 		//
-		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(full_dep)) ;
+		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(full_dep),false/*interpreter_ok*/) ;
 		if (is_lcl(dep)     ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
 		::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s) ;
 		::string abs_dir_s = mk_abs(dir_s,*g_repo_root_s) ;
-		if (is_lcl_s(rel_dir_s)) bad("must be provided as local file : "+rel_dir_s+substr_view(full_dep,dir_s.size())) ;
+		if (is_lcl_s(rel_dir_s)) bad("must be provided as local file : "+rel_dir_s+substr_view(full_dep,dir_s.size()),false/*interpreter_ok*/) ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s ) {
-			if ( is_lcl_s(sd_s)                                                ) continue ;                        // nothing to recognize inside repo
+			if ( is_lcl_s(sd_s)                                                ) continue ;                                                                  // nothing to recognize inside repo
 			::string const& d_s = is_abs_s(sd_s) ? abs_dir_s : rel_dir_s ;
-			if (!( d_s.starts_with(sd_s) && is_lcl_s(d_s.substr(sd_s.size())) )) continue ;                        // not in this source dir
+			if (!( d_s.starts_with(sd_s) && is_lcl_s(d_s.substr(sd_s.size())) )) continue            ;                                                       // not in this source dir
 			if ( is_abs_s(dir_s)==is_abs_s(sd_s)                               ) return true/*keep*/ ;
-			bad("must be "s+(is_abs_s(sd_s)?"absolute":"relative")+" inside source dir "+sd_s) ;
+			bad("must be "s+(is_abs_s(sd_s)?"absolute":"relative")+" inside source dir "+sd_s,false/*interpreter_ok*/) ;
 		}
-		if (kind!=DepKind::Dep) return false/*keep*/ ;                                                             // normal case : interpreter is outside repo typically system python or bash
-		bad("is outside repository and all source dirs, consider : lmake.manifest.append("+mk_py_str(dir_s)+")") ;
+		bad("is outside repository and all source dirs, consider : lmake.manifest.append("+mk_py_str(dir_s)+")",true/*interpreter_ok*/) ;                    // interpreter is typically outside repo
+		return false/*keep*/ ;
 	}
-	static bool/*keep*/ _qualify_dep( ::string const& key , DepKind kind , ::string const& dep ) {
-		if ( is_canon(dep) && is_lcl(dep) ) return true/*keep*/                       ;                            // fast path when evaluating job deps
-		else                                return _qualify_dep(key,kind,dep,dep,dep) ;
+	static bool/*keep*/ _qualify_dep( ::string const& key , bool is_python , ::string const& dep ) {
+		if ( is_canon(dep) && is_lcl(dep) ) return true/*keep*/                       ;                                                                      // fast path when evaluating job deps
+		else                                return _qualify_dep(key,is_python,dep,dep,dep) ;
 	}
 	void DepsAttrs::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		full_dynamic = false ;                                                                                                                               // if full dynamic, we are not initialized
@@ -435,7 +441,7 @@ namespace Engine {
 			::string    parsed_dep = rd.add_cwd( Attrs::subst_fstr( dep , var_idxs , n_unnamed ) , edf[ExtraDflag::Top] ) ;
 			::string    full_dep   = rd.add_cwd( ::copy(dep)                                     , edf[ExtraDflag::Top] ) ;
 			//
-			_qualify_dep( key , DepKind::Dep , parsed_dep , full_dep , dep ) ;
+			if (!_qualify_dep( key , rd.is_python , parsed_dep , full_dep , dep )) continue ;
 			//
 			if (n_unnamed) {
 				for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
@@ -444,15 +450,6 @@ namespace Engine {
 			deps.emplace_back( key , DepSpec{ ::move(parsed_dep) , df , edf } ) ;
 		}
 		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ; // -1 to leave some room to the interpreter, if any
-	}
-
-	void DepsAttrs::add_interpreter(RuleData const& rd) {
-		::vector_s const& interpreter  = rd.start_cmd_attrs.spec.interpreter ;
-		if (+interpreter) {
-			::string interpreter0 = rd.add_cwd(::copy(interpreter[0])) ;
-			if ( _qualify_dep( {} , rd.is_python?DepKind::Python:DepKind::Shell , interpreter0 , interpreter0 , interpreter[0] ) )
-				deps.emplace_back( "<interpreter>" , DepSpec{::move(interpreter0),Dflag::Static,{}} ) ;
-		}
 	}
 
 	::vmap_s<DepSpec> DynamicDepsAttrs::eval(Rule::SimpleMatch const& match) const {
@@ -465,19 +462,28 @@ namespace Engine {
 			//
 			::map_s<VarIdx> dep_idxs ;
 			for( VarIdx di : iota<VarIdx>(spec.deps.size()) ) dep_idxs[spec.deps[di].first] = di ;
-			if (*py_obj!=Py::None) {
-				throw_unless( +py_obj->is_a<Py::Dict>() , "type error : ",py_obj->ob_type->tp_name," is not a dict" ) ;
+			if (*py_obj!=None) {
+				throw_unless( +py_obj->is_a<Dict>() , "type error : ",py_obj->ob_type->tp_name," is not a dict" ) ;
 				for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
 					if (py_val==None) continue ;
 					::string key = py_key.as_a<Str>() ;
 					Dflags      df  { Dflag::Essential , Dflag::Static } ;
 					ExtraDflags edf ; SWEAR(!(edf&~ExtraDflag::Top)) ;                                                                             // or we must review side_deps
 					::string    dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
-					_qualify_dep( key , DepKind::Dep , dep ) ;
+					if ( !_qualify_dep( key , match.rule->is_python , dep ) ) continue ;
 					DepSpec ds { dep , df , edf } ;
 					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          } // dep cannot be both static and dynamic
 					else                                                          res[dep_idxs.at(key)].second = ds ;   // if not full_dynamic, all deps must be listed in spec
 				}
+			}
+			if (!spec.full_dynamic) {                                                                                   // suppress dep placeholders that are not set by dynamic code
+				NodeIdx i = 0 ;
+				for( NodeIdx j : iota(res.size()) ) {
+					if (!res[j].second.txt) continue ;
+					if (i!=j              ) res[i] = ::move(res[j]) ;
+					i++ ;
+				}
+				res.resize(i) ;
 			}
 		}
 		//
@@ -534,7 +540,7 @@ namespace Engine {
 			} else {
 				Gil         gil    ;
 				Ptr<Object> py_obj = _eval_code( match , rsrcs , deps ) ;
-				throw_unless( +py_obj->is_a<Py::Str>() , "type error : ",py_obj->type_name()," is not a str" ) ;
+				throw_unless( +py_obj->is_a<Str>() , "type error : ",py_obj->type_name()," is not a str" ) ;
 				Attrs::acquire( cmd , &py_obj->as_a<Str>() ) ;
 			}
 			return {{}/*preamble*/,::move(cmd)} ;
@@ -655,7 +661,7 @@ namespace Engine {
 		}
 		return true ;
 	}
-	void RuleData::_acquire_py(Py::Dict const& dct) {
+	void RuleData::_acquire_py(Dict const& dct) {
 		::string field ;
 		Gil::s_swear_locked() ;
 		try {
@@ -907,7 +913,6 @@ namespace Engine {
 				stdin_idx = di ;
 				break ;
 			}
-			deps_attrs.spec.add_interpreter(self) ;
 		}
 		catch(::string const& e) { throw "while processing "+full_name()+'.'+field+" :\n"+indent(e) ; }
 	}

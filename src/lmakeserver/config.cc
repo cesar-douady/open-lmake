@@ -16,8 +16,9 @@ namespace Engine {
 	::string& operator+=( ::string& os , Config::Backend const& be ) {
 		os << "Backend(" ;
 		if (be.configured) {
-			if (+be.ifce) os << be.ifce <<',' ;
-			/**/          os << be.dct        ;
+			if (+be.ifce) os <<      be.ifce <<',' ;
+			/**/          os <<      be.dct        ;
+			if (+be.env ) os <<','<< be.env        ;
 		}
 		return os <<')' ;
 	}
@@ -53,9 +54,11 @@ namespace Engine {
 		try {
 			for( auto const& [py_k,py_v] : py_map ) {
 				field = py_k.as_a<Str>() ;
-				::string v = py_v==True ? "1"s : py_v==False ? "0"s : ::string(*py_v.str()) ;
-				if (field=="interface") ifce = v ;
-				else                    dct.emplace_back(field,v) ;
+				switch (field[0]) {
+					case 'e' : if (field=="environ"  ) { { for( auto const& [py_k2,py_v2] : py_v.as_a<Dict>() ) env.emplace_back( py_k2.as_a<Str>() , *py_v2.str() ) ; } continue ; } break ;
+					case 'i' : if (field=="interface") { ifce = *py_v.str() ;                                                                                            continue ; } break ;
+				DN}
+				dct.emplace_back( field , py_v==True ? "1"s : py_v==False ? "0"s : ::string(*py_v.str()) ) ;
 			}
 		} catch(::string const& e) {
 			throw "while processing "+field+e ;
@@ -94,14 +97,15 @@ namespace Engine {
 			if (py_map.contains(fields[0])) {
 				Dict const& py_console = py_map[fields[0]].as_a<Dict>() ;
 				fields.emplace_back() ;
+				fields[1] = "has_exec_time" ; if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
+				fields[1] = "show_eta"      ; if (py_console.contains(fields[1])) console.show_eta      = +py_console[fields[1]] ;
+				fields[1] = "show_ete"      ; if (py_console.contains(fields[1])) console.show_ete      = +py_console[fields[1]] ;
 				fields[1] = "date_precision" ;
 				if (py_console.contains(fields[1])) {
 					Object const& py_date_prec = py_console[fields[1]] ;
 					if (py_date_prec==None)   console.date_prec = uint8_t(-1                      ) ;
 					else                    { console.date_prec = uint8_t(py_date_prec.as_a<Int>()) ; throw_unless(console.date_prec<=9,"must be at most 9") ; }
 				}
-				fields[1] = "has_exec_time" ;
-				if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
 				fields[1] = "history_days" ;
 				if (py_console.contains(fields[1])) {
 					Object const& py_history_days = py_console[fields[1]] ;
@@ -112,8 +116,7 @@ namespace Engine {
 					Object const& py_host_len = py_console[fields[1]] ;
 					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
 				}
-				fields[1] = "show_eta" ;
-				if (py_console.contains(fields[1])) console.show_eta      = +py_console[fields[1]] ;
+				//
 				fields.pop_back() ;
 			}
 			//
@@ -274,7 +277,8 @@ namespace Engine {
 		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		if (console.history_days          ) res << "\t\thistory_days   : " << console.history_days  <<'\n' ;
 		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
-		/**/                                res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
+		if (console.show_eta              ) res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
+		if (console.show_ete              ) res << "\t\tshow_ete       : " << console.show_ete      <<'\n' ;
 		//
 		bool has_digits = false ; for( StdRsrc r : iota(All<StdRsrc>) ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
 		if (has_digits) {
@@ -295,13 +299,20 @@ namespace Engine {
 			res <<"\t\t"<< t <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
 			::vmap_ss descr = bbe->descr() ;
 			size_t    w     = 0            ;
-			if ( !bbe->is_local() )           w = ::max(w,strlen("address")) ;
-			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()         ) ;
-			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()         ) ;
-			if ( !bbe->is_local() )           res <<"\t\t\t"<< widen("address",w) <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
-			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k        ,w) <<" : "<< v                             <<'\n' ;
-			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k        ,w) <<" : "<< v                             <<'\n' ;
-			if (+be.ifce)                     res <<indent<'\t'>(be.ifce,3)                                               <<'\n' ;
+			if ( +be.ifce         )           w = ::max(w,strlen("interface")) ;
+			if ( !bbe->is_local() )           w = ::max(w,strlen("address"  )) ;
+			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()           ) ;
+			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()           ) ;
+			if ( +be.ifce         )           res <<"\t\t\t"<< widen("interface",w) <<" : "<< be.ifce                       <<'\n' ;
+			if ( !bbe->is_local() )           res <<"\t\t\t"<< widen("address"  ,w) <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k          ,w) <<" : "<< v                             <<'\n' ;
+			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k          ,w) <<" : "<< v                             <<'\n' ;
+			if (+be.env) {
+				res <<"\t\t\tenviron :\n" ;
+				size_t w2 = 0 ;
+				for( auto const& [k,v] : be.env ) w2 = ::max(w2,k.size()) ;
+				for( auto const& [k,v] : be.env ) res <<"\t\t\t\t"<< widen(k,w2) <<" : "<< v <<'\n' ;
+			}
 		}
 		//
 		if (trace!=TraceConfig()) {

@@ -1,4 +1,4 @@
-# who needs open-lmake?
+# Who needs open-lmake?
 
 If you experience any of the following time-wasting situations:
 

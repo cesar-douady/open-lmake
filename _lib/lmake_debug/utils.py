@@ -32,10 +32,11 @@ class Job :
 
 	chroot_dir  = None
 	cwd         = None
+	keep_tmp    = False
 	lmake_view  = None
 	repo_view   = None
 	source_dirs = None
-	tmp_dir     = None
+	tmp_dir     = '/tmp'
 	tmp_size_mb = None
 	tmp_view    = None
 
@@ -126,7 +127,8 @@ class Job :
 		if self.source_dirs       : res += f' -s{mk_shell_str(repr(self.source_dirs                        ))}'
 		if self.tmp_size_mb!=None : res += f' -S{mk_shell_str(repr(self.tmp_size_mb                        ))}'
 		if self.tmp_view          : res += f' -t{mk_shell_str(     self.tmp_view                            )}'
-		if True                   : res += f" -T{mk_shell_str(lmake.top_repo_root+'/'+self.debug_dir+'/tmp' )}"
+		if self.keep_tmp          : res += f" -T{mk_shell_str(lmake.top_repo_root+'/'+self.debug_dir+'/tmp' )}"
+		else                      : res += f" -T{mk_shell_str(self.tmp_dir                                  )}"
 		if self.views             : res += f' -v{mk_shell_str(repr(self.views                              ))}'
 		#
 		if True                   : res += ''.join(' '+x for x in args)                 # must be before redirections to files if args contains redirections

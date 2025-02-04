@@ -866,9 +866,14 @@ If @code{None}, the host is not shown.
 Note that no host is shown for local execution.
 
 @item @code{console.show_eta}
-@tab @code{True}
+@tab @code{False}
 @tab Dynamic
 @tab If this attribute is true, the title shows the ETA of the command, in addition to statistics about number of jobs.
+
+@item @code{console.show_ete}
+@tab @code{True}
+@tab Dynamic
+@tab If this attribute is true, the title shows the ETE of the command, in addition to statistics about number of jobs.
 
 @item @code{trace.size}
 @tab @code{100_000_000}
@@ -929,6 +934,12 @@ There is no generic way to determine this address, so in general, @lmake cannot 
 @*
 This value may be empty (loop-back for local backend, @code{hostname} look up for remote backends), given in standard dot notation, as the name of an interface (as shown by @code{ifconfig})
 or the name of a host (looked up as for @code{ping}).
+
+@item @code{backends.*.environ}
+@tab empty
+@tab
+Environment to pass when launching job in backend.
+This environment is accessed when the value mentioned in the rule is @code{...}.
 
 @item @code{backends.local.cpu}
 @tab number of physical CPU's
@@ -1734,6 +1745,8 @@ In the later case, a file that contains the script is created and its name is pa
 @lmake uses Python 3.6+ to read @file{Lmakefile.py}, but that being done, any interpreter can be used to execute @code{cmd}.
 In particular, Python2.7 and all revisions of Python3 are fully supported.
 
+If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep.
+
 @section @code{shell}
 
 @multitable @columnfractions 0.1 0.9
@@ -1749,6 +1762,8 @@ In particular, Python2.7 and all revisions of Python3 are fully supported.
 
 This attribute defines the interpreter used to run the @code{cmd} if it is a @code{str}.
 At the end of the supplied executable and arguments, @code{'-c'} and the actual script is appended.
+
+If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep.
 
 @section @code{cmd}
 

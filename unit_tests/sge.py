@@ -24,6 +24,7 @@ if __name__!='__main__' :
 	sge_root = osp.dirname(osp.dirname(sge_bin))
 	lmake.config.backends.sge = {
 		'interface'    : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
+	,	'environ'      : { 'DUT':'dut' }
 	,	'bin'          : sge_bin
 	,	'root'         : sge_root
 	#,	'cpu_resource' : 'cpu'
@@ -44,8 +45,12 @@ if __name__!='__main__' :
 		resources = {'mem':'20M'}
 
 	class CatSh(Cat) :
-		target = '{File1}+{File2}_sh'
-		cmd    = 'cat {FIRST} {SECOND}'
+		target  = '{File1}+{File2}_sh'
+		environ = { 'DUT':... }
+		cmd = '''
+			[ "$DUT" = dut ] || echo bad '$DUT :' "$DUT != dut" >&2
+			cat {FIRST} {SECOND}
+		'''
 
 	class CatPy(Cat,PyRule) :
 		target = '{File1}+{File2}_py'
@@ -55,11 +60,16 @@ if __name__!='__main__' :
 
 else :
 
+	import subprocess as sp
+
 	if 'sge' not in lmake.backends :
 		print('sge not compiled in',file=open('skipped','w'))
 		exit() ;
 	if not shutil.which('qsub') :
 		print('sge not available',file=open('skipped','w'))
+		exit() ;
+	if sp.run(('qsub','-b','y','-o','/dev/null','-e','/dev/null','/dev/null'),stdin=sp.DEVNULL,stdout=sp.DEVNULL,stderr=sp.DEVNULL).returncode!=0 :
+		print('sge not usable',file=open('skipped','w'))
 		exit() ;
 
 	import ut

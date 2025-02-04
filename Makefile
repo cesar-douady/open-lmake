@@ -635,9 +635,9 @@ UT_BASE := $(filter     unit_tests/base/%,$(SRCS))
 UT_SRCS := $(filter-out unit_tests/base/%,$(SRCS))
 
 UNIT_TESTS : \
-	$(patsubst %.py,%.dir/tok,        $(filter unit_tests/%.py,      $(UT_SRCS))) \
-	$(patsubst %.script,%.dir/tok,    $(filter unit_tests/%.script  ,$(UT_SRCS))) \
-	$(patsubst %.dir/run.py,%.dir/tok,$(filter examples/%.dir/run.py,$(UT_SRCS)))
+	$(patsubst %.py,%.dir/tok,        $(filter unit_tests/%.py,    $(UT_SRCS))) \
+	$(patsubst %.script,%.dir/tok,    $(filter unit_tests/%.script,$(UT_SRCS))) \
+	$(patsubst %.dir/run.py,%.dir/tok,$(filter examples/%.dir/run ,$(UT_SRCS)))
 
 TEST_ENV = \
 	export PATH=$(REPO_ROOT)/bin:$(REPO_ROOT)/_bin:$$PATH                                          ; \
@@ -673,7 +673,7 @@ TEST_POSTLUDE = \
 	@( $(TEST_ENV) ; cd $(@D) ; $(PYTHON) Lmakefile.py ) ; $(TEST_POSTLUDE)
 
 # examples can alter their source to show what happens to the user, so copy in a trial dir before execution
-%.dir/tok : %.dir/Lmakefile.py %.dir/run.py $(LMAKE_FILES) _lib/ut.py
+%.dir/tok : %.dir/Lmakefile.py %.dir/runy $(LMAKE_FILES) _lib/ut.py
 	@echo run example to $@
 	@$(TEST_PRELUDE)
 	@(                                                                                      \
@@ -681,7 +681,7 @@ TEST_POSTLUDE = \
 		mkdir -p $$trial ;                                                                  \
 		rm -rf $$trial/* ;                                                                  \
 		tar -c -C$(@D) $(patsubst $(@D)/%,%,$(filter $(@D)/%,$(SRCS))) | tar -x -C$$trial ; \
-		$(TEST_ENV) ; cd $(@:%.dir/tok=%.trial) ; $(PYTHON) run.py                          \
+		$(TEST_ENV) ; cd $(@:%.dir/tok=%.trial) ; run                                       \
 	) ; $(TEST_POSTLUDE)
 
 #

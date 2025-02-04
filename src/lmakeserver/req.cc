@@ -102,14 +102,17 @@ namespace Engine {
 	}
 
 	void Req::new_eta() {
+		Pdate now       = New                                                       ;
 		Pdate new_eta   = Backend::s_submitted_eta(self) + self->stats.waiting_cost ;
 		Pdate old_eta   = self->eta                                                 ;
-		Delay old_ete   = old_eta-Pdate(New)                                        ;
+		Delay old_ete   = old_eta-now                                               ;
 		Delay delta_ete = new_eta>old_eta ? new_eta-old_eta : old_eta-new_eta       ; // cant use ::abs(new_eta-old_eta) because of signedness
 		//
-		if ( delta_ete.val() <= (old_ete.val()>>4) ) return ;                         // eta did not change significatively
-		_adjust_eta(new_eta) ;
-		Backend::s_new_req_etas() ;                                                   // tell backends that etas changed significatively
+		if ( delta_ete.val() > (old_ete.val()>>4) ) { // else eta did not change significatively
+			_adjust_eta(new_eta) ;
+			Backend::s_new_req_etas() ;                                                   // tell backends that etas changed significatively
+		}
+		self->ete = new_eta-now ;
 	}
 
 	void Req::_adjust_eta( Pdate eta , bool push_self ) {
@@ -118,8 +121,10 @@ namespace Engine {
 			bool changed    = false            ;
 			Lock lock       { s_reqs_mutex }   ;
 			Idx  idx_by_eta = self->idx_by_eta ;
+			//
 			if (+eta     ) self->eta = eta ;                                                                 // eta must be upated while lock is held as it is read in other threads
 			if (push_self) _s_reqs_by_eta.push_back(self) ;
+			//
 			while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>self->eta ) {                          // if eta is decreased
 				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
 				( _s_reqs_by_eta[idx_by_eta-1] = self                         )->idx_by_eta = idx_by_eta-1 ; // .
@@ -524,6 +529,7 @@ namespace Engine {
 				+	                                                      " running:"s +  stats.cur(JobStep::Exec  )
 				+	( stats.cur(JobStep::Queued)                        ? " queued:"s  +  stats.cur(JobStep::Queued)                               : ""s )
 				+	( stats.cur(JobStep::Dep   )>1                      ? " waiting:"s + (stats.cur(JobStep::Dep   )-!options.flags[ReqFlag::Job]) : ""s ) // suppress job representing Req itself
+				+	( g_config->console.show_ete                        ? " - ETE:"s   +  ete.short_str()                                          : ""s )
 				+	( g_config->console.show_eta                        ? " - ETA:"s   +  eta.str(0/*prec*/,true/*in_day*/)                        : ""s )
 				)
 			} ;

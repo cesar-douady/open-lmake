@@ -75,12 +75,12 @@ namespace Backends::Local {
 
 		// services
 
-		virtual void sub_config( ::vmap_ss const& dct , bool dynamic ) {
+		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dynamic ) {
 			// add an implicit resource <single> to manage jobs localized from remote backends
 			Trace trace(BeChnl,"Local::config",STR(dynamic),dct) ;
 			if (dynamic) {
 				for( size_t i : iota(rsrc_keys.size()) ) {
-					if ( i==rsrc_keys.size()-1 && rsrc_keys[i]=="<single>" && i>=dct.size() ) continue ; // skip implicit <single> key
+					if ( i==rsrc_keys.size()-1 && rsrc_keys[i]=="<single>" && i>=dct.size() ) continue ;                                 // skip implicit <single> key
 					throw_unless( i<dct.size() && rsrc_keys[i]==dct[i].first , "cannot change resource names while lmake is running" ) ;
 				}
 			} else {
@@ -104,16 +104,18 @@ namespace Backends::Local {
 			trace("capacity",capacity()) ;
 			_wait_queue.open( 'T' , _s_wait_job ) ;
 			//
-			if ( !dynamic && rsrc_idxs.contains("cpu") ) {                                                          // ensure each job can compute CRC on all cpu's in parallel
+			if ( !dynamic && rsrc_idxs.contains("cpu") ) {                                                                               // ensure each job can compute CRC on all cpu's in parallel
 				struct rlimit rl ;
 				::getrlimit(RLIMIT_NPROC,&rl) ;
 				if ( rl.rlim_cur!=RLIM_INFINITY && rl.rlim_cur<rl.rlim_max ) {
 					::rlim_t new_limit = rl.rlim_cur + capacity_[rsrc_idxs["cpu"]]*thread::hardware_concurrency() ;
-					if ( rl.rlim_max!=RLIM_INFINITY && new_limit>rl.rlim_max ) new_limit = rl.rlim_max ;            // hard limit overflow
+					if ( rl.rlim_max!=RLIM_INFINITY && new_limit>rl.rlim_max ) new_limit = rl.rlim_max ;                                 // hard limit overflow
 					rl.rlim_cur = new_limit ;
 					::setrlimit(RLIMIT_NPROC,&rl) ;
 				}
 			}
+			//
+			env = mk_map(env_) ;
 			trace("done") ;
 		}
 		virtual ::vmap_s<size_t> const& capacity() const {
@@ -147,26 +149,26 @@ namespace Backends::Local {
 			return "pid:"s+e.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job , SpawnedEntry const& se , Status ) const {
-			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
-			return {{},true/*retry*/} ;                                                                             // retry if garbage
+			_wait_queue.push(se.id) ;                                                                 // defer wait in case job_exec process does some time consuming book-keeping
+			return {{},true/*retry*/} ;                                                               // retry if garbage
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {               // called after job_exec has had time to start
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const { // called after job_exec has had time to start
 			SWEAR(se.id) ;
 			int wstatus = 0 ;
-			if      (::waitpid(se.id,&wstatus,WNOHANG)==0) return {{}/*msg*/,HeartbeatState::Alive} ;               // process is still alive
-			else if (!wstatus_ok(wstatus)                ) return {{}/*msg*/,HeartbeatState::Err  } ;               // process just died with an error
-			else                                           return {{}/*msg*/,HeartbeatState::Lost } ;               // process died long before (already waited) or just died with no error
+			if      (::waitpid(se.id,&wstatus,WNOHANG)==0) return {{}/*msg*/,HeartbeatState::Alive} ; // process is still alive
+			else if (!wstatus_ok(wstatus)                ) return {{}/*msg*/,HeartbeatState::Err  } ; // process just died with an error
+			else                                           return {{}/*msg*/,HeartbeatState::Lost } ; // process died long before (already waited) or just died with no error
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (!se.live) return ;
-			kill_process(se.id,SIGHUP) ;                                                                            // jobs killed here have not started yet, so we just want to kill job_exec
-			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
+			kill_process(se.id,SIGHUP) ;                                                              // jobs killed here have not started yet, so we just want to kill job_exec
+			_wait_queue.push(se.id) ;                                                                 // defer wait in case job_exec process does some time consuming book-keeping
 		}
 		virtual pid_t launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& , bool /*verbose*/ ) const {
-			Child child { .as_session=true , .cmd_line=cmd_line , .stdin_fd=Child::NoneFd , .stdout_fd=Child::NoneFd } ;
+			Child child { .as_session=true , .cmd_line=cmd_line , .stdin_fd=Child::NoneFd , .stdout_fd=Child::NoneFd , .env=&env } ;
 			child.spawn() ;
 			pid_t pid = child.pid ;
-			child.mk_daemon() ;                                                                                     // we have recorded the pid to wait and there is no fd to close
+			child.mk_daemon() ;                                                                       // we have recorded the pid to wait and there is no fd to close
 			return pid ;
 		}
 
@@ -176,6 +178,7 @@ namespace Backends::Local {
 		RsrcsData         capacity_       ;
 		RsrcsData mutable occupied        ;
 		::vmap_s<size_t>  public_capacity ;
+		::map_ss          env             ;
 	private :
 		DequeThread<pid_t> mutable _wait_queue ;
 

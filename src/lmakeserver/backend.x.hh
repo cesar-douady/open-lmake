@@ -188,9 +188,9 @@ namespace Backends {
 		// services
 	public :
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
-		virtual bool      is_local(                                     ) const { return true ; }
-		virtual ::vmap_ss descr   (                                     ) const { return {}   ; }
-		virtual void      config  ( ::vmap_ss const& , bool /*dynamic*/ )       {               }
+		virtual bool      is_local(                                                                        ) const { return true ; }
+		virtual ::vmap_ss descr   (                                                                        ) const { return {}   ; }
+		virtual void      config  ( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ , bool /*dynamic*/ )       {               }
 		//
 		virtual void          open_req         ( Req    , JobIdx /*n_jobs*/ ) {}                       // called before any operation on req , n_jobs is the max number of jobs that can be launched
 		virtual void          new_req_etas     (                            ) {}                       // inform backend that req has a new eta, which may change job priorities

@@ -45,7 +45,8 @@ config = pdict(
 	,	has_exec_time  = True                               # if True, output the exec_time field
 	,	history_days   = 7                                  # number of days during which output logs are kept in LMAKE/outputs (0 or None means no history)
 	,	host_length    = None                               # length of the host field (lines will be misaligned if a host is longer) (0 or None means no host field)
-	,	show_eta       = True                               # if True, the title includes the ETA of the lmake command
+	,	show_eta       = False
+	,	show_ete       = True                               # if True, the title includes the ETA of the lmake command
 	)
 ,	backends = pdict(                                       # PER_BACKEND : provide a default configuration for each backend
 		local = pdict(                                      # entries mention the total availability of resources

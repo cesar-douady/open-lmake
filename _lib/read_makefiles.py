@@ -71,7 +71,7 @@ import Lmakefile
 
 config = pdict()
 if '/config/' in actions :
-	if callable(getattr(Lmakefile,'config',None)) : # /!\ dont use try/except to ensure errors inside Lmakefile.config() are correctly caught
+	if callable(getattr(Lmakefile,'config',None)) :           # /!\ dont use try/except to ensure errors inside Lmakefile.config() are correctly caught
 		Lmakefile.config()
 	else :
 		try :
@@ -115,14 +115,14 @@ if '/sources/' in actions :
 
 rules = []
 if '/rules/' in actions :
-	if callable(getattr(Lmakefile,'rules',None)) :               # /!\ dont use try/except to ensure errors inside Lmakefile.rules() are correctly caught
+	if callable(getattr(Lmakefile,'rules',None)) :                # /!\ dont use try/except to ensure errors inside Lmakefile.rules() are correctly caught
 		Lmakefile.rules()
 	else :
 		try :
 			import Lmakefile.rules
 		except ImportError as e :
 			if e.name!='Lmakefile.rules' : raise
-	fmt_rule.no_imports = { r.__module__ for r in lmake._rules } # transport by value all modules that contain a rule
+	fmt_rule.no_imports |= { r.__module__ for r in lmake._rules } # transport by value all modules that contain a rule
 	for r in lmake._rules :
 		r2 = fmt_rule.fmt_rule(r)
 		if r2 : rules.append(r2)

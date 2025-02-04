@@ -13,6 +13,7 @@ if __name__!='__main__' :
 
 	lmake.config.backends.slurm = {
 		'interface' : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
+	,	'environ'   : { 'DUT':'dut' }
 	}
 
 	lmake.manifest = (
@@ -34,8 +35,10 @@ if __name__!='__main__' :
 		resources = {'mem':'20M'}
 
 	class CatSh(Cat) :
-		target = '{File1}+{File2}_sh'
-		cmd    = '''
+		target  = '{File1}+{File2}_sh'
+		environ = { 'DUT':... }
+		cmd = '''
+			[ "$DUT" = dut ] || echo bad '$DUT :' "$DUT != dut" >&2
 			ldepend {FIRST} {SECOND} # check no crash when executed on different hosts
 			cat     {FIRST} {SECOND}
 		'''

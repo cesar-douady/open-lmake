@@ -134,7 +134,7 @@ namespace Backends::Sge {
 
 		// services
 
-		virtual void sub_config( vmap_ss const& dct , bool dynamic ) {
+		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dynamic ) {
 			Trace trace(BeChnl,"Sge::config",STR(dynamic),dct) ;
 			//
 			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
@@ -161,6 +161,7 @@ namespace Backends::Sge {
 				daemon = sge_sense_daemon(self) ;
 				_s_sge_cancel_thread.open('C',sge_cancel) ;
 			}
+			env = env_ ;
 			trace("done") ;
 		}
 
@@ -214,6 +215,10 @@ namespace Backends::Sge {
 			,	"-terse"
 			,	"-N"     , sge_mk_name(repo_key+Job(j)->name())
 			} ;
+			for( auto const& [k,v] : env ) {
+				sge_cmd_line.emplace_back("-ac"  ) ;
+				sge_cmd_line.push_back   (k+"="+v) ;
+			}
 			SWEAR(+reqs) ;                                                                                                                     // why launch a job if for no req ?
 			int16_t prio = ::numeric_limits<int16_t>::min() ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
 			//
@@ -266,6 +271,7 @@ namespace Backends::Sge {
 		::string           sge_cluster       ;
 		::string           sge_root_s        ;
 		Daemon             daemon            ;      // info sensed from sge daemon
+		::vmap_ss          env               ;
 	} ;
 
 	DequeThread<::pair<SgeBackend const*,SgeId>> SgeBackend::_s_sge_cancel_thread ;

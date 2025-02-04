@@ -211,7 +211,7 @@ namespace Engine {
 		} catch (::pair_ss const& msg_err) {
 			trace("no_dep_subst") ;
 			if (+req) {
-				req->audit_job( Color::Note , "cannot_compute_deps" , rule->name , match.name() ) ;
+				req->audit_job( Color::Note , "deps_not_avail" , rule->name , match.name() ) ;
 				req->audit_stderr( self , ensure_nl(rule->deps_attrs.s_exc_msg(false/*using_static*/))+msg_err.first , msg_err.second , Npos , 1 ) ;
 			}
 			return ;
@@ -221,6 +221,7 @@ namespace Engine {
 		size_t              non_canon = Npos ;
 		for( auto const& kds : dep_specs ) {
 			DepSpec const& ds = kds.second ;
+			SWEAR(+ds.txt,kds.first) ;
 			if (!is_canon(ds.txt)) {
 				if (non_canon==Npos) non_canon = &kds-dep_specs.data() ;
 				continue ;
@@ -693,9 +694,9 @@ namespace Engine {
 			with_stderr = false          ;
 			step        = nullptr        ;
 			color      &= Color::Warning ;
-			if      (is_lost(jd.status)             ) {                                           }
-			else if (jd.status==Status::EarlyChkDeps) { jr = JR::Resubmit ; color = Color::Note ; }
-			else if (!retry                         ) { jr = JR::Rerun    ; color = Color::Note ; }
+			if      (is_lost(jd.status)             ) {                                             }
+			else if (jd.status==Status::EarlyChkDeps) { jr = JR::EarlyRerun ; color = Color::Note ; }
+			else if (!retry                         ) { jr = JR::Rerun      ; color = Color::Note ; }
 		}
 		//
 		switch (color) {

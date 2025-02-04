@@ -20,7 +20,7 @@ ENUM( JobReport
 ,	Retry
 ,	Lost
 ,	LostErr
-,	Resubmit
+,	EarlyRerun
 ,	Rerun
 ,	Hit
 )
@@ -91,7 +91,7 @@ namespace Engine {
 		void new_eta(                       ) ;
 		//
 	private :
-		void _adjust_eta( Pdate eta={} , bool push_self=false ) ;
+		void _adjust_eta( Pdate eta , bool push_self=false ) ;
 		//
 		template<class... A> ::string _title    (A&&...) const ;
 		/**/                 ::string _color_pfx(Color ) const ;
@@ -287,6 +287,7 @@ namespace Engine {
 		Pdate                start_pdate    ;
 		Ddate                start_ddate    ;
 		Pdate                eta            ;           // Estimated Time of Arrival
+		Delay                ete            ;           // Estimated Time Enroute
 		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
 		uint8_t              n_retries      = 0       ;
 		bool                 has_backend    = false   ;

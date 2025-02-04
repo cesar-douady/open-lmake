@@ -120,7 +120,17 @@ namespace Backends::Slurm {
 	::string                  read_stderr       (Job                     ) ;
 	Daemon                    slurm_sense_daemon(                        ) ;
 	//
-	SlurmId slurm_spawn_job( ::stop_token , ::string const& key , Job , ::vector<ReqIdx> const& , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
+	SlurmId slurm_spawn_job(
+		::stop_token
+	,	::string         const& key
+	,	Job
+	,	::vector<ReqIdx> const&
+	,	int32_t                 nice
+	,	::vector_s       const& cmd_line
+	,	::vector<char*>  const& env
+	,	RsrcsData        const&
+	,	bool                    verbose
+	) ;
 
 	constexpr Tag MyTag = Tag::Slurm ;
 
@@ -160,7 +170,7 @@ namespace Backends::Slurm {
 
 		// services
 
-		virtual void sub_config( vmap_ss const& dct , bool dynamic ) {
+		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dynamic ) {
 			Trace trace(BeChnl,"Slurm::config",STR(dynamic),dct) ;
 			//
 			const char* config_file = nullptr ;
@@ -181,6 +191,16 @@ namespace Backends::Slurm {
 				daemon = slurm_sense_daemon() ;
 				_s_slurm_cancel_thread.open('C',slurm_cancel) ;
 			}
+			//
+			for( char* kv : env ) delete[] kv ;
+			env.resize(env_.size()+1/*terminating empty*/) ;
+			for( size_t i : iota(env_.size()) ) {
+				::string kv = env_[i].first+"="+env_[i].second ;
+				env[i] = new char[kv.size()+1/*terminating null*/] ;
+				::memcpy( env[i] , kv.c_str() , kv.size()+1 ) ;
+			}
+			env.back() = new char[1] ;
+			::memcpy( env.back() , "" , 1 ) ;
 			trace("done") ;
 		}
 
@@ -291,8 +311,8 @@ namespace Backends::Slurm {
 		}
 		virtual SlurmId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
-			nice &= 0x7fffffff ;                                                                         // slurm will not accept negative values, default values overflow in ... 2091
-			SlurmId id = slurm_spawn_job( st , repo_key , j , reqs , nice , cmd_line , *rs , verbose ) ;
+			nice &= 0x7fffffff ;                                                                               // slurm will not accept negative values, default values overflow in ... 2091
+			SlurmId id = slurm_spawn_job( st , repo_key , j , reqs , nice , cmd_line , env , *rs , verbose ) ;
 			Trace trace(BeChnl,"Slurm::launch_job",repo_key,j,id,nice,cmd_line,rs,STR(verbose)) ;
 			return id ;
 		}
@@ -304,6 +324,7 @@ namespace Backends::Slurm {
 		bool                use_nice          = false ;
 		::string            repo_key          ;         // a short identifier of the repository
 		Daemon              daemon            ;         // info sensed from slurm daemon
+		::vector<char*>     env               ;
 	} ;
 
 	DequeThread<SlurmId> SlurmBackend::_s_slurm_cancel_thread ;
@@ -378,7 +399,7 @@ namespace Backends::Slurm {
 			else                                                       { chk_first() ; { if ( +rsds.licenses && rsds.licenses.back()!=',' ) rsds.licenses += ',' ; } rsds.licenses += k+':'+v+',' ; }
 		}
 		for( RsrcsDataSingle& rsds : self )    if ( +rsds.gres     && rsds.gres    .back()==',' ) rsds.gres    .pop_back() ;
-		/**/ RsrcsDataSingle& rsds = self[0] ; if ( +rsds.licenses && rsds.licenses.back()==',' ) rsds.licenses.pop_back() ;                                 // licenses are only for first job step
+		/**/ RsrcsDataSingle& rsds = self[0] ; if ( +rsds.licenses && rsds.licenses.back()==',' ) rsds.licenses.pop_back() ; // licenses are only for first job step
 		//
 		if ( d.manage_mem && !self[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule()->full_name()+".resources={'mem':'1M'}" ;
 	}
@@ -640,9 +661,18 @@ namespace Backends::Slurm {
 		res += '\n' ;
 		return res ;
 	}
-	SlurmId slurm_spawn_job( ::stop_token st , ::string const& key , Job job , ::vector<ReqIdx> const& reqs , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
-		static constexpr char* env[1] = {const_cast<char*>("")}  ;
-		static ::string        wd     = no_slash(*g_repo_root_s) ;
+	SlurmId slurm_spawn_job(
+		::stop_token            st
+	,	::string         const& key
+	,	Job                     job
+	,	::vector<ReqIdx> const& reqs
+	,	int32_t                 nice
+	,	::vector_s       const& cmd_line
+	,	::vector<char*>  const& env
+	,	RsrcsData        const& rsrcs
+	,	bool                    verbose
+	) {
+		static ::string wd = no_slash(*g_repo_root_s) ;
 		Trace trace(BeChnl,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
 		//
 		SWEAR(rsrcs.size()> 0) ;
@@ -668,7 +698,7 @@ namespace Backends::Slurm {
 			//
 			SlurmApi::init_job_desc_msg(&j) ;
 			/**/                     j.cpus_per_task   = r.cpu                                                         ;
-			/**/                     j.environment     = const_cast<char**>(env)                                       ;
+			/**/                     j.environment     = const_cast<char**>(env.data())                                ;
 			/**/                     j.env_size        = 1                                                             ;
 			/**/                     j.name            = const_cast<char*>(job_name.c_str())                           ;
 			/**/                     j.pn_min_memory   = r.mem                                                         ; //in MB

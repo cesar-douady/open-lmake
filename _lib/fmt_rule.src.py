@@ -5,6 +5,7 @@
 
 import sys
 
+import functools
 import os
 import os.path as osp
 import re
@@ -14,7 +15,7 @@ import serialize
 import lmake
 pdict = lmake.pdict
 
-no_imports = set() # may be overridden by external code
+no_imports = {__name__} # may be overridden by external code
 
 # helper constants
 StdAttrs = { #!               type   dynamic
@@ -441,19 +442,32 @@ class Handle :
 		self.rule_rep.create_none_attrs = self._finalize()
 
 	def handle_deps(self) :
-		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.pop('dep')
+		attrs        = self.attrs
+		special_deps = {}
+		if   attrs.is_python : interpreter             = 'python'
+		else                 : interpreter             = 'shell'
+		if 'dep' in attrs    : special_deps['<stdin>'] = attrs.pop('dep')
+		if interpreter in attrs :
+			i = attrs[interpreter]
+			if not callable(i) :
+				i0 = i[0]
+				if not callable(i0) and self._is_simple_fstr(i0) :
+					special_deps['<interpreter>'] = i0                            # interpreter is only set as a static dep if it is simple enough as user may want to access files to determine it
+		if special_deps :
+			if callable(attrs.deps) : attrs.deps = serialize.based_dict(attrs.deps,special_deps)
+			else                    : attrs.deps.update(special_deps)
 		self._init()
 		self._handle_val('deps',for_deps=True)
 		if 'deps' in self.dynamic_val : self.dynamic_val = self.dynamic_val['deps']
 		if 'deps' in self.static_val  : self.static_val  = self.static_val ['deps']
 		if callable(self.dynamic_val) :
-			assert not self.static_val                                                 # there must be no static val when deps are full dynamic
-			self.static_val  = None                                                    # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
+			assert not self.static_val                                            # there must be no static val when deps are full dynamic
+			self.static_val  = None                                               # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
 		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
 		if self.rule_rep.deps_attrs and self.rule_rep.deps_attrs[0] :
-			self.per_job.update(k for k in self.attrs.deps.keys() if k.isidentifier()) # special cases are not accessible from f-string's
+			self.per_job.update(k for k in attrs.deps.keys() if k.isidentifier()) # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
 		self._init()

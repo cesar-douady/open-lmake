@@ -1,3 +1,7 @@
+# Quick comparison
+
+...
+
 # `make`
 
 `make` used to be an excellent tool when it was first written by Dr Stuart Feldman almost 50 years ago.

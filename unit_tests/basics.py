@@ -48,7 +48,7 @@ else :
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 ) # check targets are up to date
 	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         ) # check reconvergence
 
-	assert os.system('ldebug hello+world_sh'  )==0 # check no crash
+	assert os.system('ldebug -t hello+world_sh')==0 # check no crash
 
 	assert           os.system('chmod -w -R .'          )==0 # check we can interrogate a read-only repo
 	try     : assert os.system('lshow -i hello+world_sh')==0

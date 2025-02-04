@@ -527,12 +527,12 @@ namespace Backends {
 	}
 
 	bool/*keep_fd*/ Backend::_s_handle_job_end( JobEndRpcReq&& jerr , SlaveSockFd const& ) {
-		if (!jerr) return false ;                                                            // if connection is lost, ignore it
+		if (!jerr) return false ;                                                                     // if connection is lost, ignore it
 		Job     job { jerr.job } ;
 		JobExec je  ;
 		Trace trace(BeChnl,"_s_handle_job_end",jerr) ;
-		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;                    // ensure _s_handled_job_start is done for this job
-		{	Lock lock { _s_mutex } ;                                                         // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;                             // ensure _s_handled_job_start is done for this job
+		{	Lock lock { _s_mutex } ;                                                                  // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; goto Bad ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; goto Bad ; }
@@ -556,7 +556,7 @@ namespace Backends {
 		trace("info") ;
 		job->end_exec() ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jerr) ) ;                    // /!\ _s_starting_job ensures Start has been queued before we enqueue End
+		g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jerr) ) ;                             // /!\ _s_starting_job ensures Start has been queued before we enqueue End
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		return false/*keep_fd*/ ;
 	Bad :
@@ -693,7 +693,7 @@ namespace Backends {
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
 		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
-		if (!dynamic) {                                                                                                                               // if dynamic, threads are already running
+		if (!dynamic) {                                                                                                                                      // if dynamic, threads are already running
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
 			_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ;
 			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ;
@@ -704,13 +704,19 @@ namespace Backends {
 		if (!dynamic) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		//
 		Lock lock{_s_mutex} ;
-		for( Tag t : iota(1,All<Tag>) ) {                                                                                                             // local backend is always available
-			Backend*               be  = s_tab [+t] ;
-			Config::Backend const& cfg = config[+t] ;
-			if (!be            )      {                                                                   trace("not_implemented",t  ) ; continue ; }
-			if (!cfg.configured)      {                               be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; } // empty config_err means ready
-			try                       { be->config(cfg.dct,dynamic) ; be->config_err.clear()            ; trace("ready"          ,t  ) ;            } // .
-			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e                ; trace("err"            ,t,e) ; continue ; } // .
+		for( Tag t : iota(1,All<Tag>) ) {                                                                                                                    // local backend is always available
+			Backend*               be  = s_tab [+t] ; if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }
+			Config::Backend const& cfg = config[+t] ; if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; } // empty config_err means ready
+			try {
+				be->config(cfg.dct,cfg.env,dynamic) ;
+				be->config_err.clear() ; trace("ready",t  ) ;                                                                                                // .
+			} catch (::string const& e) {
+				SWEAR(+e) ;                                                                                                                                  // .
+				be->config_err = e ;
+				Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ;
+				trace("err"  ,t,e) ;
+				continue ;
+			}
 			//
 			if (be->is_local()) {
 				be->addr = SockFd::LoopBackAddr ;

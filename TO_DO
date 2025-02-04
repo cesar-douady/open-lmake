@@ -18,6 +18,10 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* examples to review
+* mimssing doc/*
+	- missing links in README.md
+* add quatantined files in summary
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths

@@ -625,14 +625,15 @@ namespace Disk {
 			if (sr.file_loc<=FileLoc::Dep) res.emplace_back(sr.real,a) ;
 			//
 			try {
-				AcFd     hdr_fd { mk_abs(sr.real,_env->repo_root_s) } ; if (!hdr_fd               ) break ;
-				::string hdr    = hdr_fd.read(256)                    ; if (!hdr.starts_with("#!")) break ;
-				size_t   pos    = hdr.find('\n')                      ; if (pos!=Npos             ) hdr.resize(pos) ;
-				/**/     pos    = hdr.find(' ' )                      ; if (pos==0                ) break ;
-				// recurse
-				sr = solve( hdr.substr(2,pos-2) , false/*no_follow*/ ) ;                     // interpreter starts after #! until first space or end of line
+				AcFd     hdr_fd { mk_abs(sr.real,_env->repo_root_s) } ; if    ( !hdr_fd                                               ) break ;
+				::string hdr    = hdr_fd.read(256)                    ; if    ( !hdr.starts_with("#!")                                ) break ;
+				size_t   eol    = hdr.find('\n')                      ; if    ( eol!=Npos                                             ) hdr.resize(eol) ;
+				size_t   pos1   = 2                                   ; while ( pos1<hdr.size() &&  (hdr[pos1]==' '||hdr[pos1]=='\t') ) pos1++ ;
+				size_t   pos2   = pos1                                ; while ( pos2<hdr.size() && !(hdr[pos2]==' '||hdr[pos2]=='\t') ) pos2++ ;
+				if (pos1!=pos2) sr = solve( hdr.substr(pos1,pos2-pos1) , false/*no_follow*/ ) ;                                                  // interpreter is first word
+				// recurse by looping
 			} catch (::string const&) {
-				break ;                                                                      // if hdr_fd is not readable (e.g. it is a dir), do as if it did not exist at all
+				break ;                 // if hdr_fd is not readable (e.g. it is a dir), do as if it did not exist at all
 			}
 		}
 		return res ;

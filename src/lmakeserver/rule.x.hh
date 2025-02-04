@@ -142,6 +142,8 @@ namespace Engine {
 	} ;
 
 	struct DepSpec {
+		friend ::string& operator+=( ::string& , DepSpec const& ) ;
+		// data
 		::string    txt          ;
 		Dflags      dflags       ;
 		ExtraDflags extra_dflags ;
@@ -151,8 +153,7 @@ namespace Engine {
 	struct DepsAttrs {
 		static constexpr const char* Msg = "deps" ;
 		// services
-		void init           ( bool is_dynamic , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
-		void add_interpreter(                                                               RuleData const& ) ;
+		void init( bool is_dynamic , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
 		// data
 		// START_OF_VERSIONING
 		bool              full_dynamic = true ; // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys ...

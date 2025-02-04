@@ -24,7 +24,15 @@ class f_str(str) :                                                              
 		else                                        : res = 'f'+str.repr(self)        # hope that repr will not insert \ within {}
 		return res
 
-__all__ = ('get_src','get_code_ctx') # everything else is private
+class based_dict :                # used to add entries to a dict provided as a callable
+	def __init__(self,base,inc) :
+		assert callable(base),f'useless use of {self.__class__.__name__} with non-callable base {base}'
+		self.base = base
+		self.inc  = inc
+	def __call__(self,*args,**kwds) :
+		return { **base(*args,**kwds) , **inc }
+
+__all__ = ('get_src','get_code_ctx','f_str','based_dict') # everything else is private
 
 comment_re = re.compile(r'^\s*(#.*)?$')
 
@@ -215,6 +223,7 @@ class Serialize :
 		if isinstance(val,types.ModuleType) :
 			self.modules[val.__name__] = (None,val.__name__)
 			return val.__name__
+		#
 		sfx = ''
 		if call_callables and callable(val) :
 			inspect.signature(val).bind()                                                                                          # check val can be called with no argument
@@ -225,15 +234,16 @@ class Serialize :
 		if isinstance(val,types.FunctionType) :
 			self.func_src(val.__name__,val)
 			return f'{val.__name__}{sfx}'
+		if self.has_repr(val) : return repr(val)
+		#
 		kwds = { 'force':force , 'call_callables':call_callables }
-		if self.has_repr(val)    : return repr(val)
-
+		#
 		if isinstance(val,(tuple,list,set,dict)) :
 			cls = val.__class__
 			if cls in (tuple,list,set,dict) :
 				pfx = ''
 				sfx = ''
-			else :
+			else :                                                                                                                 # val is an instance of a derived class
 				self.modules[cls.__module__] = (None,cls.__module__)
 				pfx = f'{cls.__module__}.{cls.__qualname__}('
 				sfx = ')'
@@ -241,12 +251,17 @@ class Serialize :
 			if isinstance(val,list ) : return f"{pfx}[ { ' , '.join(   self.expr_src(x,**kwds)                             for x   in val        )} ]{sfx}"
 			if isinstance(val,set  ) : return f"{pfx}{{ {' , '.join(   self.expr_src(x,**kwds)                             for x   in val        )} }}{sfx}" if len(val) else "{pfx}set(){sfx}"
 			if isinstance(val,dict ) : return f"{pfx}{{ {' , '.join(f'{self.expr_src(k,**kwds)}:{self.expr_src(v,**kwds)}' for k,v in val.items())} }}{sfx}"
+		#
 		if isinstance(val,f_str) :
 			fs = repr(val)
 			try                     : cfs = compile(fs,'','eval')
 			except SyntaxError as e : raise SyntaxError(f'{e} : {fs}')
 			for glb_var in self.get_glbs(cfs) : self.gather_ctx(glb_var)
 			return fs
+		#
+		if isinstance(val,based_dict) :
+			return f"{{ **{self.expr_src(val.base,**kwds)}{''.join(f' , {self.expr_src(k,**kwds)}:{self.expr_src(v,**kwds)}' for k,v in val.inc.items())} }}"
+		#
 		if  not self.no_imports_proc(val.__class__.__module__) :
 			# by default, use the broadest serializer available : pickle
 			# inconvenient is that the resulting source is everything but readable
@@ -254,6 +269,7 @@ class Serialize :
 			val_str = pickle.dumps(val,protocol=0).decode()
 			self.modules['pickle'] = (None,'pickle')
 			return f'pickle.loads({val_str!r}.encode()){sfx}'
+		#
 		raise ValueError(f'dont know how to serialize {val}')
 
 	def gather_ctx(self,name) :
@@ -267,8 +283,8 @@ class Serialize :
 
 	def get_first_line(self,name,func,first_line) :
 		#
-		# if this does not work, the we have to mimic inspect.Signature.__str__ and replace calls to repr by smarter self.get_src calls
-		if not self.has_repr(func.__defaults__) : raise ValueError('defaults for func {func.__qualname__} are too difficult to analyze')
+		if not self.has_repr(func.__defaults__) :                                                   # we have to mimic inspect.Signature.__str__ and replace calls to repr by smarter self.get_src calls
+			raise ValueError(f'defaults for func {func.__qualname__} are too difficult to analyze')
 		#
 		# if this does not work, then we have to call the tokenizer to find the correct : that splits signature from core
 		if   first_line[-1]==':'                                : core = ''                                  # if line ends with :, it is a multi-line func and signature is the entire first line
