@@ -1,3 +1,9 @@
+<!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- Why open-lmake-->
+
 # Who needs open-lmake?
 
 If you experience any of the following time-wasting situations:
@@ -18,7 +24,7 @@ If you experience any of the following time-wasting situations:
 Then you need a tool to help you.
 Such tools are called build systems.
 
-open-lmake is such a tool that will provide apt solutions to all the above-mentioned points.
+Open-lmake is such a tool that will provide apt solutions to all the above-mentioned points.
 
 If your development is mainstream (such as writing an app in C, Python or Java) and you are seeking a fast on-boarding tool, you may find some other tools adequate.
 These may be for example `Cmake`, `PyBuilder` or `maven`. They will save you from writing common case rules, call the compiler with the right options etc.

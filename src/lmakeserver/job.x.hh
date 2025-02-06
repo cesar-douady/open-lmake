@@ -228,19 +228,20 @@ namespace Engine {
 			bool      stamped_modif:1 = false ;                        //          1 bit , modifs seen in dep until iter before    last parallel chunk
 			bool      proto_modif  :1 = false ;                        //          1 bit , modifs seen in dep until iter including last parallel chunk
 		} ;
-		DepsIter::Digest iter               ;                          // ~20+6<= 64 bits, deps up to this one statisfy required action
-		State            state              ;                          //  43  <= 96 bits, dep analysis state
-		JobReason        reason             ;                          //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
-		uint8_t          n_losts            = 0     ;                  //          8 bits, number of times job has been lost
-		uint8_t          n_retries          = 0     ;                  //          8 bits, number of times job has been seen in error
-		uint8_t          n_submits          = 0     ;                  //         16 bits, number of times job has been rerun
-		bool             force           :1 = false ;                  //          1 bit , if true <=> job must run because reason
-		bool             start_reported  :1 = false ;                  //          1 bit , if true <=> start message has been reported to user
-		bool             speculative_wait:1 = false ;                  //          1 bit , if true <=> job is waiting for speculative deps only
-		Bool3            speculate       :2 = Yes   ;                  //          2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
-		bool             reported        :1 = false ;                  //          1 bit , used for delayed report when speculating
-		bool             modified        :1 = false ;                  //          1 bit , modified when last run
-		BackendTag       backend         :2 = {}    ;                  //          2 bits
+		DepsIter::Digest iter                 ;                        // ~20+6<= 64 bits, deps up to this one statisfy required action
+		State            state                ;                        //  43  <= 96 bits, dep analysis state
+		JobReason        reason               ;                        //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
+		uint8_t          n_losts              = 0     ;                //          8 bits, number of times job has been lost
+		uint8_t          n_retries            = 0     ;                //          8 bits, number of times job has been seen in error
+		uint8_t          n_submits            = 0     ;                //         16 bits, number of times job has been rerun
+		bool             force             :1 = false ;                //          1 bit , if true <=> job must run because reason
+		bool             start_reported    :1 = false ;                //          1 bit , if true <=> start message has been reported to user
+		bool             speculative_wait  :1 = false ;                //          1 bit , if true <=> job is waiting for speculative deps only
+		Bool3            speculate         :2 = Yes   ;                //          2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
+		bool             reported          :1 = false ;                //          1 bit , used for delayed report when speculating
+		bool             modified          :1 = false ;                //          1 bit , modified when last run
+		bool             modified_speculate:1 = false ;                //          1 bit , modified when marked speculative
+		BackendTag       backend           :2 = {}    ;                //          2 bits
 	private :
 		Step _step:3 = {} ;                                            //          3 bits
 	} ;
@@ -341,9 +342,9 @@ namespace Engine {
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			if ( speculate==No && ri.reported && ri.done() ) {
-				if      (err()      ) { audit_end(ri,false/*with_stats*/,"was_") ; req->stats.move( JobReport::Speculative , JobReport::Failed , exec_time ) ; }
-				else if (ri.modified)                                              req->stats.move( JobReport::Speculative , JobReport::Done   , exec_time ) ;
-				else                                                               req->stats.move( JobReport::Speculative , JobReport::Steady , exec_time ) ;
+				if      (err()                ) { audit_end(ri,false/*with_stats*/,"was_") ; req->stats.move( JobReport::Speculative , JobReport::Failed , exec_time ) ; }
+				else if (ri.modified_speculate)                                              req->stats.move( JobReport::Speculative , JobReport::Done   , exec_time ) ;
+				else                                                                         req->stats.move( JobReport::Speculative , JobReport::Steady , exec_time ) ;
 			}
 			_propag_speculate(ri) ;
 		}

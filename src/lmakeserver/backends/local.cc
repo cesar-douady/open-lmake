@@ -114,8 +114,23 @@ namespace Backends::Local {
 					::setrlimit(RLIMIT_NPROC,&rl) ;
 				}
 			}
-			//
-			env = mk_map(env_) ;
+			#if LINUX_VFORK                                                                                                              // directly call ::execve, so prepare env in a practical format
+				if (env) {
+					_env_vec.clear() ;
+					delete[] env ;
+				}
+				SWEAR(!_env_vec) ;
+				env = new const char*[env_.size()+1] ;
+				{	size_t i = 0 ;
+					for( auto const& [k,v] : env_ ) {
+						_env_vec.push_back(k+'='+v) ;
+						env[i++] = _env_vec.back().c_str() ;
+					}
+					env[i] = nullptr   ;
+				}
+			#else
+				env = env_ ;
+			#endif
 			trace("done") ;
 		}
 		virtual ::vmap_s<size_t> const& capacity() const {
@@ -149,26 +164,46 @@ namespace Backends::Local {
 			return "pid:"s+e.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job , SpawnedEntry const& se , Status ) const {
-			_wait_queue.push(se.id) ;                                                                 // defer wait in case job_exec process does some time consuming book-keeping
-			return {{},true/*retry*/} ;                                                               // retry if garbage
+			_wait_queue.push(se.id) ;                                                                    // defer wait in case job_exec process does some time consuming book-keeping
+			return {{},true/*retry*/} ;                                                                  // retry if garbage
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const { // called after job_exec has had time to start
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {    // called after job_exec has had time to start
 			SWEAR(se.id) ;
 			int wstatus = 0 ;
-			if      (::waitpid(se.id,&wstatus,WNOHANG)==0) return {{}/*msg*/,HeartbeatState::Alive} ; // process is still alive
-			else if (!wstatus_ok(wstatus)                ) return {{}/*msg*/,HeartbeatState::Err  } ; // process just died with an error
-			else                                           return {{}/*msg*/,HeartbeatState::Lost } ; // process died long before (already waited) or just died with no error
+			if      (::waitpid(se.id,&wstatus,WNOHANG)==0) return {{}/*msg*/,HeartbeatState::Alive} ;    // process is still alive
+			else if (!wstatus_ok(wstatus)                ) return {{}/*msg*/,HeartbeatState::Err  } ;    // process just died with an error
+			else                                           return {{}/*msg*/,HeartbeatState::Lost } ;    // process died long before (already waited) or just died with no error
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (!se.live) return ;
-			kill_process(se.id,SIGHUP) ;                                                              // jobs killed here have not started yet, so we just want to kill job_exec
-			_wait_queue.push(se.id) ;                                                                 // defer wait in case job_exec process does some time consuming book-keeping
+			kill_process(se.id,SIGHUP) ;                                                                 // jobs killed here have not started yet, so we just want to kill job_exec
+			_wait_queue.push(se.id) ;                                                                    // defer wait in case job_exec process does some time consuming book-keeping
 		}
 		virtual pid_t launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& , bool /*verbose*/ ) const {
-			Child child { .as_session=true , .cmd_line=cmd_line , .stdin_fd=Child::NoneFd , .stdout_fd=Child::NoneFd , .env=&env } ;
-			child.spawn() ;
-			pid_t pid = child.pid ;
-			child.mk_daemon() ;                                                                       // we have recorded the pid to wait and there is no fd to close
+			pid_t pid = 0/*garbage*/ ;
+			#if LINUX_VFORK
+				// under Linux, ::vfork suspends the calling thread, so cmd_line_ can be safely deallocated
+				// calling ::vfork is significantly faster as lmakeserver is a heavy process and job_exec is the light one, ...
+				// ... so walking the page table (as ::clone and ::fork do) is significant perf hit
+				const char** cmd_line_ = new const char*[cmd_line.size()+1] ;
+				{	size_t i = 0 ;
+					for( ::string const& a : cmd_line ) cmd_line_[i++] = a.c_str() ;
+					/**/                                cmd_line_[i  ] = nullptr   ;
+				}
+				pid = ::vfork() ;
+				if (!pid) {                                                                              // child
+					::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(env) ) ;
+					Fd::Stderr.write("cannot exec job_exec\n") ;
+					::_exit(+Rc::System) ;                                                    // in case exec fails
+				}
+				delete[] cmd_line_ ;                                                                     // safe as thread is suspended by ::vfork until child has exec'ed or exited
+			#else
+				// under Posix, ::vfork does not suspend the calling thread making it nearly unusable, so go through Child
+				Child child { .as_session=true , .cmd_line=cmd_line , .stdin_fd=Child::NoneFd , .stdout_fd=Child::NoneFd , .env=&env } ;
+				child.spawn() ;
+				pid = child.pid ;
+				child.mk_daemon() ;                                                                      // we have recorded the pid to wait and there is no fd to close
+			#endif
 			return pid ;
 		}
 
@@ -178,9 +213,16 @@ namespace Backends::Local {
 		RsrcsData         capacity_       ;
 		RsrcsData mutable occupied        ;
 		::vmap_s<size_t>  public_capacity ;
-		::map_ss          env             ;
+		#if LINUX_VFORK
+			const char** env = nullptr ; // directly call ::execve without going through Child to improve perf
+		#else
+			::map_ss env ;
+		#endif
 	private :
 		DequeThread<pid_t> mutable _wait_queue ;
+		#if LINUX_VFORK
+			::vector_s _env_vec ; // hold env strings of the form key=value
+		#endif
 
 	} ;
 

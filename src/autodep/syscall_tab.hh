@@ -39,7 +39,7 @@ struct SyscallDescr {
 
 #define ENUMERATE_DIRECT_STAT_LIBCALLS \
 
-#if MAP_VFORK
+#if !LINUX_VFORK
 	#define ENUMERATE_VFORK_LIBCALLS \
 		/**/               /*is_stat*/ \
 	,	LIBCALL_ENTRY(vfork  ,false) \

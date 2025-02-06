@@ -422,12 +422,12 @@ EOF
 HAS_UNREACHABLE=$(ok cc -std=$CXX_STD -o /dev/null unreachable.cc) # check if std::unreachable is available in lib
 
 #
-# VFORK (MAP_VFORK)
+# VFORK (LINUX_VFORK)
 #
 # Linux specifies vfork more precisely than Posix
 # with Linux, we must not map vfork to fork as vfork is *not* a subset of fork, in exchange we can instrument exec in child
 # with posix, we must map vfork to fork as vfork is a subset of fork and instrumenting exec in child is forbidden with vfork
-MAP_VFORK=0
+LINUX_VFORK=1
 
 #
 # ZLIB (HAS_ZLIB)
@@ -516,7 +516,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_ZLIB                    $HAS_ZLIB
 	#define LD_SO_LIB                   "$LD_SO_LIB"
 	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
-	#define MAP_VFORK                   $MAP_VFORK
+	#define LINUX_VFORK                 $LINUX_VFORK
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define OS_ID                       "$OS_ID"

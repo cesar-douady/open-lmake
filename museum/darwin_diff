@@ -655,10 +655,10 @@ index 6bc2903..f9a6be1 100755
  # Linux specifies vfork more precisely than Posix
  # with Linux, we must not map vfork to fork as vfork is *not* a subset of fork, in exchange we can instrument exec in child
  # with posix, we must map vfork to fork as vfork is a subset of fork and instrumenting exec in child is forbidden with vfork
--MAP_VFORK=0
+-LINUX_VFORK=0
 +case $OS in
-+	Linux ) MAP_VFORK=0 ;;
-+	Darwin) MAP_VFORK=1 ;;
++	Linux ) LINUX_VFORK=1 ;;
++	Darwin) LINUX_VFORK=0 ;;
 +esac
  
  cat >$MK_FILE <<-EOF
@@ -715,7 +715,7 @@ index 6bc2903..f9a6be1 100755
 +	#define IS_LINUX                    $IS_LINUX
  	#define LD_SO_LIB                   "$LD_SO_LIB"
  	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
- 	#define MAP_VFORK                   $MAP_VFORK
+ 	#define LINUX_VFORK                 $LINUX_VFORK
  	#define MAX_PID                     $MAX_PID
  	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
  	#define OS_ID                       "$OS_ID"
@@ -1219,7 +1219,7 @@ index ccfb12b..3a263b5 100644
 +	#if HAS_NAMESPACES
 +		int __clone2( int (*fn)(void*) , void *stack_base , size_t stack_size , int flags , void *arg , ... ) ;
 +	#endif
- 	#if MAP_VFORK
+ 	#if !LINUX_VFORK
  		extern pid_t __vfork() NE ;
  	#endif
 +	#if HAS_OFF64

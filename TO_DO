@@ -18,9 +18,8 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* make a page for autodep
 * examples to review
-* mimssing doc/*
-	- missing links in README.md
 * add quatantined files in summary
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace

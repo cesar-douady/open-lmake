@@ -1,11 +1,34 @@
+<!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- Why open-lmake-->
+
 # Quick comparison
 
-...
+|                                | make        | ninja            | bazel            | CMake            | open-lmake        | Comment                                                             |
+|--------------------------------|-------------|------------------|------------------|------------------|-------------------|---------------------------------------------------------------------|
+| Automatic dependencies         | ❌          | ❌               | ❌               | ❌               | ✅                |                                                                     |
+| Concurrent builds              | ❌          | ❌               | ❌ (locked)      | ❌               | ✅                | can safely launch `build a & build b` ?                             |
+| Concurrent source editition    | ❌          | ❌               | ❌               | ❌               | ✅                | is it safe to edit a source while building ?                        |
+| symbolic link support          | ❌          | ❌               | ❌               | ❌               | ✅                | can you use symbolic links and still have a consistent experience ? |
+| `unzip` like job support       | ❌          | ❌               | ❌               | ❌               | ✅                | can the list of targets be content dependent ?                      |
+| Multiple target                | ❌          | ✅               | ✅               | ❌               | ✅                | can a single job have several targets ?                             |
+| Self-tracking                  | ❌          | ➖ commands only | ✅               | ➖ can detect    | ✅                | handle modifications of the config file ?                           |
+| Scalability                    | ➖ <100.000 | ✅ >100.000      | ✅ >100.000      | ❓ not a backend | ✅ >1.000.000     | c.f. [benchmarks](benchmark.md)                                     |
+| content based                  | ❌          | ❌               | ✅               | ❌               | ✅                | rebuild only if dependencies content change ?                       |
+| Matching                       | ➖ single % | ❌               | ❌               | ❌               | ✅ full regexpr   |                                                                     |
+| User friendly DSL              | ❌ specific | ✅ very simple   | ➖ Python subset | ❌ specific      | ✅ Python         |                                                                     |
+| Remote job execution           | ❌          | ❌               | ✅               | ❌               | ✅ slurm or SGE   |                                                                     |
+| inter-user cache               | ❌          | ❌               | ✅ (no abs path) | ❌               | ✅ (experimental) | can you reuse the result of another user ?                          |
+| job isolation                  | ❌          | ❌               | ✅ (container)   | ❌               | ✅ (autodep)      |                                                                     |
+| large recommanded rule set     | ➖          | ❌               | ✅               | ✅               | ❌                |                                                                     |
+| portable (Windows, mac, Linux) | ✅          | ✅               | ✅               | ✅               | ❌ (linux only)   |                                                                     |
 
 # `make`
 
 `make` used to be an excellent tool when it was first written by Dr Stuart Feldman almost 50 years ago.
-Before there was nothing, and for a long time, until the arrival of ninja in the early 2010's (other build systems in the mean time are based on `make`).
+Before there was nothing, and for a long time, until the arrival of `ninja` in the early 2010's (other build systems in the mean time were based on `make`).
 
 Nevertheless, as seen from today, `make` suffers a rather long list of flaws.
 
@@ -16,7 +39,7 @@ Nevertheless, as seen from today, `make` suffers a rather long list of flaws.
 - its recipe accesses a file which is not declared as a dependency.
 - a dependency has been modified while the target was being rebuilt.
 
-open-lmake handles all such cases:
+Open-lmake handles all such cases:
 - It is self-tracking, i.e. it handles correctly the modifications of its configuration.
 - It automatically tracks dependencies, leaving no room to the recipe to access files without open-lmake being aware of it.
 - It checks dependencies at the end of each job to ensure they were stable througout the whole execution.
@@ -80,7 +103,7 @@ you still need to generate the full configuration, a time consuming process.
 
 If your project is somewhat parametrizable, the overall space can be virtually infinite (with say billions or more possible targets), making this approach completely impracticable.
 
-open-lmake dynamically generates its internal graph, to the only extent it is needed (its static configuration is made of regular expressions, not list of files).
+Open-lmake dynamically generates its internal graph, to the only extent it is needed (its static configuration is made of regular expressions, not list of files).
 
 Moreover, it automatically decides, reliably, when rematching is necessary.
 For example, in the case above with 2 rules to produce `.o` files from `.c` and `.cc` files, if you used to have a `foo.c` file but move it to `foo.cc`,
@@ -91,8 +114,13 @@ As with `ninja`, most of the time, this is not necessary, and open-lmake will be
 
 # bazel
 
-As `ninja`, `bazel` advertises it self as a back-end tool, although in a softer form.
+As `ninja`, `bazel` advertises itself as a back-end tool, although in a softer form.
 As per its documentation: "It is common for BUILD files to be generated or edited by tools".
+This defeats the goal of its DSL Starlark.
+Starlark was designed as a subset of Python that provides guarantees (such as repeatability, speed, etc.).
+But if a generator is used, the real DSL is the one of the generator, and the guarantees of Starlark do not hold anymore.
+
+Open-lmake allows full Python, avoiding the need for a generator alltogether.
 
 The reliability of dependencies is also left to such a tool, or to the user.
 Again, per its documentation:
@@ -121,7 +149,7 @@ In that case, there is a dependency to `dir2/my_lib.h`, but not to `dir1/my_lib.
 Build systems relying on such use of `gcc -M` (including `bazel` as this part is left to the user) will incorrectly consider `foo.o` as up to date.
 This is in contradiction with `bazel` advertising "speed through correctness".
 
-open-lmake correctly maintains a dependency to `dir1/my_lib.h`, in addition to `dir2/my_lib.h`.
+Open-lmake correctly maintains a dependency to `dir1/my_lib.h`, in addition to `dir2/my_lib.h`.
 More precisely, it maintains a dependency to "`dir1/my_lib.h` must not exist nor be buildable". If this statement does not hold, `foo.o` is rebuilt, as expected.
 
 # CMake

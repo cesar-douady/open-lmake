@@ -1,3 +1,9 @@
+<!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- Why open-lmake-->
+
 # Why sticking to alpha-algorithm
 
 [this paper](https://gittup.org/tup/build_system_rules_and_algorithms.pdf) does a fairly good analysis of the goal of a build system.
@@ -16,12 +22,12 @@ Also, it is considered as granted that the time to go through the DAG (backward 
 This is true for `make`, but is not necessary:
 
 - According to the paper, `makes` takes about half an hour to analyze 100.000 files.
-- open-lmake takes less than a second in the same situation, less than a common single compilation.
+- Open-lmake takes less than a second in the same situation, less than a common single compilation.
 
 While I can't explain what is going on on the `make` side, what happends on the open-lmake side is:
 
 - It is not necessary to `stat` all intermediate files, only source files need to be `stat`ed.
-- open-lmake keeps its internal DAG data-base on disk in an optimized format, directly mapped in the process at start-up.
+- Open-lmake keeps its internal DAG data-base on disk in an optimized format, directly mapped in the process at start-up.
 
 Mapping this entire DAG has constant time as long as it is not read, and only the partial DAG aiming to the targets will ever be read, leading to time proportional to its size.
 On average, it may very well be comparable to the size of the DAG originating from the updated sources.

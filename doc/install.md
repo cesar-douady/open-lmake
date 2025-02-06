@@ -1,6 +1,12 @@
+<!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- Why open-lmake-->
+
 # Binary packages
 
-open-lmake binary packages are available on launchpad.net for the following systems :
+Open-lmake binary packages are available on launchpad.net for the following systems :
 
 - ubuntu22.04 (jammy)
 - ubuntu24.04 (noble)
@@ -67,7 +73,7 @@ It has been tested with the dockers listed in the docker directory
 
 # Installation
 
-open-lmake does not require to be installed.
+Open-lmake does not require to be installed.
 You can run it directly from the build directory.
 This is the simplest way unless you seek a system-wide installation.
 

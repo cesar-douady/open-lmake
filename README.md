@@ -1,6 +1,12 @@
+<!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- Why open-lmake-->
+
 # Why open-lmake
 
-Open-lmake is a generic, [fearless](doc/fearless.md) build system.
+Open-lmake is a generic and [fearless](doc/fearless.md) build system.
 It is like `make`, except that it is practical, versatile, scalable and reliable.
 
 It is reliable : never type `make clean` ever again.  
@@ -34,9 +40,11 @@ If you are not sure you need open-lmake, visit [who needs open-lmake](doc/who_ne
 
 To install open-lmake under ubuntu 22.04 or ubuntu 24.04, you can use a pre-compiled package:
 
-- `sudo add-apt-repository ppa:cdouady/open-lmake`
-- `sudo apt update`
-- `sudo apt install open-lmake`
+```
+sudo add-apt-repository ppa:cdouady/open-lmake
+sudo apt update
+sudo apt install open-lmake
+```
 
 Or refer to [full installation instructions](doc/install.md).
 
@@ -92,7 +100,7 @@ Open-lmake does the following:
 	- Can launch about 1000 jobs per second if connected to an adequate slurm-based farm.
 - Extremely memory efficient:
 	- Keeping the state of all dependencies is inherently very expensive.
-	- Thorough efforts have been made to keep this book keeping minimal.
+	- Thorough efforts have been made to keep this book keeping-minimal.
 	- Typically, an existing dependency occupies 16 bytes, a non-existing one only 4 bytes, so there can be 100's of millions of them.
 - Generally speaking 1.000.000 files/jobs can be handled with no burden.
 - Oriented towards reproducibility:

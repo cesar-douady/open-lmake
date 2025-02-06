@@ -52,6 +52,7 @@ struct Child {
 	// cxtors & casts
 	~Child() {
 		swear_prod(pid==0,"bad pid",pid) ;
+		if (_child_args) delete[] _child_args ;
 	}
 	// accesses
 	bool operator+() const { return pid ; }

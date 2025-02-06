@@ -1,3 +1,9 @@
+<!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- Why open-lmake-->
+
 # Directory layout
 - `_bin`       : contains scripts mostly used for building open-lmake
 - `debian`     : contains files necessary to build a debian package
@@ -252,7 +258,7 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 	- booleans cannot be traced as this is mostly unreadable. Instead use the `STR` macro to transform the boolean into a string. `STR(foo)` will be `foo` if foo is true, else `!foo`.
 
 ## Streams
-open-lmake does not use stream at all.
+Open-lmake does not use stream at all.
 The reason is that there are problems with streams when using statically linked libstdc++ (required to be robust to all installations) when python modules refer to it dynamically.
 By the way, the execution is lighter and code is not heavier.
 
