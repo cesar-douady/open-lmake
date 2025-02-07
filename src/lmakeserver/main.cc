@@ -492,8 +492,8 @@ int main( int argc , char** argv ) {
 	bool interrupted = _engine_loop() ;
 	//                 ^^^^^^^^^^^^^^
 	if (g_writable) {
-		try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s) ; }         // cleanup
-		catch (::string const& e) { exit(Rc::System,e) ;                       }
+		try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s,false/*abs_ok*/,true/*force*/,true/*ignore_errs*/) ; } // cleanup
+		catch (::string const& e) { exit(Rc::System,e) ;                                                                         }
 		//
 		if (_g_seen_make) AcFd(PrivateAdminDirS+"kpi"s,Fd::Write).write(g_kpi.pretty_str()) ;
 	}

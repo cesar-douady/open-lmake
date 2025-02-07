@@ -6,29 +6,29 @@
 
 # Quick comparison
 
-|                                | make        | ninja            | bazel            | CMake            | open-lmake        | Comment                                                             |
-|--------------------------------|-------------|------------------|------------------|------------------|-------------------|---------------------------------------------------------------------|
-| Automatic dependencies         | ❌          | ❌               | ❌               | ❌               | ✅                |                                                                     |
-| Concurrent builds              | ❌          | ❌               | ❌ (locked)      | ❌               | ✅                | can safely launch `build a & build b` ?                             |
-| Concurrent source editition    | ❌          | ❌               | ❌               | ❌               | ✅                | is it safe to edit a source while building ?                        |
-| symbolic link support          | ❌          | ❌               | ❌               | ❌               | ✅                | can you use symbolic links and still have a consistent experience ? |
-| `unzip` like job support       | ❌          | ❌               | ❌               | ❌               | ✅                | can the list of targets be content dependent ?                      |
-| Multiple target                | ❌          | ✅               | ✅               | ❌               | ✅                | can a single job have several targets ?                             |
-| Self-tracking                  | ❌          | ➖ commands only | ✅               | ➖ can detect    | ✅                | handle modifications of the config file ?                           |
-| Scalability                    | ➖ <100.000 | ✅ >100.000      | ✅ >100.000      | ❓ not a backend | ✅ >1.000.000     | c.f. [benchmarks](benchmark.md)                                     |
-| content based                  | ❌          | ❌               | ✅               | ❌               | ✅                | rebuild only if dependencies content change ?                       |
-| Matching                       | ➖ single % | ❌               | ❌               | ❌               | ✅ full regexpr   |                                                                     |
-| User friendly DSL              | ❌ specific | ✅ very simple   | ➖ Python subset | ❌ specific      | ✅ Python         |                                                                     |
-| Remote job execution           | ❌          | ❌               | ✅               | ❌               | ✅ slurm or SGE   |                                                                     |
-| inter-user cache               | ❌          | ❌               | ✅ (no abs path) | ❌               | ✅ (experimental) | can you reuse the result of another user ?                          |
-| job isolation                  | ❌          | ❌               | ✅ (container)   | ❌               | ✅ (autodep)      |                                                                     |
-| large recommanded rule set     | ➖          | ❌               | ✅               | ✅               | ❌                |                                                                     |
-| portable (Windows, mac, Linux) | ✅          | ✅               | ✅               | ✅               | ❌ (linux only)   |                                                                     |
+|                                      | make        | ninja            | bazel            | CMake            | open-lmake        | Comment                                                             |
+|--------------------------------------|-------------|------------------|------------------|------------------|-------------------|-----------------------------------------------------------|
+| [Automatic dependencies](autodep.md) | ❌          | ❌               | ❌               | ❌               | ✅                |                                                           |
+| Concurrent builds                    | ❌          | ❌               | ❌ (locked)      | ❌               | ✅                | can safely launch `build a & build b` ?                   |
+| Concurrent source editition          | ❌          | ❌               | ❌               | ❌               | ✅                | is it safe to edit a source while building ?              |
+| symbolic link support                | ❌          | ❌               | ❌               | ❌               | ✅                | can you use symbolic links and while staying consistent ? |
+| `unzip` like job support             | ❌          | ❌               | ❌               | ❌               | ✅                | can the list of targets be content dependent ?            |
+| Multiple target                      | ❌          | ✅               | ✅               | ❌               | ✅                | can a single job have several targets ?                   |
+| Self-tracking                        | ❌          | ➖ commands only | ✅               | ➖ can detect    | ✅                | handle modifications of the config file ?                 |
+| Scalability                          | ➖ <100.000 | ✅ >100.000      | ✅ >1.000.000    | ❓ not a backend | ✅ >1.000.000     | c.f. [benchmarks](benchmark.md)                           |
+| content based                        | ❌          | ❌               | ✅               | ❌               | ✅                | rebuild only if dependencies content change ?             |
+| Matching                             | ➖ single % | ❌               | ❌               | ❌               | ✅ full regexpr   |                                                           |
+| User friendly DSL                    | ❌ specific | ✅ very simple   | ➖ Python subset | ❌ specific      | ✅ Python         |                                                           |
+| Remote job execution                 | ❌          | ❌               | ✅               | ❌               | ✅ slurm or SGE   |                                                           |
+| inter-user cache                     | ❌          | ❌               | ✅ (no abs path) | ❌               | ✅ (experimental) | can you reuse the result of another user ?                |
+| job isolation                        | ❌          | ❌               | ✅ (container)   | ❌               | ✅ (autodep)      |                                                           |
+| large recommanded rule set           | ➖          | ❌               | ✅               | ✅               | ❌                |                                                           |
+| portable (Windows, mac, Linux)       | ✅          | ✅               | ✅               | ✅               | ❌ (linux only)   |                                                           |
 
 # `make`
 
-`make` used to be an excellent tool when it was first written by Dr Stuart Feldman almost 50 years ago.
-Before there was nothing, and for a long time, until the arrival of `ninja` in the early 2010's (other build systems in the mean time were based on `make`).
+`make` used to be an excellent tool when it was first written by [Dr Stuart Feldman](https://en.wikipedia.org/wiki/Stuart_Feldman) almost 50 years ago.
+Before there was nothing, and for a long time, until the arrival of `ninja` in the early 2010's (other build systems in the mean time were based on `make`), there was `make`.
 
 Nevertheless, as seen from today, `make` suffers a rather long list of flaws.
 

@@ -70,7 +70,7 @@ Several prefixes can be used, for example a private static variable will start w
 	</table>
 
 ## File layout
-- lines are limited to 200 characters (as is this document)
+- lines are limited to 200 characters (as is this document source)
 - functions are limited to 100 lines:
 	- there are few exceptions, though, where it was impossible to cut without making too artificial a sub-function
 - generally speaking code is put on a single line when several lines are similar and alignment helps readability

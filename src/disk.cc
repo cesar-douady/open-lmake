@@ -193,23 +193,27 @@ namespace Disk {
 		return res ;
 	}
 
-	void unlnk_inside_s( Fd at , ::string const& dir_s , bool abs_ok , bool force ) {
-		if (!abs_ok) SWEAR( is_lcl_s(dir_s) , dir_s ) ;                                                                                  // unless certain, prevent accidental non-local unlinks
-		if (force) [[maybe_unused]] int _ = ::fchmodat( at , no_slash(dir_s).c_str() , S_IRWXU|S_IRWXG|S_IRWXO , AT_SYMLINK_NOFOLLOW ) ; // ignore return code as we cannot do much about it
-		for( ::string const& f : lst_dir_s(at,dir_s,dir_s) ) unlnk(at,f,true/*dir_ok*/,abs_ok,force) ;
+	void unlnk_inside_s( Fd at , ::string const& dir_s , bool abs_ok , bool force , bool ignore_errs ) {
+		if (!abs_ok) SWEAR( is_lcl_s(dir_s) , dir_s ) ;                                                  // unless certain, prevent accidental non-local unlinks
+		if (force) [[maybe_unused]] int _ = ::fchmodat( at , no_slash(dir_s).c_str() , S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH , AT_SYMLINK_NOFOLLOW ) ; // ignore errors as we cannot do much about it
+		try {
+			for( ::string const& f : lst_dir_s(at,dir_s,dir_s) ) unlnk(at,f,true/*dir_ok*/,abs_ok,force,ignore_errs) ;
+		} catch(::string const&) {
+			if (!ignore_errs) throw ;
+		}
 	}
 
-	bool/*done*/ unlnk( Fd at , ::string const& file , bool dir_ok , bool abs_ok , bool force ) {
-		/**/         SWEAR( +file || at!=Fd::Cwd  , file,at,abs_ok ) ;                            // do not unlink cwd
-		if (!abs_ok) SWEAR( !file || is_lcl(file) , file           ) ;                            // unless certain, prevent accidental non-local unlinks
+	bool/*done*/ unlnk( Fd at , ::string const& file , bool dir_ok , bool abs_ok , bool force , bool ignore_errs ) {
+		/**/                                  SWEAR( +file || at!=Fd::Cwd  , file,at,abs_ok ) ;                      // do not unlink cwd
+		if (!abs_ok                         ) SWEAR( !file || is_lcl(file) , file           ) ;                      // unless certain, prevent accidental non-local unlinks
 		if (::unlinkat(at,file.c_str(),0)==0) return true /*done*/ ;
 		if (errno==ENOENT                   ) return false/*done*/ ;
-		throw_unless( dir_ok        , "cannot unlink "     ,file ) ;
-		throw_unless( errno==EISDIR , "cannot unlink file ",file ) ;
+		if (!dir_ok                         ) { if (ignore_errs) return false/*done*/ ; else throw "cannot unlink "     +file ; }
+		if (errno!=EISDIR                   ) { if (ignore_errs) return false/*done*/ ; else throw "cannot unlink file "+file ; }
 		//
-		unlnk_inside_s(at,with_slash(file),abs_ok,force) ;
+		unlnk_inside_s(at,with_slash(file),abs_ok,force,ignore_errs) ;
 		//
-		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)<0) throw "cannot unlink dir " +file ;
+		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)<0) { if (ignore_errs) return false/*done*/ ; else throw "cannot unlink dir "+file ; }
 		return true/*done*/ ;
 	}
 

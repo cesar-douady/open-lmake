@@ -455,7 +455,7 @@ int main( int argc , char* argv[] ) {
 		catch (::string const& e) { end_report.msg += e ; goto End ; }
 		struct rusage rsrcs ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
-		if (+g_to_unlnk) unlnk(g_to_unlnk) ;
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                             // XXX> : suppress when CentOS7 bug is fixed
 		//
 		Digest digest = analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;

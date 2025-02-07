@@ -23,28 +23,28 @@ Because the data necessary to run the benchmark are not provided, I have approxi
 - 10k executables
 - each of them composed of a main C source file and 10 other C source files, for a total of 110k C source files
 - as many .h include files
-- 10 #include directives in each main C source file and 5 #include directives in each other C source file
+- 10 `#include` directives in each main C source file and 5 #include directives in each other C source file
 - C source files are mostly empty (a mere function doing nothing).
-- a "all_10000" target depending on all 10k executables.
-- a "all_10" target depending on the first 10 executables.
+- a `all_10000` target depending on all 10k executables.
+- a `all_10` target depending on the first 10 executables.
 
 The directory is prepared by running the "unit_tests/bench" unit test.
 [unit_tests/bench](../unit_tests/bench.py) can be inspected to have a detailed understanding.
 
 For each build-system:
 
-- all_10000 is built a first time from a fresh code base (fresh rebuild)
+- `all_10000` is built a first time from a fresh code base (fresh rebuild)
 - all derived files are removed (as well as `bazel`'s cache)
-- all_10000 is rebuilt (full rebuild)
-- all_10000 is rebuilt a second time (full no-op rebuild)
-- all_10 is rebuilt
-- all_10 is rebuilt a second time (partial no-op rebuild)
+- `all_10000` is rebuilt (full rebuild)
+- `all_10000` is rebuilt a second time (full no-op rebuild)
+- `all_10` is rebuilt
+- `all_10` is rebuilt a second time (partial no-op rebuild)
 
 ## Notes on the benchmark
 
-Thanks to open-lmake autodep mecanism, there is no dependencies information in the config file.
+Thanks to open-lmake [autodep mechanism](autodep.md), there is no dependencies information in the config file.
 Hence the fresh rebuild is longer as dependencies are discovered and this only pertinent for open-lmake.
-For `make`, there is typically a "depend" target to build.
+For `make`, there is typically a `depend` target to build.
 For `ninja` this work would be done by meson or CMake.
 For `bazel`, this is done either by hand or by a generator.
 However, I have not measured these phases for other build systems.
@@ -63,20 +63,20 @@ Builds are run with either 8 or 16 parallel jobs, whichever is faster.
 
 ## Results
 
-|                                 | `bash`     | `make`         | `ninja`    | `bazel`    | open-lmake  | Comment                                                       |
-|---------------------------------|------------|----------------|------------|------------|-------------|---------------------------------------------------------------|
-| number of parallel jobs         | 8          | 16             | 16         | 8          | 16          |                                                               |
-| fresh rebuild                   |            |                |            |            | 8 min 46 s  | initial build                                                 |
-| full rebuild                    | 5 min 53 s | **5 min 50 s** | 6 min 07 s | 7 min 22 s | 7 min 06 s  | after erasing all built files and `bazel` cache               |
-| full no-op rebuild              |            | 7.725 s        | 0.913 s    | 5.256 s    | **0.777 s** | after no modification                                         |
-| partial no-op rebuild           |            | 0.871 s        | 0.462 s    | 4.225 s    | **0.241 s** | build of a target that only requires exploration of 100 files |
-| config file size (lines)        | 120017     | 120008         | 120011     | 120002     | **11**      | note open-lmake contains no dep info in its config            |
-| resident memory on full rebuild | 123 M      | 406 M          | **136 M**  | 8.7 G      | 204 M       |                                                               |
+|                                 | `bash` | `make`     | `ninja`  | `bazel` | open-lmake | Comment                                                       |
+|---------------------------------|--------|------------|----------|---------|------------|---------------------------------------------------------------|
+| number of parallel jobs         | 8      | 16         | 16       | 8       | 16         |                                                               |
+| fresh rebuild                   |        |            |          |         | 8m 46s     | initial build                                                 |
+| full rebuild                    | 5m 53s | **5m 50s** | 6m 07s   | 7m 22s  | 7m 06s     | after erasing all built files and `bazel` cache               |
+| full no-op rebuild              |        | 7.725s     | 0.913s   | 5.256s  | **0.777s** | after no modification                                         |
+| partial no-op rebuild           |        | 0.871s     | 0.462s   | 4.225s  | **0.241s** | build of a target that only requires exploration of 100 files |
+| config file size (lines)        | 120017 | 120008     | 120011   | 120002  | **11**     | note open-lmake contains no dep info in its config            |
+| resident memory on full rebuild | 123M   | 406M       | **136M** | 8.7G    | 204M       |                                                               |
 
 ## Notes on the results
 
 I could not reproduce `make`'s catastrophic scalability results mentioned by David Röthlisberger.
-Full no-op rebuild takes about 7 s where he mentioned around 70 s.
+Full no-op rebuild takes about 7s where he mentioned around 70s.
 
 `bazel` manages a cache.
 Open-lmake manages dependencies (the cache is not turned on).

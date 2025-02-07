@@ -713,14 +713,19 @@ bool/*entered*/ JobSpace::enter(
 						if (_create(report,dst,descr.phys[i]+cu)) break ;
 			}
 		}
-		size_t          sz    = descr.phys.size() ;
-		::string const& upper = descr.phys[0]     ;
+		size_t          sz     = descr.phys.size() ;
+		::string const& upper  = descr.phys[0]     ;
+		::string        work_s ;
 		if (sz==1) {
 			_mount_bind( abs_view , abs_phys[0] ) ;
 		} else {
-			::string work_s = is_lcl(upper) ? work_dir_s+"work_"+(work_idx++)+'/' : upper.substr(0,upper.size()-1)+".work/" ;  // if not in the repo, it must be in tmp
+			work_s = is_lcl(upper) ? work_dir_s+"work_"+(work_idx++)+'/' : no_slash(upper)+".work/" ;                          // if not in the repo, it must be in tmp
 			mk_dir_s(work_s) ;
 			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,repo_root_s) ) ;
+		}
+		if (+tmp_view_s) {
+			if (view  .starts_with(tmp_view_s)) no_unlnk.insert(view  ) ;
+			if (work_s.starts_with(tmp_view_s)) no_unlnk.insert(work_s) ;
 		}
 	}
 	trace("done") ;
@@ -905,9 +910,9 @@ bool/*entered*/ JobStartRpcReply::enter(
 	_tmp_dir_s = autodep_env.tmp_dir_s ;                                                                                 // for use in exit (autodep.tmp_dir_s may be moved)
 	//
 	try {
-		unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                                                                   // ensure tmp dir is clean
+		unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                             // ensure tmp dir is clean
 	} catch (::string const&) {
-		try                       { mk_dir_s(phy_tmp_dir_s) ;            }                                               // ensure tmp dir exists
+		try                       { mk_dir_s(phy_tmp_dir_s) ;            }         // ensure tmp dir exists
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
 	}
 	//
@@ -955,10 +960,26 @@ bool/*entered*/ JobStartRpcReply::enter(
 	return entered ;
 }
 
+static void _unlnk_inside_s( ::string const& dir_s , ::uset_s const& no_unlnk ) {
+	try {
+		for( ::string const& f : lst_dir_s(dir_s,dir_s) ) {
+			if (no_unlnk.contains(f)  ) continue ;          // dont unlink file
+			if (::unlink(f.c_str())==0) continue ;          // ok
+			if (errno!=EISDIR         ) continue ;          // ignore errors as we have nothing much to do with them
+			::string d_s = with_slash(f) ;
+			if (no_unlnk.contains(d_s)) continue ;          // dont unlink dir
+			//
+			_unlnk_inside_s(d_s,no_unlnk) ;
+			//
+			::rmdir(f.c_str()) ;
+		}
+	} catch (::string const&) {} // ignore errors as we have nothing much to do with them
+}
+
 void JobStartRpcReply::exit() {
 	// work dir cannot be cleaned up as we may have chroot'ed inside
-	Trace trace("JobStartRpcReply::exit",STR(keep_tmp),_tmp_dir_s) ;
-	if ( !keep_tmp && +_tmp_dir_s ) unlnk_inside_s(_tmp_dir_s,true/*abs_ok*/ ) ;
+	Trace trace("JobStartRpcReply::exit",STR(keep_tmp),_tmp_dir_s,job_space.no_unlnk) ;
+	if ( !keep_tmp && +_tmp_dir_s ) _unlnk_inside_s( _tmp_dir_s , job_space.no_unlnk ) ;
 	job_space.exit() ;
 }
 

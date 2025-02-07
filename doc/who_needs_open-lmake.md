@@ -33,4 +33,4 @@ In other cases (e.g. you use CAD tools, you write embedded code, the complexity 
 you need a more generic tool and open-lmake is an excellent choice.
 
 In particular, if you already use `make` today and are frustrated by its poor static dependency paradigm and lack of versatility, and if you are tired typing `make clean` every so often,
-then converting your code base to open-lmake will be 1) easy and 2) a breath of fresh air.
+then converting your code base to open-lmake will be 1) easy and 2) a breath of fresh air (in a large par due to its [automatic dependency mechanism](autodep.md).

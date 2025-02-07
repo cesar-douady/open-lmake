@@ -26,15 +26,17 @@
 #include "dir_cache.hh"
 
 using namespace Disk ;
+using namespace Time ;
 
 namespace Caches {
 
 	// START_OF_VERSIONING
 
 	struct Lru {
-		::string     prev_s = DirCache::HeadS ;
-		::string     next_s = DirCache::HeadS ;
-		DirCache::Sz sz     = 0               ; // size of entry, or overall size for head
+		::string     prev_s      = DirCache::HeadS ;
+		::string     next_s      = DirCache::HeadS ;
+		DirCache::Sz sz          = 0               ; // size of entry, or overall size for head
+		Pdate        last_access ;
 	} ;
 
 	void DirCache::chk(ssize_t delta_sz) const {
@@ -151,10 +153,10 @@ namespace Caches {
 	void DirCache::_lru_first( ::string const& entry_s , Sz sz_ , NfsGuard& nfs_guard ) {
 		SWEAR(entry_s!=HeadS) ;
 		//
-		::string head_file  = _lru_file(HeadS)                                           ;
-		auto     head       = deserialize<Lru>(AcFd(nfs_guard.access(head_file)).read()) ;
-		::string here_file  = _lru_file(entry_s)                                         ;
-		Lru      here       { .next_s=head.next_s , .sz=sz_ }                            ;
+		::string head_file = _lru_file(HeadS)                                           ;
+		auto     head      = deserialize<Lru>(AcFd(nfs_guard.access(head_file)).read()) ;
+		::string here_file = _lru_file(entry_s)                                         ;
+		Lru      here      { .next_s=head.next_s , .sz=sz_ , .last_access=New }         ;
 		if (head.next_s==HeadS) {
 			head.next_s = entry_s ;
 			head.prev_s = entry_s ;

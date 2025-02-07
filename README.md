@@ -60,8 +60,8 @@ However, the simplest way is to give it a try:
 - it is important to copy the example in a fresh directory because the script modifies the sources to mimic a session
 - in particular, if you want to restart, re-copy the example to a fresh directory.
 - `cd` into it
-- run `./run.py`
-- inspect `Lmakefile.py` and `run.py`, they are abundantly commented
+- run `./run`
+- inspect `Lmakefile.py` and `run`, they are abundantly commented
 
 Once you have understood what is going on with `hello_world`, you can repeat these steps with the second example `cc` (`examples/cc.dir`).
 
@@ -69,7 +69,7 @@ Once you have understood what is going on with `hello_world`, you can repeat the
 
 Open-lmake does the following:
 
-- Automatic dependency tracking:
+- [Automatic dependency tracking](doc/autodep.md):
 	- System activity is tracked to detect file accesses (reads & writes), as with [rattle](https://github.com/ndmitchell/rattle).
 	- Dependencies are automatically added upon read.
 	- No need for any kind of pre-analysis.
@@ -95,13 +95,15 @@ Open-lmake does the following:
 	- Jobs can be executed in containers in which the repository root directory appears identical in all actual repositories, allowing to transport results even when they contain absolute paths.
 - Extremely fast:
 	- Everything is cached, in particular dependencies so that the discovery process is fully run once, then dependencies are adjusted at each run.
-	- Up-to-date analysis is content based rather date based, so that when a target is remade identically to its previous content, dependent jobs are not rebuilt.
+	- Up-to-date analysis is content based rather than date based, so that when a target is remade identically to its previous content, dependent jobs are not rebuilt.
 	- Strings are interned, their values are only used to import (e.g. when tracking dependencies) and export (e.g. for reports or job execution).
-	- Can launch about 1000 jobs per second if connected to an adequate slurm-based farm.
+	- Can launch about 1000 jobs per second if connected to an adequate slurm-based farm and about 300 on the local host.
+	- Globally, performances are about the same as `ninja` while providing much better guarantees.
 - Extremely memory efficient:
 	- Keeping the state of all dependencies is inherently very expensive.
 	- Thorough efforts have been made to keep this book keeping-minimal.
 	- Typically, an existing dependency occupies 16 bytes, a non-existing one only 4 bytes, so there can be 100's of millions of them.
+	- Globally, memory efficiency is in the same ball park as `ninja` while providing much better guarantees.
 - Generally speaking 1.000.000 files/jobs can be handled with no burden.
 - Oriented towards reproducibility:
 	- Coupled with the source control system (usually `git`) and refuses to rely on untracked files.
@@ -113,4 +115,4 @@ Open-lmake does the following:
 
 # Developers
 
-If you want understand, read the code, edit it, implement a new feature or fix a bug, please refer to the [developers](doc/developers.md) file.
+If you want understand, read the code, edit it, implement a new feature or fix a bug, please refer to the [developers](doc/developers.md) file first.
