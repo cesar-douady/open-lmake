@@ -18,9 +18,8 @@ Lmakefile.py must :
 	- or define a callable or a sub-module named sources that does the same thing when calle/imported
 """
 
-import sys     as _sys
-import os      as _os
-import os.path as _osp
+import sys as _sys
+import os  as _os
 
 try :
 	if _sys.version_info.major<3 : from clmake2 import * # if not in an lmake repo, top_repo_root is not set to current dir
@@ -32,20 +31,15 @@ except :
 
 from .utils import *
 
-repo_root     = _os.environ.get('REPO_ROOT'    )
-top_repo_root = _os.environ.get('TOP_REPO_ROOT')
-if repo_root    ==None : repo_root     = _os.getcwd() ; # fall back if not within a job
-if top_repo_root==None : top_repo_root = _os.getcwd() ; # .
-
 root_dir     = repo_root     # XXX> : until backward compatibility can be broken
 top_root_dir = top_repo_root # XXX> : until backward compatibility can be broken
 
-version = ('$VERSION',0) # substituted at build time
+version = ('$VERSION',$TAG) # substituted at build time
 
 def check_version(major,minor=0) :
 	if major!=version[0] or minor>version[1] : raise RuntimeError('required version '+str((major,minor))+' is incompatible with native version '+str(version))
 
-def maybe_local(file) :
+def _maybe_local(file) :
 	'fast check for local files, avoiding full absolute path generation'
 	return not file or file[0]!='/' or file.startswith(top_repo_root)
 
@@ -86,12 +80,11 @@ def run_cc(*cmd_line,**kwds) :
 		if   k=='marker' : marker = v
 		elif k=='stdin'  : stdin  = v
 		else             : raise TypeError('unexpected keyword argument '+k)
-	import os                                                                # only import modules when necessary (so avoid import at the top level)
-	import subprocess as sp                                                  # .
+	import subprocess as sp                                                  # only import modules when necessary (so avoid import at the top level)
 	dirs = set()
 	for i,x in enumerate(cmd_line) :
 		for k in ('-I','-iquote','-isystem','-dirafter','-L') :
-			if not x.startswith(k)        : continue
+			if   not x.startswith(k)      : continue
 			elif x!=k                     : d = x[len(k):]
 			elif i==len(cmd_line)-1       : continue
 			else                          : d = cmd_line[i+1]
@@ -103,12 +96,8 @@ def run_cc(*cmd_line,**kwds) :
 		# - depend(read=True) provides a proof of existence of marker files, hence their containing dirs
 		# - check_deps(verbose=True) would ensure dirs exist when call returns as without verbose, job continues while waiting for server reply,
 		#   and may even finish without the dir existing and in that case it would not be rerun
-		if True :
-			depend(*(d+'/'+marker for d in dirs),required=False,read=True)   # ensure dirs exist
-			check_deps()                                                     # avoid running compiler without proper markers
-		else :
-			depend(*(d+'/'+marker for d in dirs),required=False)             # ensure dirs exist
-			check_deps(verbose=True)                                         # avoid running compiler without proper markers
+		depend(*(d+'/'+marker for d in dirs),required=False,read=True)       # ensure dirs exist
+		check_deps()                                                         # avoid running compiler without proper markers
 	return sp.run(
 		cmd_line
 	,	universal_newlines=True
@@ -116,14 +105,14 @@ def run_cc(*cmd_line,**kwds) :
 	,	check=True
 	)
 
-def find_cc_ld_library_path(cc) :
+def _find_cc_ld_library_path(cc) :
 	'''
-		find_cc_ld_library_path(my_compiler) returns and adequate content to put in LD_LIBRARY_PATH for programs compiled with my_compiler.
+		_find_cc_ld_library_path(my_compiler) returns and adequate content to put in LD_LIBRARY_PATH for programs compiled with my_compiler.
 	'''
 	import subprocess as sp
 	import os.path    as osp
 	return sp.run(
-		(osp.dirname(osp.dirname(osp.dirname(__file__)))+'/bin/find_cc_ld_library_path',cc)
+		(osp.dirname(osp.dirname(osp.dirname(__file__)))+'/_bin/find_cc_ld_library_path',cc)
 	,	universal_newlines=True
 	,	stdout=sp.PIPE
 	,	check=True

@@ -210,7 +210,7 @@ namespace Engine {
 		/**/                               res <<  "\tauto_mkdir     = " << mk_py_str(ade.auto_mkdir                        ) << '\n' ;
 		/**/                               res << ",\tautodep_method = " << mk_py_str(snake(start.method)                   ) << '\n' ;
 		if (+start.job_space.chroot_dir_s) res << ",\tchroot_dir     = " << mk_py_str(no_slash(start.job_space.chroot_dir_s)) << '\n' ;
-		if (+start.cwd_s                 ) res << ",\tcwd            = " << mk_py_str(no_slash(start.cwd_s)                 ) << '\n' ;
+		if (+ade.sub_repo_s              ) res << ",\tsub_repo       = " << mk_py_str(no_slash(ade.sub_repo_s              )) << '\n' ;
 		/**/                               res << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                   ) << '\n' ;
 		/**/                               res << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat                       ) << '\n' ;
 		/**/                               res << ",\tis_python      = " << mk_py_str(j->rule()->is_python                  ) << '\n' ;
@@ -626,13 +626,16 @@ namespace Engine {
 								if (+start.job_space.lmake_view_s ) push_entry( "lmake_view"  , no_slash(start.job_space.lmake_view_s) ) ;
 								if (+start.job_space.repo_view_s  ) push_entry( "repo_view"   , no_slash(start.job_space.repo_view_s ) ) ;
 								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
-								if (+start.cwd_s                  ) push_entry( "cwd"         , no_slash(start.cwd_s                 ) ) ;
+								if (+start.autodep_env.sub_repo_s ) push_entry( "sub_repo"    , no_slash(start.autodep_env.sub_repo_s) ) ;
 								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"  , "true"                                 ) ;
 								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat" , "true"                                 ) ;
 								/**/                                push_entry( "autodep"     , snake_str(start.method)                ) ;
 								if (+start.timeout                ) push_entry( "timeout"     , start.timeout.short_str()              ) ;
-								if ( sa.tag!=BackendTag::Local    ) push_entry( "backend"     , snake_str(sa.tag)                      ) ;
 								if ( start.use_script             ) push_entry( "use_script"  , "true"                                 ) ;
+								//
+								if      (sa.asked_tag==BackendTag::Local) SWEAR(sa.used_tag==BackendTag::Local) ;
+								else if (sa.used_tag==sa.asked_tag      ) push_entry( "backend" , snake_str(sa.asked_tag)                                     ) ;
+								else                                      push_entry( "backend" , snake_str(sa.asked_tag)+" -> "+sa.used_tag , Color::Warning ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;

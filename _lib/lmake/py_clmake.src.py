@@ -14,6 +14,8 @@ import os.path as _osp
 # provide minimal support in pure python
 # XXX! : provide support for get_autodep() and set_autodep()
 
+top_repo_root = repo_root = _os.getcwd()
+
 import subprocess as _sp
 def _run(cmd_line,**kwds) :
 	return _sp.check_output(cmd_line,universal_newlines=True,**kwds)

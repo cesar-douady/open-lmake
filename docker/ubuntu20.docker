@@ -7,14 +7,15 @@
 
 FROM ubuntu:20.04
 
-RUN                                apt-get update --fix-missing                  # 1 : in case of failure, try to increment this number to force docker to reexecute the update line
+RUN                                apt-get update --fix-missing                  # 2 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
 RUN                                apt-get install -y build-essential
 
 # compulsery
 RUN                                apt-get install -y git
 RUN                                apt-get install -y python3-dev
-RUN                                apt-get install -y texinfo m4
+RUN                                apt-get install -y wget
+RUN                                apt-get install -y m4 groff
 # optional
 #RUN                               apt-get install -y libpcre2-dev
 RUN                                apt-get install -y libseccomp-dev

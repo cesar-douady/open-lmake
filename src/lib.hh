@@ -13,4 +13,10 @@ ENUM( LnkSupport
 ,	Full
 )
 
-::pair_ss search_root_s(::string const& cwd_s={}) ; // use cwd_s() by default
+struct SearchRootResult {
+	::string top_s     ;
+	::string sub_s     ;
+	::string startup_s ;
+} ;
+
+SearchRootResult search_root_s(::string const& cwd_s={}) ; // use cwd_s() by default

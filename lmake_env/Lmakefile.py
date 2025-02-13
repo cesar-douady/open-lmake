@@ -327,7 +327,6 @@ class TarLmake(BaseRule) :
 	,	'LSHOW'               : 'bin/lshow'
 	,	'LTARGET'             : 'bin/ltarget'
 	,	'XXHSUM'              : 'bin/xxhsum'
-	,	'DOC'                 : 'doc/lmake.html'
 	}
 	def gen_files() :
 		files = list(deps.values())

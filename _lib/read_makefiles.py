@@ -64,7 +64,7 @@ def merge_manifest( manifest , sub_manifest , sub_dir_s ) :
 			if s.startswith('../') : manifest.append(sd_s+s)
 
 def merge_rules( rules , sub_rules , sub_dir_s ) :
-	for r in sub_rules : r.cwd_s = sub_dir_s+getattr(r,'cwd_s','')
+	for r in sub_rules : r.sub_repo_s = sub_dir_s+getattr(r,'sub_repo_s','')
 	rules += sub_rules
 
 import Lmakefile

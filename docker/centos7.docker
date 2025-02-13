@@ -22,11 +22,12 @@ RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!
 # build a minimal environment
 
 # compulsery
-RUN  yum install -y epel-release
-RUN  yum install -y devtoolset-11
-RUN  yum install -y python3 python3-devel
-RUN  yum install -y git
-RUN  yum install -y texinfo m4
+RUN yum install -y epel-release
+RUN yum install -y devtoolset-11
+RUN yum install -y python3 python3-devel
+RUN yum install -y git
+RUN yum install -y wget
+RUN yum install -y m4 groff
 # optional
 #RUN yum install -y strace                                                 # try a docker without strace
 #RUN yum install -y libseccomp

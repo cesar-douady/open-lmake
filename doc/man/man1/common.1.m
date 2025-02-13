@@ -94,7 +94,7 @@ define(`SubCommands',`
 ')
 define(`CommonFiles',`
 	.LP
-	The file I(Lmakefile.py) is searched in the current directory and in parent directories.
+	The files I(Lmakefile.py) or I(Lmakefile/__init__.py) are searched in the current directory and in parent directories.
 	If a single one is found, this determines the root of the repository.
 	If several are found, the existence of an I(LMAKE) directory is checked.
 	If a single one is found, this determines the root of the repository.
@@ -104,23 +104,24 @@ define(`CommonFiles',`
 define(`SeeAlsoSection',`
 	.SH "SEE ALSO"
 	.LP
-	ifelse(Name,find_cc_ld_library_path,,`C(find_cc_ld_library_path),'       )
-	ifelse(Name,lautodep,               ,`C(lautodep),'                      )
-	ifelse(Name,lcheck_deps,            ,`C(lcheck_deps),'                   )
-	ifelse(Name,ldebug,                 ,`C(ldebug),'                        )
-	ifelse(Name,ldecode,                ,`C(ldecode),'                       )
-	ifelse(Name,ldepend,                ,`C(ldepend),'                       )
-	ifelse(Name,lencode,                ,`C(lencode),'                       )
-	ifelse(Name,lforget,                ,`C(lforget),'                       )
-	ifelse(Name,lmake,                  ,`C(lmake),'                         )
-	ifelse(Name,lmark,                  ,`C(lmark),'                         )
-	ifelse(Name,lrepair,                ,`C(lrepair),'                       )
-	ifelse(Name,lrun_cc,                ,`C(lrun_cc),'                       )
-	ifelse(Name,lshow,                  ,`C(lshow),'                         )
-	ifelse(Name,ltarget,                ,`C(ltarget)ifelse(Name,xxhsum,,`,')')
-	ifelse(Name,xxhsum,                 ,`C(xxhsum)'                         )
+	ifelse(Name,lautodep,   ,`C(lautodep),'                      )
+	ifelse(Name,lcheck_deps,,`C(lcheck_deps),'                   )
+	ifelse(Name,ldebug,     ,`C(ldebug),'                        )
+	ifelse(Name,ldecode,    ,`C(ldecode),'                       )
+	ifelse(Name,ldepend,    ,`C(ldepend),'                       )
+	ifelse(Name,lencode,    ,`C(lencode),'                       )
+	ifelse(Name,lforget,    ,`C(lforget),'                       )
+	ifelse(Name,lmake,      ,`C(lmake),'                         )
+	ifelse(Name,lmark,      ,`C(lmark),'                         )
+	ifelse(Name,lrepair,    ,`C(lrepair),'                       )
+	ifelse(Name,lrun_cc,    ,`C(lrun_cc),'                       )
+	ifelse(Name,lshow,      ,`C(lshow),'                         )
+	ifelse(Name,ltarget,    ,`C(ltarget)ifelse(Name,xxhsum,,`,')')
+	ifelse(Name,xxhsum,     ,`C(xxhsum)'                         )
 	.LP
-	The python module B(lmake).
+	The Python module B(lmake).
+	.LP
+	The full OpenLmake documentation in I(<open-lmake-installation-dir>/doc/book/index.html).
 ')
 
 define(`Copyright',`

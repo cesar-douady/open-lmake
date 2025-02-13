@@ -1126,7 +1126,7 @@ public :
 		n_acquired-- ;                  // protected by _mutex
 	}
 	// data
-	set<T>   free_ids    ;
+	::set<T> free_ids    ;
 	T        n_allocated = 1 ;          // dont use id 0 so that it is free to mean "no id"
 	_AtomicT n_acquired  = 0 ;          // can be freely read by any thread if ThreadSafe
 private :

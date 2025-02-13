@@ -6,9 +6,9 @@
 import os.path as _osp
 import sys     as _sys
 
-from . import depend,Autodep
+from . import depend
 
-from . import maybe_local
+from . import _maybe_local
 
 def _depend_module(module_name,path=None) :
 	if path==None : path = _sys.path
@@ -16,7 +16,7 @@ def _depend_module(module_name,path=None) :
 	for dir in path :
 		if dir : dir += '/'
 		base = dir+tail
-		if maybe_local(base) :
+		if _maybe_local(base) :
 			for suffix in module_suffixes :
 				file = base+suffix
 				depend(file,required=False,read=True)

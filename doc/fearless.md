@@ -60,4 +60,4 @@ Open-lmake flips the approach on its head:
 - Ensure your build process fits within these guarantees.
 
 It offers one key guarantee: _files have the same content they would after a full rebuild._  
-This, through its [autodep mechanism](autodep.md) is the cornerstone of **open-lmake's fearlessness**.
+This, through its [autodep mechanism](src/autodep.md) is the cornerstone of **open-lmake's fearlessness**.

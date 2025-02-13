@@ -189,10 +189,10 @@ namespace Engine {
 		if ( +to_forget || +to_forget || +cycle_str ) {
 			/**/                      self->audit_info( Color::Note , "consider some of :\n"     ) ;
 			for( Node n : to_forget ) self->audit_node( Color::Note , "lforget -d" , n       , 1 ) ;
-			::set_s cwds_s ; for( Rule r : to_raise ) cwds_s.insert(r->cwd_s) ;
-			for( ::string const& cwd_s : cwds_s ) {
-				/**/                                           self->audit_info( Color::Note , "add to "+cwd_s+"Lmakefile.py :"                  , 1 ) ;
-				for( Rule r : to_raise  ) if (r->cwd_s==cwd_s) self->audit_info( Color::Note , r->name+".prio = "+::to_string(r->user_prio)+"+1" , 2 ) ;
+			::set_s sub_repos_s ; for( Rule r : to_raise ) sub_repos_s.insert(r->sub_repo_s) ;
+			for( ::string const& sub_repo_s : sub_repos_s ) {
+				/**/                                                     self->audit_info( Color::Note , "add to "+sub_repo_s+"Lmakefile.py :"             , 1 ) ;
+				for( Rule r : to_raise  ) if (r->sub_repo_s==sub_repo_s) self->audit_info( Color::Note , r->name+".prio = "+::to_string(r->user_prio)+"+1" , 2 ) ;
 			}
 			if (+cycle_str) {
 				self->audit_info( Color::Note , "add to Lmakefile.py :"        , 1 ) ;

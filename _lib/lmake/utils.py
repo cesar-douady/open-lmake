@@ -50,9 +50,9 @@ def multi_strip(txt) :
 		This allows to easily define multi-line text that have no reason to be indented in an indented context while keeping a nice looking code.
 		Usage :
 		gen_c = multi_strip(r'''
-			int main() {    	                   // this is the first line, not indented
+			int main() {                           // this is the first line, not indented
 				printf("this is nice looking\n") ; // this is indented once
-			}       	                           // this is the last line (no ending newline), not indented
+			}                                      // this is the last line (no ending newline), not indented
 		''')
 	"""
 	ls = txt.split('\n')

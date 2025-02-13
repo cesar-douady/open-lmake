@@ -159,7 +159,7 @@ namespace Backends {
 	// Backend
 	//
 
-	Backend*                             Backend::s_tab[N<Tag>]             = {}  ;
+	Backend*                             Backend::s_tab[N<Tag>]             = {} ;
 	::string                             Backend::_s_job_exec               ;
 	Mutex<MutexLvl::Backend >            Backend::_s_mutex                  ;
 	Backend::DeferredThread              Backend::_s_deferred_report_thread ;
@@ -189,6 +189,7 @@ namespace Backends {
 		Lock lock{_s_mutex} ;
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_attrs,rsrcs) ;
 		//
+		submit_attrs.asked_tag = tag ;
 		if ( tag!=Tag::Local && _localize(tag,r) ) {
 			SWEAR(+tag<N<Tag>) ;                                                              // prevent compiler array bound warning in next statement
 			throw_unless( s_tab[+tag] , "open-lmake was compiled without ",tag," support" ) ;
@@ -197,7 +198,7 @@ namespace Backends {
 			trace("local",rsrcs) ;
 		}
 		throw_unless( s_ready(tag) , "local backend is not available" ) ;
-		submit_attrs.tag = tag ;
+		submit_attrs.used_tag = tag ;
 		_s_workload.submit(r,j) ;
 		s_tab[+tag]->submit(j,r,submit_attrs,::move(rsrcs)) ;
 	}
@@ -376,9 +377,9 @@ namespace Backends {
 				/**/                               reply.autodep_env.lnk_support   = g_config->lnk_support                             ;
 				/**/                               reply.autodep_env.reliable_dirs = g_config->reliable_dirs                           ;
 				/**/                               reply.autodep_env.src_dirs_s    = *g_src_dirs_s                                     ;
+				/**/                               reply.autodep_env.sub_repo_s    = rule->sub_repo_s                                  ;
 				/**/                               reply.end_attrs.cache           = submit_attrs.cache                                ;
 				if (+submit_attrs.cache          ) reply.cache                     = Cache::s_tab.at(submit_attrs.cache)               ;
-				/**/                               reply.cwd_s                     = rule->cwd_s                                       ;
 				/**/                               reply.ddate_prec                = g_config->ddate_prec                              ;
 				/**/                               reply.key                       = g_config->key                                     ;
 				/**/                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
@@ -469,11 +470,17 @@ namespace Backends {
 			entry.conn.small_id = reply.small_id                                  ;
 		}
 		in_addr_t reply_addr = reply.addr ;                                                                       // save before move
+		bool report_now =                                                                                         // dont defer long jobs or if a message is to be delivered to user
+				+pre_action_warnings
+			||	+start_msg_err.second
+			||	submit_attrs.reason.tag==JobReasonTag::Retry                                                      // emit retry start message
+			||	Delay(job->exec_time)>=start_none_attrs.start_delay                                               // if job is probably long, emit start message immediately
+		;
 		JobInfoStart jis {
 			.rule_cmd_crc =        rule->crc->cmd
 		,	.stems        = ::move(match.stems         )
 		,	.eta          =        eta
-		,	.submit_attrs =        submit_attrs
+		,	.submit_attrs = ::move(submit_attrs        )
 		,	.rsrcs        = ::move(rsrcs               )
 		,	.host         =        reply_addr
 		,	.pre_start    =        jsrr
@@ -481,12 +488,6 @@ namespace Backends {
 		,	.stderr       =        start_msg_err.second
 		} ;
 		trace("started",job_exec,reply) ;
-		bool report_now =                                                                                         // dont defer long jobs or if a message is to be delivered to user
-				+pre_action_warnings
-			||	+start_msg_err.second
-			||	submit_attrs.reason.tag==JobReasonTag::Retry                                                      // emit retry start message
-			||	Delay(job->exec_time)>=start_none_attrs.start_delay                                               // if job is probably long, emit start message immediately
-		;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , ::move(jis) , report_now , ::move(pre_action_warnings) , ::move(start_msg_err.second) , jsrr.msg+start_msg_err.first ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

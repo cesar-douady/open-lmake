@@ -406,11 +406,6 @@ if [ "$OBJCOPY" ] ; then
 fi
 
 #
-# TEXI (HAS_TEXI)
-#
-HAS_TEXI=$(ok type -p texi2any)
-
-#
 # UNREACHABLE (HAS_UNREACHABLE)
 #
 cat <<"EOF" >unreachable.cc
@@ -459,7 +454,6 @@ cat >$MK_FILE <<-EOF
 	HAS_SECCOMP               := ${HAS_SECCOMP#0}
 	HAS_SGE                   := ${HAS_SGE#0}
 	HAS_SLURM                 := ${HAS_SLURM#0}
-	HAS_TEXI                  := ${HAS_TEXI#0}
 	HAS_ZLIB                  := ${HAS_ZLIB#0}
 	LD_SO_LIB                 := $LD_SO_LIB
 	LD_SO_LIB_32              := $LD_SO_LIB_32

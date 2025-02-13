@@ -105,7 +105,7 @@ class Rule(_RuleBase) :
 	#                                                  # - $TMPDIR if provided in the environment
 	#                                                  # - else a tmpfs sized after the 'tmp' resource if specified (no tmpfs is created if value is 0)
 	#                                                  # - else a private sub-directory in the LMAKE directory
-#	use_script       = False                           # use a script to run job rather than calling interpreter with -c
+#	use_script          = False                        # use a script to run job rather than calling interpreter with -c
 	if 'ld_audit' in autodeps : autodep = 'ld_audit'   # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace
 	else                      : autodep = 'ld_preload' # .
 	resources = {                                      # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps

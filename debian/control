@@ -5,7 +5,9 @@ Maintainer: Cesar Douady <cesar.douady@doliam.fr>
 Build-Depends:
  debhelper-compat (= 13),
  ed,
- texinfo,
+ wget,
+ m4,
+ groff,
  python3,
  python3-dev,
  strace,

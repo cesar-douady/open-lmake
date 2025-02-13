@@ -2,7 +2,6 @@
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<!-- Why open-lmake-->
 
 # Why open-lmake
 
@@ -69,7 +68,7 @@ Once you have understood what is going on with `hello_world`, you can repeat the
 
 Open-lmake does the following:
 
-- [Automatic dependency tracking](doc/autodep.md):
+- [Automatic dependency tracking](doc/src/autodep.md):
 	- System activity is tracked to detect file accesses (reads & writes), as with [rattle](https://github.com/ndmitchell/rattle).
 	- Dependencies are automatically added upon read.
 	- No need for any kind of pre-analysis.

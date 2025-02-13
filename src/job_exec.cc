@@ -412,7 +412,6 @@ int main( int argc , char* argv[] ) {
 		g_gather.autodep_env       = ::move(g_start_info.autodep_env          ) ;
 		g_gather.autodep_env.views =        g_start_info.job_space.flat_phys()  ;
 		g_gather.cur_deps_cb       =        cur_deps_cb                         ;
-		g_gather.cwd_s             = ::move(g_start_info.cwd_s                ) ;
 		g_gather.env               =        &cmd_env                            ;
 		g_gather.exec_trace        =        g_exec_trace                        ;
 		g_gather.job               =        g_job                               ;

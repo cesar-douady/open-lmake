@@ -10,7 +10,7 @@ if __name__!='__main__' :
 
 	import gxx
 
-	ld_library_path = lmake.find_cc_ld_library_path(gxx.gxx)
+	ld_library_path = lmake._find_cc_ld_library_path(gxx.gxx)
 
 	lmake.manifest = (
 		'Lmakefile.py'

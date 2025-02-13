@@ -9,7 +9,7 @@ FROM ubuntu:22.04
 
 # in case the necesary packages are not found, it may come from a bad /etc/apt//sources.list
 # and this may change from time to time. it has been seen that it was necessary to replace archive.ubuntu.com by fr.archive.ubuntu.com with a line such as :
-RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: -i.bak /etc/apt/sources.list
+#RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: -i.bak /etc/apt/sources.list
 
 RUN apt-get update --fix-missing       # 1 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN apt-get install -y build-essential
@@ -17,7 +17,8 @@ RUN apt-get install -y build-essential
 # compulsery
 RUN apt-get install -y git
 RUN apt-get install -y python3-dev
-RUN apt-get install -y texinfo m4
+RUN apt-get install -y wget
+RUN apt-get install -y m4 groff
 # optional
 RUN apt-get install -y g++-12 gdb
 RUN apt-get install -y clang

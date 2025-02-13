@@ -696,7 +696,6 @@ struct JobStartRpcReply {
 		::serdes(s,allow_stderr  ) ;
 		::serdes(s,autodep_env   ) ;
 		::serdes(s,cmd           ) ;
-		::serdes(s,cwd_s         ) ;
 		::serdes(s,ddate_prec    ) ;
 		::serdes(s,deps          ) ;
 		::serdes(s,end_attrs     ) ;
@@ -747,7 +746,6 @@ struct JobStartRpcReply {
 	AutodepEnv               autodep_env    ;                       //
 	Caches::Cache*           cache          = nullptr             ;
 	::pair_ss/*script,call*/ cmd            ;                       //
-	::string                 cwd_s          ;                       //
 	Time::Delay              ddate_prec     ;                       //
 	::vmap_s<DepDigest>      deps           ;                       // deps already accessed (always includes static deps)
 	EndAttrs                 end_attrs      ;
@@ -935,9 +933,10 @@ struct SubmitAttrs {
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		// cache, deps and tag are independent of req but may not always be present
-		if      (!cache) cache = other.cache ; else if (+other.cache) SWEAR(cache==other.cache,cache,other.cache) ;
-		if      (!deps ) deps  = other.deps  ; else if (+other.deps ) SWEAR(deps ==other.deps ,deps ,other.deps ) ;
-		if      (!tag  ) tag   = other.tag   ; else if (+other.tag  ) SWEAR(tag  ==other.tag  ,tag  ,other.tag  ) ;
+		if      (!cache    ) cache     = other.cache     ; else if (+other.cache    ) SWEAR(cache    ==other.cache    ,cache    ,other.cache    ) ;
+		if      (!deps     ) deps      = other.deps      ; else if (+other.deps     ) SWEAR(deps     ==other.deps     ,deps     ,other.deps     ) ;
+		if      (!asked_tag) asked_tag = other.asked_tag ; else if (+other.asked_tag) SWEAR(asked_tag==other.asked_tag,asked_tag,other.asked_tag) ;
+		if      (!used_tag ) used_tag  = other.used_tag  ; else if (+other.used_tag ) SWEAR(used_tag ==other.used_tag ,used_tag ,other.used_tag ) ;
 		live_out  |= other.live_out                   ;
 		pressure   = ::max(pressure ,other.pressure ) ;
 		reason    |= other.reason                     ;
@@ -951,13 +950,14 @@ struct SubmitAttrs {
 	}
 	// data
 	// START_OF_VERSIONING
-	::string            cache    = {}    ;
-	::vmap_s<DepDigest> deps     = {}    ;
-	bool                live_out = false ;
-	Time::CoarseDelay   pressure = {}    ;
-	JobReason           reason   = {}    ;
-	BackendTag          tag      = {}    ;
-	Tokens1             tokens1  = 0     ;
+	::string            cache     = {}    ;
+	::vmap_s<DepDigest> deps      = {}    ;
+	bool                live_out  = false ;
+	Time::CoarseDelay   pressure  = {}    ;
+	JobReason           reason    = {}    ;
+	BackendTag          asked_tag = {}    ; // tag asked by job
+	BackendTag          used_tag  = {}    ; // tag used (possibly made local because asked tag is not available)
+	Tokens1             tokens1   = 0     ;
 	// END_OF_VERSIONING
 } ;
 

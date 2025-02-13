@@ -31,8 +31,9 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 	if (!g_startup_dir_s) g_startup_dir_s = new ::string ;
 	if (!g_repo_root_s  ) {
 		try {
-			g_repo_root_s                        = new ::string{cwd_s()}         ;
-			tie(*g_repo_root_s,*g_startup_dir_s) = search_root_s(*g_repo_root_s) ;
+			SearchRootResult srr = search_root_s() ;
+			g_repo_root_s    = new ::string{srr.top_s} ;
+			*g_startup_dir_s = srr.startup_s           ;
 		} catch (::string const& e) { exit(Rc::Usage,e) ; }
 		if ( cd_root && +*g_startup_dir_s && ::chdir(no_slash(*g_repo_root_s).c_str())!=0 ) exit(Rc::System,"cannot chdir to ",no_slash(*g_repo_root_s)) ;
 	}

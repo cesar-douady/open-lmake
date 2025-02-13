@@ -12,7 +12,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
-	// env format : server:port:options:source_dirs:tmp_dir_s:repo_root_s
+	// env format : server:port:options:source_dirs:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
 	// if port is empty, server is considered a file to log deps to (which defaults to stderr if empty)
 	// if tmp_dir_s is empty, there is no tmp dir
 	AutodepEnv(::string const& env) ;
@@ -28,6 +28,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,enable                         ) ;
 		::serdes(s,ignore_stat                    ) ;
 		::serdes(s,service                        ) ;
+		::serdes(s,sub_repo_s                     ) ;
 		::serdes(s,views                          ) ;
 	}
 	Fd report_fd() const {
@@ -43,14 +44,15 @@ struct AutodepEnv : Disk::RealPathEnv {
 		return res ;
 	}
 	Fd repo_root_fd() const {
-		Fd res = { repo_root_s , Fd::Dir , true/*no_std*/ } ;                                              // avoid poluting standard descriptors
+		Fd res = { repo_root_s , Fd::Dir , true/*no_std*/ } ;                                          // avoid poluting standard descriptors
 		swear_prod(+res,"cannot open repo root dir",repo_root_s) ;
 		return res ;
 	}
 	// data
-	bool                 auto_mkdir  = false ;                                                             // if true  <=> auto mkdir in case of chdir
-	bool                 enable      = true  ;                                                             // if false <=> no automatic report
-	bool                 ignore_stat = false ;                                                             // if true  <=> stat-like syscalls do not trigger dependencies
+	bool                 auto_mkdir  = false ;                                                         // if true  <=> auto mkdir in case of chdir
+	bool                 enable      = true  ;                                                         // if false <=> no automatic report
+	bool                 ignore_stat = false ;                                                         // if true  <=> stat-like syscalls do not trigger dependencies
 	::string             service     ;
+	::string             sub_repo_s  ;                                                                 // relative to repo_root_s
 	::vmap_s<::vector_s> views       ;
 } ;

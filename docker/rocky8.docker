@@ -17,7 +17,8 @@ RUN dnf install -y epel-release
 RUN dnf install -y gcc-toolset-11
 RUN dnf install -y python3 python3-devel
 RUN dnf install -y git
-RUN dnf install -y --enablerepo=powertools texinfo-tex m4
+RUN dnf install -y wget
+RUN dnf install -y m4 groff
 # optional
 RUN  dnf install -y libseccomp
 RUN  dnf install -y strace

@@ -212,13 +212,13 @@ Fd Gather::_spawn_child() {
 			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) _add_env[env_var] += ':' + get_env(env_var) ; }
 		}
-		new_exec( New , mk_glb(cmd_line[0],cwd_s) ) ;
+		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
 	}
-	start_date      = New       ;                                                               // record job start time as late as possible
-	_child.cmd_line = cmd_line  ;
-	_child.env      = env       ;
-	_child.add_env  = &_add_env ;
-	_child.cwd_s    = cwd_s     ;
+	start_date      = New                    ;                                                  // record job start time as late as possible
+	_child.cmd_line = cmd_line               ;
+	_child.env      = env                    ;
+	_child.add_env  = &_add_env              ;
+	_child.cwd_s    = autodep_env.sub_repo_s ;
 	if (is_ptrace) {
 		::latch ready{1} ;
 		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ;             // /!\ _child must be spawned from tracing thread

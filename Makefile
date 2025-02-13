@@ -208,20 +208,20 @@ LMAKE_SERVER_PY_FILES := \
 	lib/lmake_debug/runtime/utils.py
 
 LMAKE_SERVER_BIN_FILES := \
-	_bin/align_comments         \
-	_bin/ldump                  \
-	_bin/ldump_job              \
-	_bin/lkpi                   \
-	_bin/lmakeserver            \
-	bin/lautodep                \
-	bin/find_cc_ld_library_path \
-	bin/ldebug                  \
-	bin/lforget                 \
-	bin/lmake                   \
-	bin/lmark                   \
-	bin/lrepair                 \
-	bin/lrun_cc                 \
-	bin/lshow                   \
+	_bin/align_comments          \
+	_bin/ldump                   \
+	_bin/ldump_job               \
+	_bin/lkpi                    \
+	_bin/lmakeserver             \
+	_bin/find_cc_ld_library_path \
+	bin/lautodep                 \
+	bin/ldebug                   \
+	bin/lforget                  \
+	bin/lmake                    \
+	bin/lmark                    \
+	bin/lrepair                  \
+	bin/lrun_cc                  \
+	bin/lshow                    \
 	bin/xxhsum
 
 MAN_FILES := $(patsubst %.m,%,$(filter-out %/common.1.m,$(filter doc/man/man1/%.1.m,$(SRCS))))
@@ -244,8 +244,7 @@ LMAKE_REMOTE_FILES := \
 	bin/ltarget
 
 LMAKE_DOC_FILES := \
-	doc/lmake_doc.pptx               \
-	$(if $(HAS_TEXI),doc/lmake.html) \
+	doc/lmake_doc.pptx \
 	$(MAN_FILES)
 
 LMAKE_BASIC_OBJS := \
@@ -293,16 +292,6 @@ ext/%.dir.stamp : ext/%.zip
 
 .SECONDARY :
 
-%.html : %.texi
-	@echo "@set VERSION       $(VERSION)"                  >  $(@D)/info.texi
-	@echo "@set UPDATED       $$(env -i date '+%d %B %Y')" >> $(@D)/info.texi
-	@echo "@set UPDATED-MONTH $$(env -i date '+%B %Y'   )" >> $(@D)/info.texi
-	cd $(@D) ; LANGUAGE= LC_ALL= LANG= texi2any --html --no-split --output=$(@F) $(<F)
-
-doc/man/man1/%.1 : doc/man/man1/%.1.m doc/man/utils.mh doc/man/man1/common.1.m
-	@echo generate man to $@
-	@m4  doc/man/utils.mh doc/man/man1/common.1.m $< | sed -e 's:^[\t ]*::' -e 's:-:\\-:g' -e '/^$$/ d' >$@
-
 #
 # versioning
 #
@@ -338,6 +327,7 @@ lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk
 		-e 's!\$$PYTHON2!$(PYTHON2)!'                    \
 		-e 's!\$$PYTHON!$(PYTHON)!'                      \
 		-e 's!\$$STD_PATH!$(STD_PATH)!'                  \
+		-e 's!\$$TAG!$(TAG)!'                            \
 		-e 's!\$$VERSION!$(VERSION)!'                    \
 		$< >$@
 # for other files, just copy
@@ -739,6 +729,27 @@ DOCKER : $(DOCKER_FILES)
 	done
 
 #
+# doc
+#
+
+_bin/mdbook :
+	#wget -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-gnu.tar.gz  | tar -xz -C_bin # requires more recent libraries
+	wget  -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-musl.tar.gz | tar -xz -C_bin
+
+doc/man/man1/%.1 : doc/man/man1/%.1.m doc/man/utils.mh doc/man/man1/common.1.m
+	@echo generate man to $@
+	@m4  doc/man/utils.mh doc/man/man1/common.1.m $< | sed -e 's:^[\t ]*::' -e 's:-:\\-:g' -e '/^$$/ d' >$@
+
+doc/book/index.html : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS)) $(MAN_FILES)
+	@echo generate book to $@
+	@rm -rf doc/book
+	@cd doc ; ../_bin/mdbook build
+	@mkdir -p doc/book/man/man1
+	@for f in $(patsubst doc/man/man1/%.1,%,$(MAN_FILES)) ; do groff -Thtml -man doc/man/man1/$$f.1 > doc/book/man/man1/$$f.html ; done
+
+BOOK : doc/book/index.html
+
+#
 # packaging
 #
 
@@ -748,10 +759,10 @@ LMAKE_DBG_FILES_ALL := $(patsubst %,%.dbg,$(if $(SPLIT_DBG),$(LMAKE_DBG_FILES)) 
 ARCHIVE_DIR := open-lmake-$(VERSION)
 lmake.tar.gz  : TAR_COMPRESS := z
 lmake.tar.bz2 : TAR_COMPRESS := j
-lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
+lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES) doc/book/index.html
 	@rm -rf $(ARCHIVE_DIR)
 	@mkdir -p $(ARCHIVE_DIR)
-	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES_ALL) | tar -x -C$(ARCHIVE_DIR)
+	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES_ALL) $$(find doc/book -type f)| tar -x -C$(ARCHIVE_DIR)
 	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
 
 VERSION_TAG := $(VERSION).$(TAG)
@@ -767,7 +778,6 @@ VERSION_TAG := $(VERSION).$(TAG)
 DEBIAN_DIR := open-lmake-$(VERSION_TAG)
 DEBIAN_TAG := open-lmake_$(VERSION_TAG)
 
-DOC_FILES     := $(if $(HAS_TEXI),$(patsubst %.texi,%.html,$(filter doc/%.texi,$(SRCS))))
 EXAMPLE_FILES := $(filter examples/%,$(SRCS))
 
 # Install debian packages needed to build open-lmake package
@@ -778,10 +788,11 @@ DEBIAN_DEPS :
 #
 # /!\ these rules are necessary for debian packaging to work, they are not primarily made to be executed by user
 #
-install : $(LMAKE_ALL_FILES) $(DOC_FILES) $(EXAMPLE_FILES)
+install : $(LMAKE_ALL_FILES) $(EXAMPLE_FILES) doc/book/index.html
 	set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
 	set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
-	set -e ; for f in $(EXAMPLE_FILES) $(DOC_FILES)                   ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	set -e ; for f in $$(find doc/book -type f)                       ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
 
 clean :
 	@echo cleaning...

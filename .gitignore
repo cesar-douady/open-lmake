@@ -17,13 +17,13 @@ __pycache__
 /_bin/ldump_job
 /_bin/lkpi
 /_bin/lmakeserver
+/_bin/mdbook
 
 # libs
 /_lib/fmt_rule.py
 
 # doc
-/doc/info.texi
-/doc/lmake.html
+/doc/book/
 /doc/man/man1/*.1
 
 #auto-configuration

@@ -26,10 +26,10 @@ void _print_views(::vmap_s<JobSpace::ViewDescr> const& m) {
 void print_submit_attrs(SubmitAttrs const& sa) {
 	g_out << "--submit attrs--\n" ;
 	//
-	g_out << "backend  : "  << sa.tag                  <<'\n' ;
-	g_out << "pressure : "  << sa.pressure.short_str() <<'\n' ;
-	g_out << "live_out : "  << sa.live_out             <<'\n' ;
-	g_out << "reason   : "  << sa.reason               <<'\n' ;
+	g_out << "backend  : "  << sa.asked_tag<<"->"<<sa.used_tag <<'\n' ;
+	g_out << "pressure : "  << sa.pressure.short_str()         <<'\n' ;
+	g_out << "live_out : "  << sa.live_out                     <<'\n' ;
+	g_out << "reason   : "  << sa.reason                       <<'\n' ;
 }
 
 void print_pre_start(JobStartRpcReq const& jsrr) {
@@ -47,7 +47,7 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "addr         : "  << to_hex(jsrr.addr)            <<'\n' ;
 	g_out << "auto_mkdir   : "  << jsrr.autodep_env.auto_mkdir  <<'\n' ;
 	g_out << "chroot_dir_s : "  << jsrr.job_space.chroot_dir_s  <<'\n' ;
-	g_out << "cwd_s        : "  << jsrr.cwd_s                   <<'\n' ;
+	g_out << "sub_repo_s   : "  << jsrr.autodep_env.sub_repo_s  <<'\n' ;
 	g_out << "ddate_prec   : "  << jsrr.ddate_prec              <<'\n' ;
 	g_out << "ignore_stat  : "  << jsrr.autodep_env.ignore_stat <<'\n' ;
 	g_out << "interpreter  : "  << jsrr.interpreter             <<'\n' ;
@@ -66,11 +66,11 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "tmp_view_s   : "  << jsrr.job_space.tmp_view_s    <<'\n' ;
 	g_out << "use_script   : "  << jsrr.use_script              <<'\n' ;
 	//
-	g_out << "deps :\n"           ; _print_map  (jsrr.deps           )                        ;
-	g_out << "env :\n"            ; _print_map  (jsrr.env            )                        ;
-	g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   )                        ;
-	g_out << "static matches :\n" ; _print_map  (jsrr.static_matches )                        ;
-	g_out << "views :\n"          ; _print_views(jsrr.job_space.views)                        ;
+	g_out << "deps :\n"           ; _print_map  (jsrr.deps           )                         ;
+	g_out << "env :\n"            ; _print_map  (jsrr.env            )                         ;
+	g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   )                         ;
+	g_out << "static matches :\n" ; _print_map  (jsrr.static_matches )                         ;
+	g_out << "views :\n"          ; _print_views(jsrr.job_space.views)                         ;
 	g_out << "cmd :\n"            ; g_out << ensure_nl(indent(jsrr.cmd.first+jsrr.cmd.second)) ;
 }
 

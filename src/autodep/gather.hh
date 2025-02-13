@@ -143,7 +143,6 @@ public :
 	::atomic<bool>                    as_session       = false                                      ; // if true <=> process is launched in its own group
 	AutodepEnv                        autodep_env      ;
 	::function<::vmap_s<DepDigest>()> cur_deps_cb      = [&]()->::vmap_s<DepDigest> { return {} ; } ;
-	::string                          cwd_s            ;
 	PD                                end_date         ;
 	 ::map_ss const*                  env              = nullptr                                    ;
 	 ::vector<ExecTraceEntry>*        exec_trace       = nullptr                                    ;

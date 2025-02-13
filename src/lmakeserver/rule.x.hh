@@ -515,7 +515,7 @@ namespace Engine {
 		//
 		::string full_name() const {
 			::string res = name ;
-			if (+cwd_s) { res <<':'<< cwd_s ; res.pop_back() ; }
+			if (+sub_repo_s) { res <<':'<< sub_repo_s ; res.pop_back() ; }
 			return res ;
 		}
 		Disk::FileNameIdx job_sfx_len(                ) const ;
@@ -523,8 +523,8 @@ namespace Engine {
 		void              validate   (::string job_sfx) const ;
 		// services
 		::string add_cwd( ::string&& file , bool top=false ) const {
-			if ( !top && +cwd_s ) return Disk::mk_glb(file,cwd_s) ;
-			else                  return ::move(file)             ;
+			if ( !top && +sub_repo_s ) return Disk::mk_glb(file,sub_repo_s) ;
+			else                       return ::move(file)                  ;
 		}
 		//
 		::string gen_py_line( Job , Rule::SimpleMatch      &/*lazy*/ , VarCmd    , VarIdx   , ::string const& key , ::string const& val ) const ;
@@ -551,7 +551,7 @@ namespace Engine {
 		RuleIdx              prio       = 0             ;                          // the relative priority of the rule
 		::string             name       ;                                          // the short message associated with the rule
 		::vmap_ss            stems      ;                                          // stems are ordered : statics then stars, stems used as both static and star appear twice
-		::string             cwd_s      ;                                          // cwd in which to interpret targets & deps and execute cmd (with ending /)
+		::string             sub_repo_s ;                                          // sub_repo which this rule belongs to
 		::string             job_name   ;                                          // used to show in user messages (not all fields are actually used)
 		::vmap_s<MatchEntry> matches    ;                                          // keep star user order, static entries first in MatchKind order
 		VarIdx               stdout_idx = NoVar         ;                          // index of target used as stdout
@@ -870,7 +870,7 @@ namespace Engine {
 		::serdes(s,prio            ) ;
 		::serdes(s,name            ) ;
 		::serdes(s,stems           ) ;
-		::serdes(s,cwd_s           ) ;
+		::serdes(s,sub_repo_s      ) ;
 		::serdes(s,job_name        ) ;
 		::serdes(s,matches         ) ;
 		::serdes(s,stdout_idx      ) ;
@@ -917,7 +917,7 @@ namespace Engine {
 	// END_OF_VERSIONING
 	inline void RuleData::validate(::string job_sfx) const {
 		Crc crc_ { decode_int<Crc::Val>(&job_sfx[job_sfx.size()-sizeof(Crc::Val)]) } ;
-		SWEAR( crc_==crc->match , name , cwd_s , crc_ , crc->match ) ;
+		SWEAR( crc_==crc->match , name , sub_repo_s , crc_ , crc->match ) ;
 	}
 
 }

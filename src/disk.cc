@@ -443,7 +443,7 @@ namespace Disk {
 
 	// /!\ : this code must be in sync with RealPath::solve
 	FileLoc RealPathEnv::file_loc(::string const& real) const {
-		::string abs_real   = mk_abs(real,repo_root_s) ;
+		::string abs_real = mk_abs(real,repo_root_s) ;
 		if (abs_real.starts_with(tmp_dir_s  )) return FileLoc::Tmp  ;
 		if (abs_real.starts_with("/proc/"   )) return FileLoc::Proc ;
 		if (abs_real.starts_with(repo_root_s)) {

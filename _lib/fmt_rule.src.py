@@ -314,8 +314,8 @@ class Handle :
 		if attrs.get('prio' ) : self.rule_rep.prio  = attrs.prio
 
 	def _init(self) :
-		self.static_val  = {}
-		self.dynamic_val = {}
+		self.static_val  = pdict()
+		self.dynamic_val = pdict()
 
 	def _is_simple_fstr(self,fstr) :
 		return SimpleFstrRe.match(fstr) and all( k in ('{{','}}') or k[1:-1] in self.per_job for k in SimpleStemRe.findall(fstr) )
@@ -560,8 +560,8 @@ class Handle :
 						else  : cmd += f'\t{        c.__name__}({a})\n'
 			for_this_python = False                                                                                                # be conservative
 			try :
-				interpreter = self.rule_rep.start_cmd_attrs[0]['interpreter'][0]
-				if not lmake.maybe_local(interpreter) : for_this_python = osp.realpath(interpreter)==self.ThisPython               # code can be made simpler if we know we run the same python ...
+				interpreter = self.rule_rep.start_cmd_attrs[0].interpreter[0]
+				if not lmake._maybe_local(interpreter) : for_this_python = osp.realpath(interpreter)==self.ThisPython              # code can be made simpler if we know we run the same python ...
 			except : pass                                                                                                          # ... but we do not want to create a dep inside the repo if ...
 			if dbg : self.rule_rep.cmd = ( {'cmd':cmd} , tuple(names) , '' , '' , mk_dbg_info(dbg,serialize_ctx,for_this_python) ) # ... no interpreter (e.g. it may be dynamic), be conservative
 			else   : self.rule_rep.cmd = ( {'cmd':cmd} , tuple(names)                                                            )

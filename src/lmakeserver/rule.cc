@@ -254,9 +254,9 @@ namespace Engine {
 		auto match = [&]()->Rule::SimpleMatch const& { { if (!m) m = Rule::SimpleMatch(j) ; } return m             ; } ; // solve lazy evaluation
 		auto stems = [&]()->::vector_s        const& {                                        return match().stems ; } ;
 		//
-		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,r->cwd_s)) ; } return mtab ; } ;
-		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps      () ) dtab.emplace_back(k,mk_lcl(dn.txt,r->cwd_s)) ; } return dtab ; } ;
-		auto rsrcs   = [&]()->::umap_ss  const& { { if (!rtab) rtab = mk_umap(rsrcs_) ;                                                                            } return rtab ; } ;
+		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,r->sub_repo_s)) ; } return mtab ; } ;
+		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps      () ) dtab.emplace_back(k,mk_lcl(dn.txt,r->sub_repo_s)) ; } return dtab ; } ;
+		auto rsrcs   = [&]()->::umap_ss  const& { { if (!rtab) rtab = mk_umap(rsrcs_) ;                                                                                 } return rtab ; } ;
 		for( auto [vc,i] : ctx ) {
 			::vmap_ss dct ;
 			switch (vc) {
@@ -676,18 +676,18 @@ namespace Engine {
 			} else {
 				special = Special::Plain ;
 			}
-			field = "name"  ; if (dct.contains(field)) name      = dct[field].as_a<Str  >() ; else throw "not found"s ;
-			field = "cwd_s" ; if (dct.contains(field)) cwd_s     = dct[field].as_a<Str  >() ;
-			field = "prio"  ; if (dct.contains(field)) user_prio = dct[field].as_a<Float>() ;
-			if (+cwd_s) {
-				cwd_s = with_slash(cwd_s) ;
-				if (cwd_s.front()=='/') {
-					if (cwd_s.starts_with(*g_repo_root_s)) cwd_s.erase(0,g_repo_root_s->size()) ;
-					else                                   throw "cwd must be relative to root dir"s ;
+			field = "name"       ; if (dct.contains(field)) name       = dct[field].as_a<Str  >() ; else throw "not found"s ;
+			field = "sub_repo_s" ; if (dct.contains(field)) sub_repo_s = dct[field].as_a<Str  >() ;
+			field = "prio"       ; if (dct.contains(field)) user_prio  = dct[field].as_a<Float>() ;
+			if (+sub_repo_s) {
+				sub_repo_s = with_slash(sub_repo_s) ;
+				if (sub_repo_s.front()=='/') {
+					if (sub_repo_s.starts_with(*g_repo_root_s)) sub_repo_s.erase(0,g_repo_root_s->size()) ;
+					else                                        throw "cwd must be relative to repo root dir"s ;
 				}
 			}
 			//
-			Trace trace("_acquire_py",name,cwd_s,user_prio) ;
+			Trace trace("_acquire_py",name,sub_repo_s,user_prio) ;
 			//
 			::umap_ss      stem_defs  ;
 			::map_s<Bool3> stem_stars ;                                                                // ordered so that stems are ordered, Maybe means stem is used both as static and star
@@ -1145,7 +1145,7 @@ namespace Engine {
 		::vector_s excepts_s ;
 		::uset_s   seens_s   ;                                                                        // we are only interested in first level sub-repos under our sub-repo
 		for( ::string const& sr_s : g_config->sub_repos_s ) {
-			if (!( sr_s.size()>cwd_s.size() && sr_s.starts_with(cwd_s) )) continue ;                  // if considered sub-repo is not within our sub-repo, it cannot match
+			if (!( sr_s.size()>sub_repo_s.size() && sr_s.starts_with(sub_repo_s) )) continue ;        // if considered sub-repo is not within our sub-repo, it cannot match
 			for( ::string const& e_s : seens_s )
 				if (sr_s.starts_with(e_s)) goto Skip ;                                                // g_config->sub_repos_s are sorted so that higher level occurs first
 			seens_s.insert(sr_s) ;
@@ -1246,7 +1246,7 @@ namespace Engine {
 		// first simple static attrs
 		{	if ( user_prio!=0                                      ) entries.emplace_back( "prio"                , cat        (user_prio                                      ) ) ;
 			/**/                                                     entries.emplace_back( "job_name"            ,             job_name_                                        ) ;
-			if (+cwd_s                                             ) entries.emplace_back( "cwd"                 , no_slash   (cwd_s                                          ) ) ;
+			if (+sub_repo_s                                        ) entries.emplace_back( "sub_repo"            , no_slash   (sub_repo_s                                     ) ) ;
 		}
 		if (!is_special()) {
 			if ( force                                             ) entries.emplace_back( "force"               , cat        (force                                          ) ) ;
@@ -1343,7 +1343,7 @@ namespace Engine {
 		if (is_special()) {
 			crc = {match} ;
 		} else {
-			h.update(cwd_s                 ) ;
+			h.update(sub_repo_s            ) ;
 			h.update(Node::s_src_dirs_crc()) ;                                                   // src_dirs influences deps recording
 			h.update(matches               ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
 			h.update(force                 ) ;

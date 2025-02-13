@@ -437,8 +437,8 @@ namespace Engine::Persistent {
 						// optim      : put more specific rules before more generic ones to favor sharing RuleTgts in reversed PrefixFile
 						// finally    : any stable sort is fine, just to avoid random order
 						return
-							::tuple( a->rule->is_special() , a->rule->prio , a->rule->special , a.pfx.size()+a.sfx.size() , a->rule->name , a->rule->cwd_s )
-						>	::tuple( b->rule->is_special() , b->rule->prio , b->rule->special , b.pfx.size()+b.sfx.size() , b->rule->name , a->rule->cwd_s )
+							::tuple( a->rule->is_special() , a->rule->prio , a->rule->special , a.pfx.size()+a.sfx.size() , a->rule->name , a->rule->sub_repo_s )
+						>	::tuple( b->rule->is_special() , b->rule->prio , b->rule->special , b.pfx.size()+b.sfx.size() , b->rule->name , a->rule->sub_repo_s )
 						;
 					}
 				) ;
@@ -532,9 +532,9 @@ namespace Engine::Persistent {
 		// user report
 		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
 			::sort( rules , [](Rule a,Rule b){
-				if (a->cwd_s    !=b->cwd_s    ) return a->cwd_s     < b->cwd_s     ;
-				if (a->user_prio!=b->user_prio) return a->user_prio > b->user_prio ;
-				else                            return a->name      < b->name      ;
+				if (a->sub_repo_s!=b->sub_repo_s) return a->sub_repo_s < b->sub_repo_s ;
+				if (a->user_prio !=b->user_prio ) return a->user_prio  > b->user_prio  ;
+				else                              return a->name       < b->name       ;
 			} ) ;
 			First    first   ;
 			::string content ;

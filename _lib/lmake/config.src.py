@@ -30,15 +30,15 @@ config = pdict(
 ,	heartbeat_tick      = 0.1                               # in seconds, minimum internval between 2 heartbeat checks (globally)                             (no heartbeat if None)
 ,	link_support        = 'Full'                            # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
 #,	local_admin_dir     = '/path/to/local/disk/LMAKE_LOCAL' # directory in which to store data that are private to the server (not accessed by remote executing hosts) (default is within LMAKE dir)
-#	                                                          open-lmake ensures unicity between repos, so a hard-coded value is ok
+#	                                                        # open-lmake ensures unicity between repos, so a hard-coded value is ok
 ,	max_dep_depth       = 1000                              # used to detect infinite recursions and loops
 ,	max_error_lines     = 100                               # used to limit the number of error lines when not reasonably limited otherwise
 ,	network_delay       = 1                                 # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 ,	path_max            = 400                               # max path length, smaller values make debugging easier (if None, not activated)
 ,	reliable_dirs       = False                             # if true, close to open coherence is deemed to encompass enclosing directory coherence (improve performances)
-#	                                                          - forced true if only local backend is used
-#	                                                          - set   true  for ceph
-#	                                                          - leave false for NFS
+#	                                                        # - forced true if only local backend is used
+#	                                                        # - set   true  for ceph
+#	                                                        # - leave false for NFS
 ,	sub_repos           = []                                # list of sub_repos
 ,	console = pdict(                                        # tailor output lines
 		date_precision = 0                                  # number of second decimals in the timestamp field (None means no timestamp field)
@@ -56,11 +56,11 @@ config = pdict(
 		)
 	#,	sge = pdict(
 	#		interface         = _interface                  # address at which lmake can be contacted from jobs launched by this backend, can be :
-	#		                                                  - ''                     : loop-back address (127.0.0.1) for local backend, hostname for remote backends
-	#		                                                  - standard dot notation  : for example '192.168.0.1'
-	#		                                                  - network interface name : the address of the host on this interface (as shown by ifconfig)
-	#		                                                  - a host name            : the address of the host as found in networkd database (as shown by ping)
-	#		                                                  - default is loopback for local backend and hostname for the others
+	#		                                                # - ''                     : loop-back address (127.0.0.1) for local backend, hostname for remote backends
+	#		                                                # - standard dot notation  : for example '192.168.0.1'
+	#		                                                # - network interface name : the address of the host on this interface (as shown by ifconfig)
+	#		                                                # - a host name            : the address of the host as found in networkd database (as shown by ping)
+	#		                                                # - default is loopback for local backend and hostname for the others
 	#	,	bin               = '/opt/sge/bin/ls-amd64'     # directory where sge binaries are located
 	#	,	cell              = 'default'                   # cell     used for SGE job submission, by default, SGE automatically determines it
 	#	,	cluster           = 'p6444'                     # cluseter used for SGE job submission, by default, SGE automatically determines it
@@ -89,12 +89,12 @@ config = pdict(
 	,	'c' : 'lmake_debug.vscode  (launch job under vscode control)'
 	,	'g' : 'lmake_debug.gdb     (launch interpreter under gdb)'
 	})
-,	caches = pdict(                                                  # PER_CACHE : provide an explanation for each cache method
-	#	dir = pdict(                                                 # when rule specifies cache = 'dir' , this cache is selected
-	#		tag   = 'dir'                                            # specify the caching method, must be one of the supported method
-	#	,	repo  = repo_root                                        # an id that identifies the repository, no more than one entry is stored in the cache for a given job and tag
-	#	,	dir   = '/cache_dir'                                     # the directory in which cached results are stored
-	#	,	group = _group                                           # the group used to write to the cache. If user does not belong to this group, read-only access is still possible
+,	caches = pdict(                                                   # PER_CACHE : provide an explanation for each cache method
+	#	dir = pdict(                                                  # when rule specifies cache = 'dir' , this cache is selected
+	#		tag   = 'dir'                                             # specify the caching method, must be one of the supported method
+	#	,	repo  = repo_root                                         # an id that identifies the repository, no more than one entry is stored in the cache for a given job and tag
+	#	,	dir   = '/cache_dir'                                      # the directory in which cached results are stored
+	#	,	group = _group                                            # the group used to write to the cache. If user does not belong to this group, read-only access is still possible
 	#	)
 	)
 ,	colors = pdict(

@@ -854,7 +854,6 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	/**/                           os <<','  << jsrr.autodep_env            ;
 	if (+jsrr.job_space          ) os <<','  << jsrr.job_space              ;
 	if ( jsrr.keep_tmp           ) os <<','  << "keep"                      ;
-	if (+jsrr.cwd_s              ) os <<','  << jsrr.cwd_s                  ;
 	if (+jsrr.ddate_prec         ) os <<','  << jsrr.ddate_prec             ;
 	/**/                           os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable EnvPassMrkr value
 	/**/                           os <<','  << jsrr.interpreter            ;
@@ -927,22 +926,22 @@ bool/*entered*/ JobStartRpcReply::enter(
 			if (d==Npos) break ;
 			switch (v[d+1/*$*/]) {
 				//                inout inout
-				case 'L' : _handle( v  , d  , "LMAKE_ROOT"             , lmake_root_s                    ) ; break ;
-				case 'P' : _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s                )
-				||         _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s         , cwd_s )
-				||         _handle( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s                   )
-				||         _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s                 ) ; break ;
-				case 'R' : _handle( v  , d  , "REPO_ROOT"              , autodep_env.repo_root_s , cwd_s ) ; break ;
-				case 'S' : _handle( v  , d  , "SEQUENCE_ID"            , seq_id                          )
-				||         _handle( v  , d  , "SMALL_ID"               , small_id                        ) ; break ;
-				case 'T' : _handle( v  , d  , "TMPDIR"                 , autodep_env.tmp_dir_s           )
-				||         _handle( v  , d  , "TOP_REPO_ROOT"          , autodep_env.repo_root_s         ) ; break ;
+				case 'L' : _handle( v  , d  , "LMAKE_ROOT"             , lmake_root_s                                     ) ; break ;
+				case 'P' : _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s                                 )
+				||         _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s         , autodep_env.sub_repo_s )
+				||         _handle( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s                                    )
+				||         _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s                                  ) ; break ;
+				case 'R' : _handle( v  , d  , "REPO_ROOT"              , autodep_env.repo_root_s , autodep_env.sub_repo_s ) ; break ;
+				case 'S' : _handle( v  , d  , "SEQUENCE_ID"            , seq_id                                           )
+				||         _handle( v  , d  , "SMALL_ID"               , small_id                                         ) ; break ;
+				case 'T' : _handle( v  , d  , "TMPDIR"                 , autodep_env.tmp_dir_s                            )
+				||         _handle( v  , d  , "TOP_REPO_ROOT"          , autodep_env.repo_root_s                          ) ; break ;
 			DN}
 		}
 	}
 	//
 	::string phy_work_dir_s = cat(PrivateAdminDirS,"work/",small_id,'/')                                                                                               ;
-	bool     entered        = job_space.enter( /*out*/actions , phy_lmake_root_s , phy_repo_root_s , phy_tmp_dir_s , cwd_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
+	bool     entered        = job_space.enter( /*out*/actions , phy_lmake_root_s , phy_repo_root_s , phy_tmp_dir_s , autodep_env.sub_repo_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
 	if (entered) {
 		// find a good starting pid
 		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
@@ -1021,13 +1020,14 @@ void JobStartRpcReply::exit() {
 
 ::string& operator+=( ::string& os , SubmitAttrs const& sa ) {
 	First first ;
-	/**/               os << "SubmitAttrs("             ;
-	if (+sa.tag      ) os <<first("",",")<< sa.tag      ;
-	if ( sa.live_out ) os <<first("",",")<< "live_out"  ;
-	if (+sa.pressure ) os <<first("",",")<< sa.pressure ;
-	if (+sa.deps     ) os <<first("",",")<< sa.deps     ;
-	if (+sa.reason   ) os <<first("",",")<< sa.reason   ;
-	return             os <<')'                         ;
+	/**/               os << "SubmitAttrs("                    ;
+	if (+sa.asked_tag) os <<first("",",")<< "A:"<<sa.asked_tag ;
+	if (+sa.used_tag ) os <<first("",",")<< "U:"<<sa.used_tag  ;
+	if ( sa.live_out ) os <<first("",",")<< "live_out"         ;
+	if (+sa.pressure ) os <<first("",",")<< sa.pressure        ;
+	if (+sa.deps     ) os <<first("",",")<< sa.deps            ;
+	if (+sa.reason   ) os <<first("",",")<< sa.reason          ;
+	return             os <<')'                                ;
 }
 
 //

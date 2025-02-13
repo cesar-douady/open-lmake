@@ -146,7 +146,6 @@ int main( int argc , char* argv[] ) {
 		throw_if( !cmd_line.flags[CmdFlag::TmpDir   ]                                                     , "tmp dir must be specified"                                              ) ;
 		throw_if(                                        !is_abs(cmd_line.flag_args[+CmdFlag::TmpDir   ]) , "tmp dir must be absolute : "   ,cmd_line.flag_args[+CmdFlag::TmpDir   ] ) ;
 		//
-		if (cmd_line.flags[CmdFlag::Cwd          ]) start_info.cwd_s        = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;
 		/**/                                        start_info.keep_tmp     =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
 		/**/                                        start_info.key          =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) start_info.method       = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
@@ -156,8 +155,9 @@ int main( int argc , char* argv[] ) {
 		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s    = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;
 		/**/                                        autodep_env.auto_mkdir  =                        cmd_line.flags    [ CmdFlag::AutoMkdir    ]  ;
 		/**/                                        autodep_env.ignore_stat =                        cmd_line.flags    [ CmdFlag::IgnoreStat   ]  ;
-		if (cmd_line.flags[CmdFlag::LinkSupport  ]) autodep_env.lnk_support = mk_enum<LnkSupport>   (cmd_line.flag_args[+CmdFlag::LinkSupport]) ;
-		/**/                                        autodep_env.views       = job_space.flat_phys()                                          ;
+		if (cmd_line.flags[CmdFlag::Cwd          ]) autodep_env.sub_repo_s  = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;
+		if (cmd_line.flags[CmdFlag::LinkSupport  ]) autodep_env.lnk_support = mk_enum<LnkSupport>   (cmd_line.flag_args[+CmdFlag::LinkSupport  ]) ;
+		/**/                                        autodep_env.views       = job_space.flat_phys()                                               ;
 		//
 		try { start_info.env         = _mk_env       (cmd_line.flag_args[+CmdFlag::KeepEnv],cmd_line.flag_args[+CmdFlag::Env]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
 		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]                               ) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
@@ -182,7 +182,6 @@ int main( int argc , char* argv[] ) {
 		gather.autodep_env       = ::move(autodep_env)   ;
 		gather.autodep_env.views = job_space.flat_phys() ;
 		gather.cmd_line          = cmd_line.args         ;
-		gather.cwd_s             = start_info.cwd_s      ;
 		gather.env               = &cmd_env              ;
 		gather.method            = start_info.method     ;
 		//       vvvvvvvvvvvvvvvvvvv
