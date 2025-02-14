@@ -1,0 +1,269 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Critical deps - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="critical-deps"><a class="header" href="#critical-deps">Critical deps</a></h1>
+<p>The question of critical deps is a performance only question.
+Semantically, whether a dep is critical or not has no impact on the content of the files built by open-lmake.</p>
+<p>During dependency analysis, when a dep (call it <code>dep1</code>) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:</p>
+<ul>
+<li>One possibility is to anticipate that the modification of <code>dep1</code> has no impact on the list of following deps.
+With such an anticipation, open-lmake will keep the following deps, i.e. when ensuring that deps are up-to-date before launching a job, open-lmake will launch all necessary jobs to rebuild
+all dependencies in parallel, even if the deps have been explicitly declared parallel.</li>
+<li>Another possivility is to anticipate that such a modification of <code>dep1</code> will drastically change the list of following deps.
+With such an anticipation, as soone as open-lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of <code>dep1</code> is meaningless.</li>
+</ul>
+<p>The first strategy is speculative: launch everything you hear about, and we will see later what is useful.
+The second strategy is conservative: build only what is certain to be required.</p>
+<p>Generally speaking, a speculative approach is much better, but there are exceptions.</p>
+<p>Typical use of critical deps is when you have a report that is built from the results of tests provided by a list of tests (a test suite).</p>
+<p>For example, let's say you have:</p>
+<ul>
+<li>2 tests whose reports are built in <code>test1.rpt</code> and <code>test2.rpt</code> by some rather heavy means</li>
+<li>a test suite <code>test_suite.lst</code> listing these reports</li>
+<li>a rule that builds <code>test_suite.rpts</code> by collating reports listed in <code>test_suite.lst</code></li>
+</ul>
+<p>In such a situation, the rule building <code>test_suite.rpts</code> typically has <code>test_suite.lst</code> as a static dependency but the actual reports <code>test1.rpt</code> and <code>test2.rpt</code> are
+hidden dependencies, i.e. automatically discovered when building <code>test_suite.rpts</code>.</p>
+<p>Suppose now that you make a modification that makes <code>test2.rpt</code> very heavy to generate. Knowing that, you change your test suite so list a lighter <code>test3.rpt</code> instead.
+The succession of jobs would then be the following:</p>
+<ul>
+<li><code>test1.rpt</code> and <code>test2.rpt</code> are rebuilt as they are out-of-date after your modification.</li>
+<li><code>test_suite.rpts</code> is rebuilt to collate theses reports.</li>
+<li>Open-lmake then sees that <code>test3.rpt</code> is needed instead of <code>test2.rpt</code>.</li>
+<li>Hence, <code>test3.rpt</code> is (re)built.</li>
+<li><code>test_suite.rpts</code> is finally built from <code>test1.rpt</code> and <code>test3.rpt</code>.</li>
+</ul>
+<p>There are 2 losses of performance here:</p>
+<ul>
+<li><code>test2.rpt</code> is unnecessarily rebuilt.</li>
+<li><code>test1.rpt</code> and <code>test3.rpt</code> are rebuilt sequentially.</li>
+</ul>
+<p>The problem lies in the fact that <code>test1.rpt</code> and <code>test2.rpt</code> are rebuilt before open-lmake had a chance to re-analyze the test suite showing that the new tests are test1 and test3.
+Generally speaking, this is a good strategy : such modifications of the dependency graph happens rather rarely and speculating that it is pretty stable by building known dependencies before
+launching a job is the right option.
+But here, because collating is very light (something like just executing <code>cat</code> on the reports), it is better to check <code>tests_suilte.lst</code> first,
+and if it changed, rerun the collation before ensuring (old) tests have run.</p>
+<p>This is the purpose of the <code>critical</code> flag.
+Such a flag can either be passed when declaring static deps in a rule, or dynamically using <code>lmake.depend</code> or <code>ldepend</code>.</p>
+<p>The collating rule would look like:</p>
+<ul>
+<li>Set the <code>critial</code> flag on <code>test_suite.lst</code> (before or after actually reading it, this has no impact).</li>
+<li>Read <code>test_suite.lst</code>.</li>
+<li>Call <code>ldepend</code> on the reports listed in <code>test_suite.lst</code>.
+This is optional, just to generate parallel dependencies instead of automatic sequential dependencies (but if done, it must be before actually reading the reports).</li>
+<li>Collate reports listed in <code>test_suite.lst</code>.</li>
+</ul>
+<p>And the succession of job would be:</p>
+<ul>
+<li><code>test_suite.rpts</code> is rebuilt before analyzing <code>test1.rpt</code> and <code>test2.rpt</code> because <code>test_suite.lst</code> has changed.</li>
+<li>Open-lmake sees that <code>test3.rpt</code> is needed instead of <code>test2.rpt</code>.</li>
+<li>Hence, <code>test1.rpt</code> and <code>test3.rpt</code> are (re)built in parallel.</li>
+<li><code>test_suite.rpts</code> is finally built from <code>test1.rpt</code> and <code>test3.rpt</code>.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="autodep.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="eta.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="autodep.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="eta.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

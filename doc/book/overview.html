@@ -1,0 +1,273 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Overview - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="overview"><a class="header" href="#overview">Overview</a></h1>
+<p>The open-lmake build system automatically determines which pieces of a large workflow need to be remade and issues the commands to remake them.</p>
+<p>Our examples show how to build and test C/C++ programs, as they are very common, but you can use
+open-lmake with any programming language to run any phase of your CI/CD as long as these can be scripted.</p>
+<p>Indeed, open-lmake is not limited to building programs.
+You can use it to describe any task where some files must be (re)computed automatically
+from others whenever recomputing would lead to a different content.
+Such situations include dependency modifications, but also command modifications, dependency list modifications,
+apparition of an include file that was in the search path before an include file was actually accessed, symbolic link modifications, etc.</p>
+<p>Symbolic links and hard links are also supported.</p>
+<p>As far as open-lmake is concerned, repositories can be moved, archived and restored.
+Tools are provided to help user achieve the same level of flexibility.</p>
+<p>Open-lmake is designed to be scalable, robust and efficient.</p>
+<p>By scalable, we mean that open-lmake can manage millions of files and tens of thousands of CPU hours with no difficulties,
+so there is never any reason to have any kind of recursive invocation, open-lmake can handle the whole project flat.</p>
+<p>By robust, we mean that open-lmake guarantees that if a job is not rerun, then rerunning it would lead to the same content (or a content that is equally legal).
+This includes automatic capture of so called hidden dependencies (i.e. dependencies that are not explicitly stated in the rules, e.g. include files).</p>
+<p>We also mean that open-lmake, as any software, it may have bugs.
+Such bugs can lead to crashes and to pessimistic behavior (a job is rerun while it was not necessary).
+But special attention has been devoted in its design to ensure that it is never optimistic (a job not being rerun while it should have been).
+In case of any adverse event (lmake crashes or spurious system reboot),
+open-lmake automatically recovers potentially corrupted states in a safe way to avoid having to remake the whole project because a few files are corrupted.
+In extreme cases, there is a <code>lrepair</code> tool that can recover all safe parts of a damaged repository.</p>
+<p>Note that open-lmake does not only recorver from its own flees, but also a lot of experience is embedded into it to work around system bugs.
+This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the directory containing the file) or jobs spuriously disappearing.</p>
+<p>By efficient, we mean that jobs are run in parallel, optionally using a batcher such as SGE or slurm, managing limited resources as declared in <code>Lmakefile.py</code>.
+We also mean that open-lmake makes a lot of effort to determine if it is necessary to run a job (while always staying pessismistic).
+Such effort includes checksum based modification detection rather than date based, so that if a job is rerun and produces an identical content, subsequent jobs are not rerun.
+Also, open-lmake embed a build cache whereby jobs can record their results in a cache so that if the same run needs to be carried out by another user,
+it may barely fetch the result from the cache rather than run the - potentially lengthy - job.</p>
+<h2 id="preparing-and-running-lmake"><a class="header" href="#preparing-and-running-lmake">Preparing and running lmake.</a></h2>
+<p>To prepare to use open-lmake, you must write a file called <code>Lmakefile.py</code> that describes the relationships between files in your workflow and provides commands for generating them.
+This is analogous to the <code>Makefile</code> when using <code>make</code>.</p>
+<p>When developping a program, typically, the executable file is built from object files, which in turn are built by compiling source files.
+Then unit tests are run from the executable and input files, and the output is compared to some references.
+Finally a test suite is a collection of such tests.</p>
+<p>Once a suitable <code>Lmakefile.py</code> exists, each time you change anything in the workflow (source files, recipes, ...), this simple shell command:</p>
+<pre><code class="language-bash">lmake &lt;my_target&gt;
+</code></pre>
+<p>suffices to perform all necessary steps so that <code>&lt;my_target&gt;</code> is reproduced as if all steps leading to it were carried out although only necessary steps were actually carried out.
+The <code>lmake</code> program maintains an internal state in the <code>LMAKE</code> directory to decide which files need to be regenerated.
+For each one of those, it issues the recipes recorded in <code>Lmakefile.py</code>.
+During job execution, <code>lmake</code> instruments them in order to gather which files are read and written in order to determine hidden dependencies and whether such actions are legal.
+These information are recorded in the <code>LMAKE</code> directory.</p>
+<p>You can provide command line arguments to <code>lmake</code> to somewhat control this process.</p>
+<h2 id="problems-and-bugs"><a class="header" href="#problems-and-bugs">Problems and Bugs</a></h2>
+<p>If you have problems with open-lmake or think you've found a bug,
+please report it to the developers; we cannot promise to do anything but
+we may well be willing to fix it.</p>
+<p>Before reporting a bug, make sure you've actually found a real bug.
+Carefully reread the documentation and see if it really says you can do
+what you're trying to do.
+If it's not clear whether you should be able to do something or not, report that too; it's a bug in the documentation!</p>
+<p>Before reporting a bug or trying to fix it yourself, try to isolate it
+to the smallest possible <code>Lmakefile.py</code> that reproduces the problem.
+Then send us the <code>Lmakefile.py</code> and the exact results open-lmake gave you, including any error messages.
+Please don't paraphrase these messages: it's best to cut and paste them into your report.
+When generating this small <code>Lmakefile.py</code>, be sure to not use any non-free
+or unusual tools in your recipes: you can almost always emulate what
+such a tool would do with simple shell commands.
+Finally, be sure to explain what you expected to occur; this will help us decide whether the problem is in the code or the documentation.</p>
+<p>if your problem is non-deterministic, i.e. it shows up once in a while, include the entire content of the <code>LMAKE</code> directory.
+This directory contains extensive execution traces meant to help developers to track down problems.
+Make sure, though, to trim it from any sensitive data (with regard to your IP).</p>
+<p>Once you have a precise problem, you can report it on <a href="https://github.com/cesar-douady/open-lmake">github</a></p>
+<p>In addition to the information above, please be careful to include the version number of the open-lmake you are using.
+You can get this information from the file <code>LMAKE/version</code>.
+Be sure also to include the type of machine and operating system you are using.
+One way to obtain this information is by running the command <code>uname -a</code>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+                            <a rel="next prefetch" href="intro.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+                    <a rel="next prefetch" href="intro.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

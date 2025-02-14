@@ -1,0 +1,364 @@
+<!-- Creator     : groff version 1.23.0 -->
+<!-- CreationDate: Fri Feb 14 12:08:49 2025 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>LDEPEND</title>
+
+</head>
+<body>
+
+<h1 align="center">LDEPEND</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#OPTIONS">OPTIONS</a><br>
+<a href="#NOTES">NOTES</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">ldepend - report
+a dep from a <i>open-lmake</i> job</p>
+
+<h2>SYNOPSIS
+<a name="SYNOPSIS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>ldepend</b>
+[<i>OPTION</i>]... [<i>FILE</i>]...</p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>ldepend</b>
+may be used to pass flags to <i>open-lmake</i>. Unless
+specified otherwise, passed deps are required to be
+buildable an produced without error.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Note that :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Generated deps are parallel, i.e. a modification on a
+dep will not mask an error on another one (cf. note
+(3)).</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Deps are acquired all at once (cf. note (4)).</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Flags can be passed in (cf OPTIONS below). Flags
+accumulate and will apply even if the file is independently
+accessed.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Deps are reported even if the autodep method (the
+<i>autodep</i> rule attribute) is <i>none</i>. This is
+<b>the</b> way (or a call to <b>lmake.depend</b>) of
+reporting deps in such a case (usually with
+<i>--read</i>).</p> </td></tr>
+</table>
+
+<h2>OPTIONS
+<a name="OPTIONS"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>-L</b>,<b>--follow-symlinks</b></p>
+
+<p style="margin-left:18%;">Follow the last level symbolic
+link, default is not to follow.</p>
+
+<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+
+<p style="margin-left:18%;">Write lines composed of the crc
+and the name separated by a space for each required dep.
+<br>
+The crc is : <i><br>
+unknown</i></p>
+
+<p style="margin-left:27%;">the crc could not be computed,
+typically because the file is a special file (such as a
+device for example)</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="5%">
+
+
+<p><i>none</i></p></td>
+<td width="4%"></td>
+<td width="29%">
+
+
+<p>the file does not exist</p></td>
+<td width="44%">
+</td></tr>
+</table>
+
+<p style="margin-left:18%;"><i>empty-R</i></p>
+
+<p style="margin-left:27%;">the file is an empty
+non-executable regular file</p>
+
+<p style="margin-left:18%;"><i>&lt;crc&gt;-R</i></p>
+
+<p style="margin-left:27%;">the file is a regular file ,
+&lt;crc&gt; is 16-digit hexadecimal number computed after
+its content (the exe permission is taken into account when
+computing crc)</p>
+
+<p style="margin-left:18%;"><i>&lt;crc&gt;-L</i></p>
+
+<p style="margin-left:27%;">the file is a symbolic link,
+&lt;crc&gt; is 16-digit hexadecimal number computed on the
+link (not the content of the target of the link)</p>
+
+<p style="margin-left:9%;"><b>-R</b>,<b>--read</b></p>
+
+<p style="margin-left:18%;">Report an actual read. Default
+is to only alter flags.</p>
+
+<p style="margin-left:9%;"><b>-c</b>,<b>--critical</b></p>
+
+<p style="margin-left:18%;">Create critical deps (cf. note
+(5)).</p>
+
+
+<p style="margin-left:9%;"><b>-E</b>,<b>--essential</b></p>
+
+<p style="margin-left:18%;">Passed deps will appear in the
+flow shown with a graphical tool.</p>
+
+
+<p style="margin-left:9%;"><b>-e</b>,<b>--ignore-error</b></p>
+
+<p style="margin-left:18%;">Ignore the error status of the
+passed dependencies.</p>
+
+
+<p style="margin-left:9%;"><b>-r</b>,<b>--no-required</b></p>
+
+<p style="margin-left:18%;">Accept that deps be not
+buildable, as for a normal read access (in such a case, the
+read may fail, but <i>open-lmake</i> is ok).</p>
+
+<p style="margin-left:9%;"><b>-</b>,<b>--ignore</b></p>
+
+<p style="margin-left:18%;">Deps are ignored altogether,
+even if further accessed (but previous accesses are kept).
+Default is to optimize dependency check as much as
+possible.</p>
+
+<h2>NOTES
+<a name="NOTES"></a>
+</h2>
+
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p style="margin-top: 1em">(1)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">The same functionality is
+provided with the <b>lmake.depend</b> Python function.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(2)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>Flags can be associated to deps on a regexpr (matching
+on dep name) basis by using the <b>side_deps</b> rule
+attribute.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(3)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>If <b>cat a b</b> executed, <i>open-lmake</i> sees 2
+<b>open</b>(2) system calls, to <i>a</i> then to <i>b</i>,
+exactly the same sequence that if you did <b>cat $(cat
+a)</b> and <i>a</i> contained <i>b</i>.</p></td></tr>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em">Suppose now
+that <i>b</i> is an error. This is a reason for your job to
+be in error. But if you modify <i>a</i>, in the former case,
+this cannot solve your error while in the later case, it may
+if the new content of <i>a</i> points to a file that may
+successfully be built. Because <i>open-lmake</i> cannot
+distinguish between the 2 cases, upon a modification of
+<i>a</i>, the job will be rerun in the hope that <i>b</i> is
+not accessed any more. Parallel deps prevents this
+trial.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p style="margin-top: 1em">(4)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">If a series of files are read in
+a loop and the loop is written in such a way as to stop on
+the first error and if the series of file does not depend on
+the actual content of said files, then it is preferable to
+pre-access (using <b>ldepend</b>) all files before starting
+the loop. The reason is that without this precaution, deps
+will be discovered one by one and may be built serially
+instead of all of them in parallel.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(5)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>If a series of dep is directly derived from the content
+of a file, it may be wise to declare it as critical. When a
+critical dep is modified, <i>open-lmake</i> forgets about
+deps reported after it.</p></td></tr>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em">Usually, when a
+file is modified, this has no influence on the list of files
+that are accessed after it, and <i>open-lmake</i>
+anticipates this by building these deps speculatively. But
+in some situations, it is almost certain that there will be
+an influence and it is preferable not to anticipate. this is
+what critical deps are made for : in case of modifications,
+following deps are not built speculatively.</p>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>ldebug</b>(1), <b>ldecode</b>(1),
+<b>lencode</b>(1), <b>lforget</b>(1), <b>lmake</b>(1),
+<b>lmark</b>(1), <b>lrepair</b>(1), <b>lrun_cc</b>(1),
+<b>lshow</b>(1), <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The Python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/doc/book/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
+<hr>
+</body>
+</html>

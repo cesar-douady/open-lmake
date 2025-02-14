@@ -1,0 +1,382 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Config fields - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="config-fields"><a class="header" href="#config-fields">Config fields</a></h1>
+<p>Depending on when each field can be modified, they are said:</p>
+<ul>
+<li>Clean : requires a fresh repo to change this value</li>
+<li>Static : requires that no <code>lmake</code> is running to change this value</li>
+<li>Dynamic : field can be changed any time.</li>
+</ul>
+<p>The default value is mentioned in ().</p>
+<h3 id="disk_date_precision--static-0010"><a class="header" href="#disk_date_precision--static-0010"><code>disk_date_precision</code> : Static (<code>0.010</code>)</a></h3>
+<p>This attribute instruct open-lmake to take some margin (expressed in seconds) when it must rely on file dates to decide about event orders.
+It must account for file date granularity (generally a few ms) and date discrepancy between executing hosts and disk servers (generally a few ms when using NTP).</p>
+<ul>
+<li>If too low, there are risks that open-lmake consider that data read by a job are up to date while they have been modified shortly after.</li>
+<li>If too high, there is a small impact on performance as open-lmake will consider out of date data that are actually up to date.</li>
+</ul>
+<p>The default value should be safe in usual cases and user should hardly need to modify it.</p>
+<h3 id="heartbeat--static-10"><a class="header" href="#heartbeat--static-10"><code>heartbeat</code> : Static (<code>10</code>)</a></h3>
+<p>Open-lmake has a heartbeat mechanism to ensure a job does not suddenly disappear (for example if killed by the user, or if a remote host reboots).
+If such an event occurs, the job will be restarted automatically.</p>
+<p>This attribute specifies the minimum time between 2 successive checks for a given job.
+If <code>None</code> (discouraged), the heartbeat mechanism is disabled.</p>
+<p>The default value should suit the needs of most users.</p>
+<ul>
+<li>If too low, build performance will decrease as heartbeat will take significative resources</li>
+<li>If too high, reactivity in case of job loss will decrease</li>
+</ul>
+<h3 id="heartbeat_tick--static-01"><a class="header" href="#heartbeat_tick--static-01"><code>heartbeat_tick</code> : Static (<code>0.1</code>)</a></h3>
+<p>Open-lmake has a heartbeat mechanism to ensure a job does not suddenly disappear (for example if killed by the user, or if a remote host reboots).
+If such an event occurs, the job will be restarted automatically.</p>
+<p>This attribute specifies the minnimum time between 2 successive checks globally for all jobs.
+If <code>None</code> (discouraged), it is equivalent to 0.</p>
+<p>The default value should suit the needs of most users.</p>
+<ul>
+<li>If too low, build performance will decrease as heartbeat will take significative resources</li>
+<li>If too high, reactivity in case of job loss will decrease</li>
+</ul>
+<h3 id="local_admin_dir--clean--"><a class="header" href="#local_admin_dir--clean--"><code>local_admin_dir</code> : Clean (-)</a></h3>
+<p>This variable contains a directory to be used for open-lmake administration in addition to the <code>LMAKE</code> directory.</p>
+<p>It is guaranteed that all such accesses are performed by the host, hence a directory in a locally mounted disk is fine.</p>
+<ul>
+<li>If unset, administration by user is simplified (no need to manage an external directory), but there may be a performance impact as network file systems are generally slower than local ones.</li>
+<li>If set to a local directory, user has to ensure that <code>lmake</code> and other commands are always launched from the host that has this locaol file system.</li>
+<li>If set to network directory, there is no performance gain and only added complexity.</li>
+</ul>
+<h3 id="link_support--clean-full"><a class="header" href="#link_support--clean-full"><code>link_support</code> : Clean (<code>'full'</code>)</a></h3>
+<p>Open-lmake fully handle symbolic links (cf <a href="data_model.html">data model</a>).</p>
+<p>However, there is an associated cost which may be useless in some situations.</p>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Support level</th></tr></thead><tbody>
+<tr><td><code>'full'</code></td><td>symbolic links are fully supported</td></tr>
+<tr><td><code>'file'</code></td><td>symbolic links are only supported if pointing to files</td></tr>
+<tr><td><code>'none'</code></td><td>symbolic links are not supported</td></tr>
+</tbody></table>
+</div>
+<h3 id="max_dep_depth-static-1000"><a class="header" href="#max_dep_depth-static-1000"><code>max_dep_depth</code>: Static (<code>1000</code>)</a></h3>
+<p>The <a href="rule_selection.hml">rule selection</a> process is a recursive one.
+It is subject to infinite recursion and several means are provided to avoid it.</p>
+<p>The search stops if the depth of the search reaches the value of this attribute, leading to the selection of a special internal rule called <code>infinite</code>.</p>
+<ul>
+<li>If too low, some legal targets may be considered infinite.</li>
+<li>If too high, the error message in case of infinite recursion will be more verbose.</li>
+</ul>
+<h3 id="max_error_lines--dynamic-100"><a class="header" href="#max_error_lines--dynamic-100"><code>max_error_lines</code> : Dynamic (<code>100</code>)</a></h3>
+<p>When a lot of error lines are generated by open-lmake, other than copying the <code>stderr</code> of a job, only the first <code>max_error_lines</code> ones are actually output,
+followed by a line containing <code>...</code> if some lines have been suppressed.
+The purpose is to ease reading.</p>
+<h3 id="network_delay--static-1"><a class="header" href="#network_delay--static-1"><code>network_delay</code> : Static (<code>1</code>)</a></h3>
+<p>This attribute provides an approximate upper bound of the time it takes for an event to travel from a host to another.</p>
+<ul>
+<li>If too low, there may be spurious lost jobs.</li>
+<li>If too high, there may be a loss of reactivity.</li>
+</ul>
+<p>The default value should fit most cases.</p>
+<h3 id="path_max--static-400"><a class="header" href="#path_max--static-400"><code>path_max</code> : Static (<code>400</code>)</a></h3>
+<p>The <a href="rule_selection.html">rule selection</a> process is a recursive one.
+It is subject to infinite recursion and several means are provided to avoid it.</p>
+<p>The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called <code>infinite</code>.</p>
+<h3 id="reliable_dirs--static-false-if-non-local-backends-are-used"><a class="header" href="#reliable_dirs--static-false-if-non-local-backends-are-used"><code>reliable_dirs</code> : Static (<code>False</code> if non-local backends are used)</a></h3>
+<p>This attribute specifies whether directory coherence is enforced when a file is created/modified/unlinked.</p>
+<p>When not the case, open-lmake emit additional traffic to ensure the necessary coherency.</p>
+<p>Known file systems :</p>
+<div class="table-wrapper"><table><thead><tr><th>File system</th><th>reliable dirs</th></tr></thead><tbody>
+<tr><td>NFS</td><td>False</td></tr>
+<tr><td>CEPH</td><td>True</td></tr>
+</tbody></table>
+</div>
+<ul>
+<li>If uselessly set to False, there is a performance hit.</li>
+<li>If wrongly set to True, builds will be unreliable with difficult to analyze patterns.</li>
+</ul>
+<p>So if in doubt, leave False.</p>
+<h3 id="sub_repos--static-"><a class="header" href="#sub_repos--static-"><code>sub_repos</code> : Static (<code>()</code>)</a></h3>
+<p>This attribute provide the list of sub-repositories.</p>
+<p>Sub repositories are sub-directories of the repository that are themselves repositories, i.e. they have a <code>Lmakefile.py</code>.
+Inside such sub-repositories, the applied flow is the one described in it (cf <a href="experimental_subrepos.html">Subrepos</a>).</p>
+<h3 id="consoledate_precision--dynamic-none"><a class="header" href="#consoledate_precision--dynamic-none"><code>console.date_precision</code> : Dynamic (<code>None</code>)</a></h3>
+<p>This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
+If <code>None</code>, no timestamp is generated.</p>
+<h3 id="consolehas_exec_time--dynamic-true"><a class="header" href="#consolehas_exec_time--dynamic-true"><code>console.has_exec_time</code> : Dynamic (<code>True</code>)</a></h3>
+<p>If this attribute is true, execution time is reported each time a job is completed.</p>
+<h3 id="consolehistory_days--dynamic-7"><a class="header" href="#consolehistory_days--dynamic-7"><code>console.history_days</code> : Dynamic (<code>7</code>)</a></h3>
+<p>This attribute specifies the number of days the output log history is kept in the <code>LMAKE/outputs</code> directory.</p>
+<h3 id="consolehost_length--dynamic-none"><a class="header" href="#consolehost_length--dynamic-none"><code>console.host_length</code> : Dynamic (<code>None</code>)</a></h3>
+<p>This attribute specifies the width of the field showing the host that executed or is about to execute the job.
+If <code>None</code>, the host is not shown.
+Note that no host is shown for local execution.</p>
+<h3 id="consoleshow_eta--dynamic-false"><a class="header" href="#consoleshow_eta--dynamic-false"><code>console.show_eta</code> : Dynamic (<code>False</code>)</a></h3>
+<p>If this attribute is true, the title shows the ETA of the command, in addition to statistics about number of jobs.</p>
+<h3 id="consoleshow_ete--dynamic-true"><a class="header" href="#consoleshow_ete--dynamic-true"><code>console.show_ete</code> : Dynamic (<code>True</code>)</a></h3>
+<p>If this attribute is true, the title shows the ETE of the command, in addition to statistics about number of jobs.</p>
+<h3 id="tracesize--static-100_000_000"><a class="header" href="#tracesize--static-100_000_000"><code>trace.size</code> : Static (<code>100_000_000</code>)</a></h3>
+<p>While open-lmake runs, it may generate an execution trace recording a lot of internal events meant for debugging purpose.</p>
+<p>The trace is handled as a ring buffer, storing only the last events when the size overflows.
+The larger the trace, the more probable the root cause of a potential problem is still recorded, but the more space it takes on disk.</p>
+<p>This attributes contains the maximum size this trace can hold (open-lmake keeps the 5 last traces in case the root cause lies in a previous run).</p>
+<h3 id="tracen_jobs--static-1000"><a class="header" href="#tracen_jobs--static-1000"><code>trace.n_jobs</code> : Static (<code>1000</code>)</a></h3>
+<p>While open-lmake runs, it generates execution traces for all jobs.</p>
+<p>This attributes contains the overall number of such traces that are kept.</p>
+<h3 id="tracechannels--static-all"><a class="header" href="#tracechannels--static-all"><code>trace.channels</code> : Static (all)</a></h3>
+<p>The execution trace @lmake generates is split into channels to better control what to trace.</p>
+<p>This attributes contains a <code>list</code> or <code>tuple</code> of the channels to trace.</p>
+<h3 id="colors--dynamic-reasonably-readable"><a class="header" href="#colors--dynamic-reasonably-readable"><code>colors</code> : Dynamic (reasonably readable)</a></h3>
+<p>Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf <a href="video_mode.html">video-mode</a>).</p>
+<p>This attribute is a <code>pdict</code> with one entry for each symbolic color.
+Each entry is a 2-tuple of 3-tuple's.
+The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
+Each color is a triplet RGB of values between 0 and 255.</p>
+<h3 id="backends--dynamic"><a class="header" href="#backends--dynamic"><code>backends</code> : Dynamic</a></h3>
+<p>This attribute is a <code>pdict</code> with one entry for each active backend (cf <a href="backends.html">backends</a>).</p>
+<p>Each entry is a <code>pdict</code> providing resources. Such resources are backend specific.</p>
+<h3 id="backendsinterface--dynamic-best-guess"><a class="header" href="#backendsinterface--dynamic-best-guess"><code>backends.*.interface</code> : Dynamic (best guess)</a></h3>
+<p>When jobs are launched remotely, they must connect to open-lmake when they start and when they complete.
+This is done by connecting to a socket open-lmake has opened for listening, which requires that we must have a means to determine an IP address to connect to.
+The host running open-lmake may have several network interfaces, one of them (typically only one) being usable by such remote hosts.
+There is no generic way to determine this address, so in general, open-lmake cannot determine it automatically.</p>
+<p>This value may be empty (loop-back for local backend, <code>hostname</code> look up for remote backends), given in standard dot notation, as the name of an interface (as shown by <code>ifconfig</code>)
+or the name of a host (looked up as for <code>ping</code>).</p>
+<h3 id="backendsenviron--dynamic-"><a class="header" href="#backendsenviron--dynamic-"><code>backends.*.environ</code> : Dynamic (<code>{}</code>)</a></h3>
+<p>Environment to pass when launching job in backend.
+This environment is accessed when the value mentioned in the rule is <code>...</code>.</p>
+<h3 id="backendslocalcpu--dynamic-number-of-phyical-cpus"><a class="header" href="#backendslocalcpu--dynamic-number-of-phyical-cpus"><code>backends.local.cpu</code> : Dynamic (number of phyical CPU's)</a></h3>
+<p>This is a normal resource that rules can require (by default, rule require 1 cpu).</p>
+<h3 id="backendslocalmem--dynamic-size-of-physical-memory-in-mb"><a class="header" href="#backendslocalmem--dynamic-size-of-physical-memory-in-mb"><code>backends.local.mem</code> : Dynamic (size of physical memory in MB)</a></h3>
+<p>This is the pysical memory necessary for jobs.
+It can be specified as a number or a string representing a number followed by a standard suffix such as <code>k</code>,  <code>M</code> or <code>G</code>.
+Internally, the granularity is forced to MB.</p>
+<h3 id="backendslocaltmp--dynamic-0"><a class="header" href="#backendslocaltmp--dynamic-0"><code>backends.local.tmp</code> : Dynamic (<code>0</code>)</a></h3>
+<p>This is the disk size in the temporary directory necessary for jobs.
+It can be specified as a number or a string representing a number followed by a standard suffix such as <code>k</code>,  <code>M</code> or <code>G</code>.
+Internally, the granularity is forced to MB.</p>
+<h3 id="caches--static"><a class="header" href="#caches--static"><code>caches</code> : Static</a></h3>
+<p>This attribute is a <code>pdict</code> with one entry for each cache.</p>
+<p>Caches are named with an arbitrary <code>str</code> and are referenced in rules using this name.</p>
+<p>By default, no cache is configured, but an example can be found in <a href="../../lib/lmake/config.py">lib/lmake/config.py</a>, commented out.</p>
+<h3 id="cachestag--static--"><a class="header" href="#cachestag--static--"><code>caches.*.tag</code> : Static (-)</a></h3>
+<p>This attribute specifies the method used by open-lmake to cache values.
+In the current version, only 2 tags may be used:</p>
+<ul>
+<li><code>none</code> is a fake cache that cache nothing.</li>
+<li><code>dir</code> is a cache working without daemon, data are stored in a directory.</li>
+</ul>
+<h3 id="cachesdirdir--static"><a class="header" href="#cachesdirdir--static"><code>caches.&lt;dir&gt;.dir</code> : Static</a></h3>
+<p>This attribute specifies the directory in which the cache puts its data.</p>
+<p>The directory must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
+The size may be suffixed by a unit suffix (k, M, G, T, P or E). These refer to base 1024.</p>
+<h3 id="cachesdirreliable_dirs--static-false"><a class="header" href="#cachesdirreliable_dirs--static-false"><code>caches.&lt;dir&gt;.reliable_dirs</code> : Static (<code>False</code>)</a></h3>
+<p>Same meaning as <code>config.reliable_dirs</code> for the directory containing the cache.</p>
+<h3 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h3>
+<p>This attribute specifies the group used when creating entries.</p>
+<h3 id="debug"><a class="header" href="#debug"><code>debug</code></a></h3>
+<p>When <code>ldebug</code> is used, it consults this <code>dict</code>.</p>
+<p>It maps debug keys to modules to import to implement the debug method (cf man ldebug).
+Values contain the module name optionnaly followed by a human description (that will appear with <code>ldebug -h</code>) separated with spaces.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="writing_lmakefile.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="rules.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="writing_lmakefile.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="rules.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

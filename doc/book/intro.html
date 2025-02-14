@@ -1,0 +1,409 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Introduction - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p>To introduce the basic concepts of open-lmake, we will consider a case including:</p>
+<ul>
+<li>C/C++ compilation</li>
+<li>link edition of executables</li>
+<li>tests using test scenari</li>
+<li>test suites containing list of test scenari</li>
+</ul>
+<p>We will implement such a simple flow with a full decoupling of the flow (as described in <code>Lmakefile.py</code>) and project data (as described by the other source files).
+In this flow, we will assume that:</p>
+<ul>
+<li>for an executable <code>foo.exe</code>, its <code>main</code> is located in <code>foo.c</code> or <code>foo.cc</code></li>
+<li>for a feature <code>foo.o</code>, its interface is in <code>foo.h</code> or <code>foo.hh</code> and it implementation (if any) is in <code>foo.c</code> or <code>foo.cc</code></li>
+</ul>
+<p>With these assumptions, which correspond to usual code organization, the list of objects necessary to link an executable can be derived automatically by analyzing the source files.</p>
+<h2 id="the-lmakefilepy-file"><a class="header" href="#the-lmakefilepy-file">The <code>Lmakefile.py</code> file</a></h2>
+<p><code>Lmakefile.py</code> is the file that describes the flow. It is analogous to <code>Makefile</code> when using <code>make</code> and is plain Python (hence its name).
+It is composed of 3 parts:</p>
+<ul>
+<li>config</li>
+<li>sources</li>
+<li>rules</li>
+</ul>
+<p>In this introduction, we will use the default config and nothing needs to be put in <code>Lmakefile.py</code>.</p>
+<p>Open-lmake needs to have an explicit list of the source files.
+If your code based is managed by <code>git</code>, it will be automatically used to list source files.
+We will assume we are in this common case for this introduction.</p>
+<p>We are left with rules that really describe the flow.
+Rules are Python classes inheriting from <code>lmake.rules.Rule</code>.</p>
+<p>So we must import these:</p>
+<pre><code class="language-python">from lmake.rules import Rule
+</code></pre>
+<p>Now, let us start with the compilation rules.</p>
+<p>These will look like:</p>
+<pre><code class="language-python">class CompileC(Rule) :
+	targets = { 'OBJ' : '{File:.*}.o' }
+	deps    = { 'SRC' : '{File}.c'    }
+	cmd     = 'gcc -c -o {OBJ} {SRC}'
+
+class CompileCpp(Rule) :
+	targets = { 'OBJ' : '{File:.*}.o' }
+	deps    = { 'SRC' : '{File}.cc'   }
+	cmd     = 'gcc -c -o {OBJ} {SRC}'
+</code></pre>
+<p>Notes:</p>
+<ul>
+<li><code>targets</code> define the stems (here <code>File</code>) with a regular expression (here <code>.*</code>).</li>
+<li><code>deps</code> define the static deps, i.e. the deps that are needed for all jobs of the rule, but upon execution, other deps (such as .h files) may be discovered (and most of the time will).</li>
+<li><code>cmd</code> is an f-string. There is no f-prefix because it is not expanded while reading <code>Lmakefile.py</code> but when a job is executed.</li>
+<li>The same is true for <code>deps</code> values, these are f-string (without the f-prefix).</li>
+<li>To be selected to build a file, a rule must match the file with one if its targets <strong>and</strong> its static deps must be buildable.
+For example, if <code>foo.c</code> exists and <code>foo.cc</code> does not, rule CompileC can be selected to build <code>foo.o</code> and CompileCC cannot.</li>
+<li>Hidden deps, on the contrary, may or may not be buildable, this is not a problem for open-lmake.
+It may or may not be a problem for the command, depending on how it is written.</li>
+<li>Note the use of 'buildable' in the previous points and instead of 'exist'.
+If a file does not exist and is buildable, it will be built as soon as open-lmake learns its need.
+If a file exists and is not buildable, it will be <code>rm</code>'ed if it was produced by an old job, else it will be declared 'dangling' and this is an error condition.
+In this latter case, most of the time, it corresponds to a file that must be added to git.</li>
+</ul>
+<p>For the link edition, here it is:</p>
+<pre><code class="language-python">for ext in ('c','cc') :
+	class ListObjects(Rule) :
+		name    = f'list objects from {ext}'
+		targets = { 'LST' : '{File:.*}.lst'   }
+		deps    = { 'SRC' : f'{{File}}.{ext}' }
+		def cmd() :
+			# this is a rather complex code that computes the transitive closure of included files
+			# including included files of the .c (or .cc) file for each included .h (or .hh) file
+			# such details are outside the scope of this document
+			...
+
+class Link(Rule) :
+	targets = { 'EXE' : '{File:.*}.exe' }
+	deps    = { 'LST' : '{File}.lst'    }
+	cmd     = 'gcc -o {EXE} $(cat {LST})'
+</code></pre>
+<p>Notes:</p>
+<ul>
+<li>You have the full power of Python, including loops, conditionals etc.</li>
+<li>It is not a problem to have several classes defined with the same name (as <code>ListObjects</code> here).
+However, to avoid confusion when reporting execution to the user open-lmake refuses to have several rules with the same name.
+The name of a rule is its <code>name</code> attribute and defaults to the class name.</li>
+<li>cmd can be either a string, in which case it is interpreted as an f-string and its expanded is run with bash to execute the job,
+or a function, in which case it is called to execute the job</li>
+<li>rule that generate .lst files does not prevent the existence of such files as sources.
+In such a case, the rule will not be executed.</li>
+</ul>
+<p>Finally, we need tests :</p>
+<pre><code class="language-python">class Test(Rule) :
+	target = '{File:.*}.test_out'
+	deps   = { 'SCN' : '{File}.scn' }
+	cmd    = '{SCN}'
+
+class TestSuiteExpansion(Rule) :
+	targets = { 'SCN'       : '{File:.*}.test_dir/{Test*:.*}.scn' }
+	deps    = { 'TEST_SUIT' : '{File}.test_suite'                 }
+	def cmd() :
+		for line in open(TEST_SUIT) :
+			name,scn = line.split(None,1)
+			open(SCN(name),'w').write(scn)
+			os.chmod(SCN(name),0o755)
+
+class TestSuiteReport(Rule) :
+	target = '{File:.*}.test_suit_report'
+	deps   = { 'TEST_SUIT' : '{File}.test_suite' }
+	def cmd() :
+		for line in open(TEST_SUIT) :
+			name = line.split(1)[0]
+			stdout.write(open(f'{File}.test_dir/{name}.test_out'))
+</code></pre>
+<p>Notes:</p>
+<ul>
+<li>One can define <code>target</code> rather than <code>targets</code>.
+It is a single target and is special in that is is fed by the stdout of <code>cmd</code>.
+Although more rarely used, <code>dep</code> can be used and feeds <code>cmd</code> as its stdin.</li>
+<li>In <code>TestSuiteExpansion</code> targets, there is a <code>*</code> after <code>Test</code>.
+This a so-called 'star-stem'.
+It means that a single execution of the job generates files with diferent values for this star-stem.</li>
+<li>for Python <code>cmd</code> (when it is a function), targets, deps and stems are accessible as global variables.
+Star-stems are not defined (they would be meaningless) and the corresponding targets are functions instead of variables: you must pass the star-stems as arguments.</li>
+</ul>
+<p>Special notes on content based up-to-date definition:</p>
+<ul>
+<li>Open-lmake detects a file has changed if its content has changed, not its date.</li>
+<li>This means that a checksum is computed for all targets generated by all jobs.</li>
+<li>This has a marginal impact on performance: it uses xxh as a checksum lib, it is both of excellent quality (though not crypto-robust) and bracingly fast.</li>
+<li>This is not only an optimization but has consequences on the flow itself.</li>
+<li>Here, we define a test suite as a list of named test scneari.
+When the test suite is modfiied, all scenari are rebuilt, but only those that have actually changed are rerun.</li>
+<li>And this is common case: you often modify the test suite to change a few tests or add a few ones.
+It would be unacceptable to rerun all tests in such case and would require the flow to be organized in another way.
+Yet, defining test suites this way is very comfortable.</li>
+</ul>
+<h2 id="execution"><a class="header" href="#execution">Execution</a></h2>
+<p>The first time you execute the flow, you need to execute all steps :</p>
+<ul>
+<li>compile all source files to object files</li>
+<li>link object files to the executable</li>
+<li>run all tests</li>
+</ul>
+<p>Once this has been done, what needs to be executed depends on what has been modified:</p>
+<div class="table-wrapper"><table><thead><tr><th>What has been modified</th><th>What needs to be re-executed</th><th>Notes</th></tr></thead><tbody>
+<tr><td>nothing</td><td>nothing</td><td></td></tr>
+<tr><td>a .c (or .cc) source file</td><td>compile said source file, link, run all tests</td><td>if .o does not change, nothing is run any further</td></tr>
+<tr><td>a .h (or.hh) include file</td><td>compile source files including said .h (or .hh), link, run all tests</td><td>if no .o change, nothing is run any further</td></tr>
+<tr><td>a test suite file</td><td>run modified/new tests</td><td></td></tr>
+<tr><td>a <code>cmd</code> in <code>Lmakefile.py</code></td><td>run all jobs using corresponding rule and all depending jobs</td><td>depending jobs are only executed if file actually changes</td></tr>
+</tbody></table>
+</div>
+<h2 id="further-notes"><a class="header" href="#further-notes">Further notes</a></h2>
+<h3 id="use-of-the-critical-attribute"><a class="header" href="#use-of-the-critical-attribute">Use of the <code>critical</code> attribute</a></h3>
+<p>Some deps can be declared <code>critical</code>.
+This has no semantic impact but may be important performance wise.
+Open-lmake computes the actual deps of a job while it executes it while ideally, you would need to know them beforehand.
+So it considers the known deps (i.e. collected during the last run) as a good approximation of the ones that will be collected during the current run.</p>
+<p>The general principle is:</p>
+<ul>
+<li>Rebuild known deps.</li>
+<li>Execute job.</li>
+<li>If new deps appear, rebuild them.</li>
+<li>If one of such new deps changes during this rebuild, rerun job.</li>
+<li>Iterate until no new deps appear.</li>
+</ul>
+<p>Suppose now that you have a dep that contains a list of some files that will become deps (such as the <code>LST</code> dep in the <code>Link</code> rule).
+If this list changes, it may very well suppress such a file (an object file in the <code>Link</code> case).
+This means that a file may be uselessly recompiled.</p>
+<p>If a <code>critical</code> dep exists, the firt step of the general principle becomes:</p>
+<ul>
+<li>rebuild known deps, except those located after a modified <code>critical</code> dep.</li>
+</ul>
+<p>The <code>Link</code> rule would be better if written as:</p>
+<pre><code class="language-python">class Link(Rule) :
+	targets = { 'EXE' : '{File:.*}.exe'               }
+	deps    = { 'LST' : ( '{File}.lst' , 'critical' ) }
+	cmd = '''
+		ldepend --read $(cat {LST})
+		lcheck_deps
+		gcc -o {EXE} $(cat {LST})
+	'''
+</code></pre>
+<p>The drawback of using the <code>critical</code> attribute is that the job will more often be executed twice.
+While often such jobs are fast (as the <code>TestSuiteReport</code>), the link phase may be heavier and we would like to avoid executing it twice.
+The idea here is:</p>
+<ul>
+<li><code>ldepend</code> creates deps.</li>
+<li><code>lcheck_deps</code> checks that deps accumulated up to the calling point are up-to-date.</li>
+<li>This guarantees that gcc will discover no new deps.</li>
+</ul>
+<h3 id="use-of-a-base-class"><a class="header" href="#use-of-a-base-class">Use of a base class</a></h3>
+<p>Quite often, you want to define a vocabulary of stems.
+In our example, we have <code>File</code> and <code>Test</code>.</p>
+<p>We may define a base class to contain these definitions:</p>
+<pre><code class="language-python">class Base(Rule) :
+	stems = {
+		'File' : '.*'
+	.	'Test' : '.*'
+	}
+</code></pre>
+<p>Then all rules can inherit from <code>Base</code> instead of <code>Rule</code> and this vocabulary is defined.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="lmake_module.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="lmake_module.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

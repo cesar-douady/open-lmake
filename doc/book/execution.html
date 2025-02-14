@@ -1,0 +1,305 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Execution - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="execution"><a class="header" href="#execution">Execution</a></h1>
+<h2 id="handling-an-access"><a class="header" href="#handling-an-access">Handling an access</a></h2>
+<p>At first glance, recognizing a target from a dep when a job runs seems pretty easy when the accesses to the disk can be traced : reading a file is a dep, writing to it is a target.
+And this is what is done informally, but there are a lot of corner cases.</p>
+<p>The specification devised hereinafter has been carefully thought to allow open-lmake to run adequate jobs to reach a stable state from any starting point.
+More specifically, think of the following sequence:</p>
+<pre><code class="language-bash">git clean -ffdx
+lmake foo
+git pull
+lmake foo
+</code></pre>
+<p>The second <code>lmake foo</code> command is supposed to do the minimum work to reach the same content of <code>foo</code> as would be obtained with the sequence:</p>
+<pre><code class="language-bash">git pull
+git clean -ffdx
+lmake foo
+</code></pre>
+<p>This what stable state means : the content of <code>foo</code> is independent of the history and only depends on the rules and the content of sources, both being managed through <code>git</code> in this example.</p>
+<p>In this specification, directories are ignored (i.e. the presence or content of a directory has no impact) and symbolic links are similar to regular files whose content is the link itself.</p>
+<h3 id="reading-and-writing-files"><a class="header" href="#reading-and-writing-files">Reading and writing files</a></h3>
+<p>The first point is to precisely know what reading and writing mean.</p>
+<p>Writing to file <code>foo</code> means:</p>
+<ul>
+<li>A system call that writes or initiate writing to <code>foo</code>, e.g. <code>open("foo",O_WRONLY|O_TRUNC)</code> or <code>symlink(...,"foo")</code>, assuming the <code>autodep</code> rule attribute is not set to <code>'none'</code>.</li>
+<li>Unlinking <code>foo</code>, e.g. <code>unlink("foo")</code>, is also deemed to be writing to it.</li>
+<li>A call to <code>lmake.target('foo',write=True)</code>. Note that <code>True</code> is the default value for the <code>write</code> argument.</li>
+<li>The execution of <code>ltarget foo</code> in which the <code>-W</code> option is not passed.</li>
+<li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
+<li>Also under the condition that <code>foo</code> does not match a <code>targets</code> or <code>side_targets</code> entry with the <code>Ignore</code> flag set.</li>
+<li>Also under the condition that <code>foo</code> lies in the repository (i.e. under the directory containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-directory).</li>
+</ul>
+<p>Reading file <code>foo</code> means :</p>
+<ul>
+<li>A system call that reads or initiate reading <code>foo</code>, e.g. <code>open("foo",O_RDONLY)</code>, <code>readlink("foo",...)</code> or <code>stat("foo",...)</code>,
+assuming the <code>autodep</code> rule attribute is not set to <code>'none'</code>.</li>
+<li>Unless the <code>config.link_support</code> attribute is set to <code>'none'</code>,
+any access (reading or writing) to <code>foo</code> which follows symlinks is an implicit <code>readlink</code>.</li>
+<li>Unless the <code>config.link_support</code> attribute is set to <code>'file'</code> or <code>'none'</code>,
+any access (reading or writing) to <code>foo</code>, whether it follows symlinks or not, is an implicit <code>readlink</code> of all directories leading to it.</li>
+<li>Note that some system calls can be both a read and a write, e.g. <code>open("foo", O_RDWR)</code> but also <code>rename("foo",...)</code>.
+In that case, the read occurs before the write.</li>
+<li>A call to <code>lmake.depend('foo',read=True)</code>. Note that <code>True</code> is the default value for the <code>read</code> argument.</li>
+<li>The execution of <code>ldepend foo</code> in which the <code>-R</code> option is not passed.</li>
+<li>Under the condition that these actions are not preceded by a call to <code>lmake.depend('foo',ignore=True)</code> or the execution of <code>ldepend -I foo</code>.</li>
+<li>Also under the condition that <code>foo</code> is not listed in <code>deps</code> or matches a <code>side_deps</code> entry, with the <code>Ignore</code> flag set.</li>
+<li>Also under the condition that <code>foo</code> lies in the repository (i.e. under the directory containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-directory) or in a source directory.</li>
+</ul>
+<h3 id="being-a-target"><a class="header" href="#being-a-target">Being a target</a></h3>
+<p>A file may be a target from the begining of the job execution, or it may become a target during job execution.
+In the latter case, it is not a target until the point where it becomes one.
+A file cannot stop being a target: once it has become a target, this is until the end of the job execution.</p>
+<p>A file is a target from the begining of the job execution if it matches a <code>targets</code> or <code>side_targets</code> entry.</p>
+<p>A file becomes a target when it is written to (with the meaning mentioned above) or when <code>lmake.target</code> or <code>ltarget</code> is called.</p>
+<h3 id="being-a-dep"><a class="header" href="#being-a-dep">Being a dep</a></h3>
+<p>A file may be a dep from the begining of the job execution, or it may become a dep during job execution.</p>
+<p>A file cannot stop being a dep : once it has become a dep, this is until the end of the job execution.</p>
+<p>A file is a dep from the begining of the job execution if it listed as a <code>deps</code> in the rule.</p>
+<p>A file becomes a dep when it is read (with the meaning mentioned above) while not a target at that time.</p>
+<h3 id="errors"><a class="header" href="#errors">Errors</a></h3>
+<p>Some cases lead to errors, independently of the user script.</p>
+<p>The first case is when there is clash between static declarations.
+<code>targets</code>, <code>side_targets</code>, <code>side_deps</code> entries may or may not contain star stems.
+In the latter case, and including the static deps listed in <code>deps</code>, they are static entries.
+It is an error if the same file is listed several times as a static entry.</p>
+<p>The second case is when a file is both a dep and a target.
+You may have noticed that the definition above does not preclude this case, mostly because a file may start its life as a dep and become a target.
+This is an error unless the file is finally unlinked (or was never created).</p>
+<p>The third case is when a target was not declared as such.
+<code>foo</code> can be declared as target by:</p>
+<ul>
+<li>matching a <code>targets</code> or <code>side_targets</code> entry.</li>
+<li>calling <code>lmake.target('foo',allow=True)</code> (which is the default value for the <code>allow</code> arg).</li>
+<li>executing <code>ltarget foo</code> in which the <code>-a</code> option is not passed.</li>
+</ul>
+<p>A target that is not declared is an error.</p>
+<h3 id="processing-a-target"><a class="header" href="#processing-a-target">Processing a target</a></h3>
+<p>Targets are normally erased before the start of the job execution, unless they are sources or flagged as <code>incremental</code>.
+In case a target is also a dep, it is automatically flagged as <code>incremental</code>, whether it is an error or not.</p>
+<p>If a job is run when a not <code>incremental</code> and not source target exists, it is deemed unreliable and is rerun.</p>
+<h3 id="best-effort"><a class="header" href="#best-effort">Best effort</a></h3>
+<p>Open-lmake tries to minimize the execution of jobs, but may sometimes miss a point and execute a job superfluously.
+This may include erasing a file that has no associated production rule.
+Unless a file is a dep of no job, open-lmake may rebuild it at any time, even when not strictly necessary.</p>
+<p>In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a user-generated content.
+In that case, open-lmake quarantines the file under the <code>LMAKE/quarantine</code> directory with its original name.
+This quarantine mechanism, which is not necessary for open-lmake processing but is a facility for the user, is best effort.
+There are cases where open-lmake cannot anticipate such an overwrite.</p>
+<h2 id="tmp-directory"><a class="header" href="#tmp-directory">tmp directory</a></h2>
+<p>The physical directory is:</p>
+<ul>
+<li>If open-lmake is supposed to keep this directory after job execution, it is a directory under <code>LMAKE/tmp</code>, determined by open-lmake (its precise value is reported by <code>lshow -i</code>).</li>
+<li>Else if <code>$TMPDIR</code> is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-directory within it.</li>
+<li>Else, a directory determined by open-lmake lying in the <code>LMAKE</code> directory.</li>
+</ul>
+<p>Unless open-lmake is instructed to keep this directory, it is erased at the end of the job execution.</p>
+<p>Note that in all cases, <code>$TMPDIR</code> is set so that the job can use it to access the tmp directory.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="rules.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="data_model.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="rules.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="data_model.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

@@ -1,0 +1,296 @@
+<!-- Creator     : groff version 1.23.0 -->
+<!-- CreationDate: Fri Feb 14 12:08:50 2025 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>XXHSUM</title>
+
+</head>
+<body>
+
+<h1 align="center">XXHSUM</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSYS">SYNOPSYS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#EXIT STATUS">EXIT STATUS</a><br>
+<a href="#OUTPUT">OUTPUT</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">xxhsum - compute
+a fast *non crypto-robust* message digest</p>
+
+<h2>SYNOPSYS
+<a name="SYNOPSYS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>xxhsum</b>
+<i>file</i></p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">XXH is a very
+high performance, high quality checksum generation algorithm
+internally used by <i>open-lmake</i> to find out whether
+file was actually modified or not when its date is
+changed.</p>
+
+<p style="margin-left:9%; margin-top: 1em">XXH is
+<b>not</b> crypto-robust. This means that you can defeat it
+if you write a code specially aimed at this purpose, but not
+otherwise, by chance.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The version used
+in <i>open-lmake</i> is 56/64 bits : Checksums are computed
+on 64 bits but when comparing 2 checksums, if they match on
+56 (lsb) bits but not on the full 64 bits, <i>open-lmake</i>
+will consider we enter into a <i>danger zone</i> and will
+stop and report the problem. Theoretical computation gives
+that you can generate thousands of files per second for
+thousands of year before entering the <i>danger
+zone</i>.</p>
+
+<p style="margin-left:9%; margin-top: 1em"><b>xxhsum</b>
+allow you to generate the checksum of a file, as
+distinguished by <i>open-lmake</i>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Because
+<i>open-lmake</i> handles symbolic links as themselves and
+not as the file they point to (i.e. <i>open-lmake</i> works
+in the physical world), <b>xxhsum</b> does not follow
+symbolic links. The generated checksums are put in different
+spaces whether they are regular files or symbolic links.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Also, the
+execute permission bit is used to compute the checksum of
+regular files. <i>open-lmake</i> does not handle permission
+bits (read and write permissions), but the execute bit is a
+semantic bit (possibly in addition to security) and thus is
+managed as file content.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Directories and
+other awkward files (i.e. neither a regular file or a
+symbolic link) are handled as if they did not exist.</p>
+
+<p style="margin-left:9%; margin-top: 1em">A checksum is a
+16-hex digit number followed by <b>-R</b> for regular files
+or <b>-L</b> for symbolic links (e.g. 1234567890123456-R).
+The following special cases produce dedicated outputs :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="81%">
+
+
+<p>file does not exist : output is <b>none</b></p></td>
+<td width="1%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="81%">
+
+
+<p>file is a non-executable regular empty file : output is
+<b>empty-R</b></p> </td>
+<td width="1%">
+</td></tr>
+</table>
+
+<h2>EXIT STATUS
+<a name="EXIT STATUS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>xxhsum</b>
+exits with a status of zero if the checksum could be
+computed. Else it exits with a non-zero status.</p>
+
+<h2>OUTPUT
+<a name="OUTPUT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">The checksum on
+a single line.</p>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>ldebug</b>(1), <b>ldecode</b>(1),
+<b>ldepend</b>(1), <b>lencode</b>(1), <b>lforget</b>(1),
+<b>lmake</b>(1), <b>lmark</b>(1), <b>lrepair</b>(1),
+<b>lrun_cc</b>(1), <b>lshow</b>(1), <b>ltarget</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The Python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/doc/book/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">For the xxh
+library :</p>
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2012-2023 Yann Collet</p>
+
+<p style="margin-left:9%; margin-top: 1em">BSD 2-Clause
+License
+(https://www.opensource.org/licenses/bsd-license.php)</p>
+
+<p style="margin-left:9%; margin-top: 1em">Redistribution
+and use in source and binary forms, with or without
+modification, are permitted provided that the following
+conditions are met:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">Redistributions of source code
+must retain the above copyright notice, this list of
+conditions and the following disclaimer.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following
+disclaimer in the documentation and/or other materials
+provided with the distribution.</p></td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">THIS SOFTWARE IS
+PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS
+IS&quot; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,
+BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGE.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You can contact
+the author at:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="77%">
+
+
+<p style="margin-top: 1em">xxHash homepage:
+https://www.xxhash.com</p> </td>
+<td width="5%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="77%">
+
+
+<p>xxHash source repository:
+https://github.com/Cyan4973/xxHash</p> </td>
+<td width="5%">
+</td></tr>
+ </table>
+<hr>
+</body>
+</html>

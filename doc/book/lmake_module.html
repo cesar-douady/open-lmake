@@ -1,0 +1,296 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>The lmake module - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="the-lmake-module"><a class="header" href="#the-lmake-module">The <code>lmake</code> module</a></h1>
+<h2 id="for-use-in-lmakefilepy"><a class="header" href="#for-use-in-lmakefilepy">For use in <code>Lmakefile.py</code></a></h2>
+<h3 id="backends"><a class="header" href="#backends"><code>backends</code></a></h3>
+<p>The <code>tuple</code> of implemented backends.
+<code>'local'</code> is always present.</p>
+<h3 id="autodeps"><a class="header" href="#autodeps"><code>autodeps</code></a></h3>
+<p>The <code>tuple</code> of implemented autodep methods.
+<code>'ld_preload'</code> is always present.</p>
+<h3 id="repo_root"><a class="header" href="#repo_root"><code>repo_root</code></a></h3>
+<p>The root directory of the (sub)-repository.</p>
+<h3 id="top_repo_root"><a class="header" href="#top_repo_root"><code>top_repo_root</code></a></h3>
+<p>The root directory of the top level repository.</p>
+<h3 id="version"><a class="header" href="#version"><code>version</code></a></h3>
+<p>This variable holds the native version of open-lmake.
+It is a tuple formed with a <code>str</code> (the major version) and a <code>int</code> (the minor version).</p>
+<p>Upon new releases of open-lmake, the major version is a tag of the form YY.MM providing the year and month of publication if it is not backward compatible.
+Else the minor version is increased if the interface is modified (i.e. new features are supported).
+Hence, the check is that major versions must match equal and the actual minor version must be at least the expected minor version.</p>
+<h3 id="user_environ"><a class="header" href="#user_environ"><code>user_environ</code></a></h3>
+<p>When reading <code>Lmakefile.py</code>, the environment is reset to a standard environment and this variable holds a copy of <code>os.environ</code> before it was reset.</p>
+<p>This ensures that the environment cannot be used unless explicitly asked.</p>
+<h3 id="class-pdict"><a class="header" href="#class-pdict"><code>class pdict</code></a></h3>
+<p>This class is a dict in which attribute accesses are mapped to item accesses.
+It is very practical to handle configurations.</p>
+<h3 id="multi_striptxt"><a class="header" href="#multi_striptxt"><code>multi_strip(txt)</code></a></h3>
+<p>This function deindents <code>txt</code> as much as possible so as to ease printing code.</p>
+<h3 id="check_version-major--minor0-"><a class="header" href="#check_version-major--minor0-"><code>check_version( major , minor=0 )</code></a></h3>
+<p>This function is used to check that the expected version is compatible with the actual version.</p>
+<p>This function must be called right after having imported the <code>lmake</code> module as in the future, it may adapt itself to the required version when this function is called.
+For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.</p>
+<h2 id="for-use-in-cmd"><a class="header" href="#for-use-in-cmd">For use in <code>cmd()</code></a></h2>
+<h3 id="run_cc-cmd_line--marker--stdinnone-"><a class="header" href="#run_cc-cmd_line--marker--stdinnone-"><code>run_cc( *cmd_line , marker='...' , stdin=None )</code></a></h3>
+<p>This functions ensures that all directories listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
+<p><code>marker</code> is the name of a marker file which is created in include dirs to guarantee there existence.</p>
+<p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
+<h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True )</code></a></h3>
+<p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).</p>
+<p>If <code>follow_symlinks</code> and one of the <code>deps</code> is a symbolic link, follow it.</p>
+<p>If <code>verbose</code>, return a dict with one entry par dep where:</p>
+<ul>
+<li>the key is dep</li>
+<li>the value is a tuple (ok,crc) where:
+<ul>
+<li>ok = True if the dep is built with no error</li>
+<li>ok = False if the dep is built in error</li>
+<li>ok = None is the dep was not built</li>
+<li>crc is the checksum of the dep</li>
+</ul>
+</li>
+</ul>
+<p>If <code>read</code>, pretend <code>deps</code> were read.</p>
+<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>.</p>
+<p>Flags accumulate and are never reset.</p>
+<h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_uniquifyfalse--no_warningfalse--source_okfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_uniquifyfalse--no_warningfalse--source_okfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_uniquify=False , no_warning=False , source_ok=False )</code></a></h3>
+<p>Declare <code>targets</code> as targets.</p>
+<p>If <code>write</code>, pretend <code>targets</code> were written.</p>
+<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_uniquiy</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>.</p>
+<p>Flags accumulate and are never reset.</p>
+<h3 id="check_depsverbosefalse"><a class="header" href="#check_depsverbosefalse"><code>check_deps(verbose=False)</code></a></h3>
+<p>Ensure that all previously seen deps are up-to-date.
+Job will be killed in case some deps are not up-to-date.</p>
+<p>If <code>verbose</code>, wait for server reply. Return value is False if at least a dep is in error.
+This is necessary, even without checking return value, to ensure that after this call,
+the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).</p>
+<h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
+<p>Returns whether autodep is currently active or not.</p>
+<p>By default, autodep is active.</p>
+<h3 id="set_autodepactive"><a class="header" href="#set_autodepactive"><code>set_autodep(active)</code></a></h3>
+<p>Set the state of autodep.</p>
+<h3 id="class-autodep"><a class="header" href="#class-autodep"><code>class Autodep</code></a></h3>
+<p>A context manager that encapsulates <code>set_autodep</code>.</p>
+<pre><code class="language-python">with Autodep(active) :
+	&lt;some code&gt;
+</code></pre>
+<p>executes <code>&lt;some code&gt;</code> with autodep active set as instructed.</p>
+<h3 id="encode-file--ctx--val--min_length1-"><a class="header" href="#encode-file--ctx--val--min_length1-"><code>encode( file , ctx , val , min_length=1 )</code></a></h3>
+<p>If a code is associated to <code>val</code> within file <code>file</code> and context <code>ctx</code>, return it.
+Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.
+Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
+<p><code>file</code> must be a source file.</p>
+<h3 id="decode-file--ctx--code-"><a class="header" href="#decode-file--ctx--code-"><code>decode( file , ctx , code )</code></a></h3>
+<p>If a val is associated to <code>code</code> within file <code>file</code> and context <code>ctx</code>, return it.
+Else an exception is raised.
+Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
+<p><code>file</code> must be a source file.</p>
+<p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="intro.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="lmake_sources_module.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="intro.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="lmake_sources_module.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

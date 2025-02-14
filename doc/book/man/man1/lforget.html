@@ -1,0 +1,337 @@
+<!-- Creator     : groff version 1.23.0 -->
+<!-- CreationDate: Fri Feb 14 12:08:49 2025 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>LFORGET</title>
+
+</head>
+<body>
+
+<h1 align="center">LFORGET</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#COMMON OPTIONS">COMMON OPTIONS</a><br>
+<a href="#SPECIFIC OPTIONS">SPECIFIC OPTIONS</a><br>
+<a href="#FILES">FILES</a><br>
+<a href="#NOTES">NOTES</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">lforget - forget
+about the state of a file or job</p>
+
+<h2>SYNOPSIS
+<a name="SYNOPSIS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lforget</b>
+[<i>OPTION</i>]... [<i>FILE</i>]...</p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lforget</b>
+is used to forget about some of the history. In its first
+form, subsequent <b>lmake</b>(1) commands will forget about
+the build history of the mentioned targets. As a
+consequence, these targets will appear out-of-date. This is
+exceptionally useful in situations where
+<b>lmake</b>&rsquo;s hypotheses are broken :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>A file outside the repository is modified. Because
+<b>lmake</b> does not track modifications outside the
+repository, it canot rerun jobs that must be rerun, this
+must be done manually.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>An error is transient. Another option is to launch
+<b>lmake -e</b> which asks to consider jobs in error as
+out-of-date.</p> </td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em"><b>lforget</b>
+manages a fully coherent directory called a repository. When
+it starts, it first determines the root of the repository
+(cf. <b>FILES</b> below).</p>
+
+<p style="margin-left:9%; margin-top: 1em">Arguments and
+reports are systematically localized to the current working
+directory. For example, if you launch <b>lforget b</b> from
+directory <b>a</b> in your repository, the argument is file
+<i>a/b</i> from the root of the repository and reports
+containing file names (initially seen from the root of the
+repository) will be shown relative the the current working
+directory.</p>
+
+<h2>COMMON OPTIONS
+<a name="COMMON OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are common to all tools of the <i>open-lmake</i> set of
+utilities : <b><br>
+-h</b>,<b>--help</b></p>
+
+<p style="margin-left:18%;">Print a short help and
+exit.</p>
+
+<p style="margin-left:9%;"><b>-J</b>,<b>--job</b></p>
+
+<p style="margin-left:18%;">Passed arguments are
+interpreted as job names rather than as file names. Job
+names are the names that appear, for example, on start and
+done lines when <b>lmake</b> executes a job.</p>
+
+<p style="margin-left:9%;"><b>-R</b>
+<i>rule</i>,<b>--rule</b>=<i>rule</i></p>
+
+<p style="margin-left:18%;">When the <i>--job</i> option is
+used, this options allows the specification of a rule, given
+by its name. This is necessary when the job name is
+ambiguous as several rules may lead to the same job
+name.</p>
+
+<p style="margin-left:9%;"><b>-q</b>,<b>--quiet</b></p>
+
+<p style="margin-left:18%;">Do not generate user oriented
+messages. Strictly generate what is asked. This is practical
+if output is meant for automatic processing.</p>
+
+<p style="margin-left:9%;"><b>-S</b>,<b>--sync</b></p>
+
+<p style="margin-left:18%;">Ensure server is launched (i.e.
+do not connect to an existing server) and wait for its
+termination. This is exceptionally useful in scripts that
+modify <i>Lmakefile.py</i>.</p>
+
+<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+
+<p style="margin-left:18%;">Generate more prolix
+output.</p>
+
+<h2>SPECIFIC OPTIONS
+<a name="SPECIFIC OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are specific to <b>lforget</b> : <b><br>
+-d</b>,<b>--deps</b></p>
+
+<p style="margin-left:18%;">In addition to being
+out-of-date, job will forget about hidden deps.</p>
+
+
+<p style="margin-left:9%;"><b>-r</b>,<b>--resources</b></p>
+
+<p style="margin-left:18%;">This is a global option and no
+targets must be specified. Mark jobs that have been
+successfully built with old resources as out-of-date. This
+is useful in scenarios such as the following one :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>You have run jobs J1 and J2. J1 completed successfully
+but J2 lacked some memory and ended in error.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>Then you have modified the allocated memory, increasing
+J2&rsquo;s memory and decreasing J1&rsquo;s memory because
+you think it is better balanced this way.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>Then you remade both jobs. J2 reran because it was in
+error and now completes successfully. J1 did not rerun
+because it was ok and modifying some resources would not
+change the result.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>However, it could be that now J1 does not have enough
+memory any more. It is not a problem in itself because its
+content is correct, but it may not be reproducible.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>You want to make sure your repository is fully
+reproducible.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>In that case, you run <b>lforget -r</b>. J1 will rerun
+because it was not run with the newer resources, as if its
+command was modified. J2 will not because it has already
+been run since then.</p></td></tr>
+</table>
+
+<p style="margin-left:9%;"><b>-t</b>,<b>--targets</b></p>
+
+<p style="margin-left:18%;">In addition to being
+out-of-date, job will forget about star targets.</p>
+
+<h2>FILES
+<a name="FILES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">The files
+<i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
+searched in the current directory and in parent directories.
+If a single one is found, this determines the root of the
+repository. If several are found, the existence of an
+<i>LMAKE</i> directory is checked. If a single one is found,
+this determines the root of the repository. In other cases,
+<b>lforget</b> will not start.</p>
+
+<h2>NOTES
+<a name="NOTES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Where
+<b>lmark</b>(1) is used to instruct <i>open-lmake</i> not to
+run jobs that it considers out-of-date, <b>lforget</b> is
+used the opposite way, to instruct <i>open-lmake</i> to run
+jobs it considers up-to-date.</p>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>ldebug</b>(1), <b>ldecode</b>(1),
+<b>ldepend</b>(1), <b>lencode</b>(1), <b>lmake</b>(1),
+<b>lmark</b>(1), <b>lrepair</b>(1), <b>lrun_cc</b>(1),
+<b>lshow</b>(1), <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The Python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/doc/book/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
+<hr>
+</body>
+</html>

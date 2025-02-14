@@ -1,0 +1,344 @@
+<!-- Creator     : groff version 1.23.0 -->
+<!-- CreationDate: Fri Feb 14 12:08:49 2025 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>LDEBUG</title>
+
+</head>
+<body>
+
+<h1 align="center">LDEBUG</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#COMMON OPTIONS">COMMON OPTIONS</a><br>
+<a href="#SPECIFIC OPTIONS">SPECIFIC OPTIONS</a><br>
+<a href="#STANDARD METHODS">STANDARD METHODS</a><br>
+<a href="#FILES">FILES</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">ldebug - run a
+job in a debug environment</p>
+
+<h2>SYNOPSIS
+<a name="SYNOPSIS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>ldebug</b>
+[<i>OPTION</i>]... [<i>FILE</i>]...</p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>ldebug</b>
+generates a script that precisely mimics the job execution
+under <b>lmake</b>(1) control, and runs it.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Once the script
+is generated, its path is printed. It can then be freely
+modified and executed without needing to run <b>ldebug</b>
+again.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The job must
+have been run with <b>lmake</b> before (but may not have
+finished, it just needs to have started) because a lot of
+information is generated at that time. The precise way the
+job is launched is controled by the configuration
+<b>lmake.config.debug[&lt;key&gt;]</b> which provides the
+name of a module to import. This module must contain a
+(gen_script) function taking a description of the job
+provided as keyword arguments and returning the script to
+execute. Several such scripts exist in
+<i>lib/lmake_debug</i> in the installation directory and can
+serv as examples to start with.</p>
+
+<p style="margin-left:9%; margin-top: 1em">When
+<b>ldebug</b> is run, the debug script is generated in a
+file within the <i>LMAKE</i> directory and, unless
+<i>--no-exec</i>, it is executed.</p>
+
+<p style="margin-left:9%; margin-top: 1em"><b>ldebug</b>
+manages a fully coherent directory called a repository. When
+it starts, it first determines the root of the repository
+(cf. <b>FILES</b> below).</p>
+
+<p style="margin-left:9%; margin-top: 1em">Arguments and
+reports are systematically localized to the current working
+directory. For example, if you launch <b>ldebug b</b> from
+directory <b>a</b> in your repository, the argument is file
+<i>a/b</i> from the root of the repository and reports
+containing file names (initially seen from the root of the
+repository) will be shown relative the the current working
+directory.</p>
+
+<h2>COMMON OPTIONS
+<a name="COMMON OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are common to all tools of the <i>open-lmake</i> set of
+utilities : <b><br>
+-h</b>,<b>--help</b></p>
+
+<p style="margin-left:18%;">Print a short help and
+exit.</p>
+
+<p style="margin-left:9%;"><b>-J</b>,<b>--job</b></p>
+
+<p style="margin-left:18%;">Passed arguments are
+interpreted as job names rather than as file names. Job
+names are the names that appear, for example, on start and
+done lines when <b>lmake</b> executes a job.</p>
+
+<p style="margin-left:9%;"><b>-R</b>
+<i>rule</i>,<b>--rule</b>=<i>rule</i></p>
+
+<p style="margin-left:18%;">When the <i>--job</i> option is
+used, this options allows the specification of a rule, given
+by its name. This is necessary when the job name is
+ambiguous as several rules may lead to the same job
+name.</p>
+
+<p style="margin-left:9%;"><b>-q</b>,<b>--quiet</b></p>
+
+<p style="margin-left:18%;">Do not generate user oriented
+messages. Strictly generate what is asked. This is practical
+if output is meant for automatic processing.</p>
+
+<p style="margin-left:9%;"><b>-S</b>,<b>--sync</b></p>
+
+<p style="margin-left:18%;">Ensure server is launched (i.e.
+do not connect to an existing server) and wait for its
+termination. This is exceptionally useful in scripts that
+modify <i>Lmakefile.py</i>.</p>
+
+<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+
+<p style="margin-left:18%;">Generate more prolix
+output.</p>
+
+<h2>SPECIFIC OPTIONS
+<a name="SPECIFIC OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are specific to <b>ldebug</b> : <b><br>
+-k</b> <i>key</i>,<b>--key</b>=<i>key</i></p>
+
+<p style="margin-left:18%;">Use key to find the function
+generating the debug script. Default is
+<b>&rsquo;&rsquo;</b> (the empty string), which looks by
+default (unless overridden in <i>Lmakefile.py</i>) in the
+<i>lmake_debug/default.py</i> module.</p>
+
+<p style="margin-left:9%;"><b>-n</b>,<b>--no-exec</b></p>
+
+<p style="margin-left:18%;">Dont run the debug script, stop
+after generation.</p>
+
+<p style="margin-left:9%;"><b>-t</b>,<b>--keep-tmp</b></p>
+
+<p style="margin-left:18%;">Keep tmp directory after job
+execution (cf. <b>lmake</b>(1)).</p>
+
+<h2>STANDARD METHODS
+<a name="STANDARD METHODS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Unless
+overridden in the configuration (through the <i>dict</i>
+<b>lmake.config.debug</b>), the following standard debug
+methods are provided :</p>
+
+
+<p align="center"><img src="grohtml-3122565-1.png" alt="Image grohtml-3122565-1.png"></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(1)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>Running with the <b>-x</b> flag usually produces a trace
+of executed commands.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(2)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>Alias <b>r</b> is redefined to run with adequate
+redirections.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(3)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>Providing a working <b>pudb</b> with redirected
+stdin/stdout necessitated to patch it. This patch is
+dynamically applied as part of the job start up
+procedure.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(4)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>An interactive shell (as provided by <b>$SHELL</b>,
+which defaults to <i>/bin/bash</i>) is open in the job
+environment (environment, cwd, namespace, chroot, mounts,
+tmp, ...).</p></td></tr>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em"><b>$HOME</b>
+and <b>$SHLVL</b> are kept from actual environment to ease
+interactive session. In particular <b>$SHLVL</b> can be used
+to provide a differentiated prompt if adequately defined in
+the start up file (usually <i>&#732;/.bashrc</i>).</p>
+
+<p style="margin-left:9%; margin-top: 1em">In addition to
+running the job, these standard modules provide the
+following environment variables to the job : <b><br>
+$LMAKE_DEBUG_KEY</b></p>
+
+<p style="margin-left:18%;">The key provided by the
+<b>-k</b> or <b>--key</b> option.</p>
+
+<p style="margin-left:9%;"><b>$LMAKE_DEBUG_STDIN</b></p>
+
+<p style="margin-left:18%;">The file connected as stdin to
+<b>ldebug</b> when it was launched (usually a tty) if the
+job has its stdin redirected (in case the <b>dep</b> rule
+attribute is defined).</p>
+
+<p style="margin-left:9%;"><b>$LMAKE_DEBUG_STDOUT</b></p>
+
+<p style="margin-left:18%;">The file connected as stdout to
+<b>ldebug</b> when it was launched (usually a tty) if the
+job has its stdout redirected (in case the <b>target</b>
+rule attribute is defined).</p>
+
+<h2>FILES
+<a name="FILES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Debug script
+files are generated in the <i>LMAKE/debug</i> directory as
+<i>LMAKE/debug/&lt;job id&gt;/script</i>. Associated files
+are besides the the script files.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The files
+<i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
+searched in the current directory and in parent directories.
+If a single one is found, this determines the root of the
+repository. If several are found, the existence of an
+<i>LMAKE</i> directory is checked. If a single one is found,
+this determines the root of the repository. In other cases,
+<b>ldebug</b> will not start.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>lib/lmake_debug/*.py</i>
+files in the installation directory are used by default to
+generate debug scripts.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>&#732;/.bashrc</i>
+is usually executed when entering in the job
+environment.</p>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>ldecode</b>(1), <b>ldepend</b>(1),
+<b>lencode</b>(1), <b>lforget</b>(1), <b>lmake</b>(1),
+<b>lmark</b>(1), <b>lrepair</b>(1), <b>lrun_cc</b>(1),
+<b>lshow</b>(1), <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The Python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/doc/book/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
+<hr>
+</body>
+</html>

@@ -1,0 +1,330 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Writing Lmakefile.py - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="writing-lmakefilepy"><a class="header" href="#writing-lmakefilepy">Writing <code>Lmakefile.py</code></a></h1>
+<p><code>Lmakefile.py</code> contains 3 sections:</p>
+<ul>
+<li>config, (some global information)</li>
+<li>sources, (the list of sources)</li>
+<li>rules, (the list of rules)</li>
+</ul>
+<p>When reading <code>Lmakefile.py</code>, open-lmake:</p>
+<ul>
+<li>imports <code>Lmakefile</code></li>
+<li>for each section (config, sources, rules):
+<ul>
+<li>if there is a callable with this name, call it</li>
+<li>if there is a sub-module with this name, import it</li>
+</ul>
+</li>
+</ul>
+<p>The advantage of declaring a function or a sub-module for each section is that in case something is modified, only the impacted section is re-read.</p>
+<h2 id="the-config"><a class="header" href="#the-config">The config</a></h2>
+<p>The config is determined by setting the variable <code>lmake.config</code>.
+Because it is predefined with all default values, it is simpler to only define fields.
+A typical <code>Lmakefile.py</code> will then contain lines such as:</p>
+<pre><code class="language-python">lmake.config.path_max = 500 # default is 400
+</code></pre>
+<p><a href="../../lib/lmake/config.py">lib/lmake/config.py</a> can be used as a handy helper as it contains all the fields with a short comment.</p>
+<h2 id="the-sources"><a class="header" href="#the-sources">The sources</a></h2>
+<p>The sources are determined by setting the variable <code>lmake.manifest</code>.</p>
+<p>Sources are files that are deemed as intrinsic.
+They cannot be derived using rules as explained in the following section.</p>
+<p>Also, if a file cannot be derived and is not a source, it is deemed unbuildable, even if it actually exists.
+In this latter case, it will be considered dangling and this is an error condition.
+The purpose of this restriction is to ensure repeatability : all buildable files can be (possibly indirectly) derived from sources using rules.</p>
+<p><code>lmake.manifest</code> can contain :</p>
+<ul>
+<li>Files located in the repository</li>
+<li>Directories (ending with <code>/</code>), in which case:
+<ul>
+<li>The whole subtree underneath the directory are considered sources.</li>
+<li>They may be inside the repository or outside, but cannot contain or lie within system directories such as <code>/usr</code>, <code>/proc</code>, <code>/etc</code>, etc.</li>
+<li>If outside, they can be relative or absolute.</li>
+</ul>
+</li>
+</ul>
+<p>In both cases, names must be canonical, i.e. contain no empty component nor <code>.</code>, nor <code>..</code> except initially for relative names outside repository.</p>
+<p>The helper functions defined in <a href="../../lib/lmake/sources.py">lib/lmake/sources.py</a> can be used and if nothing is said, <code>auto_sources()</code> is called.</p>
+<h2 id="the-rules"><a class="header" href="#the-rules">The rules</a></h2>
+<p>Rules are described as Python <code>class</code>'es inheriting from <code>lmake.Rule</code>, <code>lmake.AntiRule</code> or <code>lmake.SourceRule</code>.</p>
+<p>Such classes are either defined directly in <code>Lmakefile.py</code> or you can define a callable or a sub-module called <code>rules</code> that does the same thing when called/imported.
+For example you can define :</p>
+<pre><code class="language-python">def rules() :
+	class MyRule(lmake.Rule) :
+		target = 'my_target'
+		cmd    = ''
+</code></pre>
+<p>Or the sub-module <code>Lmakefile.rules</code> containing such class definitions.</p>
+<p>Inheriting from <code>lmake.Rule</code> is used to define production rules that allows deriving targets from dependencies.</p>
+<p>Inheriting from <code>lmake.AntiRule</code> is (rarely) used to define rules that specify that matching targets <strong>cannot</strong> be built.
+Anti-rules only require the <code>targets</code> attribute (or those that translate into it, <code>target</code>) and may usefully have a <code>prio</code> attribute.
+Other ones are useless and ignored.</p>
+<p>Inheriting from <code>lmake.SourceRule</code> may be used to define sources by patterns rather than as a list of files controlled by some sort of source-control (typically <code>git</code>).</p>
+<h3 id="special-rules"><a class="header" href="#special-rules">Special rules</a></h3>
+<p>In addition to user rules defined as described hereinafter, there are a few special rules:</p>
+<ul>
+<li>Uphill:
+Any file depends on its directory in a special way : if its directory is buildable, then the file is not.
+This is logical : if file <code>foo</code> is buildable (i.e. produced as a regular file or a symbolic link), there is not way file <code>foo/bar</code> can be built.
+If <code>foo</code> is produced as a regular file, this is the end of the story.
+If it is produced as a symbolic link (say with <code>foo_real</code> as target), the dependent job will be rerun and it will then depend on <code>foo</code> and <code>foo_real/bar</code> when it opens <code>foo/bar</code>.
+Note that if the directory applies as the star-target of a rule, then the corresponding job must be run to determine if said directory is, indeed, produced.</li>
+<li>Infinite:
+If walking the dependencies leads to infinite recursion, when the depth reaches <code>lmake.config.max_dep_depth</code>, this special rule is triggered which generates an error.
+Also, if a file whose name is longer that <code>lmake.config.path_max</code> considered, it is deemed to be generated by this rule and it is in error.
+This typically happens if you have a rule that, for example builds <code>{File}</code> from <code>{File}.x</code>.
+If you try to build <code>foo</code>, open-lmake will try to build <code>foo.x</code>, which needs <code>foo.x.x</code>, which needs <code>foo.x.x.x</code> etc.</li>
+</ul>
+<h3 id="dynamic-values"><a class="header" href="#dynamic-values">Dynamic values</a></h3>
+<p>Most attributes can either be data of the described type or a function taking no argument returning the desired value.
+This allows the value to be dynamically selected depending on the job.</p>
+<p>Such functions are evaluated in an environment in which the stems (as well as the <code>stems</code> variable which is a <code>dict</code> containing the stems
+and the targets (as well as the <code>targets</code> variable) are defined and usable to derive the return value.
+Also, depending on the attribute, the deps (as well as the <code>deps</code> variable) and the resources (as well as the <code>resources</code> variable) may also be defined.
+Whether or not these are available depend on when a given attribute is needed.
+For example, when defining the <code>deps</code>, the deps are obviously not available.</p>
+<p>For composite values (dictionaries or sequences), the entire value may be function or each value can individually be a function (but not the keys).
+For dictionaries, if the value function returns <code>None</code>, there will be no corresponding entry in the resulting dictionary.</p>
+<p>Note that regarding resources available in the function environment, the values are the ones instantiated by the backend.</p>
+<h3 id="inheritance"><a class="header" href="#inheritance">Inheritance</a></h3>
+<p>Python's native inheritance mechanism is not ideal to describe a rule as one would like to prepare a base <code>class</code> such as:</p>
+<ul>
+<li>provide environment variables</li>
+<li>provide some default actions for some files with given pattern</li>
+<li>provide some automatic dependencies</li>
+<li>...</li>
+</ul>
+<p>As these are described with <code>dict</code>, you would like to inherit <code>dict</code> entries from the base <code>class</code> and not only the <code>dict</code> as a whole.
+A possibility would have been to use the <code>__prepare__</code> method of a meta-class to pre-define inherited values of such attributes,
+but that would defeat the practical possibility to use multiple inheritance by suppressing the diamond rule.</p>
+<p>The chosen method has been designed to walk through the MRO at class creation time and:</p>
+<ul>
+<li>Define a set of attributes to be handled through combination. This set is defined by the attribute <code>combine</code>, itself being handled by combination.</li>
+<li>Combined attribute are handled by updating/appending rather than replacing when walking through MRO in reverse order.</li>
+<li>Entries with a value None are suppressed as update never suppress a given entry.
+Similarly, values inserted in a set prefixed with a <code>'-'</code> remove the corresponding value from the <code>set</code>.</li>
+</ul>
+<p>Because this mechanism walks through the MRO, the diamond rule is enforced.</p>
+<p><code>dict</code>'s and <code>list</code>'s are ordered so that the most specific information appear first, as if classes are searched in MRO.</p>
+<p>Combined attributes may only be <code>dict</code>, <code>set</code> and <code>list</code>:</p>
+<ul>
+<li><code>dict</code>'s and <code>set</code>'s are <code>update</code>d, <code>list</code>'s are <code>append</code>ed.</li>
+<li><code>dict</code>'s and <code>list</code>'s are ordered in MRO, base classes being after derived classes.</li>
+</ul>
+<h4 id="paths"><a class="header" href="#paths">paths</a></h4>
+<p>Some environment variables contain paths, such as <code>$PATH</code>.</p>
+<p>When such an entry appears in a rule, its value is searched for occurrences of the special marker <code>...</code> surrounded by separators (the start and end of the strings are deemed to be separators)
+And each such occurrence is replaced by the inherited value.</p>
+<p>This makes it particularly useful to manage paths as it allows any intermediate base <code>class</code> to add its own entries, before or after the original ones.</p>
+<p>For example, to add the directory <code>/mypath</code> after the inherited path, one would define the attribute <code>environ</code> as <code>{'PATH':'...:/mypath'}</code>.
+To add it before, one would use <code>{'PATH':'/mypath:...'}</code>.</p>
+<p>Entries going through this step are provided by the attribute <code>paths</code>, which is a dict with <attribute>.<key> as keys and <separator> as values.
+The default value is <code>{ 'environ.PATH':':' , 'environ.PYTHONPATH':':' , 'environ.LD_LIBRARY_PATH':':' }</code></p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="lmake_import_machinery_module.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="config.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="lmake_import_machinery_module.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="config.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

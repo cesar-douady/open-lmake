@@ -23,8 +23,9 @@ __pycache__
 /_lib/fmt_rule.py
 
 # doc
-/doc/book/
 /doc/man/man1/*.1
+/doc/book.actual_manifest
+/doc/book.ref_manifest
 
 #auto-configuration
 /sys_config.*

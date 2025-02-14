@@ -149,18 +149,18 @@ namespace Disk {
 		size_t   pos = first_file        ;
 		::string res = txt.substr(0,pos) ;
 		while (pos!=Npos) {
-			/**/                 pos++    ;                                                     // clobber marker
+			pos++ ;                                                                             // clobber marker
 			FileDisplay fd = FileDisplay(txt[pos++]) ;
-			SWEAR(txt.size()>=pos+sizeof(FileNameIdx)) ;                                        // ensure we have enough room to find file length
+			SWEAR(txt.size()>=pos+sizeof(FileNameIdx),txt.size(),pos) ;                         // ensure we have enough room to find file length
 			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ; pos += sizeof(FileNameIdx) ;
-			SWEAR(txt.size()>=pos+len) ;                                                        // ensure we have enough room to read file
+			SWEAR(txt.size()>=pos+len,txt.size(),pos,len) ;                                     // ensure we have enough room to read file
 			switch (fd) {
 				case FileDisplay::None      : res +=              mk_rel(txt.substr(pos,len),dir_s)  ; break ;
 				case FileDisplay::Printable : res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ; break ;
 				case FileDisplay::Shell     : res += mk_shell_str(mk_rel(txt.substr(pos,len),dir_s)) ; break ;
 				case FileDisplay::Py        : res += mk_py_str   (mk_rel(txt.substr(pos,len),dir_s)) ; break ;
 				case FileDisplay::Json      : res += mk_json_str (mk_rel(txt.substr(pos,len),dir_s)) ; break ;
-			}
+			DF}
 			pos += len ;
 			size_t new_pos = txt.find(FileMrkr,pos) ;
 			res += txt.substr(pos,new_pos-pos) ;

@@ -1,0 +1,291 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Autodep - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="autodep"><a class="header" href="#autodep">Autodep</a></h1>
+<p>Autodep is a mechanism through which jobs are spied to automatically detect disk accesses.
+From this information open-lmake can determine if accesses were within the constraints provided by the rule and can list all dependencies.</p>
+<h2 id="spying-methods"><a class="header" href="#spying-methods">Spying methods</a></h2>
+<p>There exists two classes of spying methods.
+Not all methods are supported on all systems, though.</p>
+<h3 id="spying-methods-based-on-libc-calls"><a class="header" href="#spying-methods-based-on-libc-calls">Spying methods based on <code>libc</code> calls</a></h3>
+<p>This consists in spying all calls the the <code>libc</code>.
+Several mechanisms can be used to do so.</p>
+<p>All of them consist in diverting the calls to the <code>libc</code> that access files (typically <code>open</code>, but there are about a hundred of them) to a piggy-back code
+that records the access before handling over to the real <code>libc</code>.
+They differ in the methods used to divert these calls to the autodep code.</p>
+<p>This class of methods is fast as there is no need to switch context at each access.
+Moreover, the accessed file is first scanned to see if it is a system file (such as in <code>/usr</code>), in which case we can escape very early from the recording mechanism.
+And in practice, such accesses to system files are by far the most common case.</p>
+<p>One of the major drawbacks is that it requires the <code>libc</code> to be dynamically linked. While <code>libc</code> static linking is very uncommon, it does happen.</p>
+<h3 id="ld_audit"><a class="header" href="#ld_audit"><code>$LD_AUDIT</code></a></h3>
+<p>Modern Linux dynamic linkers implement an auditing mechanism.
+This works by providing hooks at dynamic link edition time (by setting the environment variable <code>$LD_AUDIT</code>) when a file is loaded, when a symbol is searched, when a reference is bound, etc.
+In our case, we trap all symbol look up into the <code>libc</code> and interesting calls (i.e. those that access files) are diverted at that time.</p>
+<p>However, some linkers do not seem to honor this auditing API.
+For example, programs compiled by the rust compiler (including <code>rustc</code> itself) could not be made working.</p>
+<p>Such auditing code is marginally intrusive in the user code as, while lying in the same address space, it is in a different segment.
+For example it has its own <code>errno</code> global variable.</p>
+<p>If available, this is the default method.</p>
+<h3 id="ld_preload"><a class="header" href="#ld_preload"><code>$LD_PRELOAD</code></a></h3>
+<p>This method consists in pre-loading our spying library before the <code>libc</code>.
+Because it is loaded before and contains the same symbols as the <code>libc</code>, these calls from the user application are diverted to our code.</p>
+<p>this is a little bit more intrusive (e.g. the <code>errno</code> variable is shared) and this is the default method if <code>$LD_AUDIT</code> is not available.</p>
+<h3 id="ld_preload-with-jemalloc"><a class="header" href="#ld_preload-with-jemalloc"><code>$LD_PRELOAD</code> with <code>jemalloc</code></a></h3>
+<p>The use of <code>jemalloc</code> creates a chicken and egg problem at start up.
+The reason is that the spying code requires the use of <code>malloc</code> at start up, and <code>jemalloc</code> (which is called in lieu of <code>malloc</code>) accesses a configuration file at start up.
+A special implementation has been devised to handle this case, but is too fragile and complex to make it the default <code>$LD_PRELOAD</code> method.</p>
+<h3 id="spying-methods-based-on-system-calls"><a class="header" href="#spying-methods-based-on-system-calls">Spying methods based on system calls</a></h3>
+<p>The principle is to use <code>ptrace</code> (the system call used by the <code>strace</code> utility) to spy user code activity.</p>
+<p>This is almost non-intrusive.
+In one case, we have seen a commercial tool reading <code>/proc/self/status</code> to detect such a <code>ptrace</code>ing process, and it stopped, thinking it was being reverse engineered.
+Curiously, it did not detect <code>$LD_PRELOAD</code>...</p>
+<p>The major drawback is performance wise: the impact is more significant as there is a context switch at each system call.
+<code>BPF</code> is used, if available, to decrease the number of useless context switches, but it does not allow to filter out on file name, so it is impossible to have an early ignore of system files.</p>
+<h2 id="what-to-do-with-accesses"><a class="header" href="#what-to-do-with-accesses">What to do with accesses</a></h2>
+<p>There are 2 questions to solve :</p>
+<ul>
+<li>Determine the <code>cwd</code>. Because accesses may be relative to it (and usually are), the spying code must have a precise view of the <code>cwd</code>.
+This requires to intercept <code>chdir</code> although no access is to be reported.</li>
+<li>Symbolic link processing.
+Open-lmake lies in the physical world (and there is no way it can do anything else) and must be aware of any symbolic link traversal.
+This includes the ones on the directory path.
+So the spying code includes a functionality that resembles to <code>realpath</code>, listing all traversed links.</li>
+</ul>
+<p>Lying in the physical world means that symbolic links are handled like plain data files, except that there is a special bit that says it is a symbolic link.
+Its content is its target.
+For example, after the code sequence:</p>
+<pre><code>cd a
+cat b
+</code></pre>
+<p>where <code>b</code> is symbolic link to <code>c</code>, 2 dependencies are recorded:</p>
+<ul>
+<li><code>a/b</code> (a symbolic link), as if it is modified, job must be rerun.</li>
+<li><code>a/c</code> (a plain data file), same reason.</li>
+</ul>
+<p>Generally speaking, read a file makes it a dependency, writing to it makes it a target.
+Of course, reading a file that has been written doe not make it a dependency any more.</p>
+<h2 id="how-to-report-accesses"><a class="header" href="#how-to-report-accesses">How to report accesses</a></h2>
+<p>When a job is run, a wrapper (called <code>job_exec</code>) is launched that launches the user process.</p>
+<p><code>job_exec</code> has several responsibilities, among which :</p>
+<ul>
+<li>Prepare the user environment for the user code (environment variables, cwd, namespace if necessary, etc.).</li>
+<li>Receive the accesses made by the user code (through a socket) and record them.</li>
+<li>Determine what is a dependency, what is a target etc.</li>
+<li>Report a job digest to the server (the central process managing the dependency DAG).</li>
+</ul>
+<p>The major idea is that when an access is reported by the user code (in the case of <code>libc</code> call spying), there is no reply from <code>job_exec</code> back to the user code, so no round trip delay is incurred.</p>
+<h2 id="dependencies-order-is-kept-as-well"><a class="header" href="#dependencies-order-is-kept-as-well">Dependencies order is kept as well</a></h2>
+<p>Remember that when a job is run, its dependencies list is <strong>approximative</strong>.
+It is the one of the previous run, which had different file contents.
+For example, a <code>.c</code> may have changed, including a <code>#include</code> directive.
+In case there are 2 dependencies <code>d1</code> and <code>d2</code>, and <code>d1</code> was just discovered, it may be out-of date and the job ran with a bad content for <code>d1</code>.</p>
+<p>Most of the time, this is harmless, but sometimes, it may happen that <code>d2</code> is not necessary any more (because old <code>d1</code> content had <code>#include "d2"</code> and new one does not).
+In that case, this job must be rerun with the new content od <code>d1</code>, even if <code>d2</code> is in error, as <code>d2</code> might disappaer as de dependency.</p>
+<p>This may only occurs if <code>d2</code> was accessed <strong>after</strong> <code>d1</code> was accessed. If <code>d2</code> was accessed before <code>d1</code>, it is safe to say the job cannot run because <code>d2</code> is in error: it will never disappear.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="namespaces.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="critical_deps.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="namespaces.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="critical_deps.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

@@ -4,7 +4,7 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 VERSION        := 25.02
-TAG            := 8
+TAG            := 9
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -733,21 +733,26 @@ DOCKER : $(DOCKER_FILES)
 #
 
 _bin/mdbook :
-	#wget -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-gnu.tar.gz  | tar -xz -C_bin # requires more recent libraries
-	wget  -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-musl.tar.gz | tar -xz -C_bin
+	#wget -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-gnu.tar.gz  | tar -xz -C_bin # requires recent libraries >=ubuntu22.04
+	wget  -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-musl.tar.gz | tar -xz -C_bin # static libc
 
 doc/man/man1/%.1 : doc/man/man1/%.1.m doc/man/utils.mh doc/man/man1/common.1.m
 	@echo generate man to $@
 	@m4  doc/man/utils.mh doc/man/man1/common.1.m $< | sed -e 's:^[\t ]*::' -e 's:-:\\-:g' -e '/^$$/ d' >$@
 
-doc/book/index.html : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS)) $(MAN_FILES)
+# html doc is under git as _bin/mdbook cannot be downloaded in launchpad.net
+# also this makes the html doc directly available on github
+BOOK : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS)) $(MAN_FILES)
 	@echo generate book to $@
-	@rm -rf doc/book
-	@cd doc ; ../_bin/mdbook build
-	@mkdir -p doc/book/man/man1
-	@for f in $(patsubst doc/man/man1/%.1,%,$(MAN_FILES)) ; do groff -Thtml -man doc/man/man1/$$f.1 > doc/book/man/man1/$$f.html ; done
-
-BOOK : doc/book/index.html
+	@cd doc                                                                                                                    ; \
+	rm -rf book                                                                                                                ; \
+	../_bin/mdbook build                                                                                                       ; \
+	mkdir -p book/man/man1                                                                                                     ; \
+	for f in $(patsubst doc/man/man1/%.1,%,$(MAN_FILES)) ; do groff -Thtml -man man/man1/$$f.1 > book/man/man1/$$f.html ; done ; \
+	rm grohtml-*.png                                                                                                           ; \
+	git ls-files book | sort > book.ref_manifest                                                                               ; \
+	find book -type f | sort > book.actual_manifest                                                                            ; \
+	diff book.ref_manifest book.actual_manifest
 
 #
 # packaging
@@ -759,7 +764,7 @@ LMAKE_DBG_FILES_ALL := $(patsubst %,%.dbg,$(if $(SPLIT_DBG),$(LMAKE_DBG_FILES)) 
 ARCHIVE_DIR := open-lmake-$(VERSION)
 lmake.tar.gz  : TAR_COMPRESS := z
 lmake.tar.bz2 : TAR_COMPRESS := j
-lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES) doc/book/index.html
+lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 	@rm -rf $(ARCHIVE_DIR)
 	@mkdir -p $(ARCHIVE_DIR)
 	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES_ALL) $$(find doc/book -type f)| tar -x -C$(ARCHIVE_DIR)
@@ -788,7 +793,7 @@ DEBIAN_DEPS :
 #
 # /!\ these rules are necessary for debian packaging to work, they are not primarily made to be executed by user
 #
-install : $(LMAKE_ALL_FILES) $(EXAMPLE_FILES) doc/book/index.html
+install : $(LMAKE_ALL_FILES) $(EXAMPLE_FILES)
 	set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
 	set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
 	set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done

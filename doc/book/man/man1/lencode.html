@@ -1,0 +1,181 @@
+<!-- Creator     : groff version 1.23.0 -->
+<!-- CreationDate: Fri Feb 14 12:08:49 2025 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>LENCODE</title>
+
+</head>
+<body>
+
+<h1 align="center">LENCODE</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSYS">SYNOPSYS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#NOTES">NOTES</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">lencode - encode
+a (long) value into a (short) code for retrieval with
+<b>ldecode</b>(1) within a <i>open-lmake</i> job</p>
+
+<h2>SYNOPSYS
+<a name="SYNOPSYS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lencode</b>
+<i>association_file context</i> [<i>min_length</i>]</p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lencode</b>
+may be used to create (or retrieve if already present) an
+association between a value (typically rather large) and a
+short code. This association must be done before
+<b>ldecode</b>(1) is called with the code (with same
+<i>assocation_file</i> and <i>context</i>) to retrieve the
+corresponding value.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The value must
+be passed to <i>stdin</i>. The generated (or retrieved) code
+corresponding to the value is output on <i>stdout</i>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">If generated,
+the code is generated after a checksum computed on the
+passed value in hexadecimal, with a length at least
+<i>min_length</i> (default is 1), but may be longer in case
+of conflict.</p>
+
+<p style="margin-left:9%; margin-top: 1em">It is an error
+if <i>association_file</i> is not a source (symbolic links
+are followed, though).</p>
+
+<p style="margin-left:9%; margin-top: 1em">Usage and use
+cases are more extensively documented the full
+<i>open-lmake</i> documentation.</p>
+
+<h2>NOTES
+<a name="NOTES"></a>
+</h2>
+
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p style="margin-top: 1em">(1)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">The same functionality is
+provided with the <b>lmake.encode</b> Python function.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(2)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p><b>lencode</b> and <b>ldecode</b>(1) are useful tools
+when the flow implies file names whose names are
+impractical. This is a way to transform long file names into
+much shorter ones by keeping an association file to retrieve
+long info from short codes.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(3)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>Using this functionality may imply <b>git</b>(1)
+conflicts on the association file when several users
+independently create associations in their repositories.
+This is fully dealt with and the only thing left to the user
+is to accept the resolution of the conflict <b>without any
+action</b>.</p> </td></tr>
+</table>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>ldebug</b>(1), <b>ldecode</b>(1),
+<b>ldepend</b>(1), <b>lforget</b>(1), <b>lmake</b>(1),
+<b>lmark</b>(1), <b>lrepair</b>(1), <b>lrun_cc</b>(1),
+<b>lshow</b>(1), <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The Python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/doc/book/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
+<hr>
+</body>
+</html>

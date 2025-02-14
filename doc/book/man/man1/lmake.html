@@ -1,0 +1,893 @@
+<!-- Creator     : groff version 1.23.0 -->
+<!-- CreationDate: Fri Feb 14 12:08:49 2025 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>LMAKE</title>
+
+</head>
+<body>
+
+<h1 align="center">LMAKE</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#COMMON OPTIONS">COMMON OPTIONS</a><br>
+<a href="#SPECIFIC OPTIONS">SPECIFIC OPTIONS</a><br>
+<a href="#EXIT STATUS">EXIT STATUS</a><br>
+<a href="#OUTPUT">OUTPUT</a><br>
+<a href="#ENVIRONMENT">ENVIRONMENT</a><br>
+<a href="#FILES">FILES</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">lmake - a
+reliable &amp; scalable tool to execute a full flow</p>
+
+<h2>SYNOPSIS
+<a name="SYNOPSIS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lmake</b>
+[<i>OPTION</i>]... [<i>FILE</i>]...</p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">The <b>lmake</b>
+utility determines automatically which pieces of a flow need
+to be executed and launch them. This is based in the
+historical <i>make</i> program initially written by Stuart
+Feldman in 1976 with notable differences :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><b>lmake</b> is reliable. It ensures that necessary jobs
+are run in adequate order so that the asked files are in the
+same state as if all derived files were removed and all jobs
+were run. In particular, this includes automatic discovery
+of actual dependencies.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><b>lmake</b> is scalable. Millions of files can be
+derived easily (job execution may require heavy resources,
+but <b>lmake</b> will stay light).</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>The makefile is called <i>Lmakefile.py</i> and is
+written in Python3.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Rule matching is based of regular expressions, not just
+a single wildcard (% with <i>make</i>).</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Recipies can be written in <b>bash</b>(1) or
+<b>python</b>(1).</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Several <b>lmake</b> commands can be run simultaneously
+in the same directory. Jobs needed by several of them will
+be shared. Simlarly sources files can be edited without
+risks while <b>lmake</b> is running. Derived files will be
+generated according to the state of the source files at the
+time the command was launched. If this is not possible
+because an old version of a source file need to be accessed
+after it has been modified, an error will be generated.
+Rerunning the same <b>lmake</b> command will take into
+account the new content of such source files.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>File states are based on content (using a checksum)
+rather than dates. This makes it possible to avoid running a
+dependent job if a file has been reconstructed identically
+to its previous content.</p></td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">To reach these
+goals, <b>lmake</b> maintains a state in the <i>LMAKE</i>
+directory, instrument jobs (to catch all file accesses)
+during their execution and launches a daemon (called
+<b>lmakeserver</b>) that can be shared between several
+concurrent invocations of <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em"><b>lmake</b>
+generates an output line for each significant event :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">When a job starts if it is long
+(duration that qualifies a job as long is configurable).
+This start line is deemed of secondary importance.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>When a job terminates. Such lines are followed by the
+content of stderr if any and status is known. Typically the
+job status is not known at the end of execution when a new
+dep was discovered that turned out to be out-of-date. In
+that case, the dep is rebuilt, and if the new content is
+identical to the old one, <b>lmake</b> can decide that the
+job was run with up-to-date deps.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>When the job status is finally known, if it was not
+known when it terminated. Such lines are followed by the
+content of stderr if any.</p></td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">During
+execution, if launched from a terminal, <b>lmake</b> also
+generates a progression status in the title bar. This
+progression status line contains :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">The number of executed jobs
+(split between useful, rerun and hit)</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>The number of queued jobs, i.e. jobs that are waiting
+for resources to be run</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>The number of waiting jobs, i.e. jbos that are waiting
+for dependencies to be run</p></td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">At the end of
+the execution, if the asked targets are not successfully
+generated, a summary is generated reminding the errors (with
+a configurable max, 20 by default) and the stderr of the
+first error. Intermediate targets are deemed of secondary
+importance.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Before
+processing arguments, <b>lmake</b> prepends the content of
+<b>$LMAKE_ARGS</b>, separated by spaces. This eases the
+management of user preferences. For example, a user may like
+to systematically pass the <i>--archive</i> and
+<i>--keep-tmp</i> options, in which case they can set
+<b>LMAKE_ARGS</b>=<b>-a -t</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em"><b>lmake</b>
+manages a fully coherent directory called a repository. When
+it starts, it first determines the root of the repository
+(cf. <b>FILES</b> below).</p>
+
+<p style="margin-left:9%; margin-top: 1em">Arguments and
+reports are systematically localized to the current working
+directory. For example, if you launch <b>lmake b</b> from
+directory <b>a</b> in your repository, the argument is file
+<i>a/b</i> from the root of the repository and reports
+containing file names (initially seen from the root of the
+repository) will be shown relative the the current working
+directory.</p>
+
+<p style="margin-left:9%; margin-top: 1em">If launched from
+a terminal, output is colored. Colors are different
+depending on whether terminal is normal (black on white) or
+reverse (white on black) video. These colors can be
+configured. The colors bears a semantic :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">Green means success.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Orange means possible error, depending on future (if
+error is confirmed, it will be repeated in red).</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Red means error.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Magenta means warning.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Blue means notes.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Gray means information of secondary importance.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Uncolored means general output. In some occasion, it may
+be colored by user code (e.g. gcc generates colored error
+messages).</p> </td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">If
+<b>$LMAKE_VIDEO</b> is defined, it is processed as if
+provided to the <b>--video</b> option.</p>
+
+<h2>COMMON OPTIONS
+<a name="COMMON OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are common to all tools of the <i>open-lmake</i> set of
+utilities : <b><br>
+-h</b>,<b>--help</b></p>
+
+<p style="margin-left:18%;">Print a short help and
+exit.</p>
+
+<p style="margin-left:9%;"><b>-J</b>,<b>--job</b></p>
+
+<p style="margin-left:18%;">Passed arguments are
+interpreted as job names rather than as file names. Job
+names are the names that appear, for example, on start and
+done lines when <b>lmake</b> executes a job.</p>
+
+<p style="margin-left:9%;"><b>-R</b>
+<i>rule</i>,<b>--rule</b>=<i>rule</i></p>
+
+<p style="margin-left:18%;">When the <i>--job</i> option is
+used, this options allows the specification of a rule, given
+by its name. This is necessary when the job name is
+ambiguous as several rules may lead to the same job
+name.</p>
+
+<p style="margin-left:9%;"><b>-q</b>,<b>--quiet</b></p>
+
+<p style="margin-left:18%;">Do not generate user oriented
+messages. Strictly generate what is asked. This is practical
+if output is meant for automatic processing.</p>
+
+<p style="margin-left:9%;"><b>-S</b>,<b>--sync</b></p>
+
+<p style="margin-left:18%;">Ensure server is launched (i.e.
+do not connect to an existing server) and wait for its
+termination. This is exceptionally useful in scripts that
+modify <i>Lmakefile.py</i>.</p>
+
+<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+
+<p style="margin-left:18%;">Generate more prolix
+output.</p>
+
+<p style="margin-left:9%;"><b>-V</b>
+<i>mode</i>,<b>--video</b>=<i>mode</i></p>
+
+<p style="margin-left:18%;">Explicitly ask for a video mode
+instead of interrogating connected terminal. If mode starts
+with <b>n</b> or <b>N</b>, normal video (black on white) is
+assumed. If it starts with <b>r</b> or <b>R</b>, reverse
+video (white on black) is assumed. Else output is not
+colorized. video mode has an impact on generated colors as
+nice looking colors are not the same in each case.</p>
+
+<h2>SPECIFIC OPTIONS
+<a name="SPECIFIC OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are specific to <b>lmake</b> : <b><br>
+-a</b>,<b>--archive</b></p>
+
+<p style="margin-left:18%;">Ensure all intermediate files
+are up to date, in addition to the asked targets. This is
+useful for example if you want to archive a fully built
+repository.</p>
+
+<p style="margin-left:9%;"><b>-b</b>
+<i>value</i>,<b>--backend</b>=<i>value</i></p>
+
+<p style="margin-left:18%;">Pass value to backend. This is
+used for example to pass a partition or specificities to the
+slurm backend for a particular command. Note that backend
+only impacts resources and scheduling, not the content of
+the targets, so specifying such an option does not hurt
+repeatability.</p>
+
+
+<p style="margin-left:9%;"><b>-e</b>,<b>--forget-old-errors</b></p>
+
+<p style="margin-left:18%;">Assume encountered errors
+(before this command) are transicent. Contrarily to the
+<b>lforget -e</b> command, this only concerns this
+execution, not subsequent ones.</p>
+
+<p style="margin-left:9%;"><b>-j</b>
+jobs,<b>--jobs</b>=<i>jobs</i></p>
+
+<p style="margin-left:18%;">When this option is used,
+<b>lmake</b> will limit the overall number of simultaneous
+jobs to <i>jobs</i> per backend. If several <b>lmake</b>
+commands run simultaneously, a job cannot be launched on
+behalf of a given command if the number of running jobs is
+not less than its associated <i>jobs</i>.</p>
+
+<p style="margin-left:9%;"><b>-o</b>,<b>--live-out</b></p>
+
+<p style="margin-left:18%;">Normally, <b>lmake</b> does not
+output the stdout of jobs (such stdout is accessible with
+the <b>lshow -o</b> command). However, sometimes it is
+practical to have the output while jobs are running.
+Generating such output for all jobs would produce an
+intermixed flow of characters of all jobs running in
+parallel making such an output unreadable. When this option
+is used, only the jobs directly producing the asked targets
+have their output generated on the output of <b>lmake</b>.
+Because most of the time there is a single target, this
+ensures that there is a single job generating its output,
+avoiding the intermixing problem.</p>
+
+<p style="margin-left:9%;"><b>-r</b>
+<i>count</i>,<b>--retry-on-error</b>=<i>count</i></p>
+
+<p style="margin-left:18%;">Ask <b>lmake</b> to retry jobs
+in case of error. This is useful for unattended execution
+(e.g. nightly regressions) when system reliability is not
+enough to guarantee correct execution at the desired
+level.</p>
+
+<p style="margin-left:9%;"><b>-l</b>,<b>--local</b></p>
+
+<p style="margin-left:18%;">With this option, jobs are
+launched locally (i.e. using the <i>local</i> backend)
+instead of the backend mentioned in the rule. Note that if 2
+<b>lmake</b> commands with different values for this option
+are running simultaneously, in case a job is necessary for
+both, it may be launched locally or remotely. The originally
+targetted backend is in charge of mapping required resources
+mentioned in the rule to local resources understandable by
+the local backend.</p>
+
+
+<p style="margin-left:9%;"><b>-s</b>,<b>--source-ok</b></p>
+
+<p style="margin-left:18%;">Normally, <b>lmake</b> refuses
+to launch a job that may overwrite a source. With this
+option, the user instructs <b>lmake</b> that this is
+allowed.</p>
+
+<p style="margin-left:9%;"><b>-t</b>,<b>--keep-tmp</b></p>
+
+<p style="margin-left:18%;">Normally, <b>lmake</b> washes
+the temporary directory allocated to a job at the end of job
+execution. With this option, the user instructs <b>lmake</b>
+to keep the temporary directories, as if the <i>keep_tmp</i>
+attribute was set for all rules. The kept temporary
+directory can be retreived with <b>lshow -i</b>.</p>
+
+<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+
+<p style="margin-left:18%;">Enable the generation of some
+execution information from backend. This is not done
+systematicly as this may incur a performance hit. These
+information are available by using <b>lshow -i</b>.</p>
+
+<h2>EXIT STATUS
+<a name="EXIT STATUS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lmake</b>
+exits with a status of zero if the asked targets could be
+built or were already up-to-date. Else it exits with a
+non-zero status.</p>
+
+<h2>OUTPUT
+<a name="OUTPUT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">While
+<b>lmake</b> runs, it outputs a log. This log is also
+recorded in <i>LMAKE/outputs/&lt;start date&gt;</i> with the
+following differences :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>It is not colored.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Reported files are relative to the root of the
+repository, not to the current working directory where the
+<b>lmake</b> command has been launched.</p></td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">The log contains
+a line, possibly followed by attached information when the
+following events occur :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">A job is started, if the job
+duration is longer than the <i>start_delay</i> attribute of
+the rule.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>A job is completed.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>A job status is known, while it was not known when it
+completed.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>A source file has been seen as modified.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>A frozen file or a target of a frozen job is needed.</p></td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">Once the build
+process is complete, a summary is generated with :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">The frozen files and jobs that
+we necessary to carry out the build.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>The jobs in error (the first of them is accompanied with
+its stderr).</p></td></tr>
+</table>
+
+<h2>ENVIRONMENT
+<a name="ENVIRONMENT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">The content of
+<b>$LMAKE_ARGS</b> is prepended to command line
+arguments.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The content of
+<b>$LMAKE_VIDEO</b> is processed as if provided with the
+<b>--video</b> option.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Unless
+explicitly asked in <i>Lmakefile.py</i>, the environment is
+mostly ignored when <b>lmake</b> is run, i.e. it is not
+passed to the jobs. The goal is to improve repeatability by
+protecting jobs from the variability environment variables
+may cause. In particular :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em"><b>$HOME</b> is redirected to
+the root of the repository. This protects the job from all
+specificities stored in <i>.xxxrc</i> files in the home
+directory.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><b>$LMAKE_ARGS</b>, although used by <b>lmake</b>, is
+not passed to jobs.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><b>$PATH</b> is reset to the default path for the
+system, plus the <i>open-lmake</i> bin directory.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><b>$PYTHONPATH</b> is set to the <i>open-lmake</i> lib
+directory.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><b>$TMPDIR</b> is redirected to an isolated, empty
+directory which is cleaned up at the end of each job
+execution. This way, the job can freely use this directory
+and need not take care of clean-up.</p></td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">Moreover, a few
+variables are set during job execution :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em"><b>$JOB_ID</b> is set to an
+integer specific of a job. It does not change between
+executions, but may be different in different repository,
+even if strictly identical.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><b>$SMALL_ID</b> is set to a as small as possible
+integer such that a different value is set for jobs running
+concurrently.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><b>$SEQUENCE_ID</b> is set to a different value each
+time a job is run, they are never recycled.</p></td></tr>
+</table>
+
+<h2>FILES
+<a name="FILES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">The files
+<i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
+searched in the current directory and in parent directories.
+If a single one is found, this determines the root of the
+repository. If several are found, the existence of an
+<i>LMAKE</i> directory is checked. If a single one is found,
+this determines the root of the repository. In other cases,
+<b>lmake</b> will not start.</p>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>ldebug</b>(1), <b>ldecode</b>(1),
+<b>ldepend</b>(1), <b>lencode</b>(1), <b>lforget</b>(1),
+<b>lmark</b>(1), <b>lrepair</b>(1), <b>lrun_cc</b>(1),
+<b>lshow</b>(1), <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The Python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/doc/book/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
+<hr>
+</body>
+</html>

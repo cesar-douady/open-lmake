@@ -1,0 +1,154 @@
+<!-- Creator     : groff version 1.23.0 -->
+<!-- CreationDate: Fri Feb 14 12:08:50 2025 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>LREPAIR</title>
+
+</head>
+<body>
+
+<h1 align="center">LREPAIR</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSYS">SYNOPSYS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#FILES">FILES</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">lrepair - repair
+a <i>open-lmake</i> repository</p>
+
+<h2>SYNOPSYS
+<a name="SYNOPSYS"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lrepair</b></p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lrepair</b>
+is meant to repair internal <i>open-lmake</i> book-keeping
+in case of catastrophic crash, either because of system
+failure or a bug in <i>open-lmake</i>. Most of the time,
+<i>open-lmake</i> does not need resort to heavy reparation
+as its internal book-keeping is fairly robust, but in some
+rare cases, this may be necessary. In such a case,
+<i>open-lmake</i> will suggest the use of
+<b>lrepair</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">In case of
+incoherent behavior, the user may decide to run
+<b>lrepair</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">This process is
+pretty long, the goal being to avoid having to restart from
+a fresh repository, which may incur a severe cost in terms
+of compute power.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Once
+<b>lrepair</b> is done, it generates some suggestions about
+what to do with the freshly repaired repository, including
+step back and forget about the repairation.</p>
+
+<p style="margin-left:9%; margin-top: 1em"><b>lrepair</b>
+manages a fully coherent directory called a repository. When
+it starts, it first determines the root of the repository
+(cf. <b>FILES</b> below).</p>
+
+<p style="margin-left:9%; margin-top: 1em">Arguments and
+reports are systematically localized to the current working
+directory. For example, if you launch <b>lrepair b</b> from
+directory <b>a</b> in your repository, the argument is file
+<i>a/b</i> from the root of the repository and reports
+containing file names (initially seen from the root of the
+repository) will be shown relative the the current working
+directory.</p>
+
+<h2>FILES
+<a name="FILES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">The files
+<i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
+searched in the current directory and in parent directories.
+If a single one is found, this determines the root of the
+repository. If several are found, the existence of an
+<i>LMAKE</i> directory is checked. If a single one is found,
+this determines the root of the repository. In other cases,
+<b>lrepair</b> will not start.</p>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>ldebug</b>(1), <b>ldecode</b>(1),
+<b>ldepend</b>(1), <b>lencode</b>(1), <b>lforget</b>(1),
+<b>lmake</b>(1), <b>lmark</b>(1), <b>lrun_cc</b>(1),
+<b>lshow</b>(1), <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The Python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/doc/book/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
+<hr>
+</body>
+</html>

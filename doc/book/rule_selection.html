@@ -1,0 +1,259 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Rule selection - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="rule-selection"><a class="header" href="#rule-selection">Rule selection</a></h1>
+<p>When open-lmake needs to ensure that a file is up to date, the first action is to identify which rule, if any, must be used to generate it.
+This rule selection process works in several steps described below.</p>
+<p>A file is deemed buildable if the rule selection process leads to a job that generates the file.</p>
+<h3 id="name-length"><a class="header" href="#name-length">Name length</a></h3>
+<p>First, the length of the target name is checked agains <code>lmake.config.path_max</code>.
+If the target name is longer, then the process stops here and the file is not buildable.</p>
+<h3 id="sources"><a class="header" href="#sources">Sources</a></h3>
+<p>The second step is to check target agains sources and source directories.</p>
+<p>If the target is listed as a source it is deemed buildable.
+No execution is associated, though, the file modifications made by the user are tracked instead.</p>
+<p>If the target is within a directory listed as a source directory (i.e. appears ending with a <code>/</code> in the manifest), it is deemed buildable if it exists.
+If it does not exist, it is not buildable.
+In both cases, the process stops here.</p>
+<h3 id="up-hill-directory"><a class="header" href="#up-hill-directory">Up-hill directory</a></h3>
+<p>The third step is to see if a up-hill directory (i.e. one of the directory along the directory path leading to the file) is (recursively) buildable.</p>
+<p>If it is the case, the rule selection process stops here and the file is not buildable.</p>
+<h3 id="antirule-and-sourcerule"><a class="header" href="#antirule-and-sourcerule"><code>AntiRule</code> and <code>SourceRule</code></a></h3>
+<p>The following step is to match the target against <code>AntiRule</code>'s and <code>SourceRule</code>'s (ordered by their <code>prio</code> attribute, high values are considered first).
+If one is found, the target is buildable if it matches a <code>SourceRule</code> and is not if it matches an <code>AntiRule</code>.</p>
+<p>If it matches a <code>SourceRule</code> and it does not exist, it is still buildable, but has an error condition.</p>
+<p>In all cases, as soon as such a match is found, the process stops here.</p>
+<h3 id="plain-rules"><a class="header" href="#plain-rules">Plain rules</a></h3>
+<p>The rules are split into groups. Each group contains all of the rules that share a given <code>prio</code>.
+Groups are ordered with higher <code>prio</code> first.</p>
+<p>The following steps is executed for each group in order, until a rule is found. If none is found, the file declared not buildable.</p>
+<h4 id="match-a-target"><a class="header" href="#match-a-target">Match a target</a></h4>
+<p>For a given rule, the file is matched against each target in turn.
+Static targets are tried first in user order, then star targets in user order, and matching stops at the first match.
+Target order is made of <code>targets</code> and <code>target</code> entries in reversed MRO order (i.e. higher classes in the Python class hierarchy are considered first),</p>
+<p>If a target matches, the matching defines the value of the static stems (i.e. the stems that appear without a <code>*</code>).
+Else, the rule does not apply.</p>
+<h4 id="check-static-dependencies"><a class="header" href="#check-static-dependencies">Check static dependencies</a></h4>
+<p>The definition of the static stems allow to compute :</p>
+<ul>
+<li>The other targets of the rule. Static targets become the associated file, star targets becomes regular expressions in which static stems are expanded.</li>
+<li>Static dependencies by interpreting them as f-strings in which static stems and targets are defined.</li>
+</ul>
+<p>Static dependencies are then analyzed to see if the are (recursively) buildable, and if any is not buildable, the rule does not apply.</p>
+<h4 id="group-recap"><a class="header" href="#group-recap">Group recap</a></h4>
+<p>After these 2 previous steps have been done for the rules of a group, the applicable rules are analyzed the following way:</p>
+<ul>
+<li>If no rule apply, next group is analyzed.</li>
+<li>If the file matches several rules as a sure target (i.e. a static target and all static deps are sure),
+the file is deemed buildable, but if required to run, no job will be executed and the file will be in error.</li>
+<li>If the file matches some rules as a non-sure target (i.e. a star target or a dep is not sure), the corresponding jobs are run.
+If no such jobs generate the file, next group is analyzed.
+If several of them generate the file, the file is buildable and in error.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="data_model.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="backends.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="data_model.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="backends.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

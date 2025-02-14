@@ -1,0 +1,407 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Backends - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="backends"><a class="header" href="#backends">Backends</a></h1>
+<p>Backends are in charge of actually launching jobs when the open-lmake engine has identified that it had to be run.
+It is also in charge of :</p>
+<ul>
+<li>Killing jobs when the open-lmake engine has identified it had to be so.</li>
+<li>Scheduling jobs so as to optimize the runtime, based on some indications provided by the open-lmake engine.</li>
+<li>Rescheduling jobs when new scheduling indications becomes available.</li>
+</ul>
+<p>A backend has to take decisions of 2 kinds:</p>
+<ul>
+<li>Is a job eligible for running ?
+From a dependency perspective, the open-lmake engine guarantees it is so.
+But the job needs some resources to run and these resources may already be busy because of some other jobs already running.</li>
+<li>If several jobs are eligible, which one(s) to actually launch.</li>
+</ul>
+<p>Each backend is autonomous in its decisions and has its own algorithm to take them.
+However, generally speaking, they more or less work by following the following principles:</p>
+<ul>
+<li>For the first question, the backend maintain a pool of available resources and a job is eligible if its required resources can fit in the pool.
+When launched, the required resources are subtracted from the pool and when terminated, they are returned to it.</li>
+<li>For the second question, each job has an associated pressure provided by the open-lmake engine and the backend actually launches the eligible job with the highest pressure.</li>
+</ul>
+<p>The required resources are provided by the open-lmake engine to the backend as a <code>dict</code> which is the one of the job's rule after f-string interpretation.</p>
+<p>The pressure is provided in the form of <code>float</code> computed as the accumulated ETE along the critical path to the final targets asked on the <code>lmake</code> command line.
+To do that, future job ETE have to be estimated.
+For jobs that have already run, last successful execution time is used.
+When this information is not available, i.e. when the job has never run successfully, a moving average of the execution times of the jobs sharing the same rule is used as a best guess.</p>
+<p>The backend also provides the current <a href="eta.html">ETA</a> of the final targets to allow the backends from different repository to take the best collective decision.</p>
+<p>In addition to dedicated resources, all backends manage the following 3 resources:</p>
+<ul>
+<li><code>cpu</code> : The number of threads the job is expected to run in parallel. The backend is expected to reserve enough resources for such a number of threads to run smoothly.</li>
+<li><code>mem</code> : The memory size the job is expected to need to run smoothly.
+The backend is expected to ensure that such memory is available for the job.
+Unit must be coherent with the one used in the configuration. It is MB by default.</li>
+<li><code>tmp</code> : The size of necessary temporary disk space.
+By default temporary disk space is not managed, i.e. <code>$TMPDIR</code> is set (to a freshly created empty empty dir which is cleaned up after execution)
+with no size limit (other than the physical disk size) but no reservation is made in the backend.</li>
+</ul>
+<h2 id="resource-buckets"><a class="header" href="#resource-buckets">Resource buckets</a></h2>
+<p>It may be wise to quantify resources with relatively large steps for resources <code>mem</code> and <code>tmp</code>, especially if these may be computed with a formula.</p>
+<p>The reason is linked to the way the backends select jobs.
+When a backend (actually the local, SGE and slurm backends essentially work the same way) search for the next job to launch, it walks through the available jobs to
+find the eligible one with the highest priority.
+When doing that, only jobs with different resources need to be compared as for a given set of resources, they can be pre-ordered by priority.
+As a consequence, the running time is proportional to the number of different resources.
+If the <code>mem</code> and <code>tmp</code> needed space is computed from some metrics, it may be very well possible that each job has a different number, leading to a selection process
+whose time is proportional to the number of waiting jobs, which can be very high (maybe millions).</p>
+<p>To help reduce this overhead, one may want to put jobs into buckets with defined values for these resources.
+This is done by rounding these resources for grouping jobs into buckets.</p>
+<p>When job is launche, however, the exact resources are reserved. Rounding is just applied to group jobs into bucket and improve the management of the queues.</p>
+<h2 id="backend-conversion-to-local"><a class="header" href="#backend-conversion-to-local">backend conversion to local</a></h2>
+<p>If a backend cannot be configured because the environment does not allow it (typically missing the SGE or slurm daemons), then:</p>
+<ul>
+<li>A Warning message is emmitted at configuration time.</li>
+<li>Jobs supposed to start with such backends will be redirected to the local backend.</li>
+<li>Resources are mapped on a best-effort basis, and if a resource does not exist or is insufficient in the local backend, job is started so as to be alone on the local host.</li>
+</ul>
+<h2 id="local-backend"><a class="header" href="#local-backend">Local backend</a></h2>
+<p>The local backend launches jobs locally, on the host running the <code>lmake</code> command.
+There is no cooperation between backends from different repositories and the user has to ensure there is no global resource conflict.</p>
+<p>This backend is configured by providing entries in the <code>lmake.config.backends.local</code> <code>dict</code>.
+The key identifies the resource and the value is a <code>int</code> that identifies a quantity.</p>
+<p>The local backend is used when either:</p>
+<ul>
+<li>The <code>backend</code> attribute is <code>'local'</code> (which is the default value).</li>
+<li><code>lmake</code> is launched with the the <code>--local</code> option.</li>
+<li>The required backend is not supported or not available.</li>
+</ul>
+<p>In the two latter cases, required resources are translated into local resources (best effort)
+and if not possible (e.g. because a resource is not available locally or because special constraints cannot be translated), then only one such job can run at any given time.</p>
+<p>Each rule whose <code>backend</code> attribute is <code>'local'</code> provides a <code>resources</code> attribute such that:</p>
+<ul>
+<li>The key identifies a resource (which must match a resource in the configuration).</li>
+<li>The value (possibly tailored by job through the use of the f-string syntax) is a <code>int</code> or a <code>str</code> that can be interpreted as <code>int</code>.</li>
+</ul>
+<p>The variable available to the job as global variables (python case) or environment variables (shell case) contains the actual quantity of resources allocated to this job.</p>
+<p>The local backend ensures that the sum of all the resources of the running jobs never overshoots the configured available quantity.</p>
+<p>By default, the configuration contains the 2 generic resources: <code>cpu</code> and <code>mem</code> configured respectively as the overall number of available cpus and the overall available memory (in MB).</p>
+<ul>
+<li><code>cpu</code> : The number of cpu as returned by <code>os.wched_getaffinity(0)</code>.</li>
+<li><code>mem</code> : The physical memory size as returned by <code>s.sysconf('SC_PHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')</code> in MB.</li>
+</ul>
+<p>Each rule has a default <code>resources</code> attribute requiring one CPU.</p>
+<h2 id="sge-backend"><a class="header" href="#sge-backend">SGE backend</a></h2>
+<p>The SGE backend connects to a SGE daemon to schedule jobs, which allows:</p>
+<ul>
+<li>a global scheduling policy (while the local backend only sees jobs in its own repository).</li>
+<li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
+</ul>
+<p>The configuration is composed of:</p>
+<ul>
+<li><code>bin</code>  : The directory in which to find SGE executables such as <code>qsub</code>. This entry must be specified.</li>
+<li><code>cell</code> : The cell used by the SGE daemon. This is translated into <code>$SGE_CELL</code> when SGE commands are called.
+By default, this is automatically determined by the SGE daemon.</li>
+<li><code>cluster</code> : The cluster used by the SGE daemon. This is translated into <code>$SGE_CLUSTER</code> when SGE commands are called.
+By default, this is automatically determined by the SGE daemon.</li>
+<li><code>default_prio</code> : the priority used to submit jobs to the SGE daemon if none is specified on the <code>lmake</code> command line.</li>
+<li><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
+This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
+(helped in this by the limited precision on CPU, memory and temporary disk space requirements).
+for each given set of resources, only the jobs with highest priorities are submitted to slurm, the other ones are retained by open-lmake so as to limit the number of waiting jobs in slurm queues
+(the number of running job is not limited, though).
+This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to slurm.
+If too low, the schedule rate may decrease because by the time taken, when a job finishes, for open-lmake to submit a new job, slurm might have exhausted its waiting queue.
+If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
+A reasonable value probably lies in the 20-100 range.</li>
+<li><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make SGE job names.
+This key is meant to be a short identifier of the repository.
+By default it is the base name of the repository followed by <code>:</code>.
+Note that SGE precludes some characters and these are replaced by close looking characters (e.g. <code>;</code> instead of <code>:</code>).</li>
+<li><code>root</code>         : The root directory of the SGE daemon. This is translated into <code>$SGE_ROOT</code> when SGE commands are called. This entry must be specified.</li>
+<li><code>cpu_resource</code> : This is the name of a resource used to require cpu's.
+For example if specified as <code>cpu_r</code> and the rule of a job contains <code>resources={'cpu':2}</code>, this is translated into <code>-l cpu_r=2</code> on the <code>qsub</code> command line.</li>
+<li><code>mem_resource</code> : This is the name of a resource used to require memory in MB.
+For example if specified as <code>mem_r</code> and the rule of a job contains <code>resources={'mem':'10M'}</code>, this is translated into <code>-l mem_r=10</code> on the <code>qsub</code> command line.</li>
+<li><code>tmp_resource</code> : This is the name of a resource used to require memory temporary disk space in MB.
+For example if specified as <code>tmp_r</code> and the rule of a job contains <code>resources={'tmp':'100M'}</code>, this is translated into <code>-l tmp_r=100</code> on the <code>qsub</code> command line.</li>
+</ul>
+<p>The <code>resources</code> rule attributes is composed of :</p>
+<ul>
+<li>standard resources <code>cpu</code>, <code>mem</code> and <code>tmp</code>.</li>
+<li><code>hard</code> : <code>qsub</code> options to be used after a <code>-hard</code> option.</li>
+<li><code>soft</code> : <code>qsub</code> options to be used after a <code>-soft</code> option.</li>
+<li>any other resource passed to the SGE daemon through the <code>-l</code> <code>qsub</code> option.</li>
+</ul>
+<h2 id="slurm-backend"><a class="header" href="#slurm-backend">slurm backend</a></h2>
+<p>The slurm backend connects to a slurm daemon to schedule jobs, which allows :</p>
+<ul>
+<li>a global scheduling policy (while the local backend only sees jobs in its own repository).</li>
+<li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
+</ul>
+<p>The configuration is composed of :</p>
+<ul>
+<li>
+<p><code>config</code> : The slurm configuration file to use to contact the slurm controller. By default, the slurm library auto detects its configuration.</p>
+</li>
+<li>
+<p><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
+This is done to decrease the load of the slurm daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
+(helped in this by the limited precision on CPU, memory and temporary disk space requirements).
+for each given set of resources, only the jobs with highest priorities are submitted to slurm, the other ones are retained by open-lmake so as to limit the number of waiting jobs in slurm queues
+(the number of running job is not limited, though).
+This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to slurm.
+If too low, the schedule rate may decrease because by the time taken, when a job finishes, for open-lmake to submit a new job, slurm might have exhausted its waiting queue.
+If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
+A reasonable value probably lies in the 20-100 range.</p>
+</li>
+<li>
+<p><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make slurm job names.
+This key is meant to be a short identifier of the repository.
+By default it is the base name of the repository followed by <code>:</code>.</p>
+</li>
+<li>
+<p><code>use_nice</code>:
+open-lmake has and advantage over slurm in terms of knowledge: it knows the dependencies, the overall jobs necessary to reach the asked target and the history of the time taken by each job.
+This allows it to anticipate the needs and know, even globally when numerous <code>lmake</code> commands run, in the same repository or on several ones, which jobs should be given which priority.
+Note that open-lmake cannot leverage the dependency capability of slurm as dependencies are dynamic by nature:</p>
+<ul>
+<li>new dependencies can appear during job execution, adding new edges to the dependency graph,</li>
+<li>jobs can have to rerun, so a dependent job may not be able to start when its dependency is done,</li>
+<li>and a job can be steady, so a dependent job may not have to run at all.</li>
+</ul>
+<p>The way it works is th following:</p>
+<ul>
+<li>First open-lmake computes and <a href="eta.html">ETA</a> for each <code>lmake</code> command. This ETA is a date, it is absolute, and can be compared between commands running in different repositories.</li>
+<li>Then it computes a pressure for each job. The pressure is the time necessary to reach the asked target of the <code>lmake</code> command given the run time for all intermediate jobs
+(including the considered job).</li>
+<li>The subtraction of the pressure from the ETA gives a reasonable and global estimate of when it is desirable to schedule a job, and hence can be used as a priority.</li>
+</ul>
+<p>The way to communicate this information is to set for each job a nice value that represents this priority.
+Because this may interfere with other jobs submitted by other means, this mechanism is made optional,
+although it is much better than other scheduling policies based on blind guesses of the futur (such as fair-share, qos, etc.).</p>
+</li>
+</ul>
+<p>There are 2 additional parameters that you can set in the <code>PriorityParams</code> entry of the slurm configuration in the form of param=value, separated by <code>,</code>:</p>
+<ul>
+<li><code>time_origin</code>: as the communicated priority is a date, we need a reference point.
+This reference point should be in the past, not too far, to be sure that generated nice values are in the range <code>0</code> - <code>1&lt;&lt;31</code>.</li>
+<li>open-lmake sometimes generates dates in the past when it wrongly estimates a very short ETA with a high pressure.
+Taking a little bit of margin of a few days is more than necessary in all practical cases.
+Default value is 2023-01-01 00:00:00.
+Date is given in the format YYYY-MM-DD HH:MM optionally followed by +/-HH:MM to adjust for time zone.
+This is mostly ISO8601 except the T between date and time replaced by a space, which is more readable and corresponds to mainstream usage.</li>
+<li><code>nice_factor</code>: this is the value that the nice value increases each second. It is a floating point value.
+If too high, the the nice value may wrap too often. If too low, job scheduling precision may suffer.
+The default value is <code>1</code> which seems to be a good compromise.</li>
+</ul>
+<p>Overall, you can ignore these parameters for open-lmake internal needs, the default values work fine.
+They have been implemented to have means to control interactions with jobs submitted to slurm from outside open-lmake.</p>
+<p>The <code>resources</code> rule attributes is composed of:</p>
+<ul>
+<li>standard resources <code>cpu</code>, <code>mem</code> and <code>tmp</code>.</li>
+<li><code>excludes</code> <code>features</code>, <code>gres</code>, <code>licence</code>, <code>nodes</code>, <code>part</code>, <code>qos</code>, <code>reserv</code> : these are passed as is to the slurm daemon.
+For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example <code>gres0</code>, <code>gres1</code>).
+The absence of index is equivalent to index 0.</li>
+<li>any other resource passed to the slurm daemon as <code>licenses</code> if such licenses are declared in the slurm configuration, else as <code>gres</code>.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="rule_selection.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="namespaces.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="rule_selection.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="namespaces.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

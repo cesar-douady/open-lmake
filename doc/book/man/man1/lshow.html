@@ -1,0 +1,724 @@
+<!-- Creator     : groff version 1.23.0 -->
+<!-- CreationDate: Fri Feb 14 12:08:50 2025 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>LSHOW</title>
+
+</head>
+<body>
+
+<h1 align="center">LSHOW</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#COMMON OPTIONS">COMMON OPTIONS</a><br>
+<a href="#SUB-COMMANDS">SUB-COMMANDS</a><br>
+<a href="#SPECIFIC OPTIONS">SPECIFIC OPTIONS</a><br>
+<a href="#ENVIRONMENT">ENVIRONMENT</a><br>
+<a href="#FILES">FILES</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">lshow - show
+various information about jobs in the <i>open-lmake</i>
+build system</p>
+
+<h2>SYNOPSIS
+<a name="SYNOPSIS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lshow</b>
+[<i>OPTION</i>]... [<i>FILE</i>]...</p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Unless the
+<i>--job</i> option is given, arguments are files and
+information are provided about the official jobs generating
+these as targets, if any. Else, information about the job
+that actually produced the job (a.k.a the polluting job) are
+provided.</p>
+
+<p style="margin-left:9%; margin-top: 1em"><b>lshow</b>
+manages a fully coherent directory called a repository. When
+it starts, it first determines the root of the repository
+(cf. <b>FILES</b> below).</p>
+
+<p style="margin-left:9%; margin-top: 1em">Arguments and
+reports are systematically localized to the current working
+directory. For example, if you launch <b>lshow b</b> from
+directory <b>a</b> in your repository, the argument is file
+<i>a/b</i> from the root of the repository and reports
+containing file names (initially seen from the root of the
+repository) will be shown relative the the current working
+directory.</p>
+
+<p style="margin-left:9%; margin-top: 1em">If launched from
+a terminal, output is colored. Colors are different
+depending on whether terminal is normal (black on white) or
+reverse (white on black) video. These colors can be
+configured. The colors bears a semantic :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Green means success.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Orange means possible error, depending on future (if
+error is confirmed, it will be repeated in red).</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Red means error.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Magenta means warning.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Blue means notes.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Gray means information of secondary importance.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Uncolored means general output. In some occasion, it may
+be colored by user code (e.g. gcc generates colored error
+messages).</p> </td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">If
+<b>$LMAKE_VIDEO</b> is defined, it is processed as if
+provided to the <b>--video</b> option.</p>
+
+<h2>COMMON OPTIONS
+<a name="COMMON OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are common to all tools of the <i>open-lmake</i> set of
+utilities : <b><br>
+-h</b>,<b>--help</b></p>
+
+<p style="margin-left:18%;">Print a short help and
+exit.</p>
+
+<p style="margin-left:9%;"><b>-J</b>,<b>--job</b></p>
+
+<p style="margin-left:18%;">Passed arguments are
+interpreted as job names rather than as file names. Job
+names are the names that appear, for example, on start and
+done lines when <b>lmake</b> executes a job.</p>
+
+<p style="margin-left:9%;"><b>-R</b>
+<i>rule</i>,<b>--rule</b>=<i>rule</i></p>
+
+<p style="margin-left:18%;">When the <i>--job</i> option is
+used, this options allows the specification of a rule, given
+by its name. This is necessary when the job name is
+ambiguous as several rules may lead to the same job
+name.</p>
+
+<p style="margin-left:9%;"><b>-q</b>,<b>--quiet</b></p>
+
+<p style="margin-left:18%;">Do not generate user oriented
+messages. Strictly generate what is asked. This is practical
+if output is meant for automatic processing.</p>
+
+<p style="margin-left:9%;"><b>-S</b>,<b>--sync</b></p>
+
+<p style="margin-left:18%;">Ensure server is launched (i.e.
+do not connect to an existing server) and wait for its
+termination. This is exceptionally useful in scripts that
+modify <i>Lmakefile.py</i>.</p>
+
+<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+
+<p style="margin-left:18%;">Generate more prolix
+output.</p>
+
+<p style="margin-left:9%;"><b>-V</b>
+<i>mode</i>,<b>--video</b>=<i>mode</i></p>
+
+<p style="margin-left:18%;">Explicitly ask for a video mode
+instead of interrogating connected terminal. If mode starts
+with <b>n</b> or <b>N</b>, normal video (black on white) is
+assumed. If it starts with <b>r</b> or <b>R</b>, reverse
+video (white on black) is assumed. Else output is not
+colorized. video mode has an impact on generated colors as
+nice looking colors are not the same in each case.</p>
+
+<h2>SUB-COMMANDS
+<a name="SUB-COMMANDS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">A single
+sub-command must be provided : <b><br>
+-b</b>,<b>--bom</b></p>
+
+<p style="margin-left:18%;">Output the list of all source
+files necessary to build the arguments. If <i>--verbose</i>
+option is provided, some intermediate files are shown in
+gray, enough to justify why all listed source files.</p>
+
+<p style="margin-left:9%;"><b>-c</b>,<b>--cmd</b></p>
+
+<p style="margin-left:18%;">Output the <b>cmd</b> used to
+execute the job. If dynamic, it shows it as specialized for
+this job.</p>
+
+<p style="margin-left:9%;"><b>-d</b>,<b>--deps</b></p>
+
+<p style="margin-left:18%;">Output the list of all the deps
+of the jobs. Unless <i>--verbose</i>, only existing deps are
+shown.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--quiet</i>, the raw list of deps is output, with no
+header nor decoration.</p>
+
+<p style="margin-left:18%; margin-top: 1em">Unless
+<i>--quiet</i>, each line is composed of 5 fields separated
+by spaces :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>Flags : each flag is either a letter if set, or a
+<b>-</b> if not :</p></td></tr>
+</table>
+
+<p style="margin-left:27%;"><b>E</b></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%"></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p style="margin-top: 1em">dep is essential, i.e. dep is
+show in a future graphical tool.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>c</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>dep is critical</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>e</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>ignore errors on dep, i.e. job can be run even if this
+dep is built in error.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>r</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>dep is required, i.e. job is in error if dep is not
+buildable. For static deps, job is not even tried if dep is
+not buildable (and another rule is used if possible).</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>S</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>dep is static.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="64%">
+</td></tr>
+</table>
+
+<p style="margin-left:27%; margin-top: 1em">Accesses : each
+kind of accesses is either a letter if done, or a - if not
+:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p style="margin-top: 1em"><b>L</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p style="margin-top: 1em">dep has been accessed as a
+symbolic link.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>R</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>dep has been accessed as a regular file.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>T</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>dep has been accessed with a stat-like system call (i.e.
+its inode has been accessed).</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="64%">
+</td></tr>
+</table>
+
+<p style="margin-left:27%; margin-top: 1em">Key : the key
+if the dep is static, else blank.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p style="margin-top: 1em">Ascii art showing parallel deps
+(deps coming from a single call to <b>ldepend</b> (1) or
+<b>lmake.depend</b> are considered parallel).</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>lshow of the dep.</p></td></tr>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em">If a dep does
+not exist, it is deemed secondary information and is shown
+in gray.</p>
+
+<p style="margin-left:9%;"><b>-D</b>,<b>--inv-deps</b></p>
+
+<p style="margin-left:18%;">Show jobs that depend on
+targets.</p>
+
+<p style="margin-left:9%;"><b>-E</b>,<b>--env</b></p>
+
+<p style="margin-left:18%;">Show the environment used to
+run the script</p>
+
+<p style="margin-left:9%;"><b>-i</b>,<b>--info</b></p>
+
+<p style="margin-left:18%;">Show various self-reading info
+about jobs, such as reason to be launched, why it was
+needed, execution time, host that executed it, ...</p>
+
+<p style="margin-left:9%;"><b>-r</b>,<b>--running</b></p>
+
+<p style="margin-left:18%;">Show the list of jobs currently
+running to build the arguments. If <i>--verbose</i>, some
+waiting jobs are shown in gray, enough to justify why all
+running jobs are running. Queued jobs are shown in blue,
+actively running jobs are uncolored.</p>
+
+<p style="margin-left:9%;"><b>-e</b>,<b>--stderr</b></p>
+
+<p style="margin-left:18%;">Show the stderr of the jobs.
+Unless <i>--quiet</i>, output is preceded by a description
+of the job which it relates to.</p>
+
+<p style="margin-left:9%;"><b>-o</b>,<b>--stdout</b></p>
+
+<p style="margin-left:18%;">Show the stdout of the jobs.
+Unless <i>--quiet</i>, output is preceded by a description
+of the job which it relates to.</p>
+
+<p style="margin-left:9%;"><b>-t</b>,<b>--targets</b></p>
+
+<p style="margin-left:18%;">Show the targets of the jobs.
+Unless <i>--verbose</i>, only existing targets are
+shown.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--quiet</i>, the raw list of targets is output, with no
+header nor decoration.</p>
+
+<p style="margin-left:18%; margin-top: 1em">Unless
+<i>--quiet</i>, each line is composed of 3 fields separated
+by spaces :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>Info : composed of 1 characters : <b>W</b> if target was
+written, <b>U</b> if target was unlinked, else <b>-</b>.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>Flags : each flag is either a letter if set, or a
+<b>-</b> if not :</p></td></tr>
+</table>
+
+<p style="margin-left:27%;"><b>E</b></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%"></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p style="margin-top: 1em">target is essential, i.e. target
+is show in a future graphical tool.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>i</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>target is incremental, i.e. it is not unlinked before
+job execution and read accesses are ignored</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>p</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>target is phony, i.e. being non existing a considered as
+a particular value for that file</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>u</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>target is not uniquified if several links point to it
+before job execution (only meaningful for incremental
+targets).</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>w</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>no warning is emitted if target is either uniquified or
+unlinked while produced by another job.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>S</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>target is static.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>T</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>target is official, i.e. job can be triggered when
+another one depend on this target.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="64%">
+</td></tr>
+</table>
+
+<p style="margin-left:27%; margin-top: 1em">The name of the
+target.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If a target
+does not exist, it is deemed secondary information and is
+shown in gray.</p>
+
+
+<p style="margin-left:9%;"><b>-T</b>,<b>--inv-targets</b></p>
+
+<p style="margin-left:18%;">Show jobs that produce targets
+either officially (listed in <b>targets</b> attribute) or
+not (listed in <b>side_targets</b> attribute or not) Unless
+<i>--quiet</i>, output is preceded by a description of the
+job which it relates to.</p>
+
+<p style="margin-left:9%;"><b>-u</b>,<b>--trace</b></p>
+
+<p style="margin-left:18%;">Show an execution trace of the
+jobs. Accesses generating no new dep are not shown. The main
+purpose is to provide an explanation for each dep and
+target. Unless <i>--quiet</i>, output is preceded by a
+description of the job which it relates to.</p>
+
+<h2>SPECIFIC OPTIONS
+<a name="SPECIFIC OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are specific to <b>lshow</b> : <b><br>
+-p</b>,<b>--porcelaine</b></p>
+
+<p style="margin-left:18%;">In porcelaine mode, information
+shown with <i>--info</i> is provided as an easy-to-parse
+python <b>dict</b>. Also,reported files are relative to the
+root of the repository, not the current workind
+directory.</p>
+
+<h2>ENVIRONMENT
+<a name="ENVIRONMENT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">The content of
+<b>$LMAKE_VIDEO</b> is processed as if provided with the
+<b>--video</b> option.</p>
+
+<h2>FILES
+<a name="FILES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">The files
+<i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
+searched in the current directory and in parent directories.
+If a single one is found, this determines the root of the
+repository. If several are found, the existence of an
+<i>LMAKE</i> directory is checked. If a single one is found,
+this determines the root of the repository. In other cases,
+<b>lshow</b> will not start.</p>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>ldebug</b>(1), <b>ldecode</b>(1),
+<b>ldepend</b>(1), <b>lencode</b>(1), <b>lforget</b>(1),
+<b>lmake</b>(1), <b>lmark</b>(1), <b>lrepair</b>(1),
+<b>lrun_cc</b>(1), <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The Python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/doc/book/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
+<hr>
+</body>
+</html>

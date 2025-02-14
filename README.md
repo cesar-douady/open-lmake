@@ -35,6 +35,8 @@ To understand why, visit [why sticking to alpha algorithms](doc/why_stick_to_alp
 
 If you are not sure you need open-lmake, visit [who needs open-lmake](doc/who_needs_open-lmake.md).
 
+The full documentation is [here](doc/book/index.html).
+
 # Installation
 
 To install open-lmake under ubuntu 22.04 or ubuntu 24.04, you can use a pre-compiled package:

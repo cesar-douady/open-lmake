@@ -1,0 +1,363 @@
+<!-- Creator     : groff version 1.23.0 -->
+<!-- CreationDate: Fri Feb 14 12:08:49 2025 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>LMARK</title>
+
+</head>
+<body>
+
+<h1 align="center">LMARK</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#COMMON OPTIONS">COMMON OPTIONS</a><br>
+<a href="#SUB-COMMANDS">SUB-COMMANDS</a><br>
+<a href="#SPECIFIC OPTIONS">SPECIFIC OPTIONS</a><br>
+<a href="#FILES">FILES</a><br>
+<a href="#NOTES">NOTES</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">lmark - mark
+jobs and files with specific attributes</p>
+
+<h2>SYNOPSIS
+<a name="SYNOPSIS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lmark</b>
+[<i>OPTION</i>]... [<i>FILE</i>]...</p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">There are 2
+possible marks :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="8%">
+
+
+<p><b>freeze</b></p></td>
+<td width="1%"></td>
+<td width="82%">
+
+
+<p>This mark prevents jobs from being run. Instead its
+targets (as built during the last run) behave as sources. If
+no job generated a file provided in arguments, this file
+behaves as a source.</p></td></tr>
+</table>
+
+<p style="margin-left:9%;"><b>no-trigger</b></p>
+
+<p style="margin-left:18%;">This mark prevents
+<i>open-lmake</i> to trigger builds of dependent jobs after
+modifications of mentioned files. However, this applies only
+if job was last run with success.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Jobs and files
+so marked and that have been used are repeated in the
+summary. This precaution is taken because such presence goes
+against repeatability and should be suppressed before
+commiting the repository.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Frozen jobs are
+useful to run a flow from A to B. To do that you type
+<b>lmark -af A</b> followed by <b>lmake B</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">No trigger files
+are useful when working on a foundation file (called
+<i>utils.h</i> hereinafter). It is common to work on
+<i>utils.h</i> to add new features. During such
+developments, it is practical to run a test suite that
+checks the new feature. But to run this test suite, you
+probably need a lot a derived files that depend on
+<i>utils.h</i> without using the new feature (e.g.
+<i>a.o</i>, <i>b.o</i>, <i>c.o</i> which are not the focus
+of your development). It is then a waste of time and
+resources to rebuild these derived files for each tiny
+modification. An easy way is :</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Mark <i>utils.h</i> with <b>no-trigger</b>.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Write the new test that uses this new feature.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Modify <i>utils.h</i> to implement the new feature.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Run your test. Files not using the new feature will
+likely be successfully built and will not be uselessly
+rebuilt. File using the new feature will likely fail and
+will be usefully rebuilt. If no error is generated, it is
+easy to run <b>rm</b>(1) or <b>lforget</b>(1) to force
+rebuild.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>Loop on edit/test until feature is ok.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p>When you are satisfied with the new feature, suppress
+the no-trigger mark and rerun your test suite to ensure
+repeatability.</p> </td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em"><b>lmark</b>
+manages a fully coherent directory called a repository. When
+it starts, it first determines the root of the repository
+(cf. <b>FILES</b> below).</p>
+
+<p style="margin-left:9%; margin-top: 1em">Arguments and
+reports are systematically localized to the current working
+directory. For example, if you launch <b>lmark b</b> from
+directory <b>a</b> in your repository, the argument is file
+<i>a/b</i> from the root of the repository and reports
+containing file names (initially seen from the root of the
+repository) will be shown relative the the current working
+directory.</p>
+
+<h2>COMMON OPTIONS
+<a name="COMMON OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are common to all tools of the <i>open-lmake</i> set of
+utilities : <b><br>
+-h</b>,<b>--help</b></p>
+
+<p style="margin-left:18%;">Print a short help and
+exit.</p>
+
+<p style="margin-left:9%;"><b>-J</b>,<b>--job</b></p>
+
+<p style="margin-left:18%;">Passed arguments are
+interpreted as job names rather than as file names. Job
+names are the names that appear, for example, on start and
+done lines when <b>lmake</b> executes a job.</p>
+
+<p style="margin-left:9%;"><b>-R</b>
+<i>rule</i>,<b>--rule</b>=<i>rule</i></p>
+
+<p style="margin-left:18%;">When the <i>--job</i> option is
+used, this options allows the specification of a rule, given
+by its name. This is necessary when the job name is
+ambiguous as several rules may lead to the same job
+name.</p>
+
+<p style="margin-left:9%;"><b>-q</b>,<b>--quiet</b></p>
+
+<p style="margin-left:18%;">Do not generate user oriented
+messages. Strictly generate what is asked. This is practical
+if output is meant for automatic processing.</p>
+
+<p style="margin-left:9%;"><b>-S</b>,<b>--sync</b></p>
+
+<p style="margin-left:18%;">Ensure server is launched (i.e.
+do not connect to an existing server) and wait for its
+termination. This is exceptionally useful in scripts that
+modify <i>Lmakefile.py</i>.</p>
+
+<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+
+<p style="margin-left:18%;">Generate more prolix
+output.</p>
+
+<h2>SUB-COMMANDS
+<a name="SUB-COMMANDS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">A single
+sub-command must be provided : <b><br>
+-a</b>,<b>--add</b></p>
+
+<p style="margin-left:18%;">mark mentioned jobs or
+files.</p>
+
+<p style="margin-left:9%;"><b>-d</b>,<b>--delete</b></p>
+
+<p style="margin-left:18%;">remove mark from mentioned jobs
+or files.</p>
+
+<p style="margin-left:9%;"><b>-l</b>,<b>--list</b></p>
+
+<p style="margin-left:18%;">list marked files. This is a
+global sub-command and not file/job must be provided.</p>
+
+<p style="margin-left:9%;"><b>-c</b>,<b>--clear</b></p>
+
+<p style="margin-left:18%;">delete all marks. This is a
+global sub-command and not file/job must be provided.</p>
+
+<h2>SPECIFIC OPTIONS
+<a name="SPECIFIC OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">These options
+are specific to <b>lmark</b> : <b><br>
+-f</b>,<b>--freeze</b></p>
+
+<p style="margin-left:18%;">mark is freeze.</p>
+
+
+<p style="margin-left:9%;"><b>-t</b>,<b>--no-trigger</b></p>
+
+<p style="margin-left:18%;">mark is no-trigger.</p>
+
+<h2>FILES
+<a name="FILES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">The files
+<i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
+searched in the current directory and in parent directories.
+If a single one is found, this determines the root of the
+repository. If several are found, the existence of an
+<i>LMAKE</i> directory is checked. If a single one is found,
+this determines the root of the repository. In other cases,
+<b>lmark</b> will not start.</p>
+
+<h2>NOTES
+<a name="NOTES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Where
+<b>lforget</b>(1) is used to instruct <i>open-lmake</i> to
+run jobs that it considers up-to-date, <b>lmark</b> is used
+the opposite way, to instruct <i>open-lmake</i> not to run
+jobs it considers out-of-date.</p>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>ldebug</b>(1), <b>ldecode</b>(1),
+<b>ldepend</b>(1), <b>lencode</b>(1), <b>lforget</b>(1),
+<b>lmake</b>(1), <b>lrepair</b>(1), <b>lrun_cc</b>(1),
+<b>lshow</b>(1), <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The Python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/doc/book/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
+<hr>
+</body>
+</html>
