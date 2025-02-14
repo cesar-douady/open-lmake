@@ -345,9 +345,9 @@ namespace Engine {
 			r->audit_job( Color::HiddenNote , "continue" , JobExec(*this,host,start_date,now) , true/*at_end*/ , now-start_date ) ; // identify job (with a continue message if no start message)
 		}
 		r->last_info = *this ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		r->audit_info(Color::None,txt,0) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		r->audit_info_as_is(Color::None,txt,1) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
 	void JobExec::live_out(::string const& txt) const {
