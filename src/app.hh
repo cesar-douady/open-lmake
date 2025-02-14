@@ -110,9 +110,9 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 			/**/                                err_msg << " : "<<flags[+f].doc<<set_nl                        ;
 		}
 	}
-	err_msg << "consider :\n"                                           ;
-	err_msg << "  man "<<*g_exe_name<<'\n'                              ;
-	err_msg << "  <browser> "<<*g_lmake_root_s<<"doc/book/index.html\n" ;
+	err_msg << "consider :\n"                                       ;
+	err_msg << "  man "<<*g_exe_name<<'\n'                          ;
+	err_msg << "  <browser> "<<*g_lmake_root_s<<"docs/index.html\n" ;
 
 	exit(Rc::Usage,err_msg) ;
 }

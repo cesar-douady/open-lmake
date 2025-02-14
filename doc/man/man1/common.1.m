@@ -121,7 +121,7 @@ define(`SeeAlsoSection',`
 	.LP
 	The Python module B(lmake).
 	.LP
-	The full OpenLmake documentation in I(<open-lmake-installation-dir>/doc/book/index.html).
+	The full OpenLmake documentation in I(<open-lmake-installation-dir>/docs/index.html).
 ')
 
 define(`Copyright',`

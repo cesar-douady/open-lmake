@@ -4,7 +4,7 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 VERSION        := 25.02
-TAG            := 9
+TAG            := 10
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -769,7 +769,7 @@ lmake.tar.bz2 : TAR_COMPRESS := j
 lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 	@rm -rf $(ARCHIVE_DIR)
 	@mkdir -p $(ARCHIVE_DIR)
-	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES_ALL) $$(find doc/book -type f)| tar -x -C$(ARCHIVE_DIR)
+	@tar -c $(LMAKE_ALL_FILES) $(LMAKE_DBG_FILES_ALL) $$(find docs -type f)| tar -x -C$(ARCHIVE_DIR)
 	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
 
 VERSION_TAG := $(VERSION).$(TAG)
@@ -799,7 +799,7 @@ install : $(LMAKE_ALL_FILES) $(EXAMPLE_FILES)
 	set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
 	set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
 	set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
-	set -e ; for f in $$(find doc/book -type f)                       ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	set -e ; for f in $$(find docs -type f)                           ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
 
 clean :
 	@echo cleaning...
@@ -824,7 +824,7 @@ $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
 	@tar -c $(DEBIAN_COPY) | tar -x -C$(DEBIAN_DIR)
 	@{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f       /usr/$$f                   ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.links
 	@{ for f in $(if $(SPLIT_DBG),$(LMAKE_BIN_FILES)) ; do echo /usr/lib/open-lmake/$$f.dbg   /usr/lib/debug/usr/$$f.dbg ; done ; } >>$(DEBIAN_DIR)/debian/open-lmake.links
-	@{ for f in                   doc examples        ; do echo /usr/share/doc/open-lmake/$$f /usr/lib/open-lmake/$$f    ; done ; } >>$(DEBIAN_DIR)/debian/open-lmake.links
+	@{ for f in                   doc docs examples   ; do echo /usr/share/doc/open-lmake/$$f /usr/lib/open-lmake/$$f    ; done ; } >>$(DEBIAN_DIR)/debian/open-lmake.links
 	@{ for f in                   $(MAN_FILES)        ; do echo $$f                                                      ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.manpages
 
 $(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
