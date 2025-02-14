@@ -292,7 +292,6 @@ namespace Backends {
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab1",job                              ) ; return false/*keep_fd*/ ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id1",job,entry.conn.seq_id,jsrr.seq_id) ; return false/*keep_fd*/ ; }
-			trace("entry1",entry) ;
 			submit_attrs            = ::move(entry.submit_attrs) ;
 			rsrcs                   = ::move(entry.rsrcs       ) ;
 			reqs                    =        entry.reqs          ;
@@ -410,7 +409,6 @@ namespace Backends {
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab2",job                              ) ; return false/*keep_fd*/ ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id2",job,entry.conn.seq_id,jsrr.seq_id) ; return false/*keep_fd*/ ; }
-			trace("entry2",entry) ;
 			for( Req r : entry.reqs ) if (!r.zombie()) goto Useful ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send(fd,JobStartRpcReply()) ; // silently tell job_exec to give up
@@ -458,7 +456,9 @@ namespace Backends {
 				return false/*keep_fd*/ ;
 			}
 			//
+trace("entry1",entry,step) ;
 			reply.small_id = _s_small_ids.acquire() ;
+trace("entry2",reply.small_id) ;
 			//vvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send(fd,reply) ;                                                                            // send reply ASAP to minimize overhead
 			//^^^^^^^^^^^^^^^^^^^^^^

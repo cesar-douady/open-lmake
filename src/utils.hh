@@ -1028,10 +1028,10 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,
 	static constexpr MutexLvl           Lvl     = Lvl_ ;
 	static constexpr ::chrono::duration Timeout = 30s  ; // crash on dead-lock by setting a comfortable timeout on locks (regression passes with 35ms, so 30s should be very comfortable)
 	// services
-	void lock         (MutexLvl& lvl)             { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; swear_prod(Base::try_lock_for       (Timeout),"dead-lock") ; }
-	void lock_shared  (MutexLvl& lvl) requires(S) { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; swear_prod(Base::try_lock_shared_for(Timeout),"dead-lock") ; }
-	void unlock       (MutexLvl  lvl)             { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ; t_mutex_lvl = lvl ;                                Base::unlock             (       )              ; }
-	void unlock_shared(MutexLvl  lvl) requires(S) { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ; t_mutex_lvl = lvl ;                                Base::unlock_shared      (       )              ; }
+	void lock         (MutexLvl& lvl)             { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; swear_prod(Base::try_lock_for       (Timeout),"dead-lock",lvl,Lvl) ; }
+	void lock_shared  (MutexLvl& lvl) requires(S) { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; swear_prod(Base::try_lock_shared_for(Timeout),"dead-lock",lvl,Lvl) ; }
+	void unlock       (MutexLvl  lvl)             { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ; t_mutex_lvl = lvl ;                                Base::unlock             (       )                      ; }
+	void unlock_shared(MutexLvl  lvl) requires(S) { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ; t_mutex_lvl = lvl ;                                Base::unlock_shared      (       )                      ; }
 	#ifndef NDEBUG
 		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock       ()) ; }
 		void swear_locked_shared() requires(S) { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock_shared()) ; }
@@ -1110,25 +1110,25 @@ public :
 			throw_unless( n_allocated< Max<T> , "cannot allocate id" ) ;
 			n_allocated++ ;
 		} else {
-			res = *free_ids.begin() ;
-			free_ids.erase(res) ;
+			auto it = free_ids.begin() ;
+			res = *it ;
+			free_ids.erase(it) ;
 		}
-		SWEAR(n_acquired<Max<T>) ;      // ensure no overflow
-		n_acquired++ ;                  // protected by _mutex
+		SWEAR(n_acquired<Max<T>) ;                                                  // ensure no overflow
+		n_acquired++ ;                                                              // protected by _mutex
 		return res ;
 	}
 	void release(T id) {
-		if (!id) return ;               // id 0 has not been acquired
-		_Lock lock { _mutex } ;
-		SWEAR(!free_ids.contains(id)) ; // else, double release
-		free_ids.insert(id) ;
-		SWEAR(n_acquired>Min<T>) ;      // ensure no underflow
-		n_acquired-- ;                  // protected by _mutex
+		if (!id) return ;                                                           // id 0 has not been acquired
+		_Lock lock     { _mutex }                   ;
+		bool  inserted = free_ids.insert(id).second ; SWEAR(inserted,id,free_ids) ; // else, double release
+		SWEAR(n_acquired>Min<T>) ;                                                  // ensure no underflow
+		n_acquired-- ;                                                              // protected by _mutex
 	}
 	// data
 	::set<T> free_ids    ;
-	T        n_allocated = 1 ;          // dont use id 0 so that it is free to mean "no id"
-	_AtomicT n_acquired  = 0 ;          // can be freely read by any thread if ThreadSafe
+	T        n_allocated = 1 ;                                                      // dont use id 0 so that it is free to mean "no id"
+	_AtomicT n_acquired  = 0 ;                                                      // can be freely read by any thread if ThreadSafe
 private :
 	_Mutex _mutex ;
 } ;
