@@ -744,15 +744,17 @@ doc/man/man1/%.1 : doc/man/man1/%.1.m doc/man/utils.mh doc/man/man1/common.1.m
 # also this makes the html doc directly available on github
 BOOK : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS)) $(MAN_FILES)
 	@echo generate book to $@
+	@rm -rf docs
 	@cd doc                                                                                                                    ; \
-	rm -rf book                                                                                                                ; \
+	rm -rf doc/book                                                                                                            ; \
 	../_bin/mdbook build                                                                                                       ; \
 	mkdir -p book/man/man1                                                                                                     ; \
 	for f in $(patsubst doc/man/man1/%.1,%,$(MAN_FILES)) ; do groff -Thtml -man man/man1/$$f.1 > book/man/man1/$$f.html ; done ; \
-	rm grohtml-*.png                                                                                                           ; \
-	git ls-files book | sort > book.ref_manifest                                                                               ; \
-	find book -type f | sort > book.actual_manifest                                                                            ; \
-	diff book.ref_manifest book.actual_manifest
+	rm grohtml-*.png
+	@rm -rf docs ; mv doc/book docs
+	@git ls-files docs | sort > doc/book.ref_manifest    ; \
+	find docs -type f  | sort > doc/book.actual_manifest ; \
+	diff doc/book.ref_manifest doc/book.actual_manifest
 
 #
 # packaging
