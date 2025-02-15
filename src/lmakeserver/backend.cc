@@ -17,8 +17,8 @@ namespace Backends {
 
 	void send_reply( Job job , JobMngtRpcReply&& jmrr ) {
 		Trace trace("send_reply",job) ;
-		Lock lock { Backend::_s_mutex }             ;
-		auto it   = Backend::_s_start_tab.find(job) ;
+		TraceLock lock { Backend::_s_mutex , "send_reply" } ;
+		auto      it   = Backend::_s_start_tab.find(job)    ;
 		if (it==Backend::_s_start_tab.end()) return ;         // job is dead without waiting for reply, curious but possible
 		Backend::StartEntry const& e = it->second ;
 		try {
@@ -186,7 +186,7 @@ namespace Backends {
 
 	void Backend::s_submit( Tag tag , Job j , Req r , SubmitAttrs&& submit_attrs , ::vmap_ss&& rsrcs ) {
 		SWEAR(+tag) ;
-		Lock lock{_s_mutex} ;
+		TraceLock lock{_s_mutex,"s_submit"} ;
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_attrs,rsrcs) ;
 		//
 		submit_attrs.asked_tag = tag ;
@@ -206,7 +206,7 @@ namespace Backends {
 	void Backend::s_add_pressure( Tag tag , Job j , Req r , SubmitAttrs const& sa ) {
 		SWEAR(+tag) ;
 		if (_localize(tag,r)) tag = Tag::Local ;
-		Lock lock{_s_mutex} ;
+		TraceLock lock{_s_mutex,"s_add_pressure"} ;
 		Trace trace(BeChnl,"s_add_pressure",tag,j,r,sa) ;
 		auto it = _s_start_tab.find(j) ;
 		if (it==_s_start_tab.end()) {
@@ -221,7 +221,7 @@ namespace Backends {
 	void Backend::s_set_pressure( Tag tag , Job j , Req r , SubmitAttrs const& sa ) {
 		SWEAR(+tag) ;
 		if (_localize(tag,r)) tag = Tag::Local ;
-		Lock lock{_s_mutex} ;
+		TraceLock lock{_s_mutex,"s_set_pressure"} ;
 		Trace trace(BeChnl,"s_set_pressure",tag,j,r,sa) ;
 		s_tab[+tag]->set_pressure(j,r,sa) ;
 		auto it = _s_start_tab.find(j) ;
@@ -231,7 +231,7 @@ namespace Backends {
 
 	void Backend::_s_handle_deferred_wakeup(DeferredEntry&& de) {
 		Trace trace(BeChnl,"_s_handle_deferred_wakeup",de) ;
-		{	Lock lock { _s_mutex } ;                                                       // lock _s_start_tab for minimal time to avoid dead-locks
+		{	TraceLock lock { _s_mutex , "s_handle_deferred_wakup" } ;                      // lock _s_start_tab for minimal time to avoid dead-locks
 			auto it = _s_start_tab.find(+de.job_exec) ;
 			if (!( it!=_s_start_tab.end() && it->second.conn.seq_id==de.seq_id )) return ; // too late, job has ended
 		}
@@ -255,8 +255,8 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_deferred_report(DeferredEntry&& de) {
-		Lock lock { _s_mutex }                      ;             // lock _s_start_tab for minimal time to avoid dead-locks
-		auto it   = _s_start_tab.find(+de.job_exec) ;
+		TraceLock lock { _s_mutex , "s_handle_deferred_report" } ; // lock _s_start_tab for minimal time to avoid dead-locks
+		auto      it   = _s_start_tab.find(+de.job_exec)         ;
 		if (!( it!=_s_start_tab.end() && it->second.conn.seq_id==de.seq_id )) return ;
 		Trace trace(BeChnl,"_s_handle_deferred_report",de) ;
 		g_engine_queue.emplace( Proc::ReportStart , ::move(de.job_exec) ) ;
@@ -288,7 +288,7 @@ namespace Backends {
 		// to lock for minimal time, we lock twice
 		// 1st time, we only gather info, real decisions will be taken when we lock the 2nd time
 		// because the only thing that can happend between the 2 locks is that entry disappears, we can move info from entry during 1st lock
-		{	Lock lock { _s_mutex } ;                                                                // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	TraceLock lock { _s_mutex , "s_handle_job_start1" } ;                                   // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab1",job                              ) ; return false/*keep_fd*/ ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id1",job,entry.conn.seq_id,jsrr.seq_id) ; return false/*keep_fd*/ ; }
@@ -396,7 +396,7 @@ namespace Backends {
 				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;          // update existing dep
 				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      }        // create new dep
 		}
-		bool deps_done = false ;                    // true if all deps are done for at least a non-zombie req
+		bool deps_done = false ;                                  // true if all deps are done for at least a non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {
 			for( auto const& [dn,dd] : ::span(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )
 				if (!Node(dn)->done(r,NodeGoal::Status)) goto NextReq ;
@@ -405,13 +405,13 @@ namespace Backends {
 		NextReq : ;
 		}
 		//
-		{	Lock lock { _s_mutex } ;                // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	TraceLock lock { _s_mutex , "s_handle_job_start2" } ; // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab2",job                              ) ; return false/*keep_fd*/ ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id2",job,entry.conn.seq_id,jsrr.seq_id) ; return false/*keep_fd*/ ; }
 			for( Req r : entry.reqs ) if (!r.zombie()) goto Useful ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send(fd,JobStartRpcReply()) ; // silently tell job_exec to give up
+			OMsgBuf().send(fd,JobStartRpcReply()) ;               // silently tell job_exec to give up
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return false/*keep_fd*/ ;
 		Useful :
@@ -510,9 +510,9 @@ trace("entry2",reply.small_id) ;
 		DF}
 		Job job { jmrr.job } ;
 		Trace trace(BeChnl,"_s_handle_job_mngt",jmrr) ;
-		{	Lock lock { _s_mutex } ;                                      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; return false/*keep_fd*/ ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jmrr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jmrr.seq_id) ; return false/*keep_fd*/ ; }
+		{	TraceLock   lock  { _s_mutex , "s_handle_job_mngt" } ;        // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+			auto        it    = _s_start_tab.find(+job)          ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; return false/*keep_fd*/ ; }
+			StartEntry& entry = it->second                       ; if (entry.conn.seq_id!=jmrr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jmrr.seq_id) ; return false/*keep_fd*/ ; }
 			trace("entry",job,entry) ;
 			switch (jmrr.proc) {
 				case JobMngtProc::ChkDeps    : //!vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -533,7 +533,7 @@ trace("entry2",reply.small_id) ;
 		JobExec je  ;
 		Trace trace(BeChnl,"_s_handle_job_end",jerr) ;
 		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;                             // ensure _s_handled_job_start is done for this job
-		{	Lock lock { _s_mutex } ;                                                                  // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	TraceLock lock { _s_mutex , "_s_handle_job_end" } ;                                       // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; goto Bad ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; goto Bad ; }
@@ -570,7 +570,7 @@ trace("entry2",reply.small_id) ;
 	void Backend::_s_kill_req(Req r) {
 		Trace trace(BeChnl,"s_kill_req",r) ;
 		::vmap<Job,pair<StartEntry::Conn,Pdate>> to_wakeup ;
-		{	Lock lock { _s_mutex } ;                                                                                     // lock for minimal time
+		{	TraceLock lock { _s_mutex , "_s_kill_req" } ;                                                                // lock for minimal time
 			for( Tag t : iota(All<Tag>) ) if (s_ready(t))
 				for( Job j : s_tab[+t]->kill_waiting_jobs(r) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -635,8 +635,8 @@ trace("entry2",reply.small_id) ;
 		for( Job job ;; job=Job(+job+1) ) {
 			if (stop.stop_requested()) break ;                                                                        // exit even if sleep_until does not wait
 			Pdate now { New } ;
-			{	Lock lock { _s_mutex }                    ;                                                           // lock _s_start_tab for minimal time
-				auto it   = _s_start_tab.lower_bound(job) ;
+			{	TraceLock lock { _s_mutex , "_heartbeat_thread_func1" } ;                                             // lock _s_start_tab for minimal time
+				auto      it   = _s_start_tab.lower_bound(job)          ;
 				if (it==_s_start_tab.end()) goto WrapAround ;
 				StartEntry& entry = it->second ;
 				job = it->first ;                                                                                     // job is now the next valid entry
@@ -681,7 +681,7 @@ trace("entry2",reply.small_id) ;
 			continue ;
 		WrapAround :
 			for( Tag t : iota(All<Tag>) ) if (s_ready(t)) {
-				Lock lock { _s_mutex } ;
+				TraceLock lock { _s_mutex , "_heartbeat_thread_func2" } ;
 				s_heartbeat(t) ;
 			}
 			job = {} ;
@@ -704,7 +704,7 @@ trace("entry2",reply.small_id) ;
 		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
 		if (!dynamic) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		//
-		Lock lock{_s_mutex} ;
+		TraceLock lock{_s_mutex,"s_config"} ;
 		for( Tag t : iota(1,All<Tag>) ) {                                                                                                                    // local backend is always available
 			Backend*               be  = s_tab [+t] ; if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }
 			Config::Backend const& cfg = config[+t] ; if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; } // empty config_err means ready

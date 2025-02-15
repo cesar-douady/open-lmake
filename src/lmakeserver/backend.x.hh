@@ -246,13 +246,13 @@ namespace Backends {
 	inline ::string const& Backend::s_config_err(Tag t) { return                     s_tab[+t]->config_err ; }
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
-	#define LCK(...) Lock lock{_s_mutex} ; Trace trace(BeChnl,__VA_ARGS__)
+	#define LCK(...) TraceLock lock{_s_mutex,"s_backend"} ; Trace trace(BeChnl,__VA_ARGS__)
 	inline void Backend::s_open_req (Req r,JobIdx nj) { LCK("s_open_req" ,r) ; _s_workload.open_req (r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->open_req (r,nj) ; }
 	inline void Backend::s_close_req(Req r          ) { LCK("s_close_req",r) ; _s_workload.close_req(r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->close_req(r   ) ; }
 	//
 	inline void Backend::s_new_req_etas() { LCK("s_new_req_etas") ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->new_req_etas() ; }
 	inline void Backend::s_launch      () { LCK("s_launch"      ) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->launch      () ; }
-	#undef LOCK
+	#undef LCK
 	//
 	inline ::string/*msg*/          Backend::s_start    ( Tag t , Job j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
 	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , Job j , Status s ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }

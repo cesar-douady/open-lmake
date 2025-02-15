@@ -289,7 +289,7 @@ PyMODINIT_FUNC
 	_g_record = {New,Yes/*enabled*/} ;
 	//
 	//
-	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3} ; // PER_AUTODEP_METHOD : add entries here
+	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3} ;        // PER_AUTODEP_METHOD : add entries here
 	size_t i = 0 ;
 	if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
 	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
@@ -297,20 +297,21 @@ PyMODINIT_FUNC
 	/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
 	SWEAR(i==py_ads->size(),i,py_ads->size()) ;
 	//
-	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM } ;      // PER_BACKEND : add entries here
+	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM } ; // PER_BACKEND : add entries here
 	i = 0 ;
 	/**/           py_bes->set_item(i++,*Ptr<Str>("local")) ;
 	if (HAS_SGE  ) py_bes->set_item(i++,*Ptr<Str>("sge"  )) ;
 	if (HAS_SLURM) py_bes->set_item(i++,*Ptr<Str>("slurm")) ;
 	SWEAR(i==py_bes->size(),i,py_bes->size()) ;
 	//
+	AutodepEnv  ade { New }                                              ;
 	Ptr<Module> mod { PY_MAJOR_VERSION<3?"clmake2":"clmake" , _g_funcs } ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "top_repo_root" , *Ptr<Str>(no_slash(Record::s_autodep_env().repo_root_s                                   ).c_str()) ) ;
-	mod->set_attr( "repo_root"     , *Ptr<Str>(no_slash(Record::s_autodep_env().repo_root_s+Record::s_autodep_env().sub_repo_s).c_str()) ) ;
-	mod->set_attr( "backends"      , *py_bes                                                                                             ) ;
-	mod->set_attr( "autodeps"      , *py_ads                                                                                             ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "top_repo_root" , *Ptr<Str>(no_slash(ade.repo_root_s               ).c_str()) ) ;
+	mod->set_attr( "repo_root"     , *Ptr<Str>(no_slash(ade.repo_root_s+ade.sub_repo_s).c_str()) ) ;
+	mod->set_attr( "backends"      , *py_bes                                                     ) ;
+	mod->set_attr( "autodeps"      , *py_ads                                                     ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;
