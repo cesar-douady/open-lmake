@@ -239,6 +239,7 @@ namespace Backends::Sge {
 		}
 
 		::pair_s<bool/*ok*/> sge_exec_client( ::vector_s&& cmd_line , bool gather_stdout=false ) const {
+			Trace trace(BeChnl,"sge_exec_client",cmd_line) ;
 			::map_ss add_env = { { "SGE_ROOT" , no_slash(sge_root_s) } } ;
 			if (+sge_cell   ) add_env["SGE_CELL"        ] = sge_cell    ;
 			if (+sge_cluster) add_env["SGE_CLUSTER_NAME"] = sge_cluster ;
@@ -252,6 +253,7 @@ namespace Backends::Sge {
 			} ;
 			child.spawn() ;
 			bool ok = child.wait_ok() ;
+			trace("done",STR(ok)) ;
 			if ( ok && !gather_stdout ) return {{},ok} ;
 			try                       { return { child.stderr.read()+child.stdout.read() , ok } ; }
 			catch (::string const& e) { throw "cannot read stdout of child "+cmd_line[0]        ; }

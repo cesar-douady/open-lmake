@@ -372,19 +372,18 @@ namespace Backends {
 		virtual ::pair_s<HeartbeatState> heartbeat(Job j) {                                                        // called on jobs that did not start after at least newwork_delay time
 			auto          it = spawned_jobs.find(j) ; SWEAR(it!=spawned_jobs.end()  ) ;
 			SpawnedEntry& se = it->second           ; SWEAR(!se.started           ,j) ;                            // we should not be called on started jobs
+			Trace trace(BeChnl,"heartbeat",j,se.id) ;
 			if (!se.id) {
 				Lock lock { id_mutex } ;                                                                           // ensure _launch is no more processing entry
 				if (!se.id) {                                                                                      // repeat test so test and decision are atomic
-					Trace trace(BeChnl,"heartbeat","no_id",j) ;
+					trace("no_id") ;
 					if (se.failed) { spawned_jobs.erase(self,it) ; return {se.msg,HeartbeatState::Err  } ; }
 					else                                           return {{}    ,HeartbeatState::Alive} ;         // book keeping is not updated yet
 				}
 			}
 			::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
-			if (digest.second!=HeartbeatState::Alive) {
-				Trace trace(BeChnl,"heartbeat",j,se.id,digest.second) ;
-				spawned_jobs.erase(self,it) ;
-			}
+			trace(digest) ;
+			if (digest.second!=HeartbeatState::Alive) spawned_jobs.erase(self,it) ;
 			return digest ;
 		}
 		// kill all if req==0
@@ -481,8 +480,8 @@ namespace Backends {
 					}
 				}
 				for( auto& [j,ld] : launch_descrs ) {
-					Lock lock { id_mutex } ;
-					SpawnedEntry& se = *ld.entry ;
+					Lock          lock { id_mutex } ;
+					SpawnedEntry& se   = *ld.entry  ;
 					if (!se.live) continue ;                                                                          // job was cancelled before being launched
 					try {
 						SpawnId id = launch_job( st , j , ld.reqs , ld.prio , ld.cmd_line , se.rsrcs , se.verbose ) ; // XXX! : manage errors, for now rely on heartbeat
