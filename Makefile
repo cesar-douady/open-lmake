@@ -532,7 +532,12 @@ _bin/align_comments : \
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/xxhsum
-bin/xxhsum : $(LMAKE_BASIC_OBJS) src/xxhsum.o # xxhsum may be used in jobs and is thus incompatible with sanitize
+# xxhsum may be used in jobs and is thus incompatible with sanitize
+bin/xxhsum : \
+	$(LMAKE_BASIC_OBJS) \
+	src/app.o           \
+	src/trace.o         \
+	src/xxhsum.o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) -o $@ $^ $(LINK_LIB)
@@ -625,9 +630,9 @@ UT_BASE := $(filter     unit_tests/base/%,$(SRCS))
 UT_SRCS := $(filter-out unit_tests/base/%,$(SRCS))
 
 UNIT_TESTS : \
-	$(patsubst %.py,%.dir/tok,        $(filter unit_tests/%.py,    $(UT_SRCS))) \
-	$(patsubst %.script,%.dir/tok,    $(filter unit_tests/%.script,$(UT_SRCS))) \
-	$(patsubst %.dir/run.py,%.dir/tok,$(filter examples/%.dir/run ,$(UT_SRCS)))
+	$(patsubst %.py,%.dir/tok,     $(filter unit_tests/%.py,    $(UT_SRCS))) \
+	$(patsubst %.script,%.dir/tok, $(filter unit_tests/%.script,$(UT_SRCS))) \
+	$(patsubst %.dir/run,%.dir/tok,$(filter examples/%.dir/run ,$(UT_SRCS)))
 
 TEST_ENV = \
 	export PATH=$(REPO_ROOT)/bin:$(REPO_ROOT)/_bin:$$PATH                                          ; \
@@ -663,7 +668,7 @@ TEST_POSTLUDE = \
 	@( $(TEST_ENV) ; cd $(@D) ; $(PYTHON) Lmakefile.py ) ; $(TEST_POSTLUDE)
 
 # examples can alter their source to show what happens to the user, so copy in a trial dir before execution
-%.dir/tok : %.dir/Lmakefile.py %.dir/runy $(LMAKE_FILES) _lib/ut.py
+%.dir/tok : %.dir/Lmakefile.py %.dir/run $(LMAKE_FILES) _lib/ut.py
 	@echo run example to $@
 	@$(TEST_PRELUDE)
 	@(                                                                                      \
@@ -671,7 +676,7 @@ TEST_POSTLUDE = \
 		mkdir -p $$trial ;                                                                  \
 		rm -rf $$trial/* ;                                                                  \
 		tar -c -C$(@D) $(patsubst $(@D)/%,%,$(filter $(@D)/%,$(SRCS))) | tar -x -C$$trial ; \
-		$(TEST_ENV) ; cd $(@:%.dir/tok=%.trial) ; run                                       \
+		$(TEST_ENV) ; cd $(@:%.dir/tok=%.trial) ; ./run                                     \
 	) ; $(TEST_POSTLUDE)
 
 #

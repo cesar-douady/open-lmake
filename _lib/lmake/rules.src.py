@@ -14,11 +14,12 @@ import signal  as _signal
 import lmake
 from . import autodeps,pdict
 
-shell            = '$BASH'            # substituted at installation time
-python2          = '$PYTHON2'         # .
-python           = '$PYTHON'          # .
-_std_path        = '$STD_PATH'        # .
-_ld_library_path = '$LD_LIBRARY_PATH' # .
+shell            = '$BASH'                              # substituted at installation time
+python2          = '$PYTHON2'                           # .
+python           = '$PYTHON'                            # .
+_std_path        = '$STD_PATH'                          # .
+_ld_library_path = '$LD_LIBRARY_PATH'                   # .
+_lmake_lib       = _osp.dirname(_osp.dirname(__file__))
 
 class _RuleBase :
 	def __init_subclass__(cls) :
@@ -160,7 +161,7 @@ class Py2Rule(_PyRule) :
 		import sys
 		assert sys.version_info.major==2 , 'cannot use Py2Rule with python%d.%d'%(sys.version_info.major,sys.version_info.minor)
 		try                : import lmake
-		except ImportError : sys.path[0:0] = (_os.environ['LMAKE_ROOT']+'/lib',)
+		except ImportError : sys.path[0:0] = (_lmake_lib,)
 		from lmake.import_machinery import fix_import
 		fix_import()
 	cmd.shell = ''       # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
@@ -176,7 +177,7 @@ class Py3Rule(_PyRule) :
 		import sys
 		assert sys.version_info.major==3 , 'cannot use Py3Rule with python%d.%d'%(sys.version_info.major,sys.version_info.minor)
 		try                : import lmake
-		except ImportError : sys.path[0:0] = (_os.environ['LMAKE_ROOT']+'/lib',)
+		except ImportError : sys.path[0:0] = (_lmake_lib,)
 		from lmake.import_machinery import fix_import
 		fix_import()                                  # deps/targets to pyc files are ignored, so nothing to do
 	cmd.shell = ''                                    # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()

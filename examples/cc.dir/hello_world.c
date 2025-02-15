@@ -15,4 +15,5 @@ int main( int argc , const char* argv[] ) {
 		exit(2) ;
 	}
 	printf("%s %s\n",hello(),world(argv[1])) ;
+	return 0 ;
 }

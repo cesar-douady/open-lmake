@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <exception> // ::set_terminate
+
 #include "version.hh"
 
 #include "disk.hh"
@@ -25,7 +27,15 @@ void crash_handler( int sig , void* addr ) {
 	else              crash(2,sig,::strsignal(sig),"at address",addr) ;
 }
 
+static void _terminate() {
+	try                          { ::rethrow_exception(::current_exception()) ;       }
+	catch (::string    const& e) { crash(4,SIGABRT,"uncaught exception :",e       ) ; }
+	catch (::exception const& e) { crash(4,SIGABRT,"uncaught exception :",e.what()) ; }
+	catch (...                 ) { crash(4,SIGABRT,"uncaught exception"           ) ; }
+}
+
 bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_root ) {
+	::set_terminate(_terminate) ;
 	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ; // catch all synchronous signals so as to generate a backtrace
 	//
 	if (!g_startup_dir_s) g_startup_dir_s = new ::string ;

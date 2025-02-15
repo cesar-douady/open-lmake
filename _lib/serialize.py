@@ -130,8 +130,10 @@ class Serialize :
 		self.src        = []
 		self.in_sets    = set()
 		self.ctx        = list(ctx)
-		self.root       = root
 		self.debug_info = {}
+		if   not root           : self.root_s = root
+		elif root.endswith('/') : self.root_s = root
+		else                    : self.root_s = root+'/'
 		if not no_imports :
 			self.no_imports_proc = lambda m : False
 		elif isinstance(no_imports,str) :
@@ -301,8 +303,8 @@ class Serialize :
 		_analyze(filename)
 		file_src       = srcs      [filename]
 		file_end_lines = end_liness[filename]
-		first_line_no1 = code.co_firstlineno                                                            # first line is 1
-		first_line_no0 = first_line_no1-1                                                               # first line is 0
+		first_line_no1 = code.co_firstlineno                                                   # first line is 1
+		first_line_no0 = first_line_no1-1                                                      # first line is 0
 		end_line_no    = file_end_lines.get(first_line_no0)
 		if first_line_no0>0 and file_src[first_line_no0-1].strip().startswith('@') : raise ValueError(f'cannot handle decorated {name}')
 		assert end_line_no,f'{filename}:{first_line_no1} : cannot find def {name}'
@@ -311,8 +313,8 @@ class Serialize :
 		for glb_var in self.get_glbs(code) :
 			self.gather_ctx(glb_var)
 		#
-		if self.root : filename = osp.relpath(filename,self.root)
-		if True      : self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) ) # first line
-		if True      : self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    ) # other lines
+		self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) )       # first line
+		self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    )       # other lines
 		#
+		if self.root_s and filename.startswith(self.root_s) : filename = filename[len(self.root_s):]
 		self.debug_info[name] = (func.__module__,func.__qualname__,filename,first_line_no1)
