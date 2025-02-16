@@ -70,7 +70,7 @@ struct Child {
 	int/*wstatus*/ wait() {
 		SWEAR(pid!=0) ;
 		int wstatus ;
-		int rc = ::waitpid(pid,&wstatus,0) ;
+		int rc      = ::waitpid(pid,&wstatus,0) ;
 		swear_prod(rc==pid,"cannot wait for pid",pid) ;
 		waited() ;
 		return wstatus ;

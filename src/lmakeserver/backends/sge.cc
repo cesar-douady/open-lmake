@@ -157,11 +157,24 @@ namespace Backends::Sge {
 			}
 			throw_unless( +sge_bin_s  , "must specify bin to configure SGE" ) ;
 			throw_unless( +sge_root_s , "must specify root to configure SGE") ;
+			env = env_ ;
+			if (sge_env) {
+				_sge_env_vec.clear() ;
+				delete[] sge_env ;
+			}
+			SWEAR(!_sge_env_vec) ;
+			/**/              _sge_env_vec.push_back("SGE_ROOT="   +no_slash(sge_root_s )) ;
+			if (+sge_cell   ) _sge_env_vec.push_back("SGE_CELL="   +         sge_cell    ) ;
+			if (+sge_cluster) _sge_env_vec.push_back("SGE_CLUSTER="+         sge_cluster ) ;
+			sge_env = new const char*[_sge_env_vec.size()+1] ;
+			{	size_t i = 0 ;
+				for( ::string const& kv : _sge_env_vec ) sge_env[i++] = kv.c_str() ;
+				/**/                                     sge_env[i  ] = nullptr    ;
+			}
 			if (!dynamic) {
 				daemon = sge_sense_daemon(self) ;
 				_s_sge_cancel_thread.open('C',sge_cancel) ;
 			}
-			env = env_ ;
 			trace("done") ;
 		}
 
@@ -215,9 +228,12 @@ namespace Backends::Sge {
 			,	"-terse"
 			,	"-N"     , sge_mk_name(repo_key+Job(j)->name())
 			} ;
-			for( auto const& [k,v] : env ) {
-				sge_cmd_line.emplace_back("-ac"  ) ;
-				sge_cmd_line.push_back   (k+"="+v) ;
+			if (+env) {
+				::string env_str ;
+				First    first   ;
+				for( auto const& [k,v] : env ) env_str <<first("",",")<< k <<'='<< v ;
+				sge_cmd_line.emplace_back("-v"   ) ;
+				sge_cmd_line.emplace_back(env_str) ;
 			}
 			SWEAR(+reqs) ;                                                                                                                     // why launch a job if for no req ?
 			int16_t prio = ::numeric_limits<int16_t>::min() ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
@@ -239,41 +255,58 @@ namespace Backends::Sge {
 		}
 
 		::pair_s<bool/*ok*/> sge_exec_client( ::vector_s&& cmd_line , bool gather_stdout=false ) const {
-			Trace trace(BeChnl,"sge_exec_client",cmd_line) ;
-			::map_ss add_env = { { "SGE_ROOT" , no_slash(sge_root_s) } } ;
-			if (+sge_cell   ) add_env["SGE_CELL"        ] = sge_cell    ;
-			if (+sge_cluster) add_env["SGE_CLUSTER_NAME"] = sge_cluster ;
+			Trace trace(BeChnl,"sge_exec_client",STR(gather_stdout),cmd_line) ;
 			cmd_line[0] = sge_bin_s+cmd_line[0] ;
-			Child child {
-				.cmd_line  = cmd_line
-			,	.stdin_fd  =                                 Child::NoneFd
-			,	.stdout_fd = gather_stdout ? Child::PipeFd : Child::NoneFd
-			,	.stderr_fd = gather_stdout ? Child::PipeFd : Child::NoneFd
-			,	.add_env   = &add_env
-			} ;
-			child.spawn() ;
-			bool ok = child.wait_ok() ;
+			//
+			const char** cmd_line_ = new const char*[cmd_line.size()+1] ;
+			{	size_t i = 0 ;
+				for( ::string const& a : cmd_line ) cmd_line_[i++] = a.c_str() ;
+				/**/                                cmd_line_[i  ] = nullptr   ;
+			}
+			Pipe  c2p ;             if (gather_stdout) c2p.open() ;
+			pid_t pid = ::vfork() ;                                 // calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			if (!pid) {                                             // in child
+				if (gather_stdout) {
+					::close(c2p.read) ;
+					::dup2(c2p.write,Fd::Stdout) ;
+					::dup2(c2p.write,Fd::Stderr) ;
+				} else {
+					::close(Fd::Stdout) ;
+					::close(Fd::Stderr) ;
+				}
+				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(sge_env) ) ;
+				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
+				::_exit(+Rc::System) ;                                   // in case exec fails
+			}
+			if (gather_stdout) c2p.write.close() ;
+			int  wstatus ;
+			int  rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
+			bool ok      = wstatus_ok(wstatus)       ;
+			delete[] cmd_line_ ;                                         // safe as thread is suspended by ::vfork until child has exec'ed or exited
 			trace("done",STR(ok)) ;
 			if ( ok && !gather_stdout ) return {{},ok} ;
-			try                       { return { child.stderr.read()+child.stdout.read() , ok } ; }
-			catch (::string const& e) { throw "cannot read stdout of child "+cmd_line[0]        ; }
+			try                       { return { c2p.read.read() , ok } ;                  }
+			catch (::string const& e) { throw "cannot read stdout of child "+cmd_line[0] ; }
 		}
 
 		// data
-		SpawnedMap mutable spawned_rsrcs     ;      // number of spawned jobs queued in sge queue
-		::vector<int16_t>  req_prios         ;      // indexed by req
-		uint32_t           n_max_queued_jobs = -1 ; // no limit by default
-		::string           repo_key          ;      // a short identifier of the repository
-		int16_t            dflt_prio         = 0  ; // used when not specified with lmake -b
-		::string           cpu_rsrc          ;      // key to use to ask for cpu
-		::string           mem_rsrc          ;      // key to use to ask for memory (in MB)
-		::string           tmp_rsrc          ;      // key to use to ask for tmp    (in MB)
+		SpawnedMap mutable spawned_rsrcs     ;           // number of spawned jobs queued in sge queue
+		::vector<int16_t>  req_prios         ;           // indexed by req
+		uint32_t           n_max_queued_jobs = -1      ; // no limit by default
+		::string           repo_key          ;           // a short identifier of the repository
+		int16_t            dflt_prio         = 0       ; // used when not specified with lmake -b
+		::string           cpu_rsrc          ;           // key to use to ask for cpu
+		::string           mem_rsrc          ;           // key to use to ask for memory (in MB)
+		::string           tmp_rsrc          ;           // key to use to ask for tmp    (in MB)
 		::string           sge_bin_s         ;
 		::string           sge_cell          ;
 		::string           sge_cluster       ;
 		::string           sge_root_s        ;
-		Daemon             daemon            ;      // info sensed from sge daemon
+		Daemon             daemon            ;           // info sensed from sge daemon
 		::vmap_ss          env               ;
+		const char**       sge_env           = nullptr ;
+	private :
+		::vector_s _sge_env_vec ;                        // hold sge_env strings of the form key=value
 	} ;
 
 	DequeThread<::pair<SgeBackend const*,SgeId>> SgeBackend::_s_sge_cancel_thread ;

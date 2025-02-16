@@ -37,17 +37,6 @@ struct SyscallDescr {
 	#define ENUMERATE_LD_PRELOAD_LIBCALLS
 #endif
 
-#define ENUMERATE_DIRECT_STAT_LIBCALLS \
-
-#if !LINUX_VFORK
-	#define ENUMERATE_VFORK_LIBCALLS \
-		/**/               /*is_stat*/ \
-	,	LIBCALL_ENTRY(vfork  ,false) \
-	,	LIBCALL_ENTRY(__vfork,false)
-#else
-	#define ENUMERATE_VFORK_LIBCALLS
-#endif
-
 //
 // mere path accesses, no actual accesses to file data */
 //
@@ -154,5 +143,4 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(truncate64       ,false) \
 \
 	ENUMERATE_LD_PRELOAD_LIBCALLS          \
-	ENUMERATE_PATH_LIBCALLS                \
-	ENUMERATE_VFORK_LIBCALLS
+	ENUMERATE_PATH_LIBCALLS

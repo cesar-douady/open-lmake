@@ -51,20 +51,18 @@ Or refer to [full installation instructions](doc/install.md).
 
 # First steps
 
-you can find a reference documentation in `doc/lmake.html`.
-
-you have man pages for all commands directly accessible if installed with the debian package or if `$MANPATH` is set as explained above.
+You have man pages for all commands directly accessible if installed with the debian package or if `$MANPATH` is set as explained above.
 
 However, the simplest way is to give it a try:
 
-- you can copy `examples/hello_world.dir` at some place (you can ignore `tok` and `tok.err` files if present).
-- it is important to copy the example in a fresh directory because the script modifies the sources to mimic a session
-- in particular, if you want to restart, re-copy the example to a fresh directory.
-- `cd` into it
-- run `./run`
-- inspect `Lmakefile.py` and `run`, they are abundantly commented
+- You can copy [examples/hello\_world.dir](examples/hello_world.dir) at some place (you can ignore `tok` and `tok.err` files if present).
+- It is important to copy the example in a fresh directory because the script modifies the sources to mimic a session.
+- In particular, if you want to restart, re-copy the example to a fresh directory.
+- `cd` into it.
+- Run `./run`
+- Inspect `Lmakefile.py` and `run`, they are abundantly commented.
 
-Once you have understood what is going on with `hello_world`, you can repeat these steps with the second example `cc` (`examples/cc.dir`).
+Once you have understood what is going on with `hello_world`, you can repeat these steps with the second example [examples/cc.dir](examples/cc.dir).
 
 # Brief overview
 

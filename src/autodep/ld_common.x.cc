@@ -103,9 +103,6 @@ extern "C" {
 	#if HAS_CLOSE_RANGE
 		extern int close_range( uint fd1 , uint fd2 , int flgs ) NE ;
 	#endif
-	#if !LINUX_VFORK
-		extern pid_t __vfork() NE ;
-	#endif
 }
 
 static              Mutex<MutexLvl::Autodep2> _g_mutex ;         // ensure exclusivity between threads
@@ -498,10 +495,6 @@ struct Mkstemp : WSolve {
 	pid_t __fork     (       ) NE { HEADER0(__fork     ,false,(   )) ; NO_SERVER(__fork     ) ; return orig  (   ) ; }
 	pid_t __libc_fork(       ) NE { HEADER0(__libc_fork,false,(   )) ; NO_SERVER(__libc_fork) ; return orig  (   ) ; }
 	int   system     (CC* cmd)    { HEADER0(system     ,false,(cmd)) ; NO_SERVER(system     ) ; return orig  (cmd) ; } // actually does a fork
-	#if !LINUX_VFORK
-		pid_t vfork  () NE { return fork  () ; } // for posix systems, instrumenting exec* after vfork is forbidden, in exchange vfork is a subset of fork ...
-		pid_t __vfork() NE { return __fork() ; } // ... for linux, instrumenting exec* after vfork is ok but vfork is more precisely specified and cannot be mapped to fork
-	#endif
 
 	// link                                                          is_stat                                              no_follow
 	int link  (       CC* op,       CC* np      ) NE { HEADER2(link  ,false,op,np,(   op,   np  )) ; Lnk r{    op ,    np ,false   ,"link"  } ; return r(orig(   op,   np  )) ; }

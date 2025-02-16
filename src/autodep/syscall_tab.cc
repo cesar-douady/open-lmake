@@ -419,9 +419,6 @@ static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	#ifdef SYS_unlinkat
 		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlink   <true ,2         > , _exit_unlnk    ,2    , 1  , false , "Unlinkat"          } ;
 	#endif
-	#if !LINUX_VFORK && defined(SYS_vfork)
-		static_assert(SYS_vfork            <NSyscalls) ; s_tab[SYS_vfork            ] = { nullptr                            , nullptr        ,0    , 2  , false , "Vfork"             } ;
-	#endif
 	return s_tab ;
 }
 
