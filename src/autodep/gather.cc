@@ -176,7 +176,7 @@ Fd Gather::_spawn_child() {
 	SWEAR(+cmd_line) ;
 	Trace trace("_spawn_child",child_stdin,child_stdout,child_stderr) ;
 	//
-	Fd child_fd ;
+	Fd   child_fd  ;
 	Fd   report_fd ;
 	bool is_ptrace = method==AutodepMethod::Ptrace ;
 	//
@@ -190,9 +190,9 @@ Fd Gather::_spawn_child() {
 		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
-		Pipe pipe{New,true/*no_std*/} ;
-		child_fd  = pipe.read  ;
-		report_fd = pipe.write ;
+		AcPipe pipe { New , true/*no_std*/ } ;
+		child_fd  = pipe.read .detach() ;
+		report_fd = pipe.write.detach() ;
 	} else {
 		if (method>=AutodepMethod::Ld) {                                                        // PER_AUTODEP_METHOD : handle case
 			::string env_var ;

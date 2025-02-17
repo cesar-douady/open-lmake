@@ -120,10 +120,14 @@ static constexpr Channels DfltChannels = ~Channels() ;
 
 #endif
 
-template<class M,bool S=false> struct TraceLock : Lock<M,S> {
+template<class M,bool S=false> struct TraceLock {
 	using Base = Lock<M,S> ;
-	TraceLock ( M& m , const char* tag , bool do_lock=true ) : Base{m,do_lock} , _trace{tag,"lock",M::Lvl,STR(S)} {}
+	TraceLock ( M& m , Channel channel , const char* tag , bool do_lock=true ) : _trace{channel,tag,"lock",M::Lvl,STR(S)} , lock{m,do_lock} {}
+	TraceLock ( M& m ,                   const char* tag , bool do_lock=true ) : _trace{        tag,"lock",M::Lvl,STR(S)} , lock{m,do_lock} {}
 	~TraceLock() { _trace("unlock") ; }
+	// data
 private :
 	Trace _trace ;
+public :
+	Lock<M,S> lock ;
 } ;

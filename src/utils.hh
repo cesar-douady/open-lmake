@@ -1028,10 +1028,30 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,
 	static constexpr MutexLvl           Lvl     = Lvl_ ;
 	static constexpr ::chrono::duration Timeout = 30s  ; // crash on dead-lock by setting a comfortable timeout on locks (regression passes with 35ms, so 30s should be very comfortable)
 	// services
-	void lock         (MutexLvl& lvl)             { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; swear_prod(Base::try_lock_for       (Timeout),"dead-lock",lvl,Lvl) ; }
-	void lock_shared  (MutexLvl& lvl) requires(S) { SWEAR(t_mutex_lvl< Lvl,t_mutex_lvl) ; lvl = t_mutex_lvl ; t_mutex_lvl = Lvl ; swear_prod(Base::try_lock_shared_for(Timeout),"dead-lock",lvl,Lvl) ; }
-	void unlock       (MutexLvl  lvl)             { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ; t_mutex_lvl = lvl ;                                Base::unlock             (       )                      ; }
-	void unlock_shared(MutexLvl  lvl) requires(S) { SWEAR(t_mutex_lvl==Lvl,t_mutex_lvl) ; t_mutex_lvl = lvl ;                                Base::unlock_shared      (       )                      ; }
+	void lock(MutexLvl& lvl) {
+		SWEAR( t_mutex_lvl< Lvl , t_mutex_lvl,Lvl ) ;
+		swear_prod( Base::try_lock_for(Timeout) , "dead-lock" , t_mutex_lvl,Lvl,_thread_key ) ;
+		lvl         = t_mutex_lvl  ;
+		t_mutex_lvl = Lvl          ;
+		_thread_key = t_thread_key ;
+	}
+	void unlock(MutexLvl lvl) {
+		SWEAR( t_mutex_lvl==Lvl , t_mutex_lvl,Lvl ) ;
+		_thread_key = '-' ;
+		t_mutex_lvl = lvl ;
+		Base::unlock() ;
+	}
+	void lock_shared(MutexLvl& lvl) requires(S) {
+		SWEAR( t_mutex_lvl< Lvl , t_mutex_lvl,Lvl ) ;
+		swear_prod( Base::try_lock_shared_for(Timeout) , "dead-lock" , t_mutex_lvl,Lvl ) ;
+		lvl         = t_mutex_lvl ;
+		t_mutex_lvl = Lvl         ;
+	}
+	void unlock_shared(MutexLvl lvl) requires(S) {
+		SWEAR( t_mutex_lvl==Lvl , t_mutex_lvl,Lvl ) ;
+		t_mutex_lvl = lvl ;
+		Base::unlock_shared() ;
+	}
 	#ifndef NDEBUG
 		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock       ()) ; }
 		void swear_locked_shared() requires(S) { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock_shared()) ; }
@@ -1039,6 +1059,8 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,
 		void swear_locked       ()             {}
 		void swear_locked_shared() requires(S) {}
 	#endif
+private :
+	char _thread_key = '-' ;
 } ;
 
 template<class M,bool S=false> struct Lock {

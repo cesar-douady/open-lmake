@@ -9,20 +9,20 @@
 #include "rpc_client.hh"
 #include "trace.hh"
 
-struct AutoCloseFdPair {
+struct ClientFdPair {
 	// cxtors & casts
-	AutoCloseFdPair(                         ) = default ;
-	AutoCloseFdPair( AutoCloseFdPair&& acfdp ) : in{::move(acfdp.in)} , out{::move(acfdp.out)} {}
-	AutoCloseFdPair( Fd in_fd , Fd out_fd    ) : in{       in_fd    } , out{       out_fd    } {}
-	AutoCloseFdPair( ClientSockFd&& fd       ) : in{       fd.fd    } , out{       fd.fd     } { fd.detach() ; }
+	ClientFdPair(                      ) = default ;
+	ClientFdPair( ClientFdPair&& acfdp ) : in{::move(acfdp.in)} , out{::move(acfdp.out)} {}
+	ClientFdPair( Fd in_fd , Fd out_fd ) : in{       in_fd    } , out{       out_fd    } {}
+	ClientFdPair( ClientSockFd&& fd    ) : in{       fd.fd    } , out{       fd.fd     } { fd.detach() ; }
 	//
-	AutoCloseFdPair& operator=(AutoCloseFdPair&&) = default ;
+	ClientFdPair& operator=(ClientFdPair&&) = default ;
 	// data
 	Fd   in  ; // close only once
 	AcFd out ;
 } ;
 
-extern AutoCloseFdPair g_server_fds ;
+extern ClientFdPair g_server_fds ;
 
 inline Rc mk_rc(Bool3 ok) {
 	switch (ok) {

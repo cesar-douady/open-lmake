@@ -16,7 +16,7 @@
 using namespace Disk ;
 using namespace Time ;
 
-AutoCloseFdPair g_server_fds ;
+ClientFdPair g_server_fds ;
 
 static bool _server_ok( Fd fd , ::string const& tag ) {
 	Trace trace("_server_ok",tag,fd) ;
@@ -80,7 +80,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			server_to_client.write.close() ;
 			//
 			if (_server_ok(server_to_client.read,"new")) {
-				g_server_fds = AutoCloseFdPair{ server_to_client.read , client_to_server.write } ;
+				g_server_fds = ClientFdPair{ server_to_client.read , client_to_server.write } ;
 				pid_t pid = server.pid ;
 				server.mk_daemon() ;
 				return pid ;

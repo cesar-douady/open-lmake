@@ -263,13 +263,15 @@ namespace Backends::Sge {
 				for( ::string const& a : cmd_line ) cmd_line_[i++] = a.c_str() ;
 				/**/                                cmd_line_[i  ] = nullptr   ;
 			}
-			Pipe  c2p ;             if (gather_stdout) c2p.open() ;
-			pid_t pid = ::vfork() ;                                 // calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			if (!pid) {                                             // in child
+			AcPipe c2p ;             if (gather_stdout) c2p.open() ;
+			pid_t  pid = ::vfork() ;                                 // calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			if (!pid) {                                              // in child
 				if (gather_stdout) {
-					::close(c2p.read) ;
+					SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;       // ensure we can safely close c2p.write
 					::dup2(c2p.write,Fd::Stdout) ;
 					::dup2(c2p.write,Fd::Stderr) ;
+					::close(c2p.read ) ;                             // dont touch c2p object as it is shared with parent
+					::close(c2p.write) ;
 				} else {
 					::close(Fd::Stdout) ;
 					::close(Fd::Stderr) ;
@@ -278,7 +280,7 @@ namespace Backends::Sge {
 				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
 				::_exit(+Rc::System) ;                                   // in case exec fails
 			}
-			if (gather_stdout) c2p.write.close() ;
+			c2p.write.close() ;
 			int  wstatus ;
 			int  rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
 			bool ok      = wstatus_ok(wstatus)       ;

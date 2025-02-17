@@ -209,6 +209,25 @@ struct Pipe {
 	Fd write ; // write side of the pipe
 } ;
 
+struct AcPipe {
+	// cxtors & casts
+	AcPipe(                          ) = default ;
+	AcPipe(NewType,bool no_std_=false) { open(no_std_) ; }
+	// services
+	void open(bool no_std_=false) {
+		int fds[2] ;
+		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
+		read  = AcFd(fds[0],no_std_) ;
+		write = AcFd(fds[1],no_std_) ;
+	}
+	void close () { read.close () ; write.close () ; }
+	void detach() { read.detach() ; write.detach() ; }
+	void no_std() { read.no_std() ; write.no_std() ; }
+	// data
+	AcFd read  ; // read  side of the pipe
+	AcFd write ; // write side of the pipe
+} ;
+
 //
 // EventFd
 //
