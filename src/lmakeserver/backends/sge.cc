@@ -263,14 +263,16 @@ namespace Backends::Sge {
 				for( ::string const& a : cmd_line ) cmd_line_[i++] = a.c_str() ;
 				/**/                                cmd_line_[i  ] = nullptr   ;
 			}
-			AcPipe c2p ;             if (gather_stdout) c2p.open() ;
-			pid_t  pid = ::vfork() ;                                 // calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			if (!pid) {                                              // in child
+			AcPipe c2p ;             if (gather_stdout) c2p.open(true/*no_std*/) ;
+			pid_t  pid = ::vfork() ;                                               // calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			SWEAR(pid>=0) ;                                                        // ensure vfork works
+			if (!pid) {                                                            // in child
+				::close(Fd::Stdin) ;                                               // ensure no stdin (defensive programming)
 				if (gather_stdout) {
-					SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;       // ensure we can safely close c2p.write
+					SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;                     // ensure we can safely close c2p.write
 					::dup2(c2p.write,Fd::Stdout) ;
 					::dup2(c2p.write,Fd::Stderr) ;
-					::close(c2p.read ) ;                             // dont touch c2p object as it is shared with parent
+					::close(c2p.read ) ;                                           // dont touch c2p object as it is shared with parent
 					::close(c2p.write) ;
 				} else {
 					::close(Fd::Stdout) ;
@@ -278,17 +280,20 @@ namespace Backends::Sge {
 				}
 				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(sge_env) ) ;
 				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
-				::_exit(+Rc::System) ;                                   // in case exec fails
+				::_exit(+Rc::System) ;                                             // in case exec fails
 			}
-			c2p.write.close() ;
+			delete[] cmd_line_ ;                                                   // safe as thread is suspended by ::vfork until child has exec'ed or exited
+			::string cmd_out ;
+			if (gather_stdout) {
+				c2p.write.close() ;
+				try                       { cmd_out = c2p.read.read() ;                 }
+				catch (::string const& e) { FAIL("cannot read stdout of",cmd_line[0]) ; }
+			}
 			int  wstatus ;
 			int  rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
 			bool ok      = wstatus_ok(wstatus)       ;
-			delete[] cmd_line_ ;                                         // safe as thread is suspended by ::vfork until child has exec'ed or exited
-			trace("done",STR(ok)) ;
-			if ( ok && !gather_stdout ) return {{},ok} ;
-			try                       { return { c2p.read.read() , ok } ;                  }
-			catch (::string const& e) { throw "cannot read stdout of child "+cmd_line[0] ; }
+			trace("done",STR(ok),cmd_out) ;
+			return { cmd_out , ok } ;
 		}
 
 		// data
