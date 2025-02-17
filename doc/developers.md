@@ -231,17 +231,20 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 - trace entries are timestamped and a letter indicates the thread:
 	- '=' refers to the main thread
 	- in server:
-		- `C` : cancel jobs in sge and slurm backend (2 threads)
+		- `C` : cancel jobs in sge backend
 		- `D` : handle lencode/ldecode
 		- `E` : job end
+		- `G` : SGE launch jobs
 		- `H` : heartbeat
+		- `K` : cancel jobs in slurm backend
 		- `J` : record job data
-		- `L` : launch jobs, in local,sge and slurm backends (3 threads)
+		- `L` : Local launch jobs
 		- `M` : job management
 		- `Q` : manage queries from clients
 		- `R` : deferred reports
 		- `S` : job start
 		- `T` : wait terminated processes in local backend
+		- `U` : Slurm launch jobs
 		- `W` : deferred processing of wakeup connection errors
 	- in job exec:
 		- `<number>` : compute crc

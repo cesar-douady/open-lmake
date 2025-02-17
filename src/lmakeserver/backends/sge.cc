@@ -88,8 +88,6 @@ namespace Backends::Sge {
 
 	using SgeId = uint32_t ;
 
-	Mutex<MutexLvl::Sge> _sge_mutex ; // ensure no more than a single outstanding request to daemon
-
 	void     sge_cancel      (::pair<SgeBackend const*,SgeId> const&) ;
 	Daemon   sge_sense_daemon(SgeBackend const&                     ) ;
 	::string sge_mk_name     (::string&&                            ) ;
@@ -256,6 +254,7 @@ namespace Backends::Sge {
 
 		::pair_s<bool/*ok*/> sge_exec_client( ::vector_s&& cmd_line , bool gather_stdout=false ) const {
 			Trace trace(BeChnl,"sge_exec_client",STR(gather_stdout),cmd_line) ;
+			TraceLock lock { _sge_mutex , BeChnl , "sge" } ;
 			cmd_line[0] = sge_bin_s+cmd_line[0] ;
 			//
 			const char** cmd_line_ = new const char*[cmd_line.size()+1] ;
@@ -269,11 +268,12 @@ namespace Backends::Sge {
 			if (!pid) {                                                            // in child
 				::close(Fd::Stdin) ;                                               // ensure no stdin (defensive programming)
 				if (gather_stdout) {
-					SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;                     // ensure we can safely close c2p.write
+					SWEAR(c2p.read .fd>Fd::Std.fd,c2p.read ) ;                     // ensure we can safely close what needs to be closed
+					SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;                     // .
 					::dup2(c2p.write,Fd::Stdout) ;
 					::dup2(c2p.write,Fd::Stderr) ;
 					::close(c2p.read ) ;                                           // dont touch c2p object as it is shared with parent
-					::close(c2p.write) ;
+					::close(c2p.write) ;                                           // .
 				} else {
 					::close(Fd::Stdout) ;
 					::close(Fd::Stderr) ;
@@ -282,12 +282,14 @@ namespace Backends::Sge {
 				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
 				::_exit(+Rc::System) ;                                             // in case exec fails
 			}
-			delete[] cmd_line_ ;                                                   // safe as thread is suspended by ::vfork until child has exec'ed or exited
+			delete[] cmd_line_ ;                                                   // safe as thread is suspended by ::vfork until child has exec'ed
 			::string cmd_out ;
 			if (gather_stdout) {
 				c2p.write.close() ;
+				trace("wait_cmd_out",c2p.read) ;
 				try                       { cmd_out = c2p.read.read() ;                 }
 				catch (::string const& e) { FAIL("cannot read stdout of",cmd_line[0]) ; }
+				trace("done_cmd_out",cmd_out) ;
 			}
 			int  wstatus ;
 			int  rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
@@ -313,7 +315,9 @@ namespace Backends::Sge {
 		::vmap_ss          env               ;
 		const char**       sge_env           = nullptr ;
 	private :
-		::vector_s _sge_env_vec ;                        // hold sge_env strings of the form key=value
+		::vector_s                   _sge_env_vec ;      // hold sge_env strings of the form key=value
+		Mutex<MutexLvl::Sge> mutable _sge_mutex   ;      // ensure no more than a single outstanding request to daemon
+
 	} ;
 
 	DequeThread<::pair<SgeBackend const*,SgeId>> SgeBackend::_s_sge_cancel_thread ;

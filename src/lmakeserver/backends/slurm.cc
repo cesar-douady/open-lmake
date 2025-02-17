@@ -189,7 +189,7 @@ namespace Backends::Slurm {
 			if (!dynamic) {
 				slurm_init(config_file) ;
 				daemon = slurm_sense_daemon() ;
-				_s_slurm_cancel_thread.open('C',slurm_cancel) ;
+				_s_slurm_cancel_thread.open('K',slurm_cancel) ;
 			}
 			//
 			for( char* kv : env ) delete[] kv ;
