@@ -125,9 +125,10 @@ namespace Engine {
 			}
 			// data
 			// START_OF_VERSIONING
-			::string  ifce       ;
-			::vmap_ss dct        ;
-			::vmap_ss env        ;
+			::string  ifce        ;
+			::vmap_ss dct         ;
+			::vmap_ss env         ;
+			Delay     cmd_timeout ;
 			bool      configured = false ;
 			// END_OF_VERSIONING
 		} ;
@@ -154,7 +155,6 @@ namespace Engine {
 		size_t                                                                  max_err_lines = 0     ; // unlimited
 		bool                                                                    reliable_dirs = false ; // if true => dirs coherence is enforced when files are modified
 		Console                                                                 console       ;
-		::array<uint8_t,N<StdRsrc>>                                             rsrc_digits   = {}    ; // precision of standard resources
 		::array<Backend,N<BackendTag>>                                          backends      ;         // backend may refuse dynamic modification
 		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors        = {}    ;
 		::umap_ss                                                               dbg_tab       = {}    ; // maps debug keys to modules to import

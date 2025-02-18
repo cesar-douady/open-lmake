@@ -143,7 +143,6 @@ namespace Backends::Sge {
 						case 'b' : if (k=="bin"              ) { sge_bin_s         = with_slash               (v)  ; continue ; } break ;
 						case 'c' : if (k=="cell"             ) { sge_cell          =                           v   ; continue ; }
 						/**/       if (k=="cluster"          ) { sge_cluster       =                           v   ; continue ; }
-						/**/       if (k=="cmd_timeout"      ) { cmd_timeout       = Delay(from_string<double>(v)) ; continue ; }
 						/**/       if (k=="cpu_resource"     ) { cpu_rsrc          =                           v   ; continue ; } break ;
 						case 'd' : if (k=="default_prio"     ) { dflt_prio         = from_string<int16_t >    (v)  ; continue ; } break ;
 						case 'm' : if (k=="mem_resource"     ) { mem_rsrc          =                           v   ; continue ; } break ;
@@ -176,10 +175,6 @@ namespace Backends::Sge {
 				_s_sge_cancel_thread.open('C',sge_cancel) ;
 			}
 			trace("done") ;
-		}
-
-		virtual ::vmap_ss descr() const {
-			return {} ;
 		}
 
 		virtual void open_req( Req req , JobIdx n_jobs ) {

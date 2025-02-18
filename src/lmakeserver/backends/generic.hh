@@ -446,7 +446,7 @@ namespace Backends {
 			for( auto [req,eta] : Req::s_etas() ) {                                                            // /!\ it is forbidden to dereference req without taking Req::s_reqs_mutex first
 				Trace trace(BeChnl,"launch",req) ;
 				::vmap<Job,LaunchDescr> launch_descrs ;
-				{	Lock lock { _s_mutex } ;
+				{	TraceLock lock { _s_mutex , s_cmd_timeout , BeChnl , "launch" } ;
 					auto rit = reqs.find(+req) ;
 					if (rit==reqs.end()) continue ;
 					JobIdx                            n_jobs = rit->second.n_jobs         ;

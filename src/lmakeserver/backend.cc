@@ -721,6 +721,7 @@ trace("entry2",reply.small_id) ;
 				continue ;
 			}
 			//
+			if (+cfg.cmd_timeout) be->cmd_timeout = cfg.cmd_timeout ;
 			s_cmd_timeout = ::max( s_cmd_timeout , be->cmd_timeout ) ;
 			//
 			if (be->is_local()) {

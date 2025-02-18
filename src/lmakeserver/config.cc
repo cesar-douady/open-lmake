@@ -55,8 +55,9 @@ namespace Engine {
 			for( auto const& [py_k,py_v] : py_map ) {
 				field = py_k.as_a<Str>() ;
 				switch (field[0]) {
-					case 'e' : if (field=="environ"  ) { { for( auto const& [py_k2,py_v2] : py_v.as_a<Dict>() ) env.emplace_back( py_k2.as_a<Str>() , *py_v2.str() ) ; } continue ; } break ;
-					case 'i' : if (field=="interface") { ifce = *py_v.str() ;                                                                                            continue ; } break ;
+					case 'c' : if (field=="cmd_timeout") { cmd_timeout = Delay(py_v.as_a<Float>()) ;                                                                       continue ; } break ;
+					case 'e' : if (field=="environ"    ) { { for( auto const& [py_k2,py_v2] : py_v.as_a<Dict>() ) env.emplace_back( py_k2.as_a<Str>() , *py_v2.str() ) ; } continue ; } break ;
+					case 'i' : if (field=="interface"  ) { ifce = *py_v.str() ;                                                                                            continue ; } break ;
 				DN}
 				dct.emplace_back( field , py_v==True ? "1"s : py_v==False ? "0"s : ::string(*py_v.str()) ) ;
 			}
@@ -134,21 +135,6 @@ namespace Engine {
 			throw_unless( py_map.contains(fields[0]) , "not found" ) ;
 			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;
 			fields.emplace_back() ;
-			fields[1] = "precisions" ;
-			if (py_backends.contains(fields[1])) {
-				Dict const&    py_precs = py_backends[fields[1]].as_a<Dict>() ;
-				fields.emplace_back() ;
-				for( StdRsrc r : iota(All<StdRsrc>) ) {
-					fields[2] = snake(r) ;
-					if (!py_precs.contains(fields[2])) continue ;
-					ulong prec = py_precs[fields[2]].as_a<Int>() ;
-					if (prec==0                ) continue ;
-					throw_unless( ::has_single_bit(prec) , prec," is not a power of 2" ) ;
-					throw_unless( prec!=1                , "must be 0 or at least 2"   ) ;
-					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                                                            // number of kept digits
-				}
-				fields.pop_back() ;
-			}
 			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                            // local backend is always present
 				fields[1] = snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
@@ -280,14 +266,8 @@ namespace Engine {
 		if (console.show_eta              ) res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
 		if (console.show_ete              ) res << "\t\tshow_ete       : " << console.show_ete      <<'\n' ;
 		//
-		bool has_digits = false ; for( StdRsrc r : iota(All<StdRsrc>) ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
-		if (has_digits) {
-			res << "\tresource precisions :\n" ;
-			for( StdRsrc r : iota(All<StdRsrc>) ) if (rsrc_digits[+r]) res << "\t\t"<<r<<" : "<<(1<<rsrc_digits[+r])<<'\n' ;
-		}
-		//
 		res << "\tbackends :\n" ;
-		if (Backends::Backend::s_cmd_timeout>Mutex<MutexLvl::Backend>::Timeout)
+		if (Backends::Backend::s_cmd_timeout!=Mutex<MutexLvl::Backend>::Timeout)
 			res <<"\t\tcmd_timeout : "<<Backends::Backend::s_cmd_timeout.short_str()<<'\n' ;
 		for( BackendTag t : iota(1,All<BackendTag>) ) {                                      // local backend is always present
 			Backend           const& be  = backends[+t]                 ;
@@ -301,16 +281,16 @@ namespace Engine {
 			res <<"\t\t"<< t <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
 			::vmap_ss descr = bbe->descr() ;
 			size_t    w     = 0            ;
-			if ( +be.ifce                                           ) w = ::max(w,strlen("interface"  )) ;
-			if ( !bbe->is_local()                                   ) w = ::max(w,strlen("address"    )) ;
-			if ( bbe->cmd_timeout>Mutex<MutexLvl::Backend>::Timeout ) w = ::max(w,strlen("cmd_timeout")) ;
-			for( auto const& [k,v] : be.dct )                         w = ::max(w,k.size()             ) ;
-			for( auto const& [k,v] : descr  )                         w = ::max(w,k.size()             ) ;
-			if ( +be.ifce                                           ) res <<"\t\t\t"<< widen("interface"  ,w) <<" : "<< be.ifce                       <<'\n' ;
-			if ( !bbe->is_local()                                   ) res <<"\t\t\t"<< widen("address"    ,w) <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
-			if ( bbe->cmd_timeout>Mutex<MutexLvl::Backend>::Timeout ) res <<"\t\t\t"<< widen("cmd_timeout",w) <<" : "<< bbe->cmd_timeout.short_str()  <<'\n' ;
-			for( auto const& [k,v] : be.dct )                         res <<"\t\t\t"<< widen(k            ,w) <<" : "<< v                             <<'\n' ;
-			for( auto const& [k,v] : descr  )                         res <<"\t\t\t"<< widen(k            ,w) <<" : "<< v                             <<'\n' ;
+			if ( +be.ifce                                            ) w = ::max(w,strlen("interface"  )) ;
+			if ( !bbe->is_local()                                    ) w = ::max(w,strlen("address"    )) ;
+			if ( bbe->cmd_timeout!=Mutex<MutexLvl::Backend>::Timeout ) w = ::max(w,strlen("cmd_timeout")) ;
+			for( auto const& [k,v] : be.dct )                          w = ::max(w,k.size()             ) ;
+			for( auto const& [k,v] : descr  )                          w = ::max(w,k.size()             ) ;
+			if ( +be.ifce                                            ) res <<"\t\t\t"<< widen("interface"  ,w) <<" : "<< be.ifce                       <<'\n' ;
+			if ( !bbe->is_local()                                    ) res <<"\t\t\t"<< widen("address"    ,w) <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
+			if ( bbe->cmd_timeout!=Mutex<MutexLvl::Backend>::Timeout ) res <<"\t\t\t"<< widen("cmd_timeout",w) <<" : "<< bbe->cmd_timeout.short_str()  <<'\n' ;
+			for( auto const& [k,v] : be.dct )                          res <<"\t\t\t"<< widen(k            ,w) <<" : "<< v                             <<'\n' ;
+			for( auto const& [k,v] : descr  )                          res <<"\t\t\t"<< widen(k            ,w) <<" : "<< v                             <<'\n' ;
 			if (+be.env) {
 				res <<"\t\t\tenviron :\n" ;
 				size_t w2 = 0 ;
