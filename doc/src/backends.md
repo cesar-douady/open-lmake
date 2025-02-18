@@ -117,6 +117,9 @@ The configuration is composed of:
   By default, this is automatically determined by the SGE daemon.
 - `cluster` : The cluster used by the SGE daemon. This is translated into `$SGE_CLUSTER` when SGE commands are called.
   By default, this is automatically determined by the SGE daemon.
+- `cmd_timeout` : the maximum time commands such as `qsub`, `qdel` or `qstat` may take.
+  Default is 100 seconds.
+  If not long enough, `open-lmake` may crash with a `dead-lock detected` message.
 - `default_prio` : the priority used to submit jobs to the SGE daemon if none is specified on the `lmake` command line.
 - `n_max_queued_jobs` : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
   This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources

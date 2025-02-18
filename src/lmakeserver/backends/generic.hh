@@ -354,7 +354,7 @@ namespace Backends {
 			auto          it = spawned_jobs.find(job) ; if (it==spawned_jobs.end()) return {} ;                // job was killed in the mean time
 			SpawnedEntry& se = it->second             ;
 			if (!se.id) {
-				TraceLock lock{id_mutex,BeChnl,"id_start"} ;                                                   // ensure se.id has been updated
+				TraceLock lock { id_mutex , cmd_timeout , BeChnl , "id_start" } ;                              // ensure se.id has been updated (may need to wait for launch to terminate)
 				SWEAR(se.id,job) ;
 			}
 			//
@@ -380,7 +380,7 @@ namespace Backends {
 			SpawnedEntry& se = it->second           ; SWEAR(!se.started           ,j) ;                        // we should not be called on started jobs
 			Trace trace(BeChnl,"heartbeat",j,se.id) ;
 			if (!se.id) {
-				TraceLock lock { id_mutex , BeChnl , "id_heartbeat" } ;                                        // ensure _launch is no more processing entry
+				TraceLock lock { id_mutex , cmd_timeout , BeChnl , "id_heartbeat" } ;                          // ensure _launch is no more processing entry
 				if (!se.id) {                                                                                  // repeat test so test and decision are atomic
 					trace("no_id") ;
 					if (se.failed) { spawned_jobs.erase(self,it) ; return {se.msg,HeartbeatState::Err  } ; }
@@ -426,7 +426,7 @@ namespace Backends {
 				kill_queued_job(se) ;
 				spawned_jobs.erase(self,it) ;
 			} else {
-				TraceLock lock { id_mutex , BeChnl , "id_kill_job" } ;                                         // lock to ensure se.id is up to date and do same actions (erase while holding lock)
+				TraceLock lock { id_mutex , cmd_timeout , BeChnl , "id_kill_job" } ;                           // lock to ensure se.id is up to date and do same actions (erase while holding lock)
 				if (se.id) kill_queued_job(se) ;
 				spawned_jobs.erase(self,it) ;
 			}
@@ -492,8 +492,8 @@ namespace Backends {
 					}
 				}
 				for( auto& [j,ld] : launch_descrs ) {
-					TraceLock     lock { id_mutex , BeChnl , "id_launch" } ;
-					SpawnedEntry& se   = *ld.entry  ;
+					TraceLock     lock { id_mutex , cmd_timeout , BeChnl , "id_launch" } ;
+					SpawnedEntry& se   = *ld.entry                                       ;
 					if (!se.live) continue ;                                                                          // job was cancelled before being launched
 					try {
 						SpawnId id = launch_job( st , j , ld.reqs , ld.prio , ld.cmd_line , se.rsrcs , se.verbose ) ; // XXX! : manage errors, for now rely on heartbeat

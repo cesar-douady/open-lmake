@@ -19,14 +19,10 @@
 
 #include "disk.hh"
 #include "fd.hh"
+#include "time.hh"
 
 using namespace Disk ;
-
-//
-// mutexes
-//
-
-thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
+using namespace Time ;
 
 //
 // Fd
@@ -296,9 +292,8 @@ Fail :
 thread_local char t_thread_key = '?'   ;
 bool              _crash_busy  = false ;
 
-::string get_exe() {
-	return read_lnk("/proc/self/exe") ;
-}
+::string get_exe       () { return read_lnk("/proc/self/exe") ; }
+::string _crash_get_now() { return Pdate(New).str(3/*prec*/)  ; }
 
 #if HAS_STACKTRACE
 

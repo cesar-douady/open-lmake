@@ -135,20 +135,22 @@ namespace Backends::Sge {
 		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dynamic ) {
 			Trace trace(BeChnl,"Sge::config",STR(dynamic),dct) ;
 			//
-			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
+			repo_key    = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
+			cmd_timeout = Delay(100)                              ; // qsub has been seen to be extremely long, allow 100s by default
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
-						case 'b' : if (k=="bin"              ) { sge_bin_s         = with_slash           (v) ; continue ; } break ;
-						case 'c' : if (k=="cell"             ) { sge_cell          =                       v  ; continue ; }
-						/**/       if (k=="cluster"          ) { sge_cluster       =                       v  ; continue ; }
-						/**/       if (k=="cpu_resource"     ) { cpu_rsrc          =                       v  ; continue ; } break ;
-						case 'd' : if (k=="default_prio"     ) { dflt_prio         = from_string<int16_t >(v) ; continue ; } break ;
-						case 'm' : if (k=="mem_resource"     ) { mem_rsrc          =                       v  ; continue ; } break ;
-						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
-						case 'r' : if (k=="repo_key"         ) { repo_key          =                       v  ; continue ; }
-						/**/       if (k=="root"             ) { sge_root_s        = with_slash           (v) ; continue ; } break ;
-						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                       v  ; continue ; } break ;
+						case 'b' : if (k=="bin"              ) { sge_bin_s         = with_slash               (v)  ; continue ; } break ;
+						case 'c' : if (k=="cell"             ) { sge_cell          =                           v   ; continue ; }
+						/**/       if (k=="cluster"          ) { sge_cluster       =                           v   ; continue ; }
+						/**/       if (k=="cmd_timeout"      ) { cmd_timeout       = Delay(from_string<double>(v)) ; continue ; }
+						/**/       if (k=="cpu_resource"     ) { cpu_rsrc          =                           v   ; continue ; } break ;
+						case 'd' : if (k=="default_prio"     ) { dflt_prio         = from_string<int16_t >    (v)  ; continue ; } break ;
+						case 'm' : if (k=="mem_resource"     ) { mem_rsrc          =                           v   ; continue ; } break ;
+						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>    (v)  ; continue ; } break ;
+						case 'r' : if (k=="repo_key"         ) { repo_key          =                           v   ; continue ; }
+						/**/       if (k=="root"             ) { sge_root_s        = with_slash               (v)  ; continue ; } break ;
+						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                           v   ; continue ; } break ;
 					DN}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
@@ -254,7 +256,7 @@ namespace Backends::Sge {
 
 		::pair_s<bool/*ok*/> sge_exec_client( ::vector_s&& cmd_line , bool gather_stdout=false ) const {
 			Trace trace(BeChnl,"sge_exec_client",STR(gather_stdout),cmd_line) ;
-			TraceLock lock { _sge_mutex , BeChnl , "sge" } ;
+			TraceLock lock { _sge_mutex , cmd_timeout , BeChnl , "sge" } ;
 			cmd_line[0] = sge_bin_s+cmd_line[0] ;
 			//
 			const char** cmd_line_ = new const char*[cmd_line.size()+1] ;

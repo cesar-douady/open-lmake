@@ -63,7 +63,8 @@ config = pdict(
 	#		                                                # - default is loopback for local backend and hostname for the others
 	#	,	bin               = '/opt/sge/bin/ls-amd64'     # directory where sge binaries are located
 	#	,	cell              = 'default'                   # cell     used for SGE job submission, by default, SGE automatically determines it
-	#	,	cluster           = 'p6444'                     # cluseter used for SGE job submission, by default, SGE automatically determines it
+	#	,	cluster           = 'p6444'                     # cluster used for SGE job submission, by default, SGE automatically determines it
+	#	,	cmd_timeout       = 100                         # max time (in seconds) a command such as qsub,qdel or qstat may take, default is 100s
 	#	,	default_prio      = 0                           # default priority to use if none is specified on the lmake command line (this is the default)
 	#	,	n_max_queued_jobs = 10                          # max number of queued jobs for a given set of asked resources
 	#	,	repo_key          = _osp.basename(_os.getcwd()) # prefix used before job name to name slurm jobs (this is the default if not specified)

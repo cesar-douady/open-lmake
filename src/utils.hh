@@ -23,9 +23,7 @@
 #include <ios>
 #include <limits>
 #include <map>
-#include <mutex>
 #include <set>
-#include <shared_mutex>
 #include <span>
 #include <string>
 #include <string_view>
@@ -981,116 +979,6 @@ struct AcFd : Fd {
 } ;
 
 //
-// mutexes
-//
-
-// prevent dead locks by associating a level to each mutex, so we can verify the absence of dead-locks even in absence of race
-// use of identifiers (in the form of an enum) allows easy identification of the origin of misorder
-ENUM( MutexLvl  // identify who is owning the current level to ease debugging
-,	None
-// level 1
-,	Audit
-,	JobExec
-,	Rule
-,	StartJob
-// level 2
-,	Backend     // must follow StartJob
-// level 3
-,	BackendId   // must follow Backend
-,	Gil         // must follow Backend
-,	NodeCrcDate // must follow Backend
-,	Req         // must follow Backend
-,	TargetDir   // must follow Backend
-// level 4
-,	Autodep1    // must follow Gil
-,	Gather      // must follow Gil
-,	Node        // must follow NodeCrcDate
-,	Time        // must follow BackendId
-// level 5
-,	Autodep2    // must follow Autodep1
-// inner (locks that take no other locks)
-,	File
-,	Hash
-,	Sge
-,	Slurm
-,	SmallId
-,	Thread
-,	Workload
-// very inner
-,	Trace       // allow tracing anywhere (but tracing may call some syscall)
-,	SyscallTab  // any syscall may need this mutex, which may occur during tracing
-,	PdateNew    // may need time anywhere, even during syscall processing
-)
-
-extern thread_local MutexLvl t_mutex_lvl ;
-template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,::shared_timed_mutex,::timed_mutex> {
-	using Base =                                              ::conditional_t<S,::shared_timed_mutex,::timed_mutex> ;
-	static constexpr MutexLvl           Lvl     = Lvl_ ;
-	static constexpr ::chrono::duration Timeout = 30s  ; // crash on dead-lock by setting a comfortable timeout on locks (regression passes with 35ms, so 30s should be very comfortable)
-	// services
-	void lock(MutexLvl& lvl) {
-		SWEAR( t_mutex_lvl< Lvl , t_mutex_lvl,Lvl ) ;
-		swear_prod( Base::try_lock_for(Timeout) , "dead-lock" , t_mutex_lvl,Lvl,_thread_key ) ;
-		lvl         = t_mutex_lvl  ;
-		t_mutex_lvl = Lvl          ;
-		_thread_key = t_thread_key ;
-	}
-	void unlock(MutexLvl lvl) {
-		SWEAR( t_mutex_lvl==Lvl , t_mutex_lvl,Lvl ) ;
-		_thread_key = '-' ;
-		t_mutex_lvl = lvl ;
-		Base::unlock() ;
-	}
-	void lock_shared(MutexLvl& lvl) requires(S) {
-		SWEAR( t_mutex_lvl< Lvl , t_mutex_lvl,Lvl ) ;
-		swear_prod( Base::try_lock_shared_for(Timeout) , "dead-lock" , t_mutex_lvl,Lvl ) ;
-		lvl         = t_mutex_lvl ;
-		t_mutex_lvl = Lvl         ;
-	}
-	void unlock_shared(MutexLvl lvl) requires(S) {
-		SWEAR( t_mutex_lvl==Lvl , t_mutex_lvl,Lvl ) ;
-		t_mutex_lvl = lvl ;
-		Base::unlock_shared() ;
-	}
-	#ifndef NDEBUG
-		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock       ()) ; }
-		void swear_locked_shared() requires(S) { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock_shared()) ; }
-	#else
-		void swear_locked       ()             {}
-		void swear_locked_shared() requires(S) {}
-	#endif
-private :
-	char _thread_key = '-' ;
-} ;
-
-template<class M,bool S=false> struct Lock {
-	// cxtors & casts
-	Lock (                          ) = default ;
-	Lock ( Lock&& l                 )              { self = ::move(l) ;      }
-	Lock ( M& m , bool do_lock=true ) : _mutex{&m} { if (do_lock) lock  () ; }
-	~Lock(                          )              { if (_locked) unlock() ; }
-	Lock& operator=(Lock&& l) {
-		if (_locked) unlock() ;
-		_mutex    = l._mutex  ;
-		_lvl      = l._lvl    ;
-		_locked   = l._locked ;
-		l._locked = false     ;
-		return self ;
-	}
-	// services
-	void swear_locked() requires(!S) { _mutex->swear_locked       () ;                                   }
-	void swear_locked() requires( S) { _mutex->swear_locked_shared() ;                                   }
-	void lock        () requires(!S) { SWEAR(!_locked) ; _locked = true  ; _mutex->lock         (_lvl) ; }
-	void lock        () requires( S) { SWEAR(!_locked) ; _locked = true  ; _mutex->lock_shared  (_lvl) ; }
-	void unlock      () requires(!S) { SWEAR( _locked) ; _locked = false ; _mutex->unlock       (_lvl) ; }
-	void unlock      () requires( S) { SWEAR( _locked) ; _locked = false ; _mutex->unlock_shared(_lvl) ; }
-	// data
-	M*       _mutex = nullptr                   ; // must be !=nullptr when _locked
-	MutexLvl _lvl   = MutexLvl::None/*garbage*/ ; // valid when _locked
-	bool    _locked = false                     ;
-} ;
-
-//
 // miscellaneous
 //
 
@@ -1109,51 +997,6 @@ inline void del_env(::string const& name) {
 	int rc = ::unsetenv(name.c_str()) ;
 	swear_prod(rc==0,"cannot unsetenv",name) ;
 }
-
-template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
-	struct NoMutex {
-		void lock  () {}
-		void unlock() {}
-	} ;
-	struct NoLock {
-		NoLock(NoMutex) {}
-	} ;
-private :
-	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
-	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
-	using _AtomicT = ::conditional_t< ThreadSafe , ::atomic<T>              , T       > ;
-	// services
-public :
-	T acquire() {
-		 T    res  ;
-		_Lock lock { _mutex } ;
-		if (!free_ids) {
-			res = n_allocated ;
-			throw_unless( n_allocated< Max<T> , "cannot allocate id" ) ;
-			n_allocated++ ;
-		} else {
-			auto it = free_ids.begin() ;
-			res = *it ;
-			free_ids.erase(it) ;
-		}
-		SWEAR(n_acquired<Max<T>) ;                                                  // ensure no overflow
-		n_acquired++ ;                                                              // protected by _mutex
-		return res ;
-	}
-	void release(T id) {
-		if (!id) return ;                                                           // id 0 has not been acquired
-		_Lock lock     { _mutex }                   ;
-		bool  inserted = free_ids.insert(id).second ; SWEAR(inserted,id,free_ids) ; // else, double release
-		SWEAR(n_acquired>Min<T>) ;                                                  // ensure no underflow
-		n_acquired-- ;                                                              // protected by _mutex
-	}
-	// data
-	::set<T> free_ids    ;
-	T        n_allocated = 1 ;                                                      // dont use id 0 so that it is free to mean "no id"
-	_AtomicT n_acquired  = 0 ;                                                      // can be freely read by any thread if ThreadSafe
-private :
-	_Mutex _mutex ;
-} ;
 
 inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
 
@@ -1228,15 +1071,16 @@ inline void Fd::no_std() {
 // assert
 //
 
-::string get_exe() ;
+::string get_exe       () ;
+::string _crash_get_now() ;
 
 extern bool _crash_busy ;
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
 	if (!_crash_busy) {                                                                     // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
 		_crash_busy = true ;
 		::string err_msg = get_exe() ;
-		if (t_thread_key!='?') err_msg <<':'<< t_thread_key ;
-		/**/                   err_msg <<" :"               ;
+		if (t_thread_key!='?') err_msg <<':'<< t_thread_key            ;
+		/**/                   err_msg <<" ("<<_crash_get_now()<<") :" ;
 		[[maybe_unused]] bool _[] = {false,(err_msg<<' '<<args,false)...} ;
 		err_msg << '\n' ;
 		Fd::Stderr.write(err_msg) ;

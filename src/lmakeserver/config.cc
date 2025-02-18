@@ -254,7 +254,7 @@ namespace Engine {
 		if (+caches) {
 			res << "\tcaches :\n" ;
 			for( auto const& [key,cache] : caches ) {
-				size_t w = 3 ;                                               // room for tag
+				size_t w = 3 ;                                                               // room for tag
 				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
 				res <<"\t\t"<< key <<" :\n" ;
 				/**/                                 res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
@@ -287,11 +287,13 @@ namespace Engine {
 		}
 		//
 		res << "\tbackends :\n" ;
-		for( BackendTag t : iota(1,All<BackendTag>) ) {                      // local backend is always present
+		if (Backends::Backend::s_cmd_timeout>Mutex<MutexLvl::Backend>::Timeout)
+			res <<"\t\tcmd_timeout : "<<Backends::Backend::s_cmd_timeout.short_str()<<'\n' ;
+		for( BackendTag t : iota(1,All<BackendTag>) ) {                                      // local backend is always present
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
-			if (!bbe                          ) continue ;                   // not implemented
-			if (!be.configured                ) continue ;                   // not configured
+			if (!bbe                          ) continue ;                                   // not implemented
+			if (!be.configured                ) continue ;                                   // not configured
 			if (!Backends::Backend::s_ready(t)) {
 				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) << '\n' ;
 				continue ;
@@ -299,14 +301,16 @@ namespace Engine {
 			res <<"\t\t"<< t <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
 			::vmap_ss descr = bbe->descr() ;
 			size_t    w     = 0            ;
-			if ( +be.ifce         )           w = ::max(w,strlen("interface")) ;
-			if ( !bbe->is_local() )           w = ::max(w,strlen("address"  )) ;
-			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()           ) ;
-			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()           ) ;
-			if ( +be.ifce         )           res <<"\t\t\t"<< widen("interface",w) <<" : "<< be.ifce                       <<'\n' ;
-			if ( !bbe->is_local() )           res <<"\t\t\t"<< widen("address"  ,w) <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
-			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k          ,w) <<" : "<< v                             <<'\n' ;
-			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k          ,w) <<" : "<< v                             <<'\n' ;
+			if ( +be.ifce                                           ) w = ::max(w,strlen("interface"  )) ;
+			if ( !bbe->is_local()                                   ) w = ::max(w,strlen("address"    )) ;
+			if ( bbe->cmd_timeout>Mutex<MutexLvl::Backend>::Timeout ) w = ::max(w,strlen("cmd_timeout")) ;
+			for( auto const& [k,v] : be.dct )                         w = ::max(w,k.size()             ) ;
+			for( auto const& [k,v] : descr  )                         w = ::max(w,k.size()             ) ;
+			if ( +be.ifce                                           ) res <<"\t\t\t"<< widen("interface"  ,w) <<" : "<< be.ifce                       <<'\n' ;
+			if ( !bbe->is_local()                                   ) res <<"\t\t\t"<< widen("address"    ,w) <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
+			if ( bbe->cmd_timeout>Mutex<MutexLvl::Backend>::Timeout ) res <<"\t\t\t"<< widen("cmd_timeout",w) <<" : "<< bbe->cmd_timeout.short_str()  <<'\n' ;
+			for( auto const& [k,v] : be.dct )                         res <<"\t\t\t"<< widen(k            ,w) <<" : "<< v                             <<'\n' ;
+			for( auto const& [k,v] : descr  )                         res <<"\t\t\t"<< widen(k            ,w) <<" : "<< v                             <<'\n' ;
 			if (+be.env) {
 				res <<"\t\t\tenviron :\n" ;
 				size_t w2 = 0 ;

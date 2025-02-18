@@ -170,7 +170,8 @@ namespace Backends {
 		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                           ) ;
 		// static data
 	public :
-		static Backend* s_tab[N<Tag>] ;
+		static Backend*    s_tab[N<Tag>] ;
+		static Time::Delay s_cmd_timeout ;                                                             // max of all cmd_timeout
 	protected :
 		static Mutex<MutexLvl::Backend> _s_mutex ;
 	private :
@@ -216,8 +217,9 @@ namespace Backends {
 		/**/                                                                                                          // ... operator| of the submit/add_pressure corresponding values for the job
 		// data
 	public :
-		in_addr_t addr       = 0 ;
-		::string  config_err ;
+		in_addr_t   addr        = 0                                 ;
+		::string    config_err  ;
+		Time::Delay cmd_timeout = Mutex<MutexLvl::Backend>::Timeout ;                                                 // max time commands may take
 	} ;
 
 }

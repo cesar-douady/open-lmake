@@ -154,3 +154,10 @@ namespace Time {
 	}
 
 }
+
+//
+// mutexes
+//
+
+thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
+

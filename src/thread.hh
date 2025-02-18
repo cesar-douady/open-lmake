@@ -19,6 +19,7 @@ template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process 
 	using Val         = typename Q::value_type  ;
 	using L           = Lock<ThreadMutex>       ;
 	using Q::size ;
+	static constexpr Time::Delay Timeout = ThreadMutex::Timeout ;
 	// cxtors & casts
 	ThreadQueue(      ) = default ;
 	ThreadQueue(char k) : key{k} {}
@@ -29,9 +30,9 @@ template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process 
 		return !Q::empty() ;
 	}
 	//
-	void lock        (MutexLvl lvl) const { _mutex.lock        (lvl) ; }
-	void unlock      (MutexLvl lvl) const { _mutex.unlock      (lvl) ; }
-	void swear_locked(            ) const { _mutex.swear_locked(   ) ; }
+	void lock        ( MutexLvl lvl , Time::Delay timeout=Timeout ) const { _mutex.lock        (lvl,timeout) ; }
+	void unlock      ( MutexLvl lvl                               ) const { _mutex.unlock      (lvl        ) ; }
+	void swear_locked(                                            ) const { _mutex.swear_locked(           ) ; }
 	// services
 	template<class    T> void push_urgent   (T&&    x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_front   (::forward<T>(x)   ) ; _cond.notify_one() ; }
 	template<class    T> void push          (T&&    x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_back    (::forward<T>(x)   ) ; _cond.notify_one() ; }
@@ -70,6 +71,7 @@ template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : pr
 	using Base::unlock         ;
 	using Base::swear_locked   ;
 	using Base::key            ;
+	static constexpr Time::Delay Timeout = Base::Timeout ;
 	#define RQA  requires( QueueAccess)
 	#define RNQA requires(!QueueAccess)
 	// statics
