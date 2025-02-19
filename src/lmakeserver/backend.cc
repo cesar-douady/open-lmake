@@ -757,6 +757,7 @@ trace("entry2",reply.small_id) ;
 				be->addr = addrs[0].second ;
 			}
 		}
+		trace(_s_job_exec,s_cmd_timeout) ;
 		_s_job_start_thread.wait_started() ;
 		_s_job_mngt_thread .wait_started() ;
 		_s_job_end_thread  .wait_started() ;
