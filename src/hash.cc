@@ -52,7 +52,7 @@ namespace Hash {
 		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
 			Xxh ctx{FileTag::Lnk} ;
 			ctx.update( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx.update(lnk_target)
-			self = ctx .digest() ;
+			self = ctx.digest() ;
 		}
 	}
 	// END_OF_VERSIONING

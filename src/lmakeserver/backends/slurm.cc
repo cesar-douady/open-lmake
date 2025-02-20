@@ -320,7 +320,7 @@ namespace Backends::Slurm {
 		// data
 		SpawnedMap mutable  spawned_rsrcs     ;         // number of spawned jobs queued in slurm queue
 		::vector<RsrcsData> req_forces        ;         // indexed by req, resources forced by req
-		uint32_t            n_max_queued_jobs = -1    ; // no limit by default
+		uint32_t            n_max_queued_jobs = 10    ; // by default, limit to 10 the number of jobs waiting for a given set of resources
 		bool                use_nice          = false ;
 		::string            repo_key          ;         // a short identifier of the repository
 		Daemon              daemon            ;         // info sensed from slurm daemon

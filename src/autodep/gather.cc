@@ -190,7 +190,7 @@ Fd Gather::_spawn_child() {
 		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
-		AcPipe pipe { New , true/*no_std*/ } ;
+		AcPipe pipe { New , 0/*flags*/ , true/*no_std*/ } ;
 		child_fd  = pipe.read .detach() ;
 		report_fd = pipe.write.detach() ;
 	} else {

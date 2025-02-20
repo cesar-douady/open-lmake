@@ -121,15 +121,16 @@ The configuration is composed of:
   Default is 100 seconds.
   If not long enough, `open-lmake` may crash with a `dead-lock detected` message.
 - `default_prio` : the priority used to submit jobs to the SGE daemon if none is specified on the `lmake` command line.
-- `n_max_queued_jobs` : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
-  This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
+- `n_max_queued_jobs` : open-lmake scatters jobs according to the required resources and only submit a few jobs to SGE for each set of asked resources.
+  This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend to require only a small set of different resources
   (helped in this by the limited precision on CPU, memory and temporary disk space requirements).
-  for each given set of resources, only the jobs with highest priorities are submitted to slurm, the other ones are retained by open-lmake so as to limit the number of waiting jobs in slurm queues
+  For each given set of resources, only the jobs with highest priorities are submitted to SGE, the other ones are retained by open-lmake so as to limit the number of waiting jobs in slurm queues
   (the number of running job is not limited, though).
-  This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to slurm.
+  This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to SGE.
   If too low, the schedule rate may decrease because by the time taken, when a job finishes, for open-lmake to submit a new job, slurm might have exhausted its waiting queue.
   If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
-  A reasonable value probably lies in the 20-100 range.
+  A reasonable value probably lies in the 10-100 range.
+  Default is 10.
 - `repo_key` : This is a string which is add in front of open-lmake job names to make SGE job names.
   This key is meant to be a short identifier of the repository.
   By default it is the base name of the repository followed by `:`.
@@ -167,7 +168,8 @@ The configuration is composed of :
   This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to slurm.
   If too low, the schedule rate may decrease because by the time taken, when a job finishes, for open-lmake to submit a new job, slurm might have exhausted its waiting queue.
   If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
-  A reasonable value probably lies in the 20-100 range.
+  A reasonable value probably lies in the 10-100 range.
+  Default is 10.
 - `repo_key` : This is a string which is add in front of open-lmake job names to make slurm job names.
   This key is meant to be a short identifier of the repository.
   By default it is the base name of the repository followed by `:`.

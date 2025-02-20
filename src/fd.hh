@@ -187,12 +187,14 @@ struct BlockedSig {
 
 struct Pipe {
 	// cxtors & casts
-	Pipe(                          ) = default ;
-	Pipe(NewType,bool no_std_=false) { open(no_std_) ; }
+	Pipe(                                    ) = default ;
+	Pipe( NewType                            ) { open(             ) ; }
+	Pipe( NewType , int flags , bool no_std_ ) { open(flags,no_std_) ; }
 	// services
-	void open(bool no_std_=false) {
+	void open(                          ) { open(0,false) ; }
+	void open( int flags , bool no_std_ ) {
 		int fds[2] ;
-		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
+		swear_prod( ::pipe2(fds,flags)==0 , "cannot create pipes" ) ;
 		read  = {fds[0],no_std_} ;
 		write = {fds[1],no_std_} ;
 	}
@@ -211,12 +213,14 @@ struct Pipe {
 
 struct AcPipe {
 	// cxtors & casts
-	AcPipe(                          ) = default ;
-	AcPipe(NewType,bool no_std_=false) { open(no_std_) ; }
+	AcPipe(                                    ) = default ;
+	AcPipe( NewType                            ) { open(             ) ; }
+	AcPipe( NewType , int flags , bool no_std_ ) { open(flags,no_std_) ; }
 	// services
-	void open(bool no_std_=false) {
+	void open(                          ) { open(0,false) ; }
+	void open( int flags , bool no_std_ ) {
 		int fds[2] ;
-		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
+		swear_prod( ::pipe2(fds,flags)==0 , "cannot create pipes" ) ;
 		read  = AcFd(fds[0],no_std_) ;
 		write = AcFd(fds[1],no_std_) ;
 	}

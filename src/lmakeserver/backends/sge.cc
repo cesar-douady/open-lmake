@@ -207,8 +207,8 @@ namespace Backends::Sge {
 		}
 		// XXX! : implement end_job to give explanations if verbose (mimic slurm)
 		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {
-			if (sge_exec_client({"qstat","-j",::to_string(se.id)}).second) return { {}/*msg*/                      , HeartbeatState::Alive } ;
-			else                                                           return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX! : try to distinguish between Lost and Err
+			if (sge_exec_client({"qstat","-j",::to_string(se.id)})) return { {}/*msg*/                      , HeartbeatState::Alive } ;
+			else                                                    return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX! : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (se.live) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                                // asynchronous (as faster and no return value) cancel
@@ -216,11 +216,11 @@ namespace Backends::Sge {
 		virtual SgeId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
 			::vector_s sge_cmd_line = {
 				"qsub"
+			,	"-terse"
 			,	"-b"     , "y"
 			,	"-o"     , "/dev/null"                                                                                                         // XXX? : if verbose, collect stdout/sderr (expensive)
 			,	"-j"     , "y"
 			,	"-shell" , "n"
-			,	"-terse"
 			,	"-N"     , sge_mk_name(repo_key+Job(j)->name())
 			} ;
 			if (+env) {
@@ -243,15 +243,15 @@ namespace Backends::Sge {
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//
-			::pair_s<bool/*ok*/> digest = sge_exec_client( ::move(sge_cmd_line) , true/*gather_stdout*/ ) ;                                    // need to gather sge id
+			::pair_s<bool/*ok*/> digest = sge_exec_qsub(::move(sge_cmd_line)) ;                                    // need to gather sge id
 			Trace trace(BeChnl,"Sge::launch_job",repo_key,j,digest,sge_cmd_line,rs,STR(verbose)) ;
 			if (!digest.second) throw "cannot submit SGE job "+Job(j)->name() ;
 			return from_string<SgeId>(digest.first) ;
 		}
 
-		::pair_s<bool/*ok*/> sge_exec_client( ::vector_s&& cmd_line , bool gather_stdout=false ) const {
-			Trace trace(BeChnl,"sge_exec_client",STR(gather_stdout),cmd_line) ;
-			TraceLock lock { _sge_mutex , cmd_timeout , BeChnl , "sge" } ;
+		bool/*ok*/ sge_exec_client(::vector_s&& cmd_line) const {
+			Trace trace(BeChnl,"sge_exec_client",cmd_line) ;
+			TraceLock lock { _sge_mutex , cmd_timeout , BeChnl , "sge_client" } ;
 			cmd_line[0] = sge_bin_s+cmd_line[0] ;
 			//
 			const char** cmd_line_ = new const char*[cmd_line.size()+1] ;
@@ -259,46 +259,71 @@ namespace Backends::Sge {
 				for( ::string const& a : cmd_line ) cmd_line_[i++] = a.c_str() ;
 				/**/                                cmd_line_[i  ] = nullptr   ;
 			}
-			AcPipe c2p ;             if (gather_stdout) c2p.open(true/*no_std*/) ;
-			pid_t  pid = ::vfork() ;                                               // calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			SWEAR(pid>=0) ;                                                        // ensure vfork works
-			if (!pid) {                                                            // in child
-				::close(Fd::Stdin) ;                                               // ensure no stdin (defensive programming)
-				if (gather_stdout) {
-					SWEAR(c2p.read .fd>Fd::Std.fd,c2p.read ) ;                     // ensure we can safely close what needs to be closed
-					SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;                     // .
-					::dup2(c2p.write,Fd::Stdout) ;
-					::dup2(c2p.write,Fd::Stderr) ;
-					::close(c2p.read ) ;                                           // dont touch c2p object as it is shared with parent
-					::close(c2p.write) ;                                           // .
-				} else {
-					::close(Fd::Stdout) ;
-					::close(Fd::Stderr) ;
-				}
+			pid_t  pid = ::vfork() ;                                     // calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			SWEAR(pid>=0) ;                                              // ensure vfork works
+			if (!pid) {                                                  // in child
+				::close(Fd::Stdin ) ;                                    // ensure no stdin (defensive programming)
+				::close(Fd::Stdout) ;
 				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(sge_env) ) ;
 				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
-				::_exit(+Rc::System) ;                                             // in case exec fails
-			}
-			delete[] cmd_line_ ;                                                   // safe as thread is suspended by ::vfork until child has exec'ed
-			::string cmd_out ;
-			if (gather_stdout) {
-				c2p.write.close() ;
-				trace("wait_cmd_out",c2p.read) ;
-				try                       { cmd_out = c2p.read.read() ;                 }
-				catch (::string const& e) { FAIL("cannot read stdout of",cmd_line[0]) ; }
-				trace("done_cmd_out",cmd_out) ;
+				::_exit(+Rc::System) ;                                   // in case exec fails
 			}
 			int  wstatus ;
 			int  rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
 			bool ok      = wstatus_ok(wstatus)       ;
-			trace("done",STR(ok),cmd_out) ;
+			trace("done_pid",STR(ok)) ;
+			delete[] cmd_line_ ;                                         // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
+			return ok ;
+		}
+
+		::pair_s<bool/*ok*/> sge_exec_qsub(::vector_s&& cmd_line) const {
+			SWEAR(cmd_line[0]=="qsub" && cmd_line[1]=="-terse") ;         // only meant to accept a short stdout
+			Trace trace(BeChnl,"sge_exec_qsub",cmd_line) ;
+			TraceLock lock { _sge_mutex , cmd_timeout , BeChnl , "sge_qsub" } ;
+			cmd_line[0] = sge_bin_s+cmd_line[0] ;
+			//
+			const char** cmd_line_ = new const char*[cmd_line.size()+1] ;
+			{	size_t i = 0 ;
+				for( ::string const& a : cmd_line ) cmd_line_[i++] = a.c_str() ;
+				/**/                                cmd_line_[i  ] = nullptr   ;
+			}
+			AcPipe c2p { New , O_NONBLOCK , true/*no_std*/ } ;
+			pid_t  pid = ::vfork() ;                                      // calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			SWEAR(pid>=0) ;                                               // ensure vfork works
+			if (!pid) {                                                   // in child
+				::close(Fd::Stdin) ;                                      // ensure no stdin (defensive programming)
+				SWEAR(c2p.read .fd>Fd::Std.fd,c2p.read ) ;                // ensure we can safely close what needs to be closed
+				SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;                // .
+				::dup2(c2p.write,Fd::Stdout) ;
+				::close(c2p.read ) ;                                                                     // dont touch c2p object as it is shared with parent
+				::close(c2p.write) ;                                                                     // .
+				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(sge_env) ) ;
+				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
+				::_exit(+Rc::System) ;                                                                   // in case exec fails
+			}
+			// pipe capacity is 16 pages, i.e. usually 64k (man 7 pipe), more than enough for a job id
+			int  wstatus ;
+			int  rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
+			bool ok      = wstatus_ok(wstatus)       ;
+			trace("done_pid",STR(ok)) ;
+			delete[] cmd_line_ ;                                                                         // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
+			::string cmd_out(100,0) ;                                                                    // 100 is plenty for a job id
+			c2p.write.close() ;
+			trace("wait_cmd_out",c2p.read) ;
+			ssize_t cnt = ::read( c2p.read , cmd_out.data() , cmd_out.size() ) ;
+			if (cnt==0                     ) FAIL("no data from"         ,cmd_line[0]                          ) ;
+			if (cnt<0                      ) FAIL("cannot read stdout of",cmd_line[0],':',::strerror(errno)    ) ;
+			if (size_t(cnt)==cmd_out.size()) FAIL("stdout overflow of"   ,cmd_line[0],':',cmd_out,"..."        ) ;
+			if (cmd_out[cnt-1]!='\n'       ) FAIL("incomplete stdout of" ,cmd_line[0],':',cmd_out.substr(0,cnt)) ;
+			cmd_out.resize(cnt) ;
+			trace("done_cmd_out",cmd_out) ;
 			return { cmd_out , ok } ;
 		}
 
 		// data
 		SpawnedMap mutable spawned_rsrcs     ;           // number of spawned jobs queued in sge queue
 		::vector<int16_t>  req_prios         ;           // indexed by req
-		uint32_t           n_max_queued_jobs = -1      ; // no limit by default
+		uint32_t           n_max_queued_jobs = 10      ; // by default, limit to 10 the number of jobs waiting for a given set of resources
 		::string           repo_key          ;           // a short identifier of the repository
 		int16_t            dflt_prio         = 0       ; // used when not specified with lmake -b
 		::string           cpu_rsrc          ;           // key to use to ask for cpu
@@ -421,7 +446,7 @@ namespace Backends::Sge {
 	//
 
 	Daemon sge_sense_daemon(SgeBackend const& be) {
-		if ( !be.sge_exec_client( { "qsub" , "-b" , "y" , "-o" , "/dev/null" , "-e" , "/dev/null" , "/dev/null" } ).second ) throw "no SGE daemon"s ;
+		if ( !be.sge_exec_client( { "qsub" , "-b" , "y" , "-o" , "/dev/null" , "-e" , "/dev/null" , "/dev/null" } ) ) throw "no SGE daemon"s ;
 		return {} ;
 	}
 
