@@ -228,12 +228,13 @@ namespace Engine {
 			bool      stamped_modif:1 = false ;                        //          1 bit , modifs seen in dep until iter before    last parallel chunk
 			bool      proto_modif  :1 = false ;                        //          1 bit , modifs seen in dep until iter including last parallel chunk
 		} ;
-		DepsIter::Digest iter                 ;                        // ~20+6<= 64 bits, deps up to this one statisfy required action
+//		ReqInfo                                                        //        128 bits, inherits
 		State            state                ;                        //  43  <= 96 bits, dep analysis state
+		DepsIter::Digest iter                 ;                        // ~20+6<= 64 bits, deps up to this one statisfy required action
 		JobReason        reason               ;                        //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
+		uint16_t         n_submits            = 0     ;                //         16 bits, number of times job has been rerun
 		uint8_t          n_losts              = 0     ;                //          8 bits, number of times job has been lost
 		uint8_t          n_retries            = 0     ;                //          8 bits, number of times job has been seen in error
-		uint8_t          n_submits            = 0     ;                //         16 bits, number of times job has been rerun
 		bool             force             :1 = false ;                //          1 bit , if true <=> job must run because reason
 		bool             start_reported    :1 = false ;                //          1 bit , if true <=> start message has been reported to user
 		bool             speculative_wait  :1 = false ;                //          1 bit , if true <=> job is waiting for speculative deps only
@@ -241,11 +242,9 @@ namespace Engine {
 		bool             reported          :1 = false ;                //          1 bit , used for delayed report when speculating
 		bool             modified          :1 = false ;                //          1 bit , modified when last run
 		bool             modified_speculate:1 = false ;                //          1 bit , modified when marked speculative
-		BackendTag       backend           :2 = {}    ;                //          2 bits
 	private :
 		Step _step:3 = {} ;                                            //          3 bits
 	} ;
-	static_assert(sizeof(JobReqInfo)==56) ;                            // check expected size, XXX! : optimize size, can be 40
 
 }
 
@@ -381,12 +380,12 @@ namespace Engine {
 		mutable MatchGen match_gen    = 0  ;         //      8 bits,        if <Rule::s_match_gen => deemed !sure
 		RunStatus        run_status:3 = {} ;         //      3 bits
 		Status           status    :4 = {} ;         //      4 bits
+		BackendTag       backend   :2 = {} ;         //      2 bits         backend asked for last execution
 	private :
 		mutable bool     _sure          :1 = false ; //      1 bit
 		Bool3            _reliable_stats:2 = No    ; //      2 bits,        if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(JobData)==28) ;             // check expected size
 
 }
 

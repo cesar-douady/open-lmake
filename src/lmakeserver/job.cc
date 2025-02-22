@@ -764,10 +764,10 @@ namespace Engine {
 		//
 		Req         req          = ri.req                  ;
 		CoarseDelay dep_pressure = ri.pressure + exec_time ;
-		switch (ri.step()) { //!                                                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case JobStep::Dep    : for( DepsIter it{deps,ri.iter } ; it!=deps.end() ; it++ ) (*it)->    set_pressure( (*it)->req_info(req) ,                  dep_pressure  ) ; break ;
-			case JobStep::Queued :                                                           Backend::s_set_pressure( ri.backend , +idx() , +req , {.pressure=dep_pressure} ) ; break ;
-		DN} //!                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		switch (ri.step()) { //!                                                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			case JobStep::Dep    : for( DepsIter it{deps,ri.iter } ; it!=deps.end() ; it++ ) (*it)->    set_pressure( (*it)->req_info(req) ,               dep_pressure  ) ; break ;
+			case JobStep::Queued :                                                           Backend::s_set_pressure( backend , +idx() , +req , {.pressure=dep_pressure} ) ; break ;
+		DN} //!                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
 	static JobReasonTag _mk_reason(Status s) {
@@ -1030,20 +1030,20 @@ namespace Engine {
 				trace("dep",ri,dep,dep_goal,*cdri,STR(dnd.done(*cdri)),STR(dnd.ok()),dnd.crc,dep_err,STR(dep_modif),STR(critical_modif),STR(critical_waiting),state.reason) ;
 				//
 				if ( state.missing_dsk && !no_run_reason(state) ) {
-					SWEAR(!query) ;                                                            // when query, we cannot miss dsk
+					SWEAR(!query) ;                                  // when query, we cannot miss dsk
 					trace("restart_analysis") ;
-					SWEAR(!ri.reason,ri.reason) ;                                              // we should have asked for dep on disk if we had a reason to run
-					ri.reason = state.reason ;                                                 // record that we must ask for dep on disk
+					SWEAR(!ri.reason,ri.reason) ;                    // we should have asked for dep on disk if we had a reason to run
+					ri.reason = state.reason ;                       // record that we must ask for dep on disk
 					ri.reset(idx()) ;
 					goto RestartAnalysis/*BACKWARD*/ ;
 				}
-				SWEAR(!( +dep_err && modif && !is_static )) ;                                  // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
-				state.proto_err    = state.proto_err   | dep_err   ;                           // |= is forbidden for bit fields
-				state.proto_modif  = state.proto_modif | dep_modif ;                           // .
+				SWEAR(!( +dep_err && modif && !is_static )) ;        // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
+				state.proto_err    = state.proto_err   | dep_err   ; // |= is forbidden for bit fields
+				state.proto_modif  = state.proto_modif | dep_modif ; // .
 				critical_modif    |= dep_modif && is_critical      ;
 			}
 			if (ri.waiting()                      ) goto Wait ;
-			if (sure                              ) mk_sure() ;                                // improve sure (sure is pessimistic)
+			if (sure                              ) mk_sure() ;      // improve sure (sure is pessimistic)
 			if (+(run_status=ri.state.stamped_err)) goto Done ;
 			NoRunReason nrr = no_run_reason(ri.state) ;
 			switch (nrr) {
@@ -1055,21 +1055,21 @@ namespace Engine {
 			}
 		}
 	Run :
-		report_reason = ri.reason = reason(ri.state) ;                                         // ensure we have a reason to report that we would have run if not queried
+		report_reason = ri.reason = reason(ri.state) ;                                             // ensure we have a reason to report that we would have run if not queried
 		trace("run",ri,run_status) ;
 		if ( query && !is_special() )                     goto Return                      ;
-		if ( ri.state.missing_dsk   ) { ri.reset(idx()) ; goto RestartAnalysis/*BACKWARD*/ ; } // cant run if we are missing some deps on disk
+		if ( ri.state.missing_dsk   ) { ri.reset(idx()) ; goto RestartAnalysis/*BACKWARD*/ ; }     // cant run if we are missing some deps on disk
 		inc_submits(ri.reason.tag) ;
 		//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (is_special()) {      _submit_special( ri                ) ; goto Done ; }          // special never report new deps
-		else              { if (!_submit_plain  ( ri , dep_pressure ))  goto Done ; }          // if no new deps, we cannot be waiting and we are done
+		if (is_special()) {      _submit_special( ri                ) ; goto Done ; }              // special never report new deps
+		else              { if (!_submit_plain  ( ri , dep_pressure ))  goto Done ; }              // if no new deps, we cannot be waiting and we are done
 		//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (ri.waiting()) goto Wait ;
 		SWEAR(!ri.running()) ;
-		make_action = MakeAction::End ;                                                        // restart analysis as if called by end() as in case of flash execution, submit has called end()
-		ri.inc_wait() ;                                                                        // .
-		asked_reason = {} ;                                                                    // .
-		ri.reason    = {} ;                                                                    // .
+		make_action = MakeAction::End ;                                                            // restart analysis as if called by end() as in case of flash execution, submit has called end()
+		ri.inc_wait() ;                                                                            // .
+		asked_reason = {} ;                                                                        // .
+		ri.reason    = {} ;                                                                        // .
 		trace("restart_analysis",ri) ;
 		goto RestartFullAnalysis/*BACKWARD*/ ;
 	Done :
@@ -1196,22 +1196,21 @@ namespace Engine {
 		SWEAR(!ri.running(),ri) ;
 		for( Req rr : running_reqs(false/*with_zombies*/) ) if (rr!=req) {
 			ReqInfo const& cri = c_req_info(rr) ;
-			ri.backend = cri.backend ;
-			ri.step(cri.step(),idx()) ;                                  // Exec or Queued, same as other reqs
+			ri.step(cri.step(),idx()) ;                               // Exec or Queued, same as other reqs
 			ri.inc_wait() ;
 			if (ri.step()==Step::Exec) req->audit_job(Color::Note,"started",idx()) ;
 			SubmitAttrs sa = {
 				.live_out = ri.live_out
 			,	.pressure = pressure
 			} ;
-			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Backend::s_add_pressure( ri.backend , +idx() , +req , sa ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
-			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Backend::s_add_pressure( backend , +idx() , +req , sa ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
+			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("other_req",rr,ri) ;
 			return true/*maybe_new_deps*/ ;
 		}
 		//
-		for( Node t : targets ) t->set_buildable() ;                     // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
+		for( Node t : targets ) t->set_buildable() ;                  // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		SubmitNoneAttrs submit_none_attrs ;
 		try {
@@ -1299,7 +1298,7 @@ namespace Engine {
 		//
 		ri.inc_wait() ;                              // set before calling submit call back as in case of flash execution, we must be clean
 		ri.step(Step::Queued,idx()) ;
-		ri.backend = submit_rsrcs_attrs.backend ;
+		backend = submit_rsrcs_attrs.backend ;
 		try {
 			Tokens1 tokens1 = submit_rsrcs_attrs.tokens1() ;
 			SubmitAttrs sa {
@@ -1311,9 +1310,9 @@ namespace Engine {
 			,	.tokens1  =        tokens1
 			} ;
 			estimate_stats(tokens1) ;                // refine estimate with best available info just before submitting
-			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Backend::s_submit( ri.backend , +idx() , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
-			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Backend::s_submit( backend , +idx() , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
+			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			for( Node t : targets ) t->busy = true ; // make targets busy once we are sure job is submitted
 		} catch (::string const& e) {
 			ri.dec_wait() ;                          // restore n_wait as we prepared to wait

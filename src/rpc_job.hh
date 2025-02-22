@@ -301,8 +301,8 @@ struct JobReason {
 	using Tag = JobReasonTag ;
 	// cxtors & casts
 	JobReason(                   ) = default ;
-	JobReason( Tag t             ) : tag{t}           { SWEAR( t< Tag::HasNode       , t     ) ; }
-	JobReason( Tag t , NodeIdx n ) : tag{t} , node{n} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
+	JobReason( Tag t             ) :           tag{t} { SWEAR( t< Tag::HasNode       , t     ) ; }
+	JobReason( Tag t , NodeIdx n ) : node{n} , tag{t} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
 	// accesses
 	bool operator+() const { return +tag                           ; }
 	bool need_run () const { return +tag and tag<JobReasonTag::Err ; }
@@ -318,8 +318,8 @@ struct JobReason {
 	}
 	// data
 	// START_OF_VERSIONING
-	Tag     tag  = JobReasonTag::None ;
 	NodeIdx node = 0                  ;
+	Tag     tag  = JobReasonTag::None ;
 	// END_OF_VERSIONING
 } ;
 
@@ -933,14 +933,13 @@ struct SubmitAttrs {
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		// cache, deps and tag are independent of req but may not always be present
-		if      (!cache    ) cache     = other.cache     ; else if (+other.cache    ) SWEAR(cache    ==other.cache    ,cache    ,other.cache    ) ;
-		if      (!deps     ) deps      = other.deps      ; else if (+other.deps     ) SWEAR(deps     ==other.deps     ,deps     ,other.deps     ) ;
-		if      (!asked_tag) asked_tag = other.asked_tag ; else if (+other.asked_tag) SWEAR(asked_tag==other.asked_tag,asked_tag,other.asked_tag) ;
-		if      (!used_tag ) used_tag  = other.used_tag  ; else if (+other.used_tag ) SWEAR(used_tag ==other.used_tag ,used_tag ,other.used_tag ) ;
-		live_out  |= other.live_out                   ;
-		pressure   = ::max(pressure ,other.pressure ) ;
-		reason    |= other.reason                     ;
-		tokens1    = ::max(tokens1  ,other.tokens1  ) ;
+		if (!cache   ) cache     =                other.cache     ; else if (+other.cache   ) SWEAR(cache   ==other.cache   ,cache   ,other.cache   ) ;
+		if (!deps    ) deps      =                other.deps      ; else if (+other.deps    ) SWEAR(deps    ==other.deps    ,deps    ,other.deps    ) ;
+		if (!used_tag) used_tag  =                other.used_tag  ; else if (+other.used_tag) SWEAR(used_tag==other.used_tag,used_tag,other.used_tag) ;
+		/**/           live_out |=                other.live_out  ;
+		/**/           pressure  = ::max(pressure,other.pressure) ;
+		/**/           reason   |=                other.reason    ;
+		/**/           tokens1   = ::max(tokens1 ,other.tokens1 ) ;
 		return self ;
 	}
 	SubmitAttrs operator|(SubmitAttrs const& other) const {
@@ -955,8 +954,7 @@ struct SubmitAttrs {
 	bool                live_out  = false ;
 	Time::CoarseDelay   pressure  = {}    ;
 	JobReason           reason    = {}    ;
-	BackendTag          asked_tag = {}    ; // tag asked by job
-	BackendTag          used_tag  = {}    ; // tag used (possibly made local because asked tag is not available)
+	BackendTag          used_tag  = {}    ; // tag actually used (possibly made local because asked tag is not available)
 	Tokens1             tokens1   = 0     ;
 	// END_OF_VERSIONING
 } ;

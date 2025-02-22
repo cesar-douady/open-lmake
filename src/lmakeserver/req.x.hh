@@ -216,7 +216,6 @@ namespace Engine {
 			::array <Watcher,NWatchers>  _watchers_a ;            //      64 bits, if _n_watchers< VectorMrkr
 		} ;
 	} ;
-	static_assert(sizeof(ReqInfo)==16) ;                          // check expected size
 
 }
 

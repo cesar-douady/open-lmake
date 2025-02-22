@@ -35,7 +35,6 @@ StdAttrs = { #!               type   dynamic
 ,	'force'               : ( bool  , False )
 ,	'ignore_stat'         : ( bool  , True  )
 ,	'job_name'            : ( str   , False )
-,	'job_tokens'          : ( int   , True  )
 ,	'keep_tmp'            : ( bool  , True  )
 ,	'kill_sigs'           : ( tuple , True  )
 ,	'lmake_view'          : ( str   , True  )
@@ -436,11 +435,6 @@ class Handle :
 					if k in seen_keys : del self.attrs[e][k]
 				seen_keys |= self.attrs[e].keys()
 
-	def handle_create_none(self) :
-		self._init()
-		self._handle_val('job_tokens')
-		self.rule_rep.create_none_attrs = self._finalize()
-
 	def handle_deps(self) :
 		attrs        = self.attrs
 		special_deps = {}
@@ -594,7 +588,6 @@ def do_fmt_rule(rule) :
 	#
 	h.prepare()
 	#
-	h.handle_create_none ()
 	h.handle_deps        ()
 	h.handle_submit_rsrcs()
 	h.handle_submit_none ()

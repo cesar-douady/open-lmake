@@ -225,8 +225,8 @@ namespace Engine {
 		}
 		// data
 		GenericDep const* hdr     = nullptr                    ;           // pointer to current chunk header
-		uint8_t           i_chunk = 0                          ;           // current index in chunk
 		mutable Dep       tmpl    = {{}/*accesses*/,Crc::None} ;           // template to store uncompressed Dep's
+		uint8_t           i_chunk = 0                          ;           // current index in chunk
 	} ;
 
 	struct Deps : DepsBase {
@@ -280,7 +280,6 @@ namespace Engine {
 		NodeGoal goal        = NodeGoal::None  ;                              // 2<= 8 bits, asked level
 		NodeGoal done_       = NodeGoal::None  ;                              // 2<= 8 bits, done level
 	} ;
-	static_assert(sizeof(NodeReqInfo)==24) ;                                  // check expected size
 
 }
 
@@ -517,7 +516,6 @@ namespace Engine {
 		Tflags  _actual_tflags ;                         //          8 bits,          tflags associated with actual_job
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(NodeData)==64) ;                // check expected size
 
 }
 

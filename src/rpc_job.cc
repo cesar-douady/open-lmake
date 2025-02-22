@@ -1020,14 +1020,13 @@ void JobStartRpcReply::exit() {
 
 ::string& operator+=( ::string& os , SubmitAttrs const& sa ) {
 	First first ;
-	/**/               os << "SubmitAttrs("                    ;
-	if (+sa.asked_tag) os <<first("",",")<< "A:"<<sa.asked_tag ;
-	if (+sa.used_tag ) os <<first("",",")<< "U:"<<sa.used_tag  ;
-	if ( sa.live_out ) os <<first("",",")<< "live_out"         ;
-	if (+sa.pressure ) os <<first("",",")<< sa.pressure        ;
-	if (+sa.deps     ) os <<first("",",")<< sa.deps            ;
-	if (+sa.reason   ) os <<first("",",")<< sa.reason          ;
-	return             os <<')'                                ;
+	/**/              os << "SubmitAttrs("              ;
+	if (+sa.used_tag) os <<first("",",")<< sa.used_tag  ;
+	if ( sa.live_out) os <<first("",",")<< "live_out"   ;
+	if (+sa.pressure) os <<first("",",")<< sa.pressure  ;
+	if (+sa.deps    ) os <<first("",",")<< sa.deps      ;
+	if (+sa.reason  ) os <<first("",",")<< sa.reason    ;
+	return            os <<')'                          ;
 }
 
 //

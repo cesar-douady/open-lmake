@@ -190,7 +190,6 @@ namespace Backends {
 		TraceLock lock{ _s_mutex , s_cmd_timeout , BeChnl , "s_submit" } ;
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_attrs,rsrcs) ;
 		//
-		submit_attrs.asked_tag = tag ;
 		if ( tag!=Tag::Local && _localize(tag,r) ) {
 			SWEAR(+tag<N<Tag>) ;                                                              // prevent compiler array bound warning in next statement
 			throw_unless( s_tab[+tag] , "open-lmake was compiled without ",tag," support" ) ;

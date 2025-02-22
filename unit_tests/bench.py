@@ -56,12 +56,12 @@ if __name__!='__main__' :
 	class Compile(Base) :
 		targets = { 'OBJ' : r'{File:.*}.o' }
 		deps    = { 'SRC' : '{File}.c'     }
-		cmd     = 'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -c -o {OBJ} -xc {SRC}'
+		cmd     = f'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -c -o {{OBJ}} -xc {{SRC}}'
 
 	class Link(Base) :
 		targets = { 'EXE' : r'exe_{N:\d+}.exe' }
 		deps    = { 'OBJ' : 'exe_{N}.o'        }
-		cmd     = "PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -o {EXE} {OBJ} {' '.join(f'obj_{N}_{o}.o' for o in range(l))}"
+		cmd     = f"PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -o {{EXE}} {{OBJ}} {' '.join(f'obj_{{N}}_{o}.o' for o in range(l))}"
 
 	class All(Base,PyRule) :
 		target = r'all_{N:\d+}'

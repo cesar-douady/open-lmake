@@ -633,9 +633,9 @@ namespace Engine {
 								if (+start.timeout                ) push_entry( "timeout"     , start.timeout.short_str()              ) ;
 								if ( start.use_script             ) push_entry( "use_script"  , "true"                                 ) ;
 								//
-								if      (sa.asked_tag==BackendTag::Local) SWEAR(sa.used_tag==BackendTag::Local) ;
-								else if (sa.used_tag==sa.asked_tag      ) push_entry( "backend" , snake_str(sa.asked_tag)                                     ) ;
-								else                                      push_entry( "backend" , snake_str(sa.asked_tag)+" -> "+sa.used_tag , Color::Warning ) ;
+								if      (job->backend==BackendTag::Local) SWEAR(sa.used_tag==BackendTag::Local) ;
+								else if (sa.used_tag ==job->backend     ) push_entry( "backend" , snake_str(job->backend)                                     ) ;
+								else                                      push_entry( "backend" , snake_str(job->backend)+" -> "+sa.used_tag , Color::Warning ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;

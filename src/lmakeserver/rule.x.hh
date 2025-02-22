@@ -599,7 +599,6 @@ namespace Engine {
 		State state = State::CmdOld ;        // if !=No, cmd is ok, if ==Yes, rsrcs are not
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(RuleCrcData)==32) ; // check expecte size
 
 	// SimpleMatch does not call Python and only provides services that can be served with this constraint
 	struct Rule::SimpleMatch {

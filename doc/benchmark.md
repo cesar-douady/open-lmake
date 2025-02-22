@@ -40,6 +40,18 @@ For each build-system:
 - `all_10` is rebuilt
 - `all_10` is rebuilt a second time (partial no-op rebuild)
 
+## used command lines
+
+| build system | command line                                             | comments                                              |
+|--------------|----------------------------------------------------------|-------------------------------------------------------|
+| bash         | `./run`                                                  | 16 parallel processes and target are built-in         |
+| make         | `make -j 16 all_10000`                                   |                                                       |
+| ninja        | `ninja -j 16 all_10000`                                  |                                                       |
+| bazel        | `bazel build --jobs=16 --spawn_strategy=local all_10000` |                                                       |
+| lmake        | `lmake all_10000`                                        | number of parallel jobs is provided in `Lmakefile.py` |
+
+In all cases output is redirected to `/dev/null` to avoid pertubation due to displaying.
+
 ## Notes on the benchmark
 
 Thanks to open-lmake [autodep mechanism](autodep.md), there is no dependencies information in the config file.
@@ -58,20 +70,19 @@ This is key for `bazel`'s scalability.
 Although this could have been done here, it would not be representative of a real situation where dependencies, names etc. are all different for each target, defeating any loop based approach.
 As a consequence, all config files have a line for each target, except open-lmake where this information is stored in its dynamic state.
 
-The running host has 8 cpu's (including hyper-threading).
-Builds are run with either 8 or 16 parallel jobs, whichever is faster.
+The running host has 8 cpu's (including hyper-threading) and the number of parallel jobs is 16, which seems best for all build systems.
 
 ## Results
 
-|                                 | `bash` | `make`     | `ninja`  | `bazel` | open-lmake | Comment                                                       |
-|---------------------------------|--------|------------|----------|---------|------------|---------------------------------------------------------------|
-| number of parallel jobs         | 8      | 16         | 16       | 8       | 16         |                                                               |
-| fresh rebuild                   |        |            |          |         | 8m 46s     | initial build                                                 |
-| full rebuild                    | 5m 53s | **5m 50s** | 6m 07s   | 7m 22s  | 7m 06s     | after erasing all built files and `bazel` cache               |
-| full no-op rebuild              |        | 7.725s     | 0.913s   | 5.256s  | **0.777s** | after no modification                                         |
-| partial no-op rebuild           |        | 0.871s     | 0.462s   | 4.225s  | **0.241s** | build of a target that only requires exploration of 100 files |
-| config file size (lines)        | 120017 | 120008     | 120011   | 120002  | **11**     | note open-lmake contains no dep info in its config            |
-| resident memory on full rebuild | 123M   | 406M       | **136M** | 8.7G    | 204M       |                                                               |
+|                                 | `bash` | `make` | `ninja`    | `bazel` | open-lmake | Comment                                                       |
+|---------------------------------|--------|--------|------------|---------|------------|---------------------------------------------------------------|
+| number of parallel jobs         | 16     | 16     | 16         | 16      | 16         |                                                               |
+| fresh rebuild                   |        |        |            |         | 8m 46s     | initial build                                                 |
+| full rebuild                    | 5m 48s | 5m 52s | **5m 45s** | 7m 15s  | 8m 03s     | after erasing all built files and `bazel` cache               |
+| full no-op rebuild              |        | 7.725s | 0.913s     | 9.691s  | **0.777s** | after no modification                                         |
+| partial no-op rebuild           |        | 0.871s | 0.462s     | 9.012s  | **0.241s** | build of a target that only requires exploration of 100 files |
+| config file size (lines)        | 120017 | 120008 | 120011     | 120002  | **11**     | note open-lmake contains no dep info in its config            |
+| resident memory on full rebuild | 123M   | 406M   | **136M**   | 8.7G    | 207M       |                                                               |
 
 ## Notes on the results
 
