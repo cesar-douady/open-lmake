@@ -192,11 +192,11 @@ public :
 		using Char = ::conditional_t<Writable,char,const char> ;
 		// cxtors & casts
 		_Path(                          )                           {                       }
-		_Path( Fd a                     ) : at{a}                   {                       }
-		_Path(        Char*           f ) :         file{f        } {                       }
-		_Path( Fd a , Char*           f ) : at{a} , file{f        } {                       }
-		_Path(        ::string const& f ) :         file{f.c_str()} { _allocate(f.size()) ; }
-		_Path( Fd a , ::string const& f ) : at{a} , file{f.c_str()} { _allocate(f.size()) ; }
+		_Path( Fd a                     ) :                   at{a} {                       }
+		_Path(        Char*           f ) : file{f        }         {                       }
+		_Path( Fd a , Char*           f ) : file{f        } , at{a} {                       }
+		_Path(        ::string const& f ) : file{f.c_str()}         { _allocate(f.size()) ; }
+		_Path( Fd a , ::string const& f ) : file{f.c_str()} , at{a} { _allocate(f.size()) ; }
 		//
 		_Path(_Path && p) { self = ::move(p) ; }
 		_Path& operator=(_Path&& p) {
@@ -225,9 +225,9 @@ public :
 		}
 		// data
 	public :
+		Char* file      = nullptr ;                                                                                   // at & file may be modified, but together, they always refer to the same file ...
+		Fd    at        = Fd::Cwd ;                                                                                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
 		bool  allocated = false   ;                                                                                   // if true <=> file has been allocated and must be freed upon destruction
-		Fd    at        = Fd::Cwd ;                                                                                   // at & file may be modified, but together, they always refer to the same file ...
-		Char* file      = nullptr ;                                                                                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ; //!            Writable
 	using Path  = _Path<false> ;
 	using WPath = _Path<true > ;
@@ -281,8 +281,8 @@ public :
 		// services
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 		//
-		::string const& real_write() const { return +real0 ? real0 : real ; }
-		::string      & real_write()       { return +real0 ? real0 : real ; }
+		::string const& real_write() const { return real0 | real ; }
+		::string      & real_write()       { return real0 | real ; }
 		// data
 		FileLoc  file_loc  = FileLoc::Unknown ;
 		FileLoc  file_loc0 = FileLoc::Unknown ;
@@ -299,7 +299,10 @@ public :
 		Chdir() = default ;
 		Chdir( Record& , Path&& , ::string&& comment ) ;
 		// services
-		int operator()( Record& , int rc ) ;
+		int operator()( Record& r , int rc ) {
+			if (rc==0) r.chdir() ;
+			return rc ;
+		}
 	} ;
 	struct Chmod : Solve {
 		// cxtors & casts
@@ -366,7 +369,7 @@ public :
 			return rc ;
 		}
 		// data
-		uint64_t id = 0/*garbage*/ ;
+		uint64_t id = 0 ; // no confirmation by default
 	} ;
 	template<bool ChkSimple=false> struct _Read : _Solve<false/*Writable*/,ChkSimple> {
 		using Base = _Solve<false/*Writable*/,ChkSimple> ;
@@ -437,7 +440,7 @@ public :
 			return rc ;
 		}
 		// data
-		uint64_t id = 0/*garbage*/ ;
+		uint64_t id = 0 ; // no confirmation if rmdir
 	} ;
 	//
 	void chdir() {

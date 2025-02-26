@@ -314,6 +314,8 @@ int main( int argc , char* argv[] ) {
 	g_phy_repo_root_s = with_slash         (argv[6]) ; // passed early so we can chdir and trace early
 	g_trace_id        = from_string<SeqId >(argv[7]) ;
 	//
+	g_repo_root_s = &g_phy_repo_root_s ;               // no need to search for it
+	//
 	g_trace_file = new ::string{g_phy_repo_root_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} , {.end_date=start_overhead,.status=Status::EarlyErr} } ; // prepare to return an error, so we can goto End anytime
@@ -327,7 +329,7 @@ int main( int argc , char* argv[] ) {
 	}
 	Trace::s_sz = 10<<20 ;                                                                               // this is more than enough
 	block_sigs({SIGCHLD}) ;                                                                              // necessary to capture it using signalfd
-	app_init(false/*read_only_ok*/,No/*chk_version*/) ;
+	app_init(false/*read_only_ok*/,No/*chk_version*/,No/*cd_root*/) ;
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
@@ -338,7 +340,7 @@ int main( int argc , char* argv[] ) {
 		try                       { g_start_info.job_space.mk_canon(g_phy_repo_root_s) ; }
 		catch (::string const& e) { end_report.msg += e ; goto End ;                     }
 		//
-		g_repo_root_s = new ::string{ +g_start_info.job_space.repo_view_s ? g_start_info.job_space.repo_view_s : g_phy_repo_root_s } ;
+		g_repo_root_s = new ::string{ g_start_info.job_space.repo_view_s | g_phy_repo_root_s } ;
 		//
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
@@ -352,22 +354,26 @@ int main( int argc , char* argv[] ) {
 				end_report.digest.status = Status::LateLostErr ;
 				goto End ;
 			}
-			g_exec_trace->emplace_back(New,"washed") ;
 		}
+		Pdate washed { New } ;
+		g_exec_trace->emplace_back(washed,"washed") ;
 		//
 		SWEAR(!end_report.phy_tmp_dir_s,end_report.phy_tmp_dir_s) ;
-		if (g_start_info.keep_tmp) {
-			end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
-		} else {
-			auto it = g_start_info.env.begin() ;
+		{	auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if      (it==g_start_info.env.end()       ) {}
-			else if (it->second!=EnvPassMrkr          ) end_report.phy_tmp_dir_s << with_slash(it->second       )<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
-			else if (has_env("TMPDIR")                ) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
-			if      (!end_report.phy_tmp_dir_s        ) end_report.phy_tmp_dir_s << g_phy_repo_root_s<<PrivateAdminDirS<<"tmp/"         <<g_start_info.small_id<<'/' ;
-			else if (!is_abs(end_report.phy_tmp_dir_s)) {
-				end_report.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
-				goto End ;
+			if ( it==g_start_info.env.end() || +it->second ) {                                           // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
+				if (g_start_info.keep_tmp) {
+					end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
+				} else {
+					if      (it==g_start_info.env.end()       ) {}
+					else if (it->second!=EnvPassMrkr          ) end_report.phy_tmp_dir_s << with_slash(it->second       )<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
+					else if (has_env("TMPDIR")                ) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
+					if      (!end_report.phy_tmp_dir_s        ) end_report.phy_tmp_dir_s << g_phy_repo_root_s<<PrivateAdminDirS<<"tmp/"         <<g_start_info.small_id<<'/' ;
+					else if (!is_abs(end_report.phy_tmp_dir_s)) {
+						end_report.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
+						goto End ;
+					}
+				}
 			}
 		}
 		//
@@ -390,13 +396,13 @@ int main( int argc , char* argv[] ) {
 				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
 					for( ::string& l : sr.lnks )
-						/**/                            g_gather.new_dep   ( start_overhead , ::move(l      ) ,  Access::Lnk  , "mount_lnk"    ) ;
+						/**/                            g_gather.new_dep   ( washed , ::move(l      ) ,  Access::Lnk  , "mount_lnk"    ) ;
 					if (sr.file_loc<=FileLoc::Dep) {
-						if      (a==MountAction::Read ) g_gather.new_dep   ( start_overhead , ::move(sr.real) , ~Access::Stat , "mount_src"    ) ;
-						else if (sr.file_accessed==Yes) g_gather.new_dep   ( start_overhead , ::move(sr.real) ,  Access::Lnk  , "mount_src"    ) ;
+						if      (a==MountAction::Read ) g_gather.new_dep   ( washed , ::move(sr.real) , ~Access::Stat , "mount_src"    ) ;
+						else if (sr.file_accessed==Yes) g_gather.new_dep   ( washed , ::move(sr.real) ,  Access::Lnk  , "mount_src"    ) ;
 					}
 					if (sr.file_loc<=FileLoc::Repo) {
-						if      (a==MountAction::Write) g_gather.new_target( start_overhead , ::move(sr.real) ,                 "mount_target" ) ;
+						if      (a==MountAction::Write) g_gather.new_target( washed , ::move(sr.real) ,                 "mount_target" ) ;
 					}
 				}
 				g_exec_trace->emplace_back(New,"entered_namespace") ;
@@ -419,6 +425,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.live_out          =        g_start_info.live_out               ;
 		g_gather.method            =        g_start_info.method                 ;
 		g_gather.network_delay     =        g_start_info.network_delay          ;
+		g_gather.no_tmp            =       !end_report.phy_tmp_dir_s            ;
 		g_gather.seq_id            =        g_seq_id                            ;
 		g_gather.server_master_fd  = ::move(server_fd                         ) ;
 		g_gather.service_mngt      =        g_service_mngt                      ;
@@ -430,10 +437,10 @@ int main( int argc , char* argv[] ) {
 				if ( digest.is_crc && !digest.crc().valid() ) digest.sig(FileSig(d)) ;
 			}
 		//
-		g_gather.new_deps( start_overhead , ::move(g_start_info.deps) , g_start_info.stdin ) ;
+		g_gather.new_deps( washed , ::move(g_start_info.deps) , g_start_info.stdin ) ;
 		for( auto const& [t,f] : g_match_dct.knowns )
 			if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] )
-				g_gather.new_unlnk(start_overhead,t) ;                                                   // always report non-optional static targets
+				g_gather.new_unlnk(washed,t) ;                                                           // always report non-optional static targets
 		//
 		if (+g_start_info.stdin) g_gather.child_stdin = Fd(g_start_info.stdin) ;
 		else                     g_gather.child_stdin = Fd("/dev/null"       ) ;
@@ -443,7 +450,7 @@ int main( int argc , char* argv[] ) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
 			g_gather.child_stdout = Fd(dir_guard(g_start_info.stdout),Fd::Write) ;
-			g_gather.new_target( start_overhead , g_start_info.stdout , "<stdout>" ) ;
+			g_gather.new_target( washed , g_start_info.stdout , "<stdout>" ) ;
 			g_gather.child_stdout.no_std() ;
 		}
 		g_gather.cmd_line = cmd_line() ;
@@ -452,7 +459,7 @@ int main( int argc , char* argv[] ) {
 		try                       { status = g_gather.exec_child() ; }
 		//                                   ^^^^^^^^^^^^^^^^^^^^^
 		catch (::string const& e) { end_report.msg += e ; goto End ; }
-		struct rusage rsrcs ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
+		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
 		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                             // XXX> : suppress when CentOS7 bug is fixed
 		//

@@ -1521,12 +1521,17 @@ There are cases where open-lmake cannot anticipate such an overwrite.</p>
 <h2 id="tmp-directory"><a class="header" href="#tmp-directory">tmp directory</a></h2>
 <p>The physical directory is:</p>
 <ul>
+<li>If <code>$TMPDIR</code> is set to empty, there is no tmp directory.</li>
 <li>If open-lmake is supposed to keep this directory after job execution, it is a directory under <code>LMAKE/tmp</code>, determined by open-lmake (its precise value is reported by <code>lshow -i</code>).</li>
 <li>Else if <code>$TMPDIR</code> is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-directory within it.</li>
 <li>Else, a directory determined by open-lmake lying in the <code>LMAKE</code> directory.</li>
 </ul>
 <p>Unless open-lmake is instructed to keep this directory, it is erased at the end of the job execution.</p>
-<p>Note that in all cases, <code>$TMPDIR</code> is set so that the job can use it to access the tmp directory.</p>
+<p>At execution time:</p>
+<ul>
+<li>If <code>$TMPDIR</code> is set to empty, it is suppressed from the environment and if the job uses the default tmp directory (usually <code>/tmp</code>), an error is generated.</li>
+<li>Else <code>$TMPDIR</code> is set so that the job can use it to access the tmp directory.</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -1705,6 +1710,12 @@ The key identifies the resource and the value is a <code>int</code> that identif
 </ul>
 <p>In the two latter cases, required resources are translated into local resources (best effort)
 and if not possible (e.g. because a resource is not available locally or because special constraints cannot be translated), then only one such job can run at any given time.</p>
+<h3 id="configuration"><a class="header" href="#configuration">Configuration</a></h3>
+<p>The configuration provides the available resources :</p>
+<ul>
+<li>standard resoureces <code>cpu</code>, <code>mem</code> and <code>tmp</code></li>
+<li>any user defined resource</li>
+</ul>
 <p>Each rule whose <code>backend</code> attribute is <code>'local'</code> provides a <code>resources</code> attribute such that:</p>
 <ul>
 <li>The key identifies a resource (which must match a resource in the configuration).</li>
@@ -1718,12 +1729,15 @@ and if not possible (e.g. because a resource is not available locally or because
 <li><code>mem</code> : The physical memory size as returned by <code>s.sysconf('SC_PHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')</code> in MB.</li>
 </ul>
 <p>Each rule has a default <code>resources</code> attribute requiring one CPU.</p>
+<h3 id="command-line-option"><a class="header" href="#command-line-option">Command line option</a></h3>
+<p>The command line option passed with <code>-b</code> or <code>--backend</code> is ignored.</p>
 <h2 id="sge-backend"><a class="header" href="#sge-backend">SGE backend</a></h2>
 <p>The SGE backend connects to a SGE daemon to schedule jobs, which allows:</p>
 <ul>
 <li>a global scheduling policy (while the local backend only sees jobs in its own repository).</li>
 <li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
 </ul>
+<h3 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h3>
 <p>The configuration is composed of:</p>
 <ul>
 <li><code>bin</code>  : The directory in which to find SGE executables such as <code>qsub</code>. This entry must be specified.</li>
@@ -1731,16 +1745,20 @@ and if not possible (e.g. because a resource is not available locally or because
 By default, this is automatically determined by the SGE daemon.</li>
 <li><code>cluster</code> : The cluster used by the SGE daemon. This is translated into <code>$SGE_CLUSTER</code> when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.</li>
+<li><code>cmd_timeout</code> : the maximum time commands such as <code>qsub</code>, <code>qdel</code> or <code>qstat</code> may take.
+Default is 100 seconds.
+If not long enough, <code>open-lmake</code> may crash with a <code>dead-lock detected</code> message.</li>
 <li><code>default_prio</code> : the priority used to submit jobs to the SGE daemon if none is specified on the <code>lmake</code> command line.</li>
-<li><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
-This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
+<li><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to SGE for each set of asked resources.
+This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend to require only a small set of different resources
 (helped in this by the limited precision on CPU, memory and temporary disk space requirements).
-for each given set of resources, only the jobs with highest priorities are submitted to slurm, the other ones are retained by open-lmake so as to limit the number of waiting jobs in slurm queues
+For each given set of resources, only the jobs with highest priorities are submitted to SGE, the other ones are retained by open-lmake so as to limit the number of waiting jobs in slurm queues
 (the number of running job is not limited, though).
-This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to slurm.
+This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to SGE.
 If too low, the schedule rate may decrease because by the time taken, when a job finishes, for open-lmake to submit a new job, slurm might have exhausted its waiting queue.
 If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
-A reasonable value probably lies in the 20-100 range.</li>
+A reasonable value probably lies in the 10-100 range.
+Default is 10.</li>
 <li><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make SGE job names.
 This key is meant to be a short identifier of the repository.
 By default it is the base name of the repository followed by <code>:</code>.
@@ -1753,6 +1771,7 @@ For example if specified as <code>mem_r</code> and the rule of a job contains <c
 <li><code>tmp_resource</code> : This is the name of a resource used to require memory temporary disk space in MB.
 For example if specified as <code>tmp_r</code> and the rule of a job contains <code>resources={'tmp':'100M'}</code>, this is translated into <code>-l tmp_r=100</code> on the <code>qsub</code> command line.</li>
 </ul>
+<h3 id="resources-1"><a class="header" href="#resources-1">Resources</a></h3>
 <p>The <code>resources</code> rule attributes is composed of :</p>
 <ul>
 <li>standard resources <code>cpu</code>, <code>mem</code> and <code>tmp</code>.</li>
@@ -1760,12 +1779,16 @@ For example if specified as <code>tmp_r</code> and the rule of a job contains <c
 <li><code>soft</code> : <code>qsub</code> options to be used after a <code>-soft</code> option.</li>
 <li>any other resource passed to the SGE daemon through the <code>-l</code> <code>qsub</code> option.</li>
 </ul>
-<h2 id="slurm-backend"><a class="header" href="#slurm-backend">slurm backend</a></h2>
+<h3 id="command-line-option-1"><a class="header" href="#command-line-option-1">Command line option</a></h3>
+<p>The only option that can be passed from command line (<code>-b</code> or <code>--backend</code>) is the priority through the <code>-p</code> options of <code>qsub</code>.</p>
+<p>Hence, the command line option must directly contain the priority to pass to <code>qsub</code>.</p>
+<h2 id="slurm-backend"><a class="header" href="#slurm-backend">Slurm backend</a></h2>
 <p>The slurm backend connects to a slurm daemon to schedule jobs, which allows :</p>
 <ul>
 <li>a global scheduling policy (while the local backend only sees jobs in its own repository).</li>
 <li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
 </ul>
+<h3 id="configuration-2"><a class="header" href="#configuration-2">Configuration</a></h3>
 <p>The configuration is composed of :</p>
 <ul>
 <li>
@@ -1780,7 +1803,8 @@ for each given set of resources, only the jobs with highest priorities are submi
 This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to slurm.
 If too low, the schedule rate may decrease because by the time taken, when a job finishes, for open-lmake to submit a new job, slurm might have exhausted its waiting queue.
 If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
-A reasonable value probably lies in the 20-100 range.</p>
+A reasonable value probably lies in the 10-100 range.
+Default is 10.</p>
 </li>
 <li>
 <p><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make slurm job names.
@@ -1824,6 +1848,7 @@ The default value is <code>1</code> which seems to be a good compromise.</li>
 </ul>
 <p>Overall, you can ignore these parameters for open-lmake internal needs, the default values work fine.
 They have been implemented to have means to control interactions with jobs submitted to slurm from outside open-lmake.</p>
+<h3 id="resources-2"><a class="header" href="#resources-2">Resources</a></h3>
 <p>The <code>resources</code> rule attributes is composed of:</p>
 <ul>
 <li>standard resources <code>cpu</code>, <code>mem</code> and <code>tmp</code>.</li>
@@ -1832,7 +1857,24 @@ For heterogeneous jobs, these attribute names may be followed by an index identi
 The absence of index is equivalent to index 0.</li>
 <li>any other resource passed to the slurm daemon as <code>licenses</code> if such licenses are declared in the slurm configuration, else as <code>gres</code>.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<h3 id="command-line-option-2"><a class="header" href="#command-line-option-2">Command line option</a></h3>
+<p>The command line option passed with the <code>-b</code> or <code>--backend</code> option is a space separate list of options.
+The following table describes supported option, with a description when it does not correspond to the identical option of <code>srun</code>.</p>
+<div class="table-wrapper"><table><thead><tr><th>Short option</th><th>Long option</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>-c</code></td><td>cpus-per-task</td><td>cpu resource to use</td></tr>
+<tr><td></td><td>mem</td><td>mem resource to use</td></tr>
+<tr><td></td><td>tmp</td><td>tmp resource to use</td></tr>
+<tr><td><code>-C</code></td><td>constraint</td><td></td></tr>
+<tr><td><code>-x</code></td><td>exclude</td><td></td></tr>
+<tr><td></td><td>gres</td><td></td></tr>
+<tr><td><code>-L</code></td><td>licenses</td><td></td></tr>
+<tr><td><code>-w</code></td><td>nodelist</td><td></td></tr>
+<tr><td><code>-p</code></td><td>partition</td><td></td></tr>
+<tr><td><code>-q</code></td><td>qos</td><td></td></tr>
+<tr><td></td><td>reservation</td><td></td></tr>
+<tr><td><code>-h</code></td><td>help</td><td>print usage         )</td></tr>
+</tbody></table>
+</div><div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->

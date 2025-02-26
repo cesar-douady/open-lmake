@@ -49,7 +49,6 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "chroot_dir_s : "  << jsrr.job_space.chroot_dir_s  <<'\n' ;
 	g_out << "sub_repo_s   : "  << jsrr.autodep_env.sub_repo_s  <<'\n' ;
 	g_out << "ddate_prec   : "  << jsrr.ddate_prec              <<'\n' ;
-	g_out << "ignore_stat  : "  << jsrr.autodep_env.ignore_stat <<'\n' ;
 	g_out << "interpreter  : "  << jsrr.interpreter             <<'\n' ;
 	g_out << "keep_tmp     : "  << jsrr.keep_tmp                <<'\n' ;
 	g_out << "key          : "  << jsrr.key                     <<'\n' ;

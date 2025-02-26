@@ -34,7 +34,7 @@ static void _terminate() {
 	catch (...                 ) { crash(4,SIGABRT,"uncaught exception"           ) ; }
 }
 
-bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_root ) {
+bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_root ) {
 	::set_terminate(_terminate) ;
 	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ; // catch all synchronous signals so as to generate a backtrace
 	//
@@ -44,11 +44,13 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 			SearchRootResult srr = search_root_s() ;
 			g_repo_root_s    = new ::string{srr.top_s} ;
 			*g_startup_dir_s = srr.startup_s           ;
-		} catch (::string const& e) { exit(Rc::Usage,e) ; }
-		if ( cd_root && +*g_startup_dir_s && ::chdir(no_slash(*g_repo_root_s).c_str())!=0 ) exit(Rc::System,"cannot chdir to ",no_slash(*g_repo_root_s)) ;
+			if ( cd_root==Yes && +*g_startup_dir_s && ::chdir(no_slash(*g_repo_root_s).c_str())!=0 ) exit(Rc::System,"cannot chdir to ",no_slash(*g_repo_root_s)) ;
+		} catch (::string const& e) {
+			if (cd_root!=No) exit(Rc::Usage,e) ;
+		}
 	}
 	::string exe_path = get_exe() ;
-	/**/               g_exe_name     = new ::string{::base_name(exe_path)                 } ;
+	/**/               g_exe_name     = new ::string{base_name(exe_path)                   } ;
 	if (!g_trace_file) g_trace_file   = new ::string{PrivateAdminDirS+"trace/"s+*g_exe_name} ;
 	/**/               g_lmake_root_s = new ::string{dir_name_s(exe_path,2)                } ;
 	#if PROFILING
@@ -66,7 +68,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , bool cd_roo
 	if (!read_only)
 		try                       { Trace::s_start() ; }
 		catch (::string const& e) { exit(Rc::Perm,e) ; }
-	Trace trace("app_init",chk_version_,STR(cd_root),g_startup_dir_s?*g_startup_dir_s:""s) ;
+	Trace trace("app_init",chk_version_,cd_root,g_startup_dir_s?*g_startup_dir_s:""s) ;
 	return read_only ;
 }
 

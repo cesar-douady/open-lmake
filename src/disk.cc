@@ -502,6 +502,8 @@ namespace Disk {
 		static constexpr ::string_view ProcSelfFdS = "/proc/self/fd/"   ;
 		static constexpr int           NMaxLnks    = _POSIX_SYMLOOP_MAX ; // max number of links to follow before decreting it is a loop
 		//
+		::string_view tmp_dir_s = +_env->tmp_dir_s ? ::string_view(_env->tmp_dir_s) : ::string_view(P_tmpdir "/") ;
+		//
 		::vector_s    lnks          ;
 		::string      local_file[2] ;                                     // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
 		bool          ping          = false/*garbage*/ ;                  // ping-pong state
@@ -518,7 +520,7 @@ namespace Disk {
 			if (real.size()==1) real.clear() ;                                              // if '/', we must substitute the empty string to enforce invariant
 		}
 		_Dvg in_repo  { _env->repo_root_s , real } ;                                        // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
-		_Dvg in_tmp   { _env->tmp_dir_s   , real } ;                                        // keep track of where we are w.r.t. tmp        , always track symlinks
+		_Dvg in_tmp   { tmp_dir_s         , real } ;                                        // keep track of where we are w.r.t. tmp        , always track symlinks
 		_Dvg in_admin { _admin_dir_s      , real } ;                                        // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
 		_Dvg in_proc  { ProcS             , real } ;                                        // keep track of where we are w.r.t. /proc      , always track symlinks
 		// loop INVARIANT : accessed file is real+'/'+cur.substr(pos)
@@ -530,7 +532,7 @@ namespace Disk {
 		;	pos <= cur.size()
 		;		pos = end+1
 			,	in_repo.update(_env->repo_root_s,real)                                      // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
-			,	in_tmp .update(_env->tmp_dir_s  ,real)                                      // .
+			,	in_tmp .update(tmp_dir_s        ,real)                                      // .
 			,	in_proc.update(ProcS            ,real)                                      // .
 		) {
 			end = cur.find( '/', pos ) ;
@@ -550,7 +552,7 @@ namespace Disk {
 			in_admin.update(_admin_dir_s,real) ;                                            // for the admin domain, it starts at itself, i.e. the admin dir is part of the domain
 			if ( !exists           ) continue       ;                                       // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
 			if ( no_follow && last ) continue       ;                                       // dont care about last component if no_follow
-			size_t src_idx = Npos/*garbagte*/ ;
+			size_t src_idx = Npos/*garbage*/ ;
 			if ( +in_tmp           ) goto HandleLnk ;                                       // note that tmp can lie within repo or admin
 			if ( +in_admin         ) continue       ;
 			if ( +in_proc          ) goto HandleLnk ;

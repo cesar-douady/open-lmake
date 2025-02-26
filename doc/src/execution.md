@@ -126,6 +126,7 @@ There are cases where open-lmake cannot anticipate such an overwrite.
 
 The physical directory is:
 
+- If `$TMPDIR` is set to empty, there is no tmp directory.
 - If open-lmake is supposed to keep this directory after job execution, it is a directory under `LMAKE/tmp`, determined by open-lmake (its precise value is reported by `lshow -i`).
 - Else if `$TMPDIR` is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-directory within it.
 - Else, a directory determined by open-lmake lying in the `LMAKE` directory.
@@ -133,4 +134,7 @@ The physical directory is:
 
 Unless open-lmake is instructed to keep this directory, it is erased at the end of the job execution.
 
-Note that in all cases, `$TMPDIR` is set so that the job can use it to access the tmp directory.
+At execution time:
+
+- If `$TMPDIR` is set to empty, it is suppressed from the environment and if the job uses the default tmp directory (usually `/tmp`), an error is generated.
+- Else `$TMPDIR` is set so that the job can use it to access the tmp directory.

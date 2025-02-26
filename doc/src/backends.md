@@ -87,6 +87,13 @@ The local backend is used when either:
 In the two latter cases, required resources are translated into local resources (best effort)
 and if not possible (e.g. because a resource is not available locally or because special constraints cannot be translated), then only one such job can run at any given time.
 
+### Configuration
+
+The configuration provides the available resources :
+
+- standard resoureces `cpu`, `mem` and `tmp`
+- any user defined resource
+
 Each rule whose `backend` attribute is `'local'` provides a `resources` attribute such that:
 
 - The key identifies a resource (which must match a resource in the configuration).
@@ -103,12 +110,18 @@ By default, the configuration contains the 2 generic resources: `cpu` and `mem` 
 
 Each rule has a default `resources` attribute requiring one CPU.
 
+### Command line option
+
+The command line option passed with `-b` or `--backend` is ignored.
+
 ## SGE backend
 
 The SGE backend connects to a SGE daemon to schedule jobs, which allows:
 
 - a global scheduling policy (while the local backend only sees jobs in its own repository).
 - the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).
+
+### Configuration
 
 The configuration is composed of:
 
@@ -143,6 +156,8 @@ The configuration is composed of:
 - `tmp_resource` : This is the name of a resource used to require memory temporary disk space in MB.
   For example if specified as `tmp_r` and the rule of a job contains `resources={'tmp':'100M'}`, this is translated into `-l tmp_r=100` on the `qsub` command line.
 
+### Resources
+
 The `resources` rule attributes is composed of :
 
 - standard resources `cpu`, `mem` and `tmp`.
@@ -150,12 +165,20 @@ The `resources` rule attributes is composed of :
 - `soft` : `qsub` options to be used after a `-soft` option.
 - any other resource passed to the SGE daemon through the `-l` `qsub` option.
 
-## slurm backend
+### Command line option
+
+The only option that can be passed from command line (`-b` or `--backend`) is the priority through the `-p` options of `qsub`.
+
+Hence, the command line option must directly contain the priority to pass to `qsub`.
+
+## Slurm backend
 
 The slurm backend connects to a slurm daemon to schedule jobs, which allows :
 
 - a global scheduling policy (while the local backend only sees jobs in its own repository).
 - the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).
+
+### Configuration
 
 The configuration is composed of :
 
@@ -207,6 +230,8 @@ There are 2 additional parameters that you can set in the `PriorityParams` entry
 Overall, you can ignore these parameters for open-lmake internal needs, the default values work fine.
 They have been implemented to have means to control interactions with jobs submitted to slurm from outside open-lmake.
 
+### Resources
+
 The `resources` rule attributes is composed of:
 
 - standard resources `cpu`, `mem` and `tmp`.
@@ -214,3 +239,23 @@ The `resources` rule attributes is composed of:
   For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example `gres0`, `gres1`).
   The absence of index is equivalent to index 0.
 - any other resource passed to the slurm daemon as `licenses` if such licenses are declared in the slurm configuration, else as `gres`.
+
+### Command line option
+
+The command line option passed with the `-b` or `--backend` option is a space separate list of options.
+The following table describes supported option, with a description when it does not correspond to the identical option of `srun`.
+
+| Short option | Long option   | Description         |
+|--------------|---------------|---------------------|
+| `-c`         | cpus-per-task | cpu resource to use |
+|              | mem           | mem resource to use |
+|              | tmp           | tmp resource to use |
+| `-C`         | constraint    |                     |
+| `-x`         | exclude       |                     |
+|              | gres          |                     |
+| `-L`         | licenses      |                     |
+| `-w`         | nodelist      |                     |
+| `-p`         | partition     |                     |
+| `-q`         | qos           |                     |
+|              | reservation   |                     |
+| `-h`         | help          | print usage         )

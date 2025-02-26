@@ -71,7 +71,7 @@ Item(B(-a),B(--archive))
 Ensure all intermediate files are up to date, in addition to the asked targets.
 This is useful for example if you want to archive a fully built repository.
 Item(B(-b) I(value),B(--backend)=I(value))
-Pass value to backend.
+Pass value to backend (cf. backend documentation for each backend).
 This is used for example to pass a partition or specificities to the slurm backend for a particular command.
 Note that backend only impacts resources and scheduling, not the content of the targets, so specifying such an option does not hurt repeatability.
 Item(B(-e),B(--forget-old-errors))
@@ -147,7 +147,7 @@ B($PATH) is reset to the default path for the system, plus the OpenLmake bin dir
 Bullet
 B($PYTHONPATH) is set to the OpenLmake lib directory.
 Bullet
-B($TMPDIR) is redirected to an isolated, empty directory which is cleaned up at the end of each job execution.
+Unless set to empty, B($TMPDIR) is redirected to an isolated, empty directory which is cleaned up at the end of each job execution.
 This way, the job can freely use this directory and need not take care of clean-up.
 .LP
 Moreover, a few variables are set during job execution :

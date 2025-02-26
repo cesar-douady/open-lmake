@@ -212,7 +212,6 @@ namespace Engine {
 		if (+start.job_space.chroot_dir_s) res << ",\tchroot_dir     = " << mk_py_str(no_slash(start.job_space.chroot_dir_s)) << '\n' ;
 		if (+ade.sub_repo_s              ) res << ",\tsub_repo       = " << mk_py_str(no_slash(ade.sub_repo_s              )) << '\n' ;
 		/**/                               res << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                   ) << '\n' ;
-		/**/                               res << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat                       ) << '\n' ;
 		/**/                               res << ",\tis_python      = " << mk_py_str(j->rule()->is_python                  ) << '\n' ;
 		if (ro.flags[ReqFlag::KeepTmp]   ) res << ",\tkeep_tmp       = " <<           "True"                                  << '\n' ;
 		/**/                               res << ",\tkey            = " << mk_py_str(key                                   ) << '\n' ;
@@ -560,7 +559,7 @@ namespace Engine {
 						break ;
 						case ReqKey::Trace : {
 							if (!end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							sort(end.exec_trace) ;
+							sort( end.exec_trace , [](ExecTraceEntry const& a , ExecTraceEntry const& b )->bool { return a.date<b.date ; } ) ;
 							::string et ;
 							size_t   w  = 0 ; for( ExecTraceEntry const& e : end.exec_trace ) w = ::max(w,e.step.size()) ;
 							for( ExecTraceEntry const& e : end.exec_trace ) {
@@ -628,7 +627,6 @@ namespace Engine {
 								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
 								if (+start.autodep_env.sub_repo_s ) push_entry( "sub_repo"    , no_slash(start.autodep_env.sub_repo_s) ) ;
 								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"  , "true"                                 ) ;
-								if ( start.autodep_env.ignore_stat) push_entry( "ignore_stat" , "true"                                 ) ;
 								/**/                                push_entry( "autodep"     , snake_str(start.method)                ) ;
 								if (+start.timeout                ) push_entry( "timeout"     , start.timeout.short_str()              ) ;
 								if ( start.use_script             ) push_entry( "use_script"  , "true"                                 ) ;
@@ -650,7 +648,7 @@ namespace Engine {
 								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
 								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								//
-								push_entry( "end date" , digest.end_date.str() ) ;
+								push_entry( "end date" , digest.end_date.str(3/*prec*/) ) ;
 								if (porcelaine) { //!                                                                     protect
 									push_entry( "rc"             , wstatus_str(digest.wstatus)             , Color::None , false ) ;
 									push_entry( "cpu time"       , ::to_string(double(digest.stats.cpu  )) , Color::None , false ) ;

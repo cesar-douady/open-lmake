@@ -47,9 +47,6 @@ Item(B(-e) I(dict),B(--env)=I(dict))
 I(dict) must be provided as a dict mapping str to str using the Python syntax (which most probably requires shell quoting).
 Set the listed environment variables to their associated values.
 
-Item(B(-i),B(--ignore-stat))
-Mimic setting the rule attribute B(ignore_stat)=I(True).
-
 Item(B(-k) I(list),B(--keep-env)=I(list))
 I(list) must be provided as a  tuple or list of str using the Python syntax (which most probably requires shell quoting).
 Listed variables are kept from the environment.

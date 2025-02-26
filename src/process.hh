@@ -47,12 +47,12 @@ struct Child {
 	static constexpr Fd     NoneFd  { -1 }   ;
 	static constexpr Fd     PipeFd  { -2 }   ;
 	// statics
-	[[noreturn]] static int _s_do_child           (void* self_) { reinterpret_cast<Child*>(self_)->_do_child           () ; }
 	[[noreturn]] static int _s_do_child_trampoline(void* self_) { reinterpret_cast<Child*>(self_)->_do_child_trampoline() ; }
 	// cxtors & casts
 	~Child() {
 		swear_prod(pid==0,"bad pid",pid) ;
-		if (_child_args) delete[] _child_args ;
+		if ( _child_args                  ) delete[] _child_args ;
+		if ( _child_env && _own_child_env ) delete[] _child_env  ;
 	}
 	// accesses
 	bool operator+() const { return pid ; }
@@ -102,10 +102,10 @@ public :
 	AcFd  stdout = {} ;
 	AcFd  stderr = {} ;
 	// private (cannot really declare private or it would not be an aggregate any more)
-	Pipe         _p2c             = {}      ;
-	Pipe         _c2po            = {}      ;
-	Pipe         _c2pe            = {}      ;
-	void*        _child_stack_ptr = nullptr ;                        // all memory must be allocated before clone is called
-	const char** _child_env       = nullptr ;                        // .
-	const char** _child_args      = nullptr ;                        // .
+	Pipe         _p2c           = {}      ;
+	Pipe         _c2po          = {}      ;
+	Pipe         _c2pe          = {}      ;
+	const char** _child_args    = nullptr ;                             // all memory must be allocated before clone/fork/vfork is called
+	const char** _child_env     = nullptr ;                             // .
+	bool         _own_child_env = false   ;
 } ;

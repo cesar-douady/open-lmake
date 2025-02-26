@@ -116,7 +116,6 @@ class Job :
 		if self.chroot_dir        : res += f' -c{mk_shell_str(     self.chroot_dir                          )}'
 		if self.cwd               : res += f' -d{mk_shell_str(     self.cwd                                 )}'
 		if self.env               : res += f' -e{mk_shell_str(repr(self.env                                ))}'
-		if self.ignore_stat       : res +=  ' -i'
 		if True                   : res += f' -k{mk_shell_str(repr(self.keep_env                           ))}'
 		if True                   : res += f' -K'
 		if True                   : res += f' -l{                  self.link_support                         }'

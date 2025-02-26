@@ -85,7 +85,6 @@ class Rule(_RuleBase) :
 #	force               = False                        # if set, jobs are never up-to-date, they are rebuilt every time they are needed
 	max_submits         = 10                           # maximum number a job can be submitted in a single lmake command, unlimited if None
 	max_submit_count    = max_submits                  # XXX> : suppress when backward compatibility can be suppressed
-#	ignore_stat         = False                        # if set, stat-like syscalls do not, by themselves, trigger dependencies (but link_support is still ensured at required level)
 #	keep_tmp            = False                        # keep tmp dir after job execution
 	kill_sigs           = (_signal.SIGKILL,)           # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
 #	lmake_view          = '/lmake'                     # absolute path under which the open-lmake installation directory is seen (if None, empty, or absent, no bind mount is done)

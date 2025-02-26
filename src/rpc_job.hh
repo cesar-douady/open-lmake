@@ -773,6 +773,7 @@ private :
 } ;
 
 struct ExecTraceEntry {
+	friend ::string& operator+=( ::string& , ExecTraceEntry const& ) ;
 	// cxtors & casts
 	ExecTraceEntry() = default ;
 	ExecTraceEntry( Time::Pdate pd , ::string const& s , ::string const& f={} ) : date{pd} , step{       s } , file{f} {}

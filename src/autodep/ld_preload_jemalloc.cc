@@ -13,7 +13,7 @@
 // ensure malloc has been initialized (at least at first call to malloc) in case jemalloc is used with ld_preload to avoid malloc_init->open->malloc->malloc_init loop
 static bool _g_started = false ;
 
-static bool started() { return _g_started ; }
+inline bool started() { return _g_started ; }
 
 void* get_orig(const char* libcall) {
 	void* res = ::dlsym(RTLD_NEXT,libcall) ;

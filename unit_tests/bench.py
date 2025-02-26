@@ -49,19 +49,21 @@ if __name__!='__main__' :
 	)
 
 	class Base(Rule) :
-		autodep = 'ld_preload'     # clang seems to be hostile to ld_audit
-		backend = 'local'          # replace by slurm to bench rebuild through slurm
+		autodep   = 'ld_preload'   # clang seems to be hostile to ld_audit
+		backend   = 'local'        # replace by slurm to bench rebuild through slurm
 		resources = { 'mem':'1M' }
 
 	class Compile(Base) :
-		targets = { 'OBJ' : r'{File:.*}.o' }
-		deps    = { 'SRC' : '{File}.c'     }
-		cmd     = f'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -c -o {{OBJ}} -xc {{SRC}}'
+		targets   = { 'OBJ'    :  r'{File:.*}.o'          }
+		deps      = { 'SRC'    :   '{File}.c'             }
+		side_deps = { 'GCH'    : (r'{*:.*}.gch','ignore') }
+		environ   = { 'TMPDIR' : ''                       }
+		cmd       = f'gcc -c -pipe -o {{OBJ}} {{SRC}}'
 
 	class Link(Base) :
 		targets = { 'EXE' : r'exe_{N:\d+}.exe' }
 		deps    = { 'OBJ' : 'exe_{N}.o'        }
-		cmd     = f"PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -o {{EXE}} {{OBJ}} {' '.join(f'obj_{{N}}_{o}.o' for o in range(l))}"
+		cmd     = f"gcc -o {{EXE}} {{OBJ}} {' '.join(f'obj_{{N}}_{o}.o' for o in range(l))}"
 
 	class All(Base,PyRule) :
 		target = r'all_{N:\d+}'
@@ -95,10 +97,10 @@ else :
 	with open('build.ninja','w') as ninja :
 		ninja.write(multi_strip(f'''
 			rule cc
-			 command     = PATH={gxx.gxx_dir}:$$PATH {gxx.gxx} -c -o $out -xc $in
+			 command     = gcc -c -pipe -o $out $in
 			 description = Compile to $out
 			rule link
-			 command     = PATH={gxx.gxx_dir}:$$PATH {gxx.gxx} -o $out $in
+			 command     = gcc -o $out $in
 			 description = Link to $out
 			rule gather
 			 command     = touch $out
@@ -137,9 +139,9 @@ else :
 	with open('Makefile','w') as makefile :
 		makefile.write(multi_strip(f'''
 			%.o : %.c
-				PATH={gxx.gxx_dir}:$$PATH {gxx.gxx} -c -o $@ -xc $<
+				gcc -c -pipe -o $@ $<
 			%.exe : %.o
-				PATH={gxx.gxx_dir}:$$PATH {gxx.gxx} -o $@ $^
+				gcc -o $@ $^
 			all_% :
 				touch $@
 		'''))
@@ -167,9 +169,9 @@ else :
 		with open(f'run_{b}','w') as script :
 			print(f'PATH="{gxx.gxx_dir}:$PATH"',file=script)
 			for e in range(b,n,n_cpu) :
-				for o in range(l) : print(f'{gxx.gxx} -c -o obj_{e}_{o}.o -xc obj_{e}_{o}.c',file=script)
-				print(f'{gxx.gxx} -c -o exe_{e}.o   -xc exe_{e}.c'                                        ,file=script)
-				print(f"{gxx.gxx} -o exe_{e}.exe exe_{e}.o {' '.join(f'obj_{e}_{o}.o' for o in range(l))}",file=script)
+				for o in range(l) : print(f'gcc -c -o obj_{e}_{o}.o obj_{e}_{o}.c',file=script)
+				print(f'gcc -c -pipe -o exe_{e}.o   exe_{e}.c'                                      ,file=script)
+				print(f"gcc -o exe_{e}.exe exe_{e}.o {' '.join(f'obj_{e}_{o}.o' for o in range(l))}",file=script)
 		os.chmod(f'run_{b}',0o755)
 	with open('run','w') as script :
 		for b in range(n_cpu) : print(f'./run_{b} &',file=script)

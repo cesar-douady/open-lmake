@@ -172,22 +172,20 @@ namespace Backends::Local {
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (!se.live) return ;
-			kill_process(se.id,SIGHUP) ;                                                              // jobs killed here have not started yet, so we just want to kill job_exec
-			_wait_queue.push(se.id) ;                                                                 // defer wait in case job_exec process does some time consuming book-keeping
+			kill_process(se.id,SIGHUP) ; // jobs killed here have not started yet, so we just want to kill job_exec
+			_wait_queue.push(se.id) ;    // defer wait in case job_exec process does some time consuming book-keeping
 		}
 		virtual pid_t launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& , bool /*verbose*/ ) const {
-			const char** cmd_line_ = new const char*[cmd_line.size()+1] ;
-			{	size_t i = 0 ;
-				for( ::string const& a : cmd_line ) cmd_line_[i++] = a.c_str() ;
-				/**/                                cmd_line_[i  ] = nullptr   ;
-			}
-			pid_t pid = ::vfork() ; // calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			if (!pid) {                                                                              // in child
-				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(env) ) ;
+			::vector<const char*> cmd_line_ ; cmd_line_.reserve(cmd_line.size()+1) ;
+			for( ::string const& a : cmd_line ) cmd_line_.push_back(a.c_str()) ;
+			/**/                                cmd_line_.push_back(nullptr  ) ;
+			pid_t pid = ::vfork() ;      // calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			SWEAR(pid>=0) ;                                       // ensure vfork works
+			if (!pid) {                                                                                     // in child
+				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_.data()) , const_cast<char**>(env) ) ;
 				Fd::Stderr.write("cannot exec job_exec\n") ;
-				::_exit(+Rc::System) ;                                                               // in case exec fails
+				::_exit(+Rc::System) ;                                                                      // in case exec fails
 			}
-			delete[] cmd_line_ ;                                                                     // safe as thread is suspended by ::vfork until child has exec'ed or exited
 			return pid ;
 		}
 

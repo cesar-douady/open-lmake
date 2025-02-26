@@ -40,6 +40,9 @@ using std::getline  ; // special case getline which also has a C version that hi
 
 #define self (*this)
 
+#define LIKELY(  x) __builtin_expect(bool(x),1)
+#define UNLIKELY(x) __builtin_expect(bool(x),0)
+
 template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
 
 static constexpr size_t Npos = ::string::npos ;
@@ -412,6 +415,12 @@ namespace std {
 	template<_CanAdd    T> inline ::string& operator+=( ::string& s , ::atomic<T> const& x ) { s += x.load() ; return s ; }
 	//
 	template<_CanAdd T> inline ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; } // work around += right associativity
+
+	inline ::string const& operator| ( ::string const& a , ::string const& b ) { return +a ?        a  :        b  ; }
+	inline ::string      & operator| ( ::string      & a , ::string      & b ) { return +a ?        a  :        b  ; }
+	inline ::string        operator| ( ::string     && a , ::string     && b ) { return +a ? ::move(a) : ::move(b) ; }
+	inline ::string      & operator|=( ::string      & a , ::string const& b ) { if (!a) a =        b  ; return a ;  }
+	inline ::string      & operator|=( ::string      & a , ::string     && b ) { if (!a) a = ::move(b) ; return a ;  }
 }
 
 inline ::string widen( ::string && s , size_t sz , bool right=false , char fill=' ' ) {

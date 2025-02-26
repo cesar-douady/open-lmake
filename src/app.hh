@@ -15,8 +15,9 @@ extern ::string* g_repo_root_s   ; // pointer to avoid init/fini order hazards, 
 extern ::string* g_lmake_root_s  ; // pointer to avoid init/fini order hazards, absolute                 , installation dir of lmake
 extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards,                            executable name for user messages
 
-/**/   bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_=Yes , bool cd_root=true ) ; // if chk_version_==Maybe, it is ok to initialize stored version
-inline bool/*read_only*/ app_init( bool read_only_ok ,                          bool cd_root      ) { return app_init(read_only_ok,Yes,cd_root) ; }
+// if chk_version_==Maybe, it is ok to initialize stored version
+// if cd_root     ==Maybe, we must identify root_dir, but not cd to it
+bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_=Yes , Bool3 cd_root=Yes ) ;
 
 void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS ) ;
 inline ::string git_clean_msg() {
@@ -110,9 +111,10 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 			/**/                                err_msg << " : "<<flags[+f].doc<<set_nl                        ;
 		}
 	}
-	err_msg << "consider :\n"                                       ;
-	err_msg << "  man "<<*g_exe_name<<'\n'                          ;
-	err_msg << "  <browser> "<<*g_lmake_root_s<<"docs/index.html\n" ;
+	::string exe_path = get_exe() ;
+	err_msg << "consider :"                                                   <<'\n' ;
+	err_msg << "  man "      <<Disk::base_name (exe_path  )                   <<'\n' ;
+	err_msg << "  <browser> "<<Disk::dir_name_s(exe_path,2)<<"docs/index.html"<<'\n' ;
 
 	exit(Rc::Usage,err_msg) ;
 }

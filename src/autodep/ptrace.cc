@@ -54,13 +54,10 @@ void AutodepPtrace::s_init(AutodepEnv const& ade) {
 		// XXX! : find a way to load seccomp rules that support 32 bits and 64 bits exe's
 		static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab ;
 		// prepare seccomp filter outside s_prepare_child as this might very well call malloc
-		bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ;                         // if full link support, we need to analyze uphill dirs
 		swear_prod( ::seccomp_attr_set( s_scmp , SCMP_FLTATR_CTL_OPTIMIZE , 2 )==0 ) ;
 		for( long syscall : iota(SyscallDescr::NSyscalls) ) {
 			SyscallDescr const& descr = s_tab[syscall] ;
-			if ( !descr || !descr.entry       ) continue ;                                                // descr is not allocated
-			if ( descr.is_stat && ignore_stat ) continue ;                                                // non stat-like access are always needed
-			swear_prod( ::seccomp_rule_add( s_scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0 )==0 ) ;
+			if ( +descr && +descr.entry ) swear_prod( ::seccomp_rule_add( s_scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0 )==0 ) ; // else descr is not allocated
 		}
 	#endif
 }

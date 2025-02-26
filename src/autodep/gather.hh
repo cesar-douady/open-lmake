@@ -154,6 +154,7 @@ public :
 	AutodepMethod                     method           = AutodepMethod::Dflt                        ;
 	::string                          msg              ;                                              // contains error messages not from job
 	Time::Delay                       network_delay    = Time::Delay(1)                             ; // 1s is reasonable when nothing is said
+	bool                              no_tmp           = false                                      ; // if true <=> no tmp access is allowed
 	pid_t                             pid              = -1                                         ; // pid to kill
 	bool                              seen_tmp         = false                                      ;
 	SeqId                             seq_id           = 0                                          ;

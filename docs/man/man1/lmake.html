@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Fri Feb 14 15:11:49 2025 -->
+<!-- CreationDate: Wed Feb 26 00:56:53 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -464,11 +464,12 @@ repository.</p>
 <p style="margin-left:9%;"><b>-b</b>
 <i>value</i>,<b>--backend</b>=<i>value</i></p>
 
-<p style="margin-left:18%;">Pass value to backend. This is
-used for example to pass a partition or specificities to the
-slurm backend for a particular command. Note that backend
-only impacts resources and scheduling, not the content of
-the targets, so specifying such an option does not hurt
+<p style="margin-left:18%;">Pass value to backend (cf.
+backend documentation for each backend). This is used for
+example to pass a partition or specificities to the slurm
+backend for a particular command. Note that backend only
+impacts resources and scheduling, not the content of the
+targets, so specifying such an option does not hurt
 repeatability.</p>
 
 
@@ -776,10 +777,10 @@ directory.</p> </td></tr>
 <td width="82%">
 
 
-<p><b>$TMPDIR</b> is redirected to an isolated, empty
-directory which is cleaned up at the end of each job
-execution. This way, the job can freely use this directory
-and need not take care of clean-up.</p></td></tr>
+<p>Unless set to empty, <b>$TMPDIR</b> is redirected to an
+isolated, empty directory which is cleaned up at the end of
+each job execution. This way, the job can freely use this
+directory and need not take care of clean-up.</p></td></tr>
 </table>
 
 <p style="margin-left:9%; margin-top: 1em">Moreover, a few

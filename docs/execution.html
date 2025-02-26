@@ -245,12 +245,17 @@ There are cases where open-lmake cannot anticipate such an overwrite.</p>
 <h2 id="tmp-directory"><a class="header" href="#tmp-directory">tmp directory</a></h2>
 <p>The physical directory is:</p>
 <ul>
+<li>If <code>$TMPDIR</code> is set to empty, there is no tmp directory.</li>
 <li>If open-lmake is supposed to keep this directory after job execution, it is a directory under <code>LMAKE/tmp</code>, determined by open-lmake (its precise value is reported by <code>lshow -i</code>).</li>
 <li>Else if <code>$TMPDIR</code> is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-directory within it.</li>
 <li>Else, a directory determined by open-lmake lying in the <code>LMAKE</code> directory.</li>
 </ul>
 <p>Unless open-lmake is instructed to keep this directory, it is erased at the end of the job execution.</p>
-<p>Note that in all cases, <code>$TMPDIR</code> is set so that the job can use it to access the tmp directory.</p>
+<p>At execution time:</p>
+<ul>
+<li>If <code>$TMPDIR</code> is set to empty, it is suppressed from the environment and if the job uses the default tmp directory (usually <code>/tmp</code>), an error is generated.</li>
+<li>Else <code>$TMPDIR</code> is set so that the job can use it to access the tmp directory.</li>
+</ul>
 
                     </main>
 

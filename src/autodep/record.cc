@@ -41,40 +41,41 @@ bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                     // no file is simple (not documented, but used in practice)
 	if (!file[0]     ) return true  ;                                     // empty file is simple
 	if ( file[0]!='/') return false ;                                     // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
-	size_t top_sz = 0 ;
+Restart :
+	size_t pfx_sz = 0 ;
 	switch (file[1]) {                                                    // recognize simple and frequent top level system directories
-		case 'b' : if (strncmp(file+1,"bin/" ,4)==0) top_sz = 5 ; break ;
-		case 'd' : if (strncmp(file+1,"dev/" ,4)==0) top_sz = 5 ; break ;
-		case 'e' : if (strncmp(file+1,"etc/" ,4)==0) top_sz = 5 ; break ;
-		case 'o' : if (strncmp(file+1,"opt/" ,4)==0) top_sz = 5 ; break ; // used to install 3rd party software, not a data dir
-		case 'r' : if (strncmp(file+1,"run/" ,4)==0) top_sz = 5 ; break ;
-		case 's' : if (strncmp(file+1,"sbin/",5)==0) top_sz = 6 ;
-		/**/       if (strncmp(file+1,"sys/" ,4)==0) top_sz = 5 ; break ;
-		case 'u' : if (strncmp(file+1,"usr/" ,4)==0) top_sz = 5 ; break ;
-		case 'v' : if (strncmp(file+1,"var/" ,4)==0) top_sz = 5 ; break ;
+		case 'b' : if (strncmp(file+1,"bin/" ,4)==0) pfx_sz = 5 ; break ;
+		case 'd' : if (strncmp(file+1,"dev/" ,4)==0) pfx_sz = 5 ; break ;
+		case 'e' : if (strncmp(file+1,"etc/" ,4)==0) pfx_sz = 5 ; break ;
+		case 'o' : if (strncmp(file+1,"opt/" ,4)==0) pfx_sz = 5 ; break ; // used to install 3rd party software, not a data dir
+		case 'r' : if (strncmp(file+1,"run/" ,4)==0) pfx_sz = 5 ; break ;
+		case 's' : if (strncmp(file+1,"sbin/",5)==0) pfx_sz = 6 ;
+		/**/       if (strncmp(file+1,"sys/" ,4)==0) pfx_sz = 5 ; break ;
+		case 'u' : if (strncmp(file+1,"usr/" ,4)==0) pfx_sz = 5 ; break ;
+		case 'v' : if (strncmp(file+1,"var/" ,4)==0) pfx_sz = 5 ; break ;
 		case 'l' :
-			if      (strncmp(file+1,"lib",3)!=0) break ;          // not in lib* => not simple
-			if      (strncmp(file+4,"/"  ,1)   ) top_sz = 5 ;     // in lib      => simple
-			else if (strncmp(file+4,"32/",3)   ) top_sz = 7 ;     // in lib32    => simple
-			else if (strncmp(file+4,"64/",3)   ) top_sz = 7 ;     // in lib64    => simple
-		break ;                                                   // else        => not simple
-		case 'p' :                                                // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
-			if ( strncmp(file+1,"proc/",5)!=0 ) break ;           // not in /proc      => not simple
-			if ( file[6]>='0' && file[6]<='9' ) break ;           // in /proc/<pid>    => not simple
-			if ( strncmp(file+6,"self/",5)==0 ) break ;           // not in /proc/self => not simple
-			top_sz = 6 ;                                          // else              => simple
+			if      (strncmp(file+1,"lib",3)!=0) break ;      // not in lib* => not simple
+			if      (strncmp(file+4,"/"  ,1)==0) pfx_sz = 5 ; // in lib      => simple
+			else if (strncmp(file+4,"32/",3)==0) pfx_sz = 7 ; // in lib32    => simple
+			else if (strncmp(file+4,"64/",3)==0) pfx_sz = 7 ; // in lib64    => simple
+		break ;                                               // else        => not simple
+		case 'p' :                                            // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
+			if ( strncmp(file+1,"proc/",5)!=0 ) break ;       // not in /proc      => not simple
+			if ( file[6]>='0' && file[6]<='9' ) break ;       // in /proc/<pid>    => not simple
+			if ( strncmp(file+6,"self/",5)==0 ) break ;       // not in /proc/self => not simple
+			pfx_sz = 6 ;                                      // else              => simple
 		break ;
 	DN}
-	if (!top_sz) return false ;
+	if (!pfx_sz) return false ;
 	int depth = 0 ;
-	for ( const char* p=file+top_sz ; *p ; p++ ) {                // ensure we do not escape from top level dir
-		if (p[ 0]!='/')                          continue     ;   // not a dir boundary, go on
-		if (p[-1]=='/')                          continue     ;   // consecutive /'s, ignore
-		if (p[-1]!='.') { depth++ ;              continue     ; } // plain dir  , e.g. foo  , go down
-		if (p[-2]=='/')                          continue     ;   // dot dir    ,             stay still
-		if (p[-2]!='.') { depth++ ;              continue     ; } // plain dir  , e.g. foo. , go down
-		if (p[-2]=='/') { depth-- ; if (depth<0) return false ; } // dot-dot dir,             go up and exit if we escape top level system dir
-		/**/            { depth++ ;              continue     ; } // plain dir  , e.g. foo.., go down
+	for ( const char* p=file+pfx_sz ; *p ; p++ ) {                                             // ensure we do not escape from top level dir
+		if (p[ 0]!='/')                                                           continue ;   // not a dir boundary, go on
+		if (p[-1]=='/')                                                           continue ;   // consecutive /'s, ignore
+		if (p[-1]!='.') {                                               depth++ ; continue ; } // plain dir  , e.g. foo  , go down
+		if (p[-2]=='/')                                                           continue ;   // dot dir    ,             stay still
+		if (p[-2]!='.') {                                               depth++ ; continue ; } // plain dir  , e.g. foo. , go down
+		if (p[-3]=='/') { { if (!depth) { file = p ; goto Restart ; } } depth-- ; continue ; } // dot-dot dir,             go up and restart if we get back to top-level
+		/**/            {                                               depth++ ; continue ; } // plain dir  , e.g. foo.., go down
 	}
 	return true ;
 }
@@ -167,10 +168,6 @@ Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(
 	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                           // in case of overlay, create dir in the view
 	r.report_guard( file_loc , ::move(real_write()) , ::move(c) ) ;
 }
-int Record::Chdir::operator()( Record& r , int rc ) {
-	if (rc==0) r.chdir() ;
-	return rc ;
-}
 
 Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,false/*create*/,c} { // behave like a read-modify-write
 	if (file_loc>FileLoc::Dep) return ;
@@ -218,19 +215,16 @@ Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , ::string&& c ) :
 // - if it is an official target, it is not a dep, whether you declare reading it or not
 // - else, we do not compute a CRC on it and its actual content is not guaranteed. What is important in this case is that the execution of the job does not see the content.
 //
-static bool _ignore   (int flags) { return (flags&O_PATH) && Record::s_autodep_env().ignore_stat                                                              ; }
 static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )                                                        ; }
 static bool _do_stat  (int flags) { return (flags&O_PATH)     || ( (flags&O_CREAT) && (flags&O_EXCL) ) || ( !(flags&O_CREAT) && (flags&O_ACCMODE)!=O_RDONLY ) ; }
 static bool _do_read  (int flags) { return !(flags&O_PATH) && !(flags&O_TRUNC)                                                                                ; }
 static bool _do_write (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY ) || (flags&O_TRUNC)                                              ; }
 static bool _do_create(int flags) { return   flags&O_CREAT                                                                                                    ; }
 //
-Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
-	Solve{ r , !_ignore(flags)?::move(path):Path() , _no_follow(flags) , _do_read(flags) , _do_create(flags) , c }
-{
-	if ( !file || !file[0]             ) return ;                                                                   // includes ignore_stat cases
-	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                   // we already solved, this is enough
-	if ( file_loc>FileLoc::Dep         ) return ;                                                                   // fast path
+Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) : Solve{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , _do_create(flags) , c } {
+	if ( !file || !file[0]             ) return ;
+	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                                  // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep         ) return ;                                                                                  // fast path
 	//
 	bool do_stat  = _do_stat (flags) ;
 	bool do_read  = _do_read (flags) ;
@@ -312,11 +306,9 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	if (+writes   ) write_id = r._report_targets( ::move   (writes) ,                        c+".dst"   ) ;        // .
 }
 
-Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , ::string&& c ) :
-	Solve{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , false/*create*/ , c }
-{
+Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , ::string&& c ) : Solve{ r , ::move(path) , no_follow , true/*read*/ , false/*create*/ , c } {
 	if (no_follow) c += ".NF" ;
-	if (!s_autodep_env().ignore_stat) r._report_dep( file_loc , ::move(real) , accesses|a , ::move(c) ) ;
+	r._report_dep( file_loc , ::move(real) , accesses|a , ::move(c) ) ;
 }
 
 Record::Symlink::Symlink( Record& r , Path&& p , ::string&& c ) : Solve{r,::move(p),true/*no_follow*/,false/*read*/,true/*create*/,c} {

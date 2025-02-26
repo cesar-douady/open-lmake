@@ -37,23 +37,24 @@ using namespace Disk ;
 }
 
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
+// /!\ this function must not modify anything outside its local frame as it may be called as pre_exec under ::vfork()
 [[noreturn]] void Child::_do_child_trampoline() {
-	if (as_session) ::setsid() ;                                            // if we are here, we are the init process and we must be in the new session to receive the kill signal
+	if (as_session) ::setsid() ;                                             // if we are here, we are the init process and we must be in the new session to receive the kill signal
 	//
-	sigset_t full_mask ; sigfillset(&full_mask) ;                           // sig fillset may be a macro
-	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                         // restore default behavior
+	sigset_t full_mask ; ::sigfillset(&full_mask) ;                          // sig fillset may be a macro
+	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                          // restore default behavior
 	//
-	if (stdin_fd ==PipeFd) { _p2c .write.close() ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
-	if (stdout_fd==PipeFd) { _c2po.read .close() ; _c2po.write.no_std() ; } // .
-	if (stderr_fd==PipeFd) { _c2pe.read .close() ; _c2pe.write.no_std() ; } // .
+	if (stdin_fd ==PipeFd) { ::close(_p2c .write) ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
+	if (stdout_fd==PipeFd) { ::close(_c2po.read ) ; _c2po.write.no_std() ; } // .
+	if (stderr_fd==PipeFd) { ::close(_c2pe.read ) ; _c2pe.write.no_std() ; } // .
 	// set up std fd
 	if (stdin_fd ==NoneFd) ::close(Fd::Stdin ) ; else if (_p2c .read !=Fd::Stdin ) ::dup2(_p2c .read ,Fd::Stdin ) ;
 	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if (_c2po.write!=Fd::Stdout) ::dup2(_c2po.write,Fd::Stdout) ; // save stdout in case it is modified and we want to redirect stderr to it
 	if (stderr_fd==NoneFd) ::close(Fd::Stderr) ; else if (_c2pe.write!=Fd::Stderr) ::dup2(_c2pe.write,Fd::Stderr) ;
 	//
-	if (_p2c .read >Fd::Std) _p2c .read .close() ;   // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-	if (_c2po.write>Fd::Std) _c2po.write.close() ;   // .
-	if (_c2pe.write>Fd::Std) _c2pe.write.close() ;   // .
+	if (_p2c .read >Fd::Std) ::close(_p2c .read ) ;  // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
+	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;  // .
+	if (_c2pe.write>Fd::Std) ::close(_c2pe.write) ;  // .
 	//
 	if (+cwd_s  ) { if (::chdir(no_slash(cwd_s).c_str())!=0) _exit(Rc::System,"cannot chdir"    ) ; }
 	//
@@ -75,9 +76,10 @@ using namespace Disk ;
 			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , Fd::Write } ;
 			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)       ; // dont care about errors, this is best effort
 		}
-		pid_t pid = ::clone( _s_do_child , _child_stack_ptr , SIGCHLD , this ) ;
-		//
+		pid_t pid = ::vfork() ;
+		if (pid==0 ) _do_child() ;                                                                      // in child
 		if (pid==-1) _exit(Rc::System,"cannot spawn sub-process") ;
+		//
 		for(;;) {
 			int   wstatus   ;
 			pid_t child_pid = ::wait(&wstatus) ;
@@ -107,7 +109,8 @@ void Child::spawn() {
 	if (env) {
 		size_t n_env = env->size() + (add_env?add_env->size():0) ;
 		env_vector.reserve(n_env) ;
-		_child_env = new const char*[n_env+1] ;
+		_child_env     = new const char*[n_env+1] ;
+		_own_child_env = true                     ;
 		size_t i = 0 ;
 		/**/         for( auto const& [k,v] : *env     ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
 		if (add_env) for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
@@ -115,7 +118,8 @@ void Child::spawn() {
 	} else if (add_env) {
 		size_t n_env = add_env->size() ; for( char** e=environ ; *e ; e++ ) n_env++ ;
 		env_vector.reserve(add_env->size()) ;
-		_child_env = new const char*[n_env+1] ;
+		_child_env     = new const char*[n_env+1] ;
+		_own_child_env = true                     ;
 		size_t i = 0 ;
 		for( char** e=environ ; *e ; e++  )                                   _child_env[i++] = *e                        ;
 		for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
@@ -131,16 +135,13 @@ void Child::spawn() {
 		/**/                                _child_args[i  ] = nullptr   ;
 	}
 	//
-	// /!\ memory for child stack must be allocated before calling clone
-	::vector<uint64_t> child_stack ( StackSz/sizeof(uint64_t) ) ;
-	_child_stack_ptr = child_stack.data()+(STACK_GROWS_DOWNWARD?child_stack.size():0) ;
-	//
 	if (first_pid) {
 		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                               ; // we need a trampoline stack if we launch a grand-child
 		void*              trampoline_stack_ptr = trampoline_stack.data()+(STACK_GROWS_DOWNWARD?trampoline_stack.size():0) ; // .
 		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is passed to mount a new /proc without disturing caller
 	} else {
-		pid = ::clone( _s_do_child_trampoline , _child_stack_ptr     , SIGCHLD                          , this ) ;
+		pid = pre_exec ? ::fork() : ::vfork() ;                                                                              // pre_exec may modify parent's memory
+		if (pid==0) _do_child_trampoline() ;                                                                                 // in child
 	}
 	//
 	if (pid==-1) {

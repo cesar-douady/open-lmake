@@ -13,10 +13,9 @@ bool        g_force_orig = false   ;
 const char* g_libc_name  = nullptr ;
 
 struct SymbolEntry {
-	SymbolEntry( void* f , bool is=false ) : func{f} , is_stat{is} {}
-	void*         func    = nullptr ;
-	bool          is_stat = false   ;
-	mutable void* orig    = nullptr ;
+	SymbolEntry(void* f) : func{f} {}
+	void*         func = nullptr ;
+	mutable void* orig = nullptr ;
 } ;
 static ::umap_s<SymbolEntry> const* _g_libcall_tab = nullptr ;
 
@@ -27,7 +26,7 @@ void* get_orig(const char* libcall) {
 	return entry.orig ;
 }
 
-static bool started() { return true ; }
+inline bool started() { return true ; }
 
 #include "ld_common.x.cc"
 
@@ -56,8 +55,8 @@ template<class Sym> uintptr_t _la_symbind( Sym* sym , uint /*ndx*/ , uintptr_t* 
 	if (g_force_orig) goto Ignore ; // avoid recursion loop
 	if (*def_cook   ) goto Ignore ; // cookie is used to identify libc (when cookie==0)
 	//
-	{	auto               it    = _g_libcall_tab->find(sym_name) ; if ( it==_g_libcall_tab->end()                            ) goto Ignore ;
-		SymbolEntry const& entry = it->second                     ; if ( Record::s_autodep_env().ignore_stat && entry.is_stat ) goto Ignore ;
+	{	auto               it    = _g_libcall_tab->find(sym_name) ; if (it==_g_libcall_tab->end()) goto Ignore ;
+		SymbolEntry const& entry = it->second                     ;
 		entry.orig = reinterpret_cast<void*>(sym->st_value) ;
 		return reinterpret_cast<uintptr_t>(entry.func) ;
 	}
@@ -69,7 +68,7 @@ Ignore :
 extern "C" {
 
 	uint la_version(uint /*version*/) {
-		#define LIBCALL_ENTRY(libcall,is_stat) { #libcall , { reinterpret_cast<void*>(Audited::libcall) } }
+		#define LIBCALL_ENTRY(libcall) { #libcall , { reinterpret_cast<void*>(Audited::libcall) } }
 		_g_libcall_tab = new ::umap_s<SymbolEntry>{ ENUMERATE_LIBCALLS } ;
 		#undef LIBCALL_ENTRY
 		return LAV_CURRENT ;
@@ -82,7 +81,7 @@ extern "C" {
 			return LA_FLG_BINDFROM ;
 		}
 		if (!::string_view(nm).starts_with("linux-vdso.so"))                                // linux-vdso.so is listed, but is not a real file
-			ReadCS(nm,false/*no_follow*/,false/*keep_real*/,"la_objopen") ;
+			Record::ReadCS(auditor(),nm,false/*no_follow*/,false/*keep_real*/,"la_objopen") ;
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(nm) ;
 		*cookie = !known.first ;
 		if (known.second) {
@@ -94,9 +93,9 @@ extern "C" {
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , uint flag ) {
 		switch (flag) {
-			case LA_SER_ORIG    : if (strrchr(name,'/')) ReadCS(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
+			case LA_SER_ORIG    : if (strrchr(name,'/')) Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
 			case LA_SER_LIBPATH :
-			case LA_SER_RUNPATH :                        ReadCS(name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
+			case LA_SER_RUNPATH :                        Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
 		DN}
 		return const_cast<char*>(name) ;
 	}

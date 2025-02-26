@@ -98,7 +98,7 @@ SRCS := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 COMMA := ,
 
 # XXX! : add -fdebug_prefix-map=$(REPO_ROOT)=??? when we know a sound value (e.g. the dir in which sources will be installed)
-HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden -g
+HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
 # syntax for LMAKE_FLAGS : (O[0123])?G?d?t?(S[AT])?P?C?
 # - O[0123] : compiler optimization level, defaults to 1 if profiling else 3
 # - G       : ease debugging
@@ -115,7 +115,7 @@ EXTRA_FLAGS  := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(EXTRA_FLAGS))
 EXTRA_FLAGS  := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(EXTRA_FLAGS))
 EXTRA_FLAGS  := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(EXTRA_FLAGS))
 EXTRA_FLAGS  := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0 -fno-inline,$(EXTRA_FLAGS))
-EXTRA_FLAGS  += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
+EXTRA_FLAGS  += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG,-g)
 EXTRA_FLAGS  += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
 HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
 HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)

@@ -9,7 +9,7 @@
 
 #include "utils.hh"
 
-static bool started() { return true ; }
+inline bool started() { return true ; }
 
 void* get_orig(const char* libcall) {
 	void* res = ::dlsym(RTLD_NEXT,libcall) ;

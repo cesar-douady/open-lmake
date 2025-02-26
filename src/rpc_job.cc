@@ -640,15 +640,19 @@ bool/*entered*/ JobSpace::enter(
 			;
 		top_repo_view_s = repo_view_s.substr(0,repo_view_s.size()-cwd_s.size()) ;
 	}
-	if ( +lmake_view_s      && lmake_view_s     .rfind('/',lmake_view_s     .size()-2)!=0 ) throw "non top-level lmake_view not yet implemented"s ; // XXX! : handle cases where dir is not top level
-	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view not yet implemented"s  ; // .
-	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view not yet implemented"s   ; // .
+	// XXX! : handle cases where dir is not top level
+	if ( +lmake_view_s      && lmake_view_s     .rfind('/',lmake_view_s     .size()-2)!=0 ) throw "non top-level lmake_view "+no_slash(lmake_view_s     )+" not yet implemented" ;
+	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view " +no_slash(super_repo_view_s)+" not yet implemented" ;
+	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view "  +no_slash(tmp_view_s       )+" not yet implemented" ;
 	//
 	::string chroot_dir        = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly manage the '/' case
 	bool     must_create_lmake = +lmake_view_s      && !is_dir(chroot_dir+no_slash(lmake_view_s     )) ;
 	bool     must_create_repo  = +super_repo_view_s && !is_dir(chroot_dir+no_slash(super_repo_view_s)) ;
 	bool     must_create_tmp   = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
-	trace("create",STR(must_create_repo),STR(must_create_tmp)) ;
+	//
+	if (must_create_tmp) SWEAR(+phy_tmp_dir_s) ;
+	trace("create",STR(must_create_lmake),STR(must_create_repo),STR(must_create_tmp)) ;
+	//
 	if ( must_create_repo || must_create_tmp || +views )
 		try { unlnk_inside_s(work_dir_s) ; } catch (::string const& e) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
 	if ( must_create_lmake || must_create_repo || must_create_tmp ) {     // we cannot mount directly in chroot_dir
@@ -661,15 +665,15 @@ bool/*entered*/ JobSpace::enter(
 				:	                    " ???"
 				)
 			;
-		::vector_s top_lvls    = lst_dir_s(+chroot_dir_s?chroot_dir_s:"/") ;
-		::string   work_root   = work_dir_s+"root"                         ;
-		::string   work_root_s = work_root+'/'                             ;
+		::vector_s top_lvls    = lst_dir_s(chroot_dir_s|"/") ;
+		::string   work_root   = work_dir_s+"root"           ;
+		::string   work_root_s = work_root+'/'               ;
 		mk_dir_s      (work_root_s) ;
 		unlnk_inside_s(work_root_s) ;
 		trace("top_lvls",work_root_s,top_lvls) ;
 		for( ::string const& f : top_lvls ) {
-			::string src_f     = (+chroot_dir_s?chroot_dir_s:"/"s) + f ;
-			::string private_f = work_root_s                       + f ;
+			::string src_f     = (chroot_dir_s|"/"s) + f ;
+			::string private_f = work_root_s         + f ;
 			switch (FileInfo(src_f).tag()) {                                                                                   // exclude weird files
 				case FileTag::Reg   :
 				case FileTag::Empty :
@@ -768,7 +772,7 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 		if (tmp_view_s  .starts_with(repo_view_s )) throw "tmp view "  +no_slash(tmp_view_s  )+" cannot lie within repo view " +no_slash(repo_view_s ) ;
 	}
 	//
-	::string const& job_repo_root_s = +repo_view_s ? repo_view_s : phy_repo_root_s ;
+	::string const& job_repo_root_s = repo_view_s | phy_repo_root_s ;
 	auto do_path = [&](::string& path)->void {
 		if      (!is_canon(path)                  ) path = ::mk_canon(path)             ;
 		if      (path.starts_with("../")          ) path = mk_abs(path,job_repo_root_s) ;
@@ -814,6 +818,10 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 //
 // JobEndRpcReq
 //
+
+::string& operator+=( ::string& os , ExecTraceEntry const& ete ) {
+	return os <<"ExecTraceEntry("<< ete.date <<','<< ete.step <<','<< ete.file <<')' ;
+}
 
 ::string& operator+=( ::string& os , TargetDigest const& td ) {
 	const char* sep = "" ;
@@ -898,24 +906,29 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	SeqId                 /*in */ seq_id
 ) {
 	Trace trace("JobStartRpcReply::enter",phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,seq_id) ;
+	bool has_tmp_dir = +phy_tmp_dir_s ;
 	//
 	for( auto& [k,v] : env )
 		if      (v!=EnvPassMrkr)                                                             cmd_env[k] = ::move(v ) ;
 		else if (has_env(k)    ) { ::string ev=get_env(k) ; dynamic_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
 	//
-	::string const& lmake_root_s            = +job_space.lmake_view_s ? job_space.lmake_view_s : phy_lmake_root_s ;
-	/**/            autodep_env.repo_root_s = +job_space.repo_view_s  ? job_space.repo_view_s  : phy_repo_root_s  ;
-	/**/            autodep_env.tmp_dir_s   = +job_space.tmp_view_s   ? job_space.tmp_view_s   : phy_tmp_dir_s    ;
-	_tmp_dir_s = autodep_env.tmp_dir_s ;                                                                                 // for use in exit (autodep.tmp_dir_s may be moved)
-	//
-	try {
-		unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                             // ensure tmp dir is clean
-	} catch (::string const&) {
-		try                       { mk_dir_s(phy_tmp_dir_s) ;            }         // ensure tmp dir exists
-		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
+	::string const& lmake_root_s = job_space.lmake_view_s | phy_lmake_root_s ;
+	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s  ;
+	if (has_tmp_dir) {
+		autodep_env.tmp_dir_s = job_space.tmp_view_s | phy_tmp_dir_s ;
+		_tmp_dir_s            = autodep_env.tmp_dir_s                ;             // for use in exit (autodep.tmp_dir_s may be moved)
+		try {
+			unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                         // ensure tmp dir is clean
+		} catch (::string const&) {
+			try                       { mk_dir_s(phy_tmp_dir_s) ;            }     // ensure tmp dir exists
+			catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
+		}
+	} else {
+		if (+job_space.tmp_view_s) throw "cannot map tmp dir "+job_space.tmp_view_s+" to nowhere" ;
 	}
 	//
-	cmd_env["TMPDIR"] = no_slash(autodep_env.tmp_dir_s) ;
+	if (has_tmp_dir) cmd_env["TMPDIR"] = no_slash(autodep_env.tmp_dir_s) ;
+	else             cmd_env.erase("TMPDIR") ;
 	if (PY_LD_LIBRARY_PATH[0]!=0) {
 		auto [it,inserted] = cmd_env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
 		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
@@ -925,22 +938,22 @@ bool/*entered*/ JobStartRpcReply::enter(
 			d = v.find('$',d) ;
 			if (d==Npos) break ;
 			switch (v[d+1/*$*/]) {
-				//                inout inout
-				case 'L' : _handle( v  , d  , "LMAKE_ROOT"             , lmake_root_s                                     ) ; break ;
-				case 'P' : _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s                                 )
-				||         _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s         , autodep_env.sub_repo_s )
-				||         _handle( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s                                    )
-				||         _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s                                  ) ; break ;
-				case 'R' : _handle( v  , d  , "REPO_ROOT"              , autodep_env.repo_root_s , autodep_env.sub_repo_s ) ; break ;
-				case 'S' : _handle( v  , d  , "SEQUENCE_ID"            , seq_id                                           )
-				||         _handle( v  , d  , "SMALL_ID"               , small_id                                         ) ; break ;
-				case 'T' : _handle( v  , d  , "TMPDIR"                 , autodep_env.tmp_dir_s                            )
-				||         _handle( v  , d  , "TOP_REPO_ROOT"          , autodep_env.repo_root_s                          ) ; break ;
+				//                                 inout inout
+				case 'L' :                  _handle( v  , d  , "LMAKE_ROOT"             , lmake_root_s                                     )   ; break ;
+				case 'P' :                  _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s                                 )
+				||                          _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s         , autodep_env.sub_repo_s )
+				||         ( has_tmp_dir && _handle( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s                                    ) )
+				||                          _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s                                  )   ; break ;
+				case 'R' :                  _handle( v  , d  , "REPO_ROOT"              , autodep_env.repo_root_s , autodep_env.sub_repo_s )   ; break ;
+				case 'S' :                  _handle( v  , d  , "SEQUENCE_ID"            , seq_id                                           )
+				||                          _handle( v  , d  , "SMALL_ID"               , small_id                                         )   ; break ;
+				case 'T' : ( has_tmp_dir && _handle( v  , d  , "TMPDIR"                 , autodep_env.tmp_dir_s                            ) )
+				||                          _handle( v  , d  , "TOP_REPO_ROOT"          , autodep_env.repo_root_s                          )   ; break ;
 			DN}
 		}
 	}
 	//
-	::string phy_work_dir_s = cat(PrivateAdminDirS,"work/",small_id,'/')                                                                                               ;
+	::string phy_work_dir_s = cat(PrivateAdminDirS,"work/",small_id,'/')                                                                                                                ;
 	bool     entered        = job_space.enter( /*out*/actions , phy_lmake_root_s , phy_repo_root_s , phy_tmp_dir_s , autodep_env.sub_repo_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
 	if (entered) {
 		// find a good starting pid
@@ -972,7 +985,7 @@ static void _unlnk_inside_s( ::string const& dir_s , ::uset_s const& no_unlnk ) 
 			//
 			::rmdir(f.c_str()) ;
 		}
-	} catch (::string const&) {} // ignore errors as we have nothing much to do with them
+	} catch (::string const&) {}                            // ignore errors as we have nothing much to do with them
 }
 
 void JobStartRpcReply::exit() {

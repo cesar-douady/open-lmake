@@ -22,7 +22,6 @@ ENUM( CmdFlag
 ,	ChrootDir
 ,	Cwd
 ,	Env
-,	IgnoreStat
 ,	KeepEnv
 ,	KeepTmp
 ,	LinkSupport
@@ -100,15 +99,15 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 
 int main( int argc , char* argv[] ) {
     block_sigs({SIGCHLD}) ;
-	app_init(true/*read_only_ok*/,false/*cd_root*/) ;
+	app_init(true/*read_only_ok*/,Yes/*chk_version*/,Maybe/*cd_root*/) ;
 	Py::init(*g_lmake_root_s) ;
-	::string dbg_dir_s = *g_repo_root_s+AdminDirS+"debug/" ;
-	mk_dir_s(dbg_dir_s) ;
-	AcFd lock_fd { no_slash(dbg_dir_s) } ;
-	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                  // because we have no small_id, we can only run a single instance
-		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"            ) ;
-		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",::strerror(errno)) ;
-	}
+//	::string dbg_dir_s = *g_repo_root_s+AdminDirS+"debug/" ;
+//	mk_dir_s(dbg_dir_s) ;
+//	AcFd lock_fd { no_slash(dbg_dir_s) } ;
+//	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                  // because we have no small_id, we can only run a single instance
+//		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"            ) ;
+//		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",::strerror(errno)) ;
+//	}
 	//
 	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax {{
 		// PER_AUTODEP_METHOD : complete doc on line below
@@ -116,7 +115,6 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                   } }
 	,	{ CmdFlag::Cwd           , { .short_name='d' , .has_arg=true  , .doc="current working directory in which to execute job"                                                         } }
 	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="environment variables to set, given as a python dict"                                                      } }
-	,	{ CmdFlag::IgnoreStat    , { .short_name='i' , .has_arg=false , .doc="stat-like syscalls do not trigger dependencies"                                                            } }
 	,	{ CmdFlag::KeepEnv       , { .short_name='k' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
 	,	{ CmdFlag::KeepTmp       , { .short_name='K' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                        } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
@@ -154,7 +152,6 @@ int main( int argc , char* argv[] ) {
 		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s   = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
 		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s    = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;
 		/**/                                        autodep_env.auto_mkdir  =                        cmd_line.flags    [ CmdFlag::AutoMkdir    ]  ;
-		/**/                                        autodep_env.ignore_stat =                        cmd_line.flags    [ CmdFlag::IgnoreStat   ]  ;
 		if (cmd_line.flags[CmdFlag::Cwd          ]) autodep_env.sub_repo_s  = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;
 		if (cmd_line.flags[CmdFlag::LinkSupport  ]) autodep_env.lnk_support = mk_enum<LnkSupport>   (cmd_line.flag_args[+CmdFlag::LinkSupport  ]) ;
 		/**/                                        autodep_env.views       = job_space.flat_phys()                                               ;

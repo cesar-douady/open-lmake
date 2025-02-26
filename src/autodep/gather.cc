@@ -516,7 +516,13 @@ Status Gather::exec_child() {
 						break ;
 						case Proc::Tmp :
 							if (!seen_tmp) {
-								_exec_trace(jerr.date,"access_tmp") ;
+								if (no_tmp) {
+									_exec_trace(jerr.date,"bad_access_tmp") ;
+									set_status(Status::Err,"tmp access with no tmp dir") ;
+									kill() ;
+								} else {
+									_exec_trace(jerr.date,"access_tmp") ;
+								}
 								seen_tmp = true ;
 							}
 						break ;
@@ -557,6 +563,7 @@ Status Gather::exec_child() {
 		}
 	}
 Return :
+	//
 	SWEAR(!_child) ;                                                                                                                  // _child must have been waited by now
 	trace("done",status) ;
 	SWEAR(status!=Status::New) ;

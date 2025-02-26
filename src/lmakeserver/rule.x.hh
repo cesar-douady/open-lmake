@@ -209,7 +209,6 @@ namespace Engine {
 			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"   ) ;
 			Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir"   ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = with_slash(job_space.chroot_dir_s) ;
 			Attrs::acquire_env     ( env                    , py_dct , "env"          ) ;
-			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat"  ) ;
 			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter"  ) ;
 			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"   ) ; if (+job_space.lmake_view_s) job_space.lmake_view_s = with_slash(job_space.lmake_view_s) ;
 			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"    ) ; if (+job_space.repo_view_s ) job_space.repo_view_s  = with_slash(job_space.repo_view_s ) ;
@@ -223,7 +222,6 @@ namespace Engine {
 		::vector_s interpreter  ;
 		bool       allow_stderr = false ;
 		bool       auto_mkdir   = false ;
-		bool       ignore_stat  = false ;
 		::vmap_ss  env          ;
 		JobSpace   job_space    ;
 		// END_OF_VERSIONING

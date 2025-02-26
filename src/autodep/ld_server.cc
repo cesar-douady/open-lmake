@@ -14,7 +14,7 @@
 thread_local bool                      AutodepLock::t_active = false ;
 /**/         Mutex<MutexLvl::Autodep1> AutodepLock::_s_mutex ;
 
-static bool started() { return AutodepLock::t_active ; } // no auto-start for server
+inline bool started() { return AutodepLock::t_active ; } // no auto-start for server
 
 // when in server, we must have a complete redirection table because :
 // - dlsym takes an internal lock
@@ -29,7 +29,7 @@ static void* get_orig(const char* libcall) {
 	static ::atomic<LibCallTab*> s_libcall_tab = nullptr ; // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
 	// /!\ we must manage the guard explicitly as compiler generated guard makes syscalls, which can induce loops
 	if (!s_libcall_tab) {
-		#define LIBCALL_ENTRY(libcall,is_stat) #libcall
+		#define LIBCALL_ENTRY(libcall) #libcall
 		LibCallTab* new_libcall_tab  = new LibCallTab ;
 		for( const char* lc1 : { ENUMERATE_LIBCALLS } ) {
 			::array<char,NChar> lc2 = {} ; strncpy(lc2.data(),lc1,NChar-1) ;

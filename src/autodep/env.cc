@@ -12,7 +12,6 @@ using namespace Disk ;
 	/**/                  os <<      static_cast<RealPathEnv const&>(ade) ;
 	/**/                  os <<','<< ade.service                          ;
 	if ( ade.auto_mkdir ) os <<",auto_mkdir"                              ;
-	if ( ade.ignore_stat) os <<",ignore_stat"                             ;
 	if ( ade.enable     ) os <<",enable"                                  ;
 	if (+ade.sub_repo_s ) os <<','<< ade.sub_repo_s                       ;
 	return                os <<')'                                        ;
@@ -38,7 +37,6 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
 			case 'd' : enable        = false            ; break ;
-			case 'i' : ignore_stat   = true             ; break ;
 			case 'm' : auto_mkdir    = true             ; break ;
 			case 'n' : lnk_support   = LnkSupport::None ; break ;
 			case 'f' : lnk_support   = LnkSupport::File ; break ;
@@ -65,7 +63,6 @@ AutodepEnv::operator ::string() const {
 	// options
 	res << ':' ;
 	if (!enable      ) res << 'd' ;
-	if (ignore_stat  ) res << 'i' ;
 	if (auto_mkdir   ) res << 'm' ;
 	if (reliable_dirs) res << 'r' ;
 	switch (lnk_support) {
