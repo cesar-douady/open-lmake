@@ -460,14 +460,14 @@ int main( int argc , char** argv ) {
 	if (g_startup_dir_s) SWEAR( is_dirname(*g_startup_dir_s) , *g_startup_dir_s ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                                        //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
-	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;                        // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
-	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;                                   // ... must be done before any thread is launched so that all threads block the signal
+	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                                            //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
+	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;                            // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
+	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;                                       // ... must be done before any thread is launched so that all threads block the signal
 	mk_dir_s(PrivateAdminDirS) ;
 	//             vvvvvvvvvvvvvvv
 	bool crashed = _start_server() ;
 	//             ^^^^^^^^^^^^^^^
-	if (!_g_is_daemon     ) _report_server(out_fd,_g_server_running/*server_running*/) ; // inform lmake we did not start
+	if (!_g_is_daemon     ) _report_server(out_fd,_g_server_running/*server_running*/) ;     // inform lmake we did not start
 	if (!_g_server_running) return 0 ;
 	try {
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvv
@@ -475,10 +475,11 @@ int main( int argc , char** argv ) {
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (+msg  ) Fd::Stderr.write(ensure_nl(msg)) ;
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
-	if (!_g_is_daemon) ::setpgid(0,0) ;                                                  // once we have reported we have started, lmake will send us a message to kill us
+	if (!_g_is_daemon) ::setpgid(0,0) ;                                                      // once we have reported we have started, lmake will send us a message to kill us
 	//
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
-	mk_dir_s(PrivateAdminDirS+"tmp/"s,true/*unlnk_ok*/) ;
+	mk_dir_s(PrivateAdminDirS+"tmp/"s         ,true/*unlnk_ok*/) ;                           // prepare job execution so no dir_guard is necessary for each job
+	mk_dir_s(PrivateAdminDirS+"fast_reports/"s,true/*unlnk_ok*/) ;                           // .
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;

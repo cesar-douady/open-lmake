@@ -630,7 +630,8 @@ struct JobSpace {
 		::serdes(s,views       ) ;
 	}
 	bool/*entered*/ enter(
-		::vmap_s<MountAction>&/*out*/ deps
+		::vmap_s<MountAction>&/*out*/ report
+	,	::string             &/*out*/ top_repo_root_s
 	,	::string   const&             phy_lmake_root_s
 	,	::string   const&             phy_repo_root_s
 	,	::string   const&             phy_tmp_dir_s
@@ -733,6 +734,7 @@ struct JobStartRpcReply {
 	,	::map_ss             &/*out*/ cmd_env
 	,	::vmap_ss            &/*out*/ dynamic_env
 	,	pid_t                &/*out*/ first_pid
+	,	::string             &/*out*/ top_repo_dir_s
 	,	::string        const&        phy_lmake_root_s
 	,	::string        const&        phy_repo_root_s
 	,	::string        const&        phy_tmp_dir_s
@@ -742,30 +744,30 @@ struct JobStartRpcReply {
 	// data
 	// START_OF_VERSIONING
 	in_addr_t                addr           = 0                   ; // the address at which server and subproccesses can contact job_exec
-	bool                     allow_stderr   = false               ; //
-	AutodepEnv               autodep_env    ;                       //
+	bool                     allow_stderr   = false               ;
+	AutodepEnv               autodep_env    ;
 	Caches::Cache*           cache          = nullptr             ;
-	::pair_ss/*script,call*/ cmd            ;                       //
-	Time::Delay              ddate_prec     ;                       //
+	::pair_ss/*script,call*/ cmd            ;
+	Time::Delay              ddate_prec     ;
 	::vmap_s<DepDigest>      deps           ;                       // deps already accessed (always includes static deps)
 	EndAttrs                 end_attrs      ;
-	::vmap_ss                env            ;                       //
+	::vmap_ss                env            ;
 	::vector_s               interpreter    ;                       // actual interpreter used to execute cmd
-	JobSpace                 job_space      ;                       //
-	bool                     keep_tmp       = false               ; //
+	JobSpace                 job_space      ;
+	bool                     keep_tmp       = false               ;
 	::string                 key            ;                       // key used to uniquely identify repo
-	vector<uint8_t>          kill_sigs      ;                       //
-	bool                     live_out       = false               ; //
-	AutodepMethod            method         = AutodepMethod::Dflt ; //
-	Time::Delay              network_delay  ;                       //
-	::vmap_s<FileAction>     pre_actions    ;                       //
-	SmallId                  small_id       = 0                   ; //
+	vector<uint8_t>          kill_sigs      ;
+	bool                     live_out       = false               ;
+	AutodepMethod            method         = AutodepMethod::Dflt ;
+	Time::Delay              network_delay  ;
+	::vmap_s<FileAction>     pre_actions    ;
+	SmallId                  small_id       = 0                   ;
 	::vmap_s<MatchFlags>     star_matches   ;                       // maps regexprs to flags
 	::vmap_s<MatchFlags>     static_matches ;                       // maps individual files to flags
-	::string                 stdin          ;                       //
-	::string                 stdout         ;                       //
-	Time::Delay              timeout        ;                       //
-	bool                     use_script     = false               ; //
+	::string                 stdin          ;
+	::string                 stdout         ;
+	Time::Delay              timeout        ;
+	bool                     use_script     = false               ;
 	uint8_t                  z_lvl          = 0                   ;
 	// END_OF_VERSIONING
 private :

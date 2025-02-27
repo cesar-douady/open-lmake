@@ -377,8 +377,9 @@ int main( int argc , char* argv[] ) {
 			}
 		}
 		//
-		::map_ss              cmd_env       ;
-		::vmap_s<MountAction> enter_actions ;
+		::map_ss              cmd_env         ;
+		::vmap_s<MountAction> enter_actions   ;
+		::string              top_repo_root_s ;
 		try {
 			if (
 				g_start_info.enter(
@@ -386,6 +387,7 @@ int main( int argc , char* argv[] ) {
 				,	/*out*/cmd_env
 				,	/*out*/end_report.dynamic_env
 				,	/*out*/g_gather.first_pid
+				,	/*out*/top_repo_root_s
 				,	       *g_lmake_root_s
 				,	       g_phy_repo_root_s
 				,	       end_report.phy_tmp_dir_s
@@ -411,25 +413,27 @@ int main( int argc , char* argv[] ) {
 			end_report.msg += e ;
 			goto End ;
 		}
+		g_start_info.autodep_env.fast_host        = host()                                                                 ; // host on which fast_report_pipe works
+		g_start_info.autodep_env.fast_report_pipe = top_repo_root_s+PrivateAdminDirS+"fast_reports/"+g_start_info.small_id ; // fast_report_pipe is a pipe and only works locally
+		g_start_info.autodep_env.views            = g_start_info.job_space.flat_phys()                                     ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//
-		g_gather.addr              =        g_start_info.addr                   ;
-		g_gather.as_session        =        true                                ;
-		g_gather.autodep_env       = ::move(g_start_info.autodep_env          ) ;
-		g_gather.autodep_env.views =        g_start_info.job_space.flat_phys()  ;
-		g_gather.cur_deps_cb       =        cur_deps_cb                         ;
-		g_gather.env               =        &cmd_env                            ;
-		g_gather.exec_trace        =        g_exec_trace                        ;
-		g_gather.job               =        g_job                               ;
-		g_gather.kill_sigs         = ::move(g_start_info.kill_sigs            ) ;
-		g_gather.live_out          =        g_start_info.live_out               ;
-		g_gather.method            =        g_start_info.method                 ;
-		g_gather.network_delay     =        g_start_info.network_delay          ;
-		g_gather.no_tmp            =       !end_report.phy_tmp_dir_s            ;
-		g_gather.seq_id            =        g_seq_id                            ;
-		g_gather.server_master_fd  = ::move(server_fd                         ) ;
-		g_gather.service_mngt      =        g_service_mngt                      ;
-		g_gather.timeout           =        g_start_info.timeout                ;
+		g_gather.addr             =        g_start_info.addr           ;
+		g_gather.as_session       =        true                        ;
+		g_gather.autodep_env      = ::move(g_start_info.autodep_env  ) ;
+		g_gather.cur_deps_cb      =        cur_deps_cb                 ;
+		g_gather.env              =        &cmd_env                    ;
+		g_gather.exec_trace       =        g_exec_trace                ;
+		g_gather.job              =        g_job                       ;
+		g_gather.kill_sigs        = ::move(g_start_info.kill_sigs    ) ;
+		g_gather.live_out         =        g_start_info.live_out       ;
+		g_gather.method           =        g_start_info.method         ;
+		g_gather.network_delay    =        g_start_info.network_delay  ;
+		g_gather.no_tmp           =       !end_report.phy_tmp_dir_s    ;
+		g_gather.seq_id           =        g_seq_id                    ;
+		g_gather.server_master_fd = ::move(server_fd                 ) ;
+		g_gather.service_mngt     =        g_service_mngt              ;
+		g_gather.timeout          =        g_start_info.timeout        ;
 		//
 		if (!g_start_info.method)                                                                        // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,digest] : g_start_info.deps ) if (digest.dflags[Dflag::Static]) {

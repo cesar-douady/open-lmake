@@ -588,8 +588,9 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 	return dst_ok ;
 }
 
-bool/*entered*/ JobSpace::enter(
+bool JobSpace::enter(
 	::vmap_s<MountAction>&/*out*/ report
+,	::string             &/*out*/ top_repo_root_s
 ,	::string   const&             phy_lmake_root_s
 ,	::string   const&             phy_repo_root_s
 ,	::string   const&             phy_tmp_dir_s
@@ -599,7 +600,11 @@ bool/*entered*/ JobSpace::enter(
 ) {
 	Trace trace("JobSpace::enter",self,phy_repo_root_s,phy_tmp_dir_s,cwd_s,work_dir_s,src_dirs_s) ;
 	//
-	if (!self) return false/*entered*/ ;
+	if (!self) {
+		top_repo_root_s = phy_repo_root_s ;
+		trace("not_done",top_repo_root_s) ;
+		return false/*entered*/ ;
+	}
 	//
 	int uid = ::getuid() ;                                                          // must be done before unshare that invents a new user
 	int gid = ::getgid() ;                                                          // .
@@ -692,7 +697,7 @@ bool/*entered*/ JobSpace::enter(
 	_atomic_write( "/proc/self/uid_map"   , ""s+uid+' '+uid+" 1\n" ) ;
 	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
 	//
-	::string repo_root_s = +repo_view_s ? top_repo_view_s : phy_repo_root_s ;
+	top_repo_root_s = top_repo_view_s | phy_repo_root_s ;
 	if (+lmake_view_s) _mount_bind( chroot_dir+lmake_view_s      , phy_lmake_root_s      ) ;
 	if (+repo_view_s ) _mount_bind( chroot_dir+super_repo_view_s , phy_super_repo_root_s ) ;
 	if (+tmp_view_s  ) _mount_bind( chroot_dir+tmp_view_s        , phy_tmp_dir_s         ) ;
@@ -703,8 +708,9 @@ bool/*entered*/ JobSpace::enter(
 	//
 	size_t work_idx = 0 ;
 	for( auto const& [view,descr] : views ) if (+descr) {                                                                      // empty descr does not represent a view
-		::string   abs_view = mk_abs(view,repo_root_s) ;
-		::vector_s abs_phys ;                            abs_phys.reserve(descr.phys.size()) ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,repo_root_s)) ;
+		::string   abs_view = mk_abs(view,top_repo_root_s) ;
+		::vector_s abs_phys ;                                abs_phys.reserve(descr.phys.size()) ;
+		for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,top_repo_root_s)) ;
 		/**/                                    _create(report,view) ;
 		for( ::string const& phy : descr.phys ) _create(report,phy ) ;
 		if (is_dirname(view)) {
@@ -725,14 +731,14 @@ bool/*entered*/ JobSpace::enter(
 		} else {
 			work_s = is_lcl(upper) ? work_dir_s+"work_"+(work_idx++)+'/' : no_slash(upper)+".work/" ;                          // if not in the repo, it must be in tmp
 			mk_dir_s(work_s) ;
-			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,repo_root_s) ) ;
+			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,top_repo_root_s) ) ;
 		}
 		if (+tmp_view_s) {
 			if (view  .starts_with(tmp_view_s)) no_unlnk.insert(view  ) ;
 			if (work_s.starts_with(tmp_view_s)) no_unlnk.insert(work_s) ;
 		}
 	}
-	trace("done") ;
+	trace("done",report,top_repo_root_s) ;
 	return true/*entered*/ ;
 }
 
@@ -900,10 +906,11 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	::map_ss             &/*out*/ cmd_env
 	,	::vmap_ss            &/*out*/ dynamic_env
 	,	pid_t                &/*out*/ first_pid
-	,	::string        const&/*in */ phy_lmake_root_s
-	,	::string        const&/*in */ phy_repo_root_s
-	,	::string        const&/*in */ phy_tmp_dir_s
-	,	SeqId                 /*in */ seq_id
+	,	::string             &/*out*/ top_repo_root_s
+	,	::string        const&        phy_lmake_root_s
+	,	::string        const&        phy_repo_root_s
+	,	::string        const&        phy_tmp_dir_s
+	,	SeqId                         seq_id
 ) {
 	Trace trace("JobStartRpcReply::enter",phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,seq_id) ;
 	bool has_tmp_dir = +phy_tmp_dir_s ;
@@ -954,7 +961,16 @@ bool/*entered*/ JobStartRpcReply::enter(
 	}
 	//
 	::string phy_work_dir_s = cat(PrivateAdminDirS,"work/",small_id,'/')                                                                                                                ;
-	bool     entered        = job_space.enter( /*out*/actions , phy_lmake_root_s , phy_repo_root_s , phy_tmp_dir_s , autodep_env.sub_repo_s , phy_work_dir_s , autodep_env.src_dirs_s ) ;
+	bool entered = job_space.enter(
+		/*out*/actions
+	,	/*out*/top_repo_root_s
+	,	       phy_lmake_root_s
+	,	       phy_repo_root_s
+	,	       phy_tmp_dir_s
+	,	       autodep_env.sub_repo_s
+	,	       phy_work_dir_s
+	,	       autodep_env.src_dirs_s
+	) ;
 	if (entered) {
 		// find a good starting pid
 		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
@@ -969,6 +985,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ; // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
 		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;   // DeltaPid on 64 bits to avoid rare overflow in multiplication
 	}
+	trace("done",actions,cmd_env,dynamic_env,first_pid,top_repo_root_s) ;
 	return entered ;
 }
 

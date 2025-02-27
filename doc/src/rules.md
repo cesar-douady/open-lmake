@@ -639,6 +639,9 @@ In that case, the job is retried, but a maximum number of retry attemps are allo
 | Python      | `bool` | `False` | Full    | `True`  |
 
 This attribute commands an implementation detail.
+
 If false, jobs are run by launching the interpreter followed by `-c` and the command text.
+
 If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said file name.
+
 If the size of the command text is too large to fit in the command line, this attribute is silently forced to true.

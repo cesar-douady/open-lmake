@@ -34,6 +34,14 @@ struct Record {
 		}
 		return _s_repo_root_fd ;
 	}
+	static Fd s_fast_report_fd() {
+		pid_t pid = ::getpid() ;
+		if ( !(+_s_fast_report_fd&&_s_fast_report_pid==pid) && +*_s_autodep_env ) {
+			_s_fast_report_fd  = _s_autodep_env->fast_report_fd() ;
+			_s_fast_report_pid = pid                              ;
+		}
+		return _s_fast_report_fd ;
+	}
 	static Fd s_report_fd() {
 		pid_t pid = ::getpid() ;
 		if ( !(+_s_report_fd&&_s_report_pid==pid) && +*_s_autodep_env ) {
@@ -42,8 +50,9 @@ struct Record {
 		}
 		return _s_report_fd ;
 	}
-	static void s_close_report() {
-		_s_report_fd.close() ;
+	static void s_close_reports() {
+		_s_fast_report_fd.close() ;
+		_s_report_fd     .close() ;
 	}
 	static AutodepEnv const& s_autodep_env() {
 		SWEAR( _s_autodep_env && s_access_cache ) ;
@@ -60,12 +69,14 @@ struct Record {
 		return *_s_autodep_env ;
 	}
 	static void s_hide(int fd) {
-		if (_s_repo_root_fd.fd==fd) _s_repo_root_fd.detach() ;
-		if (_s_report_fd   .fd==fd) _s_report_fd   .detach() ;
+		if (_s_repo_root_fd  .fd==fd) _s_repo_root_fd  .detach() ;
+		if (_s_fast_report_fd.fd==fd) _s_fast_report_fd.detach() ;
+		if (_s_report_fd     .fd==fd) _s_report_fd     .detach() ;
 	}
 	static void s_hide( uint min , uint max ) {
-		if ( _s_repo_root_fd.fd>=0 &&  uint(_s_repo_root_fd.fd)>=min && uint(_s_repo_root_fd.fd)<=max ) _s_repo_root_fd.detach() ;
-		if ( _s_report_fd   .fd>=0 &&  uint(_s_report_fd   .fd)>=min && uint(_s_report_fd   .fd)<=max ) _s_report_fd   .detach() ;
+		if ( _s_repo_root_fd  .fd>=0 &&  uint(_s_repo_root_fd  .fd)>=min && uint(_s_repo_root_fd  .fd)<=max ) _s_repo_root_fd  .detach() ;
+		if ( _s_fast_report_fd.fd>=0 &&  uint(_s_fast_report_fd.fd)>=min && uint(_s_fast_report_fd.fd)<=max ) _s_fast_report_fd.detach() ;
+		if ( _s_report_fd     .fd>=0 &&  uint(_s_report_fd     .fd)>=min && uint(_s_report_fd     .fd)<=max ) _s_report_fd     .detach() ;
 	}
 	// private
 	static void _s_mk_autodep_env(AutodepEnv* ade) {
@@ -78,7 +89,7 @@ struct Record {
 	}
 	// static data
 public :
-	static bool                                                   s_static_report  ; // if true <=> report deps to s_deps instead of through s_report_fd() socket
+	static bool                                                   s_static_report  ; // if true <=> report deps to s_deps instead of through s_(fast_)report_fd() sockets
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
 	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ; // map file to read accesses
@@ -87,9 +98,11 @@ private :
 	static Fd          _s_repo_root_fd  ;                                            // a file descriptor to repo root dir
 	static pid_t       _s_repo_root_pid ;                                            // pid in which _s_repo_root_fd is valid
 public:
-	static Fd       _s_report_fd  ;
-	static pid_t    _s_report_pid ;                                                  // pid in which _s_report_fd is valid
-	static uint64_t _s_id         ;                                                  // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
+	static Fd       _s_fast_report_fd  ;                                             // an fd to for reporting open to a pipe, faster than sockets
+	static Fd       _s_report_fd       ;
+	static pid_t    _s_fast_report_pid ;                                             // pid in which _s_fast_report_fd is valid
+	static pid_t    _s_report_pid      ;                                             // pid in which _s_report_fd      is valid
+	static uint64_t _s_id              ;                                             // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -172,14 +185,15 @@ private :
 public :
 	bool/*sent_to_server*/ report_direct( JobExecRpcReq&& jerr , bool force=false ) const {
 		//!                                                              sent_to_server
-		if ( !force && !enable )                                  return false ;
-		if ( s_static_report   ) { _static_report(::move(jerr)) ; return true  ; }
-		if ( Fd fd=s_report_fd() ; +fd ) {
-			try                       { OMsgBuf().send(fd,jerr) ;                   }
-			catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }                                 // this justifies panic, but we cannot report panic !
-			return s_has_server()/*sent_to_server*/ ;
+		if ( !force && !enable )                                  return false        ;
+		if ( s_static_report   ) { _static_report(::move(jerr)) ; return true         ; }
+		OMsgBuf msg { jerr } ;
+		Fd      fd  = jerr.sync || msg.buf.size()>PIPE_BUF ? s_report_fd() : s_fast_report_fd() ; // fast report is usable if no replies and small messages to ensure write atomicity
+		if (+fd) {
+			try                       { msg.send(fd) ;                              }
+			catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }             // this justifies panic, but we cannot report panic !
 		}
-		return false/*sent_to_server*/ ;
+		return +fd/*sent_to_server*/ ;
 	}
 	JobExecRpcReply report_sync_direct ( JobExecRpcReq&& , bool force=false ) const ;
 	bool            report_async_access( JobExecRpcReq&& , bool force=false ) const ;
@@ -369,7 +383,7 @@ public :
 			return rc ;
 		}
 		// data
-		uint64_t id = 0 ; // no confirmation by default
+		uint64_t id = 0 ;                         // no confirmation by default
 	} ;
 	template<bool ChkSimple=false> struct _Read : _Solve<false/*Writable*/,ChkSimple> {
 		using Base = _Solve<false/*Writable*/,ChkSimple> ;
@@ -440,7 +454,7 @@ public :
 			return rc ;
 		}
 		// data
-		uint64_t id = 0 ; // no confirmation if rmdir
+		uint64_t id = 0 ;                         // no confirmation if rmdir
 	} ;
 	//
 	void chdir() {

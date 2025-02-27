@@ -55,7 +55,7 @@ struct Gather {                                                                 
 	using Crc  = Hash::Crc     ;
 	using PD   = Time::Pdate   ;
 	using DI   = DepInfo       ;
-	static constexpr Time::Delay HeartbeatTick { 10 } ;                                                        // heartbeat to probe server when waiting for it ...
+	static constexpr Time::Delay HeartbeatTick { 10 } ;                                                         // heartbeat to probe server when waiting for it ...
 	struct AccessInfo {                                                                                         // ... dont bother server too much as there may be 1000's job_exec's waiting for it, ...
 		friend ::string& operator+=( ::string& , AccessInfo const& ) ;                                          // ... 100s seems a good compromize
 		// cxtors & casts
@@ -144,8 +144,8 @@ public :
 	AutodepEnv                        autodep_env      ;
 	::function<::vmap_s<DepDigest>()> cur_deps_cb      = [&]()->::vmap_s<DepDigest> { return {} ; } ;
 	PD                                end_date         ;
-	 ::map_ss const*                  env              = nullptr                                    ;
-	 ::vector<ExecTraceEntry>*        exec_trace       = nullptr                                    ;
+	::map_ss const*                   env              = nullptr                                    ;
+	::vector<ExecTraceEntry>*         exec_trace       = nullptr                                    ;
 	pid_t                             first_pid        = 0                                          ;
 	uset_s                            guards           ;                                              // dir creation/deletion that must be guarded against NFS
 	JobIdx                            job              = 0                                          ;

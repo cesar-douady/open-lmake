@@ -621,15 +621,15 @@ namespace Engine {
 									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                                ) ;
 								}
 								//
-								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir"  , no_slash(start.job_space.chroot_dir_s) ) ;
-								if (+start.job_space.lmake_view_s ) push_entry( "lmake_view"  , no_slash(start.job_space.lmake_view_s) ) ;
-								if (+start.job_space.repo_view_s  ) push_entry( "repo_view"   , no_slash(start.job_space.repo_view_s ) ) ;
-								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"    , no_slash(start.job_space.tmp_view_s  ) ) ;
-								if (+start.autodep_env.sub_repo_s ) push_entry( "sub_repo"    , no_slash(start.autodep_env.sub_repo_s) ) ;
-								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir"  , "true"                                 ) ;
-								/**/                                push_entry( "autodep"     , snake_str(start.method)                ) ;
-								if (+start.timeout                ) push_entry( "timeout"     , start.timeout.short_str()              ) ;
-								if ( start.use_script             ) push_entry( "use_script"  , "true"                                 ) ;
+								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir" , no_slash(start.job_space.chroot_dir_s) ) ;
+								if (+start.job_space.lmake_view_s ) push_entry( "lmake_view" , no_slash(start.job_space.lmake_view_s) ) ;
+								if (+start.job_space.repo_view_s  ) push_entry( "repo_view"  , no_slash(start.job_space.repo_view_s ) ) ;
+								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"   , no_slash(start.job_space.tmp_view_s  ) ) ;
+								if (+start.autodep_env.sub_repo_s ) push_entry( "sub_repo"   , no_slash(start.autodep_env.sub_repo_s) ) ;
+								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir" , "true"                                 ) ;
+								/**/                                push_entry( "autodep"    , snake_str(start.method)                ) ;
+								if (+start.timeout                ) push_entry( "timeout"    , start.timeout.short_str()              ) ;
+								if ( start.use_script             ) push_entry( "use_script" , "true"                                 ) ;
 								//
 								if      (job->backend==BackendTag::Local) SWEAR(sa.used_tag==BackendTag::Local) ;
 								else if (sa.used_tag ==job->backend     ) push_entry( "backend" , snake_str(job->backend)                                     ) ;

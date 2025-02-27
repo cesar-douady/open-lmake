@@ -28,8 +28,8 @@ Because the data necessary to run the benchmark are not provided, I have approxi
 - a `all_10000` target depending on all 10k executables.
 - a `all_10` target depending on the first 10 executables.
 
-The directory is prepared by running the "unit_tests/bench" unit test.
-[unit_tests/bench](../unit_tests/bench.py) can be inspected to have a detailed understanding.
+The directory is prepared by running the `unit_tests/bench` unit test.
+[unit\_tests/bench](../unit_tests/bench.py) can be inspected to have a detailed understanding.
 
 For each build-system:
 
@@ -68,7 +68,8 @@ This is key for `bazel`'s scalability.
 
 `bazel` can understand loops in its config file.
 Although this could have been done here, it would not be representative of a real situation where dependencies, names etc. are all different for each target, defeating any loop based approach.
-As a consequence, all config files have a line for each target, except open-lmake where this information is stored in its dynamic state.
+As a consequence, all config files have a line for each target, except open-lmake where this information is stored in its dynamic state.  
+Also we use built-in rules that may not execute exactly the same compilation command.
 
 The running host has 8 cpu's (including hyper-threading) and the number of parallel jobs is 16, which seems best for all build systems.
 
@@ -76,8 +77,8 @@ The running host has 8 cpu's (including hyper-threading) and the number of paral
 
 |                                 | `bash` | `make` | `ninja`    | `bazel` | open-lmake | Comment                                                       |
 |---------------------------------|--------|--------|------------|---------|------------|---------------------------------------------------------------|
-| fresh rebuild                   |        |        |            |         | 8m 34s     | initial build                                                 |
-| full rebuild                    | 6m 12s | 5m 51s | **5m 48s** | 7m 15s  | 7m 52s     | after erasing all built files and `bazel` cache               |
+| fresh rebuild                   |        |        |            |         | 7m 18s     | initial build                                                 |
+| full rebuild                    | 6m 12s | 5m 51s | **5m 48s** | 7m 15s  | 6m 58s     | after erasing all built files and `bazel` cache               |
 | full no-op rebuild              |        | 7.725s | 0.913s     | 9.691s  | **0.520s** | after no modification                                         |
 | partial no-op rebuild           |        | 0.871s | 0.462s     | 9.012s  | **0.050s** | build of a target that only requires exploration of 100 files |
 | config file size (lines)        | 120017 | 120008 | 120011     | 120002  | **11**     | note open-lmake contains no dep info in its config            |

@@ -26,47 +26,55 @@ using namespace Time ;
 // Record
 //
 
-bool                                                   Record::s_static_report  = false        ;
-::vmap_s<DepDigest>                                  * Record::s_deps           = nullptr      ;
-::string                                             * Record::s_deps_err       = nullptr      ;
-::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache   = nullptr      ; // map file to read accesses
-AutodepEnv*                                            Record::_s_autodep_env   = nullptr      ; // declare as pointer to avoid late initialization
-Fd                                                     Record::_s_repo_root_fd  ;
-pid_t                                                  Record::_s_repo_root_pid = 0            ;
-Fd                                                     Record::_s_report_fd     ;
-pid_t                                                  Record::_s_report_pid    = 0            ;
-uint64_t                                               Record::_s_id            = 0/*garbage*/ ;
+bool                                                   Record::s_static_report    = false        ;
+::vmap_s<DepDigest>                                  * Record::s_deps             = nullptr      ;
+::string                                             * Record::s_deps_err         = nullptr      ;
+::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache     = nullptr      ; // map file to read accesses
+AutodepEnv*                                            Record::_s_autodep_env     = nullptr      ; // declare as pointer to avoid late initialization
+Fd                                                     Record::_s_repo_root_fd    ;
+pid_t                                                  Record::_s_repo_root_pid   = 0            ;
+Fd                                                     Record::_s_fast_report_fd  ;
+Fd                                                     Record::_s_report_fd       ;
+pid_t                                                  Record::_s_fast_report_pid = 0            ;
+pid_t                                                  Record::_s_report_pid      = 0            ;
+uint64_t                                               Record::_s_id              = 0/*garbage*/ ;
 
 bool Record::s_is_simple(const char* file) {
-	if (!file        ) return true  ;                                     // no file is simple (not documented, but used in practice)
-	if (!file[0]     ) return true  ;                                     // empty file is simple
-	if ( file[0]!='/') return false ;                                     // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
+	if (!file        ) return true  ;                                    // no file is simple (not documented, but used in practice)
+	if (!file[0]     ) return true  ;                                    // empty file is simple
+	if ( file[0]!='/') return false ;                                    // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
 Restart :
 	size_t pfx_sz = 0 ;
-	switch (file[1]) {                                                    // recognize simple and frequent top level system directories
-		case 'b' : if (strncmp(file+1,"bin/" ,4)==0) pfx_sz = 5 ; break ;
-		case 'd' : if (strncmp(file+1,"dev/" ,4)==0) pfx_sz = 5 ; break ;
-		case 'e' : if (strncmp(file+1,"etc/" ,4)==0) pfx_sz = 5 ; break ;
-		case 'o' : if (strncmp(file+1,"opt/" ,4)==0) pfx_sz = 5 ; break ; // used to install 3rd party software, not a data dir
-		case 'r' : if (strncmp(file+1,"run/" ,4)==0) pfx_sz = 5 ; break ;
-		case 's' : if (strncmp(file+1,"sbin/",5)==0) pfx_sz = 6 ;
-		/**/       if (strncmp(file+1,"sys/" ,4)==0) pfx_sz = 5 ; break ;
-		case 'u' : if (strncmp(file+1,"usr/" ,4)==0) pfx_sz = 5 ; break ;
-		case 'v' : if (strncmp(file+1,"var/" ,4)==0) pfx_sz = 5 ; break ;
+	switch (file[1]) {                                                   // recognize simple and frequent top level system directories
+		case 'b' : if (strncmp(file+1,"bin" ,3)==0) pfx_sz = 5 ; break ;
+		case 'd' : if (strncmp(file+1,"dev" ,3)==0) pfx_sz = 5 ; break ;
+		case 'e' : if (strncmp(file+1,"etc" ,3)==0) pfx_sz = 5 ; break ;
+		case 'o' : if (strncmp(file+1,"opt" ,3)==0) pfx_sz = 5 ; break ; // used to install 3rd party software, not a data dir
+		case 'r' : if (strncmp(file+1,"run" ,3)==0) pfx_sz = 5 ; break ;
+		case 's' : if (strncmp(file+1,"sbin",4)==0) pfx_sz = 6 ;
+		/**/       if (strncmp(file+1,"sys" ,3)==0) pfx_sz = 5 ; break ;
+		case 'u' : if (strncmp(file+1,"usr" ,3)==0) pfx_sz = 5 ; break ;
+		case 'v' : if (strncmp(file+1,"var" ,3)==0) pfx_sz = 5 ; break ;
 		case 'l' :
-			if      (strncmp(file+1,"lib",3)!=0) break ;      // not in lib* => not simple
-			if      (strncmp(file+4,"/"  ,1)==0) pfx_sz = 5 ; // in lib      => simple
-			else if (strncmp(file+4,"32/",3)==0) pfx_sz = 7 ; // in lib32    => simple
-			else if (strncmp(file+4,"64/",3)==0) pfx_sz = 7 ; // in lib64    => simple
-		break ;                                               // else        => not simple
-		case 'p' :                                            // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
-			if ( strncmp(file+1,"proc/",5)!=0 ) break ;       // not in /proc      => not simple
-			if ( file[6]>='0' && file[6]<='9' ) break ;       // in /proc/<pid>    => not simple
-			if ( strncmp(file+6,"self/",5)==0 ) break ;       // not in /proc/self => not simple
-			pfx_sz = 6 ;                                      // else              => simple
+			if      (strncmp(file+1,"lib",3)!=0) break ;          // not in lib* => not simple
+			if      (strncmp(file+4,"32" ,2)==0) pfx_sz = 7 ;     // in lib32    => simple
+			else if (strncmp(file+4,"64" ,2)==0) pfx_sz = 7 ;     // in lib64    => simple
+			else                                 pfx_sz = 5 ;     // in lib      => simple
+		break ;                                                   // else        => not simple
+		case 'p' :                                                // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
+			if ( strncmp(file+1,"proc",4)!=0  ) break           ; // not in /proc      => not simple
+			if ( !file[5]                     ) return true     ; // /proc             => simple
+			if ( file[5]!='/'                 ) return false    ; // false prefix      => not simple
+			if ( file[6]>='0' && file[6]<='9' ) return false    ; // in /proc/<pid>    => not simple
+			if ( strncmp(file+6,"self",4)!=0  ) goto SimpleProc ; // not in /proc/self => simple
+			if ( !file[10]                    ) return true     ; // /proc/self        => simple
+			if ( file[10]=='/'                ) return false    ; // in /proc/self     => not simple
+		SimpleProc :
+			pfx_sz = 6 ;
 		break ;
 	DN}
-	if (!pfx_sz) return false ;
+	if ( !pfx_sz                               ) return false ;   // no prefix
+	if ( file[pfx_sz-1] && file[pfx_sz-1]!='/' ) return false ;   // false prefix
 	int depth = 0 ;
 	for ( const char* p=file+pfx_sz ; *p ; p++ ) {                                             // ensure we do not escape from top level dir
 		if (p[ 0]!='/')                                                           continue ;   // not a dir boundary, go on
@@ -306,9 +314,11 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	if (+writes   ) write_id = r._report_targets( ::move   (writes) ,                        c+".dst"   ) ;        // .
 }
 
-Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , ::string&& c ) : Solve{ r , ::move(path) , no_follow , true/*read*/ , false/*create*/ , c } {
+Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , ::string&& c ) :
+	Solve{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , false/*create*/ , c }
+{
 	if (no_follow) c += ".NF" ;
-	r._report_dep( file_loc , ::move(real) , accesses|a , ::move(c) ) ;
+	if (!s_autodep_env().ignore_stat) r._report_dep( file_loc , ::move(real) , accesses|a , ::move(c) ) ;
 }
 
 Record::Symlink::Symlink( Record& r , Path&& p , ::string&& c ) : Solve{r,::move(p),true/*no_follow*/,false/*read*/,true/*create*/,c} {
