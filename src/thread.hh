@@ -21,10 +21,6 @@ template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process 
 	using Delay       = Time::Delay             ;
 	using Q::size ;
 	static constexpr Delay Timeout = ThreadMutex::Timeout ;
-	// cxtors & casts
-	ThreadQueue(      ) = default ;
-	ThreadQueue(char k) : key{k} {}
-	~ThreadQueue() { Trace("~ThreadQueue",key) ; }
 	// accesses
 	bool operator+() const {
 		Lock<ThreadMutex> lock{_mutex} ;
@@ -59,8 +55,6 @@ private :
 	bool _wait(                     Delay d , L& lck ) { return _cond.wait_for( lck ,        ::chrono::nanoseconds(d) , [&](){ return !Q::empty() ; } ) ; }
 	bool _wait( ::stop_token stop , Delay d , L& lck ) { return _cond.wait_for( lck , stop , ::chrono::nanoseconds(d) , [&](){ return !Q::empty() ; } ) ; }
 	// data
-public :
-	char key = t_thread_key ;
 private :
 	ThreadMutex mutable      _mutex ;
 	::condition_variable_any _cond  ;
@@ -77,7 +71,6 @@ template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : pr
 	using Base::lock           ;
 	using Base::unlock         ;
 	using Base::swear_locked   ;
-	using Base::key            ;
 	using Delay = Time::Delay ;
 	static constexpr Delay Timeout = Base::Timeout ;
 	#define RQA  requires( QueueAccess)
@@ -85,13 +78,13 @@ template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : pr
 	// statics
 private :
 	// XXX! : why gcc refuses to call both functions _s_thread_func ?
-	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val const&)> func ) requires(QueueAccess) {
+	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val const&)> func ) RQA {
 		t_thread_key = key ;
 		Trace trace("QueueThread::_s_thread_func2") ;
 		while(self_->pop(stop,self_->_cur)) func(stop,self_->_cur) ;
 		trace("done") ;
 	}
-	static void _s_thread_func2( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val&&)> func ) requires(!QueueAccess) {
+	static void _s_thread_func2( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val&&)> func ) RNQA {
 		t_thread_key = key ;
 		Trace trace("QueueThread::_s_thread_func4") ;
 		for(;;) {
@@ -108,11 +101,10 @@ public :
 	QueueThread( char k , ::function<void(::stop_token,Val const&)> f ) RQA  { open(k,f) ; }
 	QueueThread( char k , ::function<void(             Val     &&)> f ) RNQA { open(k,f) ; }
 	QueueThread( char k , ::function<void(::stop_token,Val     &&)> f ) RNQA { open(k,f) ; }
-	void open  ( char k , ::function<void(             Val const&)> f ) RQA  { key = k ; _thread = ::jthread( _s_thread_func1 , k , this , [=](::stop_token,Val const& v)->void {f(       v );} ) ; }
-	void open  ( char k , ::function<void(::stop_token,Val const&)> f ) RQA  { key = k ; _thread = ::jthread( _s_thread_func1 , k , this , f                                                    ) ; }
-	void open  ( char k , ::function<void(             Val     &&)> f ) RNQA { key = k ; _thread = ::jthread( _s_thread_func2 , k , this , [=](::stop_token,Val     && v)->void {f(::move(v));} ) ; }
-	void open  ( char k , ::function<void(::stop_token,Val     &&)> f ) RNQA { key = k ; _thread = ::jthread( _s_thread_func2 , k , this , f                                                    ) ; }
-	~QueueThread() { Trace("~QueueThread",key) ; }
+	void open  ( char k , ::function<void(             Val const&)> f ) RQA  { _thread = ::jthread( _s_thread_func1 , k , this , [=](::stop_token,Val const& v)->void {f(       v );} ) ; }
+	void open  ( char k , ::function<void(::stop_token,Val const&)> f ) RQA  { _thread = ::jthread( _s_thread_func1 , k , this , f                                                    ) ; }
+	void open  ( char k , ::function<void(             Val     &&)> f ) RNQA { _thread = ::jthread( _s_thread_func2 , k , this , [=](::stop_token,Val     && v)->void {f(::move(v));} ) ; }
+	void open  ( char k , ::function<void(::stop_token,Val     &&)> f ) RNQA { _thread = ::jthread( _s_thread_func2 , k , this , f                                                    ) ; }
 	// accesses
 	Val const& cur() const RQA { return _cur ; }
 	Val      & cur()       RQA { return _cur ; }
@@ -135,7 +127,6 @@ template<class T,bool Flush=true> struct TimedDequeThread : ThreadDeque<::pair<T
 	using Pdate = Time::Pdate                              ;
 	using Delay = Time::Delay                              ;
 	using Val   = T                                        ;
-	using Base::key ;
 	// statics
 private :
 	static void _s_thread_func( ::stop_token stop , char key , TimedDequeThread* self_ , ::function<void(::stop_token,Val&&)> func ) {
@@ -154,9 +145,8 @@ public :
 	TimedDequeThread() = default ;
 	TimedDequeThread( char k , ::function<void(             Val&&)> f ) { open(k,f) ; }
 	TimedDequeThread( char k , ::function<void(::stop_token,Val&&)> f ) { open(k,f) ; }
-	void open       ( char k , ::function<void(             Val&&)> f ) { key = k ; _thread = ::jthread( _s_thread_func , k , this , [=](::stop_token,Val&& v)->void {f(::move(v));} ) ; }
-	void open       ( char k , ::function<void(::stop_token,Val&&)> f ) { key = k ; _thread = ::jthread( _s_thread_func , k , this , f                                               ) ; }
-	~TimedDequeThread() { Trace("~TimedDequeThread",key) ; }
+	void open       ( char k , ::function<void(             Val&&)> f ) { _thread = ::jthread( _s_thread_func , k , this , [=](::stop_token,Val&& v)->void {f(::move(v));} ) ; }
+	void open       ( char k , ::function<void(::stop_token,Val&&)> f ) { _thread = ::jthread( _s_thread_func , k , this , f                                               ) ; }
 	// services
 	template<class U> void push_urgent(           U&& x ) { Base::emplace_urgent(Pdate()     , ::forward<U>(x) ) ; }
 	template<class U> void push       (           U&& x ) { Base::emplace       (Pdate()     , ::forward<U>(x) ) ; }

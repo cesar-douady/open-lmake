@@ -52,4 +52,5 @@ int main() {
 	trace("in parent step3") ;
 	::waitpid(pid,nullptr,0) ;
 	trace("in parent step4") ;
+	return 0 ;
 }

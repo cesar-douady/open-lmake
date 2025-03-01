@@ -37,11 +37,11 @@ if __name__!='__main__' :
 	class Ref(Base) :
 		target = 'ref{N}'
 		cmd    = multi_strip('''
-			echo /tmp         # echo $TMPDIR
-			echo /tmp         # pwd
-			echo {N}          # cat a
-			echo {N}          # cat LNK
-			echo {N}          # cat /tmp/b
+			echo /tmp            # echo $TMPDIR
+			echo /tmp            # pwd
+			echo {N}             # cat a
+			echo {N}             # cat LNK
+			echo {N}             # cat /tmp/b
 		''')
 
 	class Cmp(Base) :
@@ -75,6 +75,7 @@ if __name__!='__main__' :
 			cp -a $REPO_ROOT/{File}.dir/d d
 			a=$(cat d/a)
 			echo $a:aa >d/a
+			rmdir $REPO_ROOT/{File}.dir2/d 2>/dev/null || :
 			cp -a d $REPO_ROOT/{File}.dir2/d
 		'''
 
@@ -89,5 +90,6 @@ else :
 
 	import ut
 
-	ut.lmake( 'ok1','ok2' , done=6 ) # check target is out of date
-	ut.lmake( 'test.chk'  , done=3 )
+	ut.lmake      ( 'ok1','ok2' , done=6             ) # check target is out of date
+	cnt = ut.lmake( 'test.chk'  , done=3 , rerun=... )
+	assert cnt.rerun<=1                                # test.dir/d/b may (rarely) be hot as it is very recent and not an already known dep

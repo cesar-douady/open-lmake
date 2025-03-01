@@ -99,8 +99,8 @@ COMMA := ,
 
 # XXX! : add -fdebug_prefix-map=$(REPO_ROOT)=??? when we know a sound value (e.g. the dir in which sources will be installed)
 HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
-# syntax for LMAKE_FLAGS : (O[0123])?G?d?t?(S[AT])?P?C?
-# - O[0123] : compiler optimization level, defaults to 1 if profiling else 3
+# syntax for LMAKE_FLAGS : (O[01234])?G?d?t?(S[AT])?P?C?
+# - O[0123] : compiler optimization level (4 means -O3 -flto), defaults to 1 if profiling else 3
 # - G       : ease debugging
 # - d       : -DNDEBUG
 # - t       : -DNO_TRACE
@@ -108,11 +108,13 @@ HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=
 # - ST      : -fsanitize threads
 # - P       : -pg
 # - C       : coverage (not operational yet)
+LTO_FLAGS        := -O3 $(if $(findstring gcc,$(CXX_FLAVOR)),-flto=2,-flto)
 COVERAGE         := $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
 PROFILE          := $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
-EXTRA_FLAGS      := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,-O3)
-EXTRA_FLAGS      := $(if $(findstring O4,$(LMAKE_FLAGS)),-O3 -flto,$(EXTRA_FLAGS))
-EXTRA_LINK_FLAGS := $(if $(findstring O4,$(LMAKE_FLAGS)),-O3 $(if $(findstring gcc,$(CXX_FLAVOR)),-flto=2,-flto))
+EXTRA_FLAGS      := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,$(LTO_FLAGS))
+EXTRA_LINK_FLAGS := $(if $(findstring P, $(LMAKE_FLAGS)),,$(LTO_FLAGS))
+EXTRA_FLAGS      := $(if $(findstring O4,$(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_FLAGS))
+EXTRA_LINK_FLAGS := $(if $(findstring O4,$(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_LINK_FLAGS))
 EXTRA_FLAGS      := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(EXTRA_FLAGS))
 EXTRA_FLAGS      := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(EXTRA_FLAGS))
 EXTRA_FLAGS      := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(EXTRA_FLAGS))
@@ -825,7 +827,7 @@ $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
 	@echo generate $(DEBIAN_DIR)
 	@rm -rf $(DEBIAN_DIR) ; mkdir -p $(DEBIAN_DIR)
 	@tar -c $(DEBIAN_SRCS) Manifest | tar -x -C$(DEBIAN_DIR)
-	@echo LMAKE_FLAGS=O3Gtl > $(DEBIAN_DIR)/sys_config.env
+	@echo LMAKE_FLAGS=O4Gtl > $(DEBIAN_DIR)/sys_config.env
 	@tar -cz -C$(DEBIAN_DIR) -f $@ .
 	@tar -c $(DEBIAN_COPY) | tar -x -C$(DEBIAN_DIR)
 	@{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f       /usr/$$f                   ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.links

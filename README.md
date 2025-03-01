@@ -14,14 +14,14 @@ It is reproducible : never complain "does not work on my machine" ever again.
 It is unique in that:
 
 - Dependencies are **automatically detected** through command spying (at libc or system call level).
-- Rules are selected through full regular expressions allowing a complete decoupling between the flow (as described in the config file) and the project.
+- Rules are selected through full **regular expressions** allowing a complete decoupling between the flow (as described in the config file) and the project (as described by source files).
 
 Also:
 
 - Performance is excellent despite these apparently heavy features. Visit [benchmarks](doc/benchmark.md).
-- Config file (called `Lmakefile.py`) is plain Python (no DSL!).
-- `slurm` and `SGE` support.
-- Fully traceable. You can retrieve logs, know why a job was run, who asked for it, when it was run, etc.
+- Config file (called `Lmakefile.py`) is plain Python: **no DSL!**.
+- Native `slurm` and `SGE` support.
+- Fully traceable: you can retrieve logs, know why a job was run, who asked for it, when it was run, etc.
 
 For a quick comparison with well-known tools (`make`, `ninja`, `bazel`, `CMake`) , visit [quick comparison](doc/quick_comparison.md).
 
