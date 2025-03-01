@@ -25,6 +25,8 @@ ENUM( EventKind
 ,	Watch
 )
 
+static constexpr Delay StatsRefresh { 1 } ;
+
 static ServerSockFd   _g_server_fd      ;
 static bool           _g_is_daemon      = true   ;
 static ::atomic<bool> _g_done           = false  ;
@@ -278,15 +280,23 @@ static bool/*interrupted*/ _engine_loop() {
 		if (empty) {                                                               // we are about to block, do some book-keeping
 			trace("wait") ;
 			//vvvvvvvvvvvvvvvvv
-			Backend::s_launch() ;                                                  // we are going to wait, tell backend as it may have retained jobs to process them with as mauuch info as possible
+			Backend::s_launch() ;                                                  // we are going to wait, tell backend as it may be retaining jobs to process them with as much info as possible
 			//^^^^^^^^^^^^^^^^^
 		}
-		if ( Pdate now=New ; empty || now>next_stats_date ) {
+	Retry :
+		Pdate now           = New                 ;
+		bool  refresh_stats = now>next_stats_date ;
+		if (refresh_stats) {
 			for( auto const& [r,_] : fd_tab ) if (+r->audit_fd) r->audit_stats() ; // refresh title
-			next_stats_date = now+Delay(1.) ;
+			next_stats_date = now+StatsRefresh ;
 		}
 		if ( empty && _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
-		EngineClosure closure = g_engine_queue.pop() ;
+		::pair<bool/*popped*/,EngineClosure> popped_closure =
+			refresh_stats ? ::pair( true/*popped*/ , g_engine_queue.pop    (            ) )
+			:                                        g_engine_queue.pop_for(StatsRefresh)
+		;
+		if (!popped_closure.first) goto Retry ;
+		EngineClosure& closure = popped_closure.second ;
 		switch (closure.kind) {
 			case EngineClosureKind::Global : {
 				switch (closure.ecg.proc) {

@@ -272,13 +272,14 @@ namespace Engine {
 		bool done(           ) const { return done_>=goal ; }
 		// data
 	public :
-		RuleIdx  prio_idx    = NoIdx           ;                              //    16 bits, index to the first job of the current prio being or having been analyzed
-		bool     single      = false           ;                              // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
-		Accesses overwritten ;                                                // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
-		Manual   manual      = Manual::Unknown ;                              // 3<= 8 bits, info is available as soon as done_=Dsk
-		Bool3    speculate   = Yes             ;                              // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
-		NodeGoal goal        = NodeGoal::None  ;                              // 2<= 8 bits, asked level
-		NodeGoal done_       = NodeGoal::None  ;                              // 2<= 8 bits, done level
+//		ReqInfo                                                               //    128 bits, inherits
+		RuleIdx  prio_idx    = NoIdx           ;                              //     16 bits, index to the first job of the current prio being or having been analyzed
+		bool     single      = false           ;                              // 1<=  8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
+		Accesses overwritten ;                                                // 3<=  8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
+		Manual   manual      = Manual::Unknown ;                              // 3<=  8 bits, info is available as soon as done_=Dsk
+		Bool3    speculate   = Yes             ;                              // 2<=  8 bits, Yes : prev dep not ready, Maybe : prev dep in error
+		NodeGoal goal        = NodeGoal::None  ;                              // 2<=  8 bits, asked level
+		NodeGoal done_       = NodeGoal::None  ;                              // 2<=  8 bits, done level
 	} ;
 
 }

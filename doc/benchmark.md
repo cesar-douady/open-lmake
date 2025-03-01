@@ -75,14 +75,14 @@ The running host has 8 cpu's (including hyper-threading) and the number of paral
 
 ## Results
 
-|                                 | `bash` | `make` | `ninja`    | `bazel` | open-lmake | Comment                                                       |
-|---------------------------------|--------|--------|------------|---------|------------|---------------------------------------------------------------|
-| fresh rebuild                   |        |        |            |         | 7m 18s     | initial build                                                 |
-| full rebuild                    | 6m 12s | 5m 51s | **5m 48s** | 7m 15s  | 6m 58s     | after erasing all built files and `bazel` cache               |
-| full no-op rebuild              |        | 7.725s | 0.913s     | 9.691s  | **0.520s** | after no modification                                         |
-| partial no-op rebuild           |        | 0.871s | 0.462s     | 9.012s  | **0.050s** | build of a target that only requires exploration of 100 files |
-| config file size (lines)        | 120017 | 120008 | 120011     | 120002  | **11**     | note open-lmake contains no dep info in its config            |
-| resident memory on full rebuild |        | 406M   | **136M**   | 8.7G    | 207M       |                                                               |
+|                                 | `bash` |   `make`  | `ninja`    | `bazel` | open-lmake | Comment                                                       |
+|---------------------------------|--------|-----------|------------|---------|------------|---------------------------------------------------------------|
+| fresh rebuild                   |        |           |            |         | 7m 51s     | initial build                                                 |
+| full rebuild                    | 6m 4s  | 5m 59s    | **5m 55s** | 7m 46s  | 7m 12s     | after erasing all built files and `bazel` cache               |
+| full no-op rebuild              |        | 7.682s    | 0.917s     | 5.623s  | **0.530s** | after no modification                                         |
+| partial no-op rebuild           |        | 0.856s    | 0.461s     | 5.270s  | **0.033s** | build of a target that only requires exploration of 100 files |
+| config file size (lines)        | 120017 | 120008    | 120011     | 120002  | **11**     | note open-lmake contains no dep info in its config            |
+| resident memory on full rebuild |        | 406M      | **136M**   | 8.1G    | 156M       |                                                               |
 
 ## Notes on the results
 

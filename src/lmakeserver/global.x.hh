@@ -84,14 +84,19 @@ namespace Engine {
 
 	struct Kpi {
 		friend ::string& operator+=( ::string& , Kpi const& ) ;
+		struct ReqEntry {
+			size_t n_job_req_info  = 0 ;
+			size_t n_node_req_info = 0 ;
+		} ;
 		// services
 		::string pretty_str() const ;
 		// data
-		size_t n_aborted_job_creation = 0 ;
-		size_t n_job_make             = 0 ;
-		size_t n_node_make            = 0 ;
-		size_t n_job_set_pressure     = 0 ;
-		size_t n_node_set_pressure    = 0 ;
+		size_t             n_aborted_job_creation = 0 ;
+		size_t             n_job_make             = 0 ;
+		size_t             n_node_make            = 0 ;
+		size_t             n_job_set_pressure     = 0 ;
+		size_t             n_node_set_pressure    = 0 ;
+		::vector<ReqEntry> reqs                   ;
 	} ;
 
 }
@@ -208,7 +213,7 @@ namespace Engine {
 		//
 		// cxtors & casts
 		// Global
-		EngineClosure(GP p) : kind{Kind::Global} , ecg{.proc=p} {}
+		EngineClosure(GP p=GP::None) : kind{Kind::Global} , ecg{.proc=p} {}
 		// Req
 		EngineClosure(RP p,R r,Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},ecr{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR( p==RP::Make                 ) ; }
 		EngineClosure(RP p,    Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},ecr{.proc=p,       .in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR( p!=RP::Make&&p>=RP::HasArgs ) ; }

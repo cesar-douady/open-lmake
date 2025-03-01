@@ -230,7 +230,7 @@ namespace Engine::Persistent {
 		// jobs
 		_job_file      .init( dir_s+"job"       , g_writable ) ;
 		_deps_file     .init( dir_s+"deps"      , g_writable ) ;
-		_targets_file  .init( dir_s+"_targets"  , g_writable ) ;
+		_targets_file  .init( dir_s+"targets"   , g_writable ) ;
 		// nodes
 		_node_file     .init( dir_s+"node"      , g_writable ) ;
 		_job_tgts_file .init( dir_s+"job_tgts"  , g_writable ) ;

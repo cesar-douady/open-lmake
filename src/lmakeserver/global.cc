@@ -185,11 +185,12 @@ namespace Engine {
 
 	::string& operator+=( ::string& os , Kpi const& kpi ) {
 		os << "Kpi(" ;
-		if (kpi.n_aborted_job_creation) os <<",AJC:"<< kpi.n_aborted_job_creation ;
-		if (kpi.n_job_make            ) os <<",JM:" << kpi.n_job_make             ;
-		if (kpi.n_node_make           ) os <<",NM:" << kpi.n_node_make            ;
-		if (kpi.n_job_set_pressure    ) os <<",JSP:"<< kpi.n_job_set_pressure     ;
-		if (kpi.n_node_set_pressure   ) os <<",NSP:"<< kpi.n_node_set_pressure    ;
+		if ( kpi.n_aborted_job_creation) os <<",AJC:" << kpi.n_aborted_job_creation ;
+		if ( kpi.n_job_make            ) os <<",JM:"  << kpi.n_job_make             ;
+		if ( kpi.n_node_make           ) os <<",NM:"  << kpi.n_node_make            ;
+		if ( kpi.n_job_set_pressure    ) os <<",JSP:" << kpi.n_job_set_pressure     ;
+		if ( kpi.n_node_set_pressure   ) os <<",NSP:" << kpi.n_node_set_pressure    ;
+		if (+kpi.reqs                  ) os <<",Reqs:"<< kpi.reqs.size()            ;
 		return os << ")" ;
 	}
 
@@ -200,6 +201,10 @@ namespace Engine {
 		if (n_node_make           ) res <<"n_node_make            : "<< n_node_make            <<'\n' ;
 		if (n_job_set_pressure    ) res <<"n_job_set_pressure     : "<< n_job_set_pressure     <<'\n' ;
 		if (n_node_set_pressure   ) res <<"n_node_set_pressure    : "<< n_node_set_pressure    <<'\n' ;
+		for ( ReqEntry const& re : reqs ) {
+			res <<"\tn_job_req_info  : " << re.n_job_req_info <<'\n' ;
+			res <<"\tn_job_node_info : " << re.n_job_req_info <<'\n' ;
+		}
 		return res ;
 	}
 

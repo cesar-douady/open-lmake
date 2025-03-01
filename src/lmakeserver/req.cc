@@ -84,6 +84,10 @@ namespace Engine {
 		Trace trace("Rclose",self) ;
 		SWEAR(  self->is_open  ()                     ) ;
 		SWEAR( !self->n_running() , self->n_running() ) ;
+		g_kpi.reqs.push_back({
+			.n_job_req_info  = self->jobs .size()
+		,	.n_node_req_info = self->nodes.size()
+		}) ;
 		if (self->has_backend) Backend::s_close_req(+self) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
 		Idx n_reqs = s_n_reqs() ;

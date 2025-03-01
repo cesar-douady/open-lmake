@@ -318,25 +318,25 @@ int main( int argc , char* argv[] ) {
 	//
 	g_trace_file = new ::string{g_phy_repo_root_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
 	//
-	JobEndRpcReq end_report { {g_seq_id,g_job} , {.end_date=start_overhead,.status=Status::EarlyErr} } ; // prepare to return an error, so we can goto End anytime
+	JobEndRpcReq end_report { {g_seq_id,g_job} , {.end_date=start_overhead,.status=Status::EarlyErr} } ;                     // prepare to return an error, so we can goto End anytime
 	g_exec_trace = &end_report.exec_trace ;
 	g_exec_trace->emplace_back(start_overhead,"start_overhead") ;
 	//
 	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
-		get_start_info(server_fd) ;                                                                      // getting start info is useless, but necessary to be allowed to report end
+		get_start_info(server_fd) ;                                                                                          // getting start_info is useless, but necessary to be allowed to report end
 		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
 		goto End ;
 	}
-	Trace::s_sz = 10<<20 ;                                                                               // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                              // necessary to capture it using signalfd
-	app_init(false/*read_only_ok*/,No/*chk_version*/,No/*cd_root*/) ;
+	Trace::s_sz = 10<<20 ;                                                                                                   // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                                                  // necessary to capture it using signalfd
+	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                                                     // dont cd, but check we are in a repo
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
 		g_start_info = get_start_info(server_fd) ;
-		if (!g_start_info) return 0 ;                                                                    // server ask us to give up
+		if (!g_start_info) return 0 ;                                                                                        // server ask us to give up
 		try                       { g_start_info.job_space.mk_canon(g_phy_repo_root_s) ; }
 		catch (::string const& e) { end_report.msg += e ; goto End ;                     }
 		//
@@ -361,7 +361,7 @@ int main( int argc , char* argv[] ) {
 		SWEAR(!end_report.phy_tmp_dir_s,end_report.phy_tmp_dir_s) ;
 		{	auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if ( it==g_start_info.env.end() || +it->second ) {                                           // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
+			if ( it==g_start_info.env.end() || +it->second ) {                                                               // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
 				if (g_start_info.keep_tmp) {
 					end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 				} else {
@@ -435,7 +435,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.service_mngt     =        g_service_mngt              ;
 		g_gather.timeout          =        g_start_info.timeout        ;
 		//
-		if (!g_start_info.method)                                                                        // if no autodep, consider all static deps are fully accessed as we have no precise report
+		if (!g_start_info.method)                                                           // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,digest] : g_start_info.deps ) if (digest.dflags[Dflag::Static]) {
 				digest.accesses = ~Accesses() ;
 				if ( digest.is_crc && !digest.crc().valid() ) digest.sig(FileSig(d)) ;
@@ -444,7 +444,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.new_deps( washed , ::move(g_start_info.deps) , g_start_info.stdin ) ;
 		for( auto const& [t,f] : g_match_dct.knowns )
 			if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] )
-				g_gather.new_unlnk(washed,t) ;                                                           // always report non-optional static targets
+				g_gather.new_unlnk(washed,t) ;                                              // always report non-optional static targets
 		//
 		if (+g_start_info.stdin) g_gather.child_stdin = Fd(g_start_info.stdin) ;
 		else                     g_gather.child_stdin = Fd("/dev/null"       ) ;
@@ -465,7 +465,7 @@ int main( int argc , char* argv[] ) {
 		catch (::string const& e) { end_report.msg += e ; goto End ; }
 		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
-		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                             // XXX> : suppress when CentOS7 bug is fixed
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                // XXX> : suppress when CentOS7 bug is fixed
 		//
 		Digest digest = analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
@@ -479,9 +479,9 @@ int main( int argc , char* argv[] ) {
 			trace("cache",g_start_info.end_attrs.cache,upload_key) ;
 		}
 		//
-		if (!g_start_info.autodep_env.reliable_dirs) {                                                   // fast path : avoid listing targets & guards if reliable_dirs
-			for( auto const& [t,_] : digest.targets  ) g_nfs_guard.change(t) ;                           // protect against NFS strange notion of coherence while computing crcs
-			for( auto const&  f    : g_gather.guards ) g_nfs_guard.change(f) ;                           // .
+		if (!g_start_info.autodep_env.reliable_dirs) {                                      // fast path : avoid listing targets & guards if reliable_dirs
+			for( auto const& [t,_] : digest.targets  ) g_nfs_guard.change(t) ;              // protect against NFS strange notion of coherence while computing crcs
+			for( auto const&  f    : g_gather.guards ) g_nfs_guard.change(f) ;              // .
 			g_nfs_guard.close() ;
 		}
 		//
@@ -514,13 +514,13 @@ End :
 			ClientSockFd fd           { g_service_end , NConnectionTrials } ;
 			Pdate        end_overhead = New                                 ;
 			g_exec_trace->emplace_back(end_overhead,"end_overhead") ;
-			end_report.digest.stats.total = end_overhead - start_overhead ;                              // measure overhead as late as possible
+			end_report.digest.stats.total = end_overhead - start_overhead ;                 // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                   // suppress temporary data if server cannot handle them
+			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                      // suppress temporary data if server cannot handle them
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}

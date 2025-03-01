@@ -108,19 +108,21 @@ HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=
 # - ST      : -fsanitize threads
 # - P       : -pg
 # - C       : coverage (not operational yet)
-COVERAGE     := $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
-PROFILE      := $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
-EXTRA_FLAGS  := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,-O3)
-EXTRA_FLAGS  := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(EXTRA_FLAGS))
-EXTRA_FLAGS  := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(EXTRA_FLAGS))
-EXTRA_FLAGS  := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(EXTRA_FLAGS))
-EXTRA_FLAGS  := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0 -fno-inline,$(EXTRA_FLAGS))
-EXTRA_FLAGS  += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG,-g)
-EXTRA_FLAGS  += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
-HIDDEN_FLAGS += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
-HIDDEN_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
-SAN_FLAGS    := $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
-SAN_FLAGS    += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
+COVERAGE         := $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
+PROFILE          := $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
+EXTRA_FLAGS      := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,-O3)
+EXTRA_FLAGS      := $(if $(findstring O4,$(LMAKE_FLAGS)),-O3 -flto,$(EXTRA_FLAGS))
+EXTRA_LINK_FLAGS := $(if $(findstring O4,$(LMAKE_FLAGS)),-O3 $(if $(findstring gcc,$(CXX_FLAVOR)),-flto=2,-flto))
+EXTRA_FLAGS      := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(EXTRA_FLAGS))
+EXTRA_FLAGS      := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(EXTRA_FLAGS))
+EXTRA_FLAGS      := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(EXTRA_FLAGS))
+EXTRA_FLAGS      := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0 -fno-inline,$(EXTRA_FLAGS))
+EXTRA_FLAGS      += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG,-g)
+EXTRA_FLAGS      += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
+HIDDEN_FLAGS     += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
+HIDDEN_FLAGS     += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
+SAN_FLAGS        := $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
+SAN_FLAGS        += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
 # some user codes may have specific (and older) libs, in that case, unless flag l is used, link libstdc++ statically
 LIB_STDCPP := $(if $(findstring l,$(LMAKE_FLAGS)),,-static-libstdc++)
 #
@@ -128,7 +130,7 @@ WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
 LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath$(COMMA)%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath$(COMMA)%))
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
-LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) $(PROFILE) -pthread $(LINK_FLAGS)
+LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) $(PROFILE) -pthread $(LINK_FLAGS) $(EXTRA_LINK_FLAGS)
 LINK_LIB             = -ldl $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 #
@@ -570,7 +572,6 @@ JOB_EXEC_SAN_OBJS := \
 	$(RPC_JOB_SAN_OBJS)           \
 	src/app$(SAN).o               \
 	src/non_portable$(SAN).o      \
-	src/py$(SAN).o                \
 	src/re$(SAN).o                \
 	src/trace$(SAN).o             \
 	src/autodep/gather$(SAN).o    \
@@ -578,7 +579,7 @@ JOB_EXEC_SAN_OBJS := \
 	src/autodep/record$(SAN).o
 
 _bin/job_exec : $(JOB_EXEC_SAN_OBJS) $(CACHE_SAN_OBJS) src/job_exec$(SAN).o
-bin/lautodep  : $(JOB_EXEC_SAN_OBJS)                   src/autodep/lautodep$(SAN).o
+bin/lautodep  : $(JOB_EXEC_SAN_OBJS) src/py.o          src/autodep/lautodep$(SAN).o
 
 LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
 _bin/job_exec bin/lautodep :

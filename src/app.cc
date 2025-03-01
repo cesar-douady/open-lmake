@@ -35,6 +35,7 @@ static void _terminate() {
 }
 
 bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_root ) {
+	if (cd_root==No) SWEAR( chk_version_==No && read_only_ok ) ;                              // cannot check repo without a repo dir
 	::set_terminate(_terminate) ;
 	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ; // catch all synchronous signals so as to generate a backtrace
 	//
@@ -57,7 +58,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 		set_env( "GMON_OUT_PREFIX" , dir_guard(*g_repo_root_s+GMON_DIR_S+*g_exe_name) ) ;     // ensure unique gmon data file in a non-intrusive (wrt autodep) place
 	#endif
 	//
-	bool read_only = ::access(no_slash(*g_repo_root_s).c_str(),W_OK) ;
+	bool read_only = !g_repo_root_s || ::access(no_slash(*g_repo_root_s).c_str(),W_OK) ;      // cannot modify repo if no repo
 	if (read_only>read_only_ok) exit(Rc::Perm,"cannot run in read-only repository") ;
 	//
 	if (chk_version_!=No)

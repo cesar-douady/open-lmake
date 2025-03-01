@@ -307,6 +307,7 @@ namespace Backends {
 			waiting_jobs.emplace( job , WaitingEntry(rs,submit_attrs,re.verbose) ) ;
 			re.waiting_queues[rs_rounded].insert({pressure,job}) ;
 			if (!_oldest_submitted_job.load()) _oldest_submitted_job = New ;
+			if (re.waiting_jobs.size()>1000  ) launch() ;                                                      // if too many jobs are waiting, ensure launch process is running
 		}
 		virtual void add_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) {
 			Trace trace(BeChnl,"add_pressure",job,req,submit_attrs) ;
