@@ -394,7 +394,7 @@ cat <<"EOF" >stack_dir.c
 		printf("%d\n",uintptr_t(&x)>=sub()) ;
 	}
 EOF
-cc -o stack_dir stack_dir.c
+cc -O0 -fno-inline -o stack_dir stack_dir.c
 STACK_GROWS_DOWNWARD=$(./stack_dir)
 
 #

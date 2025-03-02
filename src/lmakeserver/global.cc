@@ -190,17 +190,19 @@ namespace Engine {
 		if ( kpi.n_node_make           ) os <<",NM:"  << kpi.n_node_make            ;
 		if ( kpi.n_job_set_pressure    ) os <<",JSP:" << kpi.n_job_set_pressure     ;
 		if ( kpi.n_node_set_pressure   ) os <<",NSP:" << kpi.n_node_set_pressure    ;
+		if (+kpi.py_exec_time          ) os <<",ET:"  << kpi.py_exec_time           ;
 		if (+kpi.reqs                  ) os <<",Reqs:"<< kpi.reqs.size()            ;
 		return os << ")" ;
 	}
 
 	::string Kpi::pretty_str() const {
 		::string res ;
-		if (n_aborted_job_creation) res <<"n_aborted_job_creation : "<< n_aborted_job_creation <<'\n' ;
-		if (n_job_make            ) res <<"n_job_make             : "<< n_job_make             <<'\n' ;
-		if (n_node_make           ) res <<"n_node_make            : "<< n_node_make            <<'\n' ;
-		if (n_job_set_pressure    ) res <<"n_job_set_pressure     : "<< n_job_set_pressure     <<'\n' ;
-		if (n_node_set_pressure   ) res <<"n_node_set_pressure    : "<< n_node_set_pressure    <<'\n' ;
+		if (n_aborted_job_creation) res <<"n_aborted_job_creation : "<< n_aborted_job_creation   <<'\n' ;
+		if (n_job_make            ) res <<"n_job_make             : "<< n_job_make               <<'\n' ;
+		if (n_node_make           ) res <<"n_node_make            : "<< n_node_make              <<'\n' ;
+		if (n_job_set_pressure    ) res <<"n_job_set_pressure     : "<< n_job_set_pressure       <<'\n' ;
+		if (n_node_set_pressure   ) res <<"n_node_set_pressure    : "<< n_node_set_pressure      <<'\n' ;
+		if (+py_exec_time         ) res <<"python_exec_time       : "<< py_exec_time.short_str() <<'\n' ;
 		for ( ReqEntry const& re : reqs ) {
 			res <<"\tn_job_req_info  : " << re.n_job_req_info <<'\n' ;
 			res <<"\tn_job_node_info : " << re.n_job_req_info <<'\n' ;

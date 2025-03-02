@@ -816,6 +816,7 @@ namespace Engine {
 		Rule       r       = +match ? match.rule : job->rule() ;
 		::vector_s to_del  ;
 		::string   to_eval ;
+		Pdate      start   { New } ;
 		eval_ctx( job , match , rsrcs
 		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
 				to_del.push_back(key) ;
@@ -831,16 +832,19 @@ namespace Engine {
 		) ;
 		try                       { Py::py_run(to_eval,*glbs) ;              }
 		catch (::string const& e) { throw ::pair_ss({}/*msg*/,e/*stderr*/) ; }
+		g_kpi.py_exec_time += Pdate(New) - start ;
 		Py::Ptr<Py::Object> res      ;
 		::string            err      ;
 		bool                seen_err = false  ;
-		AutodepLock         lock     { deps } ;
+		AutodepLock         lock     { deps } ;                                       // ensure wating for lock is not accounted as python exec time
+		start = Pdate(New) ;
 		//                                vvvvvvvvvvvvvvvvv
 		try                       { res = code->eval(*glbs) ;   }
 		//                                ^^^^^^^^^^^^^^^^^
 		catch (::string const& e) { err = e ; seen_err = true ; }
 		for( ::string const& key : to_del ) glbs->del_item(key) ;                     // delete job-related info, just to avoid percolation to other jobs, even in case of error
 		if ( +lock.err || seen_err ) throw ::pair_ss(lock.err/*msg*/,err/*stderr*/) ;
+		g_kpi.py_exec_time += Pdate(New) - start ;
 		return res ;
 	}
 

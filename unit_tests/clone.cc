@@ -13,6 +13,7 @@
 #include <iostream>
 #include <stop_token>
 #include <thread>
+#include <vector>
 
 using namespace std ;
 
@@ -22,12 +23,12 @@ void trace( ::string const& msg , int i=0 ) {
 	::ostringstream line ;
 	if (i) line << i <<' ' ;
 	line << msg<<" : "<<(now.tv_sec%10)<<'.'<<(now.tv_nsec/1000000)<<'\n' ;
-	::cout << ::move(line).str() << flush ;
+	::cout << ::move(line).str() << ::flush ;
 }
 
 void crazy_open( ::stop_token stop , int i ) {
 	while (!stop.stop_requested()) {
-		for( int i=0 ; i<10 ; i++ ) if (::open("dont_exist",O_RDONLY)!=-1) { ::cerr<<"file dont_exist exists"<<endl; return ; }
+		for( int i=0 ; i<10 ; i++ ) if (::open("dont_exist",O_RDONLY)!=-1) { ::cerr<<"file dont_exist exists"<<endl ; return ; }
 	}
 	trace("in crazy",i) ;
 }
@@ -40,15 +41,19 @@ int dut(void*) {
 }
 
 int main() {
-	::jthread t1 { crazy_open , 1 } ;                        // ensure there is always an open on going
-	::jthread t2 { crazy_open , 2 } ;                        // .
-	::jthread t3 { crazy_open , 3 } ;                        // .
+	::jthread t1 { crazy_open , 1 } ;                                          // ensure there is always an open on going
+	::jthread t2 { crazy_open , 2 } ;                                          // .
+	::jthread t3 { crazy_open , 3 } ;                                          // .
 	trace("in parent step1") ;
-	::this_thread::sleep_for(10ms) ;                         // ensure threads are running
+	for ( int i=0 ; i<10 ; i++ ) {
+		trace("in parent loop",i) ;
+		::this_thread::sleep_for(100ms) ;                                      // ensure threads are running
+	}
 	trace("in parent step2") ;
 	static constexpr size_t StackSz = 1<<16 ;
-	char* stack = new char[StackSz] ;
-	pid_t pid = ::clone(dut,stack+StackSz,SIGCHLD,nullptr) ; // ensure autodep resists to clone in a multi-threaded context
+	::vector<uint64_t> stack_vec ( StackSz/sizeof(uint64_t) , 0 )            ;
+	char*              stack     = reinterpret_cast<char*>(stack_vec.data()) ;
+	pid_t pid = ::clone(dut,stack+StackSz,SIGCHLD,nullptr) ;                   // ensure autodep resists to clone in a multi-threaded context
 	trace("in parent step3") ;
 	::waitpid(pid,nullptr,0) ;
 	trace("in parent step4") ;

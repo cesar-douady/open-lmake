@@ -291,6 +291,7 @@ Status Gather::exec_child() {
 	if (+autodep_env.fast_report_pipe) {
 		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0666 )<0 ) SWEAR(errno=EEXIST,errno) ; // if it already exists, assume it is already a fifo
 		open_fast_report_fd() ;
+		trace("fast_report_fd",fast_report_fd) ;
 	}
 	if (+server_master_fd) {
 		epoll.add_read(server_master_fd,Kind::ServerMaster) ;
