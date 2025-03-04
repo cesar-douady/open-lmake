@@ -34,7 +34,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 	Fd report_fd() const {
 		Fd res ;
 		try {
-			if (has_server()) res = ClientSockFd(service).detach()                                       ; // establish connection with server
+			if (has_server()) res = ClientSockFd(service,3/*n_trials*/).detach()                         ; // establish connection with server
 			else              res = { Disk::dir_guard(service.substr(0,service.size()-1)) , Fd::Append } ; // write to file
 			res.no_std() ;                                                                                 // avoid poluting standard descriptors
 		} catch (::string const& e) {
