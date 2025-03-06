@@ -174,9 +174,10 @@ namespace Engine {
 		// services
 		// called in main thread after start
 		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start and started
-		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,FileActionTag> const& report_unlnks={} , ::vector_s const& txts={} ) const ; // txts is {backend_msg,stderr}
-		void             report_start(                                                                                              ) const ;
-		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks={} , ::vector_s const& txts={} ) ;       // .
+		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,FileActionTag> const& report_unlnks , ::vector_s const& txts={} ) const ; // txts is {backend_msg,stderr}
+		bool/*reported*/ report_start( ReqInfo& ri                                                                               ) const ;
+		void             report_start(                                                                                           ) const ;
+		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks , ::vector_s const& txts={} ) ;       // txts is {backend_msg,stderr}
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
@@ -458,6 +459,12 @@ namespace Engine {
 		auto it = ::lower_bound( self->targets , {t,{}} ) ;
 		return it!=self->targets.end() && *it==t && it->tflags[Tflag::Target] ;
 	}
+
+	//
+	// JobExec
+	//
+
+	inline bool/*reported*/ JobExec::report_start( ReqInfo& ri ) const { return report_start(ri,{}) ; }
 
 	//
 	// JobData

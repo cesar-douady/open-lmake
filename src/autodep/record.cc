@@ -26,18 +26,17 @@ using namespace Time ;
 // Record
 //
 
-bool                                                   Record::s_static_report    = false        ;
-::vmap_s<DepDigest>                                  * Record::s_deps             = nullptr      ;
-::string                                             * Record::s_deps_err         = nullptr      ;
-::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache     = nullptr      ; // map file to read accesses
-AutodepEnv*                                            Record::_s_autodep_env     = nullptr      ; // declare as pointer to avoid late initialization
+bool                                                   Record::s_static_report    = false     ;
+::vmap_s<DepDigest>                                  * Record::s_deps             = nullptr   ;
+::string                                             * Record::s_deps_err         = nullptr   ;
+::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache     = nullptr   ; // map file to read accesses
+AutodepEnv*                                            Record::_s_autodep_env     = nullptr   ; // declare as pointer to avoid late initialization
 Fd                                                     Record::_s_repo_root_fd    ;
-pid_t                                                  Record::_s_repo_root_pid   = 0            ;
-Fd                                                     Record::_s_fast_report_fd  ;
-Fd                                                     Record::_s_report_fd       ;
-pid_t                                                  Record::_s_fast_report_pid = 0            ;
-pid_t                                                  Record::_s_report_pid      = 0            ;
-uint64_t                                               Record::_s_id              = 0/*garbage*/ ;
+pid_t                                                  Record::_s_repo_root_pid   = 0         ;
+Fd                                                     Record::_s_report_fd[2]    ;
+pid_t                                                  Record::_s_report_pid[2]   = { 0 , 0 } ;
+uint64_t                                               Record::_s_id              = 0         ;
+pid_t                                                  Record::_s_id_pid          = 0         ;
 
 bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                    // no file is simple (not documented, but used in practice)
@@ -106,9 +105,9 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 	}
 }
 
-bool/*sent_to_server*/ Record::report_async_access( JobExecRpcReq&& jerr , bool force ) const {
+::pair<bool/*sent*/,uint64_t/*id*/> Record::report_async_access( JobExecRpcReq&& jerr , bool force ) const {
 	SWEAR( jerr.proc==Proc::Access || jerr.proc==Proc::DepVerbose , jerr.proc ) ;
-	if ( !force && !enable ) return false/*sent_to_server*/ ;                              // dont update cache as report is not actually done
+	if ( !force && !enable ) return { false/*sent*/ , 0/*id*/ } ;                          // dont update cache as report is not actually done
 	if (!jerr.sync) {
 		bool miss = false ;
 		for( auto const& [f,dd] : jerr.files ) {
@@ -127,15 +126,15 @@ bool/*sent_to_server*/ Record::report_async_access( JobExecRpcReq&& jerr , bool 
 			}
 			miss = true ;
 		}
-		if (!miss) return false/*sent_to_server*/ ;                                        // modifying accesses cannot be cached as we do not know what other processes may have done in between
+		if (!miss) return { false/*sent*/ , 0/*id*/ } ;                                    // modifying accesses cannot be cached as we do not know what other processes may have done in between
 	}
 	return report_direct(::move(jerr)) ;
 }
 
 JobExecRpcReply Record::report_sync_direct( JobExecRpcReq&& jerr , bool force ) const {
-	bool sent_to_server = report_direct(::move(jerr),force) ;
-	if (!jerr.sync    ) return {}           ;
-	if (sent_to_server) return _get_reply() ;
+	bool sent = report_direct(::move(jerr),force).first ;
+	if (!jerr.sync) return {}           ;
+	if (sent      ) return _get_reply() ;
 	// not under lmake (typically ldebug), try to mimic server as much as possible
 	switch (jerr.proc) {
 		case Proc::Decode :
@@ -158,8 +157,8 @@ JobExecRpcReply Record::report_sync_direct( JobExecRpcReq&& jerr , bool force ) 
 
 JobExecRpcReply Record::report_sync_access( JobExecRpcReq&& jerr , bool force ) const {
 	jerr.sync = true ;
-	bool sent_to_server = report_async_access(::move(jerr),force) ;
-	if (sent_to_server) return _get_reply() ;
+	bool sent = report_async_access(::move(jerr),force).first ;
+	if (sent) return _get_reply() ;
 	// not under lmake (typically ldebug), try to mimic server as much as possible
 	switch (jerr.proc) {
 		case Proc::DepVerbose : {

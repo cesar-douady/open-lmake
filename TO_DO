@@ -14,9 +14,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* use of tmp resource (such as rule attribute tmp='100M') implies that resource buckets are not recognized any more
-	- and n_max_jobs is not honored
-	- possibly memory problems if all resources are made different
 * when launching 400 jobs through slurm, 7 are running (normal) et 340 instead of 393 are queued
 	- as shown in the title
 

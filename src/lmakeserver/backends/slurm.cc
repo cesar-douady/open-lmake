@@ -309,11 +309,11 @@ namespace Backends::Slurm {
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (se.live) _s_slurm_cancel_thread.push(se.id) ;        // asynchronous (as faster and no return value) cancel
 		}
-		virtual SlurmId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
+		virtual SlurmId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
 			nice &= 0x7fffffff ;                                                                               // slurm will not accept negative values, default values overflow in ... 2091
-			SlurmId id = slurm_spawn_job( st , repo_key , j , reqs , nice , cmd_line , env , *rs , verbose ) ;
-			Trace trace(BeChnl,"Slurm::launch_job",repo_key,j,id,nice,cmd_line,rs,STR(verbose)) ;
+			SlurmId id = slurm_spawn_job( st , repo_key , j , reqs , nice , cmd_line , env , *se.rsrcs , se.verbose ) ;
+			Trace trace(BeChnl,"Slurm::launch_job",repo_key,j,id,nice,cmd_line,se.rsrcs,STR(se.verbose)) ;
 			return id ;
 		}
 

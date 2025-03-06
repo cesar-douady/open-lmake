@@ -34,25 +34,33 @@ struct Record {
 		}
 		return _s_repo_root_fd ;
 	}
-	static Fd s_fast_report_fd() {
+	template<bool Fast> static Fd s_report_fd() {
 		pid_t pid = ::getpid() ;
-		if ( !(+_s_fast_report_fd&&_s_fast_report_pid==pid) && +*_s_autodep_env ) {
-			_s_fast_report_fd  = _s_autodep_env->fast_report_fd() ;
-			_s_fast_report_pid = pid                              ;
+		if (
+			!(	+_s_report_fd[Fast] && _s_report_pid[Fast]==pid )
+		&&	+*_s_autodep_env
+		) {
+			_s_report_fd [Fast] = _s_autodep_env->report_fd<Fast>() ;
+			_s_report_pid[Fast] = pid                               ;
 		}
-		return _s_fast_report_fd ;
+		return _s_report_fd[Fast] ;
 	}
-	static Fd s_report_fd() {
+	static uint64_t s_fresh_id() {
 		pid_t pid = ::getpid() ;
-		if ( !(+_s_report_fd&&_s_report_pid==pid) && +*_s_autodep_env ) {
-			_s_report_fd  = _s_autodep_env->report_fd() ;
-			_s_report_pid = pid                         ;
+		if (_s_id_pid!=pid) {
+			_s_id_pid = pid ;
+			// use a random number as starting point for access id's, then it is incremented at each access
+			// this ensures reasonable uniqueness while avoiding heavy host/pid/local_id to ensure uniqueness
+			_s_id = random<uint64_t>() ;
+			if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ; // ensure we can confortably generate ids while never generating 0
+		} else {
+			_s_id++ ;
 		}
-		return _s_report_fd ;
+		return _s_id ;
 	}
 	static void s_close_reports() {
-		_s_fast_report_fd.close() ;
-		_s_report_fd     .close() ;
+		_s_report_fd[0].close() ;
+		_s_report_fd[1].close() ;
 	}
 	static AutodepEnv const& s_autodep_env() {
 		SWEAR( _s_autodep_env && s_access_cache ) ;
@@ -69,40 +77,34 @@ struct Record {
 		return *_s_autodep_env ;
 	}
 	static void s_hide(int fd) {
-		if (_s_repo_root_fd  .fd==fd) _s_repo_root_fd  .detach() ;
-		if (_s_fast_report_fd.fd==fd) _s_fast_report_fd.detach() ;
-		if (_s_report_fd     .fd==fd) _s_report_fd     .detach() ;
+		if (_s_repo_root_fd.fd==fd) _s_repo_root_fd  .detach() ;
+		if (_s_report_fd[0].fd==fd) _s_report_fd[0].detach() ;
+		if (_s_report_fd[1].fd==fd) _s_report_fd[1].detach() ;
 	}
 	static void s_hide( uint min , uint max ) {
-		if ( _s_repo_root_fd  .fd>=0 &&  uint(_s_repo_root_fd  .fd)>=min && uint(_s_repo_root_fd  .fd)<=max ) _s_repo_root_fd  .detach() ;
-		if ( _s_fast_report_fd.fd>=0 &&  uint(_s_fast_report_fd.fd)>=min && uint(_s_fast_report_fd.fd)<=max ) _s_fast_report_fd.detach() ;
-		if ( _s_report_fd     .fd>=0 &&  uint(_s_report_fd     .fd)>=min && uint(_s_report_fd     .fd)<=max ) _s_report_fd     .detach() ;
+		if ( _s_repo_root_fd.fd>=0 &&  uint(_s_repo_root_fd.fd)>=min && uint(_s_repo_root_fd.fd)<=max ) _s_repo_root_fd.detach() ;
+		if ( _s_report_fd[0].fd>=0 &&  uint(_s_report_fd[0].fd)>=min && uint(_s_report_fd[0].fd)<=max ) _s_report_fd[0].detach() ;
+		if ( _s_report_fd[1].fd>=0 &&  uint(_s_report_fd[1].fd)>=min && uint(_s_report_fd[1].fd)<=max ) _s_report_fd[1].detach() ;
 	}
 	// private
 	static void _s_mk_autodep_env(AutodepEnv* ade) {
 		_s_autodep_env = ade                                                       ;
 		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
-		// use a random number as starting point for access id's, then it is incremented at each access
-		// this ensures reasonable uniqueness while avoiding heavy host/pid/local_id to ensure uniqueness
-		_s_id = random<uint64_t>() ;
-		if (_s_id>>32==uint32_t(-1)) _s_id = (_s_id<<32) | (_s_id&uint32_t(-1)) ;    // ensure we can confortably generate ids while never generating 0
 	}
 	// static data
 public :
-	static bool                                                   s_static_report  ; // if true <=> report deps to s_deps instead of through s_(fast_)report_fd() sockets
+	static bool                                                   s_static_report  ;  // if true <=> report deps to s_deps instead of through s_(fast_)report_fd() sockets
 	static ::vmap_s<DepDigest>                                  * s_deps           ;
 	static ::string                                             * s_deps_err       ;
-	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ; // map file to read accesses
+	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;  // map file to read accesses
 private :
-	static AutodepEnv* _s_autodep_env   ;
-	static Fd          _s_repo_root_fd  ;                                            // a file descriptor to repo root dir
-	static pid_t       _s_repo_root_pid ;                                            // pid in which _s_repo_root_fd is valid
-public:
-	static Fd       _s_fast_report_fd  ;                                             // an fd to for reporting open to a pipe, faster than sockets
-	static Fd       _s_report_fd       ;
-	static pid_t    _s_fast_report_pid ;                                             // pid in which _s_fast_report_fd is valid
-	static pid_t    _s_report_pid      ;                                             // pid in which _s_report_fd      is valid
-	static uint64_t _s_id              ;                                             // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
+	static AutodepEnv* _s_autodep_env           ;
+	static Fd          _s_repo_root_fd          ;                                     // a file descriptor to repo root dir
+	static pid_t       _s_repo_root_pid         ;                                     // pid in which _s_repo_root_fd is valid
+	static Fd          _s_report_fd [2/*Fast*/] ;                                     // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
+	static pid_t       _s_report_pid[2/*Fast*/] ;                                     // pid in which corresponding _s_report_fd is valid
+	static uint64_t    _s_id                    ;                                     // used by Confirm to refer to confirmed Access, 0 means nothing to confirm
+	static pid_t       _s_id_pid                ;                                     // pid in which corresponding _s_id is valid
 	// cxtors & casts
 public :
 	Record(                                            ) = default ;
@@ -113,20 +115,18 @@ public :
 	}
 	// services
 	uint64_t/*id*/ report_access( ::string&& f , FileInfo fi , Accesses a , Bool3 write , ::string&& c={} , bool force=false ) const {
-		report_async_access( { Proc::Access , ++_s_id , {{::move(f),fi}} , {.write=write,.accesses=a} , ::move(c) } , force ) ;
-		return _s_id ;
+		return report_async_access( { Proc::Access , {{::move(f),fi}} , {.write=write,.accesses=a} , ::move(c) } , force ).second ;
 	}
 	uint64_t/*id*/ report_accesses( ::vmap_s<FileInfo>&& fs , Accesses a , Bool3 write , ::string&& c={} , bool force=false ) const {
-		report_async_access( { Proc::Access , ++_s_id , ::move(fs) , {.write=write,.accesses=a} , ::move(c) } , force ) ;
-		return _s_id ;
+		return report_async_access( { Proc::Access , ::move(fs) , {.write=write,.accesses=a} , ::move(c) } , force ).second ;
 	}
 	void report_guard( FileLoc fl , ::string&& f , ::string&& c={} ) const { if (fl<=FileLoc::Repo) report_direct({ Proc::Guard , ::move(f) , ::move(c) }) ; }
 	void report_guard(              ::string&& f , ::string&& c={} ) const {                        report_direct({ Proc::Guard , ::move(f) , ::move(c) }) ; }
 private :
 	void _static_report(JobExecRpcReq&& jerr) const ;
 	JobExecRpcReply _get_reply() const {
-		if (s_static_report) return {}                                                ;
-		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd()) ;
+		if (s_static_report) return {}                                                               ;
+		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd<false/*Fast*/>()) ;
 	}
 	// for modifying accesses (_report_update, _report_target, _report_unlnk, _report_targets) :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
@@ -165,14 +165,12 @@ private :
 	uint64_t/*id*/ _report_deps( ::vector_s const& fs , Accesses a , Bool3 unlnk , ::string&& c={} ) const {
 		::vmap_s<FileInfo> files ;
 		for( ::string const& f : fs ) files.emplace_back( f , FileInfo(s_repo_root_fd(),f) ) ;
-		report_async_access({ Proc::Access , ++_s_id , ::move(files) , {.write=unlnk,.accesses=a} , ::move(c) }) ;
-		return _s_id ;
+		return report_async_access({ Proc::Access , ::move(files) , {.write=unlnk,.accesses=a} , ::move(c) }).second ;
 	}
 	uint64_t/*id*/ _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
 		vmap_s<FileInfo> files ;
 		for( ::string& f : fs ) files.emplace_back(::move(f),FileInfo()) ;
-		report_async_access({ Proc::Access , ++_s_id , ::move(files) , {.write=Maybe} , ::move(c) }) ;
-		return _s_id ;
+		return report_async_access({ Proc::Access , ::move(files) , {.write=Maybe} , ::move(c) }).second ;
 	}
 	void _report_tmp( bool sync=false , ::string&& c={} ) const {
 		if      (!_tmp_cache) _tmp_cache = true ;
@@ -183,21 +181,26 @@ private :
 		if (id) report_direct({ Proc::Confirm , id , ok }) ;
 	}
 public :
-	bool/*sent_to_server*/ report_direct( JobExecRpcReq&& jerr , bool force=false ) const {
-		//!                                                              sent_to_server
-		if ( !force && !enable )                                  return false        ;
-		if ( s_static_report   ) { _static_report(::move(jerr)) ; return true         ; }
+	::pair<bool/*sent*/,uint64_t/*id*/> report_direct( JobExecRpcReq&& jerr , bool force=false ) const {
+		if ( !force && !enable        )                                  return { false/*sent*/ , 0 } ;
+		if ( jerr.digest.write==Maybe )   jerr.id = s_fresh_id() ;
+		if ( s_static_report          ) { _static_report(::move(jerr)) ; return { true /*sent*/ , 0 } ; }
+		//
+		//
 		OMsgBuf msg { jerr } ;
-		Fd      fd  = jerr.sync || msg.buf.size()>PIPE_BUF ? s_report_fd() : s_fast_report_fd() ; // fast report is usable if no replies and small messages to ensure write atomicity
+		Fd fd = jerr.sync || msg.buf.size()>PIPE_BUF ?                                                    // fast report is usable if no replies and small messages to ensure write atomicity
+			s_report_fd<false/*Fast*/>()
+		:	s_report_fd<true /*Fast*/>()
+		;
 		if (+fd) {
 			try                       { msg.send(fd) ;                              }
-			catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }             // this justifies panic, but we cannot report panic !
+			catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }                     // this justifies panic, but we cannot report panic !
 		}
-		return +fd/*sent_to_server*/ ;
+		return { +fd/*sent*/ , jerr.id } ;
 	}
-	JobExecRpcReply report_sync_direct ( JobExecRpcReq&& , bool force=false ) const ;
-	bool            report_async_access( JobExecRpcReq&& , bool force=false ) const ;
-	JobExecRpcReply report_sync_access ( JobExecRpcReq&& , bool force=false ) const ;
+	JobExecRpcReply                     report_sync_direct ( JobExecRpcReq&& , bool force=false ) const ;
+	::pair<bool/*sent*/,uint64_t/*id*/> report_async_access( JobExecRpcReq&& , bool force=false ) const ;
+	JobExecRpcReply                     report_sync_access ( JobExecRpcReq&& , bool force=false ) const ;
 	//
 	[[noreturn]] void report_panic(::string&& s) const { report_direct({Proc::Panic,::move(s)}) ; exit(Rc::Usage) ; } // continuing is meaningless
 	/**/         void report_trace(::string&& s) const { report_direct({Proc::Trace,::move(s)}) ;                   }

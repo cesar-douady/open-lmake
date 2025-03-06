@@ -156,8 +156,8 @@ namespace Backends::Local {
 			Trace trace(BeChnl,"occupied_rsrcs",rs,'-',occupied) ;
 		}
 		//
-		virtual ::string start_job( Job , SpawnedEntry const& e ) const {
-			return "pid:"s+e.id.load() ;
+		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
+			return "pid:"s+se.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job , SpawnedEntry const& se , Status ) const {
 			_wait_queue.push(se.id) ;                                                                 // defer wait in case job_exec process does some time consuming book-keeping
@@ -175,7 +175,7 @@ namespace Backends::Local {
 			kill_process(se.id,SIGHUP) ; // jobs killed here have not started yet, so we just want to kill job_exec
 			_wait_queue.push(se.id) ;    // defer wait in case job_exec process does some time consuming book-keeping
 		}
-		virtual pid_t launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& , bool /*verbose*/ ) const {
+		virtual pid_t launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& ) const {
 			::vector<const char*> cmd_line_ ; cmd_line_.reserve(cmd_line.size()+1) ;
 			for( ::string const& a : cmd_line ) cmd_line_.push_back(a.c_str()) ;
 			/**/                                cmd_line_.push_back(nullptr  ) ;

@@ -84,27 +84,3 @@ AutodepEnv::operator ::string() const {
 	res <<':'<<      mk_printable     (views     ,false/*empty_ok*/)      ;
 	return res ;
 }
-
-Fd AutodepEnv::fast_report_fd() const {
-	if (!fast_report_pipe) return report_fd() ;                                              // default to plain report if no fast pipe is available
-	if (host()!=fast_host) return report_fd() ;                                              // default to plain report if not running on host reading fast_report_pipe
-	Fd res ;
-	try                       { res = { fast_report_pipe , Fd::Append , true/*no_std*/ } ; } // append if writing to a file
-	catch (::string const& e) { fail_prod("while trying to report deps :",e) ;             }
-	swear_prod(+res,"cannot append to fast report pipe",fast_report_pipe) ;
-	return res ;
-}
-
-Fd AutodepEnv::report_fd() const {
-	Fd res ;
-	try                       { res = ClientSockFd(service).detach() ; res.no_std() ; } // establish connection with server
-	catch (::string const& e) { fail_prod("while trying to report deps :",e) ;        }
-	swear_prod(+res,"cannot connect to report",service) ;
-	return res ;
-}
-
-Fd AutodepEnv::repo_root_fd() const {
-	Fd res = { repo_root_s , Fd::Dir , true/*no_std*/ } ;      // avoid poluting standard descriptors
-	swear_prod(+res,"cannot open repo root dir",repo_root_s) ;
-	return res ;
-}

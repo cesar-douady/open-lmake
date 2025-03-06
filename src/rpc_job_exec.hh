@@ -59,11 +59,8 @@ struct JobExecRpcReq {
 	JERR( P p , uint64_t i ,          bool c , S&& t={} ) : proc{p} ,           id{i} , digest{.write=No|c} , txt{::move(t)} { SWEAR( p==P::Confirm && i             ) ; }
 	JERR( P p , uint64_t i , bool s , bool c , S&& t={} ) : proc{p} , sync{s} , id{i} , digest{.write=No|c} , txt{::move(t)} { SWEAR( p==P::Confirm && i             ) ; }
 	//
-	// we need an id if access must be confirmed
-	JERR(P p,uint64_t i,::vmap_s<FI>&& fs,AD const& d,bool s,S&& c) : proc{p},sync{s},id{i},files{::move(fs)},digest{d},txt{::move(c)} { SWEAR(  p==P::Access                    && i              ) ; }
-	JERR(P p,uint64_t i,::vmap_s<FI>&& fs,AD const& d,       S&& c) : proc{p},        id{i},files{::move(fs)},digest{d},txt{::move(c)} { SWEAR(  p==P::Access                    && i              ) ; }
-	JERR(P p,           ::vmap_s<FI>&& fs,AD const& d,bool s,S&& c) : proc{p},sync{s},      files{::move(fs)},digest{d},txt{::move(c)} { SWEAR( (p==P::Access||p==P::DepVerbose) && d.write!=Maybe ) ; }
-	JERR(P p,           ::vmap_s<FI>&& fs,AD const& d,       S&& c) : proc{p},              files{::move(fs)},digest{d},txt{::move(c)} { SWEAR( (p==P::Access||p==P::DepVerbose) && d.write!=Maybe ) ; }
+	JERR( P p , ::vmap_s<FI>&& fs , AD const& d , bool s , S&& c ) : proc{p} , sync{s} , files{::move(fs)} , digest{d} , txt{::move(c)} { SWEAR( p==P::Access || p==P::DepVerbose ) ; }
+	JERR( P p , ::vmap_s<FI>&& fs , AD const& d ,          S&& c ) : proc{p} ,           files{::move(fs)} , digest{d} , txt{::move(c)} { SWEAR( p==P::Access || p==P::DepVerbose ) ; }
 	//
 	JERR( P p , S&& f , S&& c ) : proc{p} , files{{{::move(f),{}}}} , txt{::move(c)} { SWEAR(p==P::Guard) ; }
 	//
@@ -87,12 +84,12 @@ struct JobExecRpcReq {
 			case P::Tmp        :
 			case P::Trace      :
 			case P::Panic      :
-			case P::Guard      :                                              break ;
-			case P::Confirm    : ::serdes(s,id)  ; ::serdes(s,digest.write) ; break ;
-			case P::Access     : ::serdes(s,id)  ; ::serdes(s,digest      ) ; break ;
-			case P::DepVerbose :                   ::serdes(s,digest      ) ; break ;
-			case P::Decode     : ::serdes(s,ctx) ;                            break ;
-			case P::Encode     : ::serdes(s,ctx) ; ::serdes(s,min_len)      ; break ;
+			case P::Guard      :                                                                      break ;
+			case P::Confirm    : ::serdes(s,digest.write) ;                          ::serdes(s,id) ; break ;
+			case P::Access     : ::serdes(s,digest      ) ; if (digest.write==Maybe) ::serdes(s,id) ; break ;
+			case P::DepVerbose : ::serdes(s,digest      ) ;                                           break ;
+			case P::Decode     : ::serdes(s,ctx         ) ;                                           break ;
+			case P::Encode     : ::serdes(s,ctx         ) ; ::serdes(s,min_len) ;                     break ;
 		DN}
 		::serdes(s,txt) ;
 	}

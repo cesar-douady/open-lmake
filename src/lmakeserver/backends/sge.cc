@@ -213,7 +213,7 @@ namespace Backends::Sge {
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (se.live) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                         // asynchronous (as faster and no return value) cancel
 		}
-		virtual SgeId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
+		virtual SgeId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
 			::vector_s sge_cmd_line = {
 				"qsub"
 			,	"-terse"
@@ -233,6 +233,7 @@ namespace Backends::Sge {
 			SWEAR(+reqs) ;                                                                                                              // why launch a job if for no req ?
 			int16_t prio = ::numeric_limits<int16_t>::min() ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
 			//
+			Rsrcs const& rs = se.rsrcs ;
 			if ( prio                 )            { sge_cmd_line.push_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
 			if ( +cpu_rsrc && rs->cpu )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
 			if ( +mem_rsrc && rs->mem )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
@@ -243,7 +244,7 @@ namespace Backends::Sge {
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//
-			Trace trace(BeChnl,"Sge::launch_job",repo_key,j,sge_cmd_line,rs,STR(verbose)) ;
+			Trace trace(BeChnl,"Sge::launch_job",repo_key,j,sge_cmd_line,rs) ;
 			//
 			return sge_exec_qsub(::move(sge_cmd_line)) ;
 		}

@@ -32,9 +32,22 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,sub_repo_s                     ) ;
 		::serdes(s,views                          ) ;
 	}
-	Fd fast_report_fd() const ;
-	Fd report_fd     () const ;
-	Fd repo_root_fd  () const ;
+	Fd repo_root_fd() const {
+		Fd res = { repo_root_s , Fd::Dir , true/*no_std*/ } ;      // avoid poluting standard descriptors
+		swear_prod(+res,"cannot open repo root dir",repo_root_s) ;
+		return res ;
+	}
+	template<bool Fast> Fd report_fd() const {
+		Fd res ;
+		try {
+			if ( Fast && +fast_report_pipe && host()==fast_host )   res = { fast_report_pipe , Fd::Append , true/*no_std*/ } ;                   // append if writing to a file
+			else                                                  { res = ClientSockFd(service).detach()                     ; res.no_std()  ; } // establish connection with server
+		} catch (::string const& e) {
+			fail_prod("while trying to report deps :",e) ;
+		}
+		swear_prod( +res , "cannot open report fd" , Fast?"fast":"plain" , Fast?fast_report_pipe:service ) ;
+		return res ;
+	}
 	// data
 	bool                 auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
 	bool                 enable           = true  ; // if false <=> no automatic report
