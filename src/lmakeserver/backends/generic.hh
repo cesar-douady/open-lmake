@@ -166,7 +166,7 @@ namespace Backends {
 			size_t size     () const { return _sz ; }                        // .
 			//
 			iterator create( GenericBackend const& be , Job j , Rsrcs const& rsrcs ) {
-				be.acquire_rsrcs(rsrcs) ;
+				be.acquire_rsrcs({New,rsrcs->round(be)}) ;
 				iterator res = Base::try_emplace(j).first  ;
 				SWEAR(!res->second.live) ;
 				res->second.create(rsrcs) ;
@@ -175,13 +175,14 @@ namespace Backends {
 			}
 			void start( GenericBackend const& be , iterator it ) {
 				SWEAR(!it->second.started) ;
-				be.start_rsrcs(it->second.rsrcs) ;
+				be.start_rsrcs({New,it->second.rsrcs->round(be)}) ;
 				it->second.started = true ;
 			}
 			void erase( GenericBackend const& be , iterator it ) {
 				SWEAR(it->second.live) ;
-				if (!it->second.started) be.start_rsrcs(it->second.rsrcs) ;
-				/**/                     be.end_rsrcs  (it->second.rsrcs) ;
+				Rsrcs rounded_rsrcs { New , it->second.rsrcs->round(be) } ;
+				if (!it->second.started) be.start_rsrcs(rounded_rsrcs) ;
+				/**/                     be.end_rsrcs  (rounded_rsrcs) ;
 				if (it->second.id      ) Base::erase(it) ;
 				else                     it->second.live = false ;           // if no id, we may not have the necesary lock to erase the entry, defer
 				_sz-- ;
