@@ -28,8 +28,6 @@ using namespace Hash   ;
 using namespace Re     ;
 using namespace Time   ;
 
-static constexpr int NConnectionTrials = 3 ; // number of times to try connect when connecting to server
-
 struct PatternDict {
 	static constexpr MatchFlags NotFound = {} ;
 	// services
@@ -73,7 +71,7 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 	bool             found_server = false ;
 	JobStartRpcReply res          ;
 	try {
-		ClientSockFd fd {g_service_start,NConnectionTrials} ;
+		ClientSockFd fd {g_service_start} ;
 		fd.set_timeout(Delay(100)) ;                                                              // ensure we dont stay stuck in case server is in the coma ...
 		found_server = true ;                                                                     //  ... 100 = 100 simultaneous connections, 10 jobs/s
 		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -301,9 +299,9 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 }
 
 int main( int argc , char* argv[] ) {
-	Pdate        start_overhead = Pdate(New) ;
-	ServerSockFd server_fd      { New }      ;         // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
-	::string     upload_key     ;                      // key used to identify temporary data uploaded to the cache
+	Pdate        start_overhead { New } ;
+	ServerSockFd server_fd      { New } ;              // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
+	uint64_t     upload_key     = 0     ;              // key used to identify temporary data uploaded to the cache
 	//
 	swear_prod(argc==8,argc) ;                         // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
 	g_service_start   =                     argv[1]  ;
@@ -318,8 +316,10 @@ int main( int argc , char* argv[] ) {
 	//
 	g_trace_file = new ::string{g_phy_repo_root_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
 	//
-	JobEndRpcReq end_report { {g_seq_id,g_job} , {.end_date=start_overhead,.status=Status::EarlyErr} } ;                     // prepare to return an error, so we can goto End anytime
-	g_exec_trace = &end_report.exec_trace ;
+	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
+	end_report.digest   = {.status=Status::EarlyErr} ; // prepare to return an error, so we can goto End anytime
+	end_report.end_date = start_overhead             ;
+	g_exec_trace        = &end_report.exec_trace     ;
 	g_exec_trace->emplace_back(start_overhead,"start_overhead") ;
 	//
 	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
@@ -476,7 +476,7 @@ int main( int argc , char* argv[] ) {
 		if (g_start_info.cache) {
 			upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
 			g_exec_trace->emplace_back( New , "uploaded_to_cache" , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
-			trace("cache",g_start_info.end_attrs.cache,upload_key) ;
+			trace("cache",to_hex(upload_key)) ;
 		}
 		//
 		if (!g_start_info.autodep_env.reliable_dirs) {                                      // fast path : avoid listing targets & guards if reliable_dirs
@@ -491,30 +491,31 @@ int main( int argc , char* argv[] ) {
 		/**/                        end_report.msg += g_gather.msg ;
 		if (status!=Status::Killed) end_report.msg += digest  .msg ;
 		JobStats stats {
-			.cpu { Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime) }
-		,	.job { g_gather.end_date-g_gather.start_date         }
-		,	.mem = size_t(rsrcs.ru_maxrss<<10)
+			.mem = size_t(rsrcs.ru_maxrss<<10)
+		,	.cpu = Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime)
+		,	.job = g_gather.end_date-g_gather.start_date
 		} ;
 		end_report.digest = {
-			.upload_key     =        upload_key
-		,	.deps           { ::move(digest.deps           ) }
-		,	.end_attrs      { ::move(g_start_info.end_attrs) }
-		,	.end_date       =        g_gather.end_date
-		,	.stats          { ::move(stats                 ) }
-		,	.status         =        status
-		,	.stderr         { ::move(g_gather.stderr       ) }
-		,	.stdout         { ::move(g_gather.stdout       ) }
-		,	.targets        { ::move(digest.targets        ) }
-		,	.wstatus        =        g_gather.wstatus
+			.upload_key     = upload_key
+		,	.targets        = ::move(digest.targets)
+		,	.deps           = ::move(digest.deps   )
+		,	.cache_idx      = g_start_info.cache_idx
+		,	.status         = status
+		,	.has_msg_stderr = +end_report.msg || +g_gather.stderr
 		} ;
+		end_report.end_date =        g_gather.end_date  ;
+		end_report.stats    = ::move(stats            ) ;
+		end_report.stderr   = ::move(g_gather.stderr  ) ;
+		end_report.stdout   = ::move(g_gather.stdout  ) ;
+		end_report.wstatus  =        g_gather.wstatus   ;
 	}
 End :
 	{	Trace trace("end",end_report.digest.status) ;
 		try {
-			ClientSockFd fd           { g_service_end , NConnectionTrials } ;
-			Pdate        end_overhead = New                                 ;
+			ClientSockFd fd           { g_service_end } ;
+			Pdate        end_overhead = New             ;
 			g_exec_trace->emplace_back(end_overhead,"end_overhead") ;
-			end_report.digest.stats.total = end_overhead - start_overhead ;                 // measure overhead as late as possible
+			end_report.digest.exec_time = end_overhead - start_overhead ;                   // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

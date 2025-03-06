@@ -190,7 +190,7 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
 		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( cache , py_dct , "cache" ) ;
-			throw_unless( !cache || Caches::Cache::s_tab.contains(cache) , "unexpected cache ",cache," not found in config" ) ;
+			throw_unless( !cache || g_config->cache_idxs.contains(cache) , "unexpected cache ",cache," not found in config" ) ;
 		}
 		// data
 		// START_OF_VERSIONING
@@ -277,12 +277,12 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING
-		bool              keep_tmp       = false ;
-		uint8_t           z_lvl          = 0     ;
 		Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
 		::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
-		size_t            max_stderr_len = Npos  ;                                                         // max lines when displaying stderr (full content is shown with lshow -e)
 		::vmap_ss         env            ;
+		uint16_t          max_stderr_len = 0     ;                                                         // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
+		bool              keep_tmp       = false ;
+		uint8_t           z_lvl          = 0     ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -729,8 +729,13 @@ namespace Engine {
 					throw "for item "s+i+" : "+e ;
 				}
 			} ;
-			if (py_src->is_a<Py::Sequence>()) for( Py::Object const& py_item : py_src->as_a<Py::Sequence>() ) handle_entry(py_item) ;
-			else                                                                                              handle_entry(*py_src) ;
+			if (py_src->is_a<Py::Sequence>()) {
+				Py::Sequence const& py_seq = py_src->as_a<Py::Sequence>() ;
+				dst.reserve(py_seq.size()) ;
+				for( Py::Object const& py_item : py_seq ) handle_entry(py_item) ;
+			} else {
+				handle_entry(*py_src) ;
+			}
 			if (i!=n) {
 				updated = true ;
 				dst.resize(i) ;

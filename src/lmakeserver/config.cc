@@ -148,9 +148,11 @@ namespace Engine {
 			fields[0] = "caches" ;
 			if (py_map.contains(fields[0])) {
 				fields.emplace_back() ;
+				caches.resize(1) ;                                                                                                     // idx 0 is reserved to mean no cache
 				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
 					fields[1] = py_key.as_a<Str>() ;
-					caches[fields[1]] = Cache(py_val.as_a<Dict>()) ;
+					cache_idxs[fields[1]] = caches.size() ;
+					caches.emplace_back(py_val.as_a<Dict>()) ;
 				}
 				fields.pop_back() ;
 			}
@@ -239,7 +241,8 @@ namespace Engine {
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;
-			for( auto const& [key,cache] : caches ) {
+			for( auto const& [key,idx] : cache_idxs ) {
+				Cache const& cache = caches[idx] ;
 				size_t w = 3 ;                                                               // room for tag
 				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
 				res <<"\t\t"<< key <<" :\n" ;
@@ -335,7 +338,10 @@ namespace Engine {
 		//
 		if (dynamic) return ;
 		//
-		for( auto const& [key,config] : caches ) Caches::Cache::s_config(key,config.tag,config.dct) ;
+		for( auto const& [_,idx] : cache_idxs ) {
+			Cache const& cache = caches[idx] ;
+			Caches::Cache::s_config(idx,cache.tag,cache.dct) ;
+		}
 	}
 
 }

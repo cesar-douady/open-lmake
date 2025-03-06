@@ -58,9 +58,9 @@ if __name__!='__main__' :
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'gxx.py'
-	,	*( f'exe_{e}.c'     for e in range(n)                   )
-	,	*( f'obj_{e}_{o}.h' for e in range(n) for o in range(l) )
-	,	*( f'obj_{e}_{o}.c' for e in range(n) for o in range(l) )
+	,	*( f'src/exe_{e}.c'     for e in range(n)                   )
+	,	*( f'src/obj_{e}_{o}.h' for e in range(n) for o in range(l) )
+	,	*( f'src/obj_{e}_{o}.c' for e in range(n) for o in range(l) )
 	)
 
 	class Base(Rule) :
@@ -69,25 +69,27 @@ if __name__!='__main__' :
 		resources = { 'mem':'1M' }
 
 	class Compile(Base) :
-		if use_cat : target  =            r'{File:.*}.o'
-		else       : targets = { 'OBJ' :  r'{File:.*}.o' }
-		deps      = { 'SRC'    :   '{File}.c'             }
+		if use_cat : target  =            r'build/{File:.*}.o'
+		else       : targets = { 'OBJ' :  r'build/{File:.*}.o' }
+		deps      = { 'SRC'    :   'src/{File}.c'         }
 		side_deps = { 'GCH'    : (r'{*:.*}.gch','ignore') }
 		environ   = { 'TMPDIR' : ''                       }
 		cmd       = compile_cmd(False,False,'{OBJ}','{SRC}')
 
 	class Link(Base) :
-		if use_cat : target  =           r'exe_{N:\d+}.exe'
-		else       : targets = { 'EXE' : r'exe_{N:\d+}.exe' }
-		deps = { 'OBJ' : 'exe_{N}.o'        }
-		cmd  = link_cmd(False,'{EXE}','{OBJ}',*(f'obj_{{N}}_{o}.o' for o in range(l)))
+		if use_cat : target  =           r'build/exe_{N:\d+}.exe'
+		else       : targets = { 'EXE' : r'build/exe_{N:\d+}.exe' }
+		deps = { 'OBJ' : 'build/exe_{N}.o' }
+		cmd  = link_cmd(False,'{EXE}','{OBJ}',*(f'build/obj_{{N}}_{o}.o' for o in range(l)))
 
 	class All(Base,PyRule) :
 		target = r'all_{N:\d+}'
 		def cmd() :
-			lmake.depend(*(f'exe_{e}.exe' for e in range(int(N))),read=True)
+			lmake.depend(*(f'build/exe_{e}.exe' for e in range(int(N))),read=True)
 
 else :
+
+	import os
 
 	from lmake import multi_strip
 
@@ -99,21 +101,23 @@ else :
 
 	nl = '\n' # \n are forbidden in f-sting
 
+	os.makedirs('src'  ,exist_ok=True)
+	os.makedirs('build',exist_ok=True)
 	for e in range(n) :
-		with open(f'exe_{e}.c','w') as exe :
+		with open(f'src/exe_{e}.c','w') as exe :
 			if use_cat :
-				for o in range(l) : print(f'obj_{e}_{o}.h',file=exe)
+				for o in range(l) : print(f'src/obj_{e}_{o}.h',file=exe)
 			else :
 				for o in range(l) : print(f'#include "obj_{e}_{o}.h"',file=exe)
 				print(f'int main() {{ return 0 ; }}',file=exe)
 		for o in range(l) :
-			if use_cat :
-				print(f'obj_{e}_{o}.h',file=open(f'obj_{e}_{o}.h','w'))
-				with open(f'obj_{e}_{o}.c','w') as obj :
-					for i in range(p) : print(f'obj_{e}_{(o+i)%l}.h',file=obj)
-			else :
-				print(f'int foo_{o}() ;',file=open(f'obj_{e}_{o}.h','w'))
-				with open(f'obj_{e}_{o}.c','w') as obj :
+			with open(f'src/obj_{e}_{o}.h','w') as h :
+				if use_cat : print(f'src/obj_{e}_{o}.h',file=h)
+				else       : print(f'int foo_{o}() ;'  ,file=h)
+			with open(f'src/obj_{e}_{o}.c','w') as obj :
+				if use_cat :
+					for i in range(p) : print(f'src/obj_{e}_{(o+i)%l}.h',file=obj)
+				else :
 					for i in range(p) : print(f'#include "obj_{e}_{(o+i)%l}.h"',file=obj)
 					print(f'int foo_{o}() {{ return 0 ; }}',file=obj)
 
@@ -133,15 +137,15 @@ else :
 			 description = Gather to $out
 		'''))
 		for k in {r,n} :
-			print(f"build all_{k} : gather {' '.join(f'exe_{e}.exe' for e in range(k))}",file=ninja)
+			print(f"build all_{k} : gather {' '.join(f'build/exe_{e}.exe' for e in range(k))}",file=ninja)
 		#
 		for e in range(n) :
 			ninja.write(multi_strip(f'''
-				build exe_{e}.o   : cc   exe_{e}.c | {' '.join(f'obj_{e}_{o}.h' for o in range(l))}
-				build exe_{e}.exe : link exe_{e}.o   {' '.join(f'obj_{e}_{o}.o' for o in range(l))}
+				build build/exe_{e}.o   : cc   src/exe_{e}.c   | {' '.join(f'src/obj_{e}_{o}.h'   for o in range(l))}
+				build build/exe_{e}.exe : link build/exe_{e}.o   {' '.join(f'build/obj_{e}_{o}.o' for o in range(l))}
 			'''))
 			for o in range(l) :
-				print(f"build obj_{e}_{o}.o : cc   obj_{e}_{o}.c | {' '.join(f'obj_{e}_{(o+i)%l}.h' for i in range(p))}",file=ninja)
+				print(f"build build/obj_{e}_{o}.o : cc   src/obj_{e}_{o}.c | {' '.join(f'src/obj_{e}_{(o+i)%l}.h' for i in range(p))}",file=ninja)
 
 	#
 	# bazel
@@ -154,34 +158,34 @@ else :
 			#
 			for e in range(n) :
 				bazel.write(multi_strip(f'''
-					cc_library( name='exe_{e}_o' , copts=['-pipe','-xc']  , srcs=['exe_{e}.c'  ] , hdrs=[{','.join(f"'obj_{e}_{o}.h'" for o in range(l))}] )
-					cc_binary ( name='exe_{e}_e'                          , srcs=[           ] , deps=['//:exe_{e}_o'{''.join(f",'//:obj_{e}_{o}_o'" for o in range(l))}] )
+					cc_library( name='exe_{e}_o' , copts=['-pipe','-xc']  , srcs=['src/exe_{e}.c'  ] , hdrs=[{','.join(f"'src/obj_{e}_{o}.h'" for o in range(l))}] )
+					cc_binary ( name='exe_{e}_e'                          , srcs=[               ] , deps=['//:exe_{e}_o'{''.join(f",'//:obj_{e}_{o}_o'" for o in range(l))}] )
 				'''))
 				for o in range(l) :
-					print(f'''cc_library( name='obj_{e}_{o}_o' , copts=['-pipe','-xc'] , srcs=['obj_{e}_{o}.c'] , hdrs=[{','.join(f"'obj_{e}_{(o+i)%l}.h'" for i in range(p))}] )''',file=bazel)
+					print(f'''cc_library( name='obj_{e}_{o}_o' , copts=['-pipe','-xc'] , srcs=['src/obj_{e}_{o}.c'] , hdrs=[{','.join(f"'src/obj_{e}_{(o+i)%l}.h'" for i in range(p))}] )''',file=bazel)
 
 	#
 	# make
 	#
 	with open('Makefile','w') as makefile :
 		makefile.write(multi_strip(f'''
-			%.o : %.c
+			build/%.o : src/%.c
 				{compile_cmd(True,True,'$@','$<')}
-			%.exe : %.o
+			build/%.exe : build/%.o
 				{link_cmd(True,'$@','$^')}
 			all_% :
 				touch $@
 		'''))
 		for k in {r,n} :
-			print(f"all_{k} : {' '.join(f'exe_{e}.exe' for e in range(k))}",file=makefile)
+			print(f"all_{k} : {' '.join(f'build/exe_{e}.exe' for e in range(k))}",file=makefile)
 		#
 		for e in range(n) :
 			makefile.write(multi_strip(f'''
-				exe_{e}.o   : {' '.join(f'obj_{e}_{o}.h' for o in range(l))}
-				exe_{e}.exe : {' '.join(f'obj_{e}_{o}.o' for o in range(l))}
+				build/exe_{e}.o   : {' '.join(f'src/obj_{e}_{o}.h'   for o in range(l))}
+				build/exe_{e}.exe : {' '.join(f'build/obj_{e}_{o}.o' for o in range(l))}
 			'''))
 			for o in range(l) :
-				print(f"obj_{e}_{o}.o : {' '.join(f'obj_{e}_{(o+i)%l}.h' for i in range(p))}",file=makefile)
+				print(f"build/obj_{e}_{o}.o : {' '.join(f'src/obj_{e}_{(o+i)%l}.h' for i in range(p))}",file=makefile)
 
 	#
 	# bash
@@ -195,9 +199,9 @@ else :
 	for b in range(n_cpu) :
 		with open(f'run_{b}','w') as script :
 			for e in range(b,n,n_cpu) :
-				for o in range(l) : print(compile_cmd(True,False,f'obj_{e}_{o}.o',f'obj_{e}_{o}.c'                                  ),file=script)
-				pass ;              print(compile_cmd(True,False,f'exe_{e}.o'    ,f'exe_{e}.c'                                      ),file=script)
-				pass ;              print(link_cmd   (True      ,f'exe_{e}.exe'  ,f'exe_{e}.o',*(f'obj_{e}_{o}.o' for o in range(l))),file=script)
+				for o in range(l) : print(compile_cmd(True,False,f'build/obj_{e}_{o}.o',f'src/obj_{e}_{o}.c'                                          ),file=script)
+				pass ;              print(compile_cmd(True,False,f'build/exe_{e}.o'    ,f'src/exe_{e}.c'                                              ),file=script)
+				pass ;              print(link_cmd   (True      ,f'build/exe_{e}.exe'  ,f'build/exe_{e}.o',*(f'build/obj_{e}_{o}.o' for o in range(l))),file=script)
 		os.chmod(f'run_{b}',0o755)
 	with open('run','w') as script :
 		for b in range(n_cpu) : print(f'./run_{b} &'                                     ,file=script)
@@ -208,59 +212,63 @@ else :
 	# run bench
 	#
 	with open('bench','w') as bench :
-		bench.write(multi_strip(r'''
+		bench.write(multi_strip(rf'''
+			clean() {{
+				rm -f all_*
+				find build -name '*.o' -o -name '*.exe' | xargs rm -f
+			}}
 			set -x
 			# lmake
 			rm -rf LMAKE
-			ls | grep -x '.*\.o\|.*\.exe\|all_.*' | xargs rm -f ; time ../../bin/lmake       all_10000 >/dev/null
-			ls | grep -x '.*\.o\|.*\.exe\|all_.*' | xargs rm -f ; time ../../bin/lmake       all_10000 >/dev/null
-			: ;                                                   time ../../bin/lmake       all_10000 >/dev/null
-			: ;                                                   time ../../bin/lmake       all_10000 >/dev/null
-			: ;                                                   time ../../bin/lmake       all_10000 >/dev/null
-			: ;                                                   time ../../bin/lmake       all_10    >/dev/null
-			: ;                                                   time ../../bin/lmake       all_10    >/dev/null
-			: ;                                                   time ../../bin/lmake       all_10    >/dev/null
-			: ;                                                   time ../../bin/lmake       all_10    >/dev/null
+			clean ; time ../../bin/lmake       all_{n} >/dev/null
+			clean ; time ../../bin/lmake       all_{n} >/dev/null
+			:     ; time ../../bin/lmake       all_{n} >/dev/null
+			:     ; time ../../bin/lmake       all_{n} >/dev/null
+			:     ; time ../../bin/lmake       all_{n} >/dev/null
+			:     ; time ../../bin/lmake       all_{l} >/dev/null
+			:     ; time ../../bin/lmake       all_{l} >/dev/null
+			:     ; time ../../bin/lmake       all_{l} >/dev/null
+			:     ; time ../../bin/lmake       all_{l} >/dev/null
 			# ninja
 			rm -f .ninja_log
-			ls | grep -x '.*\.o\|.*\.exe\|all_.*' | xargs rm -f ; time ninja           -j 16 all_10000 >/dev/null
-			ls | grep -x '.*\.o\|.*\.exe\|all_.*' | xargs rm -f ; time ninja           -j 16 all_10000 >/dev/null
-			: ;                                                   time ninja           -j 16 all_10000 >/dev/null
-			: ;                                                   time ninja           -j 16 all_10000 >/dev/null
-			: ;                                                   time ninja           -j 16 all_10000 >/dev/null
-			: ;                                                   time ninja           -j 16 all_10    >/dev/null
-			: ;                                                   time ninja           -j 16 all_10    >/dev/null
-			: ;                                                   time ninja           -j 16 all_10    >/dev/null
-			: ;                                                   time ninja           -j 16 all_10    >/dev/null
+			clean ; time ninja           -j 16 all_{n} >/dev/null
+			clean ; time ninja           -j 16 all_{n} >/dev/null
+			:     ; time ninja           -j 16 all_{n} >/dev/null
+			:     ; time ninja           -j 16 all_{n} >/dev/null
+			:     ; time ninja           -j 16 all_{n} >/dev/null
+			:     ; time ninja           -j 16 all_{l} >/dev/null
+			:     ; time ninja           -j 16 all_{l} >/dev/null
+			:     ; time ninja           -j 16 all_{l} >/dev/null
+			:     ; time ninja           -j 16 all_{l} >/dev/null
 			# make
-			ls | grep -x '.*\.o\|.*\.exe\|all_.*' | xargs rm -f ; time make            -j 16 all_10000 >/dev/null
-			: ;                                                   time make            -j 16 all_10000 >/dev/null
-			: ;                                                   time make            -j 16 all_10000 >/dev/null
-			: ;                                                   time make            -j 16 all_10000 >/dev/null
-			: ;                                                   time make            -j 16 all_10    >/dev/null
-			: ;                                                   time make            -j 16 all_10    >/dev/null
-			: ;                                                   time make            -j 16 all_10    >/dev/null
-			: ;                                                   time make            -j 16 all_10    >/dev/null
+			clean ; time make            -j 16 all_{n} >/dev/null
+			:     ; time make            -j 16 all_{n} >/dev/null
+			:     ; time make            -j 16 all_{n} >/dev/null
+			:     ; time make            -j 16 all_{n} >/dev/null
+			:     ; time make            -j 16 all_{l} >/dev/null
+			:     ; time make            -j 16 all_{l} >/dev/null
+			:     ; time make            -j 16 all_{l} >/dev/null
+			:     ; time make            -j 16 all_{l} >/dev/null
 		'''))
 		if not use_cat : # bazel is not supported with cat
 			bench.write(multi_strip(fr'''
 				# bazel
 				rm -rf ~/.cache/bazel
 				export CC={gxx.gxx}
-				ls | grep -x '.*\.o\|.*\.exe\|all_.*' | xargs rm -f ; time bazel build --spawn_strategy=local --jobs=16 all_10000 >/dev/null
-				: ;                                                   time bazel build --spawn_strategy=local --jobs=16 all_10000 >/dev/null
-				: ;                                                   time bazel build --spawn_strategy=local --jobs=16 all_10000 >/dev/null
-				: ;                                                   time bazel build --spawn_strategy=local --jobs=16 all_10000 >/dev/null
-				: ;                                                   time bazel build --spawn_strategy=local --jobs=16 all_10    >/dev/null
-				: ;                                                   time bazel build --spawn_strategy=local --jobs=16 all_10    >/dev/null
-				: ;                                                   time bazel build --spawn_strategy=local --jobs=16 all_10    >/dev/null
-				: ;                                                   time bazel build --spawn_strategy=local --jobs=16 all_10    >/dev/null
+				clean ; time bazel build --spawn_strategy=local --jobs=16 all_{n} >/dev/null
+				:     ; time bazel build --spawn_strategy=local --jobs=16 all_{n} >/dev/null
+				:     ; time bazel build --spawn_strategy=local --jobs=16 all_{n} >/dev/null
+				:     ; time bazel build --spawn_strategy=local --jobs=16 all_{n} >/dev/null
+				:     ; time bazel build --spawn_strategy=local --jobs=16 all_{l} >/dev/null
+				:     ; time bazel build --spawn_strategy=local --jobs=16 all_{l} >/dev/null
+				:     ; time bazel build --spawn_strategy=local --jobs=16 all_{l} >/dev/null
+				:     ; time bazel build --spawn_strategy=local --jobs=16 all_{l} >/dev/null
 				unset CC
 				unset BAZEL_CXXOPTS
 			'''))
 		bench.write(multi_strip(r'''
 			# bash
-			ls | grep -x '.*\.o\|.*\.exe\|all_.*' | xargs rm -f  ; time ./run
+			clean ; time ./run
 		'''))
 	os.chmod('bench',0o755)
 

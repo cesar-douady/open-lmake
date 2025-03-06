@@ -190,7 +190,11 @@ template<class T> inline typename T::const_iterator lower_bound  ( T const& x , 
 #undef TVT
 
 template<class T> inline T& grow( ::vector<T>& v , size_t i ) {
-	if(i>=v.size()) v.resize(i+1) ;
+	if (i>=v.capacity()) {
+		size_t n = v.capacity() + ((v.capacity()+3)>>2) ; // ensure exponential growth while keeping memory overhead low
+		if (i<n) v.reserve(n) ;
+	}
+	if (i>=v.size()) v.resize(i+1) ;
 	return v[i] ;
 }
 

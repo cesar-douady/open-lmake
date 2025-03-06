@@ -171,8 +171,12 @@ namespace Caches {
 		AcFd(nfs_guard.change(here_file),Fd::Write).write(serialize(here)) ;
 	}
 
-	DirCache::Sz DirCache::_reserved_sz( ::string const& upload_key , NfsGuard& nfs_guard ) {
-		return deserialize<Sz>(AcFd(nfs_guard.access(cat(dir_s,AdminDirS,"reserved/",upload_key,".sz"))).read()) ;
+	::string DirCache::_reserved_file( uint64_t upload_key , ::string const& sfx ) const {
+		return cat(dir_s,AdminDirS,"reserved/",to_hex(upload_key),'.',sfx) ;
+	}
+
+	DirCache::Sz DirCache::_reserved_sz( uint64_t upload_key , NfsGuard& nfs_guard ) const {
+		return deserialize<Sz>(AcFd(nfs_guard.access(_reserved_file(upload_key,"sz"))).read()) ;
 	}
 
 	Cache::Match DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) {
@@ -186,47 +190,47 @@ namespace Caches {
 		Hash::Xxh deps_hint_hash ;                                                            deps_hint_hash.update(serialize(repo_deps)) ;
 		::string  deps_hint      = read_lnk(dfd,"deps_hint-"+deps_hint_hash.digest().hex()) ;
 		//
-		try {
-			::vector_s repos = lst_dir_s(dfd) ;
-			if ( +deps_hint && repos.size()>1 )                                         // reorder is only meaningful if there are several entries
-				for( size_t r : iota(repos.size()) )
-					if (repos[r]==deps_hint) {                                          // hint found
-						for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;   // rotate repos to put hint in front
-						repos[0] = ::move(deps_hint) ;                                  // .
-						break ;
-					}
-			for( ::string const& r : repos ) {
-				::string deps_file  = abs_jn_s+r+"/deps"                                                         ;
-				auto     cache_deps = deserialize<::vmap_s<DepDigest>>(AcFd(nfs_guard.access(deps_file)).read()) ;
-				//
-				NodeIdx dvg     = 0     ;
-				bool    has_dvg = false ;
-				for( auto const& [dn,dd] : cache_deps ) {
-					if (!has_dvg) {
-						if      ( dvg>=repo_deps.size() || dn!=repo_deps[dvg].first         ) { has_dvg = true ; if (!repo_dep_map) repo_dep_map = mk_umap(repo_deps) ; } // solve lazy evaluation
-						else if (dd.crc().match( repo_deps[dvg].second.crc() , dd.accesses )) { dvg++ ; continue  ;                                                     }
-						else                                                                            goto Miss ;
-					}
-					if      ( auto it=repo_dep_map.find(dn) ; it==repo_dep_map.end() ) continue  ;
-					else if ( dd.crc().match( it->second.crc() , dd.accesses )       ) continue  ;
-					else                                                               goto Miss ;
+		::vector_s repos ;
+		try                       { repos = lst_dir_s(dfd) ;            }
+		catch (::string const& e) { trace("dir_not_found",abs_jn_s,e) ; }               // if directory does not exist, it is as it was empty
+		if ( +deps_hint && repos.size()>1 )                                             // reorder is only meaningful if there are several entries
+			for( size_t r : iota(repos.size()) )
+				if (repos[r]==deps_hint) {                                              // hint found
+					for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;       // rotate repos to put hint in front
+					repos[0] = ::move(deps_hint) ;                                      // .
+					break ;
 				}
+		for( ::string const& r : repos ) {
+			::string            deps_file  = abs_jn_s+r+"/deps" ;
+			::vmap_s<DepDigest> cache_deps ;
+			try                       { deserialize( AcFd(nfs_guard.access(deps_file)).read() , cache_deps ) ; }
+			catch (::string const& e) { trace("bad_deps",deps_file,e) ; continue ;                             }                                                      // cannot read deps, ignore entry
+			//
+			NodeIdx dvg     = 0     ;
+			bool    has_dvg = false ;
+			for( auto const& [dn,dd] : cache_deps ) {
 				if (!has_dvg) {
-					trace("hit",r) ;
-					return { .completed=true , .hit=Yes , .key{job+'/'+r} } ;             // hit
+					if      ( dvg>=repo_deps.size() || dn!=repo_deps[dvg].first         ) { has_dvg = true ; if (!repo_dep_map) repo_dep_map = mk_umap(repo_deps) ; } // solve lazy evaluation
+					else if (dd.crc().match( repo_deps[dvg].second.crc() , dd.accesses )) { dvg++ ; continue  ;                                                     }
+					else                                                                            goto Miss ;
 				}
-				for( NodeIdx i : iota(dvg,cache_deps.size()) ) {
-					if ( cache_deps[i].second.dflags[Dflag::Critical] && ! repo_dep_map.contains(cache_deps[i].first) ) {
-						cache_deps.resize(i+1) ;
-						break ;
-					}
-				}
-				trace("deps",cache_deps) ;
-				return { .completed=true , .hit=Maybe , .new_deps{::move(cache_deps)} } ;
-			Miss : ;                                                                      // missed this entry, try next one
+				if      ( auto it=repo_dep_map.find(dn) ; it==repo_dep_map.end() ) continue  ;
+				else if ( dd.crc().match( it->second.crc() , dd.accesses )       ) continue  ;
+				else                                                               goto Miss ;
 			}
-		} catch (::string const&) {                                                       // if directory does not exist, it is as it was empty
-			trace("dir_not_found") ;
+			if (!has_dvg) {
+				trace("hit",r) ;
+				return { .completed=true , .hit=Yes , .key{job+'/'+r} } ;                                                                                             // hit
+			}
+			for( NodeIdx i : iota(dvg,cache_deps.size()) ) {
+				if ( cache_deps[i].second.dflags[Dflag::Critical] && ! repo_dep_map.contains(cache_deps[i].first) ) {
+					cache_deps.resize(i+1) ;
+					break ;
+				}
+			}
+			trace("deps",cache_deps) ;
+			return { .completed=true , .hit=Maybe , .new_deps{::move(cache_deps)} } ;
+		Miss : ;                                                                                                                                                      // missed this entry, try next one
 		}
 		trace("miss") ;
 		return { .completed=true , .hit=No } ;
@@ -248,25 +252,25 @@ namespace Caches {
 		return { deserialize<JobInfo>(info_fd.read()) , ::move(data_fd) } ;
 	}
 
-	::pair_s/*upload_key*/<AcFd> DirCache::sub_upload(Sz max_sz) {
+	::pair<uint64_t/*upload_key*/,AcFd> DirCache::sub_upload(Sz max_sz) {
 		Trace trace("DirCache::reserve",max_sz) ;
 		//
 		NfsGuard nfs_guard { reliable_dirs }    ;
-		uint64_t key       = random<uint64_t>() ; if (!key) key = 1 ; // reserve 0 for no key
+		uint64_t upload_key       = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
 		{	LockedFd lock { dir_s , true/*exclusive*/ } ;
 			_mk_room( 0 , max_sz , nfs_guard ) ;
 		}
-		AcFd         ( nfs_guard.change(cat(dir_s+AdminDirS,"reserved/",key,".sz"  )) , Fd::CreateReadOnly ).write(serialize(max_sz)) ;
-		AcFd data_fd { nfs_guard.change(cat(dir_s+AdminDirS,"reserved/",key,".data")) , Fd::CreateReadOnly } ;
-		trace(data_fd,key) ;
-		return { cat(key) , ::move(data_fd) } ;
+		AcFd         ( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , Fd::CreateReadOnly ).write(serialize(max_sz)) ;
+		AcFd data_fd { nfs_guard.change(_reserved_file(upload_key,"data")) , Fd::CreateReadOnly } ;
+		trace(data_fd,upload_key) ;
+		return { upload_key , ::move(data_fd) } ;
 	}
 
-	bool/*ok*/ DirCache::sub_commit( ::string const& upload_key , ::string const& job , JobInfo&& job_info ) {
-		NfsGuard nfs_guard { reliable_dirs } ;
-		::string jn_s      = job+'/'         ;
-		::string jnid_s    = jn_s+repo_s     ;
-		Trace trace("DirCache::sub_commit",upload_key,job) ;
+	bool/*ok*/ DirCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
+		NfsGuard nfs_guard { reliable_dirs }    ;
+		::string jn_s      = job+'/'            ;
+		::string jnid_s    = jn_s+repo_s        ;
+		Trace trace("DirCache::sub_commit",to_hex(upload_key),job) ;
 		//
 		// START_OF_VERSIONING
 		::string job_info_str = serialize(job_info                ) ;
@@ -281,11 +285,11 @@ namespace Caches {
 		Sz new_sz =
 			job_info_str.size()
 		+	deps_str.size()
-		+	FileInfo(nfs_guard.access(cat(dir_s,AdminDirS,"reserved/",upload_key,".data"))).sz
+		+	FileInfo(nfs_guard.access(_reserved_file(upload_key,"data") )).sz
 		;
 		Sz       old_sz    = _reserved_sz(upload_key,nfs_guard) ;
 		bool     made_room = false                              ;
-		LockedFd lock      { dir_s , true/*exclusive*/ }        ; // lock as late as possible
+		LockedFd lock      { dir_s , true/*exclusive*/ }        ;                                                     // lock as late as possible
 		try {
 			old_sz += _lru_remove(jnid_s,nfs_guard) ;
 			unlnk_inside_s(dfd) ;
@@ -294,16 +298,16 @@ namespace Caches {
 			made_room = true ;
 			// START_OF_VERSIONING
 			AcFd(dfd,"info",FdAction::CreateReadOnly).write(job_info_str) ;
-			AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                                             // store deps in a compact format so that matching is fast
-			int rc = ::renameat( Fd::Cwd,nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",upload_key,".data")).c_str() , dfd,"data" ) ;
+			AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                           // store deps in a compact format so that matching is fast
+			int rc = ::renameat( Fd::Cwd,nfs_guard.change(_reserved_file(upload_key,"data")).c_str() , dfd,"data" ) ;
 			// END_OF_VERSIONING
 			if (rc<0) throw "cannot move data from tmp to final destination"s ;
-			unlnk( nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",upload_key,".sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
+			unlnk( nfs_guard.change(_reserved_file(upload_key,"sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
 			_lru_first( jnid_s , new_sz , nfs_guard ) ;
 		} catch (::string const& e) {
 			trace("failed",e) ;
-			unlnk_inside_s(dfd) ;                                                                                                       // clean up in case of partial execution
-			_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                                              // finally, we did not populate the entry
+			unlnk_inside_s(dfd) ;                                                                                     // clean up in case of partial execution
+			_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                            // finally, we did not populate the entry
 			return false/*ok*/ ;
 		}
 		// set a symlink from a name derived from deps to improve match speed in case of hit
@@ -317,16 +321,16 @@ namespace Caches {
 		return true/*ok*/ ;
 	}
 
-	void DirCache::sub_dismiss(::string const& upload_key) {
+	void DirCache::sub_dismiss(uint64_t upload_key) {
 		NfsGuard nfs_guard { reliable_dirs }             ;
 		LockedFd lock      { dir_s , true/*exclusive*/ } ;                        // lock as late as possible
 		_dismiss( upload_key , _reserved_sz(upload_key,nfs_guard) , nfs_guard ) ;
 	}
 
-	void DirCache::_dismiss( ::string const& upload_key , Sz sz , NfsGuard& nfs_guard ) {
-		_mk_room( sz , 0 , nfs_guard ) ; //!                                          dir_ok   abs_ok
-		unlnk( nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",upload_key,".sz"  )) , false , true ) ;
-		unlnk( nfs_guard.change(cat(dir_s,AdminDirS,"reserved/",upload_key,".data")) , false , true ) ;
+	void DirCache::_dismiss( uint64_t upload_key , Sz sz , NfsGuard& nfs_guard ) {
+		_mk_room( sz , 0 , nfs_guard ) ; //!                        dir_ok  abs_ok
+		unlnk( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , false , true ) ;
+		unlnk( nfs_guard.change(_reserved_file(upload_key,"data")) , false , true ) ;
 	}
 
 }

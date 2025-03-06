@@ -15,6 +15,7 @@ static constexpr uint8_t NodeNGuardBits = 1 ; // to be able to make Target
 
 // NXxxBits are used to dimension address space, and hence max number of objects for each category.
 // can be tailored to fit neeeds
+static constexpr uint8_t NCacheIdxBits    =  8 ; // used to caches
 static constexpr uint8_t NCodecIdxBits    = 32 ; // used to store code <-> value associations in lencode/ldecode
 static constexpr uint8_t NDepsIdxBits     = 32 ; // used to index deps
 static constexpr uint8_t NJobIdxBits      = 30 ; // 2 guard bits
@@ -35,6 +36,7 @@ static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets
 // derived info
 //
 // must not be touched to fit needs
+using CacheIdx    = Uint<NCacheIdxBits                  > ;
 using CodecIdx    = Uint<NCodecIdxBits                  > ;
 using DepsIdx     = Uint<NDepsIdxBits                   > ;
 using JobIdx      = Uint<NJobIdxBits     +JobNGuardBits > ;

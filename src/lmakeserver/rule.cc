@@ -1267,7 +1267,7 @@ namespace Engine {
 			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"            , cat        (start_none_attrs  .spec.keep_tmp               ) ) ;
 			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"         ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
 			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                        ) ;
-			if ( start_none_attrs  .spec.max_stderr_len!=Npos      ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_none_attrs  .spec.max_stderr_len         ) ) ;
+			if ( start_none_attrs  .spec.max_stderr_len            ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_none_attrs  .spec.max_stderr_len         ) ) ;
 			if ( start_none_attrs  .spec.z_lvl                     ) entries.emplace_back( "compression"         , ::to_string(start_none_attrs  .spec.z_lvl                  ) ) ;
 		}
 		::string res = _pretty_vmap( title , entries ) ;

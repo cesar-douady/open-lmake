@@ -344,8 +344,8 @@ namespace Engine {
 		//
 		::string const& key = ro.flag_args[+ReqFlag::Key] ;
 		auto            it  = g_config->dbg_tab.find(key) ;
-		throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",ro.flag_args[+ReqFlag::Key] ) ;
-		throw_unless( +it->second                 , "empty debug method "  ,ro.flag_args[+ReqFlag::Key] ) ;
+		throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",key ) ;
+		throw_unless( +it->second                 , "empty debug method "  ,key ) ;
 		::string runner    = split(it->second)[0]                       ;                                                          // allow doc after first word
 		::string dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
 		mk_dir_s(dbg_dir_s) ;
@@ -440,7 +440,7 @@ namespace Engine {
 				DepDepth l = lvl - backlog.size() ;
 				for( Node n : backlog ) audit( fd , *ro , Color::HiddenNote , mk_file(n   ->name()) , false/*as_is*/ , l++ ) ;
 				/**/                    audit( fd , *ro , c                 , mk_file(node->name()) , false/*as_is*/ , lvl ) ;
-				backlog = {} ;
+				backlog.clear() ;
 			}
 		}
 	} ;
@@ -476,7 +476,7 @@ namespace Engine {
 					DepDepth l = lvl - backlog.size() ;
 					for( Job j : backlog ) audit( fd , *ro , Color::HiddenNote , ""s+'W'+' '+j  ->rule()->name+' '+mk_file(j  ->name()) , false/*as_is*/ , l++ ) ;
 					/**/                   audit( fd , *ro , color             , ""s+hdr+' '+job->rule()->name+' '+mk_file(job->name()) , false/*as_is*/ , lvl ) ;
-					backlog = {} ;
+					backlog.clear() ;
 					return ;
 				}
 			DF}
@@ -503,7 +503,7 @@ namespace Engine {
 		JobStartRpcReq  & pre_start = job_info.start.pre_start   ;
 		JobStartRpcReply& start     = job_info.start.start       ;
 		JobEndRpcReq    & end       = job_info.end               ;
-		JobDigest       & digest    = end.digest                 ;
+		JobDigest<>     & digest    = end.digest                 ;
 		switch (ro.key) {
 			case ReqKey::Cmd    :
 			case ReqKey::Env    :
@@ -547,15 +547,15 @@ namespace Engine {
 						case ReqKey::Stdout :
 							if (!end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
-							audit     ( fd , ro , digest.stdout                            , lvl+1 ) ;
+							audit     ( fd , ro , end.stdout                               , lvl+1 ) ;
 						break ;
 						case ReqKey::Stderr :
 							if (!( +end || (+start&&verbose) )) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-							//                                                                       as_is
-							if ( +start && verbose ) audit( fd , ro , Color::Note , pre_start.msg  , false , lvl+1 ) ;
-							if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg        , false , lvl+1 ) ;
-							if ( +end              ) audit( fd , ro ,               digest.stderr  , true  , lvl+1 ) ;
+							//                                                                      as_is
+							if ( +start && verbose ) audit( fd , ro , Color::Note , pre_start.msg , false , lvl+1 ) ;
+							if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg       , false , lvl+1 ) ;
+							if ( +end              ) audit( fd , ro ,               end.stderr    , true  , lvl+1 ) ;
 						break ;
 						case ReqKey::Trace : {
 							if (!end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
@@ -613,8 +613,8 @@ namespace Engine {
 								SubmitAttrs  const& sa       = rs.submit_attrs         ;
 								::string            pressure = sa.pressure.short_str() ;
 								//
-								if ( +sa.reason                               ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
-								if ( rs.host && rs.host!=SockFd::LoopBackAddr ) push_entry( "host"   , SockFd::s_host(rs.host)            ) ;
+								if ( +sa.reason                                           ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
+								if ( rs.start.addr && rs.start.addr!=SockFd::LoopBackAddr ) push_entry( "host"   , SockFd::s_host(rs.start.addr)      ) ;
 								//
 								if (+rs.eta) {
 									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(sa.pressure))+" )"      , Color::None,false/*protect*/ ) ;
@@ -648,29 +648,29 @@ namespace Engine {
 								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
 								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								//
-								push_entry( "end date" , digest.end_date.str(3/*prec*/) ) ;
-								if (porcelaine) { //!                                                                     protect
-									push_entry( "rc"             , wstatus_str(digest.wstatus)             , Color::None , false ) ;
-									push_entry( "cpu time"       , ::to_string(double(digest.stats.cpu  )) , Color::None , false ) ;
-									push_entry( "elapsed in job" , ::to_string(double(digest.stats.job  )) , Color::None , false ) ;
-									push_entry( "elapsed total"  , ::to_string(double(digest.stats.total)) , Color::None , false ) ;
-									push_entry( "used mem"       , ::to_string(       digest.stats.mem   ) , Color::None , false ) ;
-									push_entry( "cost"           , ::to_string(double(job->cost         )) , Color::None , false ) ;
+								push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
+								if (porcelaine) { //!                                                                    protect
+									push_entry( "rc"             , wstatus_str(end.wstatus)               , Color::None , false ) ;
+									push_entry( "cpu time"       , ::to_string(double(end.stats.cpu    )) , Color::None , false ) ;
+									push_entry( "elapsed in job" , ::to_string(double(end.stats.job    )) , Color::None , false ) ;
+									push_entry( "elapsed total"  , ::to_string(double(digest.exec_time )) , Color::None , false ) ;
+									push_entry( "used mem"       , ::to_string(       end.stats.mem     ) , Color::None , false ) ;
+									push_entry( "cost"           , ::to_string(double(job->cost        )) , Color::None , false ) ;
 								} else {
 									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
 									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_unit(mem_rsrc_str):0                                                                           ;
-									bool            overflow     = digest.stats.mem > mem_rsrc                                                                                                   ;
-									::string        mem_str      = to_short_string_with_unit(digest.stats.mem)+'B'                                                                               ;
+									bool            overflow     = end.stats.mem > mem_rsrc                                                                                                      ;
+									::string        mem_str      = to_short_string_with_unit(end.stats.mem)+'B'                                                                                  ;
 									if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
-									::string rc_str   = wstatus_str(digest.wstatus) + (wstatus_ok(digest.wstatus)&&+digest.stderr?" (with non-empty stderr)":"") ;
-									Color    rc_color = wstatus_ok(digest.wstatus) ? Color::Ok : Color::Err                                                      ;
-									if ( rc_color==Color::Ok && +digest.stderr ) rc_color = job->status==Status::Ok ? Color::Warning : Color::Err ;
-									push_entry( "rc"             , rc_str                         , rc_color                            ) ;
-									push_entry( "cpu time"       , digest.stats.cpu  .short_str()                                       ) ;
-									push_entry( "elapsed in job" , digest.stats.job  .short_str()                                       ) ;
-									push_entry( "elapsed total"  , digest.stats.total.short_str()                                       ) ;
-									push_entry( "used mem"       , mem_str                        , overflow?Color::Warning:Color::None ) ;
-									push_entry( "cost"           , job->cost         .short_str()                                       ) ;
+									::string rc_str   = wstatus_str(end.wstatus) + (wstatus_ok(end.wstatus)&&+end.stderr?" (with non-empty stderr)":"") ;
+									Color    rc_color = wstatus_ok(end.wstatus) ? Color::Ok : Color::Err                                                ;
+									if ( rc_color==Color::Ok && +end.stderr ) rc_color = job->status==Status::Ok ? Color::Warning : Color::Err ;
+									push_entry( "rc"             , rc_str                       , rc_color                            ) ;
+									push_entry( "cpu time"       , end.stats.cpu   .short_str()                                       ) ;
+									push_entry( "elapsed in job" , end.stats.job   .short_str()                                       ) ;
+									push_entry( "elapsed total"  , digest.exec_time.short_str()                                       ) ;
+									push_entry( "used mem"       , mem_str                      , overflow?Color::Warning:Color::None ) ;
+									push_entry( "cost"           , job->cost       .short_str()                                       ) ;
 								}
 								/**/                   push_entry( "total size"      , to_short_string_with_unit(end.total_sz     )+'B' ) ;
 								if (end.compressed_sz) push_entry( "compressed size" , to_short_string_with_unit(end.compressed_sz)+'B' ) ;
@@ -678,7 +678,7 @@ namespace Engine {
 							//
 							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg,su)                  ) ;
 							if (+job_info.start.stderr) push_entry( "start stderr"  , job_info.start.stderr      , Color::Warning ) ;
-							if (+end.msg              ) push_entry( "message"       , localize(end      .msg,su)                  ) ;
+							if (+end.msg              ) push_entry( "message"       , localize(end.msg,su)                        ) ;
 							// generate output
 							if (porcelaine) {
 								auto audit_map = [&]( ::string const& k , ::map_ss const& m , bool protect , bool allocated )->void {

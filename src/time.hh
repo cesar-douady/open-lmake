@@ -175,9 +175,9 @@ namespace Time {
 	struct CoarseDelay {
 		friend ::string& operator+=( ::string& , CoarseDelay const ) ;
 		using Val = uint16_t ;
-		static constexpr int64_t  TicksPerSecond = 1000                 ; // this may be freely modified
-		static constexpr uint8_t  Mantissa       = 11                   ; // .
-		static constexpr uint32_t Scale          = 28294                ; // (::logf(Delay::TicksPerSecond)-::logf(TicksPerSecond))*(1<<Mantissa) ;
+		static constexpr int64_t  TicksPerSecond = 1000  ; // this may be freely modified
+		static constexpr uint8_t  Mantissa       = 11    ; // .
+		static constexpr uint32_t Scale          = 28294 ; // (::logf(Delay::TicksPerSecond)-::logf(TicksPerSecond))*(1<<Mantissa) ;
 		//
 		static const CoarseDelay Lowest  ;
 		static const CoarseDelay Highest ;

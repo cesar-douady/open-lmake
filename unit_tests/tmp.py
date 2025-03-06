@@ -75,7 +75,8 @@ if __name__!='__main__' :
 			cp -a $REPO_ROOT/{File}.dir/d d
 			a=$(cat d/a)
 			echo $a:aa >d/a
-			rmdir $REPO_ROOT/{File}.dir2/d 2>/dev/null || :
+			rmdir $REPO_ROOT/{File}.dir2/d/c 2>/dev/null || :
+			rmdir $REPO_ROOT/{File}.dir2/d   2>/dev/null || :
 			cp -a d $REPO_ROOT/{File}.dir2/d
 		'''
 

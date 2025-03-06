@@ -107,25 +107,37 @@ static constexpr char ServerMrkr[] = ADMIN_DIR_S "server" ;
 
 struct ReqOptions {
 	friend ::string& operator+=( ::string& , ReqOptions const& ) ;
+	using FlagArgs = ::array_s<N<ReqFlag>> ;
 	// cxtors & casts
-	ReqOptions() = default ;
-	//
-	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ReqFlags f={} , ::array_s<N<ReqFlag>> const& fa={} ) :
-		startup_dir_s { sds }
-	,	reverse_video { rv  }
-	,	key           { k   }
-	,	flags         { f   }
-	,	flag_args     { fa  }
+	ReqOptions(                    ) : flag_args{*new FlagArgs} {             }
+	ReqOptions(ReqOptions const& ro) : ReqOptions{}             { self = ro ; }
+	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ReqFlags f={} , FlagArgs const& fa={} ) :
+		startup_dir_s { sds               }
+	,	reverse_video { rv                }
+	,	key           { k                 }
+	,	flags         { f                 }
+	,	flag_args     { *new FlagArgs{fa} }
 	{}
 	ReqOptions( Bool3 rv , ReqCmdLine cl ) :
-		startup_dir_s { *g_startup_dir_s }
-	,	reverse_video { rv               }
-	,	key           { cl.key           }
-	,	flags         { cl.flags         }
-	,	flag_args     { cl.flag_args     }
+		startup_dir_s { *g_startup_dir_s            }
+	,	reverse_video { rv                          }
+	,	key           { cl.key                      }
+	,	flags         { cl.flags                    }
+	,	flag_args     { *new FlagArgs{cl.flag_args} }
 	{}
+	~ReqOptions() {
+		delete &flag_args ;
+	}
+	ReqOptions& operator=(ReqOptions const& ro) {
+		startup_dir_s = ro.startup_dir_s ;
+		reverse_video = ro.reverse_video ;
+		key           = ro.key           ;
+		flags         = ro.flags         ;
+		flag_args     = ro.flag_args     ;
+		return self ;
+	}
 	// services
-	template<IsStream T> void serdes(T& s) {
+	template<IsStream S> void serdes(S& s) {
 		::serdes(s,startup_dir_s) ;
 		::serdes(s,reverse_video) ;
 		::serdes(s,key          ) ;
@@ -133,11 +145,11 @@ struct ReqOptions {
 		::serdes(s,flag_args    ) ;
 	}
 	// data
-	::string              startup_dir_s ;
-	Bool3                 reverse_video = Maybe        ; // if Maybe <=> not a terminal, do not colorize
-	ReqKey                key           = ReqKey::None ;
-	ReqFlags              flags         ;
-	::array_s<N<ReqFlag>> flag_args     ;
+	::string               startup_dir_s ;
+	Bool3                  reverse_video = Maybe        ; // if Maybe <=> not a terminal, do not colorize
+	ReqKey                 key           = ReqKey::None ;
+	ReqFlags               flags         ;
+	::array_s<N<ReqFlag>>& flag_args     ;                // owned, avoid putting enormous array in place as it appears in g_engine_queue and that would make *all* items enormous
 } ;
 
 struct ReqRpcReq {

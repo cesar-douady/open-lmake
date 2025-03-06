@@ -64,13 +64,13 @@ SlaveSockFd ServerSockFd::accept() {
 	return slave_fd ;
 }
 
-void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , Delay timeout ) {
+void ClientSockFd::connect( in_addr_t server , in_port_t port , Delay timeout ) {
 	if (!self) init() ;
 	swear_prod(fd>=0,"cannot create socket") ;
 	struct sockaddr_in sa       = s_sockaddr(server,port) ;
 	Pdate              end      ;
 	bool               too_late = false                   ;
-	for( int i=n_trials ; i>0 ; i-- ) {
+	for( int i=NTrials ; i>0 ; i-- ) {
 		if (+timeout) {
 			Pdate now = New ;
 			if (!end    )   end = now + timeout ;
@@ -89,9 +89,9 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 	}
 	int en = errno ;                                                                           // catch errno before any other syscall
 	close() ;
-	if      (too_late  ) throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)+" after "+timeout.short_str() ;
-	else if (n_trials>1) throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)+" after "+n_trials+" trials"  ;
-	else                 throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)                               ;
+	if      (too_late ) throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)+" after "+timeout.short_str() ;
+	else if (NTrials>1) throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)+" after "+NTrials+" trials"   ;
+	else                throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)                               ;
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {

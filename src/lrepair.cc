@@ -46,6 +46,7 @@ RepairDigest repair(::string const& from_dir_s) {
 			// find deps
 			::vector_s    src_dirs ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs.push_back(s->name()) ;
 			::vector<Dep> deps     ; deps.reserve(job_info.end.digest.deps.size()) ;
+			job_info.update_digest() ;                                                                     // gather newer dep crcs
 			for( auto const& [dn,dd] : job_info.end.digest.deps ) {
 				if ( !is_canon(dn)) goto NextJob ;                                                         // this should never happen, there is a problem with this job
 				if (!is_lcl(dn)) {

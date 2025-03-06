@@ -14,10 +14,24 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* use of tmp resource (such as rule attribute tmp='100M') implies that resource buckets are not recognized any more
+	- and n_max_jobs is not honored
+	- possibly memory problems if all resources are made different
+* when launching 400 jobs through slurm, 7 are running (normal) et 340 instead of 393 are queued
+	- as shown in the title
+
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* when dynamically reading Lmakefile.py it would be best to provide stderr to lmake terminal
+	- rather than to lmakeserver terminal
+	- need to get stderr from read_makefile and divert it to lmake
+* handle imports in dynamic attributes
+	- as it is now, they may be cached in sys.module and reused for each call with no dep
+	- consider all top level imports must be read when reading makefiles
+	- forbid imports (by providing an adequate sys.meta_path) during dynamic attrs eval
+	- or at least set sys.path outside repo
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quatantined files in summary
@@ -61,6 +75,7 @@ items (also used in XXX comments) :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* use ::variant instead of union
 > suppress support for ignore_stat inode
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o

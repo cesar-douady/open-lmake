@@ -13,7 +13,7 @@ using namespace Time ;
 namespace Engine {
 
 	ThreadDeque<EngineClosure> g_engine_queue ;
-	bool                       g_writable     = false   ;
+	bool                       g_writable     = false ;
 	Kpi                        g_kpi          ;
 
 	static ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
@@ -94,12 +94,12 @@ namespace Engine {
 	}
 
 	::string& operator+=( ::string& os , EngineClosureJobStart const& ecjs ) {
-		/**/                     os << "Ecjs(" << ecjs.start   ;
-		if (ecjs.report        ) os <<",report"                ;
-		if (+ecjs.report_unlnks) os <<','<< ecjs.report_unlnks ;
-		if (+ecjs.txt          ) os <<','<< ecjs.txt           ;
-		if (+ecjs.msg          ) os <<','<< ecjs.msg           ;
-		return                   os <<')'                      ;
+		First first ;
+		/**/                     os << "Ecjs("                           ;
+		if (ecjs.report        ) os <<first("",",")<< "report"           ;
+		if (+ecjs.report_unlnks) os <<first("",",")<< ecjs.report_unlnks ;
+		if (+ecjs.txts         ) os <<first("",",")<< ecjs.txts          ;
+		return                   os <<')'                                ;
 	}
 
 	::string& operator+=( ::string& os , EngineClosureJobEtc const& ecje ) {

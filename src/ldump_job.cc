@@ -74,29 +74,26 @@ void print_start(JobStartRpcReply const& jsrr) {
 }
 
 void print_end(JobEndRpcReq const& jerr) {
-	JobDigest const& jd = jerr.digest ;
-	JobStats  const& st = jd.stats    ;
-	//
 	g_out << "--end--\n" ;
 	//
-	g_out << "phy_dynamic_tmp_s  : " << jerr.phy_tmp_dir_s <<'\n' ;
+	g_out << "phy_dynamic_tmp_s : " << jerr.phy_tmp_dir_s    <<'\n' ;
+	g_out << "wstatus           : " << jerr.wstatus          <<'\n' ;
+	g_out << "end_date          : " << jerr.end_date         <<'\n' ;
 	//
-	g_out << "digest.status      : " << jd.status   <<'\n' ;
-	g_out << "digest.wstatus     : " << jd.wstatus  <<'\n' ;
-	g_out << "digest.end_date    : " << jd.end_date <<'\n' ;
-	g_out << "digest.stats.cpu   : " << st.cpu      <<'\n' ;
-	g_out << "digest.stats.job   : " << st.job      <<'\n' ;
-	g_out << "digest.stats.total : " << st.total    <<'\n' ;
-	g_out << "digest.stats.mem   : " << st.mem      <<'\n' ;
+	g_out << "stats.cpu         : " << jerr.stats.cpu        <<'\n' ;
+	g_out << "stats.job         : " << jerr.stats.job        <<'\n' ;
+	g_out << "stats.mem         : " << jerr.stats.mem        <<'\n' ;
 	//
-	g_out << "dynamic_env :\n"         ; _print_map(jerr.dynamic_env) ;
+	g_out << "digest.status     : " << jerr.digest.status    <<'\n' ;
+	g_out << "digest.exec_time  : " << jerr.digest.exec_time <<'\n' ;
 	//
-	g_out << "digest.targets :\n"      ; _print_map(jd.targets     )           ;
-	g_out << "digest.deps :\n"         ; _print_map(jd.deps        )           ;
-	g_out << "digest.stderr :\n"       ; g_out << ensure_nl(indent(jd.stderr)) ;
-	g_out << "digest.stdout :\n"       ; g_out << ensure_nl(indent(jd.stdout)) ;
+	g_out << "dynamic_env :\n" ; _print_map(jerr.dynamic_env) ;
 	//
-	g_out << "_msg :\n" ; g_out << ensure_nl(indent(localize(jerr.msg))) ;
+	g_out << "digest.targets :\n" ; _print_map(jerr.digest.targets)                ;
+	g_out << "digest.deps :\n"    ; _print_map(jerr.digest.deps   )                ;
+	g_out << "stderr :\n"         ; g_out << ensure_nl(indent(jerr.stderr       )) ;
+	g_out << "stdout :\n"         ; g_out << ensure_nl(indent(jerr.stdout       )) ;
+	g_out << "msg :\n"            ; g_out << ensure_nl(indent(localize(jerr.msg))) ;
 }
 
 int main( int argc , char* argv[] ) {
@@ -105,8 +102,8 @@ int main( int argc , char* argv[] ) {
 	//
 	JobInfo job_info { argv[1] } ;
 	if (+job_info.start) {
-		g_out << "eta  : " << job_info.start.eta                  <<'\n' ;
-		g_out << "host : " << SockFd::s_host(job_info.start.host) <<'\n' ;
+		g_out << "eta  : " << job_info.start.eta                        <<'\n' ;
+		g_out << "host : " << SockFd::s_host(job_info.start.start.addr) <<'\n' ;
 		print_submit_attrs(job_info.start.submit_attrs) ;
 		g_out << "rsrcs :\n" ; _print_map(job_info.start.rsrcs) ;
 		print_pre_start   (job_info.start.pre_start   ) ;

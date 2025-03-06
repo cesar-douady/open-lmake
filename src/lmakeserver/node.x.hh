@@ -126,6 +126,7 @@ namespace Engine {
 		static Hash::Crc _s_src_dirs_crc ;
 		// cxtors & casts
 		using NodeBase::NodeBase ;
+		explicit operator ::string() const ;
 	} ;
 
 	//
@@ -360,13 +361,14 @@ namespace Engine {
 		Manual manual_refresh( Req            r                )       { return manual_refresh(r,FileSig(name())) ; }
 		Manual manual_refresh( JobData const& j                )       { return manual_refresh(j,FileSig(name())) ; }
 		//
-		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;      // Req's are for reporting only
+		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const&      , ::string const& name ) ; // Req's are for reporting only
+		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& reqs                        ) { return refresh_src_anti(report_no_file,reqs,name()) ; }
 		//
-		void full_refresh( bool report_no_file , ::vector<Req> const& reqs , ::string const& name ) {
+		void full_refresh( bool report_no_file , ::vector<Req> const& reqs ) {
 			if (+reqs) set_buildable(reqs[0]) ;
 			else       set_buildable(       ) ;
-			if (is_src_anti()) refresh_src_anti(report_no_file,reqs,name) ;
-			else               manual_refresh  (Req()                   ) ;                    // no manual_steady diagnostic as this may be because of another job
+			if (is_src_anti()) refresh_src_anti(report_no_file,reqs) ;
+			else               manual_refresh  (Req()              ) ;                         // no manual_steady diagnostic as this may be because of another job
 		}
 		//
 		RuleIdx    conform_idx(              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
@@ -526,25 +528,20 @@ namespace Engine {
 namespace Engine {
 
 	//
+	// Node
+	//
+
+	inline Node::operator ::string() const { return self->name() ; }
+
+	//
 	// NodeData
 	//
 
-	inline bool NodeData::has_req(Req r) const {
-		return Req::s_store[+r].nodes.contains(idx()) ;
-	}
-	inline NodeReqInfo const& NodeData::c_req_info(Req r) const {
-		::umap<Node,ReqInfo> const& req_infos = Req::s_store[+r].nodes ;
-		auto                        it        = req_infos.find(idx())  ;                 // avoid double look up
-		if (it==req_infos.end()) return Req::s_store[+r].nodes.dflt ;
-		else                     return it->second                  ;
-	}
-	inline NodeReqInfo& NodeData::req_info(Req r) const {
-		return Req::s_store[+r].nodes.try_emplace(idx(),NodeReqInfo(r)).first->second ;
-	}
-	inline NodeReqInfo& NodeData::req_info(ReqInfo const& cri) const {
-		if (&cri==&Req::s_store[+cri.req].nodes.dflt) return req_info(cri.req)         ; // allocate
-		else                                          return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
-	}
+	inline bool               NodeData::has_req   (Req r             ) const { return Req::s_store[+r      ].nodes.contains  (    idx()) ; }
+	inline NodeReqInfo const& NodeData::c_req_info(Req r             ) const { return Req::s_store[+r      ].nodes.c_req_info(    idx()) ; }
+	inline NodeReqInfo      & NodeData::req_info  (Req r             ) const { return Req::s_store[+r      ].nodes.req_info  (r  ,idx()) ; }
+	inline NodeReqInfo      & NodeData::req_info  (ReqInfo const& cri) const { return Req::s_store[+cri.req].nodes.req_info  (cri,idx()) ; }
+	//
 	inline ::vector<Req> NodeData::reqs() const { return Req::s_reqs(self) ; }
 
 	inline bool NodeData::waiting() const {

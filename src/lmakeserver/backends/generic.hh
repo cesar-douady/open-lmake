@@ -100,19 +100,19 @@ namespace Backends {
 	// GenericBackend
 	//
 
-	template<class Rsrcs> struct _WaitingEntry {
-		_WaitingEntry() = default ;
-		_WaitingEntry( Rsrcs const& rs , SubmitAttrs const& sa , bool v ) : rsrcs{rs} , n_reqs{1} , submit_attrs{sa} , verbose{v} {}
+	template<class Rsrcs> struct _WaitEntry {
+		_WaitEntry() = default ;
+		_WaitEntry( Rsrcs const& rs , SubmitAttrs const& sa , bool v ) : submit_attrs{sa} , rsrcs{rs} , n_reqs{1} , verbose{v} {}
 		// data
+		SubmitAttrs submit_attrs ;
 		Rsrcs       rsrcs        ;
 		ReqIdx      n_reqs       = 0     ; // number of reqs waiting for this job
-		SubmitAttrs submit_attrs ;
 		bool        verbose      = false ;
 	} ;
-	template<class Rsrcs> ::string& operator+=( ::string& os , _WaitingEntry<Rsrcs> const& we ) {
-		/**/            os << "WaitingEntry(" << we.rsrcs <<','<< we.n_reqs <<','<< we.submit_attrs ;
-		if (we.verbose) os << ",verbose"                                                            ;
-		return          os << ')'                                                                   ;
+	template<class Rsrcs> ::string& operator+=( ::string& os , _WaitEntry<Rsrcs> const& we ) {
+		/**/            os << "WaitEntry(" << we.rsrcs <<','<< we.n_reqs <<','<< we.submit_attrs ;
+		if (we.verbose) os << ",verbose"                                                         ;
+		return          os << ')'                                                                ;
 	}
 
 	template< class SpawnId , class Rsrcs > struct _SpawnedEntry {
@@ -151,7 +151,7 @@ namespace Backends {
 
 		using Rsrcs = Shared<RsrcsData,JobIdx> ;
 
-		using WaitingEntry = _WaitingEntry<Rsrcs>         ;
+		using WaitEntry    = _WaitEntry<Rsrcs>            ;
 		using SpawnedEntry = _SpawnedEntry<SpawnId,Rsrcs> ;
 
 		struct SpawnedTab : ::umap<Job,SpawnedEntry> {
@@ -214,10 +214,10 @@ namespace Backends {
 				waiting_jobs  .clear() ;
 			}
 			// data
-			::umap<Rsrcs,set<PressureEntry>> waiting_queues ;
-			::umap<Job,CoarseDelay         > waiting_jobs   ;
-			JobIdx                           n_jobs         = 0     ; // manage -j option (if >0 no more than n_jobs can be launched on behalf of this req)
-			bool                             verbose        = false ;
+			::umap<Rsrcs,::set<PressureEntry>> waiting_queues ;
+			::umap<Job,CoarseDelay           > waiting_jobs   ;
+			JobIdx                             n_jobs         = 0     ; // manage -j option (if >0 no more than n_jobs can be launched on behalf of this req)
+			bool                               verbose        = false ;
 		} ;
 
 		// specialization
@@ -304,7 +304,7 @@ namespace Backends {
 			Trace trace(BeChnl,"submit",rs,pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
-			waiting_jobs.emplace( job , WaitingEntry(rs,submit_attrs,re.verbose) ) ;
+			waiting_jobs.emplace( job , WaitEntry(rs,submit_attrs,re.verbose) ) ;
 			re.waiting_queues[rs_rounded].insert({pressure,job}) ;
 			if (!_oldest_submitted_job.load()) _oldest_submitted_job = New ;
 			if (re.waiting_jobs.size()>1000  ) launch() ;                                                      // if too many jobs are waiting, ensure launch process is running
@@ -324,7 +324,7 @@ namespace Backends {
 				}
 				return ;
 			}
-			WaitingEntry& we = wit->second ;
+			WaitEntry& we = wit->second ;
 			SWEAR(!re.waiting_jobs.contains(job)) ;                                                            // job must be new for this req
 			CoarseDelay pressure = submit_attrs.pressure ;
 			trace("adjusted_pressure",pressure) ;
@@ -340,7 +340,7 @@ namespace Backends {
 			auto      it = waiting_jobs.find(job) ;
 			//
 			if (it==waiting_jobs.end()) return ;                                                               // job is not waiting anymore, ignore
-			WaitingEntry        & we           = it->second                                        ;
+			WaitEntry           & we           = it->second                                        ;
 			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job                        ) ;           // job must be known
 			::set<PressureEntry>& q            = re.waiting_queues.at({New,we.rsrcs->round(self)}) ;           // including for this req
 			CoarseDelay           pressure     = submit_attrs.pressure                             ;
@@ -410,9 +410,10 @@ namespace Backends {
 				// kill waiting jobs
 				res.reserve(re.waiting_jobs.size()) ;
 				for( auto const& [j,_] : re.waiting_jobs ) {
-					WaitingEntry& we = waiting_jobs.at(j) ;
-					if (we.n_reqs==1) waiting_jobs.erase(j) ;
-					else              we.n_reqs--           ;
+					auto it = waiting_jobs.find(j) ;
+					SWEAR(it->second.n_reqs) ;                                                                 // job must be waiting for some req
+					if (it->second.n_reqs==1) waiting_jobs.erase(it) ;
+					else                      it->second.n_reqs--    ;
 					res.push_back(j) ;
 				}
 				re.clear() ;
@@ -472,7 +473,7 @@ namespace Backends {
 						for( auto const& [r,re] : reqs )
 							if      (!re.waiting_jobs.contains(j)) SWEAR(r!=req,r)  ;
 							else if (r!=req                      ) rs.push_back(+r) ;
-						launch_descrs.emplace_back( j , LaunchDescr{ rs , acquire_cmd_line(T,j,rs,export_(*se.rsrcs),wit->second.submit_attrs) , prio , &se } ) ;
+						launch_descrs.emplace_back( j , LaunchDescr{ rs , acquire_cmd_line( T , j , rs , export_(*se.rsrcs) , ::move(wit->second.submit_attrs) ) , prio , &se } ) ;
 						waiting_jobs.erase(wit) ;
 						//
 						for( Req r : rs ) {
@@ -513,10 +514,10 @@ namespace Backends {
 		}
 
 		// data
-		::umap<Req,ReqEntry    > reqs         ;                      // all open Req's
-		ReqIdx                   n_n_jobs     ;                      // number of Req's that has a non-null n_jobs
-		::umap<Job,WaitingEntry> waiting_jobs ;                      // jobs retained here
-		SpawnedTab               spawned_jobs ;                      // jobs spawned until end
+		::umap<Req,ReqEntry > reqs         ;                         // all open Req's
+		ReqIdx                n_n_jobs     ;                         // number of Req's that has a non-null n_jobs
+		::umap<Job,WaitEntry> waiting_jobs ;                         // jobs retained here
+		SpawnedTab            spawned_jobs ;                         // jobs spawned until end
 	protected :
 		Mutex<MutexLvl::BackendId> mutable id_mutex ;
 	private :

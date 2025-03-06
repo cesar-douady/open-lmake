@@ -7,6 +7,8 @@
 
 #ifdef STRUCT_DECL
 
+#include <variant>
+
 ENUM( AncillaryTag
 ,	Backend
 ,	Data
@@ -70,6 +72,30 @@ namespace Engine {
 
 namespace Engine {
 
+	struct JobInfo1 : ::variant< JobInfoStart, JobEndRpcReq , ::vector<Crc> > {
+		// accesses
+		JobInfoKind kind() const {
+			switch (index()) {
+				case 0 : return JobInfoKind::Start   ;
+				case 1 : return JobInfoKind::End     ;
+				case 2 : return JobInfoKind::DepCrcs ;
+			DF}
+		}
+		template<JobInfoKind Kind> bool is_a() const {
+			switch (Kind) {
+				case JobInfoKind::Start   : return index()==0 ;
+				case JobInfoKind::End     : return index()==1 ;
+				case JobInfoKind::DepCrcs : return index()==2 ;
+			DF}
+		}
+		JobInfoStart  const& start   () const { return ::get<JobInfoStart >(self) ; }
+		JobInfoStart       & start   ()       { return ::get<JobInfoStart >(self) ; }
+		JobEndRpcReq  const& end     () const { return ::get<JobEndRpcReq >(self) ; }
+		JobEndRpcReq       & end     ()       { return ::get<JobEndRpcReq >(self) ; }
+		::vector<Crc> const& dep_crcs() const { return ::get<::vector<Crc>>(self) ; }
+		::vector<Crc>      & dep_crcs()       { return ::get<::vector<Crc>>(self) ; }
+	} ;
+
 	struct Job : JobBase {
 		friend ::string& operator+=( ::string& , Job const ) ;
 		friend struct JobData ;
@@ -81,13 +107,16 @@ namespace Engine {
 		using Step       = JobStep       ;
 		// statics
 		static void s_init() {
-			_s_record_thread.open('J',[](::pair<Job,JobInfo> const& jji)->void { jji.first.record(jji.second) ; } ) ;
+			s_record_thread.open('J',
+				[](::pair<Job,JobInfo1> const& jji)->void {
+					Trace trace("s_record_thread",jji.first,jji.second.kind()) ;
+					jji.first.record(jji.second) ;
+				}
+			) ;
 		}
 		// static data
-	protected :
-		static DequeThread<::pair<Job,JobInfo>,true/*Flush*/,true/*QueueAccess*/> _s_record_thread ;
+		static DequeThread<::pair<Job,JobInfo1>,true/*Flush*/,true/*QueueAccess*/> s_record_thread ;
 		// cxtors & casts
-	public :
 		using JobBase::JobBase ;
 		Job( Rule::SimpleMatch&&                               , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting
 		Job( RuleTgt , ::string const& t  , bool chk_psfx=true , Req={} , DepDepth lvl=0 ) ; // plain Job, match on target
@@ -96,11 +125,15 @@ namespace Engine {
 		Job( Special ,               Deps deps               ) ;                             // Job used to represent a Req
 		Job( Special , Node target , Deps deps               ) ;                             // special job
 		Job( Special , Node target , ::vector<JobTgt> const& ) ;                             // multi
+		//
+		explicit operator ::string() const ;
 		// accesses
 		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
-		JobInfo job_info( bool need_start=true , bool need_end=true ) const ;
 		// services
-		void record(JobInfo const&) const ;
+		JobInfo job_info(BitMap<JobInfoKind> need=~BitMap<JobInfoKind>()) const ;            // read job info from ancillary file, taking care of queued events
+		//
+		void record(JobInfo1 const&) const ;
+		void record(JobInfo  const&) const ;
 	} ;
 
 	struct JobTgt : Job {
@@ -141,21 +174,20 @@ namespace Engine {
 		// services
 		// called in main thread after start
 		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start and started
-		bool/*reported*/ report_start( ReqInfo& , ::vmap<Node,FileActionTag> const& report_unlnks , ::string const& stderr={} , ::string const& backend_msg={}                     ) const ;
-		bool/*reported*/ report_start( ReqInfo&                                                                                                                                    ) const ;
-		void             report_start(                                                                                                                                             ) const ;
-		void             started     ( JobInfoStart&& , bool report , ::vmap<Node,FileActionTag> const& report_unlnks , ::string const& stderr={} , ::string const& backend_msg={} ) ;
+		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,FileActionTag> const& report_unlnks={} , ::vector_s const& txts={} ) const ; // txts is {backend_msg,stderr}
+		void             report_start(                                                                                              ) const ;
+		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks={} , ::vector_s const& txts={} ) ;       // .
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
 		//
 		JobMngtRpcReply  job_analysis( JobMngtProc , ::vector<Dep> const& deps ) const ; // answer to requests from job execution
-		void             end         ( JobEndRpcReq&&                          ) ;
+		void             end         ( JobDigest<Node>&&                       ) ;
 		void             give_up     ( Req={} , bool report=true               ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
-		JobReport audit_end(ReqInfo&   ,bool with_stats,::string const& pfx,::string const& msg,::string const& stderr   ,size_t max_stderr_len=-1,Delay exec_time={} , bool retry=false ) const ;
-		JobReport audit_end(ReqInfo& ri,bool with_stats,::string const& pfx,                    ::string const& stderr={},size_t max_stderr_len=-1,Delay exec_time={} , bool retry=false ) const {
+		JobReport audit_end(ReqInfo&   ,bool with_stats,::string const& pfx,::string const& msg,::string const& stderr   ,uint16_t max_stderr_len=0,Delay exec_time={} , bool retry=false ) const ;
+		JobReport audit_end(ReqInfo& ri,bool with_stats,::string const& pfx,                    ::string const& stderr={},uint16_t max_stderr_len=0,Delay exec_time={} , bool retry=false ) const {
 			return audit_end(ri,with_stats,pfx,{}/*msg*/,stderr,max_stderr_len,exec_time,retry) ;
 		}
 		// data
@@ -398,19 +430,13 @@ namespace Engine {
 	// Job
 	//
 
+	inline Job::operator ::string() const { return self->name() ; }
+
 	inline Job::Job( RuleTgt rt , ::string const& t  , bool chk_psfx , Req req , DepDepth lvl ) : Job{Rule::SimpleMatch(rt,t ,chk_psfx),req,lvl} {}
 	inline Job::Job( Rule    r  , ::string const& jn , bool chk_psfx , Req req , DepDepth lvl ) : Job{Rule::SimpleMatch(r ,jn,chk_psfx),req,lvl} {}
 	//
 	inline Job::Job( Special sp ,          Deps deps ) : Job{                                 New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
 	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp)->job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
-
-	//
-	// JobExec
-	//
-
-	inline bool/*reported*/ JobExec::report_start(ReqInfo& ri) const {
-		return report_start(ri,{}) ;
-	}
 
 	//
 	// JobTgt
@@ -505,25 +531,12 @@ namespace Engine {
 		return _sure ;
 	}
 
-	inline JobReqInfo const& JobData::c_req_info(Req r) const {
-		::umap<Job,ReqInfo> const& req_infos = Req::s_store[+r].jobs ;
-		auto                       it        = req_infos.find(idx()) ;                  // avoid double look up
-		if (it==req_infos.end()) return Req::s_store[+r].jobs.dflt ;
-		else                     return it->second                 ;
-	}
-	inline JobReqInfo& JobData::req_info(Req req) const {
-		auto te = Req::s_store[+req].jobs.try_emplace(idx(),ReqInfo(req)) ;
-		return te.first->second ;
-	}
-	inline JobReqInfo& JobData::req_info(ReqInfo const& cri) const {
-		if (&cri==&Req::s_store[+cri.req].jobs.dflt) return req_info(cri.req)         ; // allocate
-		else                                         return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
-	}
+	inline bool              JobData::has_req   (Req r             ) const { return Req::s_store[+r      ].jobs.contains  (    idx()) ; }
+	inline JobReqInfo const& JobData::c_req_info(Req r             ) const { return Req::s_store[+r      ].jobs.c_req_info(    idx()) ; }
+	inline JobReqInfo      & JobData::req_info  (Req r             ) const { return Req::s_store[+r      ].jobs.req_info  (r  ,idx()) ; }
+	inline JobReqInfo      & JobData::req_info  (ReqInfo const& cri) const { return Req::s_store[+cri.req].jobs.req_info  (cri,idx()) ; }
+	//
 	inline ::vector<Req> JobData::reqs() const { return Req::s_reqs(self) ; }
-
-	inline bool JobData::has_req(Req r) const {
-		return Req::s_store[+r].jobs.contains(idx()) ;
-	}
 
 }
 

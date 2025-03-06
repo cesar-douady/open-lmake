@@ -257,10 +257,10 @@ namespace Engine {
 				break ;
 				case Special::Plain : {
 					Rule::SimpleMatch match ;
-					JobEndRpcReq      jerr  = job.job_info(false/*need_start*/).end ;
+					JobEndRpcReq      jerr  = job.job_info(JobInfoKind::End).end ;
 					//
 					if (!jerr) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-					else       seen_stderr = self->audit_stderr( job , jerr.msg , jerr.digest.stderr , jerr.digest.end_attrs.max_stderr_len , lvl+1 ) ;
+					else       seen_stderr = self->audit_stderr( job , jerr.msg , jerr.stderr , jerr.digest.max_stderr_len , lvl+1 ) ;
 				} break ;
 			DN}
 		if (intermediate)
@@ -506,10 +506,10 @@ namespace Engine {
 	static void          _audit_status( Fd out , Fd log , ReqOptions const& ro , bool ok )       { audit_status (out     ,log   ,ro     ,ok) ; } // allow access to global function ...
 	/**/   void ReqData::audit_status (                                          bool ok ) const { _audit_status(audit_fd,log_fd,options,ok) ; } // ... w/o naming namespace
 
-	bool/*seen*/ ReqData::audit_stderr( Job j , ::string const& msg , ::string const& stderr , size_t max_stderr_len , DepDepth lvl ) const {
-		if (+msg                      ) audit_info( Color::Note , msg , lvl ) ;
-		if (!stderr                   ) return +msg ;
-		if (max_stderr_len!=size_t(-1)) {
+	bool/*seen*/ ReqData::audit_stderr( Job j , ::string const& msg , ::string const& stderr , uint16_t max_stderr_len , DepDepth lvl ) const {
+		if (+msg          ) audit_info( Color::Note , msg , lvl ) ;
+		if (!stderr       ) return +msg ;
+		if (max_stderr_len) {
 			::string_view shorten = first_lines(stderr,max_stderr_len) ;
 			if (shorten.size()<stderr.size()) {
 				audit_info_as_is( Color::None , ::string(shorten) , lvl ) ;

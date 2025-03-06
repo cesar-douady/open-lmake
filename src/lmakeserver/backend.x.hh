@@ -92,10 +92,10 @@ namespace Backends {
 				// accesses
 				bool operator+() const { return seq_id ; }
 				// data
-				in_addr_t host     = 0 ;
-				in_port_t port     = 0 ;
 				SeqId     seq_id   = 0 ;
 				SmallId   small_id = 0 ;
+				in_addr_t host     = 0 ;
+				in_port_t port     = 0 ;
 			} ;
 			// cxtors & casts
 			StartEntry() = default ;
@@ -104,15 +104,16 @@ namespace Backends {
 			// services
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
-			Conn             conn         ;
-			Pdate            start_date   ;
-			Pdate            spawn_date   ;
-			Workload::Val    workload     = 0            ;
-			::uset_s         washed       ;
-			::vmap_ss        rsrcs        ;
-			::vector<ReqIdx> reqs         ;
-			SubmitAttrs      submit_attrs ;
-			Tag              tag          = Tag::Unknown ;
+			Conn             conn           ;
+			Pdate            spawn_date     ;
+			Pdate            start_date     ;
+			Workload::Val    workload       = 0            ;
+			::uset_s         washed         ;
+			::vmap_ss        rsrcs          ;
+			::vector<ReqIdx> reqs           ;
+			SubmitAttrs      submit_attrs   ;
+			uint16_t         max_stderr_len = 0            ;
+			Tag              tag            = Tag::Unknown ;
 		} ;
 
 		struct DeferredEntry {
@@ -213,13 +214,13 @@ namespace Backends {
 		//
 		virtual ::vmap_s<size_t> const& capacity() const { FAIL("only for local backend") ; }
 	protected :
-		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx> const& , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ; // must be called once before job is launched, SubmitAttrs must be the ...
-		/**/                                                                                                          // ... operator| of the submit/add_pressure corresponding values for the job
+		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx> const& , ::vmap_ss&& rsrcs , SubmitAttrs&& ) ; // must be called once before job is launched, SubmitAttrs must be the ...
+		/**/                                                                                                     // ... operator| of the submit/add_pressure corresponding values for the job
 		// data
 	public :
 		in_addr_t   addr        = 0                                 ;
 		::string    config_err  ;
-		Time::Delay cmd_timeout = Mutex<MutexLvl::Backend>::Timeout ;                                                 // max time commands may take
+		Time::Delay cmd_timeout = Mutex<MutexLvl::Backend>::Timeout ;                                            // max time commands may take
 	} ;
 
 }

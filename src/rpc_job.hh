@@ -56,6 +56,16 @@ ENUM_1( FileActionTag
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
+ENUM( JobInfoKind
+,	None
+,	Start
+,	End
+,	DepCrcs
+)
+// END_OF_VERSIONING
+using JobInfoKinds = BitMap<JobInfoKind> ;
+
+// START_OF_VERSIONING
 ENUM( JobMngtProc
 ,	None
 ,	ChkDeps
@@ -263,15 +273,6 @@ namespace Caches {
 
 }
 
-struct EndAttrs {
-	friend ::string& operator+=( ::string& , EndAttrs const& ) ;
-	bool operator+() const { return +cache || max_stderr_len!=Npos ; }
-	// START_OF_VERSIONING
-	::string cache          = {}   ;
-	size_t   max_stderr_len = Npos ;
-	// END_OF_VERSIONING
-} ;
-
 struct FileAction {
 	friend ::string& operator+=( ::string& , FileAction const& ) ;
 	// cxtors & casts
@@ -324,18 +325,14 @@ struct JobReason {
 } ;
 
 struct JobStats {
-	using Delay = Time::Delay ;
-	// data
 	// START_OF_VERSIONING
-	Delay  cpu   = {} ;
-	Delay  job   = {} ; // elapsed in job
-	Delay  total = {} ; // elapsed including overhead
-	size_t mem   = 0  ; // in bytes
+	size_t            mem = 0  ; // in bytes
+	Time::CoarseDelay cpu = {} ;
+	Time::CoarseDelay job = {} ; // elapsed in job
 	// END_OF_VERSIONING
 } ;
 
 template<class B> struct DepDigestBase ;
-
 
 ENUM( DepInfoKind
 ,	Crc
@@ -487,13 +484,13 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	// data
 	// START_OF_VERSIONING
 	static constexpr uint8_t NSzBits = 5 ;                                         // XXX! : set to 8 by making room by storing accesses on 3 bits rather than 8
-	Accesses accesses               ;                                              // 3<8 bits
-	Dflags   dflags                 ;                                              // 6<8 bits
-	bool     parallel      :1       = false ;                                      //   1 bit
-	bool     is_crc        :1       = true  ;                                      //   1 bit
-	uint8_t  sz            :NSzBits = 0     ;                                      //   6 bits, number of items in chunk following header (semantically before)
-	bool     hot           :1       = false ;                                      //   1 bit , if true <= file date was very close from access date (within date granularity)
-	Accesses chunk_accesses         ;                                              // 3<8 bits
+	Accesses accesses         ;                                                    // 3<8 bits
+	Dflags   dflags           ;                                                    // 6<8 bits
+	bool     parallel:1       = false ;                                            //   1 bit
+	bool     is_crc  :1       = true  ;                                            //   1 bit
+	uint8_t  sz      :NSzBits = 0     ;                                            //   6 bits, number of items in chunk following header (semantically before)
+	bool     hot     :1       = false ;                                            //   1 bit , if true <= file date was very close from access date (within date granularity)
+	Accesses chunk_accesses   ;                                                    // 3<8 bits
 private :
 	union {
 		Crc     _crc = {} ;                                                        // ~45<64 bits
@@ -530,21 +527,39 @@ struct TargetDigest {
 	// END_OF_VERSIONING
 } ;
 
-struct JobDigest {
-	friend ::string& operator+=( ::string& , JobDigest const& ) ;
+template<class Key=::string> struct JobDigest ;
+template<class Key         > ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) ;
+template<class Key         > struct JobDigest {                                                // Key may be ::string or Node
+	friend ::string& operator+=<>( ::string& , JobDigest<Key> const& ) ;
+	// cxtors & casts
+	template<class KeyTo> operator JobDigest<KeyTo>() const {
+		JobDigest<KeyTo> res {
+			.upload_key     = upload_key
+		,	.exec_time      = exec_time
+		,	.max_stderr_len = max_stderr_len
+		,	.cache_idx      = cache_idx
+		,	.status         = status
+		,	.has_msg_stderr = has_msg_stderr
+		} ;
+		for( auto const& [k,v] : deps    ) res.deps   .emplace_back(KeyTo(k),v) ;
+		for( auto const& [k,v] : targets ) res.targets.emplace_back(KeyTo(k),v) ;
+		return res ;
+	}
+	// data
 	// START_OF_VERSIONING
-	::string               upload_key = {}          ;
-	::vmap_s<DepDigest   > deps       = {}          ; // INVARIANT : sorted in first access order
-	EndAttrs               end_attrs  = {}          ;
-	Time::Pdate            end_date   = {}          ;
-	JobStats               stats      = {}          ;
-	Status                 status     = Status::New ;
-	::string               stderr     = {}          ;
-	::string               stdout     = {}          ;
-	::vmap_s<TargetDigest> targets    = {}          ;
-	int                    wstatus    = 0           ;
+	uint64_t                 upload_key     = {}          ;
+	::vmap<Key,TargetDigest> targets        = {}          ;
+	::vmap<Key,DepDigest   > deps           = {}          ;                                    // INVARIANT : sorted in first access order
+	Time::CoarseDelay        exec_time      = {}          ;
+	uint16_t                 max_stderr_len = {}          ;
+	CacheIdx                 cache_idx      = {}          ;
+	Status                   status         = Status::New ;
+	bool                     has_msg_stderr = false       ;                                    // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
 	// END_OF_VERSIONING
 } ;
+template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {
+	return os << "JobDigest(" << to_hex(jd.upload_key) <<','<< jd.status << (jd.has_msg_stderr?",E":"") <<','<< jd.targets.size() <<','<< jd.deps.size() <<')' ;
+}
 
 struct MatchFlags {
 	friend ::string& operator+=( ::string& , MatchFlags const& ) ;
@@ -583,27 +598,27 @@ namespace Caches {
 			::string            key       = {}   ;                   // if completed&&hit==Yes   : an id to easily retrieve matched results when calling download
 		} ;
 		// statics
-		static Cache* s_new   ( Tag                                          ) ;
-		static void   s_config( ::string const& key , Tag , ::vmap_ss const& ) ;
+		static Cache* s_new   ( Tag                               ) ;
+		static void   s_config( CacheIdx , Tag , ::vmap_ss const& ) ;
 		// static data
-		static ::map_s<Cache*> s_tab ;
+		static ::vector<Cache*> s_tab ;
 		// services
-		Match                  match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match"  ,job) ; return sub_match(job,repo_deps) ; }
-		JobInfo                download( ::string const& upload_key , Disk::NfsGuard& repo_nfs_guard                       ) ;
-		::string/*upload_key*/ upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t z_lvl=0 ) ;
-		bool/*ok*/             commit  ( ::string const& key , ::string const& /*job*/ , JobInfo&&                         ) ;
-		void                   dismiss ( ::string const& key                                                               ) { Trace trace("Cache::dismiss",key) ;        sub_dismiss(key)         ; }
+		Match                  match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
+		JobInfo                download( ::string const& match_key , Disk::NfsGuard& repo_nfs_guard                        ) ;
+		uint64_t/*upload_key*/ upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t z_lvl=0 ) ;
+		bool/*ok*/             commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
+		void                   dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		// default implementation : no caching, but enforce protocol
 		virtual void config(::vmap_ss const&) {}
 		virtual Tag  tag   (                ) { return Tag::None ; }
 		virtual void serdes(::string     &  ) {}                     // serialize
 		virtual void serdes(::string_view&  ) {}                     // deserialize
 		//
-		virtual Match                        sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) { return { .completed=true , .hit=No } ; }
-		virtual ::pair<JobInfo,AcFd>         sub_download( ::string const& /*key*/                                       ) ;
-		virtual ::pair_s/*upload_key*/<AcFd> sub_upload  ( Sz /*max_sz*/                                                 ) { return {}                            ; }
-		virtual bool/*ok*/                   sub_commit  ( ::string const& /*key*/ , ::string const& /*job*/ , JobInfo&& ) { return false                         ; }
-		virtual void                         sub_dismiss ( ::string const& /*key*/                                       ) {                                        }
+		virtual Match                               sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) { return { .completed=true , .hit=No } ; }
+		virtual ::pair<JobInfo,AcFd>                sub_download( ::string const& /*match_key*/                                 ) ;
+		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 ) { return {}                            ; }
+		virtual bool/*ok*/                          sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& ) { return false                         ; }
+		virtual void                                sub_dismiss ( uint64_t /*upload_key*/                                       ) {                                        }
 	} ;
 
 }
@@ -696,10 +711,10 @@ struct JobStartRpcReply {
 		::serdes(s,addr          ) ;
 		::serdes(s,allow_stderr  ) ;
 		::serdes(s,autodep_env   ) ;
+		::serdes(s,cache_idx     ) ;
 		::serdes(s,cmd           ) ;
 		::serdes(s,ddate_prec    ) ;
 		::serdes(s,deps          ) ;
-		::serdes(s,end_attrs     ) ;
 		::serdes(s,env           ) ;
 		::serdes(s,interpreter   ) ;
 		::serdes(s,job_space     ) ;
@@ -747,10 +762,10 @@ struct JobStartRpcReply {
 	bool                     allow_stderr   = false               ;
 	AutodepEnv               autodep_env    ;
 	Caches::Cache*           cache          = nullptr             ;
+	CacheIdx                 cache_idx      = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
 	::pair_ss/*script,call*/ cmd            ;
 	Time::Delay              ddate_prec     ;
 	::vmap_s<DepDigest>      deps           ;                       // deps already accessed (always includes static deps)
-	EndAttrs                 end_attrs      ;
 	::vmap_ss                env            ;
 	::vector_s               interpreter    ;                       // actual interpreter used to execute cmd
 	JobSpace                 job_space      ;
@@ -801,28 +816,37 @@ struct JobEndRpcReq : JobRpcReq {
 	using MDD = ::vmap_s<DepDigest> ;
 	friend ::string& operator+=( ::string& , JobEndRpcReq const& ) ;
 	// cxtors & casts
-	JobEndRpcReq() = default ;
-	JobEndRpcReq( JobRpcReq jrr , JobDigest&& d  , ::string&& m={} ) : JobRpcReq{jrr} , digest{::move(d)} , msg{::move(m)} {}
+	JobEndRpcReq(JobRpcReq jrr={}) : JobRpcReq{jrr} {}
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,static_cast<JobRpcReq&>(self)) ;
 		::serdes(s,digest                       ) ;
 		::serdes(s,phy_tmp_dir_s                ) ;
 		::serdes(s,dynamic_env                  ) ;
-		::serdes(s,msg                          ) ;
 		::serdes(s,exec_trace                   ) ;
 		::serdes(s,total_sz                     ) ;
 		::serdes(s,compressed_sz                ) ;
+		::serdes(s,end_date                     ) ;
+		::serdes(s,stats                        ) ;
+		::serdes(s,msg                          ) ;
+		::serdes(s,stderr                       ) ;
+		::serdes(s,stdout                       ) ;
+		::serdes(s,wstatus                      ) ;
 	}
 	// data
 	// START_OF_VERSIONING
-	JobDigest              digest        ;
-	::string               phy_tmp_dir_s ;
-	::vmap_ss              dynamic_env   ; // env variables computed in job_exec
-	::string               msg           ;
-	vector<ExecTraceEntry> exec_trace    ;
-	Disk::DiskSz           total_sz      = 0 ;
-	Disk::DiskSz           compressed_sz = 0 ;
+	JobDigest<>              digest        ;
+	::string                 phy_tmp_dir_s ;
+	::vmap_ss                dynamic_env   ;     // env variables computed in job_exec
+	::vector<ExecTraceEntry> exec_trace    ;
+	Disk::DiskSz             total_sz      = 0 ;
+	Disk::DiskSz             compressed_sz = 0 ;
+	Time::Pdate              end_date      ;
+	JobStats                 stats         ;
+	::string                 msg           ;
+	::string                 stderr        ;
+	::string                 stdout        ;
+	int                      wstatus       = 0 ;
 	// END_OF_VERSIONING)
 } ;
 
@@ -936,13 +960,13 @@ struct SubmitAttrs {
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		// cache, deps and tag are independent of req but may not always be present
-		if (!cache   ) cache     =                other.cache     ; else if (+other.cache   ) SWEAR(cache   ==other.cache   ,cache   ,other.cache   ) ;
-		if (!deps    ) deps      =                other.deps      ; else if (+other.deps    ) SWEAR(deps    ==other.deps    ,deps    ,other.deps    ) ;
-		if (!used_tag) used_tag  =                other.used_tag  ; else if (+other.used_tag) SWEAR(used_tag==other.used_tag,used_tag,other.used_tag) ;
-		/**/           live_out |=                other.live_out  ;
-		/**/           pressure  = ::max(pressure,other.pressure) ;
-		/**/           reason   |=                other.reason    ;
-		/**/           tokens1   = ::max(tokens1 ,other.tokens1 ) ;
+		if (!cache_idx) cache_idx  =                other.cache_idx  ; else if (+other.cache_idx) SWEAR(cache_idx==other.cache_idx,cache_idx,other.cache_idx) ;
+		if (!deps     ) deps       =                other.deps       ; else if (+other.deps     ) SWEAR(deps     ==other.deps     ,deps     ,other.deps     ) ;
+		if (!used_tag ) used_tag   =                other.used_tag   ; else if (+other.used_tag ) SWEAR(used_tag ==other.used_tag ,used_tag ,other.used_tag ) ;
+		/**/            live_out  |=                other.live_out   ;
+		/**/            pressure   = ::max(pressure,other.pressure ) ;
+		/**/            reason    |=                other.reason     ;
+		/**/            tokens1    = ::max(tokens1 ,other.tokens1  ) ;
 		return self ;
 	}
 	SubmitAttrs operator|(SubmitAttrs const& other) const {
@@ -952,13 +976,13 @@ struct SubmitAttrs {
 	}
 	// data
 	// START_OF_VERSIONING
-	::string            cache     = {}    ;
 	::vmap_s<DepDigest> deps      = {}    ;
-	bool                live_out  = false ;
-	Time::CoarseDelay   pressure  = {}    ;
 	JobReason           reason    = {}    ;
-	BackendTag          used_tag  = {}    ; // tag actually used (possibly made local because asked tag is not available)
+	Time::CoarseDelay   pressure  = {}    ;
+	CacheIdx            cache_idx = {}    ;
 	Tokens1             tokens1   = 0     ;
+	BackendTag          used_tag  = {}    ; // tag actually used (possibly made local because asked tag is not available)
+	bool                live_out  = false ;
 	// END_OF_VERSIONING
 } ;
 
@@ -973,7 +997,6 @@ struct JobInfoStart {
 	Time::Pdate      eta          = {} ;
 	SubmitAttrs      submit_attrs = {} ;
 	::vmap_ss        rsrcs        = {} ;
-	in_addr_t        host         = 0  ;
 	JobStartRpcReq   pre_start    = {} ;
 	JobStartRpcReply start        = {} ;
 	::string         stderr       = {} ;
@@ -981,21 +1004,21 @@ struct JobInfoStart {
 } ;
 
 struct JobInfo {
-	// cxtors & casts
 	JobInfo() = default ;
-	JobInfo( ::string const& ancillary_file , Bool3 get_start=Maybe , Bool3 get_end=Maybe ) ;
-	JobInfo( JobInfoStart&& jis                                                           ) : start{::move(jis)}                     {}
-	JobInfo(                      JobEndRpcReq&& jerr                                     ) :                      end{::move(jerr)} {}
-	JobInfo( JobInfoStart&& jis , JobEndRpcReq&& jerr                                     ) : start{::move(jis)} , end{::move(jerr)} {}
+	JobInfo( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) { fill_from(ancillary_file,need) ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,start) ;
-		::serdes(s,end  ) ;
+		::serdes(s,start   ) ;
+		::serdes(s,end     ) ;
+		::serdes(s,dep_crcs) ;
 	}
+	void fill_from( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) ;
+	void update_digest() ;                                                                 // update crc in digest from dep_crcs
 	// data
 	// START_OF_VERSIONING
-	JobInfoStart start ;
-	JobEndRpcReq end   ;
+	JobInfoStart        start    ;
+	JobEndRpcReq        end      ;
+	::vector<Hash::Crc> dep_crcs ;                                                         // optional, if not provided in end.digest.deps
 	// END_OF_VERSIONING
 } ;
 

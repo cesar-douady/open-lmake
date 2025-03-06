@@ -100,18 +100,6 @@ using namespace Hash ;
 }
 
 //
-// EndAttrs
-//
-
-::string& operator+=( ::string& os , EndAttrs const& ea ) {
-	First first ;
-	/**/                    os << "EndAttrs("                            ;
-	if (+ea.cache         ) os <<first("",",")<<       ea.cache          ;
-	if (+ea.max_stderr_len) os <<first("",",")<<"L:"<< ea.max_stderr_len ;
-	return                  os << ')'                                    ;
-}
-
-//
 // DepInfo
 //
 
@@ -342,7 +330,7 @@ private :
 
 namespace Caches {
 
-	::map_s<Cache*> Cache::s_tab ;
+	::vector<Cache*> Cache::s_tab ;
 
 	Cache* Cache::s_new(Tag tag) {
 		switch (tag) {
@@ -351,20 +339,21 @@ namespace Caches {
 		DF}
 	}
 
-	void Cache::s_config( ::string const& key , Tag tag , ::vmap_ss const& dct ) {
+	void Cache::s_config( CacheIdx idx , Tag tag , ::vmap_ss const& dct ) {
 		Cache* cache = s_new(tag) ;
 		cache->config(dct) ;
-		s_tab.emplace(key,cache) ;
+		Cache*& c = grow(s_tab,idx) ;
+		SWEAR(!c) ;
+		c = cache ;
 	}
 
 	JobInfo Cache::download( ::string const& match_key , NfsGuard& repo_nfs_guard ) {
 		Trace trace("Cache::download",match_key) ;
 		//
-		::pair<JobInfo,AcFd>    info_fd  = sub_download(match_key) ;
-		JobInfo&                job_info = info_fd.first           ;
-		JobDigest&              digest   = job_info.end.digest     ;
-		::vmap_s<TargetDigest>& targets  = digest.targets          ;
-		NodeIdx                 n_copied = 0                       ;
+		::pair<JobInfo,AcFd>    info_fd  = sub_download(match_key)     ;
+		JobInfo               & job_info = info_fd.first               ;
+		::vmap_s<TargetDigest>& targets  = job_info.end.digest.targets ;
+		NodeIdx                 n_copied = 0                           ;
 		try {
 			#if !HAS_ZLIB
 				throw_if( job_info.start.start.z_lvl , "cannot uncompress without zlib" ) ;
@@ -395,7 +384,7 @@ namespace Caches {
 				DN}
 				entry.second.sig = FileSig(tn) ;                          // target digest is not stored in cache
 			}
-			digest.end_date = New ;                                       // date must be after files are copied
+			job_info.end.end_date = New ;                                 // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
 			return job_info ;
@@ -406,7 +395,7 @@ namespace Caches {
 		}
 	}
 
-	::string/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , uint8_t z_lvl ) {
+	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , uint8_t z_lvl ) {
 		Trace trace("DirCache::upload",targets.size(),z_lvl) ;
 		//
 		Sz max_sz = 0 ; for( FileInfo fi : target_fis ) max_sz += fi.sz ;
@@ -416,7 +405,7 @@ namespace Caches {
 		#else
 			SWEAR(!z_lvl,z_lvl) ;
 		#endif
-		::pair_s<AcFd> key_fd = sub_upload(max_sz) ;
+		::pair<uint64_t/*upload_key*/,AcFd> key_fd = sub_upload(max_sz) ;
 		//
 		try {
 			NodeIdx n_targets = targets.size()                  ;
@@ -457,20 +446,22 @@ namespace Caches {
 			return {} ;
 		}
 		trace("done") ;
-		return ::move(key_fd.first) ;
+		return key_fd.first ;
 	}
 
-	bool/*ok*/ Cache::commit( ::string const& upload_key , ::string const& job , JobInfo&& job_info ) {
-		Trace trace("Cache::commit",upload_key,job) ;
+	bool/*ok*/ Cache::commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
+		Trace trace("Cache::commit",to_hex(upload_key),job) ;
 		//
 		JobInfoStart& start = job_info.start ;
 		JobEndRpcReq& end   = job_info.end   ;
 		//
-		if (!( +start && +end )) {                 // we need a full report to cache job
+		if (!( +start && +end )) {                   // we need a full report to cache job
 			trace("no_ancillary_file") ;
 			dismiss(upload_key) ;
 			return false/*ok*/ ;
 		}
+		//
+		job_info.update_digest() ;                   // ensure cache has latest crc available
 		// check deps
 		for( auto const& [dn,dd] : end.digest.deps ) if (!dd.is_crc) {
 			trace("not_a_crc_dep",dn,dd) ;
@@ -478,26 +469,25 @@ namespace Caches {
 			return false/*ok*/ ;
 		}
 		// defensive programming : remove useless/meaningless info
-		start.eta                   = {}        ;  // cache does not care
-		start.submit_attrs.cache    = {}        ;  // no recursive info
-		start.submit_attrs.live_out = false     ;  // cache does not care
-		start.submit_attrs.reason   = {}        ;  // .
-		start.pre_start.seq_id      = SeqId(-1) ;  // 0 is reserved to mean no info
-		start.pre_start.job         = 0         ;  // cache does not care
-		start.pre_start.port        = 0         ;  // .
-		start.start.addr            = 0         ;  // .
-		start.start.cache           = nullptr   ;  // no recursive info
-		start.start.live_out        = false     ;  // cache does not care
-		start.start.small_id        = 0         ;  // no small_id since no execution
-		start.start.pre_actions     = {}        ;  // pre_actions depend on execution context
-		start.rsrcs                 = {}        ;  // caching resources is meaningless as they have no impact on content
-		end.seq_id                  = SeqId(-1) ;  // 0 is reserved to mean no info
-		end.job                     = 0         ;  // cache does not care
-		end.digest.upload_key       = {}        ;  // no recursive info
-		end.digest.end_attrs.cache  = {}        ;  // .
+		start.eta                      = {}        ; // cache does not care
+		start.submit_attrs.cache_idx   = 0         ; // no recursive info
+		start.submit_attrs.live_out    = false     ; // cache does not care
+		start.submit_attrs.reason      = {}        ; // .
+		start.pre_start.seq_id         = SeqId(-1) ; // 0 is reserved to mean no info
+		start.pre_start.job            = 0         ; // cache does not care
+		start.pre_start.port           = 0         ; // .
+		start.start.addr               = 0         ; // .
+		start.start.cache              = nullptr   ; // no recursive info
+		start.start.live_out           = false     ; // cache does not care
+		start.start.small_id           = 0         ; // no small_id since no execution
+		start.start.pre_actions        = {}        ; // pre_actions depend on execution context
+		start.rsrcs                    = {}        ; // caching resources is meaningless as they have no impact on content
+		end.seq_id                     = SeqId(-1) ; // 0 is reserved to mean no info
+		end.job                        = 0         ; // cache does not care
+		end.digest.upload_key          = {}        ; // no recursive info
 		for( auto& [_,td] : end.digest.targets ) {
-			SWEAR(!td.pre_exist) ;                 // else cannot be a candidate for upload as this must have failed
-			td.sig = td.sig.tag() ;                // forget date, just keep tag
+			SWEAR(!td.pre_exist) ;                   // else cannot be a candidate for upload as this must have failed
+			td.sig = td.sig.tag() ;                  // forget date, just keep tag
 		}
 		//
 		return sub_commit( upload_key , job , ::move(job_info) ) ;
@@ -840,12 +830,8 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	return                  os <<')'                   ;
 }
 
-::string& operator+=( ::string& os , JobDigest const& jd ) {
-	return os << "JobDigest(" << jd.end_attrs <<','<< jd.wstatus<<':'<<jd.status <<','<< jd.targets <<','<< jd.deps << ')' ;
-}
-
 ::string& operator+=( ::string& os , JobEndRpcReq const& jerr ) {
-	return os << "JobEndRpcReq(" << jerr.seq_id <<','<< jerr.job <<','<< jerr.digest <<','<< jerr.phy_tmp_dir_s <<','<< jerr.dynamic_env <<','<< jerr.msg <<')' ;
+	return os << "JobEndRpcReq(" << jerr.seq_id <<','<< jerr.job <<','<< jerr.digest <<','<< jerr.phy_tmp_dir_s <<','<< jerr.dynamic_env <<')' ;
 }
 
 //
@@ -880,11 +866,11 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	/**/                           os <<','  << jsrr.small_id               ;
 	if (+jsrr.star_matches       ) os <<','  << jsrr.star_matches           ;
 	if (+jsrr.deps               ) os <<'<'  << jsrr.deps                   ;
-	if (+jsrr.end_attrs          ) os <<','  << jsrr.end_attrs              ;
 	if (+jsrr.static_matches     ) os <<'>'  << jsrr.static_matches         ;
 	if (+jsrr.stdin              ) os <<'<'  << jsrr.stdin                  ;
 	if (+jsrr.stdout             ) os <<'>'  << jsrr.stdout                 ;
 	if (+jsrr.timeout            ) os <<','  << jsrr.timeout                ;
+	if (+jsrr.cache_idx          ) os <<','  << jsrr.cache_idx              ;
 	/**/                           os <<','  << jsrr.cmd                    ; // last as it is most probably multi-line
 	return                         os <<')'                                 ;
 }
@@ -1071,28 +1057,25 @@ void JobStartRpcReply::exit() {
 // JobInfo
 //
 
-JobInfo::JobInfo(::string const& filename , Bool3 get_start , Bool3 get_end ) {
-	Trace trace("JobInfo",filename,get_start,get_end) ;
-	if ( get_start==No && get_end==No ) return ;                                                              // fast path : dont read filename
-	::string      job_info ;            try { job_info = AcFd(filename).read() ; } catch (::string const&) {} // empty string in case of error, will be processed later
-	::string_view jis      = job_info ;
+void JobInfo::fill_from(::string const& filename , JobInfoKinds need ) {
+	Trace trace("JobInfo",filename,need) ;
+	need &= ~JobInfoKind::None ;                                                                                                             // this is not a need, but it is practical to allow it
+	if (!need) return ;                                                                                                                      // fast path : dont read filename
 	try {
-		if (get_start==No) deserialize( jis , ::ref(JobInfoStart()) ) ;                                       // even if we do not need start, we need to skip it
-		else               deserialize( jis , start                 ) ;
-		trace("start") ;
-	} catch (...) {
-		if ( get_start!=No                  ) start = {} ;                                                    // ensure start is either empty or full
-		if ( get_start==Yes || get_end==Yes ) throw ;                                                         // if we cannot skip start, we cannot get end
-		return ;                                                                                              // .
-	}
-	try {
-		if (get_end==No) return ;
-		deserialize( jis , end ) ;
-		trace("end") ;
-	} catch (...) {
-		end = {} ;                                                                                            // ensure end is either empty or full
-		if (get_end==Yes) throw ;
-	}
+		::string      job_info = AcFd(filename).read() ;
+		::string_view jis      = job_info              ;
+		deserialize( jis , need[JobInfoKind::Start] ? start    : ::ref(JobInfoStart()) ) ; need &= ~JobInfoKind::Start ; if (!need) return ; // skip if not needed
+		deserialize( jis , need[JobInfoKind::End  ] ? end      : ::ref(JobEndRpcReq()) ) ; need &= ~JobInfoKind::End   ; if (!need) return ; // .
+		deserialize( jis ,                            dep_crcs                         ) ;
+	} catch (...) {}                                                                                                                         // fill what we have
+}
+
+void JobInfo::update_digest() {
+	if (!dep_crcs) return ;                                                   // nothing to update
+	SWEAR( dep_crcs.size()==end.digest.deps.size() ) ;
+	for( size_t i : iota(end.digest.deps.size()) )
+		if (dep_crcs[i].valid()) end.digest.deps[i].second.crc(dep_crcs[i]) ;
+	dep_crcs.clear() ;                                                        // now useless as info is recorded in digest
 }
 
 //

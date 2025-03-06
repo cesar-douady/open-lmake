@@ -227,14 +227,51 @@ namespace Engine {
 	struct ReqData {
 		friend Req ;
 		using Idx = ReqIdx ;
-		template<IsWatcher T> struct InfoMap : ::umap<T,typename T::ReqInfo> {
-			typename T::ReqInfo dflt ;
-			using ::umap<T,typename T::ReqInfo>::umap ;
+		template<IsWatcher W> struct InfoMap {
+			using Idx  = typename W::Idx     ;
+			using Info = typename W::ReqInfo ;
+			// cxtors & casts
+			InfoMap(         ) = default ;
+			InfoMap(InfoMap&&) = default ;
+			~InfoMap() {
+				for( Info* p : idxs ) if (p) delete p ;
+			}
+			InfoMap& operator=(InfoMap&& im) {
+				idxs = ::move(im.idxs) ; im.idxs.clear() ;      // doc says im.idxs is unspecified after move, not necessarily empty
+				dflt = ::move(im.dflt) ;
+				sz   =        im.sz    ; im.sz = 0 ;            // ensure consistency
+				return self ;
+			}
+			// accesses
+			size_t size() const { return sz ; }
+			// services
+			bool contains(W w) const {
+				return +w<idxs.size() && idxs[+w] ;
+			}
+			Info const& c_req_info(W w) const {
+				if (contains(w)) return *idxs[+w] ;
+				else             return dflt      ;
+			}
+			Info& req_info( Req r , W w ) {
+				if (!contains(w)) {
+					grow(idxs,+w) = new Info{r} ;
+					sz++ ;
+				}
+				return *idxs[+w] ;
+			}
+			Info& req_info( Info const& ci , W w ) {
+				if (&ci==&dflt) return req_info( ci.req , w ) ; // allocate
+				else            return const_cast<Info&>(ci)  ; // already allocated, no look up
+			}
+			// data
+			::vector<Info*> idxs ;
+			Info            dflt ;
+			Idx             sz   = 0 ;
 		} ;
-		static constexpr size_t StepSz = 14 ;           // size of the field representing step in output
+		static constexpr size_t StepSz = 14 ;                   // size of the field representing step in output
 		// static data
 	private :
-		static Mutex<MutexLvl::Audit> _s_audit_mutex ;  // should not be static, but if per ReqData, this would prevent ReqData from being movable
+		static Mutex<MutexLvl::Audit> _s_audit_mutex ;          // should not be static, but if per ReqData, this would prevent ReqData from being movable
 		// cxtors & casts
 	public :
 		void clear() ;
@@ -262,9 +299,9 @@ namespace Engine {
 		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je     ,et) ; }
 		#undef SC
 		//
-		void         audit_status( bool ok                                                                                          ) const ;
-		void         audit_stats (                                                                                                  ) const ;
-		bool/*seen*/ audit_stderr( Job , ::string const& msg , ::string const& stderr , size_t max_stderr_len=Npos , DepDepth lvl=0 ) const ;
+		void         audit_status( bool ok                                                                                         ) const ;
+		void         audit_stats (                                                                                                 ) const ;
+		bool/*seen*/ audit_stderr( Job , ::string const& msg , ::string const& stderr , uint16_t max_stderr_len=0 , DepDepth lvl=0 ) const ;
 	private :
 		void _open_log() ;
 		//
@@ -274,28 +311,28 @@ namespace Engine {
 	public :
 		Idx                  idx_by_start   = Idx(-1) ;
 		Idx                  idx_by_eta     = Idx(-1) ;
-		Job                  job            ;           // owned if job->rule->special==Special::Req
+		Job                  job            ;                   // owned if job->rule->special==Special::Req
 		InfoMap<Job >        jobs           ;
 		InfoMap<Node>        nodes          ;
 		::umap<Job,JobAudit> missing_audits ;
 		ReqStats             stats          ;
-		Fd                   audit_fd       ;           // to report to user
-		AcFd                 log_fd         ;           // saved output
-		Job mutable          last_info      ;           // used to identify last message to generate an info line in case of ambiguity
+		Fd                   audit_fd       ;                   // to report to user
+		AcFd                 log_fd         ;                   // saved output
+		Job mutable          last_info      ;                   // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
 		Pdate                start_pdate    ;
 		Ddate                start_ddate    ;
-		Pdate                eta            ;           // Estimated Time of Arrival
-		Delay                ete            ;           // Estimated Time Enroute
-		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
+		Pdate                eta            ;                   // Estimated Time of Arrival
+		Delay                ete            ;                   // Estimated Time Enroute
+		::umap<Rule,JobIdx > ete_n_rules    ;                   // number of jobs participating to stats.ete with exec_time from rule
 		uint8_t              n_retries      = 0       ;
 		bool                 has_backend    = false   ;
 		// summary
-		::vector<Node>                up_to_dates  ;    // asked nodes already done when starting
-		::umap<Job ,JobIdx /*order*/> frozen_jobs  ;    // frozen     jobs                                   (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> frozen_nodes ;    // frozen     nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> no_triggers  ;    // no-trigger nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> clash_nodes  ;    // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		::vector<Node>                up_to_dates  ;            // asked nodes already done when starting
+		::umap<Job ,JobIdx /*order*/> frozen_jobs  ;            // frozen     jobs                                   (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> frozen_nodes ;            // frozen     nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> no_triggers  ;            // no-trigger nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> clash_nodes  ;            // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }
