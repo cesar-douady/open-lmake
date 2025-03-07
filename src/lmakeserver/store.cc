@@ -163,6 +163,7 @@ namespace Engine::Persistent {
 	}
 
 	NodeBase::NodeBase( ::string const& name_ , bool no_dir ) {
+		SWEAR(Disk::is_canon(name_),name_) ;
 		::pair<Name/*top*/,::vector<Name>/*created*/> top_created = no_dir ?
 			::pair<Name/*top*/,::vector<Name>/*created*/>( {} , {_name_file.insert(name_)} )
 		:	_name_file.insert_chain(name_,'/')

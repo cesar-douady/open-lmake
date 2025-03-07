@@ -102,21 +102,25 @@ namespace Engine {
 		return                   os <<')'                                ;
 	}
 
-	::string& operator+=( ::string& os , EngineClosureJobEtc const& ecje ) {
-		const char* sep = "" ;
-		/**/                os << "Ecje("       ;
-		if ( ecje.report) { os <<      "report" ; sep = "," ; }
-		if (+ecje.req   )   os <<sep<< ecje.req ;
-		return              os <<')'            ;
+	::string& operator+=( ::string& os , EngineClosureJobReportStart const& ) {
+		return os << "Ecjrs()" ;
+	}
+
+	::string& operator+=( ::string& os , EngineClosureJobGiveUp const& ecjgu ) {
+		First first ;
+		/**/               os << "Ecjgu("                 ;
+		if ( ecjgu.report) os <<first("",",")<< "report"  ;
+		if (+ecjgu.req   ) os <<first("",",")<< ecjgu.req ;
+		return             os <<')'                       ;
 	}
 
 	::string& operator+=( ::string& os , EngineClosureJob const& ecj ) {
-		/**/                               os << "(" << ecj.proc <<','<< ecj.job_exec ;
-		switch (ecj.proc) {
-			case JobRpcProc::Start       : os << ecj.start ; break ;
-			case JobRpcProc::ReportStart :
-			case JobRpcProc::GiveUp      : os << ecj.etc   ; break ;
-			case JobRpcProc::End         : os << ecj.end   ; break ;
+		/**/                               os << "(" << ecj.proc() <<','<< ecj.job_exec ;
+		switch (ecj.proc()) {
+			case JobRpcProc::Start       : os << ecj.start       () ; break ;
+			case JobRpcProc::ReportStart : os << ecj.report_start() ; break ;
+			case JobRpcProc::GiveUp      : os << ecj.give_up     () ; break ;
+			case JobRpcProc::End         : os << ecj.end         () ; break ;
 		DF}
 		return                             os <<')' ;
 	}
@@ -132,12 +136,12 @@ namespace Engine {
 	}
 
 	::string& operator+=( ::string& os , EngineClosure const& ec ) {
-		/**/                                    os << "EngineClosure(" << ec.kind <<',' ;
-		switch (ec.kind) {
-			case EngineClosure::Kind::Global  : os << ec.ecg  ; break ;
-			case EngineClosure::Kind::Req     : os << ec.ecr  ; break ;
-			case EngineClosure::Kind::Job     : os << ec.ecj  ; break ;
-			case EngineClosure::Kind::JobMngt : os << ec.ecjm ; break ;
+		/**/                                    os << "EngineClosure(" << ec.kind() <<',' ;
+		switch (ec.kind()) {
+			case EngineClosure::Kind::Global  : os << ec.ecg () ; break ;
+			case EngineClosure::Kind::Req     : os << ec.ecr () ; break ;
+			case EngineClosure::Kind::Job     : os << ec.ecj () ; break ;
+			case EngineClosure::Kind::JobMngt : os << ec.ecjm() ; break ;
 		DF}
 		return                                  os << ')' ;
 	}

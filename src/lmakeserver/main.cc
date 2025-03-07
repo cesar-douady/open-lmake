@@ -297,9 +297,9 @@ static bool/*interrupted*/ _engine_loop() {
 		;
 		if (!popped_closure.first) goto Retry ;
 		EngineClosure& closure = popped_closure.second ;
-		switch (closure.kind) {
+		switch (closure.kind()) {
 			case EngineClosureKind::Global : {
-				switch (closure.ecg.proc) {
+				switch (closure.ecg().proc) {
 					case GlobalProc::Int :
 						trace("int") ;
 						//       vvvvvvvvvvvv
@@ -312,7 +312,7 @@ static bool/*interrupted*/ _engine_loop() {
 				DF}
 			} break ;
 			case EngineClosureKind::Req : {
-				EngineClosureReq& ecr           = closure.ecr               ;
+				EngineClosureReq& ecr           = closure.ecr()             ;
 				Req               req           = ecr.req                   ;
 				::string const&   startup_dir_s = ecr.options.startup_dir_s ;
 				switch (ecr.proc) {
@@ -393,22 +393,22 @@ static bool/*interrupted*/ _engine_loop() {
 				DF}
 			} break ;
 			case EngineClosureKind::Job : {
-				EngineClosureJob& ecj = closure.ecj  ;
-				JobExec         & je  = ecj.job_exec ;
-				trace("job",ecj.proc,je) ;
+				EngineClosureJob& ecj = closure.ecj() ;
+				JobExec         & je  = ecj.job_exec  ;
+				trace("job",ecj.proc(),je) ;
 				Req::s_new_etas() ;                                                                           // regularly adjust queued job priorities if necessary
-				switch (ecj.proc) {
-					//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobRpcProc::Start       : je.started     ( ecj.start.report , ecj.start.report_unlnks , ecj.start.txts ) ; break ;
-					case JobRpcProc::ReportStart : je.report_start(                                                             ) ; break ;
-					case JobRpcProc::GiveUp      : je.give_up     ( ecj.etc.req , ecj.etc.report                                ) ; break ;
-					case JobRpcProc::End         : je.end         ( ::move(ecj.end)                                             ) ; break ;
-					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				switch (ecj.proc()) {
+					//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobRpcProc::Start       : je.started     ( ecj.start().report , ecj.start().report_unlnks , ecj.start().txts ) ; break ;
+					case JobRpcProc::ReportStart : je.report_start(                                                                   ) ; break ;
+					case JobRpcProc::GiveUp      : je.give_up     ( ecj.give_up().req , ecj.give_up().report                          ) ; break ;
+					case JobRpcProc::End         : je.end         ( ::move(ecj.end())                                                 ) ; break ;
+					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				DF}
 			} break ;
 			case EngineClosureKind::JobMngt : {
-				EngineClosureJobMngt& ecjm = closure.ecjm  ;
-				JobExec             & je   = ecjm.job_exec ;
+				EngineClosureJobMngt& ecjm = closure.ecjm() ;
+				JobExec             & je   = ecjm.job_exec  ;
 				trace("job_mngt",ecjm.proc,je) ;
 				switch (ecjm.proc) {
 					//                          vvvvvvvvvvvvvvvvvvvvv

@@ -20,16 +20,15 @@ template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process 
 	using L           = Lock<ThreadMutex>       ;
 	using Delay       = Time::Delay             ;
 	using Q::size ;
-	static constexpr Delay Timeout = ThreadMutex::Timeout ;
 	// accesses
 	bool operator+() const {
 		Lock<ThreadMutex> lock{_mutex} ;
 		return !Q::empty() ;
 	}
 	//
-	void lock        ( MutexLvl lvl , Delay timeout=Timeout ) const { _mutex.lock        (lvl,timeout) ; }
-	void unlock      ( MutexLvl lvl                         ) const { _mutex.unlock      (lvl        ) ; }
-	void swear_locked(                                      ) const { _mutex.swear_locked(           ) ; }
+	void lock        (MutexLvl lvl) const { _mutex.lock        (lvl) ; }
+	void unlock      (MutexLvl lvl) const { _mutex.unlock      (lvl) ; }
+	void swear_locked(            ) const { _mutex.swear_locked(   ) ; }
 	// accesses
 	size_t  size() const { L lck{_mutex} ; return Q::size() ; }
 	// services
@@ -72,7 +71,6 @@ template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : pr
 	using Base::unlock         ;
 	using Base::swear_locked   ;
 	using Delay = Time::Delay ;
-	static constexpr Delay Timeout = Base::Timeout ;
 	#define RQA  requires( QueueAccess)
 	#define RNQA requires(!QueueAccess)
 	// statics

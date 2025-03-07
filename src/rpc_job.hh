@@ -339,17 +339,21 @@ ENUM( DepInfoKind
 ,	Sig
 ,	Info
 )
-struct DepInfo {
+struct DepInfo
+:	             ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo >
+{
+	// START_OF_VERSIONING
+	using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
+	// END_OF_VERSIONING
 	friend ::string& operator+=( ::string& , DepInfo const& ) ;
+	//
+	using Kind     = DepInfoKind    ;
 	using Crc      = Hash::Crc      ;
 	using FileSig  = Disk::FileSig  ;
 	using FileInfo = Disk::FileInfo ;
-	using Kind     = DepInfoKind    ;
 	//cxtors & casts
-	constexpr DepInfo(           ) :                    _crc {  } {}
-	constexpr DepInfo(Crc      c ) : kind{Kind::Crc } , _crc {c } {}
-	constexpr DepInfo(FileSig  s ) : kind{Kind::Sig } , _sig {s } {}
-	constexpr DepInfo(FileInfo fi) : kind{Kind::Info} , _info{fi} {}
+	constexpr DepInfo() : Base{Crc()} {}
+	using Base::Base ;
 	//
 	template<class B> DepInfo(DepDigestBase<B> const& ddb) {
 		if      (!ddb.accesses) self = Crc()     ;
@@ -357,48 +361,46 @@ struct DepInfo {
 		else                    self = ddb.sig() ;
 	}
 	// accesses
-	bool operator==(DepInfo const& di) const {                                          // if true => self and di are idential (but there may be false negative if one is a Crc)
-		if (kind!=di.kind) {
-			if ( kind==Kind::Crc || di.kind==Kind::Crc ) return exists()==di.exists() ; // this is all we can check with one Crc (and not the other)
-			else                                         return sig   ()==di.sig   () ; // one is Sig, the other is Info, convert Info into Sig
+	bool operator==(DepInfo const& di) const {                                              // if true => self and di are idential (but there may be false negative if one is a Crc)
+		if (kind()!=di.kind()) {
+			if ( kind()==Kind::Crc || di.kind()==Kind::Crc ) return exists()==di.exists() ; // this is all we can check with one Crc (and not the other)
+			else                                             return sig   ()==di.sig   () ; // one is Sig, the other is Info, convert Info into Sig
 		}
-		switch (kind) {
-			case Kind::Crc  : return crc ()==di.crc () ;
-			case Kind::Sig  : return sig ()==di.sig () ;
+		switch (kind()) {
+			case Kind::Crc  : return crc() ==di.crc () ;
+			case Kind::Sig  : return sig() ==di.sig () ;
 			case Kind::Info : return info()==di.info() ;
 		DF}
 	}
-	bool     operator+() const {                                return kind!=Kind::Crc || +_crc             ; }
-	Crc      crc      () const { SWEAR(kind==Kind::Crc ,kind) ; return _crc                                 ; }
-	FileSig  sig      () const { SWEAR(kind!=Kind::Crc ,kind) ; return kind==Kind::Sig ? _sig : _info.sig() ; }
-	FileInfo info     () const { SWEAR(kind==Kind::Info,kind) ; return _info                                ; }
+	bool operator+() const { return !is_a<Kind::Crc>() || +crc() ; }
 	//
-	bool seen(Accesses a) const {                                                       // return true if accesses could perceive the existence of file
+	/**/             Kind kind() const { return Kind(index()) ; }
+	template<Kind K> bool is_a() const { return index()==+K   ; }
+	//
+	Crc      crc () const { return ::get<Crc     >(self) ; }
+	FileInfo info() const { return ::get<FileInfo>(self) ; }
+	FileSig  sig () const {
+		if (is_a<Kind::Sig >()) return ::get<FileSig >(self)       ;
+		if (is_a<Kind::Info>()) return ::get<FileInfo>(self).sig() ;
+		FAIL(self) ;
+	}
+	//
+	bool seen(Accesses a) const {                                                           // return true if accesses could perceive the existence of file
 		if (!a) return false ;
 		SWEAR(+self,self,a) ;
-		switch (kind) {
-			case Kind::Crc  : return !Crc::None.match( _crc             , a ) ;
-			case Kind::Sig  : return !Crc::None.match( Crc(_sig .tag()) , a ) ;
-			case Kind::Info : return !Crc::None.match( Crc(_info.tag()) , a ) ;
+		switch (kind()) {
+			case Kind::Crc  : return !Crc::None.match( crc()             , a ) ;
+			case Kind::Sig  : return !Crc::None.match( Crc(sig ().tag()) , a ) ;
+			case Kind::Info : return !Crc::None.match( Crc(info().tag()) , a ) ;
 		DF}
 	}
 	Bool3 exists() const {
-		switch (kind) {
-			case Kind::Crc  : return +_crc ? No|(_crc!=Crc::None) : Maybe ;
-			case Kind::Sig  : return         No| +_sig                    ;
-			case Kind::Info : return         No| +_info                   ;
+		switch (kind()) {
+			case Kind::Crc  : return +crc() ? No|(crc ()!=Crc::None) : Maybe ;
+			case Kind::Sig  : return          No|+sig ()                     ;
+			case Kind::Info : return          No|+info()                     ;
 		DF}
 	}
-	// data
-	// START_OF_VERSIONING
-	DepInfoKind kind = Kind::Crc ;
-private :
-	union {
-		Crc      _crc  ;                                                                // ~46< 64 bits
-		FileSig  _sig  ;                                                                //      64 bits
-		FileInfo _info ;                                                                //     128 bits
-	} ;
-	// END_OF_VERSIONING
 } ;
 
 // for Dep recording in book-keeping, we want to derive from Node
@@ -446,8 +448,8 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	constexpr void sig    (FileSig  const& s ) { is_crc = false ; _sig = s        ; }
 	constexpr void sig    (FileInfo const& fi) { is_crc = false ; _sig = fi.sig() ; }
 	constexpr void crc_sig(DepInfo  const& di) {
-		if (di.kind==DepInfoKind::Crc) crc(di.crc()) ;
-		else                           sig(di.sig()) ;
+		if (di.is_a<DepInfoKind::Crc>()) crc(di.crc()) ;
+		else                             sig(di.sig()) ;
 	}
 	template<class B2> constexpr void crc_sig(DepDigestBase<B2> const& dd) {
 		if (!dd.accesses) return ;
@@ -837,7 +839,7 @@ struct JobEndRpcReq : JobRpcReq {
 	// START_OF_VERSIONING
 	JobDigest<>              digest        ;
 	::string                 phy_tmp_dir_s ;
-	::vmap_ss                dynamic_env   ;     // env variables computed in job_exec
+	::vmap_ss                dynamic_env   ; // env variables computed in job_exec
 	::vector<ExecTraceEntry> exec_trace    ;
 	Disk::DiskSz             total_sz      = 0 ;
 	Disk::DiskSz             compressed_sz = 0 ;

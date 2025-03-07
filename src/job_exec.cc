@@ -122,9 +122,9 @@ Digest analyze(Status status=Status::New) {                                     
 			DepDigest dd { ad.accesses , info.dep_info , ad.dflags } ;
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
-			dd.hot          = info.dep_info.kind==DepInfoKind::Info && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.ddate_prec) ;
-			dd.parallel     = +first_read.first && first_read.first==prev_first_read                                                                 ;
-			prev_first_read = first_read.first                                                                                                       ;
+			dd.hot          = info.dep_info.is_a<DepInfoKind::Info>() && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.ddate_prec) ;
+			dd.parallel     = +first_read.first && first_read.first==prev_first_read                                                                   ;
+			prev_first_read = first_read.first                                                                                                         ;
 			// try to transform date into crc as far as possible
 			bool unstable = false ;
 			if      ( dd.is_crc                                 )   {}                                    // already a crc => nothing to do
@@ -154,8 +154,8 @@ Digest analyze(Status status=Status::New) {                                     
 			FileSig sig     ;
 			Crc     crc     ;                                                        // lazy evaluated (not in parallel, but need is exceptional)
 			if (ad.write==Maybe) {                                                   // if we dont know if file has been written, detect file update from disk
-				if (info.dep_info.kind==DepInfoKind::Crc) { crc = Crc(file,/*out*/sig) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
-				else                                                                     written |= info.dep_info.sig()!=sig ;
+				if (info.dep_info.is_a<DepInfoKind::Crc>()) { crc = Crc(file,/*out*/sig) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
+				else                                                                       written |= info.dep_info.sig()!=sig ;
 			}
 			if (!crc) sig = file ;                                                                // sig is computed at the same time as crc, but we need it in all cases
 			//

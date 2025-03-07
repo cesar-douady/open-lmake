@@ -7,8 +7,6 @@
 
 #ifdef STRUCT_DECL
 
-#include <variant>
-
 ENUM( AncillaryTag
 ,	Backend
 ,	Data
@@ -72,22 +70,14 @@ namespace Engine {
 
 namespace Engine {
 
-	struct JobInfo1 : ::variant< JobInfoStart, JobEndRpcReq , ::vector<Crc> > {
+	struct JobInfo1 : ::variant< Void/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<Crc>/*DepCrcs*/ > {
+		using Kind = JobInfoKind ;
+		// cxtors & casts
+		using ::variant< Void , JobInfoStart, JobEndRpcReq , ::vector<Crc> >::variant ; // necessary for clang++-14
 		// accesses
-		JobInfoKind kind() const {
-			switch (index()) {
-				case 0 : return JobInfoKind::Start   ;
-				case 1 : return JobInfoKind::End     ;
-				case 2 : return JobInfoKind::DepCrcs ;
-			DF}
-		}
-		template<JobInfoKind Kind> bool is_a() const {
-			switch (Kind) {
-				case JobInfoKind::Start   : return index()==0 ;
-				case JobInfoKind::End     : return index()==1 ;
-				case JobInfoKind::DepCrcs : return index()==2 ;
-			DF}
-		}
+		/**/             Kind kind() const { return Kind(index()) ; }
+		template<Kind K> bool is_a() const { return index()==+K   ; }
+		//
 		JobInfoStart  const& start   () const { return ::get<JobInfoStart >(self) ; }
 		JobInfoStart       & start   ()       { return ::get<JobInfoStart >(self) ; }
 		JobEndRpcReq  const& end     () const { return ::get<JobEndRpcReq >(self) ; }

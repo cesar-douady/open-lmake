@@ -130,7 +130,6 @@ namespace Engine {
 			::string  ifce        ;
 			::vmap_ss dct         ;
 			::vmap_ss env         ;
-			Delay     cmd_timeout ;
 			bool      configured = false ;
 			// END_OF_VERSIONING
 		} ;

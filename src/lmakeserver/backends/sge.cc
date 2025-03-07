@@ -135,8 +135,7 @@ namespace Backends::Sge {
 		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dynamic ) {
 			Trace trace(BeChnl,"Sge::config",STR(dynamic),dct) ;
 			//
-			repo_key    = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
-			cmd_timeout = Delay(100)                              ; // qsub has been seen to be extremely long, allow 100s by default
+			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
@@ -251,7 +250,7 @@ namespace Backends::Sge {
 
 		bool/*ok*/ sge_exec_client(::vector_s&& cmd_line) const {
 			Trace trace(BeChnl,"sge_exec_client",cmd_line) ;
-			TraceLock lock { _sge_mutex , cmd_timeout , BeChnl , "sge_client" } ;
+			TraceLock lock { _sge_mutex , BeChnl , "sge_client" } ;
 			cmd_line[0] = sge_bin_s+cmd_line[0] ;
 			//
 			const char** cmd_line_ = new const char*[cmd_line.size()+1] ;
@@ -278,7 +277,7 @@ namespace Backends::Sge {
 		SgeId sge_exec_qsub(::vector_s&& cmd_line) const {
 			SWEAR(cmd_line[0]=="qsub" && cmd_line[1]=="-terse") ; // only meant to accept a short stdout
 			Trace trace(BeChnl,"sge_exec_qsub",cmd_line) ;
-			TraceLock lock { _sge_mutex , cmd_timeout , BeChnl , "sge_qsub" } ;
+			TraceLock lock { _sge_mutex , BeChnl , "sge_qsub" } ;
 			cmd_line[0] = sge_bin_s+cmd_line[0] ;
 			//
 			const char** cmd_line_ = new const char*[cmd_line.size()+1] ;

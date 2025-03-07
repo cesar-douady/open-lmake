@@ -171,8 +171,7 @@ namespace Backends {
 		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                           ) ;
 		// static data
 	public :
-		static Backend*    s_tab[N<Tag>] ;
-		static Time::Delay s_cmd_timeout ;                                                             // max of all cmd_timeout
+		static Backend* s_tab[N<Tag>] ;
 	protected :
 		static Mutex<MutexLvl::Backend> _s_mutex ;
 	private :
@@ -218,9 +217,8 @@ namespace Backends {
 		/**/                                                                                                     // ... operator| of the submit/add_pressure corresponding values for the job
 		// data
 	public :
-		in_addr_t   addr        = 0                                 ;
+		in_addr_t   addr        = 0 ;
 		::string    config_err  ;
-		Time::Delay cmd_timeout = Mutex<MutexLvl::Backend>::Timeout ;                                            // max time commands may take
 	} ;
 
 }
@@ -249,7 +247,7 @@ namespace Backends {
 	inline ::string const& Backend::s_config_err(Tag t) { return                     s_tab[+t]->config_err ; }
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
-	#define LCK(...) TraceLock lock{_s_mutex,s_cmd_timeout,BeChnl,"s_backend"} ; Trace trace(BeChnl,__VA_ARGS__)
+	#define LCK(...) TraceLock lock{_s_mutex,BeChnl,"s_backend"} ; Trace trace(BeChnl,__VA_ARGS__)
 	inline void Backend::s_open_req (Req r,JobIdx nj) { LCK("s_open_req" ,r) ; _s_workload.open_req (r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->open_req (r,nj) ; }
 	inline void Backend::s_close_req(Req r          ) { LCK("s_close_req",r) ; _s_workload.close_req(r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->close_req(r   ) ; }
 	//

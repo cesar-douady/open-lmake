@@ -104,7 +104,7 @@ using namespace Hash ;
 //
 
 ::string& operator+=( ::string& os , DepInfo const& di ) {
-	switch (di.kind) {
+	switch (di.kind()) {
 		case DepInfoKind::Crc  : return os <<'('<< di.crc () <<')' ;
 		case DepInfoKind::Sig  : return os <<'('<< di.sig () <<')' ;
 		case DepInfoKind::Info : return os <<'('<< di.info() <<')' ;
