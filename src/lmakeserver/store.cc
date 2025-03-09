@@ -578,7 +578,7 @@ namespace Engine::Persistent {
 				throw_unless( fi.tag()==FileTag::Dir                                            , "source ",src," is not a directory"                                             ) ;
 			} else {
 				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                                 ) ;
-				throw_unless( +fi                                                               , "source ",src," is not a regular file nor a symbolic link"                      ) ;
+				throw_unless( fi.exists()                                                       , "source ",src," is not a regular file nor a symbolic link"                      ) ;
 				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported"                  ) ;
 				SWEAR(src==sr.real,src,sr.real) ;                              // src is local, canonic and there are no links, what may justify real from being different ?
 			}

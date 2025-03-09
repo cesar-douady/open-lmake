@@ -21,7 +21,7 @@ namespace Backdoor {
 	::string& operator+=( ::string& os , Enable const& e ) {
 		return os<<"Enable("<<e.enable<<')' ;
 	}
-	size_t Enable::reply_len() const { return 1 ; } // just a bool
+	size_t Enable::reply_len() const { return 1 ; }  // just a bool
 	Enable::Reply Enable::process(Record& r) const {
 		bool res = r.enable ;
 		if (enable!=Maybe) r.enable = enable==Yes ;
@@ -40,19 +40,10 @@ namespace Backdoor {
 		if (+s.comment  ) os << ','<<s.comment     ;
 		return            os << ')'                ;
 	}
-	::string& operator+=( ::string& os , Solve::Reply const& r ) {
-		return os<<"Reply("<<r.real<<','<<r.file_info<<','<<r.file_loc<<','<<r.accesses<<')' ;
-	}
-	size_t Solve::reply_len() const { return PATH_MAX+100 ; } // 100 is plenty for overhead
+	size_t Solve::reply_len() const { return PATH_MAX+100 ; }                 // 100 is plenty for overhead
 	Solve::Reply Solve::process(Record& r) const {
-		Reply         res ;
-		Record::Solve s   { r , file , no_follow , read , create , comment } ;
-		throw_if( read && write && +s.real0 , comment," : cannot read from ",s.real," and write to ",s.real0 ) ;
-		//
-		if      (read ) { res.real     = ::move(s.real        ) ; res.file_info = FileInfo(r.s_repo_root_fd(),res.real) ; }
-		else if (write)   res.real     = ::move(s.real_write()) ;
-		/**/              res.file_loc = s.file_loc             ;
-		/**/              res.accesses = s.accesses             ;
+		Solve::Reply res { r , file , no_follow , read , create , comment } ;
+		res.file_info = FileInfo(r.s_repo_root_fd(),res.real) ;               // file info must be probed in process as we are protected against recording
 		return res ;
 	}
 

@@ -441,7 +441,7 @@ int main( int argc , char* argv[] ) {
 				if ( digest.is_crc && !digest.crc().valid() ) digest.sig(FileSig(d)) ;
 			}
 		//
-		g_gather.new_deps( washed , ::move(g_start_info.deps) , g_start_info.stdin ) ;
+		for( auto& [d,dd] : g_start_info.deps ) g_gather.new_dep( washed , ::move(d) , ::move(dd) , g_start_info.stdin ) ;
 		for( auto const& [t,f] : g_match_dct.knowns )
 			if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] )
 				g_gather.new_unlnk(washed,t) ;                                              // always report non-optional static targets

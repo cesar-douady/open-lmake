@@ -99,24 +99,24 @@ private :
 	void _new_access( Fd , PD    , ::string&& file , AccessDigest    , DI const&    , ::string const& comment ) ;
 	void _new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di , ::string const& c       ) { _new_access({},pd,::move(f),ad,di,c) ; }
 	//
-	void _new_accesses( Fd fd , Jerr&& jerr ) {
-		for( auto& [f,dd] : jerr.files ) _new_access( fd , jerr.date , ::move(f) , jerr.digest , dd , jerr.txt ) ;
+	void _new_access( Fd fd , Jerr&& jerr ) {
+		_new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , jerr.txt ) ;
 	}
-	void _new_guards( Fd fd , Jerr&& jerr ) {                                                                   // fd for trace purpose only
-		Trace trace("_new_guards",fd,jerr.txt) ;
-		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
+	void _new_guard( Fd fd , Jerr&& jerr ) {                                                                    // fd for trace purpose only
+		Trace trace("_new_guards",fd,jerr.txt,jerr.file) ;
+		guards.insert(::move(jerr.file)) ;
 	}
-	void         _kill          ( bool force           ) ;
-	void         _send_to_server( Fd fd , Jerr&&       ) ;
-	bool/*sent*/ _send_to_server( JobMngtRpcReq const& ) ;
+	void         _kill          ( bool force                                      ) ;
+	void         _send_to_server( Fd fd , Jerr&& , ::vmap_s<Disk::FileInfo>&& ={} ) ;                           // files are required for DepVerbose and forbidden for other
+	bool/*sent*/ _send_to_server( JobMngtRpcReq const&                            ) ;
 public : //!                                                                                                           crc_file_info
-	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,c) ; }
-	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}          ,c) ; } // new_unlnk is used for internal wash
-	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                      }
+	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c) ; }
+	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c) ; } // new_unlnk is used for internal wash
+	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                     }
 	//
-	void new_dep ( PD pd , ::string&&            dep  , Accesses a               , ::string const& c="s_dep"  ) { _new_access( pd , ::move(dep) , {.accesses=a} , Disk::FileInfo(dep) , c ) ; }
-	void new_deps( PD    , ::vmap_s<DepDigest>&& deps , ::string const& stdin={}                              ) ;
-	void new_exec( PD    , ::string const&       exe  ,                            ::string const&  ="s_exec" ) ;
+	void new_dep ( PD pd , ::string&&      dep  , Accesses a     , ::string const& c    ="s_dep"  ) { _new_access( pd , ::move(dep) , {.accesses=a} , Disk::FileInfo(dep) , c ) ; }
+	void new_dep ( PD    , ::string&&      dep  , DepDigest&& dd , ::string const& stdin={}       ) ;
+	void new_exec( PD    , ::string const& exe  ,                  ::string const&      ="s_exec" ) ;
 	//
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
 		try                     { OMsgBuf().send(fd,jerr) ; }

@@ -17,16 +17,19 @@
 
 #include "utils.hh"
 
+// START_OF_VERSIONING
 // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
 ENUM_1( FileTag
 ,	Target = Lnk // >=Target means file can be generated as a target
 ,	None
+,	Unknown
 ,	Dir
 ,	Lnk
 ,	Reg          // >=Reg means file is a regular file
 ,	Empty        // empty and not executable
 ,	Exe          // a regular file with exec permission
 )
+// END_OF_VERSIONING
 
 // prevent dead locks by associating a level to each mutex, so we can verify the absence of dead-locks even in absence of race
 // use of identifiers (in the form of an enum) allows easy identification of the origin of misorder

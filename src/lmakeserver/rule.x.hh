@@ -88,7 +88,7 @@ namespace Engine {
 		static constexpr char   StemMrkr =  0 ;                 // signal a stem in job_name & targets & deps & cmd
 		static constexpr VarIdx NoVar    = -1 ;
 		//
-		struct SimpleMatch ;
+		struct RuleMatch ;
 		// cxtors & casts
 		using RuleBase::RuleBase ;
 		Rule(RuleBase const& rb) : RuleBase{rb} {}
@@ -310,7 +310,7 @@ namespace Engine {
 		// statics
 		static bool s_is_dynamic(Py::Tuple const& ) ;
 	protected :
-		static void _s_eval( Job , Rule::SimpleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
+		static void _s_eval( Job , Rule::RuleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
 		// cxtors & casts
 		DynamicDskBase() = default ;
 		DynamicDskBase( Py::Tuple const& , ::umap_s<CmdIdx> const& var_idxs ) ;
@@ -382,15 +382,15 @@ namespace Engine {
 		static bool s_is_dynamic(Py::Tuple const&) ;
 		// cxtors & casts
 		using Base::Base ;
-		Dynamic           (Dynamic const& src) : Base{       src } , glbs{       src.glbs } , code{       src.code } {}                                  // mutex is not copiable
-		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{::move(src.glbs)} , code{::move(src.code)} {}                                  // .
-		Dynamic& operator=(Dynamic const& src) {                                                                                                         // .
+		Dynamic           (Dynamic const& src) : Base{       src } , glbs{       src.glbs } , code{       src.code } {}                                // mutex is not copiable
+		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{::move(src.glbs)} , code{::move(src.code)} {}                                // .
+		Dynamic& operator=(Dynamic const& src) {                                                                                                       // .
 			Base::operator=(src) ;
 			glbs = src.glbs ;
 			code = src.code ;
 			return self ;
 		}
-		Dynamic& operator=(Dynamic&& src) {                                                                                                              // .
+		Dynamic& operator=(Dynamic&& src) {                                                                                                            // .
 			Base::operator=(::move(src)) ;
 			glbs = ::move(src.glbs) ;
 			code = ::move(src.code) ;
@@ -399,24 +399,24 @@ namespace Engine {
 		// services
 		void compile() ;
 		//
-		// SimpleMatch is lazy evaluated from Job (when there is one)
-		T eval( Job   , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
-		T eval(         Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const { return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , deps ) ; }
-		T eval( Job j , Rule::SimpleMatch      & m ,                             ::vmap_s<DepDigest>* deps         ) const { return eval( j  ,                                m  , {}    , deps ) ; }
-		T eval(         Rule::SimpleMatch const& m ,                             ::vmap_s<DepDigest>* deps         ) const { return eval( {} , const_cast<Rule::SimpleMatch&>(m) , {}    , deps ) ; }
+		// RuleMatch is lazy evaluated from Job (when there is one)
+		T eval( Job   , Rule::RuleMatch      &   , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
+		T eval(         Rule::RuleMatch const& m , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const { return eval( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , deps ) ; }
+		T eval( Job j , Rule::RuleMatch      & m ,                             ::vmap_s<DepDigest>* deps         ) const { return eval( j  ,                              m  , {}    , deps ) ; }
+		T eval(         Rule::RuleMatch const& m ,                             ::vmap_s<DepDigest>* deps         ) const { return eval( {} , const_cast<Rule::RuleMatch&>(m) , {}    , deps ) ; }
 		//
-		void eval_ctx( Job , Rule::SimpleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs , EvalCtxFuncStr const&     , EvalCtxFuncDct const&     ) const ;
-		void eval_ctx(       Rule::SimpleMatch const& m       , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cbs , EvalCtxFuncDct const& cbd ) const {
-			return eval_ctx( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , cbs , cbd ) ;                                                              // cannot lazy evaluate w/o a job
+		void eval_ctx( Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs , EvalCtxFuncStr const&     , EvalCtxFuncDct const&     ) const ;
+		void eval_ctx(       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cbs , EvalCtxFuncDct const& cbd ) const {
+			return eval_ctx( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , cbs , cbd ) ;                                                              // cannot lazy evaluate w/o a job
 		}
-		::string parse_fstr( ::string const& fstr , Job , Rule::SimpleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} ) const ;
-		::string parse_fstr( ::string const& fstr ,       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
-			return parse_fstr( fstr , {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                                                 // cannot lazy evaluate w/o a job
+		::string parse_fstr( ::string const& fstr , Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} ) const ;
+		::string parse_fstr( ::string const& fstr ,       Rule::RuleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
+			return parse_fstr( fstr , {} , const_cast<Rule::RuleMatch&>(m) , rsrcs ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 	protected :
-		Py::Ptr<Py::Object> _eval_code( Job , Rule::SimpleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
-		Py::Ptr<Py::Object> _eval_code(       Rule::SimpleMatch const& m       , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const {
-			return _eval_code( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , deps ) ;                                                                 // cannot lazy evaluate w/o a job
+		Py::Ptr<Py::Object> _eval_code( Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
+		Py::Ptr<Py::Object> _eval_code(       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const {
+			return _eval_code( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , deps ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 		// data
 	private :
@@ -435,7 +435,7 @@ namespace Engine {
 		DynamicDepsAttrs& operator=(DynamicDepsAttrs const& src) { Base::operator=(       src ) ; return self ; } // .
 		DynamicDepsAttrs& operator=(DynamicDepsAttrs     && src) { Base::operator=(::move(src)) ; return self ; } // .
 		// services
-		::vmap_s<DepSpec> eval(Rule::SimpleMatch const&) const ;
+		::vmap_s<DepSpec> eval(Rule::RuleMatch const&) const ;
 	} ;
 
 	struct DynamicStartCmdAttrs : Dynamic<StartCmdAttrs> {
@@ -457,7 +457,7 @@ namespace Engine {
 		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return self ; } // .
 		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return self ; } // .
 		// services
-		::pair_ss/*script,call*/ eval( Rule::SimpleMatch const& , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
+		::pair_ss/*script,call*/ eval( Rule::RuleMatch const& , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
 	} ;
 
 	struct TargetPattern {
@@ -508,7 +508,7 @@ namespace Engine {
 		::string pretty_str() const ;
 		// accesses
 		bool   is_special  (         ) const { return special!=Special::Plain                              ; }
-		bool   user_defined(         ) const { return !allow_ext                                           ; }                                    // used to decide to print in LMAKE/rules
+		bool   user_defined(         ) const { return !allow_ext                                           ; }                                  // used to decide to print in LMAKE/rules
 		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags() ; }
 		//
 		::span<::pair_ss const> static_stems() const { return ::span<::pair_ss const>(stems).subspan(0,n_static_stems) ; }
@@ -527,9 +527,9 @@ namespace Engine {
 			else                       return ::move(file)                  ;
 		}
 		//
-		::string gen_py_line( Job , Rule::SimpleMatch      &/*lazy*/ , VarCmd    , VarIdx   , ::string const& key , ::string const& val ) const ;
-		::string gen_py_line(       Rule::SimpleMatch const& m       , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const { // cannot lazy evaluate w/o a job
-			return gen_py_line( {} , const_cast<Rule::SimpleMatch&>(m) , vc , i , key , val ) ;
+		::string gen_py_line( Job , Rule::RuleMatch      &/*lazy*/ , VarCmd    , VarIdx   , ::string const& key , ::string const& val ) const ;
+		::string gen_py_line(       Rule::RuleMatch const& m       , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const { // cannot lazy evaluate w/o a job
+			return gen_py_line( {} , const_cast<Rule::RuleMatch&>(m) , vc , i , key , val ) ;
 		}
 		void        new_job_report( Delay exec_time , CoarseDelay cost , Tokens1 tokens1 ) const ;
 		CoarseDelay cost          (                                                      ) const ;
@@ -600,25 +600,26 @@ namespace Engine {
 		// END_OF_VERSIONING
 	} ;
 
-	// SimpleMatch does not call Python and only provides services that can be served with this constraint
-	struct Rule::SimpleMatch {
-		friend ::string& operator+=( ::string& , SimpleMatch const& ) ;
+	// RuleMatch does not call Python and only provides services that can be served with this constraint
+	struct Rule::RuleMatch {
+		friend ::string& operator+=( ::string& , RuleMatch const& ) ;
 		// cxtors & casts
 	public :
-		SimpleMatch(                                        ) = default ;
-		SimpleMatch( Rule    r , ::vector_s const& ss       ) : rule{r} , stems{ss} {}
-		SimpleMatch( Job                                    ) ;
-		SimpleMatch( Rule    r , ::string   const& job_name , bool chk_psfx=true ) : SimpleMatch{r,r->job_name_pattern,job_name,chk_psfx} {}
-		SimpleMatch( RuleTgt   , ::string   const& target   , bool chk_psfx=true ) ;
+		RuleMatch(                                        ) = default ;
+		RuleMatch( Rule    r , ::vector_s const& ss       ) : rule{r} , stems{ss} {}
+		RuleMatch( Job                                    ) ;
+		RuleMatch( Rule    r , ::string   const& job_name , bool chk_psfx=true ) : RuleMatch{r,r->job_name_pattern,job_name,chk_psfx} {}
+		RuleMatch( RuleTgt   , ::string   const& target   , bool chk_psfx=true ) ;
 	private :
-		SimpleMatch( Rule , TargetPattern const& , ::string const& , bool chk_psfx=true ) ;
+		RuleMatch( Rule , TargetPattern const& , ::string const& , bool chk_psfx=true ) ;
 	public :
-		bool operator==(SimpleMatch const&) const = default ;
-		bool operator+ (                  ) const { return +rule ; }
+		bool operator==(RuleMatch const&) const = default ;
+		bool operator+ (                ) const { return +rule ; }
 		// accesses
 		::vector_s star_patterns () const ;
 		::vector_s py_matches    () const ;
-		::vector_s static_matches() const ;
+		::vector_s static_targets() const ;
+		::vector_s star_targets  () const ;
 		//
 		::vmap_s<DepSpec> const& deps() const {
 			if (!_has_deps) {
@@ -636,12 +637,8 @@ namespace Engine {
 		::vector_s stems ; // static stems only of course
 		// cache
 	private :
-		mutable bool                  _has_static_targets = false ;
-		mutable bool                  _has_star_targets   = false ;
-		mutable bool                  _has_deps           = false ;
-		mutable ::umap_s<VarIdx>      _static_targets     ;
-		mutable ::vector<Re::RegExpr> _star_targets       ;
-		mutable ::vmap_s<DepSpec>     _deps               ;
+		mutable bool              _has_deps = false ;
+		mutable ::vmap_s<DepSpec> _deps     ;
 	} ;
 
 	struct RuleTgt : RuleCrc {
@@ -788,11 +785,11 @@ namespace Engine {
 		try { glbs = Py::py_run(append_dbg_info(glbs_str)) ; glbs->boost() ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
 	}
 
-	template<class T> void Dynamic<T>::eval_ctx( Job job , Rule::SimpleMatch& match_ , ::vmap_ss const& rsrcs_ , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
+	template<class T> void Dynamic<T>::eval_ctx( Job job , Rule::RuleMatch& match_ , ::vmap_ss const& rsrcs_ , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
 		_s_eval(job,match_,rsrcs_,ctx,cb_str,cb_dct) ;
 	}
 
-	template<class T> ::string Dynamic<T>::parse_fstr( ::string const& fstr , Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
+	template<class T> ::string Dynamic<T>::parse_fstr( ::string const& fstr , Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs ) const {
 		::vector<CmdIdx> ctx_  ;
 		::vector_s       fixed { 1 } ;
 		size_t           fi    = 0   ;
@@ -815,7 +812,7 @@ namespace Engine {
 		return res ;
 	}
 
-	template<class T> Py::Ptr<Py::Object> Dynamic<T>::_eval_code( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
+	template<class T> Py::Ptr<Py::Object> Dynamic<T>::_eval_code( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
 		Rule       r       = +match ? match.rule : job->rule() ;
@@ -853,7 +850,7 @@ namespace Engine {
 		return res ;
 	}
 
-	template<class T> T Dynamic<T>::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
+	template<class T> T Dynamic<T>::eval( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		T res = spec ;
 		if (is_dynamic) {
 			Py::Gil             gil    ;

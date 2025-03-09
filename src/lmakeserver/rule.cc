@@ -243,7 +243,7 @@ namespace Engine {
 		::sort(ctx) ; // stabilize crc's
 	}
 
-	void DynamicDskBase::_s_eval( Job j , Rule::SimpleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
+	void DynamicDskBase::_s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
 		::string         res        ;
 		Rule             r          = +j ? j->rule() : m.rule          ;
 		::vmap_ss const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs ;
@@ -251,8 +251,8 @@ namespace Engine {
 		::vmap_ss        dtab       ;
 		::umap_ss        rtab       ;
 		//
-		auto match = [&]()->Rule::SimpleMatch const& { { if (!m) m = Rule::SimpleMatch(j) ; } return m             ; } ; // solve lazy evaluation
-		auto stems = [&]()->::vector_s        const& {                                        return match().stems ; } ;
+		auto match = [&]()->Rule::RuleMatch const& { { if (!m) m = Rule::RuleMatch(j) ; } return m             ; } ; // solve lazy evaluation
+		auto stems = [&]()->::vector_s      const& {                                      return match().stems ; } ;
 		//
 		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,r->sub_repo_s)) ; } return mtab ; } ;
 		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps      () ) dtab.emplace_back(k,mk_lcl(dn.txt,r->sub_repo_s)) ; } return dtab ; } ;
@@ -452,7 +452,7 @@ namespace Engine {
 		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ; // -1 to leave some room to the interpreter, if any
 	}
 
-	::vmap_s<DepSpec> DynamicDepsAttrs::eval(Rule::SimpleMatch const& match) const {
+	::vmap_s<DepSpec> DynamicDepsAttrs::eval(Rule::RuleMatch const& match) const {
 		::vmap_s<DepSpec> res ;
 		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , DepSpec{parse_fstr(ds.txt,match),ds.dflags,ds.extra_dflags} ) ;
 		//
@@ -494,7 +494,7 @@ namespace Engine {
 	// Cmd
 	//
 
-	::string RuleData::gen_py_line( Job j , Rule::SimpleMatch& m/*lazy*/ , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const {
+	::string RuleData::gen_py_line( Job j , Rule::RuleMatch& m/*lazy*/ , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const {
 		if (vc!=VarCmd::StarMatch) return key+" = "+mk_py_str(val)+'\n' ;
 		//
 		Rule           r    = +m ? m.rule : j->rule() ;
@@ -506,8 +506,8 @@ namespace Engine {
 				bool first = seen.insert(s).second ;
 				::string k = stems[s].first        ;
 				if ( k.front()=='<' and k.back()=='>' )   k = k.substr(1,k.size()-2) ;
-				if ( s>=r->n_static_stems             ) { if (first) args.push_back(k)        ; return '{'+k+'}'                ; }
-				else                                    { if (!m   ) m = Rule::SimpleMatch(j) ; return _fstr_escape(m.stems[s]) ; } // solve lazy m
+				if ( s>=r->n_static_stems             ) { if (first) args.push_back(k)      ; return '{'+k+'}'                ; }
+				else                                    { if (!m   ) m = Rule::RuleMatch(j) ; return _fstr_escape(m.stems[s]) ; } // solve lazy m
 			}
 		,	Escape::Fstr
 		) ;
@@ -531,7 +531,7 @@ namespace Engine {
 		}
 	}
 
-	pair_ss/*script,call*/ DynamicCmd::eval( Rule::SimpleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
+	pair_ss/*script,call*/ DynamicCmd::eval( Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		Rule r = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		if (!r->is_python) {
 			::string cmd ;
@@ -1369,10 +1369,10 @@ namespace Engine {
 	}
 
 	//
-	// Rule::SimpleMatch
+	// Rule::RuleMatch
 	//
 
-	Rule::SimpleMatch::SimpleMatch(Job job) : rule{job->rule()} {
+	Rule::RuleMatch::RuleMatch(Job job) : rule{job->rule()} {
 		::string name_ = job->full_name() ;
 		//
 		rule->validate(name_) ;
@@ -1385,8 +1385,8 @@ namespace Engine {
 		}
 	}
 
-	Rule::SimpleMatch::SimpleMatch( Rule r , TargetPattern const& pattern , ::string const& name , bool chk_psfx ) {
-		Trace trace("SimpleMatch",r,name,STR(chk_psfx)) ;
+	Rule::RuleMatch::RuleMatch( Rule r , TargetPattern const& pattern , ::string const& name , bool chk_psfx ) {
+		Trace trace("RuleMatch",r,name,STR(chk_psfx)) ;
 		/**/                                         if (!r) { trace("no_rule" ) ; return ; }
 		Re::Match m = pattern.match(name,chk_psfx) ; if (!m) { trace("no_match") ; return ; }
 		rule = r ;
@@ -1394,23 +1394,23 @@ namespace Engine {
 		trace("stems",stems) ;
 	}
 
-	Rule::SimpleMatch::SimpleMatch( RuleTgt rt , ::string const& target , bool chk_psfx ) : SimpleMatch{rt->rule,rt.pattern(),target,chk_psfx} {
+	Rule::RuleMatch::RuleMatch( RuleTgt rt , ::string const& target , bool chk_psfx ) : RuleMatch{rt->rule,rt.pattern(),target,chk_psfx} {
 		if (!self) return ;
 		for( VarIdx t : rt.matches().conflicts ) {
 			if (!rule->patterns[t].match(target,true/*chk_psfx*/)) continue ;
 			rule .clear() ;
 			stems.clear() ;
-			Trace("SimpleMatch","conflict",rt.tgt_idx,t) ;
+			Trace("RuleMatch","conflict",rt.tgt_idx,t) ;
 			return ;
 		}
 	}
 
-	::string& operator+=( ::string& os , Rule::SimpleMatch const& m ) {
+	::string& operator+=( ::string& os , Rule::RuleMatch const& m ) {
 		os << "RSM(" << m.rule << ',' << m.stems << ')' ;
 		return os ;
 	}
 
-	::uset<Node> Rule::SimpleMatch::target_dirs() const {
+	::uset<Node> Rule::RuleMatch::target_dirs() const {
 		::uset<Node> dirs ;
 		for( auto const& [k,me] : rule->matches ) {
 			if (me.flags.is_target!=Yes) continue ;
@@ -1428,7 +1428,7 @@ namespace Engine {
 		return dirs ;
 	}
 
-	::vector_s Rule::SimpleMatch::star_patterns() const {
+	::vector_s Rule::RuleMatch::star_patterns() const {
 		::vector_s res ; res.reserve(rule->matches.size()-rule->n_statics) ;
 		for( VarIdx t : iota<VarIdx>( rule->n_statics , rule->matches.size() ) ) {
 			size_t                      cur_group = 1                       ;
@@ -1450,8 +1450,8 @@ namespace Engine {
 		return res ;
 	}
 
-	::vector_s Rule::SimpleMatch::py_matches() const {
-		::vector_s res = static_matches() ;
+	::vector_s Rule::RuleMatch::py_matches() const {
+		::vector_s res = static_targets() ;
 		for( VarIdx mi : iota<VarIdx>( rule->n_statics , rule->matches.size() ) ) {
 			::uset<VarIdx> seen ;
 			res.push_back(_subst_target(
@@ -1469,7 +1469,7 @@ namespace Engine {
 		return res ;
 	}
 
-	::vector_s Rule::SimpleMatch::static_matches() const {
+	::vector_s Rule::RuleMatch::static_targets() const {
 		::vector_s res ; res.reserve(rule->n_statics) ;
 		for( VarIdx mi : iota(rule->n_statics) ) {
 			res.push_back(_subst_target(
@@ -1483,7 +1483,21 @@ namespace Engine {
 		return res ;
 	}
 
-	::pair_ss Rule::SimpleMatch::full_name() const {
+	::vector_s Rule::RuleMatch::star_targets() const {
+		::vector_s res ; res.reserve(rule->matches.size()-rule->n_statics) ;
+		for( VarIdx mi : iota( rule->n_statics , rule->matches.size() ) ) {
+			res.push_back(_subst_target(
+				rule->matches[mi].second.pattern
+			,	[&](VarIdx s)->::string {
+					if (s<rule->n_static_stems) return stems[s]                      ;
+					else                        return "{"+rule->stems[s].first+"*}" ;
+				}
+			)) ;
+		}
+		return res ;
+	}
+
+	::pair_ss Rule::RuleMatch::full_name() const {
 		::vector<FileNameIdx> poss(rule->n_static_stems) ;
 		::string name = _subst_target( rule->job_name ,
 			[&]( FileNameIdx p , VarIdx s ) -> ::string {

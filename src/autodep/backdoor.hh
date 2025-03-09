@@ -57,20 +57,24 @@ namespace Backdoor {
 	struct Solve {
 		friend ::string& operator+=( ::string& , Solve const& ) ;
 		static constexpr char Cmd[] = "solve" ;
-		struct Reply {
-			friend ::string& operator+=( ::string& , Reply const& ) ;
-			::string real      ;                                      // if read : last file in case of overlay, if write : first file in case of overlay, if both : overlays not supported
-			FileInfo file_info ;
-			FileLoc  file_loc  = FileLoc::Ext ;
-			Accesses accesses  ;                                      // accesses to report on real
+		struct Reply : Record::Solve {
+			// cxtors & casts
+			using Record::Solve::Solve ;
+			// services
+			template<IsStream S> void serdes(S& s) {
+				Record::Solve::serdes(s) ;
+				::serdes(s,file_info) ;
+			}
+			// data
+			FileInfo file_info {} ;    // file info must be probed in process as we are protected against recording
 		} ;
 		size_t reply_len(         ) const ;
 		Reply  process  (Record& r) const ;
 		// data
 		::string file      = {}      ;
 		bool     no_follow = false   ;
-		bool     read      = false   ;                                // if both read & write, overlays are not supported
-		bool     write     = false   ;                                // .
+		bool     read      = false   ; // if both read & write, overlays are not supported
+		bool     write     = false   ; // .
 		bool     create    = false   ;
 		::string comment   = "solve" ;
 	} ;

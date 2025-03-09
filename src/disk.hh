@@ -147,17 +147,17 @@ namespace Disk {
 		static FileTag _s_tag(Stat const& st) ;
 		// cxtors & casts
 	public :
-		FileInfo(                                                    ) = default ;
+		FileInfo( FileTag tag=FileTag::Unknown                       ) : date{tag}                        {}
 		FileInfo( Fd at                                              ) : FileInfo{at     ,{}            } {}
 		FileInfo(         ::string const& name , bool no_follow=true ) : FileInfo{Fd::Cwd,name,no_follow} {}
 		FileInfo( Fd at , ::string const& name , bool no_follow=true ) ;
 		FileInfo( Stat const&                                        ) ;
 		// accesses
 		bool    operator==(FileInfo const&) const = default ;
-		//
-		bool    operator+() const { return tag()>=FileTag::Target ; } // i.e. sz & date are present
-		FileTag tag      () const { return date.tag()             ; }
-		FileSig sig      () const ;
+		bool    operator+ (               ) const { return tag()!=FileTag::Unknown ; }
+		bool    exists    (               ) const { return tag()>=FileTag::Target  ; }
+		FileTag tag       (               ) const { return date.tag()              ; }
+		FileSig sig       (               ) const ;
 		// data
 		DiskSz sz   = 0 ;
 		Ddate  date ;
@@ -274,10 +274,10 @@ namespace Disk {
 		return {buf,size_t(cnt)} ;
 	}
 
-	inline bool  is_dir   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag()==FileTag::Dir ; }
-	inline bool  is_target( Fd at , ::string const& file={} , bool no_follow=true ) { return +FileInfo(at,file,no_follow)                     ; }
-	inline bool  is_exe   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag()==FileTag::Exe ; }
-	inline Ddate file_date( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).date                ; }
+	inline bool  is_dir   ( Fd at , ::string const& file={} , bool no_follow=true ) { return FileInfo(at,file,no_follow).tag()==FileTag::Dir ; }
+	inline bool  is_target( Fd at , ::string const& file={} , bool no_follow=true ) { return FileInfo(at,file,no_follow).exists()            ; }
+	inline bool  is_exe   ( Fd at , ::string const& file={} , bool no_follow=true ) { return FileInfo(at,file,no_follow).tag()==FileTag::Exe ; }
+	inline Ddate file_date( Fd at , ::string const& file={} , bool no_follow=true ) { return FileInfo(at,file,no_follow).date                ; }
 
 	inline ::vector_s      lst_dir_s     ( ::string const& dir_s , ::string const& prefix={}                                 ) { return lst_dir_s     (Fd::Cwd,dir_s,prefix              ) ; }
 	inline ::vector_s      walk          ( ::string const& path  , ::string const& prefix={}                                 ) { return walk          (Fd::Cwd,path ,prefix              ) ; }

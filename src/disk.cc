@@ -383,7 +383,7 @@ namespace Disk {
 	}
 
 	FileSig::FileSig( FileInfo const& fi ) : FileSig{fi.tag()} {
-		if (!fi) return ;
+		if (!fi.exists()) return ;
 		Hash::Xxh h ;
 		h.update(fi.date) ;
 		h.update(fi.sz  ) ;

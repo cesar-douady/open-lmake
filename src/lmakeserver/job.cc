@@ -24,7 +24,7 @@ namespace Engine {
 	// jobs thread
 	//
 
-	vmap<Node,FileAction> JobData::pre_actions( Rule::SimpleMatch const& match , bool mark_target_dirs ) const { // thread-safe
+	vmap<Node,FileAction> JobData::pre_actions( Rule::RuleMatch const& match , bool mark_target_dirs ) const { // thread-safe
 		Trace trace("pre_actions",idx(),STR(mark_target_dirs)) ;
 		::uset<Node>                  to_mkdirs        = match.target_dirs() ;
 		::uset<Node>                  to_mkdir_uphills ;
@@ -104,7 +104,7 @@ namespace Engine {
 
 	void JobData::end_exec() const {
 		Trace trace("end_exec",idx()) ;
-		::uset<Node> dirs        = simple_match().target_dirs() ;
+		::uset<Node> dirs        = rule_match().target_dirs() ;
 		::uset<Node> dir_uphills ;
 		for( Node d : dirs )
 			for( Node hd=d->dir() ; +hd ; hd=hd->dir() )
@@ -201,10 +201,20 @@ namespace Engine {
 		return os <<')' ;
 	}
 
-	Job::Job( Rule::SimpleMatch&& match , Req req , DepDepth lvl ) {
+	Job::Job( Rule::RuleMatch&& match , Req req , DepDepth lvl ) {
 		Trace trace("Job",match,req,lvl) ;
 		if (!match) { trace("no_match") ; return ; }
-		Rule              rule      = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
+		//
+		Rule rule = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
+		auto audit_err = [&]( ::string const& kind , ::string const& key , ::string const& file ) -> void {
+			req->audit_job( Color::Warning , "bad_"+kind , rule->name , match.name() ) ;
+			req->audit_stderr( self , "non-canonic "+kind+' '+key+" : "+file , {} , 0/*max_stderr_len*/ , 1 ) ;
+		} ;
+		//
+		VarIdx ti = 0 ;
+		for( ::string const& t : match.static_targets() ) { if (!is_canon(t)) { audit_err("target",rule->matches[ti].first,t) ; return ; } ti++ ; }
+		for( ::string const& t : match.star_targets  () ) { if (!is_canon(t)) { audit_err("target",rule->matches[ti].first,t) ; return ; } ti++ ; }
+		//
 		::vmap_s<DepSpec> dep_specs ;
 		try {
 			dep_specs = rule->deps_attrs.eval(match) ;
@@ -240,8 +250,7 @@ namespace Engine {
 			else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
 		}
 		if (non_canon!=Npos) {                                // only bother user for non-canonic deps for job that otherwise apply, so handle them once static deps have been analyzed
-			req->audit_job( Color::Note , "non_canonic_dep" , rule->name , match.name() ) ;
-			req->audit_stderr( self , "dep "+dep_specs[non_canon].first+" : "+dep_specs[non_canon].second.txt , {} , 0/*max_stderr_len*/ , 1 ) ;
+			audit_err( "dep" , dep_specs[non_canon].first , dep_specs[non_canon].second.txt ) ;
 			return ;
 		}
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -439,18 +448,18 @@ namespace Engine {
 	}
 
 	void JobExec::end(JobDigest<Node>&& digest) {
-		JobData&          jd            = *self                                                ;
-		Status            status        = digest.status                                        ; // status will be modified, need to make a copy
-		Bool3             ok            = is_ok  (status)                                      ;
-		bool              lost          = is_lost(status)                                      ;
-		JobReason         target_reason = JobReasonTag::None                                   ;
-		bool              unstable_dep  = false                                                ;
-		bool              modified      = false                                                ;
-		bool              fresh_deps    = status==Status::EarlyChkDeps || status>Status::Async ; // if job did not go through, old deps are better than new ones
-		Rule              rule          = jd.rule()                                            ;
-		::vector<Req>     running_reqs_ = jd.running_reqs(true/*with_zombies*/)                ;
-		::string          severe_msg    ;                                                        // to be reported always
-		Rule::SimpleMatch match         ;
+		JobData&        jd            = *self                                                ;
+		Status          status        = digest.status                                        ; // status will be modified, need to make a copy
+		Bool3           ok            = is_ok  (status)                                      ;
+		bool            lost          = is_lost(status)                                      ;
+		JobReason       target_reason = JobReasonTag::None                                   ;
+		bool            unstable_dep  = false                                                ;
+		bool            modified      = false                                                ;
+		bool            fresh_deps    = status==Status::EarlyChkDeps || status>Status::Async ; // if job did not go through, old deps are better than new ones
+		Rule            rule          = jd.rule()                                            ;
+		::vector<Req>   running_reqs_ = jd.running_reqs(true/*with_zombies*/)                ;
+		::string        severe_msg    ;                                                        // to be reported always
+		Rule::RuleMatch match         ;
 		//
 		Trace trace("end",self,status) ;
 		//
@@ -768,14 +777,14 @@ namespace Engine {
 		return res ;
 	}
 
-	void JobData::_reset_targets(Rule::SimpleMatch const& match) {
+	void JobData::_reset_targets(Rule::RuleMatch const& match) {
 		Rule             r     = rule()                          ;
-		::vector<Target> ts    ; ts.reserve(r->n_static_targets) ;
-		::vector_s       sms   = match.static_matches() ;
+		::vector<Target> ts    ;                                   ts.reserve(r->n_static_targets) ;
+		::vector_s       sts   = match.static_targets()          ;
 		::uset_s         seens ;
 		for( VarIdx ti : iota(r->n_static_targets) ) {
-			if (!seens.insert(sms[ti]).second) continue ; // remove duplicates
-			ts.emplace_back(sms[ti],r->tflags(ti)) ;
+			if (!seens.insert(sts[ti]).second) continue ; // remove duplicates
+			ts.emplace_back(sts[ti],r->tflags(ti)) ;
 		}
 		::sort(ts) ;                                      // ease search in targets
 		targets.assign(ts) ;
@@ -1211,9 +1220,9 @@ namespace Engine {
 
 	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
 		using Step = JobStep ;
-		Rule              r     = rule()  ;
-		Req               req   = ri.req  ;
-		Rule::SimpleMatch match { idx() } ;
+		Rule            r     = rule()  ;
+		Req             req   = ri.req  ;
+		Rule::RuleMatch match { idx() } ;
 		Trace trace("_submit_plain",idx(),ri,pressure) ;
 		SWEAR(!ri.waiting(),ri) ;
 		SWEAR(!ri.running(),ri) ;

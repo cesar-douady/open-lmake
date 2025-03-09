@@ -445,7 +445,6 @@ namespace Engine::Persistent {
 			if (!new_) return ;
 			*self = JobData( name_ , ::forward<A>(args)...) ;
 		} else {
-			SWEAR(Disk::is_canon(name_sfx.first),name_sfx) ;                                       // XXX> : suppress when bug is found, name part of job is supposed to be canonic
 			_name_file.at(+name_) = self = _job_file.emplace( name_ , ::forward<A>(args)... ) ;
 		}
 		self->_full_name = name_ ;

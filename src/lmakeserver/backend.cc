@@ -270,7 +270,7 @@ namespace Backends {
 		Job                      job                 { jsrr.job }                     ;
 		JobExec                  job_exec            ;
 		Rule                     rule                = job->rule()                    ;
-		Rule::SimpleMatch        match               = job->simple_match()            ;
+		Rule::RuleMatch          match               = job->rule_match()              ;
 		vmap<Node,FileAction>    pre_actions         ;
 		vmap<Node,FileActionTag> pre_action_warnings ;
 		StartCmdAttrs            start_cmd_attrs     ;
@@ -366,7 +366,7 @@ namespace Backends {
 			[[fallthrough]] ;
 			case 0 : {
 				VarIdx ti = 0 ;
-				for( ::string const& tn : match.static_matches() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
+				for( ::string const& tn : match.static_targets() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
 				for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
 				//
 				if (rule->stdin_idx !=Rule::NoVar) reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt ;

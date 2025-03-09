@@ -112,9 +112,9 @@ namespace Engine {
 		Delay old_ete   = old_eta-now                                               ;
 		Delay delta_ete = new_eta>old_eta ? new_eta-old_eta : old_eta-new_eta       ; // cant use ::abs(new_eta-old_eta) because of signedness
 		//
-		if ( delta_ete.val() > (old_ete.val()>>4) ) { // else eta did not change significatively
+		if ( delta_ete.val() > (old_ete.val()>>4) ) {                                 // else eta did not change significatively
 			_adjust_eta(new_eta) ;
-			Backend::s_new_req_etas() ;                                                   // tell backends that etas changed significatively
+			Backend::s_new_req_etas() ;                                               // tell backends that etas changed significatively
 		}
 		self->ete = new_eta-now ;
 	}
@@ -154,7 +154,7 @@ namespace Engine {
 			if ( dns!=NodeStatus::Unknown && dns>=NodeStatus::Uphill ) {
 				d  = d->dir()   ;
 				dr = "<uphill>" ;
-				goto Next ;                                   // there is no rule for uphill
+				goto Next ;                                                  // there is no rule for uphill
 			}
 			for( Job j : d->conform_job_tgts(d->c_req_info(self)) )          // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
 				if (j->c_req_info(self).done()) to_raise.insert(j->rule()) ;
@@ -256,8 +256,8 @@ namespace Engine {
 					seen_stderr = true ;
 				break ;
 				case Special::Plain : {
-					Rule::SimpleMatch match ;
-					JobEndRpcReq      jerr  = job.job_info(JobInfoKind::End).end ;
+					Rule::RuleMatch match ;
+					JobEndRpcReq    jerr  = job.job_info(JobInfoKind::End).end ;
 					//
 					if (!jerr) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 					else       seen_stderr = self->audit_stderr( job , jerr.msg , jerr.stderr , jerr.digest.max_stderr_len , lvl+1 ) ;
@@ -550,10 +550,10 @@ namespace Engine {
 	}
 
 	void ReqData::_report_no_rule( Node node , NfsGuard& nfs_guard , DepDepth lvl ) {
-		::string                          name      = node->name() ;
-		::vmap<RuleTgt,Rule::SimpleMatch> mrts      ;                                                   // matching rules
-		RuleTgt                           art       ;                                                   // set if an anti-rule matches
-		RuleIdx                           n_missing = 0            ;                                    // number of rules missing deps
+		::string                        name      = node->name() ;
+		::vmap<RuleTgt,Rule::RuleMatch> mrts      ;                                                     // matching rules
+		RuleTgt                         art       ;                                                     // set if an anti-rule matches
+		RuleIdx                         n_missing = 0            ;                                      // number of rules missing deps
 		//
 		if (name.size()>g_config->path_max) {
 			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
@@ -571,7 +571,7 @@ namespace Engine {
 		}
 		//
 		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                                            // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
-			Rule::SimpleMatch m{rt,name} ;
+			Rule::RuleMatch m{rt,name} ;
 			if (!m                              )              continue ;
 			if (rt->rule->special==Special::Anti) { art = rt ; break    ; }
 			//

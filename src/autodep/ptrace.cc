@@ -138,7 +138,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 						// XXX! : support 32 bits exe's (beware of 32 bits syscall numbers)
 						if (word_sz!=NpWordSz) {
 							Trace trace("AutodepPtrace::_changed","panic","word width") ;
-							info.record.report_direct({ JobExecProc::Panic , word_sz+" bits processes on "s+NpWordSz+" host not supported yet with ptrace" }) ;
+							info.record.report_direct({ .proc=JobExecProc::Panic , .txt=word_sz+" bits processes on "s+NpWordSz+" host not supported yet with ptrace" }) ;
 							info.has_exit_proc = false ;
 							info.on_going      = false ;
 							goto NextSyscall ;
@@ -215,7 +215,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 			// with seccomp, this is how we get a bad architecture as the filter is now
 			if ( (wstatus&0xff) == (0x80|SIGSYS) ) {
 				Trace trace("AutodepPtrace::_changed","panic","arch","seccomp") ;
-				info.record.report_direct({ JobExecProc::Panic , "32 bits processes on "s+NpWordSz+" host not supported yet with ptrace" }) ;
+				info.record.report_direct({ .proc=JobExecProc::Panic , .txt="32 bits processes on "s+NpWordSz+" host not supported yet with ptrace" }) ;
 			}
 		#endif
 	} else {

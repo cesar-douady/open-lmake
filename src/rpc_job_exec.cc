@@ -27,13 +27,13 @@ using namespace Hash ;
 	return                       os <<')'                                       ;
 }
 
-AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
-	if (write!=Yes) accesses     |= other.accesses     ;
-	/**/            write        |= other.write        ;
-	/**/            tflags       |= other.tflags       ;
-	/**/            extra_tflags |= other.extra_tflags ;
-	/**/            dflags       |= other.dflags       ;
-	/**/            extra_dflags |= other.extra_dflags ;
+AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
+	if (write!=Yes) accesses     |= ad.accesses     ;
+	/**/            write        |= ad.write        ;
+	/**/            tflags       |= ad.tflags       ;
+	/**/            extra_tflags |= ad.extra_tflags ;
+	/**/            dflags       |= ad.dflags       ;
+	/**/            extra_dflags |= ad.extra_dflags ;
 	return self ;
 }
 
@@ -42,15 +42,15 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
 //
 
 ::string& operator+=( ::string& os , JobExecRpcReq const& jerr ) {
-	/**/           os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
-	if (jerr.sync) os << ",sync"                                         ;
-	/**/           os <<',' << jerr.digest                               ;
-	if (+jerr.txt) os <<',' << jerr.txt                                  ;
-	if (jerr.proc>=JobExecProc::HasFiles) {
-		if (+jerr.digest.accesses) os <<','<<               jerr.files  ;
-		else                       os <<','<< mk_key_vector(jerr.files) ;
-	}
-	return os <<')' ;
+	/**/                                                                    os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
+	if ( jerr.sync!=No                                                    ) os <<",S:"<< jerr.sync                                ;
+	/**/                                                                    os <<','  << jerr.digest                              ;
+	if ( +jerr.txt                                                        ) os <<','  << jerr.txt                                 ;
+	if ( jerr.proc>=JobExecProc::HasFile                                  ) os <<','  << jerr.file                                ;
+	if ( jerr.proc>=JobExecProc::HasFileInfo                              ) os <<':'  << jerr.file_info                           ;
+	if ( jerr.proc==JobExecProc::Encode || jerr.proc==JobExecProc::Encode ) os <<",C:"<< jerr.ctx                                 ;
+	if ( jerr.proc==JobExecProc::Encode                                   ) os <<','  << jerr.min_len                             ;
+	return                                                                  os <<')'                                              ;
 }
 
 //

@@ -1085,11 +1085,11 @@ void JobInfo::update_digest() {
 namespace Codec {
 
 	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) {
-		return CodecPfx+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+'/'+mk_printable(code) ;
+		return CodecPfx+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+"/decode-"+mk_printable(code) ;
 	}
 
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
-		return CodecPfx+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+'/'+Xxh(val).digest().hex() ;
+		return CodecPfx+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+"/encode-"+Xxh(val).digest().hex() ;
 	}
 
 	::string mk_file(::string const& node) {

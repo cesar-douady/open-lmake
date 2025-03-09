@@ -4,12 +4,14 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "disk.hh"
+#include "time.hh"
 
 #include "backdoor.hh"
 #include "job_support.hh"
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Time ;
 
 using Proc = JobExecProc ;
 
@@ -22,32 +24,38 @@ namespace JobSupport {
 	::vector<pair<Bool3/*ok*/,Crc>> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool verbose ) {
 		::vmap_s<FileInfo> deps ;
 		_chk_files(files) ;
-		for( ::string& f : files ) {
+		Pdate pd { New } ;                                                // all dates must be identical to be recognized as parallel deps
+		for( ::string const& f : files ) {
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
-				.file      = ::move(f)
+				.file      = ::copy(f)                                    // keep a copy in case there is no server and we must invent a reply
 			,	.no_follow = no_follow
 			,	.read      = true
 			,	.write     = false
 			,	.comment  = "depend"
 			}) ;
-			if (sr.file_loc<=FileLoc::Dep) {
-				ad.accesses |= sr.accesses ;                      // appears pessimistic, but sr.accesses does not depend on actual file, only on no_follow and link_support
-				deps.emplace_back(::move(sr.real),sr.file_info) ;
+			if (!verbose) {
+				r.report_access( sr.file_loc , { .digest=ad|sr.accesses , .date=pd , .file=::move(sr.real) , .txt="depend" } , true/*force*/ ) ;
+			} else if (sr.file_loc<=FileLoc::Dep) {
+				FileInfo fi { sr.real } ;
+				ad |= sr.accesses ;                                       // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
+				// not actually sync, but transport as sync to use the same fd as DepVerbose
+				r.report_cached( { .proc=Proc::DepVerbosePush , .sync=Maybe , .file=::move(sr.real) , .file_info=fi , .txt="depend.push" } , true/*force*/ ) ;
 			}
 		}
-		if (verbose) {
-			ad.accesses = ~Accesses() ;                                                                                         // if verbose, we de facto fully access files
-			JobExecRpcReply reply = r.report_sync_access ( JobExecRpcReq( Proc::DepVerbose , ::move(deps) , ad , "depend" ) ) ;
-			return reply.dep_infos ;
-		} else {
-			r.report_async_access( JobExecRpcReq( Proc::Access , ::move(deps) , ad , "depend" ) ) ;
-			return {} ;
+		if (!verbose) return {} ;
+		// if verbose, we de facto fully access files
+		JobExecRpcReply reply = r.report_sync( { .proc=Proc::DepVerbose , .sync=Yes , .digest=ad|~Accesses() , .date=pd , .txt="depend" } , true/*force*/ ) ;
+		if (!reply) {
+			::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
+			for( ::string const& f : files ) dep_infos.emplace_back(Yes/*ok*/,Crc(f)) ;
 		}
+		return reply.dep_infos ;
 	}
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad ) {
 		::vmap_s<FileInfo> targets ;
 		_chk_files(files) ;
+		Pdate pd { New } ;           // for perf and in trace, we will see all targets with same date
 		for( ::string& f : files ) {
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
 				.file      = ::move(f)
@@ -57,24 +65,21 @@ namespace JobSupport {
 			,	.create    = true
 			,	.comment   = "target"
 			}) ;
-			if (sr.file_loc<=FileLoc::Repo) {
-				ad.accesses |= sr.accesses ;                         // defensive only as sr.accesses is always empty when no_follow
-				targets.emplace_back(::move(sr.real),sr.file_info) ;
-			}
+			// defensive only as sr.accesses is always empty when no_follow
+			r.report_access( sr.file_loc , { .digest=ad|sr.accesses , .date=pd , .file=::move(sr.real) } , sr.file_loc0 , ::move(sr.real0) , true/*force*/ ) ;
 		}
-		r.report_async_access( JobExecRpcReq( Proc::Access , ::move(targets) , ad , "target" ) ) ;
 	}
 
 	Bool3 check_deps( Record const& r , bool verbose ) {
-		return r.report_sync_direct(JobExecRpcReq(Proc::ChkDeps,verbose/*sync*/)).ok ;
+		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|verbose , .date=New }).ok ;
 	}
 
 	::pair_s<bool/*ok*/> decode( Record const& r , ::string&& file , ::string&& code , ::string&& ctx ) {
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(file),.read=true,.write=true,.comment="decode"}) ;
 		//
-		r.report_async_access( JobExecRpcReq( Proc::Access , {{sr.real,sr.file_info}} , {.accesses=sr.accesses} , "decode" ) ) ;
+		r.report_access( sr.file_loc , { .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , "decode" ) ;
 		//
-		JobExecRpcReply reply = r.report_sync_direct(JobExecRpcReq( Proc::Decode , ::move(sr.real) , ::move(code) , ::move(ctx) )) ;
+		JobExecRpcReply reply = r.report_sync({ .proc=Proc::Decode , .sync=Yes , .file=::move(sr.real) , .txt=::move(code) , .ctx=::move(ctx) }) ;
 		//
 		return { ::move(reply.txt) , reply.ok==Yes } ;
 	}
@@ -82,9 +87,9 @@ namespace JobSupport {
 	::pair_s<bool/*ok*/> encode( Record const& r , ::string&& file , ::string&& val , ::string&& ctx , uint8_t min_len ) {
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(file),.read=true,.write=true,.comment="encode"}) ;
 		//
-		r.report_async_access( JobExecRpcReq( Proc::Access , {{sr.real,sr.file_info}} , {.accesses=sr.accesses} , "encode" ) ) ;
+		r.report_access( sr.file_loc , { .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , "encode" ) ;
 		//
-		JobExecRpcReply reply = r.report_sync_direct(JobExecRpcReq( Proc::Encode , ::move(sr.real) , ::move(val) , ::move(ctx) , min_len )) ;
+		JobExecRpcReply reply = r.report_sync({ .proc=Proc::Encode , .sync=Yes , .min_len=min_len , .file=::move(sr.real) , .txt=::move(val) , .ctx=::move(ctx) }) ;
 		//
 		return { ::move(reply.txt) , reply.ok==Yes } ;
 	}

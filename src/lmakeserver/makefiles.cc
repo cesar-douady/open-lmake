@@ -43,9 +43,9 @@ namespace Engine::Makefiles {
 			switch (line[0]) {
 				case '#' :                                                                          break ;          // comment
 				case '*' : if (d!=*g_lmake_root_s) return "lmake root changed"                    ; break ;
-				case '+' : if (!fi               ) return mk_rel(d,startup_dir_s)+" was removed"  ;
+				case '+' : if (!fi.exists()      ) return mk_rel(d,startup_dir_s)+" was removed"  ;
 				/**/       if (fi.date>deps_date ) return mk_rel(d,startup_dir_s)+" was modified" ; break ;          // in case of equality, be optimistic as deps may be modified during the ...
-				case '!' : if (+fi               ) return mk_rel(d,startup_dir_s)+" was created"  ; break ;          // ... read process (typically .pyc files) and file resolution is such ...
+				case '!' : if (fi.exists()       ) return mk_rel(d,startup_dir_s)+" was created"  ; break ;          // ... read process (typically .pyc files) and file resolution is such ...
 			DF}                                                                                                      // ... that such deps may very well end up with same date as deps_file
 		}
 		trace("ok") ;
@@ -96,7 +96,7 @@ namespace Engine::Makefiles {
 						break ;
 					}
 				}
-				content << (+fi?'+':'!') << d <<'\n' ;
+				content << (fi.exists()?'+':'!') << d <<'\n' ;
 			}
 			AcFd(new_deps_file,Fd::Write).write(content) ;
 		}

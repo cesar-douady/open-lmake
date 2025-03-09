@@ -33,8 +33,11 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	/**/   pos = env.find(':',pos+1/*:*/) ; if (pos==Npos) goto Fail ;
 	// service
 	service = env.substr(0,pos) ;
-	pos++/*:*/ ;
+	// fast report
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } fast_host        = parse_printable<'"'>(env,pos) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } fast_report_pipe = parse_printable<'"'>(env,pos) ; { if (env[pos++]!='"') goto Fail ; }
 	// options
+	if (env[pos++]!=':') goto Fail ;
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
 			case 'd' : enable        = false            ; break ;
@@ -46,14 +49,12 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			case 'r' : reliable_dirs = true             ; break ;
 			default  : goto Fail ;
 		}
-	// other stuff
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } fast_host        = parse_printable<'"'>                 (env,pos                  ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } fast_report_pipe = parse_printable<'"'>                 (env,pos                  ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } tmp_dir_s        = parse_printable<'"'>                 (env,pos                  ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } repo_root_s      = parse_printable<'"'>                 (env,pos                  ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } sub_repo_s       = parse_printable<'"'>                 (env,pos                  ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; }                                      src_dirs_s       = parse_printable<::vector_s>          (env,pos,false/*empty_ok*/) ;
-	{ if (env[pos++]!=':') goto Fail ; }                                      views            = parse_printable<::vmap_s<::vector_s>>(env,pos,false/*empty_ok*/) ;
+	// other stuff                                                                                                                       empty_ok
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } tmp_dir_s   = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } repo_root_s = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } sub_repo_s  = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; }                                      src_dirs_s  = parse_printable<::vector_s>          (env,pos,false ) ;
+	{ if (env[pos++]!=':') goto Fail ; }                                      views       = parse_printable<::vmap_s<::vector_s>>(env,pos,false ) ;
 	{ if (env[pos  ]!=0  ) goto Fail ; }
 	for( ::string const& src_dir_s : src_dirs_s ) if (!is_dirname(src_dir_s)) goto Fail ;
 	return ;
@@ -64,6 +65,9 @@ Fail :
 AutodepEnv::operator ::string() const {
 	// service
 	::string res = service ;
+	// fast report
+	res <<':'<< '"'<<mk_printable<'"'>(fast_host       )<<'"' ;
+	res <<':'<< '"'<<mk_printable<'"'>(fast_report_pipe)<<'"' ;
 	// options
 	res << ':' ;
 	if (!enable      ) res << 'd' ;
@@ -74,13 +78,11 @@ AutodepEnv::operator ::string() const {
 		case LnkSupport::None : res << 'n' ; break ;
 		case LnkSupport::File : res << 'f' ; break ;
 		case LnkSupport::Full : res << 'a' ; break ;
-	DF}
-	res <<':'<< '"'<<mk_printable<'"'>(fast_host                   )<<'"' ;
-	res <<':'<< '"'<<mk_printable<'"'>(fast_report_pipe            )<<'"' ;
-	res <<':'<< '"'<<mk_printable<'"'>(tmp_dir_s                   )<<'"' ;
-	res <<':'<< '"'<<mk_printable<'"'>(repo_root_s                 )<<'"' ;
-	res <<':'<< '"'<<mk_printable<'"'>(sub_repo_s                  )<<'"' ;
-	res <<':'<<      mk_printable     (src_dirs_s,false/*empty_ok*/)      ;
-	res <<':'<<      mk_printable     (views     ,false/*empty_ok*/)      ;
+	DF} //!                                       empty_ok
+	res <<':'<< '"'<<mk_printable<'"'>(tmp_dir_s         )<<'"' ;
+	res <<':'<< '"'<<mk_printable<'"'>(repo_root_s       )<<'"' ;
+	res <<':'<< '"'<<mk_printable<'"'>(sub_repo_s        )<<'"' ;
+	res <<':'<<      mk_printable     (src_dirs_s ,false )      ;
+	res <<':'<<      mk_printable     (views      ,false )      ;
 	return res ;
 }

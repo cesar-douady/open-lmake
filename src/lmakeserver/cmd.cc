@@ -155,8 +155,8 @@ namespace Engine {
 		::umap_ss             rev_map ;
 		::vmap_s<Re::RegExpr> res     ;
 		if (+rule) {
-			Rule::SimpleMatch m = job->simple_match() ;
-			VarIdx            i = rule->n_statics     ;
+			Rule::RuleMatch m = job->rule_match() ;
+			VarIdx          i = rule->n_statics   ;
 			for( auto const& [k,d] : rule->deps_attrs.eval(m) ) {
 				w              = ::max( w , k.size() ) ;
 				rev_map[d.txt] = k                     ;
@@ -201,7 +201,7 @@ namespace Engine {
 	static ::string _mk_gen_script_line( Job j , ReqOptions const& ro , JobInfo const& job_info , ::string const& dbg_dir_s , ::string const& key ) {
 		JobStartRpcReply const& start = job_info.start.start ;
 		AutodepEnv       const& ade   = start.autodep_env    ;
-		Rule::SimpleMatch       match = j->simple_match()    ;
+		Rule::RuleMatch         match = j->rule_match()      ;
 		//
 		for( Node t  : j->targets ) t->set_buildable() ;                    // necessary for pre_actions()
 		::string res ;
@@ -639,7 +639,7 @@ namespace Engine {
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;
 							::map_ss required_rsrcs  ;
 							try {
-								Rule::SimpleMatch match ;
+								Rule::RuleMatch match ;
 								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
 							} catch(::pair_ss const&) {}
 							//
@@ -805,9 +805,9 @@ namespace Engine {
 				::umap_ss             rev_map ;
 				::vmap_s<Re::RegExpr> res     ;
 				if (+rule) {
-					Rule::SimpleMatch m = job->simple_match() ;
-					VarIdx            i = 0                   ;
-					for( ::string const& t : m.static_matches() ) {
+					Rule::RuleMatch m = job->rule_match() ;
+					VarIdx          i = 0                 ;
+					for( ::string const& t : m.static_targets() ) {
 						::string const& k = rule->matches[i++].first ;
 						w          = ::max(w,k.size()) ;
 						rev_map[t] = k                 ;

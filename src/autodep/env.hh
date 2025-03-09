@@ -12,8 +12,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
-	// env format : server:port:options:fast_host:fast_report_pipe:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
-	// if port is empty, server is considered a file to log deps to (which defaults to stderr if empty)
+	// env format : server:port:fast_host:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
 	// if tmp_dir_s is empty, there is no tmp dir
 	AutodepEnv(::string const& env) ;
 	AutodepEnv(NewType            ) : AutodepEnv{get_env("LMAKE_AUTODEP_ENV")} {}
