@@ -123,14 +123,14 @@ bool/*sent*/ Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {
 }
 
 bool/*sent*/ Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
-	SWEAR( jerr.proc==Proc::Access || jerr.proc==Proc::DepVerbosePush , jerr.proc ) ;
-	if ( !force && !enable ) return false/*sent*/ ;                                   // dont update cache as report is not actually done
+	SWEAR( jerr.proc==Proc::Access , jerr.proc ) ;
+	if ( !force && !enable ) return false/*sent*/ ; // dont update cache as report is not actually done
 	if (!jerr.sync) {
 		SWEAR( +jerr.file , jerr.file,jerr.txt ) ;
 		auto                                           [it,inserted] = s_access_cache->emplace(jerr.file,pair(Accesses(),Accesses())) ;
 		::pair<Accesses/*accessed*/,Accesses/*seen*/>& entry         = it->second                                                     ;
-		if (jerr.digest.write==No) {                                                  // modifying accesses cannot be cached as we do not know what other processes may have done in between
-			if ( jerr.proc==Proc::Access && !inserted ) {
+		if (jerr.digest.write==No) {                // modifying accesses cannot be cached as we do not know what other processes may have done in between
+			if (!inserted) {
 				if (jerr.file_info.exists()) { if (!( jerr.digest.accesses & ~entry.second )) return false/*sent*/ ; } // no new seen accesses
 				else                         { if (!( jerr.digest.accesses & ~entry.first  )) return false/*sent*/ ; } // no new      accesses
 			}
@@ -144,27 +144,41 @@ bool/*sent*/ Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
 }
 
 JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
-	bool sent = report_direct(::move(jerr),force) ;
-	if (!jerr.sync) return {}           ;
-	if (sent      ) return _get_reply() ;
+	thread_local ::string   codec_file   ;
+	thread_local ::string   codec_ctx    ;
+	thread_local ::vector_s dep_verboses ;
+	//
+	if (report_direct(::move(jerr),force)) {
+		/**/                                   if (jerr.sync!=Yes) return {}    ;
+		JobExecRpcReply reply = _get_reply() ; if (+reply        ) return reply ; // else job_exec could not contact server and generated an empty reply, process as if no job_exec
+	}
 	// not under lmake (typically ldebug), try to mimic server as much as possible
 	switch (jerr.proc) {
+		case Proc::DepVerbosePush : dep_verboses.push_back(::move(jerr.file)) ; break ;
+		case Proc::CodecFile      : codec_file = ::move(jerr.file) ;            break ;
+		case Proc::CodecCtx       : codec_ctx  = ::move(jerr.file) ;            break ;
+		case Proc::DepVerbose : {
+			::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
+			for( ::string& f : dep_verboses ) dep_infos.emplace_back( Yes/*ok*/ , Crc(f) ) ;
+			dep_verboses.clear() ;
+			return { jerr.proc , ::move(dep_infos) } ;
+		}
 		case Proc::Decode :
 		case Proc::Encode :
 			// /!\ format must stay in sync with Codec::_s_canonicalize
-			for( ::string const& line : AcFd(jerr.file).read_lines(true/*no_file_ok*/) ) {
+			for( ::string const& line : AcFd(codec_file).read_lines(true/*no_file_ok*/) ) {
 				size_t pos = 0 ;
-				/**/                                             if ( line[pos++]!=' '                  ) continue ; // bad format
-				::string ctx  = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' ' || ctx!=jerr.ctx ) continue ; // .          or bad ctx
-				::string code = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' '                  ) continue ; // .
-				::string val  = parse_printable     (line,pos) ; if ( line[pos  ]!=0                    ) continue ; // .
+				/**/                                             if ( line[pos++]!=' '                   ) continue ; // bad format
+				::string ctx  = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' ' || ctx!=codec_ctx ) continue ; // .          or bad ctx
+				::string code = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' '                   ) continue ; // .
+				::string val  = parse_printable     (line,pos) ; if ( line[pos  ]!=0                     ) continue ; // .
 				//
-				if (jerr.proc==Proc::Decode) { if (code==jerr.txt) return {jerr.proc,Yes/*ok*/,val } ; }
-				else                         { if (val ==jerr.txt) return {jerr.proc,Yes/*ok*/,code} ; }
+				if (jerr.proc==Proc::Decode) { if (code==jerr.file) return {jerr.proc,Yes/*ok*/,val } ; }
+				else                         { if (val ==jerr.file) return {jerr.proc,Yes/*ok*/,code} ; }
 			}
-			return { jerr.proc , No/*ok*/ , ""s } ;
-		default : return {} ;
-	}
+			return { jerr.proc , No/*ok*/ , "0"s } ;
+	DN}
+	return {} ;
 }
 
 Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {

@@ -123,45 +123,47 @@ bool/*sent*/ Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {
 	return false/*sent*/ ;
 }
 
-void Gather::_send_to_server( Fd fd , Jerr&& jerr , ::vmap_s<FileInfo>&& files ) {
-	Trace trace("_send_to_server",fd,jerr,files) ;
-	SWEAR( (jerr.proc==Proc::DepVerbose)==+files , jerr.proc,files ) ;
+void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
+	Trace trace("_send_to_server",fd,jerr) ;
 	//
 	if (!jerr.sync) fd = {} ;                                                                                            // dont reply if not sync
 	JobMngtRpcReq jmrr { JobMngtProc::None , seq_id , job , fd } ;
 	//
 	switch (jerr.proc) {
 		case Proc::ChkDeps :
+			_exec_trace(jerr.date,::string(snake(jerr.proc))) ;
 			jmrr.proc = JobMngtProc::ChkDeps ;
 			reorder(false/*at_end*/) ;                                                                                   // ensure server sees a coherent view
 			jmrr.deps = cur_deps_cb() ;
 		break ;
-		case Proc::DepVerbose :
+		case Proc::DepVerbose : {
+			auto                it    = _dep_verboses.find(fd) ; SWEAR(it!=_dep_verboses.end(),fd,_dep_verboses) ;
+			::vmap_s<FileInfo>& files = it->second             ;
 			jmrr.proc = JobMngtProc::DepVerbose ;
 			jmrr.deps.reserve(files.size()) ;
 			for( auto& [f,fi] : files ) {
+				_exec_trace(jerr.date,::string(snake(jerr.proc)),f) ;
 				_new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , jerr.txt ) ;
 				jmrr.deps.emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,fi,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
 			}
-		break ;
-		case Proc::Decode : jmrr.proc = JobMngtProc::Decode ; _codec_files[fd] = Codec::mk_decode_node( jerr.file , jerr.ctx , jerr.txt ) ;                               goto Codec ;
-		case Proc::Encode : jmrr.proc = JobMngtProc::Encode ; _codec_files[fd] = Codec::mk_encode_node( jerr.file , jerr.ctx , jerr.txt ) ; jmrr.min_len = jerr.min_len ;
-		Codec :
+			_dep_verboses.erase(it) ;
+		} break ;
+		case Proc::Decode :
+		case Proc::Encode : {
 			SWEAR( jerr.sync==Yes , jerr ) ;
-			jmrr.txt  = ::move(jerr.txt ) ;
-			jmrr.file = ::move(jerr.file) ;
-			jmrr.ctx  = ::move(jerr.ctx ) ;
-		break ;
+			auto      it   = _codecs.find(fd)  ; SWEAR(it!=_codecs.end(),fd,_codecs) ;
+			::string& file = it->second.first  ;
+			::string& ctx  = it->second.second ;
+			if (jerr.proc==Proc::Encode) { jmrr.proc = JobMngtProc::Encode ; jmrr.min_len = jerr.min_len() ; _codec_files[fd] = Codec::mk_encode_node( file , ctx , jerr.file ) ; }
+			else                         { jmrr.proc = JobMngtProc::Decode ;                                 _codec_files[fd] = Codec::mk_decode_node( file , ctx , jerr.file ) ; }
+			jmrr.file = ::move(file     ) ;
+			jmrr.ctx  = ::move(ctx      ) ;
+			jmrr.txt  = ::move(jerr.file) ;
+			_codecs.erase(it) ;
+		} break ;
 	DF}
-	if (_send_to_server(jmrr)) {
-		_n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ;
-	} else {
-		JobExecRpcReply sync_reply ;
-		/**/                             sync_reply.proc = jerr.proc ;
-		/**/                             sync_reply.ok   = Yes       ;                                                   // try to mimic server as much as possible when none is available
-		for( auto const& [f,_] : files ) sync_reply.dep_infos.emplace_back(Yes,Crc(f)) ;                                 // .
-		sync(fd,::move(sync_reply)) ;
-	}
+	if (_send_to_server(jmrr)) { _n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ; }
+	else                         sync(fd,{}) ;                                                                           // send an empty reply, job will invent something reasonable
 }
 
 void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
@@ -254,7 +256,6 @@ Status Gather::exec_child() {
 	size_t                                    live_out_pos       = 0           ;
 	::umap<Fd,IMsgBuf                       > server_slaves      ;
 	::umap<Fd,::pair<IMsgBuf,::vector<Jerr>>> job_slaves         ;                                    // Jerr's are waiting for confirmation
-	::umap<Fd,::vmap_s<FileInfo>            > pushed_deps        ;                                    // pushed deps waiting for DepVerbose
 	bool                                      panic_seen         = false       ;
 	PD                                        end_timeout        = PD::Future  ;
 	PD                                        end_child          = PD::Future  ;
@@ -515,7 +516,15 @@ Status Gather::exec_child() {
 					if ( fd==fast_report_fd          ) SWEAR(!sync_) ;                                                                // cannot reply on fast_report_fd
 					if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                               // accesses are traced when processed
 					switch (proc) {
-						case Proc::Confirm : {
+						case Proc::DepVerbosePush : _dep_verboses[fd].emplace_back( ::move(jerr.file) , jerr.file_info ) ; trace(kind,fd,proc) ; break        ;
+						case Proc::CodecFile      : _codecs      [fd].first  =      ::move(jerr.file)                    ; trace(kind,fd,proc) ; break        ;
+						case Proc::CodecCtx       : _codecs      [fd].second =      ::move(jerr.file)                    ; trace(kind,fd,proc) ; break        ;
+						case Proc::Guard          : _new_guard(fd,::move(jerr)) ;                                                                break        ;
+						case Proc::DepVerbose     :
+						case Proc::Decode         :
+						case Proc::Encode         : _send_to_server(fd,::move(jerr)) ;                                                           goto NoReply ; // reply is delayed until server reply
+						case Proc::ChkDeps        : delayed_check_deps[fd] = ::move(jerr) ;                                                      goto NoReply ; // if sync, reply is delayed as well
+						case Proc::Confirm :
 							trace("confirm",kind,fd,jerr.digest.write) ;
 							SWEAR(jerr.digest.write!=Maybe) ;                                          // ensure we confirm/infirm
 							for ( JobExecRpcReq& j : slave_entry.second ) {
@@ -524,7 +533,7 @@ Status Gather::exec_child() {
 								_new_access(fd,::move(j)) ;
 							}
 							slave_entry.second.clear() ;
-						} break ;
+						break ;
 						case Proc::None :
 							if (fd==fast_report_fd) {
 								epoll.del(false/*write*/,fd,false/*wait*/) ;                           // fast_report_fd is not waited as it is always open and will be closed as it is an AcFd
@@ -541,10 +550,6 @@ Status Gather::exec_child() {
 							if (jerr.digest.write==Maybe) slave_entry.second.push_back(::move(jerr)) ; // delay until confirmed/infirmed
 							else                          _new_access(fd,::move(jerr))               ;
 						break ;
-						case Proc::DepVerbosePush :
-							pushed_deps[fd].emplace_back( ::move(jerr.file) , jerr.file_info ) ;
-							trace("push_dep",kind,fd) ;
-						break ;
 						case Proc::Tmp :
 							if (!seen_tmp) {
 								if (no_tmp) {
@@ -557,35 +562,17 @@ Status Gather::exec_child() {
 								seen_tmp = true ;
 							}
 						break ;
-						case Proc::Guard :
-							_new_guard(fd,::move(jerr)) ;
-						break ;
-						case Proc::DepVerbose : {
-							::vmap_s<FileInfo>& pds = pushed_deps.at(fd) ;
-							for( auto const& [f,_] : pds ) _exec_trace(jerr.date,"dep_verbose.req",f) ;
-							_send_to_server( fd , ::move(jerr) , ::move(pds) ) ;
-							pds.clear() ;
-						} goto NoReply ;
-						case Proc::Decode :
-						case Proc::Encode :
-							_exec_trace(jerr.date,snake(proc)+".req",jerr.txt) ;
-							_send_to_server(fd,::move(jerr)) ;
-						goto NoReply ;
-						case Proc::ChkDeps :
-							_exec_trace(jerr.date,"chk_deps.req") ;
-							delayed_check_deps[fd] = ::move(jerr) ;
-						goto NoReply ;                                                                 // if sync, reply is delayed as well
 						case Proc::Panic :
 							if (!panic_seen) {                                                         // report only first panic
-								_exec_trace(jerr.date,"panic",jerr.txt) ;
-								set_status(Status::Err,jerr.txt) ;
+								_exec_trace(jerr.date,"panic",jerr.file) ;
+								set_status(Status::Err,jerr.file) ;
 								kill() ;
 								panic_seen = true ;
 							}
 						[[fallthrough]] ;
 						case Proc::Trace :
-							_exec_trace(jerr.date,"trace",jerr.txt) ;
-							trace(jerr.txt) ;
+							_exec_trace(jerr.date,"trace",jerr.file) ;
+							trace(jerr.file) ;
 						break ;
 					DF}
 					if (sync_) sync( fd , JobExecRpcReply(proc) ) ;

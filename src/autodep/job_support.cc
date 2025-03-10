@@ -39,10 +39,11 @@ namespace JobSupport {
 				FileInfo fi { sr.real } ;
 				ad |= sr.accesses ;                                       // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
 				// not actually sync, but transport as sync to use the same fd as DepVerbose
-				r.report_cached( { .proc=Proc::DepVerbosePush , .sync=Maybe , .file=::move(sr.real) , .file_info=fi , .txt="depend.push" } , true/*force*/ ) ;
+				r.report_sync( { .proc=Proc::DepVerbosePush , .sync=Maybe , .file=::move(sr.real) , .file_info=fi , .txt="depend.push" } , true/*force*/ ) ;
 			}
 		}
 		if (!verbose) return {} ;
+		if (!files  ) return {} ;                                         // dont send DepVerbose if no preceding DepVerbosePush
 		// if verbose, we de facto fully access files
 		JobExecRpcReply reply = r.report_sync( { .proc=Proc::DepVerbose , .sync=Yes , .digest=ad|~Accesses() , .date=pd , .txt="depend" } , true/*force*/ ) ;
 		if (!reply) {
@@ -74,24 +75,22 @@ namespace JobSupport {
 		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|verbose , .date=New }).ok ;
 	}
 
-	::pair_s<bool/*ok*/> decode( Record const& r , ::string&& file , ::string&& code , ::string&& ctx ) {
-		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(file),.read=true,.write=true,.comment="decode"}) ;
+	template<bool Encode> static ::pair_s<bool/*ok*/> codec( Record const& r , ::string&& file , ::string&& code_val , ::string&& ctx , uint8_t min_len=0 ) {
+		const char* msg = Encode?"encode":"decode" ;
+		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(file) , .read=true , .write=true , .comment=msg }) ;
 		//
-		r.report_access( sr.file_loc , { .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , "decode" ) ;
+		r.report_access( sr.file_loc , { .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , msg ) ;
 		//
-		JobExecRpcReply reply = r.report_sync({ .proc=Proc::Decode , .sync=Yes , .file=::move(sr.real) , .txt=::move(code) , .ctx=::move(ctx) }) ;
+		r.report_sync({ .proc=Proc::CodecFile , .sync=Maybe , .file=::move(sr.real) }) ;                     // not actually sync, but transport as sync to use the same fd as Encode/Decode
+		r.report_sync({ .proc=Proc::CodecCtx  , .sync=Maybe , .file=::move(ctx    ) }) ;                     // .
+		JobExecRpcReq jerr { .proc=Encode?Proc::Encode:Proc::Decode , .sync=Yes , .file=::move(code_val) } ;
+		if (Encode) jerr.min_len() = min_len ;
 		//
+		JobExecRpcReply reply = r.report_sync(::move(jerr)) ;
 		return { ::move(reply.txt) , reply.ok==Yes } ;
 	}
 
-	::pair_s<bool/*ok*/> encode( Record const& r , ::string&& file , ::string&& val , ::string&& ctx , uint8_t min_len ) {
-		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({.file=::move(file),.read=true,.write=true,.comment="encode"}) ;
-		//
-		r.report_access( sr.file_loc , { .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , "encode" ) ;
-		//
-		JobExecRpcReply reply = r.report_sync({ .proc=Proc::Encode , .sync=Yes , .min_len=min_len , .file=::move(sr.real) , .txt=::move(val) , .ctx=::move(ctx) }) ;
-		//
-		return { ::move(reply.txt) , reply.ok==Yes } ;
-	}
+	::pair_s<bool/*ok*/> decode(Record const& r,::string&& file,::string&& code,::string&& ctx                ) { return codec<false/*Encode*/>(r,::move(file),::move(code),::move(ctx)        ) ; }
+	::pair_s<bool/*ok*/> encode(Record const& r,::string&& file,::string&& val ,::string&& ctx,uint8_t min_len) { return codec<true /*Encode*/>(r,::move(file),::move(val ),::move(ctx),min_len) ; }
 
 }

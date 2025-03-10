@@ -143,9 +143,9 @@ public :
 	//
 	#define FL FileLoc
 	/**/         void report_guard  (FL fl,::string&& f,::string&& c={}) const { if (fl<=FL::Repo)   report_direct({.proc=Proc::Guard  ,.file=::move(f),.txt=::move(c)}) ;                       }
-	/**/         void report_tmp    (                   ::string&& c={}) const { if (!_tmp_cache ) { report_direct({.proc=Proc::Tmp    ,.date=New      ,.txt=::move(c)}) ; _tmp_cache = true ; } }
-	[[noreturn]] void report_panic  (                   ::string&& c   ) const {                     report_direct({.proc=Proc::Panic  ,                .txt=::move(c)}) ; exit(Rc::Usage) ;     }
-	/**/         void report_trace  (                   ::string&& c   ) const {                     report_direct({.proc=Proc::Trace  ,                .txt=::move(c)}) ;                       }
+	/**/         void report_tmp    (                                  ) const { if (!_tmp_cache ) { report_direct({.proc=Proc::Tmp    ,.date=New                     }) ; _tmp_cache = true ; } }
+	[[noreturn]] void report_panic  (::string&& m                      ) const {                     report_direct({.proc=Proc::Panic  ,.file=::move(m)               }) ; exit(Rc::Usage) ;     }
+	/**/         void report_trace  (::string&& m                      ) const {                     report_direct({.proc=Proc::Trace  ,.file=::move(m)               }) ;                       }
 	/**/         int  report_confirm(int rc,bool to_confirm=true       ) const { if (to_confirm  )   report_direct({.proc=Proc::Confirm,.digest={.write=No|(rc>=0)}   }) ; return rc ;           }
 	#undef FL
 	//

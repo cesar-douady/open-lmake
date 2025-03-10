@@ -11,20 +11,22 @@
 #include "rpc_job_common.hh"
 
 ENUM_2( JobExecProc
-,	HasFile     = Guard  // >=HasFile     means file      field is significative
-,	HasFileInfo = Access // >=HasFileInfo means file_info field is significative
+,	HasFile     = CodecCtx // >=HasFile     means file      field is significative
+,	HasFileInfo = Access   // >=HasFileInfo means file_info field is significative
 ,	None
 ,	ChkDeps
-,	DepVerbose
-,	Tmp                  // write activity in tmp has been detected (hence clean up is required)
-,	Trace                // no algorithmic info, just for tracing purpose
-,	Panic                // ensure job is in error
 ,	Confirm
-,	Guard
+,	DepVerbose
+,	Tmp                    // write activity in tmp has been detected (hence clean up is required)
+,	CodecCtx
+,	CodecFile
 ,	Decode
-,	Encode
+,	Guard
+,	Panic                  // ensure job is in error
+,	Trace                  // no algorithmic info, just for tracing purpose
 ,	Access
 ,	DepVerbosePush
+,	Encode                 // file_info is used to transport min_len
 )
 
 struct AccessDigest {                                                // order is first read, first write, last write, unlink
@@ -53,22 +55,27 @@ struct JobExecRpcReq {
 	using FI    = Disk::FileInfo ;
 	using AD    = AccessDigest   ;
 	using Proc  = JobExecProc    ;
+	// accesses
+	uint8_t const& min_len() const { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t const*>(&file_info) ; }
+	uint8_t      & min_len()       { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t      *>(&file_info) ; }
 	// services
 	void chk() const {
 		SWEAR( (proc>=Proc::HasFile    ) == +file      , proc,file           ) ;
-		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;
+		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ; // Encode uses file_info to store min_len
 		switch (proc) {
 			case Proc::ChkDeps        :
-			case Proc::Tmp            : SWEAR( +date              &&  !digest                       , proc,date,     digest ) ; break ;
-			case Proc::DepVerbose     : SWEAR( +date && sync==Yes                                   , proc,date,sync        ) ; break ;
+			case Proc::Tmp            : SWEAR( +date                &&  !digest                       , proc,date,     digest ) ; break ;
+			case Proc::DepVerbose     : SWEAR( +date && sync==Yes                                     , proc,date,sync        ) ; break ;
 			case Proc::Trace          :
-			case Proc::Panic          :
-			case Proc::DepVerbosePush : SWEAR( !date && sync!=Yes &&  !digest                       , proc,date,sync,digest ) ; break ;
-			case Proc::Confirm        : SWEAR( !date                                                , proc,date             ) ; break ;
-			case Proc::Guard          : SWEAR( !date              &&  !digest                       , proc,date,     digest ) ; break ;
+			case Proc::Panic          : SWEAR( !date && sync==No    &&  !digest                       , proc,date,sync,digest ) ; break ;
+			case Proc::CodecFile      :
+			case Proc::CodecCtx       :
+			case Proc::DepVerbosePush : SWEAR( !date && sync==Maybe &&  !digest                       , proc,date,sync,digest ) ; break ;
+			case Proc::Confirm        : SWEAR( !date                                                  , proc,date             ) ; break ;
+			case Proc::Guard          : SWEAR( !date                &&  !digest                       , proc,date,     digest ) ; break ;
 			case Proc::Decode         :
-			case Proc::Encode         : SWEAR( !date && sync==Yes &&  !digest                       , proc,date,sync,digest ) ; break ;
-			case Proc::Access         : SWEAR( +date              && (!digest.accesses)<=!file_info , proc,date,     digest ) ; break ;
+			case Proc::Encode         : SWEAR( !date && sync==Yes   &&  !digest                       , proc,date,sync,digest ) ; break ;
+			case Proc::Access         : SWEAR( +date                && (!digest.accesses)<=!file_info , proc,date,     digest ) ; break ;
 		DF}
 	}
 	template<IsStream T> void serdes(T& s) {
@@ -78,25 +85,21 @@ struct JobExecRpcReq {
 		if (proc>=Proc::HasFileInfo) ::serdes(s,file_info) ;
 		switch (proc) {
 			case Proc::ChkDeps    :
-			case Proc::Tmp        : ::serdes(s,date) ;                                                  break ;
-			case Proc::Confirm    :                    ::serdes(s,digest.write) ;                       break ;
-			case Proc::DepVerbose : ::serdes(s,date) ; ::serdes(s,digest      ) ;                       break ;
-			case Proc::Decode     :                    ::serdes(s,ctx         ) ;                       break ;
-			case Proc::Encode     :                    ::serdes(s,ctx         ) ; ::serdes(s,min_len) ; break ;
-			case Proc::Access     : ::serdes(s,date) ; ::serdes(s,digest      ) ;                       break ;
+			case Proc::Tmp        : ::serdes(s,date) ;                            break ;
+			case Proc::Confirm    :                    ::serdes(s,digest.write) ; break ;
+			case Proc::DepVerbose : ::serdes(s,date) ; ::serdes(s,digest      ) ; break ;
+			case Proc::Access     : ::serdes(s,date) ; ::serdes(s,digest      ) ; break ;
 		DN}
 		::serdes(s,txt) ;
 	}
 	// data
 	Proc     proc      = {} ;
-	Bool3    sync      = No ; // Maybe means transport as sync (not using fast_report), but not actually sync
-	uint8_t  min_len   = 0  ; // if proc==Encode
+	Bool3    sync      = No ;                                                                        // Maybe means transport as sync (not using fast_report), but not actually sync
 	AD       digest    = {} ;
-	Pdate    date      = {} ; // access date to reorder accesses during analysis
+	Pdate    date      = {} ;                                                                        // access date to reorder accesses during analysis
 	::string file      = {} ;
 	FI       file_info = {} ;
-	::string txt       = {} ; // if proc==Access|Decode|Encode|Trace comment for Access, code for Decode, value for Encode
-	::string ctx       = {} ; // if proc==       Decode|Encode
+	::string txt       = {} ;                                                                        // if proc==Access|Decode|Encode|Trace comment for Access, code for Decode, value for Encode
 } ;
 
 struct JobExecRpcReply {
@@ -104,11 +107,11 @@ struct JobExecRpcReply {
 	using Proc = JobExecProc ;
 	using Crc  = Hash::Crc   ;
 	// cxtors & casts
-	JobExecRpcReply(                                                              ) = default ;
-	JobExecRpcReply( Proc p                                                       ) : proc{p}                         { SWEAR( proc!=Proc::ChkDeps && proc!=Proc::DepVerbose ) ; }
-	JobExecRpcReply( Proc p , Bool3 o                                             ) : proc{p} , ok{o}                 { SWEAR( proc==Proc::ChkDeps                           ) ; }
-	JobExecRpcReply( Proc p ,           ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p} ,         dep_infos{is} { SWEAR( proc==Proc::DepVerbose                        ) ; }
-	JobExecRpcReply( Proc p , Bool3 o , ::string const&                        t  ) : proc{p} , ok{o} , txt      {t } { SWEAR( proc==Proc::Decode || proc==Proc::Encode      ) ; }
+	JobExecRpcReply(                                               ) = default ;
+	JobExecRpcReply( Proc p                                        ) : proc{p}                                 { SWEAR( proc!=Proc::ChkDeps && proc!=Proc::DepVerbose ) ; }
+	JobExecRpcReply( Proc p , Bool3 o                              ) : proc{p} , ok{o}                         { SWEAR( proc==Proc::ChkDeps                           ) ; }
+	JobExecRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>>&& is ) : proc{p} ,         dep_infos{::move(is)} { SWEAR( proc==Proc::DepVerbose                        ) ; }
+	JobExecRpcReply( Proc p , Bool3 o , ::string const& t          ) : proc{p} , ok{o} , txt{t}                { SWEAR( proc==Proc::Decode || proc==Proc::Encode      ) ; }
 	// accesses
 	bool operator+() const { return proc!=Proc::None ; }
 	// services

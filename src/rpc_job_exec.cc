@@ -42,15 +42,15 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 //
 
 ::string& operator+=( ::string& os , JobExecRpcReq const& jerr ) {
-	/**/                                                                    os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
-	if ( jerr.sync!=No                                                    ) os <<",S:"<< jerr.sync                                ;
-	/**/                                                                    os <<','  << jerr.digest                              ;
-	if ( +jerr.txt                                                        ) os <<','  << jerr.txt                                 ;
-	if ( jerr.proc>=JobExecProc::HasFile                                  ) os <<','  << jerr.file                                ;
-	if ( jerr.proc>=JobExecProc::HasFileInfo                              ) os <<':'  << jerr.file_info                           ;
-	if ( jerr.proc==JobExecProc::Encode || jerr.proc==JobExecProc::Encode ) os <<",C:"<< jerr.ctx                                 ;
-	if ( jerr.proc==JobExecProc::Encode                                   ) os <<','  << jerr.min_len                             ;
-	return                                                                  os <<')'                                              ;
+	/**/                                      os << "JobExecRpcReq(" << jerr.proc ;
+	if      (+jerr.date                     ) os <<','  << jerr.date              ;
+	if      ( jerr.sync!=No                 ) os <<",S:"<< jerr.sync              ;
+	if      (+jerr.digest                   ) os <<','  << jerr.digest            ;
+	if      (+jerr.file                     ) os <<','  << jerr.file              ;
+	if      ( jerr.proc==JobExecProc::Encode) os <<','  << jerr.min_len()         ; // Encode uses file_info to transport min_len
+	else if (+jerr.file_info                ) os <<':'  << jerr.file_info         ;
+	if      (+jerr.txt                      ) os <<','  << jerr.txt               ;
+	return                                    os <<')'                            ;
 }
 
 //

@@ -14,13 +14,17 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* when launching 400 jobs through slurm, 7 are running (normal) et 340 instead of 393 are queued
-	- as shown in the title
+* cache bug
+	- make
+	- git clean -ffdx lmake_env
+	- make ==> blocks
+* exceptionally, unit_tests/clone.dir/tok crashes
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* protect against min_len=0 in encode
 * when dynamically reading Lmakefile.py it would be best to provide stderr to lmake terminal
 	- rather than to lmakeserver terminal
 	- need to get stderr from read_makefile and divert it to lmake

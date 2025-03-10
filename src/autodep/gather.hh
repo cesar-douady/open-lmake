@@ -106,9 +106,9 @@ private :
 		Trace trace("_new_guards",fd,jerr.txt,jerr.file) ;
 		guards.insert(::move(jerr.file)) ;
 	}
-	void         _kill          ( bool force                                      ) ;
-	void         _send_to_server( Fd fd , Jerr&& , ::vmap_s<Disk::FileInfo>&& ={} ) ;                           // files are required for DepVerbose and forbidden for other
-	bool/*sent*/ _send_to_server( JobMngtRpcReq const&                            ) ;
+	void         _kill          ( bool force           ) ;
+	void         _send_to_server( Fd fd , Jerr&&       ) ;                                                      // files are required for DepVerbose and forbidden for other
+	bool/*sent*/ _send_to_server( JobMngtRpcReq const& ) ;
 public : //!                                                                                                           crc_file_info
 	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c) ; }
 	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c) ; } // new_unlnk is used for internal wash
@@ -166,11 +166,13 @@ public :
 	Time::Delay                       timeout          ;
 	::atomic<int>                     wstatus          = 0                                          ;
 private :
-	::map_ss            _add_env              ;
-	Child               _child                ;
-	::umap<Fd,::string> _codec_files          ;
-	size_t              _n_server_req_pending = 0 ;
-	NodeIdx             _parallel_id          = 0 ;                                                   // id to identify parallel deps
-	BitMap<Kind>        _wait                 ;                                                       // events we are waiting for
-	::jthread           _ptrace_thread        ;
+	::map_ss                            _add_env              ;
+	Child                               _child                ;
+	::umap<Fd,::pair_ss/*file,ctx*/>    _codecs               ;                                       // pushed info waiting for Encode/Decode
+	::umap<Fd,::string>                 _codec_files          ;                                       // used to generate codec reply
+	::umap<Fd,::vmap_s<Disk::FileInfo>> _dep_verboses         ;                                       // pushed deps waiting for DepVerbose
+	size_t                              _n_server_req_pending = 0 ;
+	NodeIdx                             _parallel_id          = 0 ;                                   // id to identify parallel deps
+	BitMap<Kind>                        _wait                 ;                                       // events we are waiting for
+	::jthread                           _ptrace_thread        ;
 } ;

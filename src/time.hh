@@ -238,8 +238,8 @@ namespace Time {
 //
 
 extern thread_local MutexLvl t_mutex_lvl ;
-template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,::shared_timed_mutex,::timed_mutex> {
-	using Base =                                              ::conditional_t<S,::shared_timed_mutex,::timed_mutex> ;
+template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,::shared_mutex,::mutex> {
+	using Base =                                              ::conditional_t<S,::shared_mutex,::mutex> ;
 	static constexpr MutexLvl Lvl = Lvl_ ;
 	// services
 	void lock(MutexLvl& lvl) {
