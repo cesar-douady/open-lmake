@@ -543,8 +543,8 @@ template<class Key         > struct JobDigest {                                 
 		,	.status         = status
 		,	.has_msg_stderr = has_msg_stderr
 		} ;
-		for( auto const& [k,v] : deps    ) res.deps   .emplace_back(KeyTo(k),v) ;
 		for( auto const& [k,v] : targets ) res.targets.emplace_back(KeyTo(k),v) ;
+		for( auto const& [k,v] : deps    ) res.deps   .emplace_back(KeyTo(k),v) ;
 		return res ;
 	}
 	// data
@@ -835,6 +835,7 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes(s,stdout                       ) ;
 		::serdes(s,wstatus                      ) ;
 	}
+	void cache_cleanup() ;                   // clean up info before uploading to cache
 	// data
 	// START_OF_VERSIONING
 	JobDigest<>              digest        ;
@@ -992,6 +993,8 @@ struct JobInfoStart {
 	friend ::string& operator+=( ::string& , JobInfoStart const& ) ;
 	// accesses
 	bool operator+() const { return +pre_start ; }
+	// services
+	void cache_cleanup() ; // clean up info before uploading to cache
 	// data
 	// START_OF_VERSIONING
 	Hash::Crc        rule_cmd_crc = {} ;
@@ -1015,12 +1018,14 @@ struct JobInfo {
 		::serdes(s,dep_crcs) ;
 	}
 	void fill_from( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) ;
-	void update_digest() ;                                                                 // update crc in digest from dep_crcs
+	//
+	void cache_cleanup() { start.cache_cleanup() ; end.cache_cleanup() ; } // clean up info before uploading to cache
+	void update_digest() ;                                                 // update crc in digest from dep_crcs
 	// data
 	// START_OF_VERSIONING
 	JobInfoStart        start    ;
 	JobEndRpcReq        end      ;
-	::vector<Hash::Crc> dep_crcs ;                                                         // optional, if not provided in end.digest.deps
+	::vector<Hash::Crc> dep_crcs ;                                         // optional, if not provided in end.digest.deps
 	// END_OF_VERSIONING
 } ;
 

@@ -103,41 +103,40 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 	}
 }
 
-bool/*sent*/ Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {
+Sent Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {
+	jerr.id = ::getpid() ;
 	jerr.chk() ;
 	//
-	if ( !force && !enable )                                  return false/*sent*/ ;
-	if ( s_static_report   ) { _static_report(::move(jerr)) ; return true /*sent*/ ; }
+	if ( !force && !enable )                                  return Sent::NotSent ;
+	if ( s_static_report   ) { _static_report(::move(jerr)) ; return Sent::Static  ; }
 	//
 	//
-	OMsgBuf msg { jerr } ;
-	Fd fd = jerr.sync!=No ?
-		s_report_fd<false/*Fast*/>()
-	:	s_report_fd<true /*Fast*/>()
-	;
+	OMsgBuf msg  { jerr }                                ;
+	bool    fast = jerr.sync==No && msg.size()<=PIPE_BUF ;                                     // several processes share fast report, so only small messages can be sent
+	Fd fd = fast ?  s_report_fd<true/*Fast*/>(jerr.id) : s_report_fd<false/*Fast*/>(jerr.id) ;
 	if (+fd) {
 		try                       { msg.send(fd) ;                              }
-		catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; } // this justifies panic, but we cannot report panic !
+		catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }              // this justifies panic, but we cannot report panic !
 	}
-	return +fd/*sent*/ ;
+	return !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
 }
 
-bool/*sent*/ Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
+Sent Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
 	SWEAR( jerr.proc==Proc::Access , jerr.proc ) ;
-	if ( !force && !enable ) return false/*sent*/ ; // dont update cache as report is not actually done
+	if ( !force && !enable ) return {}/*sent*/ ;   // dont update cache as report is not actually done
 	if (!jerr.sync) {
-		SWEAR( +jerr.file , jerr.file,jerr.txt ) ;
+		SWEAR( +jerr.file , jerr ) ;
 		auto                                           [it,inserted] = s_access_cache->emplace(jerr.file,pair(Accesses(),Accesses())) ;
 		::pair<Accesses/*accessed*/,Accesses/*seen*/>& entry         = it->second                                                     ;
-		if (jerr.digest.write==No) {                // modifying accesses cannot be cached as we do not know what other processes may have done in between
+		if (jerr.digest.write==No) {               // modifying accesses cannot be cached as we do not know what other processes may have done in between
 			if (!inserted) {
-				if (jerr.file_info.exists()) { if (!( jerr.digest.accesses & ~entry.second )) return false/*sent*/ ; } // no new seen accesses
-				else                         { if (!( jerr.digest.accesses & ~entry.first  )) return false/*sent*/ ; } // no new      accesses
+				if (jerr.file_info.exists()) { if (!( jerr.digest.accesses & ~entry.second )) return {}/*sent*/ ; } // no new seen accesses
+				else                         { if (!( jerr.digest.accesses & ~entry.first  )) return {}/*sent*/ ; } // no new      accesses
 			}
 			/**/                         entry.first /*accessed*/ |= jerr.digest.accesses ;
 			if (jerr.file_info.exists()) entry.second/*seen    */ |= jerr.digest.accesses ;
 		} else {
-			entry = {~Accesses(),~Accesses()} ;                                                                        // from now on, read accesses need not be reported as file has been written
+			entry = {~Accesses(),~Accesses()} ;                                                                     // from now on, read accesses need not be reported as file has been written
 		}
 	}
 	return report_direct(::move(jerr)) ;
@@ -148,7 +147,7 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 	thread_local ::string   codec_ctx    ;
 	thread_local ::vector_s dep_verboses ;
 	//
-	if (report_direct(::move(jerr),force)) {
+	if (+report_direct(::move(jerr),force)) {
 		/**/                                   if (jerr.sync!=Yes) return {}    ;
 		JobExecRpcReply reply = _get_reply() ; if (+reply        ) return reply ; // else job_exec could not contact server and generated an empty reply, process as if no job_exec
 	}
@@ -181,48 +180,48 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 	return {} ;
 }
 
-Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	SWEAR(!accesses) ;                                                                                                                     // no access to last component when no_follow
-	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                           // in case of overlay, create dir in the view
-	r.report_guard( file_loc , ::move(real_write()) , ::move(c) ) ;
+Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
+	SWEAR(!accesses) ;                                                                                                                  // no access to last component when no_follow
+	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                        // in case of overlay, create dir in the view
+	r.report_guard( file_loc , ::move(real_write()) ) ;
 }
 
-Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::string&& c ) : SolveModify{r,::move(path),no_follow,true/*read*/,false/*create*/,c} { // behave like a read-modify-write
+Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comment c ) : SolveModify{r,::move(path),no_follow,true/*read*/,false/*create*/,c} { // behave like a read-modify-write
 	if (file_loc>FileLoc::Dep) return ;
 	FileInfo fi { s_repo_root_fd() , real } ;
 	if ( fi.exists() && exe!=(fi.tag()==FileTag::Exe) ) // only consider as a target if exe bit changes
-		report_update( r , Access::Reg , ::move(c) ) ;
+		report_update( r , Access::Reg , c ) ;
 }
 
-Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string&& c ) : SolveCS{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
+Record::Exec::Exec( Record& r , Path&& path , bool no_follow , Comment c ) : SolveCS{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
 	if (!real) return ;
 	SolveReport sr {.real=real,.file_loc=file_loc} ;
 	try {
-		for( auto&& [file,a] : r._real_path.exec(sr) ) r.report_access( FileLoc::Dep , { .digest={.accesses=a} , .file=::move(file) , .txt=::copy(c) } ) ;
+		for( auto&& [file,a] : r._real_path.exec(sr) ) r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .file=::move(file) } ) ;
 	} catch (::string& e) { r.report_panic(::move(e)) ; }
 }
 
-Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , ::string&& c ) :
+Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comment c ) :
 	//                       no_follow   read   create
-	src { r , ::move(src_) , no_follow , true  , false , c+".src" }
-,	dst { r , ::move(dst_) , true      , false , true  , c+".dst" }
+	src { r , ::move(src_) , no_follow , true  , false , c , CommentExt::Read  }
+,	dst { r , ::move(dst_) , true      , false , true  , c , CommentExt::Write }
 {
-	if (src.real==dst.real) return ;                               // posix says it is nop in that case
+	if (src.real==dst.real) return ;                                // posix says it is nop in that case
 	//
-	Accesses sa = Access::Reg ; if (no_follow) sa |= Access::Lnk ; // if no_follow, a sym link may be hard linked
-	src.report_dep   ( r , sa           , c+".src" ) ;
-	dst.report_update( r , Access::Stat , c+".dst" ) ;             // writing to dst is sensitive to existence
+	Accesses sa = Access::Reg ; if (no_follow) sa |= Access::Lnk ;  // if no_follow, a sym link may be hard linked
+	src.report_dep   ( r , sa           , c , CommentExt::Read  ) ;
+	dst.report_update( r , Access::Stat , c , CommentExt::Write ) ; // writing to dst is sensitive to existence
 }
 
-Record::Mkdir::Mkdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	r.report_guard( file_loc , ::copy(real) , ::copy(c) ) ;
-	report_dep( r , Access::Stat , ::move(c) ) ;            // fails if file exists, hence sensitive to existence
+Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
+	r.report_guard( file_loc , ::copy(real) ) ;
+	report_dep( r , Access::Stat , c ) ;        // fails if file exists, hence sensitive to existence
 }
 
-Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , ::string&& c ) :
+Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , Comment c ) :
 	//                     no_follow read   create
-	src { r , ::move(src_) , true  , false , false , c+".src" }
-,	dst { r , ::move(dst_) , true  , false , false , c+".dst" }
+	src { r , ::move(src_) , true  , false , false , c , CommentExt::Read  }
+,	dst { r , ::move(dst_) , true  , false , false , c , CommentExt::Write }
 {
 	if (src.file_loc<=FileLoc::Dep) r.report_panic("mount from "+src.real) ;
 	if (dst.file_loc<=FileLoc::Dep) r.report_panic("mount to "  +dst.real) ;
@@ -239,10 +238,10 @@ static bool _do_read  (int flags) { return !(flags&O_PATH) && !(flags&O_TRUNC)  
 static bool _do_write (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY ) || (flags&O_TRUNC)                                              ; }
 static bool _do_create(int flags) { return   flags&O_CREAT                                                                                                    ; }
 //
-Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) : SolveModify{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , _do_create(flags) , c } {
+Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveModify{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , _do_create(flags) , c } {
 	if ( !file || !file[0]             ) return ;
-	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                   // we already solved, this is enough
-	if ( file_loc>FileLoc::Dep         ) return ;                                                                   // fast path
+	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                                    // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep         ) return ;                                                                                    // fast path
 	//
 	bool do_stat  = _do_stat (flags) ;
 	bool do_read  = _do_read (flags) ;
@@ -250,18 +249,18 @@ Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) : Solve
 	//
 	if (!( do_stat || do_read || do_write )) return ;
 	//
-	if (_no_follow(flags))   c += ".NF" ;
-	/**/                     c += '.'   ;
-	if (do_stat          ) { c += 'S'   ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, there may be a further fstat
-	if (do_read          ) { c += 'R'   ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
-	if (do_write         )   c += 'W'   ;
+	CommentExts ces ;
+	if (_no_follow(flags))   ces |= CommentExt::NoFollow ;
+	if (do_stat          ) { ces |= CommentExt::Stat     ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, there may be a further fstat
+	if (do_read          ) { ces |= CommentExt::Read     ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
+	if (do_write         )   ces |= CommentExt::Write    ;
 	//
-	if (do_write) report_update( r , {} , ::move(c) ) ;
-	else          report_dep   ( r , {} , ::move(c) ) ;
+	if (do_write) report_update( r , {} , c , ces ) ;
+	else          report_dep   ( r , {} , c , ces ) ;
 }
 
-Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,true/*read*/,false/*create*/,c} , buf{buf_} , sz{sz_} {
-	report_dep( r , Access::Lnk , ::move(c) ) ;
+Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , Comment c ) : Solve{r,::move(path),true/*no_follow*/,true/*read*/,false/*create*/,c} , buf{buf_} , sz{sz_} {
+	report_dep( r , Access::Lnk , c ) ;
 }
 
 ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
@@ -276,12 +275,11 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 }
 
 // flags is not used if exchange is not supported
-Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , bool no_replace , ::string&& c ) :
+Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , bool no_replace , Comment c ) :
 	//                     no_follow read       create
-	src { r , ::move(src_) , true  , true     , exchange , c+".src" }
-,	dst { r , ::move(dst_) , true  , exchange , true     , c+".dst" }
+	src { r , ::move(src_) , true  , true     , exchange , c , CommentExt::Read  }
+,	dst { r , ::move(dst_) , true  , exchange , true     , c , CommentExt::Write }
 {	if (src.real==dst.real) return ;                                                              // posix says in this case, it is nop
-	if (exchange          ) c += "<>" ;
 	// rename has not occurred yet so :
 	// - files are read and unlinked in the source dir
 	// - their coresponding files in the destination dir are written
@@ -317,27 +315,29 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	for( ::string const& w : writes ) guards.insert(dir_name_s(w)) ;
 	for( ::string const& u : unlnks ) guards.insert(dir_name_s(u)) ;
 	guards.erase(""s) ;
-	for( ::string const& g : guards ) r.report_guard( FileLoc::Repo , no_slash(g) , c+".guard" ) ;
+	for( ::string const& g : guards ) r.report_guard( FileLoc::Repo , no_slash(g) ) ;
 	//
+	using FL = FileLoc    ;
+	using CE = CommentExt ;
 	Pdate pd { New } ;
-	for( ::string      & f : reads  )                   r.report_access( FileLoc::Dep  , { .digest={             .accesses=DataAccesses} , .date=pd , .file=::move(f) , .txt=c+".src"   } ) ;
-	for( ::string      & f : stats  )                   r.report_access( FileLoc::Dep  , { .digest={             .accesses=Access::Stat} , .date=pd , .file=::move(f) , .txt=c+".probe" } ) ;
-	for( ::string const& f : unlnks ) dst.to_confirm |= r.report_access( FileLoc::Repo , { .digest={.write=Maybe,.accesses=DataAccesses} , .date=pd , .file=::copy(f) , .txt=c+".unlnk" } ) ;
-	for( ::string      & f : writes ) dst.to_confirm |= r.report_access( FileLoc::Repo , { .digest={.write=Maybe                       } , .date=pd , .file=::move(f) , .txt=c+".dst"   } ) ;
+	for( ::string      & f : reads  )                   r.report_access( FL::Dep  , {.comment=c,.comment_exts=CE::Read ,.digest={             .accesses=DataAccesses},.date=pd,.file=::move(f)} ) ;
+	for( ::string      & f : stats  )                   r.report_access( FL::Dep  , {.comment=c,.comment_exts=CE::Stat ,.digest={             .accesses=Access::Stat},.date=pd,.file=::move(f)} ) ;
+	for( ::string const& f : unlnks ) dst.to_confirm |= r.report_access( FL::Repo , {.comment=c,.comment_exts=CE::Unlnk,.digest={.write=Maybe,.accesses=DataAccesses},.date=pd,.file=::copy(f)} ) ;
+	for( ::string      & f : writes ) dst.to_confirm |= r.report_access( FL::Repo , {.comment=c,.comment_exts=CE::Write,.digest={.write=Maybe                       },.date=pd,.file=::move(f)} ) ;
 }
 
-Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , ::string&& c ) :
+Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , Comment c ) :
 	Solve{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , false/*create*/ , c }
 {
-	if (no_follow) c += ".NF" ;
-	if (!s_autodep_env().ignore_stat) report_dep( r , a , ::move(c) ) ;
+	CommentExts ces ; if (no_follow) ces |= CommentExt::NoFollow ;
+	if (!s_autodep_env().ignore_stat) report_dep( r , a , c , ces ) ;
 }
 
-Record::Symlink::Symlink( Record& r , Path&& p , ::string&& c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,true/*create*/,c} {
-	report_update( r , Access::Stat , ::move(c) ) ;                                                                                           // fail if file exists, hence sensitive to existence
+Record::Symlink::Symlink( Record& r , Path&& p , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,true/*create*/,c} {
+	report_update( r , Access::Stat , c ) ;                                                                                                // fail if file exists, hence sensitive to existence
 }
 
-Record::Unlnk::Unlnk( Record& r , Path&& p , bool remove_dir , ::string&& c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	if (remove_dir) r.report_guard( file_loc , ::move(real_write()) , ::move(c) ) ;
-	else            report_update( r , Access::Stat , ::move(c) )                 ; // fail if file does not exist, hence sensitive to existence
+Record::Unlnk::Unlnk( Record& r , Path&& p , bool remove_dir , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,false/*create*/,c} {
+	if (remove_dir) r.report_guard( file_loc , ::move(real_write()) ) ;
+	else            report_update( r , Access::Stat , c )             ; // fail if file does not exist, hence sensitive to existence
 }

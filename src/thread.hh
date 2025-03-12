@@ -19,7 +19,8 @@ template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process 
 	using Val         = typename Q::value_type  ;
 	using L           = Lock<ThreadMutex>       ;
 	using Delay       = Time::Delay             ;
-	using Q::size ;
+	//
+	using Q::empty ;
 	// accesses
 	bool operator+() const {
 		Lock<ThreadMutex> lock{_mutex} ;
@@ -30,29 +31,31 @@ template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process 
 	void unlock      (MutexLvl lvl) const { _mutex.unlock      (lvl) ; }
 	void swear_locked(            ) const { _mutex.swear_locked(   ) ; }
 	// accesses
-	size_t  size() const { L lck{_mutex} ; return Q::size() ; }
+	#define LCK Lock lock{_mutex}
+	size_t  size() const { LCK ; return Q::size() ; }
 	// services
-	template<class    T> void push_urgent   (T&&    x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_front   (::forward<T>(x)   ) ; _cond.notify_one() ; }
-	template<class    T> void push          (T&&    x) { Lock<ThreadMutex> lock{_mutex} ; Q::push_back    (::forward<T>(x)   ) ; _cond.notify_one() ; }
-	template<class... A> void emplace_urgent(A&&... a) { Lock<ThreadMutex> lock{_mutex} ; Q::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
-	template<class... A> void emplace       (A&&... a) { Lock<ThreadMutex> lock{_mutex} ; Q::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
+	template<class    T> void push_urgent   (T&&    x) { LCK ; Q::push_front   (::forward<T>(x)   ) ; _cond.notify_one() ; }
+	template<class    T> void push          (T&&    x) { LCK ; Q::push_back    (::forward<T>(x)   ) ; _cond.notify_one() ; }
+	template<class... A> void emplace_urgent(A&&... a) { LCK ; Q::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
+	template<class... A> void emplace       (A&&... a) { LCK ; Q::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
+	// clear res while we are waiting
+	void           pop    (                               Val&/*out*/ res ) { LCK ; bool e = empty() ; if (e) res = {} ;                         _wait(       lock) ;        _pop(res) ;            }
+	bool/*popped*/ pop    ( ::stop_token stop ,           Val&/*out*/ res ) { LCK ; bool e = empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,  lock) ; if (p) _pop(res) ; return p ; }
+	bool/*popped*/ pop_for(                     Delay d , Val&/*out*/ res ) { LCK ; bool e = empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(     d,lock) ; if (p) _pop(res) ; return p ; }
+	bool/*popped*/ pop_for( ::stop_token stop , Delay d,  Val&/*out*/ res ) { LCK ; bool e = empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,d,lock) ; if (p) _pop(res) ; return p ; }
 	//
-	void           pop    (                              Val& res ) { L lck{_mutex} ;                                       _wait(       lck) ;             _pop(res) ;                 }
-	bool/*popped*/ pop    ( ::stop_token stop ,          Val& res ) { L lck{_mutex} ; bool popped = (Flush&&!Q::empty()) || _wait(stop,  lck) ; if (popped) _pop(res) ; return popped ; }
-	bool/*popped*/ pop_for(                     Delay d ,Val& res ) { L lck{_mutex} ; bool popped = (Flush&&!Q::empty()) || _wait(     d,lck) ; if (popped) _pop(res) ; return popped ; }
-	bool/*popped*/ pop_for( ::stop_token stop , Delay d, Val& res ) { L lck{_mutex} ; bool popped = (Flush&&!Q::empty()) || _wait(stop,d,lck) ; if (popped) _pop(res) ; return popped ; }
-	//
-	/**/                  Val  pop    (                             ) { L lck{_mutex} ;                                       _wait(       lck) ; return                   _pop()         ; }
-	::pair<bool/*popped*/,Val> pop    ( ::stop_token stop           ) { L lck{_mutex} ; bool popped = (Flush&&!Q::empty()) || _wait(stop,  lck) ; return { popped , popped?_pop():Val() } ; }
-	::pair<bool/*popped*/,Val> pop_for(                     Delay d ) { L lck{_mutex} ; bool popped = (Flush&&!Q::empty()) || _wait(     d,lck) ; return { popped , popped?_pop():Val() } ; }
-	::pair<bool/*popped*/,Val> pop_for( ::stop_token stop , Delay d ) { L lck{_mutex} ; bool popped = (Flush&&!Q::empty()) || _wait(stop,d,lck) ; return { popped , popped?_pop():Val() } ; }
+	/**/                  Val  pop    (                             ) { LCK ;                                    _wait(       lock) ; return                   _pop()         ; }
+	::pair<bool/*popped*/,Val> pop    ( ::stop_token stop           ) { LCK ; bool popped = (Flush&&!empty()) || _wait(stop,  lock) ; return { popped , popped?_pop():Val() } ; }
+	::pair<bool/*popped*/,Val> pop_for(                     Delay d ) { LCK ; bool popped = (Flush&&!empty()) || _wait(     d,lock) ; return { popped , popped?_pop():Val() } ; }
+	::pair<bool/*popped*/,Val> pop_for( ::stop_token stop , Delay d ) { LCK ; bool popped = (Flush&&!empty()) || _wait(stop,d,lock) ; return { popped , popped?_pop():Val() } ; }
 private :
-	void _pop ( Val& res                             ) { swear_locked() ;     res = ::move(Q::front()) ; Q::pop_front() ;                                 }
-	Val  _pop (                                      ) { swear_locked() ; Val res = ::move(Q::front()) ; Q::pop_front() ; return res ;                    }
-	void _wait(                               L& lck ) {        _cond.wait    ( lck ,                                   [&](){ return !Q::empty() ; } ) ; }
-	bool _wait( ::stop_token stop           , L& lck ) { return _cond.wait    ( lck , stop ,                            [&](){ return !Q::empty() ; } ) ; }
-	bool _wait(                     Delay d , L& lck ) { return _cond.wait_for( lck ,        ::chrono::nanoseconds(d) , [&](){ return !Q::empty() ; } ) ; }
-	bool _wait( ::stop_token stop , Delay d , L& lck ) { return _cond.wait_for( lck , stop , ::chrono::nanoseconds(d) , [&](){ return !Q::empty() ; } ) ; }
+	void _pop ( Val& res                                              ) { swear_locked() ;     res = ::move(Q::front()) ; Q::pop_front() ;                              }
+	Val  _pop (                                                       ) { swear_locked() ; Val res = ::move(Q::front()) ; Q::pop_front() ; return res ;                 }
+	void _wait(                               Lock<ThreadMutex>& lock ) {        _cond.wait    ( lock ,                                   [&](){ return !empty() ; } ) ; }
+	bool _wait( ::stop_token stop           , Lock<ThreadMutex>& lock ) { return _cond.wait    ( lock , stop ,                            [&](){ return !empty() ; } ) ; }
+	bool _wait(                     Delay d , Lock<ThreadMutex>& lock ) { return _cond.wait_for( lock ,        ::chrono::nanoseconds(d) , [&](){ return !empty() ; } ) ; }
+	bool _wait( ::stop_token stop , Delay d , Lock<ThreadMutex>& lock ) { return _cond.wait_for( lock , stop , ::chrono::nanoseconds(d) , [&](){ return !empty() ; } ) ; }
+	#undef LCK
 	// data
 private :
 	ThreadMutex mutable      _mutex ;
@@ -78,13 +81,13 @@ private :
 	// XXX! : why gcc refuses to call both functions _s_thread_func ?
 	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val const&)> func ) RQA {
 		t_thread_key = key ;
-		Trace trace("QueueThread::_s_thread_func2") ;
-		while(self_->pop(stop,self_->_cur)) func(stop,self_->_cur) ;
+		Trace trace("QueueThread::_s_thread_func1") ;
+		while (self_->pop(stop,self_->_cur)) func(stop,self_->_cur) ;
 		trace("done") ;
 	}
 	static void _s_thread_func2( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val&&)> func ) RNQA {
 		t_thread_key = key ;
-		Trace trace("QueueThread::_s_thread_func4") ;
+		Trace trace("QueueThread::_s_thread_func2") ;
 		for(;;) {
 			auto [popped,info] = self_->pop(stop) ;
 			if (!popped) break ;
@@ -105,7 +108,6 @@ public :
 	void open  ( char k , ::function<void(::stop_token,Val     &&)> f ) RNQA { _thread = ::jthread( _s_thread_func2 , k , this , f                                                    ) ; }
 	// accesses
 	Val const& cur() const RQA { return _cur ; }
-	Val      & cur()       RQA { return _cur ; }
 	// services
 	auto begin()       RQA { swear_locked() ; return Base::begin() ; }
 	auto begin() const RQA { swear_locked() ; return Base::begin() ; }
@@ -115,8 +117,9 @@ public :
 	#undef RNQA
 	// data
 private :
-	::conditional_t<QueueAccess,Val,Void> _cur    ;
-	::jthread                             _thread ; // ensure _thread is last so other fields are constructed before it starts and destructed after it ends
+	bool                                  _has_cur = false ;
+	::conditional_t<QueueAccess,Val,Void> _cur     ;
+	::jthread                             _thread  ; // ensure _thread is last so other fields are constructed before it starts and destructed after it ends
 } ;
 template<class T,bool Flush=true,bool QueueAccess=false> using DequeThread = QueueThread<::deque<T>,Flush,QueueAccess> ;
 

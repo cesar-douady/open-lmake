@@ -626,9 +626,10 @@ namespace Engine {
 	//
 
 	::string& operator+=( ::string& os , JobAudit const& ja ) {
-		/**/                 os << "JobAudit(" << ja.report ;
-		if (+ja.backend_msg) os <<','<< ja.backend_msg      ;
-		return               os <<')'                       ;
+		/**/                os << "JobAudit(" << ja.report ;
+		if (+ja.msg       ) os <<','<< ja.msg              ;
+		if ( ja.has_stderr) os <<",has_stderr"             ;
+		return              os <<')'                       ;
 
 	}
 

@@ -107,21 +107,22 @@ int main( int argc , char* /*argv*/[] ) {
 	}
 	if ( AcFd fd { dir_guard(repair_mrkr) , Fd::Write } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
-	::string msg ;
-	msg << "the repair process is starting, if something goes wrong :"                                                                                             << '\n' ;
-	msg << "to restore old state,                    consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << '\n' ;
-	msg << "to restart the repair process,           consider : lrepair"                                                                                           << '\n' ;
-	msg << "to continue with what has been repaired, consider : rm "<<repair_mrkr<<" ; rm -r "<<no_slash(backup_admin_dir_s)                                       << '\n' ;
-	Fd::Stdout.write(msg) ;
+	{	::string msg ;
+		msg << "the repair process is starting, if something goes wrong :"                                                                                             << '\n' ;
+		msg << "to restore old state,                    consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << '\n' ;
+		msg << "to restart the repair process,           consider : lrepair"                                                                                           << '\n' ;
+		msg << "to continue with what has been repaired, consider : rm "<<repair_mrkr<<" ; rm -r "<<no_slash(backup_admin_dir_s)                                       << '\n' ;
+		Fd::Stdout.write(msg) ;
+	}
 	try                       { chk_version( false/*may_init*/ , backup_admin_dir_s ) ; }
 	catch (::string const& e) { exit(Rc::Format,e) ;                                    }
 	//
 	mk_dir_s(PrivateAdminDirS) ;
 	//
-	try {
-		::string msg = Makefiles::refresh(false/*crashed*/,true/*refresh*/) ;
-		if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;
-	} catch (::string const& e) { exit(Rc::Format,e) ; }
+	{	::string msg ;
+		try                       { Makefiles::refresh( msg , false/*crashed*/ , true/*refresh*/ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                      }
+		catch (::string const& e) {                                                                  if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::Format,e) ; }
+	}
 	//
 	Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+*g_exe_name ) ;
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
@@ -131,11 +132,12 @@ int main( int argc , char* /*argv*/[] ) {
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	chk_version(true/*may_init*/) ;
 	unlnk(repair_mrkr) ;
-	msg.clear() ;
-	msg << "repo has been satisfactorily repaired "<<digest.n_repaired<<'/'<<digest.n_processed<<" jobs"                                                                             << '\n' ;
-	msg << "to clean up after having ensured everything runs smoothly, consider : rm -r "<<no_slash(backup_admin_dir_s)                                                              << '\n' ;
-	msg << "to restore old state,                                      consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << '\n' ;
-	msg << "to restart the repair process,                             consider : rm -r "<<no_slash(admin_dir_s)<<" ; lrepair"                                                       << '\n' ;
-	Fd::Stdout.write(msg) ;
+	{	::string msg ;
+		msg << "repo has been satisfactorily repaired "<<digest.n_repaired<<'/'<<digest.n_processed<<" jobs"                                                                             << '\n' ;
+		msg << "to clean up after having ensured everything runs smoothly, consider : rm -r "<<no_slash(backup_admin_dir_s)                                                              << '\n' ;
+		msg << "to restore old state,                                      consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << '\n' ;
+		msg << "to restart the repair process,                             consider : rm -r "<<no_slash(admin_dir_s)<<" ; lrepair"                                                       << '\n' ;
+		Fd::Stdout.write(msg) ;
+	}
 	return 0 ;
 }

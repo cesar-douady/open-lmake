@@ -341,8 +341,9 @@ static bool/*interrupted*/ _engine_loop() {
 							trace("already_killed",req) ;
 							goto NoMake ;
 						}
+						::string msg ;
 						try {
-							::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
+							Makefiles::dynamic_refresh( msg , startup_dir_s ) ;
 							if (+msg) audit_err( ecr.out_fd , ecr.options , msg ) ;
 							trace("new_req",req) ;
 							req.alloc() ; allocated = true ;
@@ -352,8 +353,9 @@ static bool/*interrupted*/ _engine_loop() {
 							_g_seen_make = true ;
 						} catch(::string const& e) {
 							if (allocated) req.dealloc() ;
-							audit_err   ( ecr.out_fd , ecr.options , Color::Err , e ) ;
-							audit_status( ecr.out_fd , ecr.options , false/*ok*/    ) ;
+							if (+msg) audit_err   ( ecr.out_fd , ecr.options , msg            ) ;
+							/**/      audit_err   ( ecr.out_fd , ecr.options , Color::Err , e ) ;
+							/**/      audit_status( ecr.out_fd , ecr.options , false/*ok*/    ) ;
 							trace("cannot_refresh",req) ;
 							goto NoMake ;
 						}
@@ -479,12 +481,9 @@ int main( int argc , char** argv ) {
 	//             ^^^^^^^^^^^^^^^
 	if (!_g_is_daemon     ) _report_server(out_fd,_g_server_running/*server_running*/) ;     // inform lmake we did not start
 	if (!_g_server_running) return 0 ;
-	try {
-		//                        vvvvvvvvvvvvvvvvvvvvvvvvv
-		::string msg = Makefiles::refresh(crashed,refresh_) ;
-		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^
-		if (+msg  ) Fd::Stderr.write(ensure_nl(msg)) ;
-	} catch (::string const& e) { exit(Rc::Format,e) ; }
+	::string msg ; //!          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                       { Makefiles::refresh( msg , crashed , refresh_ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                      }
+	catch (::string const& e) { /*^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/   if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::Format,e) ; }
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                                      // once we have reported we have started, lmake will send us a message to kill us
 	//
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;

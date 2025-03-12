@@ -131,8 +131,9 @@ namespace Engine {
 	struct JobAudit {
 		friend ::string& operator+=( ::string& os , JobAudit const& ) ;
 		// data
-		JobReport report      = {} /*garbage*/ ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
-		::string  backend_msg ;
+		JobReport report     ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
+		bool      has_stderr ;
+		::string  msg        = {} ;
 	} ;
 
 }

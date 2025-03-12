@@ -48,9 +48,12 @@ using namespace Disk ;
 	if (stdout_fd==PipeFd) { ::close(_c2po.read ) ; _c2po.write.no_std() ; } // .
 	if (stderr_fd==PipeFd) { ::close(_c2pe.read ) ; _c2pe.write.no_std() ; } // .
 	// set up std fd
-	if (stdin_fd ==NoneFd) ::close(Fd::Stdin ) ; else if (_p2c .read !=Fd::Stdin ) ::dup2(_p2c .read ,Fd::Stdin ) ;
-	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if (_c2po.write!=Fd::Stdout) ::dup2(_c2po.write,Fd::Stdout) ; // save stdout in case it is modified and we want to redirect stderr to it
-	if (stderr_fd==NoneFd) ::close(Fd::Stderr) ; else if (_c2pe.write!=Fd::Stderr) ::dup2(_c2pe.write,Fd::Stderr) ;
+	if (stdin_fd ==NoneFd) ::close(Fd::Stdin ) ; else if (                      _p2c .read !=Fd::Stdin  ) ::dup2(_p2c .read ,Fd::Stdin ) ;
+	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if ( stdout_fd!=JoinFd && _c2po.write!=Fd::Stdout ) ::dup2(_c2po.write,Fd::Stdout) ;
+	if (stderr_fd==NoneFd) ::close(Fd::Stderr) ; else if ( stderr_fd!=JoinFd && _c2pe.write!=Fd::Stderr ) ::dup2(_c2pe.write,Fd::Stderr) ;
+	//
+	if      (stdout_fd==JoinFd) { SWEAR(stderr_fd!=JoinFd) ; ::dup2(Fd::Stderr,Fd::Stdout) ; }
+	else if (stderr_fd==JoinFd)                              ::dup2(Fd::Stdout,Fd::Stderr) ;
 	//
 	if (_p2c .read >Fd::Std) ::close(_p2c .read ) ;  // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
 	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;  // .

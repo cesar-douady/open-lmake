@@ -24,10 +24,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* protect against min_len=0 in encode
-* when dynamically reading Lmakefile.py it would be best to provide stderr to lmake terminal
-	- rather than to lmakeserver terminal
-	- need to get stderr from read_makefile and divert it to lmake
 * handle imports in dynamic attributes
 	- as it is now, they may be cached in sys.module and reused for each call with no dep
 	- consider all top level imports must be read when reading makefiles

@@ -143,7 +143,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 			jmrr.deps.reserve(files.size()) ;
 			for( auto& [f,fi] : files ) {
 				_exec_trace(jerr.date,::string(snake(jerr.proc)),f) ;
-				_new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , jerr.txt ) ;
+				_new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , jerr.txt() ) ;
 				jmrr.deps.emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,fi,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
 			}
 			_dep_verboses.erase(it) ;
@@ -246,23 +246,23 @@ Status Gather::exec_child() {
 	if (env) { trace("env",*env) ; swear_prod( !env->contains("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ; }
 	else                           swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	//
-	ServerSockFd                              job_master_fd      { New }       ;
-	AcFd                                      fast_report_fd     ;                                    // always open, never waited for
-	AcFd                                      child_fd           ;
-	::jthread                                 wait_jt            ;                                    // thread dedicated to wating child
-	Epoll<Kind>                               epoll              { New }       ;
-	Status                                    status             = Status::New ;
-	::umap<Fd,Jerr>                           delayed_check_deps ;                                    // check_deps events are delayed to ensure all previous deps are received
-	size_t                                    live_out_pos       = 0           ;
-	::umap<Fd,IMsgBuf                       > server_slaves      ;
-	::umap<Fd,::pair<IMsgBuf,::vector<Jerr>>> job_slaves         ;                                    // Jerr's are waiting for confirmation
-	bool                                      panic_seen         = false       ;
-	PD                                        end_timeout        = PD::Future  ;
-	PD                                        end_child          = PD::Future  ;
-	PD                                        end_kill           = PD::Future  ;
-	PD                                        end_heartbeat      = PD::Future  ;                      // heartbeat to probe server when waiting for it
-	bool                                      timeout_fired      = false       ;
-	size_t                                    kill_step          = 0           ;
+	ServerSockFd                                            job_master_fd      { New }       ;
+	AcFd                                                    fast_report_fd     ;                      // always open, never waited for
+	AcFd                                                    child_fd           ;
+	::jthread                                               wait_jt            ;                      // thread dedicated to wating child
+	Epoll<Kind>                                             epoll              { New }       ;
+	Status                                                  status             = Status::New ;
+	::umap<Fd,Jerr>                                         delayed_check_deps ;                      // check_deps events are delayed to ensure all previous deps are received
+	size_t                                                  live_out_pos       = 0           ;
+	::umap<Fd,IMsgBuf                                     > server_slaves      ;
+	::umap<Fd,::pair<IMsgBuf,::umap<pid_t,::vector<Jerr>>>> job_slaves         ;                      // Jerr's are waiting for confirmation
+	bool                                                    panic_seen         = false       ;
+	PD                                                      end_timeout        = PD::Future  ;
+	PD                                                      end_child          = PD::Future  ;
+	PD                                                      end_kill           = PD::Future  ;
+	PD                                                      end_heartbeat      = PD::Future  ;        // heartbeat to probe server when waiting for it
+	bool                                                    timeout_fired      = false       ;
+	size_t                                                  kill_step          = 0           ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
 		if ( status==Status::New || status==Status::Ok ) status = status_ ;                           // else there is already another reason
@@ -484,6 +484,7 @@ Status Gather::exec_child() {
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
 								_exec_trace( New , snake(jmrr.proc)+".reply" , jmrr.txt ) ;
 								auto it = _codec_files.find(jmrr.fd) ;
+								SWEAR(it!=_codec_files.end(),jmrr,_codec_files) ;
 								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , snake_str(jmrr.proc) ) ;
 								_codec_files.erase(it) ;
 							} break ;
@@ -506,9 +507,9 @@ Status Gather::exec_child() {
 					trace("close",kind,fd,"wait",_wait,+epoll) ;
 				} break ;
 				case Kind::JobSlave : {
-					Jerr  jerr         ;
-					auto  sit          = job_slaves.find(fd) ; SWEAR(sit!=job_slaves.end(),fd,job_slaves) ;
-					auto& slave_entry  = sit->second         ;
+					Jerr  jerr        ;
+					auto  sit         = job_slaves.find(fd) ; SWEAR(sit!=job_slaves.end(),fd,job_slaves) ;
+					auto& slave_entry = sit->second         ;
 					try                       { if (!slave_entry.first.receive_step(fd,jerr)) { trace(kind,fd,"...") ; continue ; } }
 					catch (::string const& e) { trace("no_jerr",kind,fd,jerr,e) ; jerr.proc = Proc::None ; }                          // fd was closed, ensure no partially received jerr
 					Proc proc  = jerr.proc      ;                                                                                     // capture essential info so as to be able to move jerr
@@ -516,39 +517,42 @@ Status Gather::exec_child() {
 					if ( fd==fast_report_fd          ) SWEAR(!sync_) ;                                                                // cannot reply on fast_report_fd
 					if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                               // accesses are traced when processed
 					switch (proc) {
-						case Proc::DepVerbosePush : _dep_verboses[fd].emplace_back( ::move(jerr.file) , jerr.file_info ) ; trace(kind,fd,proc) ; break        ;
-						case Proc::CodecFile      : _codecs      [fd].first  =      ::move(jerr.file)                    ; trace(kind,fd,proc) ; break        ;
-						case Proc::CodecCtx       : _codecs      [fd].second =      ::move(jerr.file)                    ; trace(kind,fd,proc) ; break        ;
-						case Proc::Guard          : _new_guard(fd,::move(jerr)) ;                                                                break        ;
+						case Proc::DepVerbosePush : _dep_verboses[fd].emplace_back( ::move(jerr.file) , jerr.file_info ) ; trace(kind,fd,proc) ; break ;
+						case Proc::CodecFile      : _codecs      [fd].first  =      ::move(jerr.file)                    ; trace(kind,fd,proc) ; break ;
+						case Proc::CodecCtx       : _codecs      [fd].second =      ::move(jerr.file)                    ; trace(kind,fd,proc) ; break ;
+						case Proc::Guard          : _new_guard(fd,::move(jerr)) ;                                                                break ;
 						case Proc::DepVerbose     :
 						case Proc::Decode         :
-						case Proc::Encode         : _send_to_server(fd,::move(jerr)) ;                                                           goto NoReply ; // reply is delayed until server reply
-						case Proc::ChkDeps        : delayed_check_deps[fd] = ::move(jerr) ;                                                      goto NoReply ; // if sync, reply is delayed as well
-						case Proc::Confirm :
+						case Proc::Encode         : _send_to_server(fd,::move(jerr)) ;      goto NoReply ;                            // reply is delayed until server reply
+						case Proc::ChkDeps        : delayed_check_deps[fd] = ::move(jerr) ; goto NoReply ;                            // if sync, reply is delayed as well
+						case Proc::Confirm : {
 							trace("confirm",kind,fd,jerr.digest.write) ;
-							SWEAR(jerr.digest.write!=Maybe) ;                                          // ensure we confirm/infirm
-							for ( JobExecRpcReq& j : slave_entry.second ) {
+							auto it = slave_entry.second.find(jerr.id) ; SWEAR(it!=slave_entry.second.end(),jerr.id,slave_entry) ;
+							SWEAR(jerr.digest.write!=Maybe) ;                                                                         // ensure we confirm/infirm
+							for ( JobExecRpcReq& j : it->second ) {
 								SWEAR(j.digest.write==Maybe) ;
 								j.digest.write = jerr.digest.write ;
 								_new_access(fd,::move(j)) ;
 							}
-							slave_entry.second.clear() ;
-						break ;
+							slave_entry.second.erase(it) ;
+						} break ;
 						case Proc::None :
 							if (fd==fast_report_fd) {
-								epoll.del(false/*write*/,fd,false/*wait*/) ;                           // fast_report_fd is not waited as it is always open and will be closed as it is an AcFd
-								open_fast_report_fd() ;                                                // reopen as job may close the pipe and reopen it later
+								epoll.del(false/*write*/,fd,false/*wait*/) ;                                    // fast_report_fd is not waited as it is always open and will be closed as it is an AcFd
+								open_fast_report_fd() ;                                                         // reopen as job may close the pipe and reopen it later
 							} else {
 								epoll.close(false/*write*/,fd) ;
 							}
 							trace("close",kind,fd,"wait",_wait,+epoll) ;
-							for( JobExecRpcReq& j : slave_entry.second ) _new_access(fd,::move(j)) ;   // process deferred entries although with uncertain outcome
+							for( auto& [_,um] : slave_entry.second )
+								for( JobExecRpcReq& j : um )
+									_new_access(fd,::move(j)) ;                                                 // process deferred entries although with uncertain outcome
 							job_slaves.erase(sit) ;
 						break ;
 						case Proc::Access :
 							// for read accesses, trying is enough to trigger a dep, so confirm is useless
-							if (jerr.digest.write==Maybe) slave_entry.second.push_back(::move(jerr)) ; // delay until confirmed/infirmed
-							else                          _new_access(fd,::move(jerr))               ;
+							if (jerr.digest.write==Maybe) slave_entry.second[jerr.id].push_back(::move(jerr)) ; // delay until confirmed/infirmed
+							else                          _new_access(fd,::move(jerr))                        ;
 						break ;
 						case Proc::Tmp :
 							if (!seen_tmp) {
@@ -563,7 +567,7 @@ Status Gather::exec_child() {
 							}
 						break ;
 						case Proc::Panic :
-							if (!panic_seen) {                                                         // report only first panic
+							if (!panic_seen) {                                                                  // report only first panic
 								_exec_trace(jerr.date,"panic",jerr.file) ;
 								set_status(Status::Err,jerr.file) ;
 								kill() ;
@@ -583,10 +587,10 @@ Status Gather::exec_child() {
 	}
 Return :
 	//
-	SWEAR(!_child) ;                                                                                   // _child must have been waited by now
+	SWEAR(!_child) ;                                                                                            // _child must have been waited by now
 	trace("done",status) ;
 	SWEAR(status!=Status::New) ;
-	reorder(true/*at_end*/) ;                                                                          // ensure server sees a coherent view
+	reorder(true/*at_end*/) ;                                                                                   // ensure server sees a coherent view
 	return status ;
 }
 

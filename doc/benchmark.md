@@ -77,8 +77,8 @@ The running host has 8 cpu's (including hyper-threading) and the number of paral
 
 |                                 | `bash` |   `make`  | `ninja`    | `bazel` | open-lmake | Comment                                                       |
 |---------------------------------|--------|-----------|------------|---------|------------|---------------------------------------------------------------|
-| fresh rebuild                   |        |           |            |         | 7m 45s     | initial build                                                 |
-| full rebuild                    | 6m 4s  | 5m 59s    | **5m 55s** | 7m 46s  | 7m 04s     | after erasing all built files and `bazel` cache               |
+| fresh rebuild                   |        |           |            |         | 7m 43s     | initial build                                                 |
+| full rebuild                    | 6m 4s  | 5m 59s    | **5m 55s** | 7m 46s  | 7m 03s     | after erasing all built files and `bazel` cache               |
 | full no-op rebuild              |        | 7.682s    | 0.917s     | 5.623s  | **0.530s** | after no modification                                         |
 | partial no-op rebuild           |        | 0.856s    | 0.461s     | 5.270s  | **0.033s** | build of a target that only requires exploration of 100 files |
 | config file size (lines)        | 120017 | 120008    | 120011     | 120002  | **11**     | note open-lmake contains no dep info in its config            |

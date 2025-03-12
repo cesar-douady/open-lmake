@@ -47,6 +47,8 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,PyRule
 
+	lmake.config.link_support = 'none'
+
 	lmake.config.backends.local.cpu *= 2
 
 	lmake.config.backends.slurm = {

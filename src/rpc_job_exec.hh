@@ -10,6 +10,89 @@
 
 #include "rpc_job_common.hh"
 
+ENUM( Comment
+,	None
+// syscalls
+,	Caccess
+,	Ccanonicalize_file_name
+,	Cchdir
+,	Cchmod
+,	Ccreat                      , Ccreat64
+,	Cclone                      , Cclone3
+,	Cdlmopen
+,	Cdlopen
+,	Cexecv                      , CexecvDep
+,	Cexecve                     , CexecveDep    , Cexecveat          , CexecveatDep
+,	Cexecvp                     , CexecvpDep
+,	Cexecvpe                    , CexecvpeDep
+,	                                              Cfaccessat         , Cfaccessat2
+,	Cfchdir
+,	                                              Cfchmodat
+,	Cfopen                      , Cfopen64
+,	Cfork
+,	Cfreopen                    , Cfreopen64
+,	                                              Cfstatat           , Cfstatat64
+,	                                              Cfutimesat
+,	Cla_objopen
+,	Cla_objsearch
+,	Clink                                       , Clinkat
+,	Clstat                      , Clstat64
+,	Clutimes
+,	Cmkdir                                      , Cmkdirat
+,	Cmkostemp                   , Cmkostemp64
+,	Cmkostemps                  , Cmkostemps64
+,	Cmkstemp                    , Cmkstemp64
+,	Cmkstemps                   , Cmkstemps64
+,	Cmount
+,	                                              Cname_to_handle_at
+,	                                              Cnewfstatat
+,	Coldlstat
+,	Coldstat
+,	Copen                       , Copen64       , Copenat            , Copenat64     , Copenat2
+,	Copen_tree
+,	Copendir
+,	Creadlink                                   , Creadlinkat
+,	Crealpath
+,	Crename                                     , Crenameat          , Crenameat2
+,	Crmdir
+,	Cscandir                    , Cscandir64    , Cscandirat         , Cscandirat64
+,	Cstat                       , Cstat64
+,	Cstatx
+,	Csymlink                                    , Csymlinkat
+,	Ctruncate                   , Ctruncate64
+,	Cunlink                                     , Cunlinkat
+,	Cutime
+,	                                              Cutimensat
+,	Cutimes
+,	                                              C__fxstatat        , C__fxstatat64
+,	                                              C__lxstat          , C__lxstat64
+,	C__open                     , C__open64
+,	C__open_2                   , C__open64_2   , C__openat_2        , C__openat64_2
+,	C__open64_nocancel
+,	C__open_nocancel
+,	C__readlink__chk                            , C__readlinkat_chk
+,	C__realpath_chk
+,	C__xstat                     , C__xstat64
+// lmake functions
+,	CchkDeps
+,	Cdecode
+,	Cdepend
+,	Cencode
+,	Ctarget
+)
+
+ENUM( CommentExt
+,	File
+,	Last
+,	Lnk
+,	NoFollow
+,	Read
+,	Stat
+,	Unlnk
+,	Write
+)
+using CommentExts = BitMap<CommentExt> ;
+
 ENUM_2( JobExecProc
 ,	HasFile     = CodecCtx // >=HasFile     means file      field is significative
 ,	HasFileInfo = Access   // >=HasFileInfo means file_info field is significative
@@ -58,48 +141,57 @@ struct JobExecRpcReq {
 	// accesses
 	uint8_t const& min_len() const { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t const*>(&file_info) ; }
 	uint8_t      & min_len()       { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t      *>(&file_info) ; }
+	//
+	::string txt() const {
+		if (+comment_exts) return cat     (snake(comment).substr(1),comment_exts) ;
+		else               return ::string(snake(comment).substr(1)             ) ;
+	}
 	// services
 	void chk() const {
 		SWEAR( (proc>=Proc::HasFile    ) == +file      , proc,file           ) ;
 		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ; // Encode uses file_info to store min_len
 		switch (proc) {
 			case Proc::ChkDeps        :
-			case Proc::Tmp            : SWEAR( +date                &&  !digest                       , proc,date,     digest ) ; break ;
-			case Proc::DepVerbose     : SWEAR( +date && sync==Yes                                     , proc,date,sync        ) ; break ;
+			case Proc::Tmp            : SWEAR( +date                &&  !digest , proc,date,     digest ) ; break ;
+			case Proc::DepVerbose     : SWEAR( +date && sync==Yes               , proc,date,sync        ) ; break ;
 			case Proc::Trace          :
-			case Proc::Panic          : SWEAR( !date && sync==No    &&  !digest                       , proc,date,sync,digest ) ; break ;
+			case Proc::Panic          : SWEAR( !date && sync==No    &&  !digest , proc,date,sync,digest ) ; break ;
 			case Proc::CodecFile      :
 			case Proc::CodecCtx       :
-			case Proc::DepVerbosePush : SWEAR( !date && sync==Maybe &&  !digest                       , proc,date,sync,digest ) ; break ;
-			case Proc::Confirm        : SWEAR( !date                                                  , proc,date             ) ; break ;
-			case Proc::Guard          : SWEAR( !date                &&  !digest                       , proc,date,     digest ) ; break ;
+			case Proc::DepVerbosePush : SWEAR( !date && sync==Maybe &&  !digest , proc,date,sync,digest ) ; break ;
+			case Proc::Confirm        : SWEAR( !date                            , proc,date             ) ; break ;
+			case Proc::Guard          : SWEAR( !date                &&  !digest , proc,date,     digest ) ; break ;
 			case Proc::Decode         :
-			case Proc::Encode         : SWEAR( !date && sync==Yes   &&  !digest                       , proc,date,sync,digest ) ; break ;
-			case Proc::Access         : SWEAR( +date                && (!digest.accesses)<=!file_info , proc,date,     digest ) ; break ;
+			case Proc::Encode         : SWEAR( !date && sync==Yes   &&  !digest , proc,date,sync,digest ) ; break ;
+			case Proc::Access         : SWEAR( +date                            , proc,date             ) ; break ;
 		DF}
 	}
 	template<IsStream T> void serdes(T& s) {
-		/**/                         ::serdes(s,proc     ) ;
-		/**/                         ::serdes(s,sync     ) ;
-		if (proc>=Proc::HasFile    ) ::serdes(s,file     ) ;
-		if (proc>=Proc::HasFileInfo) ::serdes(s,file_info) ;
+		/**/                         ::serdes(s,proc        ) ;
+		/**/                         ::serdes(s,sync        ) ;
+		/**/                         ::serdes(s,comment     ) ;
+		/**/                         ::serdes(s,comment_exts) ;
+		/**/                         ::serdes(s,id          ) ;
+		if (proc>=Proc::HasFile    ) ::serdes(s,file        ) ;
+		if (proc>=Proc::HasFileInfo) ::serdes(s,file_info   ) ;
 		switch (proc) {
 			case Proc::ChkDeps    :
-			case Proc::Tmp        : ::serdes(s,date) ;                            break ;
-			case Proc::Confirm    :                    ::serdes(s,digest.write) ; break ;
-			case Proc::DepVerbose : ::serdes(s,date) ; ::serdes(s,digest      ) ; break ;
-			case Proc::Access     : ::serdes(s,date) ; ::serdes(s,digest      ) ; break ;
+			case Proc::Tmp        :                            ::serdes(s,date) ; break ;
+			case Proc::Confirm    : ::serdes(s,digest.write) ;                    break ;
+			case Proc::DepVerbose : ::serdes(s,digest      ) ; ::serdes(s,date) ; break ;
+			case Proc::Access     : ::serdes(s,digest      ) ; ::serdes(s,date) ; break ;
 		DN}
-		::serdes(s,txt) ;
 	}
 	// data
-	Proc     proc      = {} ;
-	Bool3    sync      = No ;                                                                        // Maybe means transport as sync (not using fast_report), but not actually sync
-	AD       digest    = {} ;
-	Pdate    date      = {} ;                                                                        // access date to reorder accesses during analysis
-	::string file      = {} ;
-	FI       file_info = {} ;
-	::string txt       = {} ;                                                                        // if proc==Access|Decode|Encode|Trace comment for Access, code for Decode, value for Encode
+	Proc        proc         = {}            ;
+	Bool3       sync         = No            ;                                   // Maybe means transport as sync (not using fast_report), but not actually sync
+	Comment     comment      = Comment::None ;
+	CommentExts comment_exts = {}            ;
+	AD          digest       = {}            ;
+	pid_t       id           = 0             ;                                   // used to distinguish flows from different processes when muxed on fast report fd
+	Pdate       date         = {}            ;                                   // access date to reorder accesses during analysis
+	::string    file         = {}            ;                                   // contains all text info for CodecCtx, Encode, Decode, Trace and Panic
+	FI          file_info    = {}            ;
 } ;
 
 struct JobExecRpcReply {

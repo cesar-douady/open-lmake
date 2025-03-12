@@ -171,11 +171,9 @@ template<bool Encode> static PyObject* codec( PyObject* /*null*/ , PyObject* arg
 				DN}
 				return py_err_set(Exception::TypeErr,"unexpected keyword arg "+key) ;
 			}
-		/**/        throw_unless( has_file               , "missing arg ","file"                                                  ) ;
-		/**/        throw_unless( has_ctx                , "missing arg ","ctx"                                                   ) ;
-		/**/        throw_unless( has_cv                 , "missing arg ",Cv                                                      ) ;
-		if (Encode) throw_unless( min_len>=1             , "min_len (",min_len,") must be at least 1"                             ) ;
-		if (Encode) throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most crc length (",sizeof(Crc)*2,')' ) ; // codes are output in hex, 4 bits/digit
+		throw_unless( has_file , "missing arg ","file" ) ;
+		throw_unless( has_ctx  , "missing arg ","ctx"  ) ;
+		throw_unless( has_cv   , "missing arg ",Cv     ) ;
 		//
 		::pair_s<bool/*ok*/> reply =
 			Encode ? JobSupport::encode( _g_record , ::move(file) , ::move(cv/*val*/ ) , ::move(ctx) , min_len )

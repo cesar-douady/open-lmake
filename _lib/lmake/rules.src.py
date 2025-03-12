@@ -42,7 +42,6 @@ class _RuleBase :
 	# if a value contains '...' surrounded by separators, or at the beginning or end, these '...' are replaced by the inherited value
 	paths = {
 		'environ.PATH'            : ':'
-	,	'environ.PYTHONPATH'      : ':'
 	,	'environ.LD_LIBRARY_PATH' : ':'
 	}
 #	name                         # must be specific for each rule, defaults to class name
@@ -148,7 +147,7 @@ class DirtyRule(Rule) :
 	side_targets = { '__NO_MATCH__' : ('{*:.*}','Incremental','NoWarning') }
 
 class _PyRule(Rule) :
-	environ = pdict( PYTHONPATH=':'.join(('$LMAKE_ROOT/lib','$REPO_ROOT')) )
+	environ = pdict(PYTHONPATH='$LMAKE_ROOT/lib')
 class Py2Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file

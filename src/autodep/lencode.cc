@@ -34,19 +34,15 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to store code-value association") ;
 	//
 	uint8_t min_len = 1 ;
-	try {
-		if (cmd_line.flags[Flag::MinLen]) {
-			min_len = from_string<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ;
-			throw_unless( min_len<=sizeof(Crc)*2 , "min len (",min_len,") cannot be larger than crc length (",sizeof(Crc)*2,')' ) ; // codes are output in hex, 4 bits/digit
-		}
-	} catch (::string const& e) {
-		syntax.usage("bad min len value : "+e) ;
+	if (cmd_line.flags[Flag::MinLen]) {
+		try                       { min_len = from_string<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ; }
+		catch (::string const& e) { syntax.usage("bad min len value : "+e) ;                            }
 	}
 	//
 	try {
 		auto&                fa    = cmd_line.flag_args                                                                                                             ;
 		::pair_s<bool/*ok*/> reply = JobSupport::encode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , Fd::Stdin.read() , ::move(fa[+Flag::Context]) , min_len ) ;
-		if (reply.second) { Fd::Stdout.write(::move(reply.first)+'\n') ; return 0 ; }
-		else              { Fd::Stderr.write(       reply.first      ) ; return 1 ; }
+		if (reply.second) { Fd::Stdout.write(          ::move(reply.first)+'\n') ; return 0 ; }
+		else              { Fd::Stderr.write(ensure_nl(::move(reply.first))    ) ; return 1 ; }
 	} catch (::string const& e) { exit(Rc::Format,e) ; }
 }

@@ -7,20 +7,22 @@
 
 #include "utils.hh"
 
+#include "rpc_job_exec.hh"
+
 struct SyscallDescr {
-	static constexpr long NSyscalls = 1024 ;           // must larger than higher syscall number, 1024 is plenty, actual upper value is around 450
-	using Tab = ::array<SyscallDescr,NSyscalls> ;      // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
+	static constexpr long NSyscalls = 1024 ;                                                           // must larger than higher syscall number, 1024 is plenty, actual upper value is around 450
+	using Tab = ::array<SyscallDescr,NSyscalls> ;                                                      // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
 	// static data
 	static Tab const& s_tab ;
 	// accesses
-	constexpr bool operator+() const { return prio ; } // prio=0 means entry is not allocated
+	constexpr bool operator+() const { return prio ; }                                                 // prio=0 means entry is not allocated
 	// data
 	// /!\ there must be no memory allocation nor cxtor/dxtor as this must be statically allocated when malloc is not available
-	void           (*entry)( void*& , Record& , pid_t , uint64_t args[6] , const char* comment ) = nullptr ;
-	int64_t/*res*/ (*exit )( void*  , Record& , pid_t , int64_t res                            ) = nullptr ;
-	int            filter                                                                        = 0       ; // argument to filter on when known to require no processing
-	uint8_t        prio                                                                          = 0       ; // prio for libseccomp (0 means entry is not allocated)
-	const char*    comment                                                                       = nullptr ;
+	void           (*entry)( void*& , Record& , pid_t , uint64_t args[6] , Comment ) = nullptr       ;
+	int64_t/*res*/ (*exit )( void*  , Record& , pid_t , int64_t res                ) = nullptr       ;
+	int            filter                                                            = 0             ; // argument to filter out when known to require no processing
+	uint8_t        prio                                                              = 0             ; // prio for libseccomp (0 means entry is not allocated)
+	Comment        comment                                                           = Comment::None ;
 } ;
 
 #ifdef LD_PRELOAD

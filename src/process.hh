@@ -46,6 +46,7 @@ struct Child {
 	static constexpr size_t StackSz = 16<<10 ;                       // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k
 	static constexpr Fd     NoneFd  { -1 }   ;
 	static constexpr Fd     PipeFd  { -2 }   ;
+	static constexpr Fd     JoinFd  { -3 }   ;                       // used on stdout or sderr (but not both) to join both
 	// statics
 	[[noreturn]] static int _s_do_child_trampoline(void* self_) { reinterpret_cast<Child*>(self_)->_do_child_trampoline() ; }
 	// cxtors & casts
@@ -105,7 +106,7 @@ public :
 	Pipe         _p2c           = {}      ;
 	Pipe         _c2po          = {}      ;
 	Pipe         _c2pe          = {}      ;
-	const char** _child_args    = nullptr ;                             // all memory must be allocated before clone/fork/vfork is called
-	const char** _child_env     = nullptr ;                             // .
+	const char** _child_args    = nullptr ;                          // all memory must be allocated before clone/fork/vfork is called
+	const char** _child_env     = nullptr ;                          // .
 	bool         _own_child_env = false   ;
 } ;

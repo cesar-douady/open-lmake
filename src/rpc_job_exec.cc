@@ -49,7 +49,8 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 	if      (+jerr.file                     ) os <<','  << jerr.file              ;
 	if      ( jerr.proc==JobExecProc::Encode) os <<','  << jerr.min_len()         ; // Encode uses file_info to transport min_len
 	else if (+jerr.file_info                ) os <<':'  << jerr.file_info         ;
-	if      (+jerr.txt                      ) os <<','  << jerr.txt               ;
+	if      (+jerr.comment                  ) os <<','  << jerr.comment           ;
+	if      (+jerr.comment_exts             ) os <<','  << jerr.comment_exts      ;
 	return                                    os <<')'                            ;
 }
 

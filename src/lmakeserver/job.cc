@@ -270,14 +270,13 @@ namespace Engine {
 	}
 
 	JobInfo Job::job_info(BitMap<JobInfoKind> need) const {
-		Lock                lock  { s_record_thread } ;
 		JobInfo             res   ;
 		BitMap<JobInfoKind> found ;
-		SWEAR(+(need&~JobInfoKind::None)) ;                                        // else, this is useless
+		SWEAR(+(need&~JobInfoKind::None)) ;                                            // else, this is useless
 		auto do_entry = [&](::pair<Job,JobInfo1> const& jji)->void {
 			if (jji.first!=self) return ;
 			JobInfo1 const& ji = jji.second ;
-			if ( ji.is_a<JobInfoKind::Start>() && +found ) {                       // start event is a new record
+			if ( ji.is_a<JobInfoKind::Start>() && +found ) {                           // start event is a new record // lock for minimal time
 				res   = {} ;
 				found = {} ;
 			}
@@ -291,8 +290,10 @@ namespace Engine {
 				DF}
 		} ;
 		// first search queue
-		/**/                                     do_entry(s_record_thread.cur()) ; // dont forget entry being processed (handle first as this is this the oldest entry)
-		for( auto const& jji : s_record_thread ) do_entry(jji                  ) ; // linear searching is not fast, but this is rather exceptional and this queue is small (actually mostly empty)
+		{	Lock lock { s_record_thread } ;                                            // lock for minimal time
+			/**/                                     do_entry(s_record_thread.cur()) ; // dont forget entry being processed (handle first as this is this the oldest entry)
+			for( auto const& jji : s_record_thread ) do_entry(jji                  ) ; // linear searching is not fast, but this is rather exceptional and this queue is small (actually mostly empty)
+		}
 		Trace trace("job_info",self,need,found,res.dep_crcs.size()) ;
 		// then search recorded info
 		if (!found[JobInfoKind::Start]) res.fill_from( ancillary_file() , need&~found ) ; // else, recorded info is obsolete
@@ -572,7 +573,8 @@ namespace Engine {
 		//
 		// handle deps
 		//
-		bool          has_new_deps = false ;
+		bool          has_new_deps         = false ;
+		bool          has_updated_dep_crcs = false ;                                                      // record acquired dep crc's if we acquired any
 		::vector<Crc> dep_crcs     ;
 		if (fresh_deps) {
 			::uset<Node>  old_deps ;
@@ -591,18 +593,23 @@ namespace Engine {
 					// if this occurs, consider dep as unstable if it was not a known dep (we know known deps have been finished before job started).
 					if (dep.hot) { trace("reset",dep) ; dep.crc({}) ; }
 				}
+				bool updated_dep_crc = false ;
 				if (!dep.is_crc) {
 					dep->full_refresh(true/*report_no_file*/,running_reqs_) ;
 					dep.acquire_crc() ;
-					if (dep.is_crc) dd.crc_sig(dep) ;                                                     // if a dep has become a crc, update digest so that ancillary file reflects it
+					if (dep.is_crc) {                                                                     // if a dep has become a crc, update digest so that ancillary file reflects it
+						dd.crc_sig(dep) ;
+						updated_dep_crc = true ;
+					}
 				} else if (dep.never_match()) {
 					dep->set_buildable() ;
 					if (dep->is_src_anti()) dep->refresh_src_anti(true/*report_no_file*/,running_reqs_) ; // the goal is to detect overwritten
 					unstable_dep = true ;
 				}
 				trace("dep",dep,STR(dep.is_crc),STR(dep.is_crc&&dep.crc().valid())) ;
-				deps    .push_back( dep                            ) ;
-				dep_crcs.push_back( dep.is_crc ? dep.crc() : Crc() ) ;
+				/**/                   deps    .push_back( dep     ) ;
+				if (updated_dep_crc) { dep_crcs.push_back(dep.crc()) ; has_updated_dep_crcs = true ; }
+				else                   dep_crcs.push_back(Crc()    ) ;
 			}
 			//vvvvvvvvvvvvvvvvvv
 			jd.deps.assign(deps) ;
@@ -630,14 +637,14 @@ namespace Engine {
 				stderr = ji.end.stderr ;
 			}
 			if (+severe_msg) {
-				ji.end.msg <<set_nl<< severe_msg ;
+				ji.end.msg <<set_nl<< severe_msg               ;
 				s_record_thread.emplace(self,::move(ji.start)) ;
 				s_record_thread.emplace(self,::move(ji.end  )) ;
 			}
 		}
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		s_record_thread.emplace(self,::move(dep_crcs)) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		s_record_thread.emplace( self , has_updated_dep_crcs ? ::move(dep_crcs) : ::vector<Crc>() ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (ok==Yes) jd.record_stats( digest.exec_time , cost , tokens1 ) ; // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 		//
 		for( Req req : jd.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
@@ -655,7 +662,7 @@ namespace Engine {
 			JobReason job_reason = jd.make( ri , MakeAction::End , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !has_new_deps             ;                           // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = done || !has_new_deps             ;                                      // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
@@ -683,16 +690,16 @@ namespace Engine {
 				ri.wakeup_watchers() ;
 			} else {
 				upload = false ;
-				req->missing_audits[self] = { jr , msg } ;
+				req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
 			}
 			trace("req_after",ri,job_reason,STR(done)) ;
 			req.chk_end() ;
 		}
 		if (+digest.upload_key) {
 			Cache* cache = Cache::s_tab[digest.cache_idx] ;
-			SWEAR(cache,digest.cache_idx) ;                                                      // cannot commit/dismiss without cache
-			if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ; // cache only successful results
-			else        cache->dismiss( digest.upload_key                                    ) ; // free up temporary storage copied in job_exec
+			SWEAR(cache,digest.cache_idx) ;                                                                 // cannot commit/dismiss without cache
+			if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ;            // cache only successful results
+			else        cache->dismiss( digest.upload_key                                    ) ;            // free up temporary storage copied in job_exec
 		}
 		trace("summary",self) ;
 	}
@@ -1114,11 +1121,16 @@ namespace Engine {
 			//
 			if (ja.report!=JobReport::Hit) req->stats.move(JobReport::Rerun,ja.report,exec_time) ; // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
 			//
-			JobEndRpcReq jerr = idx().job_info(JobInfoKind::End).end                                          ;
-			JobReason    jr   = reason(ri.state)                                                              ;
-			::string     pfx  = status==Status::SubmitLoop ? "" : ja.report==JobReport::Hit ? "hit_" : "was_" ;
-			if (jr.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , pfx , reason_str(jr) , jerr.stderr , jerr.digest.max_stderr_len ) ;
-			else                           audit_end( ri , true/*with_stats*/ , pfx , ja.backend_msg , jerr.stderr , jerr.digest.max_stderr_len ) ;
+			JobReason jr  = reason(ri.state)                                                              ;
+			::string  pfx = status==Status::SubmitLoop ? "" : ja.report==JobReport::Hit ? "hit_" : "was_" ;
+			if (ja.has_stderr) {
+				JobEndRpcReq jerr = idx().job_info(JobInfoKind::End).end ;
+				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , pfx , reason_str(jr) , jerr.stderr , jerr.digest.max_stderr_len ) ;
+				else                           audit_end( ri , true/*with_stats*/ , pfx , ja.msg         , jerr.stderr , jerr.digest.max_stderr_len ) ;
+			} else {
+				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , pfx , reason_str(jr) , ""s/*stderr*/ ) ;
+				else                           audit_end( ri , true/*with_stats*/ , pfx , ja.msg         , ""s/*stderr*/ ) ;
+			}
 			req->missing_audits.erase(it) ;
 		}
 		trace("wakeup",ri) ;
@@ -1258,7 +1270,7 @@ namespace Engine {
 			if (it!=g_config->cache_idxs.end()) {
 				::vmap_s<DepDigest> dns ;
 				for( Dep const& d : deps ) {
-					DepDigest dd = d ; dd.crc(d->crc) ;                                                                       // provide node actual crc as this is the hit criteria
+					DepDigest dd = d ; dd.crc(d->crc) ;                                                      // provide node actual crc as this is the hit criteria
 					dns.emplace_back(d->name(),dd) ;
 				}
 				cache_idx = it->second ;
@@ -1282,20 +1294,23 @@ namespace Engine {
 								if (!dfa_msg.second) return false/*maybe_new_deps*/ ;
 							}
 							//
-							JobExec je       { idx() , New }                              ;                                   // job starts and ends, no host
+							JobExec je       { idx() , New }                              ;                  // job starts and ends, no host
 							JobInfo job_info = cache->download(cache_match.key,nfs_guard) ;
-							job_info.start.pre_start.job       = +idx()    ;                                                  // idx is repo dependent
-							job_info.start.submit_attrs.reason = ri.reason ;                                                  // reason is context dependent
+							job_info.start.pre_start.job       = +idx()    ;                                 // repo dependent
+							job_info.start.submit_attrs.reason = ri.reason ;                                 // context dependent
+							job_info.end  .end_date            = New       ;                                 // execution dependnt
 							//
+							JobDigest<Node> digest = job_info.end.digest ;                                 // gather info before being moved
 							Job::s_record_thread.emplace(idx(),::move(job_info.start)) ;
+							Job::s_record_thread.emplace(idx(),::move(job_info.end  )) ;
 							//
 							if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
 							//
 							ri.step(Step::Hit,idx()) ;
 							trace("hit_result") ;
-							je.end(JobDigest<Node>(job_info.end.digest)) ;                                                    // does not call make, no resources nor backend for cached jobs
+							je.end(::move(digest)) ;
 							req->stats.add(JobReport::Hit) ;
-							req->missing_audits[idx()] = { JobReport::Hit , {} } ;
+							req->missing_audits[idx()] = { .report=JobReport::Hit , .has_stderr=+job_info.end.stderr } ;
 							goto ResetReqInfo ;
 						} catch (::string const&) {}                                                                          // if we cant download result, it is like a miss
 					break ;

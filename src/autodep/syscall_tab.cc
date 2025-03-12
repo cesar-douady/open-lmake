@@ -75,10 +75,10 @@ template<int FlagArg> [[maybe_unused]] static bool _flag( uint64_t args[6] , int
 }
 
 // chdir
-template<bool At> [[maybe_unused]] static void _entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> [[maybe_unused]] static void _entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		if (At) { Record::Chdir* cd = new Record::Chdir( r , {Fd(args[0])          } , comment ) ; ctx = cd ; }
-		else    { Record::Chdir* cd = new Record::Chdir( r , {_path<At>(pid,args+0)} , comment ) ; ctx = cd ; }
+		if (At) { Record::Chdir* cd = new Record::Chdir( r , {Fd(args[0])          } , c ) ; ctx = cd ; }
+		else    { Record::Chdir* cd = new Record::Chdir( r , {_path<At>(pid,args+0)} , c ) ; ctx = cd ; }
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -91,9 +91,9 @@ template<bool At> [[maybe_unused]] static void _entry_chdir( void* & ctx , Recor
 }
 
 // chmod
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
+		ctx = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -106,28 +106,28 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void* &
 }
 
 // creat
-[[maybe_unused]] static void _entry_creat( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+[[maybe_unused]] static void _entry_creat( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Open( r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , comment ) ;
+		ctx = new Record::Open( r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , c ) ;
 	} catch (int) {}
 }
 // use _exit_open as exit proc
 
 // execve
 // must be called before actual syscall execution as after execution, info is no more available
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		Record::Exec( r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
+		Record::Exec( r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
 	} catch (int) {}
 }
 
 // hard link
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	Record::Path old ;
 	try           { old = _path<At>(pid,args+0) ; }
 	catch (int e) { if (e) return ;               } // if e==0, old is simple, else there is an error and access will not be done
 	try {
-		ctx = new Record::Lnk( r , ::move(old) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
+		ctx = new Record::Lnk( r , ::move(old) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
@@ -140,23 +140,23 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void* & c
 }
 
 // mkdir
-template<bool At> [[maybe_unused]] static void _entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> [[maybe_unused]] static void _entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		Record::Mkdir( r , _path<At>(pid,args+0) , comment ) ;
+		Record::Mkdir( r , _path<At>(pid,args+0) , c ) ;
 	} catch (int) {}
 }
 
 // mount
-[[maybe_unused]] static void _entry_mount( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+[[maybe_unused]] static void _entry_mount( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		if (args[3]&MS_BIND) Record::Mount( r , _path<false>(pid,args+0) , _path<false>(pid,args+1) , comment ) ;
+		if (args[3]&MS_BIND) Record::Mount( r , _path<false>(pid,args+0) , _path<false>(pid,args+1) , c ) ;
 	} catch (int) {}
 }
 
 // open
-template<bool At> [[maybe_unused]] static void _entry_open( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> [[maybe_unused]] static void _entry_open( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , comment ) ;
+		ctx = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , c ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
@@ -170,12 +170,12 @@ template<bool At> [[maybe_unused]] static void _entry_open( void* & ctx , Record
 
 // read_lnk
 using RLB = ::pair<Record::Readlink,uint64_t/*buf*/> ;
-template<bool At> [[maybe_unused]] static void _entry_read_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> [[maybe_unused]] static void _entry_read_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
 		uint64_t orig_buf = args[At+1]                                             ;
 		size_t   sz       = args[At+2]                                             ;
 		char*    buf      = pid ? new char[sz] : reinterpret_cast<char*>(orig_buf) ;
-		ctx = new RLB( Record::Readlink( r , _path<At>(pid,args+0) , buf , sz , comment ) , orig_buf ) ;
+		ctx = new RLB( Record::Readlink( r , _path<At>(pid,args+0) , buf , sz , c ) , orig_buf ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
@@ -194,7 +194,7 @@ template<bool At> [[maybe_unused]] static void _entry_read_lnk( void* & ctx , Re
 }
 
 // rename
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
 		#ifdef RENAME_EXCHANGE
 			bool exchange = _flag<FlagArg>(args,RENAME_EXCHANGE) ;
@@ -207,7 +207,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* 
 			bool no_replace = false                                 ;
 		#endif
 		// renaming a simple file (either src or dst) is non-sense, non need to take precautions
-		ctx = new Record::Rename{ r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , comment } ;
+		ctx = new Record::Rename{ r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , c } ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
@@ -220,9 +220,9 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void* 
 }
 
 // symlink
-template<bool At> [[maybe_unused]] static void _entry_symlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> [[maybe_unused]] static void _entry_symlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Symlink{ r , _path<At>(pid,args+1) , comment } ;
+		ctx = new Record::Symlink{ r , _path<At>(pid,args+1) , c } ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -235,11 +235,11 @@ template<bool At> [[maybe_unused]] static void _entry_symlink( void* & ctx , Rec
 }
 
 // unlink
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
 		bool rmdir = _flag<FlagArg>(args,AT_REMOVEDIR) ;
-		if (rmdir)           Record::Unlnk( r , _path<At>(pid,args+0) , rmdir , comment ) ; // rmdir calls us without exit, and we must not set ctx in that case
-		else       ctx = new Record::Unlnk{ r , _path<At>(pid,args+0) , rmdir , comment } ;
+		if (rmdir)           Record::Unlnk( r , _path<At>(pid,args+0) , rmdir , c ) ; // rmdir calls us without exit, and we must not set ctx in that case
+		else       ctx = new Record::Unlnk{ r , _path<At>(pid,args+0) , rmdir , c } ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -252,24 +252,24 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlink( void* 
 }
 
 // access
-template<bool At,int FlagArg> [[maybe_unused]] static void _do_stat( Record& r , pid_t pid , uint64_t args[6] , Accesses a , const char* comment ) {
+template<bool At,int FlagArg> [[maybe_unused]] static void _do_stat( Record& r , pid_t pid , uint64_t args[6] , Accesses a , Comment c ) {
 	try {
-		Record::Stat( r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , a , comment ) ;
+		Record::Stat( r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , a , c ) ;
 	} catch (int) {}
 }
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_access( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> [[maybe_unused]] static void _entry_access( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	Accesses a ; if (args[At+1]&X_OK) a |= Access::Reg ;
-	_do_stat<At,FlagArg>(r,pid,args,a,comment) ;
+	_do_stat<At,FlagArg>(r,pid,args,a,c) ;
 }
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_open_tree( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	_do_stat<At,FlagArg>(r,pid,args,Accesses(),comment) ;
+template<bool At,int FlagArg> [[maybe_unused]] static void _entry_open_tree( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+	_do_stat<At,FlagArg>(r,pid,args,Accesses(),c) ;
 }
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	_do_stat<At,FlagArg>(r,pid,args,~Accesses(),comment) ;
+template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+	_do_stat<At,FlagArg>(r,pid,args,~Accesses(),c) ;
 }
 #ifdef SYS_statx
 	// protect statx as STATX_* macros are not defined when statx is not implemented, leading to compile errors
-	[[maybe_unused]] static void _entry_statx( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+	[[maybe_unused]] static void _entry_statx( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 		#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
 			uint     msk = args[3] ;
 			Accesses a   ;
@@ -278,7 +278,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void* & 
 		#else
 			Accesses a = ~Accesses() ;                                           // if access macros are not defined, be pessimistic
 		#endif
-		_do_stat<true,2>(r,pid,args,a,comment) ;
+		_do_stat<true,2>(r,pid,args,a,c) ;
 	}
 #endif
 
@@ -291,133 +291,133 @@ static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	//	entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
 	//	                                                                                { entry           <At   ,flag      > , exit           filter,prio, comment             }
 	#ifdef SYS_access
-		static_assert(SYS_access           <NSyscalls) ; s_tab[SYS_access           ] = { _entry_access   <false,FlagNever > , nullptr        ,1    , 1  , "Access"            } ;
+		static_assert(SYS_access           <NSyscalls) ; s_tab[SYS_access           ] = { _entry_access   <false,FlagNever > , nullptr        , 1   , 1  , Comment::Caccess            } ;
 	#endif
 	#ifdef SYS_faccessat
-		static_assert(SYS_faccessat        <NSyscalls) ; s_tab[SYS_faccessat        ] = { _entry_access   <true ,3         > , nullptr        ,2    , 2  , "Faccessat"         } ;
+		static_assert(SYS_faccessat        <NSyscalls) ; s_tab[SYS_faccessat        ] = { _entry_access   <true ,3         > , nullptr        , 2   , 2  , Comment::Cfaccessat         } ;
 	#endif
 	#ifdef SYS_faccessat2
-		static_assert(SYS_faccessat2       <NSyscalls) ; s_tab[SYS_faccessat2       ] = { _entry_access   <true ,3         > , nullptr        ,2    , 2  , "Faccessat2"        } ;
+		static_assert(SYS_faccessat2       <NSyscalls) ; s_tab[SYS_faccessat2       ] = { _entry_access   <true ,3         > , nullptr        , 2   , 2  , Comment::Cfaccessat2        } ;
 	#endif
 	#ifdef SYS_chdir
-		static_assert(SYS_chdir            <NSyscalls) ; s_tab[SYS_chdir            ] = { _entry_chdir    <false           > , _exit_chdir    ,0    , 1  , "Chdir"             } ;
+		static_assert(SYS_chdir            <NSyscalls) ; s_tab[SYS_chdir            ] = { _entry_chdir    <false           > , _exit_chdir    , 0   , 1  , Comment::Cchdir             } ;
 	#endif
 	#ifdef SYS_fchdir
-		static_assert(SYS_fchdir           <NSyscalls) ; s_tab[SYS_fchdir           ] = { _entry_chdir    <true            > , _exit_chdir    ,0    , 1  , "Fchdir"            } ;
+		static_assert(SYS_fchdir           <NSyscalls) ; s_tab[SYS_fchdir           ] = { _entry_chdir    <true            > , _exit_chdir    , 0   , 1  , Comment::Cfchdir            } ;
 	#endif
 	#ifdef SYS_chmod
-		static_assert(SYS_chmod            <NSyscalls) ; s_tab[SYS_chmod            ] = { _entry_chmod    <false,FlagNever > , _exit_chmod    ,1    , 1  , "Chmod"             } ;
+		static_assert(SYS_chmod            <NSyscalls) ; s_tab[SYS_chmod            ] = { _entry_chmod    <false,FlagNever > , _exit_chmod    , 1   , 1  , Comment::Cchmod             } ;
 	#endif
 	#ifdef SYS_fchmodat
-		static_assert(SYS_fchmodat         <NSyscalls) ; s_tab[SYS_fchmodat         ] = { _entry_chmod    <true ,3         > , _exit_chmod    ,2    , 1  , "Fchmodat"          } ;
+		static_assert(SYS_fchmodat         <NSyscalls) ; s_tab[SYS_fchmodat         ] = { _entry_chmod    <true ,3         > , _exit_chmod    , 2   , 1  , Comment::Cfchmodat          } ;
 	#endif
 	#ifdef SYS_clone
-		static_assert(SYS_clone            <NSyscalls) ; s_tab[SYS_clone            ] = { nullptr                            , nullptr        ,0    , 2  , "Clone"             } ;
+		static_assert(SYS_clone            <NSyscalls) ; s_tab[SYS_clone            ] = { nullptr                            , nullptr        , 0   , 2  , Comment::Cclone             } ;
 	#endif
 	#ifdef SYS_clone2
-		static_assert(SYS_clone2           <NSyscalls) ; s_tab[SYS_clone2           ] = { nullptr                            , nullptr        ,0    , 2  , "Clone2"            } ;
+		static_assert(SYS_clone2           <NSyscalls) ; s_tab[SYS_clone2           ] = { nullptr                            , nullptr        , 0   , 2  , Comment::Cclone2            } ;
 	#endif
 	#ifdef SYS_clone3
-		static_assert(SYS_clone3           <NSyscalls) ; s_tab[SYS_clone3           ] = { nullptr                            , nullptr        ,0    , 2  , "Clone3"            } ;
+		static_assert(SYS_clone3           <NSyscalls) ; s_tab[SYS_clone3           ] = { nullptr                            , nullptr        , 0   , 2  , Comment::Cclone3            } ;
 	#endif
 	#ifdef SYS_creat
-		static_assert(SYS_creat            <NSyscalls) ; s_tab[SYS_creat            ] = { _entry_creat                       , _exit_open     ,1    , 2  , "Creat"             } ;
+		static_assert(SYS_creat            <NSyscalls) ; s_tab[SYS_creat            ] = { _entry_creat                       , _exit_open     , 1   , 2  , Comment::Ccreat             } ;
 	#endif
 	#ifdef SYS_execve
-		static_assert(SYS_execve           <NSyscalls) ; s_tab[SYS_execve           ] = { _entry_execve   <false,FlagNever > , nullptr        ,0    , 1  , "Execve"            } ;
+		static_assert(SYS_execve           <NSyscalls) ; s_tab[SYS_execve           ] = { _entry_execve   <false,FlagNever > , nullptr        , 0   , 1  , Comment::Cexecve            } ;
 	#endif
 	#ifdef SYS_execveat
-		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { _entry_execve   <true ,4         > , nullptr        ,0    , 1  , "Execveat"          } ;
+		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { _entry_execve   <true ,4         > , nullptr        , 0   , 1  , Comment::Cexecveat          } ;
 	#endif
 	#ifdef SYS_fork
-		static_assert(SYS_fork             <NSyscalls) ; s_tab[SYS_fork             ] = { nullptr                            , nullptr        ,0    , 2  , "Fork"              } ;
+		static_assert(SYS_fork             <NSyscalls) ; s_tab[SYS_fork             ] = { nullptr                            , nullptr        , 0   , 2  , Comment::Cfork              } ;
 	#endif
 	#ifdef SYS_link
-		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { _entry_lnk      <false,FlagNever > , _exit_lnk      ,2    , 1  , "Link"              } ;
+		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { _entry_lnk      <false,FlagNever > , _exit_lnk      , 2   , 1  , Comment::Clink              } ;
 	#endif
 	#ifdef SYS_linkat
-		static_assert(SYS_linkat           <NSyscalls) ; s_tab[SYS_linkat           ] = { _entry_lnk      <true ,4         > , _exit_lnk      ,4    , 1  , "Linkat"            } ;
+		static_assert(SYS_linkat           <NSyscalls) ; s_tab[SYS_linkat           ] = { _entry_lnk      <true ,4         > , _exit_lnk      , 4   , 1  , Comment::Clinkat            } ;
 	#endif
 	#ifdef SYS_mkdir
-		static_assert(SYS_mkdir            <NSyscalls) ; s_tab[SYS_mkdir            ] = { _entry_mkdir    <false           > , nullptr        ,1    , 1  , "Mkdir"             } ;
+		static_assert(SYS_mkdir            <NSyscalls) ; s_tab[SYS_mkdir            ] = { _entry_mkdir    <false           > , nullptr        , 1   , 1  , Comment::Cmkdir             } ;
 	#endif
 	#ifdef SYS_mkdirat
-		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { _entry_mkdir    <true            > , nullptr        ,2    , 1  , "Mkdirat"           } ;
+		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { _entry_mkdir    <true            > , nullptr        , 2   , 1  , Comment::Cmkdirat           } ;
 	#endif
 	#ifdef SYS_mount
-		static_assert(SYS_mount            <NSyscalls) ; s_tab[SYS_mount            ] = { _entry_mount                       , nullptr        ,0    , 2  , "Mount"             } ;
+		static_assert(SYS_mount            <NSyscalls) ; s_tab[SYS_mount            ] = { _entry_mount                       , nullptr        , 0   , 2  , Comment::Cmount             } ;
 	#endif
 	#ifdef SYS_name_to_handle_at
-		static_assert(SYS_name_to_handle_at<NSyscalls) ; s_tab[SYS_name_to_handle_at] = { _entry_open     <true            > , _exit_open     ,2    , 1  , "Name_to_handle_at" } ;
+		static_assert(SYS_name_to_handle_at<NSyscalls) ; s_tab[SYS_name_to_handle_at] = { _entry_open     <true            > , _exit_open     , 2   , 1  , Comment::Cname_to_handle_at } ;
 	#endif
 	#ifdef SYS_open
-		static_assert(SYS_open             <NSyscalls) ; s_tab[SYS_open             ] = { _entry_open     <false           > , _exit_open     ,1    , 2  , "Open"              } ;
+		static_assert(SYS_open             <NSyscalls) ; s_tab[SYS_open             ] = { _entry_open     <false           > , _exit_open     , 1   , 2  , Comment::Copen              } ;
 	#endif
 	#ifdef SYS_openat
-		static_assert(SYS_openat           <NSyscalls) ; s_tab[SYS_openat           ] = { _entry_open     <true            > , _exit_open     ,2    , 2  , "Openat"            } ;
+		static_assert(SYS_openat           <NSyscalls) ; s_tab[SYS_openat           ] = { _entry_open     <true            > , _exit_open     , 2   , 2  , Comment::Copenat            } ;
 	#endif
 	#ifdef SYS_openat2
-		static_assert(SYS_openat2          <NSyscalls) ; s_tab[SYS_openat2          ] = { _entry_open     <true            > , _exit_open     ,2    , 2  , "Openat2"           } ;
+		static_assert(SYS_openat2          <NSyscalls) ; s_tab[SYS_openat2          ] = { _entry_open     <true            > , _exit_open     , 2   , 2  , Comment::Copenat2           } ;
 	#endif
 	#ifdef SYS_open_tree
-		static_assert(SYS_open_tree        <NSyscalls) ; s_tab[SYS_open_tree        ] = { _entry_open_tree<true ,2         > , nullptr        ,2    , 1  , "Open_tree"         } ;
+		static_assert(SYS_open_tree        <NSyscalls) ; s_tab[SYS_open_tree        ] = { _entry_open_tree<true ,2         > , nullptr        , 2   , 1  , Comment::Copen_tree         } ;
 	#endif
 	#ifdef SYS_readlink
-		static_assert(SYS_readlink         <NSyscalls) ; s_tab[SYS_readlink         ] = { _entry_read_lnk <false           > , _exit_read_lnk ,1    , 2  , "Readlink"          } ;
+		static_assert(SYS_readlink         <NSyscalls) ; s_tab[SYS_readlink         ] = { _entry_read_lnk <false           > , _exit_read_lnk , 1   , 2  , Comment::Creadlink          } ;
 	#endif
 	#ifdef SYS_readlinkat
-		static_assert(SYS_readlinkat       <NSyscalls) ; s_tab[SYS_readlinkat       ] = { _entry_read_lnk <true            > , _exit_read_lnk ,2    , 2  , "Readlinkat"        } ;
+		static_assert(SYS_readlinkat       <NSyscalls) ; s_tab[SYS_readlinkat       ] = { _entry_read_lnk <true            > , _exit_read_lnk , 2   , 2  , Comment::Creadlinkat        } ;
 	#endif
 	#if SYS_rename
-		static_assert(SYS_rename           <NSyscalls) ; s_tab[SYS_rename           ] = { _entry_rename   <false,FlagNever > , _exit_rename   ,2    , 1  , "Rename"            } ;
+		static_assert(SYS_rename           <NSyscalls) ; s_tab[SYS_rename           ] = { _entry_rename   <false,FlagNever > , _exit_rename   , 2   , 1  , Comment::Crename            } ;
 	#endif
 	#ifdef SYS_renameat
-		static_assert(SYS_renameat         <NSyscalls) ; s_tab[SYS_renameat         ] = { _entry_rename   <true ,FlagNever > , _exit_rename   ,4    , 1  , "Renameat"          } ;
+		static_assert(SYS_renameat         <NSyscalls) ; s_tab[SYS_renameat         ] = { _entry_rename   <true ,FlagNever > , _exit_rename   , 4   , 1  , Comment::Crenameat          } ;
 	#endif
 	#ifdef SYS_renameat2
-		static_assert(SYS_renameat2        <NSyscalls) ; s_tab[SYS_renameat2        ] = { _entry_rename   <true ,4         > , _exit_rename   ,4    , 1  , "Renameat2"         } ;
+		static_assert(SYS_renameat2        <NSyscalls) ; s_tab[SYS_renameat2        ] = { _entry_rename   <true ,4         > , _exit_rename   , 4   , 1  , Comment::Crenameat2         } ;
 	#endif
 	#ifdef SYS_rmdir
-		static_assert(SYS_rmdir            <NSyscalls) ; s_tab[SYS_rmdir            ] = { _entry_unlink   <false,FlagAlways> , nullptr        ,1    , 1  , "Rmdir"             } ;
+		static_assert(SYS_rmdir            <NSyscalls) ; s_tab[SYS_rmdir            ] = { _entry_unlink   <false,FlagAlways> , nullptr        , 1   , 1  , Comment::Crmdir             } ;
 	#endif
 	#ifdef SYS_stat
-		static_assert(SYS_stat             <NSyscalls) ; s_tab[SYS_stat             ] = { _entry_stat     <false,FlagNever > , nullptr        ,1    , 2  , "Stat"              } ;
+		static_assert(SYS_stat             <NSyscalls) ; s_tab[SYS_stat             ] = { _entry_stat     <false,FlagNever > , nullptr        , 1   , 2  , Comment::Cstat              } ;
 	#endif
 	#ifdef SYS_stat64
-		static_assert(SYS_stat64           <NSyscalls) ; s_tab[SYS_stat64           ] = { _entry_stat     <false,FlagNever > , nullptr        ,1    , 1  , "Stat64"            } ;
+		static_assert(SYS_stat64           <NSyscalls) ; s_tab[SYS_stat64           ] = { _entry_stat     <false,FlagNever > , nullptr        , 1   , 1  , Comment::Cstat64            } ;
 	#endif
 	#ifdef SYS_fstatat64
-		static_assert(SYS_fstatat64        <NSyscalls) ; s_tab[SYS_fstatat64        ] = { _entry_stat     <true ,3         > , nullptr        ,2    , 1  , "Fstatat64"         } ;
+		static_assert(SYS_fstatat64        <NSyscalls) ; s_tab[SYS_fstatat64        ] = { _entry_stat     <true ,3         > , nullptr        , 2   , 1  , Comment::Cfstatat64         } ;
 	#endif
 	#ifdef SYS_lstat
-		static_assert(SYS_lstat            <NSyscalls) ; s_tab[SYS_lstat            ] = { _entry_stat     <false,FlagAlways> , nullptr        ,1    , 2  , "Lstat"             } ;
+		static_assert(SYS_lstat            <NSyscalls) ; s_tab[SYS_lstat            ] = { _entry_stat     <false,FlagAlways> , nullptr        , 1   , 2  , Comment::Clstat             } ;
 	#endif
 	#ifdef SYS_lstat64
-		static_assert(SYS_lstat64          <NSyscalls) ; s_tab[SYS_lstat64          ] = { _entry_stat     <false,FlagAlways> , nullptr        ,1    , 1  , "Lstat64"           } ;
+		static_assert(SYS_lstat64          <NSyscalls) ; s_tab[SYS_lstat64          ] = { _entry_stat     <false,FlagAlways> , nullptr        , 1   , 1  , Comment::Clstat64           } ;
 	#endif
 	#ifdef SYS_statx
-		static_assert(SYS_statx            <NSyscalls) ; s_tab[SYS_statx            ] = { _entry_statx                       , nullptr        ,2    , 1  , "Statx"             } ;
+		static_assert(SYS_statx            <NSyscalls) ; s_tab[SYS_statx            ] = { _entry_statx                       , nullptr        , 2   , 1  , Comment::Cstatx             } ;
 	#endif
 	#if SYS_newfstatat
-		static_assert(SYS_newfstatat       <NSyscalls) ; s_tab[SYS_newfstatat       ] = { _entry_stat     <true ,3         > , nullptr        ,2    , 2  , "Newfstatat"        } ;
+		static_assert(SYS_newfstatat       <NSyscalls) ; s_tab[SYS_newfstatat       ] = { _entry_stat     <true ,3         > , nullptr        , 2   , 2  , Comment::Cnewfstatat        } ;
 	#endif
 	#ifdef SYS_oldstat
-		static_assert(SYS_oldstat          <NSyscalls) ; s_tab[SYS_oldstat          ] = { _entry_stat     <false,FlagNever > , nullptr        ,1    , 1  , "Oldstat"           } ;
+		static_assert(SYS_oldstat          <NSyscalls) ; s_tab[SYS_oldstat          ] = { _entry_stat     <false,FlagNever > , nullptr        , 1   , 1  , Comment::Coldstat           } ;
 	#endif
 	#ifdef SYS_oldlstat
-		static_assert(SYS_oldlstat         <NSyscalls) ; s_tab[SYS_oldlstat         ] = { _entry_stat     <false,FlagAlways> , nullptr        ,1    , 1  , "Oldlstat"          } ;
+		static_assert(SYS_oldlstat         <NSyscalls) ; s_tab[SYS_oldlstat         ] = { _entry_stat     <false,FlagAlways> , nullptr        , 1   , 1  , Comment::Coldlstat          } ;
 	#endif
 	#ifdef SYS_symlink
-		static_assert(SYS_symlink          <NSyscalls) ; s_tab[SYS_symlink          ] = { _entry_symlink  <false           > , _exit_sym_lnk  ,2    , 1  , "Symlink"           } ;
+		static_assert(SYS_symlink          <NSyscalls) ; s_tab[SYS_symlink          ] = { _entry_symlink  <false           > , _exit_sym_lnk  , 2   , 1  , Comment::Csymlink           } ;
 	#endif
 	#ifdef SYS_symlinkat
-		static_assert(SYS_symlinkat        <NSyscalls) ; s_tab[SYS_symlinkat        ] = { _entry_symlink  <true            > , _exit_sym_lnk  ,3    , 1  , "Symlinkat"         } ;
+		static_assert(SYS_symlinkat        <NSyscalls) ; s_tab[SYS_symlinkat        ] = { _entry_symlink  <true            > , _exit_sym_lnk  , 3   , 1  , Comment::Csymlinkat         } ;
 	#endif
 	#ifdef SYS_unlink
-		static_assert(SYS_unlink           <NSyscalls) ; s_tab[SYS_unlink           ] = { _entry_unlink   <false,FlagNever > , _exit_unlnk    ,1    , 1  , "Unlink"            } ;
+		static_assert(SYS_unlink           <NSyscalls) ; s_tab[SYS_unlink           ] = { _entry_unlink   <false,FlagNever > , _exit_unlnk    , 1   , 1  , Comment::Cunlink            } ;
 	#endif
 	#ifdef SYS_unlinkat
-		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlink   <true ,2         > , _exit_unlnk    ,2    , 1  , "Unlinkat"          } ;
+		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlink   <true ,2         > , _exit_unlnk    , 2   , 1  , Comment::Cunlinkat          } ;
 	#endif
 	return s_tab ;
 }

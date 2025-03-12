@@ -27,6 +27,11 @@ def _depend_module(module_name,path=None) :
 				if _osp.exists(base     +suffix) : return
 				if _osp.exists(base_init+suffix) : return
 
+def _fix_path() :
+	try :
+		if not _sys.path[0] : _sys.path.append(_sys.path.pop(0)) # put entry invented by python at the end to avoid numerous deps
+	except : pass
+
 if _sys.version_info.major==2 :
 
 	_std_suffixes = ['.py','.so'] # standard suffixes are not available with Python2
@@ -40,6 +45,7 @@ if _sys.version_info.major==2 :
 			def find_module(module_name,path=None) :
 				_depend_module(module_name,path)
 		_sys.meta_path.insert(0,Depend)
+		_fix_path()
 
 else :
 
@@ -61,5 +67,6 @@ else :
 				_depend_module(module_name,path)
 		try    : _sys.meta_path.insert( _sys.meta_path.index(_machinery.PathFinder) , Depend ) # put dependency checker before the first path based finder
 		except : _sys.meta_path.append(                                               Depend ) # or at the end if none is found
+		_fix_path()
 
 module_suffixes = [ i+s for i in ('','/__init__') for s in _std_suffixes ]

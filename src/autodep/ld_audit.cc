@@ -80,12 +80,12 @@ extern "C" {
 			*cookie = true/*not_std*/ ;
 			return LA_FLG_BINDFROM ;
 		}
-		if (!::string_view(nm).starts_with("linux-vdso.so"))                                // linux-vdso.so is listed, but is not a real file
-			Record::ReadCS(auditor(),nm,false/*no_follow*/,false/*keep_real*/,"la_objopen") ;
+		if (!::string_view(nm).starts_with("linux-vdso.so"))                                          // linux-vdso.so is listed, but is not a real file
+			Record::ReadCS(auditor(),nm,false/*no_follow*/,false/*keep_real*/,Comment::Cla_objopen) ;
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(nm) ;
 		*cookie = !known.first ;
 		if (known.second) {
-			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ; // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
+			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ;           // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
 			g_libc_name = nm ;
 		}
 		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;
@@ -93,9 +93,9 @@ extern "C" {
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , uint flag ) {
 		switch (flag) {
-			case LA_SER_ORIG    : if (strrchr(name,'/')) Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
+			case LA_SER_ORIG    : if (strrchr(name,'/')) Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,Comment::Cla_objsearch) ; break ;
 			case LA_SER_LIBPATH :
-			case LA_SER_RUNPATH :                        Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,"la_objsearch") ; break ;
+			case LA_SER_RUNPATH :                        Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,Comment::Cla_objsearch) ; break ;
 		DN}
 		return const_cast<char*>(name) ;
 	}

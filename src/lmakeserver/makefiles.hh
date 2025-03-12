@@ -8,6 +8,6 @@
 #pragma once
 
 namespace Engine::Makefiles {
-	::string/*msg*/ refresh        ( bool chk, bool refresh        ) ;
-	::string/*msg*/ dynamic_refresh( ::string const& startup_dir_s ) ; // startup dir for diag purpose only
+	void refresh        ( ::string&/*out*/ msg , bool chk, bool refresh        ) ;
+	void dynamic_refresh( ::string&/*out*/ msg , ::string const& startup_dir_s ) ; // startup dir for diag purpose only
 }

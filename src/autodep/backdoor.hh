@@ -66,17 +66,17 @@ namespace Backdoor {
 				::serdes(s,file_info) ;
 			}
 			// data
-			FileInfo file_info {} ;    // file info must be probed in process as we are protected against recording
+			FileInfo file_info {} ;          // file info must be probed in process as we are protected against recording
 		} ;
 		size_t reply_len(         ) const ;
 		Reply  process  (Record& r) const ;
 		// data
-		::string file      = {}      ;
-		bool     no_follow = false   ;
-		bool     read      = false   ; // if both read & write, overlays are not supported
-		bool     write     = false   ; // .
-		bool     create    = false   ;
-		::string comment   = "solve" ;
+		::string file      = {}            ;
+		bool     no_follow = false         ;
+		bool     read      = false         ; // if both read & write, overlays are not supported
+		bool     write     = false         ; // .
+		bool     create    = false         ;
+		Comment  comment   = Comment::None ;
 	} ;
 
 }

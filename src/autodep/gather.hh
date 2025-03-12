@@ -100,10 +100,10 @@ private :
 	void _new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di , ::string const& c       ) { _new_access({},pd,::move(f),ad,di,c) ; }
 	//
 	void _new_access( Fd fd , Jerr&& jerr ) {
-		_new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , jerr.txt ) ;
+		_new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , jerr.txt() ) ;
 	}
 	void _new_guard( Fd fd , Jerr&& jerr ) {                                                                    // fd for trace purpose only
-		Trace trace("_new_guards",fd,jerr.txt,jerr.file) ;
+		Trace trace("_new_guards",fd,jerr) ;
 		guards.insert(::move(jerr.file)) ;
 	}
 	void         _kill          ( bool force           ) ;

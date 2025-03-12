@@ -109,7 +109,8 @@ namespace Engine::Makefiles {
 
 	static RegExpr const* pyc_re = nullptr ;
 
-	static ::pair<Ptr<Dict>,::vector_s/*deps*/> _read_makefile( ::string const& action , ::string const& sub_repos ) {
+	// msg may be updated even if throwing
+	static void _read_makefile( ::string&/*out*/ msg , ::Ptr<Dict>&/*out*/ py_info , ::vector_s&/*out*/ deps , ::string const& action , ::string const& sub_repos ) {
 		Trace trace("_read_makefile",action,Pdate(New)) ;
 		//
 		::string data   = PrivateAdminDirS+action+"_data.py" ;
@@ -117,8 +118,10 @@ namespace Engine::Makefiles {
 		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                       ;
 		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                              ;
 		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data , EnvironFile , '/'+action+"/top/" , sub_repos } ;
-		gather.child_stdin             = Child::NoneFd                                                                                               ;
 		gather.env                     = &_g_env                                                                                                     ;
+		gather.child_stdin             = Child::NoneFd                                                                                               ;
+		gather.child_stdout            = Child::PipeFd                                                                                               ;
+		gather.child_stderr            = Child::JoinFd                                                                                               ;
 		//
 		::string sav_ld_library_path ;
 		if (PY_LD_LIBRARY_PATH[0]!=0) {
@@ -131,10 +134,11 @@ namespace Engine::Makefiles {
 		//              ^^^^^^^^^^^^^^^^^^^
 		if (PY_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
 		//
+		msg += gather.stdout ;
 		if (status!=Status::Ok) throw "cannot read " + action + (+gather.msg?" : ":"") + localize(gather.msg) ;
 		//
+		deps.reserve(gather.accesses.size()) ;
 		::string   content = AcFd(data).read() ;
-		::vector_s deps    ;                     deps.reserve(gather.accesses.size()) ;
 		::uset_s   dep_set ;
 		for( auto const& [d,ai] : gather.accesses ) {
 			if (ai.digest.write!=No) continue ;
@@ -142,38 +146,39 @@ namespace Engine::Makefiles {
 			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.push_back(py) ; }
 			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.push_back(d ) ; }
 		}
-		try {
-			Ptr<Dict> res = py_eval(content) ;
-			trace("done",Pdate(New)) ;
-			return { res , deps } ;
-		} catch (::string const& e) { FAIL( "error while reading makefile digest :\n" , e ) ; }
+		try                       { py_info = py_eval(content) ;                            }
+		catch (::string const& e) { FAIL( "error while reading makefile digest :\n" , e ) ; }
+		trace("done",Pdate(New)) ;
 	}
 
-	static ::pair_s<bool/*done*/> _refresh_config( Config& config , Ptr<Dict>& py_info , ::vector_s& deps , ::string const& startup_dir_s ) {
+	// msg may be updated even if throwing
+	static bool/*done*/ _refresh_config( ::string&/*out*/ msg , Config&/*out*/ config , Ptr<Dict>&/*out*/ py_info , ::vector_s&/*out*/ deps , ::string const& startup_dir_s ) {
 		Trace trace("refresh_config") ;
-		::string reason    = _chk_deps( "config" , startup_dir_s , false/*reliable_dirs*/ ) ; // until we have config info, protect against NFS
-		if (!reason) return {{},false/*done*/} ;
-		//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		tie(py_info,deps) = _read_makefile("config","..."/*sub_repos*/) ;                     // discover sub-repos while recursing into them
-		//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		::string reason = _chk_deps( "config" , startup_dir_s , false/*reliable_dirs*/ ) ; // until we have config info, protect against NFS
+		if (!reason) return false/*done*/ ;
+		msg << "read config because "<<reason<<'\n' ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		_read_makefile( msg , py_info , deps , "config","..."/*sub_repos*/ ) ;             // discover sub-repos while recursing into them
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		try                      { config = (*py_info)["config"].as_a<Dict>() ;    }
 		catch(::string const& e) { throw "while processing config :\n"+indent(e) ; }
 		config.has_split_rules = !py_info->contains("rules"   ) ;
 		config.has_split_srcs  = !py_info->contains("manifest") ;
 		//
-		return { reason , true/*done*/ } ;
+		return true/*done*/ ;
 	}
 
-	template<bool IsRules,class T> static ::pair_s<Bool3/*done*/> _refresh_rules_srcs(                          // Maybe means not split
-		T&              res
-	,	::vector_s&     deps
-	,	Bool3           changed                                                                                 // Maybe means new, Yes means existence of module/callable changed
-	,	Dict const*     py_info
-	,	::string const& startup_dir_s
+	template<bool IsRules,class T> static Bool3/*done*/ _refresh_rules_srcs(                                    // Maybe means not split
+		::string  &/*out*/ msg // msg may be updated even if throwing
+	,	T         &/*out*/ res
+	,	::vector_s&/*out*/ deps
+	,	Bool3              changed                                                                              // Maybe means new, Yes means existence of module/callable changed
+	,	Dict const*        py_info
+	,	::string const&    startup_dir_s
 	) {
 		bool has_split = IsRules ? g_config->has_split_rules : g_config->has_split_srcs ;
 		Trace trace("_refresh_rules_srcs",STR(IsRules),changed,STR(has_split)) ;
-		if ( !has_split && !py_info && changed==No ) return {{},Maybe/*done*/} ;                                // sources has not been read
+		if ( !has_split && !py_info && changed==No ) return Maybe/*done*/ ;                                     // sources has not been read
 		::string  reason      ;
 		Ptr<Dict> py_new_info ;
 		::string  kind        = IsRules ? "rules" : "sources" ;
@@ -183,7 +188,7 @@ namespace Engine::Makefiles {
 				case Maybe : reason = kind+" module/callable was never read" ; break ;
 				case No    :
 					reason = _chk_deps( kind , startup_dir_s , g_config->reliable_dirs ) ;
-					if (!reason) return {{},No/*done*/} ;
+					if (!reason) return No/*done*/ ;
 				break ;
 			}
 			SWEAR(+reason) ;
@@ -192,9 +197,10 @@ namespace Engine::Makefiles {
 			/**/                                                sub_repos_s << "("                            ;
 			for( ::string const& sr_s : g_config->sub_repos_s ) sub_repos_s <<first("",",")<< mk_py_str(sr_s) ; // use sub-repos list discovered during config
 			/**/                                                sub_repos_s <<first("",",","")<<')'           ; // singletons must have a terminating ','
-			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			tie(py_new_info,deps) = _read_makefile(kind,sub_repos_s) ;
-			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			msg<<"read "<<kind<<" because "<<reason<<'\n' ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			_read_makefile( msg , py_new_info , deps , kind , sub_repos_s ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
 		try {
@@ -203,17 +209,17 @@ namespace Engine::Makefiles {
 		} catch(::string const& e) {
 			throw "while processing "+kind+" :\n"+indent(e) ;
 		}
-		return {reason,Maybe|+reason/*done*/} ;                                                                 // cannot be split without reason
+		return Maybe|+reason/*done*/ ;                                                                          // cannot be split without reason
 	}
 
-	::string/*msg*/ _refresh( bool rescue , bool refresh_ , bool dynamic , ::string const& startup_dir_s ) {
+	void _refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ , bool dynamic , ::string const& startup_dir_s ) { // msg may be updated even if throwing
 		Trace trace("_refresh",STR(rescue),STR(refresh_),STR(dynamic),startup_dir_s) ;
 		if (!refresh_) {
 			SWEAR(!dynamic) ;
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Persistent::new_config( Config() , dynamic , rescue ) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			return {} ;
+			return ;
 		}
 		Gil        gil         ;
 		::vector_s config_deps ;
@@ -241,7 +247,7 @@ namespace Engine::Makefiles {
 			if (PY_LD_LIBRARY_PATH[0]!=0) _g_env["LD_LIBRARY_PATH"] = PY_LD_LIBRARY_PATH            ;
 		}
 		//
-		::pair_s<bool/*done*/> config_digest = _refresh_config( config , py_info , config_deps , startup_dir_s ) ;
+		bool/*done*/ config_digest = _refresh_config( msg , config , py_info , config_deps , startup_dir_s ) ;
 		//
 		Bool3 changed_srcs  = No    ;
 		Bool3 changed_rules = No    ;
@@ -257,7 +263,7 @@ namespace Engine::Makefiles {
 			//
 			changed_srcs  |= old.has_split_srcs !=new_.has_split_srcs  ;
 			changed_rules |= old.has_split_rules!=new_.has_split_rules ;
-			invalidate    |= old.sub_repos_s!=new_.sub_repos_s         ;         // this changes matching exceptions, which means it changes matching
+			invalidate    |= old.sub_repos_s    !=new_.sub_repos_s     ;         // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
 			NoGil no_gil { gil } ;                                               // release gil as new_config needs Backend which is of lower priority
@@ -265,58 +271,51 @@ namespace Engine::Makefiles {
 			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
-			throw "cannot "s+(dynamic?"dynamically ":"")+"read config (because "+config_digest.first+") : "+e ;
+			throw "cannot "s+(dynamic?"dynamically ":"")+"update config : "+e ;
 		}
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//
-		::vector_s              srcs        ;
-		::pair_s<Bool3/*done*/> srcs_digest = _refresh_rules_srcs<false/*IsRules*/>( srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;    // Maybe means not split
-		bool                    new_srcs    = srcs_digest.second==Yes || (srcs_digest.second==Maybe&&config_digest.second)                       ;
+		::vector_s    srcs        ;
+		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<false/*IsRules*/>( msg , srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;         // Maybe means not split
+		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest)                                                  ;
 		if (new_srcs) {
 			try {
 				NoGil no_gil { gil } ;
 				//                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate |= Persistent::new_srcs( ::move(srcs) , dynamic ) ;
 			} catch (::string const& e) { //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				throw "cannot "s+(dynamic?"dynamically ":"")+"read sources (because "+(srcs_digest.second==Yes?srcs_digest.first:config_digest.first)+") : "+e ;
+				throw "cannot "s+(dynamic?"dynamically ":"")+"update sources : "+e ;
 			}
 		}
 		//
-		::vector<RuleData>      rules        ;
-		::pair_s<Bool3/*done*/> rules_digest = _refresh_rules_srcs<true/*IsRules*/>( rules , rules_deps , changed_rules , py_info , startup_dir_s ) ; // Maybe means not split
-		bool                    new_rules    = rules_digest.second==Yes || (rules_digest.second==Maybe&&config_digest.second)                       ;
+		::vector<RuleData> rules        ;
+		Bool3/*done*/      rules_digest = _refresh_rules_srcs<true/*IsRules*/>( msg , rules , rules_deps , changed_rules , py_info , startup_dir_s ) ; // Maybe means not split
+		bool               new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
 		if (new_rules) {
 			try {
-				NoGil no_gil { gil } ;                                                                                // release gil as new_rules acquires it when needed
+				NoGil no_gil { gil } ;                                                                        // release gil as new_rules acquires it when needed
 				//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate = Persistent::new_rules( ::move(rules) , dynamic ) ;
 			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				throw "cannot "s+(dynamic?"dynamically ":"")+"read rules (because "+(rules_digest.second==Yes?rules_digest.first:config_digest.first)+") : "+e ;
+				throw "cannot "s+(dynamic?"dynamically ":"")+"update rules : "+e ;
 			}
 		}
 		if (invalidate) Persistent::invalidate_match() ;
 		//
-		if      ( config_digest.second                  ) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
-		else if (                              new_srcs ) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have become dangling
-		if      ( srcs_digest  .second==Yes             ) _gen_deps    ( "sources" , srcs_deps    , startup_dir_s ) ;
-		else if ( srcs_digest  .second==No  && new_srcs ) FAIL() ;
-		if      ( rules_digest .second==Yes             ) _gen_deps    ( "rules"   , rules_deps   , startup_dir_s ) ;
-		else if ( rules_digest .second==No  && new_srcs ) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ; // .
+		if      ( config_digest                 ) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
+		else if (                      new_srcs ) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have become dangling
+		if      ( srcs_digest ==Yes             ) _gen_deps    ( "sources" , srcs_deps    , startup_dir_s ) ;
+		else if ( srcs_digest ==No  && new_srcs ) FAIL() ;
+		if      ( rules_digest==Yes             ) _gen_deps    ( "rules"   , rules_deps   , startup_dir_s ) ;
+		else if ( rules_digest==No  && new_srcs ) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ; // .
 		//
-		::string msg ;
-		if (+config_digest.first) msg<<"read config because " <<config_digest.first<<'\n' ;
-		if (+srcs_digest  .first) msg<<"read sources because "<<srcs_digest  .first<<'\n' ;
-		if (+rules_digest .first) msg<<"read rules because "  <<rules_digest .first<<'\n' ;
-		//
-		if (config_digest.second     ) _stamp_deps("config" ) ;                                                       // stamp deps once all error cases have been cleared
-		if (srcs_digest  .second==Yes) _stamp_deps("sources") ;                                                       // .
-		if (rules_digest .second==Yes) _stamp_deps("rules"  ) ;                                                       // .
-		//
-		return msg ;
+		if (config_digest    ) _stamp_deps("config" ) ;                                                       // stamp deps once all error cases have been cleared
+		if (srcs_digest ==Yes) _stamp_deps("sources") ;                                                       // .
+		if (rules_digest==Yes) _stamp_deps("rules"  ) ;                                                       // .
 	}
 
-	::string/*msg*/ refresh( bool rescue , bool refresh_ ) {
+	void refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ ) { // msg may be updated even if throwing
 		::string reg_exprs_file = PRIVATE_ADMIN_DIR_S "regexpr_cache" ;
 		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }         // load from persistent cache
 		catch (...) {                                                                                }         // perf only, dont care of errors (e.g. first time)
@@ -324,16 +323,15 @@ namespace Engine::Makefiles {
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
 		pyc_re = new RegExpr{R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)"s} ;                  // dir_s is \1, module is \2, matches both python 2 & 3
 		//
-		::string res = _refresh( rescue , refresh_ , false/*dynamic*/ , *g_startup_dir_s ) ;
+		_refresh( msg , rescue , refresh_ , false/*dynamic*/ , *g_startup_dir_s ) ;
 		//
 		if (!RegExpr::s_cache.steady()) {
 			try         { AcFd( dir_guard(reg_exprs_file) , Fd::Write ).write(serialize(RegExpr::s_cache)) ; } // update persistent cache
 			catch (...) {                                                                                    } // perf only, dont care of errors (e.g. we are read-only)
 		}
-		return res ;
 	}
-	::string/*msg*/ dynamic_refresh(::string const& startup_dir_s) {
-		return _refresh( false/*rescue*/  , true/*refresh*/ , true/*dynamic*/ , startup_dir_s ) ;
+	void dynamic_refresh( ::string&/*out*/ msg , ::string const& startup_dir_s ) { // msg may be updated even if throwing
+		_refresh( msg , false/*rescue*/  , true/*refresh*/ , true/*dynamic*/ , startup_dir_s ) ;
 	}
 
 }
