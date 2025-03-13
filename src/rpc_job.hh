@@ -793,23 +793,19 @@ private :
 
 struct ExecTraceEntry {
 	friend ::string& operator+=( ::string& , ExecTraceEntry const& ) ;
-	// cxtors & casts
-	ExecTraceEntry() = default ;
-	ExecTraceEntry( Time::Pdate pd , ::string const& s , ::string const& f={} ) : date{pd} , step{       s } , file{f} {}
-	ExecTraceEntry( Time::Pdate pd , ::string     && s , ::string const& f={} ) : date{pd} , step{::move(s)} , file{f} {}
 	// accesses
 	bool              operator== (ExecTraceEntry const&) const = default ;
 	::strong_ordering operator<=>(ExecTraceEntry const&) const = default ;
 	// services
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,date) ;
-		::serdes(s,step) ;
-		::serdes(s,file) ;
+	::string step() const {
+		if (+comment_exts) return cat     (snake(comment).substr(1),comment_exts) ;
+		else               return ::string(snake(comment).substr(1)             ) ;
 	}
 	// data
 	Time::Pdate date ;
-	::string    step ;
-	::string    file ;
+	Comment     comment      = Comment::None ;
+	CommentExts comment_exts ;
+	::string    file         ;
 } ;
 struct JobEndRpcReq : JobRpcReq {
 	using P   = JobRpcProc          ;

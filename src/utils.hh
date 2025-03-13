@@ -538,8 +538,8 @@ inline bool is_identifier(::string const& s) {
 inline ::string strip(::string const& txt) {
 	size_t start = 0          ;
 	size_t end   = txt.size() ;
-	while ( start<end && ::is_space(txt[start])) start++ ;
-	while ( start<end && ::is_space(txt[end-1])) end  -- ;
+	while ( start<end && is_space(txt[start])) start++ ;
+	while ( start<end && is_space(txt[end-1])) end  -- ;
 	return txt.substr(start,end-start) ;
 }
 

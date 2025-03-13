@@ -487,6 +487,7 @@ cat >$H_FILE <<-EOF
 	#pragma once
 	//
 	#define ADDR2LINE                   "$ADDR2LINE"
+	#define BASH                        "/bin/bash"
 	#define HAS_32                      $HAS_32
 	#define HAS_ADDR2LINE               $HAS_ADDR2LINE
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE

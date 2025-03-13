@@ -561,10 +561,10 @@ namespace Engine {
 							if (!end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							sort( end.exec_trace , [](ExecTraceEntry const& a , ExecTraceEntry const& b )->bool { return a.date<b.date ; } ) ;
 							::string et ;
-							size_t   w  = 0 ; for( ExecTraceEntry const& e : end.exec_trace ) w = ::max(w,e.step.size()) ;
+							size_t   w  = 0 ; for( ExecTraceEntry const& e : end.exec_trace ) w = ::max(w,e.step().size()) ;
 							for( ExecTraceEntry const& e : end.exec_trace ) {
 								/**/         et <<      e.date.str(3/*prec*/,true/*in_day*/) ;
-								/**/         et <<' '<< widen(e.step,w)                      ;
+								/**/         et <<' '<< widen(e.step(),w)                    ;
 								if (+e.file) et <<' '<< e.file                               ;
 								/**/         et <<'\n'                                       ;
 							}

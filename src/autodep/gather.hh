@@ -96,11 +96,11 @@ private :
 	// services
 	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only
-	void _new_access( Fd , PD    , ::string&& file , AccessDigest    , DI const&    , ::string const& comment ) ;
-	void _new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di , ::string const& c       ) { _new_access({},pd,::move(f),ad,di,c) ; }
+	void _new_access( Fd , PD    , ::string&& file , AccessDigest    , DI const&    , Comment  =Comment::None , CommentExts    ={} ) ;
+	void _new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di , Comment c=Comment::None , CommentExts ces={} ) { _new_access({},pd,::move(f),ad,di,c,ces) ; }
 	//
 	void _new_access( Fd fd , Jerr&& jerr ) {
-		_new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , jerr.txt() ) ;
+		_new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , jerr.comment , jerr.comment_exts ) ;
 	}
 	void _new_guard( Fd fd , Jerr&& jerr ) {                                                                    // fd for trace purpose only
 		Trace trace("_new_guards",fd,jerr) ;
@@ -109,14 +109,14 @@ private :
 	void         _kill          ( bool force           ) ;
 	void         _send_to_server( Fd fd , Jerr&&       ) ;                                                      // files are required for DepVerbose and forbidden for other
 	bool/*sent*/ _send_to_server( JobMngtRpcReq const& ) ;
-public : //!                                                                                                           crc_file_info
-	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c) ; }
-	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c) ; } // new_unlnk is used for internal wash
-	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                     }
+public : //!                                                                                                                                    crc_file_info
+	void new_target( PD pd , ::string const& t , Comment c=Comment::CstaticTarget , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; }
+	void new_unlnk ( PD pd , ::string const& t , Comment c=Comment::CstaticUnlnk  , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; } // used for internal wash
+	void new_guard (         ::string const& f                                                         ) { guards.insert(f) ;                                         }
 	//
-	void new_dep ( PD pd , ::string&&      dep  , Accesses a     , ::string const& c    ="s_dep"  ) { _new_access( pd , ::move(dep) , {.accesses=a} , Disk::FileInfo(dep) , c ) ; }
-	void new_dep ( PD    , ::string&&      dep  , DepDigest&& dd , ::string const& stdin={}       ) ;
-	void new_exec( PD    , ::string const& exe  ,                  ::string const&      ="s_exec" ) ;
+	void new_exec( PD    , ::string const& exe ,              Comment  =Comment::CstaticExec                      ) ;
+	void new_dep ( PD pd , ::string&&      dep , Accesses a , Comment c=Comment::CstaticDep  , CommentExts ces={} ) { _new_access(pd,::move(dep),{.accesses=a},Disk::FileInfo(dep),c,ces) ; }
+	void new_dep ( PD    , ::string&&      dep , DepDigest&& dd , ::string const& stdin={}                        ) ;
 	//
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
 		try                     { OMsgBuf().send(fd,jerr) ; }
@@ -129,8 +129,8 @@ public : //!                                                                    
 private :
 	Fd   _spawn_child (                               ) ;
 	void _ptrace_child( Fd report_fd , ::latch* ready ) ;
-	void _exec_trace  ( PD pd , ::string     && step , string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,::move(step),file) ; }
-	void _exec_trace  ( PD pd , ::string const& step , string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,       step ,file) ; }
+	//
+	void _exec_trace( PD pd , Comment c , CommentExts ces={} , string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,c,ces,file) ; }
 	// data
 public :
 	::vector_s                        cmd_line         ;

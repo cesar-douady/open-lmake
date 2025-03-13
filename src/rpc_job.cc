@@ -794,7 +794,7 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 //
 
 ::string& operator+=( ::string& os , ExecTraceEntry const& ete ) {
-	return os <<"ExecTraceEntry("<< ete.date <<','<< ete.step <<','<< ete.file <<')' ;
+	return os <<"ExecTraceEntry("<< ete.date <<','<< ete.step() <<','<< ete.file <<')' ;
 }
 
 ::string& operator+=( ::string& os , TargetDigest const& td ) {

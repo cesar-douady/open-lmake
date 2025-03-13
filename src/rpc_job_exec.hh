@@ -10,89 +10,6 @@
 
 #include "rpc_job_common.hh"
 
-ENUM( Comment
-,	None
-// syscalls
-,	Caccess
-,	Ccanonicalize_file_name
-,	Cchdir
-,	Cchmod
-,	Ccreat                      , Ccreat64
-,	Cclone                      , Cclone3
-,	Cdlmopen
-,	Cdlopen
-,	Cexecv                      , CexecvDep
-,	Cexecve                     , CexecveDep    , Cexecveat          , CexecveatDep
-,	Cexecvp                     , CexecvpDep
-,	Cexecvpe                    , CexecvpeDep
-,	                                              Cfaccessat         , Cfaccessat2
-,	Cfchdir
-,	                                              Cfchmodat
-,	Cfopen                      , Cfopen64
-,	Cfork
-,	Cfreopen                    , Cfreopen64
-,	                                              Cfstatat           , Cfstatat64
-,	                                              Cfutimesat
-,	Cla_objopen
-,	Cla_objsearch
-,	Clink                                       , Clinkat
-,	Clstat                      , Clstat64
-,	Clutimes
-,	Cmkdir                                      , Cmkdirat
-,	Cmkostemp                   , Cmkostemp64
-,	Cmkostemps                  , Cmkostemps64
-,	Cmkstemp                    , Cmkstemp64
-,	Cmkstemps                   , Cmkstemps64
-,	Cmount
-,	                                              Cname_to_handle_at
-,	                                              Cnewfstatat
-,	Coldlstat
-,	Coldstat
-,	Copen                       , Copen64       , Copenat            , Copenat64     , Copenat2
-,	Copen_tree
-,	Copendir
-,	Creadlink                                   , Creadlinkat
-,	Crealpath
-,	Crename                                     , Crenameat          , Crenameat2
-,	Crmdir
-,	Cscandir                    , Cscandir64    , Cscandirat         , Cscandirat64
-,	Cstat                       , Cstat64
-,	Cstatx
-,	Csymlink                                    , Csymlinkat
-,	Ctruncate                   , Ctruncate64
-,	Cunlink                                     , Cunlinkat
-,	Cutime
-,	                                              Cutimensat
-,	Cutimes
-,	                                              C__fxstatat        , C__fxstatat64
-,	                                              C__lxstat          , C__lxstat64
-,	C__open                     , C__open64
-,	C__open_2                   , C__open64_2   , C__openat_2        , C__openat64_2
-,	C__open64_nocancel
-,	C__open_nocancel
-,	C__readlink__chk                            , C__readlinkat_chk
-,	C__realpath_chk
-,	C__xstat                     , C__xstat64
-// lmake functions
-,	CchkDeps
-,	Cdecode
-,	Cdepend
-,	Cencode
-,	Ctarget
-)
-
-ENUM( CommentExt
-,	File
-,	Last
-,	Lnk
-,	NoFollow
-,	Read
-,	Stat
-,	Unlnk
-,	Write
-)
-using CommentExts = BitMap<CommentExt> ;
-
 ENUM_2( JobExecProc
 ,	HasFile     = CodecCtx // >=HasFile     means file      field is significative
 ,	HasFileInfo = Access   // >=HasFileInfo means file_info field is significative
@@ -141,11 +58,6 @@ struct JobExecRpcReq {
 	// accesses
 	uint8_t const& min_len() const { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t const*>(&file_info) ; }
 	uint8_t      & min_len()       { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t      *>(&file_info) ; }
-	//
-	::string txt() const {
-		if (+comment_exts) return cat     (snake(comment).substr(1),comment_exts) ;
-		else               return ::string(snake(comment).substr(1)             ) ;
-	}
 	// services
 	void chk() const {
 		SWEAR( (proc>=Proc::HasFile    ) == +file      , proc,file           ) ;

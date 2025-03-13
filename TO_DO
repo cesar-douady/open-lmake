@@ -14,10 +14,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* cache bug
-	- make
-	- git clean -ffdx lmake_env
-	- make ==> blocks
 * exceptionally, unit_tests/clone.dir/tok crashes
 
 ****************************************************************************************************

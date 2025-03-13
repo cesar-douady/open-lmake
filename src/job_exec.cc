@@ -83,7 +83,7 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
 		else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
 	}
-	g_exec_trace->emplace_back(New,"received_info_from_server") ;
+	g_exec_trace->emplace_back( New , Comment::CstartInfo , CommentExt::Reply ) ;
 	trace(res) ;
 	return res ;
 }
@@ -138,41 +138,41 @@ Digest analyze(Status status=Status::New) {                                     
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (status!=Status::New) {                                               // only trace for user at end of job as intermediate analyses are of marginal interest for user
-				if      (unstable) g_exec_trace->emplace_back(New,"unstable",file) ;
-				else if (dd.hot  ) g_exec_trace->emplace_back(New,"hot"     ,file) ;
+			if (status!=Status::New) {                 // only trace for user at end of job as intermediate analyses are of marginal interest for user
+				if      (unstable) g_exec_trace->emplace_back( New , Comment::Cunstable , CommentExts() , file ) ;
+				else if (dd.hot  ) g_exec_trace->emplace_back( New , Comment::Chot      , CommentExts() , file ) ;
 			}
 			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.ddate_prec,file) ;
 			else        trace("dep    ",dd,                                                 file) ;
 		}
-		if (status==Status::New) continue ;                                          // we are handling chk_deps and we only care about deps
+		if (status==Status::New) continue ;            // we are handling chk_deps and we only care about deps
 		// handle targets
 		if (is_tgt) {
-			if (ad.write==Maybe) relax.sleep_until() ;                               // /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk ...
-			//                                                                       // ... no need to optimize (could compute other crcs while waiting) as this is exceptional
+			if (ad.write==Maybe) relax.sleep_until() ; // /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk ...
+			//                                         // ... no need to optimize (could compute other crcs while waiting) as this is exceptional
 			bool    written = ad.write==Yes ;
 			FileSig sig     ;
-			Crc     crc     ;                                                        // lazy evaluated (not in parallel, but need is exceptional)
-			if (ad.write==Maybe) {                                                   // if we dont know if file has been written, detect file update from disk
+			Crc     crc     ;                          // lazy evaluated (not in parallel, but need is exceptional)
+			if (ad.write==Maybe) {                     // if we dont know if file has been written, detect file update from disk
 				if (info.dep_info.is_a<DepInfoKind::Crc>()) { crc = Crc(file,/*out*/sig) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
 				else                                                                       written |= info.dep_info.sig()!=sig ;
 			}
-			if (!crc) sig = file ;                                                                // sig is computed at the same time as crc, but we need it in all cases
+			if (!crc) sig = file ;                                                                  // sig is computed at the same time as crc, but we need it in all cases
 			//
 			TargetDigest td       { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
 			bool unlnk    = !sig  ;
 			bool reported = false ;
 			//
-			if (is_dep                        ) td.tflags    |= Tflag::Incremental              ; // if is_dep, previous target state is guaranteed by being a dep, use it
+			if (is_dep                        ) td.tflags    |= Tflag::Incremental              ;   // if is_dep, previous target state is guaranteed by being a dep, use it
 			if (!td.tflags[Tflag::Incremental]) td.pre_exist  = info.dep_info.seen(ad.accesses) ;
 			switch (flags.is_target) {
 				case Yes   : break ;
 				case Maybe :
-					if (unlnk) break ;                                                            // it is ok to write and unlink temporary files
+					if (unlnk) break ;                                                              // it is ok to write and unlink temporary files
 				[[fallthrough]] ;
 				case No :
-					if (!written                          ) break ;                               // it is ok to attempt writing as long as attempt does not succeed
-					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                               // it is ok if explicitly allowed by user
+					if (!written                          ) break ;                                 // it is ok to attempt writing as long as attempt does not succeed
+					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                                 // it is ok if explicitly allowed by user
 					trace("bad_access",ad,flags) ;
 					if (ad.write==Maybe    ) res.msg << "maybe "                        ;
 					/**/                     res.msg << "unexpected "                   ;
@@ -183,8 +183,8 @@ Digest analyze(Status status=Status::New) {                                     
 				break ;
 			}
 			if ( is_dep && !unlnk ) {
-				g_exec_trace->emplace_back(New,"dep_and_target",file) ;
-				if (!reported) {                                                                  // if dep and unexpected target, prefer unexpected message rather than this one
+				g_exec_trace->emplace_back( New , Comment::CdepAndTarget , CommentExts() , file ) ;
+				if (!reported) {                                                                    // if dep and unexpected target, prefer unexpected message rather than this one
 					const char* read = nullptr ;
 					if      (ad.dflags[Dflag::Static]       ) read = "a static dep" ;
 					else if (first_read.second[Access::Reg ]) read = "read"         ;
@@ -224,30 +224,189 @@ Digest analyze(Status status=Status::New) {                                     
 		else if (flags.extra_tflags()[ETF::Ignore]) {}
 		else                                        res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ETF::Wash , .crc=Crc::None } ) ;
 	}
-	g_exec_trace->emplace_back(New,"analyzed") ;
+	g_exec_trace->emplace_back( New , Comment::Canalyzed ) ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
 
 ::vmap_s<DepDigest> cur_deps_cb() { return analyze().deps ; }
 
-::string g_to_unlnk ;                                                                                           // XXX> : suppress when CentOS7 bug is fixed
-::vector_s cmd_line() {
+static const ::string StdPath = STD_PATH ;
+static const ::uset_s SpecialWords {
+	":"       , "."         , "{"        , "}"       , "!"
+,	"alias"
+,	"bind"    , "break"     , "builtin"
+,	"caller"  , "case"      , "cd"       , "command" , "continue" , "coproc"
+,	"declare" , "do"        , "done"
+,	"echo"    , "elif"      , "else"     , "enable"  , "esac"     , "eval"    , "exec" , "exit"
+,	"fi"      , "for"       , "function"
+,	"export"
+,	"getopts"
+,	"if"      , "in"
+,	"hash"    , "help"
+,	"let"     , "local"     , "logout"
+,	"mapfile"
+,	"printf"  , "pwd"
+,	"read"    , "readarray" , "readonly" , "return"
+,	"select"  , "shift"     , "source"
+,	"test"    , "then"      , "time"     , "times"   , "type"     , "typeset" , "trap"
+,	"ulimit"  , "umask"     , "unalias"  , "unset"   , "until"
+,	"while"
+} ;
+
+static const ::vector_s SpecialVars {
+	"BASH_ALIASES"
+,	"BASH_ENV"
+,	"BASHOPTS"
+,	"ENV"
+,	"IFS"
+,	"SHELLOPTS"
+} ;
+
+ENUM( State
+,	None
+,	SingleQuote
+,	DoubleQuote
+,	BackSlash
+,	DoubleQuoteBackSlash // after a \ within ""
+)
+
+static bool is_special( char c , int esc_lvl , bool first=false ) {
+	switch (c) {
+		case '$' :
+		case '`' :            return true ;               // recognized even in ""
+		case '#' :
+		case '&' :
+		case '(' : case ')' :
+		case '*' :
+		case ';' :
+		case '<' : case '>' :
+		case '?' :
+		case '[' : case ']' :
+		case '|' :            return esc_lvl<2          ; // recognized anywhere if not quoted
+		case '~' :            return esc_lvl<2 && first ; // recognized as first char of any word
+		case '=' :            return esc_lvl<1          ; // recognized only in first word
+		default  :            return false ;
+	}
+}
+
+// replace calll to BASH by direct execution if a single command can be identified
+bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_ss const& cmd_env ) {
+	if (res.size()!=1) return false/*done*/ ;                                                        // options passed to bash
+	if (res[0]!=BASH ) return false/*done*/ ;                                                        // not standard bash
+	//
+	for( ::string const& v : SpecialVars )
+		if (cmd_env.contains(v)) return false/*done*/ ;                                              // complex environment
+	//
+	::vector_s v          { {} }        ;
+	State      state      = State::None ;
+	bool       slash_seen = false       ;
+	bool       word_seen  = false       ;                                                            // if true <=> a new argument has been detected, maybe empty because of quotes
+	bool       nl_seen    = false       ;
+	bool       cmd_seen   = false       ;
+	//
+	auto special_cmd = [&]()->bool {
+		return v.size()==1 && !slash_seen && SpecialWords.contains(v[0]) ;
+	} ;
+	//
+	for( char c : cmd ) {
+		slash_seen |= c=='/' && v.size()==1 ;                                                        // / are only recorgnized in first word
+		switch (state) {
+			case State::None :
+				if (is_special( c , v.size()>1/*esc_lvl*/ , !v.back() )) return false/*done*/ ;      // complex syntax
+				switch (c) {
+					case '\n' : nl_seen |= cmd_seen ; [[fallthrough]] ;
+					case ' '  :
+					case '\t' :
+						if (cmd_seen) {
+							if (special_cmd()) return false/*done*/ ;                                // need to search in $PATH and may be a reserved word or builtin command
+							if (word_seen) {
+								v.emplace_back() ;
+								word_seen = false ;
+								cmd_seen  = true  ;
+							}
+						}
+					break ;
+					case '\\' : state = State::BackSlash   ;                                      if (nl_seen) return false/*done*/ ; break ; // multi-line
+					case '\'' : state = State::SingleQuote ;                                      if (nl_seen) return false/*done*/ ; break ; // .
+					case '"'  : state = State::DoubleQuote ;                                      if (nl_seen) return false/*done*/ ; break ; // .
+					default   : v.back().push_back(c)      ; word_seen = true ; cmd_seen = true ; if (nl_seen) return false/*done*/ ; break ; // .
+				}
+			break ;
+			case State::BackSlash :
+				v.back().push_back(c) ;
+				state     = State::None ;
+				word_seen = true        ;
+			break ;
+			case State::SingleQuote :
+				if (c=='\'') { state = State::None ; word_seen = true ; }
+				else           v.back().push_back(c) ;
+			break ;
+			case State::DoubleQuote :
+				if (is_special( c , 2/*esc_lvl*/ )) return false/*done*/ ;                                                                        // complex syntax
+				switch (c) {
+					case '\\' : state = State::DoubleQuoteBackSlash ;                    break ;
+					case '"'  : state = State::None                 ; word_seen = true ; break ;
+					default   : v.back().push_back(c)               ;
+				}
+			break ;
+			case State::DoubleQuoteBackSlash :
+				if (!is_special( c , 2/*esc_lvl*/ ))
+					switch (c) {
+						case '\\' :
+						case '\n' :
+						case '"'  :                            break ;
+						default   : v.back().push_back('\\') ;
+					}
+				v.back().push_back(c) ;
+				state = State::DoubleQuote ;
+			break ;
+		}
+	}
+	if (state!=State::None)   return false/*done*/ ;                                                                                          // syntax error
+	if (!word_seen        ) { SWEAR(!v.back()) ; v.pop_back() ; }                                                                             // suppress empty entry created by space after last word
+	if (!v                )   return false/*done*/ ;                                                                                          // no command
+	if (special_cmd()     )   return false/*done*/ ;                                                                                          // complex syntax
+	if (!slash_seen) {                                                                                                                        // search PATH
+		if (cmd_env.contains("EXECIGNORE")) return false/*done*/ ;                                                                            // complex environment
+		auto            it       = cmd_env.find("PATH")                     ;
+		::string const& path     = it==cmd_env.end() ? StdPath : it->second ;
+		::vector_s      path_vec = split(path,':')                          ;
+		::string      &  v0      = v[0]                                     ;
+		for( ::string& p : split(path,':') ) {
+			::string candidate = with_slash(::move(p)) + v0 ;
+			if (FileInfo(candidate).tag()==FileTag::Exe) {
+				v0 = ::move(candidate) ;
+				goto CmdFound ;
+			}
+		}
+		return false/*done*/ ;                                                                                                                // command not found
+	CmdFound : ;
+	}
+	res = ::move(v) ;
+	return true/*done*/ ;
+}
+
+::string g_to_unlnk ;                                                   // XXX> : suppress when CentOS7 bug is fixed
+::vector_s cmd_line(::map_ss const& cmd_env) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
-	::vector_s res = ::move(g_start_info.interpreter) ;                                                         // avoid copying as interpreter is used only here
-	if ( g_start_info.use_script || (g_start_info.cmd.first.size()+g_start_info.cmd.second.size())>ArgMax/2 ) { // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+	::vector_s res = ::move(g_start_info.interpreter) ;                 // avoid copying as interpreter is used only here
+	::string   cmd = g_start_info.cmd.first + g_start_info.cmd.second ;
+	if ( g_start_info.use_script || cmd.size()>ArgMax/2 ) {             // env+cmd line must not be larger than ARG_MAX, keep some margin for env
 		// XXX> : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
 		// correct code :
 		// ::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
 		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;
-		AcFd( dir_guard(cmd_file) , Fd::Write ).write(g_start_info.cmd.first+g_start_info.cmd.second) ;
+		AcFd( dir_guard(cmd_file) , Fd::Write ).write(cmd) ;
 		res.reserve(res.size()+1) ;
-		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                                                        // provide absolute script so as to support cwd
+		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
 	} else {
-		res.reserve(res.size()+2) ;
-		res.push_back( "-c"                                             ) ;
-		res.push_back( g_start_info.cmd.first + g_start_info.cmd.second ) ;
+		if (!mk_simple( res , cmd , cmd_env )) {                        // res is set if simple
+			res.reserve(res.size()+2) ;
+			res.push_back("-c") ;
+			res.push_back(cmd ) ;
+		}
 	}
 	return res ;
 }
@@ -294,7 +453,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	}
 	total_sz = 0 ;
 	for( size_t s : szs ) total_sz += s ;
-	g_exec_trace->emplace_back(New,"computed_crc") ;
+	g_exec_trace->emplace_back( New , Comment::CcomputedCrcs ) ;
 	return msg ;
 }
 
@@ -320,7 +479,7 @@ int main( int argc , char* argv[] ) {
 	end_report.digest   = {.status=Status::EarlyErr} ; // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead             ;
 	g_exec_trace        = &end_report.exec_trace     ;
-	g_exec_trace->emplace_back(start_overhead,"start_overhead") ;
+	g_exec_trace->emplace_back( start_overhead , Comment::CstartOverhead ) ;
 	//
 	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
 		get_start_info(server_fd) ;                                                                                          // getting start_info is useless, but necessary to be allowed to report end
@@ -356,7 +515,7 @@ int main( int argc , char* argv[] ) {
 			}
 		}
 		Pdate washed { New } ;
-		g_exec_trace->emplace_back(washed,"washed") ;
+		g_exec_trace->emplace_back( washed , Comment::Cwashed ) ;
 		//
 		SWEAR(!end_report.phy_tmp_dir_s,end_report.phy_tmp_dir_s) ;
 		{	auto it = g_start_info.env.begin() ;
@@ -398,16 +557,16 @@ int main( int argc , char* argv[] ) {
 				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
 					for( ::string& l : sr.lnks )
-						/**/                            g_gather.new_dep   ( washed , ::move(l      ) ,  Access::Lnk  , "mount_lnk"    ) ;
+						/**/                            g_gather.new_dep   ( washed , ::move(l      ) ,  Access::Lnk  , Comment::Cmount , CommentExt::Lnk   ) ;
 					if (sr.file_loc<=FileLoc::Dep) {
-						if      (a==MountAction::Read ) g_gather.new_dep   ( washed , ::move(sr.real) , ~Access::Stat , "mount_src"    ) ;
-						else if (sr.file_accessed==Yes) g_gather.new_dep   ( washed , ::move(sr.real) ,  Access::Lnk  , "mount_src"    ) ;
+						if      (a==MountAction::Read ) g_gather.new_dep   ( washed , ::move(sr.real) , ~Access::Stat , Comment::Cmount , CommentExt::Read  ) ;
+						else if (sr.file_accessed==Yes) g_gather.new_dep   ( washed , ::move(sr.real) ,  Access::Lnk  , Comment::Cmount , CommentExt::Read  ) ;
 					}
 					if (sr.file_loc<=FileLoc::Repo) {
-						if      (a==MountAction::Write) g_gather.new_target( washed , ::move(sr.real) ,                 "mount_target" ) ;
+						if      (a==MountAction::Write) g_gather.new_target( washed , ::move(sr.real) ,                 Comment::Cmount , CommentExt::Write ) ;
 					}
 				}
-				g_exec_trace->emplace_back(New,"entered_namespace") ;
+				g_exec_trace->emplace_back( New , Comment::CenteredNamespace ) ;
 			}
 		} catch (::string const& e) {
 			end_report.msg += e ;
@@ -454,10 +613,10 @@ int main( int argc , char* argv[] ) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
 			g_gather.child_stdout = Fd(dir_guard(g_start_info.stdout),Fd::Write) ;
-			g_gather.new_target( washed , g_start_info.stdout , "<stdout>" ) ;
+			g_gather.new_target( washed , g_start_info.stdout , Comment::Cstdout ) ;
 			g_gather.child_stdout.no_std() ;
 		}
-		g_gather.cmd_line = cmd_line() ;
+		g_gather.cmd_line = cmd_line(cmd_env) ;
 		Status status ;
 		//                                   vvvvvvvvvvvvvvvvvvvvv
 		try                       { status = g_gather.exec_child() ; }
@@ -475,7 +634,7 @@ int main( int argc , char* argv[] ) {
 		//
 		if (g_start_info.cache) {
 			upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
-			g_exec_trace->emplace_back( New , "uploaded_to_cache" , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
+			g_exec_trace->emplace_back( New , Comment::CuploadedToCache , CommentExts() , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
 			trace("cache",to_hex(upload_key)) ;
 		}
 		//
@@ -514,7 +673,7 @@ End :
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
-			g_exec_trace->emplace_back(end_overhead,"end_overhead") ;
+			g_exec_trace->emplace_back( end_overhead , Comment::CendOverhead ) ;
 			end_report.digest.exec_time = end_overhead - start_overhead ;                   // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;

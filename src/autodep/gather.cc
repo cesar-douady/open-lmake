@@ -63,9 +63,9 @@ NotFirst :
 	return           os << ')'                      ;
 }
 
-void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , ::string const& comment ) {
-	SWEAR( +file , comment        ) ;
-	SWEAR( +pd   , comment , file ) ;
+void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Comment c , CommentExts ces ) {
+	SWEAR( +file , c , ces        ) ;
+	SWEAR( +pd   , c , ces , file ) ;
 	AccessInfo* info        = nullptr/*garbage*/                       ;
 	auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
 	if (is_new) {
@@ -79,11 +79,11 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI
 	info->update( pd , ad , di ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || *info!=old_info ) {
-		if (+comment) {
-			if (is_new) _exec_trace(pd,::copy(comment),accesses.back().first) ;                                                 // file has been ::move()'ed
-			else        _exec_trace(pd,::copy(comment),file                 ) ;
+		if (+c) {
+			if (is_new) _exec_trace(pd,c,ces,accesses.back().first) ;                                                           // file has been ::move()'ed
+			else        _exec_trace(pd,c,ces,file                 ) ;
 		}
-		Trace("_new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
+		Trace("_new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , c , ces , old_info , "->" , *info , it->first ) ; // only trace if something changes
 	}
 }
 
@@ -93,10 +93,10 @@ void Gather::new_dep( PD pd , ::string&& dep , DepDigest&& dd , ::string const& 
 			if (!dd.accesses) dd.sig(FileInfo(dep)) ; // record now if not previously accessed
 			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(dep) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , is_stdin?"stdin":"s_deps" ) ;
+		_new_access( pd , ::move(dep) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , is_stdin?Comment::Cstdin:Comment::CstaticDep ) ;
 }
 
-void Gather::new_exec( PD pd , ::string const& exe , ::string const& c ) {
+void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 	RealPath              rp       { autodep_env }                    ;
 	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
 	for( auto&& [f,a] : rp.exec(sr) )
@@ -131,7 +131,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 	//
 	switch (jerr.proc) {
 		case Proc::ChkDeps :
-			_exec_trace(jerr.date,::string(snake(jerr.proc))) ;
+			_exec_trace( jerr.date , jerr.comment , jerr.comment_exts ) ;
 			jmrr.proc = JobMngtProc::ChkDeps ;
 			reorder(false/*at_end*/) ;                                                                                   // ensure server sees a coherent view
 			jmrr.deps = cur_deps_cb() ;
@@ -142,8 +142,8 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 			jmrr.proc = JobMngtProc::DepVerbose ;
 			jmrr.deps.reserve(files.size()) ;
 			for( auto& [f,fi] : files ) {
-				_exec_trace(jerr.date,::string(snake(jerr.proc)),f) ;
-				_new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , jerr.txt() ) ;
+				_exec_trace( jerr.date , jerr.comment , jerr.comment_exts , f ) ;
+				_new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , jerr.comment , jerr.comment_exts ) ;
 				jmrr.deps.emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,fi,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
 			}
 			_dep_verboses.erase(it) ;
@@ -283,7 +283,7 @@ Status Gather::exec_child() {
 		if      (kill_step==kill_sigs.size()) end_kill = Pdate::Future      ;
 		else if (end_kill==Pdate::Future    ) end_kill = now      +Delay(1) ;
 		else                                  end_kill = end_kill +Delay(1) ;
-		_exec_trace(now,"kill",cat(sig)) ;
+		_exec_trace( now , Comment::Ckill , {} , cat(sig) ) ;
 		kill_step++ ;
 		trace("kill_done",end_kill) ;
 	} ;
@@ -311,7 +311,7 @@ Status Gather::exec_child() {
 	for(;;) {
 		Pdate now = New ;
 		if (now>end_child) {
-			_exec_trace(now,"still_alive") ;
+			_exec_trace(now,Comment::CstillAlive) ;
 			if (!_wait[Kind::ChildEnd]) {
 				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ;      // else we should already have exited
 				::string msg_ ;
@@ -331,7 +331,7 @@ Status Gather::exec_child() {
 			kill() ;
 		}
 		if ( now>end_timeout && !timeout_fired ) {
-			_exec_trace(now,"timeout") ;
+			_exec_trace(now,Comment::Ctimeout) ;
 			set_status(Status::Err,"timeout after "+timeout.short_str()) ;
 			kill() ;
 			timeout_fired = true          ;
@@ -365,7 +365,7 @@ Status Gather::exec_child() {
 					/**/          child_fd     = _spawn_child()       ;
 					/**/          _wait       &= ~Kind::ChildStart    ;
 					if (+timeout) end_timeout  = start_date + timeout ;
-					_exec_trace(start_date,"start_job") ;
+					_exec_trace(start_date,Comment::CstartJob) ;
 					trace("started","wait",_wait,+epoll) ;
 				} catch(::string const& e) {
 					if (child_stderr==Child::PipeFd) stderr = ensure_nl(e) ;
@@ -425,7 +425,7 @@ Status Gather::exec_child() {
 					SWEAR(!WIFSTOPPED(ws),_child.pid) ;          // child must have ended if we are here
 					end_date  = New                      ;
 					end_child = end_date + network_delay ;       // wait at most network_delay for reporting & stdout & stderr to settle down
-					_exec_trace(end_date,"end_job") ;
+					_exec_trace(end_date,Comment::CendJob) ;
 					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",ws) ;
@@ -460,32 +460,32 @@ Status Gather::exec_child() {
 								Pdate now { New } ;
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
 								for( auto const& [ok,crc] : jmrr.dep_infos ) switch (ok) {
-									case Yes   : _exec_trace( now , "dep_verbose.reply" , ::string(crc) ) ; break ;
-									case Maybe : _exec_trace( now , "dep_verbose.reply" , "???"         ) ; break ;
-									case No    : _exec_trace( now , "dep_verbose.reply" , "error"       ) ; break ;
+									case Yes   : _exec_trace( now , Comment::Cdepend , CommentExt::Reply , ::string(crc) ) ; break ;
+									case Maybe : _exec_trace( now , Comment::Cdepend , CommentExt::Reply , "???"         ) ; break ;
+									case No    : _exec_trace( now , Comment::Cdepend , CommentExt::Reply , "error"       ) ; break ;
 								}
 							} break ;
-							case JobMngtProc::Heartbeat :                                                                        break ;
-							case JobMngtProc::Kill      : _exec_trace(New,"killed"     ) ; set_status(Status::Killed) ; kill() ; break ;
-							case JobMngtProc::None      : _exec_trace(New,"lost_server") ; set_status(Status::Killed) ; kill() ; break ;
+							case JobMngtProc::Heartbeat :                                                                               break ;
+							case JobMngtProc::Kill      : _exec_trace( New , Comment::Ckill       , CommentExt::Reply ) ; set_status(Status::Killed) ; kill() ; break ;
+							case JobMngtProc::None      : _exec_trace( New , Comment::ClostServer                     ) ; set_status(Status::Killed) ; kill() ; break ;
 							case JobMngtProc::ChkDeps :
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
 								if (jmrr.ok==Maybe) {
-									_exec_trace( New , "chk_deps.killed" ) ;
+									_exec_trace( New , Comment::CchkDeps , {CommentExt::Reply,CommentExt::Killed} ) ;
 									set_status(Status::ChkDeps) ; kill() ;
 									rfd = {} ;                                                                                // dont reply to ensure job waits if sync
 								} else {
-									_exec_trace( New , cat("chk_deps.",jmrr.ok==Yes?"ok":"err") ) ;
+									_exec_trace( New , Comment::CchkDeps , +jmrr.ok?CommentExts(CommentExt::Reply):CommentExts(CommentExt::Reply,CommentExt::Err) ) ;
 								}
 							break ;
 							case JobMngtProc::Decode :
 							case JobMngtProc::Encode : {
 								SWEAR(+jmrr.fd) ;
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
-								_exec_trace( New , snake(jmrr.proc)+".reply" , jmrr.txt ) ;
+								_exec_trace( New , jmrr.proc==JobMngtProc::Encode?Comment::Cencode:Comment::Cdecode , CommentExt::Reply , jmrr.txt ) ;
 								auto it = _codec_files.find(jmrr.fd) ;
 								SWEAR(it!=_codec_files.end(),jmrr,_codec_files) ;
-								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , snake_str(jmrr.proc) ) ;
+								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , jmrr.proc==JobMngtProc::Encode?Comment::Cencode:Comment::Cdecode ) ;
 								_codec_files.erase(it) ;
 							} break ;
 						DF}
@@ -531,7 +531,8 @@ Status Gather::exec_child() {
 							SWEAR(jerr.digest.write!=Maybe) ;                                                                         // ensure we confirm/infirm
 							for ( JobExecRpcReq& j : it->second ) {
 								SWEAR(j.digest.write==Maybe) ;
-								j.digest.write = jerr.digest.write ;
+								/**/                    j.digest.write  = jerr.digest.write ;
+								if (+jerr.digest.write) j.comment_exts |= CommentExt::Err   ;
 								_new_access(fd,::move(j)) ;
 							}
 							slave_entry.second.erase(it) ;
@@ -557,25 +558,25 @@ Status Gather::exec_child() {
 						case Proc::Tmp :
 							if (!seen_tmp) {
 								if (no_tmp) {
-									_exec_trace(jerr.date,"bad_access_tmp") ;
+									_exec_trace( jerr.date , Comment::Ctmp , CommentExt::Err ) ;
 									set_status(Status::Err,"tmp access with no tmp dir") ;
 									kill() ;
 								} else {
-									_exec_trace(jerr.date,"access_tmp") ;
+									_exec_trace( jerr.date , Comment::Ctmp ) ;
 								}
 								seen_tmp = true ;
 							}
 						break ;
 						case Proc::Panic :
 							if (!panic_seen) {                                                                  // report only first panic
-								_exec_trace(jerr.date,"panic",jerr.file) ;
+								_exec_trace( jerr.date , Comment::Cpanic , {} , jerr.file ) ;
 								set_status(Status::Err,jerr.file) ;
 								kill() ;
 								panic_seen = true ;
 							}
 						[[fallthrough]] ;
 						case Proc::Trace :
-							_exec_trace(jerr.date,"trace",jerr.file) ;
+							_exec_trace( jerr.date , Comment::Ctrace , {} , jerr.file ) ;
 							trace(jerr.file) ;
 						break ;
 					DF}

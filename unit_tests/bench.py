@@ -8,7 +8,7 @@ n = 10000 # number of executables in sources
 l = 10    # number of objects per executable
 p = 5     # number of deps per object
 
-use_cat = False # if True, fake gcc using cat
+use_cat = True # if True, fake gcc using cat
 
 # to bench lmake versus bash, ninja, make and bazel :
 # - from top level, run : make unit_tests/bench.dir/tok ==> dir preparation
@@ -29,14 +29,14 @@ use_cat = False # if True, fake gcc using cat
 
 def compile_cmd(with_out,protect_dollar,output,input) :
 	d = '$$' if protect_dollar else '$'
-	if   not use_cat : return f'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -c -pipe -o {output} -xc {input}'
-	elif with_out    : return f'cat {d}(cat {input}) >{output}'
-	else             : return f'cat {d}(cat {input})'
+	if   not use_cat : return f'{gxx.gxx} -c -pipe -o {output} -xc {input}'
+	elif with_out    : return f'/usr/bin/cat {d}(cat {input}) >{output}'
+	else             : return f'/usr/bin/cat {d}(cat {input})'
 
 def link_cmd(with_out,output,*inputs) :
-	if   not use_cat : return f"PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -o {output} {' '.join(inputs)}"
-	elif with_out    : return f"cat {' '.join(inputs)} >{output}"
-	else             : return f"cat {' '.join(inputs)}"
+	if   not use_cat : return f"{gxx.gxx} -o {output} {' '.join(inputs)}"
+	elif with_out    : return f"/usr/bin/cat {' '.join(inputs)} >{output}"
+	else             : return f"/usr/bin/cat {' '.join(inputs)}"
 
 if __name__!='__main__' :
 
